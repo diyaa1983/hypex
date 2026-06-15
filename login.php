@@ -29,7 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($u === '' || $p === '') {
             $error = 'أدخل اسم المستخدم وكلمة المرور.';
         } elseif (!attempt_login($u, $p)) {
-            $error = 'بيانات الدخول غير صحيحة.';
+            $loginErr = trim((string) ($_SESSION['_login_last_error'] ?? ''));
+            unset($_SESSION['_login_last_error']);
+            $error = $loginErr !== '' ? $loginErr : 'بيانات الدخول غير صحيحة.';
         } else {
             redirect(app_url('index.php'));
         }

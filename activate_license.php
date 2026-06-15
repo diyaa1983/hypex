@@ -100,8 +100,8 @@ $continueUrl = $next !== '' ? $next : app_url('login.php');
     <?php endif; ?>
 
     <div class="field" style="margin-bottom:1rem;">
-        <span class="field-label">بصمة الجهاز (Fingerprint)</span>
-        <input class="input" type="text" readonly value="<?= esc((string) ($status['fingerprint_display'] ?? '')) ?>" dir="ltr">
+        <span class="field-label">Fingerprint Hash (بصمة الجهاز)</span>
+        <input class="input" type="text" readonly value="<?= esc((string) ($status['fingerprint_hash'] ?? '')) ?>" dir="ltr">
         <p class="muted" style="margin:.35rem 0 0;font-size:.82rem;">
             أرسل هذه البصمة لمزوّد النظام ليولّد لك رقم تفعيل مطابق.
         </p>
@@ -112,9 +112,16 @@ $continueUrl = $next !== '' ? $next : app_url('login.php');
             <span class="field-label">حالة الترخيص</span>
             <div class="muted" style="line-height:1.8;">
                 <div><strong>الترخيص:</strong> صالح</div>
+                    <?php if ((string) ($status['license_no'] ?? '') !== ''): ?>
+                        <div><strong>رقم النسخة:</strong> <code dir="ltr"><?= esc((string) $status['license_no']) ?></code></div>
+                    <?php endif; ?>
                 <?php if ((string) ($status['issued_to'] ?? '') !== ''): ?>
                     <div><strong>مرخّص إلى:</strong> <?= esc((string) $status['issued_to']) ?></div>
                 <?php endif; ?>
+                    <div><strong>المستخدمون النشطون:</strong> <?= (int) ($status['active_users'] ?? 0) ?></div>
+                    <?php if (!empty($status['max_users'])): ?>
+                        <div><strong>حد المستخدمين:</strong> <?= (int) $status['max_users'] ?></div>
+                    <?php endif; ?>
                 <?php if (!empty($status['expires_on'])): ?>
                     <div><strong>ينتهي بتاريخ:</strong> <span dir="ltr"><?= esc((string) $status['expires_on']) ?></span></div>
                 <?php else: ?>

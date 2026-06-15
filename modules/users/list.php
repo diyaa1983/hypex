@@ -6,6 +6,16 @@ require_permission('users');
 $pdo = db();
 $listUrl = app_url('index.php?r=users');
 $currentUserId = (int) (current_user()['id'] ?? 0);
+$adminGroupId = (int) ($pdo->query("SELECT id FROM sys_group WHERE code = 'ADMINS' LIMIT 1")->fetchColumn() ?: 0);
+$systemLicenseNo = '';
+if (function_exists('license_status')) {
+    try {
+        $licenseStatus = license_status($pdo);
+        $systemLicenseNo = strtoupper(trim((string) ($licenseStatus['license_no'] ?? '')));
+    } catch (Throwable $e) {
+        $systemLicenseNo = '';
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
@@ -24,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim((string) ($_POST['username'] ?? ''));
         $fullName = trim((string) ($_POST['full_name_ar'] ?? ''));
         $email = trim((string) ($_POST['email'] ?? ''));
+        $licenseNoInput = strtoupper(trim((string) ($_POST['license_no'] ?? '')));
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         $password = (string) ($_POST['password'] ?? '');
         $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
@@ -57,6 +68,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($validGroupIds === []) {
             throw new RuntimeException('اختر مجموعة واحدة على الأقل للمستخدم.');
+        }
+        if (strlen($licenseNoInput) > 80) {
+            throw new RuntimeException('رقم التفعيل للمستخدم طويل جداً.');
+        }
+        $isAdminMember = $adminGroupId > 0 && in_array($adminGroupId, $validGroupIds, true);
+        // عند تعطيل المستخدم: نفرّغ رقم التفعيل ليُحذف تلقائياً من شاشة التفعيلات.
+        $licenseNo = $isActive === 1 ? $licenseNoInput : '';
+        if ($isActive === 1 && !$isAdminMember) {
+            if ($licenseNo === '') {
+                throw new RuntimeException('أدخل رقم التفعيل للمستخدم العادي.');
+            }
+            if ($systemLicenseNo !== '' && !hash_equals($systemLicenseNo, $licenseNo)) {
+                throw new RuntimeException('رقم التفعيل للمستخدم يجب أن يطابق رقم النسخة الحالية.');
+            }
         }
         if ($id === $currentUserId && $isActive === 0) {
             throw new RuntimeException('لا يمكنك تعطيل حسابك الحالي.');
@@ -95,14 +120,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($isNew) {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
                 $ins = $pdo->prepare(
-                    'INSERT INTO sys_user (username, password_hash, full_name_ar, email, is_active)
-                     VALUES (?,?,?,?,?)'
+                    'INSERT INTO sys_user (username, password_hash, full_name_ar, email, license_no, is_active)
+                     VALUES (?,?,?,?,?,?)'
                 );
                 $ins->execute([
                     $username,
                     $hash,
                     $fullName,
                     $email !== '' ? $email : null,
+                    $licenseNo !== '' ? $licenseNo : null,
                     $isActive,
                 ]);
                 $id = (int) $pdo->lastInsertId();
@@ -114,12 +140,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $upd = $pdo->prepare(
-                    'UPDATE sys_user SET username = ?, full_name_ar = ?, email = ?, is_active = ? WHERE id = ?'
+                    'UPDATE sys_user SET username = ?, full_name_ar = ?, email = ?, license_no = ?, is_active = ? WHERE id = ?'
                 );
                 $upd->execute([
                     $username,
                     $fullName,
                     $email !== '' ? $email : null,
+                    $licenseNo !== '' ? $licenseNo : null,
                     $isActive,
                     $id,
                 ]);
@@ -190,12 +217,13 @@ $row = [
     'username' => '',
     'full_name_ar' => '',
     'email' => '',
+    'license_no' => '',
     'is_active' => 1,
 ];
 $memberGroupIds = [];
 
 if (!$isNew && $editId > 0) {
-    $st = $pdo->prepare('SELECT id, username, full_name_ar, email, is_active FROM sys_user WHERE id = ? LIMIT 1');
+    $st = $pdo->prepare('SELECT id, username, full_name_ar, email, license_no, is_active FROM sys_user WHERE id = ? LIMIT 1');
     $st->execute([$editId]);
     $dbRow = $st->fetch(PDO::FETCH_ASSOC);
     if (!$dbRow) {
@@ -214,12 +242,12 @@ $listTotal = (int) $pdo->query('SELECT COUNT(*) FROM sys_user')->fetchColumn();
 $pager = list_pager_with_total(list_pager_from_request($pdo), $listTotal);
 $listPagerUrl = list_pager_base_url('users');
 
-$listSql = 'SELECT u.id, u.username, u.full_name_ar, u.email, u.is_active,
+$listSql = 'SELECT u.id, u.username, u.full_name_ar, u.email, u.license_no, u.is_active,
         GROUP_CONCAT(g.name_ar ORDER BY g.name_ar SEPARATOR "، ") AS groups_ar
         FROM sys_user u
         LEFT JOIN sys_user_group ug ON ug.user_id = u.id
         LEFT JOIN sys_group g ON g.id = ug.group_id
-        GROUP BY u.id, u.username, u.full_name_ar, u.email, u.is_active
+        GROUP BY u.id, u.username, u.full_name_ar, u.email, u.license_no, u.is_active
         ORDER BY u.id' . list_pager_sql_limit($pager);
 $listRows = $pdo->query($listSql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -247,12 +275,13 @@ $formId = 'user-form';
                     <th>الاسم</th>
                     <th>المجموعات</th>
                     <th>البريد</th>
+                    <th>رقم التفعيل</th>
                     <th>نشط</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if ($listRows === []): ?>
-                    <tr><td colspan="6" class="muted" style="text-align:center;">لا يوجد مستخدمون بعد.</td></tr>
+                    <tr><td colspan="7" class="muted" style="text-align:center;">لا يوجد مستخدمون بعد.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($listRows as $u):
                     $uid = (int) $u['id'];
@@ -268,6 +297,7 @@ $formId = 'user-form';
                         <td><?= esc((string) $u['full_name_ar']) ?></td>
                         <td><?= esc((string) ($u['groups_ar'] ?? '—')) ?></td>
                         <td><?= esc((string) ($u['email'] ?? '—')) ?></td>
+                        <td><code dir="ltr"><?= esc((string) ($u['license_no'] ?? '—')) ?></code></td>
                         <td><?= (int) $u['is_active'] ? 'نعم' : 'لا' ?></td>
                     </tr>
                 <?php endforeach; ?>
@@ -316,6 +346,17 @@ $formId = 'user-form';
                     <?php if (!$isNew && $editId === $currentUserId): ?>
                         <input type="hidden" name="is_active" value="1">
                     <?php endif; ?>
+                </label>
+            </div>
+            <div class="form-row">
+                <label class="field">
+                    <span class="field-label">رقم التفعيل للمستخدم <?= ($systemLicenseNo !== '' ? '(نفس رقم النسخة الحالية)' : '') ?></span>
+                    <input class="input" name="license_no" maxlength="80" dir="ltr"
+                           value="<?= esc((string) ($row['license_no'] ?? '')) ?>"
+                           placeholder="<?= esc($systemLicenseNo !== '' ? $systemLicenseNo : 'LIC-USER-001') ?>">
+                    <span class="field-hint">
+                        مطلوب للمستخدمين العاديين. مستخدم Admin يمكن تركه فارغاً.
+                    </span>
                 </label>
             </div>
 

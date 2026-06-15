@@ -125,6 +125,8 @@ function require_permission(string $screenCode): void
 
 function attempt_login(string $username, string $password): bool
 {
+    unset($_SESSION['_login_last_error']);
+
     $username = trim($username);
     $st = db()->prepare('SELECT id, username, password_hash, full_name_ar, is_active FROM sys_user WHERE username = ? LIMIT 1');
     $st->execute([$username]);
@@ -137,6 +139,14 @@ function attempt_login(string $username, string $password): bool
     }
 
     $uid = (int) $row['id'];
+    if (function_exists('license_user_binding_check_for_login')) {
+        $licenseCheck = license_user_binding_check_for_login(db(), $uid);
+        if (!$licenseCheck['ok']) {
+            $_SESSION['_login_last_error'] = (string) ($licenseCheck['error'] ?? 'لا يمكن تسجيل الدخول بسبب الترخيص.');
+            return false;
+        }
+    }
+
     $_SESSION['user'] = [
         'id' => $uid,
         'username' => $row['username'],

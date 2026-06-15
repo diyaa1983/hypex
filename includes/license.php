@@ -134,7 +134,9 @@ function license_parse_key(string $licenseKey): array
  *   payload?:array<string,mixed>,
  *   expires_on?:?string,
  *   issued_to?:string,
- *   days_left?:?int
+ *   days_left?:?int,
+ *   license_no?:string,
+ *   max_users?:?int
  * }
  */
 function license_validate_key_for_fingerprint(string $licenseKey, string $expectedFingerprintHash): array
@@ -191,6 +193,15 @@ function license_validate_key_for_fingerprint(string $licenseKey, string $expect
     }
 
     $issuedTo = trim((string) ($payload['sub'] ?? $payload['customer'] ?? ''));
+    $licenseNo = trim((string) ($payload['lic_no'] ?? $payload['license_no'] ?? ''));
+    $maxUsers = null;
+    if (array_key_exists('max_users', $payload) && trim((string) $payload['max_users']) !== '') {
+        $tmpMaxUsers = (int) $payload['max_users'];
+        if ($tmpMaxUsers <= 0) {
+            return ['ok' => false, 'error' => 'قيمة الحد الأقصى للمستخدمين في رقم التفعيل غير صالحة.'];
+        }
+        $maxUsers = $tmpMaxUsers;
+    }
 
     return [
         'ok' => true,
@@ -199,11 +210,20 @@ function license_validate_key_for_fingerprint(string $licenseKey, string $expect
         'expires_on' => $expiresOn,
         'issued_to' => $issuedTo,
         'days_left' => $daysLeft,
+        'license_no' => $licenseNo,
+        'max_users' => $maxUsers,
     ];
 }
 
 /** @return string رقم تفعيل بصيغة LIC1 */
-function license_generate_key(string $fingerprintHash, string $secret, ?string $expiresOn = null, string $issuedTo = ''): string
+function license_generate_key(
+    string $fingerprintHash,
+    string $secret,
+    ?string $expiresOn = null,
+    string $issuedTo = '',
+    string $licenseNo = '',
+    ?int $maxUsers = null
+): string
 {
     $fingerprintHash = strtolower(trim($fingerprintHash));
     if (!preg_match('/^[a-f0-9]{64}$/', $fingerprintHash)) {
@@ -220,6 +240,16 @@ function license_generate_key(string $fingerprintHash, string $secret, ?string $
     $issuedTo = trim($issuedTo);
     if ($issuedTo !== '') {
         $payload['sub'] = $issuedTo;
+    }
+    $licenseNo = trim($licenseNo);
+    if ($licenseNo !== '') {
+        $payload['lic_no'] = $licenseNo;
+    }
+    if ($maxUsers !== null) {
+        if ($maxUsers <= 0) {
+            throw new InvalidArgumentException('Max users must be greater than zero.');
+        }
+        $payload['max_users'] = $maxUsers;
     }
     if ($expiresOn !== null && trim($expiresOn) !== '') {
         if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $expiresOn, $mx)) {
@@ -251,6 +281,8 @@ function license_ensure_schema(PDO $pdo): void
         require_once app_path('includes/sql_migration.php');
     }
     sql_migration_run_file_once($pdo, 'database/migrations/151_sys_license.sql');
+    sql_migration_run_file_once($pdo, 'database/migrations/152_sys_license_meta.sql');
+    sql_migration_run_file_once($pdo, 'database/migrations/153_sys_user_license_no.sql');
     $ready = true;
 }
 
@@ -262,8 +294,8 @@ function license_fetch_row(PDO $pdo): ?array
     return is_array($row) ? $row : null;
 }
 
-/** @param array{payload?:array<string,mixed>,expires_on?:?string,issued_to?:string} $validated */
-function license_store_row(PDO $pdo, string $licenseKey, array $validated): void
+/** @param array{payload?:array<string,mixed>,expires_on?:?string,issued_to?:string,license_no?:string,max_users?:?int} $validated */
+function license_store_row(PDO $pdo, string $licenseKey, array $validated, ?array $actor = null): void
 {
     $payloadJson = json_encode($validated['payload'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if ($payloadJson === false) {
@@ -272,28 +304,123 @@ function license_store_row(PDO $pdo, string $licenseKey, array $validated): void
 
     $fingerprintHash = strtolower((string) (($validated['payload']['fp'] ?? '') ?: license_fingerprint_hash()));
     $issuedTo = trim((string) ($validated['issued_to'] ?? ''));
+    $licenseNo = trim((string) ($validated['license_no'] ?? ''));
+    $maxUsers = $validated['max_users'] ?? null;
+    if ($maxUsers !== null) {
+        $maxUsers = max(1, (int) $maxUsers);
+    }
     $expiresOn = $validated['expires_on'] ?? null;
     if ($expiresOn !== null && trim((string) $expiresOn) === '') {
         $expiresOn = null;
     }
+    $actorUserId = (int) ($actor['user_id'] ?? 0);
+    $actorUsername = trim((string) ($actor['username'] ?? ''));
+    $actorName = trim((string) ($actor['name'] ?? ''));
 
     $sql = 'INSERT INTO sys_license
-            (id, license_key, fingerprint_hash, issued_to, expires_on, payload_json, activated_at, updated_at)
-            VALUES (1, ?, ?, ?, ?, ?, NOW(), NOW())
+            (id, license_key, fingerprint_hash, issued_to, license_no, max_users, expires_on, payload_json,
+             activated_by_user_id, activated_by_username, activated_by_name, activated_at, updated_at)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ON DUPLICATE KEY UPDATE
                 license_key = VALUES(license_key),
                 fingerprint_hash = VALUES(fingerprint_hash),
                 issued_to = VALUES(issued_to),
+                license_no = VALUES(license_no),
+                max_users = VALUES(max_users),
                 expires_on = VALUES(expires_on),
                 payload_json = VALUES(payload_json),
+                activated_by_user_id = VALUES(activated_by_user_id),
+                activated_by_username = VALUES(activated_by_username),
+                activated_by_name = VALUES(activated_by_name),
                 updated_at = NOW()';
     $st = $pdo->prepare($sql);
     $st->execute([
         trim($licenseKey),
         $fingerprintHash,
         $issuedTo !== '' ? $issuedTo : null,
+        $licenseNo !== '' ? $licenseNo : null,
+        $maxUsers,
         $expiresOn,
         $payloadJson,
+        $actorUserId > 0 ? $actorUserId : null,
+        $actorUsername !== '' ? $actorUsername : null,
+        $actorName !== '' ? $actorName : null,
+    ]);
+}
+
+/** @return array{user_id:int,username:string,name:string} */
+function license_activation_actor(): array
+{
+    $u = current_user();
+    return [
+        'user_id' => (int) ($u['id'] ?? 0),
+        'username' => trim((string) ($u['username'] ?? '')),
+        'name' => trim((string) ($u['full_name_ar'] ?? '')),
+    ];
+}
+
+function license_count_active_users(PDO $pdo, ?string $licenseNo = null): int
+{
+    try {
+        $licenseNo = strtoupper(trim((string) $licenseNo));
+        if ($licenseNo !== '') {
+            $st = $pdo->prepare(
+                'SELECT COUNT(*) FROM sys_user
+                 WHERE is_active = 1
+                   AND UPPER(TRIM(COALESCE(license_no, ""))) = ?'
+            );
+            $st->execute([$licenseNo]);
+            return (int) ($st->fetchColumn() ?: 0);
+        }
+
+        return (int) $pdo->query('SELECT COUNT(*) FROM sys_user WHERE is_active = 1')->fetchColumn();
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
+/** @return list<array<string,mixed>> */
+function license_active_linked_users(PDO $pdo, string $licenseNo, int $limit = 200): array
+{
+    $licenseNo = strtoupper(trim($licenseNo));
+    if ($licenseNo === '') {
+        return [];
+    }
+    $limit = max(1, min(500, $limit));
+    try {
+        $sql = 'SELECT id, username, full_name_ar, email
+                FROM sys_user
+                WHERE is_active = 1
+                  AND UPPER(TRIM(COALESCE(license_no, ""))) = ?
+                ORDER BY full_name_ar, username, id
+                LIMIT ' . $limit;
+        $st = $pdo->prepare($sql);
+        $st->execute([$licenseNo]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        return is_array($rows) ? $rows : [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/** @param array{issued_to?:string,license_no?:string,max_users?:?int} $validated */
+function license_insert_activation_log(PDO $pdo, string $fingerprintHash, array $validated, array $actor): void
+{
+    $licenseNo = strtoupper(trim((string) ($validated['license_no'] ?? '')));
+    $sql = 'INSERT INTO sys_license_activation_log
+            (fingerprint_hash, license_no, issued_to, max_users, active_users,
+             activated_by_user_id, activated_by_username, activated_by_name, activated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())';
+    $st = $pdo->prepare($sql);
+    $st->execute([
+        $fingerprintHash,
+        trim((string) ($validated['license_no'] ?? '')) !== '' ? trim((string) $validated['license_no']) : null,
+        trim((string) ($validated['issued_to'] ?? '')) !== '' ? trim((string) $validated['issued_to']) : null,
+        isset($validated['max_users']) && $validated['max_users'] !== null ? (int) $validated['max_users'] : null,
+        license_count_active_users($pdo, $licenseNo),
+        (int) ($actor['user_id'] ?? 0) > 0 ? (int) $actor['user_id'] : null,
+        trim((string) ($actor['username'] ?? '')) !== '' ? trim((string) $actor['username']) : null,
+        trim((string) ($actor['name'] ?? '')) !== '' ? trim((string) ($actor['name'] ?? '')) : null,
     ]);
 }
 
@@ -318,8 +445,13 @@ function license_mask_key(string $key): string
  *   fingerprint_hash:string,
  *   fingerprint_display:string,
  *   issued_to:string,
+ *   license_no:string,
  *   expires_on:?string,
  *   days_left:?int,
+ *   max_users:?int,
+ *   active_users:int,
+ *   activated_by_username:string,
+ *   activated_by_name:string,
  *   license_key_masked:string
  * }
  */
@@ -333,8 +465,13 @@ function license_status(PDO $pdo): array
         'fingerprint_hash' => $fingerprintHash,
         'fingerprint_display' => license_fingerprint_display($fingerprintHash),
         'issued_to' => '',
+        'license_no' => '',
         'expires_on' => null,
         'days_left' => null,
+        'max_users' => null,
+        'active_users' => 0,
+        'activated_by_username' => '',
+        'activated_by_name' => '',
         'license_key_masked' => '—',
     ];
 
@@ -358,6 +495,8 @@ function license_status(PDO $pdo): array
 
     $storedKey = (string) ($row['license_key'] ?? '');
     $base['license_key_masked'] = license_mask_key($storedKey);
+    $base['activated_by_username'] = trim((string) ($row['activated_by_username'] ?? ''));
+    $base['activated_by_name'] = trim((string) ($row['activated_by_name'] ?? ''));
     $validation = license_validate_key_for_fingerprint($storedKey, $fingerprintHash);
     if (!$validation['ok']) {
         $base['valid'] = false;
@@ -368,8 +507,20 @@ function license_status(PDO $pdo): array
     $base['valid'] = true;
     $base['message'] = 'الترخيص صالح ومفعّل على هذا الجهاز.';
     $base['issued_to'] = (string) ($validation['issued_to'] ?? '');
+    $base['license_no'] = (string) ($validation['license_no'] ?? '');
     $base['expires_on'] = $validation['expires_on'] ?? null;
     $base['days_left'] = $validation['days_left'] ?? null;
+    $base['max_users'] = $validation['max_users'] ?? null;
+    $base['active_users'] = license_count_active_users($pdo, $base['license_no']);
+    if ($base['license_no'] !== '' && $base['active_users'] <= 0) {
+        $base['valid'] = false;
+        $base['message'] = 'لا يوجد مستخدم مفعّل مرتبط بهذه النسخة. أدخل رقم تفعيل جديد أولاً.';
+        return $base;
+    }
+    if ($base['max_users'] !== null && $base['active_users'] > (int) $base['max_users']) {
+        $base['valid'] = false;
+        $base['message'] = 'عدد المستخدمين النشطين يتجاوز الحد المرخّص به لهذا الرقم.';
+    }
     return $base;
 }
 
@@ -387,7 +538,9 @@ function license_activate(PDO $pdo, string $licenseKey): array
     }
 
     license_ensure_schema($pdo);
-    license_store_row($pdo, $licenseKey, $validation);
+    $actor = license_activation_actor();
+    license_store_row($pdo, $licenseKey, $validation, $actor);
+    license_insert_activation_log($pdo, $fingerprintHash, $validation, $actor);
     $status = license_status($pdo);
 
     return [
@@ -395,6 +548,71 @@ function license_activate(PDO $pdo, string $licenseKey): array
         'message' => (bool) ($status['valid'] ?? false) ? 'تم حفظ رقم التفعيل بنجاح.' : 'تم الحفظ لكن التحقق فشل.',
         'status' => $status,
     ];
+}
+
+function license_deactivate(PDO $pdo): void
+{
+    license_ensure_schema($pdo);
+    $pdo->prepare('DELETE FROM sys_license WHERE id = 1')->execute();
+}
+
+/** @return list<array<string,mixed>> */
+function license_recent_activation_logs(PDO $pdo, int $limit = 20): array
+{
+    $limit = max(1, min(100, $limit));
+    try {
+        $sql = 'SELECT id, fingerprint_hash, license_no, issued_to, max_users, active_users,
+                       activated_by_username, activated_by_name, activated_at
+                FROM sys_license_activation_log
+                ORDER BY id DESC
+                LIMIT ' . $limit;
+        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+        return is_array($rows) ? $rows : [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function license_delete_activation_log(PDO $pdo, int $logId): void
+{
+    if ($logId <= 0) {
+        return;
+    }
+    $st = $pdo->prepare('DELETE FROM sys_license_activation_log WHERE id = ?');
+    $st->execute([$logId]);
+}
+
+/** @return array{ok:bool,error:string} */
+function license_user_binding_check_for_login(PDO $pdo, int $userId): array
+{
+    if ($userId <= 0 || !license_is_enforced()) {
+        return ['ok' => true, 'error' => ''];
+    }
+    if (user_is_system_admin($userId)) {
+        return ['ok' => true, 'error' => ''];
+    }
+
+    $status = license_status($pdo);
+    if (!($status['valid'] ?? false)) {
+        return ['ok' => false, 'error' => (string) ($status['message'] ?? 'النظام غير مرخّص.')];
+    }
+
+    $currentLicenseNo = strtoupper(trim((string) ($status['license_no'] ?? '')));
+    if ($currentLicenseNo === '') {
+        return ['ok' => false, 'error' => 'رقم النسخة غير محدد في الترخيص الحالي.'];
+    }
+
+    $st = $pdo->prepare('SELECT license_no FROM sys_user WHERE id = ? LIMIT 1');
+    $st->execute([$userId]);
+    $userLicenseNo = strtoupper(trim((string) ($st->fetchColumn() ?: '')));
+    if ($userLicenseNo === '') {
+        return ['ok' => false, 'error' => 'حسابك غير مربوط برقم تفعيل. راجع مسؤول النظام.'];
+    }
+    if (!hash_equals($currentLicenseNo, $userLicenseNo)) {
+        return ['ok' => false, 'error' => 'رقم تفعيل المستخدم لا يطابق رقم النسخة الحالية.'];
+    }
+
+    return ['ok' => true, 'error' => ''];
 }
 
 function license_safe_next_url(?string $next): string
@@ -426,7 +644,19 @@ function license_guard_or_redirect(): void
     }
 
     $script = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
-    if ($script === 'activate_license.php') {
+    if (
+        $script === 'activate_license.php'
+        || $script === 'login.php'
+        || $script === 'forgot_password.php'
+        || $script === 'reset_password.php'
+    ) {
+        return;
+    }
+
+    $user = current_user();
+    $currentUserId = (int) ($user['id'] ?? 0);
+    if ($currentUserId > 0 && user_is_system_admin($currentUserId)) {
+        // المستخدم من مجموعة ADMINS لا يحتاج تفعيل.
         return;
     }
 
