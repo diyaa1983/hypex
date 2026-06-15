@@ -207,6 +207,9 @@ if ($showResult) {
                 </select>
             </label>
         </div>
+        <p class="field-hint" style="margin:0.5rem 0 0;">
+            عند اختيار «كل الأشهر» يعرض التقرير كامل السنة المختارة.
+        </p>
 
         <div style="margin-top:0.5rem;">
             <button class="btn btn-primary" type="submit">عرض التقرير</button>
