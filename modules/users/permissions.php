@@ -120,10 +120,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <div class="card">
-    <p class="muted">فعّل مربعات الشاشات والتقارير التي تريد أن تظهر وتُستخدم لهذه المجموعة، ثم صلاحيات الإجراءات الحساسة (فك الترحيل، الحذف، الترحيل، الفوترة…).</p>
-    <p class="muted" style="font-size:0.82rem;margin-top:0.35rem;">
-        الشاشات: <code>config/routes.php</code> و<code>config/nav_menu.php</code> — الإجراءات: <code>config/action_permissions.php</code>.
-    </p>
     <?php if ($syncedScreens > 0 || $syncedActions > 0): ?>
         <div class="alert alert-success">
             <?php if ($syncedScreens > 0): ?>تمت إضافة <?= (int) $syncedScreens ?> شاشة/تقرير.<?php endif; ?>
