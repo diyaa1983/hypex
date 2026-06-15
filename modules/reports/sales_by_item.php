@@ -230,10 +230,15 @@ customer_picker_json_script($customers, 'report-sales-item-customers-json');
                     $seq = 0;
                     foreach ($rows as $r):
                         $seq += 1;
+                        $invUrl = app_url('index.php?r=sales_invoices&id=' . (int) ($r['invoice_id'] ?? 0));
                         ?>
                         <tr>
                             <td class="col-seq"><?= $seq ?></td>
-                            <td class="col-inv-no"><?= esc((string) $r['invoice_no']) ?></td>
+                            <td class="col-inv-no">
+                                <code><?= esc((string) $r['invoice_no']) ?></code>
+                                <a class="btn btn-ghost btn-sm no-print" style="padding:0 0.35rem;font-size:0.75rem;"
+                                   href="<?= esc($invUrl) ?>">عرض</a>
+                            </td>
                             <td class="col-item"><span class="report-sales-item-name"><?= esc((string) $r['item_name']) ?></span></td>
                             <td class="col-date"><?= esc(format_date_dmY((string) ($r['invoice_date'] ?? ''))) ?></td>
                             <td class="col-money"><?= esc(format_money((float) $r['unit_price_incl'])) ?></td>
