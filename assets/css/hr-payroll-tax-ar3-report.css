@@ -1,0 +1,200 @@
+.hr-tax-ar3-page {
+  max-width: 980px;
+  margin-inline: auto;
+}
+
+.hr-tax-ar3-filters {
+  margin-bottom: 1rem;
+}
+
+.hr-tax-ar3-filters-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+}
+
+.hr-tax-ar3-filters-form .field {
+  margin: 0;
+  min-width: 160px;
+}
+
+.hr-tax-ar3-filters-form .field--wide {
+  flex: 1 1 280px;
+  min-width: 240px;
+}
+
+.hr-tax-ar3-hint {
+  margin: 0 1rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+.hr-tax-ar3-doc {
+  padding: 1rem 1.1rem 1.5rem;
+  background: #fff;
+  border: 1px solid var(--ora12-border, #cbd5e1);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+  position: relative;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.tax-ar3-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.tax-ar3-head__code {
+  font-weight: 700;
+  font-size: 0.78rem;
+  color: #334155;
+}
+
+.tax-ar3-head__ministry {
+  text-align: center;
+  flex: 1;
+}
+
+.tax-ar3-head__ministry-line {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.tax-ar3-title {
+  margin: 0.35rem 0 0.25rem;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.tax-ar3-law {
+  margin: 0 0 0.85rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.tax-ar3-emp-table,
+.tax-ar3-main-table,
+.tax-ar3-employer-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: 0.75rem;
+}
+
+.tax-ar3-emp-table th,
+.tax-ar3-emp-table td,
+.tax-ar3-main-table th,
+.tax-ar3-main-table td,
+.tax-ar3-main-table tfoot td,
+.tax-ar3-employer-table td {
+  border: 1px solid #0f172a;
+  padding: 0.28rem 0.35rem;
+  vertical-align: top;
+  text-align: right;
+}
+
+.tax-ar3-section-title {
+  text-align: center !important;
+  background: #e2e8f0;
+  font-weight: 800;
+  padding: 0.35rem !important;
+}
+
+.tax-ar3-emp-label {
+  display: block;
+  font-size: 0.68rem;
+  color: #64748b;
+  margin-bottom: 0.1rem;
+}
+
+.tax-ar3-emp-fullname {
+  font-size: 0.88rem;
+}
+
+.tax-ar3-name-row td {
+  width: 25%;
+}
+
+.tax-ar3-main-table thead th {
+  background: #d9d9d9;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.74rem;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.tax-ar3-col-desc {
+  width: 42%;
+  text-align: start !important;
+  font-size: 0.74rem;
+}
+
+.tax-ar3-money {
+  width: 9%;
+  text-align: center !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tax-ar3-total-row td {
+  background: #eef2ff;
+  font-weight: 800;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.tax-ar3-declaration {
+  margin: 0.85rem 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #94a3b8;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.tax-ar3-date-row {
+  text-align: start !important;
+}
+
+.tax-ar3-footnote {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+}
+
+@media print {
+  .hr-tax-ar3-page {
+    max-width: none;
+  }
+
+  .hr-tax-ar3-doc {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    font-size: 8pt;
+  }
+
+  .tax-ar3-title {
+    font-size: 11pt;
+  }
+
+  .tax-ar3-main-table,
+  .tax-ar3-emp-table,
+  .tax-ar3-employer-table {
+    page-break-inside: avoid;
+  }
+
+  .tax-ar3-section-title,
+  .tax-ar3-main-table thead th,
+  .tax-ar3-total-row td {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

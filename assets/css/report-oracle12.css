@@ -1,0 +1,358 @@
+/* ── التقارير — Oracle 12c (غلاف مشترك عبر layout) ── */
+
+.report-ora12-screen {
+  --ora12-blue: #0572ce;
+  --ora12-blue-dark: #024d8f;
+  --ora12-border: #5c6670;
+  --ora12-text: #161513;
+  --ora12-muted: #5c5c5c;
+  --ora12-title: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.8125rem;
+  width: 100%;
+  max-width: none;
+}
+
+.main-wrap:has(.report-ora12-screen) .main-content,
+body.report-ora12-ui .main-content {
+  padding: 0.45rem 0.55rem 0.85rem;
+  background: var(--shell-bg, #d4d0c8);
+}
+
+.report-ora12-screen-title__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.report-ora12-screen-title .report-ora12-fav-btn {
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  padding: 0.12rem 0.28rem;
+  line-height: 0;
+  cursor: pointer;
+}
+
+.report-ora12-screen-title .report-ora12-fav-btn.is-active {
+  color: #ffd54f;
+  border-color: rgba(255, 213, 79, 0.55);
+}
+
+.report-ora12-workspace {
+  gap: 0.5rem;
+}
+
+/* إزالة مظهر البطاقة الحديث */
+.report-ora12-screen .card.report-sales-page,
+.report-ora12-screen .report-sales-page.card,
+.report-ora12-screen .card.report-acc-wrap,
+.report-ora12-screen .card.master-page {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  max-width: none;
+  border-radius: 0;
+}
+
+/* لوحة الفلاتر */
+.report-ora12-screen .report-sales-filters,
+.report-ora12-screen .report-acc-filters {
+  max-width: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+  border-radius: 0;
+}
+
+.report-ora12-screen .report-sales-filters::before,
+.report-ora12-screen .report-acc-filters::before {
+  content: 'معايير التقرير';
+  display: block;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+}
+
+.report-ora12-screen .report-sales-filters .form-row,
+.report-ora12-screen .report-sales-filters > div:not([hidden]) {
+  padding: 0.55rem;
+}
+
+.report-ora12-screen form.report-acc-filters {
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: flex-end;
+  padding: 0.55rem;
+}
+
+.report-ora12-screen form.report-acc-filters::before {
+  flex: 0 0 100%;
+  width: 100%;
+  margin: -0.55rem -0.55rem 0;
+  padding: 0.42rem 0.7rem;
+  box-sizing: border-box;
+}
+
+.report-ora12-screen .report-sales-item-filter {
+  max-width: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  background: #fff;
+}
+
+.report-ora12-screen .report-sales-item-filter::before {
+  content: 'بحث';
+  display: block;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #5a9fd4 0%, #3d85c6 100%);
+  border-bottom: 1px solid #2d6ba8;
+}
+
+.report-ora12-screen .report-sales-item-filter-field,
+.report-ora12-screen .report-sales-item-filter > *:not(::before) {
+  padding: 0.55rem;
+}
+
+.report-ora12-screen .report-sales-item-filter-hint {
+  padding: 0 0.55rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+/* حقول الإدخال */
+.report-ora12-screen .input,
+.report-ora12-screen select.input,
+.report-ora12-screen textarea.input {
+  border-radius: 2px;
+  border-color: var(--ora12-border);
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
+.report-ora12-screen .field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+/* أزرار */
+.report-ora12-screen .btn,
+.report-ora12-screen .dashboard-ora-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.65rem;
+  min-height: 1.65rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.report-ora12-screen .btn-primary,
+.report-ora12-screen .btn.btn-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+  border-color: var(--ora12-blue-dark);
+}
+
+.report-ora12-screen .btn-primary:hover {
+  background: linear-gradient(180deg, #2b9af0 0%, #0a7fd8 55%, #035fa8 100%);
+  color: #fff;
+}
+
+.report-ora12-screen .btn-secondary,
+.report-ora12-screen .btn-ghost {
+  color: var(--ora12-text);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+}
+
+.report-ora12-screen .btn-secondary:hover,
+.report-ora12-screen .btn-ghost:hover {
+  background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+  border-color: #9ab8d0;
+}
+
+/* منطقة النتائج */
+.report-ora12-screen .report-sales-result,
+.report-ora12-screen .report-sales-print-area,
+.report-ora12-screen .report-acc-result {
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  padding: 0.55rem;
+  margin-top: 0;
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+}
+
+.report-ora12-screen .report-sales-page:has(.report-sales-print-area) {
+  padding-top: 0;
+}
+
+/* جداول التقارير */
+.report-ora12-screen .report-sales-table th,
+.report-ora12-screen .report-acc-table th,
+.report-ora12-screen .data-table thead th {
+  background: var(--ora12-title);
+  color: #fff;
+  border-color: var(--ora12-blue-dark);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.38rem 0.35rem;
+}
+
+.report-ora12-screen .report-sales-table td,
+.report-ora12-screen .report-acc-table td,
+.report-ora12-screen .data-table tbody td {
+  border-color: #d0d7de;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.35rem;
+}
+
+.report-ora12-screen .report-sales-table tbody tr:nth-child(even) td,
+.report-ora12-screen .report-acc-table tbody tr:nth-child(even) td {
+  background: #f7f9fb;
+}
+
+.report-ora12-screen .report-sales-table tfoot td,
+.report-ora12-screen .report-acc-table tfoot td {
+  background: #eef2f6;
+  font-weight: 700;
+}
+
+.report-ora12-screen .js-sort-th.is-sorted {
+  background: linear-gradient(180deg, #024d8f 0%, #013a6b 100%);
+}
+
+/* تبويبات وتنقل داخل التقرير */
+.report-ora12-screen .report-acc-tabs,
+.report-ora12-screen .sal-inv-list-tabs,
+.report-ora12-screen .report-tb-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 0.5rem;
+}
+
+.report-ora12-screen .alert {
+  border-radius: 2px;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+/* ميزان مراجعة / تقارير محاسبية */
+.report-ora12-screen .report-trial-balance-page .report-tb-balance-banner {
+  border-radius: 2px;
+}
+
+.report-ora12-screen .report-acc-wrap .report-acc-toolbar {
+  margin-bottom: 0.5rem;
+}
+
+/* ── شاشات البيانات الأساسية (مخزون، مستخدمين، شجرة حسابات…) ── */
+
+.report-ora12-workspace > .toolbar,
+.report-ora12-workspace > .coa-toolbar,
+.report-ora12-workspace > .dashboard-ora-toolbar,
+.report-ora12-workspace > .acc-map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.55rem;
+  background: #f3f5f7;
+  border: 1px solid var(--ora12-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.report-ora12-workspace .coa-page-title,
+.report-ora12-workspace .toolbar h2,
+.report-ora12-workspace .acc-map-title {
+  display: none;
+}
+
+.report-ora12-workspace > .card,
+.report-ora12-workspace form.card {
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+  padding: 0;
+  margin: 0 0 0.5rem;
+  max-width: none;
+}
+
+.report-ora12-workspace > .card > .table-wrap,
+.report-ora12-workspace form.card .form-grid,
+.report-ora12-workspace > .card .form-grid {
+  padding: 0.55rem;
+}
+
+.report-ora12-workspace .table-wrap {
+  overflow-x: auto;
+}
+
+.report-ora12-screen .data-table tbody tr:nth-child(even) td {
+  background: #f7f9fb;
+}
+
+.report-ora12-workspace .form-row {
+  gap: 0.55rem;
+}
+
+.report-ora12-workspace .coa-tree-wrap,
+.report-ora12-workspace .coa-tree-panel {
+  border: 1px solid var(--ora12-border);
+  background: #fff;
+}
+
+.report-ora12-workspace .settings-ora-form {
+  max-width: none;
+}
+
+.report-ora12-workspace .settings-ora-panel {
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 720px) {
+  .main-wrap:has(.report-ora12-screen) .main-content,
+  body.report-ora12-ui .main-content {
+    padding: 0.35rem;
+  }
+}
+
+@media print {
+  .report-ora12-screen,
+  .report-ora12-workspace {
+    border: none;
+    background: #fff;
+    padding: 0;
+  }
+
+  .report-ora12-screen .report-sales-filters,
+  .report-ora12-screen .report-acc-filters,
+  .report-ora12-screen-title {
+    display: none !important;
+  }
+}

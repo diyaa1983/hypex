@@ -1,0 +1,310 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * هيكل القائمة الجانبية وصلاحيات المجموعات.
+ * كل مجال (domain) في الشريط → المجلدات (subgroups) في المحتوى الرئيسي → الشاشات داخل المجلد.
+ * المفتاح `r` يطابق sys_screen.code و config/routes.php.
+ */
+return [
+    'domains' => [
+        [
+            'id' => 'main',
+            'title' => 'رئيسي',
+            'subgroups' => [
+                [
+                    'id' => 'general',
+                    'title' => 'عام',
+                    'items' => [
+                        ['r' => 'dashboard', 'label' => 'لوحة التحكم', 'icon' => '⌂'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'sales',
+            'title' => 'المبيعات',
+            'subgroups' => [
+                [
+                    'id' => 'operations',
+                    'title' => 'المبيعات',
+                    'items' => [
+                        ['r' => 'sales_invoices', 'label' => 'فاتورة مبيعات', 'icon' => '🧾'],
+                        ['r' => 'sales_documents_list', 'label' => 'قائمة فواتير المبيعات', 'icon' => '📑'],
+                        ['r' => 'sales_returns_documents_list', 'label' => 'قائمة المرتجعات', 'icon' => '↩'],
+                        ['r' => 'sales_invoices_list', 'label' => 'ترحيل فواتير المبيعات', 'icon' => '📋'],
+                        ['r' => 'sales_delivery', 'label' => 'سند تسليم بضاعة', 'icon' => '📦'],
+                        ['r' => 'sales_returns', 'label' => 'مرتجع مبيعات', 'icon' => '↩'],
+                        ['r' => 'sales_returns_list', 'label' => 'ترحيل مرتجعات المبيعات', 'icon' => '📋'],
+                        ['r' => 'customers', 'label' => 'العملاء', 'icon' => '👤'],
+                        ['r' => 'sales_reps', 'label' => 'المندوبين', 'icon' => '🧑‍💼'],
+                    ],
+                ],
+                [
+                    'id' => 'reports',
+                    'title' => 'التقارير',
+                    'items' => [
+                        ['r' => 'report_customers', 'label' => 'تقرير العملاء', 'icon' => '👥'],
+                        ['r' => 'report_sales', 'label' => 'تقرير مبيعات العميل بين تاريخين', 'icon' => '📈'],
+                        ['r' => 'report_sales_by_rep', 'label' => 'تقرير المبيعات حسب المندوب', 'icon' => '📊'],
+                        ['r' => 'report_sales_by_item', 'label' => 'تقرير المبيعات حسب المادة', 'icon' => '📦'],
+                        ['r' => 'report_sales_returns', 'label' => 'تقرير المرتجعات', 'icon' => '↩️'],
+                        ['r' => 'report_sales_returns_totals', 'label' => 'إجمالي المرتجعات', 'icon' => '∑'],
+                        ['r' => 'report_sales_qty_extra', 'label' => 'تقرير الكميات الإضافية على الفواتير', 'icon' => '➕'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'purchases',
+            'title' => 'المشتريات',
+            'subgroups' => [
+                [
+                    'id' => 'operations',
+                    'title' => 'المشتريات',
+                    'items' => [
+                        ['r' => 'purchase_invoices', 'label' => 'فاتورة شراء', 'icon' => '📥'],
+                        ['r' => 'purchase_documents_list', 'label' => 'قائمة فواتير الشراء', 'icon' => '📑'],
+                        ['r' => 'purchase_returns_documents_list', 'label' => 'قائمة مردودات المشتريات', 'icon' => '↩'],
+                        ['r' => 'purchase_invoices_list', 'label' => 'ترحيل فواتير الشراء', 'icon' => '📋'],
+                        ['r' => 'purchase_returns', 'label' => 'مردود مشتريات', 'icon' => '↩'],
+                        ['r' => 'purchase_returns_list', 'label' => 'ترحيل مردودات المشتريات', 'icon' => '📋'],
+                        ['r' => 'suppliers', 'label' => 'الموردون', 'icon' => '🏭'],
+                    ],
+                ],
+                [
+                    'id' => 'reports',
+                    'title' => 'التقارير',
+                    'items' => [
+                        ['r' => 'report_purchases', 'label' => 'تقرير المشتريات بين تاريخين', 'icon' => '📈'],
+                        ['r' => 'report_purchases_by_item', 'label' => 'تقرير المشتريات حسب المادة', 'icon' => '📦'],
+                        ['r' => 'report_purchase_returns', 'label' => 'تقرير مرتجعات المشتريات', 'icon' => '↩️'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'finance',
+            'title' => 'المالية',
+            'subgroups' => [
+                [
+                    'id' => 'finance',
+                    'title' => 'المالية',
+                    'items' => [
+                        ['r' => 'chart_of_accounts', 'label' => 'شجرة الحسابات', 'icon' => '🌳'],
+                        ['r' => 'account_mapping', 'label' => 'ربط الحسابات', 'icon' => '🔗'],
+                        ['r' => 'inventory_align_warehouse', 'label' => 'مواءمة المخزون مع المستودع', 'icon' => '⚖'],
+                        ['r' => 'cash_receipt', 'label' => 'سند قبض', 'icon' => '⬆'],
+                        ['r' => 'cash_receipts_list', 'label' => 'ترحيل سندات القبض', 'icon' => '📋'],
+                        ['r' => 'cash_payment', 'label' => 'سند صرف', 'icon' => '⬇'],
+                        ['r' => 'cash_payments_list', 'label' => 'ترحيل سندات الصرف', 'icon' => '📋'],
+                        ['r' => 'journal_voucher', 'label' => 'سند قيد', 'icon' => '⚖'],
+                        ['r' => 'debit_notes', 'label' => 'إشعارات مدينة', 'icon' => 'Ⓓ'],
+                        ['r' => 'credit_notes', 'label' => 'إشعارات دائنة', 'icon' => 'Ⓒ'],
+                    ],
+                ],
+                [
+                    'id' => 'reports',
+                    'title' => 'التقارير',
+                    'items' => [
+                        ['r' => 'report_vouchers', 'label' => 'تقرير سندات القبض / الصرف', 'icon' => '📒'],
+                        ['r' => 'report_chart_of_accounts', 'label' => 'طباعة شجرة الحسابات', 'icon' => '🌳'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'inventory',
+            'title' => 'المستودعات',
+            'subgroups' => [
+                [
+                    'id' => 'operations',
+                    'title' => 'المستودعات',
+                    'items' => [
+                        ['r' => 'warehouses', 'label' => 'المستودعات', 'icon' => '📦'],
+                        ['r' => 'inv_movement_types_settings', 'label' => 'إعداد أنواع الحركات', 'icon' => '⚙'],
+                        ['r' => 'items', 'label' => 'المواد والأصناف', 'icon' => '🏷'],
+                        ['r' => 'item_categories', 'label' => 'فئات المواد', 'icon' => '📦'],
+                        ['r' => 'item_units', 'label' => 'وحدات القياس', 'icon' => '📐'],
+                        ['r' => 'warehouse_moves', 'label' => 'حركات المستودع', 'icon' => '🔄'],
+                    ],
+                ],
+                [
+                    'id' => 'warehouse_reports',
+                    'title' => 'تقارير المستودعات',
+                    'items' => [
+                        ['r' => 'item_stock_movements', 'label' => 'كشف حركات مادة', 'icon' => '📋'],
+                        ['r' => 'report_warehouse_items', 'label' => 'تقرير المواد', 'icon' => '📋'],
+                        ['r' => 'report_warehouse_zero_qty', 'label' => 'المواد التي رصيدها صفر', 'icon' => '0️⃣'],
+                        ['r' => 'report_warehouse_negative_qty', 'label' => 'تقرير المواد السالبة', 'icon' => '➖'],
+                        ['r' => 'report_warehouse_financial', 'label' => 'أرصدة المستودع المالية', 'icon' => '💰'],
+                    ],
+                ],
+                [
+                    'id' => 'price_adjust',
+                    'title' => 'تعديل الأسعار',
+                    'items' => [
+                        ['r' => 'item_sale_price_adjust', 'label' => 'تعديل أسعار المواد', 'icon' => '💰'],
+                    ],
+                ],
+                [
+                    'id' => 'stocktaking',
+                    'title' => 'الجرد',
+                    'items' => [
+                        ['r' => 'inventory_stocktake', 'label' => 'سند جرد المواد', 'icon' => '🧮'],
+                        ['r' => 'report_stocktake_list', 'label' => 'قوائم الجرد', 'icon' => '📑'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'accounting',
+            'title' => 'المحاسبة',
+            'subgroups' => [
+                [
+                    'id' => 'operations',
+                    'title' => 'المحاسبة',
+                    'items' => [
+                        ['r' => 'journal_entries', 'label' => 'القيود المحاسبية', 'icon' => '⚖'],
+                        ['r' => 'account_mapping', 'label' => 'ربط الحسابات', 'icon' => '🔗'],
+                    ],
+                ],
+                [
+                    'id' => 'reports',
+                    'title' => 'التقارير',
+                    'items' => [
+                        ['r' => 'report_receivables', 'label' => 'كشف ذمم العملاء', 'icon' => '📒'],
+                        ['r' => 'report_receivables_aging', 'label' => 'أعمار الذمم', 'icon' => '📊'],
+                        ['r' => 'report_incoming_checks', 'label' => 'تقرير الشيكات الواردة', 'icon' => '📒'],
+                        ['r' => 'report_outgoing_checks', 'label' => 'تقرير الشيكات الصادرة', 'icon' => '📒'],
+                        ['r' => 'report_supplier_payables', 'label' => 'كشف ذمم الموردين', 'icon' => '📒'],
+                        ['r' => 'report_party_statement', 'label' => 'كشف حساب مورد - عميل', 'icon' => '📋'],
+                        ['r' => 'report_customer_statement', 'label' => 'كشف حساب عميل', 'icon' => '👤'],
+                        ['r' => 'report_supplier_statement', 'label' => 'كشف حساب مورد', 'icon' => '🏭'],
+                        ['r' => 'report_account_statement', 'label' => 'كشف حساب', 'icon' => '📋'],
+                        ['r' => 'report_general_ledger', 'label' => 'دفتر الأستاذ', 'icon' => '📖'],
+                        ['r' => 'report_trial_balance', 'label' => 'ميزان المراجعة', 'icon' => '⚖'],
+                        ['r' => 'report_trial_balance_detailed', 'label' => 'ميزان مراجعة تفصيلي', 'icon' => '⚖'],
+                        ['r' => 'report_journal', 'label' => 'تقرير القيود', 'icon' => '📒'],
+                        ['r' => 'report_income_statement_comprehensive', 'label' => 'الأرباح والخسائر', 'icon' => '📊'],
+                        ['r' => 'report_income_statement', 'label' => 'قائمة الدخل', 'icon' => '📈'],
+                        ['r' => 'report_balance_sheet', 'label' => 'الميزانية العمومية', 'icon' => '🏛'],
+                    ],
+                ],
+                [
+                    'id' => 'vat_reports',
+                    'title' => 'تقارير الضريبة',
+                    'items' => [
+                        ['r' => 'report_tax_declaration', 'label' => 'الإقرار الضريبي', 'icon' => '📋'],
+                        ['r' => 'report_tax_ar3', 'label' => 'تقرير الضريبة (أر/3)', 'icon' => '📄'],
+                        ['r' => 'report_vat_net_payable', 'label' => 'صافي الضريبة المستحقة على المبيعات والمشتريات', 'icon' => '🇯🇴'],
+                        ['r' => 'report_invoice_tax', 'label' => 'ضريبة فواتير البيع', 'icon' => '🧾'],
+                        ['r' => 'report_invoice_tax_purchase', 'label' => 'ضريبة فواتير الشراء', 'icon' => '📥'],
+                        ['r' => 'report_vat_return_tax', 'label' => 'ضريبة مردود البيع', 'icon' => '↩'],
+                        ['r' => 'report_vat_return_tax_purchase', 'label' => 'ضريبة مردود الشراء', 'icon' => '↩'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'hr',
+            'title' => 'شؤون الموظفين',
+            'subgroups' => [
+                [
+                    'id' => 'employees',
+                    'title' => 'الموظفون',
+                    'items' => [
+                        ['r' => 'hr_employees', 'label' => 'الموظفون', 'icon' => '👤'],
+                    ],
+                ],
+                [
+                    'id' => 'hr_employee_reports',
+                    'title' => 'تقارير شؤون الموظفين',
+                    'items' => [
+                        ['r' => 'report_hr_employees', 'label' => 'تقرير الموظفين', 'icon' => '📋'],
+                    ],
+                ],
+                [
+                    'id' => 'salaries',
+                    'title' => 'الرواتب',
+                    'items' => [
+                        ['r' => 'hr_salaries', 'label' => 'رواتب الموظفين', 'icon' => '💵'],
+                        ['r' => 'hr_monthly_payroll_adjustments', 'label' => 'علاوات واقتطاعات شهرية', 'icon' => '📅'],
+                        ['r' => 'hr_employee_advances', 'label' => 'سلف الموظفين', 'icon' => '💳'],
+                        ['r' => 'hr_payroll_posting', 'label' => 'قيد الرواتب', 'icon' => '📋'],
+                    ],
+                ],
+                [
+                    'id' => 'salary_settings',
+                    'title' => 'إعدادات الرواتب',
+                    'items' => [
+                        ['r' => 'hr_departments', 'label' => 'الأقسام', 'icon' => '🏛'],
+                        ['r' => 'hr_job_titles', 'label' => 'المسميات الوظيفية', 'icon' => '💼'],
+                        ['r' => 'hr_nationalities', 'label' => 'الجنسيات', 'icon' => '🌍'],
+                        ['r' => 'hr_payroll_components', 'label' => 'إعداد العلاوات والاقتطاعات', 'icon' => '➕➖'],
+                        ['r' => 'hr_salary_banks', 'label' => 'البنوك', 'icon' => '🏦'],
+                        ['r' => 'hr_employee_bank_link', 'label' => 'ربط إعدادات البنك', 'icon' => '🔗'],
+                        ['r' => 'hr_social_security_rates', 'label' => 'نسب الضمان الاجتماعي', 'icon' => '📊'],
+                        ['r' => 'hr_income_tax_settings', 'label' => 'إعدادات ضريبة الدخل', 'icon' => '🧮'],
+                        ['r' => 'hr_social_security', 'label' => 'قيود الضمان', 'icon' => '🛡'],
+                    ],
+                ],
+                [
+                    'id' => 'payroll_reports',
+                    'title' => 'تقارير الرواتب',
+                    'items' => [
+                        ['r' => 'hr_payroll_dept_report', 'label' => 'كشف الرواتب للأقسام', 'icon' => '📑'],
+                        ['r' => 'hr_payroll_ss_report', 'label' => 'كشف الضمان الاجتماعي', 'icon' => '🛡️'],
+                        ['r' => 'hr_payroll_slip_report', 'label' => 'قسيمة الراتب', 'icon' => '🧾'],
+                        ['r' => 'hr_payroll_slip', 'label' => 'طباعة قسيمة الراتب', 'icon' => '🖨'],
+                        ['r' => 'hr_salary_slip', 'label' => 'طباعة قسيمة راتب', 'icon' => '🖨'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'system',
+            'title' => 'النظام',
+            'subgroups' => [
+                [
+                    'id' => 'users',
+                    'title' => 'المستخدمون والصلاحيات',
+                    'items' => [
+                        ['r' => 'users', 'label' => 'المستخدمون', 'icon' => '👥'],
+                        ['r' => 'groups', 'label' => 'المجموعات', 'icon' => '📁'],
+                        ['r' => 'permissions', 'label' => 'الصلاحيات', 'icon' => '🔐'],
+                    ],
+                ],
+                [
+                    'id' => 'settings',
+                    'title' => 'إعدادات النظام',
+                    'items' => [
+                        ['r' => 'settings', 'label' => 'الإعدادات', 'icon' => '⚙'],
+                        ['r' => 'system_backup', 'label' => 'النسخ الاحتياطي', 'icon' => '💾'],
+                        ['r' => 'tax_rates_settings', 'label' => 'معدّلات الضريبة', 'icon' => '%'],
+                        ['r' => 'einvoice_settings', 'label' => 'إعدادات الفوترة', 'icon' => '🧾'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'mobile',
+            'title' => 'تطبيق الهاتف',
+            'subgroups' => [
+                [
+                    'id' => 'mobile_screens',
+                    'title' => 'شاشات الهاتف',
+                    'flat' => true,
+                    'items' => [
+                        ['r' => 'm_home', 'label' => 'الرئيسية', 'icon' => '📱'],
+                        ['r' => 'm_sales_invoices', 'label' => 'فواتير المبيعات', 'icon' => '🧾'],
+                        ['r' => 'm_party_statement', 'label' => 'كشف حساب', 'icon' => '📋'],
+                        ['r' => 'm_receipt', 'label' => 'سند قبض', 'icon' => '⬆'],
+                        ['r' => 'm_sales_returns', 'label' => 'مرتجع مبيعات', 'icon' => '↩'],
+                        ['r' => 'm_user_gps_locations', 'label' => 'مواقع المستخدمين', 'icon' => '📍'],
+                    ],
+                ],
+            ],
+        ],
+    ],
+];

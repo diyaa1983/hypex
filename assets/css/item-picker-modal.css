@@ -1,0 +1,64 @@
+/* نافذة اختيار المواد — تفاصيل إضافية (الحجم والخط مشتركان مع العميل في customer-picker-modal.css) */
+.item-picker-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.item-picker-foot .sales-inv-pick-hint {
+  text-align: center;
+}
+
+.item-picker-foot .sales-inv-pick-add {
+  width: 100%;
+  font-weight: 700;
+}
+
+.item-picker-foot .sales-inv-pick-add.is-inactive {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+#app-item-picker-modal .sales-inv-pick-item {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+  text-align: start;
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+#app-item-picker-modal .sales-inv-pick-item:last-child {
+  border-bottom: none;
+}
+
+#app-item-picker-modal .sales-inv-pick-item:hover,
+#app-item-picker-modal .sales-inv-pick-item.is-selected,
+#app-item-picker-modal .sales-inv-pick-item.is-active {
+  background: #eef2ff;
+}
+
+#app-item-picker-modal .sales-inv-pick-item.is-active {
+  outline: 2px solid #6366f1;
+  outline-offset: -2px;
+}
+
+#app-item-picker-modal .sales-inv-pick-check {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.2rem;
+  cursor: pointer;
+  accent-color: #4f46e5;
+}
+
+#app-item-picker-modal .sales-inv-pick-item-body {
+  flex: 1;
+  min-width: 0;
+}

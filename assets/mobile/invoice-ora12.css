@@ -1,0 +1,682 @@
+/* ── فواتير الموبايل — Oracle 12c (مثل نظام سطح المكتب) ── */
+
+.m-ora12-invoice-ui {
+  --ora12-blue: #0572ce;
+  --ora12-blue-dark: #024d8f;
+  --ora12-blue-light: #e8f4fc;
+  --ora12-bg: #e8eaed;
+  --ora12-surface: #ffffff;
+  --ora12-border: #5c6670;
+  --ora12-text: #161513;
+  --ora12-muted: #5c5c5c;
+  --ora12-link: #0066cc;
+  --ora12-hover: #f0f6fc;
+  --ora12-stripe: #f7f9fb;
+  --ora12-title: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+}
+
+.m-ora12-invoice-ui.m-body {
+  background: var(--ora12-bg);
+}
+
+.m-ora12-invoice-ui .m-header {
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.m-ora12-invoice-ui .m-header-brand {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.m-ora12-invoice-ui .m-main {
+  padding: 0.45rem 0.5rem 0.65rem;
+}
+
+.m-ora12 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ora12-text);
+}
+
+.m-ora12-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.m-ora12-panel {
+  background: var(--ora12-surface);
+  border: 1px solid var(--ora12-border);
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+  overflow: hidden;
+}
+
+.m-ora12-panel__title {
+  margin: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+  line-height: 1.35;
+}
+
+.m-ora12-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+}
+
+.m-ora12-panel__head .m-ora12-panel__title {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.m-ora12-panel__body {
+  padding: 0.55rem;
+  background: var(--ora12-surface);
+}
+
+.m-ora12-panel__body--flush {
+  padding: 0;
+}
+
+.m-ora12-invoice-ui .m-doc-entry-kicker {
+  display: none;
+}
+
+.m-ora12-invoice-ui .m-ora12-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-ora12-meta .m-field--full {
+  grid-column: 1 / -1;
+}
+
+.m-ora12-invoice-ui .m-ora12-meta .m-field {
+  margin-bottom: 0;
+}
+
+.m-ora12-invoice-ui .m-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+  margin-bottom: 0.15rem;
+}
+
+.m-ora12-invoice-ui .m-input,
+.m-ora12-invoice-ui .m-select {
+  min-height: 1.65rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+  color: var(--ora12-text);
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.m-ora12-invoice-ui .m-input:focus,
+.m-ora12-invoice-ui .m-select:focus {
+  outline: none;
+  border-color: var(--ora12-blue);
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.m-ora12-invoice-ui .m-btn--pick {
+  min-height: 1.65rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ora12-text);
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.m-ora12-invoice-ui .m-btn--pick:active {
+  background: var(--ora12-hover);
+  border-color: var(--ora12-blue);
+}
+
+.m-ora12-invoice-ui .m-customer-chosen {
+  margin-bottom: 0.35rem;
+  padding: 0.35rem 0.45rem;
+  background: #f3f5f7;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  text-align: start;
+}
+
+.m-ora12-invoice-ui .m-customer-chosen-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-lines-swipe-hint,
+.m-ora12-invoice-ui .m-lines-empty {
+  margin: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.m-ora12-invoice-ui .m-lines-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.m-ora12-invoice-ui .m-inv-lines-wrap {
+  margin: 0;
+  border-top: 1px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-inv-lines {
+  gap: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-line-swipe {
+  border-radius: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-line {
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--ora12-border);
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-inv-line:nth-child(even) {
+  background: var(--ora12-stripe);
+}
+
+.m-ora12-invoice-ui .m-inv-line-head {
+  background: transparent;
+  border-bottom: 1px solid var(--ora12-border);
+  padding: 0.4rem 0.5rem;
+}
+
+.m-ora12-invoice-ui .m-inv-seq {
+  border-radius: 2px;
+  background: #f3f5f7;
+  color: var(--ora12-text);
+  border: 1px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-inv-item-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-inv-gross {
+  font-size: 0.78rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-line-body {
+  padding: 0.35rem 0.45rem 0.45rem;
+}
+
+.m-ora12-invoice-ui .m-inv-line .m-input--xs,
+.m-ora12-invoice-ui .m-inv-line .m-select {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  font-size: 0.76rem;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.m-ora12-invoice-ui .m-inv-mini span {
+  font-size: 0.65rem;
+  color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-btn--add-line {
+  margin: 0.55rem;
+  width: calc(100% - 1.1rem);
+}
+
+.m-ora12-invoice-ui .m-ora12-totals {
+  padding: 0.45rem 0.55rem;
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-total-row {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+  padding: 0.12rem 0;
+}
+
+.m-ora12-invoice-ui .m-total-row--grand {
+  border-top: 2px solid var(--ora12-border);
+  padding-top: 0.35rem;
+  margin-top: 0.2rem;
+  font-size: 0.88rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-alert {
+  border-radius: 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.m-ora12-invoice-ui .m-alert--success {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.m-ora12-invoice-ui .m-alert--error {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+/* قائمة الفواتير */
+.m-ora12-invoice-ui .m-hub-strip--invoice {
+  background: var(--ora12-title);
+  border: 1px solid var(--ora12-blue-dark);
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.m-ora12-invoice-ui .m-hub-head-btn,
+.m-ora12-invoice-ui .m-btn--primary {
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border: 1px solid var(--ora12-blue-dark);
+  border-radius: 2px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-hub-head-btn:active,
+.m-ora12-invoice-ui .m-btn--primary:active {
+  background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+}
+
+.m-ora12-invoice-ui .m-ora12-list-panel .m-ora12-panel__body {
+  padding: 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-seg-item {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.4rem 0.5rem;
+}
+
+.m-ora12-invoice-ui .m-seg-item:has(input:checked) {
+  background: var(--ora12-blue-light);
+  border-color: var(--ora12-blue);
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-strip-list {
+  gap: 0;
+  margin-top: 0.45rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-inv-strip {
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--ora12-border);
+  background: #fff;
+  box-shadow: none;
+  padding: 0.5rem 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-inv-strip:nth-child(even) {
+  background: var(--ora12-stripe);
+}
+
+.m-ora12-invoice-ui .m-inv-strip:last-child {
+  border-bottom: none;
+}
+
+.m-ora12-invoice-ui .m-inv-strip:active {
+  transform: none;
+  background: var(--ora12-hover);
+}
+
+.m-ora12-invoice-ui .m-inv-strip--selected {
+  background: var(--ora12-blue-light);
+  box-shadow: inset 3px 0 0 var(--ora12-blue);
+}
+
+.m-ora12-invoice-ui .m-inv-strip-icon-wrap {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  box-shadow: none;
+}
+
+.m-ora12-invoice-ui .m-inv-strip-no {
+  color: var(--ora12-blue-dark);
+  font-size: 0.78rem;
+}
+
+.m-ora12-invoice-ui .m-inv-strip-party {
+  font-size: 0.76rem;
+}
+
+.m-ora12-invoice-ui .m-inv-strip-amt {
+  font-size: 0.82rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-tag {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-tag--ok {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.m-ora12-invoice-ui .m-tag--warn {
+  background: #fffbeb;
+  border-color: #e8d4a8;
+  color: #8b5a00;
+}
+
+/* عرض الفاتورة */
+.m-ora12-invoice-ui .m-inv-view-doc,
+.m-ora12-invoice-ui .m-inv-view-lines-panel {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+  padding: 0;
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-inv-view-doc-head {
+  padding: 0.55rem 0.65rem;
+  background: #f3f5f7;
+  border-bottom: 1px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-inv-view-no {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-view-facts {
+  display: block;
+  margin: 0;
+  gap: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  border-bottom: 1px solid var(--ora12-border);
+  min-height: 2.35rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact--wide {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact dd {
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: end;
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact--wide dd {
+  text-align: start;
+  margin-top: 0.1rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-totals {
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  background: #f3f5f7;
+  border-top: 1px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-inv-view-total-row {
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-inv-view-total-row--grand {
+  border-top: 2px solid var(--ora12-border);
+  font-size: 0.88rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-view-lines-title {
+  margin: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-view-lines-scroll {
+  padding: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-view-lines-list {
+  gap: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card {
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--ora12-border);
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card:nth-child(even) {
+  background: var(--ora12-stripe);
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-head {
+  background: transparent;
+  border-bottom: 1px solid var(--ora12-border);
+  padding: 0.4rem 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-seq {
+  border-radius: 2px;
+  background: #f3f5f7;
+  color: var(--ora12-text);
+  border: 1px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-name {
+  font-size: 0.76rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-gross {
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-grid {
+  padding: 0.35rem 0.55rem 0.45rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-grid dt {
+  font-size: 0.62rem;
+  color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-inv-view-extra .m-btn--ghost {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  color: var(--ora12-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-tabbar-item.is-active .m-tabbar-icon-wrap--tab {
+  box-shadow: 0 2px 6px rgba(5, 114, 206, 0.35);
+}
+
+/* كشف حساب عميل/مورد */
+.m-ora12-invoice-ui .m-ora12-chips {
+  gap: 0.4rem;
+}
+
+.m-ora12-invoice-ui .m-ora12-chips .m-seg-item {
+  flex: 1;
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.42rem 0.5rem;
+  min-height: 2rem;
+}
+
+.m-ora12-invoice-ui .m-ora12-chips .m-seg-item:has(input:checked) {
+  background: var(--ora12-blue-light);
+  border-color: var(--ora12-blue);
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-ps-pick-clear {
+  border-radius: 2px;
+  border: 1px solid #e8b4a8;
+  background: #fdecea;
+  color: #c74634;
+}
+
+.m-ora12-invoice-ui .m-ps-summary {
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--ora12-border);
+  background: #f3f5f7;
+}
+
+.m-ora12-invoice-ui .m-ps-summary-name {
+  font-size: 0.82rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-ps-summary-type {
+  color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-ps-result-card {
+  margin-bottom: 0;
+}
+
+.m-ora12-invoice-ui .m-ps-table-wrap {
+  margin: 0;
+  padding: 0;
+  border-top: none;
+}
+
+.m-ora12-invoice-ui .m-ps-table {
+  font-size: 0.72rem;
+  border-collapse: collapse;
+}
+
+.m-ora12-invoice-ui .m-ps-th {
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+  color: var(--ora12-text);
+  font-weight: 700;
+  font-size: 0.68rem;
+  border: 1px solid var(--ora12-border);
+  border-bottom: 2px solid var(--ora12-border);
+  padding: 0.35rem 0.3rem;
+}
+
+.m-ora12-invoice-ui .m-ps-td {
+  border: 1px solid var(--ora12-border);
+  background: #fff;
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+
+.m-ora12-invoice-ui .m-ps-tr:nth-child(even) .m-ps-td {
+  background: var(--ora12-stripe);
+}
+
+.m-ora12-invoice-ui .m-ps-tr--open .m-ps-td {
+  background: var(--ora12-blue-light);
+}
+
+.m-ora12-invoice-ui .m-ps-td--date,
+.m-ora12-invoice-ui .m-ps-td--strong {
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-ps-td--emph {
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-ps-tr--foot .m-ps-td,
+.m-ora12-invoice-ui .m-ps-table tfoot .m-ps-td {
+  background: #f3f5f7;
+  border-top: 2px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-action-dock {
+  border-top: 1px solid var(--ora12-border);
+  background: #f3f5f7;
+}
+
+.m-ora12-invoice-ui .m-toolbar-btn.m-btn--primary {
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border: 1px solid var(--ora12-blue-dark);
+  border-radius: 2px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+  color: #fff;
+}
+
+.m-ora12-invoice-ui .m-toolbar-btn.m-btn--secondary {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  color: var(--ora12-text);
+}
+
+.m-ora12-invoice-ui.m-page-party-stmt .m-ps-table-wrap {
+  max-height: min(50vh, 480px);
+  overflow-y: auto;
+}

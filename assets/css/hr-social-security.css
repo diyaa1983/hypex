@@ -1,0 +1,167 @@
+/* قيود الضمان الاجتماعي — Oracle 12c */
+
+body:has(.hr-ss-ora-screen) .main-content {
+  background: #d4d0c8 !important;
+  padding: 0.35rem 0.5rem 0.75rem;
+}
+
+.hr-ss-ora-screen {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0.25rem 0.35rem 0.75rem;
+  font-family: Tahoma, Arial, "MS Sans Serif", sans-serif;
+  font-size: 0.8125rem;
+  color: #000;
+}
+
+.hr-ss-flash {
+  margin-bottom: 0.45rem;
+}
+
+.hr-ss-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+  padding: 0.35rem 0.45rem;
+  background: #ece9e4;
+  border: 1px solid #808080;
+}
+
+.hr-ss-panel {
+  margin-bottom: 0.45rem;
+  background: #fff;
+  border: 1px solid #808080;
+}
+
+.hr-ss-panel-head {
+  margin: 0;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #3a6ea5 0%, #1e4d8c 45%, #0f3a7a 100%);
+  border-bottom: 1px solid #000;
+}
+
+.hr-ss-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.55rem;
+  padding: 0.45rem 0.55rem;
+  margin: 0;
+}
+
+.hr-ss-filter-form .field {
+  margin: 0;
+}
+
+.hr-ss-filter-form .field-label {
+  display: block;
+  margin-bottom: 0.12rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #404040;
+}
+
+.hr-ss-filter-year {
+  width: 6.5rem;
+}
+
+.hr-ss-filter-month {
+  width: 6.5rem;
+}
+
+.hr-ss-filter-emp {
+  flex: 1 1 14rem;
+  min-width: 10rem;
+}
+
+.hr-ss-grid-wrap {
+  overflow-x: auto;
+}
+
+.hr-ss-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.hr-ss-grid-table th,
+.hr-ss-grid-table td {
+  border: 1px solid #c0c0c0;
+  padding: 0.22rem 0.4rem;
+  vertical-align: middle;
+}
+
+.hr-ss-grid-table th {
+  background: #d4d0c8;
+  font-weight: 700;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.hr-ss-grid-table tbody tr:nth-child(even) td {
+  background: #f7f7f7;
+}
+
+.hr-ss-grid-table tbody tr:hover td {
+  background: #ece9e4;
+}
+
+.hr-ss-grid-table .num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hr-ss-grid-table tfoot td {
+  background: #ece9e4;
+  font-weight: 700;
+}
+
+.hr-ss-grid-table .hr-ss-actions {
+  white-space: nowrap;
+}
+
+.hr-ss-grid-table .hr-ss-actions form {
+  display: inline;
+}
+
+.hr-ss-form-panel {
+  max-width: 56rem;
+}
+
+.hr-ss-form {
+  padding: 0.55rem 0.65rem 0.65rem;
+}
+
+.hr-ss-form .form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 0.45rem;
+}
+
+.hr-ss-form .field {
+  flex: 1 1 10rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.hr-ss-form .field--wide {
+  flex: 1 1 100%;
+}
+
+.hr-ss-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding-top: 0.25rem;
+}
+
+.hr-ss-back-link {
+  margin-inline-start: auto;
+}

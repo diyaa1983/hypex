@@ -1,0 +1,37 @@
+/* سند تسليم بضاعة — نفس تفاصيل وحجم فاتورة المبيعات (Oracle 12c) */
+
+.dashboard-ora.sales-ora12-screen.sales-dlv-wrap .sales-inv-table {
+  min-width: 720px;
+}
+
+.sales-dlv-wrap .sales-dlv-table {
+  table-layout: fixed;
+}
+
+.sales-dlv-wrap .sales-dlv-table .sales-inv-col-seq {
+  width: 3.5rem;
+}
+
+.sales-dlv-wrap .sales-dlv-table .sales-inv-col-barcode {
+  width: 14%;
+}
+
+.sales-dlv-wrap .sales-dlv-table .sales-inv-col-item {
+  width: auto;
+}
+
+.sales-dlv-wrap .sales-dlv-table .sales-inv-col-qty {
+  width: 8rem;
+}
+
+.sales-dlv-wrap .sales-dlv-table .sales-inv-col-del {
+  width: 2.75rem;
+}
+
+.sales-dlv-wrap .sales-inv-footer-grid {
+  grid-template-columns: 1fr;
+}
+
+.sales-dlv-wrap .sales-inv-notes {
+  border-inline-end: none;
+}

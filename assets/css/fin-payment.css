@@ -1,0 +1,107 @@
+.fin-py-wrap .fin-py-pay-row {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.fin-py-wrap .fin-py-pay-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fin-py-wrap .fin-py-body {
+  padding: 1rem 1.1rem;
+}
+
+.fin-py-wrap .fin-py-notes {
+  margin-top: 0.75rem;
+  max-width: 480px;
+}
+
+.fin-py-wrap .fin-py-meta-rep input[readonly] {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.fin-py-wrap .fin-py-party-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.fin-py-wrap .fin-py-party-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fin-py-wrap .fin-py-party-hint {
+  font-size: 0.85rem;
+  margin: 0.35rem 0 0;
+  padding: 0 0.25rem;
+}
+
+.fin-py-wrap .fin-py-cash-account-row {
+  margin-bottom: 0.75rem;
+}
+
+.fin-py-wrap .fin-py-meta-cash-account select {
+  min-width: min(100%, 280px);
+}
+
+.fin-py-wrap.fin-py-party-is-customer .fin-py-party-supplier {
+  display: none !important;
+}
+
+.fin-py-wrap.fin-py-party-is-supplier .fin-py-party-customer,
+.fin-py-wrap.fin-py-party-is-supplier .fin-py-party-customer-only {
+  display: none !important;
+}
+
+.fin-py-wrap.fin-py-form-is-posted .fin-py-body input:not([readonly]),
+.fin-py-wrap.fin-py-form-is-posted .fin-py-body select,
+.fin-py-wrap.fin-py-form-is-posted .fin-py-body textarea {
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/* نقداً: المبلغ فقط — شيك: قيمة الشيك + رقم الشيك + البنك */
+.fin-py-wrap.fin-py-pay-is-check .fin-py-field-cash,
+.fin-py-wrap.fin-py-pay-is-check #rc_cash_amount_wrap,
+.fin-py-wrap.fin-py-pay-is-check #rc_amount,
+#fin-py-form.fin-py-pay-is-check .fin-py-field-cash,
+#fin-py-form.fin-py-pay-is-check #rc_cash_amount_wrap {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+}
+
+.fin-py-wrap.fin-py-pay-is-cash .fin-py-field-check,
+.fin-py-wrap.fin-py-pay-is-cash #rc_check_fields,
+.fin-py-wrap.fin-py-pay-is-cash #rc_check_no_wrap,
+.fin-py-wrap.fin-py-pay-is-cash #rc_bank_wrap,
+#fin-py-form.fin-py-pay-is-cash .fin-py-field-check,
+#fin-py-form.fin-py-pay-is-cash #rc_check_fields,
+#fin-py-form.fin-py-pay-is-cash #rc_check_no_wrap,
+#fin-py-form.fin-py-pay-is-cash #rc_bank_wrap {
+  display: none !important;
+}
+
+.fin-py-wrap .fin-py-field-check[hidden],
+.fin-py-wrap .fin-py-field-cash[hidden],
+.fin-py-wrap #rc_cash_amount_wrap[hidden] {
+  display: none !important;
+}

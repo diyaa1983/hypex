@@ -1,0 +1,49 @@
+-- خانات عشرية مثبتة لكل فاتورة/مرتجع + دقة تخزين حتى 8 خانات
+ALTER TABLE sys_company_settings
+  MODIFY decimal_places TINYINT UNSIGNED NOT NULL DEFAULT 2;
+
+-- amount_decimals يُضاف عبر invoice_amount_decimals_ensure_schema() إن لم يكن موجوداً
+
+ALTER TABLE sal_invoice
+  MODIFY subtotal DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY tax_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY total DECIMAL(18,8) NOT NULL DEFAULT 0;
+
+ALTER TABLE sal_invoice_line
+  MODIFY unit_price DECIMAL(18,8) NOT NULL,
+  MODIFY line_total DECIMAL(18,8) NOT NULL,
+  MODIFY tax_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY line_gross DECIMAL(18,8) NOT NULL DEFAULT 0;
+
+ALTER TABLE pur_invoice
+  MODIFY subtotal DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY tax_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY total DECIMAL(18,8) NOT NULL DEFAULT 0;
+
+ALTER TABLE pur_invoice_line
+  MODIFY unit_price DECIMAL(18,8) NOT NULL,
+  MODIFY line_total DECIMAL(18,8) NOT NULL,
+  MODIFY tax_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY line_gross DECIMAL(18,8) NOT NULL DEFAULT 0;
+
+ALTER TABLE sal_return
+  MODIFY subtotal DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY tax_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY total DECIMAL(18,8) NOT NULL DEFAULT 0;
+
+ALTER TABLE sal_return_line
+  MODIFY unit_price DECIMAL(18,8) NOT NULL,
+  MODIFY line_subtotal DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY tax_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY line_gross DECIMAL(18,8) NOT NULL DEFAULT 0;
+
+ALTER TABLE pur_return
+  MODIFY subtotal DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY tax_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY total DECIMAL(18,8) NOT NULL DEFAULT 0;
+
+ALTER TABLE pur_return_line
+  MODIFY unit_price DECIMAL(18,8) NOT NULL,
+  MODIFY line_subtotal DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY tax_amount DECIMAL(18,8) NOT NULL DEFAULT 0,
+  MODIFY line_gross DECIMAL(18,8) NOT NULL DEFAULT 0;

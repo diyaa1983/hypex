@@ -1,0 +1,20 @@
+# إعدادات محلية (لا تُرفع للاستضافة)
+config/database.local.php
+config/app.local.php
+config/einvoice.local.php
+
+# سجلات وتشغيل
+logs/*
+!logs/.htaccess
+!logs/.gitkeep
+
+# رفع المستخدمين (عدا الحماية)
+uploads/logos/*
+!uploads/.htaccess
+!uploads/logos/.gitkeep
+
+# أدوات التطوير المحلية
+_cookies.txt
+_dash_headers.txt
+_einv_headers.txt
+composer.phar

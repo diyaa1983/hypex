@@ -1,0 +1,262 @@
+/* علاوات واقتطاعات شهرية */
+
+.hr-mpa-page {
+    --hr-mpa-allow: #16a34a;
+    --hr-mpa-allow-soft: #dcfce7;
+    --hr-mpa-allow-deep: #15803d;
+    --hr-mpa-deduct: #dc2626;
+    --hr-mpa-deduct-soft: #fee2e2;
+    --hr-mpa-deduct-deep: #b91c1c;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.hr-mpa-flash,
+.hr-mpa-access-msg {
+    margin-bottom: 0.75rem;
+}
+
+.hr-mpa-intro {
+    margin: 0;
+    line-height: 1.55;
+    font-size: 0.88rem;
+}
+
+.hr-mpa-panel {
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 0.5rem;
+    background: #fff;
+    margin-bottom: 0.85rem;
+    overflow: hidden;
+}
+
+.hr-mpa-filter-title,
+.hr-mpa-panel-title {
+    margin: 0;
+    padding: 0.55rem 0.65rem;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 700;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.hr-mpa-panel-body {
+    padding: 0.65rem 0.75rem 0.75rem;
+}
+
+.hr-mpa-filter-grid {
+    display: grid;
+    grid-template-columns: minmax(90px, 0.18fr) minmax(140px, 0.28fr) minmax(0, 1fr) auto;
+    gap: 0.65rem 0.75rem;
+    align-items: end;
+}
+
+.hr-mpa-filter-meta {
+    margin: 0.65rem 0 0;
+    font-size: 0.84rem;
+}
+
+.hr-mpa-pick-hint {
+    text-align: center;
+    padding: 1.5rem 0.5rem;
+}
+
+.hr-mpa-split {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.hr-mpa-master-table .input-compact {
+    width: 100%;
+}
+
+.hr-mpa-inline-hint {
+    margin: 0;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.78rem;
+}
+
+.hr-mpa-table tbody tr.hr-mpa-row--entry td,
+.hr-mpa-table tbody tr.hr-mpa-row.is-editing td {
+    background: #fef9c3;
+}
+
+.hr-mpa-panel--allow {
+    border-top: 3px solid var(--hr-mpa-allow);
+}
+
+.hr-mpa-panel--allow .hr-mpa-panel-title {
+    color: var(--hr-mpa-allow-deep);
+    background: var(--hr-mpa-allow-soft);
+}
+
+.hr-mpa-panel--deduct {
+    border-top: 3px solid var(--hr-mpa-deduct);
+}
+
+.hr-mpa-panel--deduct .hr-mpa-panel-title {
+    color: var(--hr-mpa-deduct-deep);
+    background: var(--hr-mpa-deduct-soft);
+}
+
+.hr-mpa-panel-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.55rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.hr-mpa-panel--allow .hr-mpa-panel-toolbar {
+    background: var(--hr-mpa-allow-soft);
+}
+
+.hr-mpa-panel--deduct .hr-mpa-panel-toolbar {
+    background: var(--hr-mpa-deduct-soft);
+}
+
+.hr-mpa-table-wrap {
+    max-height: min(52vh, 420px);
+    overflow: auto;
+}
+
+.hr-mpa-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.hr-mpa-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #e2e8f0;
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 0.45rem 0.5rem;
+    text-align: center;
+    border-bottom: 1px solid #cbd5e1;
+    white-space: nowrap;
+}
+
+.hr-mpa-table tbody td {
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.hr-mpa-table tbody tr.hr-mpa-row {
+    cursor: pointer;
+}
+
+.hr-mpa-table tbody tr.hr-mpa-row:hover {
+    background: #f8fafc;
+}
+
+.hr-mpa-panel--allow .hr-mpa-table tbody tr.hr-mpa-row.is-selected {
+    background: var(--hr-mpa-allow-soft);
+}
+
+.hr-mpa-panel--deduct .hr-mpa-table tbody tr.hr-mpa-row.is-selected {
+    background: var(--hr-mpa-deduct-soft);
+}
+
+.hr-mpa-col-num {
+    width: 4rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.hr-mpa-col-amount,
+.hr-mpa-col-amount-h {
+    font-variant-numeric: tabular-nums;
+}
+
+.hr-mpa-col-notes {
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hr-mpa-editor {
+    margin-bottom: 0.85rem;
+    padding: 0.9rem 1rem;
+    background: #f8fafc;
+    border: 1px solid #94a3b8;
+    border-radius: 0.5rem;
+}
+
+.hr-mpa-page.is-editing-allow .hr-mpa-editor {
+    background: var(--hr-mpa-allow-soft);
+    border-color: var(--hr-mpa-allow);
+}
+
+.hr-mpa-page.is-editing-deduct .hr-mpa-editor {
+    background: var(--hr-mpa-deduct-soft);
+    border-color: var(--hr-mpa-deduct);
+}
+
+.hr-mpa-editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.hr-mpa-editor-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.hr-mpa-editor-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(110px, 0.28fr) minmax(0, 0.9fr);
+    gap: 0.65rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.hr-mpa-editor-fields .field {
+    margin: 0;
+}
+
+.hr-mpa-editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.hr-mpa-amount-hint {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+}
+
+@media (max-width: 860px) {
+    .hr-mpa-split {
+        grid-template-columns: 1fr;
+    }
+
+    .hr-mpa-filter-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .hr-mpa-filter-emp {
+        grid-column: 1 / -1;
+    }
+
+    .hr-mpa-filter-actions {
+        grid-column: 1 / -1;
+    }
+
+    .hr-mpa-editor-fields {
+        grid-template-columns: 1fr;
+    }
+}

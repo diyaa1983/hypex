@@ -1,0 +1,438 @@
+/* ── شاشات المبيعات — Oracle 12c (حديث / مسطح) ── */
+
+.dashboard-ora.sales-ora12-screen {
+  width: 100%;
+  max-width: 100%;
+}
+
+.main-wrap:has(.sales-ora12-screen) .main-content,
+body:has(.sales-ora12-screen) .main-content {
+  padding: 0.45rem 0.55rem 0.85rem;
+  background: var(--shell-bg, #d4d0c8);
+}
+
+.sales-ora12-screen .dashboard-ora-screen-title__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sales-ora12-screen .sales-ora-flash,
+.sales-ora12-screen .sales-inv-grid-flash,
+.sales-ora12-screen .alert {
+  margin: 0;
+}
+
+.sales-ora12-screen .dashboard-ora-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sales-ora12-screen .sales-ora-toolbar,
+.sales-ora12-screen .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  background: #f3f5f7;
+  border: 1px solid var(--ora12-border);
+  border-top: none;
+}
+
+.sales-ora12-screen .sales-ora-info {
+  margin: 0;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ora12-muted);
+  background: var(--ora12-blue-light);
+  border: 1px solid #c5dff0;
+}
+
+.sales-ora12-screen .sales-ora-panel,
+.sales-ora12-screen .card {
+  margin: 0;
+  padding: 0;
+  background: var(--ora12-surface);
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+}
+
+.sales-ora12-screen .sales-ora-panel > .sales-ora-search-form,
+.sales-ora12-screen .sales-ora-panel > .form-grid,
+.sales-ora12-screen .sales-ora-panel > form.form-row {
+  padding: 0.55rem;
+  margin: 0;
+}
+
+.sales-ora12-screen .sales-ora-panel > .table-wrap {
+  padding: 0;
+}
+
+.sales-ora12-screen .field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.sales-ora12-screen .input,
+.sales-ora12-screen select.input,
+.sales-ora12-screen textarea.input {
+  min-height: 1.65rem;
+  padding: 0.2rem 0.45rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--ora12-text);
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.sales-ora12-screen .input:focus,
+.sales-ora12-screen select.input:focus,
+.sales-ora12-screen textarea.input:focus {
+  outline: none;
+  border-color: #0572ce;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.sales-ora12-screen .btn,
+.sales-ora12-screen a.btn,
+.sales-ora12-screen button.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.6rem;
+  min-height: 1.6rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.sales-ora12-screen .btn:hover:not(:disabled),
+.sales-ora12-screen a.btn:hover {
+  background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+  border-color: #9ab8d0;
+  color: var(--ora12-text);
+}
+
+.sales-ora12-screen .btn-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border-color: #024d8f;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+}
+
+.sales-ora12-screen .btn-primary:hover:not(:disabled),
+.sales-ora12-screen a.btn-primary:hover {
+  background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+  border-color: #024d8f;
+  color: #fff;
+}
+
+.sales-ora12-screen .btn-danger {
+  color: #fff;
+  background: linear-gradient(180deg, #e85d4a 0%, #c74634 55%, #a33a2b 100%);
+  border-color: #a33a2b;
+}
+
+.sales-ora12-screen .btn-danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ef6f5d 0%, #d45542 55%, #b34232 100%);
+  color: #fff;
+}
+
+.sales-ora12-screen .btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ora12-link);
+}
+
+.sales-ora12-screen .btn-ghost:hover {
+  background: var(--ora12-hover);
+  border-color: var(--ora12-border);
+}
+
+.sales-ora12-screen .sales-ora-tabs,
+.sales-ora12-screen .sal-inv-list-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  background: #f3f5f7;
+  border: 1px solid var(--ora12-border);
+  border-top: none;
+}
+
+.sales-ora12-screen .sales-ora-search-form,
+.sales-ora12-screen .form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.45rem 0.65rem;
+  margin: 0;
+}
+
+.sales-ora12-screen .table-wrap {
+  overflow-x: auto;
+  border: none;
+  background: var(--ora12-surface);
+  box-shadow: none;
+}
+
+.sales-ora12-screen .data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  background: var(--ora12-surface);
+}
+
+.sales-ora12-screen .data-table th,
+.sales-ora12-screen .data-table td {
+  padding: 0.32rem 0.5rem;
+  text-align: right;
+  border: 1px solid #dde3ea;
+  vertical-align: middle;
+}
+
+.sales-ora12-screen .data-table th {
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+  color: var(--ora12-text);
+  font-weight: 700;
+  font-size: 0.73rem;
+  white-space: nowrap;
+  border-bottom: 2px solid #c5d0dc;
+  text-align: center;
+}
+
+.sales-ora12-screen .data-table tbody tr:nth-child(even) td {
+  background: var(--ora12-stripe);
+}
+
+.sales-ora12-screen .data-table tbody tr:hover td {
+  background: var(--ora12-hover);
+}
+
+.sales-ora12-screen .data-table .col-money {
+  text-align: left;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sales-ora12-screen .data-table code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ora12-link);
+  background: transparent;
+  padding: 0;
+}
+
+.sales-ora12-screen .data-table .row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.sales-ora12-screen .data-table .row-actions form {
+  display: inline;
+  margin: 0;
+}
+
+.sales-ora12-screen .sal-doc-list-row.is-clickable {
+  cursor: pointer;
+}
+
+.sales-ora12-screen .badge {
+  display: inline-block;
+  padding: 0.1rem 0.42rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
+  background: #f3f5f7;
+  color: var(--ora12-muted);
+}
+
+.sales-ora12-screen .badge-ok,
+.sales-ora12-screen .badge.badge-ok {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.sales-ora12-screen .badge-warn,
+.sales-ora12-screen .badge.badge-warn {
+  background: #fff8e8;
+  border-color: #e8d4a8;
+  color: #7a5c00;
+}
+
+.sales-ora12-screen .badge-posted,
+.sales-ora12-screen .badge.badge-posted {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+.sales-ora12-screen .badge-einv-sent,
+.sales-ora12-screen .badge.badge-einv-sent {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.sales-ora12-screen .badge-off,
+.sales-ora12-screen .badge.badge-off {
+  background: #f3f5f7;
+  border-color: var(--ora12-border);
+  color: var(--ora12-muted);
+}
+
+.sales-ora12-screen .alert-success {
+  padding: 0.42rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: #e8f5e9;
+  border: 1px solid #a5d6a7;
+  color: #2e7d32;
+  border-radius: 2px;
+}
+
+.sales-ora12-screen .alert-error {
+  padding: 0.42rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: #fdecea;
+  border: 1px solid #e8b4a8;
+  color: #c74634;
+  border-radius: 2px;
+}
+
+.sales-ora12-screen .list-pager {
+  margin: 0;
+  padding: 0.42rem 0.55rem;
+  background: #f3f5f7;
+  border-top: 1px solid var(--ora12-border);
+}
+
+.sales-ora12-screen .list-pager-info {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ora12-muted);
+}
+
+.sales-ora12-screen .list-pager-btn,
+.sales-ora12-screen .list-pager-num {
+  min-height: 1.45rem;
+  padding: 0.12rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+}
+
+.sales-ora12-screen .list-pager-num.is-active {
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 100%);
+  border-color: #024d8f;
+  color: #fff;
+}
+
+.sales-ora12-screen .customers-ora-search-field,
+.sales-ora12-screen .sales-reps-ora-search-field {
+  flex: 1;
+  min-width: 220px;
+}
+
+.sales-ora12-screen .form-grid {
+  max-width: 720px;
+}
+
+.sales-ora12-screen .muted {
+  color: var(--ora12-muted);
+}
+
+.sales-ora12-screen .sal-return-nos-hint {
+  font-size: 0.68rem;
+  margin-top: 0.15rem;
+}
+
+.sales-ora12-screen .dashboard-ora-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.6rem;
+  min-height: 1.6rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.sales-ora12-screen .dashboard-ora-btn--primary {
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border-color: #024d8f;
+}
+
+.sales-ora12-screen .dashboard-ora-toolbar .ledger-back-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.6rem;
+  min-height: 1.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  color: var(--ora12-text);
+}
+
+/* شاشات Oracle 12c — عنوان داخلي أزرق (إخفاء عنوان layout الرمادي) */
+.main-content:has(.dashboard-ora.sales-ora12-screen) > .app-screen-title-bar {
+  display: none;
+}
+
+.main-content--focus:has(.dashboard-ora.sales-ora12-screen),
+body:has(.dashboard-ora.sales-ora12-screen) .main-content {
+  padding: 0.45rem 0.55rem 0.85rem;
+  background: var(--ora12-bg, #e8eaed);
+}
+
+.dashboard-ora.sales-ora12-screen {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}

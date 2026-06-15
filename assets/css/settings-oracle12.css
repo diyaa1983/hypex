@@ -1,0 +1,138 @@
+/* إعدادات النظام — Oracle 12c */
+
+.settings-ora-flash {
+  margin-bottom: 0.45rem;
+}
+
+.settings-ora-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 920px;
+}
+
+.settings-ora-panel {
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+}
+
+.settings-ora-panel-head {
+  margin: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+  border-bottom: 1px solid #024d8f;
+}
+
+.settings-ora-panel-body {
+  padding: 0.55rem 0.65rem 0.65rem;
+}
+
+.settings-ora-panel-body .form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 0.45rem;
+}
+
+.settings-ora-panel-body .field {
+  flex: 1 1 14rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.settings-ora-panel-body .field--full {
+  flex: 1 1 100%;
+}
+
+.settings-ora-panel-body .field-hint {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--ora12-muted, #5c5c5c);
+  line-height: 1.4;
+}
+
+.settings-ora-panel-body .field-hint a {
+  color: #024d8f;
+}
+
+.settings-ora-logo-preview {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--ora12-muted, #5c5c5c);
+}
+
+.settings-ora-logo-preview img {
+  max-height: 48px;
+  vertical-align: middle;
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  padding: 4px;
+  background: #fff;
+  margin-inline-start: 0.35rem;
+}
+
+.settings-ora-info {
+  margin: 0 0 0.55rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  background: #e8f4fc;
+  border: 1px solid #9ec5e8;
+  border-radius: 2px;
+  color: #000;
+}
+
+.settings-ora-info ol {
+  margin: 0.3rem 0 0;
+  padding-inline-start: 1.2rem;
+}
+
+.settings-ora-wa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
+}
+
+.settings-ora-qr-wrap {
+  margin-top: 0.55rem;
+  text-align: center;
+}
+
+.settings-ora-qr-wrap img {
+  max-width: 240px;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  padding: 6px;
+  background: #fff;
+}
+
+.settings-ora-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.45rem 0;
+}
+
+.report-ora12-workspace .settings-ora-form .input,
+.report-ora12-workspace .settings-ora-form select.input,
+.report-ora12-workspace .settings-ora-form textarea.input {
+  border-radius: 2px;
+}
+
+.report-ora12-workspace .settings-ora-panel-body .field-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: none;
+}
+
+.report-ora12-workspace .settings-ora-panel-body .field-check .field-label {
+  margin: 0;
+}

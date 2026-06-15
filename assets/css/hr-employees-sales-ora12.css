@@ -1,0 +1,358 @@
+/* ── شاشة الموظفين — مثل فاتورة المبيعات (Oracle 12c) ── */
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap {
+    width: 100%;
+    max-width: 100%;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .dashboard-ora-screen-title__group {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .dashboard-ora-screen-title__text {
+    flex: 0 1 auto;
+    margin: 0;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .dashboard-ora-screen-title__action {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.14rem 0.55rem;
+    min-height: 1.45rem;
+    font-family: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #fff;
+    text-decoration: none;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    border-radius: 2px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .dashboard-ora-screen-title__action:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.24);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid-flash {
+    margin: 0;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-top-bar.dashboard-ora-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.35rem 0.55rem;
+    margin: 0;
+    padding: 0.4rem 0.55rem;
+    background: #f3f5f7;
+    border: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-top-bar .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    align-self: flex-end;
+    margin-bottom: 0.05rem;
+    padding: 0.22rem 0.6rem;
+    min-height: 1.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    text-decoration: none;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-top-bar .btn-primary {
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-top-bar .btn:hover {
+    background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+    border-color: #9ab8d0;
+    color: var(--ora12-text);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-top-bar .btn-primary:hover {
+    color: #fff;
+    background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-meta-row--inline {
+    flex: 1 1 auto;
+    min-width: min(100%, 28rem);
+    gap: 0.45rem 0.65rem;
+    margin: 0;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-meta-row {
+    gap: 0.45rem 0.65rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-meta-no {
+    flex: 0 0 14rem;
+    min-width: 14rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-meta-name {
+    flex: 1 1 18rem;
+    min-width: 12rem;
+    max-width: 24rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-meta-pos {
+    flex: 0 0 6.5rem;
+    min-width: 6.5rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-meta-item label,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+    margin-bottom: 0.15rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .input,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap select.input,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap textarea.input {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--ora12-text);
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .input:focus,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap select.input:focus,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap textarea.input:focus {
+    outline: none;
+    border-color: #0572ce;
+    box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-no-nav,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-no-nav {
+    display: flex;
+    align-items: stretch;
+    gap: 0.25rem;
+    width: 100%;
+    direction: ltr;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-no-arrow,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-no-arrow {
+    flex: 0 0 1.55rem;
+    width: 1.55rem;
+    min-height: 1.55rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    color: var(--ora12-text);
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    cursor: pointer;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-no-arrow:hover:not(:disabled),
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-no-arrow:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+    border-color: #9ab8d0;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-no-arrow:disabled,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-no-arrow:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-picker-code {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-pos-display {
+    text-align: center;
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-cust-open {
+    min-height: 1.65rem;
+    padding: 0.18rem 0.45rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-cust-open:hover:not(:disabled) {
+    border-color: #0572ce;
+    background: var(--ora12-hover);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-cust-open-label {
+    font-weight: 600;
+    color: var(--ora12-text);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-editor-head.dashboard-ora-panel__title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-editor-title {
+    margin: 0;
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-editor-code {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    padding: 0.1rem 0.4rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-state-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.1rem 0.42rem;
+    border-radius: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(0, 0, 0, 0.12);
+    color: #fff;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-state-badge.is-on {
+    background: rgba(46, 125, 50, 0.35);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-state-badge.is-resigned,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-state-badge.is-resigned-draft {
+    background: rgba(199, 70, 52, 0.35);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-section {
+    margin-top: 0.5rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-section:first-child {
+    margin-top: 0;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-stack-tabs {
+    min-height: 1.85rem;
+    border-bottom: 1px solid #808080;
+    background: linear-gradient(180deg, #ece9e4 0%, #d4d0c8 100%);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-stack-tab {
+    border-radius: 0;
+    font-size: 0.72rem;
+    color: #fff;
+    border-color: #024d8f #4a9fd4 #6a6a6a #024d8f;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-stack-tab.is-front {
+    border-color: #024d8f #5a9fd4 #fff #024d8f;
+    background: linear-gradient(180deg, #2490e8 0%, #0572ce 50%, #024d8f 100%);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-stack-tab.is-behind {
+    border-color: #024d8f #3d8ec4 #8a8a8a #024d8f;
+    background: linear-gradient(180deg, #3d8ec4 0%, #0468b8 100%);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-stack-body {
+    border: 1px solid var(--ora12-border);
+    border-top: none;
+    background: #fff;
+    padding: 0.5rem 0.55rem 0.6rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-lov {
+    min-height: 1.65rem;
+    max-height: 1.65rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-lov:focus-within {
+    border-color: #0572ce;
+    outline: 1px solid rgba(5, 114, 206, 0.35);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-lov-btn {
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-toggle {
+    min-height: 1.65rem;
+    padding: 0.22rem 0.45rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-marital-toggle.is-active {
+    background: #0572ce;
+    color: #fff;
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-block--ss .dashboard-ora-panel__body {
+    background: var(--ora12-stripe);
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-locked-note {
+    margin: 0 0 0.5rem;
+    padding: 0.42rem 0.55rem;
+    background: #fff8e1;
+    border: 1px solid #f0d78c;
+    border-radius: 2px;
+    font-size: 0.78rem;
+}

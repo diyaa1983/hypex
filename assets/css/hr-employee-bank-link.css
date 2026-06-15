@@ -1,0 +1,276 @@
+/* شاشة ربط إعدادات البنك — نفس تصميم الأقسام */
+
+.hr-emp-bank-grid-page {
+    --hr-emp-bank-accent: #0891b2;
+    --hr-emp-bank-accent-soft: #cffafe;
+    --hr-emp-bank-accent-deep: #0e7490;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.hr-emp-bank-grid-flash {
+    margin-bottom: 0.75rem;
+}
+
+.hr-emp-bank-grid-title {
+    margin: 0 0 0.85rem;
+    text-align: center;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.hr-emp-bank-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.hr-emp-bank-toolbar .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.hr-emp-bank-editor {
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem 1rem;
+    background: var(--hr-emp-bank-accent-soft);
+    border: 1px solid var(--hr-emp-bank-accent);
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 10px rgba(8, 145, 178, 0.12);
+}
+
+.hr-emp-bank-editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.hr-emp-bank-editor-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--hr-emp-bank-accent-deep);
+}
+
+.hr-emp-bank-editor-close {
+    min-width: 2rem;
+    padding: 0.2rem 0.45rem;
+}
+
+.hr-emp-bank-editor-fields {
+    display: grid;
+    grid-template-columns: minmax(100px, 0.2fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(90px, 0.2fr);
+    gap: 0.65rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.hr-emp-bank-editor-fields .field {
+    margin: 0;
+}
+
+.hr-emp-bank-editor-fields .field-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.hr-emp-bank-code-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.35rem;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 0.4rem;
+    background: #f1f5f9;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+}
+
+.hr-emp-bank-code-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    color: #64748b;
+}
+
+.hr-emp-bank-warn {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    color: #b45309;
+}
+
+.hr-emp-bank-editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.hr-emp-bank-grid-page.is-editing .hr-emp-bank-grid-wrap {
+    outline: 2px solid #67e8f9;
+    outline-offset: 2px;
+}
+
+.hr-emp-bank-grid-wrap {
+    background: #fff;
+    border: 1px solid #0f172a;
+    border-radius: 2px;
+    overflow: auto;
+}
+
+.hr-emp-bank-grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.92rem;
+}
+
+.hr-emp-bank-grid-table th,
+.hr-emp-bank-grid-table td {
+    border: 1px solid #0f172a;
+    text-align: center;
+    vertical-align: middle;
+    padding: 0.45rem 0.4rem;
+}
+
+.hr-emp-bank-grid-table thead th {
+    background: #d9d9d9;
+    font-weight: 700;
+}
+
+.hr-emp-bank-grid-table th.hr-emp-bank-col-active,
+.hr-emp-bank-cell-active {
+    width: 5.5rem;
+}
+
+.hr-emp-bank-grid-table th.hr-emp-bank-col-del,
+.hr-emp-bank-cell-del {
+    width: 3.5rem;
+}
+
+.hr-emp-bank-row-del {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: none;
+    border-radius: 0.35rem;
+    background: transparent;
+    font-size: 1.1rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.hr-emp-bank-row-del:hover:not(:disabled) {
+    background: #fee2e2;
+}
+
+.hr-emp-bank-row-del.is-locked,
+.hr-emp-bank-row-del:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.hr-emp-bank-toggle-form {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.hr-emp-bank-toggle-chk {
+    display: inline-flex;
+    padding: 0.35rem;
+    cursor: pointer;
+}
+
+.hr-emp-bank-toggle-chk input[type="checkbox"] {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--hr-emp-bank-accent);
+    cursor: pointer;
+}
+
+.hr-emp-bank-active-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.35rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid #a5f3fc;
+    border-radius: 0.4rem;
+    background: #ecfeff;
+    cursor: pointer;
+}
+
+.hr-emp-bank-active-check input[type="checkbox"] {
+    accent-color: var(--hr-emp-bank-accent);
+}
+
+.hr-emp-bank-editor-field-active {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.hr-emp-bank-row {
+    cursor: pointer;
+}
+
+.hr-emp-bank-row.is-inactive td {
+    color: #94a3b8;
+    background: #f8fafc;
+}
+
+.hr-emp-bank-row.is-no-bank td {
+    background: #fff;
+}
+
+.hr-emp-bank-row.is-linked td {
+    background: #fffbeb;
+}
+
+.hr-emp-bank-row.is-selected td {
+    background: #cffafe;
+}
+
+.hr-emp-bank-row.is-selected.is-linked td {
+    background: #fef3c7;
+}
+
+.hr-emp-bank-row:hover td {
+    background: #f8fafc;
+}
+
+.hr-emp-bank-row.is-selected:hover td {
+    background: #cffafe;
+}
+
+@media (max-width: 960px) {
+    .hr-emp-bank-editor-fields {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .hr-emp-bank-editor-field-code {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 640px) {
+    .hr-emp-bank-editor-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .hr-emp-bank-toolbar .btn {
+        flex: 1 1 auto;
+    }
+}

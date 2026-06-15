@@ -1,0 +1,48 @@
+.fin-jv-wrap .journal-entry-card {
+  margin-top: 0.5rem;
+}
+
+.fin-jv-wrap .journal-lines-table {
+  border: 1px solid #94a3b8;
+}
+
+.fin-jv-wrap .journal-memo {
+  width: 100%;
+  min-width: 160px;
+}
+
+.fin-jv-wrap .jv-acc-picker-slot {
+  min-width: 0;
+  width: 100%;
+}
+
+.fin-jv-wrap .jv-acc-picker-btn {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.72rem;
+}
+
+.fin-jv-wrap .jv-acc-picker-btn .sales-inv-cust-open-label {
+  max-width: 100%;
+  font-weight: 600;
+}
+
+.fin-jv-wrap .col-acc {
+  min-width: 200px;
+}
+
+.fin-jv-wrap.is-readonly .journal-account-select,
+.fin-jv-wrap.is-readonly .journal-amount,
+.fin-jv-wrap.is-readonly .journal-memo {
+  background: #f8fafc;
+  pointer-events: none;
+}
+
+.fin-jv-wrap.is-readonly #jv-add-line {
+  display: none;
+}
+
+.fin-jv-wrap.is-readonly .col-act {
+  display: none;
+}

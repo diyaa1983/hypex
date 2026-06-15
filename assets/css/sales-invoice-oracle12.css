@@ -1,0 +1,1077 @@
+/* ── فاتورة مبيعات — Oracle 12c (حديث / مسطح) ── */
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap {
+  width: 100%;
+  max-width: 100%;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .input,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap select.input,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap textarea.input,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap button,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-panel {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__group {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__text {
+  flex: 0 1 auto;
+  margin: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-title-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__action.sales-inv-title-new,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__action.sales-inv-title-action {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.14rem 0.55rem;
+  min-height: 1.45rem;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 2px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+  cursor: pointer;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__action.sales-inv-title-new:hover,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__action.sales-inv-title-action:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__action.sales-inv-title-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__action.sales-inv-unlink-delivery-btn:not([hidden]) {
+  background: rgba(255, 251, 235, 0.22);
+  border-color: rgba(255, 237, 213, 0.55);
+  color: #fff7ed;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-grid-flash {
+  margin: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-toolbar.sales-inv-toolbar {
+  margin: 0;
+  padding: 0.4rem 0.55rem;
+  background: #f3f5f7;
+  border-bottom: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-toolbar .btn,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-toolbar .ledger-back-btn,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-print-overlay-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.6rem;
+  min-height: 1.6rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-toolbar .btn:hover,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-toolbar .ledger-back-btn:hover,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-print-overlay-actions .btn:hover {
+  background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+  border-color: #9ab8d0;
+  color: var(--ora12-text);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-status-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-inline-start: auto;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-posted-badge {
+  margin: 0;
+  padding: 0.1rem 0.42rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: #f3f5f7;
+  color: var(--ora12-muted);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-posted-badge.badge-posted {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-posted-badge.badge-einv-sent {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-posted-badge.badge-warn {
+  background: #fff8e6;
+  border-color: #e8d4a8;
+  color: #8b5a00;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-posted-badge.badge-unposted {
+  background: #fff8e6;
+  border-color: #e8d4a8;
+  color: #8b5a00;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-btn--primary {
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border-color: #024d8f;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-btn--primary:hover {
+  background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+  border-color: #024d8f;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-doc-header {
+  text-align: start;
+  margin: 0;
+  padding: 0;
+  border-bottom: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-meta-panel {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-meta-row {
+  gap: 0.45rem 0.65rem;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-meta-item label,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-field label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+  margin-bottom: 0.15rem;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .input,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap select.input,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap textarea.input {
+  min-height: 1.65rem;
+  padding: 0.2rem 0.45rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--ora12-text);
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .input:focus,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap select.input:focus,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap textarea.input:focus {
+  outline: none;
+  border-color: #0572ce;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap #inv_sales_rep_display,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap #inv_sales_rep,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .input[readonly] {
+  background: #f3f5f7;
+  color: var(--ora12-muted);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-no-arrow {
+  flex: 0 0 1.55rem;
+  width: 1.55rem;
+  min-height: 1.55rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  color: var(--ora12-text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-no-arrow:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+  border-color: #9ab8d0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-no-arrow:active:not(:disabled) {
+  background: #d8dfe6;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-no-input.is-posted {
+  background: #fdecea !important;
+  border-color: #e8b4a8 !important;
+  color: #c74634 !important;
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-no-input.is-unposted {
+  background: #e8f5e9 !important;
+  border-color: #a5d6a7 !important;
+  color: #2e7d32 !important;
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-cust-open,
+.dashboard-ora.sales-ora12-screen.fin-rc-wrap .sales-inv-cust-open,
+.dashboard-ora.sales-ora12-screen.fin-pay-wrap .sales-inv-cust-open {
+  min-height: 1.65rem;
+  padding: 0.18rem 0.45rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-cust-open:hover:not(:disabled),
+.dashboard-ora.sales-ora12-screen.fin-rc-wrap .sales-inv-cust-open:hover:not(:disabled),
+.dashboard-ora.sales-ora12-screen.fin-pay-wrap .sales-inv-cust-open:hover:not(:disabled) {
+  border-color: #0572ce;
+  background: var(--ora12-hover);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-cust-open-label,
+.dashboard-ora.sales-ora12-screen.fin-rc-wrap .sales-inv-cust-open-label,
+.dashboard-ora.sales-ora12-screen.fin-pay-wrap .sales-inv-cust-open-label {
+  font-weight: 600;
+  color: var(--ora12-text);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-cust-open-label.is-placeholder,
+.dashboard-ora.sales-ora12-screen.fin-rc-wrap .sales-inv-cust-open-label.is-placeholder,
+.dashboard-ora.sales-ora12-screen.fin-pay-wrap .sales-inv-cust-open-label.is-placeholder {
+  color: var(--ora12-muted);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-cust-open-ico,
+.dashboard-ora.sales-ora12-screen.fin-rc-wrap .sales-inv-cust-open-ico,
+.dashboard-ora.sales-ora12-screen.fin-pay-wrap .sales-inv-cust-open-ico {
+  color: var(--ora12-link);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-card {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-lines-header {
+  display: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table-wrap {
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  background: var(--ora12-surface);
+  box-shadow: none;
+  max-height: min(52vh, 480px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table {
+  font-size: 0.72rem;
+  min-width: 1060px;
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+  color: var(--ora12-text);
+  font-weight: 700;
+  font-size: 0.68rem;
+  border: 1px solid var(--ora12-border);
+  border-bottom: 2px solid var(--ora12-border);
+  padding: 0.12rem 0.22rem;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td {
+  padding: 0.06rem 0.12rem;
+  border: 1px solid var(--ora12-border);
+  background: #fff;
+  color: var(--ora12-text);
+  font-weight: 600;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  vertical-align: middle;
+  transition: background 0.1s ease;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody tr:nth-child(even) td {
+  background: var(--ora12-stripe);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody tr:hover td,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody tr:nth-child(even):hover td {
+  background: var(--ora12-hover);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap tr.is-entry-row td {
+  background: #fafbfc !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap tr.is-entry-row:hover td {
+  background: var(--ora12-hover) !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-form-is-locked .sales-inv-table th.sales-inv-col-del,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-form-is-locked .sales-inv-table td.sales-inv-col-del {
+  display: none !important;
+  width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-col-seq {
+  background: #f3f5f7 !important;
+  color: var(--ora12-text);
+  text-align: center;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-col-sku,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-col-barcode {
+  background: #fafbfc !important;
+  text-align: center;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table thead th.sales-inv-col-qty-extra {
+  background: linear-gradient(180deg, #e8f0f8 0%, #d8e4ef 100%);
+  color: #1e3a5f;
+  border-color: var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-qty-extra {
+  background: #f4f8fc !important;
+  border-color: var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-qty-extra .input {
+  background: #fff;
+  border-color: var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table .input,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+  font-size: 0.76rem;
+  padding: 0.15rem 0.3rem;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table .input:focus,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table select:focus {
+  outline: none;
+  border-color: #0572ce;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-col-sku .js-barcode-inp,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-col-barcode .js-barcode-inp {
+  border-radius: 2px;
+  border-color: var(--ora12-border);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.3rem;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-col-sku .js-barcode-inp:focus,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-col-barcode .js-barcode-inp:focus {
+  border-color: #0572ce;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table .input-num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-col-money,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-col-total {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-footer-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(240px, 320px);
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  background: #f3f5f7;
+  border-top: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-notes {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  border-inline-end: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-totals {
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  background: #fff;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-totals .row {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-totals .row.grand {
+  border-top: 2px solid var(--ora12-border);
+  padding-top: 0.35rem;
+  margin-top: 0.2rem;
+  font-size: 0.88rem;
+  color: var(--ora12-blue-dark, #024d8f);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-totals-disc label {
+  color: var(--ora12-muted);
+  font-weight: 700;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-item-pick,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-pick-btn {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-item-pick:hover:not(:disabled),
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-pick-btn:hover:not(:disabled) {
+  border-color: #0572ce;
+  background: var(--ora12-hover);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-print-overlay-panel {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-print-overlay-head {
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+  color: #fff;
+  border-bottom: 1px solid #024d8f;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-print-overlay-title {
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .alert {
+  margin: 0;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 2px;
+  border: 1px solid;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .alert-success {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .alert-error {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+.main-wrap:has(.sales-ora12-screen.sales-inv-wrap) .main-content,
+body:has(.sales-ora12-screen.sales-inv-wrap) .main-content {
+  padding: 0.45rem 0.55rem 0.85rem;
+  background: var(--shell-bg, #d4d0c8);
+}
+
+.main-content:has(.sales-ora12-screen.sales-inv-wrap) {
+  max-width: none;
+  width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+@media print {
+  body.app-body .dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-panel,
+  body.app-body .dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-totals {
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+}
+
+/* ── فاتورة مبيعات — Oracle 12c كامل (تجاوز sales-invoice.css) ── */
+.dashboard-ora.sales-ora12-screen.sales-inv-main {
+  font-size: 0.8125rem;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .dashboard-ora-workspace {
+  gap: 0;
+  padding: 0.5rem;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .dashboard-ora-panel {
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .dashboard-ora-panel + .dashboard-ora-panel,
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-print-area {
+  margin-top: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .dashboard-ora-panel:has(.sales-inv-meta-panel) .dashboard-ora-panel__body {
+  padding: 0.5rem 0.6rem 0.55rem;
+  background: var(--ora12-blue-light);
+  border-top: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-delivery-link-hint,
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-dlv-invoice-link-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: var(--ora12-muted);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-disc-hint {
+  font-weight: 600;
+  color: var(--ora12-muted);
+  font-size: 0.7rem;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table th .sales-inv-th-hint {
+  display: block;
+  margin-top: 0.04rem;
+  font-size: 0.58rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--ora12-muted);
+  white-space: normal;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-table-wrap {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  max-height: min(52vh, 480px);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  min-width: 1060px;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-table th {
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+  color: var(--ora12-text);
+  border: 1px solid var(--ora12-border);
+  border-bottom: 2px solid var(--ora12-border);
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-table tbody td {
+  border: 1px solid var(--ora12-border);
+  border-bottom: 1px solid var(--ora12-border);
+  background: #fff;
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-table tbody tr:nth-child(even) td {
+  background: var(--ora12-stripe);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-table .input,
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-table select,
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-col-sku .js-barcode-inp {
+  border-radius: 2px;
+  border-color: var(--ora12-border);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-table .input:focus,
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-table select:focus,
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-col-sku .js-barcode-inp:focus {
+  border-color: #0572ce;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-item-pick,
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-item-pick .sales-inv-item-name {
+  width: 100%;
+  min-height: 1.65rem;
+  padding: 0.18rem 0.45rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  text-align: start;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--ora12-text);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-item-pick .sales-inv-item-name.is-placeholder {
+  color: var(--ora12-muted);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-item-pick:hover:not(:disabled) {
+  border-color: #0572ce;
+  background: var(--ora12-hover);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-pick-btn {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  color: var(--ora12-link);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-col-sku .js-sku,
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-col-sku code.js-sku {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-footer-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(240px, 320px);
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  background: #f3f5f7;
+  border-top: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-notes {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  border-inline-end: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-notes label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-totals {
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  background: #fff;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-totals .row {
+  font-size: 0.78rem;
+  color: var(--ora12-text);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-totals .row.grand {
+  font-size: 0.88rem;
+  color: var(--ora12-blue-dark, #024d8f);
+  border-top: 2px solid var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-totals-disc {
+  margin-bottom: 0.25rem;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-main .btn-icon.danger {
+  border-radius: 2px;
+  border: 1px solid #e8b4a8;
+  background: #fdecea;
+  color: #c74634;
+}
+
+@media (max-width: 900px) {
+  .dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-footer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-ora.sales-ora12-screen.sales-inv-main .sales-inv-notes {
+    border-inline-end: none;
+    border-bottom: 1px solid var(--ora12-border);
+  }
+}
+
+body:has(.sales-inv-main) .sales-inv-pick-dropdown.item-picker-modal .sales-inv-pick-head {
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+  border-bottom: 1px solid #024d8f;
+}
+
+body:has(.sales-inv-main) .sales-inv-pick-dropdown.item-picker-modal .sales-inv-pick-title {
+  color: #fff;
+}
+
+body:has(.sales-inv-main) .sales-inv-pick-dropdown.item-picker-modal .sales-inv-pick-close {
+  color: #fff;
+  border-radius: 2px;
+}
+
+body:has(.sales-inv-main) .sales-inv-pick-dropdown.item-picker-modal .sales-inv-pick-close:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__panel {
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__head {
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+  padding: 0.45rem 0.6rem;
+}
+
+body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__head h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__close {
+  color: #fff;
+  border-radius: 2px;
+}
+
+body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__close:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+body:has(.sales-inv-main) .sales-inv-dlv-pick-item {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+}
+
+body:has(.sales-inv-main) .sales-inv-dlv-pick-item:hover {
+  background: var(--ora12-hover);
+  border-color: #0572ce;
+}
+
+body:has(.sales-inv-main) .sales-inv-pick-dropdown.item-picker-modal,
+body:has(.sales-inv-main) .sales-inv-dlv-pick-modal {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* خط غامق — فاتورة مبيعات Oracle 12c */
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap {
+  font-weight: 700;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .input,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap select.input,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap textarea.input,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-table th,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-table tbody td,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-table .input,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-table select,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-cust-open-label,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-item-name,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-item-pick,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-item-pick .sales-inv-item-name,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .js-barcode-inp,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .js-sku,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-meta-item label,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-field label,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-totals .row,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-totals .row span,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-totals-disc label,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-col-seq,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-col-sku,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-col-money,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-disc-hint,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-posted-badge,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-delivery-link-hint,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-dlv-invoice-link-hint {
+  font-weight: 700;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-no-input,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-totals .row.grand,
+.dashboard-ora.sales-ora12-screen.sales-inv-bold.sales-inv-wrap .sales-inv-totals .row.grand span {
+  font-weight: 800;
+}
+
+/* جدول البنود — بدون مربع داخل مربع + صفوف مضغوطة (شبكة Oracle) */
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td {
+  padding: 0.06rem 0.12rem;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table th .sales-inv-th-hint {
+  margin-top: 0.04rem;
+  font-size: 0.58rem;
+  line-height: 1.1;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td:focus-within {
+  background: var(--ora12-hover) !important;
+  box-shadow: inset 0 0 0 1px #0572ce;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody tr:nth-child(even) td:focus-within {
+  background: var(--ora12-hover) !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .input,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody select.input,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .js-barcode-inp,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-item-pick,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-cust-open {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0.85rem;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody input[type="number"]::-webkit-inner-spin-button,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody select.input {
+  appearance: auto;
+  -webkit-appearance: menulist;
+  cursor: pointer;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .input:focus,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody select.input:focus,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .js-barcode-inp:focus {
+  outline: none;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-cust-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.12rem;
+  min-height: 0.85rem;
+  text-align: start;
+  cursor: pointer;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-item-pick {
+  text-align: start;
+  cursor: pointer;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-item-pick:hover:not(:disabled),
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-item-pick:focus:not(:disabled),
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-cust-open:hover:not(:disabled),
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-cust-open:focus:not(:disabled) {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-item-pick .sales-inv-item-name,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-cust-open .sales-inv-cust-open-label {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  min-height: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-qty-extra .input,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .input[readonly] {
+  background: transparent !important;
+  color: inherit;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-del {
+  padding: 0 0.04rem;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-del .btn-icon.danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 1.5rem;
+  min-height: 1.25rem;
+  margin: 0 auto;
+  padding: 0.08rem;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 2px;
+  color: #c74634;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-del .btn-icon.danger:hover {
+  background: #fdecea;
+  color: #a94438;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-del .btn-icon.danger svg {
+  width: 22px;
+  height: 22px;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-amt-display {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: inherit;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-col-total.js-line-gross .sales-inv-amt-display {
+  color: var(--ora12-blue-dark, #024d8f);
+  background: transparent !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .js-tax-amt,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-col-total.js-line-gross {
+  padding: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-col-sku .js-sku,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .sales-inv-col-seq .js-seq {
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+
+/* رقم المادة — صف إدخال: باركود فقط | صف بيانات: js-sku فقط */
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody tr.is-entry-row .sales-inv-col-sku .js-sku {
+  display: none !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody tr:not(.is-entry-row) .sales-inv-col-sku .js-barcode-inp {
+  display: none !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
+  display: block;
+  margin: 0;
+  min-height: 0;
+}

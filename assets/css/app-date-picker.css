@@ -1,0 +1,88 @@
+/* منتقي تاريخ d-m-Y — زر تقويم + حقل date أصلي */
+.date-dmy-field {
+  display: inline-flex;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+  vertical-align: middle;
+}
+
+.date-dmy-field .js-date-dmy {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  margin: 0;
+}
+
+.date-dmy-picker-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.35rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--border);
+  border-inline-start: none;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: var(--radius, 8px);
+  border-end-end-radius: var(--radius, 8px);
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.date-dmy-picker-btn:hover {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.date-dmy-picker-btn:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: -2px;
+}
+
+.date-dmy-field--compact .date-dmy-picker-btn {
+  min-width: 2rem;
+  padding: 0 0.35rem;
+}
+
+.date-dmy-native {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  pointer-events: none;
+}
+
+/* حقول meta في الفواتير */
+.sales-inv-meta-item .date-dmy-field {
+  width: 100%;
+}
+
+.sales-inv-meta-item .date-dmy-field .js-date-dmy {
+  width: 100%;
+}
+
+/* فلاتر التقارير */
+.report-acc-filters .date-dmy-field,
+.report-sales-filters .date-dmy-field,
+.journal-entry-header .date-dmy-field,
+.form-row .field .date-dmy-field {
+  width: 100%;
+}
+
+@media print {
+  .date-dmy-picker-btn {
+    display: none !important;
+  }
+
+  .date-dmy-field .js-date-dmy {
+    border-radius: var(--radius, 8px);
+  }
+}

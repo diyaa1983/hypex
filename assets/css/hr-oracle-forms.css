@@ -1,0 +1,128 @@
+/* عناصر Oracle Forms المشتركة — شريط العنوان + زر الإغلاق */
+
+.hr-ora-title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    margin: 0 0 0.35rem;
+    padding: 0.08rem 0.08rem 0.08rem 0.45rem;
+    direction: rtl;
+    background: linear-gradient(180deg, #3a6ea5 0%, #1e4d8c 45%, #0f3a7a 100%);
+    border: 1px solid #000;
+    border-radius: 0;
+    box-sizing: border-box;
+}
+
+.hr-ora-title-bar__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    padding: 0.12rem 0.25rem 0.12rem 0;
+    text-align: start;
+    font-family: Tahoma, Arial, "MS Sans Serif", sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0;
+    line-height: 1.25;
+}
+
+.hr-ora-title-bar__close {
+    flex: 0 0 1.15rem;
+    width: 1.15rem;
+    height: 1.15rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    border: 1px solid;
+    border-color: #fff #404040 #404040 #fff;
+    border-radius: 0;
+    background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+    color: #000;
+    font-family: Tahoma, Arial, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1;
+    text-decoration: none;
+    cursor: default;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+.hr-ora-title-bar__close-glyph {
+    display: block;
+    line-height: 1;
+    margin-top: -1px;
+}
+
+.hr-ora-title-bar__close:hover {
+    background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+    color: #000;
+}
+
+.hr-ora-title-bar__close:active {
+    border-color: #404040 #fff #fff #404040;
+    background: #c0c0c0;
+    padding-top: 1px;
+}
+
+/* ── رسائل Oracle — تنبيهات مضمّنة (flash / gate / info) ── */
+
+body.hr-ora-ui [class*="-ora-screen"] .alert,
+body.hr-ora-ui .hr-ora-msg {
+    margin: 0 0 0.45rem;
+    padding: 0.45rem 0.55rem;
+    border: 2px solid;
+    border-color: #fff #404040 #404040 #fff;
+    border-radius: 0;
+    background: #ece9e4;
+    box-shadow: 1px 1px 0 #808080;
+    font-family: Tahoma, Arial, "MS Sans Serif", sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #000;
+    text-align: start;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .alert-success,
+body.hr-ora-ui .hr-ora-msg--success {
+    background: #e8f4e8;
+    border-color: #fff #206020 #206020 #fff;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .alert-error,
+body.hr-ora-ui .hr-ora-msg--error {
+    background: #ffe4e1;
+    border-color: #fff #802020 #802020 #fff;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .alert-info,
+body.hr-ora-ui .hr-ora-msg--info {
+    background: #ece9e4;
+    border-color: #fff #404040 #404040 #fff;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .alert-warning,
+body.hr-ora-ui .hr-ora-msg--warning {
+    background: #ffffe1;
+    border-color: #fff #806010 #806010 #fff;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .alert a {
+    color: #000080;
+    font-weight: 700;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .alert strong {
+    font-weight: 700;
+    color: #000;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .muted {
+    color: #000;
+    font-weight: 600;
+}

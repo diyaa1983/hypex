@@ -1,0 +1,180 @@
+.fin-rc-wrap .fin-rc-pay-row {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.fin-rc-wrap .fin-rc-pay-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fin-rc-wrap .fin-rc-body {
+  padding: 1rem 1.1rem;
+}
+
+.fin-rc-wrap .fin-rc-notes {
+  margin-top: 0.75rem;
+  max-width: 480px;
+}
+
+.fin-rc-wrap .fin-rc-meta-rep input[readonly] {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.fin-rc-wrap.fin-rc-form-is-posted .fin-rc-body input:not([readonly]),
+.fin-rc-wrap.fin-rc-form-is-posted .fin-rc-body select,
+.fin-rc-wrap.fin-rc-form-is-posted .fin-rc-body textarea {
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+/* نقداً: المبلغ — شيك: جدول الشيكات */
+.fin-rc-wrap.fin-rc-pay-is-check .fin-rc-field-cash,
+.fin-rc-wrap.fin-rc-pay-is-check #rc_cash_amount_wrap,
+.fin-rc-wrap.fin-rc-pay-is-check #rc_amount,
+#fin-rc-form.fin-rc-pay-is-check .fin-rc-field-cash,
+#fin-rc-form.fin-rc-pay-is-check #rc_cash_amount_wrap {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+}
+
+.fin-rc-wrap.fin-rc-pay-is-cash .fin-rc-field-check,
+.fin-rc-wrap.fin-rc-pay-is-cash #rc_checks_wrap,
+.fin-rc-wrap.fin-rc-pay-is-bank .fin-rc-field-check,
+.fin-rc-wrap.fin-rc-pay-is-bank #rc_checks_wrap,
+#fin-rc-form.fin-rc-pay-is-cash .fin-rc-field-check,
+#fin-rc-form.fin-rc-pay-is-cash #rc_checks_wrap,
+#fin-rc-form.fin-rc-pay-is-bank .fin-rc-field-check,
+#fin-rc-form.fin-rc-pay-is-bank #rc_checks_wrap {
+  display: none !important;
+}
+
+.fin-rc-wrap .fin-rc-field-check[hidden],
+.fin-rc-wrap .fin-rc-field-cash[hidden],
+.fin-rc-wrap #rc_cash_amount_wrap[hidden],
+.fin-rc-wrap #rc_checks_wrap[hidden] {
+  display: none !important;
+}
+
+/* جدول الشيكات */
+.fin-rc-wrap .fin-rc-checks-wrap {
+  margin-top: 0.85rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.fin-rc-wrap .fin-rc-checks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.fin-rc-wrap .fin-rc-checks-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.fin-rc-wrap .fin-rc-checks-table-wrap {
+  overflow-x: auto;
+}
+
+.fin-rc-wrap .fin-rc-checks-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.fin-rc-wrap .fin-rc-checks-table th,
+.fin-rc-wrap .fin-rc-checks-table td {
+  border: 1px solid var(--ora12-border);
+  padding: 0.35rem 0.45rem;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.fin-rc-wrap .fin-rc-checks-table thead th {
+  background: #f1f5f9;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+.fin-rc-wrap .fin-rc-checks-table input.input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fin-rc-wrap .fin-rc-col-no {
+  width: 3rem;
+}
+
+.fin-rc-wrap .fin-rc-col-amount {
+  width: 7rem;
+}
+
+.fin-rc-wrap .fin-rc-col-due {
+  width: 11rem;
+}
+
+.fin-rc-wrap .fin-rc-col-act {
+  width: 2.5rem;
+}
+
+.fin-rc-wrap .fin-rc-checks-table td .date-dmy-field {
+  width: 100%;
+}
+
+.fin-rc-wrap .fin-rc-checks-table td .date-dmy-field .js-date-dmy {
+  width: 100%;
+  min-width: 0;
+}
+
+.fin-rc-wrap .fin-rc-checks-table td .date-dmy-picker-btn {
+  flex-shrink: 0;
+}
+
+.fin-rc-wrap .fin-rc-check-remove {
+  padding: 0.15rem 0.55rem;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.fin-rc-wrap .fin-rc-checks-total-row td {
+  background: #f8fafc;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.fin-rc-wrap .fin-rc-checks-total-label {
+  text-align: end;
+}
+
+.fin-rc-wrap .fin-rc-checks-total-value {
+  text-align: center;
+  font-size: 1rem;
+}
+
+@media print {
+  .fin-rc-wrap .fin-rc-checks-table .fin-rc-col-act,
+  .fin-rc-wrap .fin-rc-checks-header {
+    display: none !important;
+  }
+}

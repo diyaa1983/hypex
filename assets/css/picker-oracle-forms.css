@@ -1,0 +1,1134 @@
+/* ── قوائم اختيار Oracle — عميل / مادة / مورد (شاشات HR + Oracle 12c) ── */
+
+body.hr-ora-ui .sales-inv-pick-backdrop,
+body.ora12-picker-ui .sales-inv-pick-backdrop {
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: none;
+}
+
+body.hr-ora-ui .sales-inv-pick-dropdown,
+body.ora12-picker-ui .sales-inv-pick-dropdown,
+body.hr-ora-ui #sales-inv-picker.sales-inv-pick-dropdown,
+body.ora12-picker-ui #sales-inv-picker.sales-inv-pick-dropdown {
+  font-family: Tahoma, Arial, "MS Sans Serif", sans-serif;
+  background: #d4d0c8;
+  border: 2px solid #000;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 #808080;
+  animation: none;
+}
+
+body.hr-ora-ui .sales-inv-pick-dropdown.is-screen-center,
+body.ora12-picker-ui .sales-inv-pick-dropdown.is-screen-center,
+body.hr-ora-ui #sales-inv-picker.sales-inv-pick-dropdown.is-screen-center,
+body.ora12-picker-ui #sales-inv-picker.sales-inv-pick-dropdown.is-screen-center {
+  width: min(500px, calc(100vw - 24px));
+  max-width: min(520px, calc(100vw - 24px));
+}
+
+body.hr-ora-ui .sales-inv-pick-head,
+body.ora12-picker-ui .sales-inv-pick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.08rem 0.08rem 0.08rem 0.45rem;
+  direction: rtl;
+  background: linear-gradient(180deg, #3a6ea5 0%, #1e4d8c 45%, #0f3a7a 100%);
+  border-bottom: 1px solid #000;
+}
+
+body.hr-ora-ui .sales-inv-pick-title,
+body.ora12-picker-ui .sales-inv-pick-title {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0.12rem 0.25rem 0.12rem 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+body.hr-ora-ui .sales-inv-pick-close,
+body.ora12-picker-ui .sales-inv-pick-close {
+  flex: 0 0 1.15rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: default;
+}
+
+body.hr-ora-ui .sales-inv-pick-close:hover,
+body.ora12-picker-ui .sales-inv-pick-close:hover {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+  color: #000;
+}
+
+body.hr-ora-ui .sales-inv-pick-close:active,
+body.ora12-picker-ui .sales-inv-pick-close:active {
+  border-color: #404040 #fff #fff #404040;
+  background: #c0c0c0;
+  padding-top: 1px;
+}
+
+body.hr-ora-ui .sales-inv-pick-dropdown .input,
+body.ora12-picker-ui .sales-inv-pick-dropdown .input,
+body.hr-ora-ui #sales-inv-picker .input,
+body.ora12-picker-ui #sales-inv-picker .input {
+  display: block;
+  width: calc(100% - 0.9rem);
+  margin: 0.35rem 0.45rem 0.3rem;
+  padding: 0.22rem 0.35rem;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #000;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+
+body.hr-ora-ui .sales-inv-pick-dropdown .input:focus,
+body.ora12-picker-ui .sales-inv-pick-dropdown .input:focus,
+body.hr-ora-ui #sales-inv-picker .input:focus,
+body.ora12-picker-ui #sales-inv-picker .input:focus {
+  outline: 1px dotted #000;
+  outline-offset: -3px;
+  border-color: #808080 #fff #fff #808080;
+  box-shadow: none;
+}
+
+body.hr-ora-ui .sales-inv-pick-list-head,
+body.ora12-picker-ui .sales-inv-pick-list-head {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem;
+  gap: 0.35rem;
+  margin: 0 0.45rem;
+  padding: 0.22rem 0.35rem;
+  background: #d4d0c8;
+  border: 1px solid #808080;
+  border-bottom: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #000;
+  text-align: start;
+}
+
+body.hr-ora-ui .sales-inv-pick-list-head span:last-child,
+body.ora12-picker-ui .sales-inv-pick-list-head span:last-child {
+  text-align: center;
+}
+
+body.hr-ora-ui .sales-inv-pick-results,
+body.ora12-picker-ui .sales-inv-pick-results {
+  flex: 1 1 auto;
+  min-height: 160px;
+  max-height: min(420px, calc(88vh - 190px));
+  margin: 0 0.45rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: inset 1px 1px 0 #c0c0c0;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.hr-ora-ui .sales-inv-pick-list-head + .sales-inv-pick-results,
+body.ora12-picker-ui .sales-inv-pick-list-head + .sales-inv-pick-results {
+  margin-top: 0;
+  border-top: none;
+}
+
+body.hr-ora-ui .sales-inv-pick-item,
+body.ora12-picker-ui .sales-inv-pick-item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid #c0c0c0;
+  border-radius: 0;
+  background: #fff;
+  cursor: default;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  text-align: start;
+}
+
+body.hr-ora-ui .sales-inv-pick-item:last-child,
+body.ora12-picker-ui .sales-inv-pick-item:last-child {
+  border-bottom: none;
+}
+
+body.hr-ora-ui .sales-inv-pick-item-body,
+body.ora12-picker-ui .sales-inv-pick-item-body {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.18rem 0.35rem;
+  min-width: 0;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.12rem 0.35rem;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item-body,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item-body {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem;
+  flex: 1;
+  padding: 0.06rem 0;
+}
+
+body.hr-ora-ui .sales-inv-pick-item-name,
+body.ora12-picker-ui .sales-inv-pick-item-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #000;
+  line-height: 1.3;
+}
+
+body.hr-ora-ui .sales-inv-pick-item-barcode,
+body.ora12-picker-ui .sales-inv-pick-item-barcode {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #404040;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+body.hr-ora-ui .sales-inv-pick-item:hover,
+body.ora12-picker-ui .sales-inv-pick-item:hover {
+  background: #ece9e4;
+}
+
+body.hr-ora-ui .sales-inv-pick-item:focus,
+body.ora12-picker-ui .sales-inv-pick-item:focus {
+  outline: none;
+}
+
+body.hr-ora-ui .sales-inv-pick-item.is-active,
+body.ora12-picker-ui .sales-inv-pick-item.is-active,
+body.hr-ora-ui .sales-inv-pick-item.is-selected,
+body.ora12-picker-ui .sales-inv-pick-item.is-selected,
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-cust-pick-item.is-active,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-cust-pick-item.is-active {
+  background: #0a246a;
+  outline: none;
+}
+
+body.hr-ora-ui .sales-inv-pick-item.is-active .sales-inv-pick-item-name,
+body.ora12-picker-ui .sales-inv-pick-item.is-active .sales-inv-pick-item-name,
+body.hr-ora-ui .sales-inv-pick-item.is-active .sales-inv-pick-item-barcode,
+body.ora12-picker-ui .sales-inv-pick-item.is-active .sales-inv-pick-item-barcode,
+body.hr-ora-ui .sales-inv-pick-item.is-selected .sales-inv-pick-item-name,
+body.ora12-picker-ui .sales-inv-pick-item.is-selected .sales-inv-pick-item-name,
+body.hr-ora-ui .sales-inv-pick-item.is-selected .sales-inv-pick-item-barcode,
+body.ora12-picker-ui .sales-inv-pick-item.is-selected .sales-inv-pick-item-barcode,
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-cust-pick-item.is-active .sales-inv-pick-item-name,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-cust-pick-item.is-active .sales-inv-pick-item-name,
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-cust-pick-item.is-active .sales-inv-pick-item-barcode,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-cust-pick-item.is-active .sales-inv-pick-item-barcode {
+  color: #fff;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item.is-active,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item.is-active,
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item.is-selected,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item.is-selected {
+  outline: 1px dotted #fff;
+  outline-offset: -2px;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-check,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-check {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.15rem;
+  accent-color: #0a246a;
+}
+
+body.hr-ora-ui .sales-inv-pick-empty,
+body.ora12-picker-ui .sales-inv-pick-empty {
+  padding: 0.55rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #404040;
+  text-align: center;
+  background: #ece9e4;
+}
+
+body.hr-ora-ui .sales-inv-pick-foot,
+body.ora12-picker-ui .sales-inv-pick-foot {
+  flex-shrink: 0;
+  padding: 0.35rem 0.45rem 0.45rem;
+  border-top: 1px solid #808080;
+  background: #ece9e4;
+}
+
+body.hr-ora-ui .sales-inv-pick-hint,
+body.ora12-picker-ui .sales-inv-pick-hint {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #000;
+  text-align: center;
+}
+
+body.hr-ora-ui .sales-inv-pick-add,
+body.ora12-picker-ui .sales-inv-pick-add,
+body.hr-ora-ui .item-picker-foot .sales-inv-pick-add,
+body.ora12-picker-ui .item-picker-foot .sales-inv-pick-add {
+  width: 100%;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.18rem 0.55rem;
+  box-shadow: none;
+}
+
+body.hr-ora-ui .sales-inv-pick-add:hover:not(:disabled):not(.is-inactive),
+body.ora12-picker-ui .sales-inv-pick-add:hover:not(:disabled):not(.is-inactive) {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+}
+
+body.hr-ora-ui .sales-inv-pick-add:active:not(:disabled):not(.is-inactive),
+body.ora12-picker-ui .sales-inv-pick-add:active:not(:disabled):not(.is-inactive) {
+  border-color: #404040 #fff #fff #404040;
+  background: #c0c0c0;
+}
+
+body.hr-ora-ui .sales-inv-pick-add:disabled,
+body.ora12-picker-ui .sales-inv-pick-add:disabled,
+body.hr-ora-ui .sales-inv-pick-add.is-inactive,
+body.ora12-picker-ui .sales-inv-pick-add.is-inactive {
+  opacity: 0.55;
+  filter: none;
+}
+
+body.hr-ora-ui .sales-inv-cust-open,
+body.ora12-picker-ui .sales-inv-cust-open {
+  min-height: 1.35rem;
+  padding: 0.15rem 0.35rem;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+
+body.hr-ora-ui .sales-inv-cust-open:hover:not(:disabled),
+body.ora12-picker-ui .sales-inv-cust-open:hover:not(:disabled) {
+  background: #ffffe1;
+  border-color: #808080 #fff #fff #808080;
+}
+
+body.hr-ora-ui .sales-inv-cust-open-label,
+body.ora12-picker-ui .sales-inv-cust-open-label {
+  font-weight: 600;
+  color: #000;
+}
+
+body.hr-ora-ui .sales-inv-cust-open-label.is-placeholder,
+body.ora12-picker-ui .sales-inv-cust-open-label.is-placeholder {
+  color: #404040;
+}
+
+body.hr-ora-ui .sales-inv-cust-open-ico,
+body.ora12-picker-ui .sales-inv-cust-open-ico {
+  color: #000;
+  font-size: 0.72rem;
+}
+
+body.hr-ora-ui .sales-inv-item-pick,
+body.ora12-picker-ui .sales-inv-item-pick,
+body.hr-ora-ui .sales-inv-pick-btn,
+body.ora12-picker-ui .sales-inv-pick-btn {
+  border-radius: 0;
+  border: 1px solid;
+  border-color: #808080 #fff #fff #808080;
+  background: #fff;
+  box-shadow: none;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #000;
+}
+
+body.hr-ora-ui .sales-inv-item-pick:hover:not(:disabled),
+body.ora12-picker-ui .sales-inv-item-pick:hover:not(:disabled),
+body.hr-ora-ui .sales-inv-pick-btn:hover:not(:disabled),
+body.ora12-picker-ui .sales-inv-pick-btn:hover:not(:disabled) {
+  background: #ffffe1;
+}
+
+/* ── نافذة العميل/المورد: أولوية أعلى من customer-picker-modal.css ── */
+body.hr-ora-ui #app-customer-picker-modal.sales-inv-pick-dropdown,
+body.ora12-picker-ui #app-customer-picker-modal.sales-inv-pick-dropdown,
+body.hr-ora-ui #app-supplier-picker-modal.sales-inv-pick-dropdown,
+body.ora12-picker-ui #app-supplier-picker-modal.sales-inv-pick-dropdown {
+  min-width: min(400px, calc(100vw - 24px));
+  max-width: min(520px, calc(100vw - 24px));
+  background: #d4d0c8;
+  border: 2px solid #000;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 #808080;
+  animation: none;
+}
+
+body.hr-ora-ui #app-customer-picker-modal.sales-inv-pick-dropdown.is-screen-center,
+body.ora12-picker-ui #app-customer-picker-modal.sales-inv-pick-dropdown.is-screen-center,
+body.hr-ora-ui #app-supplier-picker-modal.sales-inv-pick-dropdown.is-screen-center,
+body.ora12-picker-ui #app-supplier-picker-modal.sales-inv-pick-dropdown.is-screen-center {
+  width: min(500px, calc(100vw - 24px));
+  max-height: min(88vh, calc(100vh - 24px));
+  animation: none;
+}
+
+body.hr-ora-ui #app-customer-picker-modal.is-open,
+body.ora12-picker-ui #app-customer-picker-modal.is-open,
+body.hr-ora-ui #app-supplier-picker-modal.is-open,
+body.ora12-picker-ui #app-supplier-picker-modal.is-open {
+  min-height: min(320px, 85vh);
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-head,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-head,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-head,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-head {
+  padding: 0.08rem 0.08rem 0.08rem 0.45rem;
+  background: linear-gradient(180deg, #3a6ea5 0%, #1e4d8c 45%, #0f3a7a 100%);
+  border-bottom: 1px solid #000;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-title,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-title,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-title,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-close,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-close,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-close,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-close {
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 0.82rem;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .input,
+body.ora12-picker-ui #app-customer-picker-modal .input,
+body.hr-ora-ui #app-supplier-picker-modal .input,
+body.ora12-picker-ui #app-supplier-picker-modal .input {
+  width: calc(100% - 0.9rem);
+  margin: 0.35rem 0.45rem 0.3rem;
+  padding: 0.22rem 0.35rem;
+  font-size: 0.78rem;
+  border-radius: 0;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-list-head,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-list-head,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-list-head,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-list-head,
+body.hr-ora-ui #app-employee-picker-modal .sales-inv-pick-list-head,
+body.ora12-picker-ui #app-employee-picker-modal .sales-inv-pick-list-head {
+  display: grid;
+}
+
+body.hr-ora-ui #app-customer-picker-modal.is-open .sales-inv-pick-results,
+body.ora12-picker-ui #app-customer-picker-modal.is-open .sales-inv-pick-results,
+body.hr-ora-ui #app-supplier-picker-modal.is-open .sales-inv-pick-results,
+body.ora12-picker-ui #app-supplier-picker-modal.is-open .sales-inv-pick-results,
+body.hr-ora-ui #app-employee-picker-modal.is-open .sales-inv-pick-results,
+body.ora12-picker-ui #app-employee-picker-modal.is-open .sales-inv-pick-results {
+  min-height: 160px;
+  max-height: min(420px, calc(88vh - 190px));
+  margin: 0 0.45rem;
+  border-radius: 0;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  box-shadow: inset 1px 1px 0 #c0c0c0;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-item,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-item,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-item,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-item {
+  padding: 0;
+  font-size: 0.78rem;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-cust-pick-item,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-cust-pick-item,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-cust-pick-item,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-cust-pick-item,
+body.hr-ora-ui #app-employee-picker-modal .sales-inv-cust-pick-item,
+body.ora12-picker-ui #app-employee-picker-modal .sales-inv-cust-pick-item {
+  display: block;
+  flex-direction: unset;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-item-body,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-item-body,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-item-body,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-item-body {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem;
+  flex-direction: unset;
+  gap: 0.35rem;
+  padding: 0.18rem 0.35rem;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-item-name,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-item-name,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-item-name,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-item-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-item-barcode,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-item-barcode,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-item-barcode,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-item-barcode {
+  font-size: 0.72rem;
+  color: #404040;
+  margin-top: 0;
+  text-align: center;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-foot,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-foot,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-foot,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-foot {
+  padding: 0.35rem 0.45rem 0.45rem;
+  background: #ece9e4;
+  border-top: 1px solid #808080;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-hint,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-hint,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-hint,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-hint {
+  font-size: 0.72rem;
+  color: #000;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-empty,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-empty,
+body.hr-ora-ui #app-supplier-picker-modal .sales-inv-pick-empty,
+body.ora12-picker-ui #app-supplier-picker-modal .sales-inv-pick-empty {
+  padding: 0.55rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-cust-pick-item:hover,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-cust-pick-item:hover,
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-pick-item:hover,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-pick-item:hover {
+  background: #ece9e4;
+}
+
+body.hr-ora-ui #app-customer-picker-modal .sales-inv-cust-pick-item.is-active,
+body.ora12-picker-ui #app-customer-picker-modal .sales-inv-cust-pick-item.is-active {
+  background: #0a246a;
+  outline: none;
+}
+
+/* ── نافذة المواد: أولوية أعلى من item-picker-modal.css و sales-invoice.css ── */
+body.hr-ora-ui #app-item-picker-modal.sales-inv-pick-dropdown,
+body.ora12-picker-ui #app-item-picker-modal.sales-inv-pick-dropdown {
+  min-width: min(400px, calc(100vw - 24px));
+  max-width: min(520px, calc(100vw - 24px));
+  border-radius: 0;
+  box-shadow: 4px 4px 0 #808080;
+  background: #d4d0c8;
+  border: 2px solid #000;
+  animation: none;
+}
+
+body.hr-ora-ui #app-item-picker-modal.sales-inv-pick-dropdown.is-screen-center,
+body.ora12-picker-ui #app-item-picker-modal.sales-inv-pick-dropdown.is-screen-center {
+  width: min(500px, calc(100vw - 24px));
+  max-height: min(88vh, calc(100vh - 24px));
+}
+
+body.hr-ora-ui #app-item-picker-modal.is-open,
+body.ora12-picker-ui #app-item-picker-modal.is-open {
+  min-height: min(360px, 85vh);
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-head,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-head {
+  padding: 0.08rem 0.08rem 0.08rem 0.45rem;
+  background: linear-gradient(180deg, #3a6ea5 0%, #1e4d8c 45%, #0f3a7a 100%);
+  border-bottom: 1px solid #000;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-title,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-close,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-close {
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 0.82rem;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+}
+
+body.hr-ora-ui #app-item-picker-modal .input,
+body.ora12-picker-ui #app-item-picker-modal .input {
+  width: calc(100% - 0.9rem);
+  margin: 0.35rem 0.45rem 0.3rem;
+  padding: 0.22rem 0.35rem;
+  font-size: 0.78rem;
+  border-radius: 0;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  box-shadow: none;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-list-head,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-list-head {
+  display: grid;
+}
+
+body.hr-ora-ui #app-item-picker-modal.is-open .sales-inv-pick-results,
+body.ora12-picker-ui #app-item-picker-modal.is-open .sales-inv-pick-results {
+  min-height: 180px;
+  max-height: min(420px, calc(88vh - 210px));
+  margin: 0 0.45rem;
+  border-radius: 0;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  box-shadow: inset 1px 1px 0 #c0c0c0;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.35rem;
+  padding: 0.12rem 0.35rem;
+  font-size: 0.78rem;
+  border-bottom: 1px solid #c0c0c0;
+  background: #fff;
+  transition: none;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item:last-child,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item:last-child {
+  border-bottom: none;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item:hover,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item:hover,
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item:focus,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item:focus {
+  background: #ece9e4;
+  outline: none;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item.is-active,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item.is-active,
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item.is-selected,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item.is-selected {
+  background: #0a246a;
+  outline: 1px dotted #fff;
+  outline-offset: -2px;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item.is-active .sales-inv-pick-item-name,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item.is-active .sales-inv-pick-item-name,
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item.is-active .sales-inv-pick-item-barcode,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item.is-active .sales-inv-pick-item-barcode,
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item.is-selected .sales-inv-pick-item-name,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item.is-selected .sales-inv-pick-item-name,
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item.is-selected .sales-inv-pick-item-barcode,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item.is-selected .sales-inv-pick-item-barcode {
+  color: #fff;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item-body,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item-body {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem;
+  flex: 1;
+  flex-direction: unset;
+  gap: 0.35rem;
+  padding: 0.06rem 0;
+  min-width: 0;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item-name,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #000;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-item-barcode,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-item-barcode {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #404040;
+  text-align: center;
+  margin-top: 0;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-check,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-check {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.15rem;
+  accent-color: #0a246a;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-foot,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-foot {
+  padding: 0.35rem 0.45rem 0.45rem;
+  background: #ece9e4;
+  border-top: 1px solid #808080;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-hint,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-hint {
+  font-size: 0.72rem;
+  color: #000;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-empty,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-empty {
+  padding: 0.55rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-add,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-add {
+  width: 100%;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.18rem 0.55rem;
+  box-shadow: none;
+  filter: none;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-add:hover:not(:disabled):not(.is-inactive),
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-add:hover:not(:disabled):not(.is-inactive) {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+  color: #000;
+}
+
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-add:disabled,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-add:disabled,
+body.hr-ora-ui #app-item-picker-modal .sales-inv-pick-add.is-inactive,
+body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-add.is-inactive {
+  opacity: 0.55;
+  filter: none;
+}
+
+/* ── نافذة اختيار الحساب ── */
+body.hr-ora-ui #app-account-picker-modal.sales-inv-pick-dropdown,
+body.ora12-picker-ui #app-account-picker-modal.sales-inv-pick-dropdown {
+  min-width: min(400px, calc(100vw - 24px));
+  max-width: min(520px, calc(100vw - 24px));
+  background: #d4d0c8;
+  border: 2px solid #000;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 #808080;
+  animation: none;
+}
+
+body.hr-ora-ui #app-account-picker-modal .sales-inv-pick-head,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-pick-head {
+  padding: 0.08rem 0.08rem 0.08rem 0.45rem;
+  background: linear-gradient(180deg, #3a6ea5 0%, #1e4d8c 45%, #0f3a7a 100%);
+  border-bottom: 1px solid #000;
+}
+
+body.hr-ora-ui #app-account-picker-modal .sales-inv-pick-title,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-pick-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+body.hr-ora-ui #app-account-picker-modal .sales-inv-pick-close,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-pick-close {
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 0.82rem;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+}
+
+body.hr-ora-ui #app-account-picker-modal .input,
+body.ora12-picker-ui #app-account-picker-modal .input {
+  width: calc(100% - 0.9rem);
+  margin: 0.35rem 0.45rem 0.3rem;
+  padding: 0.22rem 0.35rem;
+  font-size: 0.78rem;
+  border-radius: 0;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+}
+
+body.hr-ora-ui #app-account-picker-modal.is-open .sales-inv-pick-results,
+body.ora12-picker-ui #app-account-picker-modal.is-open .sales-inv-pick-results {
+  min-height: 160px;
+  max-height: min(420px, calc(88vh - 190px));
+  margin: 0 0.45rem;
+  border-radius: 0;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  box-shadow: inset 1px 1px 0 #c0c0c0;
+}
+
+body.hr-ora-ui #app-account-picker-modal .sales-inv-pick-item,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-pick-item,
+body.hr-ora-ui #app-account-picker-modal .sales-inv-cust-pick-item,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-cust-pick-item {
+  padding: 0;
+  font-size: 0.78rem;
+  border-bottom: 1px solid #c0c0c0;
+  background: #fff;
+}
+
+body.hr-ora-ui #app-account-picker-modal .sales-inv-pick-item-body,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-pick-item-body {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem;
+  gap: 0.35rem;
+  padding: 0.18rem 0.35rem;
+}
+
+body.hr-ora-ui #app-account-picker-modal .sales-inv-cust-pick-item:hover,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-cust-pick-item:hover,
+body.hr-ora-ui #app-account-picker-modal .sales-inv-pick-item:hover,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-pick-item:hover {
+  background: #ece9e4;
+}
+
+body.hr-ora-ui #app-account-picker-modal .sales-inv-cust-pick-item.is-active,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-cust-pick-item.is-active {
+  background: #0a246a;
+  outline: none;
+}
+
+body.hr-ora-ui #app-account-picker-modal .sales-inv-pick-foot,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-pick-foot {
+  padding: 0.35rem 0.45rem 0.45rem;
+  background: #ece9e4;
+  border-top: 1px solid #808080;
+}
+
+body.hr-ora-ui #app-account-picker-modal .sales-inv-pick-hint,
+body.ora12-picker-ui #app-account-picker-modal .sales-inv-pick-hint {
+  font-size: 0.72rem;
+  color: #000;
+}
+
+/* ── شريط تنقّل الموظف — Oracle Forms 12c (كلاسيكي) ── */
+
+body.hr-ora-ui .hr-emp-ora-screen.hr-emp-ora-forms .hr-emp-picker-ora12.hr-emp-picker-panel,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12.hr-emp-picker-panel {
+  margin-bottom: 0.45rem;
+  padding: 0;
+  background: #d4d0c8;
+  border: 2px solid #808080;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-title {
+  margin: 0;
+  padding: 0.22rem 0.45rem;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+  text-align: start;
+  background: linear-gradient(180deg, #0a246a 0%, #08206a 55%, #061a5a 100%);
+  border-bottom: 1px solid #000;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-panel-body {
+  padding: 0.35rem 0.45rem 0.45rem;
+  background: #d4d0c8;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-table-wrap {
+  display: block;
+  overflow: visible;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table {
+  width: auto;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  color: #000;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table th,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table td {
+  padding: 0.18rem 0.28rem;
+  vertical-align: middle;
+  border: 1px solid #808080;
+  background: #d4d0c8;
+  box-shadow: none;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table thead th {
+  font-weight: 700;
+  text-align: center;
+  color: #000;
+  background: linear-gradient(180deg, #ece9e4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  border-color: #fff #808080 #808080 #fff;
+  padding-block: 0.22rem;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table tbody td {
+  background: #ece9e4;
+  border-color: #808080;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table th:nth-child(1),
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table td:nth-child(1) {
+  width: 8.75rem;
+  min-width: 8.75rem;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table th:nth-child(2),
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table td:nth-child(2) {
+  width: 17.5rem;
+  min-width: 12rem;
+  max-width: min(17.5rem, 42vw);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table .hr-emp-picker-th-total,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table .hr-emp-picker-td-total {
+  width: 4.75rem;
+  min-width: 4.75rem;
+  text-align: center;
+}
+
+/* تنقّل الرقم — حقل غائر + أزرار بارزة */
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-no-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  padding: 1px;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-no-arrow {
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+  min-height: 1.25rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-no-arrow:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-no-arrow:active:not(:disabled) {
+  border-color: #404040 #fff #fff #404040;
+  background: #c0c0c0;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-no-arrow:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: #808080;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-code {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  min-height: 1.25rem;
+  margin: 0;
+  padding: 0.1rem 0.2rem;
+  border: none;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #000;
+  text-align: center;
+  cursor: text;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-code:focus {
+  outline: 1px dotted #000;
+  outline-offset: -2px;
+}
+
+/* LOV الاسم — حقل + زر قائمة */
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot {
+  margin: 0;
+  min-width: 0;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot .sales-inv-cust-open {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 1.35rem;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+  text-align: start;
+  cursor: pointer;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot .sales-inv-cust-open:hover:not(:disabled) {
+  background: #fff;
+  border-color: #808080 #fff #fff #808080;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot .sales-inv-cust-open:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: 1px;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot .sales-inv-cust-open-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.12rem 0.35rem;
+  border-inline-end: 1px solid #808080;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #000;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot .sales-inv-cust-open-label.is-placeholder {
+  color: #404040;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot .sales-inv-cust-open-ico {
+  flex: 0 0 1.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border-inline-start: 1px solid #fff;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot .sales-inv-cust-open:hover:not(:disabled) .sales-inv-cust-open-ico {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot .sales-inv-cust-open:active:not(:disabled) .sales-inv-cust-open-ico {
+  border-color: #404040 #fff #fff #404040;
+  background: #c0c0c0;
+}
+
+/* عداد السجل — حقل للقراءة فقط */
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-td-total strong {
+  display: block;
+  min-height: 1.35rem;
+  padding: 0.12rem 0.25rem;
+  border: 2px solid;
+  border-color: #808080 #fff #fff #808080;
+  background: #fff;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #000;
+  text-align: center;
+  box-sizing: border-box;
+}

@@ -1,0 +1,1055 @@
+/* شاشة الموظفين — ملء عرض منطقة المحتوى */
+
+.main-content:has(.hr-emp-grid-page) {
+    max-width: none;
+    width: 100%;
+    padding: 0.5rem 0.65rem 1rem;
+    box-sizing: border-box;
+}
+
+.hr-emp-grid-page {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: 0.25rem 0.35rem 0.75rem;
+    box-sizing: border-box;
+}
+
+.hr-emp-grid-flash {
+    margin-bottom: 0.75rem;
+}
+
+.hr-emp-grid-title {
+    margin: 0 0 0.85rem;
+    text-align: center;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: 0.01em;
+}
+
+.hr-emp-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.hr-emp-toolbar .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.hr-emp-toolbar-pos,
+.hr-emp-toolbar-total {
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.hr-emp-toolbar-total {
+    margin-inline-start: auto;
+}
+
+.hr-emp-picker-panel,
+.hr-emp-editor {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.hr-emp-picker-panel {
+    margin-bottom: 0.55rem;
+    padding: 0.45rem 0.5rem;
+    background: #f0fdfa;
+    border: 1px solid #0d9488;
+    border-radius: 0.4rem;
+}
+
+.hr-emp-picker-title {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f766e;
+    text-align: center;
+}
+
+.hr-emp-picker-row,
+.hr-emp-picker-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.55rem;
+}
+
+.hr-emp-picker-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.hr-emp-picker-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.82rem;
+}
+
+.hr-emp-picker-table th,
+.hr-emp-picker-table td {
+    border: 1px solid #0f172a;
+    padding: 0.28rem 0.4rem;
+    text-align: center;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.hr-emp-picker-table thead th {
+    background: #d9d9d9;
+    font-weight: 700;
+    color: #0f172a;
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+
+.hr-emp-picker-code {
+    width: 4.5rem;
+    min-width: 4.5rem;
+    text-align: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    padding-inline: 0.25rem;
+    background: #f1f5f9;
+    cursor: default;
+}
+
+.hr-emp-picker-table .input,
+.hr-emp-picker-table select.input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.hr-emp-picker-th-total,
+.hr-emp-picker-td-total {
+    width: 3.5rem;
+    min-width: 3.5rem;
+}
+
+.hr-emp-picker-td-label {
+    font-weight: 600;
+    color: #0f766e;
+}
+
+.hr-emp-editor {
+    margin-bottom: 0.5rem;
+    padding: 0.75rem 0.85rem 0.85rem;
+    background: #f0fdfa;
+    border: 1px solid #0d9488;
+    border-radius: 0.4rem;
+}
+
+.hr-emp-block {
+    margin-bottom: 0.85rem;
+}
+
+.hr-emp-block:last-child {
+    margin-bottom: 0;
+}
+
+.hr-emp-block-title {
+    margin: 0 0 0.55rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.hr-emp-block--ss {
+    padding: 0.65rem 0.75rem;
+    background: #fff;
+    border: 1px solid #99f6e4;
+    border-radius: 0.45rem;
+}
+
+.hr-emp-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem 0.85rem;
+    align-items: start;
+}
+
+.hr-emp-grid--identity-head {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 0.65rem;
+}
+
+.hr-emp-name-parts {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.65rem 0.85rem;
+    margin-bottom: 0.15rem;
+}
+
+.hr-emp-name-parts .input {
+    font-weight: 700;
+}
+
+.hr-emp-grid--identity {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hr-emp-grid--contact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 42rem;
+}
+
+.hr-emp-grid--address {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hr-emp-field--address-full {
+    grid-column: 1 / -1;
+}
+
+.hr-emp-ora-stack-wrap {
+    margin-bottom: 0.85rem;
+}
+
+.hr-emp-ora-stack {
+    display: flex;
+    flex-direction: column;
+}
+
+.hr-emp-ora-stack-tabs {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: flex-end;
+    width: 100%;
+    min-height: 2rem;
+    padding: 0.15rem 0 0;
+    border-bottom: 1px solid #6a6a6a;
+    background: linear-gradient(180deg, #ece9e4 0%, #d4d0c8 55%, #c8c4bc 100%);
+}
+
+.hr-emp-ora-stack-tab {
+    position: relative;
+    margin: 0;
+    min-width: 7.75rem;
+    max-width: 10.5rem;
+    padding: 0.3rem 1rem 0.36rem;
+    border: 1px solid #024d8f;
+    border-bottom: none;
+    border-radius: 3px 3px 0 0;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 50%, #024d8f 100%);
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    transition: filter 0.12s ease, opacity 0.12s ease;
+}
+
+.hr-emp-ora-stack-tab.is-front {
+    order: 1;
+    z-index: 5;
+    min-width: 8.5rem;
+    padding-bottom: 0.42rem;
+    margin-bottom: -1px;
+    background: linear-gradient(180deg, #2b95e8 0%, #0572ce 46%, #024d8f 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.35),
+        0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.hr-emp-ora-stack-tab.is-behind {
+    order: 2;
+    z-index: 1;
+    min-width: 7rem;
+    max-width: 9.5rem;
+    padding: 0.22rem 0.65rem 0.28rem;
+    margin-inline-start: -0.45rem;
+    margin-bottom: 0.14rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    opacity: 0.92;
+    filter: brightness(0.9) saturate(0.92);
+}
+
+.hr-emp-ora-stack-tab.is-behind:hover {
+    filter: brightness(0.97) saturate(1);
+    opacity: 1;
+}
+
+.hr-emp-ora-stack-tab.is-front:hover {
+    filter: brightness(1.04);
+}
+
+.hr-emp-ora-stack-tab:focus {
+    outline: 1px dotted #fff;
+    outline-offset: -2px;
+}
+
+.hr-emp-ora-stack-body {
+    position: relative;
+    z-index: 2;
+    padding: 0.6rem 0.65rem 0.7rem;
+    background: #fff;
+    border: 2px solid;
+    border-color: #6a6a6a #efefef #efefef #6a6a6a;
+    border-top: none;
+    box-shadow: inset 1px 1px 0 #e8e8e8;
+}
+
+.hr-emp-ora-stack-pane[hidden] {
+    display: none !important;
+}
+
+.hr-emp-grid--emp-status {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1fr);
+    align-items: start;
+}
+
+.hr-emp-status-item {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.hr-emp-grid--emp-status .field-label {
+    min-height: 1.15rem;
+    margin-bottom: 0.28rem;
+}
+
+.hr-emp-status-control {
+    display: flex;
+    align-items: center;
+    min-height: 2.35rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.hr-emp-status-item .input.hr-emp-status-control {
+    height: 2.35rem;
+    min-height: 2.35rem;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+}
+
+.hr-emp-status-item .hr-emp-toggle {
+    width: 100%;
+    height: 2.35rem;
+    min-height: 2.35rem;
+    box-sizing: border-box;
+    margin: 0;
+}
+
+.hr-emp-status-warn {
+    margin-top: 0.2rem;
+}
+
+.hr-emp-status-hint {
+    display: block;
+    margin: 0.35rem 0 0.5rem;
+}
+
+.hr-emp-grid--ss {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.hr-emp-grid--1 {
+    grid-template-columns: 1fr;
+}
+
+.hr-emp-field {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.hr-emp-field--status {
+    grid-column: 1 / -1;
+}
+
+.hr-emp-field-warn {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.78rem;
+    color: #ea580c;
+}
+
+.hr-emp-field-warn a {
+    color: #ea580c;
+    text-decoration: underline;
+}
+
+.hr-emp-grid-page .field {
+    margin: 0;
+}
+
+.hr-emp-grid-page .field-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.28rem;
+    display: block;
+}
+
+.hr-emp-grid-page .field-label.required::after {
+    content: " *";
+    color: #dc2626;
+    font-weight: 700;
+}
+
+.hr-emp-grid-page .input,
+.hr-emp-grid-page select.input,
+.hr-emp-grid-page textarea.input {
+    font-weight: 600;
+    color: #0f172a;
+    border-radius: 0.4rem;
+    border-color: var(--ora12-border);
+    min-height: 2.35rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.hr-emp-grid-page .hr-emp-field--name .input {
+    font-weight: 700;
+}
+
+.hr-emp-grid-page textarea.input {
+    min-height: 4rem;
+    line-height: 1.45;
+    resize: vertical;
+}
+
+.hr-emp-grid-page .input:focus,
+.hr-emp-grid-page select.input:focus,
+.hr-emp-grid-page textarea.input:focus {
+    border-color: #0d9488;
+    box-shadow: 0 0 0 3px #ccfbf1;
+}
+
+.hr-emp-grid-page .input[readonly] {
+    background: #f1f5f9;
+}
+
+.hr-emp-picker-table .hr-emp-picker-th-total,
+.hr-emp-picker-table .hr-emp-picker-td-total {
+    width: 4.25rem;
+}
+
+.hr-emp-picker-table th:nth-child(1),
+.hr-emp-picker-table td:nth-child(1) {
+    width: 9.5rem;
+}
+
+.hr-emp-picker-table th:nth-child(2),
+.hr-emp-picker-table td:nth-child(2) {
+    width: 16rem;
+    max-width: min(16rem, 38vw);
+}
+
+.hr-emp-picker-table th:nth-child(3),
+.hr-emp-picker-table td:nth-child(3) {
+    width: 4.25rem;
+}
+
+.hr-emp-editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.45rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px dashed #99f6e4;
+}
+
+.hr-emp-editor-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f766e;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.hr-emp-editor-code {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+}
+
+.hr-emp-state-badge {
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+}
+
+.hr-emp-state-badge.is-on {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.hr-emp-state-badge.is-off {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.hr-emp-state-badge.is-resigned {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.hr-emp-state-badge.is-resigned-draft {
+    background: #ffedd5;
+    color: #c2410c;
+}
+
+.hr-emp-locked-note {
+    margin: 0 0 0.65rem;
+    padding: 0.45rem 0.55rem;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 0.35rem;
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+.hr-emp-fieldset {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+}
+
+.hr-emp-fieldset:disabled {
+    opacity: 0.92;
+}
+
+.hr-emp-resign-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.65rem 1rem;
+}
+
+.hr-emp-resign-date-field {
+    flex: 1 1 12rem;
+    min-width: 10rem;
+    margin: 0;
+}
+
+.hr-emp-field-meta {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+}
+
+.hr-emp-field--resign {
+    grid-column: auto;
+}
+
+.hr-emp-form-warn {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+.hr-emp-form-warn a {
+    margin-inline: 0.25rem;
+    color: #ea580c;
+}
+
+.hr-emp-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.35rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid #d1fae5;
+    border-radius: 0.4rem;
+    background: #f0fdfa;
+    cursor: pointer;
+    font-weight: 600;
+    color: #334155;
+}
+
+.hr-emp-toggle input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    accent-color: #0d9488;
+}
+
+.hr-emp-marital-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.hr-emp-marital-toggle.is-active {
+    border-color: #0d9488;
+    background: #ccfbf1;
+}
+
+/* جدول القائمة — مثل الأقسام */
+.hr-emp-grid-wrap {
+    background: #fff;
+    border: 1px solid #0f172a;
+    border-radius: 2px;
+    overflow: auto;
+}
+
+.hr-emp-grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.95rem;
+}
+
+.hr-emp-grid-table th,
+.hr-emp-grid-table td {
+    border: 1px solid #0f172a;
+    padding: 0.45rem 0.5rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.hr-emp-grid-table thead th {
+    background: #d9d9d9;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.hr-emp-row {
+    cursor: pointer;
+}
+
+.hr-emp-row.is-selected td {
+    background: #ecfdf5;
+}
+
+.hr-emp-row.is-inactive td {
+    color: #94a3b8;
+    background: #f8fafc;
+}
+
+.hr-emp-row.is-inactive.is-selected td {
+    background: #f1f5f9;
+}
+
+.hr-emp-row:hover td {
+    background: #f8fafc;
+}
+
+.hr-emp-row.is-selected:hover td {
+    background: #ecfdf5;
+}
+
+@media (max-width: 900px) {
+    .hr-emp-grid,
+    .hr-emp-grid--identity,
+    .hr-emp-grid--identity-head {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .hr-emp-grid--emp-status {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .hr-emp-name-parts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .hr-emp-field--name {
+        grid-column: 1 / -1;
+    }
+
+    .hr-emp-grid--ss {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Oracle 12c — شاشة الموظفين ── */
+
+body.hr-ora-ui .hr-emp-ora-screen {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.8125rem;
+    color: var(--ora12-text, #161513);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-flash {
+    margin-bottom: 0.45rem;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-panel {
+    margin-bottom: 0.45rem;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-panel-body {
+    padding: 0.55rem 0.65rem 0.65rem;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-panel .hr-emp-panel-body {
+    padding: 0;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-toolbar.dashboard-ora-toolbar {
+    margin-bottom: 0.45rem;
+    justify-content: flex-start;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-editor {
+    padding: 0;
+    overflow: hidden;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.42rem 0.7rem;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+    border-bottom: 1px solid #024d8f;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-editor-title {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-editor-code {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    padding: 0.1rem 0.4rem;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-state-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(0, 0, 0, 0.12);
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-state-badge.is-on {
+    background: rgba(46, 125, 50, 0.35);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-state-badge.is-resigned,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-state-badge.is-resigned-draft {
+    background: rgba(199, 70, 52, 0.35);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-locked-note {
+    margin: 0 0 0.55rem;
+    padding: 0.42rem 0.55rem;
+    background: #fff8e1;
+    border: 1px solid #f0d78c;
+    border-radius: 2px;
+    font-size: 0.78rem;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-block {
+    margin-bottom: 0.55rem;
+    padding: 0;
+    background: transparent;
+    border: none;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-block-title {
+    margin: 0;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-ora-stack-wrap {
+    margin-bottom: 0.55rem;
+}
+
+/* تبويبات Oracle Forms في بطاقة الموظف: انظر hr-employees-oracle12.css (.hr-emp-ora-forms) */
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid--contact,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid--address {
+    gap: 0.55rem 0.75rem;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-block--ss {
+    padding: 0.45rem 0.55rem;
+    background: var(--ora12-stripe, #f7f9fb);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page .field-label,
+body.hr-ora-ui .hr-emp-ora-screen .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page .input,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page select.input,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page textarea.input {
+    min-height: 1.65rem;
+    border-radius: 2px;
+    border-color: var(--ora12-border);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+    font-weight: 600;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page .input:focus,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page select.input:focus,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page textarea.input:focus {
+    border-color: #0572ce;
+    box-shadow: 0 0 0 1px rgba(5, 114, 206, 0.25);
+    outline: none;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page .input[readonly] {
+    background: var(--ora12-stripe, #f7f9fb);
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-status-item .input.hr-emp-status-control,
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-status-item .hr-emp-toggle {
+    min-height: 1.65rem;
+    height: 1.65rem;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-toggle {
+    min-height: 1.65rem;
+    padding: 0.22rem 0.45rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--ora12-text, #161513);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-toggle input[type="checkbox"] {
+    width: 0.95rem;
+    height: 0.95rem;
+    accent-color: #0572ce;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-marital-toggle.is-active {
+    background: #0572ce;
+    color: #fff;
+    border-color: #024d8f;
+}
+
+/* شريط التنقّل Oracle Forms: انظر picker-oracle-forms.css (.hr-emp-picker-ora12) */
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-wrap {
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-row.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-row.is-inactive td {
+    color: var(--ora12-muted, #5c5c5c);
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-row.is-inactive.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-row:hover td {
+    background: #e8f0f8;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen .hr-emp-row.is-selected:hover td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-emp-picker-nav {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 2px;
+}
+
+body.hr-ora-ui .hr-emp-picker-nav-btn {
+    flex: 0 0 auto;
+    min-width: 1.45rem;
+    height: 1.45rem;
+    margin: 0;
+    padding: 0 0.2rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    color: var(--ora12-text, #161513);
+    font-family: inherit;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.hr-ora-ui .hr-emp-picker-nav-btn--list {
+    font-size: 0.62rem;
+    padding: 0 0.25rem;
+}
+
+body.hr-ora-ui .hr-emp-picker-nav-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fff 0%, #eef2f6 100%);
+}
+
+body.hr-ora-ui .hr-emp-picker-nav-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+body.hr-ora-ui .hr-emp-ora-lov {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 1.65rem;
+    max-height: 1.65rem;
+    direction: rtl;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    box-sizing: border-box;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+body.hr-ora-ui .hr-emp-ora-lov:focus-within {
+    border-color: #0572ce;
+    outline: 1px solid rgba(5, 114, 206, 0.35);
+    outline-offset: 0;
+}
+
+body.hr-ora-ui .hr-emp-ora-lov-field {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0 0.35rem;
+    border: none !important;
+    border-radius: 0;
+    background: transparent !important;
+    text-align: start;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.2;
+    appearance: none;
+    -webkit-appearance: none;
+    box-shadow: none !important;
+    min-height: 0;
+}
+
+body.hr-ora-ui .hr-emp-ora-lov-field:focus {
+    outline: none;
+    background: transparent !important;
+}
+
+body.hr-ora-ui .hr-emp-ora-lov:has(.hr-emp-ora-lov-field:disabled) {
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
+body.hr-ora-ui .hr-emp-ora-lov-field:disabled {
+    background: transparent !important;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-emp-ora-lov-btn {
+    flex: 0 0 1.1rem;
+    width: 1.1rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    margin: 0 2px;
+    padding: 0;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    color: var(--ora12-text, #161513);
+    font-size: 0.45rem;
+    line-height: 1;
+    cursor: pointer;
+    appearance: none;
+    user-select: none;
+}
+
+body.hr-ora-ui .hr-emp-ora-lov-btn::before {
+    content: "\25BC";
+    display: block;
+    line-height: 1rem;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-emp-ora-lov-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fff 0%, #eef2f6 100%);
+}
+
+body.hr-ora-ui .hr-emp-ora-lov:has(.hr-emp-ora-lov-field:disabled) .hr-emp-ora-lov-btn {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+    body.hr-ora-ui .hr-emp-ora-screen .hr-emp-toolbar.dashboard-ora-toolbar {
+        justify-content: stretch;
+    }
+
+    body.hr-ora-ui .hr-emp-ora-screen .hr-emp-toolbar .btn {
+        flex: 1 1 auto;
+    }
+}

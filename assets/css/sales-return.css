@@ -1,0 +1,168 @@
+/* مردود مبيعات — يكمّل sales-invoice.css */
+.sales-ret-wrap .sales-ret-meta-invoice {
+  flex: 1 1 14rem;
+  min-width: 11rem;
+}
+
+.sales-ret-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.sales-ret-empty {
+  display: none;
+  text-align: center;
+  padding: 1.25rem;
+}
+
+.sales-ret-empty.is-visible {
+  display: block;
+}
+
+.sales-ret-table .input-num {
+  width: 100%;
+  min-width: 4rem;
+  text-align: center;
+  padding: 0.3rem 0.35rem;
+  font-size: 0.82rem;
+}
+
+.sales-ret-table .js-price-readonly {
+  font-weight: 600;
+  text-align: center;
+  color: #475569;
+}
+
+.sales-ret-table .js-qty-ret:disabled {
+  background: #f1f5f9;
+  cursor: not-allowed;
+}
+
+.sales-ret-col-pick {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.sales-ret-pick-all {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.sales-ret-table tr:not(.is-picked) .js-qty-ret {
+  background: #f8fafc;
+  color: #94a3b8;
+}
+
+.sales-ret-table tr:not(.is-picked) .sales-inv-item-name {
+  color: #94a3b8;
+}
+
+.sales-ret-table tr.is-picked {
+  background: #fffbeb;
+}
+
+.sales-ret-pick-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.sales-ret-pick-cell input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  cursor: pointer;
+}
+
+.sales-ret-doc-title {
+  color: #b45309;
+}
+
+.sales-inv-doc-title.sales-ret-title {
+  color: #b45309;
+}
+
+.sales-ret-form-is-saved .sales-inv-no-input {
+  background: #f8fafc;
+}
+
+.sales-ret-form-is-saved .is-entry-row {
+  display: none;
+}
+
+.sales-ret-line-meta {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+.sales-ret-table .sales-inv-col-item .js-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* ── نمط Oracle Forms — مرتجع المبيعات ── */
+
+.sales-ora-screen.sales-ret-ora-screen .sales-ret-hint {
+  margin: 0 0 0.45rem;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #000;
+  background: #ece9e4;
+  border: 1px solid #808080;
+}
+
+.sales-ora-screen.sales-ret-ora-screen .sales-ret-hint strong {
+  font-weight: 700;
+}
+
+.sales-ora-screen.sales-ret-ora-screen .sales-ret-table tr.is-picked td {
+  background: #ffffe1 !important;
+}
+
+.sales-ora-screen.sales-ret-ora-screen .sales-ret-table tr:not(.is-picked) .js-qty-ret {
+  background: #ece9e4;
+  color: #808080;
+}
+
+.sales-ora-screen.sales-ret-ora-screen .sales-ret-table tr:not(.is-picked) .sales-inv-item-name {
+  color: #808080;
+}
+
+.sales-ora-screen.sales-ret-ora-screen .sales-ret-table .js-price-readonly {
+  color: #000;
+  font-weight: 700;
+}
+
+.sales-ora-screen.sales-ret-ora-screen .sales-ret-line-meta {
+  color: #404040;
+  font-weight: 600;
+}
+
+.sales-ora-screen.sales-ret-ora-screen .sales-ret-reason-wrap label {
+  color: #802020;
+  font-weight: 700;
+}
+
+.sales-ora-screen.sales-ret-ora-screen #ret_reason_return {
+  border: 2px solid;
+  border-color: #802020 #fff #fff #802020;
+  border-radius: 0;
+  background: #fff5f5;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.78rem;
+}
+
+.sales-ora-screen.sales-ret-ora-screen #ret_einv_badge.badge-ok {
+  background: #e8f4e8;
+  color: #206020;
+  border-color: #206020;
+}
+
+.sales-ora-screen.sales-ret-ora-screen .sales-ret-col-pick input[type="checkbox"] {
+  border-radius: 0;
+}

@@ -1,0 +1,800 @@
+.report-acc-wrap {
+  max-width: 100%;
+}
+
+.report-acc-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+
+.report-acc-sub {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.report-acc-filters {
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.report-acc-detail {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: var(--bg, #f4f6fb);
+  border-radius: var(--radius, 14px);
+}
+
+.report-acc-table {
+  font-size: 0.92rem;
+}
+
+.report-acc-table .col-money {
+  text-align: left;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+.report-acc-total td,
+.report-acc-tfoot .report-acc-totals td {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.report-acc-tfoot .report-acc-totals td {
+  border-top: 2px solid #94a3b8;
+  padding: 0.55rem 0.4rem;
+  vertical-align: middle;
+}
+
+.report-acc-foot-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.2rem;
+}
+
+.report-acc-foot-value {
+  display: block;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-acc-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.report-acc-summary-card {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius, 14px);
+  background: var(--surface, #fff);
+}
+
+.report-acc-summary-card strong {
+  display: block;
+  font-size: 1.05rem;
+  margin-top: 0.25rem;
+  direction: ltr;
+  text-align: left;
+}
+
+.report-bs-group-row td {
+  background: rgba(99, 102, 241, 0.06);
+  font-weight: 600;
+}
+
+.report-bs-child-row td {
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.report-bs-group-mark {
+  color: #6366f1;
+  font-weight: 700;
+}
+
+.report-tb-account-filter {
+  max-width: 32rem;
+  margin: 0 0 0.75rem;
+}
+
+.report-acc-section-title {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* جدول مسطّر — نفس أسلوب شاشة الأقسام / الميزانية */
+.report-acc-grid-wrap {
+  background: #fff;
+  border: none;
+  border-radius: 0;
+  overflow: auto;
+  margin-top: 0.5rem;
+}
+
+.report-acc-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.92rem;
+}
+
+.report-acc-grid-table th,
+.report-acc-grid-table td {
+  border: 1px solid #0f172a;
+  padding: 0.4rem 0.5rem;
+  vertical-align: middle;
+}
+
+.report-acc-grid-table thead th {
+  background: #d9d9d9;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+}
+
+.report-acc-grid-table tbody td {
+  text-align: start;
+}
+
+.report-acc-grid-table .col-acc-code,
+.report-acc-grid-table .col-acc-type,
+.report-acc-grid-table .col-money,
+.report-acc-grid-table .col-act {
+  text-align: center;
+}
+
+.report-acc-grid-table .col-money {
+  direction: ltr;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-acc-grid-table .col-act {
+  width: 4.5rem;
+}
+
+.report-acc-grid-table .tb-vat-detail-row > td {
+  padding: 0.35rem 0.5rem;
+  background: #f8fafc;
+  text-align: start;
+}
+
+.report-acc-grid-table .tb-vat-inner-table {
+  width: 100%;
+  max-width: 28rem;
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.report-acc-grid-table .tb-vat-inner-table td:first-child {
+  text-align: start;
+}
+
+.report-trial-balance-page tr.tb-expandable-row {
+  cursor: pointer;
+}
+
+.report-trial-balance-page tr.tb-expandable-row:hover td {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.report-trial-balance-page tr.tb-row-expanded td {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.report-trial-balance-page .tb-expand-mark {
+  display: inline-block;
+  width: 1rem;
+  color: #4338ca;
+  font-weight: 700;
+}
+
+.report-trial-balance-page .tb-expand-hint {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: normal;
+}
+
+.report-trial-balance-page tr.tb-account-detail-row[hidden] {
+  display: none;
+}
+
+.report-acc-grid-table tfoot td {
+  background: #eef2ff;
+  font-weight: 700;
+}
+
+.report-acc-opening-row td {
+  background: rgba(34, 197, 94, 0.08);
+  font-weight: 600;
+}
+
+.report-acc-links a {
+  margin-inline-end: 0.5rem;
+}
+
+.report-trial-balance-page .report-trial-balance-table .col-acc-name {
+  text-align: start;
+  white-space: normal;
+}
+
+.report-trial-balance-page .report-acc-grid-table .col-acc-code {
+  width: 8.5%;
+  text-align: center;
+}
+
+.report-trial-balance-page .report-acc-grid-table .col-acc-name {
+  width: 22%;
+}
+
+.report-trial-balance-page .report-acc-grid-table .col-money {
+  width: 8.5%;
+}
+
+.report-trial-balance-page .report-trial-balance-table tr.tb-summary-row td {
+  font-weight: 600;
+}
+
+.report-tb-detail-page .report-trial-balance-table .col-acc-type {
+  width: 6.5rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.report-tb-detail-page .report-trial-balance-table tr.tb-detail-group-row td {
+  font-weight: 700;
+  background: rgba(99, 102, 241, 0.07);
+}
+
+.report-tb-detail-page .report-trial-balance-table tr.tb-detail-leaf-row td {
+  font-weight: 400;
+}
+
+.report-tb-detail-page .tb-detail-group-mark {
+  color: #6366f1;
+  font-size: 0.75rem;
+}
+
+.report-trial-balance-page .report-trial-balance-table .col-money {
+  text-align: center;
+  white-space: nowrap;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+}
+
+/* قائمة الدخل — جدول مسطّر */
+.pl-statement-page .pl-period-line {
+  text-align: center;
+  margin: 0 0 1rem;
+}
+
+.pl-table-wrap {
+  overflow-x: auto;
+}
+
+.pl-statement-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pl-statement-table th,
+.pl-statement-table td {
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  padding: 0.45rem 0.6rem;
+  vertical-align: top;
+}
+
+.pl-statement-table thead th {
+  background: rgba(99, 102, 241, 0.08);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pl-col-no {
+  width: 2.5rem;
+  text-align: center;
+  color: var(--muted, #64748b);
+  font-size: 0.85rem;
+}
+
+.pl-col-desc {
+  min-width: 14rem;
+}
+
+.pl-col-net {
+  font-weight: 600;
+}
+
+.col-pct {
+  width: 5rem;
+  text-align: center;
+  direction: ltr;
+  white-space: nowrap;
+  font-size: 0.88rem;
+}
+
+.pl-col-actions {
+  width: 7rem;
+  white-space: nowrap;
+}
+
+.pl-acc-code {
+  margin-left: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--muted, #64748b);
+}
+
+.pl-row-section td {
+  background: rgba(99, 102, 241, 0.12);
+  font-size: 0.95rem;
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+.pl-row-section-gap td {
+  padding-top: 1rem;
+}
+
+.pl-row-subtotal td {
+  background: rgba(99, 102, 241, 0.06);
+  border-top: 2px solid var(--border, #e2e8f0);
+}
+
+.pl-row-group td {
+  background: rgba(248, 250, 252, 0.9);
+  font-weight: 600;
+}
+
+.pl-row-movement td {
+  background: #fafbfc;
+  font-size: 0.86rem;
+}
+
+.pl-movement-marker {
+  color: var(--muted, #64748b);
+  margin-left: 0.25rem;
+}
+
+.pl-badge-group {
+  font-size: 0.72rem;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.pl-row-net td {
+  border-top: 3px double var(--border);
+  font-size: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.pl-row-profit td {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.pl-row-loss td {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.pl-text-profit {
+  color: #15803d;
+}
+
+.pl-text-loss {
+  color: #b91c1c;
+}
+
+.pl-summary-footer {
+  margin-top: 1.25rem;
+}
+
+.pl-view-badge {
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  font-size: 0.78rem;
+}
+
+.pl-statement-table--summary .pl-col-net {
+  font-weight: 600;
+}
+
+.pl-statement-table--summary tbody .pl-row-account td {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.pl-movements-field[hidden] {
+  display: none !important;
+}
+
+/* قائمة الدخل — نفس أسلوب تقارير المبيعات المعتمدة */
+.report-sales-print-area .pl-report-table .col-seq {
+  width: 5%;
+}
+
+.report-sales-print-area .pl-report-table .col-desc {
+  width: auto;
+  text-align: start;
+}
+
+.report-sales-print-area .pl-report-table td.col-desc {
+  text-align: start;
+  font-weight: 700;
+}
+
+.report-sales-print-area .pl-report-table .col-pct {
+  width: 11%;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-sales-print-area .pl-report-table .col-act {
+  width: 8%;
+}
+
+.report-sales-print-area .pl-section-row td {
+  background: #e2e8f0 !important;
+  font-weight: 800;
+  text-align: start !important;
+  border: 1px solid #94a3b8 !important;
+  font-size: 0.9rem;
+}
+
+.report-sales-print-area .pl-subtotal-row td {
+  background: #f1f5f9 !important;
+  font-weight: 800;
+  border: 1px solid #94a3b8 !important;
+}
+
+.report-sales-print-area .pl-subtotal-row td.col-desc {
+  text-align: start;
+}
+
+.report-sales-print-area .pl-net-row td {
+  background: #dbeafe !important;
+  font-weight: 800;
+  border: 1px solid #64748b !important;
+  font-size: 0.95rem;
+}
+
+.report-sales-print-area .pl-net-row.pl-loss td {
+  background: #fee2e2 !important;
+}
+
+.report-sales-print-area .pl-movement-row td {
+  background: #fafbff !important;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.report-sales-print-area .pl-movement-row td.col-desc {
+  text-align: start;
+  padding-right: 1.25rem;
+}
+
+.report-sales-print-area .pl-group-row td {
+  background: #f8fafc !important;
+}
+
+.report-sales-print-area .pl-acc-code {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.78rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+@media print {
+  .report-sales-page .no-print {
+    display: none !important;
+  }
+
+  .report-sales-print-area .pl-report-table {
+    font-size: 10pt;
+  }
+}
+
+@media print {
+  .report-acc-filters,
+  .no-print {
+    display: none !important;
+  }
+
+  .report-trial-balance-page,
+  .report-tb-detail-page {
+    page: trial-balance-landscape;
+  }
+
+  @page trial-balance-landscape {
+    size: A4 landscape;
+    margin: 8mm 8mm 14mm 8mm;
+    @bottom-center {
+      content: counter(page) " / " counter(pages);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9pt;
+      font-weight: 700;
+      color: #0f172a;
+    }
+  }
+
+  .report-trial-balance-page .report-sales-print-area .doc-print-header,
+  .report-tb-detail-page .report-sales-print-area .doc-print-header {
+    margin: 0 0 0.35rem !important;
+    padding: 0 !important;
+  }
+
+  .report-trial-balance-page .report-sales-print-area .party-stmt-report-head,
+  .report-tb-detail-page .report-sales-print-area .party-stmt-report-head {
+    margin: 0 0 0.35rem !important;
+  }
+
+  .report-trial-balance-page .report-acc-grid-table thead,
+  .report-tb-detail-page .report-acc-grid-table thead {
+    display: table-header-group !important;
+  }
+
+  .report-trial-balance-page .report-acc-grid-wrap,
+  .report-tb-detail-page .report-acc-grid-wrap {
+    border: none !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-trial-balance-page .report-acc-grid-table th,
+  .report-trial-balance-page .report-acc-grid-table td,
+  .report-tb-detail-page .report-acc-grid-table th,
+  .report-tb-detail-page .report-acc-grid-table td,
+  .report-trial-balance-page .tb-vat-inner-table th,
+  .report-trial-balance-page .tb-vat-inner-table td {
+    border: 1px solid #0f172a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-trial-balance-page .report-acc-grid-table thead th,
+  .report-tb-detail-page .report-acc-grid-table thead th {
+    background: #d9d9d9 !important;
+  }
+
+  .report-trial-balance-page .report-acc-grid-table tfoot td,
+  .report-tb-detail-page .report-acc-grid-table tfoot td {
+    background: #eef2ff !important;
+  }
+
+  .report-tb-detail-page .report-acc-grid-table tr.tb-detail-group-row td {
+    background: rgba(99, 102, 241, 0.12) !important;
+  }
+
+  .pl-statement-table {
+    font-size: 0.85rem;
+  }
+
+  .pl-row-movement {
+    font-size: 0.8rem;
+  }
+
+  .report-trial-balance-page .tb-expand-hint {
+    display: none !important;
+  }
+
+  .report-trial-balance-page tr.tb-account-detail-row:not([hidden]) {
+    display: table-row !important;
+  }
+
+  .report-trial-balance-page tr.tb-account-detail-row:not([hidden]) > td {
+    background: #f8fafc !important;
+  }
+}
+
+/* تقرير الأرباح والخسائر — ملخص */
+.report-pl-summary-page .pl-summary-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 1rem 0 1.25rem;
+  padding: 1.25rem 1rem;
+  border-radius: 12px;
+  border: 2px solid #cbd5e1;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.report-pl-summary-page .pl-summary-hero--profit {
+  border-color: #86efac;
+  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
+}
+
+.report-pl-summary-page .pl-summary-hero--loss {
+  border-color: #fca5a5;
+  background: linear-gradient(180deg, #fef2f2 0%, #fff5f5 100%);
+}
+
+.report-pl-summary-page .pl-summary-hero__label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.report-pl-summary-page .pl-summary-hero__amount {
+  font-size: clamp(1.5rem, 4vw, 2.15rem);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.report-pl-summary-page .pl-summary-hero--profit .pl-summary-hero__amount {
+  color: #15803d;
+}
+
+.report-pl-summary-page .pl-summary-hero--loss .pl-summary-hero__amount {
+  color: #b91c1c;
+}
+
+.report-pl-summary-page .pl-summary-table {
+  max-width: 36rem;
+  margin-inline: auto;
+}
+
+.report-pl-summary-page .pl-summary-table .col-seq {
+  width: 2.5rem;
+}
+
+.report-pl-summary-page .pl-summary-table .col-money {
+  width: 11rem;
+  text-align: left;
+  direction: ltr;
+}
+
+.report-pl-summary-page .pl-summary-row--subtotal td {
+  background: #fff7ed;
+  font-weight: 700;
+}
+
+.report-pl-summary-page .pl-summary-row--total td {
+  background: #ecfdf5;
+  font-weight: 800;
+  font-size: 1.02rem;
+}
+
+.report-pl-summary-page .pl-summary-row--total.pl-loss td {
+  background: #fef2f2;
+}
+
+.report-pl-summary-page .pl-summary-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.report-pl-summary-page .pl-deduction-amount {
+  color: #b45309;
+  font-weight: 600;
+}
+
+@media print {
+  .report-pl-summary-page .pl-summary-hero {
+    break-inside: avoid;
+  }
+}
+
+/* الإقرار الضريبي */
+.report-tax-declaration-page .tax-decl-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.report-tax-declaration-page .tax-decl-meta {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 42rem;
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.report-tax-declaration-page .tax-decl-meta__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: baseline;
+}
+
+.report-tax-declaration-page .tax-decl-meta__label {
+  min-width: 8rem;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.report-tax-declaration-page .tax-decl-net-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 1rem 0;
+  padding: 1.1rem;
+  border-radius: 10px;
+  border: 2px solid #93c5fd;
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+  text-align: center;
+}
+
+.report-tax-declaration-page .tax-decl-net-hero--refund {
+  border-color: #86efac;
+  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.report-tax-declaration-page .tax-decl-net-hero__label {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.report-tax-declaration-page .tax-decl-net-hero__amount {
+  font-size: clamp(1.4rem, 3.5vw, 2rem);
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.report-tax-declaration-page .tax-decl-net-hero--refund .tax-decl-net-hero__amount {
+  color: #15803d;
+}
+
+.report-tax-declaration-page .tax-decl-table {
+  max-width: 44rem;
+  margin-inline: auto;
+}
+
+.report-tax-declaration-page .tax-decl-table .col-money {
+  width: 11rem;
+  text-align: left;
+  direction: ltr;
+}
+
+.report-tax-declaration-page .tax-decl-section-row td {
+  background: #eef2ff;
+  font-weight: 800;
+  padding-top: 0.65rem;
+}
+
+.report-tax-declaration-page .tax-decl-row--subtotal td {
+  background: #fff7ed;
+  font-weight: 700;
+}
+
+.report-tax-declaration-page .tax-decl-deduction {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.report-tax-declaration-page .tax-decl-net-row td {
+  background: #eff6ff;
+  font-weight: 800;
+}
+
+.report-tax-declaration-page .tax-decl-counts {
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.report-tax-declaration-page .tax-decl-footnote {
+  margin-top: 0.65rem;
+  font-size: 0.82rem;
+}
+
+.report-tax-declaration-page .tax-decl-gap-warn {
+  background: #fff8e6;
+  border: 1px solid #e8d48a;
+  padding: 0.65rem;
+  border-radius: 4px;
+}

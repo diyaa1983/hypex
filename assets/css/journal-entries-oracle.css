@@ -1,0 +1,329 @@
+/* ── القيود المحاسبية — Oracle 12c (حديث / مسطح) ── */
+
+.journal-entries-ora.dashboard-ora .dashboard-ora-screen-title__meta {
+  font-size: 0.7rem;
+}
+
+.journal-entries-ora .dashboard-ora-btn--primary {
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border-color: #024d8f;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+}
+
+.journal-entries-ora .dashboard-ora-btn--primary:hover {
+  background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+  border-color: #024d8f;
+}
+
+.journal-entries-ora .dashboard-ora-btn--danger {
+  color: #fff;
+  background: linear-gradient(180deg, #e85d4a 0%, #c74634 55%, #a33a2b 100%);
+  border-color: #a33a2b;
+}
+
+.journal-entries-ora .dashboard-ora-btn--danger:hover {
+  background: linear-gradient(180deg, #ef6f5d 0%, #d45542 55%, #b34232 100%);
+}
+
+.journal-entries-ora .je-ora-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.45rem 0.65rem;
+  margin: 0;
+}
+
+.journal-entries-ora .je-ora-filters .field {
+  margin: 0;
+  min-width: 0;
+}
+
+.journal-entries-ora .je-ora-filters .field-label {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.journal-entries-ora .je-ora-filters .input,
+.journal-entries-ora .journal-entry-form .input,
+.journal-entries-ora .journal-entry-form select.input {
+  min-height: 1.65rem;
+  padding: 0.2rem 0.45rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--ora12-text);
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.journal-entries-ora .je-ora-filters .input:focus,
+.journal-entries-ora .journal-entry-form .input:focus {
+  outline: none;
+  border-color: #0572ce;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.journal-entries-ora .je-ora-search-field {
+  flex: 1 1 240px;
+}
+
+.journal-entries-ora .je-ora-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.journal-entries-ora .dashboard-ora-table .col-money {
+  text-align: left;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.journal-entries-ora .dashboard-ora-table code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ora12-link);
+  background: transparent;
+  padding: 0;
+}
+
+.journal-entries-ora .dashboard-ora-table .row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.journal-entries-ora .dashboard-ora-table .row-actions form {
+  display: inline;
+  margin: 0;
+}
+
+.journal-entries-ora .je-ora-status {
+  display: inline-block;
+  padding: 0.1rem 0.42rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
+  background: #f3f5f7;
+  color: var(--ora12-muted);
+}
+
+.journal-entries-ora .je-ora-status--draft {
+  background: #fff8e8;
+  border-color: #e8d4a8;
+  color: #7a5c00;
+}
+
+.journal-entries-ora .je-ora-status--posted {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.journal-entries-ora .je-ora-status--cancelled {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+.journal-entries-ora .list-pager {
+  margin: 0;
+  padding: 0.42rem 0.55rem;
+  background: #f3f5f7;
+  border-top: 1px solid var(--ora12-border);
+}
+
+.journal-entries-ora .list-pager-info {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ora12-muted);
+}
+
+.journal-entries-ora .list-pager-btn,
+.journal-entries-ora .list-pager-num {
+  min-height: 1.45rem;
+  padding: 0.12rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.journal-entries-ora .list-pager-btn:hover,
+.journal-entries-ora .list-pager-num:hover {
+  background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+  border-color: #9ab8d0;
+  color: var(--ora12-text);
+}
+
+.journal-entries-ora .list-pager-num.is-active {
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 100%);
+  border-color: #024d8f;
+  color: #fff;
+}
+
+.journal-entries-ora .alert {
+  margin: 0;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 2px;
+  border: 1px solid;
+}
+
+.journal-entries-ora .alert-success {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.journal-entries-ora .alert-error {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+/* نموذج القيد */
+.journal-entries-ora .journal-entry-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.75rem;
+  margin: 0;
+  align-items: flex-end;
+}
+
+.journal-entries-ora .journal-entry-header .field-grow {
+  flex: 1 1 220px;
+}
+
+.journal-entries-ora .journal-lines-wrap {
+  overflow-x: auto;
+  margin: 0;
+}
+
+.journal-entries-ora .journal-lines-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  background: var(--ora12-surface);
+}
+
+.journal-entries-ora .journal-lines-table th,
+.journal-entries-ora .journal-lines-table td {
+  padding: 0.32rem 0.45rem;
+  text-align: right;
+  border: 1px solid #dde3ea;
+  vertical-align: middle;
+}
+
+.journal-entries-ora .journal-lines-table th {
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+  font-weight: 700;
+  font-size: 0.73rem;
+  border-bottom: 2px solid #c5d0dc;
+}
+
+.journal-entries-ora .journal-lines-table tbody tr:nth-child(even) {
+  background: var(--ora12-stripe);
+}
+
+.journal-entries-ora .journal-totals-row td {
+  background: #f3f5f7;
+  border-top: 2px solid #c5d0dc;
+  font-weight: 700;
+}
+
+.journal-entries-ora .journal-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.45rem 0.55rem;
+  background: #f3f5f7;
+  border-top: 1px solid var(--ora12-border);
+}
+
+.journal-entries-ora .journal-entry-actions-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.main-wrap:has(.journal-entries-ora) .main-content,
+body:has(.journal-entries-ora) .main-content {
+  padding: 0.45rem 0.55rem 0.85rem;
+  background: var(--shell-bg, #d4d0c8);
+}
+
+/* ── طباعة عرض القيد ── */
+.journal-entry-print-area .doc-print-header {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 12mm 12mm;
+  }
+
+  body:has(.journal-entry-print-area) .app-header,
+  body:has(.journal-entry-print-area) #master-toolbar,
+  body:has(.journal-entry-print-area) .no-print,
+  body:has(.journal-entry-print-area) .dashboard-ora-screen-title {
+    display: none !important;
+  }
+
+  body:has(.journal-entry-print-area) .main-content {
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body:has(.journal-entry-print-area) .dashboard-ora-workspace,
+  body:has(.journal-entry-print-area) .journal-entry-card,
+  body:has(.journal-entry-print-area) .journal-entry-print-area {
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  body:has(.journal-entry-print-area) .dashboard-ora-panel__title {
+    background: #e8ecf0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.journal-entry-print-area) .journal-entry-print-area .doc-print-header {
+    display: block;
+    margin-bottom: 0.75rem;
+  }
+
+  body:has(.journal-entry-print-area) .journal-lines-wrap {
+    overflow: visible;
+  }
+
+  body:has(.journal-entry-print-area) .journal-lines-table {
+    page-break-inside: auto;
+  }
+
+  body:has(.journal-entry-print-area) .journal-lines-table tr {
+    page-break-inside: avoid;
+  }
+}

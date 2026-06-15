@@ -1,0 +1,389 @@
+/* شاشة إعدادات ضريبة الدخل — نفس نمط اقسام الموظفين */
+
+.hr-it-grid-page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.hr-it-grid-flash {
+    margin-bottom: 0.75rem;
+}
+
+.hr-it-grid-title {
+    margin: 0 0 0.85rem;
+    text-align: center;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: 0.01em;
+}
+
+.hr-it-grid-sub {
+    margin: -0.5rem 0 0.85rem;
+    text-align: center;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.hr-it-config-panel {
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem 1rem;
+    background: #f0fdfa;
+    border: 1px solid #0d9488;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 10px rgba(13, 148, 136, 0.1);
+}
+
+.hr-it-config-title {
+    margin: 0 0 0.65rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f766e;
+}
+
+.hr-it-config-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr));
+    gap: 0.65rem 0.75rem;
+}
+
+.hr-it-config-exempt {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem 0.75rem;
+    grid-column: 1 / -1;
+}
+
+.hr-it-config-exempt-block {
+    padding: 0.55rem 0.65rem;
+    border: 1px solid #99f6e4;
+    border-radius: 0.4rem;
+    background: #fff;
+}
+
+.hr-it-config-exempt-label {
+    display: block;
+    margin-bottom: 0.45rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0f766e;
+}
+
+.hr-it-config-exempt-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem 0.55rem;
+}
+
+.hr-it-config-fields .field {
+    margin: 0;
+}
+
+.hr-it-config-account .account-picker-slot {
+    width: 100%;
+}
+
+.hr-it-config-account .acc-map-picker-btn {
+    width: 100%;
+    text-align: start;
+}
+
+.hr-it-status-tabs {
+    display: none;
+}
+
+.hr-it-brackets-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+    align-items: start;
+}
+
+.hr-it-bracket-panel {
+    min-width: 0;
+    padding: 0.65rem 0.55rem 0.75rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 0.45rem;
+    background: #fff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hr-it-bracket-panel.is-active {
+    border-color: #0d9488;
+    box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
+}
+
+.hr-it-bracket-panel-title {
+    margin: 0 0 0.25rem;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 800;
+    color: #0f766e;
+}
+
+.hr-it-bracket-panel-exempt {
+    margin: 0 0 0.55rem;
+    text-align: center;
+    font-size: 0.72rem;
+    line-height: 1.4;
+}
+
+.hr-it-active-status {
+    align-self: center;
+    font-size: 0.78rem;
+    margin-inline-start: 0.35rem;
+}
+
+.hr-it-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.hr-it-toolbar .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.hr-it-toolbar-hint {
+    margin: -0.35rem 0 0.85rem;
+    text-align: center;
+    font-size: 0.78rem;
+}
+
+.hr-it-bracket-add-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.45rem;
+}
+
+.hr-it-bracket-add-row .input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.hr-it-bracket-add-row .btn {
+    flex-shrink: 0;
+    align-self: stretch;
+    white-space: nowrap;
+}
+
+.hr-it-editor-hint {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.hr-it-row--pending td {
+    background: #eff6ff;
+}
+
+.hr-it-pending-remove,
+.hr-it-row-delete {
+    min-width: 2rem;
+    padding: 0.15rem 0.4rem;
+    margin-inline-start: 0.25rem;
+    vertical-align: middle;
+}
+
+.hr-it-editor-actions {
+    display: none;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.15rem;
+}
+
+.hr-it-grid-page.is-edit-mode .hr-it-bracket-add-row,
+.hr-it-grid-page.is-edit-mode #hr-it-editor-hint {
+    display: none;
+}
+
+.hr-it-grid-page.is-editing .hr-it-editor-actions {
+    display: flex;
+}
+
+.hr-it-editor {
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem 1rem;
+    background: #f0fdfa;
+    border: 1px solid #0d9488;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 10px rgba(13, 148, 136, 0.1);
+}
+
+.hr-it-editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.hr-it-editor-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f766e;
+}
+
+.hr-it-editor-close {
+    min-width: 2rem;
+    padding: 0.2rem 0.45rem;
+    line-height: 1.2;
+}
+
+.hr-it-editor-fields {
+    display: grid;
+    grid-template-columns: minmax(90px, 0.22fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.75fr);
+    gap: 0.65rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.hr-it-editor-fields .field {
+    margin: 0;
+}
+
+.hr-it-editor-fields .field-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.hr-it-editor-field-seq {
+    min-width: 90px;
+}
+
+.hr-it-seq-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.35rem;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 0.4rem;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.05rem;
+    user-select: none;
+}
+
+.hr-it-seq-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.hr-it-grid-page.is-editing .hr-it-bracket-panel.is-active .hr-it-grid-wrap {
+    outline: 2px solid #99f6e4;
+    outline-offset: 2px;
+}
+
+.hr-it-grid-wrap {
+    background: #fff;
+    border: 1px solid #0f172a;
+    border-radius: 2px;
+    overflow: auto;
+}
+
+.hr-it-grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.95rem;
+}
+
+.hr-it-grid-table th,
+.hr-it-grid-table td {
+    border: 1px solid #0f172a;
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.hr-it-grid-table thead th {
+    background: #d9d9d9;
+    font-weight: 700;
+    padding: 0.45rem 0.5rem;
+    color: #0f172a;
+}
+
+.hr-it-grid-table tbody td {
+    padding: 0.45rem 0.5rem;
+    min-height: 2.15rem;
+}
+
+.hr-it-row {
+    cursor: pointer;
+}
+
+.hr-it-row.is-selected td {
+    background: #ecfdf5;
+}
+
+.hr-it-row:hover td {
+    background: #f8fafc;
+}
+
+.hr-it-row.is-selected:hover td {
+    background: #ecfdf5;
+}
+
+.hr-it-row[hidden] {
+    display: none;
+}
+
+.hr-it-pct-cell,
+.hr-it-amt-cell {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+    .hr-it-brackets-cols {
+        grid-template-columns: 1fr;
+    }
+
+    .hr-it-config-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .hr-it-editor-fields {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .hr-it-editor-field-seq {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 640px) {
+    .hr-it-grid-page {
+        padding-inline: 0.35rem;
+    }
+
+    .hr-it-grid-title {
+        font-size: 1.15rem;
+    }
+
+    .hr-it-toolbar {
+        justify-content: stretch;
+    }
+
+    .hr-it-toolbar .btn {
+        flex: 1 1 auto;
+    }
+
+    .hr-it-config-exempt-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hr-it-editor-fields {
+        grid-template-columns: 1fr;
+    }
+}

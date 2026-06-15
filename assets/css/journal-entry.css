@@ -1,0 +1,110 @@
+.journal-entry-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  align-items: flex-end;
+}
+
+.journal-entry-header .field-grow {
+  flex: 1 1 220px;
+}
+
+.journal-lines-wrap {
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+}
+
+.journal-lines-table .col-acc {
+  min-width: 260px;
+  text-align: start;
+}
+
+.journal-entry-card .je-acc-picker-slot {
+  min-width: 0;
+  width: 100%;
+}
+
+.journal-entry-card .je-acc-picker-btn {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.72rem;
+}
+
+.journal-entry-card .je-acc-picker-btn .sales-inv-cust-open-label {
+  max-width: 100%;
+  font-weight: 600;
+}
+
+.journal-lines-table .col-money {
+  width: 110px;
+  text-align: center;
+}
+
+.journal-lines-table .col-memo {
+  min-width: 140px;
+}
+
+.journal-lines-table .col-act {
+  width: 48px;
+}
+
+.journal-lines-table td.col-money,
+.journal-lines-table tfoot td.col-money {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.journal-amount {
+  width: 100%;
+  text-align: center;
+}
+
+.journal-totals-row td {
+  background: #f1f5f9;
+  border-top: 2px solid #94a3b8;
+}
+
+.journal-balance-ok {
+  color: #15803d;
+  font-weight: 700;
+}
+
+.journal-balance-bad {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.journal-entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.journal-entry-actions-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.journal-status-draft {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.journal-status-posted {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.journal-status-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.journal-list-filters {
+  align-items: flex-end;
+}

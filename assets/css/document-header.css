@@ -1,0 +1,263 @@
+/* ترويسة موحدة: اسم الشركة بجانب الشعار على سطر واحد، خط، ثم عنوان التقرير (RTL) */
+.doc-print-header {
+  margin-top: 0;
+  margin-bottom: 0.65rem;
+  padding-top: 0;
+}
+
+.doc-print-header-top {
+  padding-top: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.doc-print-header-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  direction: rtl;
+}
+
+.doc-print-header-co {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: #0f172a;
+  text-align: start;
+  line-height: 1.3;
+}
+
+.doc-print-header-logo {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  overflow: visible;
+  padding: 2px 0;
+}
+
+.doc-print-header-logo img {
+  max-height: 130px;
+  max-width: 130px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+
+.doc-print-header-title {
+  text-align: center;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #1e293b;
+  padding-top: 0.45rem;
+  margin: 0;
+}
+
+.doc-print-meta {
+  margin: 0.35rem 0 0.65rem;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  line-height: 1.55;
+  text-align: start;
+  direction: rtl;
+}
+
+.doc-print-meta table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.doc-print-meta td {
+  padding: 0.2rem 0;
+  border: none !important;
+  text-align: start !important;
+  font-weight: 700;
+}
+
+.doc-print-meta-value--party {
+  font-weight: 800;
+  font-size: 1.12em;
+  color: #0f172a;
+}
+
+/* توقيع المستلم — يظهر في الطباعة أسفل المستند */
+.doc-print-signature-block {
+  margin-top: 2.25rem;
+  padding-top: 0.5rem;
+  page-break-inside: avoid;
+  max-width: 280px;
+  margin-inline-start: auto;
+  margin-inline-end: 0;
+}
+
+.doc-print-signature-label {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  margin: 0 0 0.25rem;
+  color: #0f172a;
+}
+
+.doc-print-signature-line {
+  display: block;
+  border-bottom: 1.5px solid #334155;
+  height: 0;
+  margin: 2.5rem 0 0;
+}
+
+.doc-print-only {
+  display: none;
+}
+
+/* علامة مائية: شعار الشركة كبير وباهت — لا يحجب النص عند الطباعة */
+.has-doc-watermark,
+.doc-print-watermark-scope {
+  position: relative;
+}
+
+.doc-print-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.doc-print-watermark img {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%);
+  width: min(72%, 460px);
+  max-width: 460px;
+  height: auto;
+  max-height: min(62vh, 440px);
+  object-fit: contain;
+  opacity: var(--doc-watermark-opacity, 0.04);
+  filter: grayscale(0.12) contrast(0.92);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.doc-print-watermark-scope > .doc-print-watermark ~ *,
+.doc-print-watermark-scope > .doc-print-header,
+.doc-print-watermark-scope > .doc-print-meta,
+.doc-print-watermark-scope > .report-sales-table-wrap,
+.doc-print-watermark-scope > table,
+.doc-print-watermark-scope > .inv-print-lines,
+.doc-print-watermark-scope > .sales-inv-print-tot,
+.doc-print-watermark-scope > .doc-print-signature-block {
+  position: relative;
+  z-index: 1;
+}
+
+/* إخفاء شعار خلفية الصفحة العامة — العلامة الموحدة تغطي كل الشاشات */
+body.has-doc-watermark .main-bg-logo {
+  visibility: hidden;
+}
+
+body.has-doc-watermark .card:has(.report-sales-print-area),
+body.has-doc-watermark .report-sales-result {
+  overflow: visible;
+}
+
+/* علامة مائية على كل صفحات النظام (فوق المحتوى، شفافة) */
+body.has-doc-watermark::after {
+  content: '';
+  display: none;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background-image: var(--doc-watermark-logo);
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: min(72vw, 460px) auto;
+  opacity: var(--doc-watermark-opacity, 0.04);
+  z-index: 50;
+  pointer-events: none;
+}
+
+/* معاينة/تصدير داخل إطار: العلامة من المحتوى وليس body */
+body.doc-print-standalone::after {
+  display: none;
+}
+
+/* PDF / إطار طباعة: غلاف مع علامة مائية فوق المحتوى */
+.doc-print-watermark-root {
+  position: relative;
+}
+
+.doc-print-watermark--overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  overflow: visible;
+  min-height: 100%;
+}
+
+.doc-print-watermark--overlay img {
+  position: static;
+  transform: none;
+  width: min(72%, 460px);
+  max-width: 460px;
+  height: auto;
+  max-height: min(62vh, 440px);
+  object-fit: contain;
+  opacity: var(--doc-watermark-opacity, 0.04);
+  filter: grayscale(0.12) contrast(0.92);
+}
+
+@media print {
+  .doc-print-only {
+    display: block !important;
+  }
+
+  .doc-print-header {
+    break-inside: avoid;
+  }
+
+  .card > h2.doc-print-screen-title {
+    display: none !important;
+  }
+
+  /* تكرار العلامة في منتصف كل صفحة مطبوعة */
+  body.has-doc-watermark::after {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    transform: none !important;
+    z-index: 9999;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.doc-print-standalone::after {
+    display: block !important;
+  }
+
+  .doc-print-watermark--overlay {
+    display: none !important;
+  }
+
+  .doc-print-watermark:not(.doc-print-watermark--overlay) {
+    display: none !important;
+  }
+}

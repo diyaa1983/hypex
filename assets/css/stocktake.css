@@ -1,0 +1,375 @@
+/* ── سند جرد المواد — Oracle 12c ── */
+
+.dashboard-ora.sales-ora12-screen.stocktake-page {
+  width: 100%;
+  max-width: 100%;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-flash {
+  margin: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-toolbar {
+  margin: 0;
+  border: 1px solid var(--ora12-border);
+  border-top: none;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-status-badge.is-draft {
+  background: rgba(46, 125, 50, 0.28);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-status-badge.is-posted {
+  background: rgba(199, 70, 52, 0.32);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  align-items: flex-end;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-no-wrap {
+  min-width: 14rem;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .field-label {
+  display: block;
+  margin-bottom: 0.18rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .field,
+.dashboard-ora.sales-ora12-screen.stocktake-page .input,
+.dashboard-ora.sales-ora12-screen.stocktake-page select,
+.dashboard-ora.sales-ora12-screen.stocktake-page textarea,
+.dashboard-ora.sales-ora12-screen.stocktake-page button,
+.dashboard-ora.sales-ora12-screen.stocktake-page table th,
+.dashboard-ora.sales-ora12-screen.stocktake-page table td,
+.dashboard-ora.sales-ora12-screen.stocktake-page code {
+  font-family: Arial, Tahoma, Helvetica, sans-serif !important;
+  color: var(--ora12-text);
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .input,
+.dashboard-ora.sales-ora12-screen.stocktake-page select,
+.dashboard-ora.sales-ora12-screen.stocktake-page textarea {
+  font-weight: 600;
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .input:focus,
+.dashboard-ora.sales-ora12-screen.stocktake-page select:focus,
+.dashboard-ora.sales-ora12-screen.stocktake-page textarea:focus {
+  border-color: var(--ora12-blue);
+  outline: 1px solid var(--ora12-blue);
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-notes-field {
+  display: block;
+  margin: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-notes-field textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table-wrap {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  overflow: auto;
+  max-height: min(62vh, 520px);
+  background: var(--ora12-surface);
+  box-shadow: none;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--ora12-surface);
+  table-layout: auto;
+  min-width: 1100px;
+  border: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.42rem 0.38rem;
+  text-align: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ora12-title);
+  border: 1px solid var(--ora12-blue-dark);
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table tbody td {
+  border: 1px solid var(--ora12-border);
+  padding: 0.38rem 0.34rem;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table tbody tr:nth-child(even) td {
+  background: var(--ora12-stripe);
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table tbody tr:hover td {
+  background: var(--ora12-hover);
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table .js-book {
+  text-align: center;
+  font-weight: 700;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table .js-name {
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 16rem;
+  max-width: 24rem;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table .js-counted {
+  min-width: 7.5rem;
+  min-height: 1.65rem;
+  border-radius: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table th:nth-child(1),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table td:nth-child(1) {
+  width: 3.5rem;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table th:nth-child(2),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table td:nth-child(2) {
+  width: 7.5rem;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table th:nth-child(3),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table td:nth-child(3) {
+  width: 19rem;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table th:nth-child(4),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table td:nth-child(4),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table th:nth-child(5),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table td:nth-child(5),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table th:nth-child(6),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table td:nth-child(6),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table th:nth-child(7),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table td:nth-child(7),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table th:nth-child(8),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table td:nth-child(8) {
+  white-space: nowrap;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--ora12-warn);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-remove-btn:hover {
+  background: #fdecea;
+  border-color: #e8b4a8;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-actions {
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-form.is-posted #stocktake-pick-items {
+  display: none;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .sales-inv-no-input.is-unposted {
+  background: #e8f5e9 !important;
+  border-color: #a5d6a7 !important;
+  color: #2e7d32 !important;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .sales-inv-no-input.is-posted {
+  background: #fdecea !important;
+  border-color: #e8b4a8 !important;
+  color: #c74634 !important;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area {
+  display: none;
+  margin-top: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th,
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td,
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .doc-print-meta td,
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .doc-print-header-title,
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .doc-print-header-co,
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area code {
+  font-family: Arial, Tahoma, Helvetica, sans-serif !important;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table .col-item-name {
+  text-align: start;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  min-width: 18rem;
+  max-width: none;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table {
+  table-layout: fixed;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(3),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(3) {
+  width: 30%;
+  white-space: nowrap;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(2),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(2) {
+  width: 10%;
+  white-space: nowrap;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(1),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(1) {
+  width: 4%;
+}
+
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(4),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(4),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(5),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(5),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(6),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(6),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(7),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(7),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(8),
+.dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(8) {
+  width: 9.33%;
+  white-space: nowrap;
+}
+
+@media print {
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area {
+    display: block !important;
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area,
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area * {
+    font-family: Arial, Tahoma, Helvetica, sans-serif !important;
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table {
+    table-layout: fixed !important;
+    font-size: 11px !important;
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th,
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td {
+    padding: 4px 3px !important;
+    line-height: 1.2 !important;
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(3),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(3) {
+    white-space: nowrap !important;
+    width: 30% !important;
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(2),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(2) {
+    width: 10% !important;
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(1),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(1) {
+    width: 4% !important;
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(4),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(4),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(5),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(5),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(6),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(6),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(7),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(7),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table th:nth-child(8),
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-print-area .report-sales-table td:nth-child(8) {
+    width: 9.33% !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* إخفاء العلامة المائية السفلية في شاشة/طباعة سند الجرد فقط */
+body.has-doc-watermark:has(.report-sales-page[data-report-route="inventory_stocktake"])::after {
+  display: none !important;
+}
+
+.report-sales-page[data-report-route="inventory_stocktake"] .doc-print-watermark {
+  display: none !important;
+}
+
+@media (max-width: 1280px) {
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table-wrap {
+    max-height: min(56vh, 460px);
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table {
+    min-width: 980px;
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table thead th {
+    padding: 0.38rem 0.32rem;
+    font-size: 0.72rem;
+  }
+
+  .dashboard-ora.sales-ora12-screen.stocktake-page .stocktake-table tbody td {
+    padding: 0.34rem 0.3rem;
+    font-size: 0.74rem;
+  }
+}

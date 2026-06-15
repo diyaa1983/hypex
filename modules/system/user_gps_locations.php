@@ -1,0 +1,334 @@
+<?php
+
+declare(strict_types=1);
+
+
+
+require_once app_path('includes/sys_user_location.php');
+
+require_once app_path('includes/sal_gps_list_ui.php');
+
+require_once app_path('includes/sales_oracle12_ui.php');
+
+require_once app_path('includes/nav_helpers.php');
+
+require_once app_path('includes/document_header.php');
+
+
+
+$pdo = db();
+
+sys_user_location_ensure_schema($pdo);
+
+
+
+$submitted = sal_gps_list_is_submitted();
+
+$formDates = sal_gps_list_initial_form_dates();
+
+$search = '';
+
+$dates = [
+
+    'from_dmy' => $formDates['from_dmy'],
+
+    'to_dmy' => $formDates['to_dmy'],
+
+    'from' => app_default_date_from(),
+
+    'to' => app_default_date_to(),
+
+    'error' => '',
+
+];
+
+$dateErr = '';
+
+$rows = [];
+
+$showResults = false;
+
+$listUrl = sal_gps_list_build_query_url('user_gps_locations', $dates['from_dmy'], $dates['to_dmy']);
+
+$exitUrl = nav_exit_url('user_gps_locations');
+
+if ($submitted) {
+
+    $search = trim((string) ($_GET['q'] ?? ''));
+
+    $dates = sal_gps_list_parse_dates(
+
+        isset($_GET['date_from']) ? (string) $_GET['date_from'] : null,
+
+        isset($_GET['date_to']) ? (string) $_GET['date_to'] : null
+
+    );
+
+    $dateErr = (string) ($dates['error'] ?? '');
+
+    $listUrl = sal_gps_list_build_query_url('user_gps_locations', $dates['from_dmy'], $dates['to_dmy'], $search);
+
+    if ($dateErr === '') {
+
+        $rows = sys_user_location_list_rows($pdo, $search, 500, $dates['from'], $dates['to']);
+
+        $showResults = true;
+
+    }
+
+}
+
+$flash = flash_get();
+
+$reportTitle = 'مواقع المستخدمين (GPS)';
+
+
+
+$gpsCssPath = app_path('assets/css/sal-invoice-gps.css');
+
+$gpsCssUrl = app_url('assets/css/sal-invoice-gps.css')
+
+    . (is_file($gpsCssPath) ? '?v=' . (string) filemtime($gpsCssPath) : '');
+
+$gpsListJsPath = app_path('assets/js/sal-gps-list.js');
+
+$gpsListJsUrl = app_url('assets/js/sal-gps-list.js')
+
+    . (is_file($gpsListJsPath) ? '?v=' . (string) filemtime($gpsListJsPath) : '');
+
+
+
+?>
+
+<?php sales_ora12_enqueue_assets(); ?>
+<?php sal_gps_list_enqueue_print_assets(); ?>
+
+<link rel="stylesheet" href="<?= esc($gpsCssUrl) ?>">
+
+
+
+<div class="dashboard-ora sales-ora12-screen sales-ora-list-page sal-invoice-gps-page sal-gps-list-page user-gps-locations-page"
+
+     data-exit-url="<?= esc($exitUrl) ?>"
+
+     data-report-title="<?= esc($reportTitle) ?>">
+
+    <?php sales_ora12_render_title_bar($reportTitle); ?>
+
+    <?php sales_ora12_workspace_open(); ?>
+
+    <?php if ($flash): ?>
+
+        <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-ora-flash no-print"><?= esc($flash['message']) ?></div>
+
+    <?php endif; ?>
+
+    <?php if ($dateErr !== ''): ?>
+
+        <div class="alert alert-error sales-ora-flash no-print"><?= esc($dateErr) ?></div>
+
+    <?php endif; ?>
+
+
+
+    <div class="sales-ora-panel card no-print">
+
+        <?php sal_gps_list_render_filter_form(
+
+            'user_gps_locations',
+
+            $search,
+
+            $dates['from_dmy'],
+
+            $dates['to_dmy'],
+
+            'اسم المستخدم، المنطقة، المعلم…'
+
+        ); ?>
+
+    </div>
+
+
+
+    <div class="sales-ora-panel card sal-gps-list-results">
+
+        <div class="report-sales-result report-sales-print-area sal-gps-list-print-area" id="sal-gps-list-print">
+
+            <?php if (!$showResults): ?>
+
+                <?php sal_gps_list_render_pending_message(); ?>
+
+            <?php else: ?>
+
+            <?= sal_gps_list_print_header_html($reportTitle, $pdo, $dates['from_dmy'], $dates['to_dmy']) ?>
+
+            <?php sal_gps_list_render_print_meta(count($rows), $search); ?>
+
+
+
+            <?php if ($rows === []): ?>
+
+                <p class="muted sal-gps-empty-msg">لا توجد مواقع مسجّلة للمستخدمين في الفترة المحددة.</p>
+
+            <?php else: ?>
+
+                <p class="sal-gps-intro no-print">يُحدَّث موقع كل مستخدم تلقائياً كل 10 دقائق — اضغط أيقونة GPS لعرض الخريطة.</p>
+
+                <div class="report-sales-table-wrap table-wrap">
+
+                    <table class="data-table sal-invoice-gps-table sal-gps-report-table" id="sal-user-gps-table">
+
+                        <colgroup>
+                            <col class="col-seq">
+                            <col class="col-map">
+                            <col class="col-place">
+                            <col class="col-user">
+                            <col class="col-src">
+                            <col class="col-date">
+                            <col class="col-accuracy">
+                        </colgroup>
+
+                        <thead>
+
+                            <tr>
+
+                                <th class="col-seq">#</th>
+
+                                <th class="col-map no-print-col">GPS</th>
+
+                                <th class="col-place">الموقع</th>
+
+                                <th class="col-user">المستخدم</th>
+
+                                <th class="col-src">المصدر</th>
+
+                                <th class="col-date">آخر تحديث</th>
+
+                                <th class="col-accuracy">الدقة</th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            <?php $seq = 0; ?>
+
+                            <?php foreach ($rows as $row): ?>
+
+                            <?php $seq++; ?>
+
+                            <tr class="sal-gps-list-row">
+
+                                <td class="col-seq"><?= $seq ?></td>
+
+                                <td class="col-map no-print-col"><?= sys_user_location_map_button_html($row) ?></td>
+
+                                <td class="col-place">
+
+                                    <?php if (!empty($row['place_label'])): ?>
+
+                                        <span class="sal-gps-place-label"><?= esc((string) $row['place_label']) ?></span>
+
+                                    <?php else: ?>
+
+                                        <span class="muted sal-gps-place-pending no-print">يُحدَّد تلقائياً</span>
+
+                                    <?php endif; ?>
+
+                                    <?php if (!empty($row['landmark_label'])): ?>
+
+                                        <span class="sal-gps-landmark-label"><?= esc((string) $row['landmark_label']) ?></span>
+
+                                    <?php endif; ?>
+
+                                </td>
+
+                                <td class="col-user">
+
+                                    <span class="sal-gps-user-label"><?= esc((string) ($row['user_label'] ?? '')) ?></span>
+
+                                    <?php if (!empty($row['username'])): ?>
+
+                                        <span class="sal-gps-user-sub"><?= esc((string) $row['username']) ?></span>
+
+                                    <?php endif; ?>
+
+                                </td>
+
+                                <td class="col-src">
+
+                                    <span class="sal-gps-src <?= esc((string) ($row['source_badge_class'] ?? 'sal-gps-src--desktop')) ?>">
+
+                                        <?= esc((string) ($row['source_label'] ?? 'Windows')) ?>
+
+                                    </span>
+
+                                </td>
+
+                                <td class="col-date"><?= esc((string) ($row['captured_at_dmy'] ?? '')) ?></td>
+
+                                <td class="col-accuracy">
+
+                                    <?php if (!empty($row['accuracy_label'])): ?>
+
+                                        ±<?= esc((string) $row['accuracy_label']) ?>
+
+                                    <?php else: ?>
+
+                                        <span class="muted">—</span>
+
+                                    <?php endif; ?>
+
+                                </td>
+
+                            </tr>
+
+                            <?php endforeach; ?>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            <?php endif; ?>
+
+            <?php endif; ?>
+
+        </div>
+
+    </div>
+
+    <?php sales_ora12_workspace_close(); ?>
+
+</div>
+
+
+
+<?php
+
+require_once app_path('includes/sal_invoice_gps_map_modal.php');
+
+echo sal_invoice_gps_map_modal_html();
+
+$gpsMapJsPath = app_path('assets/js/sal-invoice-gps-map.js');
+
+$gpsMapJsUrl = app_url('assets/js/sal-invoice-gps-map.js')
+
+    . (is_file($gpsMapJsPath) ? '?v=' . (string) filemtime($gpsMapJsPath) : '');
+
+?>
+
+<script>
+
+window.SalInvoiceGpsMapConfig = { geocodeApi: '' };
+
+</script>
+
+<script src="<?= esc($gpsMapJsUrl) ?>" defer></script>
+
+<script src="<?= esc($gpsListJsUrl) ?>" defer></script>
+
+

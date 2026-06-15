@@ -1,0 +1,213 @@
+.acc-map-flash {
+  margin-bottom: 0.45rem;
+}
+
+.acc-map-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.acc-map-restore-form,
+.acc-map-merge-cash-form {
+  margin: 0;
+}
+
+.acc-map-panel {
+  margin-bottom: 0.5rem;
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+}
+
+.acc-map-panel-head {
+  margin: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+  border-bottom: 1px solid #024d8f;
+}
+
+.acc-map-panel-body {
+  padding: 0.55rem 0.65rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.acc-map-intro {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.acc-map-intro p {
+  margin: 0 0 0.45rem;
+}
+
+.acc-map-intro p:last-child {
+  margin-bottom: 0;
+}
+
+.acc-map-status {
+  margin: 0.55rem 0 0;
+  padding: 0.4rem 0.55rem;
+  border-radius: 2px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.acc-map-status--ok {
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.acc-map-status--warn {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.acc-map-picker-slot {
+  min-width: min(320px, 100%);
+}
+
+.acc-map-picker-btn {
+  width: 100%;
+  max-width: 360px;
+  text-align: start;
+  justify-content: space-between;
+}
+
+.acc-map-picker-btn .sales-inv-cust-open-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.acc-map-hint {
+  font-size: 0.8rem;
+  min-width: 11rem;
+  max-width: none;
+  white-space: normal;
+  word-break: normal;
+  line-height: 1.45;
+}
+
+.acc-map-table td:first-child {
+  min-width: 12rem;
+  white-space: normal;
+  vertical-align: top;
+}
+
+.acc-map-table td:nth-child(2) {
+  min-width: min(320px, 40vw);
+  vertical-align: top;
+}
+
+.acc-map-table td:last-child {
+  width: 28%;
+  vertical-align: top;
+}
+
+.acc-map-code {
+  font-size: 0.72rem;
+}
+
+.acc-map-req {
+  color: #dc2626;
+  margin-inline-start: 0.2rem;
+}
+
+.acc-map-actions {
+  margin-top: 1rem;
+}
+
+.acc-map-payroll-lead {
+  margin: 0 0 0.55rem;
+}
+
+.acc-map-payroll-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .acc-map-payroll-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.acc-map-payroll-list {
+  margin: 0.35rem 0 0;
+  padding-inline-start: 1.2rem;
+}
+
+.acc-map-payroll-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.acc-map-payroll-table th,
+.acc-map-payroll-table td {
+  border: 1px solid #c0c0c0;
+  padding: 0.28rem 0.45rem;
+  text-align: start;
+  font-size: 0.78rem;
+}
+
+.acc-map-payroll-table th {
+  background: #ece9e4;
+  font-weight: 700;
+}
+
+.acc-map-payroll-note {
+  font-size: 0.8rem;
+  margin: 0 0 0.5rem;
+}
+
+.acc-map-payroll-form {
+  margin: 0;
+}
+
+.acc-map-payroll-flow {
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid #5c6670;
+}
+
+.acc-map-form.acc-map-panel {
+  padding: 0;
+}
+
+.acc-map-form .acc-map-panel-body {
+  padding: 0.55rem;
+}
+
+.acc-map-form .acc-map-actions {
+  margin-top: 0.55rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid #dde3ea;
+}
+
+.report-ora12-workspace .acc-map-picker-btn {
+  min-height: 1.65rem;
+  padding: 0.18rem 0.45rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.report-ora12-workspace .acc-map-picker-btn:hover:not(:disabled) {
+  border-color: #0572ce;
+  background: #f0f6fc;
+}

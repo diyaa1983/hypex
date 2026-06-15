@@ -1,0 +1,130 @@
+.geo-map-pick-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.geo-map-pick-root[hidden] {
+  display: none !important;
+}
+
+.geo-map-pick-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.geo-map-pick-panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 34rem);
+  max-height: calc(100vh - 1.5rem);
+  background: #fff;
+  border: 1px solid #5c6670;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.geo-map-pick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  background: #0572ce;
+  color: #fff;
+}
+
+.geo-map-pick-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.geo-map-pick-close {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.geo-map-pick-hint {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #3d4a56;
+  background: #f3f7fb;
+  border-bottom: 1px solid #d8e2ea;
+}
+
+.geo-map-pick-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid #e2e8ee;
+  background: #fff;
+}
+
+.geo-map-pick-btn--gps {
+  flex: 1;
+  text-align: center;
+  background: #f3f7fb;
+  border-color: #0572ce;
+  color: #0572ce;
+  font-weight: 600;
+}
+
+.geo-map-pick-map {
+  width: 100%;
+  height: min(52vh, 22rem);
+  min-height: 14rem;
+  background: #e8edf2;
+}
+
+.geo-map-pick-coords {
+  margin: 0;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.72rem;
+  color: #5c6670;
+  direction: ltr;
+  text-align: left;
+  border-top: 1px solid #e2e8ee;
+}
+
+.geo-map-pick-foot {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid #e2e8ee;
+}
+
+.geo-map-pick-btn {
+  border: 1px solid #8a949e;
+  background: #fff;
+  color: #161513;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.geo-map-pick-btn--primary {
+  background: #0572ce;
+  border-color: #0572ce;
+  color: #fff;
+}
+
+.geo-map-pick-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

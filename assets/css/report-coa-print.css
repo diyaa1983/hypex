@@ -1,0 +1,262 @@
+/* شجرة الحسابات — شاشة وطباعة (أولوية أعلى من report-sales.css) */
+
+.report-coa-print-page.report-coa-print-area,
+.report-coa-print-page .report-coa-print-table {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.report-coa-print-page .report-coa-print-table {
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+/* إلغاء تنسيق report-sales العام على هذا الجدول */
+.report-coa-print-page .report-coa-print-table thead th {
+  background: #1e3a5f !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  padding: 0.45rem 0.5rem !important;
+  border: 1px solid #1e3a5f !important;
+  text-align: center !important;
+}
+
+.report-coa-print-page .report-coa-print-table td {
+  padding: 0.38rem 0.5rem !important;
+  border: 1px solid var(--ora12-border) !important;
+  vertical-align: middle !important;
+  text-align: center !important;
+  background: #fff !important;
+  color: #0f172a !important;
+}
+
+.report-coa-print-page .report-coa-print-table tbody tr:nth-child(even) td {
+  background: #fff !important;
+}
+
+.report-coa-print-page .report-coa-print-table .col-seq {
+  width: 2.5rem;
+  color: #64748b !important;
+  font-size: 0.88em;
+  font-weight: 600 !important;
+}
+
+.report-coa-print-page .report-coa-print-table .col-acc-code {
+  width: 8rem;
+  white-space: nowrap;
+  text-align: center !important;
+}
+
+.report-coa-print-page .report-coa-print-table .col-acc-name {
+  text-align: start !important;
+  min-width: 14rem;
+}
+
+.report-coa-print-page .report-coa-print-table .col-level {
+  width: 5.5rem;
+}
+
+.report-coa-print-page .report-coa-print-table .col-type {
+  width: 6rem;
+  font-size: 0.92em;
+  color: #475569 !important;
+  font-weight: 600 !important;
+}
+
+/* رقم الحساب */
+.report-coa-print-page .report-coa-code {
+  display: inline-block;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.92em;
+  font-weight: 600 !important;
+  padding: 0.12rem 0.4rem;
+  border-radius: 4px;
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border: 1px solid #e2e8f0;
+}
+
+.report-coa-print-page .report-coa-code--main {
+  font-weight: 800 !important;
+  font-size: 1em;
+  background: #dbeafe !important;
+  color: #1e3a8a !important;
+  border: 1px solid #93c5fd !important;
+}
+
+/* اسم الحساب + فرع الشجرة */
+.report-coa-print-page .report-coa-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-content: flex-start;
+}
+
+.report-coa-print-page .report-coa-tree--main {
+  flex-shrink: 0;
+  color: #2563eb !important;
+  font-weight: 800;
+  font-size: 0.95em;
+  width: 1rem;
+  text-align: center;
+}
+
+/* رمز L للفرعي */
+.report-coa-print-page .report-coa-tree--branch {
+  flex-shrink: 0;
+  width: 1.1rem;
+  height: 0.75rem;
+  margin-top: -0.15rem;
+  border-inline-end: 2px solid #64748b;
+  border-bottom: 2px solid #64748b;
+  border-end-end-radius: 2px;
+}
+
+.report-coa-print-page .report-coa-name {
+  flex: 1;
+  text-align: start;
+}
+
+.report-coa-print-page .report-coa-inactive-tag {
+  margin-inline-start: 0.35rem;
+  font-size: 0.72em;
+  color: #b45309 !important;
+  background: #fffbeb !important;
+  border: 1px solid #fcd34d;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  font-weight: 600 !important;
+}
+
+/* شارات المستوى */
+.report-coa-print-page .report-coa-level {
+  display: inline-block;
+  min-width: 3.4rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 700 !important;
+  line-height: 1.2;
+}
+
+.report-coa-print-page .report-coa-level--main {
+  background: #1e40af !important;
+  color: #fff !important;
+  border: 1px solid #1e3a8a !important;
+}
+
+.report-coa-print-page .report-coa-level--sub {
+  background: #fff !important;
+  color: #475569 !important;
+  border: 1px solid #94a3b8 !important;
+}
+
+/* صف رئيسي */
+.report-coa-print-page .report-coa-row--main td {
+  background: #e8f0fe !important;
+  border-top: 2px solid #3b82f6 !important;
+  border-bottom: 1px solid #bfdbfe !important;
+}
+
+.report-coa-print-page .report-coa-row--main:nth-child(even) td {
+  background: #e8f0fe !important;
+}
+
+.report-coa-print-page .report-coa-row--main .report-coa-name {
+  font-weight: 800 !important;
+  font-size: 1.02em;
+  color: #0f172a !important;
+}
+
+/* صف فرعي */
+.report-coa-print-page .report-coa-row--sub td {
+  background: #fff !important;
+}
+
+.report-coa-print-page .report-coa-row--sub:nth-child(even) td {
+  background: #fff !important;
+}
+
+.report-coa-print-page .report-coa-row--sub .report-coa-name {
+  font-weight: 600 !important;
+  color: #334155 !important;
+}
+
+.report-coa-print-page .report-coa-depth-1 .report-coa-name-wrap {
+  padding-inline-start: 0.5rem;
+}
+
+.report-coa-print-page .report-coa-depth-2 .report-coa-name-wrap {
+  padding-inline-start: 1.25rem;
+}
+
+.report-coa-print-page .report-coa-depth-3 .report-coa-name-wrap {
+  padding-inline-start: 2rem;
+}
+
+.report-coa-print-page .report-coa-depth-4 .report-coa-name-wrap {
+  padding-inline-start: 2.75rem;
+}
+
+.report-coa-print-page .report-coa-depth-5 .report-coa-name-wrap {
+  padding-inline-start: 3.5rem;
+}
+
+.report-coa-print-page .report-coa-row--inactive td {
+  background: #fafafa !important;
+  opacity: 0.9;
+}
+
+.report-coa-print-page .report-coa-row--main + .report-coa-row--main td {
+  border-top-width: 3px !important;
+}
+
+/* ——— طباعة: نفس مظهر الشاشة ——— */
+@media print {
+  .report-coa-print-page,
+  .report-coa-print-page * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .report-coa-print-page {
+    font-size: 10pt;
+  }
+
+  .report-coa-print-page .report-coa-print-table thead th {
+    background: #1e3a5f !important;
+    color: #fff !important;
+  }
+
+  .report-coa-print-page .report-coa-print-table tbody tr:nth-child(even) td {
+    background: #fff !important;
+  }
+
+  .report-coa-print-page .report-coa-row--main td,
+  .report-coa-print-page .report-coa-row--main:nth-child(even) td {
+    background: #dce8f8 !important;
+    border-top: 2pt solid #2563eb !important;
+    border-bottom: 1pt solid #93c5fd !important;
+  }
+
+  .report-coa-print-page .report-coa-code--main {
+    background: #bfdbfe !important;
+    border: 1pt solid #3b82f6 !important;
+    color: #1e3a8a !important;
+  }
+
+  .report-coa-print-page .report-coa-level--main {
+    background: #1e40af !important;
+    color: #fff !important;
+  }
+
+  .report-coa-print-page .report-coa-level--sub {
+    background: #fff !important;
+    border: 1pt solid #64748b !important;
+  }
+
+  .report-coa-print-page .report-coa-tree--branch {
+    border-inline-end-color: #475569 !important;
+    border-bottom-color: #475569 !important;
+  }
+}

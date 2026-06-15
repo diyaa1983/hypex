@@ -1,0 +1,188 @@
+/* قسيمة الراتب — طباعة */
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    .hr-slip-body {
+        margin: 0;
+        padding: 0;
+    }
+}
+
+.hr-slip-body {
+    margin: 0;
+    padding: 1rem;
+    font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+    font-size: 14px;
+    color: #111;
+    background: #f1f5f9;
+}
+
+.hr-slip-doc {
+    max-width: 800px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 1.25rem 1.5rem 1.5rem;
+    border: 1px solid var(--ora12-border);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.hr-slip-header {
+    text-align: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #334155;
+}
+
+.hr-slip-header h1 {
+    margin: 0 0 0.25rem;
+    font-size: 1.25rem;
+}
+
+.hr-slip-header h2 {
+    margin: 0 0 0.35rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.hr-slip-period {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.hr-slip-info-table,
+.hr-slip-col table,
+.hr-slip-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.hr-slip-info-table th,
+.hr-slip-info-table td,
+.hr-slip-col th,
+.hr-slip-col td,
+.hr-slip-summary-table td {
+    border: 1px solid var(--ora12-border);
+    padding: 0.35rem 0.5rem;
+    text-align: right;
+}
+
+.hr-slip-info-table th {
+    width: 18%;
+    background: #f1f5f9;
+    font-weight: 600;
+}
+
+.hr-slip-allow-title {
+    margin: 1rem 0 0.4rem;
+    font-size: 0.95rem;
+    text-align: center;
+}
+
+.hr-slip-allow-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.5rem;
+}
+
+.hr-slip-allow-table th,
+.hr-slip-allow-table td {
+    border: 1px solid var(--ora12-border);
+    padding: 0.35rem 0.5rem;
+    text-align: right;
+}
+
+.hr-slip-allow-table thead th {
+    background: #e2e8f0;
+}
+
+.hr-slip-allow-table td:last-child {
+    text-align: left;
+    width: 35%;
+    font-variant-numeric: tabular-nums;
+}
+
+.hr-slip-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.hr-slip-col h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+    text-align: center;
+}
+
+.hr-slip-col thead th {
+    background: #e2e8f0;
+    font-size: 0.82rem;
+}
+
+.hr-slip-col td:last-child {
+    text-align: left;
+    width: 35%;
+    font-variant-numeric: tabular-nums;
+}
+
+.hr-slip-ss-row td {
+    font-weight: 600;
+    color: #0f766e;
+}
+
+.hr-slip-it-row td {
+    font-weight: 600;
+    color: #b45309;
+}
+
+.hr-slip-summary-table {
+    margin-top: 0.5rem;
+}
+
+.hr-slip-summary-table td:last-child {
+    text-align: left;
+    width: 40%;
+    font-variant-numeric: tabular-nums;
+}
+
+.hr-slip-net td {
+    font-weight: 700;
+    font-size: 1.05rem;
+    background: #ede9fe;
+}
+
+.hr-slip-notes {
+    margin: 0.75rem 0 0;
+    font-size: 0.9rem;
+}
+
+.hr-slip-footer {
+    margin-top: 1.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #94a3b8;
+    font-size: 0.82rem;
+    color: #64748b;
+    text-align: center;
+}
+
+.hr-slip-actions {
+    max-width: 800px;
+    margin: 1rem auto 0;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.muted {
+    color: #64748b;
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    .hr-slip-cols {
+        grid-template-columns: 1fr;
+    }
+}

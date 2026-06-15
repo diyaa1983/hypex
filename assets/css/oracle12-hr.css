@@ -1,0 +1,221 @@
+/* ── شاشات داخلية (HR وغيرها) — Oracle 12c ── */
+
+body.hr-ora-ui {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body.hr-ora-ui .main-content {
+  padding: 0.45rem 0.55rem 0.85rem;
+  background: var(--shell-bg, #d4d0c8);
+}
+
+body.hr-ora-ui .ora12-title-bar {
+  margin: 0 0 0.5rem;
+}
+
+body.hr-ora-ui .ora12-title-bar__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+}
+
+body.hr-ora-ui .ora12-title-bar__close:hover {
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .alert,
+body.hr-ora-ui .hr-ora-msg {
+  margin: 0 0 0.45rem;
+  padding: 0.42rem 0.65rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ora12-text, #161513);
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .alert-success,
+body.hr-ora-ui .hr-ora-msg--success {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .alert-error,
+body.hr-ora-ui .hr-ora-msg--error {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .btn,
+body.hr-ora-ui [class*="-ora-screen"] a.btn,
+body.hr-ora-ui [class*="-ora-screen"] button.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.6rem;
+  min-height: 1.6rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-text, #161513);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .btn-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border-color: #024d8f;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .btn-danger {
+  color: #fff;
+  background: linear-gradient(180deg, #e85d4a 0%, #c74634 55%, #a33a2b 100%);
+  border-color: #a33a2b;
+}
+
+body.hr-ora-ui [class*="-ora-screen"] .input,
+body.hr-ora-ui [class*="-ora-screen"] select.input,
+body.hr-ora-ui [class*="-ora-screen"] textarea.input {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  font-family: inherit;
+}
+
+body.hr-ora-ui .hr-emp-ora-screen,
+body.hr-ora-ui [class*="-ora-screen"] {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ora12-text, #161513);
+}
+
+body.hr-ora-ui .hr-emp-panel,
+body.hr-ora-ui .hr-emp-picker-panel,
+body.hr-ora-ui .hr-emp-editor,
+body.hr-ora-ui .hr-dept-grid-panel,
+body.hr-ora-ui .hr-nat-grid-panel,
+body.hr-ora-ui .hr-adv-panel,
+body.hr-ora-ui .hr-adv-picker-panel,
+body.hr-ora-ui .hr-adv-grid-panel,
+body.hr-ora-ui .hr-sal-panel,
+body.hr-ora-ui .hr-sal-intro-panel,
+body.hr-ora-ui .hr-sal-grid-panel,
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-panel,
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-panel,
+body.hr-ora-ui .hr-pr-post-panel,
+body.hr-ora-ui .hr-pr-post-doc-panel,
+body.hr-ora-ui .hr-pr-post-emp-panel,
+body.hr-ora-ui .hr-pr-post-intro-panel,
+body.hr-ora-ui .sales-ora-panel,
+body.hr-ora-ui .card {
+  background: var(--ora12-surface, #fff);
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+}
+
+body.hr-ora-ui .hr-emp-picker-title,
+body.hr-ora-ui .hr-emp-block-title,
+body.hr-ora-ui .hr-emp-grid-title,
+body.hr-ora-ui .hr-dept-grid-title,
+body.hr-ora-ui .hr-nat-grid-title,
+body.hr-ora-ui .hr-adv-picker-title,
+body.hr-ora-ui .hr-adv-grid-title,
+body.hr-ora-ui .hr-sal-grid-title,
+body.hr-ora-ui .hr-sal-panel-title,
+body.hr-ora-ui .hr-pr-post-panel-title {
+  margin: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+  border-bottom: 1px solid #024d8f;
+  text-align: start;
+}
+
+body.hr-ora-ui .hr-emp-grid-table,
+body.hr-ora-ui .hr-emp-picker-table,
+body.hr-ora-ui .hr-dept-grid-table,
+body.hr-ora-ui .hr-nat-grid-table,
+body.hr-ora-ui .hr-adv-grid-table,
+body.hr-ora-ui .hr-adv-picker-table,
+body.hr-ora-ui .hr-sal-grid-table,
+body.hr-ora-ui .hr-mpa-grid-table,
+body.hr-ora-ui .hr-pr-post-grid-table,
+body.hr-ora-ui .data-table {
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+body.hr-ora-ui .hr-emp-grid-table th,
+body.hr-ora-ui .hr-emp-grid-table td,
+body.hr-ora-ui .hr-emp-picker-table th,
+body.hr-ora-ui .hr-emp-picker-table td,
+body.hr-ora-ui .hr-dept-grid-table th,
+body.hr-ora-ui .hr-dept-grid-table td,
+body.hr-ora-ui .hr-adv-grid-table th,
+body.hr-ora-ui .hr-adv-grid-table td,
+body.hr-ora-ui .hr-adv-picker-table th,
+body.hr-ora-ui .hr-adv-picker-table td,
+body.hr-ora-ui .hr-sal-grid-table th,
+body.hr-ora-ui .hr-sal-grid-table td,
+body.hr-ora-ui .hr-mpa-grid-table th,
+body.hr-ora-ui .hr-mpa-grid-table td,
+body.hr-ora-ui .hr-pr-post-grid-table th,
+body.hr-ora-ui .hr-pr-post-grid-table td,
+body.hr-ora-ui .data-table th,
+body.hr-ora-ui .data-table td {
+  border: 1px solid var(--ora12-border);
+  padding: 0.32rem 0.45rem;
+}
+
+body.hr-ora-ui .hr-emp-grid-table th,
+body.hr-ora-ui .hr-emp-picker-table th,
+body.hr-ora-ui .hr-dept-grid-table th,
+body.hr-ora-ui .hr-adv-grid-table th,
+body.hr-ora-ui .hr-adv-picker-table th,
+body.hr-ora-ui .hr-sal-grid-table th,
+body.hr-ora-ui .hr-mpa-grid-table th,
+body.hr-ora-ui .hr-pr-post-grid-table th,
+body.hr-ora-ui .data-table th {
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+  font-weight: 700;
+  border-bottom: 2px solid var(--ora12-border);
+}
+
+body.hr-ora-ui .hr-emp-grid-table tbody tr:nth-child(even) td,
+body.hr-ora-ui .hr-sal-grid-table tbody tr:nth-child(even) td,
+body.hr-ora-ui .hr-mpa-grid-table tbody tr:nth-child(even) td,
+body.hr-ora-ui .hr-adv-grid-table tbody tr:nth-child(even) td,
+body.hr-ora-ui .hr-pr-post-grid-table tbody tr:nth-child(even) td,
+body.hr-ora-ui .data-table tbody tr:nth-child(even) td {
+  background: var(--ora12-stripe, #f7f9fb);
+}
+
+body.hr-ora-ui .field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted, #5c5c5c);
+}
+
+/* شريط Master العلوي — نفس تنسيق فاتورة المبيعات (app.css #master-toolbar) */

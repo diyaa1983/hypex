@@ -1,0 +1,158 @@
+<?php
+
+declare(strict_types=1);
+
+
+
+/**
+
+ * مسارات تطبيق الهاتف فقط — نفس قاعدة البيانات، واجهة منفصلة.
+
+ * الصلاحيات عبر مجموعة MOBILE في sys_group.
+
+ * لا تُحمَّل مع index.php؛ أي CSS/JS للموبايل تحت assets/mobile/ و m/ فقط.
+
+ *
+
+ * icon: مفتاح أيقونة SVG — includes/mobile_icons.php
+
+ */
+
+return [
+
+    'm_home' => [
+
+        'file' => 'modules/mobile/home.php',
+
+        'permission' => 'm_home',
+
+        'title' => 'الرئيسية',
+
+    ],
+
+    'm_sales_invoices' => [
+
+        'file' => 'modules/mobile/sales_invoice.php',
+
+        'permission' => 'm_sales_invoices',
+
+        'title' => 'فواتير المبيعات',
+
+        'icon' => 'invoice',
+
+        'tile_kind' => 'doc',
+
+        'home_tile' => true,
+
+    ],
+
+    'm_sales_invoice_list' => [
+
+        'file' => 'modules/mobile/sales_invoice_list.php',
+
+        'permission' => 'm_sales_invoices',
+
+        'title' => 'قائمة فواتير المبيعات',
+
+        'icon' => 'list',
+
+        'tile_kind' => 'list',
+
+        'home_tile' => true,
+
+    ],
+
+    'm_sales_invoice_view' => [
+
+        'file' => 'modules/mobile/sales_invoice_view.php',
+
+        'permission' => 'm_sales_invoices',
+
+        'title' => 'عرض الفاتورة',
+
+        'home_tile' => false,
+
+    ],
+
+    'm_sales_invoice_gps' => [
+
+        'file' => 'modules/mobile/sales_invoice_gps_list.php',
+
+        'permission' => 'm_sales_invoices',
+
+        'title' => 'إحداثيات مواقع فواتير البيع',
+
+        'icon' => 'map-pin',
+
+        'tile_kind' => 'list',
+
+        'home_tile' => true,
+
+    ],
+
+    'm_user_gps_locations' => [
+
+        'file' => 'modules/mobile/user_gps_locations_list.php',
+
+        'permission' => 'm_user_gps_locations',
+
+        'title' => 'مواقع المستخدمين',
+
+        'icon' => 'map-pin',
+
+        'tile_kind' => 'list',
+
+        'home_tile' => true,
+
+    ],
+
+    'm_party_statement' => [
+
+        'file' => 'modules/mobile/party_statement.php',
+
+        'permission' => 'm_party_statement',
+
+        'title' => 'كشف حساب',
+
+        'icon' => 'ledger',
+
+        'home_tile' => true,
+
+    ],
+
+    'm_receipt' => [
+        'file' => 'modules/mobile/receipt.php',
+        'permission' => 'm_receipt',
+        'title' => 'سند قبض',
+        'home_label' => 'سندات القبض',
+        'icon' => 'receipt',
+        'tile_kind' => 'doc',
+        'home_tile' => true,
+    ],
+    'm_receipt_list' => [
+        'file' => 'modules/mobile/receipt_list.php',
+        'permission' => 'm_receipt',
+        'title' => 'قائمة سندات القبض',
+        'icon' => 'receipt-list',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+    'm_sales_returns' => [
+        'file' => 'modules/mobile/sales_return.php',
+        'permission' => 'm_sales_returns',
+        'title' => 'مرتجع مبيعات',
+        'home_label' => 'مرتجع جديد',
+        'icon' => 'return',
+        'tile_kind' => 'doc',
+        'home_tile' => true,
+    ],
+    'm_sales_returns_list' => [
+        'file' => 'modules/mobile/sales_return_list.php',
+        'permission' => 'm_sales_returns',
+        'title' => 'قائمة مرتجعات المبيعات',
+        'icon' => 'return-list',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+];
+

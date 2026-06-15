@@ -1,0 +1,148 @@
+.item-price-adj-page {
+  padding: 1rem 1.15rem;
+}
+
+.item-price-adj-doc-header {
+  margin-bottom: 0.75rem;
+}
+
+.item-price-adj-header-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.item-price-adj-table tr.is-entry-row .js-seq {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.item-price-adj-table tr.is-entry-row .js-sku:empty::before {
+  content: '—';
+  color: #cbd5e1;
+}
+
+.item-price-adj-table tr.is-entry-row .sales-inv-item-pick {
+  border-style: dashed;
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.item-price-adj-form-is-posted #item-price-adj-add-line {
+  display: none;
+}
+
+.item-price-adj-doc-title {
+  margin: 0 0 0.65rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.item-price-adj-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 1rem;
+}
+
+.item-price-adj-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.item-price-adj-meta-item label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #334155;
+}
+
+.item-price-adj-meta-no {
+  flex: 0 0 14rem;
+  min-width: 12rem;
+}
+
+.item-price-adj-status-posted {
+  color: #b91c1c;
+  font-weight: 800;
+}
+
+.item-price-adj-table-wrap {
+  margin-top: 0.35rem;
+}
+
+.item-price-adj-table .col-seq {
+  width: 3.5rem;
+  text-align: center;
+}
+
+.item-price-adj-table .col-inv-no {
+  width: 9rem;
+  white-space: nowrap;
+}
+
+.item-price-adj-table .col-item {
+  min-width: 10rem;
+}
+
+.item-price-adj-table .col-tax {
+  width: 6.5rem;
+  text-align: center;
+}
+
+.item-price-adj-table .col-money {
+  white-space: nowrap;
+  width: 9rem;
+}
+
+.item-price-adj-table .col-del {
+  width: 2.75rem;
+  text-align: center;
+}
+
+.item-price-adj-price-inp {
+  width: 100%;
+  max-width: 10rem;
+  min-width: 6rem;
+}
+
+.item-price-adj-form-is-saved .sales-inv-no-input:not(.is-posted):not(.is-unposted) {
+  background: #f8fafc;
+}
+
+.item-price-adj-form-is-saved .sales-inv-no-input.is-unposted {
+  background: #ecfdf5 !important;
+  border-color: #22c55e !important;
+  color: #047857 !important;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+.item-price-adj-form-is-saved .sales-inv-no-input.is-posted {
+  background: #fef2f2 !important;
+  border-color: #ef4444 !important;
+  color: #b91c1c !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18);
+}
+
+.item-price-adj-form-is-posted .item-price-adj-line .js-pick-open.is-readonly-display,
+.item-price-adj-line .js-pick-open:disabled {
+  pointer-events: none;
+  border-color: transparent;
+  background: transparent;
+  padding: 0.15rem 0;
+  min-height: auto;
+}
+
+.item-price-adj-notes-block {
+  margin-top: 0.85rem;
+  max-width: 36rem;
+}
+
+#master-toolbar [data-master-action="post"].is-inactive,
+#master-toolbar [data-master-action="post"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

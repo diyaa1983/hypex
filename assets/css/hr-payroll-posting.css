@@ -1,0 +1,682 @@
+/* قيد الرواتب — Oracle 12c */
+
+body.hr-ora-ui .hr-pr-post-classic,
+body.hr-ora-ui .hr-pr-post-classic input,
+body.hr-ora-ui .hr-pr-post-classic select,
+body.hr-ora-ui .hr-pr-post-classic button,
+body.hr-ora-ui .hr-pr-post-classic textarea,
+body.hr-ora-ui .hr-pr-post-classic option,
+body.hr-ora-ui .hr-pr-post-classic label,
+body.hr-ora-ui .hr-pr-post-classic th,
+body.hr-ora-ui .hr-pr-post-classic td,
+body.hr-ora-ui .hr-pr-post-classic .btn,
+body.hr-ora-ui .hr-pr-post-classic code,
+body.hr-ora-ui .hr-pr-post-classic .muted,
+body.hr-ora-ui .hr-pr-post-classic .ora12-title-bar,
+body.hr-ora-ui .hr-pr-post-classic .ora12-title-bar *,
+body.hr-ora-ui .hr-pr-post-classic .dashboard-ora-screen-title,
+body.hr-ora-ui .hr-pr-post-classic .dashboard-ora-screen-title * {
+    font-weight: 700;
+}
+
+body.hr-ora-ui .hr-pr-post-classic {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.8125rem;
+    color: var(--ora12-text, #161513);
+}
+
+body.hr-ora-ui .hr-pr-post-flash {
+    margin-bottom: 0.45rem;
+}
+
+body.hr-ora-ui .hr-pr-post-panel {
+    margin-bottom: 0.45rem;
+}
+
+body.hr-ora-ui .hr-pr-post-panel-body {
+    padding: 0.55rem 0.65rem 0.65rem;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-panel .hr-pr-post-panel-body {
+    padding: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-emp-panel .hr-pr-post-panel-body {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+body.hr-ora-ui .hr-pr-post-emp-panel .hr-pr-post-emp-grid-wrap {
+    border: none;
+    box-shadow: none;
+}
+
+body.hr-ora-ui .hr-pr-post-intro-panel .hr-pr-post-pending-hint {
+    margin: 0;
+    padding: 0.55rem 0.7rem;
+    text-align: center;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--ora12-muted, #5c5c5c);
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
+body.hr-ora-ui .hr-pr-post-doc-form {
+    margin-bottom: 0.45rem;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-action-col {
+    width: 5.5rem;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-code {
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-desc {
+    font-size: 0.82rem;
+    text-align: start;
+    padding-inline: 0.45rem !important;
+}
+
+body.hr-ora-ui .hr-pr-post-inline-input {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    text-align: center;
+    box-shadow: none;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-header .hr-pr-post-inline-input {
+    height: 1.45rem;
+    padding: 0 0.35rem;
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-header input[name="year"] {
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    text-align: start;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+body.hr-ora-ui .hr-pr-post-inline-input:focus {
+    outline: none;
+    border-color: #0572ce;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-header .hr-pr-post-inline-input:focus {
+    outline: 1px solid rgba(5, 114, 206, 0.35);
+}
+
+body.hr-ora-ui .hr-pr-post-doc-summary-row th {
+    background: var(--ora12-stripe, #f7f9fb);
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-align: start;
+    padding-inline: 0.45rem;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-pr-post-doc-summary {
+    font-size: 0.78rem;
+    text-align: start;
+    padding-inline: 0.45rem !important;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-summary-sep {
+    margin-inline: 0.35rem;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-pr-post-gate {
+    margin: 0 0 0.45rem;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-pr-post-workspace {
+    display: grid;
+    grid-template-columns: minmax(9rem, 11rem) minmax(0, 1fr);
+    gap: 0.45rem;
+    align-items: start;
+}
+
+body.hr-ora-ui .hr-pr-post-side-panel {
+    padding: 0;
+    overflow: hidden;
+}
+
+body.hr-ora-ui .hr-pr-post-side-panel .hr-pr-post-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.55rem 0.5rem 0.65rem;
+}
+
+body.hr-ora-ui .hr-pr-post-side-status {
+    text-align: center;
+    padding: 0.42rem 0.35rem;
+    margin-bottom: 0.1rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
+body.hr-ora-ui .hr-pr-post-side-btn {
+    width: 100%;
+}
+
+body.hr-ora-ui .hr-pr-post-side-btn--post {
+    font-weight: 700;
+}
+
+body.hr-ora-ui .hr-pr-post-side-status-label {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--ora12-muted, #5c5c5c);
+    margin-bottom: 0.15rem;
+}
+
+body.hr-ora-ui .hr-pr-post-side-status--open strong {
+    color: #2e7d32;
+}
+
+body.hr-ora-ui .hr-pr-post-side-status--posted strong {
+    color: #c74634;
+}
+
+body.hr-ora-ui .hr-pr-post-side-status--calculated strong,
+body.hr-ora-ui .hr-pr-post-side-status--mixed strong {
+    color: #b45309;
+}
+
+body.hr-ora-ui .hr-pr-post-status {
+    display: inline;
+    padding: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border-radius: 0;
+    white-space: nowrap;
+    background: transparent;
+}
+
+body.hr-ora-ui .hr-pr-post-status--open {
+    color: #2e7d32;
+}
+
+body.hr-ora-ui .hr-pr-post-status--calculated,
+body.hr-ora-ui .hr-pr-post-status--mixed {
+    color: #b45309;
+}
+
+body.hr-ora-ui .hr-pr-post-status--posted {
+    color: #c74634;
+}
+
+body.hr-ora-ui .hr-pr-post-emp-grid-wrap {
+    max-height: min(28rem, 55vh);
+    overflow: auto;
+}
+
+body.hr-ora-ui .hr-pr-post-emp-table {
+    min-width: 72rem;
+    font-size: 0.78rem;
+}
+
+body.hr-ora-ui .hr-pr-post-drill {
+    cursor: pointer;
+    color: #024d8f;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+body.hr-ora-ui .hr-pr-post-row.is-selected .hr-pr-post-drill {
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-modal[hidden] {
+    display: none !important;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+body.hr-ora-ui .hr-pr-post-detail-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(32rem, 100%);
+    max-height: min(80vh, 28rem);
+    display: flex;
+    flex-direction: column;
+    border: 2px solid;
+    border-color: #fff #404040 #404040 #fff;
+    background: #ece9e4;
+    box-shadow: 2px 2px 0 #808080;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    background: linear-gradient(180deg, #3a6ea5 0%, #1e4d8c 45%, #0f3a7a 100%);
+    border-bottom: 1px solid #000;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-close {
+    min-width: 1.25rem;
+    min-height: 1.25rem;
+    padding: 0;
+    border: 1px solid;
+    border-color: #fff #404040 #404040 #fff;
+    background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+    color: #000;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-body {
+    padding: 0.45rem;
+    overflow: auto;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-table th,
+body.hr-ora-ui .hr-pr-post-detail-table td {
+    border: 1px solid #808080;
+    padding: 0.25rem 0.35rem;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-table th {
+    background: #d4d0c8;
+}
+
+body.hr-ora-ui .hr-pr-post-detail-empty {
+    margin: 0.35rem 0 0;
+    text-align: center;
+    font-size: 0.75rem;
+}
+
+body.hr-ora-ui .hr-pr-post-emp-table .hr-pr-post-emp-name {
+    text-align: start;
+    padding-inline: 0.45rem !important;
+}
+
+body.hr-ora-ui .hr-pr-post-col-net {
+    font-weight: 700;
+}
+
+body.hr-ora-ui .hr-pr-post-totals-row td {
+    background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+    font-weight: 700;
+    border-top: 2px solid #c5d0dc;
+}
+
+body.hr-ora-ui .hr-pr-post-footer-bar.dashboard-ora-toolbar {
+    margin-top: 0;
+    justify-content: flex-start;
+}
+
+body.hr-ora-ui .hr-pr-post-footer-post {
+    min-width: 7rem;
+}
+
+body.hr-ora-ui .hr-pr-post-footer-meta {
+    font-size: 0.78rem;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-pr-post-extra-panel {
+    margin-top: 0.45rem;
+    font-size: 0.8125rem;
+    background: var(--ora12-surface, #fff);
+    border: 1px solid var(--ora12-border);
+    box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+}
+
+body.hr-ora-ui .hr-pr-post-extra-panel > summary {
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: #fff;
+    margin: 0;
+    padding: 0.42rem 0.7rem;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+    border-bottom: 1px solid #024d8f;
+    list-style: none;
+}
+
+body.hr-ora-ui .hr-pr-post-extra-panel > summary::-webkit-details-marker {
+    display: none;
+}
+
+body.hr-ora-ui .hr-pr-post-extra-panel[open] > summary {
+    border-bottom: 1px solid #024d8f;
+}
+
+body.hr-ora-ui .hr-pr-post-extra-panel .hr-pr-post-grid-wrap,
+body.hr-ora-ui .hr-pr-post-extra-panel .hr-pr-post-disburse {
+    margin: 0;
+    border: none;
+    box-shadow: none;
+    padding: 0.55rem 0.65rem 0.65rem;
+}
+
+body.hr-ora-ui .hr-pr-post-meta-tag {
+    display: inline;
+    margin-inline-start: 0.25rem;
+    padding: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #c74634;
+    background: transparent;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-row--current td {
+    background: #fff8e1;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-actions {
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-pr-post-disburse-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 0.45rem 0.75rem;
+    margin: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-disburse-grid dt {
+    margin: 0 0 0.1rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-pr-post-disburse-grid dd {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--ora12-text, #161513);
+    font-variant-numeric: tabular-nums;
+}
+
+body.hr-ora-ui dd.hr-pr-post-disburse-highlight {
+    color: #024d8f;
+}
+
+body.hr-ora-ui .hr-pr-post-disburse-total {
+    color: #c74634 !important;
+    font-size: 0.92rem !important;
+}
+
+body.hr-ora-ui .hr-pr-post-grid-wrap {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: auto;
+    box-shadow: none;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-header.hr-pr-post-grid-wrap {
+    border: none;
+}
+
+body.hr-ora-ui .hr-pr-post-grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.78rem;
+}
+
+body.hr-ora-ui .hr-pr-post-grid-table th,
+body.hr-ora-ui .hr-pr-post-grid-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-header .hr-pr-post-grid-table tbody td,
+body.hr-ora-ui .hr-pr-post-doc-header .hr-pr-post-grid-table tfoot td {
+    padding: 0.28rem 0.35rem;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-header .hr-pr-post-doc-action-col .btn {
+    width: 100%;
+}
+
+body.hr-ora-ui .hr-pr-post-grid-table td.num {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+}
+
+body.hr-ora-ui .hr-pr-post-emp-code-head {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-pr-post-emp-code-head .hr-pr-post-emp-code-head-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-pr-post-emp-code-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-pr-post-chk-cell {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-pr-post-chk-cell input[type="checkbox"] {
+    width: 0.95rem;
+    height: 0.95rem;
+    margin: 0;
+    accent-color: #0572ce;
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-pr-post-row {
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-pr-post-row.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-pr-post-row:hover td {
+    background: #e8f0f8;
+}
+
+body.hr-ora-ui .hr-pr-post-row.is-selected:hover td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-pr-post-row--open.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-pr-post-row--posted td {
+    color: #c74634;
+}
+
+body.hr-ora-ui .hr-pr-post-row--posted.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-pr-post-row--calculated.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-pr-post-row--no-setup td {
+    color: var(--ora12-muted, #5c5c5c);
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
+body.hr-ora-ui .hr-pr-post-cell-note {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--ora12-muted, #5c5c5c);
+    margin-top: 0.1rem;
+}
+
+body.hr-ora-ui .hr-pr-post-row--empty td {
+    padding: 0.75rem;
+}
+
+/* LOV — Oracle 12c */
+body.hr-ora-ui .hr-pr-post-ora-lov {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 1.45rem;
+    max-height: 1.45rem;
+    direction: rtl;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov:focus-within {
+    border-color: #0572ce;
+    outline: 1px solid rgba(5, 114, 206, 0.35);
+    outline-offset: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov-field {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0 0.35rem;
+    border: none !important;
+    border-radius: 0;
+    background: transparent !important;
+    text-align: start;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    appearance: none;
+    -webkit-appearance: none;
+    box-shadow: none !important;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov-field:focus {
+    outline: none;
+    background: transparent !important;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov:has(.hr-pr-post-ora-lov-field:disabled) {
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov-field:disabled {
+    background: transparent !important;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov-btn {
+    flex: 0 0 1.1rem;
+    width: 1.1rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    margin: 0 2px;
+    padding: 0;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    color: var(--ora12-text, #161513);
+    font-size: 0.45rem;
+    line-height: 1;
+    cursor: pointer;
+    appearance: none;
+    user-select: none;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov-btn::before {
+    content: "\25BC";
+    display: block;
+    line-height: 1rem;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fff 0%, #eef2f6 100%);
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov:has(.hr-pr-post-ora-lov-field:disabled) .hr-pr-post-ora-lov-btn {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+    body.hr-ora-ui .hr-pr-post-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    body.hr-ora-ui .hr-pr-post-side-panel .hr-pr-post-panel-body {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    body.hr-ora-ui .hr-pr-post-side-status {
+        flex: 1 1 100%;
+    }
+
+    body.hr-ora-ui .hr-pr-post-side-btn {
+        flex: 1 1 calc(50% - 0.25rem);
+    }
+}
+
+@media (max-width: 640px) {
+    body.hr-ora-ui .hr-pr-post-doc-summary {
+        font-size: 0.72rem;
+    }
+}
