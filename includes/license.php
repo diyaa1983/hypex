@@ -582,6 +582,28 @@ function license_delete_activation_log(PDO $pdo, int $logId): void
     $st->execute([$logId]);
 }
 
+/** يفك ربط المستخدم العادي من رقم النسخة الحالية. */
+function license_revoke_user_binding(PDO $pdo, int $userId, string $licenseNo = ''): void
+{
+    if ($userId <= 0) {
+        return;
+    }
+    $licenseNo = strtoupper(trim($licenseNo));
+    if ($licenseNo !== '') {
+        $st = $pdo->prepare(
+            'UPDATE sys_user
+             SET license_no = NULL
+             WHERE id = ?
+               AND UPPER(TRIM(COALESCE(license_no, ""))) = ?'
+        );
+        $st->execute([$userId, $licenseNo]);
+        return;
+    }
+
+    $st = $pdo->prepare('UPDATE sys_user SET license_no = NULL WHERE id = ?');
+    $st->execute([$userId]);
+}
+
 /** @return array{ok:bool,error:string} */
 function license_user_binding_check_for_login(PDO $pdo, int $userId): array
 {
@@ -676,5 +698,15 @@ function license_guard_or_redirect(): void
             $target .= '?next=' . rawurlencode($next);
         }
         redirect($target);
+    }
+
+    // مهم: تحقق ربط المستخدم بالنسخة في كل طلب (وليس فقط عند تسجيل الدخول).
+    // بهذا عند إلغاء ترخيص مستخدم من شاشة التراخيص يتم منعه مباشرة حتى لو لديه جلسة مفتوحة.
+    if ($currentUserId > 0) {
+        $binding = license_user_binding_check_for_login(db(), $currentUserId);
+        if (!($binding['ok'] ?? false)) {
+            logout();
+            redirect(app_url('login.php?license_block=1'));
+        }
     }
 }

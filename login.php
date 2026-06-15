@@ -19,6 +19,9 @@ if (is_logged_in()) {
 }
 
 $error = '';
+if ((string) ($_GET['license_block'] ?? '') === '1') {
+    $error = 'تم إلغاء ترخيص حسابك أو ربطه بالنسخة الحالية. راجع مسؤول النظام لإعادة التفعيل.';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $u = trim((string) ($_POST['username'] ?? ''));

@@ -87,6 +87,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         redirect($pageUrl);
+    } elseif ($action === 'revoke_user') {
+        if (!user_is_system_admin()) {
+            flash_set('error', 'إلغاء ترخيص المستخدم متاح فقط لمسؤول النظام.');
+        } else {
+            try {
+                $targetUserId = (int) ($_POST['user_id'] ?? 0);
+                if ($targetUserId <= 0) {
+                    throw new RuntimeException('معرّف المستخدم غير صالح.');
+                }
+                if (user_is_system_admin($targetUserId)) {
+                    throw new RuntimeException('لا يمكن إلغاء ترخيص مستخدم Admin من هذه الشاشة.');
+                }
+                $statusNow = license_status($pdo);
+                $licenseNoNow = (string) ($statusNow['license_no'] ?? '');
+                license_revoke_user_binding($pdo, $targetUserId, $licenseNoNow);
+                flash_set('success', 'تم إلغاء ترخيص المستخدم. لن يستطيع الدخول حتى إعادة التفعيل.');
+            } catch (Throwable $e) {
+                flash_set('error', 'تعذر إلغاء ترخيص المستخدم: ' . $e->getMessage());
+            }
+        }
+        redirect($pageUrl);
     } else {
         try {
             $result = license_activate($pdo, (string) ($_POST['license_key'] ?? ''));
@@ -219,6 +240,7 @@ if ($genInput['fingerprint_hash'] === '') {
                         <th>اسم المستخدم</th>
                         <th>الاسم</th>
                         <th>البريد</th>
+                        <th style="width:8.5rem;">إجراء</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -230,6 +252,19 @@ if ($genInput['fingerprint_hash'] === '') {
                             <td><code dir="ltr"><?= esc((string) ($usr['username'] ?? '')) ?></code></td>
                             <td><?= esc((string) ($usr['full_name_ar'] ?? '')) ?></td>
                             <td><?= esc((string) ($usr['email'] ?? '—')) ?></td>
+                            <td>
+                                <?php if (user_is_system_admin()): ?>
+                                    <form method="post" action="<?= esc($pageUrl) ?>"
+                                          onsubmit="return confirm('هل تريد إلغاء ترخيص هذا المستخدم؟');">
+                                        <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+                                        <input type="hidden" name="_action" value="revoke_user">
+                                        <input type="hidden" name="user_id" value="<?= (int) ($usr['id'] ?? 0) ?>">
+                                        <button type="submit" class="btn btn-danger btn-sm">إلغاء الترخيص</button>
+                                    </form>
+                                <?php else: ?>
+                                    —
+                                <?php endif; ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
