@@ -28,10 +28,26 @@ if (!in_array($groupId, $validIds, true)) {
 $screens = db()->query('SELECT id, code, name_ar, screen_type FROM sys_screen ORDER BY sort_order, id')->fetchAll();
 
 $navMenu = require app_path('config/nav_menu.php');
+$permDomainFilters = [];
+foreach ((array) ($navMenu['domains'] ?? []) as $domainBlock) {
+    $domainId = trim((string) ($domainBlock['id'] ?? ''));
+    if ($domainId === '') {
+        continue;
+    }
+    $permDomainFilters[] = [
+        'id' => $domainId,
+        'title' => (string) ($domainBlock['title'] ?? $domainId),
+    ];
+}
+$permDomainFilters[] = ['id' => 'actions', 'title' => 'صلاحيات الإجراءات'];
+$permDomainFilters[] = ['id' => 'extras', 'title' => 'شاشات وتقارير إضافية'];
+
 $idByCode = [];
+$screenTypeByCode = [];
 foreach ($screens as $sc) {
     $code = (string) $sc['code'];
     $idByCode[$code] = (int) $sc['id'];
+    $screenTypeByCode[$code] = (string) ($sc['screen_type'] ?? 'screen');
 }
 
 $reloadAllowed = static function (int $gid) {
@@ -135,52 +151,132 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <p class="muted users-admin-hint" style="margin:0 0 1rem;">عدّل الصلاحيات ثم اضغط <strong>حفظ</strong> في الشريط العلوي.</p>
 
+    <div class="form-row no-print perm-filter-row" style="margin:0 0 1rem;">
+        <label class="field" style="max-width:280px;">
+            <span class="field-label">عرض حسب القسم</span>
+            <select class="input" id="perm-domain-select">
+                <option value="">كل الأقسام</option>
+                <?php foreach ($permDomainFilters as $dom): ?>
+                    <option value="<?= esc((string) $dom['id']) ?>"><?= esc((string) $dom['title']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+        <label class="field" style="max-width:320px;">
+            <span class="field-label">عرض حسب القائمة</span>
+            <select class="input" id="perm-subgroup-select" disabled>
+                <option value="">كل القوائم</option>
+            </select>
+        </label>
+        <label class="field" style="max-width:360px;">
+            <span class="field-label">بحث عن شاشة / تقرير / صلاحية</span>
+            <input class="input" type="search" id="perm-search-input"
+                   placeholder="اكتب الاسم أو كود الصلاحية..."
+                   autocomplete="off" spellcheck="false">
+        </label>
+    </div>
+    <div id="perm-global-empty" class="alert alert-error no-print" hidden style="margin:0 0 1rem;">
+        لا توجد نتائج مطابقة للفلاتر أو البحث الحالي.
+    </div>
+
     <form method="post" class="form-grid" id="permissions-form" action="<?= esc($permPageUrl($groupId)) ?>">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="group_id" value="<?= (int) $groupId ?>">
 
         <?php
         $shownPermCodes = [];
-        $renderPermRow = static function (array $it, array $allowed, array $idByCode) use (&$shownPermCodes): void {
-            $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
-            if ($permCode === '' || isset($shownPermCodes[$permCode])) {
-                return;
+        $permTypeLabel = static function (string $permCode) use ($screenTypeByCode): string {
+            if (str_starts_with($permCode, 'action_')) {
+                return 'إجراء';
             }
-            if (!isset($idByCode[$permCode])) {
-                return;
+            $type = (string) ($screenTypeByCode[$permCode] ?? '');
+            if ($type === 'report' || str_starts_with($permCode, 'report_')) {
+                return 'تقرير';
             }
-            $shownPermCodes[$permCode] = true;
-            $sid = $idByCode[$permCode];
-            ?>
-            <label class="perm-item">
-                <input type="checkbox" name="screens[]" value="<?= $sid ?>" <?= isset($allowed[$sid]) ? 'checked' : '' ?>>
-                <span><?= esc((string) $it['label']) ?></span>
-            </label>
-            <?php
+
+            return 'شاشة';
+        };
+        $renderPermTableRows = static function (
+            array $items,
+            array $allowed,
+            array $idByCode,
+            callable $permTypeLabel,
+            bool $markShown = true
+        ) use (&$shownPermCodes): void {
+            $printed = 0;
+            foreach ($items as $it) {
+                $permCode = trim((string) ($it['code'] ?? ''));
+                if ($permCode === '') {
+                    $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
+                }
+                if ($permCode === '' || !isset($idByCode[$permCode])) {
+                    continue;
+                }
+                if ($markShown && isset($shownPermCodes[$permCode])) {
+                    continue;
+                }
+                if ($markShown) {
+                    $shownPermCodes[$permCode] = true;
+                }
+
+                $sid = (int) $idByCode[$permCode];
+                $label = trim((string) ($it['label'] ?? $it['name_ar'] ?? ''));
+                if ($label === '') {
+                    $label = $permCode;
+                }
+                $printed++;
+                ?>
+                <tr class="perm-row-entry">
+                    <td style="width:4.5rem;text-align:center;">
+                        <input type="checkbox" name="screens[]" value="<?= $sid ?>" <?= isset($allowed[$sid]) ? 'checked' : '' ?>>
+                    </td>
+                    <td><?= esc($label) ?></td>
+                    <td><code><?= esc($permCode) ?></code></td>
+                    <td style="width:6.5rem;"><?= esc((string) $permTypeLabel($permCode)) ?></td>
+                </tr>
+                <?php
+            }
+            if ($printed === 0): ?>
+                <tr class="perm-row-empty-static">
+                    <td colspan="4" class="muted" style="text-align:center;">لا توجد عناصر في هذا القسم.</td>
+                </tr>
+            <?php endif;
         };
         ?>
 
         <?php foreach ($navMenu['domains'] as $block): ?>
-            <div class="perm-domain-block">
+            <div class="perm-domain-block" data-perm-domain-id="<?= esc((string) ($block['id'] ?? '')) ?>">
                 <h3 class="perm-domain-h"><?= esc((string) $block['title']) ?></h3>
 
                 <?php foreach ($block['subgroups'] as $sg): ?>
-                    <?php if (!empty($sg['flat'])): ?>
-                        <div class="perm-grid perm-grid-nested">
-                            <?php foreach ($sg['items'] as $it): ?>
-                                <?php $renderPermRow($it, $allowed, $idByCode); ?>
-                            <?php endforeach; ?>
+                    <details class="perm-subfold" open
+                             data-perm-subgroup-id="<?= esc((string) ($sg['id'] ?? '')) ?>"
+                             data-perm-subgroup-title="<?= esc((string) ($sg['title'] ?? '')) ?>">
+                        <summary class="perm-subfold-sum"><?= esc((string) $sg['title']) ?></summary>
+                        <div class="table-wrap perm-table-wrap">
+                            <table class="data-table perm-table">
+                                <thead>
+                                <tr>
+                                    <th style="width:4.5rem;text-align:center;">تفعيل</th>
+                                    <th>الصلاحية</th>
+                                    <th>الكود</th>
+                                    <th style="width:6.5rem;">النوع</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <?php
+                                $sgItems = [];
+                                foreach ((array) ($sg['items'] ?? []) as $it) {
+                                    $sgItems[] = [
+                                        'r' => (string) ($it['r'] ?? ''),
+                                        'label' => (string) ($it['label'] ?? ''),
+                                    ];
+                                }
+                                $renderPermTableRows($sgItems, $allowed, $idByCode, $permTypeLabel, true);
+                                ?>
+                                </tbody>
+                            </table>
                         </div>
-                    <?php else: ?>
-                        <details class="perm-subfold" open>
-                            <summary class="perm-subfold-sum"><?= esc((string) $sg['title']) ?></summary>
-                            <div class="perm-grid perm-grid-nested">
-                                <?php foreach ($sg['items'] as $it): ?>
-                                    <?php $renderPermRow($it, $allowed, $idByCode); ?>
-                                <?php endforeach; ?>
-                            </div>
-                        </details>
-                    <?php endif; ?>
+                    </details>
                 <?php endforeach; ?>
             </div>
         <?php endforeach; ?>
@@ -214,21 +310,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <?php foreach ($actionCatalog['groups'] as $actionGroup): ?>
-            <div class="perm-domain-block" style="margin-top:1rem;">
+            <div class="perm-domain-block" style="margin-top:1rem;"
+                 data-perm-domain-id="actions"
+                 data-perm-subgroup-id="<?= esc('action_' . md5((string) ($actionGroup['title'] ?? 'actions'))) ?>"
+                 data-perm-subgroup-title="<?= esc((string) ($actionGroup['title'] ?? 'الإجراءات')) ?>">
                 <h3 class="perm-domain-h">صلاحيات الإجراءات — <?= esc((string) $actionGroup['title']) ?></h3>
                 <p class="muted" style="font-size:0.82rem;margin:0 0 0.5rem;">
                     أزرار الشريط العلوي وواجهات API المرتبطة (مستقلة عن فتح الشاشة نفسها).
                 </p>
-                <div class="perm-grid perm-grid-nested">
-                    <?php foreach ($actionGroup['items'] as $actionItem): ?>
+                <div class="table-wrap perm-table-wrap">
+                    <table class="data-table perm-table">
+                        <thead>
+                        <tr>
+                            <th style="width:4.5rem;text-align:center;">تفعيل</th>
+                            <th>الصلاحية</th>
+                            <th>الكود</th>
+                            <th style="width:6.5rem;">النوع</th>
+                        </tr>
+                        </thead>
+                        <tbody>
                         <?php
-                        $renderPermRow(
-                            ['r' => (string) $actionItem['code'], 'label' => (string) $actionItem['name_ar']],
-                            $allowed,
-                            $idByCode
-                        );
+                        $actionItems = [];
+                        foreach ((array) ($actionGroup['items'] ?? []) as $actionItem) {
+                            $actionItems[] = [
+                                'code' => (string) ($actionItem['code'] ?? ''),
+                                'label' => (string) ($actionItem['name_ar'] ?? ''),
+                            ];
+                        }
+                        $renderPermTableRows($actionItems, $allowed, $idByCode, $permTypeLabel, true);
                         ?>
-                    <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         <?php endforeach; ?>
@@ -253,52 +365,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         ?>
         <?php if ($leftoverReports !== [] || $leftoverScreens !== []): ?>
-            <div class="perm-domain-block" style="margin-top:1rem;">
+            <div class="perm-domain-block" style="margin-top:1rem;" data-perm-domain-id="extras">
                 <h3 class="perm-domain-h">باقي الشاشات والتقارير (غير موجودة في القائمة)</h3>
                 <p class="muted" style="font-size:0.82rem;margin:0 0 0.5rem;">
                     هذا القسم يعرض كل الصلاحيات المسجلة في النظام لضمان عدم فقدان أي شاشة أو تقرير.
                 </p>
 
                 <?php if ($leftoverReports !== []): ?>
-                    <details class="perm-subfold" open>
+                    <details class="perm-subfold" open data-perm-subgroup-id="extra_reports" data-perm-subgroup-title="تقارير إضافية">
                         <summary class="perm-subfold-sum">تقارير إضافية</summary>
-                        <div class="perm-grid perm-grid-nested">
-                            <?php foreach ($leftoverReports as $screenRow): ?>
+                        <div class="table-wrap perm-table-wrap">
+                            <table class="data-table perm-table">
+                                <thead>
+                                <tr>
+                                    <th style="width:4.5rem;text-align:center;">تفعيل</th>
+                                    <th>الصلاحية</th>
+                                    <th>الكود</th>
+                                    <th style="width:6.5rem;">النوع</th>
+                                </tr>
+                                </thead>
+                                <tbody>
                                 <?php
-                                $code = (string) ($screenRow['code'] ?? '');
-                                $sid = (int) ($screenRow['id'] ?? 0);
-                                $label = trim((string) ($screenRow['name_ar'] ?? ''));
-                                if ($label === '') {
-                                    $label = $code;
+                                $leftoverReportItems = [];
+                                foreach ($leftoverReports as $screenRow) {
+                                    $leftoverReportItems[] = [
+                                        'code' => (string) ($screenRow['code'] ?? ''),
+                                        'label' => (string) ($screenRow['name_ar'] ?? ''),
+                                    ];
                                 }
+                                $renderPermTableRows($leftoverReportItems, $allowed, $idByCode, $permTypeLabel, false);
                                 ?>
-                                <label class="perm-item">
-                                    <input type="checkbox" name="screens[]" value="<?= $sid ?>" <?= isset($allowed[$sid]) ? 'checked' : '' ?>>
-                                    <span><?= esc($label) ?> <code><?= esc($code) ?></code></span>
-                                </label>
-                            <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
                     </details>
                 <?php endif; ?>
 
                 <?php if ($leftoverScreens !== []): ?>
-                    <details class="perm-subfold" open>
+                    <details class="perm-subfold" open data-perm-subgroup-id="extra_screens" data-perm-subgroup-title="شاشات إضافية">
                         <summary class="perm-subfold-sum">شاشات إضافية</summary>
-                        <div class="perm-grid perm-grid-nested">
-                            <?php foreach ($leftoverScreens as $screenRow): ?>
+                        <div class="table-wrap perm-table-wrap">
+                            <table class="data-table perm-table">
+                                <thead>
+                                <tr>
+                                    <th style="width:4.5rem;text-align:center;">تفعيل</th>
+                                    <th>الصلاحية</th>
+                                    <th>الكود</th>
+                                    <th style="width:6.5rem;">النوع</th>
+                                </tr>
+                                </thead>
+                                <tbody>
                                 <?php
-                                $code = (string) ($screenRow['code'] ?? '');
-                                $sid = (int) ($screenRow['id'] ?? 0);
-                                $label = trim((string) ($screenRow['name_ar'] ?? ''));
-                                if ($label === '') {
-                                    $label = $code;
+                                $leftoverScreenItems = [];
+                                foreach ($leftoverScreens as $screenRow) {
+                                    $leftoverScreenItems[] = [
+                                        'code' => (string) ($screenRow['code'] ?? ''),
+                                        'label' => (string) ($screenRow['name_ar'] ?? ''),
+                                    ];
                                 }
+                                $renderPermTableRows($leftoverScreenItems, $allowed, $idByCode, $permTypeLabel, false);
                                 ?>
-                                <label class="perm-item">
-                                    <input type="checkbox" name="screens[]" value="<?= $sid ?>" <?= isset($allowed[$sid]) ? 'checked' : '' ?>>
-                                    <span><?= esc($label) ?> <code><?= esc($code) ?></code></span>
-                                </label>
-                            <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
                     </details>
                 <?php endif; ?>
@@ -308,6 +436,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </form>
 </div>
 <?php
-$permJsUrl = app_url('assets/js/permissions-admin.js');
+$permJsPath = app_path('assets/js/permissions-admin.js');
+$permJsUrl = app_url('assets/js/permissions-admin.js')
+    . (is_file($permJsPath) ? '?v=' . (string) filemtime($permJsPath) : '');
 ?>
 <script src="<?= esc($permJsUrl) ?>" defer></script>

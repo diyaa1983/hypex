@@ -1541,6 +1541,43 @@ table.data-table {
   margin-top: 0.15rem;
 }
 
+.perm-table-wrap {
+  margin-top: 0.35rem;
+  border-radius: 10px;
+}
+
+.perm-table th,
+.perm-table td {
+  vertical-align: middle;
+}
+
+.perm-table td code {
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.perm-table td:first-child,
+.perm-table th:first-child {
+  text-align: center;
+}
+
+.perm-subfold .perm-table-wrap {
+  background: #fff;
+}
+
+.perm-filter-row {
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.perm-filter-row .field {
+  margin: 0;
+}
+
+.perm-filter-row input[type="search"] {
+  min-width: 18rem;
+}
+
 .login-body {
   min-height: 100vh;
   margin: 0;
