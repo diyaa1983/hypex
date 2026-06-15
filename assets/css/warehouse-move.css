@@ -152,7 +152,7 @@
 }
 
 .wh-move-lines-table .wh-col-item {
-  min-width: 12rem;
+  min-width: 16rem;
 }
 
 .wh-move-lines-table .wh-col-onhand {
@@ -215,6 +215,45 @@
 
 .wh-move-lines--no-warehouse tr.is-entry-row .sales-inv-item-pick {
   opacity: 0.9;
+}
+
+/* اجعل عرض المادة واضحًا بعد الاختيار داخل الجدول */
+.warehouse-move-page .wh-move-lines-table tbody .sales-inv-item-pick {
+  display: flex !important;
+  align-items: center;
+  width: 100%;
+  min-height: 1.9rem !important;
+  padding: 0.22rem 0.4rem !important;
+  border: 1px solid #d5dde6 !important;
+  border-radius: 2px !important;
+  background: #fff !important;
+  box-shadow: inset 0 1px 1px rgba(15, 23, 42, 0.06) !important;
+  text-align: start;
+}
+
+.warehouse-move-page .wh-move-lines-table tbody .sales-inv-item-pick:hover:not(:disabled),
+.warehouse-move-page .wh-move-lines-table tbody .sales-inv-item-pick:focus:not(:disabled) {
+  border-color: #0572ce !important;
+  background: #f8fbff !important;
+}
+
+.warehouse-move-page .wh-move-lines-table tbody .sales-inv-item-pick .sales-inv-item-name {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.warehouse-move-page .wh-move-lines-table tbody .sales-inv-item-pick .sales-inv-item-name.is-placeholder {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.warehouse-move-page .wh-move-lines-table tbody .sales-inv-item-pick .sales-inv-item-name.is-placeholder:empty::before {
+  content: "اضغط لاختيار المادة";
 }
 
 .wh-move-print-area {
