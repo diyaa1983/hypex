@@ -309,6 +309,11 @@ return [
         'title' => 'إرسال فاتورة للفوترة',
     ],
     'report_sales' => [
+        'file' => 'modules/reports/sales_monthly.php',
+        'permission' => 'report_sales',
+        'title' => 'تقرير المبيعات الشهري حسب العميل',
+    ],
+    'report_sales_between_dates' => [
         'file' => 'modules/reports/sales.php',
         'permission' => 'report_sales',
         'title' => 'تقرير المبيعات بين تاريخين',

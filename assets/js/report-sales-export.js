@@ -3,6 +3,7 @@
 
   var REPORT_ROUTES = {
     report_sales: true,
+    report_sales_between_dates: true,
     report_sales_by_rep: true,
     report_sales_by_item: true,
     report_sales_returns: true,
@@ -207,7 +208,8 @@
     }
 
     function isReportSalesRoute() {
-      return page.getAttribute('data-report-route') === 'report_sales';
+      var route = page.getAttribute('data-report-route') || '';
+      return route === 'report_sales' || route === 'report_sales_between_dates';
     }
 
     function isPartyStatementReport() {
