@@ -38,3 +38,16 @@ if (!defined('LOGIN_RECAPTCHA_SKIP')) {
 if (!defined('APP_DEBUG')) {
     define('APP_DEBUG', false);
 }
+
+/**
+ * الترخيص:
+ * - فعّل APP_LICENSE_ENFORCE على السيرفر للإلزام برقم تفعيل.
+ * - ضع APP_LICENSE_SECRET كسلسلة سرية قوية (لا تقل عن 16 محرفاً).
+ */
+if (!defined('APP_LICENSE_ENFORCE')) {
+    define('APP_LICENSE_ENFORCE', false);
+}
+
+if (!defined('APP_LICENSE_SECRET')) {
+    define('APP_LICENSE_SECRET', 'CHANGE_THIS_TO_A_LONG_RANDOM_SECRET');
+}

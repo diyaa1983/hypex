@@ -24,6 +24,23 @@ if (!defined('APP_GPS_ENABLED')) {
 }
 
 /**
+ * تفعيل نظام الترخيص:
+ * - false: يعمل النظام بدون تحقق ترخيص.
+ * - true : يتطلب رقم تفعيل مرتبط ببصمة الخادم.
+ */
+if (!defined('APP_LICENSE_ENFORCE')) {
+    define('APP_LICENSE_ENFORCE', false);
+}
+
+/**
+ * سر توقيع أرقام التفعيل (يُضبط في config/app.local.php فقط).
+ * يجب أن يكون طويلاً (16+ محرف) وألا يُرفع إلى Git.
+ */
+if (!defined('APP_LICENSE_SECRET')) {
+    define('APP_LICENSE_SECRET', '');
+}
+
+/**
  * يكتشف المسار الأساسي من عنوان السكربت الحالي.
  * - مثال: /manager/login.php => /manager
  * - مثال: /login.php => ''

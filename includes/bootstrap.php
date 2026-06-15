@@ -91,5 +91,7 @@ require_once app_path('includes/db.php');
 require_once app_path('includes/company_settings.php');
 require_once app_path('includes/document_header.php');
 require_once app_path('includes/auth.php');
+require_once app_path('includes/license.php');
 require_once app_path('includes/date_defaults.php');
 app_apply_timezone();
+license_guard_or_redirect();

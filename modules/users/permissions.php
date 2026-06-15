@@ -148,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <p class="muted users-admin-hint" style="margin:0 0 1rem;">عدّل الصلاحيات ثم اضغط <strong>حفظ</strong> في الشريط العلوي.</p>
 
     <div class="form-row no-print perm-filter-row" style="margin:0 0 1rem;">
-        <label class="field" style="max-width:280px;">
+        <label class="field">
             <span class="field-label">عرض حسب القسم</span>
             <select class="input" id="perm-domain-select">
                 <option value="">كل الأقسام</option>
@@ -157,13 +157,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endforeach; ?>
             </select>
         </label>
-        <label class="field" style="max-width:320px;">
+        <label class="field">
             <span class="field-label">عرض حسب القائمة</span>
             <select class="input" id="perm-subgroup-select" disabled>
                 <option value="">كل القوائم</option>
             </select>
         </label>
-        <label class="field" style="max-width:360px;">
+        <label class="field">
             <span class="field-label">بحث عن شاشة / تقرير / صلاحية</span>
             <input class="input" type="search" id="perm-search-input"
                    placeholder="اكتب الاسم أو كود الصلاحية..."
