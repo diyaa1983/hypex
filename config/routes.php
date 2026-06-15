@@ -393,6 +393,11 @@ return [
         'permission' => 'report_warehouse_financial',
         'title' => 'أرصدة المستودع المالية',
     ],
+    'report_warehouse_moves' => [
+        'file' => 'modules/reports/warehouse_moves.php',
+        'permission' => 'report_warehouse_moves',
+        'title' => 'تقرير حركات المستودعات',
+    ],
     'report_warehouse_zero_qty' => [
         'file' => 'modules/reports/warehouse_zero_qty.php',
         'permission' => 'report_warehouse_zero_qty',

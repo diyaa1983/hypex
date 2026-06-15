@@ -25,6 +25,7 @@
     report_warehouse_zero_qty: true,
     report_warehouse_negative_qty: true,
     report_warehouse_financial: true,
+    report_warehouse_moves: true,
     inventory_stocktake: true,
     report_invoice_tax: true,
     report_trial_balance: true,
@@ -558,7 +559,8 @@
         routeKey === 'report_warehouse_items' ||
         routeKey === 'report_warehouse_zero_qty' ||
         routeKey === 'report_warehouse_negative_qty' ||
-        routeKey === 'report_warehouse_financial'
+        routeKey === 'report_warehouse_financial' ||
+        routeKey === 'report_warehouse_moves'
       );
     }
 
@@ -1249,6 +1251,8 @@
         prefix = 'warehouse-negative-qty';
       } else if (routeKey === 'report_warehouse_financial') {
         prefix = 'warehouse-financial';
+      } else if (routeKey === 'report_warehouse_moves') {
+        prefix = 'warehouse-moves';
       } else if (routeKey === 'inventory_stocktake') {
         prefix = 'stocktake';
       } else if (

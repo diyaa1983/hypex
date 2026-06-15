@@ -214,6 +214,10 @@ function inv_wh_move_post_document(PDO $pdo, int $moveId): array
     $moveNo = (string) ($move['move_no'] ?? '');
     $note = $moveNo !== '' ? 'حركة #' . $moveNo : null;
 
+    // شغّل أي ترحيلات/ALTER لازمة قبل فتح المعاملة؛
+    // بعض محركات MySQL تنفّذ COMMIT ضمني عند DDL مما يكسر المعاملة النشطة.
+    acc_gl_ensure_schema($pdo);
+    inv_movement_type_ensure_affects_gl_column($pdo);
     inv_stock_move_ensure_table($pdo);
 
     try {

@@ -139,6 +139,7 @@ return [
                         ['r' => 'report_warehouse_zero_qty', 'label' => 'المواد التي رصيدها صفر', 'icon' => '0️⃣'],
                         ['r' => 'report_warehouse_negative_qty', 'label' => 'تقرير المواد السالبة', 'icon' => '➖'],
                         ['r' => 'report_warehouse_financial', 'label' => 'أرصدة المستودع المالية', 'icon' => '💰'],
+                        ['r' => 'report_warehouse_moves', 'label' => 'تقرير حركات المستودعات', 'icon' => '🔄'],
                     ],
                 ],
                 [
