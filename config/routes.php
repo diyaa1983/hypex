@@ -311,7 +311,7 @@ return [
     'report_sales' => [
         'file' => 'modules/reports/sales.php',
         'permission' => 'report_sales',
-        'title' => 'تقرير المبيعات الشهري حسب العميل',
+        'title' => 'تقرير المبيعات بين تاريخين',
     ],
     'report_sales_by_rep' => [
         'file' => 'modules/reports/sales_by_rep.php',

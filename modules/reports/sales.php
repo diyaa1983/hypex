@@ -3,133 +3,107 @@ declare(strict_types=1);
 
 require_once app_path('includes/sal_sales_by_customer_report.php');
 require_once app_path('includes/document_header.php');
+require_once app_path('includes/crm_sales_rep_schema.php');
 
 $pdo = db();
+crm_sales_rep_ensure_schema($pdo);
 
 $customers = $pdo->query(
     'SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+$salesReps = $pdo->query(
+    'SELECT id, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
+)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
 $customerId = isset($_GET['customer_id']) && $_GET['customer_id'] !== ''
     ? (int) $_GET['customer_id']
     : -1;
+$salesRepId = isset($_GET['sales_rep_id']) && $_GET['sales_rep_id'] !== ''
+    ? (int) $_GET['sales_rep_id']
+    : 0;
 
-$monthNames = [
-    1 => 'يناير',
-    2 => 'فبراير',
-    3 => 'مارس',
-    4 => 'أبريل',
-    5 => 'مايو',
-    6 => 'يونيو',
-    7 => 'يوليو',
-    8 => 'أغسطس',
-    9 => 'سبتمبر',
-    10 => 'أكتوبر',
-    11 => 'نوفمبر',
-    12 => 'ديسمبر',
-];
-
-$currentYear = (int) date('Y');
-$currentMonth = (int) date('n');
-$year = isset($_GET['year']) ? (int) $_GET['year'] : $currentYear;
-$month = isset($_GET['month']) ? (int) $_GET['month'] : $currentMonth; // 0 = كل الأشهر
-
-$periodFromTo = static function (int $yr, int $mon): array {
-    if ($mon === 0) {
-        return [
-            sprintf('%04d-01-01', $yr),
-            sprintf('%04d-12-31', $yr),
-        ];
-    }
-    $start = sprintf('%04d-%02d-01', $yr, $mon);
-
-    return [
-        $start,
-        sprintf('%04d-%02d-%02d', $yr, $mon, (int) date('t', strtotime($start))),
-    ];
-};
-
-$yearMin = $currentYear - 5;
-$yearMax = $currentYear + 1;
-try {
-    $yearBounds = $pdo->query(
-        "SELECT MIN(y) AS min_year, MAX(y) AS max_year
-         FROM (
-           SELECT YEAR(invoice_date) AS y FROM sal_invoice
-           UNION ALL
-           SELECT YEAR(return_date) AS y FROM sal_return
-         ) t"
-    )->fetch(PDO::FETCH_ASSOC) ?: [];
-
-    $minYear = (int) ($yearBounds['min_year'] ?? 0);
-    $maxYear = (int) ($yearBounds['max_year'] ?? 0);
-    if ($minYear > 0 && $maxYear > 0) {
-        $yearMin = min($yearMin, $minYear);
-        $yearMax = max($yearMax, $maxYear);
-    }
-} catch (Throwable $e) {
-    // fallback to default range
+$from = trim((string) ($_GET['from'] ?? ''));
+$to = trim((string) ($_GET['to'] ?? ''));
+if ($from === '') {
+    $from = app_default_date_from();
 }
-
-$yearOptions = [];
-for ($y = $yearMax; $y >= $yearMin; $y--) {
-    $yearOptions[] = $y;
-}
-if (!in_array($year, $yearOptions, true)) {
-    $yearOptions[] = $year;
-    rsort($yearOptions);
+if ($to === '') {
+    $to = app_default_date_to();
 }
 
 $rows = [];
 $customerLabel = '';
+$salesRepLabel = '';
 $sumSub = 0.0;
 $sumTotal = 0.0;
 $showResult = false;
 $invoiceDocCount = 0;
 $returnDocCount = 0;
 $err = '';
-$monthLabel = $month === 0 ? 'كل الأشهر' : ($monthNames[$month] ?? 'غير محدد');
-[$from, $to] = $periodFromTo($year, ($month >= 0 && $month <= 12) ? $month : $currentMonth);
 
 $submitted = isset($_GET['customer_id']) && $_GET['customer_id'] !== '';
 if ($submitted) {
     if ($customerId < 0) {
         $err = 'اختر العميل أو «جميع العملاء».';
-    } elseif ($year < 2000 || $year > 2100) {
-        $err = 'السنة غير صالحة.';
-    } elseif ($month < 0 || $month > 12) {
-        $err = 'الشهر غير صالح.';
+    } elseif ($salesRepId < 0) {
+        $err = 'اختر المندوب أو «جميع المندوبين».';
     } else {
-        [$from, $to] = $periodFromTo($year, $month);
-        $monthLabel = $month === 0 ? 'كل الأشهر' : ($monthNames[$month] ?? 'غير محدد');
-
-        if ($customerId === 0) {
-            $customerLabel = 'جميع العملاء';
-            $showResult = true;
+        $fromIso = parse_date_to_iso($from);
+        $toIso = parse_date_to_iso($to);
+        if ($fromIso === null || $toIso === null) {
+            $err = 'تاريخ البداية والنهاية غير صالحين (يوم-شهر-سنة).';
+        } elseif ($fromIso > $toIso) {
+            $err = 'تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية.';
         } else {
-            $st = $pdo->prepare('SELECT name_ar FROM crm_customer WHERE id = ? LIMIT 1');
-            $st->execute([$customerId]);
-            $cust = $st->fetch(PDO::FETCH_ASSOC);
-            if (!$cust) {
-                $err = 'العميل غير موجود.';
-            } else {
-                $showResult = true;
-                $customerLabel = (string) ($cust['name_ar'] ?? '');
-            }
-        }
+            $from = $fromIso;
+            $to = $toIso;
 
-        if ($showResult) {
-            $rows = sal_report_sales_by_customer($pdo, $customerId, $from, $to);
-            $rowTotals = sal_report_sales_rows_totals($rows);
-            $sumSub = (float) ($rowTotals['subtotal'] ?? 0);
-            $sumTotal = (float) ($rowTotals['total'] ?? 0);
-            $invoiceDocCount = (int) ($rowTotals['invoice_count'] ?? 0);
-            $returnDocCount = (int) ($rowTotals['return_count'] ?? 0);
+            if ($customerId === 0) {
+                $customerLabel = 'جميع العملاء';
+                $showResult = true;
+            } else {
+                $st = $pdo->prepare('SELECT name_ar FROM crm_customer WHERE id = ? LIMIT 1');
+                $st->execute([$customerId]);
+                $cust = $st->fetch(PDO::FETCH_ASSOC);
+                if (!$cust) {
+                    $err = 'العميل غير موجود.';
+                } else {
+                    $showResult = true;
+                    $customerLabel = (string) ($cust['name_ar'] ?? '');
+                }
+            }
+
+            if ($showResult) {
+                if ($salesRepId === 0) {
+                    $salesRepLabel = 'جميع المندوبين';
+                } else {
+                    $stRep = $pdo->prepare('SELECT name_ar FROM crm_sales_rep WHERE id = ? LIMIT 1');
+                    $stRep->execute([$salesRepId]);
+                    $rep = $stRep->fetch(PDO::FETCH_ASSOC);
+                    if (!$rep) {
+                        $showResult = false;
+                        $err = 'المندوب غير موجود.';
+                    } else {
+                        $salesRepLabel = (string) ($rep['name_ar'] ?? '');
+                    }
+                }
+            }
+
+            if ($showResult) {
+                $rows = sal_report_sales_by_customer($pdo, $customerId, $from, $to, $salesRepId);
+                $rowTotals = sal_report_sales_rows_totals($rows);
+                $sumSub = (float) ($rowTotals['subtotal'] ?? 0);
+                $sumTotal = (float) ($rowTotals['total'] ?? 0);
+                $invoiceDocCount = (int) ($rowTotals['invoice_count'] ?? 0);
+                $returnDocCount = (int) ($rowTotals['return_count'] ?? 0);
+            }
         }
     }
 }
 
 $showAllCustomers = $showResult && $customerId === 0;
+$reportTitle = 'تقرير المبيعات بين تاريخين';
 
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
@@ -145,7 +119,10 @@ $filterJsPath = app_path('assets/js/report-sales-item-filter.js');
 $filterJsUrl = app_url('assets/js/report-sales-item-filter.js') . (is_file($filterJsPath) ? '?v=' . (string) filemtime($filterJsPath) : '');
 $defaultSortKey = $showAllCustomers ? 'customer_name' : 'invoice_date';
 
-$reportTitle = 'تقرير المبيعات الشهري حسب العميل';
+$exportLabel = $customerLabel;
+if ($salesRepLabel !== '' && $salesRepId > 0) {
+    $exportLabel .= ' - ' . $salesRepLabel;
+}
 
 $pageDataAttrs = ' data-report-title="' . esc($reportTitle) . '"';
 $pageDataAttrs .= ' data-report-route="report_sales"';
@@ -153,7 +130,7 @@ if ($showAllCustomers) {
     $pageDataAttrs .= ' data-sales-all-customers="1"';
 }
 if ($showResult) {
-    $pageDataAttrs .= ' data-export-label="' . esc($customerLabel) . '"';
+    $pageDataAttrs .= ' data-export-label="' . esc($exportLabel) . '"';
     $pageDataAttrs .= ' data-from-dmy="' . esc(format_date_dmY($from)) . '"';
     $pageDataAttrs .= ' data-to-dmy="' . esc(format_date_dmY($to)) . '"';
 }
@@ -184,32 +161,30 @@ if ($showResult) {
                 'json_id' => 'report-sales-customers-json',
             ]) ?>
 
-            <label class="field">
-                <span class="field-label">السنة *</span>
-                <select class="input" name="year" required>
-                    <?php foreach ($yearOptions as $optYear): ?>
-                        <option value="<?= (int) $optYear ?>" <?= $year === (int) $optYear ? 'selected' : '' ?>>
-                            <?= (int) $optYear ?>
+            <label class="field" style="flex:1 1 14rem;">
+                <span class="field-label">المندوب *</span>
+                <select class="input" name="sales_rep_id" required>
+                    <option value="0" <?= $salesRepId === 0 ? 'selected' : '' ?>>جميع المندوبين</option>
+                    <?php foreach ($salesReps as $rep): ?>
+                        <option value="<?= (int) $rep['id'] ?>" <?= $salesRepId === (int) $rep['id'] ? 'selected' : '' ?>>
+                            <?= esc((string) ($rep['name_ar'] ?? '')) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
             </label>
 
             <label class="field">
-                <span class="field-label">الشهر *</span>
-                <select class="input" name="month" required>
-                    <option value="0" <?= $month === 0 ? 'selected' : '' ?>>كل الأشهر</option>
-                    <?php foreach ($monthNames as $monthNo => $monthName): ?>
-                        <option value="<?= (int) $monthNo ?>" <?= $month === (int) $monthNo ? 'selected' : '' ?>>
-                            <?= esc($monthName) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <span class="field-label">من تاريخ *</span>
+                <input class="input js-date-dmy" type="text" name="from" value="<?= esc(format_date_dmY($from)) ?>"
+                       placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
+            </label>
+
+            <label class="field">
+                <span class="field-label">إلى تاريخ *</span>
+                <input class="input js-date-dmy" type="text" name="to" value="<?= esc(format_date_dmY($to)) ?>"
+                       placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
             </label>
         </div>
-        <p class="field-hint" style="margin:0.5rem 0 0;">
-            عند اختيار «كل الأشهر» يعرض التقرير كامل السنة المختارة.
-        </p>
 
         <div style="margin-top:0.5rem;">
             <button class="btn btn-primary" type="submit">عرض التقرير</button>
@@ -226,11 +201,7 @@ if ($showResult) {
                         <td><strong>العميل:</strong> <span class="doc-print-meta-value doc-print-meta-value--party"><?= esc($customerLabel) ?></span></td>
                     </tr>
                     <tr>
-                        <td>
-                            <strong>السنة:</strong> <?= (int) $year ?>
-                            &nbsp;&nbsp;|&nbsp;&nbsp;
-                            <strong>الشهر:</strong> <?= esc($monthLabel) ?>
-                        </td>
+                        <td><strong>المندوب:</strong> <?= esc($salesRepLabel) ?></td>
                     </tr>
                     <tr>
                         <td>
@@ -302,7 +273,7 @@ if ($showResult) {
                     <?php if (!$rows): ?>
                         <tr>
                             <td colspan="<?= $showAllCustomers ? 8 : 7 ?>" class="muted" style="text-align:center;padding:1.25rem;">
-                                لا توجد فواتير مبيعات مطابقة للفترة المحددة.
+                                لا توجد فواتير مبيعات مطابقة في الفترة المحددة.
                             </td>
                         </tr>
                     <?php endif; ?>

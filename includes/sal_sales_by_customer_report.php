@@ -7,19 +7,25 @@ require_once app_path('includes/sal_return_schema.php');
 require_once app_path('includes/sal_return_post.php');
 
 /**
- * فواتير ومرتجعات مبيعات مرحّلة بين تاريخين (لعميل أو جميع العملاء).
+ * فواتير ومرتجعات مبيعات مرحّلة بين تاريخين (لعميل/مندوب محدد أو الكل).
  * المرتجعات تُعرض بقيم سالبة ليطابق الإجمالي صافي المبيعات.
  *
  * @return list<array<string, mixed>>
  */
-function sal_report_sales_by_customer(PDO $pdo, int $customerId, string $from, string $to): array
+function sal_report_sales_by_customer(
+    PDO $pdo,
+    int $customerId,
+    string $from,
+    string $to,
+    int $salesRepId = 0
+): array
 {
     if ($from === '' || $to === '' || $customerId < 0) {
         return [];
     }
 
-    $invoices = sal_report_sales_fetch_invoices($pdo, $customerId, $from, $to);
-    $returns = sal_report_sales_fetch_returns($pdo, $customerId, $from, $to);
+    $invoices = sal_report_sales_fetch_invoices($pdo, $customerId, $from, $to, $salesRepId);
+    $returns = sal_report_sales_fetch_returns($pdo, $customerId, $from, $to, $salesRepId);
     $rows = array_merge($invoices, $returns);
 
     usort($rows, static function (array $a, array $b) use ($customerId): int {
@@ -76,15 +82,25 @@ function sal_report_sales_rows_totals(array $rows): array
 /**
  * @return list<array<string, mixed>>
  */
-function sal_report_sales_fetch_invoices(PDO $pdo, int $customerId, string $from, string $to): array
+function sal_report_sales_fetch_invoices(
+    PDO $pdo,
+    int $customerId,
+    string $from,
+    string $to,
+    int $salesRepId
+): array
 {
     sal_invoice_ensure_schema($pdo);
 
     $postedExpr = sal_invoice_sql_is_posted_expr('i');
     $custFilter = $customerId > 0 ? ' AND i.customer_id = ? ' : '';
+    $repFilter = $salesRepId > 0 ? ' AND i.sales_rep_id = ? ' : '';
     $params = [$from, $to];
     if ($customerId > 0) {
         $params[] = $customerId;
+    }
+    if ($salesRepId > 0) {
+        $params[] = $salesRepId;
     }
 
     $itemsSearchSub = "(SELECT GROUP_CONCAT(DISTINCT CONCAT_WS(' ', it.name_ar, it.sku, it.barcode) SEPARATOR ' ')
@@ -104,7 +120,8 @@ function sal_report_sales_fetch_invoices(PDO $pdo, int $customerId, string $from
            AND i.invoice_date >= ?
            AND i.invoice_date <= ?
            AND {$postedExpr}
-           {$custFilter}"
+           {$custFilter}
+           {$repFilter}"
     );
     $st->execute($params);
 
@@ -120,7 +137,13 @@ function sal_report_sales_fetch_invoices(PDO $pdo, int $customerId, string $from
 /**
  * @return list<array<string, mixed>>
  */
-function sal_report_sales_fetch_returns(PDO $pdo, int $customerId, string $from, string $to): array
+function sal_report_sales_fetch_returns(
+    PDO $pdo,
+    int $customerId,
+    string $from,
+    string $to,
+    int $salesRepId
+): array
 {
     if (!sal_return_has_tables($pdo)) {
         return [];
@@ -128,9 +151,13 @@ function sal_report_sales_fetch_returns(PDO $pdo, int $customerId, string $from,
 
     $postedExpr = sal_return_sql_is_posted_expr('r');
     $custFilter = $customerId > 0 ? ' AND r.customer_id = ? ' : '';
+    $repFilter = $salesRepId > 0 ? ' AND i.sales_rep_id = ? ' : '';
     $params = [$from, $to];
     if ($customerId > 0) {
         $params[] = $customerId;
+    }
+    if ($salesRepId > 0) {
+        $params[] = $salesRepId;
     }
 
     $itemsSearchSub = "(SELECT GROUP_CONCAT(DISTINCT CONCAT_WS(' ', it.name_ar, it.sku, it.barcode) SEPARATOR ' ')
@@ -152,7 +179,8 @@ function sal_report_sales_fetch_returns(PDO $pdo, int $customerId, string $from,
            AND r.return_date >= ?
            AND r.return_date <= ?
            AND {$postedExpr}
-           {$custFilter}"
+           {$custFilter}
+           {$repFilter}"
     );
     $st->execute($params);
 
