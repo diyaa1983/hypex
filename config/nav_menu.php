@@ -45,7 +45,7 @@ return [
                     'title' => 'التقارير',
                     'items' => [
                         ['r' => 'report_customers', 'label' => 'تقرير العملاء', 'icon' => '👥'],
-                        ['r' => 'report_sales', 'label' => 'تقرير مبيعات العميل بين تاريخين', 'icon' => '📈'],
+                        ['r' => 'report_sales', 'label' => 'تقرير المبيعات الشهري حسب العميل', 'icon' => '📈'],
                         ['r' => 'report_sales_by_rep', 'label' => 'تقرير المبيعات حسب المندوب', 'icon' => '📊'],
                         ['r' => 'report_sales_by_item', 'label' => 'تقرير المبيعات حسب المادة', 'icon' => '📦'],
                         ['r' => 'report_sales_returns', 'label' => 'تقرير المرتجعات', 'icon' => '↩️'],
