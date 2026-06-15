@@ -30,7 +30,8 @@ $screens = db()->query('SELECT id, code, name_ar, screen_type FROM sys_screen OR
 $navMenu = require app_path('config/nav_menu.php');
 $idByCode = [];
 foreach ($screens as $sc) {
-    $idByCode[(string) $sc['code']] = (int) $sc['id'];
+    $code = (string) $sc['code'];
+    $idByCode[$code] = (int) $sc['id'];
 }
 
 $reloadAllowed = static function (int $gid) {
@@ -231,6 +232,78 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
         <?php endforeach; ?>
+
+        <?php
+        $leftoverReports = [];
+        $leftoverScreens = [];
+        foreach ($screens as $screenRow) {
+            $code = (string) ($screenRow['code'] ?? '');
+            if ($code === '' || isset($shownPermCodes[$code])) {
+                continue;
+            }
+            $sid = (int) ($screenRow['id'] ?? 0);
+            if ($sid < 1 || !isset($idByCode[$code])) {
+                continue;
+            }
+            if ((string) ($screenRow['screen_type'] ?? '') === 'report' || str_starts_with($code, 'report_')) {
+                $leftoverReports[] = $screenRow;
+            } else {
+                $leftoverScreens[] = $screenRow;
+            }
+        }
+        ?>
+        <?php if ($leftoverReports !== [] || $leftoverScreens !== []): ?>
+            <div class="perm-domain-block" style="margin-top:1rem;">
+                <h3 class="perm-domain-h">باقي الشاشات والتقارير (غير موجودة في القائمة)</h3>
+                <p class="muted" style="font-size:0.82rem;margin:0 0 0.5rem;">
+                    هذا القسم يعرض كل الصلاحيات المسجلة في النظام لضمان عدم فقدان أي شاشة أو تقرير.
+                </p>
+
+                <?php if ($leftoverReports !== []): ?>
+                    <details class="perm-subfold" open>
+                        <summary class="perm-subfold-sum">تقارير إضافية</summary>
+                        <div class="perm-grid perm-grid-nested">
+                            <?php foreach ($leftoverReports as $screenRow): ?>
+                                <?php
+                                $code = (string) ($screenRow['code'] ?? '');
+                                $sid = (int) ($screenRow['id'] ?? 0);
+                                $label = trim((string) ($screenRow['name_ar'] ?? ''));
+                                if ($label === '') {
+                                    $label = $code;
+                                }
+                                ?>
+                                <label class="perm-item">
+                                    <input type="checkbox" name="screens[]" value="<?= $sid ?>" <?= isset($allowed[$sid]) ? 'checked' : '' ?>>
+                                    <span><?= esc($label) ?> <code><?= esc($code) ?></code></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </details>
+                <?php endif; ?>
+
+                <?php if ($leftoverScreens !== []): ?>
+                    <details class="perm-subfold" open>
+                        <summary class="perm-subfold-sum">شاشات إضافية</summary>
+                        <div class="perm-grid perm-grid-nested">
+                            <?php foreach ($leftoverScreens as $screenRow): ?>
+                                <?php
+                                $code = (string) ($screenRow['code'] ?? '');
+                                $sid = (int) ($screenRow['id'] ?? 0);
+                                $label = trim((string) ($screenRow['name_ar'] ?? ''));
+                                if ($label === '') {
+                                    $label = $code;
+                                }
+                                ?>
+                                <label class="perm-item">
+                                    <input type="checkbox" name="screens[]" value="<?= $sid ?>" <?= isset($allowed[$sid]) ? 'checked' : '' ?>>
+                                    <span><?= esc($label) ?> <code><?= esc($code) ?></code></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </details>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
 
     </form>
 </div>

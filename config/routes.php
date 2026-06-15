@@ -315,7 +315,7 @@ return [
     ],
     'report_sales_between_dates' => [
         'file' => 'modules/reports/sales.php',
-        'permission' => 'report_sales',
+        'permission' => 'report_sales_between_dates',
         'title' => 'تقرير المبيعات بين تاريخين',
     ],
     'report_sales_by_rep' => [
