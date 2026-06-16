@@ -87,27 +87,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         redirect($pageUrl);
-    } elseif ($action === 'revoke_user') {
-        if (!user_is_system_admin()) {
-            flash_set('error', 'إلغاء ترخيص المستخدم متاح فقط لمسؤول النظام.');
-        } else {
-            try {
-                $targetUserId = (int) ($_POST['user_id'] ?? 0);
-                if ($targetUserId <= 0) {
-                    throw new RuntimeException('معرّف المستخدم غير صالح.');
-                }
-                if (user_is_system_admin($targetUserId)) {
-                    throw new RuntimeException('لا يمكن إلغاء ترخيص مستخدم Admin من هذه الشاشة.');
-                }
-                $statusNow = license_status($pdo);
-                $licenseNoNow = (string) ($statusNow['license_no'] ?? '');
-                license_revoke_user_binding($pdo, $targetUserId, $licenseNoNow);
-                flash_set('success', 'تم إلغاء ترخيص المستخدم. لن يستطيع الدخول حتى إعادة التفعيل.');
-            } catch (Throwable $e) {
-                flash_set('error', 'تعذر إلغاء ترخيص المستخدم: ' . $e->getMessage());
-            }
-        }
-        redirect($pageUrl);
     } else {
         try {
             $result = license_activate($pdo, (string) ($_POST['license_key'] ?? ''));
@@ -122,10 +101,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $status = license_status($pdo);
 $activatePublicUrl = app_url('activate_license.php');
 $logs = license_recent_activation_logs($pdo, 20);
-$activeLinkedUsers = [];
-if ((string) ($status['license_no'] ?? '') !== '') {
-    $activeLinkedUsers = license_active_linked_users($pdo, (string) $status['license_no'], 500);
-}
 if ($genInput['fingerprint_hash'] === '') {
     $genInput['fingerprint_hash'] = (string) ($status['fingerprint_hash'] ?? '');
 }
@@ -217,62 +192,6 @@ if ($genInput['fingerprint_hash'] === '') {
                 <input type="hidden" name="_action" value="deactivate">
                 <button type="submit" class="btn btn-danger">إلغاء تفعيل النسخة</button>
             </form>
-        <?php endif; ?>
-    </div>
-</section>
-
-<section class="dashboard-ora-panel">
-    <h2 class="dashboard-ora-panel__title">المستخدمون المفعلون على النسخة الحالية</h2>
-    <div class="dashboard-ora-panel__body">
-        <?php if ((string) ($status['license_no'] ?? '') === ''): ?>
-            <p class="muted">لا يوجد رقم نسخة مرتبط بالترخيص الحالي.</p>
-        <?php elseif ($activeLinkedUsers === []): ?>
-            <p class="muted">لا يوجد مستخدمون نشطون مربوطون بهذه النسخة حالياً.</p>
-        <?php else: ?>
-            <p class="muted" style="margin:0 0 .6rem;">
-                العدد الحالي: <strong><?= count($activeLinkedUsers) ?></strong>
-            </p>
-            <div class="table-wrap">
-                <table class="data-table">
-                    <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>اسم المستخدم</th>
-                        <th>الاسم</th>
-                        <th>البريد</th>
-                        <th style="width:8.5rem;">إجراء</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php $uSeq = 0; ?>
-                    <?php foreach ($activeLinkedUsers as $usr): ?>
-                        <?php $uSeq++; ?>
-                        <tr>
-                            <td><?= $uSeq ?></td>
-                            <td><code dir="ltr"><?= esc((string) ($usr['username'] ?? '')) ?></code></td>
-                            <td><?= esc((string) ($usr['full_name_ar'] ?? '')) ?></td>
-                            <td><?= esc((string) ($usr['email'] ?? '—')) ?></td>
-                            <td>
-                                <?php if (user_is_system_admin()): ?>
-                                    <form method="post" action="<?= esc($pageUrl) ?>"
-                                          onsubmit="return confirm('هل تريد إلغاء ترخيص هذا المستخدم؟');">
-                                        <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                                        <input type="hidden" name="_action" value="revoke_user">
-                                        <input type="hidden" name="user_id" value="<?= (int) ($usr['id'] ?? 0) ?>">
-                                        <button type="submit" class="btn btn-danger btn-sm">إلغاء الترخيص</button>
-                                    </form>
-                                <?php else: ?>
-                                    —
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <p class="muted" style="margin:.65rem 0 0;">
-                يتم تحديث هذه القائمة تلقائياً؛ عند تعطيل أي مستخدم يُزال منها مباشرة.
-            </p>
         <?php endif; ?>
     </div>
 </section>

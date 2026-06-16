@@ -359,54 +359,18 @@ function license_activation_actor(): array
     ];
 }
 
-function license_count_active_users(PDO $pdo, ?string $licenseNo = null): int
+function license_count_active_users(PDO $pdo): int
 {
     try {
-        $licenseNo = strtoupper(trim((string) $licenseNo));
-        if ($licenseNo !== '') {
-            $st = $pdo->prepare(
-                'SELECT COUNT(*) FROM sys_user
-                 WHERE is_active = 1
-                   AND UPPER(TRIM(COALESCE(license_no, ""))) = ?'
-            );
-            $st->execute([$licenseNo]);
-            return (int) ($st->fetchColumn() ?: 0);
-        }
-
         return (int) $pdo->query('SELECT COUNT(*) FROM sys_user WHERE is_active = 1')->fetchColumn();
     } catch (Throwable $e) {
         return 0;
     }
 }
 
-/** @return list<array<string,mixed>> */
-function license_active_linked_users(PDO $pdo, string $licenseNo, int $limit = 200): array
-{
-    $licenseNo = strtoupper(trim($licenseNo));
-    if ($licenseNo === '') {
-        return [];
-    }
-    $limit = max(1, min(500, $limit));
-    try {
-        $sql = 'SELECT id, username, full_name_ar, email
-                FROM sys_user
-                WHERE is_active = 1
-                  AND UPPER(TRIM(COALESCE(license_no, ""))) = ?
-                ORDER BY full_name_ar, username, id
-                LIMIT ' . $limit;
-        $st = $pdo->prepare($sql);
-        $st->execute([$licenseNo]);
-        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
-        return is_array($rows) ? $rows : [];
-    } catch (Throwable $e) {
-        return [];
-    }
-}
-
 /** @param array{issued_to?:string,license_no?:string,max_users?:?int} $validated */
 function license_insert_activation_log(PDO $pdo, string $fingerprintHash, array $validated, array $actor): void
 {
-    $licenseNo = strtoupper(trim((string) ($validated['license_no'] ?? '')));
     $sql = 'INSERT INTO sys_license_activation_log
             (fingerprint_hash, license_no, issued_to, max_users, active_users,
              activated_by_user_id, activated_by_username, activated_by_name, activated_at)
@@ -417,7 +381,7 @@ function license_insert_activation_log(PDO $pdo, string $fingerprintHash, array 
         trim((string) ($validated['license_no'] ?? '')) !== '' ? trim((string) $validated['license_no']) : null,
         trim((string) ($validated['issued_to'] ?? '')) !== '' ? trim((string) $validated['issued_to']) : null,
         isset($validated['max_users']) && $validated['max_users'] !== null ? (int) $validated['max_users'] : null,
-        license_count_active_users($pdo, $licenseNo),
+        license_count_active_users($pdo),
         (int) ($actor['user_id'] ?? 0) > 0 ? (int) $actor['user_id'] : null,
         trim((string) ($actor['username'] ?? '')) !== '' ? trim((string) $actor['username']) : null,
         trim((string) ($actor['name'] ?? '')) !== '' ? trim((string) ($actor['name'] ?? '')) : null,
@@ -511,12 +475,7 @@ function license_status(PDO $pdo): array
     $base['expires_on'] = $validation['expires_on'] ?? null;
     $base['days_left'] = $validation['days_left'] ?? null;
     $base['max_users'] = $validation['max_users'] ?? null;
-    $base['active_users'] = license_count_active_users($pdo, $base['license_no']);
-    if ($base['license_no'] !== '' && $base['active_users'] <= 0) {
-        $base['valid'] = false;
-        $base['message'] = 'لا يوجد مستخدم مفعّل مرتبط بهذه النسخة. أدخل رقم تفعيل جديد أولاً.';
-        return $base;
-    }
+    $base['active_users'] = license_count_active_users($pdo);
     if ($base['max_users'] !== null && $base['active_users'] > (int) $base['max_users']) {
         $base['valid'] = false;
         $base['message'] = 'عدد المستخدمين النشطين يتجاوز الحد المرخّص به لهذا الرقم.';
@@ -582,61 +541,6 @@ function license_delete_activation_log(PDO $pdo, int $logId): void
     $st->execute([$logId]);
 }
 
-/** يفك ربط المستخدم العادي من رقم النسخة الحالية. */
-function license_revoke_user_binding(PDO $pdo, int $userId, string $licenseNo = ''): void
-{
-    if ($userId <= 0) {
-        return;
-    }
-    $licenseNo = strtoupper(trim($licenseNo));
-    if ($licenseNo !== '') {
-        $st = $pdo->prepare(
-            'UPDATE sys_user
-             SET license_no = NULL
-             WHERE id = ?
-               AND UPPER(TRIM(COALESCE(license_no, ""))) = ?'
-        );
-        $st->execute([$userId, $licenseNo]);
-        return;
-    }
-
-    $st = $pdo->prepare('UPDATE sys_user SET license_no = NULL WHERE id = ?');
-    $st->execute([$userId]);
-}
-
-/** @return array{ok:bool,error:string} */
-function license_user_binding_check_for_login(PDO $pdo, int $userId): array
-{
-    if ($userId <= 0 || !license_is_enforced()) {
-        return ['ok' => true, 'error' => ''];
-    }
-    if (user_is_system_admin($userId)) {
-        return ['ok' => true, 'error' => ''];
-    }
-
-    $status = license_status($pdo);
-    if (!($status['valid'] ?? false)) {
-        return ['ok' => false, 'error' => (string) ($status['message'] ?? 'النظام غير مرخّص.')];
-    }
-
-    $currentLicenseNo = strtoupper(trim((string) ($status['license_no'] ?? '')));
-    if ($currentLicenseNo === '') {
-        return ['ok' => false, 'error' => 'رقم النسخة غير محدد في الترخيص الحالي.'];
-    }
-
-    $st = $pdo->prepare('SELECT license_no FROM sys_user WHERE id = ? LIMIT 1');
-    $st->execute([$userId]);
-    $userLicenseNo = strtoupper(trim((string) ($st->fetchColumn() ?: '')));
-    if ($userLicenseNo === '') {
-        return ['ok' => false, 'error' => 'حسابك غير مربوط برقم تفعيل. راجع مسؤول النظام.'];
-    }
-    if (!hash_equals($currentLicenseNo, $userLicenseNo)) {
-        return ['ok' => false, 'error' => 'رقم تفعيل المستخدم لا يطابق رقم النسخة الحالية.'];
-    }
-
-    return ['ok' => true, 'error' => ''];
-}
-
 function license_safe_next_url(?string $next): string
 {
     $fallback = app_url('index.php');
@@ -677,9 +581,21 @@ function license_guard_or_redirect(): void
 
     $user = current_user();
     $currentUserId = (int) ($user['id'] ?? 0);
-    if ($currentUserId > 0 && user_is_system_admin($currentUserId)) {
-        // المستخدم من مجموعة ADMINS لا يحتاج تفعيل.
+    if ($currentUserId <= 0) {
+        // لا تطلب الترخيص قبل تسجيل الدخول.
         return;
+    }
+
+    if ($currentUserId > 0) {
+        $username = strtolower(trim((string) ($user['username'] ?? '')));
+        if (
+            user_is_system_admin($currentUserId)
+            || $currentUserId === 1
+            || $username === 'admin'
+        ) {
+            // المستخدم الرئيسي لا يحتاج تفعيل.
+            return;
+        }
     }
 
     try {
@@ -700,13 +616,4 @@ function license_guard_or_redirect(): void
         redirect($target);
     }
 
-    // مهم: تحقق ربط المستخدم بالنسخة في كل طلب (وليس فقط عند تسجيل الدخول).
-    // بهذا عند إلغاء ترخيص مستخدم من شاشة التراخيص يتم منعه مباشرة حتى لو لديه جلسة مفتوحة.
-    if ($currentUserId > 0) {
-        $binding = license_user_binding_check_for_login(db(), $currentUserId);
-        if (!($binding['ok'] ?? false)) {
-            logout();
-            redirect(app_url('login.php?license_block=1'));
-        }
-    }
 }

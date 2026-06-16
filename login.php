@@ -19,9 +19,6 @@ if (is_logged_in()) {
 }
 
 $error = '';
-if ((string) ($_GET['license_block'] ?? '') === '1') {
-    $error = 'تم إلغاء ترخيص حسابك أو ربطه بالنسخة الحالية. راجع مسؤول النظام لإعادة التفعيل.';
-}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $u = trim((string) ($_POST['username'] ?? ''));
@@ -32,9 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($u === '' || $p === '') {
             $error = 'أدخل اسم المستخدم وكلمة المرور.';
         } elseif (!attempt_login($u, $p)) {
-            $loginErr = trim((string) ($_SESSION['_login_last_error'] ?? ''));
-            unset($_SESSION['_login_last_error']);
-            $error = $loginErr !== '' ? $loginErr : 'بيانات الدخول غير صحيحة.';
+            $error = 'بيانات الدخول غير صحيحة.';
         } else {
             redirect(app_url('index.php'));
         }
