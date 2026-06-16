@@ -67,6 +67,11 @@ return [
                     'name_ar' => 'فك ترحيل رواتب الشهر (قيد الرواتب)',
                     'inherit_from' => ['hr_salaries', 'hr_payroll_posting'],
                 ],
+                [
+                    'code' => 'action_unpost_employee_advance',
+                    'name_ar' => 'فك ترحيل سلفة موظف',
+                    'inherit_from' => ['hr_salaries', 'hr_employee_advances'],
+                ],
             ],
         ],
         [
@@ -121,6 +126,11 @@ return [
                     'code' => 'action_post_warehouse_move',
                     'name_ar' => 'ترحيل حركة مستودع',
                     'inherit_from' => ['warehouse_moves'],
+                ],
+                [
+                    'code' => 'action_post_employee_advance',
+                    'name_ar' => 'ترحيل سلفة موظف',
+                    'inherit_from' => ['hr_salaries', 'hr_employee_advances'],
                 ],
             ],
         ],

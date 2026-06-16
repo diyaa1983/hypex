@@ -24,6 +24,8 @@
     var filterEmployeeList = document.getElementById('hr-sal-filter-employee-list');
     var filterEmployeeToggle = document.getElementById('hr-sal-filter-employee-toggle');
     var masterEmpCode = document.getElementById('hr-sal-emp-code');
+    var empPrevBtn = document.getElementById('hr-sal-emp-prev');
+    var empNextBtn = document.getElementById('hr-sal-emp-next');
     var masterBase = document.getElementById('hr-sal-base-salary');
     var allowTotalField = document.getElementById('hr-sal-allow-total');
     var grossTotalField = document.getElementById('hr-sal-gross-total');
@@ -224,6 +226,44 @@
         window.location.href = url;
     }
 
+    function employeeIndexByCurrentId() {
+        var currentId = parseInt(page.getAttribute('data-filter-employee-id') || '0', 10);
+        var employees = parseEmployeeList();
+        var idx = -1;
+        employees.forEach(function (emp, i) {
+            if (parseInt(emp.id, 10) === currentId) {
+                idx = i;
+            }
+        });
+        return {
+            employees: employees,
+            index: idx,
+        };
+    }
+
+    function syncEmployeeNavButtons() {
+        var state = employeeIndexByCurrentId();
+        var hasCurrent = state.index >= 0;
+        if (empPrevBtn) {
+            empPrevBtn.disabled = !hasCurrent || state.index <= 0;
+        }
+        if (empNextBtn) {
+            empNextBtn.disabled = !hasCurrent || state.index >= state.employees.length - 1;
+        }
+    }
+
+    function navigateEmployeeByStep(step) {
+        var state = employeeIndexByCurrentId();
+        if (state.index < 0) {
+            return;
+        }
+        var next = state.employees[state.index + step];
+        if (!next || !next.id) {
+            return;
+        }
+        navigateToEmployeeUrl(employeeFilterUrlById(parseInt(next.id, 10)));
+    }
+
     function navigateByCode(rawCode, onFail) {
         var url = codeToUrl(rawCode);
         if (!url) {
@@ -335,6 +375,18 @@
         });
     });
     syncOraLovButtons();
+    syncEmployeeNavButtons();
+
+    if (empPrevBtn) {
+        empPrevBtn.addEventListener('click', function () {
+            navigateEmployeeByStep(-1);
+        });
+    }
+    if (empNextBtn) {
+        empNextBtn.addEventListener('click', function () {
+            navigateEmployeeByStep(1);
+        });
+    }
 
     function buildEmployeePickerItems() {
         if (!filterEmployee) return;

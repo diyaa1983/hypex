@@ -40,18 +40,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($act === 'save_one') {
             $id = (int) ($_POST['id'] ?? 0);
-            $parsed = hr_employee_advance_parse_row($_POST);
+            $parsed = hr_employee_advance_parse_row($_POST, $pdo);
 
             if ($id > 0) {
-                $chk = hr_employee_advance_delete_check($pdo, $id);
+                $editChk = hr_employee_advance_edit_check($pdo, $id);
                 $stOld = $pdo->prepare('SELECT advance_code FROM hr_employee_advance WHERE id = ? LIMIT 1');
                 $stOld->execute([$id]);
                 $old = $stOld->fetch(PDO::FETCH_ASSOC);
                 if (!$old) {
                     throw new RuntimeException('السلفة غير موجودة.');
                 }
-                if (!$chk['can_delete']) {
-                    throw new RuntimeException('لا يمكن تعديل السلفة بعد اقتطاعها من الراتب.');
+                if (!$editChk['can_edit']) {
+                    throw new RuntimeException((string) ($editChk['message'] ?? 'لا يمكن تعديل السلفة.'));
                 }
                 $code = trim((string) ($old['advance_code'] ?? ''));
                 if ($code === '' || !ctype_digit($code)) {
@@ -120,6 +120,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             redirect($advUrlForEmployee($returnEmpId));
         }
+
+        if ($act === 'post_advance') {
+            if (!user_can_action('action_post_employee_advance')) {
+                throw new RuntimeException('ليس لديك صلاحية ترحيل السلفة.');
+            }
+            $id = (int) ($_POST['id'] ?? 0);
+            if ($id > 0) {
+                hr_employee_advance_post($pdo, $id);
+                flash_set('success', 'تم ترحيل السلفة محاسبياً.');
+            }
+            redirect($advUrlForEmployee($returnEmpId));
+        }
+
+        if ($act === 'unpost_advance') {
+            if (!user_can_action('action_unpost_employee_advance')) {
+                throw new RuntimeException('ليس لديك صلاحية فك ترحيل السلفة.');
+            }
+            $id = (int) ($_POST['id'] ?? 0);
+            if ($id > 0) {
+                hr_employee_advance_unpost($pdo, $id);
+                flash_set('success', 'تم فك ترحيل السلفة وإلغاء أثرها المحاسبي.');
+            }
+            redirect($advUrlForEmployee($returnEmpId));
+        }
     } catch (Throwable $e) {
         flash_set('error', $e->getMessage() ?: 'تعذر إتمام العملية.');
         redirect($advUrlForEmployee($returnEmpId));
@@ -161,7 +185,7 @@ $advances = [];
 if ($filterEmpId > 0) {
     $st = $pdo->prepare(
         'SELECT a.id, a.advance_code, a.employee_id, a.advance_type, a.total_amount,
-                a.start_date, a.end_date, a.notes, a.status,
+                a.start_date, a.end_date, a.notes, a.status, a.is_posted,
                 e.emp_code, e.name_ar AS emp_name
          FROM hr_employee_advance a
          INNER JOIN hr_employee e ON e.id = a.employee_id
@@ -385,13 +409,17 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
                 }
                 $type = (string) ($a['advance_type'] ?? 'once');
                 $delChk = hr_employee_advance_delete_check($pdo, $rid);
-                $linked = !$delChk['can_delete'];
+                $editChk = hr_employee_advance_edit_check($pdo, $rid);
+                $unpostChk = hr_employee_advance_unpost_check($pdo, $rid);
+                $hasDeduction = hr_employee_advance_total_deducted($pdo, $rid) > 0.0005;
+                $linked = $hasDeduction;
+                $isPosted = (int) ($a['is_posted'] ?? 0) === 1;
                 $startDmy = format_date_dmY((string) ($a['start_date'] ?? ''));
                 $endRaw = (string) ($a['end_date'] ?? '');
                 $endDmy = $type === 'once' ? '—' : format_date_dmY($endRaw);
                 $deductDmy = $type === 'once' ? $startDmy : '';
             ?>
-                <tr class="hr-adv-row<?= $linked ? ' is-linked' : '' ?><?= (string) ($a['status'] ?? '') !== 'active' ? ' is-inactive' : '' ?>"
+                <tr class="hr-adv-row<?= $linked ? ' is-linked' : '' ?><?= $isPosted ? ' is-posted' : '' ?><?= (string) ($a['status'] ?? '') !== 'active' ? ' is-inactive' : '' ?>"
                     data-id="<?= $rid ?>"
                     data-code="<?= esc($advanceCode) ?>"
                     data-employee-id="<?= (int) ($a['employee_id'] ?? 0) ?>"
@@ -402,15 +430,18 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
                     data-deduct="<?= esc($deductDmy) ?>"
                     data-notes="<?= esc((string) ($a['notes'] ?? '')) ?>"
                     data-status="<?= esc((string) ($a['status'] ?? '')) ?>"
+                    data-posted="<?= $isPosted ? '1' : '0' ?>"
                     data-linked="<?= $linked ? '1' : '0' ?>"
                     data-linked-msg="<?= esc((string) ($delChk['message'] ?? '')) ?>"
+                    data-edit-msg="<?= esc((string) ($editChk['message'] ?? '')) ?>"
+                    data-unpost-msg="<?= esc((string) ($unpostChk['message'] ?? '')) ?>"
                     tabindex="0">
                     <td dir="ltr"><?= esc($advanceCode) ?></td>
                     <td><?= esc(hr_employee_advance_type_label($type)) ?></td>
                     <td dir="ltr" class="num"><?= esc(format_money((float) ($a['total_amount'] ?? 0))) ?></td>
                     <td dir="ltr"><?= esc($startDmy) ?></td>
                     <td dir="ltr"><?= esc($endDmy) ?></td>
-                    <td><?= esc(hr_employee_advance_status_label((string) ($a['status'] ?? 'active'))) ?></td>
+                    <td><?= esc(hr_employee_advance_display_status($isPosted ? 1 : 0, (string) ($a['status'] ?? 'active'))) ?></td>
                     <td><?= esc((string) ($a['notes'] ?? '')) !== '' ? esc((string) $a['notes']) : '—' ?></td>
                 </tr>
             <?php endforeach; ?>
@@ -424,6 +455,18 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
         <input type="hidden" name="_action" value="delete">
         <input type="hidden" name="filter_employee_id" id="hr-adv-delete-filter-employee-id" value="<?= $filterEmpId ?>">
         <input type="hidden" name="id" id="hr-adv-delete-id" value="0">
+    </form>
+    <form method="post" action="<?= esc($listUrl) ?>" id="hr-adv-post-form" class="sr-only" aria-hidden="true">
+        <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="post_advance">
+        <input type="hidden" name="filter_employee_id" id="hr-adv-post-filter-employee-id" value="<?= $filterEmpId ?>">
+        <input type="hidden" name="id" id="hr-adv-post-id" value="0">
+    </form>
+    <form method="post" action="<?= esc($listUrl) ?>" id="hr-adv-unpost-form" class="sr-only" aria-hidden="true">
+        <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+        <input type="hidden" name="_action" value="unpost_advance">
+        <input type="hidden" name="filter_employee_id" id="hr-adv-unpost-filter-employee-id" value="<?= $filterEmpId ?>">
+        <input type="hidden" name="id" id="hr-adv-unpost-id" value="0">
     </form>
 </div>
 

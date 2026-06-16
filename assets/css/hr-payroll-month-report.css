@@ -1,0 +1,120 @@
+/* تقرير قيود الرواتب حسب الشهر */
+
+.hr-pr-month-rpt-page {
+    max-width: none;
+}
+
+.hr-pr-month-rpt-filter {
+    margin-bottom: 0.75rem;
+}
+
+.hr-pr-month-rpt-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.55rem;
+    padding: 0.65rem 0.75rem;
+}
+
+.hr-pr-month-rpt-filters .field {
+    margin: 0;
+    min-width: 9rem;
+}
+
+.hr-pr-month-rpt-doc {
+    margin: 0 auto 2rem;
+    padding: 0.75rem 0.9rem 1.2rem;
+    max-width: 1120px;
+    background: #fff;
+    border: 1px solid #94a3b8;
+    position: relative;
+}
+
+.hr-pr-month-rpt-move {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.55rem 0 0.75rem;
+    font-size: 0.82rem;
+}
+
+.hr-pr-month-rpt-move th,
+.hr-pr-month-rpt-move td {
+    border: 1px solid #64748b;
+    padding: 0.3rem 0.45rem;
+}
+
+.hr-pr-month-rpt-move th {
+    background: #e2e8f0;
+    text-align: center;
+    font-weight: 800;
+}
+
+.hr-pr-month-rpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+
+.hr-pr-month-rpt-table th,
+.hr-pr-month-rpt-table td {
+    border: 1px solid #475569;
+    padding: 0.28rem 0.35rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.hr-pr-month-rpt-table thead th {
+    background: #d9d9d9;
+    font-weight: 800;
+}
+
+.hr-pr-month-rpt-table td.num {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.hr-pr-month-rpt-table tbody td:nth-child(3) {
+    text-align: start;
+}
+
+.hr-pr-month-rpt-table tfoot td {
+    background: #e2e8f0;
+    font-weight: 800;
+}
+
+.hr-pr-month-rpt-empty {
+    text-align: center;
+    padding: 1.5rem 1rem;
+}
+
+@media print {
+    @page {
+        size: A4 landscape;
+        margin: 7mm;
+    }
+
+    .no-print,
+    .app-screen-head,
+    .app-screen-title-bar,
+    .master-toolbar,
+    .sidebar {
+        display: none !important;
+    }
+
+    .hr-pr-month-rpt-doc {
+        max-width: none;
+        margin: 0;
+        padding: 0;
+        border: 0;
+    }
+
+    .hr-pr-month-rpt-table {
+        font-size: 9px;
+    }
+
+    .hr-pr-month-rpt-table th,
+    .hr-pr-month-rpt-table td {
+        padding: 0.16rem 0.2rem;
+    }
+}

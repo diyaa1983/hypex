@@ -56,7 +56,7 @@ function hr_employees_report_rows(PDO $pdo, string $status = 'all'): array
 
     $status = hr_employees_report_normalize_status($status);
 
-    $sql = 'SELECT id, emp_code, name_ar, base_salary, allowances, is_active, resignation_date, is_resigned_posted
+    $sql = 'SELECT id, emp_code, name_ar, hire_date, base_salary, allowances, is_active, resignation_date, is_resigned_posted
             FROM hr_employee';
     $params = [];
 
@@ -91,6 +91,7 @@ function hr_employees_report_rows(PDO $pdo, string $status = 'all'): array
             'seq' => $seq,
             'emp_code' => (string) ($row['emp_code'] ?? ''),
             'name_ar' => (string) ($row['name_ar'] ?? ''),
+            'hire_date' => format_date_dmY((string) ($row['hire_date'] ?? '')),
             'salary' => $salary,
             'status_label' => hr_employees_report_is_resigned($row) ? 'مستقيل' : 'على رأس العمل',
         ];

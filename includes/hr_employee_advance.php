@@ -3,6 +3,31 @@ declare(strict_types=1);
 
 require_once app_path('includes/hr_schema.php');
 
+function hr_employee_advance_ensure_post_columns(PDO $pdo): void
+{
+    hr_employee_advance_ensure_schema($pdo);
+
+    try {
+        $cols = $pdo->query('SHOW COLUMNS FROM hr_employee_advance')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $colSet = [];
+        foreach ($cols as $col) {
+            $colSet[strtolower((string) ($col['Field'] ?? ''))] = true;
+        }
+        if (isset($colSet['is_posted'])) {
+            return;
+        }
+    } catch (Throwable $e) {
+        // continue to migration
+    }
+
+    try {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/154_hr_employee_advance_posting.sql');
+    } catch (Throwable $e) {
+        // ignored
+    }
+}
+
 function hr_employee_advance_ensure_schema(PDO $pdo): void
 {
     hr_employee_ensure_schema($pdo);
@@ -60,6 +85,40 @@ function hr_employee_advance_status_label(string $status): string
     };
 }
 
+function hr_employee_advance_posted_label(int $isPosted): string
+{
+    return $isPosted === 1 ? 'مرحّلة' : 'مسودة';
+}
+
+function hr_employee_advance_display_status(int $isPosted, string $status): string
+{
+    if ($status === 'cancelled') {
+        return 'ملغاة';
+    }
+
+    $posted = hr_employee_advance_posted_label($isPosted);
+    $repayment = hr_employee_advance_status_label($status);
+
+    return $posted . ' — ' . $repayment;
+}
+
+function hr_employee_advance_is_posted(PDO $pdo, int $advanceId): bool
+{
+    if ($advanceId < 1) {
+        return false;
+    }
+
+    hr_employee_advance_ensure_post_columns($pdo);
+    try {
+        $st = $pdo->prepare('SELECT is_posted FROM hr_employee_advance WHERE id = ? LIMIT 1');
+        $st->execute([$advanceId]);
+
+        return (int) ($st->fetchColumn() ?: 0) === 1;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 /** @return array{year:int, month:int} */
 function hr_employee_advance_month_from_date(string $isoDate): array
 {
@@ -105,6 +164,102 @@ function hr_employee_advance_installment_amount(float $total, int $months): floa
     return round($total / max(1, $months), 3);
 }
 
+/** @return list<array{year:int, month:int}> */
+function hr_employee_advance_months_in_period(string $startIso, string $endIso): array
+{
+    $s = hr_employee_advance_month_from_date($startIso);
+    $e = hr_employee_advance_month_from_date($endIso);
+    if ($s['year'] < 1 || $s['month'] < 1 || $e['year'] < 1 || $e['month'] < 1) {
+        return [];
+    }
+
+    $months = [];
+    $curYear = $s['year'];
+    $curMonth = $s['month'];
+    $endKey = $e['year'] * 12 + $e['month'];
+
+    while ($curYear * 12 + $curMonth <= $endKey) {
+        $months[] = ['year' => $curYear, 'month' => $curMonth];
+        $curMonth++;
+        if ($curMonth > 12) {
+            $curMonth = 1;
+            $curYear++;
+        }
+    }
+
+    return $months;
+}
+
+/** @return array{is_posted:bool}|null */
+function hr_employee_advance_employee_payroll_month(PDO $pdo, int $employeeId, int $year, int $month): ?array
+{
+    if ($employeeId < 1 || $year < 2000 || $month < 1 || $month > 12) {
+        return null;
+    }
+
+    try {
+        $st = $pdo->prepare(
+            'SELECT is_posted FROM hr_salary
+             WHERE employee_id = ? AND pay_year = ? AND pay_month = ?
+             LIMIT 1'
+        );
+        $st->execute([$employeeId, $year, $month]);
+        $posted = $st->fetchColumn();
+        if ($posted === false) {
+            return null;
+        }
+
+        return ['is_posted' => (int) $posted === 1];
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * @param array{employee_id:int, advance_type:string, start_date:string, end_date:?string} $parsed
+ */
+function hr_employee_advance_assert_payroll_months_available(PDO $pdo, array $parsed): void
+{
+    require_once app_path('includes/hr_salary.php');
+
+    $employeeId = (int) ($parsed['employee_id'] ?? 0);
+    $type = (string) ($parsed['advance_type'] ?? '');
+    $startIso = (string) ($parsed['start_date'] ?? '');
+    $endIso = (string) ($parsed['end_date'] ?? $startIso);
+
+    if ($employeeId < 1 || $startIso === '') {
+        return;
+    }
+
+    $months = hr_employee_advance_months_in_period($startIso, $endIso);
+    if ($months === [] && $type === 'once') {
+        $months = [hr_employee_advance_month_from_date($startIso)];
+    }
+
+    foreach ($months as $m) {
+        $year = (int) ($m['year'] ?? 0);
+        $month = (int) ($m['month'] ?? 0);
+        if ($year < 2000 || $month < 1 || $month > 12) {
+            continue;
+        }
+
+        $payroll = hr_employee_advance_employee_payroll_month($pdo, $employeeId, $year, $month);
+        if ($payroll === null) {
+            continue;
+        }
+
+        $periodLabel = hr_salary_period_label_ar($year, $month);
+        $statusLabel = !empty($payroll['is_posted']) ? 'مرحّل' : 'محتسب';
+        throw new RuntimeException(
+            'لا يمكن إنشاء أو تعديل السلفة — راتب الموظف لشهر '
+            . $periodLabel
+            . ' '
+            . $statusLabel
+            . ' مسبقاً.'
+        );
+    }
+}
+
 /**
  * @return array{
  *   advance_type:string,
@@ -115,8 +270,9 @@ function hr_employee_advance_installment_amount(float $total, int $months): floa
  *   notes:?string
  * }
  */
-function hr_employee_advance_parse_row(array $row): array
+function hr_employee_advance_parse_row(array $row, ?PDO $pdo = null): array
 {
+    $pdo = $pdo ?? db();
     $type = (string) ($row['advance_type'] ?? '');
     if (!in_array($type, ['once', 'long'], true)) {
         throw new RuntimeException('حدد نوع السلفة: لمرة واحدة أو طويلة.');
@@ -140,7 +296,7 @@ function hr_employee_advance_parse_row(array $row): array
             throw new RuntimeException('أدخل تاريخ شهر الاقتطاع (يوم-شهر-سنة).');
         }
 
-        return [
+        $parsed = [
             'advance_type' => 'once',
             'total_amount' => $amount,
             'start_date' => $deductIso,
@@ -148,6 +304,9 @@ function hr_employee_advance_parse_row(array $row): array
             'employee_id' => $employeeId,
             'notes' => $notes !== '' ? $notes : null,
         ];
+        hr_employee_advance_assert_payroll_months_available($pdo, $parsed);
+
+        return $parsed;
     }
 
     $startIso = parse_date_to_iso(trim((string) ($row['start_date'] ?? '')));
@@ -159,7 +318,7 @@ function hr_employee_advance_parse_row(array $row): array
         throw new RuntimeException('تاريخ النهاية يجب أن يكون بعد تاريخ البداية أو مساوياً له.');
     }
 
-    return [
+    $parsed = [
         'advance_type' => 'long',
         'total_amount' => $amount,
         'start_date' => $startIso,
@@ -167,17 +326,28 @@ function hr_employee_advance_parse_row(array $row): array
         'employee_id' => $employeeId,
         'notes' => $notes !== '' ? $notes : null,
     ];
+    hr_employee_advance_assert_payroll_months_available($pdo, $parsed);
+
+    return $parsed;
 }
 
 /** @return array{can_delete:bool, message:string} */
 function hr_employee_advance_delete_check(PDO $pdo, int $advanceId): array
 {
     hr_employee_advance_ensure_schema($pdo);
+    hr_employee_advance_ensure_post_columns($pdo);
     if ($advanceId < 1) {
         return ['can_delete' => false, 'message' => 'سلفة غير موجودة.'];
     }
 
     try {
+        if (hr_employee_advance_is_posted($pdo, $advanceId)) {
+            return [
+                'can_delete' => false,
+                'message' => 'لا يمكن حذف السلفة بعد ترحيلها — فك الترحيل أولاً.',
+            ];
+        }
+
         $st = $pdo->prepare('SELECT COUNT(*) FROM hr_salary_advance_deduction WHERE advance_id = ?');
         $st->execute([$advanceId]);
         if ((int) $st->fetchColumn() > 0) {
@@ -191,6 +361,141 @@ function hr_employee_advance_delete_check(PDO $pdo, int $advanceId): array
     }
 
     return ['can_delete' => true, 'message' => ''];
+}
+
+/** @return array{can_edit:bool, message:string} */
+function hr_employee_advance_edit_check(PDO $pdo, int $advanceId): array
+{
+    $deleteCheck = hr_employee_advance_delete_check($pdo, $advanceId);
+    if (!$deleteCheck['can_delete']) {
+        return ['can_edit' => false, 'message' => (string) $deleteCheck['message']];
+    }
+
+    return ['can_edit' => true, 'message' => ''];
+}
+
+/** @return array{can_unpost:bool, message:string} */
+function hr_employee_advance_unpost_check(PDO $pdo, int $advanceId): array
+{
+    hr_employee_advance_ensure_post_columns($pdo);
+    if ($advanceId < 1) {
+        return ['can_unpost' => false, 'message' => 'سلفة غير موجودة.'];
+    }
+    if (!hr_employee_advance_is_posted($pdo, $advanceId)) {
+        return ['can_unpost' => false, 'message' => 'السلفة غير مرحّلة.'];
+    }
+
+    try {
+        $st = $pdo->prepare('SELECT COUNT(*) FROM hr_salary_advance_deduction WHERE advance_id = ?');
+        $st->execute([$advanceId]);
+        if ((int) $st->fetchColumn() > 0) {
+            return [
+                'can_unpost' => false,
+                'message' => 'لا يمكن فك ترحيل السلفة بعد اقتطاعها من الراتب.',
+            ];
+        }
+    } catch (Throwable $e) {
+        // ignored
+    }
+
+    return ['can_unpost' => true, 'message' => ''];
+}
+
+/** @return array<string, mixed> */
+function hr_employee_advance_load(PDO $pdo, int $advanceId): ?array
+{
+    if ($advanceId < 1) {
+        return null;
+    }
+
+    hr_employee_advance_ensure_post_columns($pdo);
+    try {
+        $st = $pdo->prepare(
+            'SELECT a.*, e.emp_code, e.name_ar
+             FROM hr_employee_advance a
+             INNER JOIN hr_employee e ON e.id = a.employee_id
+             WHERE a.id = ?
+             LIMIT 1'
+        );
+        $st->execute([$advanceId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+function hr_employee_advance_post(PDO $pdo, int $advanceId): void
+{
+    require_once app_path('includes/hr_employee_advance_gl.php');
+
+    $advance = hr_employee_advance_load($pdo, $advanceId);
+    if (!$advance) {
+        throw new RuntimeException('السلفة غير موجودة.');
+    }
+    if ((int) ($advance['is_posted'] ?? 0) === 1) {
+        throw new RuntimeException('السلفة مرحّلة مسبقاً.');
+    }
+    if ((string) ($advance['status'] ?? '') === 'cancelled') {
+        throw new RuntimeException('لا يمكن ترحيل سلفة ملغاة.');
+    }
+
+    hr_employee_advance_assert_payroll_months_available($pdo, [
+        'employee_id' => (int) ($advance['employee_id'] ?? 0),
+        'advance_type' => (string) ($advance['advance_type'] ?? ''),
+        'start_date' => (string) ($advance['start_date'] ?? ''),
+        'end_date' => (string) ($advance['end_date'] ?? ''),
+    ]);
+
+    $pdo->beginTransaction();
+    try {
+        $gl = hr_employee_advance_gl_post($pdo, $advanceId, $advance);
+        if (!$gl['ok'] && !$gl['skipped']) {
+            throw new RuntimeException((string) ($gl['error'] ?? 'تعذر الترحيل المحاسبي للسلفة.'));
+        }
+
+        $uid = (int) (current_user()['id'] ?? 0) ?: null;
+        $pdo->prepare(
+            'UPDATE hr_employee_advance SET is_posted = 1, posted_at = NOW(), posted_by = ? WHERE id = ?'
+        )->execute([$uid, $advanceId]);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function hr_employee_advance_unpost(PDO $pdo, int $advanceId): void
+{
+    require_once app_path('includes/hr_employee_advance_gl.php');
+
+    $unpostCheck = hr_employee_advance_unpost_check($pdo, $advanceId);
+    if (!$unpostCheck['can_unpost']) {
+        throw new RuntimeException((string) ($unpostCheck['message'] ?? 'لا يمكن فك ترحيل السلفة.'));
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $gl = hr_employee_advance_gl_unpost($pdo, $advanceId);
+        if (!$gl['ok'] && !$gl['skipped']) {
+            throw new RuntimeException((string) ($gl['error'] ?? 'تعذر فك الترحيل المحاسبي للسلفة.'));
+        }
+
+        $pdo->prepare(
+            'UPDATE hr_employee_advance SET is_posted = 0, posted_at = NULL, posted_by = NULL WHERE id = ?'
+        )->execute([$advanceId]);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 }
 
 function hr_employee_advance_sync_status(PDO $pdo, int $advanceId): void
@@ -292,14 +597,16 @@ function hr_employee_advance_deductions_for_month(
     int $currentSalaryId = 0
 ): array {
     hr_employee_advance_ensure_schema($pdo);
+    hr_employee_advance_ensure_post_columns($pdo);
     if ($employeeId < 1 || $year < 2000 || $month < 1 || $month > 12) {
         return ['total' => 0.0, 'lines' => []];
     }
 
     $st = $pdo->prepare(
-        'SELECT id, advance_type, total_amount, start_date, end_date, status
+        'SELECT id, advance_type, total_amount, start_date, end_date, status, is_posted
          FROM hr_employee_advance
          WHERE employee_id = ?
+           AND COALESCE(is_posted, 0) = 1
            AND COALESCE(NULLIF(TRIM(status), \'\'), \'active\') <> \'cancelled\'
          ORDER BY id ASC'
     );

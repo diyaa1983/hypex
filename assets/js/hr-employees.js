@@ -472,6 +472,133 @@
     });
     syncOraLovButtons();
 
+    function isSequentialFieldVisible(el) {
+        if (!el) {
+            return false;
+        }
+        if (el.hidden) {
+            return false;
+        }
+        if (el.closest('[hidden]')) {
+            return false;
+        }
+        var pane = el.closest('.hr-emp-ora-stack-pane');
+        if (pane && pane.hidden) {
+            return false;
+        }
+        var style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+    }
+
+    function isSequentialField(el) {
+        if (!el || el.disabled) {
+            return false;
+        }
+        if (!/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) {
+            return false;
+        }
+        if (el.readOnly) {
+            return false;
+        }
+        if (el.tagName === 'INPUT') {
+            var type = String(el.type || 'text').toLowerCase();
+            if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'reset' || type === 'image') {
+                return false;
+            }
+        }
+        return isSequentialFieldVisible(el);
+    }
+
+    function getSequentialFields() {
+        if (!form) {
+            return [];
+        }
+        var all = Array.prototype.slice.call(form.querySelectorAll('input, select, textarea'));
+        return all.filter(isSequentialField);
+    }
+
+    function focusSequentialField(current, step) {
+        var fields = getSequentialFields();
+        if (!fields.length) {
+            return;
+        }
+        var idx = fields.indexOf(current);
+        if (idx < 0) {
+            idx = 0;
+        }
+        var nextIdx = idx + step;
+        if (nextIdx < 0 || nextIdx >= fields.length) {
+            return;
+        }
+        var target = fields[nextIdx];
+        if (!target) {
+            return;
+        }
+        target.focus();
+        if (target.tagName === 'INPUT') {
+            var t = String(target.type || 'text').toLowerCase();
+            if (t === 'text' || t === 'search' || t === 'email' || t === 'tel' || t === 'number') {
+                target.select();
+            }
+        }
+    }
+
+    function bindSequentialKeyboardNav() {
+        if (!form || isBrowse) {
+            return;
+        }
+        form.addEventListener('keydown', function (e) {
+            var target = e.target;
+            if (!target || !form.contains(target) || !isSequentialField(target)) {
+                return;
+            }
+            if (e.altKey || e.ctrlKey || e.metaKey) {
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                if (target.tagName === 'TEXTAREA') {
+                    return;
+                }
+                e.preventDefault();
+                focusSequentialField(target, e.shiftKey ? -1 : 1);
+                return;
+            }
+
+            if (e.shiftKey) {
+                return;
+            }
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                focusSequentialField(target, 1);
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                focusSequentialField(target, -1);
+            }
+        });
+    }
+
+    function focusFirstNameField() {
+        if (!form || isBrowse) {
+            return;
+        }
+        var firstNameInput = form.querySelector('input[name="name_first"]');
+        if (!isSequentialField(firstNameInput)) {
+            return;
+        }
+        var active = document.activeElement;
+        if (active && active !== document.body && active !== document.documentElement) {
+            return;
+        }
+        window.requestAnimationFrame(function () {
+            firstNameInput.focus();
+            firstNameInput.select();
+        });
+    }
+
     if (pickerCode) {
         var codeOnFocus = '';
         pickerCode.addEventListener('focus', function () {
@@ -687,6 +814,8 @@
     if (!isBrowse) {
         initOraStackTabs();
     }
+    bindSequentialKeyboardNav();
+    focusFirstNameField();
 
     if (!isBrowse && form && window.HrOraUnsaved) {
         unsaved = window.HrOraUnsaved.bind({

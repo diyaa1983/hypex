@@ -53,7 +53,7 @@ function hr_pr_post_render_drill_cell(float $amount, array $lines, string $drill
     echo '>' . esc(number_format($amount, 3)) . '</td>';
 }
 
-$empTableColCount = $showIncomeTaxCol ? 10 : 9;
+$empTableColCount = $showIncomeTaxCol ? 11 : 10;
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 
@@ -64,6 +64,7 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
      data-month="<?= (int) $payMonth ?>"
      data-list-shown="<?= $showEmployeeList ? '1' : '0' ?>"
      data-gate-ok="<?= $gate['ok'] ? '1' : '0' ?>"
+     data-gate-message="<?= esc($gate['message'] ?? '') ?>"
      data-calculated="<?= (int) ($summary['calculated'] ?? 0) ?>"
      data-can-unpost="<?= !empty($summary['can_unpost']) ? '1' : '0' ?>"
      data-month-posted="<?= $currentMonthPosted ? '1' : '0' ?>"
@@ -86,101 +87,130 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
         <div class="hr-pr-post-panel hr-pr-post-doc-panel">
             <h2 class="hr-pr-post-panel-title">ادخل المعلومات</h2>
             <div class="hr-pr-post-panel-body">
-        <div class="hr-pr-post-filters-panel">
-            <div class="hr-pr-post-filters-stack">
-                <label class="hr-pr-post-filter-line">
-                    <span>العام</span>
-                    <input class="input hr-pr-post-inline-input" type="number" name="year" min="2000" max="2100"
-                           value="<?= (int) $payYear ?>" required>
-                </label>
-                <label class="hr-pr-post-filter-line">
-                    <span>الشهر</span>
-                    <div class="hr-pr-post-ora-lov">
-                        <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="month" required>
-                            <?php foreach ($monthPickerOptions as $opt):
-                                $m = (int) ($opt['month'] ?? 0);
-                                if ($m < 1 || $m > 12) {
-                                    continue;
-                                }
-                                $monthLabel = sprintf('%02d', $m) . ' — ' . ($monthNames[$m] ?? (string) $m)
-                                    . (string) ($opt['label_suffix'] ?? '');
-                            ?>
-                                <option value="<?= $m ?>" <?= $payMonth === $m ? 'selected' : '' ?>>
-                                    <?= esc($monthLabel) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار الشهر" title="اختيار الشهر"></button>
+        <div class="hr-pr-post-top-controls<?= $postedMonths !== [] ? '' : ' hr-pr-post-top-controls--single' ?>">
+            <div class="hr-pr-post-filters-panel">
+                <div class="hr-pr-post-filters-stack">
+                    <label class="hr-pr-post-filter-line">
+                        <span>العام</span>
+                        <input class="input hr-pr-post-inline-input" type="number" name="year" min="2000" max="2100"
+                               value="<?= (int) $payYear ?>" required>
+                    </label>
+                    <label class="hr-pr-post-filter-line">
+                        <span>الشهر</span>
+                        <div class="hr-pr-post-ora-lov">
+                            <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="month" required>
+                                <?php foreach ($monthPickerOptions as $opt):
+                                    $m = (int) ($opt['month'] ?? 0);
+                                    if ($m < 1 || $m > 12) {
+                                        continue;
+                                    }
+                                    $suffix = trim((string) ($opt['label_suffix'] ?? ''));
+                                    $suffix = trim(str_replace('—', '', $suffix));
+                                    $monthLabel = sprintf('%02d', $m) . ' - ' . ($monthNames[$m] ?? (string) $m)
+                                        . ($suffix !== '' ? ' (' . $suffix . ')' : '');
+                                ?>
+                                    <option value="<?= $m ?>" <?= $payMonth === $m ? 'selected' : '' ?>>
+                                        <?= esc($monthLabel) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار الشهر" title="اختيار الشهر"></button>
+                        </div>
+                    </label>
+                    <label class="hr-pr-post-filter-line">
+                        <span>القسم</span>
+                        <div class="hr-pr-post-ora-lov">
+                            <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="dept_id" id="hr-pr-post-filter-dept"
+                                    <?= $filterEmpId > 0 ? 'disabled' : '' ?>>
+                                <option value="0" <?= $filterDeptId === 0 ? 'selected' : '' ?>>— جميع الأقسام —</option>
+                                <?php foreach ($departments as $d): ?>
+                                    <option value="<?= (int) $d['id'] ?>"
+                                            data-dept-name="<?= esc((string) $d['name_ar']) ?>"
+                                            <?= $filterDeptId === (int) $d['id'] ? 'selected' : '' ?>>
+                                        <?= esc((string) $d['name_ar']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار القسم" title="اختيار القسم"></button>
+                        </div>
+                    </label>
+                    <label class="hr-pr-post-filter-line">
+                        <span>الموظف</span>
+                        <div class="hr-pr-post-ora-lov">
+                            <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="employee_id" id="hr-pr-post-filter-emp">
+                                <option value="0" <?= $filterEmpId === 0 ? 'selected' : '' ?>>— جميع الموظفين —</option>
+                                <?php foreach ($filterEmployees as $fe):
+                                    $fid = (int) ($fe['id'] ?? 0);
+                                    $fname = (string) ($fe['name_ar'] ?? '');
+                                ?>
+                                    <option value="<?= $fid ?>" <?= $filterEmpId === $fid ? 'selected' : '' ?>>
+                                        <?= esc($fname !== '' ? $fname : '—') ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار الموظف" title="اختيار الموظف"></button>
+                        </div>
+                    </label>
+                    <div class="hr-pr-post-filter-line hr-pr-post-filter-line--submit">
+                        <span>عرض</span>
+                        <button type="submit" class="btn btn-primary btn-sm">عرض</button>
                     </div>
-                </label>
-                <label class="hr-pr-post-filter-line">
-                    <span>القسم</span>
-                    <div class="hr-pr-post-ora-lov">
-                        <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="dept_id" id="hr-pr-post-filter-dept"
-                                <?= $filterEmpId > 0 ? 'disabled' : '' ?>>
-                            <option value="0" <?= $filterDeptId === 0 ? 'selected' : '' ?>>— جميع الأقسام —</option>
-                            <?php foreach ($departments as $d): ?>
-                                <option value="<?= (int) $d['id'] ?>"
-                                        data-dept-name="<?= esc((string) $d['name_ar']) ?>"
-                                        <?= $filterDeptId === (int) $d['id'] ? 'selected' : '' ?>>
-                                    <?= esc((string) $d['name_ar']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار القسم" title="اختيار القسم"></button>
-                    </div>
-                </label>
-                <label class="hr-pr-post-filter-line">
-                    <span>الموظف</span>
-                    <div class="hr-pr-post-ora-lov">
-                        <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="employee_id" id="hr-pr-post-filter-emp">
-                            <option value="0" <?= $filterEmpId === 0 ? 'selected' : '' ?>>— جميع الموظفين —</option>
-                            <?php foreach ($filterEmployees as $fe):
-                                $fid = (int) ($fe['id'] ?? 0);
-                                $fname = (string) ($fe['name_ar'] ?? '');
-                            ?>
-                                <option value="<?= $fid ?>" <?= $filterEmpId === $fid ? 'selected' : '' ?>>
-                                    <?= esc($fname !== '' ? $fname : '—') ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار الموظف" title="اختيار الموظف"></button>
-                    </div>
-                </label>
-                <div class="hr-pr-post-filter-line hr-pr-post-filter-line--submit">
-                    <span>عرض</span>
-                    <button type="submit" class="btn btn-primary btn-sm">عرض</button>
-                </div>
             </div>
         </div>
-        <div class="hr-pr-post-doc-summary hr-pr-post-doc-summary--box">
-            <?php if ($showEmployeeList): ?>
-                <span class="hr-pr-post-status hr-pr-post-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?>">
-                    <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
-                </span>
-                <span class="hr-pr-post-doc-summary-sep">|</span>
-                <span><?= esc($filterLabel) ?></span>
-                <span class="hr-pr-post-doc-summary-sep">|</span>
-                <span>محتسب: <strong dir="ltr"><?= (int) ($summary['calculated'] ?? 0) ?></strong></span>
-                <span class="hr-pr-post-doc-summary-sep">|</span>
-                <span>مرحّل: <strong dir="ltr"><?= (int) ($summary['posted'] ?? 0) ?></strong></span>
-                <span class="hr-pr-post-doc-summary-sep">|</span>
-                <span>في القائمة: <strong dir="ltr"><?= count($statusRows) ?></strong></span>
-                <?php if ($maxPosted): ?>
-                    <span class="hr-pr-post-doc-summary-sep">|</span>
-                    <span class="muted">آخر مرحّل:
-                        <strong dir="ltr"><?= sprintf('%02d', (int) $maxPosted['month']) ?></strong>
-                        — <?= esc($monthNames[(int) $maxPosted['month']] ?? '') ?>
-                    </span>
-                <?php endif; ?>
-            <?php else: ?>
-                <span class="hr-pr-post-status hr-pr-post-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?>">
-                    <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
-                </span>
-                <span class="hr-pr-post-doc-summary-sep">|</span>
-                <span class="muted">اختر «عرض» لتحميل جدول الموظفين.</span>
-            <?php endif; ?>
+        <?php if ($postedMonths !== []): ?>
+        <div class="hr-pr-post-posted-inline no-print">
+            <div class="hr-pr-post-posted-inline-title">الأشهر المرحّلة — <?= (int) $payYear ?></div>
+            <div class="hr-pr-post-grid-wrap hr-pr-post-posted-wrap">
+                <table class="hr-pr-post-grid-table hr-pr-post-posted-table">
+                    <thead>
+                    <tr>
+                        <th>الشهر</th>
+                        <th>موظفون</th>
+                        <th>إجمالي الرواتب</th>
+                        <th>رقم القيد</th>
+                        <th>تاريخ القيد</th>
+                        <th>إجراء</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($postedMonths as $pmRow):
+                        $m = (int) ($pmRow['month'] ?? 0);
+                        $monthUrl = $listUrl . '&' . hr_payroll_posting_query($payYear, $m, $filterDeptId, $filterEmpId, true);
+                        $jid = (int) ($pmRow['journal_id'] ?? 0);
+                        $entryNo = (string) ($pmRow['entry_no'] ?? '');
+                        $journalUrl = $jid > 0 ? acc_report_journal_voucher_url($jid, $entryNo) : '';
+                        $rowClass = 'hr-pr-post-posted-row';
+                        if (!empty($pmRow['is_current'])) {
+                            $rowClass .= ' hr-pr-post-posted-row--current';
+                        }
+                        if (!empty($pmRow['can_unpost'])) {
+                            $rowClass .= ' hr-pr-post-posted-row--unpost';
+                        }
+                    ?>
+                        <tr class="<?= esc($rowClass) ?>">
+                            <td>
+                                <a href="<?= esc($monthUrl) ?>"><?= esc(sprintf('%02d', $m) . ' — ' . ($monthNames[$m] ?? (string) $m)) ?></a>
+                                <?php if (!empty($pmRow['can_unpost'])): ?>
+                                    <span class="hr-pr-post-meta-tag">آخر مرحّل</span>
+                                <?php endif; ?>
+                            </td>
+                            <td dir="ltr" class="num"><?= (int) ($pmRow['emp_count'] ?? 0) ?></td>
+                            <td dir="ltr" class="num"><?= esc(number_format((float) ($pmRow['gross_total'] ?? 0), 3)) ?></td>
+                            <td dir="ltr"><?= $entryNo !== '' ? '<code>' . esc($entryNo) . '</code>' : '—' ?></td>
+                            <td dir="ltr"><?= ($pmRow['entry_date'] ?? '') !== '' ? esc(format_date_dmY((string) $pmRow['entry_date'])) : '—' ?></td>
+                            <td class="hr-pr-post-posted-actions">
+                                <a class="btn btn-secondary btn-sm" href="<?= esc($monthUrl) ?>">عرض</a>
+                                <?php if ($journalUrl !== ''): ?>
+                                    <a class="btn btn-secondary btn-sm" href="<?= esc($journalUrl) ?>">القيد</a>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
+        <?php endif; ?>
             </div>
         </div>
 
@@ -210,8 +240,8 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
         </div>
     </form>
 
-    <?php if ($showEmployeeList && $gateMessage !== '' && ($gateAlert === 'warn' || $gateAlert === 'info')): ?>
-        <div class="alert alert-<?= $gateAlert === 'warn' ? 'error' : 'info' ?> hr-pr-post-gate hr-ora-inline-msg"><?= esc($gateMessage) ?></div>
+    <?php if ($showEmployeeList && $gateMessage !== ''): ?>
+        <div class="alert alert-<?= $gateAlert === 'info' ? 'info' : 'error' ?> hr-pr-post-gate hr-ora-inline-msg"><?= esc($gateMessage) ?></div>
     <?php endif; ?>
 
     <?php if ($showEmployeeList && $noSetupCount > 0): ?>
@@ -225,35 +255,6 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
 
     <?php if ($showEmployeeList): ?>
     <div class="hr-pr-post-workspace">
-        <aside class="hr-pr-post-panel hr-pr-post-side-panel no-print" aria-label="إجراءات قيد الرواتب">
-            <h2 class="hr-pr-post-panel-title">إجراءات</h2>
-            <div class="hr-pr-post-panel-body">
-            <div class="hr-pr-post-side-status hr-pr-post-side-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?>">
-                <span class="hr-pr-post-side-status-label">حالة الشهر</span>
-                <strong><?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?></strong>
-            </div>
-            <button type="button" class="btn btn-primary hr-pr-post-side-btn" data-side-action="payroll_calculate">
-                احتساب الرواتب
-            </button>
-            <button type="button" class="btn btn-secondary hr-pr-post-side-btn" data-side-action="payroll_cancel_calc">
-                إلغاء الاحتساب
-            </button>
-            <button type="button" class="btn btn-primary hr-pr-post-side-btn hr-pr-post-side-btn--post"
-                    data-side-action="payroll_post">
-                ترحيل
-            </button>
-            <button type="button" class="btn btn-secondary hr-pr-post-side-btn" data-side-action="payroll_unpost">
-                فك الترحيل
-            </button>
-            <button type="button" class="btn btn-secondary hr-pr-post-side-btn" data-side-action="select_pending">
-                إضافة الموظفين
-            </button>
-            <button type="button" class="btn btn-secondary hr-pr-post-side-btn" data-side-action="print_slip">
-                قسيمة الراتب
-            </button>
-            </div>
-        </aside>
-
         <div class="hr-pr-post-main">
             <div class="hr-pr-post-panel hr-pr-post-emp-panel">
                 <h2 class="hr-pr-post-panel-title">جدول الموظفين</h2>
@@ -270,6 +271,7 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
                     <table class="hr-pr-post-grid-table hr-pr-post-emp-table">
                         <thead>
                         <tr>
+                            <th>تسلسل</th>
                             <th class="hr-pr-post-emp-code-head">
                                 <span class="hr-pr-post-emp-code-head-inner">
                                     <label class="hr-pr-post-chk-cell">
@@ -300,7 +302,7 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
                                 </td>
                             </tr>
                         <?php endif; ?>
-                        <?php foreach ($statusRows as $r):
+                        <?php foreach ($statusRows as $idx => $r):
                             $eid = (int) $r['id'];
                             $status = (string) ($r['status'] ?? 'none');
                             $canSelect = !empty($r['has_setup']) && $status !== 'posted';
@@ -335,6 +337,7 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
                                 data-emp-name="<?= esc((string) ($r['name_ar'] ?? '')) ?>"
                                 data-detail="<?= esc($detailJson) ?>"
                                 tabindex="0">
+                                <td dir="ltr" class="num"><?= (int) $idx + 1 ?></td>
                                 <td class="hr-pr-post-emp-code-cell">
                                     <?php if ($canSelect): ?>
                                         <label class="hr-pr-post-chk-cell">
@@ -395,7 +398,7 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
                         <?php if ($statusRows): ?>
                         <tfoot>
                         <tr class="hr-pr-post-totals-row">
-                            <td colspan="2"><strong>الإجمالي</strong></td>
+                            <td colspan="3"><strong>الإجمالي</strong></td>
                             <td dir="ltr" class="num"><strong><?= esc(number_format($gridTotals['base'], 3)) ?></strong></td>
                             <td dir="ltr" class="num"><strong><?= esc(number_format($gridTotals['perm_allow'], 3)) ?></strong></td>
                             <td dir="ltr" class="num"><strong><?= esc(number_format($gridTotals['month_allow'], 3)) ?></strong></td>
@@ -426,61 +429,6 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
             </div>
         </div>
     </div>
-
-    <?php if ($postedMonths !== []): ?>
-    <details class="hr-pr-post-extra-panel no-print" open>
-        <summary>الأشهر المرحّلة — <?= (int) $payYear ?></summary>
-        <div class="hr-pr-post-grid-wrap hr-pr-post-posted-wrap">
-            <table class="hr-pr-post-grid-table hr-pr-post-posted-table">
-                <thead>
-                <tr>
-                    <th>الشهر</th>
-                    <th>موظفون</th>
-                    <th>إجمالي الرواتب</th>
-                    <th>رقم القيد</th>
-                    <th>تاريخ القيد</th>
-                    <th>إجراء</th>
-                </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($postedMonths as $pmRow):
-                    $m = (int) ($pmRow['month'] ?? 0);
-                    $monthUrl = $listUrl . '&' . hr_payroll_posting_query($payYear, $m, $filterDeptId, $filterEmpId, true);
-                    $jid = (int) ($pmRow['journal_id'] ?? 0);
-                    $entryNo = (string) ($pmRow['entry_no'] ?? '');
-                    $journalUrl = $jid > 0 ? acc_report_journal_voucher_url($jid, $entryNo) : '';
-                    $rowClass = 'hr-pr-post-posted-row';
-                    if (!empty($pmRow['is_current'])) {
-                        $rowClass .= ' hr-pr-post-posted-row--current';
-                    }
-                    if (!empty($pmRow['can_unpost'])) {
-                        $rowClass .= ' hr-pr-post-posted-row--unpost';
-                    }
-                    ?>
-                    <tr class="<?= esc($rowClass) ?>">
-                        <td>
-                            <a href="<?= esc($monthUrl) ?>"><?= esc(sprintf('%02d', $m) . ' — ' . ($monthNames[$m] ?? (string) $m)) ?></a>
-                            <?php if (!empty($pmRow['can_unpost'])): ?>
-                                <span class="hr-pr-post-meta-tag">آخر مرحّل</span>
-                            <?php endif; ?>
-                        </td>
-                        <td dir="ltr" class="num"><?= (int) ($pmRow['emp_count'] ?? 0) ?></td>
-                        <td dir="ltr" class="num"><?= esc(number_format((float) ($pmRow['gross_total'] ?? 0), 3)) ?></td>
-                        <td dir="ltr"><?= $entryNo !== '' ? '<code>' . esc($entryNo) . '</code>' : '—' ?></td>
-                        <td dir="ltr"><?= ($pmRow['entry_date'] ?? '') !== '' ? esc(format_date_dmY((string) $pmRow['entry_date'])) : '—' ?></td>
-                        <td class="hr-pr-post-posted-actions">
-                            <a class="btn btn-secondary btn-sm" href="<?= esc($monthUrl) ?>">عرض</a>
-                            <?php if ($journalUrl !== ''): ?>
-                                <a class="btn btn-secondary btn-sm" href="<?= esc($journalUrl) ?>">القيد</a>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </details>
-    <?php endif; ?>
 
     <?php if (!empty($disburse['has_rows'])): ?>
     <details class="hr-pr-post-extra-panel no-print">

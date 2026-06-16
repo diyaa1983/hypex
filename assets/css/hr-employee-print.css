@@ -104,11 +104,16 @@
 }
 
 .hr-emp-print-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: 1px solid #cbd5e1;
     border-radius: 6px;
     padding: 0.45rem 0.9rem;
     font-size: 0.85rem;
     cursor: pointer;
+    text-decoration: none;
+    line-height: 1.2;
 }
 
 .hr-emp-print-actions .btn-primary {
@@ -120,4 +125,10 @@
 .hr-emp-print-actions .btn-secondary {
     background: #fff;
     color: #111827;
+}
+
+.hr-emp-print-actions .btn.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: auto;
 }

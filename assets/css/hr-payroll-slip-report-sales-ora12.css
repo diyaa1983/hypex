@@ -60,13 +60,40 @@
 }
 
 .dashboard-ora.hr-pslip-ora12-screen.hr-pslip-wrap .hr-pslip-rpt-field-emp {
-    flex: 1 1 220px;
-    min-width: 200px;
+    flex: 1 1 260px;
+    min-width: 220px;
 }
 
-.dashboard-ora.hr-pslip-ora12-screen.hr-pslip-wrap .hr-pslip-rpt-field-emp .input {
+.dashboard-ora.hr-pslip-ora12-screen.hr-pslip-wrap .hr-pslip-picker-slot > label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+    margin-bottom: 0.15rem;
+}
+
+.dashboard-ora.hr-pslip-ora12-screen.hr-pslip-wrap .hr-pslip-picker-slot .sales-inv-cust-open {
     width: 100%;
-    min-width: 200px;
+    min-width: 220px;
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.78rem;
+    color: var(--ora12-text);
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-pslip-ora12-screen.hr-pslip-wrap .hr-pslip-picker-slot .sales-inv-cust-open:focus-visible {
+    outline: none;
+    border-color: #0572ce;
+    box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.hr-pslip-ora12-screen.hr-pslip-wrap .hr-pslip-picker-slot .sales-inv-cust-open-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .dashboard-ora.hr-pslip-ora12-screen.hr-pslip-wrap .hr-pslip-rpt-filters .btn {

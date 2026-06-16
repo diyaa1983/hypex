@@ -67,6 +67,13 @@ $resignDateLabel = $resignDate !== '' ? format_date_dmY($resignDate) : '—';
 
 $printedAt = date('Y-m-d H:i');
 $reportTitle = 'بيانات الموظف الأساسية';
+$empNav = hr_employee_browse_nav($pdo, $employeeId);
+$prevPrintUrl = (int) ($empNav['prev'] ?? 0) > 0
+    ? app_url('index.php?r=hr_employee_print&id=' . (int) $empNav['prev'])
+    : '';
+$nextPrintUrl = (int) ($empNav['next'] ?? 0) > 0
+    ? app_url('index.php?r=hr_employee_print&id=' . (int) $empNav['next'])
+    : '';
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -162,9 +169,42 @@ $reportTitle = 'بيانات الموظف الأساسية';
     </footer>
 </main>
 
-<div class="hr-emp-print-actions no-print">
+<div class="hr-emp-print-actions no-print"
+     data-prev-url="<?= esc($prevPrintUrl) ?>"
+     data-next-url="<?= esc($nextPrintUrl) ?>">
+    <a class="btn btn-secondary<?= $prevPrintUrl === '' ? ' is-disabled' : '' ?>"
+       href="<?= esc($prevPrintUrl !== '' ? $prevPrintUrl : '#') ?>"
+       aria-disabled="<?= $prevPrintUrl === '' ? 'true' : 'false' ?>">السابق</a>
     <button type="button" class="btn btn-primary" onclick="window.print()">🖨 طباعة</button>
+    <a class="btn btn-secondary<?= $nextPrintUrl === '' ? ' is-disabled' : '' ?>"
+       href="<?= esc($nextPrintUrl !== '' ? $nextPrintUrl : '#') ?>"
+       aria-disabled="<?= $nextPrintUrl === '' ? 'true' : 'false' ?>">التالي</a>
     <button type="button" class="btn btn-secondary" onclick="window.close()">إغلاق</button>
 </div>
+<script>
+(function () {
+    var actions = document.querySelector('.hr-emp-print-actions');
+    if (!actions) return;
+    actions.addEventListener('click', function (e) {
+        var link = e.target.closest('a.is-disabled');
+        if (link) {
+            e.preventDefault();
+        }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (!e.altKey) return;
+        var url = '';
+        if (e.key === 'ArrowRight') {
+            url = actions.getAttribute('data-prev-url') || '';
+        } else if (e.key === 'ArrowLeft') {
+            url = actions.getAttribute('data-next-url') || '';
+        }
+        if (url) {
+            e.preventDefault();
+            window.location.href = url;
+        }
+    });
+})();
+</script>
 </body>
 </html>

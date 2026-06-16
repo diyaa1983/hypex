@@ -29,6 +29,42 @@ if ($slip === null) {
 
 $slipHtml = hr_payroll_slip_report_render_html($slip);
 $empName = (string) ($slip['emp_name'] ?? '');
+$slipEmployeeId = (int) ($slip['employee_id'] ?? 0);
+$slipYear = (int) ($slip['pay_year'] ?? 0);
+$slipMonth = (int) ($slip['pay_month'] ?? 0);
+
+$prevSlipUrl = '';
+$nextSlipUrl = '';
+if ($slipEmployeeId > 0 && $slipYear >= 2000 && $slipMonth >= 1 && $slipMonth <= 12) {
+    $periodEmployees = hr_payroll_slip_report_employees_for_period($pdo, $slipYear, $slipMonth);
+    $currentIndex = -1;
+    foreach ($periodEmployees as $idx => $emp) {
+        if ((int) ($emp['id'] ?? 0) === $slipEmployeeId) {
+            $currentIndex = (int) $idx;
+            break;
+        }
+    }
+    if ($currentIndex > 0) {
+        $prevEmpId = (int) ($periodEmployees[$currentIndex - 1]['id'] ?? 0);
+        if ($prevEmpId > 0) {
+            $prevSlipUrl = app_url(
+                'index.php?r=hr_payroll_slip&employee_id=' . $prevEmpId
+                . '&year=' . $slipYear
+                . '&month=' . $slipMonth
+            );
+        }
+    }
+    if ($currentIndex >= 0 && $currentIndex < count($periodEmployees) - 1) {
+        $nextEmpId = (int) ($periodEmployees[$currentIndex + 1]['id'] ?? 0);
+        if ($nextEmpId > 0) {
+            $nextSlipUrl = app_url(
+                'index.php?r=hr_payroll_slip&employee_id=' . $nextEmpId
+                . '&year=' . $slipYear
+                . '&month=' . $slipMonth
+            );
+        }
+    }
+}
 
 $cssPath = app_path('assets/css/hr-payroll-slip-report.css');
 $cssUrl = app_url('assets/css/hr-payroll-slip-report.css');
@@ -77,6 +113,18 @@ $bodyClass = 'hr-pslip-print-body' . ($hasWatermark ? ' has-doc-watermark' : '')
             gap: 0.5rem;
             justify-content: center;
         }
+        .hr-pslip-print-actions .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            line-height: 1.2;
+        }
+        .hr-pslip-print-actions .btn.is-disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: auto;
+        }
         @media print {
             body.hr-pslip-print-body {
                 margin: 0;
@@ -95,9 +143,42 @@ $bodyClass = 'hr-pslip-print-body' . ($hasWatermark ? ' has-doc-watermark' : '')
     <?= $slipHtml ?>
 </div>
 
-<div class="hr-pslip-print-actions no-print">
+<div class="hr-pslip-print-actions no-print"
+     data-prev-url="<?= esc($prevSlipUrl) ?>"
+     data-next-url="<?= esc($nextSlipUrl) ?>">
+    <a class="btn btn-secondary<?= $prevSlipUrl === '' ? ' is-disabled' : '' ?>"
+       href="<?= esc($prevSlipUrl !== '' ? $prevSlipUrl : '#') ?>"
+       aria-disabled="<?= $prevSlipUrl === '' ? 'true' : 'false' ?>">السابق</a>
     <button type="button" class="btn btn-primary" onclick="window.print()">🖨 طباعة</button>
+    <a class="btn btn-secondary<?= $nextSlipUrl === '' ? ' is-disabled' : '' ?>"
+       href="<?= esc($nextSlipUrl !== '' ? $nextSlipUrl : '#') ?>"
+       aria-disabled="<?= $nextSlipUrl === '' ? 'true' : 'false' ?>">التالي</a>
     <button type="button" class="btn btn-secondary" onclick="window.close()">إغلاق</button>
 </div>
+<script>
+(function () {
+    var actions = document.querySelector('.hr-pslip-print-actions');
+    if (!actions) return;
+    actions.addEventListener('click', function (e) {
+        var disabledLink = e.target.closest('a.is-disabled');
+        if (disabledLink) {
+            e.preventDefault();
+        }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (!e.altKey) return;
+        var url = '';
+        if (e.key === 'ArrowRight') {
+            url = actions.getAttribute('data-prev-url') || '';
+        } else if (e.key === 'ArrowLeft') {
+            url = actions.getAttribute('data-next-url') || '';
+        }
+        if (url) {
+            e.preventDefault();
+            window.location.href = url;
+        }
+    });
+})();
+</script>
 </body>
 </html>

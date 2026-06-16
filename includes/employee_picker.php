@@ -115,11 +115,15 @@ function employee_picker_modal_once(): void
  *   new_label?: string,
  *   json_id?: string,
  *   manual_bind?: bool,
+ *   name?: string|null,
+ *   required?: bool,
  * } $opts
  */
 function employee_picker_field(array $opts): string
 {
     $hiddenId = (string) ($opts['id'] ?? 'employee_id');
+    $hiddenName = trim((string) ($opts['name'] ?? ''));
+    $required = !empty($opts['required']);
     $openId = (string) ($opts['open_id'] ?? $hiddenId . '_open');
     $displayId = (string) ($opts['display_id'] ?? $hiddenId . '_display');
     $label = (string) ($opts['label'] ?? 'الموظف');
@@ -153,7 +157,10 @@ function employee_picker_field(array $opts): string
     if ($label !== '') {
         $html .= '<label for="' . esc($labelFor) . '">' . esc($label) . '</label>';
     }
-    $html .= '<input type="hidden" id="' . esc($hiddenId) . '" value="' . esc($value > 0 ? (string) $value : '') . '">';
+    $html .= '<input type="hidden" id="' . esc($hiddenId) . '"'
+        . ($hiddenName !== '' ? ' name="' . esc($hiddenName) . '"' : '')
+        . ($required ? ' required' : '')
+        . ' value="' . esc($value > 0 ? (string) $value : '') . '">';
     $html .= '<button type="button" class="' . esc($btnClass) . '" id="' . esc($openId) . '" title="اختيار الموظف">';
     $html .= '<span id="' . esc($displayId) . '" class="sales-inv-cust-open-label is-placeholder">' . esc($placeholder) . '</span>';
     $html .= '<span class="sales-inv-cust-open-ico" aria-hidden="true">▾</span>';

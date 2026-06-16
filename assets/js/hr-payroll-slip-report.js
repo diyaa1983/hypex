@@ -234,6 +234,8 @@
     }
 
     function bindUi() {
+        initEmployeePicker();
+
         var closeBtn = document.getElementById('hr-pslip-print-close');
         var overlay = document.getElementById('hr-pslip-print-overlay');
         if (closeBtn) {
@@ -254,6 +256,27 @@
             if (ov && !ov.hidden) {
                 closePrintPreview();
             }
+        });
+    }
+
+    function initEmployeePicker() {
+        var hidden = document.getElementById('hr-pslip-employee-id');
+        var open = document.getElementById('hr-pslip-employee-id_open');
+        var display = document.getElementById('hr-pslip-employee-id_display');
+        if (!hidden || !open || !display) {
+            return;
+        }
+        if (!window.EmployeePickerModal) {
+            setTimeout(initEmployeePicker, 40);
+            return;
+        }
+        EmployeePickerModal.bind({
+            hidden: 'hr-pslip-employee-id',
+            open: 'hr-pslip-employee-id_open',
+            display: 'hr-pslip-employee-id_display',
+            jsonId: 'hr-pslip-picker-json',
+            initialId: hidden.value || '',
+            placeholder: 'اضغط لاختيار الموظف',
         });
     }
 

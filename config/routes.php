@@ -596,6 +596,12 @@ return [
         'title' => 'كشف الرواتب للأقسام',
         'hide_screen_title' => true,
     ],
+    'hr_payroll_month_report' => [
+        'file' => 'modules/hr/payroll_month_report.php',
+        'permission' => 'hr_salaries',
+        'title' => 'تقرير قيود الرواتب حسب الشهر',
+        'hide_screen_title' => true,
+    ],
     'hr_payroll_ss_report' => [
         'file' => 'modules/hr/payroll_ss_report.php',
         'permission' => 'hr_salaries',

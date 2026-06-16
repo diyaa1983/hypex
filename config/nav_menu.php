@@ -255,11 +255,10 @@ return [
                     'id' => 'payroll_reports',
                     'title' => 'تقارير الرواتب',
                     'items' => [
+                        ['r' => 'hr_payroll_month_report', 'label' => 'تقرير قيود الرواتب حسب الشهر', 'icon' => '🖨'],
                         ['r' => 'hr_payroll_dept_report', 'label' => 'كشف الرواتب للأقسام', 'icon' => '📑'],
                         ['r' => 'hr_payroll_ss_report', 'label' => 'كشف الضمان الاجتماعي', 'icon' => '🛡️'],
                         ['r' => 'hr_payroll_slip_report', 'label' => 'قسيمة الراتب', 'icon' => '🧾'],
-                        ['r' => 'hr_payroll_slip', 'label' => 'طباعة قسيمة الراتب', 'icon' => '🖨'],
-                        ['r' => 'hr_salary_slip', 'label' => 'طباعة قسيمة راتب', 'icon' => '🖨'],
                     ],
                 ],
             ],

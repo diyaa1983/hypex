@@ -27,6 +27,10 @@
     var btnCancel = document.getElementById('hr-adv-editor-cancel');
     var delForm = document.getElementById('hr-adv-delete-form');
     var delIdInp = document.getElementById('hr-adv-delete-id');
+    var postForm = document.getElementById('hr-adv-post-form');
+    var postIdInp = document.getElementById('hr-adv-post-id');
+    var unpostForm = document.getElementById('hr-adv-unpost-form');
+    var unpostIdInp = document.getElementById('hr-adv-unpost-id');
     var topPickerId = document.getElementById('hr-adv-picker-id');
     var topPickerOpen = document.getElementById('hr-adv-picker-id_open');
     var topPickerDisplay = document.getElementById('hr-adv-picker-id_display');
@@ -36,6 +40,8 @@
     var filterEmployeeToggle = document.getElementById('hr-adv-filter-employee-toggle');
     var filterEmployeeIdInp = document.getElementById('hr-adv-filter-employee-id');
     var deleteFilterEmployeeIdInp = document.getElementById('hr-adv-delete-filter-employee-id');
+    var postFilterEmployeeIdInp = document.getElementById('hr-adv-post-filter-employee-id');
+    var unpostFilterEmployeeIdInp = document.getElementById('hr-adv-unpost-filter-employee-id');
     var pickerCode = document.getElementById('hr-adv-picker-code');
     var pickerCount = document.getElementById('hr-adv-picker-count');
     var listUrl = page.getAttribute('data-list-url') || '';
@@ -375,6 +381,12 @@
         if (deleteFilterEmployeeIdInp) {
             deleteFilterEmployeeIdInp.value = String(id);
         }
+        if (postFilterEmployeeIdInp) {
+            postFilterEmployeeIdInp.value = String(id);
+        }
+        if (unpostFilterEmployeeIdInp) {
+            unpostFilterEmployeeIdInp.value = String(id);
+        }
     }
 
     function syncPickerDisplay() {
@@ -587,6 +599,14 @@
         });
     }
 
+    function isRowPosted(tr) {
+        return !!(tr && tr.getAttribute('data-posted') === '1');
+    }
+
+    function isRowLocked(tr) {
+        return isRowLinked(tr) || isRowPosted(tr);
+    }
+
     function getRowData(tr) {
         if (!tr) return null;
         return {
@@ -600,6 +620,7 @@
             deduct: tr.getAttribute('data-deduct') || '',
             notes: tr.getAttribute('data-notes') || '',
             status: tr.getAttribute('data-status') || '',
+            posted: tr.getAttribute('data-posted') === '1',
         };
     }
 
@@ -641,11 +662,11 @@
 
     function syncRowActionButtons() {
         if (btnEdit) {
-            btnEdit.disabled = !selectedRow;
+            btnEdit.disabled = !selectedRow || isRowLocked(selectedRow);
         }
         if (btnDelete) {
-            var linked = !!(selectedRow && selectedRow.getAttribute('data-linked') === '1');
-            btnDelete.disabled = !selectedRow || linked;
+            var locked = !!(selectedRow && isRowLocked(selectedRow));
+            btnDelete.disabled = !selectedRow || locked;
         }
     }
 
@@ -715,14 +736,14 @@
             editorSmartApi.syncFromSelect();
         }
 
-        var linked = !isAdd && selectedRow && selectedRow.getAttribute('data-linked') === '1';
+        var locked = !isAdd && selectedRow && isRowLocked(selectedRow);
         if (editorForm) {
             editorForm.querySelectorAll('input, select, textarea').forEach(function (el) {
                 if (el.type === 'hidden') return;
-                el.disabled = linked;
+                el.disabled = locked;
             });
         }
-        if (!linked && isEmployeeFieldLocked()) {
+        if (!locked && isEmployeeFieldLocked()) {
             setEditorEmployeeLocked(true);
         }
         syncOraLovButtons();
@@ -731,7 +752,7 @@
         page.classList.add('is-editing');
         syncTypeUi();
         syncEditorSnapshot();
-        if (editorEmployee && !linked) {
+        if (editorEmployee && !locked) {
             editorEmployee.focus();
         }
     }
@@ -782,8 +803,76 @@
             appDialogAlert('السلفة ملغاة ولا يمكن تعديلها.', 'warning');
             return;
         }
+        if (isRowPosted(selectedRow)) {
+            appDialogAlert('السلفة مرحّلة — فك الترحيل أولاً لتعديلها.', 'warning');
+            return;
+        }
+        if (isRowLinked(selectedRow)) {
+            appDialogAlert(
+                selectedRow.getAttribute('data-linked-msg') || 'لا يمكن تعديل السلفة بعد اقتطاعها من الراتب.',
+                'warning'
+            );
+            return;
+        }
         confirmUnsavedChanges(function () {
             openEditor('edit');
+        });
+    }
+
+    function submitPostAdvance() {
+        if (!selectedRow || !postForm || !postIdInp) {
+            appDialogAlert('حدد سلفة من الجدول ثم اضغط «ترحيل».', 'warning');
+            return;
+        }
+        if (isRowPosted(selectedRow)) {
+            appDialogAlert('السلفة مرحّلة مسبقاً.', 'warning');
+            return;
+        }
+        if (selectedRow.getAttribute('data-status') === 'cancelled') {
+            appDialogAlert('لا يمكن ترحيل سلفة ملغاة.', 'warning');
+            return;
+        }
+        var rd = getRowData(selectedRow);
+        var msg = 'ترحيل السلفة رقم ' + (rd && rd.code ? rd.code : selectedRow.getAttribute('data-id')) + '؟\n'
+            + 'سيتم إثباتها محاسبياً وتفعيلها للاقتطاع من الراتب.';
+        appDialogConfirm(msg).then(function (ok) {
+            if (!ok) return;
+            syncFilterHiddenFields();
+            postIdInp.value = String(rd.id || 0);
+            formSubmitting = true;
+            syncExitGuard();
+            postForm.submit();
+        });
+    }
+
+    function submitUnpostAdvance() {
+        if (!selectedRow || !unpostForm || !unpostIdInp) {
+            appDialogAlert('حدد سلفة مرحّلة من الجدول ثم اضغط «فك الترحيل».', 'warning');
+            return;
+        }
+        if (!isRowPosted(selectedRow)) {
+            appDialogAlert('السلفة غير مرحّلة.', 'warning');
+            return;
+        }
+        if (isRowLinked(selectedRow)) {
+            appDialogAlert(
+                selectedRow.getAttribute('data-unpost-msg')
+                    || selectedRow.getAttribute('data-linked-msg')
+                    || 'لا يمكن فك ترحيل السلفة بعد اقتطاعها من الراتب.',
+                'warning'
+            );
+            return;
+        }
+        var rd = getRowData(selectedRow);
+        var msg = 'فك ترحيل السلفة رقم ' + (rd && rd.code ? rd.code : selectedRow.getAttribute('data-id')) + '؟\n'
+            + 'سيتم إلغاء أثرها المحاسبي وإيقاف اقتطاعها من الراتب.';
+        appDialogConfirm(msg).then(function (ok) {
+            if (!ok) return;
+            syncFilterHiddenFields();
+            unpostIdInp.value = String(rd.id || 0);
+            formSubmitting = true;
+            syncExitGuard();
+            unpostForm.submit();
         });
     }
 
@@ -835,6 +924,14 @@
         }
         var data = getRowData(selectedRow);
         if (!data || data.id < 1) return;
+        if (selectedRow.getAttribute('data-status') === 'cancelled') {
+            appDialogAlert('السلفة ملغاة.', 'warning');
+            return;
+        }
+        if (isRowPosted(selectedRow)) {
+            appDialogAlert('لا يمكن حذف السلفة بعد ترحيلها — فك الترحيل أولاً.', 'warning');
+            return;
+        }
         if (selectedRow.getAttribute('data-linked') === '1') {
             appDialogAlert(
                 selectedRow.getAttribute('data-linked-msg') || 'لا يمكن حذف السلفة بعد اقتطاعها من الراتب.',
@@ -993,6 +1090,14 @@
             e.preventDefault();
             e.stopImmediatePropagation();
             printCurrentScreen();
+        } else if (action === 'post') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            submitPostAdvance();
+        } else if (action === 'unpost') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            submitUnpostAdvance();
         } else if (action === 'exit') {
             e.preventDefault();
             e.stopImmediatePropagation();

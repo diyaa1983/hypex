@@ -564,8 +564,10 @@ function hr_payroll_month_access(PDO $pdo, int $year, int $month): array
 
     if ($openKey !== null && $selKey !== $openKey) {
         return array_merge($base, [
-            'message' => '',
-            'alert_type' => '',
+            'message' => 'لا يمكن احتساب أو ترحيل ' . hr_payroll_period_label($year, $month)
+                . ' لأن شهر ' . hr_payroll_period_label($open['year'], $open['month'])
+                . ' هو الشهر المفتوح حالياً وفيه قيود محتسبة غير مرحّلة.',
+            'alert_type' => 'warn',
         ]);
     }
 
@@ -966,7 +968,8 @@ function hr_payroll_month_status_rows(
          FROM hr_employee e
          LEFT JOIN hr_department d ON d.id = e.department_id
          LEFT JOIN hr_job_title jt ON jt.id = e.job_title_id
-         ' . $where . ' ORDER BY e.emp_code ASC, e.name_ar ASC, e.id ASC'
+         ' . $where . " ORDER BY CASE WHEN e.emp_code REGEXP '^[0-9]+$' THEN CAST(e.emp_code AS UNSIGNED) ELSE 999999999 END ASC,
+                         e.emp_code ASC, e.name_ar ASC, e.id ASC"
     );
     $stEmp->execute($params);
     $emps = $stEmp->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -1357,6 +1360,8 @@ function hr_payroll_post_month(PDO $pdo, int $year, int $month): array
     $payableTotal = (float) ($ssResolved['payable_ss'] ?? 0);
 
     $salaryTotals = hr_payroll_month_salary_totals($pdo, $year, $month, true);
+    require_once app_path('includes/hr_employee_advance_gl.php');
+    $salaryTotals['advance_deductions'] = hr_payroll_month_advance_deduction_total($pdo, $year, $month, true);
     $glTotals = array_merge($salaryTotals, [
         'employer_ss' => $employerTotal,
     ]);

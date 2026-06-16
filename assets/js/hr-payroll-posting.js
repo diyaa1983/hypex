@@ -21,6 +21,7 @@
     var deptNames = {};
     var smartLovApis = {};
     var suppressAutoSubmit = true;
+    var autoSubmitInProgress = false;
 
     try {
         filterEmployees = JSON.parse(page.getAttribute('data-filter-employees') || '[]');
@@ -365,7 +366,8 @@
     }
 
     function submitFiltersAuto() {
-        if (suppressAutoSubmit || !periodForm) return;
+        if (suppressAutoSubmit || autoSubmitInProgress || !periodForm) return;
+        autoSubmitInProgress = true;
         syncPayrollFilters();
         if (typeof periodForm.requestSubmit === 'function') {
             periodForm.requestSubmit();
@@ -501,6 +503,9 @@
         var unpostBtn = document.querySelector(
             '#master-toolbar [data-master-action="payroll_unpost"]'
         );
+        var selectPendingBtn = document.querySelector(
+            '#master-toolbar [data-master-action="select_pending"]'
+        );
 
         if (calcBtn) {
             calcBtn.disabled = !gateOk;
@@ -519,6 +524,11 @@
         if (unpostBtn) {
             unpostBtn.disabled = !canUnpost;
             unpostBtn.classList.toggle('is-inactive', !canUnpost);
+        }
+        if (selectPendingBtn) {
+            var listShown = page.getAttribute('data-list-shown') === '1';
+            selectPendingBtn.disabled = !listShown;
+            selectPendingBtn.classList.toggle('is-inactive', !listShown);
         }
 
         qsa('[data-side-action="payroll_calculate"]', page).forEach(function (btn) {
@@ -552,6 +562,17 @@
         var form = qs('#hr-pr-post-action-form');
         var act = qs('#hr-pr-post-action');
         if (!form || !act) return;
+
+        if (
+            (action === 'calculate' || action === 'cancel_calculate' || action === 'post')
+            && page.getAttribute('data-gate-ok') !== '1'
+        ) {
+            showAlert(
+                page.getAttribute('data-gate-message') || 'لا يمكن تنفيذ هذا الإجراء على الشهر المحدد.',
+                'warning'
+            );
+            return;
+        }
 
         if (action === 'calculate' && checkedEmployees().length < 1) {
             showAlert('اختر موظفاً واحداً على الأقل للاحتساب.', 'warning');
@@ -906,6 +927,10 @@
                 return;
             }
             printSlip();
+        } else if (action === 'select_pending') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            selectPendingEmployees();
         }
     }, true);
 })();

@@ -832,6 +832,11 @@ function hr_payroll_posting_gl_salary_lines(array $totals): array
 {
     $net = round(max(0, (float) ($totals['net'] ?? 0)), 3);
     $otherDed = hr_payroll_gl_other_deductions($totals);
+    $advanceDed = round(max(0, (float) ($totals['advance_deductions'] ?? 0)), 3);
+    if ($advanceDed > $otherDed + 0.0005) {
+        $advanceDed = $otherDed;
+    }
+    $otherNonAdvance = round(max(0, $otherDed - $advanceDed), 3);
     $incomeTax = round(max(0, (float) ($totals['income_tax'] ?? 0)), 3);
 
     if ($net <= 0.0005 && $otherDed <= 0.0005 && $incomeTax <= 0.0005) {
@@ -848,11 +853,19 @@ function hr_payroll_posting_gl_salary_lines(array $totals): array
             'memo' => 'رواتب مستحقة — صافي للصرف للموظفين (بعد اقتطاع حصة الموظف من الضمان)',
         ];
     }
-    if ($otherDed > 0.0005) {
+    if ($advanceDed > 0.0005) {
+        $lines[] = [
+            'rule' => 'hr_employee_advance_receivable',
+            'debit' => 0,
+            'credit' => $advanceDed,
+            'memo' => 'اقتطاع سلف موظفين مرحّلة',
+        ];
+    }
+    if ($otherNonAdvance > 0.0005) {
         $lines[] = [
             'rule' => HR_PAYROLL_DEDUCTIONS_RULE_CODE,
             'debit' => 0,
-            'credit' => $otherDed,
+            'credit' => $otherNonAdvance,
             'memo' => 'خصومات وسلف أخرى',
         ];
     }

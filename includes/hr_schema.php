@@ -380,7 +380,13 @@ function hr_employee_assert_editable(PDO $pdo, int $employeeId): void
 
 function hr_employee_usage_count(PDO $pdo, string $table, int $employeeId): int
 {
-    static $allowed = ['hr_salary', 'hr_social_security', 'hr_employee_advance'];
+    static $allowed = [
+        'hr_salary',
+        'hr_social_security',
+        'hr_employee_advance',
+        'hr_employee_salary_line',
+        'hr_employee_monthly_payroll_line',
+    ];
     if ($employeeId < 1 || !in_array($table, $allowed, true)) {
         return 0;
     }
@@ -423,6 +429,14 @@ function hr_employee_delete_check(PDO $pdo, int $employeeId): array
     $advanceCount = hr_employee_usage_count($pdo, 'hr_employee_advance', $employeeId);
     if ($advanceCount > 0) {
         $blocks[] = 'سلف (' . $advanceCount . ')';
+    }
+    $salaryLineCount = hr_employee_usage_count($pdo, 'hr_employee_salary_line', $employeeId);
+    if ($salaryLineCount > 0) {
+        $blocks[] = 'إعدادات راتب وعلاوات (' . $salaryLineCount . ')';
+    }
+    $monthlyLineCount = hr_employee_usage_count($pdo, 'hr_employee_monthly_payroll_line', $employeeId);
+    if ($monthlyLineCount > 0) {
+        $blocks[] = 'علاوات/اقتطاعات شهرية (' . $monthlyLineCount . ')';
     }
 
     if ($blocks !== []) {

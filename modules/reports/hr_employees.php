@@ -80,6 +80,7 @@ if ($showResult) {
                         <th class="col-seq">تسلسل</th>
                         <th class="col-inv-no">رقم الموظف</th>
                         <th class="col-customer-name">اسم الموظف</th>
+                        <th class="col-date">تاريخ التعيين</th>
                         <th class="col-qty">الراتب</th>
                         <?php if ($status === 'all'): ?>
                             <th class="col-status">الحالة</th>
@@ -89,7 +90,7 @@ if ($showResult) {
                     <tbody>
                     <?php if (!$rows): ?>
                         <tr>
-                            <td colspan="<?= $status === 'all' ? 5 : 4 ?>" class="muted" style="text-align:center;padding:1.25rem;">
+                            <td colspan="<?= $status === 'all' ? 6 : 5 ?>" class="muted" style="text-align:center;padding:1.25rem;">
                                 لا يوجد موظفون مطابقون للفلتر.
                             </td>
                         </tr>
@@ -99,6 +100,7 @@ if ($showResult) {
                                 <td class="col-seq"><?= (int) ($r['seq'] ?? 0) ?></td>
                                 <td class="col-inv-no" dir="ltr"><code><?= esc((string) ($r['emp_code'] ?? '—')) ?></code></td>
                                 <td class="col-customer-name"><?= esc((string) ($r['name_ar'] ?? '')) ?></td>
+                                <td class="col-date" dir="ltr"><?= esc((string) ($r['hire_date'] ?? '—')) ?></td>
                                 <td class="col-qty num" dir="ltr"><?= esc(format_amount((float) ($r['salary'] ?? 0))) ?></td>
                                 <?php if ($status === 'all'): ?>
                                     <td class="col-status"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
@@ -110,7 +112,7 @@ if ($showResult) {
                     <?php if ($rows): ?>
                         <tfoot>
                         <tr class="report-hr-employees-total">
-                            <td colspan="3"><strong>المجموع</strong></td>
+                            <td colspan="4"><strong>المجموع</strong></td>
                             <td class="num" dir="ltr"><strong><?= esc(format_amount($totalSalary)) ?></strong></td>
                             <?php if ($status === 'all'): ?>
                                 <td></td>

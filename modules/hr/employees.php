@@ -150,6 +150,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($baseSalary < 0) {
                 throw new RuntimeException('الراتب الأساسي يجب أن يكون موجباً أو صفراً.');
             }
+            if ($hire === '') {
+                throw new RuntimeException('تاريخ التعيين مطلوب.');
+            }
 
             if ($code === '') {
                 $maxNum = 0;
@@ -172,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('الرقم الوظيفي مستخدم لموظف آخر.');
                 }
             }
-            $hireDateVal = $hire !== '' ? $hire : null;
+            $hireDateVal = $hire;
 
             if ($id > 0) {
                 $st = $pdo->prepare(
@@ -664,7 +667,7 @@ $exitUrl = nav_exit_url('hr_employees');
             <section class="dashboard-ora-panel hr-emp-section">
                 <h2 class="dashboard-ora-panel__title">البيانات الوظيفية</h2>
                 <div class="dashboard-ora-panel__body">
-                <div class="hr-emp-grid">
+                <div class="hr-emp-grid hr-emp-grid--job">
                     <label class="field hr-emp-field">
                         <span class="field-label">القسم</span>
                         <div class="hr-emp-ora-lov">
@@ -718,7 +721,7 @@ $exitUrl = nav_exit_url('hr_employees');
                     </label>
                     <label class="field hr-emp-field">
                         <span class="field-label">تاريخ التعيين</span>
-                        <input class="input" name="hire_date" type="date" value="<?= esc((string) ($row['hire_date'] ?? '')) ?>">
+                        <input class="input" name="hire_date" type="date" value="<?= esc((string) ($row['hire_date'] ?? '')) ?>" required>
                     </label>
                 </div>
                 </div>

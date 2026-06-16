@@ -251,9 +251,15 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
                 <div class="hr-sal-master-grid">
                     <div class="hr-sal-master-cell hr-sal-master-cell--code">
                         <label class="hr-sal-field-label" for="hr-sal-emp-code">رقم الموظف</label>
-                        <input class="input" type="text" id="hr-sal-emp-code"
-                               value="<?= esc($filterEmpCode !== '' ? $filterEmpCode : '') ?>"
-                               dir="ltr" inputmode="numeric" autocomplete="off" placeholder="رقم">
+                        <div class="hr-sal-emp-code-nav" role="group" aria-label="تنقل بين الموظفين">
+                            <button type="button" class="hr-sal-emp-nav-btn" id="hr-sal-emp-prev"
+                                    title="الموظف السابق" aria-label="الموظف السابق">‹</button>
+                            <input class="input" type="text" id="hr-sal-emp-code"
+                                   value="<?= esc($filterEmpCode !== '' ? $filterEmpCode : '') ?>"
+                                   dir="ltr" inputmode="numeric" autocomplete="off" placeholder="رقم">
+                            <button type="button" class="hr-sal-emp-nav-btn" id="hr-sal-emp-next"
+                                    title="الموظف التالي" aria-label="الموظف التالي">›</button>
+                        </div>
                     </div>
                     <div class="hr-sal-master-cell hr-sal-master-cell--name">
                         <?= employee_picker_field([

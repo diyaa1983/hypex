@@ -5,6 +5,7 @@ require_once app_path('includes/hr_schema.php');
 require_once app_path('includes/hr_payroll_slip_report.php');
 require_once app_path('includes/document_header.php');
 require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/employee_picker.php');
 
 $pdo = db();
 hr_employee_ensure_schema($pdo);
@@ -18,13 +19,14 @@ if ($payMonth < 1 || $payMonth > 12) {
     $payMonth = (int) date('n');
 }
 
-$employees = [];
+$pickerEmployees = hr_employee_picker_list($pdo);
+$periodEmployees = [];
 $slip = null;
 $slipHtml = '';
 $errorMsg = '';
 
 if ($payYear >= 2000 && $payMonth >= 1 && $payMonth <= 12) {
-    $employees = hr_payroll_slip_report_employees_for_period($pdo, $payYear, $payMonth);
+    $periodEmployees = hr_payroll_slip_report_employees_for_period($pdo, $payYear, $payMonth);
 }
 
 if ($showSlip) {
@@ -63,6 +65,8 @@ $wmRootCss = document_print_watermark_root_css($pdo);
 <link rel="stylesheet" href="<?= esc($cssUrlSalesOra) ?>">
 <link rel="stylesheet" href="<?= esc($docHeaderCssUrl) ?>">
 <?php if ($wmRootCss !== ''): ?><style><?= $wmRootCss ?></style><?php endif; ?>
+<?php employee_picker_enqueue_assets(); ?>
+<?php employee_picker_json_script($pickerEmployees, 'hr-pslip-picker-json'); ?>
 <script src="<?= esc($jsUrl) ?>" defer></script>
 
 <div class="dashboard-ora hr-pslip-ora12-screen hr-pslip-wrap hr-pslip-rpt-page"
@@ -97,21 +101,24 @@ $wmRootCss = document_print_watermark_root_css($pdo);
                 </select>
             </label>
 
-            <label class="field hr-pslip-rpt-field-emp">
-                <span class="field-label">الموظف</span>
-                <select class="input" name="employee_id" required>
-                    <option value="">— اختر الموظف —</option>
-                    <?php foreach ($employees as $emp): ?>
-                        <option value="<?= (int) $emp['id'] ?>" <?= $employeeId === (int) $emp['id'] ? 'selected' : '' ?>>
-                            <?= esc((string) ($emp['emp_code'] ?? '')) ?> — <?= esc((string) ($emp['name_ar'] ?? '')) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </label>
+            <div class="hr-pslip-rpt-field-emp">
+                <?= employee_picker_field([
+                    'id' => 'hr-pslip-employee-id',
+                    'name' => 'employee_id',
+                    'label' => 'الموظف',
+                    'compact' => true,
+                    'wrapper_class' => 'hr-pslip-picker-slot',
+                    'json_id' => 'hr-pslip-picker-json',
+                    'manual_bind' => true,
+                    'value' => $employeeId,
+                    'placeholder' => 'اضغط لاختيار الموظف',
+                    'required' => true,
+                ]) ?>
+            </div>
 
             <button type="submit" class="btn btn-primary btn-sm">عرض القسيمة</button>
         </form>
-        <?php if ($showSlip && $employees === [] && $errorMsg === ''): ?>
+        <?php if ($showSlip && $periodEmployees === [] && $errorMsg === ''): ?>
             <p class="muted hr-pslip-rpt-hint">لا توجد قيود رواتب لهذا الشهر.</p>
         <?php endif; ?>
         <?php if ($errorMsg !== ''): ?>

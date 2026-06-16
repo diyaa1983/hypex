@@ -20,13 +20,35 @@
 }
 
 .hr-pslip-rpt-field-emp {
-    flex: 1 1 220px;
-    min-width: 200px;
+    flex: 1 1 260px;
+    min-width: 220px;
 }
 
-.hr-pslip-rpt-field-emp .input {
+.hr-pslip-picker-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
     width: 100%;
-    min-width: 200px;
+}
+
+.hr-pslip-picker-slot > label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+}
+
+.hr-pslip-picker-slot .sales-inv-cust-open {
+    width: 100%;
+    min-width: 220px;
+    min-height: 2rem;
+    justify-content: space-between;
+    text-align: start;
+}
+
+.hr-pslip-picker-slot .sales-inv-cust-open-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .hr-pslip-rpt-alert {
