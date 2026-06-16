@@ -102,8 +102,10 @@ function hr_payroll_month_advance_deduction_total(PDO $pdo, int $year, int $mont
                 FROM hr_salary_advance_deduction sad
                 INNER JOIN hr_salary s ON s.id = sad.salary_id
                 INNER JOIN hr_employee_advance a ON a.id = sad.advance_id
-                WHERE s.pay_year = ? AND s.pay_month = ?
-                  AND COALESCE(a.is_posted, 0) = 1';
+                WHERE s.pay_year = ? AND s.pay_month = ?';
+        if (hr_employee_advance_post_columns_ready($pdo)) {
+            $sql .= ' AND COALESCE(a.is_posted, 0) = 1';
+        }
         if ($unpostedOnly) {
             $sql .= ' AND s.is_posted = 0';
         }

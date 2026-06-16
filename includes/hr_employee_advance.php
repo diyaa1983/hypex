@@ -28,6 +28,24 @@ function hr_employee_advance_ensure_post_columns(PDO $pdo): void
     }
 }
 
+function hr_employee_advance_post_columns_ready(PDO $pdo): bool
+{
+    static $ready = null;
+    if ($ready !== null) {
+        return $ready;
+    }
+
+    hr_employee_advance_ensure_post_columns($pdo);
+    try {
+        $st = $pdo->query("SHOW COLUMNS FROM hr_employee_advance LIKE 'is_posted'");
+        $ready = (bool) ($st && $st->fetch(PDO::FETCH_ASSOC));
+    } catch (Throwable $e) {
+        $ready = false;
+    }
+
+    return $ready;
+}
+
 function hr_employee_advance_ensure_schema(PDO $pdo): void
 {
     hr_employee_ensure_schema($pdo);
@@ -106,6 +124,10 @@ function hr_employee_advance_is_posted(PDO $pdo, int $advanceId): bool
 {
     if ($advanceId < 1) {
         return false;
+    }
+
+    if (!hr_employee_advance_post_columns_ready($pdo)) {
+        return true;
     }
 
     hr_employee_advance_ensure_post_columns($pdo);
@@ -602,12 +624,15 @@ function hr_employee_advance_deductions_for_month(
         return ['total' => 0.0, 'lines' => []];
     }
 
+    $postCols = hr_employee_advance_post_columns_ready($pdo) ? ', is_posted' : '';
+    $postFilter = hr_employee_advance_post_columns_ready($pdo) ? ' AND COALESCE(is_posted, 0) = 1' : '';
+
     $st = $pdo->prepare(
-        'SELECT id, advance_type, total_amount, start_date, end_date, status, is_posted
+        'SELECT id, advance_type, total_amount, start_date, end_date, status' . $postCols . '
          FROM hr_employee_advance
          WHERE employee_id = ?
-           AND COALESCE(is_posted, 0) = 1
-           AND COALESCE(NULLIF(TRIM(status), \'\'), \'active\') <> \'cancelled\'
+           AND COALESCE(NULLIF(TRIM(status), \'\'), \'active\') <> \'cancelled\''
+        . $postFilter . '
          ORDER BY id ASC'
     );
     $st->execute([$employeeId]);

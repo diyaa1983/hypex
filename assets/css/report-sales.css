@@ -2167,3 +2167,57 @@
     min-width: 0 !important;
   }
 }
+
+/* صافي الضريبة — مجاميع التفصيل في آخر صفحة فقط */
+.report-vat-net-detail-totals-wrap {
+  margin-top: 0;
+}
+
+.report-vat-net-detail-totals-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.report-vat-net-detail-totals-table .report-sales-tfoot td {
+  background: #e2e8f0;
+  border-top: 2px solid #94a3b8;
+  font-weight: 700;
+}
+
+.html2pdf-page-break-avoid {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media print {
+  @page vat-net-payable {
+    size: A4 portrait;
+    margin: 8mm 10mm 14mm 10mm;
+    @bottom-center {
+      content: counter(page) " / " counter(pages);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+      font-weight: 700;
+      color: #0f172a;
+    }
+  }
+
+  .report-sales-page[data-report-route="report_vat_net_payable"] .report-sales-print-area {
+    page: vat-net-payable;
+  }
+
+  .report-sales-page[data-report-route="report_vat_net_payable"] .report-vat-net-detail-table thead {
+    display: table-header-group;
+  }
+
+  .report-sales-page[data-report-route="report_vat_net_payable"] .report-vat-net-detail-totals-wrap {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .report-sales-page[data-report-route="report_vat_net_payable"] .report-vat-net-detail-totals-table .report-sales-tfoot td {
+    background: #e2e8f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

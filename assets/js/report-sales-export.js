@@ -439,8 +439,9 @@
       });
     }
 
-    function runAfterPrintLayout(win, cb, needsFit) {
-      var delay = needsFit ? 380 : 200;
+    function runAfterPrintLayout(win, cb, needsFit, delayOverride) {
+      var delay =
+        typeof delayOverride === 'number' ? delayOverride : needsFit ? 380 : 200;
       setTimeout(function () {
         try {
           if (win && typeof win.requestAnimationFrame === 'function') {
@@ -803,7 +804,7 @@
 
     function getAccSummaryReportPrintCss() {
       return (
-        '@page{size:A4 portrait;margin:10mm 12mm 12mm 12mm;}' +
+        '@page{size:A4 portrait;margin:10mm 12mm 14mm 12mm;@bottom-center{content:counter(page)" / "counter(pages);font-family:Arial,Helvetica,sans-serif;font-size:10pt;font-weight:700;color:#0f172a;}}' +
         '.pl-summary-hero{display:flex;flex-direction:column;align-items:center;gap:0.35rem;margin:0.75rem 0 1rem;padding:0.85rem;border:2px solid #cbd5e1;border-radius:8px;background:#f8fafc;text-align:center;break-inside:avoid;}' +
         '.pl-summary-hero--profit{border-color:#86efac;background:#ecfdf5;}' +
         '.pl-summary-hero--loss{border-color:#fca5a5;background:#fef2f2;}' +
@@ -833,6 +834,84 @@
         '.tax-decl-counts{margin-top:0.65rem;font-size:9pt;color:#64748b;}' +
         '.report-acc-total td{font-weight:800;background:#e2e8f0!important;}'
       );
+    }
+
+    function getVatNetPayablePrintCss() {
+      return (
+        getAccSummaryReportPrintCss() +
+        '.report-vat-net-page .report-sales-print-area,.report-vat-net-pdf-root.report-vat-net-page{font-size:8pt!important;width:100%!important;max-width:none!important;}' +
+        '.report-vat-net-page .report-acc-table,.report-vat-net-pdf-root .report-acc-table{max-width:100%!important;width:100%!important;margin-bottom:0.5rem!important;}' +
+        '.report-vat-net-summary-hero{padding:0.55rem 0.75rem!important;margin:0.5rem 0!important;}' +
+        '.report-vat-net-summary-hero__amount{font-size:13pt!important;line-height:1.2!important;}' +
+        '.report-vat-net-summary-hero__label{font-size:8pt!important;}' +
+        '.report-vat-net-summary-formula{font-size:7pt!important;line-height:1.4!important;text-align:center!important;}' +
+        '.report-vat-net-summary-formula div{margin:0.12rem 0!important;}' +
+        '.report-vat-net-page .report-sales-table-wrap,.report-vat-net-pdf-root .report-sales-table-wrap{overflow:visible!important;width:100%!important;max-width:100%!important;min-width:0!important;}' +
+        '.report-vat-net-detail-table,.report-vat-net-detail-totals-table{width:100%!important;max-width:100%!important;min-width:0!important;table-layout:fixed!important;border-collapse:collapse!important;font-size:6.5pt!important;}' +
+        '.report-vat-net-detail-table th,.report-vat-net-detail-table td,.report-vat-net-detail-totals-table td{font-size:6.5pt!important;padding:1px 2px!important;line-height:1.1!important;vertical-align:middle!important;border:1px solid #94a3b8!important;overflow:hidden!important;text-overflow:ellipsis!important;box-sizing:border-box!important;}' +
+        '.report-vat-net-detail-table col.col-seq{width:8%!important;}' +
+        '.report-vat-net-detail-table col.col-type{width:10%!important;}' +
+        '.report-vat-net-detail-table col.col-date{width:14%!important;}' +
+        '.report-vat-net-detail-table col.col-inv-no{width:16%!important;}' +
+        '.report-vat-net-detail-table col.col-tax-rate{width:13%!important;}' +
+        '.report-vat-net-detail-table col.col-total{width:19%!important;}' +
+        '.report-vat-net-detail-table col.col-tax-amt{width:20%!important;}' +
+        '.report-vat-net-detail-totals-table col.col-seq{width:8%!important;}' +
+        '.report-vat-net-detail-totals-table col.col-type{width:10%!important;}' +
+        '.report-vat-net-detail-totals-table col.col-date{width:14%!important;}' +
+        '.report-vat-net-detail-totals-table col.col-inv-no{width:16%!important;}' +
+        '.report-vat-net-detail-totals-table col.col-tax-rate{width:13%!important;}' +
+        '.report-vat-net-detail-totals-table col.col-total{width:19%!important;}' +
+        '.report-vat-net-detail-totals-table col.col-tax-amt{width:20%!important;}' +
+        '.report-vat-net-detail-table .col-seq{text-align:center!important;white-space:nowrap!important;}' +
+        '.report-vat-net-detail-table .col-date,.report-vat-net-detail-table .col-inv-no{direction:ltr!important;unicode-bidi:isolate!important;text-align:center!important;white-space:nowrap!important;}' +
+        '.report-vat-net-detail-table .col-money{direction:ltr!important;unicode-bidi:isolate!important;text-align:center!important;font-variant-numeric:tabular-nums!important;white-space:nowrap!important;font-size:6pt!important;}' +
+        '.report-vat-net-detail-table code{background:transparent!important;padding:0!important;border:0!important;font-size:inherit!important;}' +
+        '.report-vat-net-detail-table thead{display:table-header-group!important;}' +
+        '.report-vat-net-detail-table thead th{background:#e2e8f0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.report-vat-net-detail-totals-wrap{break-inside:avoid!important;page-break-inside:avoid!important;margin-top:0!important;}' +
+        '.report-vat-net-detail-totals-table .report-sales-tfoot td{background:#e2e8f0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-weight:700!important;}' +
+        '.report-vat-net-detail-title{font-size:9pt!important;margin:0.5rem 0 0.25rem!important;}' +
+        '.report-vat-net-detail-meta{font-size:7.5pt!important;margin:0 0 0.35rem!important;}'
+      );
+    }
+
+    function isVatNetPayableReport(routeKey) {
+      return routeKey === 'report_vat_net_payable';
+    }
+
+    function isVatNetDetailView() {
+      return page && page.getAttribute('data-report-view') === 'detail';
+    }
+
+    function pdfNeedsPageNumbers(routeKey) {
+      return isVatNetPayableReport(routeKey);
+    }
+
+    function getPdfCaptureElement(rootEl) {
+      if (!rootEl) {
+        return null;
+      }
+      if (rootEl.classList && rootEl.classList.contains('report-sales-print-area')) {
+        return rootEl;
+      }
+      if (rootEl.querySelector) {
+        return rootEl.querySelector('.report-sales-print-area') || rootEl;
+      }
+      return rootEl;
+    }
+
+    function measurePdfCaptureElement(rootEl) {
+      var el = getPdfCaptureElement(rootEl);
+      if (!el) {
+        return { element: null, width: 794, height: 600 };
+      }
+      var width = Math.max(el.scrollWidth || 0, el.offsetWidth || 0, el.clientWidth || 0, 720);
+      if (page && isVatNetPayableReport(page.getAttribute('data-report-route') || '') && isVatNetDetailView()) {
+        width = Math.max(width, 1060);
+      }
+      var height = Math.max(el.scrollHeight || 0, el.offsetHeight || 0, el.clientHeight || 0, 600);
+      return { element: el, width: width, height: height };
     }
 
     function isAccSummaryReportRoute(routeKey) {
@@ -935,7 +1014,8 @@
         : '';
     }
 
-    function getPrintStyles() {
+    function getPrintStyles(pdfOrientation) {
+      pdfOrientation = pdfOrientation || 'portrait';
       var hdr =
         window.DocumentHeader && window.DocumentHeader.css
           ? window.DocumentHeader.css
@@ -960,7 +1040,12 @@
       var partyStatementPrintCss = isPartyStatementReport()
         ? getPartyStatementPrintCss()
         : '';
-      var accSummaryPrintCss = isAccSummaryReportRoute(routeKey) ? getAccSummaryReportPrintCss() : '';
+      var accSummaryPrintCss =
+        routeKey === 'report_vat_net_payable'
+          ? getVatNetPayablePrintCss()
+          : isAccSummaryReportRoute(routeKey)
+            ? getAccSummaryReportPrintCss()
+            : '';
       var hrTaxAr3PrintCss = routeKey === 'report_tax_ar3' ? getHrTaxAr3PrintCss() : '';
       var reportSalesCss = isReportSalesRoute() ? getReportSalesPrintCss() : '';
       var reportSalesByRepCss = isSalesByRepReport() ? getReportSalesByRepPrintCss() : '';
@@ -1000,6 +1085,7 @@
       var itemStockPrint = isItemStockLedgerReport();
       var incomingChecksPrint = isVoucherChecksReport();
       var trialBalancePrint = isTrialBalanceReportRoute(routeKey);
+      var vatNetPrint = isVatNetPayableReport(routeKey);
       var bodyMarginTop = trialBalancePrint ? '0' : '6mm';
       var bodyMarginSides = summaryPrint ? '5mm' : itemStockPrint ? '5mm' : agingPrint ? '5mm' : trialBalancePrint ? '0' : '12mm';
       var bodyMarginBottom =
@@ -1029,7 +1115,9 @@
         '.report-acc-summary-card{padding:0.35rem 0;}' +
         'body,html{-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
         'body{font-family:Arial,Helvetica,sans-serif;font-size:' +
-        (summaryPrint || periodInvoicePrint || itemStockPrint || incomingChecksPrint ? '7pt' : '13px') +
+        (summaryPrint || periodInvoicePrint || itemStockPrint || incomingChecksPrint || vatNetPrint
+          ? '7pt'
+          : '13px') +
         ';font-weight:700;color:#0f172a;margin:' +
         bodyMarginTop +
         ' ' +
@@ -1044,7 +1132,9 @@
           : '') +
         (summaryPrint || periodInvoicePrint
           ? '.report-sales-print-area{font-size:7.5pt!important;width:100%!important;}.doc-print-meta{font-size:7.5pt!important;}'
-          : '') +
+          : vatNetPrint
+            ? '.report-sales-print-area{font-size:8pt!important;width:100%!important;max-width:none!important;}.doc-print-meta{font-size:8pt!important;}'
+            : '') +
         (itemStockPrint
           ? '.report-sales-print-area{font-size:7pt!important;width:100%!important;}.doc-print-meta{font-size:7pt!important;}'
           : incomingChecksPrint
@@ -1072,12 +1162,14 @@
         '.party-stmt-report-dates-sep{margin:0 0.5rem;color:#94a3b8;}' +
         reportSalesByItemCss +
         reportSalesReturnsCss +
-        getPdfCaptureSafetyCss()
+        getPdfCaptureSafetyCss(pdfOrientation)
       );
     }
 
     /** منع قصّ الشعار والترويسة عند html2canvas (إطار PDF) */
-    function getPdfCaptureSafetyCss() {
+    function getPdfCaptureSafetyCss(pdfOrientation) {
+      pdfOrientation = pdfOrientation || 'portrait';
+      var hostW = pdfOrientation === 'landscape' ? '277mm' : '190mm';
       var logoMaxH =
         window.DocumentHeader && window.DocumentHeader.logoMaxHeight
           ? window.DocumentHeader.logoMaxHeight
@@ -1107,11 +1199,16 @@
         logoMaxW +
         'px!important;width:auto!important;height:auto!important;object-fit:contain!important;object-position:center center!important;margin:0 auto!important;}' +
         '.doc-print-watermark--overlay{display:none!important;}' +
-        '.sales-inv-export-host{padding:8mm 10mm 10mm 16mm!important;box-sizing:border-box!important;overflow:visible!important;width:277mm!important;max-width:none!important;}'
+        '.sales-inv-export-host{padding:8mm 10mm 14mm 10mm!important;box-sizing:border-box!important;overflow:visible!important;width:' +
+        hostW +
+        '!important;max-width:' +
+        hostW +
+        '!important;}'
       );
     }
 
-    function applyPdfCloneDocumentFixes(clonedDoc) {
+    function applyPdfCloneDocumentFixes(clonedDoc, routeKey) {
+      routeKey = routeKey || (page && page.getAttribute('data-report-route')) || '';
       if (!clonedDoc || !clonedDoc.body) return;
       var body = clonedDoc.body;
       body.style.margin = '0';
@@ -1181,6 +1278,23 @@
         printArea.style.maxWidth = '100%';
         printArea.style.padding = '0';
         printArea.style.boxSizing = 'border-box';
+      }
+
+      if (isVatNetPayableReport(routeKey)) {
+        clonedDoc.querySelectorAll('.report-acc-table').forEach(function (tbl) {
+          tbl.style.maxWidth = '100%';
+          tbl.style.width = '100%';
+        });
+        clonedDoc.querySelectorAll('.report-vat-net-detail-table, .report-vat-net-detail-totals-table').forEach(function (tbl) {
+          tbl.style.width = '100%';
+          tbl.style.maxWidth = '100%';
+          tbl.style.tableLayout = 'fixed';
+        });
+        clonedDoc.querySelectorAll('.report-sales-table-wrap').forEach(function (wrap) {
+          wrap.style.overflow = 'visible';
+          wrap.style.width = '100%';
+          wrap.style.maxWidth = '100%';
+        });
       }
 
       var wm = clonedDoc.querySelector('.doc-print-watermark--overlay');
@@ -1464,6 +1578,9 @@
       if (isVoucherChecksReport()) {
         return 1.5;
       }
+      if (isVatNetPayableReport(routeKey)) {
+        return isVatNetDetailView() ? 1.05 : 1.35;
+      }
       return 2;
     }
 
@@ -1473,6 +1590,9 @@
       }
       if (isItemStockLedgerReport()) {
         return orientation === 'landscape' ? [6, 5, 10, 5] : [6, 10, 10, 10];
+      }
+      if (isVatNetPayableReport(routeKey)) {
+        return orientation === 'landscape' ? [4, 4, 10, 4] : [8, 10, 14, 10];
       }
       return [6, 10, 10, 10];
     }
@@ -1508,6 +1628,8 @@
 
     function buildPdfHtml2pdfOptions(routeKey, pdfOrientation, targetEl) {
       var canvasScale = getPdfCanvasScale(routeKey);
+      var capture = measurePdfCaptureElement(targetEl);
+      var captureEl = capture.element || targetEl;
       var canvasOpts = {
         scale: canvasScale,
         logging: false,
@@ -1517,22 +1639,50 @@
         scrollX: 0,
         scrollY: 0,
       };
-      if (targetEl) {
-        var w = Math.max(targetEl.scrollWidth || 0, targetEl.offsetWidth || 0, 960);
-        var h = Math.max(targetEl.scrollHeight || 0, targetEl.offsetHeight || 0, 600);
-        canvasOpts.windowWidth = w;
-        canvasOpts.windowHeight = h;
+      if (captureEl) {
+        var fixedW = capture.width;
+        if (page && isVatNetPayableReport(page.getAttribute('data-report-route') || '') && isVatNetDetailView()) {
+          fixedW = 1040;
+        }
+        canvasOpts.windowWidth = fixedW;
+        canvasOpts.windowHeight = capture.height;
+        canvasOpts.width = fixedW;
+        canvasOpts.height = capture.height;
       }
       canvasOpts.onclone = function (clonedDoc) {
-        applyPdfCloneDocumentFixes(clonedDoc);
+        applyPdfCloneDocumentFixes(clonedDoc, routeKey);
       };
+      var pagebreak = { mode: ['css', 'legacy'] };
+      if (isVatNetPayableReport(routeKey)) {
+        pagebreak.avoid = ['.report-vat-net-detail-totals-wrap'];
+      }
       return {
         margin: getPdfMargins(routeKey, pdfOrientation),
         image: { type: 'jpeg', quality: 0.92 },
         html2canvas: canvasOpts,
         jsPDF: { unit: 'mm', format: 'a4', orientation: pdfOrientation },
-        pagebreak: { mode: ['css', 'legacy'] },
+        pagebreak: pagebreak,
       };
+    }
+
+    function addPdfPageNumbers(pdf) {
+      if (!pdf || !pdf.internal) {
+        return pdf;
+      }
+      var total = pdf.internal.getNumberOfPages();
+      var pageWidth = pdf.internal.pageSize.getWidth();
+      var pageHeight = pdf.internal.pageSize.getHeight();
+      var i;
+      for (i = 1; i <= total; i += 1) {
+        pdf.setPage(i);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(10);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(String(i) + ' / ' + String(total), pageWidth / 2, pageHeight - 5, {
+          align: 'center',
+        });
+      }
+      return pdf;
     }
 
     function runHtml2pdfSave(targetEl, fname, routeKey, pdfOrientation, onDone) {
@@ -1546,21 +1696,40 @@
         if (onDone) onDone();
         return;
       }
-      lib()
-        .set(Object.assign({ filename: fname }, buildPdfHtml2pdfOptions(routeKey, pdfOrientation, targetEl)))
-        .from(targetEl)
+      var options = Object.assign({ filename: fname }, buildPdfHtml2pdfOptions(routeKey, pdfOrientation, targetEl));
+      var captureEl = getPdfCaptureElement(targetEl) || targetEl;
+      var worker = lib().set(options).from(captureEl);
+
+      function handlePdfError() {
+        if (onDone) onDone();
+        if (window.AppDialog && AppDialog.error) {
+          AppDialog.error('تعذر إنشاء ملف PDF. جرّب «طباعة» ثم «حفظ كـ PDF» من المتصفح.');
+        } else {
+          alertMsg('تعذر إنشاء ملف PDF.');
+        }
+      }
+
+      if (pdfNeedsPageNumbers(routeKey)) {
+        worker
+          .toContainer()
+          .toCanvas()
+          .toPdf()
+          .get('pdf')
+          .then(function (pdf) {
+            addPdfPageNumbers(pdf);
+            pdf.save(fname);
+            if (onDone) onDone();
+          })
+          .catch(handlePdfError);
+        return;
+      }
+
+      worker
         .save()
         .then(function () {
           if (onDone) onDone();
         })
-        .catch(function () {
-          if (onDone) onDone();
-          if (window.AppDialog && AppDialog.error) {
-            AppDialog.error('تعذر إنشاء ملف PDF. جرّب «طباعة» ثم «حفظ كـ PDF» من المتصفح.');
-          } else {
-            alertMsg('تعذر إنشاء ملف PDF.');
-          }
-        });
+        .catch(handlePdfError);
     }
 
     function waitForDocumentImages(doc, cb, timeoutMs) {
@@ -1720,6 +1889,9 @@
       var fname = getFileBase() + '.pdf';
       var routeKey = page.getAttribute('data-report-route') || '';
       var pdfOrientation = isLandscapePdfRoute(routeKey) ? 'landscape' : 'portrait';
+      if (isVatNetPayableReport(routeKey) && isVatNetDetailView()) {
+        pdfOrientation = 'landscape';
+      }
 
       if (isTrialBalanceReportRoute(routeKey) || isVoucherChecksReport()) {
         downloadPdfViaPrintFrame(fname, routeKey, pdfOrientation);
@@ -1727,16 +1899,37 @@
       }
 
       var host = getExportHost();
+      var printWrapStart = isVatNetPayableReport(routeKey)
+        ? '<div class="report-vat-net-page report-vat-net-pdf-root"><div class="report-sales-print-area" style="padding:4px;">'
+        : '<div class="report-sales-print-area" style="padding:4px;">';
+      var printWrapEnd = isVatNetPayableReport(routeKey) ? '</div></div>' : '</div>';
       host.innerHTML =
         '<style>' +
-        getPrintStyles() +
+        getPrintStyles(pdfOrientation) +
         '</style>' +
-        '<div class="report-sales-print-area" style="padding:4px;">' +
+        printWrapStart +
         getPrintAreaHtml() +
-        '</div>';
+        printWrapEnd;
 
       var hostStash = stagePdfExportHost(host, pdfOrientation);
       applyPdfExportHostStage(host, pdfOrientation);
+      if (isVatNetPayableReport(routeKey)) {
+        var hostW = pdfOrientation === 'landscape' ? '277mm' : '190mm';
+        host.style.width = hostW;
+        host.style.maxWidth = hostW;
+        host.style.height = 'auto';
+        host.style.minHeight = '0';
+        host.style.overflow = 'visible';
+        host.style.boxSizing = 'border-box';
+        var printArea = host.querySelector('.report-sales-print-area');
+        if (printArea) {
+          printArea.style.width = '100%';
+          printArea.style.maxWidth = '100%';
+          printArea.style.minWidth = '0';
+          printArea.style.overflow = 'visible';
+          printArea.style.boxSizing = 'border-box';
+        }
+      }
 
       function applyPdfFits(done) {
         if (isReceivablesSummaryMode()) {
@@ -1771,11 +1964,18 @@
           applyPdfFits(function () {
             waitForDocumentImages(host, function () {
               var target = host.querySelector('.report-sales-print-area') || host;
+              if (isVatNetPayableReport(routeKey)) {
+                host.style.height = 'auto';
+                host.style.overflow = 'visible';
+                target.style.height = 'auto';
+                target.style.overflow = 'visible';
+              }
               runHtml2pdfSave(target, fname, routeKey, pdfOrientation, cleanupPdfHost);
             });
           });
         },
-        true
+        true,
+        isVatNetPayableReport(routeKey) && isVatNetDetailView() ? 650 : undefined
       );
     }
 

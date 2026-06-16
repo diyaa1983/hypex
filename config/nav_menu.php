@@ -85,36 +85,6 @@ return [
             ],
         ],
         [
-            'id' => 'finance',
-            'title' => 'المالية',
-            'subgroups' => [
-                [
-                    'id' => 'finance',
-                    'title' => 'المالية',
-                    'items' => [
-                        ['r' => 'chart_of_accounts', 'label' => 'شجرة الحسابات', 'icon' => '🌳'],
-                        ['r' => 'account_mapping', 'label' => 'ربط الحسابات', 'icon' => '🔗'],
-                        ['r' => 'inventory_align_warehouse', 'label' => 'مواءمة المخزون مع المستودع', 'icon' => '⚖'],
-                        ['r' => 'cash_receipt', 'label' => 'سند قبض', 'icon' => '⬆'],
-                        ['r' => 'cash_receipts_list', 'label' => 'ترحيل سندات القبض', 'icon' => '📋'],
-                        ['r' => 'cash_payment', 'label' => 'سند صرف', 'icon' => '⬇'],
-                        ['r' => 'cash_payments_list', 'label' => 'ترحيل سندات الصرف', 'icon' => '📋'],
-                        ['r' => 'journal_voucher', 'label' => 'سند قيد', 'icon' => '⚖'],
-                        ['r' => 'debit_notes', 'label' => 'إشعارات مدينة', 'icon' => 'Ⓓ'],
-                        ['r' => 'credit_notes', 'label' => 'إشعارات دائنة', 'icon' => 'Ⓒ'],
-                    ],
-                ],
-                [
-                    'id' => 'reports',
-                    'title' => 'التقارير',
-                    'items' => [
-                        ['r' => 'report_vouchers', 'label' => 'تقرير سندات القبض / الصرف', 'icon' => '📒'],
-                        ['r' => 'report_chart_of_accounts', 'label' => 'طباعة شجرة الحسابات', 'icon' => '🌳'],
-                    ],
-                ],
-            ],
-        ],
-        [
             'id' => 'inventory',
             'title' => 'المستودعات',
             'subgroups' => [
@@ -164,17 +134,34 @@ return [
             'title' => 'المحاسبة',
             'subgroups' => [
                 [
+                    'id' => 'finance',
+                    'title' => 'العمليات المالية',
+                    'items' => [
+                        ['r' => 'account_mapping', 'label' => 'ربط الحسابات', 'icon' => '🔗'],
+                        ['r' => 'cash_receipt', 'label' => 'سند قبض', 'icon' => '⬆'],
+                        ['r' => 'cash_receipts_list', 'label' => 'ترحيل سندات القبض', 'icon' => '📋'],
+                        ['r' => 'cash_payment', 'label' => 'سند صرف', 'icon' => '⬇'],
+                        ['r' => 'cash_payments_list', 'label' => 'ترحيل سندات الصرف', 'icon' => '📋'],
+                        ['r' => 'journal_voucher', 'label' => 'سند قيد', 'icon' => '⚖'],
+                        ['r' => 'debit_notes', 'label' => 'إشعارات مدينة', 'icon' => 'Ⓓ'],
+                        ['r' => 'credit_notes', 'label' => 'إشعارات دائنة', 'icon' => 'Ⓒ'],
+                    ],
+                ],
+                [
                     'id' => 'operations',
                     'title' => 'المحاسبة',
                     'items' => [
+                        ['r' => 'chart_of_accounts', 'label' => 'شجرة الحسابات', 'icon' => '🌳'],
                         ['r' => 'journal_entries', 'label' => 'القيود المحاسبية', 'icon' => '⚖'],
-                        ['r' => 'account_mapping', 'label' => 'ربط الحسابات', 'icon' => '🔗'],
+                        ['r' => 'report_general_ledger', 'label' => 'دفتر الأستاذ العام', 'icon' => '📖'],
                     ],
                 ],
                 [
                     'id' => 'reports',
                     'title' => 'التقارير',
                     'items' => [
+                        ['r' => 'report_vouchers', 'label' => 'تقرير سندات القبض / الصرف', 'icon' => '📒'],
+                        ['r' => 'report_chart_of_accounts', 'label' => 'طباعة شجرة الحسابات', 'icon' => '🌳'],
                         ['r' => 'report_receivables', 'label' => 'كشف ذمم العملاء', 'icon' => '📒'],
                         ['r' => 'report_receivables_aging', 'label' => 'أعمار الذمم', 'icon' => '📊'],
                         ['r' => 'report_incoming_checks', 'label' => 'تقرير الشيكات الواردة', 'icon' => '📒'],
@@ -184,7 +171,6 @@ return [
                         ['r' => 'report_customer_statement', 'label' => 'كشف حساب عميل', 'icon' => '👤'],
                         ['r' => 'report_supplier_statement', 'label' => 'كشف حساب مورد', 'icon' => '🏭'],
                         ['r' => 'report_account_statement', 'label' => 'كشف حساب', 'icon' => '📋'],
-                        ['r' => 'report_general_ledger', 'label' => 'دفتر الأستاذ', 'icon' => '📖'],
                         ['r' => 'report_trial_balance', 'label' => 'ميزان المراجعة', 'icon' => '⚖'],
                         ['r' => 'report_trial_balance_detailed', 'label' => 'ميزان مراجعة تفصيلي', 'icon' => '⚖'],
                         ['r' => 'report_journal', 'label' => 'تقرير القيود', 'icon' => '📒'],
