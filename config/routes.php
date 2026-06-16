@@ -292,12 +292,6 @@ return [
         'title' => 'النسخ الاحتياطي',
         'hide_screen_title' => true,
     ],
-    'system_license' => [
-        'file' => 'modules/system/license.php',
-        'permission' => 'system_license',
-        'title' => 'ترخيص النظام',
-        'hide_screen_title' => true,
-    ],
     'tax_rates_settings' => [
         'file' => 'modules/settings/tax_rates.php',
         'permission' => 'tax_rates_settings',
