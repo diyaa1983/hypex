@@ -214,9 +214,9 @@ return [
             'subgroups' => [
                 [
                     'id' => 'employees',
-                    'title' => 'الموظفون',
+                    'title' => 'بيانات الموظف الاساسية',
                     'items' => [
-                        ['r' => 'hr_employees', 'label' => 'الموظفون', 'icon' => '👤'],
+                        ['r' => 'hr_employees', 'label' => 'بيانات الموظف الاساسية', 'icon' => '👤'],
                     ],
                 ],
                 [

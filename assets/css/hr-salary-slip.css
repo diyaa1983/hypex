@@ -29,6 +29,17 @@
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
+/* دعم الترويسة الموحدة مثل باقي التقارير */
+.hr-slip-doc .doc-print-header {
+    margin-bottom: 0.35rem;
+}
+
+.hr-slip-subtitle {
+    margin: 0 0 0.85rem;
+    text-align: center;
+    font-size: 0.95rem;
+}
+
 .hr-slip-header {
     text-align: center;
     margin-bottom: 1rem;

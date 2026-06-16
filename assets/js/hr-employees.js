@@ -7,6 +7,7 @@
     var form = document.getElementById('hr-emp-form');
     var delForm = document.getElementById('hr-emp-delete-form');
     var listUrl = page.getAttribute('data-list-url') || '';
+    var printBaseUrl = page.getAttribute('data-print-base-url') || '';
     var browseUrl = page.getAttribute('data-browse-url') || '';
     var prevUrl = page.getAttribute('data-prev-url') || '';
     var nextUrl = page.getAttribute('data-next-url') || '';
@@ -16,6 +17,16 @@
     var currentCode = page.getAttribute('data-current-code') || '';
     var isBrowse = page.getAttribute('data-browse') === '1';
     var unsaved = null;
+
+    function normalizeDigits(value) {
+        return String(value || '')
+            .replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+            .replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+    }
+
+    function normalizeSearchText(value) {
+        return normalizeDigits(String(value || '')).trim().toLowerCase().replace(/\s+/g, ' ');
+    }
 
     function captureEmpForm() {
         if (!form) {
@@ -168,7 +179,7 @@
             cancelLabel: 'إلغاء',
         }).then(function (val) {
             if (val === null || val === undefined) return;
-            var q = String(val).trim();
+            var q = normalizeDigits(String(val).trim());
             if (q === '') return;
             var url;
             if (/^\d+$/.test(q)) {
@@ -178,6 +189,51 @@
             }
             navigateTo(url);
         });
+    }
+
+    function currentPrintUrl() {
+        if (!printBaseUrl || currentId < 1) {
+            return '';
+        }
+        return printBaseUrl + '&id=' + encodeURIComponent(String(currentId));
+    }
+
+    function getEmployeePrintFrame() {
+        var frame = document.getElementById('hr-emp-print-frame');
+        if (!frame) {
+            frame = document.createElement('iframe');
+            frame.id = 'hr-emp-print-frame';
+            frame.className = 'sales-inv-print-frame';
+            frame.setAttribute('aria-hidden', 'true');
+            frame.setAttribute('tabindex', '-1');
+            document.body.appendChild(frame);
+        }
+        return frame;
+    }
+
+    function printEmployeeCard() {
+        if (currentId < 1) {
+            appDialogAlert('اختر موظفاً أولاً ثم اطبع.', 'warning');
+            return;
+        }
+        var url = currentPrintUrl();
+        if (!url) {
+            appDialogAlert('تعذر فتح صفحة الطباعة.', 'error');
+            return;
+        }
+        var frame = getEmployeePrintFrame();
+        var printed = false;
+        frame.onload = function () {
+            if (printed) return;
+            printed = true;
+            try {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+            } catch (e) {
+                appDialogAlert('تعذر تنفيذ الطباعة.', 'error');
+            }
+        };
+        frame.src = url;
     }
 
     document.addEventListener('master-toolbar', function (e) {
@@ -211,6 +267,10 @@
             e.preventDefault();
             e.stopImmediatePropagation();
             submitUnpostResignation();
+        } else if (action === 'print') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            printEmployeeCard();
         }
     }, true);
 
@@ -258,7 +318,7 @@
     }
 
     function codeToUrl(rawCode) {
-        var code = String(rawCode || '').trim();
+        var code = normalizeDigits(String(rawCode || '').trim());
         if (code === '' || code === '—') {
             return listUrl;
         }
@@ -297,7 +357,7 @@
         var byId = {};
         parseEmployeeList().forEach(function (emp) {
             var id = parseInt(emp.id, 10);
-            var code = String(emp.code || '').trim();
+            var code = normalizeDigits(String(emp.code || '').trim());
             if (id > 0) {
                 byId[id] = code;
             }
@@ -439,11 +499,11 @@
     var browseSearch = document.querySelector('.hr-emp-picker-form input[name="q"]');
     if (browseSearch && browseBody) {
         browseSearch.addEventListener('input', function () {
-            var q = String(browseSearch.value || '').trim().toLowerCase();
+            var q = normalizeSearchText(browseSearch.value || '');
             var rows = browseBody.querySelectorAll('tr.hr-emp-row:not(.hr-emp-row--empty)');
             var visible = 0;
             rows.forEach(function (tr) {
-                var text = (tr.textContent || '').toLowerCase();
+                var text = normalizeSearchText(tr.textContent || '');
                 var show = q === '' || text.indexOf(q) !== -1;
                 tr.hidden = !show;
                 if (show) {

@@ -84,8 +84,106 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
         <input type="hidden" name="r" value="hr_payroll_posting">
         <input type="hidden" name="show" value="1">
         <div class="hr-pr-post-panel hr-pr-post-doc-panel">
-            <h2 class="hr-pr-post-panel-title">بيانات الحركة</h2>
+            <h2 class="hr-pr-post-panel-title">ادخل المعلومات</h2>
             <div class="hr-pr-post-panel-body">
+        <div class="hr-pr-post-filters-panel">
+            <div class="hr-pr-post-filters-stack">
+                <label class="hr-pr-post-filter-line">
+                    <span>العام</span>
+                    <input class="input hr-pr-post-inline-input" type="number" name="year" min="2000" max="2100"
+                           value="<?= (int) $payYear ?>" required>
+                </label>
+                <label class="hr-pr-post-filter-line">
+                    <span>الشهر</span>
+                    <div class="hr-pr-post-ora-lov">
+                        <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="month" required>
+                            <?php foreach ($monthPickerOptions as $opt):
+                                $m = (int) ($opt['month'] ?? 0);
+                                if ($m < 1 || $m > 12) {
+                                    continue;
+                                }
+                                $monthLabel = sprintf('%02d', $m) . ' — ' . ($monthNames[$m] ?? (string) $m)
+                                    . (string) ($opt['label_suffix'] ?? '');
+                            ?>
+                                <option value="<?= $m ?>" <?= $payMonth === $m ? 'selected' : '' ?>>
+                                    <?= esc($monthLabel) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار الشهر" title="اختيار الشهر"></button>
+                    </div>
+                </label>
+                <label class="hr-pr-post-filter-line">
+                    <span>القسم</span>
+                    <div class="hr-pr-post-ora-lov">
+                        <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="dept_id" id="hr-pr-post-filter-dept"
+                                <?= $filterEmpId > 0 ? 'disabled' : '' ?>>
+                            <option value="0" <?= $filterDeptId === 0 ? 'selected' : '' ?>>— جميع الأقسام —</option>
+                            <?php foreach ($departments as $d): ?>
+                                <option value="<?= (int) $d['id'] ?>"
+                                        data-dept-name="<?= esc((string) $d['name_ar']) ?>"
+                                        <?= $filterDeptId === (int) $d['id'] ? 'selected' : '' ?>>
+                                    <?= esc((string) $d['name_ar']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار القسم" title="اختيار القسم"></button>
+                    </div>
+                </label>
+                <label class="hr-pr-post-filter-line">
+                    <span>الموظف</span>
+                    <div class="hr-pr-post-ora-lov">
+                        <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="employee_id" id="hr-pr-post-filter-emp">
+                            <option value="0" <?= $filterEmpId === 0 ? 'selected' : '' ?>>— جميع الموظفين —</option>
+                            <?php foreach ($filterEmployees as $fe):
+                                $fid = (int) ($fe['id'] ?? 0);
+                                $fname = (string) ($fe['name_ar'] ?? '');
+                            ?>
+                                <option value="<?= $fid ?>" <?= $filterEmpId === $fid ? 'selected' : '' ?>>
+                                    <?= esc($fname !== '' ? $fname : '—') ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار الموظف" title="اختيار الموظف"></button>
+                    </div>
+                </label>
+                <div class="hr-pr-post-filter-line hr-pr-post-filter-line--submit">
+                    <span>عرض</span>
+                    <button type="submit" class="btn btn-primary btn-sm">عرض</button>
+                </div>
+            </div>
+        </div>
+        <div class="hr-pr-post-doc-summary hr-pr-post-doc-summary--box">
+            <?php if ($showEmployeeList): ?>
+                <span class="hr-pr-post-status hr-pr-post-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?>">
+                    <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
+                </span>
+                <span class="hr-pr-post-doc-summary-sep">|</span>
+                <span><?= esc($filterLabel) ?></span>
+                <span class="hr-pr-post-doc-summary-sep">|</span>
+                <span>محتسب: <strong dir="ltr"><?= (int) ($summary['calculated'] ?? 0) ?></strong></span>
+                <span class="hr-pr-post-doc-summary-sep">|</span>
+                <span>مرحّل: <strong dir="ltr"><?= (int) ($summary['posted'] ?? 0) ?></strong></span>
+                <span class="hr-pr-post-doc-summary-sep">|</span>
+                <span>في القائمة: <strong dir="ltr"><?= count($statusRows) ?></strong></span>
+                <?php if ($maxPosted): ?>
+                    <span class="hr-pr-post-doc-summary-sep">|</span>
+                    <span class="muted">آخر مرحّل:
+                        <strong dir="ltr"><?= sprintf('%02d', (int) $maxPosted['month']) ?></strong>
+                        — <?= esc($monthNames[(int) $maxPosted['month']] ?? '') ?>
+                    </span>
+                <?php endif; ?>
+            <?php else: ?>
+                <span class="hr-pr-post-status hr-pr-post-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?>">
+                    <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
+                </span>
+                <span class="hr-pr-post-doc-summary-sep">|</span>
+                <span class="muted">اختر «عرض» لتحميل جدول الموظفين.</span>
+            <?php endif; ?>
+        </div>
+            </div>
+        </div>
+
         <div class="hr-pr-post-grid-wrap hr-pr-post-doc-header">
             <table class="hr-pr-post-grid-table">
                 <thead>
@@ -94,11 +192,6 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
                     <th>وصف الحركة</th>
                     <th>تاريخ الحركة</th>
                     <th>الحالة</th>
-                    <th>العام</th>
-                    <th>الشهر</th>
-                    <th>القسم</th>
-                    <th>الموظف</th>
-                    <th class="hr-pr-post-doc-action-col">عرض</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -111,100 +204,9 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
                             <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
                         </span>
                     </td>
-                    <td>
-                        <input class="input hr-pr-post-inline-input" type="number" name="year" min="2000" max="2100"
-                               value="<?= (int) $payYear ?>" required>
-                    </td>
-                    <td>
-                        <div class="hr-pr-post-ora-lov">
-                            <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="month" required>
-                                    <?php foreach ($monthPickerOptions as $opt):
-                                        $m = (int) ($opt['month'] ?? 0);
-                                        if ($m < 1 || $m > 12) {
-                                            continue;
-                                        }
-                                        $monthLabel = sprintf('%02d', $m) . ' — ' . ($monthNames[$m] ?? (string) $m)
-                                            . (string) ($opt['label_suffix'] ?? '');
-                                    ?>
-                                        <option value="<?= $m ?>" <?= $payMonth === $m ? 'selected' : '' ?>>
-                                            <?= esc($monthLabel) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار الشهر" title="اختيار الشهر"></button>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="hr-pr-post-ora-lov">
-                            <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="dept_id" id="hr-pr-post-filter-dept"
-                                        <?= $filterEmpId > 0 ? 'disabled' : '' ?>>
-                                    <option value="0" <?= $filterDeptId === 0 ? 'selected' : '' ?>>— جميع الأقسام —</option>
-                                    <?php foreach ($departments as $d): ?>
-                                        <option value="<?= (int) $d['id'] ?>"
-                                                data-dept-name="<?= esc((string) $d['name_ar']) ?>"
-                                                <?= $filterDeptId === (int) $d['id'] ? 'selected' : '' ?>>
-                                            <?= esc((string) $d['name_ar']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار القسم" title="اختيار القسم"></button>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="hr-pr-post-ora-lov">
-                            <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="employee_id" id="hr-pr-post-filter-emp">
-                                    <option value="0" <?= $filterEmpId === 0 ? 'selected' : '' ?>>— جميع الموظفين —</option>
-                                    <?php foreach ($filterEmployees as $fe):
-                                        $fid = (int) ($fe['id'] ?? 0);
-                                        $fname = (string) ($fe['name_ar'] ?? '');
-                                    ?>
-                                        <option value="<?= $fid ?>" <?= $filterEmpId === $fid ? 'selected' : '' ?>>
-                                            <?= esc($fname !== '' ? $fname : '—') ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار الموظف" title="اختيار الموظف"></button>
-                        </div>
-                    </td>
-                    <td class="hr-pr-post-doc-action-col">
-                        <button type="submit" class="btn btn-primary btn-sm">عرض</button>
-                    </td>
-                </tr>
-                <tr class="hr-pr-post-doc-summary-row">
-                    <th colspan="4">ملخص الشهر</th>
-                    <td colspan="5" class="hr-pr-post-doc-summary">
-                        <?php if ($showEmployeeList): ?>
-                            <span class="hr-pr-post-status hr-pr-post-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?>">
-                                <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
-                            </span>
-                            <span class="hr-pr-post-doc-summary-sep">|</span>
-                            <span><?= esc($filterLabel) ?></span>
-                            <span class="hr-pr-post-doc-summary-sep">|</span>
-                            <span>محتسب: <strong dir="ltr"><?= (int) ($summary['calculated'] ?? 0) ?></strong></span>
-                            <span class="hr-pr-post-doc-summary-sep">|</span>
-                            <span>مرحّل: <strong dir="ltr"><?= (int) ($summary['posted'] ?? 0) ?></strong></span>
-                            <span class="hr-pr-post-doc-summary-sep">|</span>
-                            <span>في القائمة: <strong dir="ltr"><?= count($statusRows) ?></strong></span>
-                            <?php if ($maxPosted): ?>
-                                <span class="hr-pr-post-doc-summary-sep">|</span>
-                                <span class="muted">آخر مرحّل:
-                                    <strong dir="ltr"><?= sprintf('%02d', (int) $maxPosted['month']) ?></strong>
-                                    — <?= esc($monthNames[(int) $maxPosted['month']] ?? '') ?>
-                                </span>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <span class="hr-pr-post-status hr-pr-post-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?>">
-                                <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
-                            </span>
-                            <span class="hr-pr-post-doc-summary-sep">|</span>
-                            <span class="muted">اختر «عرض» لتحميل جدول الموظفين.</span>
-                        <?php endif; ?>
-                    </td>
                 </tr>
                 </tbody>
             </table>
-        </div>
-            </div>
         </div>
     </form>
 
@@ -512,7 +514,7 @@ $empTableColCount = $showIncomeTaxCol ? 10 : 9;
 
     <?php else: ?>
         <div class="hr-pr-post-panel hr-pr-post-intro-panel">
-            <p class="muted hr-pr-post-pending-hint">اختر السنة والشهر من «بيانات الحركة» ثم اضغط «عرض» لإظهار جدول الموظفين.</p>
+            <p class="muted hr-pr-post-pending-hint">اختر السنة والشهر من «ادخل المعلومات» ثم اضغط «عرض» لإظهار جدول الموظفين.</p>
         </div>
     <?php endif; ?>
 

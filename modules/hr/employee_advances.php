@@ -5,14 +5,25 @@ require_once app_path('includes/hr_schema.php');
 require_once app_path('includes/hr_employee_advance.php');
 require_once app_path('includes/hr_oracle_ui.php');
 require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/employee_picker.php');
 
 $pdo = db();
 hr_employee_advance_ensure_schema($pdo);
 hr_employee_ensure_schema($pdo);
+try {
+    $pdo->exec(
+        "UPDATE hr_employee_advance
+         SET advance_code = CAST(id AS CHAR)
+         WHERE TRIM(IFNULL(advance_code, '')) = ''"
+    );
+} catch (Throwable $e) {
+    // ignored
+}
 
 $listUrl = app_url('index.php?r=hr_employee_advances');
 $editorFormId = 'hr-adv-editor-form';
 $employees = hr_employee_active_list($pdo);
+$pickerEmployees = hr_employee_picker_list($pdo);
 
 $advUrlForEmployee = static function (int $employeeId = 0) use ($listUrl): string {
     return $employeeId > 0 ? $listUrl . '&employee_id=' . $employeeId : $listUrl;
@@ -168,7 +179,9 @@ $cssUrl = app_url('assets/css/hr-employee-advances.css') . (is_file($cssPath) ? 
 $jsPath = app_path('assets/js/hr-employee-advances.js');
 $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
 ?>
+<?php employee_picker_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+<?php employee_picker_json_script($pickerEmployees, 'hr-adv-picker-json'); ?>
 
 <div class="hr-adv-grid-page hr-adv-ora-screen"
      data-list-url="<?= esc($listUrl) ?>"
@@ -192,40 +205,45 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
             <table class="hr-adv-picker-table">
                 <thead>
                 <tr>
-                    <th>اختيار الموظف</th>
-                    <th>الرقم</th>
-                    <th>الاسم</th>
+                    <th>رقم الموظف</th>
+                    <th>اسم الموظف</th>
                     <th class="hr-adv-picker-th-count">عدد السلف</th>
                 </tr>
                 </thead>
                 <tbody>
                 <tr>
-                    <td class="hr-adv-picker-td-label muted">—</td>
                     <td>
                         <input type="text" class="input hr-adv-picker-code" id="hr-adv-picker-code"
                                value="<?= esc($filterEmpCode !== '' ? $filterEmpCode : '—') ?>"
-                               readonly dir="ltr" tabindex="-1" aria-readonly="true">
+                               dir="ltr" inputmode="numeric" autocomplete="off" placeholder="رقم">
                     </td>
-                    <td>
-                        <div class="hr-adv-ora-lov">
-                            <select class="input hr-adv-ora-lov-field" id="hr-adv-filter-employee" title="اختر موظفاً لعرض سلفه">
-                                <option value="" data-emp-code="" data-advance-count="0">— اختر موظفاً —</option>
-                                <?php foreach ($employees as $emp):
-                                    $eid = (int) ($emp['id'] ?? 0);
-                                    $ecode = trim((string) ($emp['emp_code'] ?? ''));
-                                    $ename = (string) ($emp['name_ar'] ?? '');
-                                    $ecnt = (int) ($advanceCountByEmp[$eid] ?? 0);
-                                ?>
-                                    <option value="<?= $eid ?>"
-                                            data-emp-code="<?= esc($ecode) ?>"
-                                            data-advance-count="<?= $ecnt ?>"
-                                            <?= $filterEmpId === $eid ? 'selected' : '' ?>>
-                                        <?= esc($ename !== '' ? $ename : '—') ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="button" class="hr-adv-ora-lov-btn" tabindex="-1" aria-label="اختيار الموظف" title="اختيار الموظف"></button>
-                        </div>
+                    <td class="hr-adv-picker-cell-name">
+                        <?= employee_picker_field([
+                            'id' => 'hr-adv-picker-id',
+                            'label' => '',
+                            'compact' => true,
+                            'wrapper_class' => 'hr-adv-picker-slot',
+                            'json_id' => 'hr-adv-picker-json',
+                            'manual_bind' => true,
+                            'value' => $filterEmpId,
+                            'placeholder' => 'اضغط لاختيار الموظف',
+                        ]) ?>
+                        <select class="input hr-adv-filter-select-sr" id="hr-adv-filter-employee" title="اختر موظفاً لعرض سلفه" hidden tabindex="-1" aria-hidden="true">
+                            <option value="" data-emp-code="" data-advance-count="0">— اختر موظفاً —</option>
+                            <?php foreach ($employees as $emp):
+                                $eid = (int) ($emp['id'] ?? 0);
+                                $ecode = trim((string) ($emp['emp_code'] ?? ''));
+                                $ename = (string) ($emp['name_ar'] ?? '');
+                                $ecnt = (int) ($advanceCountByEmp[$eid] ?? 0);
+                            ?>
+                                <option value="<?= $eid ?>"
+                                        data-emp-code="<?= esc($ecode) ?>"
+                                        data-advance-count="<?= $ecnt ?>"
+                                    <?= $filterEmpId === $eid ? 'selected' : '' ?>>
+                                    <?= esc($ename !== '' ? $ename : '—') ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </td>
                     <td class="hr-adv-picker-td-count" dir="ltr">
                         <strong id="hr-adv-picker-count"><?= $filterEmpId > 0 ? (int) $filterAdvanceCount : '—' ?></strong>
@@ -234,12 +252,14 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
                 </tbody>
             </table>
         </div>
+        <p class="hr-adv-picker-help muted">اختر الموظف ليتم عرض سلفه مباشرة.</p>
         </div>
     </div>
 
     <div class="dashboard-ora-toolbar hr-adv-toolbar">
         <button type="button" class="btn btn-primary btn-sm" id="hr-adv-btn-add"<?= $filterEmpId < 1 ? ' disabled' : '' ?>>إضافة سلفة</button>
         <button type="button" class="btn btn-secondary btn-sm" id="hr-adv-btn-edit" disabled>تعديل</button>
+        <button type="button" class="btn btn-danger btn-sm" id="hr-adv-btn-delete" disabled>حذف السلفة</button>
     </div>
 
     <div class="hr-adv-panel hr-adv-editor" id="hr-adv-editor" hidden>
@@ -254,66 +274,75 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
             <input type="hidden" name="id" id="hr-adv-editor-id" value="0">
             <input type="hidden" name="filter_employee_id" id="hr-adv-filter-employee-id" value="<?= $filterEmpId ?>">
 
-            <fieldset class="hr-adv-type-fieldset">
-                <legend class="field-label required">نوع السلفة</legend>
-                <label class="hr-adv-type-opt">
-                    <input type="radio" name="advance_type" value="once" class="hr-adv-type-radio" checked>
-                    <span>سلفة لمرة واحدة</span>
-                </label>
-                <label class="hr-adv-type-opt">
-                    <input type="radio" name="advance_type" value="long" class="hr-adv-type-radio">
-                    <span>سلفة طويلة (تقسيط على عدة أشهر)</span>
-                </label>
-            </fieldset>
-
-            <div class="hr-adv-editor-fields">
-                <div class="field hr-adv-editor-field-code">
-                    <span class="field-label">رقم السلفة</span>
-                    <div class="hr-adv-code-display" id="hr-adv-editor-code-display" dir="ltr" aria-readonly="true">—</div>
-                    <small class="hr-adv-code-hint" id="hr-adv-editor-code-hint">يُولَّد تلقائياً</small>
-                </div>
-                <label class="field hr-adv-editor-field-emp">
-                    <span class="field-label required">الموظف</span>
-                    <div class="hr-adv-ora-lov">
-                        <select class="input hr-adv-ora-lov-field" name="employee_id" id="hr-adv-editor-employee" required>
-                            <option value="">— اختر الموظف —</option>
-                            <?php foreach ($employees as $emp): ?>
-                                <option value="<?= (int) $emp['id'] ?>">
-                                    <?= esc((string) ($emp['emp_code'] ?? '')) ?> — <?= esc((string) ($emp['name_ar'] ?? '')) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button type="button" class="hr-adv-ora-lov-btn" tabindex="-1" aria-label="اختيار الموظف" title="اختيار الموظف"></button>
-                    </div>
-                </label>
-                <label class="field">
-                    <span class="field-label required">مبلغ السلفة</span>
-                    <input class="input" type="number" name="total_amount" id="hr-adv-editor-amount" min="0.001" step="0.001" required>
-                </label>
-
-                <div class="hr-adv-dates-once" id="hr-adv-dates-once">
-                    <label class="field">
-                        <span class="field-label required">شهر الاقتطاع (تاريخ)</span>
+            <table class="hr-adv-editor-table">
+                <tbody>
+                <tr>
+                    <th class="required">نوع السلفة</th>
+                    <td colspan="3">
+                        <fieldset class="hr-adv-type-fieldset">
+                            <label class="hr-adv-type-opt">
+                                <input type="radio" name="advance_type" value="once" class="hr-adv-type-radio" checked>
+                                <span>سلفة لمرة واحدة</span>
+                            </label>
+                            <label class="hr-adv-type-opt">
+                                <input type="radio" name="advance_type" value="long" class="hr-adv-type-radio">
+                                <span>سلفة طويلة (تقسيط على عدة أشهر)</span>
+                            </label>
+                        </fieldset>
+                    </td>
+                </tr>
+                <tr>
+                    <th>رقم السلفة</th>
+                    <td>
+                        <div class="hr-adv-code-display" id="hr-adv-editor-code-display" dir="ltr" aria-readonly="true">—</div>
+                        <small class="hr-adv-code-hint" id="hr-adv-editor-code-hint">يُولَّد تلقائياً</small>
+                    </td>
+                    <th class="required">الموظف</th>
+                    <td class="hr-adv-editor-cell-emp">
+                        <div class="hr-adv-ora-lov">
+                            <input class="input hr-adv-ora-lov-smart-input" type="search" id="hr-adv-editor-employee-smart"
+                                   autocomplete="off" spellcheck="false" placeholder="ابحث بالاسم أو الرقم...">
+                            <select class="input hr-adv-ora-lov-field" name="employee_id" id="hr-adv-editor-employee" required hidden tabindex="-1" aria-hidden="true">
+                                <option value="">— اختر الموظف —</option>
+                                <?php foreach ($employees as $emp): ?>
+                                    <option value="<?= (int) $emp['id'] ?>">
+                                        <?= esc((string) ($emp['emp_code'] ?? '')) ?> — <?= esc((string) ($emp['name_ar'] ?? '')) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" class="hr-adv-ora-lov-btn" id="hr-adv-editor-employee-toggle" aria-label="اختيار الموظف" title="اختيار الموظف"></button>
+                        </div>
+                        <div class="hr-adv-emp-pick-list" id="hr-adv-editor-employee-list" hidden></div>
+                    </td>
+                </tr>
+                <tr>
+                    <th class="required">مبلغ السلفة</th>
+                    <td>
+                        <input class="input" type="number" name="total_amount" id="hr-adv-editor-amount" min="0.001" step="0.001" required>
+                    </td>
+                    <th class="required">شهر الاقتطاع</th>
+                    <td id="hr-adv-dates-once">
                         <input class="input js-date-dmy" type="text" name="deduct_date" id="hr-adv-editor-deduct-date" placeholder="01-01-2026" autocomplete="off">
-                    </label>
-                </div>
-
-                <div class="hr-adv-dates-long" id="hr-adv-dates-long" hidden>
-                    <label class="field">
-                        <span class="field-label required">من تاريخ</span>
+                    </td>
+                </tr>
+                <tr id="hr-adv-dates-long" hidden>
+                    <th class="required">من تاريخ</th>
+                    <td>
                         <input class="input js-date-dmy" type="text" name="start_date" id="hr-adv-editor-start" placeholder="01-01-2026" autocomplete="off">
-                    </label>
-                    <label class="field">
-                        <span class="field-label required">إلى تاريخ</span>
+                    </td>
+                    <th class="required">إلى تاريخ</th>
+                    <td>
                         <input class="input js-date-dmy" type="text" name="end_date" id="hr-adv-editor-end" placeholder="30-04-2026" autocomplete="off">
-                    </label>
-                </div>
-
-                <label class="field hr-adv-editor-field-notes">
-                    <span class="field-label">ملاحظات</span>
-                    <input class="input" type="text" name="notes" id="hr-adv-editor-notes" autocomplete="off">
-                </label>
-            </div>
+                    </td>
+                </tr>
+                <tr>
+                    <th>ملاحظات</th>
+                    <td colspan="3">
+                        <input class="input" type="text" name="notes" id="hr-adv-editor-notes" autocomplete="off">
+                    </td>
+                </tr>
+                </tbody>
+            </table>
 
             <div class="hr-adv-editor-actions">
                 <button type="submit" class="btn btn-primary btn-sm">حفظ السلفة</button>
@@ -329,7 +358,7 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
         <table class="hr-adv-grid-table">
             <thead>
             <tr>
-                <th>رقم</th>
+                <th>رقم السلفة</th>
                 <th>النوع</th>
                 <th>المبلغ</th>
                 <th>من تاريخ</th>
@@ -350,6 +379,10 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
             <?php endif; ?>
             <?php foreach ($advances as $a):
                 $rid = (int) $a['id'];
+                $advanceCode = trim((string) ($a['advance_code'] ?? ''));
+                if ($advanceCode === '') {
+                    $advanceCode = (string) $rid;
+                }
                 $type = (string) ($a['advance_type'] ?? 'once');
                 $delChk = hr_employee_advance_delete_check($pdo, $rid);
                 $linked = !$delChk['can_delete'];
@@ -360,7 +393,7 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
             ?>
                 <tr class="hr-adv-row<?= $linked ? ' is-linked' : '' ?><?= (string) ($a['status'] ?? '') !== 'active' ? ' is-inactive' : '' ?>"
                     data-id="<?= $rid ?>"
-                    data-code="<?= esc((string) ($a['advance_code'] ?? '')) ?>"
+                    data-code="<?= esc($advanceCode) ?>"
                     data-employee-id="<?= (int) ($a['employee_id'] ?? 0) ?>"
                     data-type="<?= esc($type) ?>"
                     data-amount="<?= esc((string) ($a['total_amount'] ?? '0')) ?>"
@@ -372,7 +405,7 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
                     data-linked="<?= $linked ? '1' : '0' ?>"
                     data-linked-msg="<?= esc((string) ($delChk['message'] ?? '')) ?>"
                     tabindex="0">
-                    <td dir="ltr"><?= esc((string) ($a['advance_code'] ?? '—')) ?></td>
+                    <td dir="ltr"><?= esc($advanceCode) ?></td>
                     <td><?= esc(hr_employee_advance_type_label($type)) ?></td>
                     <td dir="ltr" class="num"><?= esc(format_money((float) ($a['total_amount'] ?? 0))) ?></td>
                     <td dir="ltr"><?= esc($startDmy) ?></td>

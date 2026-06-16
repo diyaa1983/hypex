@@ -15,8 +15,14 @@
     var delForm = document.getElementById('hr-mpa-delete-form');
     var delIdInp = document.getElementById('hr-mpa-delete-id');
     var filterForm = document.getElementById('hr-mpa-filter-form');
-    var filterEmployee = document.getElementById('hr-mpa-filter-employee');
+    var pickerId = document.getElementById('hr-mpa-picker-id');
+    var pickerOpen = document.getElementById('hr-mpa-picker-id_open');
+    var pickerDisplay = document.getElementById('hr-mpa-picker-id_display');
     var masterEmpCode = document.getElementById('hr-mpa-master-emp-code');
+    var filterYear = document.getElementById('hr-mpa-filter-year');
+    var filterMonth = document.getElementById('hr-mpa-filter-month');
+    var listUrl = page.getAttribute('data-list-url') || '';
+    var pickerApi = null;
 
     var allowComponents = [];
     var deductComponents = [];
@@ -67,6 +73,139 @@
         }
     }
 
+    function normalizeDigits(value) {
+        return String(value || '')
+            .replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+            .replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+    }
+
+    function normalizeSearchText(value) {
+        return normalizeDigits(String(value || '')).trim().toLowerCase().replace(/\s+/g, ' ');
+    }
+
+    function parseEmployeeList() {
+        var el = document.getElementById('hr-mpa-picker-json');
+        if (!el) return [];
+        try {
+            return JSON.parse(el.textContent || '[]') || [];
+        } catch (err) {
+            return [];
+        }
+    }
+
+    var employeeItems = parseEmployeeList();
+    var employeesById = {};
+    var employeeCodeMap = {};
+    employeeItems.forEach(function (emp) {
+        var id = parseInt(emp.id, 10);
+        var code = normalizeDigits(String(emp.code || '').trim());
+        if (id > 0) {
+            employeesById[id] = emp;
+            if (code !== '') {
+                employeeCodeMap[code] = id;
+            }
+        }
+    });
+
+    function selectedEmployeeId() {
+        if (!pickerId) return 0;
+        return parseInt(pickerId.value || '0', 10) || 0;
+    }
+
+    function getSelectedYear() {
+        var pageYear = parseInt(page.getAttribute('data-pay-year') || '0', 10) || new Date().getFullYear();
+        var year = parseInt(filterYear && filterYear.value ? filterYear.value : String(pageYear), 10);
+        if (isNaN(year) || year < 2000 || year > 2100) {
+            year = pageYear;
+        }
+        return year;
+    }
+
+    function getSelectedMonth() {
+        var pageMonth = parseInt(page.getAttribute('data-pay-month') || '0', 10) || 1;
+        var month = parseInt(filterMonth && filterMonth.value ? filterMonth.value : String(pageMonth), 10);
+        if (isNaN(month) || month < 1 || month > 12) {
+            month = pageMonth;
+        }
+        return month;
+    }
+
+    function filterUrl(employeeId) {
+        var url = listUrl;
+        url += '&year=' + encodeURIComponent(String(getSelectedYear()));
+        url += '&month=' + encodeURIComponent(String(getSelectedMonth()));
+        var id = parseInt(String(employeeId || '0'), 10);
+        if (!isNaN(id) && id > 0) {
+            url += '&employee_id=' + encodeURIComponent(String(id));
+        }
+        return url;
+    }
+
+    function navigateToFilter(employeeId) {
+        window.location.href = filterUrl(employeeId);
+    }
+
+    function codeToEmployeeId(rawCode) {
+        var code = normalizeDigits(String(rawCode || '').trim());
+        if (code === '' || code === '—') {
+            return 0;
+        }
+        return parseInt(employeeCodeMap[code] || '0', 10) || 0;
+    }
+
+    function printCurrentScreen() {
+        if (selectedEmployeeId() < 1) {
+            appDialogAlert('اختر موظفاً أولاً ثم اطبع.', 'warning');
+            return;
+        }
+        if (editingPanelType) {
+            appDialogAlert('احفظ أو ألغِ التعديل أولاً قبل الطباعة.', 'warning');
+            return;
+        }
+        window.print();
+    }
+
+    function syncCodeInputFromEmployee(emp) {
+        if (!masterEmpCode) return;
+        if (!emp || !emp.id) {
+            masterEmpCode.value = '';
+            return;
+        }
+        masterEmpCode.value = String(emp.code || '').trim();
+    }
+
+    function initEmployeePickerModal() {
+        if (!pickerId || !pickerOpen || !pickerDisplay) return;
+        if (!window.EmployeePickerModal) {
+            setTimeout(initEmployeePickerModal, 40);
+            return;
+        }
+        pickerApi = EmployeePickerModal.bind({
+            hidden: 'hr-mpa-picker-id',
+            open: 'hr-mpa-picker-id_open',
+            display: 'hr-mpa-picker-id_display',
+            jsonId: 'hr-mpa-picker-json',
+            employees: employeeItems,
+            allowNew: false,
+            placeholder: 'اضغط لاختيار الموظف',
+            initialId: selectedEmployeeId() || '',
+            onSelect: function (emp) {
+                syncCodeInputFromEmployee(emp);
+                var nextId = emp && emp.id ? parseInt(emp.id, 10) : 0;
+                var currentId = parseInt(page.getAttribute('data-filter-employee-id') || '0', 10) || 0;
+                var currentYear = parseInt(page.getAttribute('data-pay-year') || '0', 10) || getSelectedYear();
+                var currentMonth = parseInt(page.getAttribute('data-pay-month') || '0', 10) || getSelectedMonth();
+                if (nextId === currentId && getSelectedYear() === currentYear && getSelectedMonth() === currentMonth) {
+                    return;
+                }
+                navigateToFilter(nextId);
+            },
+        });
+        if (pickerApi) {
+            syncCodeInputFromEmployee(pickerApi.getEmployee());
+        }
+    }
+
     function labelsFor(type) {
         return LABELS[type === 'deduction' ? 'deduction' : 'allowance'];
     }
@@ -102,10 +241,207 @@
         }
     }
 
+    function setupInlineComponentPicker(selectEl, inputEl, listEl) {
+        if (!selectEl || !inputEl || !listEl) return null;
+        var closeTimer = null;
+        var isOpen = false;
+        var activeIndex = -1;
+        var optionItems = [];
+
+        function rebuildItems() {
+            optionItems = [];
+            Array.prototype.forEach.call(selectEl.options || [], function (opt) {
+                if (!opt || !opt.value) return;
+                var label = String(opt.textContent || '').trim();
+                var code = String(opt.getAttribute('data-comp-code') || '').trim();
+                optionItems.push({
+                    value: String(opt.value),
+                    label: label,
+                    code: code,
+                    search: normalizeSearchText((code ? code + ' ' : '') + label),
+                });
+            });
+        }
+
+        function syncInputFromSelect() {
+            var op = selectEl.options[selectEl.selectedIndex];
+            inputEl.value = op && op.value ? String(op.textContent || '').trim() : '';
+        }
+
+        function closeList() {
+            clearTimeout(closeTimer);
+            listEl.hidden = true;
+            listEl.innerHTML = '';
+            isOpen = false;
+            activeIndex = -1;
+        }
+
+        function scheduleClose() {
+            clearTimeout(closeTimer);
+            closeTimer = setTimeout(closeList, 170);
+        }
+
+        function highlightActive() {
+            var buttons = listEl.querySelectorAll('.hr-mpa-inline-component-item[data-value]');
+            Array.prototype.forEach.call(buttons, function (btn, idx) {
+                btn.classList.toggle('is-active', idx === activeIndex);
+            });
+            if (activeIndex >= 0 && buttons[activeIndex]) {
+                buttons[activeIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function applySelection(value, emitChange) {
+            var nextValue = String(value || '').trim();
+            if (!nextValue) return;
+            var prevValue = String(selectEl.value || '').trim();
+            selectEl.value = nextValue;
+            syncInputFromSelect();
+            closeList();
+            if (emitChange && prevValue !== nextValue) {
+                try {
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (e) {
+                    selectEl.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+
+        function renderList(queryText, browseAll) {
+            if (selectEl.disabled || inputEl.disabled) {
+                closeList();
+                return;
+            }
+            if (!optionItems.length) {
+                rebuildItems();
+            }
+            var needle = browseAll ? '' : normalizeSearchText(queryText);
+            var matches = optionItems.filter(function (item) {
+                return needle === '' || item.search.indexOf(needle) >= 0;
+            });
+
+            listEl.innerHTML = '';
+            activeIndex = -1;
+
+            if (!matches.length) {
+                var empty = document.createElement('div');
+                empty.className = 'hr-mpa-inline-component-empty';
+                empty.textContent = needle === '' ? 'لا توجد بنود متاحة' : 'لا يوجد بند مطابق';
+                listEl.appendChild(empty);
+            } else {
+                matches.slice(0, 120).forEach(function (item) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'hr-mpa-inline-component-item';
+                    btn.setAttribute('data-value', item.value);
+                    btn.innerHTML = item.code
+                        ? '<span class="hr-mpa-inline-component-name">' + escHtml(item.label) + '</span><code dir="ltr">' + escHtml(item.code) + '</code>'
+                        : '<span class="hr-mpa-inline-component-name">' + escHtml(item.label) + '</span>';
+                    btn.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        applySelection(item.value, true);
+                    });
+                    listEl.appendChild(btn);
+                });
+            }
+
+            listEl.hidden = false;
+            isOpen = true;
+        }
+
+        function openList(showAll) {
+            renderList(inputEl.value, !!showAll);
+        }
+
+        inputEl.addEventListener('focus', function () {
+            openList(true);
+        });
+
+        inputEl.addEventListener('click', function () {
+            clearTimeout(closeTimer);
+            openList(true);
+        });
+
+        inputEl.addEventListener('input', function () {
+            openList(false);
+        });
+
+        inputEl.addEventListener('blur', function () {
+            scheduleClose();
+        });
+
+        inputEl.addEventListener('keydown', function (e) {
+            if (!isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault();
+                openList(false);
+                return;
+            }
+            var buttons = listEl.querySelectorAll('.hr-mpa-inline-component-item[data-value]');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!buttons.length) return;
+                activeIndex = activeIndex < buttons.length - 1 ? activeIndex + 1 : 0;
+                highlightActive();
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!buttons.length) return;
+                activeIndex = activeIndex > 0 ? activeIndex - 1 : buttons.length - 1;
+                highlightActive();
+                return;
+            }
+            if (e.key === 'Enter') {
+                if (!isOpen) return;
+                e.preventDefault();
+                if (!buttons.length) return;
+                var pickBtn = activeIndex >= 0 ? buttons[activeIndex] : buttons[0];
+                if (pickBtn) {
+                    applySelection(pickBtn.getAttribute('data-value') || '', true);
+                }
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeList();
+            }
+        });
+
+        listEl.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            clearTimeout(closeTimer);
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!isOpen) return;
+            if (e.target === inputEl || listEl.contains(e.target)) {
+                return;
+            }
+            closeList();
+        });
+
+        rebuildItems();
+        syncInputFromSelect();
+
+        return {
+            syncFromSelect: syncInputFromSelect,
+            refresh: rebuildItems,
+            close: closeList,
+            open: openList,
+        };
+    }
+
     function buildComponentSelect(type, selectedId) {
+        var wrap = document.createElement('div');
+        wrap.className = 'hr-mpa-inline-picker';
+
         var sel = document.createElement('select');
         sel.className = 'input input-compact hr-mpa-inline-component';
         sel.setAttribute('aria-label', labelsFor(type).compLabel);
+        sel.hidden = true;
+        sel.setAttribute('aria-hidden', 'true');
+        sel.tabIndex = -1;
+        sel.style.setProperty('display', 'none', 'important');
 
         var empty = document.createElement('option');
         empty.value = '';
@@ -125,6 +461,29 @@
             sel.appendChild(opt);
         });
 
+        function syncAmountFromComponent() {
+            var row = sel.closest('tr');
+            var amountInp = row && row.querySelector('.hr-mpa-inline-amount');
+            if (!amountInp) return;
+            var op = sel.options[sel.selectedIndex];
+            if (op && op.value) {
+                amountInp.value = op.getAttribute('data-default') || '0';
+            } else {
+                amountInp.value = '0';
+            }
+        }
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'input input-compact hr-mpa-inline-component-smart';
+        input.setAttribute('autocomplete', 'off');
+        input.setAttribute('placeholder', 'بحث عن ' + labelsFor(type).compLabel);
+        input.setAttribute('aria-label', 'بحث عن ' + labelsFor(type).compLabel);
+
+        var list = document.createElement('div');
+        list.className = 'hr-mpa-inline-component-list';
+        list.hidden = true;
+
         sel.addEventListener('change', function () {
             syncInlineHint(type);
             var op = sel.options[sel.selectedIndex];
@@ -133,14 +492,16 @@
             if (codeTd && op) {
                 codeTd.textContent = op.getAttribute('data-comp-code') || '—';
             }
-            var amountInp = row && row.querySelector('.hr-mpa-inline-amount');
-            var isNew = row && row.classList.contains('hr-mpa-row--entry');
-            if (amountInp && op && op.value && isNew) {
-                amountInp.value = op.getAttribute('data-default') || '0';
-            }
+            syncAmountFromComponent();
         });
 
-        return sel;
+        wrap.appendChild(sel);
+        wrap.appendChild(input);
+        wrap.appendChild(list);
+        setupInlineComponentPicker(sel, input, list);
+
+        wrap._hrMpaSyncAmount = syncAmountFromComponent;
+        return wrap;
     }
 
     function syncInlineHint(type) {
@@ -161,8 +522,8 @@
         }
         hint.hidden = false;
         hint.textContent = op.getAttribute('data-is-percent') === '1'
-            ? 'أدخل النسبة المئوية من الراتب الأساسي'
-            : 'مبلغ ثابت';
+            ? 'القيمة تُسحب تلقائياً كنسبة من تعريف البند.'
+            : 'القيمة تُسحب تلقائياً من تعريف البند.';
     }
 
     function removeEmptyPlaceholder(type) {
@@ -296,10 +657,16 @@
         amtInp.value = data.amount != null ? String(data.amount) : '0';
         amtInp.dir = 'ltr';
         amtInp.inputMode = 'decimal';
+        amtInp.readOnly = true;
+        amtInp.setAttribute('readonly', 'readonly');
         amtInp.setAttribute('aria-label', 'المبلغ');
         tdAmt.appendChild(amtInp);
         tr.appendChild(tdAmt);
 
+        var pickerWrap = tdComp.querySelector('.hr-mpa-inline-picker');
+        if (pickerWrap && typeof pickerWrap._hrMpaSyncAmount === 'function') {
+            pickerWrap._hrMpaSyncAmount();
+        }
         return tr;
     }
 
@@ -371,8 +738,15 @@
         amtInp.value = snap.amount;
         amtInp.dir = 'ltr';
         amtInp.inputMode = 'decimal';
+        amtInp.readOnly = true;
+        amtInp.setAttribute('readonly', 'readonly');
         tdAmt.appendChild(amtInp);
         tr.appendChild(tdAmt);
+
+        var pickerWrap = tdComp.querySelector('.hr-mpa-inline-picker');
+        if (pickerWrap && typeof pickerWrap._hrMpaSyncAmount === 'function') {
+            pickerWrap._hrMpaSyncAmount();
+        }
     }
 
     function readInlineRow(tr) {
@@ -404,8 +778,8 @@
         updateAllToolbars();
         syncInlineHint(type);
 
-        var sel = tr.querySelector('.hr-mpa-inline-component');
-        if (sel) sel.focus();
+        var input = tr.querySelector('.hr-mpa-inline-component-smart');
+        if (input) input.focus();
     }
 
     function startEdit(type) {
@@ -423,6 +797,11 @@
         setPageEditingClass(type);
         updateAllToolbars();
 
+        var compInput = selectedRow.querySelector('.hr-mpa-inline-component-smart');
+        if (compInput) {
+            compInput.focus();
+            return;
+        }
         var amt = selectedRow.querySelector('.hr-mpa-inline-amount');
         if (amt) amt.focus();
     }
@@ -472,48 +851,6 @@
         });
     }
 
-    function syncMasterFromEmployee() {
-        if (!filterEmployee) return;
-        var op = filterEmployee.options[filterEmployee.selectedIndex];
-        if (masterEmpCode) {
-            masterEmpCode.value = op && op.value ? (op.getAttribute('data-emp-code') || '') : '';
-        }
-    }
-
-    function syncOraLovButtons() {
-        page.querySelectorAll('.hr-mpa-ora-lov').forEach(function (wrap) {
-            var sel = wrap.querySelector('select');
-            var btn = wrap.querySelector('.hr-mpa-ora-lov-btn');
-            if (btn && sel) {
-                btn.disabled = !!sel.disabled;
-            }
-        });
-    }
-
-    function openOraLovSelect(btn) {
-        var wrap = btn.closest('.hr-mpa-ora-lov');
-        if (!wrap) return;
-        var sel = wrap.querySelector('select');
-        if (!sel || sel.disabled) return;
-        sel.focus();
-        try {
-            if (typeof sel.showPicker === 'function') {
-                sel.showPicker();
-                return;
-            }
-        } catch (e) {
-            /* ignored */
-        }
-        sel.click();
-    }
-
-    page.querySelectorAll('.hr-mpa-ora-lov-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            openOraLovSelect(btn);
-        });
-    });
-    syncOraLovButtons();
-
     document.querySelectorAll('.hr-mpa-btn-add').forEach(function (btn) {
         btn.addEventListener('click', function () {
             startAdd(btn.getAttribute('data-type') || 'allowance');
@@ -561,11 +898,86 @@
         });
     });
 
-    if (filterForm && filterEmployee) {
-        filterEmployee.addEventListener('change', syncMasterFromEmployee);
+    initEmployeePickerModal();
+
+    if (masterEmpCode) {
+        var codeOnFocus = '';
+        masterEmpCode.addEventListener('focus', function () {
+            codeOnFocus = String(masterEmpCode.value || '').trim();
+            masterEmpCode.select();
+        });
+        masterEmpCode.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') {
+                return;
+            }
+            e.preventDefault();
+            var typedCode = normalizeDigits(String(masterEmpCode.value || '').trim());
+            if (typedCode === '') {
+                navigateToFilter(0);
+                return;
+            }
+            var matchedId = codeToEmployeeId(typedCode);
+            if (matchedId < 1) {
+                appDialogAlert('لا يوجد موظف بهذا الرقم.', 'warning');
+                masterEmpCode.value = codeOnFocus;
+                return;
+            }
+            navigateToFilter(matchedId);
+        });
+        masterEmpCode.addEventListener('blur', function () {
+            var typedCode = normalizeDigits(String(masterEmpCode.value || '').trim());
+            var prevCode = normalizeDigits(String(codeOnFocus || '').trim());
+            if (typedCode === prevCode) {
+                return;
+            }
+            if (typedCode === '') {
+                navigateToFilter(0);
+                return;
+            }
+            var matchedId = codeToEmployeeId(typedCode);
+            if (matchedId < 1) {
+                appDialogAlert('لا يوجد موظف بهذا الرقم.', 'warning');
+                masterEmpCode.value = codeOnFocus;
+                return;
+            }
+            navigateToFilter(matchedId);
+        });
     }
 
-    syncMasterFromEmployee();
+    if (filterMonth) {
+        filterMonth.addEventListener('change', function () {
+            navigateToFilter(selectedEmployeeId());
+        });
+    }
+
+    if (filterYear) {
+        filterYear.addEventListener('change', function () {
+            filterYear.value = String(getSelectedYear());
+            navigateToFilter(selectedEmployeeId());
+        });
+        filterYear.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') {
+                return;
+            }
+            e.preventDefault();
+            filterYear.value = String(getSelectedYear());
+            navigateToFilter(selectedEmployeeId());
+        });
+    }
+
+    if (filterForm) {
+        filterForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            navigateToFilter(selectedEmployeeId());
+        });
+    }
+
+    if (!masterEmpCode || masterEmpCode.value === '') {
+        var selectedEmp = employeesById[selectedEmployeeId()] || null;
+        if (selectedEmp) {
+            syncCodeInputFromEmployee(selectedEmp);
+        }
+    }
     updateAllToolbars();
 
     document.addEventListener('master-toolbar', function (e) {
@@ -595,6 +1007,10 @@
             e.preventDefault();
             e.stopImmediatePropagation();
             startAdd(type);
+        } else if (action === 'print') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            printCurrentScreen();
         }
     }, true);
 

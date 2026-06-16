@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once app_path('includes/hr_salary.php');
 require_once app_path('includes/company_settings.php');
+require_once app_path('includes/hr_employee_monthly_payroll.php');
+require_once app_path('includes/document_header.php');
 
 /** @return array<int, array{id:int, emp_code:string, name_ar:string}> */
 function hr_payroll_slip_report_employees_for_period(PDO $pdo, int $year, int $month): array
@@ -98,7 +100,79 @@ function hr_payroll_slip_report_build(PDO $pdo, int $employeeId, int $year, int 
     $dedCol = (float) ($row['deductions'] ?? 0);
     $ssEmp = (float) ($row['social_security_emp'] ?? 0);
     $tax = (float) ($row['income_tax'] ?? 0);
-    $gross = round($base + $allowCol + $overtime + $bonus, 3);
+    $allowanceLines = is_array($row['allowance_lines'] ?? null) ? (array) $row['allowance_lines'] : [];
+    $allowFromLines = 0.0;
+    foreach ($allowanceLines as $ln) {
+        $allowFromLines += (float) ($ln['amount'] ?? 0);
+    }
+    $allowTotal = $allowanceLines !== [] ? round($allowFromLines, 3) : round($allowCol, 3);
+
+    $monthlyAllowRows = hr_employee_monthly_payroll_lines_list($pdo, $employeeId, $year, $month, 'allowance');
+    $monthlyCompIds = [];
+    foreach ($monthlyAllowRows as $ln) {
+        $cid = (int) ($ln['component_id'] ?? 0);
+        if ($cid > 0) {
+            $monthlyCompIds[$cid] = true;
+        }
+    }
+
+    $allowDetailBaseFixed = [
+        [
+            'name' => 'الراتب الأساسي',
+            'amount' => round($base, 3),
+            'recurring' => true,
+        ],
+    ];
+    $allowDetailMonthly = [];
+    $allowLines = [];
+    $permanentAllowTotal = 0.0;
+    $monthlyAllowTotal = 0.0;
+    $seenMonthlyCompIds = [];
+    foreach ($allowanceLines as $ln) {
+        $cid = (int) ($ln['component_id'] ?? 0);
+        $amount = round((float) ($ln['amount'] ?? 0), 3);
+        $name = trim((string) ($ln['name_ar'] ?? ''));
+        $isMonthly = $cid > 0 && isset($monthlyCompIds[$cid]);
+        $item = [
+            'name' => $name !== '' ? $name : 'علاوة',
+            'amount' => $amount,
+            'recurring' => !$isMonthly,
+        ];
+        $allowLines[] = $item;
+        if ($isMonthly) {
+            $allowDetailMonthly[] = $item;
+            $monthlyAllowTotal += $amount;
+            $seenMonthlyCompIds[$cid] = true;
+        } else {
+            $allowDetailBaseFixed[] = $item;
+            $permanentAllowTotal += $amount;
+        }
+    }
+
+    foreach ($monthlyAllowRows as $ln) {
+        $cid = (int) ($ln['component_id'] ?? 0);
+        if ($cid > 0 && isset($seenMonthlyCompIds[$cid])) {
+            continue;
+        }
+        $amount = round((float) ($ln['amount'] ?? 0), 3);
+        $name = trim((string) ($ln['name_ar'] ?? ''));
+        $item = [
+            'name' => $name !== '' ? $name : 'علاوة شهرية',
+            'amount' => $amount,
+            'recurring' => false,
+        ];
+        $allowLines[] = $item;
+        $allowDetailMonthly[] = $item;
+        $monthlyAllowTotal += $amount;
+    }
+
+    $splitAllowTotal = round($permanentAllowTotal + $monthlyAllowTotal, 3);
+    $allowDiff = round($allowTotal - $splitAllowTotal, 3);
+    if (abs($allowDiff) > 0.0005) {
+        $permanentAllowTotal = round($permanentAllowTotal + $allowDiff, 3);
+    }
+    $baseWithPermanentAllow = round($base + $permanentAllowTotal, 3);
+    $gross = round($base + $allowTotal + $overtime + $bonus, 3);
     $totalDed = round($dedCol + $ssEmp + $tax, 3);
     $net = (float) ($row['net_salary'] ?? 0);
 
@@ -152,45 +226,23 @@ function hr_payroll_slip_report_build(PDO $pdo, int $employeeId, int $year, int 
         // ignored
     }
 
-    $allowLines = [];
-    foreach ($row['allowance_lines'] ?? [] as $ln) {
-        $name = trim((string) ($ln['name_ar'] ?? ''));
-        if ($name === '') {
-            continue;
-        }
-        $allowLines[] = [
-            'name' => $name,
-            'amount' => (float) ($ln['amount'] ?? 0),
-            'recurring' => true,
-        ];
-    }
-    if (!$allowLines && $base > 0.0005) {
-        $allowLines[] = [
-            'name' => 'الراتب الأساسي',
-            'amount' => round($base, 3),
-            'recurring' => true,
-        ];
-    }
-    if ($allowCol > 0.0005) {
-        $allowLines[] = [
-            'name' => 'علاوات',
-            'amount' => round($allowCol, 3),
-            'recurring' => true,
-        ];
-    }
     if ($overtime > 0.0005) {
-        $allowLines[] = [
+        $item = [
             'name' => 'عمل إضافي',
             'amount' => round($overtime, 3),
             'recurring' => false,
         ];
+        $allowLines[] = $item;
+        $allowDetailMonthly[] = $item;
     }
     if ($bonus > 0.0005) {
-        $allowLines[] = [
+        $item = [
             'name' => 'مكافآت',
             'amount' => round($bonus, 3),
             'recurring' => false,
         ];
+        $allowLines[] = $item;
+        $allowDetailMonthly[] = $item;
     }
 
     $subjectSs = (int) ($row['subject_to_social_security'] ?? 0) === 1;
@@ -211,10 +263,10 @@ function hr_payroll_slip_report_build(PDO $pdo, int $employeeId, int $year, int 
     }
 
     $summaryAllow = [
-        ['label' => 'الراتب الأساسي والعلاوات', 'amount' => round($base, 3)],
+        ['label' => 'الراتب الأساسي والعلاوات الثابتة', 'amount' => $baseWithPermanentAllow],
     ];
-    if ($allowCol > 0.0005) {
-        $summaryAllow[] = ['label' => 'العلاوات الإضافية', 'amount' => round($allowCol, 3)];
+    if ($monthlyAllowTotal > 0.0005) {
+        $summaryAllow[] = ['label' => 'العلاوات الإضافية الشهرية', 'amount' => round($monthlyAllowTotal, 3)];
     }
     if ($overtime > 0.0005) {
         $summaryAllow[] = ['label' => 'عمل إضافي', 'amount' => round($overtime, 3)];
@@ -275,6 +327,8 @@ function hr_payroll_slip_report_build(PDO $pdo, int $employeeId, int $year, int 
         'gross' => $gross,
         'total_ded' => $totalDed,
         'net' => $net,
+        'allow_detail_base_fixed' => $allowDetailBaseFixed,
+        'allow_detail_monthly' => $allowDetailMonthly,
         'allow_detail' => $allowLines,
         'deduct_detail' => $otherDedLines,
     ];
@@ -288,44 +342,12 @@ function hr_payroll_slip_report_fmt(float $amount): string
 /** HTML قسيمة الراتب (للعرض والطباعة). */
 function hr_payroll_slip_report_render_html(array $slip): string
 {
-    $co = $slip['company'] ?? [];
-    $logoUrl = $co['logo_url'] ?? null;
-    $period = esc((string) ($slip['period_label'] ?? ''));
+    $periodLabel = (string) ($slip['period_label'] ?? '');
 
     ob_start();
     ?>
     <div class="hr-pslip-doc report-sales-print-area doc-print-watermark-scope">
-        <header class="hr-pslip-header">
-            <div class="hr-pslip-header-cols">
-                <div class="hr-pslip-header-en" dir="ltr">
-                    <div class="hr-pslip-co-en"><?= esc((string) ($co['name_en'] ?? '')) ?></div>
-                    <?php if (!empty($co['address_en'])): ?>
-                        <div><?= esc((string) $co['address_en']) ?></div>
-                    <?php endif; ?>
-                    <?php if (!empty($co['phone'])): ?>
-                        <div>Tel: <?= esc((string) $co['phone']) ?></div>
-                    <?php endif; ?>
-                </div>
-                <div class="hr-pslip-header-logo">
-                    <?php if ($logoUrl): ?>
-                        <img src="<?= esc((string) $logoUrl) ?>" alt="">
-                    <?php endif; ?>
-                </div>
-                <div class="hr-pslip-header-ar">
-                    <div class="hr-pslip-co-ar"><?= esc((string) ($co['name_ar'] ?? '')) ?></div>
-                    <?php if (!empty($co['address_ar'])): ?>
-                        <div><?= esc((string) $co['address_ar']) ?></div>
-                    <?php endif; ?>
-                    <?php if (!empty($co['phone'])): ?>
-                        <div>هاتف: <?= esc((string) $co['phone']) ?></div>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <h1 class="hr-pslip-title">قسيمة الراتب</h1>
-            <p class="hr-pslip-period-line">
-                لشهر <strong><?= $period ?></strong>
-            </p>
-        </header>
+        <?= document_print_header_html('قسيمة الراتب', null, 'لشهر ' . $periodLabel) ?>
 
         <hr class="hr-pslip-rule hr-pslip-rule--thick">
 
@@ -437,14 +459,27 @@ function hr_payroll_slip_report_render_html(array $slip): string
 
         <section class="hr-pslip-detail-cols">
             <div class="hr-pslip-detail-block">
-                <h3 class="hr-pslip-detail-h">تفاصيل العلاوات</h3>
+                <h4 class="hr-pslip-detail-h">تفاصيل الراتب الأساسي والعلاوات</h4>
                 <ul class="hr-pslip-detail-list">
-                    <?php if (empty($slip['allow_detail'])): ?>
+                    <?php if (empty($slip['allow_detail_base_fixed'])): ?>
                         <li class="muted">—</li>
                     <?php endif; ?>
-                    <?php foreach ($slip['allow_detail'] ?? [] as $ln): ?>
+                    <?php foreach ($slip['allow_detail_base_fixed'] ?? [] as $ln): ?>
                         <li>
-                            <span class="hr-pslip-detail-name"><?= esc((string) ($ln['name'] ?? '')) ?><?= !empty($ln['recurring']) ? ' - متكرر' : '' ?></span>
+                            <span class="hr-pslip-detail-name"><?= esc((string) ($ln['name'] ?? '')) ?></span>
+                            <span class="hr-pslip-detail-amt" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+
+                <h4 class="hr-pslip-detail-h">العلاوات الإضافية الشهرية</h4>
+                <ul class="hr-pslip-detail-list">
+                    <?php if (empty($slip['allow_detail_monthly'])): ?>
+                        <li class="muted">—</li>
+                    <?php endif; ?>
+                    <?php foreach ($slip['allow_detail_monthly'] ?? [] as $ln): ?>
+                        <li>
+                            <span class="hr-pslip-detail-name"><?= esc((string) ($ln['name'] ?? '')) ?></span>
                             <span class="hr-pslip-detail-amt" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></span>
                         </li>
                     <?php endforeach; ?>

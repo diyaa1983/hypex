@@ -1002,6 +1002,10 @@ function hr_payroll_month_status_rows(
 
         $salaryId = $sal ? (int) ($sal['id'] ?? 0) : 0;
         $breakdown = hr_payroll_employee_row_breakdown($pdo, $eid, $year, $month, $base, $salaryId);
+        $currentBase = (float) ($breakdown['base_salary'] ?? $base);
+        $currentAllowTotal = (float) ($breakdown['permanent_allow_total'] ?? 0)
+            + (float) ($breakdown['monthly_allow_total'] ?? 0);
+        $previewDeductions = (float) ($breakdown['deductions_preview'] ?? 0);
 
         $subjectSs = (int) ($e['subject_to_social_security'] ?? 0) === 1;
         $ssEmp = 0.0;
@@ -1015,8 +1019,20 @@ function hr_payroll_month_status_rows(
                 $ssEmp = (float) ($sal['social_security_emp'] ?? 0);
             }
             $incomeTax = (float) ($sal['income_tax'] ?? 0);
+            if ((int) ($sal['is_posted'] ?? 0) !== 1 && abs($previewDeductions - $deductions) > 0.0005) {
+                $deductions = $previewDeductions;
+                $net = hr_salary_calc_net(
+                    $currentBase,
+                    $currentAllowTotal,
+                    $deductions,
+                    (float) ($sal['overtime'] ?? 0),
+                    (float) ($sal['bonus'] ?? 0),
+                    $ssEmp,
+                    $incomeTax
+                );
+            }
         } elseif ($hasSetup) {
-            $deductions = (float) ($breakdown['deductions_preview'] ?? 0);
+            $deductions = $previewDeductions;
         }
 
         $out[] = [
@@ -1027,7 +1043,7 @@ function hr_payroll_month_status_rows(
             'subject_to_social_security' => $subjectSs ? 1 : 0,
             'status' => $status,
             'salary_id' => $salaryId,
-            'base_salary' => (float) ($breakdown['base_salary'] ?? $base),
+            'base_salary' => $currentBase,
             'permanent_allow_total' => (float) ($breakdown['permanent_allow_total'] ?? 0),
             'monthly_allow_total' => (float) ($breakdown['monthly_allow_total'] ?? 0),
             'deductions' => $deductions,

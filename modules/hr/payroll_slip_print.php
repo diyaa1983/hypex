@@ -41,6 +41,7 @@ $cssInvUrl = app_url('assets/css/sales-invoice.css');
 if (is_file($cssInvPath)) {
     $cssInvUrl .= '?v=' . (string) filemtime($cssInvPath);
 }
+$docHeaderCssUrl = document_print_stylesheet_url('assets/css/document-header.css');
 
 $wmRootCss = document_print_watermark_root_css($pdo);
 $hasWatermark = document_print_watermark_logo_url($pdo) !== null;
@@ -54,6 +55,7 @@ $bodyClass = 'hr-pslip-print-body' . ($hasWatermark ? ' has-doc-watermark' : '')
     <title>قسيمة الراتب — <?= esc($empName) ?></title>
     <link rel="stylesheet" href="<?= esc($cssInvUrl) ?>">
     <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+    <link rel="stylesheet" href="<?= esc($docHeaderCssUrl) ?>">
     <?php if ($wmRootCss !== ''): ?>
         <style><?= $wmRootCss ?></style>
     <?php endif; ?>

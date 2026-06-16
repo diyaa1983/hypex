@@ -1,0 +1,123 @@
+/* بطاقة موظف — طباعة */
+
+@page {
+    size: A4 portrait;
+    margin: 10mm;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    .hr-emp-print-body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+    }
+
+    .hr-emp-print-doc {
+        border: none;
+        box-shadow: none;
+        margin: 0;
+        max-width: none;
+    }
+}
+
+.hr-emp-print-body {
+    margin: 0;
+    padding: 1rem;
+    font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+    font-size: 14px;
+    color: #111;
+    background: #f1f5f9;
+}
+
+.hr-emp-print-doc {
+    max-width: 760px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+    padding: 1.2rem 1.4rem 1.4rem;
+}
+
+.hr-emp-print-section + .hr-emp-print-section,
+.hr-emp-print-notes {
+    margin-top: 0.85rem;
+}
+
+.hr-emp-print-section h3,
+.hr-emp-print-notes h3 {
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+}
+
+.hr-emp-print-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.hr-emp-print-table th,
+.hr-emp-print-table td {
+    border: 1px solid #cbd5e1;
+    padding: 0.35rem 0.5rem;
+    text-align: right;
+    vertical-align: middle;
+}
+
+.hr-emp-print-table th {
+    width: 18%;
+    background: #f8fafc;
+    font-weight: 700;
+}
+
+.hr-emp-print-notes p {
+    margin: 0;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    min-height: 2.4rem;
+    white-space: pre-wrap;
+}
+
+.hr-emp-print-foot {
+    margin-top: 1rem;
+    padding-top: 0.55rem;
+    border-top: 1px dashed #94a3b8;
+    text-align: center;
+    color: #64748b;
+    font-size: 0.82rem;
+}
+
+.hr-emp-print-foot-sep {
+    margin-inline: 0.35rem;
+    color: #94a3b8;
+}
+
+.hr-emp-print-actions {
+    max-width: 900px;
+    margin: 1rem auto 0;
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.hr-emp-print-actions .btn {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.hr-emp-print-actions .btn-primary {
+    background: #0ea5e9;
+    color: #fff;
+    border-color: #0284c7;
+}
+
+.hr-emp-print-actions .btn-secondary {
+    background: #fff;
+    color: #111827;
+}

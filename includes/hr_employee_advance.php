@@ -299,14 +299,15 @@ function hr_employee_advance_deductions_for_month(
     $st = $pdo->prepare(
         'SELECT id, advance_type, total_amount, start_date, end_date, status
          FROM hr_employee_advance
-         WHERE employee_id = ? AND status IN (\'active\', \'completed\')
+         WHERE employee_id = ?
+           AND COALESCE(NULLIF(TRIM(status), \'\'), \'active\') <> \'cancelled\'
          ORDER BY id ASC'
     );
     $st->execute([$employeeId]);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $lines = [];
-    $total = 0.0;
+    /** @var array<int, array{advance_id:int, label:string, amount:float}> $lineMap */
+    $lineMap = [];
 
     foreach ($rows as $adv) {
         $aid = (int) ($adv['id'] ?? 0);
@@ -369,8 +370,53 @@ function hr_employee_advance_deductions_for_month(
             continue;
         }
 
-        $lines[] = ['advance_id' => $aid, 'label' => $label, 'amount' => $amt];
-        $total += $amt;
+        $lineMap[$aid] = ['advance_id' => $aid, 'label' => $label, 'amount' => $amt];
+    }
+
+    // Keep deductions already linked to this salary row visible in posting grid,
+    // then overlay them on top of preview lines to avoid duplicate counting.
+    if ($currentSalaryId > 0) {
+        try {
+            $linked = $pdo->prepare(
+                'SELECT sad.advance_id, sad.amount, a.advance_type, a.start_date, a.end_date
+                 FROM hr_salary_advance_deduction sad
+                 INNER JOIN hr_employee_advance a ON a.id = sad.advance_id
+                 WHERE sad.salary_id = ?
+                 ORDER BY sad.id ASC'
+            );
+            $linked->execute([$currentSalaryId]);
+            foreach ($linked->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $aid = (int) ($row['advance_id'] ?? 0);
+                $amt = round((float) ($row['amount'] ?? 0), 3);
+                if ($aid < 1 || $amt <= 0.0005) {
+                    continue;
+                }
+
+                $type = (string) ($row['advance_type'] ?? '');
+                $label = hr_employee_advance_type_label($type);
+                if ($type === 'long') {
+                    $months = hr_employee_advance_month_count(
+                        (string) ($row['start_date'] ?? ''),
+                        (string) ($row['end_date'] ?? '')
+                    );
+                    $label = 'سلفة طويلة (' . $months . ' أشهر)';
+                }
+
+                $lineMap[$aid] = [
+                    'advance_id' => $aid,
+                    'label' => $label,
+                    'amount' => $amt,
+                ];
+            }
+        } catch (Throwable $e) {
+            // ignored
+        }
+    }
+
+    $lines = array_values($lineMap);
+    $total = 0.0;
+    foreach ($lines as $line) {
+        $total += (float) ($line['amount'] ?? 0);
     }
 
     return ['total' => round($total, 3), 'lines' => $lines];

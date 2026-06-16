@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once app_path('includes/hr_schema.php');
 require_once app_path('includes/hr_employee_salary.php');
+require_once app_path('includes/document_header.php');
 
 $pdo = db();
 hr_employee_salary_line_ensure_schema($pdo);
@@ -18,21 +19,12 @@ if (!$row) {
 
 $allowLines = $row['lines'];
 
-$company = '';
-try {
-    $company = trim((string) ($pdo->query('SELECT company_name FROM app_settings LIMIT 1')->fetchColumn() ?: ''));
-} catch (Throwable $e) {
-    // ignored
-}
-if ($company === '') {
-    $company = 'بيان راتب موظف';
-}
-
 $cssPath = app_path('assets/css/hr-salary-slip.css');
 $cssUrl = app_url('assets/css/hr-salary-slip.css');
 if (is_file($cssPath)) {
     $cssUrl .= '?v=' . (string) filemtime($cssPath);
 }
+$docHeaderCssUrl = document_print_stylesheet_url('assets/css/document-header.css');
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -40,15 +32,13 @@ if (is_file($cssPath)) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>بيان راتب — <?= esc((string) ($row['emp_name'] ?? '')) ?></title>
+    <link rel="stylesheet" href="<?= esc($docHeaderCssUrl) ?>">
     <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 </head>
 <body class="hr-slip-body">
 <div class="hr-slip-doc">
-    <header class="hr-slip-header">
-        <h1><?= esc($company) ?></h1>
-        <h2>بيان الراتب الأساسي والعلاوات</h2>
-        <p class="hr-slip-period muted">إعداد راتب الموظف — ليس قيداً شهرياً</p>
-    </header>
+    <?= document_print_header_html('قسيمة الراتب', $pdo, 'بيان الراتب الأساسي والعلاوات') ?>
+    <p class="hr-slip-subtitle muted">إعداد راتب الموظف — ليس قيداً شهرياً</p>
 
     <section class="hr-slip-emp">
         <table class="hr-slip-info-table">

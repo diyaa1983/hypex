@@ -475,6 +475,56 @@ body.hr-ora-ui .hr-pr-post-doc-header .hr-pr-post-doc-action-col .btn {
     width: 100%;
 }
 
+body.hr-ora-ui .hr-pr-post-filters-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    max-width: 26rem;
+}
+
+body.hr-ora-ui .hr-pr-post-filters-panel {
+    margin-top: 0.45rem;
+    padding: 0.5rem 0.55rem;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
+body.hr-ora-ui .hr-pr-post-filter-line {
+    display: grid;
+    grid-template-columns: minmax(4rem, 5rem) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.35rem;
+}
+
+body.hr-ora-ui .hr-pr-post-filter-line > span {
+    font-size: 0.74rem;
+    color: var(--ora12-muted, #5c5c5c);
+    text-align: start;
+}
+
+body.hr-ora-ui .hr-pr-post-filters-panel input[name="year"] {
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: #fff;
+    text-align: start;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+body.hr-ora-ui .hr-pr-post-filter-line .btn {
+    width: 100%;
+}
+
+body.hr-ora-ui .hr-pr-post-filter-line--submit {
+    margin-top: 0.1rem;
+}
+
+body.hr-ora-ui .hr-pr-post-doc-summary--box {
+    margin-top: 0.45rem;
+    padding: 0.42rem 0.5rem !important;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    background: #fff;
+}
+
 body.hr-ora-ui .hr-pr-post-grid-table td.num {
     text-align: end;
     font-variant-numeric: tabular-nums;
@@ -574,6 +624,8 @@ body.hr-ora-ui .hr-pr-post-row--empty td {
 body.hr-ora-ui .hr-pr-post-ora-lov {
     display: flex;
     align-items: center;
+    position: relative;
+    overflow: visible;
     width: 100%;
     min-width: 0;
     min-height: 1.45rem;
@@ -608,6 +660,69 @@ body.hr-ora-ui .hr-pr-post-ora-lov-field {
     box-shadow: none !important;
 }
 
+body.hr-ora-ui .hr-pr-post-ora-smart-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0 0.35rem;
+    border: none !important;
+    border-radius: 0;
+    background: transparent !important;
+    text-align: start;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    box-shadow: none !important;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-smart-input:focus {
+    outline: none;
+    background: transparent !important;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-smart-list {
+    position: absolute;
+    inset-inline: 0;
+    top: calc(100% + 1px);
+    z-index: 80;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
+    max-height: 14rem;
+    overflow: auto;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-smart-item {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #eef2f7;
+    background: #fff;
+    color: var(--ora12-text, #161513);
+    font: inherit;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    padding: 0.28rem 0.4rem;
+    text-align: start;
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-smart-item:last-child {
+    border-bottom: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-smart-item:hover,
+body.hr-ora-ui .hr-pr-post-ora-smart-item.is-active {
+    background: #e8f0f8;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-smart-empty {
+    padding: 0.35rem 0.4rem;
+    font-size: 0.74rem;
+    color: var(--ora12-muted, #5c5c5c);
+    text-align: start;
+}
+
 body.hr-ora-ui .hr-pr-post-ora-lov-field:focus {
     outline: none;
     background: transparent !important;
@@ -620,6 +735,12 @@ body.hr-ora-ui .hr-pr-post-ora-lov:has(.hr-pr-post-ora-lov-field:disabled) {
 body.hr-ora-ui .hr-pr-post-ora-lov-field:disabled {
     background: transparent !important;
     color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-pr-post-ora-smart-input:disabled {
+    background: transparent !important;
+    color: var(--ora12-muted, #5c5c5c);
+    cursor: not-allowed;
 }
 
 body.hr-ora-ui .hr-pr-post-ora-lov-btn {
@@ -652,6 +773,11 @@ body.hr-ora-ui .hr-pr-post-ora-lov-btn:hover:not(:disabled) {
 }
 
 body.hr-ora-ui .hr-pr-post-ora-lov:has(.hr-pr-post-ora-lov-field:disabled) .hr-pr-post-ora-lov-btn {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+body.hr-ora-ui .hr-pr-post-ora-lov.is-smart-disabled .hr-pr-post-ora-lov-btn {
     opacity: 0.5;
     cursor: not-allowed;
 }

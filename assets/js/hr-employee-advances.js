@@ -22,11 +22,18 @@
     var typeRadios = document.querySelectorAll('.hr-adv-type-radio');
     var btnAdd = document.getElementById('hr-adv-btn-add');
     var btnEdit = document.getElementById('hr-adv-btn-edit');
+    var btnDelete = document.getElementById('hr-adv-btn-delete');
     var btnClose = document.getElementById('hr-adv-editor-close');
     var btnCancel = document.getElementById('hr-adv-editor-cancel');
     var delForm = document.getElementById('hr-adv-delete-form');
     var delIdInp = document.getElementById('hr-adv-delete-id');
+    var topPickerId = document.getElementById('hr-adv-picker-id');
+    var topPickerOpen = document.getElementById('hr-adv-picker-id_open');
+    var topPickerDisplay = document.getElementById('hr-adv-picker-id_display');
     var filterEmployee = document.getElementById('hr-adv-filter-employee');
+    var filterEmployeeSmart = document.getElementById('hr-adv-filter-employee-smart');
+    var filterEmployeeList = document.getElementById('hr-adv-filter-employee-list');
+    var filterEmployeeToggle = document.getElementById('hr-adv-filter-employee-toggle');
     var filterEmployeeIdInp = document.getElementById('hr-adv-filter-employee-id');
     var deleteFilterEmployeeIdInp = document.getElementById('hr-adv-delete-filter-employee-id');
     var pickerCode = document.getElementById('hr-adv-picker-code');
@@ -38,6 +45,18 @@
     var exitUrl = page.getAttribute('data-exit-url') || '';
     var editorSnapshot = null;
     var formSubmitting = false;
+    var editorEmployeeSmart = document.getElementById('hr-adv-editor-employee-smart');
+    var editorEmployeeList = document.getElementById('hr-adv-editor-employee-list');
+    var editorEmployeeToggle = document.getElementById('hr-adv-editor-employee-toggle');
+    var filterSmartApi = null;
+    var editorSmartApi = null;
+    var topPickerApi = null;
+
+    function syncExitGuard() {
+        if (window.ScreenExitGuard && typeof window.ScreenExitGuard.syncFor === 'function') {
+            window.ScreenExitGuard.syncFor(page);
+        }
+    }
 
     function appDialogConfirm(message) {
         if (window.AppDialog && AppDialog.confirm) {
@@ -52,6 +71,297 @@
         } else {
             window.alert(message);
         }
+    }
+
+    function normText(value) {
+        return String(value || '').trim().toLowerCase();
+    }
+
+    function normalizeDigits(value) {
+        return String(value || '')
+            .replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+            .replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+    }
+
+    function escapeHtml(value) {
+        var div = document.createElement('div');
+        div.textContent = value == null ? '' : String(value);
+        return div.innerHTML;
+    }
+
+    function buildSmartItemsFromSelect(selectEl) {
+        if (!selectEl) return [];
+        var items = [];
+        Array.prototype.forEach.call(selectEl.options, function (opt) {
+            var value = String(opt.value || '').trim();
+            if (!value) return;
+            var label = String(opt.textContent || '').trim();
+            var code = String(opt.getAttribute('data-emp-code') || '').trim();
+            if (!code && label.indexOf('—') >= 0) {
+                code = String(label.split('—')[0] || '').trim();
+            }
+            items.push({
+                value: value,
+                label: label,
+                code: code,
+                search: normText((code ? code + ' ' : '') + label),
+            });
+        });
+        return items;
+    }
+
+    function setupSmartEmployeePicker(opts) {
+        if (!opts || !opts.select || !opts.input || !opts.list) return null;
+        var selectEl = opts.select;
+        var inputEl = opts.input;
+        var listEl = opts.list;
+        var toggleEl = opts.toggle || null;
+        var closeTimer = null;
+        var isOpen = false;
+        var activeIndex = -1;
+        var items = buildSmartItemsFromSelect(selectEl);
+
+        function refreshItems() {
+            items = buildSmartItemsFromSelect(selectEl);
+        }
+
+        function syncInputFromSelect() {
+            var op = selectEl.options[selectEl.selectedIndex];
+            inputEl.value = op && op.value ? String(op.textContent || '').trim() : '';
+        }
+
+        function closeList() {
+            clearTimeout(closeTimer);
+            listEl.hidden = true;
+            listEl.innerHTML = '';
+            isOpen = false;
+            activeIndex = -1;
+        }
+
+        function scheduleClose() {
+            clearTimeout(closeTimer);
+            closeTimer = setTimeout(closeList, 170);
+        }
+
+        function highlightActive() {
+            var buttons = listEl.querySelectorAll('.hr-adv-emp-pick-item[data-value]');
+            Array.prototype.forEach.call(buttons, function (btn, idx) {
+                btn.classList.toggle('is-active', idx === activeIndex);
+            });
+            if (activeIndex >= 0 && buttons[activeIndex]) {
+                buttons[activeIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function applySelection(value, emitChange) {
+            var nextValue = String(value || '').trim();
+            if (!nextValue) return;
+            var prevValue = String(selectEl.value || '').trim();
+            selectEl.value = nextValue;
+            syncInputFromSelect();
+            closeList();
+            if (emitChange && prevValue !== nextValue) {
+                selectEl.setAttribute('data-prev-value', prevValue);
+                try {
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (e) {
+                    selectEl.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+
+        function renderList(queryText, browseAll) {
+            if (selectEl.disabled || inputEl.disabled) {
+                closeList();
+                return;
+            }
+            if (!items.length) {
+                refreshItems();
+            }
+            var needle = browseAll ? '' : normText(queryText);
+            var matches = items.filter(function (item) {
+                return needle === '' || item.search.indexOf(needle) >= 0;
+            });
+
+            listEl.innerHTML = '';
+            activeIndex = -1;
+
+            if (!matches.length) {
+                var empty = document.createElement('div');
+                empty.className = 'hr-adv-emp-pick-empty';
+                empty.textContent = needle === '' ? 'لا يوجد موظفون' : 'لا يوجد موظف مطابق';
+                listEl.appendChild(empty);
+            } else {
+                matches.slice(0, 120).forEach(function (item) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'hr-adv-emp-pick-item';
+                    btn.setAttribute('data-value', item.value);
+                    btn.innerHTML = item.code
+                        ? '<span class="hr-adv-emp-pick-name">' + escapeHtml(item.label) + '</span><code dir="ltr">' + escapeHtml(item.code) + '</code>'
+                        : '<span class="hr-adv-emp-pick-name">' + escapeHtml(item.label) + '</span>';
+                    btn.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        applySelection(item.value, true);
+                    });
+                    listEl.appendChild(btn);
+                });
+            }
+
+            listEl.hidden = false;
+            isOpen = true;
+        }
+
+        function openList(showAll) {
+            renderList(inputEl.value, !!showAll);
+        }
+
+        inputEl.addEventListener('focus', function () {
+            openList(false);
+        });
+
+        inputEl.addEventListener('click', function () {
+            clearTimeout(closeTimer);
+            openList(false);
+        });
+
+        inputEl.addEventListener('input', function () {
+            openList(false);
+        });
+
+        inputEl.addEventListener('blur', function () {
+            scheduleClose();
+        });
+
+        inputEl.addEventListener('keydown', function (e) {
+            if (!isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault();
+                openList(false);
+                return;
+            }
+            var buttons = listEl.querySelectorAll('.hr-adv-emp-pick-item[data-value]');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!buttons.length) return;
+                activeIndex = activeIndex < buttons.length - 1 ? activeIndex + 1 : 0;
+                highlightActive();
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!buttons.length) return;
+                activeIndex = activeIndex > 0 ? activeIndex - 1 : buttons.length - 1;
+                highlightActive();
+                return;
+            }
+            if (e.key === 'Enter') {
+                if (!isOpen) return;
+                e.preventDefault();
+                if (!buttons.length) return;
+                var pickBtn = activeIndex >= 0 ? buttons[activeIndex] : buttons[0];
+                if (pickBtn) {
+                    applySelection(pickBtn.getAttribute('data-value') || '', true);
+                }
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeList();
+            }
+        });
+
+        listEl.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            clearTimeout(closeTimer);
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!isOpen) return;
+            if (
+                e.target === inputEl
+                || e.target === toggleEl
+                || (toggleEl && toggleEl.contains(e.target))
+                || listEl.contains(e.target)
+            ) {
+                return;
+            }
+            closeList();
+        });
+
+        syncInputFromSelect();
+
+        return {
+            syncFromSelect: syncInputFromSelect,
+            open: openList,
+            close: closeList,
+            refresh: refreshItems,
+        };
+    }
+
+    function parseEmployeeList() {
+        var el = document.getElementById('hr-adv-picker-json');
+        if (!el) return [];
+        try {
+            return JSON.parse(el.textContent || '[]') || [];
+        } catch (err) {
+            return [];
+        }
+    }
+
+    function buildCodeIndex() {
+        var map = {};
+        parseEmployeeList().forEach(function (emp) {
+            var id = parseInt(emp.id, 10);
+            var code = normalizeDigits(String(emp.code || '').trim());
+            if (id > 0 && code !== '') {
+                map[code] = id;
+            }
+        });
+        return map;
+    }
+
+    function codeToEmployeeId(rawCode) {
+        var code = normalizeDigits(String(rawCode || '').trim());
+        if (code === '' || code === '—') {
+            return 0;
+        }
+        var map = buildCodeIndex();
+        return parseInt(map[code] || '0', 10) || 0;
+    }
+
+    function syncTopPickerByEmployeeId(empId, silent) {
+        if (!topPickerApi || !empId) return;
+        topPickerApi.setById(parseInt(empId, 10) || 0, !!silent);
+    }
+
+    function initTopEmployeePickerModal() {
+        if (!topPickerId || !topPickerOpen || !topPickerDisplay) return;
+        if (!window.EmployeePickerModal) {
+            setTimeout(initTopEmployeePickerModal, 40);
+            return;
+        }
+        topPickerApi = EmployeePickerModal.bind({
+            hidden: 'hr-adv-picker-id',
+            open: 'hr-adv-picker-id_open',
+            display: 'hr-adv-picker-id_display',
+            jsonId: 'hr-adv-picker-json',
+            employees: parseEmployeeList(),
+            allowNew: false,
+            placeholder: 'اضغط لاختيار الموظف',
+            initialId: parseInt(page.getAttribute('data-filter-employee-id') || '0', 10) || '',
+            onSelect: function (emp) {
+                var nextId = emp && emp.id ? String(emp.id) : '';
+                if (filterEmployee) {
+                    filterEmployee.setAttribute('data-prev-value', String(filterEmployee.value || ''));
+                    filterEmployee.value = nextId;
+                    try {
+                        filterEmployee.dispatchEvent(new Event('change', { bubbles: true }));
+                    } catch (e) {
+                        filterEmployee.dispatchEvent(new Event('change'));
+                    }
+                }
+            },
+        });
     }
 
     function syncFilterHiddenFields() {
@@ -70,6 +380,7 @@
     function syncPickerDisplay() {
         if (!filterEmployee) return;
         var op = filterEmployee.options[filterEmployee.selectedIndex];
+        syncTopPickerByEmployeeId(op && op.value ? op.value : 0, true);
         if (pickerCode) {
             if (!op || !op.value) {
                 pickerCode.value = '—';
@@ -101,6 +412,7 @@
     function navigateToEmployeeFilter(employeeId, previousValue) {
         var url = employeeFilterUrl(employeeId);
         confirmUnsavedChanges(function () {
+            syncExitGuard();
             window.location.href = url;
         }, function () {
             if (filterEmployee) {
@@ -122,6 +434,9 @@
     function setEditorEmployeeLocked(locked) {
         if (!editorEmployee) return;
         editorEmployee.disabled = !!locked;
+        if (editorEmployeeSmart) {
+            editorEmployeeSmart.disabled = !!locked;
+        }
         syncOraLovButtons();
     }
 
@@ -136,6 +451,20 @@
     }
 
     function openOraLovSelect(btn) {
+        if (btn === filterEmployeeToggle && filterSmartApi) {
+            if (filterEmployeeSmart) {
+                filterEmployeeSmart.focus();
+            }
+            filterSmartApi.open(true);
+            return;
+        }
+        if (btn === editorEmployeeToggle && editorSmartApi) {
+            if (editorEmployeeSmart) {
+                editorEmployeeSmart.focus();
+            }
+            editorSmartApi.open(true);
+            return;
+        }
         var wrap = btn.closest('.hr-adv-ora-lov');
         if (!wrap) return;
         var sel = wrap.querySelector('select');
@@ -156,6 +485,20 @@
         btn.addEventListener('click', function () {
             openOraLovSelect(btn);
         });
+    });
+
+    filterSmartApi = setupSmartEmployeePicker({
+        select: filterEmployee,
+        input: filterEmployeeSmart,
+        list: filterEmployeeList,
+        toggle: filterEmployeeToggle,
+    });
+
+    editorSmartApi = setupSmartEmployeePicker({
+        select: editorEmployee,
+        input: editorEmployeeSmart,
+        list: editorEmployeeList,
+        toggle: editorEmployeeToggle,
     });
 
     function isEditorOpen() {
@@ -293,8 +636,16 @@
         }
         selectedRow = tr;
         selectedRow.classList.add('is-selected');
+        syncRowActionButtons();
+    }
+
+    function syncRowActionButtons() {
         if (btnEdit) {
-            btnEdit.disabled = false;
+            btnEdit.disabled = !selectedRow;
+        }
+        if (btnDelete) {
+            var linked = !!(selectedRow && selectedRow.getAttribute('data-linked') === '1');
+            btnDelete.disabled = !selectedRow || linked;
         }
     }
 
@@ -303,9 +654,7 @@
             selectedRow.classList.remove('is-selected');
             selectedRow = null;
         }
-        if (btnEdit) {
-            btnEdit.disabled = true;
-        }
+        syncRowActionButtons();
     }
 
     function setTypeRadio(type) {
@@ -362,6 +711,9 @@
                 if (editorDeductDate) editorDeductDate.value = rd.deduct || rd.start || '';
             }
         }
+        if (editorSmartApi) {
+            editorSmartApi.syncFromSelect();
+        }
 
         var linked = !isAdd && selectedRow && selectedRow.getAttribute('data-linked') === '1';
         if (editorForm) {
@@ -397,6 +749,9 @@
                 editorForm.querySelectorAll('input, select, textarea').forEach(function (el) {
                     el.disabled = false;
                 });
+            }
+            if (editorSmartApi) {
+                editorSmartApi.close();
             }
             syncOraLovButtons();
         }
@@ -455,8 +810,21 @@
     function navigateAway(url) {
         if (!url) return;
         confirmUnsavedChanges(function () {
+            syncExitGuard();
             window.location.href = url;
         });
+    }
+
+    function printCurrentScreen() {
+        if (getFilterEmployeeId() < 1) {
+            appDialogAlert('اختر موظفاً أولاً ثم اطبع.', 'warning');
+            return;
+        }
+        if (editor && !editor.hidden) {
+            appDialogAlert('أغلق نموذج إضافة/تعديل السلفة أولاً قبل الطباعة.', 'warning');
+            return;
+        }
+        window.print();
     }
 
     function submitDelete() {
@@ -484,6 +852,15 @@
         });
     }
 
+    if (editorForm) {
+        editorForm.addEventListener('submit', function () {
+            // Native form submit (click on "حفظ السلفة") must bypass beforeunload warnings.
+            formSubmitting = true;
+            syncEditorSnapshot();
+            syncExitGuard();
+        });
+    }
+
     if (filterEmployee) {
         syncPickerDisplay();
         syncFilterHiddenFields();
@@ -491,7 +868,10 @@
             filterEmployee.setAttribute('data-prev-value', filterEmployee.value);
         });
         filterEmployee.addEventListener('change', function () {
-            var prev = filterEmployee.getAttribute('data-prev-value') || '';
+            var prev = filterEmployee.getAttribute('data-prev-value');
+            if (prev === null || prev === '') {
+                prev = String(page.getAttribute('data-filter-employee-id') || '');
+            }
             var newVal = filterEmployee.value;
             if (newVal === prev) {
                 return;
@@ -501,6 +881,64 @@
             navigateToEmployeeFilter(newVal, prev);
         });
     }
+    initTopEmployeePickerModal();
+
+    if (pickerCode) {
+        var codeOnFocus = '';
+        pickerCode.addEventListener('focus', function () {
+            codeOnFocus = String(pickerCode.value || '').trim();
+            pickerCode.select();
+        });
+        pickerCode.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                var matchedId = codeToEmployeeId(pickerCode.value);
+                if (matchedId < 1) {
+                    appDialogAlert('لا يوجد موظف بهذا الرقم.', 'warning');
+                    pickerCode.value = codeOnFocus;
+                    return;
+                }
+                if (filterEmployee) {
+                    filterEmployee.value = String(matchedId);
+                    try {
+                        filterEmployee.dispatchEvent(new Event('change', { bubbles: true }));
+                    } catch (e2) {
+                        filterEmployee.dispatchEvent(new Event('change'));
+                    }
+                }
+            }
+        });
+        pickerCode.addEventListener('blur', function () {
+            var typed = normalizeDigits(String(pickerCode.value || '').trim());
+            var prev = normalizeDigits(String(codeOnFocus || '').trim());
+            if (typed === '' || typed === prev) {
+                return;
+            }
+            var matchedId = codeToEmployeeId(typed);
+            if (matchedId < 1) {
+                appDialogAlert('لا يوجد موظف بهذا الرقم.', 'warning');
+                pickerCode.value = codeOnFocus;
+                return;
+            }
+            if (filterEmployee) {
+                filterEmployee.value = String(matchedId);
+                try {
+                    filterEmployee.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (e3) {
+                    filterEmployee.dispatchEvent(new Event('change'));
+                }
+            }
+        });
+    }
+
+    if (editorEmployee) {
+        editorEmployee.addEventListener('change', function () {
+            if (editorSmartApi) {
+                editorSmartApi.syncFromSelect();
+            }
+            syncEditorSnapshot();
+        });
+    }
 
     typeRadios.forEach(function (r) {
         r.addEventListener('change', syncTypeUi);
@@ -508,6 +946,7 @@
 
     if (btnAdd) btnAdd.addEventListener('click', startAdd);
     if (btnEdit) btnEdit.addEventListener('click', startEdit);
+    if (btnDelete) btnDelete.addEventListener('click', submitDelete);
     if (btnClose) btnClose.addEventListener('click', closeEditor);
     if (btnCancel) btnCancel.addEventListener('click', closeEditor);
 
@@ -550,6 +989,10 @@
             e.preventDefault();
             e.stopImmediatePropagation();
             startAdd();
+        } else if (action === 'print') {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            printCurrentScreen();
         } else if (action === 'exit') {
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -582,4 +1025,5 @@
 
     syncTypeUi();
     syncOraLovButtons();
+    syncRowActionButtons();
 })();

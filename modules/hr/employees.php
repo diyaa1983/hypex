@@ -428,6 +428,7 @@ $firstUrlAttr = $firstId > 0 ? $listUrl . '&id=' . $firstId : '';
 $lastUrlAttr = $lastId > 0 ? $listUrl . '&id=' . $lastId : '';
 $pickerCurrentCode = $currentId > 0 ? trim((string) ($row['emp_code'] ?? '')) : '';
 $pickerEmployeesJson = hr_employees_picker_json($pickerEmployees);
+$printBaseUrl = app_url('index.php?r=hr_employee_print');
 $empLocked = $currentId > 0 && hr_employee_is_resignation_posted($row);
 $empResignDate = (string) ($row['resignation_date'] ?? '');
 $empIsResigned = $empResignDate !== '' || hr_employee_is_resignation_posted($row);
@@ -454,11 +455,12 @@ $exitUrl = nav_exit_url('hr_employees');
      data-emp-total="<?= (int) $totalEmployees ?>"
      data-picker-employees="<?= esc($pickerEmployeesJson ?: '[]') ?>"
      data-resignation-posted="<?= $empLocked ? '1' : '0' ?>"
+     data-print-base-url="<?= esc($printBaseUrl) ?>"
      data-can-delete="<?= !empty($empDeleteCheck['can_delete']) ? '1' : '0' ?>"
      data-delete-block-reason="<?= esc((string) ($empDeleteCheck['message'] ?? '')) ?>">
 
     <header class="dashboard-ora-screen-title" role="banner">
-        <h1 class="dashboard-ora-screen-title__text">الموظفون</h1>
+        <h1 class="dashboard-ora-screen-title__text">بيانات الموظف الاساسية</h1>
         <?php nav_render_screen_close('hr_employees'); ?>
     </header>
 

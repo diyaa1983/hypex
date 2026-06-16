@@ -52,6 +52,7 @@ $cssUrlSalesOra = app_url('assets/css/hr-payroll-slip-report-sales-ora12.css')
     . (is_file($cssPathSalesOra) ? '?v=' . (string) filemtime($cssPathSalesOra) : '');
 $cssInvPath = app_path('assets/css/sales-invoice.css');
 $cssInvUrl = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
+$docHeaderCssUrl = document_print_stylesheet_url('assets/css/document-header.css');
 $jsPath = app_path('assets/js/hr-payroll-slip-report.js');
 $jsUrl = app_url('assets/js/hr-payroll-slip-report.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
 $exitUrl = nav_exit_url('hr_payroll_slip_report');
@@ -60,6 +61,7 @@ $wmRootCss = document_print_watermark_root_css($pdo);
 <link rel="stylesheet" href="<?= esc($cssInvUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssUrlSalesOra) ?>">
+<link rel="stylesheet" href="<?= esc($docHeaderCssUrl) ?>">
 <?php if ($wmRootCss !== ''): ?><style><?= $wmRootCss ?></style><?php endif; ?>
 <script src="<?= esc($jsUrl) ?>" defer></script>
 

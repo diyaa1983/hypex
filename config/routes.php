@@ -535,8 +535,13 @@ return [
     'hr_employees' => [
         'file' => 'modules/hr/employees.php',
         'permission' => 'hr_employees',
-        'title' => 'الموظفون',
+        'title' => 'بيانات الموظف الاساسية',
         'hide_screen_title' => true,
+    ],
+    'hr_employee_print' => [
+        'file' => 'modules/hr/employee_print.php',
+        'permission' => 'hr_employees',
+        'title' => 'طباعة بطاقة موظف',
     ],
     'hr_departments' => [
         'file' => 'modules/hr/departments.php',

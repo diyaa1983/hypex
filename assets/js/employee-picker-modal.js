@@ -15,7 +15,13 @@
   }
 
   function norm(s) {
-    return String(s || '').trim().toLowerCase();
+    return normalizeDigits(String(s || '')).trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  function normalizeDigits(value) {
+    return String(value || '')
+      .replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+      .replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
   }
 
   function getModal() {
@@ -134,12 +140,15 @@
 
   function employeeMatches(emp, needle) {
     if (!needle) return true;
-    var hay = String(emp.search || '').toLowerCase();
+    var hay = norm(emp.search || '');
     if (hay && hay.indexOf(needle) >= 0) return true;
+    var empId = parseInt(emp.id, 10);
+    var idText = empId > 0 ? String(empId) : '';
     return (
       norm(emp.name_ar).indexOf(needle) >= 0 ||
       norm(emp.code).indexOf(needle) >= 0 ||
-      norm(emp.label).indexOf(needle) >= 0
+      norm(emp.label).indexOf(needle) >= 0 ||
+      (idText !== '' && norm(idText).indexOf(needle) >= 0)
     );
   }
 

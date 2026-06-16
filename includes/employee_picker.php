@@ -22,15 +22,16 @@ function hr_employees_picker_json(array $employees): string
     $rows = array_map(static function (array $pe): array {
         $pname = (string) ($pe['name_ar'] ?? '');
         $code = trim((string) ($pe['emp_code'] ?? ''));
+        $label = hr_employee_picker_row_label($pe);
 
         return [
             'id' => (int) ($pe['id'] ?? 0),
             'code' => $code,
             'name_ar' => $pname !== '' ? $pname : '—',
-            'label' => hr_employee_picker_row_label($pe),
+            'label' => $label,
             'search' => function_exists('mb_strtolower')
-                ? mb_strtolower($pname . ' ' . $code, 'UTF-8')
-                : strtolower($pname . ' ' . $code),
+                ? mb_strtolower($pname . ' ' . $code . ' ' . $label, 'UTF-8')
+                : strtolower($pname . ' ' . $code . ' ' . $label),
         ];
     }, $employees);
 

@@ -6,6 +6,7 @@ require_once app_path('includes/hr_salary.php');
 require_once app_path('includes/hr_employee_salary.php');
 require_once app_path('includes/hr_oracle_ui.php');
 require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/employee_picker.php');
 
 $pdo = db();
 hr_employee_ensure_schema($pdo);
@@ -16,6 +17,7 @@ $masterFormId = 'hr-sal-master-form';
 $lineFormId = 'hr-sal-line-form';
 
 $employees = hr_employee_active_list($pdo);
+$pickerEmployees = hr_employee_picker_list($pdo);
 $allowComponents = hr_payroll_component_active_by_type($pdo, 'allowance');
 
 /**
@@ -88,7 +90,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $empId = (int) ($_POST['employee_id'] ?? 0);
             $componentId = (int) ($_POST['component_id'] ?? 0);
             $base = (float) ($_POST['base_salary'] ?? 0);
-            $amount = (float) ($_POST['amount'] ?? 0);
             $prevComponentId = (int) ($_POST['prev_component_id'] ?? 0);
 
             if ($empId < 1) {
@@ -101,6 +102,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($prevComponentId > 0 && $prevComponentId !== $componentId) {
                 hr_employee_salary_delete_allowance_line($pdo, $empId, $prevComponentId);
             }
+
+            $stComp = $pdo->prepare('SELECT default_amount FROM hr_payroll_component WHERE id = ? LIMIT 1');
+            $stComp->execute([$componentId]);
+            $amount = (float) ($stComp->fetchColumn() ?: 0);
 
             hr_employee_salary_save_allowance_line($pdo, $empId, $componentId, $amount, $base);
             flash_set('success', 'تم حفظ العلاوة.');
@@ -136,6 +141,8 @@ $flash = flash_get();
 $filterEmpCode = '';
 $filterEmpName = '';
 $filterBaseSalary = 0.0;
+$filterAllowancesTotal = 0.0;
+$filterGrossSalary = 0.0;
 $filterNotes = '';
 $allowLines = [];
 
@@ -157,6 +164,9 @@ if ($filterEmpId > 0) {
         $filterBaseSalary = (float) ($empRow['base_salary'] ?? 0);
         $filterNotes = (string) ($empRow['notes'] ?? '');
         $allowLines = hr_employee_salary_allowance_lines_list($pdo, $filterEmpId);
+        $totals = hr_employee_salary_totals($filterBaseSalary, $allowLines);
+        $filterAllowancesTotal = (float) ($totals['allowances'] ?? 0);
+        $filterGrossSalary = (float) ($totals['gross'] ?? 0);
     }
 }
 
@@ -209,8 +219,10 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
     }
 }
 ?>
+<?php employee_picker_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssOra12Url) ?>">
+<?php employee_picker_json_script($pickerEmployees, 'hr-salaries-picker-json'); ?>
 
 <div class="hr-sal-classic hr-sal-ora-screen hr-sal-page"
      data-list-url="<?= esc($listUrl) ?>"
@@ -220,6 +232,7 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
      data-line-form-id="<?= esc($lineFormId) ?>"
      data-filter-employee-id="<?= $filterEmpId ?>"
      data-base-salary="<?= esc((string) $filterBaseSalary) ?>"
+     data-allow-total="<?= esc((string) $filterAllowancesTotal) ?>"
      data-can-edit="<?= $filterEmpId > 0 ? '1' : '0' ?>">
 
     <?php if ($flash): ?>
@@ -240,29 +253,19 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
                         <label class="hr-sal-field-label" for="hr-sal-emp-code">رقم الموظف</label>
                         <input class="input" type="text" id="hr-sal-emp-code"
                                value="<?= esc($filterEmpCode !== '' ? $filterEmpCode : '') ?>"
-                               readonly dir="ltr" tabindex="-1" aria-readonly="true" placeholder="—">
+                               dir="ltr" inputmode="numeric" autocomplete="off" placeholder="رقم">
                     </div>
                     <div class="hr-sal-master-cell hr-sal-master-cell--name">
-                        <label class="hr-sal-field-label" for="hr-sal-filter-employee">اسم الموظف</label>
-                        <div class="hr-sal-ora-lov">
-                            <select class="input hr-sal-ora-lov-field" name="employee_id" id="hr-sal-filter-employee" required>
-                                <option value="">— اختر موظفاً —</option>
-                                <?php foreach ($employees as $emp):
-                                    $eid = (int) ($emp['id'] ?? 0);
-                                ?>
-                                    <option value="<?= $eid ?>"
-                                            data-emp-code="<?= esc((string) ($emp['emp_code'] ?? '')) ?>"
-                                            data-base-salary="<?= esc((string) ($emp['base_salary'] ?? '0')) ?>"
-                                        <?= $filterEmpId === $eid ? 'selected' : '' ?>>
-                                        <?= esc((string) ($emp['name_ar'] ?? '')) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="button" class="hr-sal-ora-lov-btn" tabindex="-1" aria-label="اختيار الموظف" title="اختيار الموظف"></button>
-                        </div>
-                    </div>
-                    <div class="hr-sal-master-cell hr-sal-master-cell--pick">
-                        <button type="submit" class="btn btn-primary btn-sm">عرض</button>
+                        <?= employee_picker_field([
+                            'id' => 'hr-sal-picker-id',
+                            'label' => 'اسم الموظف',
+                            'compact' => true,
+                            'wrapper_class' => 'hr-sal-picker-slot',
+                            'json_id' => 'hr-salaries-picker-json',
+                            'manual_bind' => true,
+                            'value' => $filterEmpId,
+                            'placeholder' => 'اضغط لاختيار الموظف',
+                        ]) ?>
                     </div>
                 </div>
             </form>
@@ -278,6 +281,18 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
                            step="0.001" min="0" value="<?= esc((string) $filterBaseSalary) ?>"
                            dir="ltr" inputmode="decimal" required>
                 </div>
+                <div class="hr-sal-master-cell hr-sal-master-cell--allow-total">
+                    <label class="hr-sal-field-label" for="hr-sal-allow-total">مجموع العلاوات</label>
+                    <input class="input" type="text" id="hr-sal-allow-total"
+                           value="<?= esc(number_format($filterAllowancesTotal, 3)) ?>"
+                           dir="ltr" readonly>
+                </div>
+                <div class="hr-sal-master-cell hr-sal-master-cell--gross-total">
+                    <label class="hr-sal-field-label" for="hr-sal-gross-total">إجمالي الراتب</label>
+                    <input class="input" type="text" id="hr-sal-gross-total"
+                           value="<?= esc(number_format($filterGrossSalary, 3)) ?>"
+                           dir="ltr" readonly>
+                </div>
                 <input type="hidden" name="notes" id="hr-sal-notes" value="<?= esc($filterNotes) ?>">
             </form>
             <?php endif; ?>
@@ -285,7 +300,6 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
     </section>
 
     <?php if ($filterEmpId > 0): ?>
-
     <form id="<?= esc($lineFormId) ?>" method="post" action="<?= esc(hr_sal_build_url($filterEmpId)) ?>" class="sr-only" aria-hidden="true">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="_action" value="save_line">
@@ -295,11 +309,12 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
         <input type="hidden" name="prev_component_id" id="hr-sal-line-prev-component" value="0">
         <input type="hidden" name="amount" id="hr-sal-line-amount" value="0">
     </form>
+    <?php endif; ?>
 
     <section class="hr-sal-panel hr-sal-panel--allow hr-sal-lines-panel">
         <h2 class="hr-sal-panel-title">العلاوات</h2>
         <div class="hr-sal-panel-toolbar">
-            <button type="button" class="btn btn-primary btn-sm hr-sal-btn-add">إضافة</button>
+            <button type="button" class="btn btn-primary btn-sm hr-sal-btn-add"<?= $filterEmpId > 0 ? '' : ' disabled' ?>>إضافة</button>
             <button type="button" class="btn btn-secondary btn-sm hr-sal-btn-save" disabled>حفظ</button>
             <button type="button" class="btn btn-secondary btn-sm hr-sal-btn-cancel" disabled>إلغاء</button>
             <button type="button" class="btn btn-secondary btn-sm hr-sal-btn-edit" disabled>تعديل</button>
@@ -316,7 +331,13 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
                     </tr>
                     </thead>
                     <tbody class="hr-sal-tbody" id="hr-sal-allow-tbody">
-                    <?php hr_sal_render_allow_rows($allowLines, $filterBaseSalary); ?>
+                    <?php if ($filterEmpId > 0): ?>
+                        <?php hr_sal_render_allow_rows($allowLines, $filterBaseSalary); ?>
+                    <?php else: ?>
+                        <tr class="hr-sal-row hr-sal-row--empty">
+                            <td colspan="3" class="muted">اختر الموظف أولاً لعرض العلاوات.</td>
+                        </tr>
+                    <?php endif; ?>
                     </tbody>
                 </table>
             </div>
@@ -324,6 +345,7 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
         </div>
     </section>
 
+    <?php if ($filterEmpId > 0): ?>
     <form method="post" action="<?= esc(hr_sal_build_url($filterEmpId)) ?>" id="hr-sal-delete-form" class="sr-only" aria-hidden="true">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="_action" value="delete_line">
@@ -336,9 +358,6 @@ function hr_sal_render_allow_rows(array $rows, float $baseSalary): void
         <input type="hidden" name="_action" value="clear_salary">
         <input type="hidden" name="employee_id" value="<?= $filterEmpId ?>">
     </form>
-
-    <?php else: ?>
-        <p class="hr-sal-pick-hint">اختر الموظف من «معلومات الراتب» ثم اضغط «عرض».</p>
     <?php endif; ?>
 </div>
 

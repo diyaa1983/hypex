@@ -144,7 +144,6 @@ function hr_employee_monthly_payroll_parse_row(PDO $pdo, array $row, float $base
     $year = (int) ($row['pay_year'] ?? 0);
     $month = (int) ($row['pay_month'] ?? 0);
     $componentId = (int) ($row['component_id'] ?? 0);
-    $amountRaw = (float) ($row['amount'] ?? 0);
     $notes = trim((string) ($row['notes'] ?? ''));
 
     if ($year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
@@ -156,10 +155,6 @@ function hr_employee_monthly_payroll_parse_row(PDO $pdo, array $row, float $base
     if ($componentId < 1) {
         throw new RuntimeException('اختر علاوة أو اقتطاع.');
     }
-    if ($amountRaw < 0) {
-        throw new RuntimeException('المبلغ يجب أن يكون موجباً أو صفر.');
-    }
-
     $stEmp = $pdo->prepare('SELECT id, base_salary FROM hr_employee WHERE id = ? LIMIT 1');
     $stEmp->execute([$employeeId]);
     $emp = $stEmp->fetch(PDO::FETCH_ASSOC);
@@ -174,7 +169,7 @@ function hr_employee_monthly_payroll_parse_row(PDO $pdo, array $row, float $base
     }
 
     $stComp = $pdo->prepare(
-        'SELECT id, comp_type, is_percent, is_active FROM hr_payroll_component WHERE id = ? LIMIT 1'
+        'SELECT id, comp_type, is_percent, default_amount, is_active FROM hr_payroll_component WHERE id = ? LIMIT 1'
     );
     $stComp->execute([$componentId]);
     $comp = $stComp->fetch(PDO::FETCH_ASSOC);
@@ -182,6 +177,10 @@ function hr_employee_monthly_payroll_parse_row(PDO $pdo, array $row, float $base
         throw new RuntimeException('بند علاوة/اقتطاع غير صالح أو غير مفعّل.');
     }
 
+    $amountRaw = (float) ($comp['default_amount'] ?? 0);
+    if ($amountRaw < 0) {
+        throw new RuntimeException('قيمة البند المعرفة غير صالحة.');
+    }
     $amount = $amountRaw;
     if ((int) ($comp['is_percent'] ?? 0) === 1) {
         if ($amountRaw > 100) {

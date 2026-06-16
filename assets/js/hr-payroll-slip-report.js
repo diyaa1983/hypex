@@ -50,6 +50,14 @@
         return link.href.split('?')[0];
     }
 
+    function getDocHeaderCssHref() {
+        var link = document.querySelector('link[href*="document-header.css"]');
+        if (!link || !link.href) {
+            return '';
+        }
+        return link.href.split('?')[0];
+    }
+
     function getPrintFrameStyles() {
         var dh = window.DocumentHeader || {};
         return (
@@ -102,10 +110,15 @@
                 ? DocumentHeader.bodyPrintAttrs(companyLogoUrl, true)
                 : '';
         var cssHref = getSlipCssHref();
+        var docHeaderCssHref = getDocHeaderCssHref();
         var linkTag = cssHref ? '<link rel="stylesheet" href="' + cssHref + '">' : '';
+        var docHeaderLinkTag = docHeaderCssHref
+            ? '<link rel="stylesheet" href="' + docHeaderCssHref + '">'
+            : '';
         return (
             '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>قسيمة الراتب</title>' +
             linkTag +
+            docHeaderLinkTag +
             '<style>' +
             getPrintFrameStyles() +
             '</style></head><body' +

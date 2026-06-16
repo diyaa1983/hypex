@@ -6,6 +6,7 @@ require_once app_path('includes/hr_payroll_posting.php');
 require_once app_path('includes/hr_employee_monthly_payroll.php');
 require_once app_path('includes/hr_oracle_ui.php');
 require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/employee_picker.php');
 
 $pdo = db();
 hr_employee_ensure_schema($pdo);
@@ -14,6 +15,7 @@ hr_employee_monthly_payroll_line_ensure_schema($pdo);
 $listUrl = app_url('index.php?r=hr_monthly_payroll_adjustments');
 $editorFormId = 'hr-mpa-editor-form';
 $employees = hr_employee_active_list($pdo);
+$pickerEmployees = hr_employee_picker_list($pdo);
 
 $payYear = (int) ($_GET['year'] ?? $_POST['pay_year'] ?? date('Y'));
 $monthPickerOptions = hr_payroll_month_picker_options($pdo, $payYear);
@@ -111,9 +113,23 @@ $allowLines = $filterEmpId > 0
 $deductLines = $filterEmpId > 0
     ? hr_employee_monthly_payroll_lines_list($pdo, $filterEmpId, $payYear, $payMonth, 'deduction')
     : [];
+$allowTotal = 0.0;
+foreach ($allowLines as $ln) {
+    $allowTotal += (float) ($ln['amount'] ?? 0);
+}
+$deductTotal = 0.0;
+foreach ($deductLines as $ln) {
+    $deductTotal += (float) ($ln['amount'] ?? 0);
+}
 $lineCount = $filterEmpId > 0
     ? hr_employee_monthly_payroll_count_for_period($pdo, $filterEmpId, $payYear, $payMonth)
     : 0;
+$allowEmptyMessage = $filterEmpId > 0
+    ? 'لا توجد علاوات — اضغط «إضافة» واختر العلاوة من الجدول.'
+    : 'اختر الموظف أولاً لعرض العلاوات.';
+$deductEmptyMessage = $filterEmpId > 0
+    ? 'لا توجد اقتطاعات — اضغط «إضافة» واختر الاقتطاع من الجدول.'
+    : 'اختر الموظف أولاً لعرض الاقتطاعات.';
 
 $monthNames = [
     1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل', 5 => 'مايو', 6 => 'يونيو',
@@ -173,8 +189,10 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
     }
 }
 ?>
+<?php employee_picker_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssOra12Url) ?>">
+<?php employee_picker_json_script($pickerEmployees, 'hr-mpa-picker-json'); ?>
 
 <div class="hr-mpa-classic hr-mpa-ora-screen hr-mpa-page"
      data-list-url="<?= esc($listUrl) ?>"
@@ -215,25 +233,19 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
                         <label class="hr-mpa-field-label" for="hr-mpa-master-emp-code">رقم الموظف</label>
                         <input class="input" type="text" id="hr-mpa-master-emp-code"
                                value="<?= esc($filterEmpCode !== '' ? $filterEmpCode : '') ?>"
-                               readonly dir="ltr" tabindex="-1" aria-readonly="true" placeholder="—">
+                               dir="ltr" inputmode="numeric" autocomplete="off" placeholder="رقم">
                     </div>
                     <div class="hr-mpa-master-cell hr-mpa-master-cell--name">
-                        <label class="hr-mpa-field-label" for="hr-mpa-filter-employee">اسم الموظف</label>
-                        <div class="hr-mpa-ora-lov">
-                            <select class="input hr-mpa-ora-lov-field" name="employee_id" id="hr-mpa-filter-employee" required>
-                                <option value="">— اختر موظفاً —</option>
-                                <?php foreach ($employees as $emp):
-                                    $eid = (int) ($emp['id'] ?? 0);
-                                ?>
-                                    <option value="<?= $eid ?>"
-                                            data-emp-code="<?= esc((string) ($emp['emp_code'] ?? '')) ?>"
-                                        <?= $filterEmpId === $eid ? 'selected' : '' ?>>
-                                        <?= esc((string) ($emp['name_ar'] ?? '')) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="button" class="hr-mpa-ora-lov-btn" tabindex="-1" aria-label="اختيار الموظف" title="اختيار الموظف"></button>
-                        </div>
+                        <?= employee_picker_field([
+                            'id' => 'hr-mpa-picker-id',
+                            'label' => 'اسم الموظف',
+                            'compact' => true,
+                            'wrapper_class' => 'hr-mpa-picker-slot',
+                            'json_id' => 'hr-mpa-picker-json',
+                            'manual_bind' => true,
+                            'value' => $filterEmpId,
+                            'placeholder' => 'اضغط لاختيار الموظف',
+                        ]) ?>
                     </div>
                     <div class="hr-mpa-master-cell hr-mpa-master-cell--month">
                         <label class="hr-mpa-field-label" for="hr-mpa-filter-month">الشهر</label>
@@ -257,15 +269,19 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
                             </select>
                         </div>
                     </div>
-                    <div class="hr-mpa-master-cell hr-mpa-master-cell--pick">
-                        <button type="submit" class="btn btn-primary btn-sm">عرض</button>
-                    </div>
                 </div>
             </form>
         </div>
     </section>
 
-    <?php if ($filterEmpId > 0): ?>
+    <section class="hr-mpa-print-head" aria-label="بيانات الموظف للطباعة">
+        <h2>العلاوات والاقتطاعات الشهرية</h2>
+        <div class="hr-mpa-print-meta">
+            <div><strong>الموظف:</strong> <?= esc($filterEmpName !== '' ? $filterEmpName : '—') ?></div>
+            <div><strong>رقم الموظف:</strong> <?= esc($filterEmpCode !== '' ? $filterEmpCode : '—') ?></div>
+            <div><strong>الفترة:</strong> <?= esc(($monthNames[$payMonth] ?? (string) $payMonth) . ' / ' . (string) $payYear) ?></div>
+        </div>
+    </section>
 
     <form id="<?= esc($editorFormId) ?>" method="post" action="<?= esc(hr_mpa_build_url($payYear, $payMonth, $filterEmpId)) ?>" class="sr-only" aria-hidden="true">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -307,7 +323,7 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
                         $allowLines,
                         $filterBaseSalary,
                         'allowance',
-                        'لا توجد علاوات — اضغط «إضافة» واختر العلاوة من الجدول.'
+                        $allowEmptyMessage
                     ); ?>
                     </tbody>
                 </table>
@@ -341,12 +357,34 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
                         $deductLines,
                         $filterBaseSalary,
                         'deduction',
-                        'لا توجد اقتطاعات — اضغط «إضافة» واختر الاقتطاع من الجدول.'
+                        $deductEmptyMessage
                     ); ?>
                     </tbody>
                 </table>
             </div>
             <p class="hr-mpa-inline-hint muted" id="hr-mpa-deduct-hint" hidden></p>
+        </div>
+    </section>
+
+    <section class="hr-mpa-panel hr-mpa-panel--summary">
+        <h2 class="hr-mpa-panel-title">الإجماليات</h2>
+        <div class="hr-mpa-panel-body hr-mpa-panel-body--flush">
+            <table class="hr-mpa-grid-table hr-mpa-total-table">
+                <tbody>
+                <tr>
+                    <th>مجموع العلاوات</th>
+                    <td class="hr-mpa-total-amount" dir="ltr">
+                        <?= $filterEmpId > 0 ? esc(number_format($allowTotal, 2)) : '—' ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th>مجموع الاقتطاعات</th>
+                    <td class="hr-mpa-total-amount" dir="ltr">
+                        <?= $filterEmpId > 0 ? esc(number_format($deductTotal, 2)) : '—' ?>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
         </div>
     </section>
 
@@ -358,9 +396,6 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
         <input type="hidden" name="pay_month" value="<?= $payMonth ?>">
         <input type="hidden" name="filter_employee_id" value="<?= $filterEmpId ?>">
     </form>
-    <?php else: ?>
-        <p class="hr-mpa-pick-hint">اختر رقم الموظف واسم الموظف والشهر ثم اضغط «عرض».</p>
-    <?php endif; ?>
 </div>
 
 <script type="application/json" id="hr-mpa-allow-components-json"><?= $allowComponentsJson ?></script>

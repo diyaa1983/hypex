@@ -342,6 +342,15 @@ body.hr-ora-ui .hr-adv-ora-screen .hr-adv-toolbar .btn:disabled {
     cursor: not-allowed;
 }
 
+.hr-adv-picker-cell-name {
+    position: relative;
+}
+
+.hr-adv-picker-help {
+    margin: 0.4rem 0 0;
+    font-size: 0.74rem;
+}
+
 .hr-adv-picker-table-wrap {
     overflow-x: auto;
 }
@@ -352,10 +361,26 @@ body.hr-ora-ui .hr-adv-ora-screen .hr-adv-toolbar .btn:disabled {
     table-layout: fixed;
 }
 
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-picker-table th,
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-picker-table td {
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    padding: 0.3rem 0.45rem;
+    vertical-align: middle;
+}
+
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-picker-table thead th {
+    background: #e5edf5;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--ora12-text, #161513);
+}
+
 .hr-adv-picker-code {
-    width: 100%;
-    min-width: 4.5rem;
-    cursor: default;
+    width: 4.8rem;
+    min-width: 4.8rem;
+    max-width: 4.8rem;
+    text-align: center;
+    font-weight: 700;
 }
 
 .hr-adv-picker-th-count,
@@ -367,6 +392,69 @@ body.hr-ora-ui .hr-adv-ora-screen .hr-adv-toolbar .btn:disabled {
 
 .hr-adv-picker-td-label {
     width: 6.5rem;
+}
+
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-picker-td-count {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.hr-adv-picker-slot > label {
+    display: block;
+    margin: 0 0 0.12rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+.hr-adv-picker-slot .sales-inv-cust-open {
+    width: 100%;
+    min-height: 1.65rem;
+    padding: 0.18rem 0.45rem;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.hr-adv-picker-slot .sales-inv-cust-open-label {
+    font-weight: 700;
+}
+
+.hr-adv-editor-cell-emp {
+    position: relative;
+}
+
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin-bottom: 0.55rem;
+}
+
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor-table th,
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor-table td {
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    padding: 0.3rem 0.45rem;
+    vertical-align: top;
+    background: #fff;
+}
+
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor-table th {
+    width: 7.4rem;
+    background: #f3f6fa;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor-table th.required::after {
+    content: " *";
+    color: #c62828;
+}
+
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor-table .input {
+    width: 100%;
 }
 
 body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor {
@@ -409,18 +497,11 @@ body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor-close:hover {
 }
 
 body.hr-ora-ui .hr-adv-ora-screen .hr-adv-type-fieldset {
-    border: 1px solid var(--ora12-border);
-    border-radius: 2px;
-    padding: 0.45rem 0.55rem;
-    margin: 0 0 0.55rem;
-    background: var(--ora12-stripe, #f7f9fb);
-}
-
-body.hr-ora-ui .hr-adv-ora-screen .hr-adv-type-fieldset legend {
-    padding: 0 0.25rem;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--ora12-muted, #5c5c5c);
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    background: transparent;
 }
 
 body.hr-ora-ui .hr-adv-ora-screen .hr-adv-type-opt {
@@ -445,6 +526,8 @@ body.hr-ora-ui .hr-adv-ora-screen .hr-adv-code-display {
 }
 
 body.hr-ora-ui .hr-adv-ora-screen .hr-adv-code-hint {
+    display: block;
+    margin-top: 0.2rem;
     font-size: 0.72rem;
     color: var(--ora12-muted, #5c5c5c);
 }
@@ -551,6 +634,27 @@ body.hr-ora-ui .hr-adv-ora-lov-field {
     min-height: 0;
 }
 
+body.hr-ora-ui .hr-adv-ora-lov-smart-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0 0.35rem;
+    border: none !important;
+    border-radius: 0;
+    background: transparent !important;
+    text-align: start;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.2;
+    box-shadow: none !important;
+    min-height: 0;
+}
+
+body.hr-ora-ui .hr-adv-ora-lov-smart-input:focus {
+    outline: none;
+}
+
 body.hr-ora-ui .hr-adv-ora-lov-field:focus {
     outline: none;
     background: transparent !important;
@@ -560,7 +664,16 @@ body.hr-ora-ui .hr-adv-ora-lov:has(.hr-adv-ora-lov-field:disabled) {
     background: var(--ora12-stripe, #f7f9fb);
 }
 
+body.hr-ora-ui .hr-adv-ora-lov:has(.hr-adv-ora-lov-smart-input:disabled) {
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
 body.hr-ora-ui .hr-adv-ora-lov-field:disabled {
+    background: transparent !important;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-adv-ora-lov-smart-input:disabled {
     background: transparent !important;
     color: var(--ora12-muted, #5c5c5c);
 }
@@ -597,4 +710,91 @@ body.hr-ora-ui .hr-adv-ora-lov-btn:hover:not(:disabled) {
 body.hr-ora-ui .hr-adv-ora-lov:has(.hr-adv-ora-lov-field:disabled) .hr-adv-ora-lov-btn {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+body.hr-ora-ui .hr-adv-ora-lov:has(.hr-adv-ora-lov-smart-input:disabled) .hr-adv-ora-lov-btn {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+body.hr-ora-ui .hr-adv-emp-pick-list {
+    position: absolute;
+    top: calc(100% + 2px);
+    inset-inline: 0;
+    z-index: 1001;
+    max-height: min(260px, 45vh);
+    overflow: auto;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: 0 10px 22px rgba(2, 77, 143, 0.18);
+}
+
+body.hr-ora-ui .hr-adv-emp-pick-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    padding: 0.35rem 0.45rem;
+    border: none;
+    border-bottom: 1px solid #edf2f7;
+    background: #fff;
+    color: var(--ora12-text, #161513);
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-align: start;
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-adv-emp-pick-item:last-child {
+    border-bottom: none;
+}
+
+body.hr-ora-ui .hr-adv-emp-pick-item:hover,
+body.hr-ora-ui .hr-adv-emp-pick-item.is-active {
+    background: #e8f0f8;
+}
+
+body.hr-ora-ui .hr-adv-emp-pick-item code {
+    margin-inline-start: auto;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #024d8f;
+}
+
+body.hr-ora-ui .hr-adv-emp-pick-empty {
+    padding: 0.42rem 0.5rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+@media (max-width: 860px) {
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor-table th,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor-table td {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
+
+@media print {
+    body.hr-ora-ui .hr-adv-ora-screen {
+        padding: 0;
+        font-size: 11px;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-toolbar,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-picker-help,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-flash,
+    body.hr-ora-ui .hr-adv-ora-screen .no-print {
+        display: none !important;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-wrap,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-picker-table-wrap {
+        overflow: visible;
+    }
 }

@@ -15,8 +15,12 @@
     var filterDept = qs('#hr-pr-post-filter-dept');
     var filterEmp = qs('#hr-pr-post-filter-emp');
     var periodForm = qs('#hr-pr-post-period-form');
+    var monthSelect = periodForm ? qs('select[name="month"]', periodForm) : null;
+    var yearInput = periodForm ? qs('input[name="year"]', periodForm) : null;
     var filterEmployees = [];
     var deptNames = {};
+    var smartLovApis = {};
+    var suppressAutoSubmit = true;
 
     try {
         filterEmployees = JSON.parse(page.getAttribute('data-filter-employees') || '[]');
@@ -34,6 +38,243 @@
         }
     } catch (e2) {
         deptNames = {};
+    }
+
+    function normalizeDigits(value) {
+        return String(value || '')
+            .replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+            .replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); });
+    }
+
+    function normalizeSearchText(value) {
+        return normalizeDigits(String(value || '')).trim().toLowerCase().replace(/\s+/g, ' ');
+    }
+
+    function escapeHtml(value) {
+        var div = document.createElement('div');
+        div.textContent = value == null ? '' : String(value);
+        return div.innerHTML;
+    }
+
+    function buildSmartLovItems(selectEl) {
+        var items = [];
+        if (!selectEl) return items;
+        Array.prototype.forEach.call(selectEl.options || [], function (opt) {
+            if (!opt) return;
+            var value = String(opt.value || '').trim();
+            var label = String(opt.textContent || '').trim();
+            if (label === '') return;
+            var extra = String(opt.getAttribute('data-dept-name') || '').trim();
+            items.push({
+                value: value,
+                label: label,
+                search: normalizeSearchText(label + ' ' + value + ' ' + extra),
+            });
+        });
+        return items;
+    }
+
+    function setupSmartLovSelect(selectEl) {
+        if (!selectEl) return null;
+        var wrap = selectEl.closest('.hr-pr-post-ora-lov');
+        if (!wrap) return null;
+
+        var closeTimer = null;
+        var isOpen = false;
+        var activeIndex = -1;
+        var items = [];
+
+        selectEl.hidden = true;
+        selectEl.setAttribute('aria-hidden', 'true');
+        selectEl.tabIndex = -1;
+        selectEl.style.setProperty('display', 'none', 'important');
+
+        var inputEl = document.createElement('input');
+        inputEl.type = 'text';
+        inputEl.className = 'input hr-pr-post-inline-input hr-pr-post-ora-smart-input';
+        inputEl.autocomplete = 'off';
+        inputEl.setAttribute('aria-label', selectEl.getAttribute('aria-label') || 'اختيار');
+        wrap.insertBefore(inputEl, wrap.firstChild);
+
+        var listEl = document.createElement('div');
+        listEl.className = 'hr-pr-post-ora-smart-list';
+        listEl.hidden = true;
+        wrap.appendChild(listEl);
+
+        function refreshItems() {
+            items = buildSmartLovItems(selectEl);
+        }
+
+        function syncInputFromSelect() {
+            var op = selectEl.options[selectEl.selectedIndex];
+            inputEl.value = op ? String(op.textContent || '').trim() : '';
+        }
+
+        function closeList() {
+            clearTimeout(closeTimer);
+            listEl.hidden = true;
+            listEl.innerHTML = '';
+            isOpen = false;
+            activeIndex = -1;
+        }
+
+        function scheduleClose() {
+            clearTimeout(closeTimer);
+            closeTimer = setTimeout(closeList, 170);
+        }
+
+        function highlightActive() {
+            var buttons = listEl.querySelectorAll('.hr-pr-post-ora-smart-item[data-value]');
+            Array.prototype.forEach.call(buttons, function (btn, idx) {
+                btn.classList.toggle('is-active', idx === activeIndex);
+            });
+            if (activeIndex >= 0 && buttons[activeIndex]) {
+                buttons[activeIndex].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function applySelection(value, emitChange) {
+            var nextValue = String(value || '');
+            var prevValue = String(selectEl.value || '');
+            selectEl.value = nextValue;
+            syncInputFromSelect();
+            closeList();
+            if (emitChange && prevValue !== nextValue) {
+                try {
+                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (e) {
+                    selectEl.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+
+        function renderList(queryText, browseAll) {
+            if (selectEl.disabled || inputEl.disabled) {
+                closeList();
+                return;
+            }
+            if (!items.length) {
+                refreshItems();
+            }
+            var needle = browseAll ? '' : normalizeSearchText(queryText);
+            var matches = items.filter(function (item) {
+                return needle === '' || item.search.indexOf(needle) >= 0;
+            });
+
+            listEl.innerHTML = '';
+            activeIndex = -1;
+
+            if (!matches.length) {
+                var empty = document.createElement('div');
+                empty.className = 'hr-pr-post-ora-smart-empty';
+                empty.textContent = 'لا توجد نتائج مطابقة';
+                listEl.appendChild(empty);
+            } else {
+                matches.slice(0, 160).forEach(function (item) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'hr-pr-post-ora-smart-item';
+                    btn.setAttribute('data-value', item.value);
+                    btn.innerHTML = '<span>' + escapeHtml(item.label) + '</span>';
+                    btn.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        applySelection(item.value, true);
+                    });
+                    listEl.appendChild(btn);
+                });
+            }
+
+            listEl.hidden = false;
+            isOpen = true;
+        }
+
+        function openList(showAll) {
+            renderList(inputEl.value, !!showAll);
+        }
+
+        function syncDisabledState() {
+            inputEl.disabled = !!selectEl.disabled;
+            if (selectEl.disabled) {
+                closeList();
+            }
+            wrap.classList.toggle('is-smart-disabled', !!selectEl.disabled);
+        }
+
+        inputEl.addEventListener('focus', function () {
+            openList(true);
+        });
+        inputEl.addEventListener('click', function () {
+            clearTimeout(closeTimer);
+            openList(true);
+        });
+        inputEl.addEventListener('input', function () {
+            openList(false);
+        });
+        inputEl.addEventListener('blur', function () {
+            scheduleClose();
+        });
+        inputEl.addEventListener('keydown', function (e) {
+            if (!isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault();
+                openList(true);
+                return;
+            }
+            var buttons = listEl.querySelectorAll('.hr-pr-post-ora-smart-item[data-value]');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (!buttons.length) return;
+                activeIndex = activeIndex < buttons.length - 1 ? activeIndex + 1 : 0;
+                highlightActive();
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!buttons.length) return;
+                activeIndex = activeIndex > 0 ? activeIndex - 1 : buttons.length - 1;
+                highlightActive();
+                return;
+            }
+            if (e.key === 'Enter') {
+                if (!isOpen) return;
+                e.preventDefault();
+                if (!buttons.length) return;
+                var pickBtn = activeIndex >= 0 ? buttons[activeIndex] : buttons[0];
+                if (pickBtn) {
+                    applySelection(pickBtn.getAttribute('data-value') || '', true);
+                }
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeList();
+            }
+        });
+
+        listEl.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            clearTimeout(closeTimer);
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!isOpen) return;
+            if (wrap.contains(e.target)) {
+                return;
+            }
+            closeList();
+        });
+
+        refreshItems();
+        syncInputFromSelect();
+        syncDisabledState();
+        selectEl.addEventListener('change', syncInputFromSelect);
+
+        return {
+            open: openList,
+            close: closeList,
+            refresh: refreshItems,
+            sync: syncInputFromSelect,
+            syncDisabled: syncDisabledState,
+        };
     }
 
     function selectedDeptName() {
@@ -88,6 +329,10 @@
                 filterEmp.value = '0';
             }
         }
+        if (smartLovApis.emp) {
+            smartLovApis.emp.refresh();
+            smartLovApis.emp.sync();
+        }
     }
 
     function syncPayrollFilters() {
@@ -114,20 +359,54 @@
                 btn.disabled = !!sel.disabled;
             }
         });
+        if (smartLovApis.month) smartLovApis.month.syncDisabled();
+        if (smartLovApis.dept) smartLovApis.dept.syncDisabled();
+        if (smartLovApis.emp) smartLovApis.emp.syncDisabled();
     }
+
+    function submitFiltersAuto() {
+        if (suppressAutoSubmit || !periodForm) return;
+        syncPayrollFilters();
+        if (typeof periodForm.requestSubmit === 'function') {
+            periodForm.requestSubmit();
+        } else {
+            periodForm.submit();
+        }
+    }
+
+    smartLovApis.month = setupSmartLovSelect(monthSelect);
+    smartLovApis.dept = setupSmartLovSelect(filterDept);
+    smartLovApis.emp = setupSmartLovSelect(filterEmp);
 
     if (filterDept) {
         filterDept.addEventListener('change', function () {
             rebuildEmployeeSelect(true);
             syncPayrollFilters();
+            submitFiltersAuto();
         });
     }
     if (filterEmp) {
-        filterEmp.addEventListener('change', syncPayrollFilters);
+        filterEmp.addEventListener('change', function () {
+            syncPayrollFilters();
+            submitFiltersAuto();
+        });
+    }
+    if (monthSelect) {
+        monthSelect.addEventListener('change', submitFiltersAuto);
+    }
+    if (yearInput) {
+        yearInput.addEventListener('change', submitFiltersAuto);
+        yearInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitFiltersAuto();
+            }
+        });
     }
     rebuildEmployeeSelect(false);
     syncPayrollFilters();
     syncOraLovButtons();
+    suppressAutoSubmit = false;
     if (periodForm) {
         periodForm.addEventListener('submit', syncPayrollFilters);
     }
@@ -137,16 +416,13 @@
         if (!wrap) return;
         var sel = wrap.querySelector('select');
         if (!sel || sel.disabled) return;
-        sel.focus();
-        try {
-            if (typeof sel.showPicker === 'function') {
-                sel.showPicker();
-                return;
-            }
-        } catch (e) {
-            /* ignored */
+        var key = sel === monthSelect ? 'month' : (sel === filterDept ? 'dept' : (sel === filterEmp ? 'emp' : ''));
+        var api = key !== '' ? smartLovApis[key] : null;
+        if (api && typeof api.open === 'function') {
+            api.open(true);
+            return;
         }
-        sel.click();
+        sel.focus();
     }
 
     qsa('.hr-pr-post-ora-lov-btn', page).forEach(function (btn) {
