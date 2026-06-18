@@ -81,6 +81,7 @@ return [
                 'credit_notes',
                 'journal_voucher',
                 'account_mapping',
+                'acc_period_close',
                 'item_sale_price_adjust',
                 'inv_movement_types_settings',
                 'warehouse_moves',

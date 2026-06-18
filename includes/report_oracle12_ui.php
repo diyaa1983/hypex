@@ -12,6 +12,7 @@ function report_ora12_master_routes(): array
         'inv_movement_types_settings',
         'chart_of_accounts',
         'account_mapping',
+        'acc_period_close',
         'inventory_align_warehouse',
         'users',
         'groups',

@@ -4,7 +4,8 @@ declare(strict_types=1);
 /** إزالة تعليقات SQL من بداية كل جملة (بعد التقسيم بـ ;). */
 function sql_migration_clean_statement(string $stmt): string
 {
-    $lines = preg_split('/\R/', $stmt) ?: [];
+    // لا تستخدم \R — يطابق 0x85 (جزء من UTF-8 لحرف «م») فيُقطع النص العربي.
+    $lines = preg_split('/\r\n|\n|\r/', $stmt) ?: [];
     $out = [];
     foreach ($lines as $line) {
         $trim = trim($line);

@@ -274,7 +274,8 @@ body.report-ora12-ui .main-content {
 .report-ora12-workspace > .toolbar,
 .report-ora12-workspace > .coa-toolbar,
 .report-ora12-workspace > .dashboard-ora-toolbar,
-.report-ora12-workspace > .acc-map-toolbar {
+.report-ora12-workspace > .acc-map-toolbar,
+.report-ora12-workspace > .acc-period-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

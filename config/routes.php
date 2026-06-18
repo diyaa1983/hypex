@@ -219,6 +219,7 @@ return [
         'file' => 'modules/accounting/period_close.php',
         'permission' => 'acc_period_close',
         'title' => 'إغلاق الأشهر المحاسبية',
+        'hide_screen_title' => true,
     ],
     'inventory_align_warehouse' => [
         'file' => 'modules/accounting/inventory_align_warehouse.php',
