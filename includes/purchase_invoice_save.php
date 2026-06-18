@@ -17,6 +17,7 @@ function handle_purchase_invoice_post(): void
     require_once app_path('includes/pur_invoice_schema.php');
     pur_invoice_ensure_schema($pdo);
     require_once app_path('includes/pur_invoice_post.php');
+    require_once app_path('includes/acc_period_lock.php');
 
     $invoiceDate = parse_date_to_iso(trim((string) ($_POST['invoice_date'] ?? ''))) ?? '';
     $supplierId = (int) ($_POST['supplier_id'] ?? 0);
@@ -36,6 +37,8 @@ function handle_purchase_invoice_post(): void
     $err = '';
     if ($invoiceDate === '') {
         $err = 'تاريخ الفاتورة غير صالح.';
+    } elseif (($periodErr = acc_period_date_lock_error($pdo, $invoiceDate)) !== null) {
+        $err = $periodErr;
     } elseif ($supplierId < 1) {
         $err = 'اختر المورد.';
     } elseif ($whCount > 0 && $warehouseId < 1) {

@@ -31,12 +31,21 @@ function handle_journal_voucher_save(): void
     $description = trim((string) ($_POST['description_ar'] ?? ''));
     $lines = json_decode((string) ($_POST['lines_json'] ?? '[]'), true);
 
+    require_once app_path('includes/acc_period_lock.php');
+
     if ($entryDate === '') {
         $err = 'تاريخ السند غير صالح.';
         if ($wantsJson) {
             json_invoice_save_response(false, ['message' => $err], 400);
         }
         flash_set('error', $err);
+        redirect(app_url('index.php?r=journal_voucher' . ($id > 0 ? '&id=' . $id : '')));
+    }
+    if (($periodErr = acc_period_date_lock_error($pdo, $entryDate)) !== null) {
+        if ($wantsJson) {
+            json_invoice_save_response(false, ['message' => $periodErr], 400);
+        }
+        flash_set('error', $periodErr);
         redirect(app_url('index.php?r=journal_voucher' . ($id > 0 ? '&id=' . $id : '')));
     }
     if (!is_array($lines)) {

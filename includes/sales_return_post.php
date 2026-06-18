@@ -61,6 +61,7 @@ function handle_sales_return_post(): void
         flash_set('error', 'نفّذ ملف الترحيل: database/migrations/007_sal_return.sql');
         redirect(sales_return_post_redirect_url());
     }
+    require_once app_path('includes/acc_period_lock.php');
 
     $returnId = (int) ($_POST['return_id'] ?? 0);
     $isUpdate = $returnId > 0;
@@ -96,6 +97,8 @@ function handle_sales_return_post(): void
 
     if ($returnDate === '') {
         $err = 'تاريخ الإرجاع غير صالح.';
+    } elseif (($periodErr = acc_period_date_lock_error($pdo, $returnDate)) !== null) {
+        $err = $periodErr;
     } elseif ($customerId < 1) {
         $err = 'اختر العميل.';
     } elseif ($invoiceId < 1) {

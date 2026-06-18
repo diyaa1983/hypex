@@ -34,6 +34,7 @@ function handle_fin_payment_save(): void
         flash_set('error', $msg);
         redirect(app_url('index.php?r=cash_payment'));
     }
+    require_once app_path('includes/acc_period_lock.php');
 
     $id = (int) ($_POST['voucher_id'] ?? 0);
     $voucherDate = parse_date_to_iso(trim((string) ($_POST['voucher_date'] ?? ''))) ?? '';
@@ -63,6 +64,8 @@ function handle_fin_payment_save(): void
     $err = '';
     if ($voucherDate === '') {
         $err = 'تاريخ السند غير صالح.';
+    } elseif (($periodErr = acc_period_date_lock_error($pdo, $voucherDate)) !== null) {
+        $err = $periodErr;
     } elseif ($partyId < 1) {
         $err = $partyType === 'supplier' ? 'اختر المورد.' : 'اختر العميل.';
     } elseif ($cashAccountId < 1 || !isset($allowedCash[$cashAccountId])) {

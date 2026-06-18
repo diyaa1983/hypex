@@ -41,6 +41,7 @@ function handle_purchase_return_post(): void
         flash_set('error', 'نفّذ ملف الترحيل: database/migrations/015_purchase_returns_supplier_ledger.sql');
         redirect(app_url('index.php?r=purchase_returns'));
     }
+    require_once app_path('includes/acc_period_lock.php');
 
     $returnDate = parse_date_to_iso(trim((string) ($_POST['return_date'] ?? ''))) ?? '';
     $supplierId = (int) ($_POST['supplier_id'] ?? 0);
@@ -51,6 +52,8 @@ function handle_purchase_return_post(): void
     $err = '';
     if ($returnDate === '') {
         $err = 'تاريخ الإرجاع غير صالح.';
+    } elseif (($periodErr = acc_period_date_lock_error($pdo, $returnDate)) !== null) {
+        $err = $periodErr;
     } elseif ($supplierId < 1) {
         $err = 'اختر المورد.';
     } elseif ($invoiceId < 1) {

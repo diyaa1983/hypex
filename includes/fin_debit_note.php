@@ -167,6 +167,8 @@ function fin_debit_note_save(PDO $pdo, array $header, array $lines): int
     if ($noteDate === '') {
         throw new RuntimeException('تاريخ الإشعار غير صالح.');
     }
+    require_once app_path('includes/acc_period_lock.php');
+    acc_period_assert_date_open($pdo, $noteDate);
 
     $reason = trim((string) ($header['reason'] ?? ''));
     $uid = (int) (current_user()['id'] ?? 0) ?: null;

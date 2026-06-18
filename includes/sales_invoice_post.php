@@ -28,6 +28,7 @@ function handle_sales_invoice_post(): void
     sal_invoice_ensure_schema($pdo);
     require_once app_path('includes/sal_invoice_post.php');
     require_once app_path('includes/crm_sales_rep_schema.php');
+    require_once app_path('includes/acc_period_lock.php');
 
     $invoiceDate = parse_date_to_iso(trim((string) ($_POST['invoice_date'] ?? ''))) ?? '';
     $customerId = (int) ($_POST['customer_id'] ?? 0);
@@ -45,6 +46,8 @@ function handle_sales_invoice_post(): void
     $err = '';
     if ($invoiceDate === '') {
         $err = 'تاريخ الفاتورة غير صالح.';
+    } elseif (($periodErr = acc_period_date_lock_error($pdo, $invoiceDate)) !== null) {
+        $err = $periodErr;
     } elseif ($customerId < 1) {
         $err = 'اختر العميل.';
     } elseif ($whCount > 0 && $warehouseId < 1) {

@@ -215,6 +215,11 @@ return [
         'title' => 'ربط الحسابات المحاسبية',
         'hide_screen_title' => true,
     ],
+    'acc_period_close' => [
+        'file' => 'modules/accounting/period_close.php',
+        'permission' => 'acc_period_close',
+        'title' => 'إغلاق الأشهر المحاسبية',
+    ],
     'inventory_align_warehouse' => [
         'file' => 'modules/accounting/inventory_align_warehouse.php',
         'permission' => 'inventory_align_warehouse',

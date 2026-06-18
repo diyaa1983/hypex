@@ -23,6 +23,7 @@ function handle_sales_delivery_save(): void
         flash_set('error', $msg);
         redirect(app_url('index.php?r=sales_delivery'));
     }
+    require_once app_path('includes/acc_period_lock.php');
 
     $deliveryDate = parse_date_to_iso(trim((string) ($_POST['delivery_date'] ?? ''))) ?? '';
     $customerId = (int) ($_POST['customer_id'] ?? 0);
@@ -37,6 +38,8 @@ function handle_sales_delivery_save(): void
     $err = '';
     if ($deliveryDate === '') {
         $err = 'تاريخ السند غير صالح.';
+    } elseif (($periodErr = acc_period_date_lock_error($pdo, $deliveryDate)) !== null) {
+        $err = $periodErr;
     } elseif ($customerId < 1) {
         $err = 'اختر العميل.';
     } elseif ($whCount > 0 && $warehouseId < 1) {

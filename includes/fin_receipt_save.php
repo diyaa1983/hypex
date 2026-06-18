@@ -52,6 +52,7 @@ function handle_fin_receipt_save(): void
         flash_set('error', $msg);
         redirect(fin_receipt_redirect_url());
     }
+    require_once app_path('includes/acc_period_lock.php');
 
     $id = (int) ($_POST['voucher_id'] ?? 0);
     $voucherDate = parse_date_to_iso(trim((string) ($_POST['voucher_date'] ?? ''))) ?? '';
@@ -93,6 +94,8 @@ function handle_fin_receipt_save(): void
     $err = '';
     if ($voucherDate === '') {
         $err = 'تاريخ السند غير صالح.';
+    } elseif (($periodErr = acc_period_date_lock_error($pdo, $voucherDate)) !== null) {
+        $err = $periodErr;
     } elseif ($customerId < 1) {
         $err = 'اختر العميل.';
     } elseif ($payMethod === 'check') {
