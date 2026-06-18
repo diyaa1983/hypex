@@ -1134,7 +1134,7 @@ tr.is-entry-row td {
 }
 
 .sales-inv-col-money input.js-line-sub,
-.sales-inv-col-total.js-line-gross,
+.sales-inv-col-total input.js-line-gross,
 .sales-inv-col-money.js-tax-amt {
   font-weight: 700;
   color: #475569;
@@ -1142,10 +1142,17 @@ tr.is-entry-row td {
   font-variant-numeric: tabular-nums;
 }
 
-.sales-inv-col-total.js-line-gross,
+.sales-inv-col-total input.js-line-gross,
 .sales-inv-col-money.js-tax-amt {
   padding: 0.32rem 0.35rem;
   vertical-align: middle;
+}
+
+.sales-inv-col-total input.js-line-gross {
+  font-weight: 800;
+  color: #4338ca;
+  background: #f5f3ff;
+  border-color: #c7d2fe;
 }
 
 .sales-inv-amt-display {
@@ -1167,14 +1174,10 @@ tr.is-entry-row td {
   white-space: nowrap;
 }
 
-.sales-inv-col-total.js-line-gross .sales-inv-amt-display {
+.sales-inv-col-total .sales-inv-amt-display {
   color: #4338ca;
   background: #f5f3ff;
   border-color: #c7d2fe;
-}
-
-.sales-inv-col-total.js-line-gross {
-  color: #0f172a;
 }
 
 .sales-inv-totals .row span:last-child {

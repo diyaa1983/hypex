@@ -274,7 +274,7 @@
     tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
       var pick = tr.querySelector('.js-pick-open');
       var rm = tr.querySelector('.js-remove');
-      tr.querySelectorAll('.js-qty, .js-qty-extra, .js-price, .js-line-sub, .js-discount, .js-tax, .js-barcode-inp').forEach(function (inp) {
+      tr.querySelectorAll('.js-qty, .js-qty-extra, .js-price, .js-line-sub, .js-line-gross, .js-discount, .js-tax, .js-barcode-inp').forEach(function (inp) {
         if (locked) {
           inp.setAttribute('readonly', 'readonly');
           if (inp.tagName === 'SELECT') inp.disabled = true;
@@ -729,6 +729,7 @@
     '.js-discount',
     '.js-line-sub',
     '.js-tax',
+    '.js-line-gross',
   ];
 
   function formatAmountValue(n, rawStr) {
@@ -780,6 +781,11 @@
     if (sub) {
       sub.setAttribute('step', amountStep);
       sub.setAttribute('inputmode', 'decimal');
+    }
+    var gross = tr.querySelector('input.js-line-gross');
+    if (gross) {
+      gross.setAttribute('step', amountStep);
+      gross.setAttribute('inputmode', 'decimal');
     }
   }
 
@@ -862,6 +868,7 @@
   function setLineGrossDisplay(tr, gross) {
     var el = tr.querySelector('.js-line-gross');
     if (!el) return;
+    if (el.tagName === 'INPUT' && document.activeElement === el) return;
     var txt = Math.abs(gross) < 1e-12 ? '' : fmtAmount(gross);
     if (el.tagName === 'INPUT') {
       el.value = formatAmountValue(gross, '');
@@ -872,8 +879,7 @@
 
   function rowAmountSource(tr) {
     var d = tr.dataset.amountDriver || 'unit';
-    if (d === 'gross') return 'subtotal';
-    if (d === 'subtotal') return 'subtotal';
+    if (d === 'gross' || d === 'subtotal' || d === 'unit') return d;
     return 'unit';
   }
 
@@ -899,11 +905,14 @@
     if (el.classList.contains('js-line-sub')) {
       tr.dataset.amountDriver = 'subtotal';
       recalcRow(tr, 'subtotal');
+    } else if (el.classList.contains('js-line-gross')) {
+      tr.dataset.amountDriver = 'gross';
+      recalcRow(tr, 'gross');
     } else if (el.classList.contains('js-price') || el.classList.contains('js-qty')) {
       tr.dataset.amountDriver = 'unit';
       recalcRow(tr, 'unit');
     } else if (el.classList.contains('js-tax')) {
-      recalcRow(tr, 'unit');
+      recalcRow(tr, rowAmountSource(tr));
     } else {
       recalcRow(tr, 'unit');
     }
@@ -922,6 +931,7 @@
     if (el.classList.contains('js-qty')) normalizeQtyInput(el);
     else if (el.classList.contains('js-price')) normalizePriceInput(el);
     else if (el.classList.contains('js-line-sub')) normalizeSubInput(el);
+    else if (el.classList.contains('js-line-gross')) normalizeGrossInput(el);
 
     if (el.classList.contains('js-discount')) {
       onLineDiscountEdited(tr);
@@ -937,6 +947,9 @@
     if (el.classList.contains('js-line-sub')) {
       source = 'subtotal';
       tr.dataset.amountDriver = 'subtotal';
+    } else if (el.classList.contains('js-line-gross')) {
+      source = 'gross';
+      tr.dataset.amountDriver = 'gross';
     } else {
       tr.dataset.amountDriver = 'unit';
     }
@@ -951,7 +964,8 @@
       el.classList.contains('js-qty') ||
       el.classList.contains('js-price') ||
       el.classList.contains('js-discount') ||
-      el.classList.contains('js-line-sub')
+      el.classList.contains('js-line-sub') ||
+      el.classList.contains('js-line-gross')
     );
   }
 
@@ -1178,13 +1192,28 @@
     syncJson();
   }
 
+  function resolveLineBaseFromNetSub(tr, sub) {
+    if (!(sub > 0)) return 0;
+    if (isDiscountInputEmpty(tr)) return sub;
+    var discEl = tr.querySelector('.js-discount');
+    if (!discEl || !global.InvDiscount) return sub;
+    var p = global.InvDiscount.parseInput(discEl.value);
+    if (!p) return sub;
+    if (p.type === 'percent') {
+      var factor = 1 - p.value / 100;
+      if (factor <= 0) return sub;
+      return roundMoney(sub / factor);
+    }
+    return roundMoney(sub + p.value);
+  }
+
   function recalcRow(tr, source, opts) {
     opts = opts || {};
     source = source || rowAmountSource(tr);
-    if (source === 'gross') source = 'subtotal';
     var qtyEl = tr.querySelector('.js-qty');
     var priceEl = tr.querySelector('.js-price');
     var subInp = tr.querySelector('input.js-line-sub');
+    var grossInp = tr.querySelector('input.js-line-gross') || tr.querySelector('.js-line-gross');
     var taxAmtEl = tr.querySelector('.js-tax-amt');
     if (!taxAmtEl) return;
     var qty = parseNum(qtyEl ? qtyEl.value : 0);
@@ -1202,42 +1231,64 @@
     var taxAmt;
     var gross;
     var taxFactor = 1 + rate / 100;
-    price = parseNum(priceEl ? priceEl.value : 0);
-    if (opts.normalizeStored) price = roundUnitPrice(price);
-    lineBase = qty > 0 ? roundMoney(qty * price) : 0;
-    tr.dataset.lineBase = String(lineBase);
-    tr.dataset.lineMerch = String(lineBase);
 
-    if (source === 'subtotal' && subInp) {
-      discountAmt = getLineDiscountAmount(tr, lineBase);
-      if (document.activeElement === subInp && isDiscountInputEmpty(tr)) {
-        sub = roundMoney(parseNum(subInp.value));
-        discountAmt = roundMoney(Math.max(0, lineBase - sub));
-      } else {
-        sub = roundMoney(Math.max(0, lineBase - discountAmt));
-      }
-      price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
-      if (priceEl && document.activeElement !== priceEl) {
-        priceEl.value = formatUnitPriceValue(price, String(price));
-      }
-      if (opts.normalizeStored || document.activeElement !== subInp) {
-        subInp.value = formatAmountValue(sub, subInp.value);
-      }
-      gross = roundMoney(sub * taxFactor);
+    if (source === 'gross') {
+      gross = roundMoney(parseNum(grossInp ? grossInp.value : tr.dataset.gross));
+      sub = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
       taxAmt = roundMoney(gross - sub);
-      tr.dataset.amountDriver = 'subtotal';
-    } else {
-      discountAmt = getLineDiscountAmount(tr, lineBase);
-      sub = roundMoney(Math.max(0, lineBase - discountAmt));
-      taxAmt = roundMoney((sub * rate) / 100);
-      gross = roundMoney(sub + taxAmt);
-      if (priceEl && (opts.normalizeStored || document.activeElement !== priceEl)) {
+      lineBase = resolveLineBaseFromNetSub(tr, sub);
+      discountAmt = roundMoney(Math.max(0, lineBase - sub));
+      price = qty > 0 ? roundUnitPrice(lineBase / qty) : 0;
+      tr.dataset.lineBase = String(lineBase);
+      tr.dataset.lineMerch = String(lineBase);
+      if (priceEl && document.activeElement !== priceEl) {
         priceEl.value = formatUnitPriceValue(price, String(price));
       }
       if (subInp && document.activeElement !== subInp) {
         subInp.value = formatAmountValue(sub, subInp.value);
       }
-      tr.dataset.amountDriver = 'unit';
+      if (grossInp && (opts.normalizeStored || document.activeElement !== grossInp)) {
+        grossInp.value = formatAmountValue(gross, grossInp.value);
+      }
+      tr.dataset.amountDriver = 'gross';
+    } else {
+      price = parseNum(priceEl ? priceEl.value : 0);
+      if (opts.normalizeStored) price = roundUnitPrice(price);
+      lineBase = qty > 0 ? roundMoney(qty * price) : 0;
+      tr.dataset.lineBase = String(lineBase);
+      tr.dataset.lineMerch = String(lineBase);
+
+      if (source === 'subtotal' && subInp) {
+        discountAmt = getLineDiscountAmount(tr, lineBase);
+        if (document.activeElement === subInp && isDiscountInputEmpty(tr)) {
+          sub = roundMoney(parseNum(subInp.value));
+          discountAmt = roundMoney(Math.max(0, lineBase - sub));
+        } else {
+          sub = roundMoney(Math.max(0, lineBase - discountAmt));
+        }
+        price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
+        if (priceEl && document.activeElement !== priceEl) {
+          priceEl.value = formatUnitPriceValue(price, String(price));
+        }
+        if (opts.normalizeStored || document.activeElement !== subInp) {
+          subInp.value = formatAmountValue(sub, subInp.value);
+        }
+        gross = roundMoney(sub * taxFactor);
+        taxAmt = roundMoney(gross - sub);
+        tr.dataset.amountDriver = 'subtotal';
+      } else {
+        discountAmt = getLineDiscountAmount(tr, lineBase);
+        sub = roundMoney(Math.max(0, lineBase - discountAmt));
+        taxAmt = roundMoney((sub * rate) / 100);
+        gross = roundMoney(sub + taxAmt);
+        if (priceEl && (opts.normalizeStored || document.activeElement !== priceEl)) {
+          priceEl.value = formatUnitPriceValue(price, String(price));
+        }
+        if (subInp && document.activeElement !== subInp) {
+          subInp.value = formatAmountValue(sub, subInp.value);
+        }
+        tr.dataset.amountDriver = 'unit';
+      }
     }
     setAmtDisplayCell(
       taxAmtEl,
@@ -1664,10 +1715,20 @@
     syncJson();
 
     if (focusTr) {
-      var qty = focusTr.querySelector('.js-qty');
-      if (qty) {
-        qty.focus();
-        if (qty.select) qty.select();
+      var qtyEl = focusTr.querySelector('.js-qty');
+      var qtyVal = parseNum(qtyEl ? qtyEl.value : 0);
+      var priceEl = focusTr.querySelector('.js-price');
+      var salePrice = parseNum(priceEl ? priceEl.value : 0);
+      var grossInp = focusTr.querySelector('input.js-line-gross');
+      if (qtyVal <= 0 && qtyEl) {
+        qtyEl.focus();
+        if (qtyEl.select) qtyEl.select();
+      } else if (salePrice <= 0 && grossInp) {
+        grossInp.focus();
+        if (grossInp.select) grossInp.select();
+      } else if (qtyEl) {
+        qtyEl.focus();
+        if (qtyEl.select) qtyEl.select();
       }
     }
     return true;
@@ -1924,10 +1985,20 @@
       if (!focusTr) focusTr = appended;
     }
     if (focusTr) {
-      var qty = focusTr.querySelector('.js-qty');
-      if (qty) {
-        qty.focus();
-        if (qty.select) qty.select();
+      var qtyEl = focusTr.querySelector('.js-qty');
+      var qtyVal = parseNum(qtyEl ? qtyEl.value : 0);
+      var priceEl = focusTr.querySelector('.js-price');
+      var salePrice = parseNum(priceEl ? priceEl.value : 0);
+      var grossInp = focusTr.querySelector('input.js-line-gross');
+      if (qtyVal <= 0 && qtyEl) {
+        qtyEl.focus();
+        if (qtyEl.select) qtyEl.select();
+      } else if (salePrice <= 0 && grossInp) {
+        grossInp.focus();
+        if (grossInp.select) grossInp.select();
+      } else if (qtyEl) {
+        qtyEl.focus();
+        if (qtyEl.select) qtyEl.select();
       }
     }
   }
@@ -1993,7 +2064,7 @@
   }
 
   function focusNextField(tr, current) {
-    var order = ['.js-qty', '.js-qty-extra', '.js-price', '.js-discount', '.js-line-sub', '.js-tax'];
+    var order = ['.js-qty', '.js-qty-extra', '.js-price', '.js-discount', '.js-line-sub', '.js-tax', '.js-line-gross'];
     var idx = -1;
     if (current.classList.contains('js-qty')) idx = 0;
     else if (current.classList.contains('js-qty-extra')) idx = 1;
@@ -2001,6 +2072,7 @@
     else if (current.classList.contains('js-discount')) idx = 3;
     else if (current.classList.contains('js-line-sub')) idx = 4;
     else if (current.classList.contains('js-tax')) idx = 5;
+    else if (current.classList.contains('js-line-gross')) idx = 6;
     if (idx >= 0 && idx < order.length - 1) {
       var next = tr.querySelector(order[idx + 1]);
       if (next) {
@@ -2068,7 +2140,7 @@
 
     tr
       .querySelectorAll(
-        '.js-qty, .js-qty-extra, .js-price, .js-discount, .js-line-sub, .js-tax'
+        '.js-qty, .js-qty-extra, .js-price, .js-discount, .js-line-sub, .js-line-gross, .js-tax'
       )
       .forEach(function (el) {
       el.addEventListener('input', function () {
@@ -2079,6 +2151,7 @@
         if (el.classList.contains('js-qty-extra')) normalizeQtyExtraInput(el);
         if (el.classList.contains('js-price')) normalizePriceInput(el);
         if (el.classList.contains('js-line-sub')) normalizeSubInput(el);
+        if (el.classList.contains('js-line-gross')) normalizeGrossInput(el);
         recalcRowLiveFromField(tr, el);
       });
       el.addEventListener('blur', function () {
@@ -2086,7 +2159,8 @@
           el.classList.contains('js-qty') ||
           el.classList.contains('js-price') ||
           el.classList.contains('js-discount') ||
-          el.classList.contains('js-line-sub')
+          el.classList.contains('js-line-sub') ||
+          el.classList.contains('js-line-gross')
         ) {
           commitAmountFieldAndRecalc(tr, el);
         } else if (el.classList.contains('js-qty-extra')) {
@@ -2101,8 +2175,17 @@
         if (isAmountFieldEnterCommit(el)) {
           commitAmountFieldAndRecalc(tr, el);
           focusNextField(tr, el);
-        } else if (el.classList.contains('js-tax')) {
+        } else if (el.classList.contains('js-line-gross')) {
+          commitAmountFieldAndRecalc(tr, el);
           completeLineAndNext(tr);
+        } else if (el.classList.contains('js-tax')) {
+          var grossInp = tr.querySelector('input.js-line-gross');
+          if (grossInp) {
+            grossInp.focus();
+            if (grossInp.select) grossInp.select();
+          } else {
+            completeLineAndNext(tr);
+          }
         } else {
           focusNextField(tr, el);
         }
@@ -2834,7 +2917,6 @@
     }
     setLineGrossDisplay(tr, parseNum(tr.dataset.gross));
     var loadDriver = ln.amount_driver || inferLineAmountDriver(ln);
-    if (loadDriver === 'gross') loadDriver = 'subtotal';
     tr.dataset.amountDriver = loadDriver;
     recalcRow(tr, loadDriver, { normalizeStored: true });
     insertDataRowBeforeEntry(tr);

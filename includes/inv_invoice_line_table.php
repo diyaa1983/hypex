@@ -60,7 +60,9 @@ function inv_invoice_line_table_row_template(array $taxRates, string $unitPriceS
                 <?php endforeach; ?>
             </select>
         </td>
-        <td class="sales-inv-col-total js-line-gross" title="يُحسب تلقائياً"></td>
+        <td class="sales-inv-col-total">
+            <input type="text" class="input input-num js-line-gross" inputmode="decimal" value="" title="الإجمالي شامل الضريبة — يُحدَّث السعر تلقائياً" autocomplete="off">
+        </td>
         <td class="sales-inv-col-del"><button type="button" class="btn-icon danger js-remove" title="حذف" aria-label="حذف البند"><?= app_icon_svg('trash', 18) ?></button></td>
     </tr>
     <?php
