@@ -2930,19 +2930,22 @@
   }
 
   function updateNavButtons(prevId, nextId) {
+    var hasSavedInvoices = nextId > 0 || prevId > 0 || currentInvoiceId > 0;
     if (window.DocumentNoNav) {
       DocumentNoNav.updateButtons('inv_no_prev', 'inv_no_next', prevId, nextId, {
         onEmpty: currentInvoiceId < 1,
-        prevTitle: 'الفاتورة السابقة',
+        prevTitle: 'آخر فاتورة بيع',
         nextTitle: 'الفاتورة التالية',
-        prevBeforeLatestTitle: 'الفاتورة قبل الأخيرة',
+        prevBeforeLatestTitle: 'آخر فاتورة بيع',
         latestTitle: 'آخر فاتورة بيع',
       });
+      var prevBtn = document.getElementById('inv_no_prev');
+      if (prevBtn) prevBtn.disabled = !hasSavedInvoices;
       return;
     }
     var prevBtn = document.getElementById('inv_no_prev');
     var nextBtn = document.getElementById('inv_no_next');
-    if (prevBtn) prevBtn.disabled = !(prevId > 0);
+    if (prevBtn) prevBtn.disabled = !hasSavedInvoices;
     if (nextBtn) nextBtn.disabled = !(nextId > 0);
   }
 
@@ -3529,7 +3532,24 @@
     });
   }
 
+  function loadLatestInvoice() {
+    return fetchInvoiceResponse({ filter: 'all', edge: 'first' }).then(function (data) {
+      if (!data || !data.ok || !data.invoice) {
+        AppDialog.alert(
+          (data && data.message) || 'لا توجد فواتير محفوظة بعد.',
+          { type: 'info' }
+        );
+        return;
+      }
+      applyInvoiceData(data.invoice);
+    });
+  }
+
   function navigateInvoiceCore(dir) {
+    if (dir === 'prev') {
+      loadLatestInvoice();
+      return;
+    }
     if (currentInvoiceId < 1) {
       navigateEmptyInvoice(dir);
       return;
@@ -3537,8 +3557,7 @@
     fetchInvoiceResponse({ id: currentInvoiceId, dir: dir }).then(function (data) {
       if (!data || !data.ok || !data.invoice) {
         AppDialog.alert(
-          (data && data.message) ||
-            (dir === 'prev' ? 'لا توجد فاتورة أقدم.' : 'لا توجد فاتورة أحدث.'),
+          (data && data.message) || 'لا توجد فاتورة أحدث.',
           { type: 'info' }
         );
         return;

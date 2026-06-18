@@ -163,7 +163,7 @@ $screenTitle = $ledgerView ? 'عرض فاتورة مبيعات' : 'فاتورة 
                 <div class="sales-inv-meta-item sales-inv-meta-no">
                     <label for="inv_no">رقم الفاتورة</label>
                     <div class="sales-inv-no-nav">
-                        <button type="button" class="sales-inv-no-arrow" id="inv_no_prev" title="الفاتورة السابقة" aria-label="السابقة">‹</button>
+                        <button type="button" class="sales-inv-no-arrow" id="inv_no_prev" title="آخر فاتورة بيع" aria-label="آخر فاتورة">‹</button>
                         <input class="input input-compact sales-inv-no-input" type="text" id="inv_no" value="" placeholder="" title="يُولَّد الرقم تلقائياً عند الحفظ — للبحث اكتب رقم فاتورة محفوظة واضغط Enter">
                         <button type="button" class="sales-inv-no-arrow" id="inv_no_next" title="الفاتورة التالية" aria-label="التالية">›</button>
                     </div>
