@@ -155,14 +155,9 @@ function sal_receivables_aging_customer_buckets(PDO $pdo, int $customerId, strin
     $openItems = [];
 
     foreach ($rows as $row) {
-        $display = crm_party_statement_row_display_amounts(
-            'customer',
-            (float) ($row['debit'] ?? 0),
-            (float) ($row['credit'] ?? 0),
-            (string) ($row['txn_type'] ?? ''),
-            (string) ($row['payment_type'] ?? '')
-        );
-        if ($display['skip']) {
+        $debit = (float) ($row['debit'] ?? 0);
+        $credit = (float) ($row['credit'] ?? 0);
+        if ($debit <= $eps && $credit <= $eps) {
             continue;
         }
 
@@ -172,22 +167,44 @@ function sal_receivables_aging_customer_buckets(PDO $pdo, int $customerId, strin
         $txnType = (string) ($row['txn_type'] ?? '');
         $desc = $memo !== '' ? $memo : sal_receivables_aging_txn_label($txnType);
 
-        if ($display['debit'] > $eps) {
+        if ($debit > $eps) {
             $openItems[] = [
                 'date' => $txnDate,
-                'remaining' => $display['debit'],
+                'remaining' => $debit,
                 'ref_no' => $refNo,
                 'description' => $desc,
                 'txn_type' => $txnType,
             ];
         }
 
-        if ($display['credit'] > $eps) {
-            sal_receivables_aging_apply_credit($display['credit'], $openItems);
+        if ($credit > $eps) {
+            sal_receivables_aging_apply_credit($credit, $openItems);
         }
     }
 
     return sal_receivables_aging_buckets_from_open($openItems, $asOf);
+}
+
+/**
+ * موازنة فترات العمر مع رصيد الدفتر (مطابق كشف ذمم العملاء).
+ *
+ * @param array{d0_30:float,d31_60:float,d61_90:float,d90_plus:float,total:float,detail_lines?:list<array<string,mixed>>} $aged
+ * @return array{d0_30:float,d31_60:float,d61_90:float,d90_plus:float,total:float,detail_lines:list<array<string,mixed>>}
+ */
+function sal_receivables_aging_align_with_ledger_balance(array $aged, float $ledgerBalance): array
+{
+    $eps = crm_party_statement_amount_epsilon();
+    $bucketSum = (float) ($aged['d0_30'] ?? 0)
+        + (float) ($aged['d31_60'] ?? 0)
+        + (float) ($aged['d61_90'] ?? 0)
+        + (float) ($aged['d90_plus'] ?? 0);
+    $diff = round($ledgerBalance - $bucketSum, 6);
+    if (abs($diff) > $eps) {
+        $aged['d0_30'] = round((float) ($aged['d0_30'] ?? 0) + $diff, 6);
+    }
+    $aged['total'] = round($ledgerBalance, 6);
+
+    return $aged;
 }
 
 /**
@@ -197,7 +214,7 @@ function sal_receivables_aging_customer_buckets(PDO $pdo, int $customerId, strin
  *   as_of:string,
  *   summary_rows:list<array<string,mixed>>,
  *   detail_groups:list<array<string,mixed>>,
- *   totals:array{d0_30:float,d31_60:float,d61_90:float,d90_plus:float,total:float},
+ *   totals:array{d0_30:float,d31_60:float,d61_90:float,d90_plus:float,total:float,balance_due:float},
  *   customer_count:int
  * }
  */
@@ -212,6 +229,7 @@ function sal_report_receivables_aging_build(PDO $pdo, array $filters): array
     }
 
     $emptyTotals = sal_receivables_aging_empty_buckets();
+    $emptyTotals['balance_due'] = 0.0;
     unset($emptyTotals['total']);
     $empty = [
         'mode' => $mode,
@@ -235,6 +253,7 @@ function sal_report_receivables_aging_build(PDO $pdo, array $filters): array
     $summaryRows = [];
     $detailGroups = [];
     $totals = sal_receivables_aging_empty_buckets();
+    $totals['balance_due'] = 0.0;
     unset($totals['total']);
 
     foreach ($customers as $cust) {
@@ -248,10 +267,10 @@ function sal_report_receivables_aging_build(PDO $pdo, array $filters): array
             continue;
         }
 
-        $aged = sal_receivables_aging_customer_buckets($pdo, $cid, $asOf);
-        if ($aged['total'] <= crm_party_statement_amount_epsilon()) {
-            continue;
-        }
+        $aged = sal_receivables_aging_align_with_ledger_balance(
+            sal_receivables_aging_customer_buckets($pdo, $cid, $asOf),
+            $balanceDue
+        );
 
         $repLabel = sal_report_receivables_rep_label($cust);
         $custName = (string) ($cust['name_ar'] ?? '');
@@ -266,7 +285,7 @@ function sal_report_receivables_aging_build(PDO $pdo, array $filters): array
             'd31_60' => $aged['d31_60'],
             'd61_90' => $aged['d61_90'],
             'd90_plus' => $aged['d90_plus'],
-            'total' => $aged['total'],
+            'total' => $balanceDue,
             'ledger_balance' => $balanceDue,
         ];
         $summaryRows[] = $row;
@@ -282,7 +301,7 @@ function sal_report_receivables_aging_build(PDO $pdo, array $filters): array
                 'd31_60' => $aged['d31_60'],
                 'd61_90' => $aged['d61_90'],
                 'd90_plus' => $aged['d90_plus'],
-                'total' => $aged['total'],
+                'total' => $balanceDue,
             ];
         }
 
@@ -290,9 +309,10 @@ function sal_report_receivables_aging_build(PDO $pdo, array $filters): array
         $totals['d31_60'] += $aged['d31_60'];
         $totals['d61_90'] += $aged['d61_90'];
         $totals['d90_plus'] += $aged['d90_plus'];
+        $totals['balance_due'] += $balanceDue;
     }
 
-    $totals['total'] = $totals['d0_30'] + $totals['d31_60'] + $totals['d61_90'] + $totals['d90_plus'];
+    $totals['total'] = $totals['balance_due'];
 
     return [
         'mode' => $mode,

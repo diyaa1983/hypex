@@ -99,6 +99,7 @@ if ($salesRepId > 0) {
 }
 
 $modeLabel = $mode === 'summary' ? 'إجمالي' : 'تفصيلي';
+$totals = $built['totals'];
 
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
@@ -118,6 +119,8 @@ if ($showResult) {
     $pageDataAttrs .= ' data-export-label="' . esc($modeLabel . '-' . $customerLabel) . '"';
     $pageDataAttrs .= ' data-as-of-dmy="' . esc(format_date_dmY($asOf)) . '"';
 }
+
+$totalTdStyle = 'background-color:#e2e8f0;-webkit-print-color-adjust:exact;print-color-adjust:exact;';
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($invCssUrl) ?>">
@@ -174,6 +177,7 @@ if ($showResult) {
         </div>
         <p class="muted no-print" style="margin:0.35rem 0 0;font-size:0.9rem;">
             يُحسب عمر الذمة من تاريخ الفاتورة/الحركة حتى تاريخ التقرير، مع خصم التحصيلات والمرتجعات (FIFO).
+            عمود «الذمم المستحقة» يطابق كشف ذمم العملاء لنفس التاريخ.
         </p>
         <div style="margin-top:0.5rem;">
             <button class="btn btn-primary" type="submit">عرض التقرير</button>
@@ -219,7 +223,7 @@ if ($showResult) {
                             <th class="col-money"><?= esc($bucketLabels['d31_60']) ?></th>
                             <th class="col-money"><?= esc($bucketLabels['d61_90']) ?></th>
                             <th class="col-money"><?= esc($bucketLabels['d90_plus']) ?></th>
-                            <th class="col-money report-receivables-col-balance">الإجمالي</th>
+                            <th class="col-money report-receivables-col-balance">الذمم المستحقة</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -250,6 +254,18 @@ if ($showResult) {
                             <?php endforeach; ?>
                         <?php endif; ?>
                         </tbody>
+                        <?php if ($built['summary_rows']): ?>
+                        <tfoot>
+                        <tr class="report-sales-tfoot">
+                            <td colspan="3" class="report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong>الإجمالي</strong></td>
+                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d0_30'] ?? 0))) ?></strong></td>
+                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d31_60'] ?? 0))) ?></strong></td>
+                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d61_90'] ?? 0))) ?></strong></td>
+                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d90_plus'] ?? 0))) ?></strong></td>
+                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['balance_due'] ?? $totals['total'] ?? 0))) ?></strong></td>
+                        </tr>
+                        </tfoot>
+                        <?php endif; ?>
                     </table>
                 </div>
             <?php else: ?>
@@ -284,6 +300,12 @@ if ($showResult) {
                                             </tr>
                                         <?php endforeach; ?>
                                         </tbody>
+                                        <tfoot>
+                                        <tr class="report-sales-tfoot report-receivables-customer-total">
+                                            <td colspan="5" class="report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong>ذمم العميل المستحقة</strong></td>
+                                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($grp['total'] ?? 0))) ?></strong></td>
+                                        </tr>
+                                        </tfoot>
                                     </table>
                                 </div>
                             </section>
