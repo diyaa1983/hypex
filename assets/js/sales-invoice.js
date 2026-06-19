@@ -2488,7 +2488,7 @@
           '<tr>' +
           '<td class="inv-print-header-meta" style="border:none;padding:0;vertical-align:top;">' + metaTable + '</td>' +
           '<td class="inv-print-header-qr" style="border:none;padding:0;vertical-align:top;width:' +
-          (window.InvInvoicePrint ? window.InvInvoicePrint.EINV_QR_HEADER_COL_PX : 144) +
+          (window.InvInvoicePrint ? window.InvInvoicePrint.EINV_QR_HEADER_COL_PX : 158) +
           'px;text-align:center;">' + einvBox + '</td>' +
         '</tr></table>'
       : metaTable;
@@ -2602,32 +2602,34 @@
         win.print();
       } catch (e) {}
     };
-    // انتظر تحميل كل الصور (خصوصاً QR من api.qrserver.com) قبل الطباعة.
+        // انتظر تحميل/فك ترميز QR (data URL) قبل الطباعة.
     var waitForImages = function () {
       try {
         var doc = win.document;
         var imgs = doc.images ? Array.prototype.slice.call(doc.images) : [];
         var pending = imgs.filter(function (im) { return im && !im.complete; });
+        var trigger = function () {
+          setTimeout(triggerPrint, 350);
+        };
         if (pending.length === 0) {
-          triggerPrint();
+          trigger();
           return;
         }
         var remaining = pending.length;
         var done = function () {
           remaining--;
-          if (remaining <= 0) triggerPrint();
+          if (remaining <= 0) trigger();
         };
         pending.forEach(function (im) {
           im.addEventListener('load', done, { once: true });
           im.addEventListener('error', done, { once: true });
         });
-        // أمان: لو لم تُحمَّل الصور خلال 4 ثوانٍ، اطبع على أي حال.
-        setTimeout(triggerPrint, 4000);
+        setTimeout(trigger, 5000);
       } catch (e) {
-        triggerPrint();
+        setTimeout(triggerPrint, 350);
       }
     };
-    setTimeout(waitForImages, 200);
+    setTimeout(waitForImages, 250);
   }
 
   function closePrintPreview() {
@@ -3134,33 +3136,15 @@
       return;
     }
     var ipp = window.InvInvoicePrint;
-    var fallbackToImage = function () {
-      try {
-        einvQrDataUrl = ipp && ipp.einvQrRemoteUrl
-          ? ipp.einvQrRemoteUrl(invoiceEinvQr)
-          : 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=4&data=' + encodeURIComponent(invoiceEinvQr);
-      } catch (_e) {
-        einvQrDataUrl = '';
-      }
-      if (cb) cb();
-    };
-    if (typeof window.QRCode === 'undefined' || !window.QRCode.toDataURL) {
-      fallbackToImage();
+    if (ipp && ipp.einvQrResolveDataUrl) {
+      ipp.einvQrResolveDataUrl(invoiceEinvQr, function (url) {
+        einvQrDataUrl = url || '';
+        if (cb) cb();
+      });
       return;
     }
-    try {
-      var qrOpts = ipp && ipp.einvQrGenerateOptions ? ipp.einvQrGenerateOptions() : { width: 512, margin: 2, errorCorrectionLevel: 'M' };
-      window.QRCode.toDataURL(invoiceEinvQr, qrOpts, function (err, url) {
-        if (err || !url) {
-          fallbackToImage();
-        } else {
-          einvQrDataUrl = url;
-          if (cb) cb();
-        }
-      });
-    } catch (_e) {
-      fallbackToImage();
-    }
+    einvQrDataUrl = '';
+    if (cb) cb();
   }
 
   function applyEinvoiceFromInvoice(inv) {

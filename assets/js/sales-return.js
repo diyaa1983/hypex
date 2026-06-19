@@ -643,39 +643,15 @@
       return;
     }
     var ipp = window.InvInvoicePrint;
-    var fallbackToImage = function () {
-      try {
-        returnEinvQrDataUrl =
-          ipp && ipp.einvQrRemoteUrl
-            ? ipp.einvQrRemoteUrl(returnEinvQr)
-            : 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=4&data=' +
-              encodeURIComponent(returnEinvQr);
-      } catch (_e) {
-        returnEinvQrDataUrl = '';
-      }
-      if (cb) cb();
-    };
-    if (typeof window.QRCode === 'undefined' || !window.QRCode.toDataURL) {
-      fallbackToImage();
+    if (ipp && ipp.einvQrResolveDataUrl) {
+      ipp.einvQrResolveDataUrl(returnEinvQr, function (url) {
+        returnEinvQrDataUrl = url || '';
+        if (cb) cb();
+      });
       return;
     }
-    try {
-      var qrOpts = ipp && ipp.einvQrGenerateOptions ? ipp.einvQrGenerateOptions() : { width: 512, margin: 2, errorCorrectionLevel: 'M' };
-      window.QRCode.toDataURL(
-        returnEinvQr,
-        qrOpts,
-        function (err, url) {
-          if (err || !url) {
-            fallbackToImage();
-          } else {
-            returnEinvQrDataUrl = url;
-            if (cb) cb();
-          }
-        }
-      );
-    } catch (_e) {
-      fallbackToImage();
-    }
+    returnEinvQrDataUrl = '';
+    if (cb) cb();
   }
 
   function buildReturnEinvoiceQrBox() {
@@ -820,7 +796,7 @@
           '<tr>' +
           '<td class="inv-print-header-meta" style="border:none;padding:0;vertical-align:top;">' + metaTable + '</td>' +
           '<td class="inv-print-header-qr" style="border:none;padding:0;vertical-align:top;width:' +
-          (window.InvInvoicePrint ? window.InvInvoicePrint.EINV_QR_HEADER_COL_PX : 144) +
+          (window.InvInvoicePrint ? window.InvInvoicePrint.EINV_QR_HEADER_COL_PX : 158) +
           'px;text-align:center;">' + einvBox + '</td>' +
         '</tr></table>'
       : metaTable;

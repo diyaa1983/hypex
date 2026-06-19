@@ -226,11 +226,36 @@
     );
   }
 
-  /** أبعاد QR الفوترة للطباعة — دقة عالية لقراءة أوضح على الورق */
-  var EINV_QR_IMG_PX = 120;
-  var EINV_QR_BOX_PX = 132;
-  var EINV_QR_HEADER_COL_PX = 144;
-  var EINV_QR_SRC_PX = 512;
+  /** QR الفوترة — أكبر قليلاً من الحجم الأصلي (84px) */
+  var EINV_QR_IMG_PX = 136;
+  var EINV_QR_BOX_PX = 148;
+  var EINV_QR_HEADER_COL_PX = 158;
+  var EINV_QR_SRC_PX = 384;
+
+  function einvQrIsDirectImage(src) {
+    src = String(src || '').trim();
+    if (/^data:image\//i.test(src) || /^https?:\/\//i.test(src)) {
+      return true;
+    }
+    if (/^iVBORw0KGgo/i.test(src) || /^\/9j\//.test(src)) {
+      return true;
+    }
+    return false;
+  }
+
+  function einvQrNormalizeImageSrc(src) {
+    src = String(src || '').trim();
+    if (/^data:image\//i.test(src) || /^https?:\/\//i.test(src)) {
+      return src;
+    }
+    if (/^iVBORw0KGgo/i.test(src)) {
+      return 'data:image/png;base64,' + src;
+    }
+    if (/^\/9j\//.test(src)) {
+      return 'data:image/jpeg;base64,' + src;
+    }
+    return src;
+  }
 
   function einvQrRemoteUrl(data) {
     return (
@@ -238,13 +263,58 @@
       EINV_QR_SRC_PX +
       'x' +
       EINV_QR_SRC_PX +
-      '&margin=4&data=' +
+      '&format=png&margin=4&ecc=H&data=' +
       encodeURIComponent(String(data || ''))
     );
   }
 
   function einvQrGenerateOptions() {
-    return { width: EINV_QR_SRC_PX, margin: 2, errorCorrectionLevel: 'M' };
+    return {
+      width: EINV_QR_SRC_PX,
+      margin: 1,
+      errorCorrectionLevel: 'H',
+      type: 'image/png',
+      color: { dark: '#000000', light: '#FFFFFF' },
+    };
+  }
+
+  function einvQrResolveDataUrl(payload, cb) {
+    payload = String(payload || '').trim();
+    if (!payload) {
+      cb('');
+      return;
+    }
+    if (einvQrIsDirectImage(payload)) {
+      cb(einvQrNormalizeImageSrc(payload));
+      return;
+    }
+    if (typeof global.QRCode === 'undefined' || !global.QRCode.toDataURL) {
+      try {
+        cb(einvQrRemoteUrl(payload));
+      } catch (_e) {
+        cb('');
+      }
+      return;
+    }
+    try {
+      global.QRCode.toDataURL(payload, einvQrGenerateOptions(), function (err, url) {
+        if (err || !url) {
+          try {
+            cb(einvQrRemoteUrl(payload));
+          } catch (_e2) {
+            cb('');
+          }
+        } else {
+          cb(url);
+        }
+      });
+    } catch (_e) {
+      try {
+        cb(einvQrRemoteUrl(payload));
+      } catch (_e2) {
+        cb('');
+      }
+    }
   }
 
   function einvQrPrintCss() {
@@ -255,28 +325,29 @@
       '.inv-print-qr-wrap{width:' +
       EINV_QR_BOX_PX +
       'px;text-align:center;margin-inline-start:auto;}' +
-      '.inv-print-qr-box{border:2px solid #0f172a;border-radius:8px;padding:2px;background:#fff;width:' +
+      '.inv-print-qr-box{border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:' +
       EINV_QR_BOX_PX +
       'px;height:' +
       EINV_QR_BOX_PX +
       'px;box-sizing:border-box;text-align:center;line-height:0;}' +
-      '.inv-print-qr-img{display:block;width:' +
+      '.inv-print-qr-img{display:inline-block;width:' +
       EINV_QR_IMG_PX +
       'px;height:' +
       EINV_QR_IMG_PX +
-      'px;margin:0 auto;vertical-align:middle;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;}' +
+      'px;margin:0 auto;vertical-align:middle;}' +
       '.inv-print-qr-placeholder{display:inline-block;width:' +
       EINV_QR_IMG_PX +
       'px;height:' +
       EINV_QR_IMG_PX +
       'px;background:#f1f5f9;border-radius:6px;vertical-align:middle;}' +
-      '.inv-print-qr-caption{font-size:0.62rem;color:#64748b;margin-top:3px;letter-spacing:0.3px;font-weight:600;}' +
+      '.inv-print-qr-caption{font-size:0.62rem;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;}' +
       '@media print{' +
+      'body{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}' +
       '.inv-print-qr-box{width:' +
       EINV_QR_BOX_PX +
       'px!important;height:' +
       EINV_QR_BOX_PX +
-      'px!important;padding:2px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+      'px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
       '.inv-print-qr-img{width:' +
       EINV_QR_IMG_PX +
       'px!important;height:' +
@@ -291,7 +362,7 @@
     var wrapStyle =
       'width:' + EINV_QR_BOX_PX + 'px;text-align:center;margin:0;';
     var boxStyle =
-      'border:2px solid #0f172a;border-radius:8px;padding:2px;background:#fff;width:' +
+      'border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:' +
       EINV_QR_BOX_PX +
       'px;height:' +
       EINV_QR_BOX_PX +
@@ -301,9 +372,9 @@
       EINV_QR_IMG_PX +
       'px;height:' +
       EINV_QR_IMG_PX +
-      'px;display:block;margin:0 auto;vertical-align:middle;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;';
+      'px;display:inline-block;margin:0 auto;vertical-align:middle;';
     var capStyle =
-      'font-size:9px;color:#64748b;margin-top:3px;letter-spacing:0.3px;font-weight:600;line-height:1.2;';
+      'font-size:9px;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;line-height:1.2;';
     return (
       '<div class="inv-print-qr-wrap" style="' +
       wrapStyle +
@@ -313,7 +384,11 @@
       '">' +
       '<img src="' +
       String(imgDataUrl) +
-      '" alt="QR" class="inv-print-qr-img" style="' +
+      '" alt="QR" class="inv-print-qr-img" width="' +
+      EINV_QR_IMG_PX +
+      '" height="' +
+      EINV_QR_IMG_PX +
+      '" style="' +
       imgStyle +
       '">' +
       '</div>' +
@@ -337,8 +412,10 @@
     EINV_QR_BOX_PX: EINV_QR_BOX_PX,
     EINV_QR_HEADER_COL_PX: EINV_QR_HEADER_COL_PX,
     EINV_QR_SRC_PX: EINV_QR_SRC_PX,
+    einvQrIsDirectImage: einvQrIsDirectImage,
     einvQrRemoteUrl: einvQrRemoteUrl,
     einvQrGenerateOptions: einvQrGenerateOptions,
+    einvQrResolveDataUrl: einvQrResolveDataUrl,
     einvQrPrintCss: einvQrPrintCss,
     buildEinvQrBoxHtml: buildEinvQrBoxHtml,
   };

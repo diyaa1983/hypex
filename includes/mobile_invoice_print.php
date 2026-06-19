@@ -12,10 +12,10 @@ require_once app_path('includes/mobile_invoice.php');
 require_once app_path('includes/company_settings.php');
 require_once app_path('includes/mobile_invoice_print_pdf_mobile.php');
 
-const EINV_PRINT_QR_IMG_PX = 120;
-const EINV_PRINT_QR_BOX_PX = 132;
-const EINV_PRINT_QR_SRC_PX = 512;
-const EINV_PRINT_QR_HEADER_COL_PX = 144;
+const EINV_PRINT_QR_IMG_PX = 136;
+const EINV_PRINT_QR_BOX_PX = 148;
+const EINV_PRINT_QR_SRC_PX = 384;
+const EINV_PRINT_QR_HEADER_COL_PX = 158;
 
 function einv_print_qr_css(): string
 {
@@ -25,11 +25,11 @@ function einv_print_qr_css(): string
 
     return '.inv-print-header-row td.inv-print-header-qr{width:' . $col . 'px;padding-inline-start:8px!important;text-align:center;}'
         . '.inv-print-qr-wrap{width:' . $box . 'px;text-align:center;margin-inline-start:auto;}'
-        . '.inv-print-qr-box{border:2px solid #0f172a;border-radius:8px;padding:2px;background:#fff;width:' . $box . 'px;height:' . $box . 'px;box-sizing:border-box;text-align:center;line-height:0;}'
-        . '.inv-print-qr-img{display:block;width:' . $img . 'px;height:' . $img . 'px;margin:0 auto;vertical-align:middle;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;}'
+        . '.inv-print-qr-box{border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:' . $box . 'px;height:' . $box . 'px;box-sizing:border-box;text-align:center;}'
+        . '.inv-print-qr-img{display:inline-block;width:' . $img . 'px;height:' . $img . 'px;vertical-align:middle;}'
         . '.inv-print-qr-placeholder{display:inline-block;width:' . $img . 'px;height:' . $img . 'px;background:#f1f5f9;border-radius:6px;vertical-align:middle;}'
-        . '.inv-print-qr-caption{font-size:0.62rem;color:#64748b;margin-top:3px;letter-spacing:0.3px;font-weight:600;}'
-        . '@media print{.inv-print-qr-box{width:' . $box . 'px!important;height:' . $box . 'px!important;padding:2px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+        . '.inv-print-qr-caption{font-size:0.62rem;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;}'
+        . '@media print{.inv-print-qr-box{width:' . $box . 'px!important;height:' . $box . 'px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
         . '.inv-print-qr-img{width:' . $img . 'px!important;height:' . $img . 'px!important;max-width:none!important;max-height:none!important;}}';
 }
 
@@ -335,8 +335,14 @@ function mobile_invoice_print_einv_qr_img_src(?string $qrSrc): ?string
     if (str_starts_with($qrSrc, 'data:') || str_starts_with($qrSrc, 'http')) {
         return $qrSrc;
     }
+    if (str_starts_with($qrSrc, 'iVBORw0KGgo')) {
+        return 'data:image/png;base64,' . $qrSrc;
+    }
+    if (str_starts_with($qrSrc, '/9j/')) {
+        return 'data:image/jpeg;base64,' . $qrSrc;
+    }
 
-    return 'https://api.qrserver.com/v1/create-qr-code/?size=' . EINV_PRINT_QR_SRC_PX . 'x' . EINV_PRINT_QR_SRC_PX . '&margin=4&data=' . rawurlencode($qrSrc);
+    return 'https://api.qrserver.com/v1/create-qr-code/?size=' . EINV_PRINT_QR_SRC_PX . 'x' . EINV_PRINT_QR_SRC_PX . '&format=png&margin=4&ecc=H&data=' . rawurlencode($qrSrc);
 }
 
 function mobile_invoice_print_einv_qr_box(?string $qrSrc): string
@@ -347,10 +353,11 @@ function mobile_invoice_print_einv_qr_box(?string $qrSrc): string
     }
     $img = EINV_PRINT_QR_IMG_PX;
     $box = EINV_PRINT_QR_BOX_PX;
-    $imgTag = '<img src="' . esc($src) . '" alt="QR" class="inv-print-qr-img" style="width:' . $img . 'px;height:' . $img . 'px;display:block;margin:0 auto;vertical-align:middle;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;">';
+    $print = EINV_PRINT_QR_IMG_PX;
+    $imgTag = '<img src="' . esc($src) . '" alt="QR" class="inv-print-qr-img" width="' . $print . '" height="' . $print . '" style="width:' . $img . 'px;height:' . $img . 'px;display:inline-block;vertical-align:middle;">';
 
     return '<div class="inv-print-qr-wrap" style="width:' . $box . 'px;text-align:center;margin:0;">'
-        . '<div class="inv-print-qr-box" style="border:2px solid #0f172a;border-radius:8px;padding:2px;background:#fff;width:' . $box . 'px;height:' . $box . 'px;box-sizing:border-box;text-align:center;line-height:0;display:block;">'
+        . '<div class="inv-print-qr-box" style="border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:' . $box . 'px;height:' . $box . 'px;box-sizing:border-box;text-align:center;line-height:0;display:block;">'
         . $imgTag
         . '</div>'
         . '<div class="inv-print-qr-caption" style="font-size:9px;color:#64748b;margin-top:3px;font-weight:600;">Please Check In</div>'

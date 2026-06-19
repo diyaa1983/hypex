@@ -193,19 +193,18 @@ function mobile_invoice_print_einv_qr_mobile(?string $qrSrc): string
     }
 
     $img = EINV_PRINT_QR_IMG_PX;
-    $box = EINV_PRINT_QR_BOX_PX;
 
     $wrap = 'margin:0 auto;border-collapse:collapse;border:none;background:transparent;';
     $qrBox = 'margin:0 auto;border-collapse:collapse;border:2px solid #0f172a;background:#fff;';
-    $imgCell = 'padding:3px;text-align:center;vertical-align:middle;border:none;';
+    $imgCell = 'padding:5px;text-align:center;vertical-align:middle;border:none;';
     $capCell = 'padding:6px 0 0;text-align:center;vertical-align:top;border:none;';
     $cap = 'font-size:8px;color:#64748b;font-weight:600;letter-spacing:0.2px;line-height:1.2;';
 
     return '<table class="m-inv-pdf-qr-block" cellpadding="0" cellspacing="0" style="' . $wrap . '">'
         . '<tr><td style="' . $imgCell . '">'
         . '<table cellpadding="0" cellspacing="0" style="' . $qrBox . '">'
-        . '<tr><td style="padding:3px;text-align:center;border:none;">'
-        . '<img src="' . esc($src) . '" alt="" style="width:' . $img . 'px;height:' . $img . 'px;display:block;margin:0 auto;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;">'
+        . '<tr><td style="padding:5px;text-align:center;border:none;">'
+        . '<img src="' . esc($src) . '" alt="" width="' . $img . '" height="' . $img . '" style="width:' . $img . 'px;height:' . $img . 'px;display:block;margin:0 auto;">'
         . '</td></tr></table>'
         . '</td></tr>'
         . '<tr><td style="' . $capCell . '"><span style="' . $cap . '">Please Check In</span></td></tr>'
