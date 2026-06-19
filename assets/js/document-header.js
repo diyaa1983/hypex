@@ -179,9 +179,10 @@
     if (!name) return '';
     return (
       '<footer class="doc-print-user-footer doc-print-only" aria-hidden="true">' +
-      'طبع بواسطة: ' +
+      '<div class="doc-print-user-footer-line" aria-hidden="true"></div>' +
+      '<div class="doc-print-user-footer-text">طبع بواسطة: ' +
       escapeHtml(name) +
-      '</footer>'
+      '</div></footer>'
     );
   }
 
@@ -198,10 +199,12 @@
   var printUserFooterCss =
     '.doc-print-user-footer{display:none;}' +
     '@media print{' +
-    '.doc-print-user-footer{display:block!important;position:fixed;bottom:5mm;left:0;right:0;' +
-    'margin:0;padding:1px 8px 2px;font-family:Arial,Helvetica,sans-serif;font-size:7pt;' +
-    'font-weight:400;line-height:1.2;color:#000;text-align:left;direction:rtl;' +
-    'z-index:10001;pointer-events:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+    '.doc-print-user-footer{display:block!important;position:fixed;bottom:2mm;left:0;right:0;' +
+    'margin:0;padding:0;z-index:10001;pointer-events:none;box-sizing:border-box;' +
+    '-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+    '.doc-print-user-footer-line{display:block;width:100%;height:0;margin:0;border:0;border-top:1px solid #000;}' +
+    '.doc-print-user-footer-text{display:block;margin:0;padding:2px 0 0 6mm;font-family:Arial,Helvetica,sans-serif;' +
+    'font-size:7pt;font-weight:400;line-height:1.3;color:#000;text-align:left;direction:rtl;}' +
     '}';
 
   /**
