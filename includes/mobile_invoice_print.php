@@ -12,6 +12,27 @@ require_once app_path('includes/mobile_invoice.php');
 require_once app_path('includes/company_settings.php');
 require_once app_path('includes/mobile_invoice_print_pdf_mobile.php');
 
+const EINV_PRINT_QR_IMG_PX = 120;
+const EINV_PRINT_QR_BOX_PX = 132;
+const EINV_PRINT_QR_SRC_PX = 512;
+const EINV_PRINT_QR_HEADER_COL_PX = 144;
+
+function einv_print_qr_css(): string
+{
+    $img = EINV_PRINT_QR_IMG_PX;
+    $box = EINV_PRINT_QR_BOX_PX;
+    $col = EINV_PRINT_QR_HEADER_COL_PX;
+
+    return '.inv-print-header-row td.inv-print-header-qr{width:' . $col . 'px;padding-inline-start:8px!important;text-align:center;}'
+        . '.inv-print-qr-wrap{width:' . $box . 'px;text-align:center;margin-inline-start:auto;}'
+        . '.inv-print-qr-box{border:2px solid #0f172a;border-radius:8px;padding:2px;background:#fff;width:' . $box . 'px;height:' . $box . 'px;box-sizing:border-box;text-align:center;line-height:0;}'
+        . '.inv-print-qr-img{display:block;width:' . $img . 'px;height:' . $img . 'px;margin:0 auto;vertical-align:middle;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;}'
+        . '.inv-print-qr-placeholder{display:inline-block;width:' . $img . 'px;height:' . $img . 'px;background:#f1f5f9;border-radius:6px;vertical-align:middle;}'
+        . '.inv-print-qr-caption{font-size:0.62rem;color:#64748b;margin-top:3px;letter-spacing:0.3px;font-weight:600;}'
+        . '@media print{.inv-print-qr-box{width:' . $box . 'px!important;height:' . $box . 'px!important;padding:2px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+        . '.inv-print-qr-img{width:' . $img . 'px!important;height:' . $img . 'px!important;max-width:none!important;max-height:none!important;}}';
+}
+
 /** أنماط الطباعة — نفس فاتورة المبيعات على سطح المكتب. */
 function mobile_invoice_print_styles(?PDO $pdo = null): string
 {
@@ -26,12 +47,7 @@ function mobile_invoice_print_styles(?PDO $pdo = null): string
         . '.inv-print-header-row{width:100%;border-collapse:collapse;margin:0.3rem 0 0.6rem;direction:rtl;}'
         . '.inv-print-header-row td{border:none!important;padding:0!important;vertical-align:top;}'
         . '.inv-print-header-row td.inv-print-header-meta{width:auto;}'
-        . '.inv-print-header-row td.inv-print-header-qr{width:96px;padding-inline-start:8px!important;text-align:center;}'
-        . '.inv-print-qr-wrap{width:96px;text-align:center;margin-inline-start:auto;}'
-        . '.inv-print-qr-box{border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:96px;height:96px;box-sizing:border-box;text-align:center;}'
-        . '.inv-print-qr-img{display:inline-block;width:84px;height:84px;vertical-align:middle;}'
-        . '.inv-print-qr-placeholder{display:inline-block;width:84px;height:84px;background:#f1f5f9;border-radius:6px;vertical-align:middle;}'
-        . '.inv-print-qr-caption{font-size:0.62rem;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;}'
+        . einv_print_qr_css()
         . '.sales-inv-print-tot{margin-top:0.75rem;text-align:left;max-width:280px;margin-right:0;margin-left:auto;}'
         . '.sales-inv-print-tot div{display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid #e2e8f0;font-weight:700;}'
         . '.sales-inv-print-tot .g{font-weight:800;font-size:1.05rem;border-top:2px solid #334155;margin-top:0.35rem;padding-top:0.45rem;}'
@@ -320,7 +336,7 @@ function mobile_invoice_print_einv_qr_img_src(?string $qrSrc): ?string
         return $qrSrc;
     }
 
-    return 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=' . rawurlencode($qrSrc);
+    return 'https://api.qrserver.com/v1/create-qr-code/?size=' . EINV_PRINT_QR_SRC_PX . 'x' . EINV_PRINT_QR_SRC_PX . '&margin=4&data=' . rawurlencode($qrSrc);
 }
 
 function mobile_invoice_print_einv_qr_box(?string $qrSrc): string
@@ -329,13 +345,15 @@ function mobile_invoice_print_einv_qr_box(?string $qrSrc): string
     if ($src === null) {
         return '';
     }
-    $img = '<img src="' . esc($src) . '" alt="QR" class="inv-print-qr-img" style="width:84px;height:84px;display:inline-block;vertical-align:middle;">';
+    $img = EINV_PRINT_QR_IMG_PX;
+    $box = EINV_PRINT_QR_BOX_PX;
+    $imgTag = '<img src="' . esc($src) . '" alt="QR" class="inv-print-qr-img" style="width:' . $img . 'px;height:' . $img . 'px;display:block;margin:0 auto;vertical-align:middle;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;">';
 
-    return '<div class="inv-print-qr-wrap" style="width:96px;text-align:center;margin:0;">'
-        . '<div class="inv-print-qr-box" style="border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:96px;height:96px;box-sizing:border-box;text-align:center;line-height:0;display:block;">'
-        . $img
+    return '<div class="inv-print-qr-wrap" style="width:' . $box . 'px;text-align:center;margin:0;">'
+        . '<div class="inv-print-qr-box" style="border:2px solid #0f172a;border-radius:8px;padding:2px;background:#fff;width:' . $box . 'px;height:' . $box . 'px;box-sizing:border-box;text-align:center;line-height:0;display:block;">'
+        . $imgTag
         . '</div>'
-        . '<div class="inv-print-qr-caption" style="font-size:9px;color:#94a3b8;margin-top:3px;font-weight:500;">Please Check In</div>'
+        . '<div class="inv-print-qr-caption" style="font-size:9px;color:#64748b;margin-top:3px;font-weight:600;">Please Check In</div>'
         . '</div>';
 }
 
@@ -404,7 +422,7 @@ function mobile_invoice_print_header_block(string $metaHtml, string $einvBox, bo
 
     return '<table class="inv-print-header-row" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0.3rem 0 0.6rem;direction:rtl;table-layout:fixed;">'
         . '<tr><td class="inv-print-header-meta" style="border:none;padding:0;vertical-align:top;">' . $metaHtml . '</td>'
-        . '<td class="inv-print-header-qr" style="border:none;padding:0;vertical-align:top;width:110px;text-align:center;">' . $einvBox . '</td></tr></table>';
+        . '<td class="inv-print-header-qr" style="border:none;padding:0;vertical-align:top;width:' . EINV_PRINT_QR_HEADER_COL_PX . 'px;text-align:center;">' . $einvBox . '</td></tr></table>';
 }
 
 /** @return list<array{label: string, value: string, grand?: bool}> */

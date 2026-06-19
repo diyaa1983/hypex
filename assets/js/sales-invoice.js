@@ -2487,7 +2487,9 @@
       ? '<table class="inv-print-header-row" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0.3rem 0 0.6rem;direction:rtl;table-layout:fixed;">' +
           '<tr>' +
           '<td class="inv-print-header-meta" style="border:none;padding:0;vertical-align:top;">' + metaTable + '</td>' +
-          '<td class="inv-print-header-qr" style="border:none;padding:0;vertical-align:top;width:110px;text-align:center;">' + einvBox + '</td>' +
+          '<td class="inv-print-header-qr" style="border:none;padding:0;vertical-align:top;width:' +
+          (window.InvInvoicePrint ? window.InvInvoicePrint.EINV_QR_HEADER_COL_PX : 144) +
+          'px;text-align:center;">' + einvBox + '</td>' +
         '</tr></table>'
       : metaTable;
 
@@ -2533,15 +2535,12 @@
     '.doc-print-meta{text-align:start;direction:rtl;}.doc-print-meta table{width:100%;border-collapse:collapse;}' +
     '.doc-print-meta td{border:none!important;padding:0.2rem 0!important;text-align:start!important;}' +
     '.doc-print-meta-value--party{font-weight:800;font-size:1.12em;color:#0f172a;}' +
+    (window.InvInvoicePrint && window.InvInvoicePrint.einvQrPrintCss
+      ? window.InvInvoicePrint.einvQrPrintCss()
+      : '') +
     '.inv-print-header-row{width:100%;border-collapse:collapse;margin:0.3rem 0 0.6rem;direction:rtl;}' +
     '.inv-print-header-row td{border:none!important;padding:0!important;vertical-align:top;}' +
     '.inv-print-header-row td.inv-print-header-meta{width:auto;}' +
-    '.inv-print-header-row td.inv-print-header-qr{width:96px;padding-inline-start:8px!important;text-align:center;}' +
-    '.inv-print-qr-wrap{width:96px;text-align:center;margin-inline-start:auto;}' +
-    '.inv-print-qr-box{border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:96px;height:96px;box-sizing:border-box;text-align:center;}' +
-    '.inv-print-qr-img{display:inline-block;width:84px;height:84px;vertical-align:middle;}' +
-    '.inv-print-qr-placeholder{display:inline-block;width:84px;height:84px;background:#f1f5f9;border-radius:6px;vertical-align:middle;}' +
-    '.inv-print-qr-caption{font-size:0.62rem;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;}' +
     '.sales-inv-print-tot{margin-top:0.75rem;text-align:left;max-width:280px;margin-right:0;margin-left:auto;}' +
     '.sales-inv-print-tot div{display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid #e2e8f0;font-weight:700;}' +
     '.sales-inv-print-tot .g{font-weight:800;font-size:1.05rem;border-top:2px solid #334155;margin-top:0.35rem;padding-top:0.45rem;}'
@@ -2550,20 +2549,10 @@
 
   function buildEinvoiceQrBox() {
     if (!einvQrDataUrl && !invoiceEinvQr) return '';
-    var wrapStyle = 'width:96px;text-align:center;margin:0;';
-    var boxStyle = 'border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:96px;height:96px;box-sizing:border-box;text-align:center;line-height:0;display:block;';
-    var imgStyle = 'width:84px;height:84px;display:inline-block;vertical-align:middle;';
-    var capStyle = 'font-size:9px;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;line-height:1.2;';
-    var html =
-      '<div class="inv-print-qr-wrap" style="' + wrapStyle + '">' +
-        '<div class="inv-print-qr-box" style="' + boxStyle + '">' +
-          (einvQrDataUrl
-            ? '<img src="' + einvQrDataUrl + '" alt="QR" class="inv-print-qr-img" style="' + imgStyle + '">'
-            : '<div class="inv-print-qr-placeholder" style="width:84px;height:84px;background:#f1f5f9;display:inline-block;"></div>') +
-        '</div>' +
-        '<div class="inv-print-qr-caption" style="' + capStyle + '">Please Check In</div>' +
-      '</div>';
-    return html;
+    if (einvQrDataUrl && window.InvInvoicePrint && window.InvInvoicePrint.buildEinvQrBoxHtml) {
+      return window.InvInvoicePrint.buildEinvQrBoxHtml(einvQrDataUrl);
+    }
+    return '';
   }
 
   // الإبقاء على الاسم القديم لأي استدعاء خارجي.
@@ -3144,9 +3133,12 @@
       if (cb) cb();
       return;
     }
+    var ipp = window.InvInvoicePrint;
     var fallbackToImage = function () {
       try {
-        einvQrDataUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=' + encodeURIComponent(invoiceEinvQr);
+        einvQrDataUrl = ipp && ipp.einvQrRemoteUrl
+          ? ipp.einvQrRemoteUrl(invoiceEinvQr)
+          : 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=4&data=' + encodeURIComponent(invoiceEinvQr);
       } catch (_e) {
         einvQrDataUrl = '';
       }
@@ -3157,7 +3149,8 @@
       return;
     }
     try {
-      window.QRCode.toDataURL(invoiceEinvQr, { width: 200, margin: 1, errorCorrectionLevel: 'L' }, function (err, url) {
+      var qrOpts = ipp && ipp.einvQrGenerateOptions ? ipp.einvQrGenerateOptions() : { width: 512, margin: 2, errorCorrectionLevel: 'M' };
+      window.QRCode.toDataURL(invoiceEinvQr, qrOpts, function (err, url) {
         if (err || !url) {
           fallbackToImage();
         } else {

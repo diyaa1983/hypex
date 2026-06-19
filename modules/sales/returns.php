@@ -140,6 +140,8 @@ $ora12CssPath = app_path('assets/css/sales-invoice-oracle12.css');
 $ora12CssUrl = app_url('assets/css/sales-invoice-oracle12.css') . (is_file($ora12CssPath) ? '?v=' . (string) filemtime($ora12CssPath) : '');
 $jsRetPath = app_path('assets/js/sales-return.js');
 $jsRet = app_url('assets/js/sales-return.js') . '?v=' . (is_readable($jsRetPath) ? (string) filemtime($jsRetPath) : '1');
+$jsInvPrintPath = app_path('assets/js/inv-invoice-print.js');
+$jsInvPrint = app_url('assets/js/inv-invoice-print.js') . (is_file($jsInvPrintPath) ? '?v=' . (string) filemtime($jsInvPrintPath) : '');
 $ledgerView = nav_is_ledger_view_request();
 require_once app_path('includes/sales_oracle12_ui.php');
 require_once app_path('includes/ledger_document_view_assets.php');
@@ -494,6 +496,8 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
   };
 })(window);
 </script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer crossorigin="anonymous"></script>
+<script src="<?= esc($jsInvPrint) ?>" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="<?= esc(app_url('assets/js/doc-send-email.js')) ?>" defer></script>
 <script src="<?= esc($jsRet) ?>" defer></script>

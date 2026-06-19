@@ -642,11 +642,14 @@
       if (cb) cb();
       return;
     }
+    var ipp = window.InvInvoicePrint;
     var fallbackToImage = function () {
       try {
         returnEinvQrDataUrl =
-          'https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=' +
-          encodeURIComponent(returnEinvQr);
+          ipp && ipp.einvQrRemoteUrl
+            ? ipp.einvQrRemoteUrl(returnEinvQr)
+            : 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=4&data=' +
+              encodeURIComponent(returnEinvQr);
       } catch (_e) {
         returnEinvQrDataUrl = '';
       }
@@ -657,9 +660,10 @@
       return;
     }
     try {
+      var qrOpts = ipp && ipp.einvQrGenerateOptions ? ipp.einvQrGenerateOptions() : { width: 512, margin: 2, errorCorrectionLevel: 'M' };
       window.QRCode.toDataURL(
         returnEinvQr,
-        { width: 200, margin: 1, errorCorrectionLevel: 'L' },
+        qrOpts,
         function (err, url) {
           if (err || !url) {
             fallbackToImage();
@@ -676,22 +680,10 @@
 
   function buildReturnEinvoiceQrBox() {
     if (!returnEinvQrDataUrl && !returnEinvQr) return '';
-    var wrapStyle = 'width:96px;text-align:center;margin:0;';
-    var boxStyle =
-      'border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:96px;height:96px;box-sizing:border-box;text-align:center;line-height:0;display:block;';
-    var imgStyle = 'width:84px;height:84px;display:inline-block;vertical-align:middle;';
-    var capStyle =
-      'font-size:9px;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;line-height:1.2;';
-    var html =
-      '<div class="inv-print-qr-wrap" style="' + wrapStyle + '">' +
-      '<div class="inv-print-qr-box" style="' + boxStyle + '">' +
-      (returnEinvQrDataUrl
-        ? '<img src="' + returnEinvQrDataUrl + '" alt="QR" class="inv-print-qr-img" style="' + imgStyle + '">'
-        : '<div class="inv-print-qr-placeholder" style="width:84px;height:84px;background:#f1f5f9;display:inline-block;"></div>') +
-      '</div>' +
-      '<div class="inv-print-qr-caption" style="' + capStyle + '">Please Check In</div>' +
-      '</div>';
-    return html;
+    if (returnEinvQrDataUrl && window.InvInvoicePrint && window.InvInvoicePrint.buildEinvQrBoxHtml) {
+      return window.InvInvoicePrint.buildEinvQrBoxHtml(returnEinvQrDataUrl);
+    }
+    return '';
   }
 
   function buildReturnMetaTable(retNo, retDate, cust, inv) {
@@ -827,7 +819,9 @@
       ? '<table class="inv-print-header-row" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0.3rem 0 0.6rem;direction:rtl;table-layout:fixed;">' +
           '<tr>' +
           '<td class="inv-print-header-meta" style="border:none;padding:0;vertical-align:top;">' + metaTable + '</td>' +
-          '<td class="inv-print-header-qr" style="border:none;padding:0;vertical-align:top;width:110px;text-align:center;">' + einvBox + '</td>' +
+          '<td class="inv-print-header-qr" style="border:none;padding:0;vertical-align:top;width:' +
+          (window.InvInvoicePrint ? window.InvInvoicePrint.EINV_QR_HEADER_COL_PX : 144) +
+          'px;text-align:center;">' + einvBox + '</td>' +
         '</tr></table>'
       : metaTable;
 
@@ -897,12 +891,9 @@
       '.inv-print-header-row{width:100%;border-collapse:collapse;margin:0.3rem 0 0.6rem;direction:rtl;}' +
       '.inv-print-header-row td{border:none!important;padding:0!important;vertical-align:top;}' +
       '.inv-print-header-row td.inv-print-header-meta{width:auto;}' +
-      '.inv-print-header-row td.inv-print-header-qr{width:96px;padding-inline-start:8px!important;text-align:center;}' +
-      '.inv-print-qr-wrap{width:96px;text-align:center;margin-inline-start:auto;}' +
-      '.inv-print-qr-box{border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:96px;height:96px;box-sizing:border-box;text-align:center;}' +
-      '.inv-print-qr-img{display:inline-block;width:84px;height:84px;vertical-align:middle;}' +
-      '.inv-print-qr-placeholder{display:inline-block;width:84px;height:84px;background:#f1f5f9;border-radius:6px;vertical-align:middle;}' +
-      '.inv-print-qr-caption{font-size:0.62rem;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;}'
+      (window.InvInvoicePrint && window.InvInvoicePrint.einvQrPrintCss
+        ? window.InvInvoicePrint.einvQrPrintCss()
+        : '')
     );
   }
 

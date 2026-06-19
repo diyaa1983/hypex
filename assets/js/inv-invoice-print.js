@@ -226,6 +226,104 @@
     );
   }
 
+  /** أبعاد QR الفوترة للطباعة — دقة عالية لقراءة أوضح على الورق */
+  var EINV_QR_IMG_PX = 120;
+  var EINV_QR_BOX_PX = 132;
+  var EINV_QR_HEADER_COL_PX = 144;
+  var EINV_QR_SRC_PX = 512;
+
+  function einvQrRemoteUrl(data) {
+    return (
+      'https://api.qrserver.com/v1/create-qr-code/?size=' +
+      EINV_QR_SRC_PX +
+      'x' +
+      EINV_QR_SRC_PX +
+      '&margin=4&data=' +
+      encodeURIComponent(String(data || ''))
+    );
+  }
+
+  function einvQrGenerateOptions() {
+    return { width: EINV_QR_SRC_PX, margin: 2, errorCorrectionLevel: 'M' };
+  }
+
+  function einvQrPrintCss() {
+    return (
+      '.inv-print-header-row td.inv-print-header-qr{width:' +
+      EINV_QR_HEADER_COL_PX +
+      'px;padding-inline-start:8px!important;text-align:center;}' +
+      '.inv-print-qr-wrap{width:' +
+      EINV_QR_BOX_PX +
+      'px;text-align:center;margin-inline-start:auto;}' +
+      '.inv-print-qr-box{border:2px solid #0f172a;border-radius:8px;padding:2px;background:#fff;width:' +
+      EINV_QR_BOX_PX +
+      'px;height:' +
+      EINV_QR_BOX_PX +
+      'px;box-sizing:border-box;text-align:center;line-height:0;}' +
+      '.inv-print-qr-img{display:block;width:' +
+      EINV_QR_IMG_PX +
+      'px;height:' +
+      EINV_QR_IMG_PX +
+      'px;margin:0 auto;vertical-align:middle;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;}' +
+      '.inv-print-qr-placeholder{display:inline-block;width:' +
+      EINV_QR_IMG_PX +
+      'px;height:' +
+      EINV_QR_IMG_PX +
+      'px;background:#f1f5f9;border-radius:6px;vertical-align:middle;}' +
+      '.inv-print-qr-caption{font-size:0.62rem;color:#64748b;margin-top:3px;letter-spacing:0.3px;font-weight:600;}' +
+      '@media print{' +
+      '.inv-print-qr-box{width:' +
+      EINV_QR_BOX_PX +
+      'px!important;height:' +
+      EINV_QR_BOX_PX +
+      'px!important;padding:2px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+      '.inv-print-qr-img{width:' +
+      EINV_QR_IMG_PX +
+      'px!important;height:' +
+      EINV_QR_IMG_PX +
+      'px!important;max-width:none!important;max-height:none!important;}' +
+      '}'
+    );
+  }
+
+  function buildEinvQrBoxHtml(imgDataUrl) {
+    if (!imgDataUrl) return '';
+    var wrapStyle =
+      'width:' + EINV_QR_BOX_PX + 'px;text-align:center;margin:0;';
+    var boxStyle =
+      'border:2px solid #0f172a;border-radius:8px;padding:2px;background:#fff;width:' +
+      EINV_QR_BOX_PX +
+      'px;height:' +
+      EINV_QR_BOX_PX +
+      'px;box-sizing:border-box;text-align:center;line-height:0;display:block;';
+    var imgStyle =
+      'width:' +
+      EINV_QR_IMG_PX +
+      'px;height:' +
+      EINV_QR_IMG_PX +
+      'px;display:block;margin:0 auto;vertical-align:middle;image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;';
+    var capStyle =
+      'font-size:9px;color:#64748b;margin-top:3px;letter-spacing:0.3px;font-weight:600;line-height:1.2;';
+    return (
+      '<div class="inv-print-qr-wrap" style="' +
+      wrapStyle +
+      '">' +
+      '<div class="inv-print-qr-box" style="' +
+      boxStyle +
+      '">' +
+      '<img src="' +
+      String(imgDataUrl) +
+      '" alt="QR" class="inv-print-qr-img" style="' +
+      imgStyle +
+      '">' +
+      '</div>' +
+      '<div class="inv-print-qr-caption" style="' +
+      capStyle +
+      '">Please Check In</div>' +
+      '</div>'
+    );
+  }
+
   global.InvInvoicePrint = {
     hasQtyExtra: hasQtyExtra,
     hasDiscount: hasDiscount,
@@ -235,5 +333,13 @@
     buildLineRow: buildLineRow,
     buildPrintTotals: buildPrintTotals,
     tablePrintCss: tablePrintCss,
+    EINV_QR_IMG_PX: EINV_QR_IMG_PX,
+    EINV_QR_BOX_PX: EINV_QR_BOX_PX,
+    EINV_QR_HEADER_COL_PX: EINV_QR_HEADER_COL_PX,
+    EINV_QR_SRC_PX: EINV_QR_SRC_PX,
+    einvQrRemoteUrl: einvQrRemoteUrl,
+    einvQrGenerateOptions: einvQrGenerateOptions,
+    einvQrPrintCss: einvQrPrintCss,
+    buildEinvQrBoxHtml: buildEinvQrBoxHtml,
   };
 })(typeof window !== 'undefined' ? window : this);
