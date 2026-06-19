@@ -24,6 +24,8 @@ $defaultWarehouseId = inv_default_warehouse_id($pdo);
 $settings = company_settings($pdo);
 $dp = company_decimal_places($pdo);
 $unitPriceDp = company_invoice_unit_price_decimal_places($pdo);
+$printDp = company_invoice_print_decimal_places($pdo);
+$printUnitPriceDp = company_invoice_print_unit_price_decimal_places($pdo);
 $unitPriceStep = company_invoice_unit_price_decimal_step($pdo);
 $amountStep = company_decimal_step($dp);
 $defaultTax = (float) ($settings['tax_rate_percent'] ?? 15);
@@ -138,6 +140,8 @@ $screenTitle = $ledgerView ? 'عرض فاتورة مبيعات' : 'فاتورة 
           data-can-post="<?= $canPostInvoice ? '1' : '0' ?>"
           data-decimals="<?= (int) $dp ?>"
           data-unit-price-decimals="<?= (int) $unitPriceDp ?>"
+          data-print-decimals="<?= (int) $printDp ?>"
+          data-print-unit-price-decimals="<?= (int) $printUnitPriceDp ?>"
           data-warehouse-required="<?= count($warehouses) > 0 ? '1' : '0' ?>"
           data-default-warehouse-id="<?= (int) ($defaultWarehouseId ?? 0) ?>"
           data-default-tax-rate="<?= esc((string) $defaultTax) ?>"

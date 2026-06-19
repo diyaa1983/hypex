@@ -348,6 +348,14 @@
       ? AppFormat.invoiceUnitPriceDecimals()
       : decimals;
   }
+  var printDecimals = parseInt(form.getAttribute('data-print-decimals') || '', 10);
+  if (isNaN(printDecimals) || printDecimals < 0) {
+    printDecimals = decimals;
+  }
+  var printUnitPriceDecimals = parseInt(form.getAttribute('data-print-unit-price-decimals') || '', 10);
+  if (isNaN(printUnitPriceDecimals) || printUnitPriceDecimals < 0) {
+    printUnitPriceDecimals = unitPriceDecimals;
+  }
   var exitUrl = form.getAttribute('data-exit-url') || '';
   var companyName = form.getAttribute('data-company-name') || '';
   var companyLogoUrl = form.getAttribute('data-company-logo') || '';
@@ -401,6 +409,57 @@
     return global.AppFormat && AppFormat.fmtInvoiceAmount
       ? AppFormat.fmtInvoiceAmount(n)
       : String(n);
+  }
+
+  function fmtPrintAmount(n) {
+    return global.AppFormat && AppFormat.fmt
+      ? AppFormat.fmt(n, printDecimals)
+      : String(n);
+  }
+
+  function fmtPrintUnitPrice(n) {
+    return global.AppFormat && AppFormat.fmt
+      ? AppFormat.fmt(n, printUnitPriceDecimals)
+      : fmtPrintAmount(n);
+  }
+
+  function getLineSubPrintDisplay(tr) {
+    var subInp = tr.querySelector('input.js-line-sub');
+    var n = subInp ? parseNum(subInp.value) : parseNum(tr.dataset.sub || 0);
+    return fmtPrintAmount(n);
+  }
+
+  function getLineGrossPrintDisplay(tr) {
+    var el = tr.querySelector('.js-line-gross');
+    var n = 0;
+    if (el) {
+      n = el.tagName === 'INPUT' ? parseNum(el.value) : parseNum(tr.dataset.gross || el.textContent);
+    } else {
+      n = parseNum(tr.dataset.gross || 0);
+    }
+    return fmtPrintAmount(n);
+  }
+
+  function getLineTaxPrintDisplay(tr) {
+    var el = tr.querySelector('.js-tax-amt');
+    return fmtPrintAmount(el ? parseNum(el.textContent) : 0);
+  }
+
+  function getLinePricePrintDisplay(tr) {
+    var el = tr.querySelector('.js-price');
+    return fmtPrintUnitPrice(el ? parseNum(el.value) : 0);
+  }
+
+  function invoicePrintLineCtx() {
+    return {
+      escapeHtml: escapeHtml,
+      getBarcodeFromRow: getBarcodeFromRow,
+      getLineSubDisplay: getLineSubPrintDisplay,
+      getLineGrossDisplay: getLineGrossPrintDisplay,
+      fmtUnitPrice: getLinePricePrintDisplay,
+      getTaxAmtDisplay: getLineTaxPrintDisplay,
+      fmtAmount: fmtPrintAmount,
+    };
   }
 
   function parseNum(v) {
@@ -1974,10 +2033,10 @@
     var tax = document.getElementById('sales-inv-sum-tax');
     var grand = document.getElementById('sales-inv-sum-grand');
     var disc = document.getElementById('sales-inv-sum-disc');
-    var subT = sub ? sub.textContent : '0';
-    var taxT = tax ? tax.textContent : '0';
-    var grandT = grand ? grand.textContent : '0';
-    var discT = disc ? disc.textContent : '0';
+    var subT = fmtPrintAmount(parseNum(sub ? sub.textContent : 0));
+    var taxT = fmtPrintAmount(parseNum(tax ? tax.textContent : 0));
+    var grandT = fmtPrintAmount(parseNum(grand ? grand.textContent : 0));
+    var discT = fmtPrintAmount(parseNum(disc ? disc.textContent : 0));
 
     var ipp = window.InvInvoicePrint;
     var layout = ipp ? ipp.getLayout(tbody) : { showQtyExtra: false, showDiscount: false };
@@ -1987,13 +2046,7 @@
       var itemId = parseInt(tr.dataset.itemId, 10);
       if (!itemId) return;
       if (ipp) {
-        rowHtml += ipp.buildLineRow(tr, layout, {
-          escapeHtml: escapeHtml,
-          getBarcodeFromRow: getBarcodeFromRow,
-          getLineSubDisplay: getLineSubDisplay,
-          getLineGrossDisplay: getLineGrossDisplay,
-          fmtAmount: fmtAmount,
-        });
+        rowHtml += ipp.buildLineRow(tr, layout, invoicePrintLineCtx());
       }
     });
 

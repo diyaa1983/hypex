@@ -148,7 +148,11 @@
     }
     html +=
       '<td>' +
-      escapeHtml((tr.querySelector('.js-price') || { value: '' }).value) +
+      escapeHtml(
+        typeof ctx.fmtUnitPrice === 'function'
+          ? ctx.fmtUnitPrice(tr)
+          : (tr.querySelector('.js-price') || { value: '' }).value
+      ) +
       '</td>';
     if (layout.showDiscount) {
       html +=
@@ -161,7 +165,11 @@
       escapeHtml(getLineSubDisplay ? getLineSubDisplay(tr) : '') +
       '</td>' +
       '<td>' +
-      escapeHtml((tr.querySelector('.js-tax-amt') || { textContent: '' }).textContent) +
+      escapeHtml(
+        typeof ctx.getTaxAmtDisplay === 'function'
+          ? ctx.getTaxAmtDisplay(tr)
+          : (tr.querySelector('.js-tax-amt') || { textContent: '' }).textContent
+      ) +
       '</td>' +
       '<td class="inv-print-cell-tax-pct">' +
       escapeHtml(taxLab) +

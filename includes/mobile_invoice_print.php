@@ -272,8 +272,16 @@ function mobile_invoice_print_discount_cell(array $ln, int $dp): string
 }
 
 /** @param array<string, mixed> $ln */
-function mobile_invoice_print_line_row(array $ln, int $seq, bool $showQtyExtra, bool $showDiscount, int $dp): string
+function mobile_invoice_print_line_row(
+    array $ln,
+    int $seq,
+    bool $showQtyExtra,
+    bool $showDiscount,
+    int $amountDp,
+    ?int $unitPriceDp = null
+): string
 {
+    $unitDp = $unitPriceDp ?? $amountDp;
     $taxPct = (float) ($ln['tax_rate_percent'] ?? 0);
     $taxLab = rtrim(rtrim(number_format($taxPct, 2, '.', ''), '0'), '.') . '%';
     $name = (string) ($ln['name_ar'] ?? $ln['line_desc'] ?? '');
@@ -285,18 +293,18 @@ function mobile_invoice_print_line_row(array $ln, int $seq, bool $showQtyExtra, 
     $html .= '<td>' . $seq . '</td>';
     $html .= '<td class="inv-print-cell-sku">' . esc($sku) . '</td>';
     $html .= '<td class="inv-print-cell-item">' . esc($name) . '</td>';
-    $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['qty'] ?? 0), $dp)) . '</td>';
+    $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['qty'] ?? 0), $amountDp)) . '</td>';
     if ($showQtyExtra) {
-        $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['qty_extra'] ?? 0), $dp)) . '</td>';
+        $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['qty_extra'] ?? 0), $amountDp)) . '</td>';
     }
-    $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['unit_price'] ?? 0), $dp)) . '</td>';
+    $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['unit_price'] ?? 0), $unitDp)) . '</td>';
     if ($showDiscount) {
-        $html .= '<td class="inv-print-cell-disc">' . mobile_invoice_print_discount_cell($ln, $dp) . '</td>';
+        $html .= '<td class="inv-print-cell-disc">' . mobile_invoice_print_discount_cell($ln, $amountDp) . '</td>';
     }
-    $html .= '<td>' . esc(mobile_invoice_print_fmt($sub, $dp)) . '</td>';
-    $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['tax_amount'] ?? 0), $dp)) . '</td>';
+    $html .= '<td>' . esc(mobile_invoice_print_fmt($sub, $amountDp)) . '</td>';
+    $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['tax_amount'] ?? 0), $amountDp)) . '</td>';
     $html .= '<td class="inv-print-cell-tax-pct">' . esc($taxLab) . '</td>';
-    $html .= '<td>' . esc(mobile_invoice_print_fmt($gross, $dp)) . '</td>';
+    $html .= '<td>' . esc(mobile_invoice_print_fmt($gross, $amountDp)) . '</td>';
     $html .= '</tr>';
 
     return $html;
@@ -482,7 +490,9 @@ function mobile_invoice_print_totals_pdf(array $inv, array $layout, int $dp): st
 function mobile_invoice_print_inner_html(PDO $pdo, array $inv, bool $forPdf = false): string
 {
     $inv = mobile_invoice_enrich_display($pdo, $inv);
-    $dp = (int) ($inv['amount_decimals'] ?? company_decimal_places($pdo));
+    company_settings_ensure_invoice_print_decimal_places_columns($pdo);
+    $amountDp = company_invoice_print_decimal_places($pdo);
+    $unitPriceDp = company_invoice_print_unit_price_decimal_places($pdo);
     $layout = mobile_invoice_print_layout($inv);
     $showQtyExtra = $layout['show_qty_extra'];
     $showDiscount = $layout['show_discount'];
@@ -495,7 +505,7 @@ function mobile_invoice_print_inner_html(PDO $pdo, array $inv, bool $forPdf = fa
             continue;
         }
         $seq++;
-        $linesHtml .= mobile_invoice_print_line_row($ln, $seq, $showQtyExtra, $showDiscount, $dp);
+        $linesHtml .= mobile_invoice_print_line_row($ln, $seq, $showQtyExtra, $showDiscount, $amountDp, $unitPriceDp);
     }
     if ($linesHtml === '') {
         $linesHtml = '<tr><td colspan="' . $colspan . '" style="padding:1rem;text-align:center;color:#64748b;">لا توجد بنود</td></tr>';
@@ -513,8 +523,8 @@ function mobile_invoice_print_inner_html(PDO $pdo, array $inv, bool $forPdf = fa
         : '';
 
     $totalsBlock = $forPdf
-        ? mobile_invoice_print_totals_pdf($inv, $layout, $dp)
-        : mobile_invoice_print_totals($inv, $layout, $dp);
+        ? mobile_invoice_print_totals_pdf($inv, $layout, $amountDp)
+        : mobile_invoice_print_totals($inv, $layout, $amountDp);
 
     $inner = document_print_header_html('فاتورة مبيعات', $pdo)
         . $headerBlock

@@ -11,6 +11,7 @@ require_once app_path('includes/login_recaptcha.php');
 $pdo = db();
 company_settings_ensure_default_row($pdo);
 company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
+company_settings_ensure_invoice_print_decimal_places_columns($pdo);
 company_settings_ensure_currency_column($pdo);
 company_smtp_ensure_schema($pdo);
 company_whatsapp_ensure_schema($pdo);
@@ -42,6 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim((string) ($_POST['company_name_ar'] ?? ''));
         $dec = (int) ($_POST['decimal_places'] ?? 2);
         $unitPriceDec = (int) ($_POST['invoice_unit_price_decimal_places'] ?? 2);
+        $printDec = (int) ($_POST['invoice_print_decimal_places'] ?? $dec);
+        $printUnitPriceDec = (int) ($_POST['invoice_print_unit_price_decimal_places'] ?? $unitPriceDec);
         $rowsPerPage = (int) ($_POST['rows_per_page'] ?? 10);
         $currencyCode = strtoupper(trim((string) ($_POST['currency_code'] ?? 'SAR')));
         if (!company_currency_is_valid($currencyCode)) {
@@ -140,6 +143,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($unitPriceDec < 0 || $unitPriceDec > 8) {
             $msg = 'خانات السعر الافرادي في الفواتير يجب أن تكون بين 0 و 8.';
             $msgType = 'error';
+        } elseif ($printDec < 0 || $printDec > 8) {
+            $msg = 'خانات الطباعة للمبالغ يجب أن تكون بين 0 و 8.';
+            $msgType = 'error';
+        } elseif ($printUnitPriceDec < 0 || $printUnitPriceDec > 8) {
+            $msg = 'خانات الطباعة لسعر الوحدة يجب أن تكون بين 0 و 8.';
+            $msgType = 'error';
         } elseif (!in_array($rowsPerPage, [10, 15, 20], true)) {
             $msg = 'عدد الأسطر بالصفحة يجب أن يكون 10 أو 15 أو 20.';
             $msgType = 'error';
@@ -213,7 +222,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         $st = $pdo->prepare(
                             'UPDATE sys_company_settings SET
-                            company_name_ar = ?, tax_rate_percent = ?, decimal_places = ?, invoice_unit_price_decimal_places = ?, rows_per_page = ?,
+                            company_name_ar = ?, tax_rate_percent = ?, decimal_places = ?, invoice_unit_price_decimal_places = ?,
+                            invoice_print_decimal_places = ?, invoice_print_unit_price_decimal_places = ?,
+                            rows_per_page = ?,
                             currency_code = ?,
                             address_ar = ?, phone = ?, email = ?, logo_path = ?,
                             smtp_host = ?, smtp_port = ?, smtp_secure = ?, smtp_username = ?, smtp_password = ?,
@@ -230,6 +241,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             number_format($taxF, 3, '.', ''),
                             $dec,
                             $unitPriceDec,
+                            $printDec,
+                            $printUnitPriceDec,
                             $rowsPerPage,
                             $currencyCode,
                             $addr !== '' ? $addr : null,
@@ -321,6 +334,14 @@ $unitPriceDp = (int) ($row['invoice_unit_price_decimal_places'] ?? $dp);
 if ($unitPriceDp < 0 || $unitPriceDp > 8) {
     $unitPriceDp = $dp;
 }
+$printDp = (int) ($row['invoice_print_decimal_places'] ?? $dp);
+if ($printDp < 0 || $printDp > 8) {
+    $printDp = $dp;
+}
+$printUnitPriceDp = (int) ($row['invoice_print_unit_price_decimal_places'] ?? $unitPriceDp);
+if ($printUnitPriceDp < 0 || $printUnitPriceDp > 8) {
+    $printUnitPriceDp = $unitPriceDp;
+}
 $rpp = (int) ($row['rows_per_page'] ?? 10);
 if (!in_array($rpp, [10, 15, 20], true)) {
     $rpp = 10;
@@ -386,6 +407,16 @@ $cssUrl = app_url('assets/css/settings-oracle12.css') . (is_file($cssPath) ? '?v
                 <span class="field-label">الخانات العشرية للسعر الافرادي في الفواتير</span>
                 <input class="input" name="invoice_unit_price_decimal_places" type="number" min="0" max="8" value="<?= esc((string) $unitPriceDp) ?>">
                 <span class="field-hint">تُطبَّق على عمود <strong>سعر الوحدة</strong> فقط في فواتير البيع والشراء (مثلاً 8 خانات للسعر و3 لباقي المبالغ).</span>
+            </label>
+            <label class="field">
+                <span class="field-label">خانات عشرية للمبالغ عند طباعة الفاتورة</span>
+                <input class="input" name="invoice_print_decimal_places" type="number" min="0" max="8" value="<?= esc((string) $printDp) ?>">
+                <span class="field-hint">تُطبَّق عند <strong>طباعة</strong> فاتورة البيع/الشراء فقط (إجماليات، ضريبة، قبل الضريبة، …) — مستقلة عن العرض على الشاشة.</span>
+            </label>
+            <label class="field">
+                <span class="field-label">خانات عشرية لسعر الوحدة عند طباعة الفاتورة</span>
+                <input class="input" name="invoice_print_unit_price_decimal_places" type="number" min="0" max="8" value="<?= esc((string) $printUnitPriceDp) ?>">
+                <span class="field-hint">تُطبَّق على <strong>سعر الوحدة</strong> في نسخة الطباعة/PDF فقط.</span>
             </label>
             <label class="field">
                 <span class="field-label">عدد الأسطر بالصفحة</span>

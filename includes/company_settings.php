@@ -18,6 +18,8 @@ function company_settings(?PDO $pdo = null): array
         'tax_rate_percent' => 15.0,
         'decimal_places' => 2,
         'invoice_unit_price_decimal_places' => 2,
+        'invoice_print_decimal_places' => 2,
+        'invoice_print_unit_price_decimal_places' => 2,
         'rows_per_page' => 10,
         'logo_path' => null,
     ];
@@ -27,8 +29,11 @@ function company_settings(?PDO $pdo = null): array
         company_settings_ensure_default_row($pdo);
         company_settings_ensure_rows_per_page_column($pdo);
         company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
+        company_settings_ensure_invoice_print_decimal_places_columns($pdo);
         $row = $pdo->query(
-            'SELECT company_name_ar, tax_rate_percent, decimal_places, invoice_unit_price_decimal_places, rows_per_page, logo_path FROM sys_company_settings WHERE id = 1 LIMIT 1'
+            'SELECT company_name_ar, tax_rate_percent, decimal_places, invoice_unit_price_decimal_places,
+                    invoice_print_decimal_places, invoice_print_unit_price_decimal_places,
+                    rows_per_page, logo_path FROM sys_company_settings WHERE id = 1 LIMIT 1'
         )->fetch(PDO::FETCH_ASSOC);
         if (is_array($row)) {
             $defaults = array_merge($defaults, $row);
@@ -40,6 +45,14 @@ function company_settings(?PDO $pdo = null): array
     $defaults['decimal_places'] = invoice_amount_decimals_clamp((int) ($defaults['decimal_places'] ?? 2));
     $defaults['invoice_unit_price_decimal_places'] = invoice_amount_decimals_clamp(
         (int) ($defaults['invoice_unit_price_decimal_places'] ?? $defaults['decimal_places'])
+    );
+    $defaults['invoice_print_decimal_places'] = invoice_amount_decimals_clamp(
+        (int) ($defaults['invoice_print_decimal_places'] ?? $defaults['decimal_places'])
+    );
+    $defaults['invoice_print_unit_price_decimal_places'] = invoice_amount_decimals_clamp(
+        (int) ($defaults['invoice_print_unit_price_decimal_places']
+            ?? $defaults['invoice_unit_price_decimal_places']
+            ?? $defaults['decimal_places'])
     );
     $rpp = (int) ($defaults['rows_per_page'] ?? 10);
     $defaults['rows_per_page'] = in_array($rpp, [10, 15, 20], true) ? $rpp : 10;
@@ -57,6 +70,18 @@ function company_decimal_places(?PDO $pdo = null): int
 function company_invoice_unit_price_decimal_places(?PDO $pdo = null): int
 {
     return invoice_amount_decimals_clamp((int) company_settings($pdo)['invoice_unit_price_decimal_places']);
+}
+
+/** خانات عشرية لمبالغ الفاتورة عند الطباعة فقط. */
+function company_invoice_print_decimal_places(?PDO $pdo = null): int
+{
+    return invoice_amount_decimals_clamp((int) company_settings($pdo)['invoice_print_decimal_places']);
+}
+
+/** خانات عشرية لسعر الوحدة عند طباعة الفاتورة. */
+function company_invoice_print_unit_price_decimal_places(?PDO $pdo = null): int
+{
+    return invoice_amount_decimals_clamp((int) company_settings($pdo)['invoice_print_unit_price_decimal_places']);
 }
 
 function company_invoice_unit_price_decimal_step(?PDO $pdo = null): string
@@ -164,6 +189,38 @@ function company_settings_ensure_invoice_unit_price_decimal_places_column(PDO $p
             $pdo->exec(
                 'UPDATE sys_company_settings
                  SET invoice_unit_price_decimal_places = decimal_places WHERE id = 1'
+            );
+        } catch (Throwable $e2) {
+            // ignore
+        }
+    }
+}
+
+function company_settings_ensure_invoice_print_decimal_places_columns(PDO $pdo): void
+{
+    company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
+    try {
+        $pdo->query('SELECT invoice_print_decimal_places FROM sys_company_settings LIMIT 1');
+    } catch (Throwable $e) {
+        if (strpos($e->getMessage(), 'Unknown column') === false) {
+            return;
+        }
+        try {
+            $pdo->exec(
+                'ALTER TABLE sys_company_settings
+                 ADD COLUMN invoice_print_decimal_places TINYINT UNSIGNED NOT NULL DEFAULT 2
+                 AFTER invoice_unit_price_decimal_places'
+            );
+            $pdo->exec(
+                'ALTER TABLE sys_company_settings
+                 ADD COLUMN invoice_print_unit_price_decimal_places TINYINT UNSIGNED NOT NULL DEFAULT 2
+                 AFTER invoice_print_decimal_places'
+            );
+            $pdo->exec(
+                'UPDATE sys_company_settings SET
+                    invoice_print_decimal_places = decimal_places,
+                    invoice_print_unit_price_decimal_places = invoice_unit_price_decimal_places
+                 WHERE id = 1'
             );
         } catch (Throwable $e2) {
             // ignore
