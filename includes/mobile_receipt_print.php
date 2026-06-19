@@ -331,7 +331,8 @@ function mobile_receipt_print_full_html(PDO $pdo, string $inner, bool $forPdf): 
     if ($forPdf) {
         return '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>سند قبض</title>'
             . '<style>' . mobile_receipt_print_pdf_frame_css($pdo) . '</style></head><body>'
-            . '<div id="pdf-export-root">' . $inner . '</div></body></html>';
+            . '<div id="pdf-export-root">' . $inner . '</div>'
+            . document_print_user_footer_html() . '</body></html>';
     }
 
     $styles = mobile_receipt_print_styles($pdo) . mobile_receipt_print_page_css();
@@ -342,7 +343,8 @@ function mobile_receipt_print_full_html(PDO $pdo, string $inner, bool $forPdf): 
     }
 
     return '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>سند قبض</title>'
-        . '<style>' . $styles . '</style></head><body class="' . $bodyClass . '">' . $inner . '</body></html>';
+        . '<style>' . $styles . '</style></head><body class="' . $bodyClass . '">' . $inner
+        . document_print_user_footer_html() . '</body></html>';
 }
 
 /** @return array{styles: string, styles_pdf: string, inner: string, inner_pdf: string, html: string, html_pdf: string}|null */

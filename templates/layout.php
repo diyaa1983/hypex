@@ -64,6 +64,7 @@ $navActiveHub = nav_resolve_active_hub($activeRoute);
 $dashboardUrl = app_url('index.php?r=dashboard');
 $logoutUrl = app_url('logout.php');
 $user = current_user();
+$printUserLabel = document_print_user_label();
 $tabPageTitle = trim($pageTitle) !== '' ? $pageTitle : (string) ($routeTitle ?? '');
 $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? ''));
 
@@ -170,7 +171,7 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     </script>
 </head>
-<body class="app-body<?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?>>
+<body class="app-body<?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
 <div class="app-shell<?= $layoutFocus ? ' app-shell--focus' : '' ?>">
 <?php if ($layoutFocus): ?>
     <header class="app-topbar no-print" role="banner">
@@ -355,5 +356,6 @@ window.UserSessionGpsConfig = {
 <?php else: ?>
 <script>window.APP_GPS_ENABLED = false;</script>
 <?php endif; ?>
+<?= document_print_user_footer_html($printUserLabel) ?>
 </body>
 </html>

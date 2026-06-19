@@ -390,7 +390,8 @@ function mobile_return_print_document(PDO $pdo, array $ret): array
     $logoUrl = document_print_watermark_logo_url($pdo);
     $bodyClass = $logoUrl !== null ? ' class="has-doc-watermark doc-print-standalone"' : '';
     $full = '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>مرتجع مبيعات</title>'
-        . '<style>' . $styles . '</style></head><body' . $bodyClass . '>' . $inner . '</body></html>';
+        . '<style>' . $styles . '</style></head><body' . $bodyClass . '>' . $inner
+        . document_print_user_footer_html() . '</body></html>';
     $htmlPdf = mobile_invoice_print_full_html_mobile_pdf($pdo, $innerPdf);
     $stylesPdf = mobile_invoice_print_mobile_pdf_css($pdo);
 

@@ -110,7 +110,7 @@ $docHeaderCssUrl = document_print_stylesheet_url('assets/css/document-header.css
         <p>معرّف الموظف: <?= (int) $row['id'] ?></p>
     </footer>
 </div>
-
+<?= document_print_user_footer_html() ?>
 <div class="hr-slip-actions no-print">
     <button type="button" class="btn btn-primary" onclick="window.print()">🖨 طباعة</button>
     <button type="button" class="btn btn-secondary" onclick="window.close()">إغلاق</button>

@@ -149,8 +149,8 @@
       });
       var html = clone.innerHTML;
       var logoUrl = getCompanyLogoUrl();
-      if (logoUrl && window.DocumentHeader && window.DocumentHeader.wrapPrintContent) {
-        html = window.DocumentHeader.wrapPrintContent(html, logoUrl);
+      if (window.DocumentHeader && window.DocumentHeader.wrapPrintContent) {
+        html = window.DocumentHeader.wrapPrintContent(html, logoUrl || '');
       }
       return html;
     }

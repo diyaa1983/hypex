@@ -108,6 +108,7 @@ function document_print_header_css(): string
         . '.doc-print-meta table{width:100%;border-collapse:collapse;}'
         . '.doc-print-meta td{padding:0.2rem 0;border:none!important;text-align:start!important;font-weight:700;}'
         . '.doc-print-meta-value--party{font-weight:800;font-size:1.12em;color:#0f172a;}'
+        . document_print_user_footer_css()
         . document_print_signature_css();
 }
 
@@ -165,6 +166,52 @@ function document_print_recipient_signature_html(): string
         . '</div>';
 }
 
+/** اسم المستخدم الحالي للطباعة (الاسم الكامل أو اسم الدخول). */
+function document_print_user_label(): string
+{
+    if (!function_exists('current_user')) {
+        return '';
+    }
+    $user = current_user();
+    if (!$user) {
+        return '';
+    }
+    $name = trim((string) ($user['full_name_ar'] ?? ''));
+    if ($name === '') {
+        $name = trim((string) ($user['username'] ?? ''));
+    }
+
+    return $name;
+}
+
+/** أنماط تذييل اسم المستخدم في الطباعة. */
+function document_print_user_footer_css(): string
+{
+    return '.doc-print-user-footer{display:none;}'
+        . '@media print{'
+        . '.doc-print-user-footer{display:block!important;position:fixed;bottom:0;left:0;right:0;'
+        . 'margin:0;padding:1px 8px 2px;font-family:Arial,Helvetica,sans-serif;font-size:6pt;'
+        . 'font-weight:400;line-height:1.2;color:#94a3b8;text-align:center;direction:rtl;'
+        . 'z-index:10001;pointer-events:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+        . '}';
+}
+
+/** HTML تذييل الطباعة — اسم المستخدم الذي قام بالطباعة. */
+function document_print_user_footer_html(?string $label = null): string
+{
+    if ($label === null) {
+        $label = document_print_user_label();
+    }
+    $label = trim($label);
+    if ($label === '') {
+        return '';
+    }
+
+    return '<footer class="doc-print-user-footer doc-print-only" aria-hidden="true">'
+        . 'طبع بواسطة: ' . esc($label)
+        . '</footer>';
+}
+
 /** رابط ملف CSS للطباعة مع إصدار التعديل. */
 function document_print_stylesheet_url(string $relativePath): string
 {
@@ -196,7 +243,8 @@ function document_print_emit_standalone_page(
         '<div class="doc-print-watermark-root doc-print-watermark-scope report-sales-print-area report-sales-result">'
         . document_print_watermark_html($pdo)
         . $contentHtml
-        . '</div>';
+        . '</div>'
+        . document_print_user_footer_html();
 
     header('Content-Type: text/html; charset=utf-8');
 
@@ -206,6 +254,10 @@ function document_print_emit_standalone_page(
     echo '<link rel="stylesheet" href="' . esc($reportCss) . '">';
     if ($wmCss !== '') {
         echo '<style>' . $wmCss . '</style>';
+    }
+    $printUser = document_print_user_label();
+    if ($printUser !== '') {
+        echo '<script>window.__PRINT_USER__=' . json_encode($printUser, JSON_UNESCAPED_UNICODE) . ';</script>';
     }
     echo '<style>body{margin:0;padding:1rem 1.25rem 1.5rem;background:#fff;font-family:Arial,Helvetica,sans-serif;}'
         . '@media print{body{margin:0;padding:0.35rem 0.5rem 0;}}</style>';

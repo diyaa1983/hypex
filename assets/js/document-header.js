@@ -157,9 +157,52 @@
   }
 
   function wrapPrintContent(html, logoUrl) {
-    if (!logoUrl || !html) return html || '';
-    return '<div class="doc-print-watermark-root">' + watermarkHtml(logoUrl) + html + '</div>';
+    var inner = html || '';
+    if (logoUrl && inner) {
+      inner = '<div class="doc-print-watermark-root">' + watermarkHtml(logoUrl) + inner + '</div>';
+    }
+    return inner + buildPrintUserFooter();
   }
+
+  function getPrintUserLabel() {
+    if (typeof global.__PRINT_USER__ === 'string' && global.__PRINT_USER__.trim() !== '') {
+      return global.__PRINT_USER__.trim();
+    }
+    var body = typeof document !== 'undefined' ? document.body : null;
+    if (!body) return '';
+    var v = body.getAttribute('data-print-user');
+    return v ? String(v).trim() : '';
+  }
+
+  function buildPrintUserFooter(label) {
+    var name = label != null ? String(label).trim() : getPrintUserLabel();
+    if (!name) return '';
+    return (
+      '<footer class="doc-print-user-footer doc-print-only" aria-hidden="true">' +
+      'طبع بواسطة: ' +
+      escapeHtml(name) +
+      '</footer>'
+    );
+  }
+
+  function ensurePrintUserFooter(doc) {
+    doc = doc || (typeof document !== 'undefined' ? document : null);
+    if (!doc || !doc.body) return;
+    if (doc.body.querySelector('.doc-print-user-footer')) return;
+    var html = buildPrintUserFooter();
+    if (html) {
+      doc.body.insertAdjacentHTML('beforeend', html);
+    }
+  }
+
+  var printUserFooterCss =
+    '.doc-print-user-footer{display:none;}' +
+    '@media print{' +
+    '.doc-print-user-footer{display:block!important;position:fixed;bottom:0;left:0;right:0;' +
+    'margin:0;padding:1px 8px 2px;font-family:Arial,Helvetica,sans-serif;font-size:6pt;' +
+    'font-weight:400;line-height:1.2;color:#94a3b8;text-align:center;direction:rtl;' +
+    'z-index:10001;pointer-events:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+    '}';
 
   /**
    * @param {string} logoUrl
@@ -202,7 +245,8 @@
     '.doc-print-meta-value--party{font-weight:800;font-size:1.12em;color:#0f172a;}' +
     '.doc-print-signature-block{margin-top:2.25rem;padding-top:0.5rem;page-break-inside:avoid;max-width:280px;margin-inline-start:auto;margin-inline-end:0;}' +
     '.doc-print-signature-label{display:block;font-weight:700;font-size:13px;margin:0 0 0.25rem;color:#0f172a;}' +
-    '.doc-print-signature-line{display:block;border-bottom:1.5px solid #334155;height:0;margin:2.5rem 0 0;}';
+    '.doc-print-signature-line{display:block;border-bottom:1.5px solid #334155;height:0;margin:2.5rem 0 0;}' +
+    printUserFooterCss;
 
   /** مكان توقيع المستلم أسفل المستند المطبوع */
   function buildRecipientSignature() {
@@ -224,8 +268,12 @@
     build: build,
     buildMetaTable: buildMetaTable,
     buildRecipientSignature: buildRecipientSignature,
+    buildPrintUserFooter: buildPrintUserFooter,
+    getPrintUserLabel: getPrintUserLabel,
+    ensurePrintUserFooter: ensurePrintUserFooter,
     css: css,
     printBoldCss: printBoldCss,
+    printUserFooterCss: printUserFooterCss,
     watermarkRootCss: watermarkRootCss,
     watermarkElementCss: watermarkElementCss,
     watermarkPrintMediaCss: watermarkPrintMediaCss,
@@ -237,4 +285,10 @@
     logoMaxHeight: LOGO_MAX_H,
     logoMaxWidth: LOGO_MAX_W,
   };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeprint', function () {
+      ensurePrintUserFooter(document);
+    });
+  }
 })(typeof window !== 'undefined' ? window : this);
