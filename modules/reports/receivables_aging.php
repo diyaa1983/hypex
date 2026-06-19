@@ -99,7 +99,6 @@ if ($salesRepId > 0) {
 }
 
 $modeLabel = $mode === 'summary' ? 'إجمالي' : 'تفصيلي';
-$totals = $built['totals'];
 
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
@@ -119,8 +118,6 @@ if ($showResult) {
     $pageDataAttrs .= ' data-export-label="' . esc($modeLabel . '-' . $customerLabel) . '"';
     $pageDataAttrs .= ' data-as-of-dmy="' . esc(format_date_dmY($asOf)) . '"';
 }
-
-$totalTdStyle = 'background-color:#e2e8f0;-webkit-print-color-adjust:exact;print-color-adjust:exact;';
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($invCssUrl) ?>">
@@ -253,18 +250,6 @@ $totalTdStyle = 'background-color:#e2e8f0;-webkit-print-color-adjust:exact;print
                             <?php endforeach; ?>
                         <?php endif; ?>
                         </tbody>
-                        <?php if ($built['summary_rows']): ?>
-                        <tfoot>
-                        <tr class="report-sales-tfoot">
-                            <td colspan="3" class="report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong>الإجمالي</strong></td>
-                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d0_30'] ?? 0))) ?></strong></td>
-                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d31_60'] ?? 0))) ?></strong></td>
-                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d61_90'] ?? 0))) ?></strong></td>
-                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d90_plus'] ?? 0))) ?></strong></td>
-                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['total'] ?? 0))) ?></strong></td>
-                        </tr>
-                        </tfoot>
-                        <?php endif; ?>
                     </table>
                 </div>
             <?php else: ?>
@@ -299,12 +284,6 @@ $totalTdStyle = 'background-color:#e2e8f0;-webkit-print-color-adjust:exact;print
                                             </tr>
                                         <?php endforeach; ?>
                                         </tbody>
-                                        <tfoot>
-                                        <tr class="report-sales-tfoot report-receivables-customer-total">
-                                            <td colspan="5" class="report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong>إجمالي العميل</strong></td>
-                                            <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($grp['total'] ?? 0))) ?></strong></td>
-                                        </tr>
-                                        </tfoot>
                                     </table>
                                 </div>
                             </section>
