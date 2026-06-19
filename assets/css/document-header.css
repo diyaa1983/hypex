@@ -128,7 +128,7 @@
   .doc-print-user-footer {
     display: block !important;
     position: fixed;
-    bottom: 0;
+    bottom: 5mm;
     left: 0;
     right: 0;
     margin: 0;
