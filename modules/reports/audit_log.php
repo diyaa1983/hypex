@@ -169,7 +169,8 @@ if ($showResult) {
                 <thead>
                 <tr>
                     <th class="col-seq js-sort-th" data-sort="seq" data-sort-type="number">تسلسل</th>
-                    <th class="col-date js-sort-th" data-sort="logged_at" data-sort-type="datetime">تاريخ الحركة</th>
+                    <th class="col-date js-sort-th" data-sort="logged_date" data-sort-type="date">تاريخ الحركة</th>
+                    <th class="col-date js-sort-th" data-sort="logged_time" data-sort-type="text">الساعة</th>
                     <th class="col-customer js-sort-th" data-sort="user_name" data-sort-type="text">المستخدم</th>
                     <th class="col-customer js-sort-th" data-sort="screen_label" data-sort-type="text">الشاشة</th>
                     <th class="col-posted js-sort-th" data-sort="action_label" data-sort-type="text">نوع الحركة</th>
@@ -181,7 +182,7 @@ if ($showResult) {
                 <tbody>
                 <?php if (!$rows): ?>
                     <tr>
-                        <td colspan="8" class="muted" style="text-align:center;padding:1.25rem;">
+                        <td colspan="9" class="muted" style="text-align:center;padding:1.25rem;">
                             لا توجد حركات مطابقة للفلتر المحدد.
                         </td>
                     </tr>
@@ -192,15 +193,23 @@ if ($showResult) {
                     $seq += 1;
                     $entityUrl = sys_audit_log_entity_url((string) ($r['screen_code'] ?? ''), isset($r['entity_id']) ? (int) $r['entity_id'] : null);
                     $loggedAt = (string) ($r['logged_at'] ?? '');
-                    $loggedDisplay = '—';
+                    $loggedDateDisplay = '—';
+                    $loggedTimeDisplay = '—';
                     if ($loggedAt !== '') {
                         $ts = strtotime($loggedAt);
-                        $loggedDisplay = $ts !== false ? date('d-m-Y H:i', $ts) : $loggedAt;
+                        if ($ts !== false) {
+                            $loggedDateDisplay = date('d-m-Y', $ts);
+                            $loggedTimeDisplay = date('H:i', $ts);
+                        } else {
+                            $loggedDateDisplay = $loggedAt;
+                        }
                     }
                     ?>
                     <tr data-sort-row="1"
                         data-sort-seq="<?= $seq ?>"
                         data-sort-logged_at="<?= esc($loggedAt) ?>"
+                        data-sort-logged_date="<?= esc($loggedDateDisplay) ?>"
+                        data-sort-logged_time="<?= esc($loggedTimeDisplay) ?>"
                         data-sort-user_name="<?= esc((string) ($r['user_name'] ?? '')) ?>"
                         data-sort-screen_label="<?= esc((string) ($r['screen_label_ar'] ?? '')) ?>"
                         data-sort-action_label="<?= esc((string) ($r['action_label_ar'] ?? '')) ?>"
@@ -208,7 +217,8 @@ if ($showResult) {
                         data-sort-doc_date="<?= esc((string) ($r['doc_date'] ?? '')) ?>"
                         data-sort-summary="<?= esc((string) ($r['summary'] ?? '')) ?>">
                         <td class="col-seq"><?= $seq ?></td>
-                        <td class="col-date"><?= esc($loggedDisplay) ?></td>
+                        <td class="col-date"><?= esc($loggedDateDisplay) ?></td>
+                        <td class="col-date"><?= esc($loggedTimeDisplay) ?></td>
                         <td class="col-customer"><?= esc((string) ($r['user_name'] ?? '—')) ?></td>
                         <td class="col-customer"><?= esc((string) ($r['screen_label_ar'] ?? '')) ?></td>
                         <td class="col-posted">
