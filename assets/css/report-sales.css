@@ -2126,7 +2126,29 @@
 }
 
 .report-receivables-aging-page .report-receivables-aging-detail-table {
-  min-width: 640px;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 720px;
+}
+
+.report-receivables-aging-page .report-receivables-aging-detail-table col.col-date {
+  width: 11%;
+}
+
+.report-receivables-aging-page .report-receivables-aging-detail-table col.col-doc {
+  width: 12%;
+}
+
+.report-receivables-aging-page .report-receivables-aging-detail-table col.col-desc {
+  width: 34%;
+}
+
+.report-receivables-aging-page .report-receivables-aging-detail-table col.col-seq {
+  width: 9%;
+}
+
+.report-receivables-aging-page .report-receivables-aging-detail-table col.col-money {
+  width: 14%;
 }
 
 .report-receivables-aging-page .report-receivables-detail-groups {
@@ -2137,10 +2159,13 @@
 
 .report-receivables-aging-page .report-receivables-aging-summary-table .col-money,
 .report-receivables-aging-page .report-receivables-aging-detail-table .col-money {
-  text-align: center;
+  text-align: end;
   direction: ltr;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  overflow: visible;
+  min-width: 6.5rem;
+  padding-inline: 0.35rem;
 }
 
 .report-receivables-aging-page .report-receivables-aging-summary-table thead th.col-money,

@@ -278,6 +278,14 @@ $totalTdStyle = 'background-color:#e2e8f0;-webkit-print-color-adjust:exact;print
                                 <h3 class="report-receivables-customer-title"><?= esc((string) ($grp['customer_display'] ?? '')) ?></h3>
                                 <div class="report-sales-table-wrap">
                                     <table class="report-sales-table party-stmt-table report-receivables-table report-receivables-aging-detail-table">
+                                        <colgroup>
+                                            <col class="col-date">
+                                            <col class="col-doc">
+                                            <col class="col-desc">
+                                            <col class="col-seq">
+                                            <col>
+                                            <col class="col-money">
+                                        </colgroup>
                                         <thead>
                                         <tr>
                                             <th class="col-date">التاريخ</th>
@@ -310,6 +318,32 @@ $totalTdStyle = 'background-color:#e2e8f0;-webkit-print-color-adjust:exact;print
                                 </div>
                             </section>
                         <?php endforeach; ?>
+                        <?php if ($built['detail_groups']): ?>
+                        <div class="report-sales-table-wrap report-receivables-grand-total-wrap" style="margin-top:1rem;">
+                            <table class="report-sales-table report-receivables-table report-receivables-aging-summary-table">
+                                <thead>
+                                <tr>
+                                    <th colspan="3">الإجمالي العام — ذمم مستحقة</th>
+                                    <th class="col-money"><?= esc($bucketLabels['d0_30']) ?></th>
+                                    <th class="col-money"><?= esc($bucketLabels['d31_60']) ?></th>
+                                    <th class="col-money"><?= esc($bucketLabels['d61_90']) ?></th>
+                                    <th class="col-money"><?= esc($bucketLabels['d90_plus']) ?></th>
+                                    <th class="col-money report-receivables-col-balance">الذمم المستحقة</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr class="report-sales-tfoot">
+                                    <td colspan="3" class="report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong>جميع العملاء</strong></td>
+                                    <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d0_30'] ?? 0))) ?></strong></td>
+                                    <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d31_60'] ?? 0))) ?></strong></td>
+                                    <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d61_90'] ?? 0))) ?></strong></td>
+                                    <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['d90_plus'] ?? 0))) ?></strong></td>
+                                    <td class="col-money report-receivables-total-cell" style="<?= esc($totalTdStyle) ?>"><strong><?= esc(format_amount((float) ($totals['balance_due'] ?? $totals['total'] ?? 0))) ?></strong></td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
