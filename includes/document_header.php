@@ -191,7 +191,7 @@ function document_print_user_footer_css(): string
         . '@media print{'
         . '.doc-print-user-footer{display:block!important;position:fixed;bottom:5mm;left:0;right:0;'
         . 'margin:0;padding:1px 8px 2px;font-family:Arial,Helvetica,sans-serif;font-size:7pt;'
-        . 'font-weight:400;line-height:1.2;color:#94a3b8;text-align:left;direction:rtl;'
+        . 'font-weight:400;line-height:1.2;color:#000;text-align:left;direction:rtl;'
         . 'z-index:10001;pointer-events:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
         . '}';
 }
