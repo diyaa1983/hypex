@@ -109,6 +109,9 @@ function handle_sales_delivery_save(): void
             $savedNo = (string) $st->fetchColumn();
         }
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_sal_delivery($pdo, 'save', $deliveryId);
+
         if ($wantsJson) {
             json_invoice_save_response(true, [
                 'delivery_id' => $deliveryId,

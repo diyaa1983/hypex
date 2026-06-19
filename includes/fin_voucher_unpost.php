@@ -166,5 +166,8 @@ function fin_voucher_unpost_by_id(PDO $pdo, int $voucherId, string $type): array
         ? 'تم إلغاء ترحيل سند القبض. يمكنك تعديله أو حذفه.'
         : 'تم إلغاء ترحيل سند الصرف. يمكنك تعديله أو حذفه.';
 
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_fin_voucher($pdo, 'unpost', $voucherId, $type);
+
     return $out;
 }

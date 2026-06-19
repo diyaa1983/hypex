@@ -144,6 +144,9 @@ function handle_fin_receipt_save(): void
         );
         $pdo->commit();
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_fin_voucher($pdo, 'save', $savedId, 'receipt');
+
         require_once app_path('includes/fin_voucher_load.php');
         $row = fin_voucher_fetch_by_id($pdo, $savedId, 'receipt');
 

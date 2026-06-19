@@ -68,6 +68,12 @@ function handle_journal_voucher_save(): void
         $savedId = acc_journal_save($pdo, $id, $entryNo, $entryDate, $description, $lines, $postNow);
         $pdo->commit();
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_acc_journal($pdo, 'save', $savedId);
+        if ($postNow) {
+            sys_audit_log_acc_journal($pdo, 'post', $savedId);
+        }
+
         $entry = acc_journal_api_entry($pdo, $savedId);
         $msg = $postNow ? 'تم حفظ وترحيل سند القيد.' : 'تم حفظ سند القيد (مسودة).';
         if ($wantsJson) {

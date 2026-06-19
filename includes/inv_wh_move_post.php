@@ -136,6 +136,9 @@ function inv_wh_move_save(
         $out['ok'] = true;
         $out['id'] = $moveId;
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_inv_wh_move($pdo, 'save', $moveId);
+
         return $out;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -278,6 +281,9 @@ function inv_wh_move_post_document(PDO $pdo, int $moveId): array
 
         $pdo->commit();
         $out['ok'] = true;
+
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_inv_wh_move($pdo, 'post', $moveId);
 
         return $out;
     } catch (Throwable $e) {

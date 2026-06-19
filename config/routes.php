@@ -309,6 +309,11 @@ return [
         'title' => 'إعدادات الفوترة الإلكترونية',
         'hide_screen_title' => true,
     ],
+    'report_audit_log' => [
+        'file' => 'modules/reports/audit_log.php',
+        'permission' => 'report_audit_log',
+        'title' => 'حركات التعديل',
+    ],
     'sales_send_einvoice' => [
         'file' => 'modules/system/permission_stub.php',
         'permission' => 'sales_send_einvoice',

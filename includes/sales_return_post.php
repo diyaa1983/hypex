@@ -284,6 +284,9 @@ function handle_sales_return_post(): void
 
         $pdo->commit();
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_sal_return($pdo, 'save', $returnId);
+
         $msg = $isUpdate
             ? 'تم تحديث مرتجع المبيعات (غير مرحّل). رقم الإرجاع: ' . $returnNo
             : 'تم حفظ مرتجع المبيعات (غير مرحّل). رقم الإرجاع: ' . $returnNo;

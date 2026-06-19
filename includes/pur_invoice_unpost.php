@@ -124,6 +124,9 @@ function pur_invoice_unpost_by_id(PDO $pdo, int $invoiceId): array
         ];
     }
 
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_pur_invoice($pdo, 'unpost', $invoiceId);
+
     return [
         'ok' => true,
         'error' => null,

@@ -243,6 +243,9 @@ function sal_return_unpost_by_id(PDO $pdo, int $returnId): array
         ];
     }
 
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_sal_return($pdo, 'unpost', $returnId);
+
     return [
         'ok' => true,
         'error' => null,

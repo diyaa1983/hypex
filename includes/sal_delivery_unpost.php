@@ -45,5 +45,8 @@ function sal_delivery_unpost_by_id(PDO $pdo, int $deliveryId): array
         'UPDATE sal_delivery SET is_posted = 0, posted_at = NULL WHERE id = ? AND is_posted = 1'
     )->execute([$deliveryId]);
 
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_sal_delivery($pdo, 'unpost', $deliveryId);
+
     return ['ok' => true, 'error' => null, 'message' => 'تم فك ترحيل سند التسليم وإرجاع المخزون.'];
 }

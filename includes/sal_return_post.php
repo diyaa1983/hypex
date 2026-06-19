@@ -494,6 +494,9 @@ function sal_return_post_by_id(PDO $pdo, int $returnId): array
         $out['warning'] = (string) $glResult['warning'];
     }
 
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_sal_return($pdo, 'post', $returnId);
+
     return $out;
 }
 

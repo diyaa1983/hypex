@@ -178,6 +178,9 @@ function pur_invoice_post_by_id(PDO $pdo, int $invoiceId): array
             inv_item_sync_costs_after_purchase_invoice_post($pdo, $invoiceId);
         }
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_pur_invoice($pdo, 'post', $invoiceId);
+
         return $out;
     } catch (Throwable $e) {
         return [

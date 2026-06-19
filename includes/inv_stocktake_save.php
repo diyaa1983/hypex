@@ -86,6 +86,8 @@ function inv_stocktake_save(PDO $pdo, int $docId, string $takeDate, int $warehou
             $noSt->execute([$docId]);
             $out['take_no'] = (string) ($noSt->fetchColumn() ?: '');
         }
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_inv_stocktake($pdo, 'save', $docId);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();

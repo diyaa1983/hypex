@@ -73,6 +73,8 @@ function fin_voucher_post_receipts_by_ids(PDO $pdo, array $voucherIds): array
                 ->execute([$id]);
         }
         $out['posted']++;
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_fin_voucher($pdo, 'post', $id, 'receipt');
     }
 
     return $out;
@@ -129,6 +131,8 @@ function fin_voucher_post_payments_by_ids(PDO $pdo, array $voucherIds): array
                 ->execute([$id]);
         }
         $out['posted']++;
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_fin_voucher($pdo, 'post', $id, 'payment');
     }
 
     return $out;

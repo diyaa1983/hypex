@@ -320,6 +320,9 @@ function sal_invoice_delete_by_id(PDO $pdo, int $invoiceId, bool $unpostFirst = 
 
 
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_sal_invoice($pdo, 'delete', $invoiceId);
+
         $st = $pdo->prepare('DELETE FROM sal_invoice WHERE id = ?');
 
         $st->execute([$invoiceId]);

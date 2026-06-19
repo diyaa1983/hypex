@@ -181,6 +181,9 @@ function pur_invoice_delete_by_id(PDO $pdo, int $invoiceId): array
 
         pur_invoice_delete_cleanup_posting_artifacts($pdo, $invoiceId);
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_pur_invoice($pdo, 'delete', $invoiceId);
+
         $st = $pdo->prepare('DELETE FROM pur_invoice WHERE id = ?');
         $st->execute([$invoiceId]);
     } catch (PDOException $e) {

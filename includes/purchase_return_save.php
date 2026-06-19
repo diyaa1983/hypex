@@ -198,6 +198,10 @@ function handle_purchase_return_post(): void
         }
 
         $pdo->commit();
+
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_pur_return($pdo, 'save', $returnId);
+
         flash_set(
             'success',
             'تم حفظ مردود المشتريات. رقم المردود: ' . $returnNo

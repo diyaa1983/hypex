@@ -109,6 +109,7 @@ $appBootMigrations = [
     'database/migrations/148_merge_purchases_to_6001.sql',
     'database/migrations/149_fin_voucher_pay_method_bank.sql',
     'database/migrations/150_report_receivables_aging.sql',
+    'database/migrations/157_sys_audit_log.sql',
 ];
 sql_migration_bootstrap_registry($pdo, $appBootMigrations);
 sql_migration_run_files_once($pdo, $appBootMigrations);

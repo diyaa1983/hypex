@@ -26,6 +26,8 @@ function inv_stocktake_delete_by_id(PDO $pdo, int $docId): array
 
     try {
         $pdo->beginTransaction();
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_inv_stocktake($pdo, 'delete', $docId);
         $pdo->prepare('DELETE FROM inv_stocktake_doc WHERE id = ?')->execute([$docId]);
         $pdo->commit();
         $out['ok'] = true;

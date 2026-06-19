@@ -276,6 +276,11 @@ function sal_invoice_post_by_id(PDO $pdo, int $invoiceId): array
         }
     }
 
+    if (!$out['skipped']) {
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_sal_invoice($pdo, 'post', $invoiceId);
+    }
+
     return $out;
 }
 

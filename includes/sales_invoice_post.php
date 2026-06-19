@@ -198,6 +198,9 @@ function handle_sales_invoice_post(): void
             $savedInvoiceNo = (string) $stNo->fetchColumn();
         }
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_sal_invoice($pdo, 'save', $invoiceId);
+
         if ($wantsJson) {
             json_invoice_save_response(true, [
                 'invoice_id' => $invoiceId,

@@ -54,6 +54,9 @@ function inv_wh_move_unpost_document(PDO $pdo, int $moveId): array
         $out['ok'] = true;
         $out['message'] = 'تم فك ترحيل الحركة. يمكنك التعديل وإعادة الترحيل.';
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_inv_wh_move($pdo, 'unpost', $moveId);
+
         return $out;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {

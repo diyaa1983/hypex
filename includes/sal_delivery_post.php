@@ -47,6 +47,8 @@ function sal_delivery_post_by_ids(PDO $pdo, array $deliveryIds): array
             'UPDATE sal_delivery SET is_posted = 1, posted_at = NOW() WHERE id = ? AND is_posted = 0'
         )->execute([$id]);
         $out['posted']++;
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_sal_delivery($pdo, 'post', $id);
     }
 
     return $out;

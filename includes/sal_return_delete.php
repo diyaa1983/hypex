@@ -92,6 +92,9 @@ function sal_return_delete_by_id(PDO $pdo, int $returnId): array
             )->execute([$returnId]);
         }
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_sal_return($pdo, 'delete', $returnId);
+
         $pdo->prepare('DELETE FROM sal_return_line WHERE return_id = ?')->execute([$returnId]);
         $pdo->prepare('DELETE FROM sal_return WHERE id = ?')->execute([$returnId]);
 

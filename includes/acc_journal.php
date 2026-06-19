@@ -503,6 +503,9 @@ function acc_journal_post_by_id(PDO $pdo, int $id): void
     acc_journal_normalize_lines($lines);
 
     $pdo->prepare("UPDATE acc_journal_entry SET status = 'posted' WHERE id = ?")->execute([$id]);
+
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_acc_journal($pdo, 'post', $id);
 }
 
 /**
@@ -528,6 +531,9 @@ function acc_journal_unpost_by_id(PDO $pdo, int $id): void
         throw new RuntimeException('هذا القيد تلقائي (من مستند آخر). افتح المستند الأصلي وافسخ ترحيله من هناك.');
     }
     $pdo->prepare("UPDATE acc_journal_entry SET status = 'draft' WHERE id = ?")->execute([$id]);
+
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_acc_journal($pdo, 'unpost', $id);
 }
 
 function acc_journal_delete_draft(PDO $pdo, int $id): void

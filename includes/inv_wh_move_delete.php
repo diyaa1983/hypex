@@ -40,6 +40,9 @@ function inv_wh_move_delete_by_id(PDO $pdo, int $moveId): array
         inv_wh_move_delete_stock_for_document($pdo, $moveId);
         acc_gl_unpost_warehouse_move($pdo, $moveId);
 
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_inv_wh_move($pdo, 'delete', $moveId);
+
         $pdo->prepare('DELETE FROM inv_wh_move WHERE id = ?')->execute([$moveId]);
 
         $pdo->commit();

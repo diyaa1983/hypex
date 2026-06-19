@@ -347,6 +347,9 @@ function pur_return_post_by_id(PDO $pdo, int $returnId): array
     }
     $out['ok'] = true;
 
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_pur_return($pdo, 'post', $returnId);
+
     return $out;
 }
 
