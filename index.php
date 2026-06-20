@@ -114,6 +114,7 @@ $appBootMigrations = [
     'database/migrations/159_acc_journal_line_party.sql',
     'database/migrations/160_acc_vat_trust_account.sql',
     'database/migrations/161_report_vat_trust_title.sql',
+    'database/migrations/162_fin_checks_manage.sql',
 ];
 sql_migration_bootstrap_registry($pdo, $appBootMigrations);
 sql_migration_run_files_once($pdo, $appBootMigrations);

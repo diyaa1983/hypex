@@ -204,6 +204,7 @@ function crm_party_statement_txn_type_label(string $txnType, string $partyType =
         'cheque' => 'شيك',
         'check' => 'شيك',
         'journal_voucher' => 'سند قيد',
+        'check_return' => 'إرجاع شيك',
         'debit_note' => 'إشعار مدين',
         'credit_note' => 'إشعار دائن',
     ];

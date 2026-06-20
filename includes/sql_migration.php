@@ -53,6 +53,9 @@ function sql_migration_exec_statements(PDO $pdo, array $stmts): ?string
             if (str_contains($msg, 'already exists') || str_contains($msg, 'Duplicate')) {
                 continue;
             }
+            if (str_contains($msg, 'duplicate column') || str_contains($msg, 'Duplicate column')) {
+                continue;
+            }
             $lastErr = $msg;
         }
     }

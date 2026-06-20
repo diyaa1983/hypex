@@ -2324,6 +2324,155 @@ function acc_coa_bootstrap_run(PDO $pdo, bool $forceRemap = false): array
     return ['changed' => $changed, 'messages' => $messages, 'mapped' => $mapped];
 }
 
+/** هل الاسم يطابق مجموعة الصندوق/الصناديق (وليس حساباً تشغيلياً باسم «صندوق رئيسي» فقط). */
+function acc_coa_name_is_cash_group_header(string $nameAr, bool $isLeaf): bool
+{
+    $n = acc_coa_normalize_name($nameAr);
+    if ($n === acc_coa_normalize_name('الصناديق')) {
+        return true;
+    }
+    if (!$isLeaf && ($n === acc_coa_normalize_name('الصندوق') || $n === acc_coa_normalize_name('صندوق'))) {
+        return true;
+    }
+    if (!$isLeaf && preg_match('/^صناديق/u', trim($nameAr))) {
+        return true;
+    }
+
+    return false;
+}
+
+/** هل الاسم يطابق مجموعة البنوك (حساب تجميعي). */
+function acc_coa_name_is_banks_group_header(string $nameAr, bool $isLeaf): bool
+{
+    if ($isLeaf) {
+        return false;
+    }
+    $n = acc_coa_normalize_name($nameAr);
+
+    return $n === acc_coa_normalize_name('البنوك')
+        || $n === acc_coa_normalize_name('البنك')
+        || $n === acc_coa_normalize_name('مصارف')
+        || $n === acc_coa_normalize_name('المصارف')
+        || preg_match('/^بنوك/u', trim($nameAr))
+        || preg_match('/^مصارف/u', trim($nameAr));
+}
+
+/**
+ * جذور مجموعة الصندوق/الصناديق في الشجرة (حسابات أب غير نهائية).
+ *
+ * @return list<int>
+ */
+function acc_coa_find_cash_group_parent_ids(PDO $pdo): array
+{
+    if (!acc_journal_has_tables($pdo)) {
+        return [];
+    }
+
+    $ids = [];
+    $index = acc_coa_index_accounts($pdo);
+    foreach (['1001002', '1001001000'] as $digits) {
+        $row = acc_coa_find_digits($index, $digits);
+        if ($row && (int) ($row['is_leaf'] ?? 0) === 0) {
+            $ids[(int) $row['id']] = true;
+        }
+    }
+
+    foreach (
+        $pdo->query(
+            'SELECT id, name_ar, is_leaf FROM acc_account
+             WHERE is_active = 1 AND is_leaf = 0
+             ORDER BY sort_order ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row
+    ) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id < 1 || isset($ids[$id])) {
+            continue;
+        }
+        if (acc_coa_name_is_cash_group_header((string) ($row['name_ar'] ?? ''), false)) {
+            $ids[$id] = true;
+        }
+    }
+
+    $liquidityId = acc_coa_find_liquidity_parent_id($pdo);
+    if ($liquidityId !== null && $liquidityId > 0) {
+        $st = $pdo->prepare(
+            'SELECT id, name_ar, is_leaf FROM acc_account
+             WHERE is_active = 1 AND parent_id = ? AND is_leaf = 0
+             ORDER BY sort_order ASC, id ASC'
+        );
+        $st->execute([$liquidityId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id < 1 || isset($ids[$id])) {
+                continue;
+            }
+            if (acc_coa_name_is_cash_group_header((string) ($row['name_ar'] ?? ''), false)) {
+                $ids[$id] = true;
+            }
+        }
+    }
+
+    return array_map('intval', array_keys($ids));
+}
+
+/**
+ * جذور مجموعة البنوك في الشجرة (حسابات أب غير نهائية).
+ *
+ * @return list<int>
+ */
+function acc_coa_find_banks_group_parent_ids(PDO $pdo): array
+{
+    if (!acc_journal_has_tables($pdo)) {
+        return [];
+    }
+
+    $ids = [];
+    $index = acc_coa_index_accounts($pdo);
+    foreach (['1001003', '1001003000'] as $digits) {
+        $row = acc_coa_find_digits($index, $digits);
+        if ($row && (int) ($row['is_leaf'] ?? 0) === 0) {
+            $ids[(int) $row['id']] = true;
+        }
+    }
+
+    foreach (
+        $pdo->query(
+            'SELECT id, name_ar, is_leaf FROM acc_account
+             WHERE is_active = 1 AND is_leaf = 0
+             ORDER BY sort_order ASC, id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row
+    ) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id < 1 || isset($ids[$id])) {
+            continue;
+        }
+        if (acc_coa_name_is_banks_group_header((string) ($row['name_ar'] ?? ''), false)) {
+            $ids[$id] = true;
+        }
+    }
+
+    $liquidityId = acc_coa_find_liquidity_parent_id($pdo);
+    if ($liquidityId !== null && $liquidityId > 0) {
+        $st = $pdo->prepare(
+            'SELECT id, name_ar, is_leaf FROM acc_account
+             WHERE is_active = 1 AND parent_id = ? AND is_leaf = 0
+             ORDER BY sort_order ASC, id ASC'
+        );
+        $st->execute([$liquidityId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id < 1 || isset($ids[$id])) {
+                continue;
+            }
+            if (acc_coa_name_is_banks_group_header((string) ($row['name_ar'] ?? ''), false)) {
+                $ids[$id] = true;
+            }
+        }
+    }
+
+    return array_map('intval', array_keys($ids));
+}
+
 /** أب «النقدية والبنوك» حتى مع أكواد مخصّصة (11، 00000011، أو أب الصندوق). */
 function acc_coa_find_liquidity_parent_id(PDO $pdo): ?int
 {

@@ -1,0 +1,188 @@
+/* شاشة الشيكات — Oracle 12c */
+
+.fin-checks-page .fin-checks-filters {
+    flex-wrap: wrap;
+    gap: 0.65rem 0.85rem;
+    align-items: flex-end;
+    padding: 0.75rem 1rem;
+}
+
+.fin-checks-page .fin-checks-filters .field {
+    margin: 0;
+    min-width: 8rem;
+}
+
+.fin-checks-page .fin-checks-filter-check .fin-checks-inline-check {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    white-space: nowrap;
+    min-height: 2rem;
+}
+
+.fin-checks-page .fin-checks-summary {
+    margin: 0;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border-color, #cbd5e1);
+    background: #f8fafc;
+}
+
+.fin-checks-page .fin-checks-table tbody tr.fin-chk-row-overdue {
+    background: rgba(220, 53, 69, 0.07);
+}
+
+.fin-checks-page .fin-chk-col-no code,
+.fin-checks-page .fin-chk-col-money {
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+}
+
+.fin-checks-page .fin-chk-col-money {
+    text-align: left;
+    font-weight: 600;
+}
+
+.fin-checks-page .fin-chk-badge {
+    display: inline-block;
+    padding: 0.12rem 0.45rem;
+    border-radius: 3px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.fin-checks-page .fin-chk-badge--posted-clear {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.fin-checks-page .fin-chk-badge--posted-return {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+.fin-checks-page .fin-chk-badge--pending {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+}
+
+.fin-checks-page .fin-chk-action-tag {
+    display: inline-block;
+    min-width: 3.25rem;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.82rem;
+}
+
+.fin-checks-page .fin-chk-action-tag--clear { color: #166534; }
+.fin-checks-page .fin-chk-action-tag--return { color: #991b1b; }
+.fin-checks-page .fin-chk-action-tag--none { color: #94a3b8; }
+
+.fin-checks-page .fin-chk-actions-cell {
+    white-space: nowrap;
+}
+
+.fin-checks-page .fin-chk-actions-cell .btn {
+    margin-inline-end: 0.25rem;
+}
+
+.fin-check-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.fin-check-modal[hidden] {
+    display: none !important;
+}
+
+.fin-check-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.fin-check-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 560px);
+    margin: 0;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+    border: 1px solid #356091;
+}
+
+.fin-check-modal__panel > .dashboard-ora-panel__title {
+    margin: 0;
+    padding: 0.65rem 1rem;
+    background: linear-gradient(180deg, #4a7ebb 0%, #356091 100%);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.fin-check-modal__panel > .dashboard-ora-panel__body {
+    padding: 0.85rem 1rem 1rem;
+    background: #eef2f7;
+}
+
+.fin-check-modal__summary-panel {
+    margin: 0 0 0.85rem;
+    border: 1px solid #b8c5d6;
+    box-shadow: none;
+}
+
+.fin-check-modal__summary-title {
+    padding: 0.4rem 0.75rem !important;
+    font-size: 0.82rem !important;
+    background: linear-gradient(180deg, #5a8fc4 0%, #4a7ebb 100%) !important;
+}
+
+.fin-check-modal__summary-body {
+    padding: 0 !important;
+    background: #fff;
+}
+
+.fin-check-modal__summary-table {
+    margin: 0;
+    font-size: 0.82rem;
+}
+
+.fin-check-modal__summary-table th[scope="row"] {
+    width: 22%;
+    background: #f1f5f9;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.fin-check-modal__summary-table td {
+    width: 28%;
+}
+
+.fin-check-modal__form {
+    background: #fff;
+    border: 1px solid #b8c5d6;
+    padding: 0.75rem;
+}
+
+.fin-check-modal__account-hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.78rem;
+}
+
+.fin-check-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e2e8f0;
+}

@@ -198,6 +198,12 @@ return [
         'title' => 'سند قيد',
         'hide_screen_title' => true,
     ],
+    'fin_checks' => [
+        'file' => 'modules/finance/checks.php',
+        'permission' => 'fin_checks',
+        'title' => 'شاشة الشيكات',
+        'hide_screen_title' => true,
+    ],
     'chart_of_accounts' => [
         'file' => 'modules/finance/chart_of_accounts.php',
         'permission' => 'chart_of_accounts',
