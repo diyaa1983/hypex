@@ -162,6 +162,56 @@ function invoice_line_amounts_resolve(
     return $calcUnit;
 }
 
+/** @return array{unit_price:float, sub:float, tax:float, gross:float} */
+function invoice_line_amounts_gross_without_implicit_discount(
+    float $qty,
+    float $gross,
+    float $taxRatePercent,
+    int $decimals
+): array {
+    $fromGross = invoice_line_amounts_from_gross($qty, $gross, $taxRatePercent, $decimals);
+    $dp = invoice_amount_decimals_clamp($decimals);
+    $upDp = invoice_line_unit_price_decimals(null);
+    $up = $qty > 0 ? round($fromGross['sub'] / $qty, $upDp) : 0.0;
+    $lineBase = round($qty * $up, $dp);
+
+    return [
+        'unit_price' => $up,
+        'sub' => $lineBase,
+        'tax' => round($fromGross['gross'] - $lineBase, $dp),
+        'gross' => $fromGross['gross'],
+    ];
+}
+
+/** @return array{unit_price:float, sub:float, tax:float, gross:float} */
+function invoice_line_amounts_sub_without_implicit_discount(
+    float $qty,
+    float $sub,
+    float $taxRatePercent,
+    int $decimals
+): array {
+    $dp = invoice_amount_decimals_clamp($decimals);
+    $upDp = invoice_line_unit_price_decimals(null);
+    $up = $qty > 0 ? round($sub / $qty, $upDp) : 0.0;
+    $lineBase = round($qty * $up, $dp);
+    $factor = 1 + ($taxRatePercent / 100);
+    $gross = round($lineBase * $factor, $dp);
+
+    return [
+        'unit_price' => $up,
+        'sub' => $lineBase,
+        'tax' => round($gross - $lineBase, $dp),
+        'gross' => $gross,
+    ];
+}
+
+function invoice_line_has_explicit_discount(string $discInput, float $discountPct): bool
+{
+    require_once app_path('includes/inv_invoice_discount.php');
+
+    return inv_discount_parse_input($discInput) !== null || $discountPct > 0.0000001;
+}
+
 /** @param array<string, mixed> $ln */
 function invoice_normalize_line_array(array $ln, int $decimals): array
 {
@@ -175,6 +225,10 @@ function invoice_normalize_line_array(array $ln, int $decimals): array
     $driver = strtolower(trim((string) ($ln['amount_driver'] ?? '')));
     $discInput = (string) ($ln['line_discount_input'] ?? $ln['discount_input'] ?? '');
     $lineBase = inv_invoice_line_merchandise_before_tax($ln, $decimals);
+    $hasExplicitDisc = invoice_line_has_explicit_discount(
+        $discInput,
+        (float) ($ln['discount_pct'] ?? 0)
+    );
     $discAmt = inv_discount_amount_for_base(
         $lineBase,
         $discInput,
@@ -182,18 +236,35 @@ function invoice_normalize_line_array(array $ln, int $decimals): array
         (float) ($ln['discount_amount'] ?? 0),
         $decimals
     );
+    if (!$hasExplicitDisc) {
+        $discAmt = 0.0;
+    }
     $tol = pow(10, -$dp) * 0.51;
 
     if ($driver === 'gross' && $grossIn > 0) {
-        $fromGross = invoice_line_amounts_from_gross($qty, $grossIn, $rate, $decimals);
-        $discAmt = max($discAmt, max(0.0, round($lineBase - $fromGross['sub'], $dp)));
-        $calc = invoice_line_amounts($qty, $upIn, $rate, $decimals, $discAmt);
+        if (!$hasExplicitDisc) {
+            $calc = invoice_line_amounts_gross_without_implicit_discount($qty, $grossIn, $rate, $decimals);
+        } else {
+            $fromGross = invoice_line_amounts_from_gross($qty, $grossIn, $rate, $decimals);
+            $discAmt = max($discAmt, max(0.0, round($lineBase - $fromGross['sub'], $dp)));
+            $calc = invoice_line_amounts($qty, $upIn, $rate, $decimals, $discAmt);
+        }
     } elseif ($driver === 'subtotal' && $subIn > 0) {
-        $discAmt = max($discAmt, max(0.0, round($lineBase - $subIn, $dp)));
-        $calc = invoice_line_amounts($qty, $upIn, $rate, $decimals, $discAmt);
+        if (!$hasExplicitDisc) {
+            $calc = invoice_line_amounts_sub_without_implicit_discount($qty, $subIn, $rate, $decimals);
+        } else {
+            $discAmt = max($discAmt, max(0.0, round($lineBase - $subIn, $dp)));
+            $calc = invoice_line_amounts($qty, $upIn, $rate, $decimals, $discAmt);
+        }
     } else {
         $calc = invoice_line_amounts($qty, $upIn, $rate, $decimals, $discAmt);
-        if ($grossIn > 0 && abs($grossIn - $calc['gross']) >= $tol) {
+        if (!$hasExplicitDisc) {
+            if ($grossIn > 0 && abs($grossIn - $calc['gross']) >= $tol) {
+                $calc = invoice_line_amounts_gross_without_implicit_discount($qty, $grossIn, $rate, $decimals);
+            } elseif ($subIn > 0 && abs($subIn - $calc['sub']) >= $tol) {
+                $calc = invoice_line_amounts_sub_without_implicit_discount($qty, $subIn, $rate, $decimals);
+            }
+        } elseif ($grossIn > 0 && abs($grossIn - $calc['gross']) >= $tol) {
             $fromGross = invoice_line_amounts_from_gross($qty, $grossIn, $rate, $decimals);
             $discAmt = max($discAmt, max(0.0, round($lineBase - $fromGross['sub'], $dp)));
             $calc = invoice_line_amounts($qty, $upIn, $rate, $decimals, $discAmt);

@@ -1251,6 +1251,11 @@
     syncJson();
   }
 
+  function hasExplicitLineDiscount(tr) {
+    if (headerDiscountMode) return true;
+    return !isDiscountInputEmpty(tr);
+  }
+
   function resolveLineBaseFromNetSub(tr, sub) {
     if (!(sub > 0)) return 0;
     if (isDiscountInputEmpty(tr)) return sub;
@@ -1293,11 +1298,20 @@
 
     if (source === 'gross') {
       gross = roundMoney(parseNum(grossInp ? grossInp.value : tr.dataset.gross));
-      sub = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
-      taxAmt = roundMoney(gross - sub);
-      lineBase = resolveLineBaseFromNetSub(tr, sub);
-      discountAmt = roundMoney(Math.max(0, lineBase - sub));
-      price = qty > 0 ? roundUnitPrice(lineBase / qty) : 0;
+      if (!hasExplicitLineDiscount(tr)) {
+        var subFromGross = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
+        price = qty > 0 ? roundUnitPrice(subFromGross / qty) : 0;
+        lineBase = qty > 0 ? roundMoney(qty * price) : 0;
+        sub = lineBase;
+        discountAmt = 0;
+        taxAmt = roundMoney(gross - sub);
+      } else {
+        sub = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
+        taxAmt = roundMoney(gross - sub);
+        lineBase = resolveLineBaseFromNetSub(tr, sub);
+        discountAmt = roundMoney(Math.max(0, lineBase - sub));
+        price = qty > 0 ? roundUnitPrice(lineBase / qty) : 0;
+      }
       tr.dataset.lineBase = String(lineBase);
       tr.dataset.lineMerch = String(lineBase);
       if (priceEl && document.activeElement !== priceEl) {
@@ -1318,22 +1332,38 @@
       tr.dataset.lineMerch = String(lineBase);
 
       if (source === 'subtotal' && subInp) {
-        discountAmt = getLineDiscountAmount(tr, lineBase);
-        if (document.activeElement === subInp && isDiscountInputEmpty(tr)) {
+        if (!hasExplicitLineDiscount(tr)) {
           sub = roundMoney(parseNum(subInp.value));
-          discountAmt = roundMoney(Math.max(0, lineBase - sub));
+          price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
+          lineBase = qty > 0 ? roundMoney(qty * price) : 0;
+          discountAmt = 0;
+          sub = lineBase;
+          if (priceEl && document.activeElement !== priceEl) {
+            priceEl.value = formatUnitPriceValue(price, String(price));
+          }
+          if (opts.normalizeStored || document.activeElement !== subInp) {
+            subInp.value = formatAmountValue(sub, subInp.value);
+          }
+          gross = roundMoney(sub * taxFactor);
+          taxAmt = roundMoney(gross - sub);
         } else {
-          sub = roundMoney(Math.max(0, lineBase - discountAmt));
+          discountAmt = getLineDiscountAmount(tr, lineBase);
+          if (document.activeElement === subInp && isDiscountInputEmpty(tr)) {
+            sub = roundMoney(parseNum(subInp.value));
+            discountAmt = roundMoney(Math.max(0, lineBase - sub));
+          } else {
+            sub = roundMoney(Math.max(0, lineBase - discountAmt));
+          }
+          price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
+          if (priceEl && document.activeElement !== priceEl) {
+            priceEl.value = formatUnitPriceValue(price, String(price));
+          }
+          if (opts.normalizeStored || document.activeElement !== subInp) {
+            subInp.value = formatAmountValue(sub, subInp.value);
+          }
+          gross = roundMoney(sub * taxFactor);
+          taxAmt = roundMoney(gross - sub);
         }
-        price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
-        if (priceEl && document.activeElement !== priceEl) {
-          priceEl.value = formatUnitPriceValue(price, String(price));
-        }
-        if (opts.normalizeStored || document.activeElement !== subInp) {
-          subInp.value = formatAmountValue(sub, subInp.value);
-        }
-        gross = roundMoney(sub * taxFactor);
-        taxAmt = roundMoney(gross - sub);
         tr.dataset.amountDriver = 'subtotal';
       } else {
         discountAmt = getLineDiscountAmount(tr, lineBase);
