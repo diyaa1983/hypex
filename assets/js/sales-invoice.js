@@ -709,6 +709,21 @@
       : roundMoney(x);
   }
 
+  /** السعر شامل الضريبة — تقريب محاسبي بخانات المبالغ (مثل 6.000). */
+  function roundUnitPriceIncl(x) {
+    return global.AppFormat && AppFormat.roundInvoiceUnitPriceIncl
+      ? AppFormat.roundInvoiceUnitPriceIncl(x)
+      : roundMoney(x);
+  }
+
+  /** إجمالي وضريبة السطر من قبل الضريبة: gross = round(sub×(1+rate)) ثم tax = gross−sub. */
+  function lineTaxAndGrossFromSub(sub, rate) {
+    var taxFactor = 1 + rate / 100;
+    var gross = roundMoney(sub * taxFactor);
+    var tax = roundMoney(gross - sub);
+    return { gross: gross, tax: tax };
+  }
+
   var unitPriceStep =
     global.AppFormat && AppFormat.invoiceUnitPriceInputStep
       ? AppFormat.invoiceUnitPriceInputStep()
@@ -806,6 +821,13 @@
     return formatAmountValue(n, rawStr);
   }
 
+  function formatUnitPriceInclValue(n, rawStr) {
+    if (global.AppFormat && AppFormat.formatInvoiceUnitPriceInclInput) {
+      return AppFormat.formatInvoiceUnitPriceInclInput(n, rawStr);
+    }
+    return formatAmountValue(n, rawStr);
+  }
+
   function formatPriceValue(n, rawStr) {
     return formatUnitPriceValue(n, rawStr);
   }
@@ -840,7 +862,7 @@
     }
     var priceIncl = tr.querySelector('.js-price-incl');
     if (priceIncl) {
-      priceIncl.setAttribute('step', unitPriceStep);
+      priceIncl.setAttribute('step', amountStep);
       priceIncl.setAttribute('inputmode', 'decimal');
     }
     if (sub) {
@@ -886,6 +908,11 @@
 
   function normalizePriceInput(inp) {
     normalizeUnitPriceInput(inp);
+  }
+
+  function normalizePriceInclInput(inp) {
+    if (!inp) return;
+    inp.value = formatUnitPriceInclValue(parseNum(inp.value), inp.value);
   }
 
   function normalizeSubInput(inp) {
@@ -956,10 +983,25 @@
   function syncUnitPriceInclField(tr, priceExcl, rate, opts) {
     var priceInclEl = tr.querySelector('.js-price-incl');
     if (!priceInclEl) return;
+    if (rowAmountSource(tr) === 'unit_incl') {
+      if (opts && opts.normalizeStored && document.activeElement !== priceInclEl) {
+        var keepIncl = roundUnitPriceIncl(parseNum(priceInclEl.value));
+        priceInclEl.value = keepIncl > 0 ? formatUnitPriceInclValue(keepIncl, priceInclEl.value) : '';
+      }
+      return;
+    }
     if (document.activeElement === priceInclEl && !(opts && opts.normalizeStored)) return;
+    var qtyEl = tr.querySelector('.js-qty');
+    var qty = parseNum(qtyEl ? qtyEl.value : 0);
+    var gross = parseNum(tr.dataset.gross);
+    if (qty > 0 && gross > 0) {
+      var inclFromGross = roundUnitPriceIncl(gross / qty);
+      priceInclEl.value = inclFromGross > 0 ? formatUnitPriceInclValue(inclFromGross, '') : '';
+      return;
+    }
     var taxFactor = 1 + rate / 100;
     var incl = unitPriceInclFromExcl(priceExcl, taxFactor);
-    priceInclEl.value = incl > 0 ? formatUnitPriceValue(incl, '') : '';
+    priceInclEl.value = incl > 0 ? formatUnitPriceInclValue(incl, '') : '';
   }
 
   /** إعادة حساب السطر والفاتورة حسب الحقل الذي يُحرَّر (أثناء الكتابة). */
@@ -1021,7 +1063,7 @@
     }
     if (el.classList.contains('js-qty')) normalizeQtyInput(el);
     else if (el.classList.contains('js-price')) normalizePriceInput(el);
-    else if (el.classList.contains('js-price-incl')) normalizePriceInput(el);
+    else if (el.classList.contains('js-price-incl')) normalizePriceInclInput(el);
     else if (el.classList.contains('js-line-sub')) normalizeSubInput(el);
     else if (el.classList.contains('js-line-gross')) normalizeGrossInput(el);
 
@@ -1085,7 +1127,8 @@
     var rate = parseNum(ln.tax_rate_percent);
     var tol = Math.pow(10, -decimals) * 0.51;
     var base = qty > 0 && up > 0 ? roundMoney(qty * up) : 0;
-    var fromUnitGross = roundMoney(base + roundMoney((base * rate) / 100));
+    var fromUnitLine = lineTaxAndGrossFromSub(base, rate);
+    var fromUnitGross = fromUnitLine.gross;
     if (gross > 0 && Math.abs(gross - fromUnitGross) >= tol) {
       return 'gross';
     }
@@ -1368,23 +1411,58 @@
         grossInp.value = formatAmountValue(gross, grossInp.value);
       }
       tr.dataset.amountDriver = 'gross';
-    } else {
+    } else if (source === 'unit_incl') {
+      var priceInclEl = tr.querySelector('.js-price-incl');
+      if (!priceInclEl) {
+        source = 'unit';
+      } else {
+        var priceInclVal = parseNum(priceInclEl.value);
+        if (opts.normalizeStored) {
+          priceInclVal = roundUnitPriceIncl(priceInclVal);
+          if (document.activeElement !== priceInclEl) {
+            priceInclEl.value =
+              priceInclVal > 0 ? formatUnitPriceInclValue(priceInclVal, priceInclEl.value) : '';
+          }
+        }
+        gross = roundMoney(qty * priceInclVal);
+        if (!hasExplicitLineDiscount(tr)) {
+          sub = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
+          price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
+          lineBase = sub;
+          discountAmt = 0;
+          taxAmt = roundMoney(gross - sub);
+        } else {
+          price = taxFactor > 0 ? roundUnitPrice(priceInclVal / taxFactor) : 0;
+          lineBase = qty > 0 ? roundMoney(qty * price) : 0;
+          discountAmt = getLineDiscountAmount(tr, lineBase);
+          sub = roundMoney(Math.max(0, lineBase - discountAmt));
+          var inclDiscTax = lineTaxAndGrossFromSub(sub, rate);
+          taxAmt = inclDiscTax.tax;
+          gross = inclDiscTax.gross;
+          price = qty > 0 ? roundUnitPrice(lineBase / qty) : 0;
+        }
+        tr.dataset.lineBase = String(lineBase);
+        tr.dataset.lineMerch = String(lineBase);
+        if (priceEl && document.activeElement !== priceEl) {
+          priceEl.value = formatUnitPriceValue(price, String(price));
+        }
+        if (subInp && document.activeElement !== subInp) {
+          subInp.value = formatAmountValue(sub, subInp.value);
+        }
+        if (grossInp && (opts.normalizeStored || document.activeElement !== grossInp)) {
+          grossInp.value = formatAmountValue(gross, grossInp.value);
+        }
+        tr.dataset.amountDriver = 'unit_incl';
+      }
+    }
+
+    if (source !== 'gross' && source !== 'unit_incl') {
       if (rowAmountSource(tr) === 'gross') {
         recalcRow(tr, 'gross', opts);
         return;
       }
-      var priceInclEl = tr.querySelector('.js-price-incl');
-      if (source === 'unit_incl' && priceInclEl) {
-        var priceInclVal = parseNum(priceInclEl.value);
-        if (opts.normalizeStored) priceInclVal = roundUnitPrice(priceInclVal);
-        price = taxFactor > 0 ? roundUnitPrice(priceInclVal / taxFactor) : 0;
-        if (priceEl && document.activeElement !== priceEl) {
-          priceEl.value = formatUnitPriceValue(price, String(price));
-        }
-      } else {
-        price = parseNum(priceEl ? priceEl.value : 0);
-        if (opts.normalizeStored) price = roundUnitPrice(price);
-      }
+      price = parseNum(priceEl ? priceEl.value : 0);
+      if (opts.normalizeStored) price = roundUnitPrice(price);
       lineBase = qty > 0 ? roundMoney(qty * price) : 0;
       tr.dataset.lineBase = String(lineBase);
       tr.dataset.lineMerch = String(lineBase);
@@ -1401,8 +1479,9 @@
           if (opts.normalizeStored || document.activeElement !== subInp) {
             subInp.value = formatAmountValue(sub, subInp.value);
           }
-          taxAmt = roundMoney((sub * rate) / 100);
-          gross = roundMoney(sub + taxAmt);
+          var subNoDiscTax = lineTaxAndGrossFromSub(sub, rate);
+          gross = subNoDiscTax.gross;
+          taxAmt = subNoDiscTax.tax;
         } else {
           discountAmt = getLineDiscountAmount(tr, lineBase);
           if (document.activeElement === subInp && isDiscountInputEmpty(tr)) {
@@ -1418,22 +1497,24 @@
           if (opts.normalizeStored || document.activeElement !== subInp) {
             subInp.value = formatAmountValue(sub, subInp.value);
           }
-          gross = roundMoney(sub * taxFactor);
-          taxAmt = roundMoney(gross - sub);
+          var subDiscTax = lineTaxAndGrossFromSub(sub, rate);
+          gross = subDiscTax.gross;
+          taxAmt = subDiscTax.tax;
         }
         tr.dataset.amountDriver = 'subtotal';
       } else {
         discountAmt = getLineDiscountAmount(tr, lineBase);
         sub = roundMoney(Math.max(0, lineBase - discountAmt));
-        taxAmt = roundMoney((sub * rate) / 100);
-        gross = roundMoney(sub + taxAmt);
+        var unitLineTax = lineTaxAndGrossFromSub(sub, rate);
+        gross = unitLineTax.gross;
+        taxAmt = unitLineTax.tax;
         if (priceEl && (opts.normalizeStored || document.activeElement !== priceEl)) {
           priceEl.value = formatUnitPriceValue(price, String(price));
         }
         if (subInp && document.activeElement !== subInp) {
           subInp.value = formatAmountValue(sub, subInp.value);
         }
-        tr.dataset.amountDriver = source === 'unit_incl' ? 'unit_incl' : 'unit';
+        tr.dataset.amountDriver = 'unit';
       }
     }
     setAmtDisplayCell(
@@ -1489,6 +1570,7 @@
       if (!headerDiscountMode && discEl) {
         lineDiscInp = String(discEl.value || '').trim();
       }
+      var priceInclEl = tr.querySelector('.js-price-incl');
       lines.push({
         item_id: itemId,
         name_ar: tr.dataset.nameAr || '',
@@ -1497,14 +1579,15 @@
         material_number: tr.dataset.materialNumber || '',
         qty: parseNum(qtyEl ? qtyEl.value : 0),
         qty_extra: parseNum(qtyExtraEl ? qtyExtraEl.value : 0),
-        unit_price: parseNum(priceEl ? priceEl.value : 0),
+        unit_price: roundUnitPrice(parseNum(priceEl ? priceEl.value : 0)),
+        unit_price_incl: priceInclEl ? roundUnitPriceIncl(parseNum(priceInclEl.value)) : 0,
         line_discount_input: lineDiscInp,
-        discount_amount: parseNum(tr.dataset.disc),
+        discount_amount: roundMoney(parseNum(tr.dataset.disc)),
         tax_rate_percent: taxRate,
         amount_driver: driver,
-        line_subtotal: parseNum(tr.dataset.sub),
-        tax_amount: parseNum(tr.dataset.tax),
-        line_gross: grossVal,
+        line_subtotal: roundMoney(parseNum(tr.dataset.sub)),
+        tax_amount: roundMoney(parseNum(tr.dataset.tax)),
+        line_gross: roundMoney(grossVal),
       });
     });
     if (linesJson) linesJson.value = JSON.stringify(lines);
@@ -2300,7 +2383,7 @@
         if (el.classList.contains('js-qty')) normalizeQtyInput(el);
         if (el.classList.contains('js-qty-extra')) normalizeQtyExtraInput(el);
         if (el.classList.contains('js-price')) normalizePriceInput(el);
-        if (el.classList.contains('js-price-incl')) normalizePriceInput(el);
+        if (el.classList.contains('js-price-incl')) normalizePriceInclInput(el);
         if (el.classList.contains('js-line-sub')) normalizeSubInput(el);
         if (el.classList.contains('js-line-gross')) normalizeGrossInput(el);
         recalcRowLiveFromField(tr, el);

@@ -484,6 +484,13 @@
       : roundMoney(x);
   }
 
+  function lineTaxAndGrossFromSub(sub, rate) {
+    var taxFactor = 1 + rate / 100;
+    var gross = roundMoney(sub * taxFactor);
+    var tax = roundMoney(gross - sub);
+    return { gross: gross, tax: tax };
+  }
+
   var unitPriceStep =
     global.AppFormat && AppFormat.invoiceUnitPriceInputStep
       ? AppFormat.invoiceUnitPriceInputStep()
@@ -824,7 +831,8 @@
     var rate = parseNum(ln.tax_rate_percent);
     var tol = Math.pow(10, -decimals) * 0.51;
     var base = qty > 0 && up > 0 ? roundMoney(qty * up) : 0;
-    var fromUnitGross = roundMoney(base + roundMoney((base * rate) / 100));
+    var fromUnitLine = lineTaxAndGrossFromSub(base, rate);
+    var fromUnitGross = fromUnitLine.gross;
     if (gross > 0 && Math.abs(gross - fromUnitGross) >= tol) {
       return 'gross';
     }
@@ -1129,8 +1137,9 @@
           if (opts.normalizeStored || document.activeElement !== subInp) {
             subInp.value = formatAmountValue(sub, subInp.value);
           }
-          taxAmt = roundMoney((sub * rate) / 100);
-          gross = roundMoney(sub + taxAmt);
+          var subNoDiscTax = lineTaxAndGrossFromSub(sub, rate);
+          gross = subNoDiscTax.gross;
+          taxAmt = subNoDiscTax.tax;
         } else {
           discountAmt = getLineDiscountAmount(tr, lineBase);
           if (document.activeElement === subInp && isDiscountInputEmpty(tr)) {
@@ -1146,15 +1155,17 @@
           if (opts.normalizeStored || document.activeElement !== subInp) {
             subInp.value = formatAmountValue(sub, subInp.value);
           }
-          gross = roundMoney(sub * taxFactor);
-          taxAmt = roundMoney(gross - sub);
+          var subDiscTax = lineTaxAndGrossFromSub(sub, rate);
+          gross = subDiscTax.gross;
+          taxAmt = subDiscTax.tax;
         }
         tr.dataset.amountDriver = 'subtotal';
       } else {
         discountAmt = getLineDiscountAmount(tr, lineBase);
         sub = roundMoney(Math.max(0, lineBase - discountAmt));
-        taxAmt = roundMoney((sub * rate) / 100);
-        gross = roundMoney(sub + taxAmt);
+        var unitLineTax = lineTaxAndGrossFromSub(sub, rate);
+        gross = unitLineTax.gross;
+        taxAmt = unitLineTax.tax;
         if (priceEl && (opts.normalizeStored || document.activeElement !== priceEl)) {
           priceEl.value = formatUnitPriceValue(price, String(price));
         }

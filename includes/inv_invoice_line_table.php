@@ -52,7 +52,7 @@ function inv_invoice_line_table_row_template(array $taxRates, string $unitPriceS
         <td class="sales-inv-col-qty-extra"><input type="number" class="input input-num js-qty-extra" min="0" step="1" inputmode="decimal" value="" title="كمية إضافية تُحسب في المخزون فقط"></td>
         <td class="sales-inv-col-price"><input type="text" class="input input-num js-price" min="0" step="<?= esc($unitPriceStep) ?>" inputmode="decimal" value="" title="الافرادي غير شامل الضريبة"></td>
         <?php if ($showUnitPriceIncl): ?>
-            <td class="sales-inv-col-price-incl"><input type="text" class="input input-num js-price-incl" min="0" step="<?= esc($unitPriceStep) ?>" inputmode="decimal" value="" title="الافرادي شامل الضريبة — يُحدَّث تلقائياً من غ.ش أو أدخله مباشرة"></td>
+            <td class="sales-inv-col-price-incl"><input type="text" class="input input-num js-price-incl" min="0" step="<?= esc($amountStep) ?>" inputmode="decimal" value="" title="الافرادي شامل الضريبة — يُحدَّث تلقائياً من غ.ش أو أدخله مباشرة"></td>
         <?php endif; ?>
         <td class="sales-inv-col-discount"><input type="text" class="input input-num js-discount" inputmode="decimal" value="" title="خصم على إجمالي المادة قبل الضريبة (كمية × السعر)" autocomplete="off"></td>
         <td class="sales-inv-col-money"><input type="text" class="input input-num js-line-sub" min="0" step="<?= esc($amountStep) ?>" inputmode="decimal" value="" title="بعد الخصم وقبل الضريبة"></td>

@@ -245,6 +245,19 @@
     return formatInvoiceDecimalInputWithDecimals(n, rawStr, invoiceUnitPriceDecimals());
   }
 
+  /** السعر الإفرادي شامل الضريبة — يُقرب كمبلغ نقدي (خانات النظام). */
+  function roundInvoiceUnitPriceIncl(n) {
+    return roundInvoiceAmount(n);
+  }
+
+  function formatInvoiceUnitPriceInclInput(n, rawStr) {
+    return formatInvoiceDecimalInputWithDecimals(n, rawStr, invoiceAmountDecimals());
+  }
+
+  function invoiceUnitPriceInclInputStep() {
+    return inputStepForDecimals(invoiceAmountDecimals());
+  }
+
   function invoicePriceInputStep() {
     return inputStepForDecimals(invoiceInputDecimals());
   }
@@ -369,17 +382,20 @@
     invoiceInputDecimals: invoiceInputDecimals,
     roundInvoiceAmount: roundInvoiceAmount,
     roundInvoiceUnitPrice: roundInvoiceUnitPrice,
+    roundInvoiceUnitPriceIncl: roundInvoiceUnitPriceIncl,
     roundInvoiceInput: roundInvoiceInput,
     fmtInvoiceAmount: fmtInvoiceAmount,
     fmtInvoiceUnitPrice: fmtInvoiceUnitPrice,
     formatInvoiceDecimalInput: formatInvoiceDecimalInput,
     formatInvoiceUnitPriceInput: formatInvoiceUnitPriceInput,
+    formatInvoiceUnitPriceInclInput: formatInvoiceUnitPriceInclInput,
     formatInvoiceQtyInput: formatInvoiceQtyInput,
     parseInvoiceDecimalInput: parseInvoiceDecimalInput,
     setDecimalPlaces: setDecimalPlaces,
     setInvoiceUnitPriceDecimals: setInvoiceUnitPriceDecimals,
     invoicePriceInputStep: invoicePriceInputStep,
     invoiceUnitPriceInputStep: invoiceUnitPriceInputStep,
+    invoiceUnitPriceInclInputStep: invoiceUnitPriceInclInputStep,
     formatDateDmY: formatDateDmY,
     parseDateToIso: parseDateToIso,
     inputStep: function () {

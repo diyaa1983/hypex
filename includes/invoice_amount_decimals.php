@@ -60,8 +60,9 @@ function invoice_line_amounts(
     $lineBase = round($qty * $up, $dp);
     $disc = min(max(0.0, $discountAmount), $lineBase);
     $sub = round($lineBase - $disc, $dp);
-    $tax = round($sub * ($taxRatePercent / 100), $dp);
-    $gross = round($sub + $tax, $dp);
+    $factor = 1 + ($taxRatePercent / 100);
+    $gross = round($sub * $factor, $dp);
+    $tax = round($gross - $sub, $dp);
 
     return [
         'unit_price' => $up,
@@ -101,6 +102,20 @@ function invoice_line_amounts_from_gross(float $qty, float $gross, float $taxRat
         'tax' => $tax,
         'gross' => $grossR,
     ];
+}
+
+/**
+ * السعر الإفرادي شامل الضريبة مُثبَّت — الإجمالي = كمية × السعر الشامل.
+ *
+ * @return array{unit_price:float, sub:float, tax:float, gross:float}
+ */
+function invoice_line_amounts_from_unit_incl(float $qty, float $unitPriceIncl, float $taxRatePercent, int $decimals): array
+{
+    $dp = invoice_amount_decimals_clamp($decimals);
+    $unitInclR = round($unitPriceIncl, $dp);
+    $grossR = round($qty * $unitInclR, $dp);
+
+    return invoice_line_amounts_from_gross($qty, $grossR, $taxRatePercent, $decimals);
 }
 
 /**
@@ -217,6 +232,7 @@ function invoice_normalize_line_array(array $ln, int $decimals): array
     $subIn = (float) ($ln['line_subtotal'] ?? $ln['line_total'] ?? 0);
     $upIn = (float) ($ln['unit_price'] ?? 0);
     $grossIn = (float) ($ln['line_gross'] ?? 0);
+    $unitInclIn = (float) ($ln['unit_price_incl'] ?? 0);
     $driver = strtolower(trim((string) ($ln['amount_driver'] ?? '')));
     $discInput = (string) ($ln['line_discount_input'] ?? $ln['discount_input'] ?? '');
     $lineBase = inv_invoice_line_merchandise_before_tax($ln, $decimals);
@@ -236,7 +252,20 @@ function invoice_normalize_line_array(array $ln, int $decimals): array
     }
     $tol = pow(10, -$dp) * 0.51;
 
-    if ($driver === 'gross' && $grossIn > 0) {
+    if ($driver === 'unit_incl' && $qty > 0) {
+        if ($unitInclIn > 0 && !$hasExplicitDisc) {
+            $calc = invoice_line_amounts_from_unit_incl($qty, $unitInclIn, $rate, $decimals);
+        } elseif ($grossIn > 0 && !$hasExplicitDisc) {
+            $calc = invoice_line_amounts_gross_without_implicit_discount($qty, $grossIn, $rate, $decimals);
+        } else {
+            $calc = invoice_line_amounts($qty, $upIn, $rate, $decimals, $discAmt);
+            if ($grossIn > 0 && abs($grossIn - $calc['gross']) >= $tol) {
+                $fromGross = invoice_line_amounts_from_gross($qty, $grossIn, $rate, $decimals);
+                $discAmt = max($discAmt, max(0.0, round($lineBase - $fromGross['sub'], $dp)));
+                $calc = invoice_line_amounts($qty, $upIn, $rate, $decimals, $discAmt);
+            }
+        }
+    } elseif ($driver === 'gross' && $grossIn > 0) {
         if (!$hasExplicitDisc) {
             $calc = invoice_line_amounts_gross_without_implicit_discount($qty, $grossIn, $rate, $decimals);
         } else {
