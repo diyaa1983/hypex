@@ -632,7 +632,8 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
-.sales-inv-col-price { width: 9%; }
+.sales-inv-col-price { width: 8%; }
+.sales-inv-col-price-incl { width: 8%; }
 .sales-inv-col-money { width: 10%; text-align: center; font-variant-numeric: tabular-nums; }
 .sales-inv-col-tax { width: 12%; }
 .sales-inv-col-total { width: 10%; text-align: center; font-weight: 800; color: #4338ca; font-variant-numeric: tabular-nums; }

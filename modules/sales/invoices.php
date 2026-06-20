@@ -88,7 +88,10 @@ $screenTitle = $ledgerView ? 'عرض فاتورة مبيعات' : 'فاتورة 
 <?php ledger_document_view_enqueue_assets(); ?>
 <?php customer_picker_json_script($customers, 'sales-inv-customers-json'); ?>
 
-<?php require_once app_path('includes/inv_invoice_line_table.php'); ?>
+<?php
+require_once app_path('includes/inv_invoice_line_table.php');
+$showUnitPriceIncl = true;
+?>
 
 <div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main sales-inv-bold" data-exit-guard="custom">
     <header class="dashboard-ora-screen-title no-print" role="banner">
@@ -229,7 +232,7 @@ $screenTitle = $ledgerView ? 'عرض فاتورة مبيعات' : 'فاتورة 
             <div class="sales-inv-table-wrap" id="sales-inv-table-wrap">
                 <table class="sales-inv-table">
                     <thead>
-                    <?php inv_invoice_line_table_head(); ?>
+                    <?php inv_invoice_line_table_head($showUnitPriceIncl); ?>
                     </thead>
                     <tbody id="sales-inv-lines-body">
                     <?php if ($initialInvoiceId < 1): ?>
@@ -267,7 +270,7 @@ $screenTitle = $ledgerView ? 'عرض فاتورة مبيعات' : 'فاتورة 
 </div>
 
 <template id="sales-inv-line-template">
-    <?php inv_invoice_line_table_row_template($taxRates, $unitPriceStep, $amountStep); ?>
+    <?php inv_invoice_line_table_row_template($taxRates, $unitPriceStep, $amountStep, $showUnitPriceIncl); ?>
 </template>
 
 <div id="inv-delivery-pick-modal" class="sales-inv-dlv-pick-modal no-print" hidden>

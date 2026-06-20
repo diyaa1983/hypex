@@ -274,7 +274,7 @@
     tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
       var pick = tr.querySelector('.js-pick-open');
       var rm = tr.querySelector('.js-remove');
-      tr.querySelectorAll('.js-qty, .js-qty-extra, .js-price, .js-line-sub, .js-line-gross, .js-discount, .js-tax, .js-barcode-inp').forEach(function (inp) {
+      tr.querySelectorAll('.js-qty, .js-qty-extra, .js-price, .js-price-incl, .js-line-sub, .js-line-gross, .js-discount, .js-tax, .js-barcode-inp').forEach(function (inp) {
         if (locked) {
           inp.setAttribute('readonly', 'readonly');
           if (inp.tagName === 'SELECT') inp.disabled = true;
@@ -785,6 +785,7 @@
     '.js-qty',
     '.js-qty-extra',
     '.js-price',
+    '.js-price-incl',
     '.js-discount',
     '.js-line-sub',
     '.js-tax',
@@ -836,6 +837,11 @@
     if (price) {
       price.setAttribute('step', unitPriceStep);
       price.setAttribute('inputmode', 'decimal');
+    }
+    var priceIncl = tr.querySelector('.js-price-incl');
+    if (priceIncl) {
+      priceIncl.setAttribute('step', unitPriceStep);
+      priceIncl.setAttribute('inputmode', 'decimal');
     }
     if (sub) {
       sub.setAttribute('step', amountStep);
@@ -938,8 +944,22 @@
 
   function rowAmountSource(tr) {
     var d = tr.dataset.amountDriver || 'unit';
-    if (d === 'gross' || d === 'subtotal' || d === 'unit') return d;
+    if (d === 'gross' || d === 'subtotal' || d === 'unit' || d === 'unit_incl') return d;
     return 'unit';
+  }
+
+  function unitPriceInclFromExcl(priceExcl, taxFactor) {
+    if (!(priceExcl > 0)) return 0;
+    return roundUnitPrice(priceExcl * taxFactor);
+  }
+
+  function syncUnitPriceInclField(tr, priceExcl, rate, opts) {
+    var priceInclEl = tr.querySelector('.js-price-incl');
+    if (!priceInclEl) return;
+    if (document.activeElement === priceInclEl && !(opts && opts.normalizeStored)) return;
+    var taxFactor = 1 + rate / 100;
+    var incl = unitPriceInclFromExcl(priceExcl, taxFactor);
+    priceInclEl.value = incl > 0 ? formatUnitPriceValue(incl, '') : '';
   }
 
   /** إعادة حساب السطر والفاتورة حسب الحقل الذي يُحرَّر (أثناء الكتابة). */
@@ -956,7 +976,7 @@
       return;
     }
 
-    if ((el.classList.contains('js-qty') || el.classList.contains('js-price')) && headerDiscountMode) {
+    if ((el.classList.contains('js-qty') || el.classList.contains('js-price') || el.classList.contains('js-price-incl')) && headerDiscountMode) {
       applyHeaderDiscount();
       return;
     }
@@ -967,12 +987,17 @@
     } else if (el.classList.contains('js-line-gross')) {
       tr.dataset.amountDriver = 'gross';
       recalcRow(tr, 'gross');
+    } else if (el.classList.contains('js-price-incl')) {
+      tr.dataset.amountDriver = 'unit_incl';
+      recalcRow(tr, 'unit_incl');
     } else if (el.classList.contains('js-price')) {
       tr.dataset.amountDriver = 'unit';
       recalcRow(tr, 'unit');
     } else if (el.classList.contains('js-qty')) {
       if (rowAmountSource(tr) === 'gross') {
         recalcRow(tr, 'gross');
+      } else if (rowAmountSource(tr) === 'unit_incl') {
+        recalcRow(tr, 'unit_incl');
       } else {
         tr.dataset.amountDriver = 'unit';
         recalcRow(tr, 'unit');
@@ -996,6 +1021,7 @@
     }
     if (el.classList.contains('js-qty')) normalizeQtyInput(el);
     else if (el.classList.contains('js-price')) normalizePriceInput(el);
+    else if (el.classList.contains('js-price-incl')) normalizePriceInput(el);
     else if (el.classList.contains('js-line-sub')) normalizeSubInput(el);
     else if (el.classList.contains('js-line-gross')) normalizeGrossInput(el);
 
@@ -1004,7 +1030,7 @@
       return;
     }
 
-    if ((el.classList.contains('js-qty') || el.classList.contains('js-price')) && headerDiscountMode) {
+    if ((el.classList.contains('js-qty') || el.classList.contains('js-price') || el.classList.contains('js-price-incl')) && headerDiscountMode) {
       applyHeaderDiscount();
       return;
     }
@@ -1016,8 +1042,15 @@
     } else if (el.classList.contains('js-line-gross')) {
       source = 'gross';
       tr.dataset.amountDriver = 'gross';
+    } else if (el.classList.contains('js-price-incl')) {
+      source = 'unit_incl';
+      tr.dataset.amountDriver = 'unit_incl';
     } else if (el.classList.contains('js-qty') && rowAmountSource(tr) === 'gross') {
       source = 'gross';
+    } else if (el.classList.contains('js-qty') && rowAmountSource(tr) === 'unit_incl') {
+      source = 'unit_incl';
+    } else if (el.classList.contains('js-qty') && rowAmountSource(tr) === 'subtotal') {
+      source = 'subtotal';
     } else if (el.classList.contains('js-price')) {
       tr.dataset.amountDriver = 'unit';
     } else {
@@ -1033,6 +1066,7 @@
     return (
       el.classList.contains('js-qty') ||
       el.classList.contains('js-price') ||
+      el.classList.contains('js-price-incl') ||
       el.classList.contains('js-discount') ||
       el.classList.contains('js-line-sub') ||
       el.classList.contains('js-line-gross')
@@ -1042,7 +1076,7 @@
   function inferLineAmountDriver(ln) {
     if (!ln) return 'unit';
     var d = String(ln.amount_driver || '').toLowerCase();
-    if (d === 'gross' || d === 'subtotal' || d === 'unit') return d;
+    if (d === 'gross' || d === 'subtotal' || d === 'unit' || d === 'unit_incl') return d;
     var qty = parseNum(ln.qty);
     var up = parseNum(ln.unit_price);
     var sub = parseNum(ln.line_subtotal != null ? ln.line_subtotal : ln.line_total);
@@ -1339,8 +1373,18 @@
         recalcRow(tr, 'gross', opts);
         return;
       }
-      price = parseNum(priceEl ? priceEl.value : 0);
-      if (opts.normalizeStored) price = roundUnitPrice(price);
+      var priceInclEl = tr.querySelector('.js-price-incl');
+      if (source === 'unit_incl' && priceInclEl) {
+        var priceInclVal = parseNum(priceInclEl.value);
+        if (opts.normalizeStored) priceInclVal = roundUnitPrice(priceInclVal);
+        price = taxFactor > 0 ? roundUnitPrice(priceInclVal / taxFactor) : 0;
+        if (priceEl && document.activeElement !== priceEl) {
+          priceEl.value = formatUnitPriceValue(price, String(price));
+        }
+      } else {
+        price = parseNum(priceEl ? priceEl.value : 0);
+        if (opts.normalizeStored) price = roundUnitPrice(price);
+      }
       lineBase = qty > 0 ? roundMoney(qty * price) : 0;
       tr.dataset.lineBase = String(lineBase);
       tr.dataset.lineMerch = String(lineBase);
@@ -1389,7 +1433,7 @@
         if (subInp && document.activeElement !== subInp) {
           subInp.value = formatAmountValue(sub, subInp.value);
         }
-        tr.dataset.amountDriver = 'unit';
+        tr.dataset.amountDriver = source === 'unit_incl' ? 'unit_incl' : 'unit';
       }
     }
     setAmtDisplayCell(
@@ -1398,6 +1442,7 @@
       false
     );
     setLineGrossDisplay(tr, gross);
+    syncUnitPriceInclField(tr, price, rate, opts);
     tr.dataset.disc = String(discountAmt);
     tr.dataset.sub = String(sub);
     tr.dataset.tax = String(taxAmt);
@@ -1929,6 +1974,8 @@
     var qtyExtraReset = tr.querySelector('.js-qty-extra');
     if (qtyExtraReset) qtyExtraReset.value = '';
     tr.querySelector('.js-price').value = '';
+    var priceInclReset = tr.querySelector('.js-price-incl');
+    if (priceInclReset) priceInclReset.value = '';
     applyDefaultTax(tr);
     if (isEntry) {
       tr.classList.add('is-entry-row');
@@ -2166,15 +2213,16 @@
   }
 
   function focusNextField(tr, current) {
-    var order = ['.js-qty', '.js-qty-extra', '.js-price', '.js-discount', '.js-line-sub', '.js-tax', '.js-line-gross'];
+    var order = ['.js-qty', '.js-qty-extra', '.js-price', '.js-price-incl', '.js-discount', '.js-line-sub', '.js-tax', '.js-line-gross'];
     var idx = -1;
     if (current.classList.contains('js-qty')) idx = 0;
     else if (current.classList.contains('js-qty-extra')) idx = 1;
     else if (current.classList.contains('js-price')) idx = 2;
-    else if (current.classList.contains('js-discount')) idx = 3;
-    else if (current.classList.contains('js-line-sub')) idx = 4;
-    else if (current.classList.contains('js-tax')) idx = 5;
-    else if (current.classList.contains('js-line-gross')) idx = 6;
+    else if (current.classList.contains('js-price-incl')) idx = 3;
+    else if (current.classList.contains('js-discount')) idx = 4;
+    else if (current.classList.contains('js-line-sub')) idx = 5;
+    else if (current.classList.contains('js-tax')) idx = 6;
+    else if (current.classList.contains('js-line-gross')) idx = 7;
     if (idx >= 0 && idx < order.length - 1) {
       var next = tr.querySelector(order[idx + 1]);
       if (next) {
@@ -2242,7 +2290,7 @@
 
     tr
       .querySelectorAll(
-        '.js-qty, .js-qty-extra, .js-price, .js-discount, .js-line-sub, .js-line-gross, .js-tax'
+        '.js-qty, .js-qty-extra, .js-price, .js-price-incl, .js-discount, .js-line-sub, .js-line-gross, .js-tax'
       )
       .forEach(function (el) {
       el.addEventListener('input', function () {
@@ -2252,6 +2300,7 @@
         if (el.classList.contains('js-qty')) normalizeQtyInput(el);
         if (el.classList.contains('js-qty-extra')) normalizeQtyExtraInput(el);
         if (el.classList.contains('js-price')) normalizePriceInput(el);
+        if (el.classList.contains('js-price-incl')) normalizePriceInput(el);
         if (el.classList.contains('js-line-sub')) normalizeSubInput(el);
         if (el.classList.contains('js-line-gross')) normalizeGrossInput(el);
         recalcRowLiveFromField(tr, el);
@@ -2260,6 +2309,7 @@
         if (
           el.classList.contains('js-qty') ||
           el.classList.contains('js-price') ||
+          el.classList.contains('js-price-incl') ||
           el.classList.contains('js-discount') ||
           el.classList.contains('js-line-sub') ||
           el.classList.contains('js-line-gross')
