@@ -26,6 +26,22 @@
     padding: 0.65rem 1rem;
     border-bottom: 1px solid var(--border-color, #cbd5e1);
     background: #f8fafc;
+    font-weight: 700;
+}
+
+.fin-checks-page .fin-checks-table thead th,
+.fin-checks-page .fin-checks-table tbody td {
+    font-weight: 700;
+}
+
+.fin-checks-page .fin-checks-table tbody td code,
+.fin-checks-page .fin-checks-table tbody td a {
+    font-weight: inherit;
+}
+
+.fin-checks-page .fin-checks-table tbody td .muted,
+.fin-checks-page .fin-checks-table tbody td small.muted {
+    font-weight: 600;
 }
 
 .fin-checks-page .fin-checks-table tbody tr.fin-chk-row-overdue {
@@ -41,7 +57,7 @@
 
 .fin-checks-page .fin-chk-col-money {
     text-align: left;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .fin-checks-page .fin-chk-badge {

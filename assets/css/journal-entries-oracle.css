@@ -86,6 +86,15 @@
   white-space: nowrap;
 }
 
+.journal-entries-ora .dashboard-ora-table thead th,
+.journal-entries-ora .dashboard-ora-table tbody td {
+  font-weight: 700;
+}
+
+.journal-entries-ora .dashboard-ora-table tbody td code {
+  font-weight: inherit;
+}
+
 .journal-entries-ora .dashboard-ora-table code {
   font-family: Consolas, "Courier New", monospace;
   font-size: 0.76rem;

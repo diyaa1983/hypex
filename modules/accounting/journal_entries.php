@@ -334,7 +334,7 @@ $dateFrom = (string) ($dateClause['from'] ?? '');
 $dateTo = (string) ($dateClause['to'] ?? '');
 $listFrom = acc_journal_list_from_sql();
 
-$sql = 'SELECT e.id, e.entry_no, e.entry_date, e.description_ar, e.status,
+$sql = 'SELECT e.id, e.entry_no, e.entry_date, e.created_at, e.description_ar, e.status,
                COALESCE(SUM(l.debit), 0) AS total_debit,
                COALESCE(SUM(l.credit), 0) AS total_credit
         ' . $listFrom . '
@@ -441,7 +441,8 @@ $screenExitUrl = journal_entries_screen_exit_url($activeRoute ?? 'journal_entrie
                         <thead>
                         <tr>
                             <th>رقم القيد</th>
-                            <th>التاريخ</th>
+                            <th>تاريخ القيد</th>
+                            <th>تاريخ الإنشاء</th>
                             <th>البيان</th>
                             <th>مدين</th>
                             <th>دائن</th>
@@ -451,15 +452,21 @@ $screenExitUrl = journal_entries_screen_exit_url($activeRoute ?? 'journal_entrie
                         </thead>
                         <tbody>
                         <?php if (!$rows): ?>
-                            <tr><td colspan="7" class="dashboard-ora-empty">لا توجد قيود بعد.</td></tr>
+                            <tr><td colspan="8" class="dashboard-ora-empty">لا توجد قيود بعد.</td></tr>
                         <?php endif; ?>
                         <?php foreach ($rows as $e):
                             $st = (string) ($e['status'] ?? 'draft');
                             $eid = (int) $e['id'];
+                            $createdRaw = trim((string) ($e['created_at'] ?? ''));
+                            $createdDisplay = '—';
+                            if ($createdRaw !== '' && preg_match('/^(\d{4}-\d{2}-\d{2})/', $createdRaw, $createdMatch)) {
+                                $createdDisplay = format_date_dmY($createdMatch[1]);
+                            }
                             ?>
                             <tr>
                                 <td><code><?= esc((string) $e['entry_no']) ?></code></td>
                                 <td><?= esc(format_date_dmY((string) $e['entry_date'])) ?></td>
+                                <td><?= esc($createdDisplay) ?></td>
                                 <td><?= esc((string) ($e['description_ar'] ?? '')) ?></td>
                                 <td class="col-money"><?= esc(format_money((float) $e['total_debit'])) ?></td>
                                 <td class="col-money"><?= esc(format_money((float) $e['total_credit'])) ?></td>
