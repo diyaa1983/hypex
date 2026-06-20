@@ -581,18 +581,21 @@ function inv_item_stock_ledger_lines(PDO $pdo, int $itemId, int $warehouseId): a
     }
 
     $refFilter = inv_stock_move_ledger_ref_filter_sql('m');
-    $itemNoSql = inv_item_sql_material_number($pdo, 'it', true);
-    $st = $pdo->prepare(
-        "SELECT m.id AS move_id, m.move_date, m.created_at, m.qty_delta, m.ref_type, m.ref_id,
-                {$itemNoSql} AS item_sku, it.name_ar AS item_name
-         FROM inv_stock_move m
-         INNER JOIN inv_item it ON it.id = m.item_id
-         WHERE m.item_id = ? AND m.warehouse_id = ? AND {$refFilter}
-         ORDER BY m.created_at ASC, m.id ASC"
-    );
-    $st->execute([$itemId, $warehouseId]);
-
-    $raw = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $itemCols = inv_item_has_barcode_column($pdo) ? 'it.barcode, it.sku' : 'it.sku';
+    try {
+        $st = $pdo->prepare(
+            "SELECT m.id AS move_id, m.move_date, m.created_at, m.qty_delta, m.ref_type, m.ref_id,
+                    {$itemCols}, it.name_ar AS item_name
+             FROM inv_stock_move m
+             INNER JOIN inv_item it ON it.id = m.item_id
+             WHERE m.item_id = ? AND m.warehouse_id = ? AND {$refFilter}
+             ORDER BY m.created_at ASC, m.id ASC"
+        );
+        $st->execute([$itemId, $warehouseId]);
+        $raw = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
     usort(
         $raw,
         static function (array $a, array $b): int {
@@ -621,7 +624,10 @@ function inv_item_stock_ledger_lines(PDO $pdo, int $itemId, int $warehouseId): a
 
         $out[] = [
             'move_id' => (int) ($row['move_id'] ?? 0),
-            'item_sku' => (string) ($row['item_sku'] ?? ''),
+            'item_sku' => inv_item_material_number_digits(
+                (string) ($row['barcode'] ?? ''),
+                (string) ($row['sku'] ?? '')
+            ),
             'item_name' => (string) ($row['item_name'] ?? ''),
             'mov_type_label' => inv_stock_move_type_label($refType),
             'move_at' => (string) ($row['created_at'] ?? ''),

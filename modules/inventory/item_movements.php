@@ -47,20 +47,26 @@ if ($submitted) {
         } elseif (!$whRow) {
             $err = 'المستودع غير موجود.';
         } else {
-            $showResult = true;
-            $itemLabel = (string) ($itRow['name_ar'] ?? '');
-            $itemSku = inv_item_material_number_digits(
-                (string) ($itRow['barcode'] ?? ''),
-                (string) ($itRow['sku'] ?? '')
-            );
-            $whName = trim((string) ($whRow['name_ar'] ?? ''));
-            $whCode = trim((string) ($whRow['code'] ?? ''));
-            $warehouseLabel = $whName !== '' ? $whName : $whCode;
-            if ($whCode !== '' && $whName !== '') {
-                $warehouseLabel = $whCode . ' — ' . $whName;
+            try {
+                $itemLabel = (string) ($itRow['name_ar'] ?? '');
+                $itemSku = inv_item_material_number_digits(
+                    (string) ($itRow['barcode'] ?? ''),
+                    (string) ($itRow['sku'] ?? '')
+                );
+                $whName = trim((string) ($whRow['name_ar'] ?? ''));
+                $whCode = trim((string) ($whRow['code'] ?? ''));
+                $warehouseLabel = $whName !== '' ? $whName : $whCode;
+                if ($whCode !== '' && $whName !== '') {
+                    $warehouseLabel = $whCode . ' — ' . $whName;
+                }
+                $onHand = inv_item_stock_ledger_qty_on_hand($pdo, $itemId, $warehouseId);
+                $rows = inv_item_stock_ledger_lines($pdo, $itemId, $warehouseId);
+                $showResult = true;
+            } catch (Throwable $e) {
+                $err = (defined('APP_DEBUG') && APP_DEBUG)
+                    ? 'تعذر تحميل حركات المادة: ' . $e->getMessage()
+                    : 'تعذر تحميل حركات المادة. راجع سجل الأخطاء أو جرّب ?debug=1';
             }
-            $onHand = inv_item_stock_ledger_qty_on_hand($pdo, $itemId, $warehouseId);
-            $rows = inv_item_stock_ledger_lines($pdo, $itemId, $warehouseId);
         }
     }
 }
