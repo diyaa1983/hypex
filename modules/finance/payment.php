@@ -23,7 +23,17 @@ if (!$cashAccounts) {
 }
 
 crm_sales_rep_ensure_customer_invoice_links($pdo);
+require_once app_path('includes/fin_payment_parties.php');
 require_once app_path('includes/supplier_picker.php');
+require_once app_path('includes/employee_picker.php');
+require_once app_path('includes/account_picker.php');
+$pickerEmployees = hr_employee_picker_list($pdo);
+$employeeOtherAccounts = fin_payment_employee_other_offset_accounts($pdo);
+$otherOffsetAccounts = fin_payment_other_offset_accounts($pdo);
+$advancePayableRows = fin_payment_employee_advance_payable_account($pdo);
+$advancePayableLabel = $advancePayableRows !== []
+    ? trim((string) ($advancePayableRows[0]['code'] ?? '')) . ' — ' . trim((string) ($advancePayableRows[0]['label'] ?? ''))
+    : '2009 — سلف موظفين مستحقة الصرف';
 $customers = $pdo->query(
     'SELECT c.id, c.code, c.name_ar, c.sales_rep_id, r.name_ar AS sales_rep_name
      FROM crm_customer c
@@ -32,6 +42,16 @@ $customers = $pdo->query(
      ORDER BY c.name_ar'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $suppliers = crm_suppliers_for_picker($pdo);
+
+$initialId = (int) ($_GET['id'] ?? 0);
+$disburseAdvanceId = (int) ($_GET['disburse_advance'] ?? 0);
+$disburseBootstrap = null;
+if ($disburseAdvanceId > 0 && $initialId < 1) {
+    $disburseBootstrap = fin_payment_disburse_advance_bootstrap($pdo, $disburseAdvanceId);
+    if ($disburseBootstrap === null) {
+        flash_set('error', 'السلفة غير متاحة للصرف (غير مرحّلة أو تم صرفها مسبقاً).');
+    }
+}
 
 $flash = flash_get();
 $today = date('Y-m-d');
@@ -44,10 +64,12 @@ $exitUrl = nav_exit_url($activeRoute ?? 'cash_payment');
 $newUrl = app_url('index.php?r=cash_payment');
 $listUrl = app_url('index.php?r=cash_payments_list');
 $apiVoucher = app_url('api/fin_payment_view.php');
+$apiEmployeeAdvances = app_url('api/fin_payment_employee_advances.php');
+$apiEmployeeSalaries = app_url('api/fin_payment_employee_salaries.php');
+$salariesPayableAccountId = fin_payment_salaries_payable_account_id($pdo);
 $apiPost = app_url('api/fin_payment_post.php');
 $apiUnpost = app_url('api/fin_payment_unpost.php');
 $apiDelete = app_url('api/fin_payment_delete.php');
-$initialId = (int) ($_GET['id'] ?? 0);
 require_once app_path('includes/acc_gl.php');
 $cashBoxAccountId = acc_gl_cash_box_account_id($pdo);
 $defaultCashId = $cashBoxAccountId > 0 ? $cashBoxAccountId : (int) ($cashAccounts[0]['id'] ?? 0);
@@ -68,8 +90,15 @@ require_once app_path('includes/customer_picker.php');
 customer_picker_enqueue_assets();
 customer_picker_json_script($customers, 'fin-py-customers-json');
 supplier_picker_enqueue_assets();
+employee_picker_enqueue_assets();
+employee_picker_json_script($pickerEmployees, 'fin-py-employees-json');
+account_picker_enqueue_assets();
+account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
 ?>
 <script type="application/json" id="fin-py-suppliers-json"><?= crm_suppliers_picker_json($suppliers) ?></script>
+<?php if ($disburseBootstrap !== null): ?>
+<script type="application/json" id="fin-py-disburse-bootstrap-json"><?= json_encode($disburseBootstrap, JSON_UNESCAPED_UNICODE) ?></script>
+<?php endif; ?>
 
 <div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main fin-py-wrap fin-py-pay-is-cash fin-py-party-is-supplier sales-inv-bold" data-exit-guard="custom">
     <header class="dashboard-ora-screen-title no-print" role="banner">
@@ -92,6 +121,9 @@ supplier_picker_enqueue_assets();
 
     <form id="fin-py-form" class="master-page-form" method="post" action="<?= esc(app_url('index.php?r=cash_payment')) ?>" novalidate
           data-api-voucher="<?= esc($apiVoucher) ?>"
+          data-api-employee-advances="<?= esc($apiEmployeeAdvances) ?>"
+          data-api-employee-salaries="<?= esc($apiEmployeeSalaries) ?>"
+          data-salaries-payable-account-id="<?= (int) $salariesPayableAccountId ?>"
           data-voucher-post-url="<?= esc($apiPost) ?>"
           data-voucher-unpost-url="<?= esc($apiUnpost) ?>"
           data-voucher-delete-url="<?= esc($apiDelete) ?>"
@@ -106,6 +138,10 @@ supplier_picker_enqueue_assets();
         <input type="hidden" name="_action" value="save_payment">
         <input type="hidden" name="voucher_id" id="py_record_id" value="">
         <input type="hidden" name="party_type" id="py_party_type" value="supplier">
+        <input type="hidden" name="offset_account_id" id="py_offset_account_id" value="">
+        <input type="hidden" name="employee_pay_kind" id="py_employee_pay_kind" value="advance">
+        <input type="hidden" name="hr_advance_id" id="py_hr_advance_id" value="">
+        <input type="hidden" name="hr_salary_id" id="py_hr_salary_id" value="">
 
         <section class="dashboard-ora-panel no-print">
             <h2 class="dashboard-ora-panel__title">بيانات السند</h2>
@@ -136,9 +172,17 @@ supplier_picker_enqueue_assets();
                         <label class="fin-py-party-opt">
                             <input type="radio" name="party_type_ui" value="customer" id="py_party_customer"> عميل
                         </label>
+                        <label class="fin-py-party-opt">
+                            <input type="radio" name="party_type_ui" value="employee" id="py_party_employee"> موظف
+                        </label>
+                        <label class="fin-py-party-opt">
+                            <input type="radio" name="party_type_ui" value="account" id="py_party_account"> حساب آخر
+                        </label>
                     </div>
                 </div>
-                <div id="py-party-customer-wrap" class="fin-py-party-customer" hidden>
+            </div>
+            <div class="fin-py-party-fields sales-inv-meta-row">
+                <div id="py-party-customer-wrap" class="fin-py-party-customer fin-py-party-panel" hidden>
                 <?= customer_picker_field([
                     'id' => 'py_customer',
                     'name' => 'customer_id',
@@ -149,7 +193,7 @@ supplier_picker_enqueue_assets();
                     'manual_bind' => true,
                 ]) ?>
                 </div>
-                <div id="py-party-supplier-wrap" class="fin-py-party-supplier">
+                <div id="py-party-supplier-wrap" class="fin-py-party-supplier fin-py-party-panel">
                 <?= supplier_picker_field([
                     'id' => 'py_supplier',
                     'name' => 'supplier_id',
@@ -159,6 +203,73 @@ supplier_picker_enqueue_assets();
                     'manual_bind' => true,
                 ]) ?>
                 </div>
+                <div id="py-party-employee-wrap" class="fin-py-party-employee fin-py-party-panel" hidden>
+                <?= employee_picker_field([
+                    'id' => 'py_employee',
+                    'name' => 'employee_id',
+                    'label' => 'الموظف *',
+                    'compact' => true,
+                    'wrapper_class' => 'sales-inv-meta-item sales-inv-meta-employee',
+                    'json_id' => 'fin-py-employees-json',
+                    'manual_bind' => true,
+                ]) ?>
+                <div class="sales-inv-meta-item fin-py-meta-employee-kind no-print">
+                    <label>نوع الصرف للموظف *</label>
+                    <div class="fin-py-party-row">
+                        <label class="fin-py-party-opt">
+                            <input type="radio" name="employee_pay_kind_ui" value="advance" id="py_emp_pay_advance" checked> صرف سلفة معتمدة
+                        </label>
+                        <label class="fin-py-party-opt">
+                            <input type="radio" name="employee_pay_kind_ui" value="other" id="py_emp_pay_other"> راتب / التزام آخر
+                        </label>
+                    </div>
+                </div>
+                <div id="py-employee-advance-panel" class="fin-py-employee-advance-panel">
+                    <div class="sales-inv-meta-item fin-py-meta-advance-account">
+                        <label>حساب السلفة المستحقة للصرف</label>
+                        <input class="input input-compact" type="text" id="py_advance_payable_display" readonly
+                               value="<?= esc($advancePayableLabel) ?>" tabindex="-1">
+                    </div>
+                    <div class="fin-py-advances-box">
+                        <div class="fin-py-advances-head">السلف المعتمدة من شؤون الموظفين — للصرف</div>
+                        <div id="py_advances_list" class="fin-py-advances-list">
+                            <p class="fin-py-advances-empty muted">اختر الموظف لعرض السلف المعتمدة غير المُصرفة.</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="py-employee-other-panel" class="fin-py-employee-other-panel" hidden>
+                <div class="sales-inv-meta-item fin-py-meta-employee-offset">
+                    <label for="py_employee_offset">يُصرف إلى حساب *</label>
+                    <select class="input input-compact" id="py_employee_offset">
+                        <option value="">— اختر حساب الالتزام —</option>
+                        <?php foreach ($employeeOtherAccounts as $acc): ?>
+                            <option value="<?= (int) $acc['id'] ?>">
+                                <?= esc((string) ($acc['code'] ?? '') . ' — ' . (string) ($acc['label'] ?? $acc['name_ar'] ?? '')) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div id="py-employee-salary-panel" class="fin-py-employee-salary-panel" hidden>
+                    <div class="fin-py-advances-box">
+                        <div class="fin-py-advances-head">الرواتب المرحّلة من شؤون الموظفين — للصرف</div>
+                        <div id="py_salaries_list" class="fin-py-advances-list">
+                            <p class="fin-py-advances-empty muted">اختر الموظف وحساب «رواتب مستحقة» لعرض الرواتب.</p>
+                        </div>
+                    </div>
+                </div>
+                </div>
+                </div>
+                <div id="py-party-account-wrap" class="fin-py-party-account fin-py-party-panel" hidden>
+                <div class="sales-inv-meta-item sales-inv-meta-offset-account">
+                    <label for="py_account_target_open">الحساب المُصروف إليه *</label>
+                    <?= account_picker_field([
+                        'id' => 'py_account_target',
+                        'placeholder' => 'اضغط لاختيار حساب (خصوم / مصروف)',
+                        'json_id' => 'fin-py-offset-accounts-json',
+                        'manual_bind' => true,
+                    ]) ?>
+                </div>
+                </div>
                 <div class="sales-inv-meta-item fin-py-meta-rep fin-py-party-customer-only" hidden>
                     <label>المندوب</label>
                     <input class="input input-compact" type="text" id="py_sales_rep" readonly placeholder="—" tabindex="-1">
@@ -167,7 +278,10 @@ supplier_picker_enqueue_assets();
             <p class="fin-py-party-hint no-print muted">
                 <strong>مورد:</strong> دفع مستحقات مورد —
                 <strong>عميل:</strong> رد مبلغ للعميل —
-                <strong>يُخصم من:</strong> اختر الصندوق، البنك، أو حساب الشريك (جاري/حصة شريك) حسب شجرتك.
+                <strong>موظف — سلفة:</strong> اختر الموظف ثم السلفة المعتمدة من الشؤون (يُعبَّأ المبلغ تلقائياً) —
+                <strong>موظف — آخر:</strong> صرف راتب أو التزام (رواتب مستحقة، ضمان…) —
+                <strong>حساب آخر:</strong> صرف على حساب خصوم أو مصروف من الشجرة —
+                <strong>يُخصم من:</strong> الصندوق أو البنك أو حساب الشريك.
             </p>
         </header>
             </div>
@@ -222,7 +336,7 @@ supplier_picker_enqueue_assets();
                 <div class="sales-inv-meta-row fin-py-amount-row">
                     <div class="sales-inv-meta-item fin-py-field-cash" id="py_cash_amount_wrap">
                         <label for="py_amount">المبلغ *</label>
-                        <input class="input input-compact" type="text" name="amount" id="py_amount" dir="ltr" placeholder="0.00">
+                        <input class="input input-compact" type="text" name="amount" id="py_amount" dir="ltr" placeholder="0.00" title="يُعبَّأ تلقائياً من شؤون الموظفين عند اختيار سلفة أو راتب">
                     </div>
                     <div class="sales-inv-meta-item fin-py-field-check" id="py_check_fields" hidden>
                         <label for="py_check_amount">قيمة الشيك *</label>

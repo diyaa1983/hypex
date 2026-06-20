@@ -110,6 +110,15 @@ function fin_voucher_ensure_voucher_no_unique_per_type(PDO $pdo): void
     }
 }
 
+function fin_voucher_ensure_payment_party_columns(PDO $pdo): void
+{
+    if (!fin_voucher_has_table($pdo)) {
+        return;
+    }
+    require_once app_path('includes/sql_migration.php');
+    sql_migration_run_file($pdo, 'database/migrations/163_fin_voucher_payment_parties.sql');
+}
+
 function fin_voucher_ensure_schema_full(PDO $pdo): bool
 {
     if (!fin_voucher_ensure_schema($pdo)) {
@@ -118,6 +127,11 @@ function fin_voucher_ensure_schema_full(PDO $pdo): bool
     fin_voucher_ensure_receipt_columns($pdo);
     fin_voucher_ensure_pay_method_bank_enum($pdo);
     fin_voucher_ensure_voucher_no_unique_per_type($pdo);
+    fin_voucher_ensure_payment_party_columns($pdo);
+    require_once app_path('includes/sql_migration.php');
+    sql_migration_run_file($pdo, 'database/migrations/164_hr_advance_disbursement.sql');
+    sql_migration_run_file($pdo, 'database/migrations/165_hr_advance_disbursement_fix.sql');
+    sql_migration_run_file($pdo, 'database/migrations/166_hr_salary_disbursement.sql');
     require_once app_path('includes/sql_migration.php');
     sql_migration_run_file($pdo, 'database/migrations/029_fin_voucher_receipt_ext.sql');
     require_once app_path('includes/fin_voucher_checks.php');
@@ -155,7 +169,16 @@ function crm_ledger_voucher_is_posted(PDO $pdo, int $voucherId): bool
     }
     $vt = (string) ($row['voucher_type'] ?? '');
     if ($vt === 'payment') {
-        if ((string) ($row['party_type'] ?? '') === 'supplier') {
+        $pt = (string) ($row['party_type'] ?? '');
+        if (in_array($pt, ['employee', 'account'], true)) {
+            if (fin_voucher_has_column($pdo, 'is_posted')) {
+                return fin_voucher_is_posted($pdo, $voucherId);
+            }
+            require_once app_path('includes/acc_gl.php');
+
+            return acc_gl_ref_exists($pdo, 'cash_payment', $voucherId);
+        }
+        if ($pt === 'supplier') {
             return crm_supplier_ledger_cash_payment_is_posted($pdo, $voucherId);
         }
 

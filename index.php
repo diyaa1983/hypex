@@ -115,6 +115,11 @@ $appBootMigrations = [
     'database/migrations/160_acc_vat_trust_account.sql',
     'database/migrations/161_report_vat_trust_title.sql',
     'database/migrations/162_fin_checks_manage.sql',
+    'database/migrations/163_fin_voucher_payment_parties.sql',
+    'database/migrations/164_hr_advance_disbursement.sql',
+    'database/migrations/165_hr_advance_disbursement_fix.sql',
+    'database/migrations/166_hr_salary_disbursement.sql',
+    'database/migrations/167_fin_employee_advances_screen.sql',
 ];
 sql_migration_bootstrap_registry($pdo, $appBootMigrations);
 sql_migration_run_files_once($pdo, $appBootMigrations);

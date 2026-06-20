@@ -204,6 +204,12 @@ return [
         'title' => 'شاشة الشيكات',
         'hide_screen_title' => true,
     ],
+    'fin_employee_advances' => [
+        'file' => 'modules/finance/employee_advances.php',
+        'permission' => 'fin_employee_advances',
+        'title' => 'السلف',
+        'hide_screen_title' => true,
+    ],
     'chart_of_accounts' => [
         'file' => 'modules/finance/chart_of_accounts.php',
         'permission' => 'chart_of_accounts',

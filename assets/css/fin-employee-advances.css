@@ -1,0 +1,29 @@
+.fin-emp-adv-page .fin-emp-adv-intro {
+  margin-bottom: 1rem;
+}
+
+.fin-emp-adv-page .fin-emp-adv-summary {
+  margin-bottom: 0.75rem;
+}
+
+.fin-emp-adv-table .fin-emp-adv-empty {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.fin-emp-adv-table .fin-emp-adv-notes {
+  max-width: 14rem;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.fin-emp-adv-col-action {
+  width: 9rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.fin-emp-adv-disburse-btn {
+  font-size: 0.875rem;
+  padding: 0.35rem 0.75rem;
+}

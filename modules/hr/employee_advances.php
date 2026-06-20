@@ -10,6 +10,9 @@ require_once app_path('includes/employee_picker.php');
 $pdo = db();
 hr_employee_advance_ensure_schema($pdo);
 hr_employee_ensure_schema($pdo);
+require_once app_path('includes/hr_employee_advance_gl.php');
+hr_employee_advance_ensure_post_columns($pdo);
+hr_employee_advance_gl_ensure_rule($pdo);
 try {
     $pdo->exec(
         "UPDATE hr_employee_advance
@@ -24,18 +27,42 @@ $listUrl = app_url('index.php?r=hr_employee_advances');
 $editorFormId = 'hr-adv-editor-form';
 $employees = hr_employee_active_list($pdo);
 $pickerEmployees = hr_employee_picker_list($pdo);
+require_once app_path('includes/acc_period_lock.php');
+$monthNames = acc_period_month_names_ar();
 
-$advUrlForEmployee = static function (int $employeeId = 0) use ($listUrl): string {
-    return $employeeId > 0 ? $listUrl . '&employee_id=' . $employeeId : $listUrl;
+$advUrlFor = static function (int $employeeId = 0, int $year = 0, int $month = 0) use ($listUrl): string {
+    $parts = [];
+    if ($employeeId > 0) {
+        $parts[] = 'employee_id=' . $employeeId;
+    }
+    if ($year >= 2000 && $month >= 1 && $month <= 12) {
+        $parts[] = 'year=' . $year;
+        $parts[] = 'month=' . $month;
+    }
+
+    return $parts !== [] ? $listUrl . '&' . implode('&', $parts) : $listUrl;
+};
+
+$advUrlForEmployee = static function (int $employeeId = 0) use ($advUrlFor): string {
+    return $advUrlFor($employeeId, 0, 0);
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
         flash_set('error', 'جلسة غير صالحة، أعد المحاولة.');
-        redirect($advUrlForEmployee((int) ($_POST['filter_employee_id'] ?? 0)));
+        redirect($advUrlFor(
+            (int) ($_POST['filter_employee_id'] ?? 0),
+            (int) ($_POST['filter_year'] ?? 0),
+            (int) ($_POST['filter_month'] ?? 0)
+        ));
     }
     $act = (string) ($_POST['_action'] ?? '');
     $returnEmpId = (int) ($_POST['filter_employee_id'] ?? 0);
+    $returnYear = (int) ($_POST['filter_year'] ?? 0);
+    $returnMonth = (int) ($_POST['filter_month'] ?? 0);
+    $redirectAfter = static function () use ($advUrlFor, $returnEmpId, $returnYear, $returnMonth): void {
+        redirect($advUrlFor($returnEmpId, $returnYear, $returnMonth));
+    };
 
     try {
         if ($act === 'save_one') {
@@ -91,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 flash_set('success', 'تم إضافة السلفة برقم ' . $code . '.');
             }
-            redirect($advUrlForEmployee((int) $parsed['employee_id']));
+            redirect($advUrlFor((int) $parsed['employee_id'], $returnYear, $returnMonth));
         }
 
         if ($act === 'cancel_advance') {
@@ -105,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ->execute([$id]);
                 flash_set('success', 'تم إلغاء السلفة.');
             }
-            redirect($advUrlForEmployee($returnEmpId));
+            $redirectAfter();
         }
 
         if ($act === 'delete') {
@@ -118,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare('DELETE FROM hr_employee_advance WHERE id = ?')->execute([$id]);
                 flash_set('success', 'تم حذف السلفة.');
             }
-            redirect($advUrlForEmployee($returnEmpId));
+            $redirectAfter();
         }
 
         if ($act === 'post_advance') {
@@ -130,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 hr_employee_advance_post($pdo, $id);
                 flash_set('success', 'تم ترحيل السلفة محاسبياً.');
             }
-            redirect($advUrlForEmployee($returnEmpId));
+            $redirectAfter();
         }
 
         if ($act === 'unpost_advance') {
@@ -142,16 +169,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 hr_employee_advance_unpost($pdo, $id);
                 flash_set('success', 'تم فك ترحيل السلفة وإلغاء أثرها المحاسبي.');
             }
-            redirect($advUrlForEmployee($returnEmpId));
+            $redirectAfter();
         }
     } catch (Throwable $e) {
         flash_set('error', $e->getMessage() ?: 'تعذر إتمام العملية.');
-        redirect($advUrlForEmployee($returnEmpId));
+        $redirectAfter();
     }
 }
 
 $flash = flash_get();
 $filterEmpId = (int) ($_GET['employee_id'] ?? 0);
+$filterYear = (int) ($_GET['year'] ?? 0);
+$filterMonth = (int) ($_GET['month'] ?? 0);
+$monthFilterActive = $filterYear >= 2000 && $filterMonth >= 1 && $filterMonth <= 12;
+if (!$monthFilterActive) {
+    $filterYear = 0;
+    $filterMonth = 0;
+}
 $filterEmpCode = '';
 $filterEmpName = '';
 if ($filterEmpId > 0) {
@@ -180,9 +214,15 @@ try {
     $advanceCountByEmp = [];
 }
 $filterAdvanceCount = $filterEmpId > 0 ? (int) ($advanceCountByEmp[$filterEmpId] ?? 0) : 0;
+$filterMonthAdvanceCount = $monthFilterActive
+    ? hr_employee_advances_count_for_period($pdo, $filterYear, $filterMonth, $filterEmpId)
+    : 0;
 
 $advances = [];
-if ($filterEmpId > 0) {
+$monthView = $monthFilterActive;
+if ($monthFilterActive) {
+    $advances = hr_employee_advances_for_period($pdo, $filterYear, $filterMonth, $filterEmpId);
+} elseif ($filterEmpId > 0) {
     $st = $pdo->prepare(
         'SELECT a.id, a.advance_code, a.employee_id, a.advance_type, a.total_amount,
                 a.start_date, a.end_date, a.notes, a.status, a.is_posted,
@@ -212,7 +252,11 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
      data-exit-url="<?= esc($exitUrl) ?>"
      data-editor-form-id="<?= esc($editorFormId) ?>"
      data-next-code="<?= esc($nextCode) ?>"
-     data-filter-employee-id="<?= $filterEmpId ?>">
+     data-filter-employee-id="<?= $filterEmpId ?>"
+     data-filter-year="<?= $filterYear ?>"
+     data-filter-month="<?= $filterMonth ?>"
+     data-month-filter-active="<?= $monthFilterActive ? '1' : '0' ?>"
+     data-filter-month-advance-count="<?= (int) $filterMonthAdvanceCount ?>">
 
     <?php if ($flash): ?>
         <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> hr-adv-grid-flash">
@@ -222,66 +266,121 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
 
     <?php hr_ora_render_title_bar('سلف الموظفين', 'hr_employee_advances'); ?>
 
-    <div class="hr-adv-panel hr-adv-picker-panel">
-        <h2 class="hr-adv-picker-title">اختيار الموظف</h2>
+    <?php
+    $monthShortNames = [
+        1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل',
+        5 => 'مايو', 6 => 'يونيو', 7 => 'يوليو', 8 => 'أغسطس',
+        9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر',
+    ];
+    $displayYear = $monthFilterActive ? $filterYear : (int) date('Y');
+    $displayMonth = $monthFilterActive ? $filterMonth : (int) date('n');
+    $displayAdvanceCount = $monthFilterActive
+        ? (int) $filterMonthAdvanceCount
+        : ($filterEmpId > 0 ? (int) $filterAdvanceCount : 0);
+    ?>
+
+    <div class="hr-adv-panel hr-adv-filter-panel">
+        <h2 class="hr-adv-picker-title">البحث — موظف / شهر</h2>
         <div class="hr-adv-panel-body">
-        <div class="hr-adv-picker-table-wrap">
-            <table class="hr-adv-picker-table">
-                <thead>
-                <tr>
-                    <th>رقم الموظف</th>
-                    <th>اسم الموظف</th>
-                    <th class="hr-adv-picker-th-count">عدد السلف</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr>
-                    <td>
-                        <input type="text" class="input hr-adv-picker-code" id="hr-adv-picker-code"
-                               value="<?= esc($filterEmpCode !== '' ? $filterEmpCode : '—') ?>"
-                               dir="ltr" inputmode="numeric" autocomplete="off" placeholder="رقم">
-                    </td>
-                    <td class="hr-adv-picker-cell-name">
-                        <?= employee_picker_field([
-                            'id' => 'hr-adv-picker-id',
-                            'label' => '',
-                            'compact' => true,
-                            'wrapper_class' => 'hr-adv-picker-slot',
-                            'json_id' => 'hr-adv-picker-json',
-                            'manual_bind' => true,
-                            'value' => $filterEmpId,
-                            'placeholder' => 'اضغط لاختيار الموظف',
-                        ]) ?>
-                        <select class="input hr-adv-filter-select-sr" id="hr-adv-filter-employee" title="اختر موظفاً لعرض سلفه" hidden tabindex="-1" aria-hidden="true">
-                            <option value="" data-emp-code="" data-advance-count="0">— اختر موظفاً —</option>
-                            <?php foreach ($employees as $emp):
-                                $eid = (int) ($emp['id'] ?? 0);
-                                $ecode = trim((string) ($emp['emp_code'] ?? ''));
-                                $ename = (string) ($emp['name_ar'] ?? '');
-                                $ecnt = (int) ($advanceCountByEmp[$eid] ?? 0);
-                            ?>
-                                <option value="<?= $eid ?>"
-                                        data-emp-code="<?= esc($ecode) ?>"
-                                        data-advance-count="<?= $ecnt ?>"
-                                    <?= $filterEmpId === $eid ? 'selected' : '' ?>>
-                                    <?= esc($ename !== '' ? $ename : '—') ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </td>
-                    <td class="hr-adv-picker-td-count" dir="ltr">
-                        <strong id="hr-adv-picker-count"><?= $filterEmpId > 0 ? (int) $filterAdvanceCount : '—' ?></strong>
-                    </td>
-                </tr>
-                </tbody>
-            </table>
-        </div>
-        <p class="hr-adv-picker-help muted">اختر الموظف ليتم عرض سلفه مباشرة.</p>
+            <form method="get" action="<?= esc(app_url('index.php')) ?>" class="hr-adv-filter-form" id="hr-adv-month-filter-form">
+                <input type="hidden" name="r" value="hr_employee_advances">
+                <input type="hidden" name="employee_id" id="hr-adv-month-filter-employee" value="<?= $filterEmpId > 0 ? $filterEmpId : '' ?>">
+                <input type="hidden" name="month" id="hr-adv-filter-month" value="<?= $displayMonth ?>">
+                <div class="hr-adv-picker-table-wrap">
+                    <table class="hr-adv-picker-table hr-adv-filter-table">
+                        <thead>
+                        <tr>
+                            <th class="hr-adv-th-code">رقم الموظف</th>
+                            <th class="hr-adv-th-name">اسم الموظف</th>
+                            <th class="hr-adv-th-period">الشهر / السنة</th>
+                            <th class="hr-adv-picker-th-count">عدد السلف</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td>
+                                <input type="text" class="input hr-adv-picker-code" id="hr-adv-picker-code"
+                                       value="<?= esc($filterEmpCode !== '' ? $filterEmpCode : '—') ?>"
+                                       dir="ltr" inputmode="numeric" autocomplete="off" placeholder="رقم">
+                            </td>
+                            <td class="hr-adv-picker-cell-name">
+                                <?= employee_picker_field([
+                                    'id' => 'hr-adv-picker-id',
+                                    'label' => '',
+                                    'compact' => true,
+                                    'wrapper_class' => 'hr-adv-picker-slot',
+                                    'json_id' => 'hr-adv-picker-json',
+                                    'manual_bind' => true,
+                                    'value' => $filterEmpId,
+                                    'placeholder' => $monthFilterActive && $filterEmpId === 0
+                                        ? '— جميع الموظفين —'
+                                        : 'اختر موظفاً — أو جميع الموظفين',
+                                ]) ?>
+                                <select class="input hr-adv-filter-select-sr" id="hr-adv-filter-employee" title="اختر موظفاً لعرض سلفه" hidden tabindex="-1" aria-hidden="true">
+                                    <option value="" data-emp-code="" data-advance-count="0"<?= !$monthFilterActive && $filterEmpId === 0 ? ' selected' : '' ?>>— اختر موظفاً —</option>
+                                    <option value="0" data-emp-code="" data-advance-count="<?= (int) $filterMonthAdvanceCount ?>"<?= $monthFilterActive && $filterEmpId === 0 ? ' selected' : '' ?>>— جميع الموظفين —</option>
+                                    <?php foreach ($employees as $emp):
+                                        $eid = (int) ($emp['id'] ?? 0);
+                                        $ecode = trim((string) ($emp['emp_code'] ?? ''));
+                                        $ename = (string) ($emp['name_ar'] ?? '');
+                                        $ecnt = (int) ($advanceCountByEmp[$eid] ?? 0);
+                                    ?>
+                                        <option value="<?= $eid ?>"
+                                                data-emp-code="<?= esc($ecode) ?>"
+                                                data-advance-count="<?= $ecnt ?>"
+                                            <?= $filterEmpId === $eid ? 'selected' : '' ?>>
+                                            <?= esc($ename !== '' ? $ename : '—') ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                            <td class="hr-adv-picker-cell-period">
+                                <div class="hr-adv-period-wrap">
+                                    <label class="sr-only" for="hr-adv-filter-year">السنة</label>
+                                    <input class="input hr-adv-year-input" type="number" name="year" id="hr-adv-filter-year"
+                                           min="2000" max="2100" value="<?= $displayYear ?>"
+                                           dir="ltr" required aria-label="السنة">
+                                    <div class="hr-adv-month-strip" role="group" aria-label="اختر الشهر">
+                                        <?php for ($m = 1; $m <= 12; $m++):
+                                            $isSelected = $monthFilterActive && $filterMonth === $m;
+                                        ?>
+                                            <button type="button"
+                                                    class="hr-adv-month-chip<?= $isSelected ? ' is-active' : '' ?>"
+                                                    data-month="<?= $m ?>"
+                                                    title="<?= esc($monthShortNames[$m] ?? (string) $m) ?>"
+                                                    aria-pressed="<?= $isSelected ? 'true' : 'false' ?>">
+                                                <span class="hr-adv-month-chip-num" dir="ltr"><?= sprintf('%02d', $m) ?></span>
+                                                <span class="hr-adv-month-chip-label"><?= esc($monthShortNames[$m] ?? (string) $m) ?></span>
+                                            </button>
+                                        <?php endfor; ?>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="hr-adv-picker-td-count" dir="ltr">
+                                <strong id="hr-adv-picker-count"><?= ($monthFilterActive || $filterEmpId > 0) ? $displayAdvanceCount : '—' ?></strong>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <?php if ($monthFilterActive): ?>
+                    <p class="hr-adv-filter-summary muted">
+                        عرض
+                        <strong dir="ltr"><?= (int) $filterMonthAdvanceCount ?></strong>
+                        سلفة —
+                        <strong><?= esc(($monthNames[$filterMonth] ?? (string) $filterMonth) . ' / ' . (string) $filterYear) ?></strong>
+                        <?= $filterEmpId > 0 ? (' — ' . esc($filterEmpName)) : ' — جميع الموظفين' ?>
+                        <a class="hr-adv-filter-clear" href="<?= esc($advUrlFor($filterEmpId, 0, 0)) ?>">إلغاء فلتر الشهر</a>
+                    </p>
+                <?php else: ?>
+                    <p class="hr-adv-picker-help muted">اختر موظفاً أو <strong>جميع الموظفين</strong>، و/أو اضغط شهراً من الشريط لعرض السلف.</p>
+                <?php endif; ?>
+            </form>
         </div>
     </div>
 
     <div class="dashboard-ora-toolbar hr-adv-toolbar">
-        <button type="button" class="btn btn-primary btn-sm" id="hr-adv-btn-add"<?= $filterEmpId < 1 ? ' disabled' : '' ?>>إضافة سلفة</button>
+        <button type="button" class="btn btn-primary btn-sm" id="hr-adv-btn-add"<?= ($filterEmpId < 1 && !$monthFilterActive) ? ' disabled' : '' ?>>إضافة سلفة</button>
         <button type="button" class="btn btn-secondary btn-sm" id="hr-adv-btn-edit" disabled>تعديل</button>
         <button type="button" class="btn btn-danger btn-sm" id="hr-adv-btn-delete" disabled>حذف السلفة</button>
     </div>
@@ -297,6 +396,8 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
             <input type="hidden" name="_action" value="save_one">
             <input type="hidden" name="id" id="hr-adv-editor-id" value="0">
             <input type="hidden" name="filter_employee_id" id="hr-adv-filter-employee-id" value="<?= $filterEmpId ?>">
+            <input type="hidden" name="filter_year" id="hr-adv-filter-year-hidden" value="<?= $filterYear ?>">
+            <input type="hidden" name="filter_month" id="hr-adv-filter-month-hidden" value="<?= $filterMonth ?>">
 
             <table class="hr-adv-editor-table">
                 <tbody>
@@ -377,11 +478,22 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
     </div>
 
     <div class="hr-adv-panel hr-adv-grid-panel">
-        <h2 class="hr-adv-grid-title">سلف الموظف</h2>
+        <h2 class="hr-adv-grid-title">
+            <?php if ($monthFilterActive): ?>
+                سلف شهر <?= esc(($monthNames[$filterMonth] ?? (string) $filterMonth) . ' / ' . (string) $filterYear) ?>
+                <?= $filterEmpId > 0 ? '— ' . esc($filterEmpName) : '— جميع الموظفين' ?>
+            <?php else: ?>
+                سلف الموظف
+            <?php endif; ?>
+        </h2>
         <div class="hr-adv-panel-body hr-adv-grid-wrap">
         <table class="hr-adv-grid-table">
             <thead>
             <tr>
+                <?php if ($monthView): ?>
+                    <th>رقم الموظف</th>
+                    <th>اسم الموظف</th>
+                <?php endif; ?>
                 <th>رقم السلفة</th>
                 <th>النوع</th>
                 <th>المبلغ</th>
@@ -392,13 +504,19 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
             </tr>
             </thead>
             <tbody id="hr-adv-grid-body">
-            <?php if ($filterEmpId < 1): ?>
+            <?php
+            $emptyColspan = $monthView ? 9 : 7;
+            if (!$monthFilterActive && $filterEmpId < 1): ?>
                 <tr class="hr-adv-row hr-adv-row--empty">
-                    <td colspan="7" class="muted">اختر موظفاً من القائمة أعلاه لعرض سلفه.</td>
+                    <td colspan="<?= $emptyColspan ?>" class="muted">اختر موظفاً أو شهراً من الفلاتر أعلاه لعرض السلف.</td>
                 </tr>
             <?php elseif (!$advances): ?>
                 <tr class="hr-adv-row hr-adv-row--empty">
-                    <td colspan="7" class="muted">لا توجد سلف لهذا الموظف — اضغط «إضافة سلفة».</td>
+                    <td colspan="<?= $emptyColspan ?>" class="muted">
+                        <?= $monthFilterActive
+                            ? 'لا توجد سلف في هذا الشهر' . ($filterEmpId > 0 ? ' لهذا الموظف' : '') . '.'
+                            : 'لا توجد سلف لهذا الموظف — اضغط «إضافة سلفة».' ?>
+                    </td>
                 </tr>
             <?php endif; ?>
             <?php foreach ($advances as $a):
@@ -436,6 +554,10 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
                     data-edit-msg="<?= esc((string) ($editChk['message'] ?? '')) ?>"
                     data-unpost-msg="<?= esc((string) ($unpostChk['message'] ?? '')) ?>"
                     tabindex="0">
+                    <?php if ($monthView): ?>
+                        <td dir="ltr"><?= esc((string) ($a['emp_code'] ?? '—')) ?></td>
+                        <td><?= esc((string) ($a['emp_name'] ?? '—')) ?></td>
+                    <?php endif; ?>
                     <td dir="ltr"><?= esc($advanceCode) ?></td>
                     <td><?= esc(hr_employee_advance_type_label($type)) ?></td>
                     <td dir="ltr" class="num"><?= esc(format_money((float) ($a['total_amount'] ?? 0))) ?></td>
@@ -454,18 +576,24 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="_action" value="delete">
         <input type="hidden" name="filter_employee_id" id="hr-adv-delete-filter-employee-id" value="<?= $filterEmpId ?>">
+        <input type="hidden" name="filter_year" value="<?= $filterYear ?>">
+        <input type="hidden" name="filter_month" value="<?= $filterMonth ?>">
         <input type="hidden" name="id" id="hr-adv-delete-id" value="0">
     </form>
     <form method="post" action="<?= esc($listUrl) ?>" id="hr-adv-post-form" class="sr-only" aria-hidden="true">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="_action" value="post_advance">
         <input type="hidden" name="filter_employee_id" id="hr-adv-post-filter-employee-id" value="<?= $filterEmpId ?>">
+        <input type="hidden" name="filter_year" value="<?= $filterYear ?>">
+        <input type="hidden" name="filter_month" value="<?= $filterMonth ?>">
         <input type="hidden" name="id" id="hr-adv-post-id" value="0">
     </form>
     <form method="post" action="<?= esc($listUrl) ?>" id="hr-adv-unpost-form" class="sr-only" aria-hidden="true">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="_action" value="unpost_advance">
         <input type="hidden" name="filter_employee_id" id="hr-adv-unpost-filter-employee-id" value="<?= $filterEmpId ?>">
+        <input type="hidden" name="filter_year" value="<?= $filterYear ?>">
+        <input type="hidden" name="filter_month" value="<?= $filterMonth ?>">
         <input type="hidden" name="id" id="hr-adv-unpost-id" value="0">
     </form>
 </div>

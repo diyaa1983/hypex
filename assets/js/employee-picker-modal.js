@@ -154,6 +154,14 @@
 
   function findEmployee(binding, id) {
     var n = parseInt(id, 10);
+    if (binding.allowAll && (n === 0 || id === 0 || id === '0')) {
+      return {
+        id: 0,
+        name_ar: binding.allLabel || '— جميع الموظفين —',
+        label: binding.allLabel || '— جميع الموظفين —',
+        code: '',
+      };
+    }
     if (binding.allowNew && n === 0) {
       return {
         id: 0,
@@ -233,6 +241,20 @@
       return employeeMatches(emp, needle);
     });
     results.innerHTML = '';
+    if (binding.allowAll && (!needle || norm(binding.allLabel).indexOf(needle) >= 0 || norm('جميع الموظفين').indexOf(needle) >= 0)) {
+      var allBtn = document.createElement('button');
+      allBtn.type = 'button';
+      allBtn.className = 'sales-inv-pick-item sales-inv-cust-pick-item sales-inv-cust-pick-item--all';
+      allBtn.setAttribute('data-employee-id', '0');
+      allBtn.innerHTML =
+        '<div class="sales-inv-pick-item-body"><span class="sales-inv-pick-item-name">' +
+        escapeHtml(binding.allLabel) +
+        '</span></div>';
+      allBtn.addEventListener('click', function () {
+        setSelection(binding, findEmployee(binding, 0));
+      });
+      results.appendChild(allBtn);
+    }
     if (binding.allowNew && (!needle || norm(binding.newLabel).indexOf(needle) >= 0)) {
       var newBtn = document.createElement('button');
       newBtn.type = 'button';
@@ -352,6 +374,8 @@
       byId: byId,
       jsonId: opts.jsonId || '',
       placeholder: opts.placeholder || 'اضغط لاختيار الموظف',
+      allowAll: !!opts.allowAll,
+      allLabel: opts.allLabel || '— جميع الموظفين —',
       allowNew: !!opts.allowNew,
       newLabel: opts.newLabel || '— موظف جديد —',
       maxResults: parseInt(opts.maxResults, 10) || 120,

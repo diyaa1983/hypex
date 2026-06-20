@@ -5,6 +5,7 @@ require_once app_path('includes/acc_gl.php');
 
 const HR_EMPLOYEE_ADVANCE_GL_REF_TYPE = 'hr_employee_advance';
 const HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE = 'hr_employee_advance_receivable';
+const HR_EMPLOYEE_ADVANCE_PAYABLE_RULE = 'hr_employee_advance_payable';
 
 function hr_employee_advance_gl_ensure_rule(PDO $pdo): void
 {
@@ -14,10 +15,23 @@ function hr_employee_advance_gl_ensure_rule(PDO $pdo): void
 
     try {
         require_once app_path('includes/sql_migration.php');
-        sql_migration_run_file($pdo, 'database/migrations/154_hr_employee_advance_posting.sql');
+        sql_migration_run_file_once($pdo, 'database/migrations/154_hr_employee_advance_posting.sql');
+        sql_migration_run_file_once($pdo, 'database/migrations/164_hr_advance_disbursement.sql');
+        sql_migration_run_file_once($pdo, 'database/migrations/165_hr_advance_disbursement_fix.sql');
     } catch (Throwable $e) {
         // ignored
     }
+}
+
+function hr_employee_advance_payable_account_id(PDO $pdo): int
+{
+    hr_employee_advance_gl_ensure_rule($pdo);
+    if (!acc_gl_is_ready($pdo)) {
+        return 0;
+    }
+    $settings = acc_gl_load_settings($pdo);
+
+    return (int) ($settings[HR_EMPLOYEE_ADVANCE_PAYABLE_RULE]['account_id'] ?? 0);
 }
 
 /**
@@ -35,8 +49,6 @@ function hr_employee_advance_gl_post(PDO $pdo, int $advanceId, array $advance): 
     if (!acc_gl_is_ready($pdo)) {
         return ['ok' => true, 'skipped' => true, 'error' => null];
     }
-
-    hr_employee_advance_gl_ensure_rule($pdo);
 
     return acc_gl_wrap_post(static function () use ($pdo, $advanceId, $advance): void {
         $amount = round((float) ($advance['total_amount'] ?? 0), 3);
@@ -62,7 +74,7 @@ function hr_employee_advance_gl_post(PDO $pdo, int $advanceId, array $advance): 
             HR_EMPLOYEE_ADVANCE_GL_REF_TYPE,
             $advanceId,
             $entryDate,
-            'ترحيل سلفة موظف ' . $code . ' — ' . $empLabel . ' — ' . acc_gl_money_text($amount),
+            'ترحيل سلفة باسم ' . $empLabel . ' — رقم ' . $code . ' — ' . acc_gl_money_text($amount),
             [
                 [
                     'rule' => HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE,
@@ -71,10 +83,10 @@ function hr_employee_advance_gl_post(PDO $pdo, int $advanceId, array $advance): 
                     'memo' => 'ذمة سلفة على الموظف',
                 ],
                 [
-                    'rule' => 'cash',
+                    'rule' => HR_EMPLOYEE_ADVANCE_PAYABLE_RULE,
                     'debit' => 0,
                     'credit' => $amount,
-                    'memo' => 'صرف سلفة للموظف',
+                    'memo' => 'سلفة معتمدة — مستحقة الصرف من المحاسبة',
                 ],
             ]
         );

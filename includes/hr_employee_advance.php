@@ -22,9 +22,23 @@ function hr_employee_advance_ensure_post_columns(PDO $pdo): void
 
     try {
         require_once app_path('includes/sql_migration.php');
-        sql_migration_run_file($pdo, 'database/migrations/154_hr_employee_advance_posting.sql');
+        sql_migration_run_file_once($pdo, 'database/migrations/154_hr_employee_advance_posting.sql');
+        sql_migration_run_file_once($pdo, 'database/migrations/164_hr_advance_disbursement.sql');
+        sql_migration_run_file_once($pdo, 'database/migrations/165_hr_advance_disbursement_fix.sql');
     } catch (Throwable $e) {
         // ignored
+    }
+}
+
+function hr_employee_advance_disbursement_columns_ready(PDO $pdo): bool
+{
+    hr_employee_advance_ensure_post_columns($pdo);
+    try {
+        $st = $pdo->query("SHOW COLUMNS FROM hr_employee_advance LIKE 'is_disbursed'");
+
+        return (bool) $st->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return false;
     }
 }
 
@@ -378,6 +392,20 @@ function hr_employee_advance_delete_check(PDO $pdo, int $advanceId): array
                 'message' => 'لا يمكن حذف السلفة بعد اقتطاعها من راتب موظف.',
             ];
         }
+
+        if (hr_employee_advance_disbursement_columns_ready($pdo)) {
+            $stV = $pdo->prepare(
+                'SELECT disbursement_voucher_id FROM hr_employee_advance WHERE id = ? LIMIT 1'
+            );
+            $stV->execute([$advanceId]);
+            $linkedVoucherId = (int) $stV->fetchColumn();
+            if ($linkedVoucherId > 0) {
+                return [
+                    'can_delete' => false,
+                    'message' => 'لا يمكن حذف السلفة: مرتبطة بسند صرف من المحاسبة.',
+                ];
+            }
+        }
     } catch (Throwable $e) {
         // ignored
     }
@@ -420,6 +448,24 @@ function hr_employee_advance_unpost_check(PDO $pdo, int $advanceId): array
         // ignored
     }
 
+    if (hr_employee_advance_disbursement_columns_ready($pdo)) {
+        try {
+            $st = $pdo->prepare(
+                'SELECT disbursement_voucher_id FROM hr_employee_advance WHERE id = ? LIMIT 1'
+            );
+            $st->execute([$advanceId]);
+            $linkedVoucherId = (int) $st->fetchColumn();
+            if ($linkedVoucherId > 0) {
+                return [
+                    'can_unpost' => false,
+                    'message' => 'لا يمكن فك ترحيل السلفة: مرتبطة بسند صرف من المحاسبة (#' . $linkedVoucherId . ').',
+                ];
+            }
+        } catch (Throwable $e) {
+            // ignored
+        }
+    }
+
     return ['can_unpost' => true, 'message' => ''];
 }
 
@@ -452,6 +498,9 @@ function hr_employee_advance_post(PDO $pdo, int $advanceId): void
 {
     require_once app_path('includes/hr_employee_advance_gl.php');
 
+    hr_employee_advance_ensure_post_columns($pdo);
+    hr_employee_advance_gl_ensure_rule($pdo);
+
     $advance = hr_employee_advance_load($pdo, $advanceId);
     if (!$advance) {
         throw new RuntimeException('السلفة غير موجودة.');
@@ -470,6 +519,18 @@ function hr_employee_advance_post(PDO $pdo, int $advanceId): void
         'end_date' => (string) ($advance['end_date'] ?? ''),
     ]);
 
+    if (acc_gl_is_ready($pdo)) {
+        $settings = acc_gl_load_settings($pdo);
+        $recvId = (int) ($settings[HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE]['account_id'] ?? 0);
+        $payId = (int) ($settings[HR_EMPLOYEE_ADVANCE_PAYABLE_RULE]['account_id'] ?? 0);
+        if ($recvId < 1) {
+            throw new RuntimeException('حساب «ذمة سلف الموظفين» غير مربوط في إعدادات الترحيل.');
+        }
+        if ($payId < 1) {
+            throw new RuntimeException('حساب «سلف موظفين مستحقة الصرف» غير مربوط. راجع ربط الحسابات أو نفّذ ترحيل قاعدة البيانات.');
+        }
+    }
+
     $pdo->beginTransaction();
     try {
         $gl = hr_employee_advance_gl_post($pdo, $advanceId, $advance);
@@ -482,7 +543,9 @@ function hr_employee_advance_post(PDO $pdo, int $advanceId): void
             'UPDATE hr_employee_advance SET is_posted = 1, posted_at = NOW(), posted_by = ? WHERE id = ?'
         )->execute([$uid, $advanceId]);
 
-        $pdo->commit();
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -494,6 +557,9 @@ function hr_employee_advance_post(PDO $pdo, int $advanceId): void
 function hr_employee_advance_unpost(PDO $pdo, int $advanceId): void
 {
     require_once app_path('includes/hr_employee_advance_gl.php');
+
+    hr_employee_advance_ensure_post_columns($pdo);
+    hr_employee_advance_gl_ensure_rule($pdo);
 
     $unpostCheck = hr_employee_advance_unpost_check($pdo, $advanceId);
     if (!$unpostCheck['can_unpost']) {
@@ -511,7 +577,9 @@ function hr_employee_advance_unpost(PDO $pdo, int $advanceId): void
             'UPDATE hr_employee_advance SET is_posted = 0, posted_at = NULL, posted_by = NULL WHERE id = ?'
         )->execute([$advanceId]);
 
-        $pdo->commit();
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -862,4 +930,257 @@ function hr_employee_advance_resync_after_salary_month_deleted(PDO $pdo, array $
             hr_employee_advance_sync_status($pdo, (int) $aid);
         }
     }
+}
+
+/** @return list<array<string, mixed>> */
+function hr_employee_advances_for_period(PDO $pdo, int $year, int $month, int $employeeId = 0): array
+{
+    if ($year < 2000 || $month < 1 || $month > 12) {
+        return [];
+    }
+    hr_employee_advance_ensure_schema($pdo);
+    hr_employee_advance_ensure_post_columns($pdo);
+
+    $monthPad = str_pad((string) $month, 2, '0', STR_PAD_LEFT);
+    $params = [$year, $month, $year, $monthPad, $year, $monthPad];
+    $empFilter = '';
+    if ($employeeId > 0) {
+        $empFilter = ' AND a.employee_id = ?';
+        $params[] = $employeeId;
+    }
+
+    try {
+        $st = $pdo->prepare(
+            'SELECT a.id, a.advance_code, a.employee_id, a.advance_type, a.total_amount,
+                    a.start_date, a.end_date, a.notes, a.status, a.is_posted,
+                    e.emp_code, e.name_ar AS emp_name
+             FROM hr_employee_advance a
+             INNER JOIN hr_employee e ON e.id = a.employee_id
+             WHERE a.start_date IS NOT NULL
+               AND (
+                 (COALESCE(a.advance_type, \'once\') = \'once\'
+                  AND YEAR(a.start_date) = ? AND MONTH(a.start_date) = ?)
+                 OR (
+                   a.advance_type = \'long\'
+                   AND a.end_date IS NOT NULL
+                   AND a.start_date <= LAST_DAY(CONCAT(?, \'-\', ?, \'-01\'))
+                   AND a.end_date >= CONCAT(?, \'-\', ?, \'-01\')
+                 )
+               )'
+            . $empFilter
+            . ' ORDER BY e.name_ar ASC, CAST(a.advance_code AS UNSIGNED) ASC, a.id DESC'
+        );
+        $st->execute($params);
+
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function hr_employee_advances_count_for_period(PDO $pdo, int $year, int $month, int $employeeId = 0): int
+{
+    return count(hr_employee_advances_for_period($pdo, $year, $month, $employeeId));
+}
+
+/** @return list<array<string, mixed>> */
+function hr_employee_advances_pending_disbursement(PDO $pdo, int $employeeId): array
+{
+    if ($employeeId < 1) {
+        return [];
+    }
+    hr_employee_advance_ensure_post_columns($pdo);
+    if (!hr_employee_advance_post_columns_ready($pdo)) {
+        return [];
+    }
+
+    $disbursedFilter = hr_employee_advance_disbursement_columns_ready($pdo)
+        ? ' AND (a.disbursement_voucher_id IS NULL OR a.disbursement_voucher_id = 0)'
+        : '';
+
+    try {
+        $st = $pdo->prepare(
+            'SELECT a.id, a.advance_code, a.advance_type, a.total_amount, a.start_date, a.end_date, a.notes
+             FROM hr_employee_advance a
+             WHERE a.employee_id = ?
+               AND COALESCE(a.is_posted, 0) = 1'
+            . $disbursedFilter
+            . " AND COALESCE(NULLIF(TRIM(a.status), ''), 'active') <> 'cancelled'
+             ORDER BY a.start_date ASC, a.id ASC"
+        );
+        $st->execute([$employeeId]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $out = [];
+        foreach ($rows as $row) {
+            $startIso = (string) ($row['start_date'] ?? '');
+            $endIso = (string) ($row['end_date'] ?? '');
+            $periodLabel = $startIso;
+            if ($endIso !== '' && $endIso !== $startIso) {
+                $periodLabel = $startIso . ' → ' . $endIso;
+            }
+            if ($startIso !== '' && preg_match('/^(\d{4})-(\d{2})/', $startIso, $m)) {
+                $periodLabel = 'شهر ' . (int) $m[2] . ' / ' . $m[1]
+                    . ($endIso !== '' && $endIso !== $startIso ? ' (أقساط)' : '');
+            }
+            $out[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'advance_code' => (string) ($row['advance_code'] ?? ''),
+                'advance_type' => (string) ($row['advance_type'] ?? ''),
+                'advance_type_label' => hr_employee_advance_type_label((string) ($row['advance_type'] ?? '')),
+                'total_amount' => round((float) ($row['total_amount'] ?? 0), 3),
+                'start_date' => $startIso,
+                'end_date' => $endIso,
+                'period_label' => $periodLabel,
+                'notes' => (string) ($row['notes'] ?? ''),
+            ];
+        }
+
+        return $out;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/** @return list<array<string, mixed>> */
+function hr_employee_advances_pending_disbursement_all(PDO $pdo): array
+{
+    hr_employee_advance_ensure_post_columns($pdo);
+    if (!hr_employee_advance_post_columns_ready($pdo)) {
+        return [];
+    }
+
+    $disbursedFilter = hr_employee_advance_disbursement_columns_ready($pdo)
+        ? ' AND (a.disbursement_voucher_id IS NULL OR a.disbursement_voucher_id = 0)'
+        : '';
+
+    try {
+        $st = $pdo->query(
+            'SELECT a.id, a.advance_code, a.advance_type, a.total_amount, a.start_date, a.end_date, a.notes,
+                    a.posted_at, a.employee_id, e.emp_code, e.name_ar AS emp_name
+             FROM hr_employee_advance a
+             INNER JOIN hr_employee e ON e.id = a.employee_id
+             WHERE COALESCE(a.is_posted, 0) = 1'
+            . $disbursedFilter
+            . " AND COALESCE(NULLIF(TRIM(a.status), ''), 'active') <> 'cancelled'
+             ORDER BY COALESCE(a.posted_at, a.created_at) DESC, a.id DESC"
+        );
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $out = [];
+        foreach ($rows as $row) {
+            $startIso = (string) ($row['start_date'] ?? '');
+            $endIso = (string) ($row['end_date'] ?? '');
+            $periodLabel = $startIso;
+            if ($endIso !== '' && $endIso !== $startIso) {
+                $periodLabel = $startIso . ' → ' . $endIso;
+            }
+            if ($startIso !== '' && preg_match('/^(\d{4})-(\d{2})/', $startIso, $m)) {
+                $periodLabel = 'شهر ' . (int) $m[2] . ' / ' . $m[1]
+                    . ($endIso !== '' && $endIso !== $startIso ? ' (أقساط)' : '');
+            }
+            $out[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'employee_id' => (int) ($row['employee_id'] ?? 0),
+                'emp_code' => (string) ($row['emp_code'] ?? ''),
+                'emp_name' => (string) ($row['emp_name'] ?? ''),
+                'advance_code' => (string) ($row['advance_code'] ?? ''),
+                'advance_type' => (string) ($row['advance_type'] ?? ''),
+                'advance_type_label' => hr_employee_advance_type_label((string) ($row['advance_type'] ?? '')),
+                'total_amount' => round((float) ($row['total_amount'] ?? 0), 3),
+                'start_date' => $startIso,
+                'end_date' => $endIso,
+                'period_label' => $periodLabel,
+                'posted_at' => (string) ($row['posted_at'] ?? ''),
+                'notes' => (string) ($row['notes'] ?? ''),
+            ];
+        }
+
+        return $out;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function hr_employee_advance_validate_for_disbursement(
+    PDO $pdo,
+    int $advanceId,
+    int $employeeId,
+    float $amount,
+    int $exceptVoucherId = 0
+): ?string {
+    if ($advanceId < 1) {
+        return 'اختر السلفة المعتمدة للصرف.';
+    }
+    $advance = hr_employee_advance_load($pdo, $advanceId);
+    if (!$advance) {
+        return 'السلفة غير موجودة.';
+    }
+    if ((int) ($advance['employee_id'] ?? 0) !== $employeeId) {
+        return 'السلفة لا تخص الموظف المختار.';
+    }
+    if ((int) ($advance['is_posted'] ?? 0) !== 1) {
+        return 'السلفة غير مرحّلة من شؤون الموظفين بعد.';
+    }
+    if ((string) ($advance['status'] ?? '') === 'cancelled') {
+        return 'السلفة ملغاة.';
+    }
+    if (hr_employee_advance_disbursement_columns_ready($pdo)) {
+        $linkedVoucherId = (int) ($advance['disbursement_voucher_id'] ?? 0);
+        if ($linkedVoucherId > 0 && $linkedVoucherId !== $exceptVoucherId) {
+            return 'تم ربط هذه السلفة بسند صرف آخر من المحاسبة.';
+        }
+    }
+    $expected = round((float) ($advance['total_amount'] ?? 0), 3);
+    if ($expected <= 0.0005) {
+        return 'مبلغ السلفة غير صالح.';
+    }
+    if (abs($amount - $expected) > 0.009) {
+        return 'مبلغ سند الصرف يجب أن يساوي مبلغ السلفة (' . number_format($expected, 3) . ').';
+    }
+
+    return null;
+}
+
+function hr_employee_advance_assign_voucher(PDO $pdo, int $advanceId, int $voucherId): void
+{
+    if (!hr_employee_advance_disbursement_columns_ready($pdo)) {
+        return;
+    }
+    if ($voucherId > 0) {
+        $pdo->prepare(
+            'UPDATE hr_employee_advance
+             SET disbursement_voucher_id = NULL
+             WHERE disbursement_voucher_id = ? AND id <> ?'
+        )->execute([$voucherId, $advanceId > 0 ? $advanceId : 0]);
+    }
+    if ($advanceId > 0 && $voucherId > 0) {
+        $pdo->prepare(
+            'UPDATE hr_employee_advance
+             SET disbursement_voucher_id = ?
+             WHERE id = ?'
+        )->execute([$voucherId, $advanceId]);
+    }
+}
+
+function hr_employee_advance_mark_disbursed(PDO $pdo, int $advanceId, int $voucherId): void
+{
+    if ($advanceId < 1 || $voucherId < 1 || !hr_employee_advance_disbursement_columns_ready($pdo)) {
+        return;
+    }
+    $pdo->prepare(
+        'UPDATE hr_employee_advance
+         SET is_disbursed = 1, disbursed_at = NOW(), disbursement_voucher_id = ?
+         WHERE id = ?'
+    )->execute([$voucherId, $advanceId]);
+}
+
+function hr_employee_advance_clear_disbursement_by_voucher(PDO $pdo, int $voucherId): void
+{
+    if ($voucherId < 1 || !hr_employee_advance_disbursement_columns_ready($pdo)) {
+        return;
+    }
+    $pdo->prepare(
+        'UPDATE hr_employee_advance
+         SET is_disbursed = 0, disbursed_at = NULL, disbursement_voucher_id = NULL
+         WHERE disbursement_voucher_id = ?'
+    )->execute([$voucherId]);
 }

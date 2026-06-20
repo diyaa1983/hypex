@@ -150,6 +150,15 @@ function fin_voucher_unpost_by_id(PDO $pdo, int $voucherId, string $type): array
         return $out;
     }
 
+    if ($type === 'payment' && fin_voucher_has_column($pdo, 'hr_advance_id')) {
+        require_once app_path('includes/hr_employee_advance.php');
+        hr_employee_advance_clear_disbursement_by_voucher($pdo, $voucherId);
+    }
+    if ($type === 'payment' && fin_voucher_has_column($pdo, 'hr_salary_id')) {
+        require_once app_path('includes/hr_salary.php');
+        hr_salary_clear_disbursement_by_voucher($pdo, $voucherId);
+    }
+
     if (fin_voucher_has_column($pdo, 'is_posted')) {
         $pdo->prepare('UPDATE fin_voucher SET is_posted = 0, posted_at = NULL WHERE id = ? AND voucher_type = ?')
             ->execute([$voucherId, $type]);

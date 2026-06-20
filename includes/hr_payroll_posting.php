@@ -1585,6 +1585,15 @@ function hr_payroll_unpost_month(PDO $pdo, int $year, int $month): array
 
     hr_payroll_validate_period($year, $month);
 
+    require_once app_path('includes/hr_salary.php');
+    if (hr_salary_month_has_disbursement($pdo, $year, $month)) {
+        throw new RuntimeException(
+            'لا يمكن فك ترحيل '
+            . hr_payroll_period_label($year, $month)
+            . ': وُجد صرف رواتب من المحاسبة لموظفين في هذا الشهر.'
+        );
+    }
+
     $max = hr_payroll_max_posted_period($pdo);
 
     if (!hr_payroll_can_unpost_month($pdo, $year, $month)) {

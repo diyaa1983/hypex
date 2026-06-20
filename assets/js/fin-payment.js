@@ -7,6 +7,10 @@
   if (!form) return;
 
   var apiVoucherUrl = form.getAttribute('data-api-voucher') || '';
+  var apiEmployeeAdvancesUrl = form.getAttribute('data-api-employee-advances') || '';
+  var apiEmployeeSalariesUrl = form.getAttribute('data-api-employee-salaries') || '';
+  var salariesPayableAccountId =
+    parseInt(form.getAttribute('data-salaries-payable-account-id') || '0', 10) || 0;
   var voucherPostUrl = form.getAttribute('data-voucher-post-url') || '';
   var voucherUnpostUrl = form.getAttribute('data-voucher-unpost-url') || '';
   var voucherDeleteUrl = form.getAttribute('data-voucher-delete-url') || '';
@@ -70,6 +74,17 @@
     return form.closest('.fin-py-wrap') || form;
   }
 
+  function setPanelVisible(el, visible) {
+    if (!el) return;
+    if (visible) {
+      el.hidden = false;
+      el.style.display = el.classList.contains('fin-py-party-panel') ? 'flex' : '';
+    } else {
+      el.hidden = true;
+      el.style.display = 'none';
+    }
+  }
+
   function syncPayMethodUi() {
     var isCheck = getPayMethod() === 'check';
     var wrap = getRcWrap();
@@ -106,6 +121,7 @@
       }
     }
     suggestCashAccountForPayMethod();
+    syncEmployeeAmountLock();
   }
 
   function suggestCashAccountForPayMethod() {
@@ -135,17 +151,30 @@
 
   var pyCustomerPickerApi = null;
   var pySupplierPickerApi = null;
+  var pyEmployeePickerApi = null;
+  var pyAccountPickerApi = null;
+  var pendingEmployeeAdvances = [];
+  var pendingEmployeeSalaries = [];
+  var selectedHrAdvanceId = 0;
+  var selectedHrSalaryId = 0;
+  var employeeLockedAmount = null;
+  var advancePayableAccountId = 0;
+
+  var PARTY_TYPES = ['supplier', 'customer', 'employee', 'account'];
+
+  function normalizePartyType(pt) {
+    return PARTY_TYPES.indexOf(pt) >= 0 ? pt : 'supplier';
+  }
 
   function getPartyType() {
     var hidden = document.getElementById('py_party_type');
-    if (hidden && hidden.value === 'customer') return 'customer';
+    if (hidden && PARTY_TYPES.indexOf(hidden.value) >= 0) return hidden.value;
     var r = form.querySelector('input[name="party_type_ui"]:checked');
-    if (r && r.value === 'customer') return 'customer';
-    return 'supplier';
+    return normalizePartyType(r ? r.value : 'supplier');
   }
 
   function setPartyType(pt) {
-    var type = pt === 'customer' ? 'customer' : 'supplier';
+    var type = normalizePartyType(pt);
     var hidden = document.getElementById('py_party_type');
     if (hidden) hidden.value = type;
     var radios = form.querySelectorAll('input[name="party_type_ui"]');
@@ -155,19 +184,415 @@
     syncPartyTypeUi();
   }
 
+  function getEmployeePayKind() {
+    var hidden = document.getElementById('py_employee_pay_kind');
+    if (hidden && hidden.value === 'other') return 'other';
+    var r = form.querySelector('input[name="employee_pay_kind_ui"]:checked');
+    return r && r.value === 'other' ? 'other' : 'advance';
+  }
+
+  function setEmployeePayKind(kind) {
+    var type = kind === 'other' ? 'other' : 'advance';
+    var hidden = document.getElementById('py_employee_pay_kind');
+    if (hidden) hidden.value = type;
+    var radios = form.querySelectorAll('input[name="employee_pay_kind_ui"]');
+    radios.forEach(function (radio) {
+      radio.checked = radio.value === type;
+    });
+    syncEmployeePayKindUi();
+  }
+
+  function syncEmployeePayKindUi() {
+    var kind = getEmployeePayKind();
+    var advPanel = document.getElementById('py-employee-advance-panel');
+    var otherPanel = document.getElementById('py-employee-other-panel');
+    setPanelVisible(advPanel, kind === 'advance');
+    setPanelVisible(otherPanel, kind === 'other');
+    var wrap = getRcWrap();
+    if (wrap) {
+      wrap.classList.toggle('fin-py-emp-pay-is-advance', kind === 'advance');
+      wrap.classList.toggle('fin-py-emp-pay-is-other', kind === 'other');
+    }
+    syncOffsetAccountField();
+    syncEmployeeSalaryPanel();
+    syncEmployeeAmountLock();
+  }
+
+  function isSalariesPayableOffsetSelected() {
+    if (salariesPayableAccountId < 1) return false;
+    var empOff = document.getElementById('py_employee_offset');
+    return empOff && parseInt(empOff.value, 10) === salariesPayableAccountId;
+  }
+
+  function syncEmployeeSalaryPanel() {
+    var panel = document.getElementById('py-employee-salary-panel');
+    var show =
+      getPartyType() === 'employee' &&
+      getEmployeePayKind() === 'other' &&
+      isSalariesPayableOffsetSelected();
+    setPanelVisible(panel, show);
+    if (!show) {
+      selectedHrSalaryId = 0;
+      syncHrSalaryHidden();
+      if (getEmployeePayKind() === 'other' && !isSalariesPayableOffsetSelected()) {
+        employeeLockedAmount = null;
+      }
+    }
+  }
+
+  function syncHrSalaryHidden() {
+    var hidden = document.getElementById('py_hr_salary_id');
+    if (!hidden) return;
+    hidden.value =
+      getPartyType() === 'employee' &&
+      getEmployeePayKind() === 'other' &&
+      isSalariesPayableOffsetSelected() &&
+      selectedHrSalaryId > 0
+        ? String(selectedHrSalaryId)
+        : '';
+  }
+
+  function isEmployeeHrAmountLocked() {
+    if (getPartyType() !== 'employee' || voucherIsPosted) return false;
+    if (getEmployeePayKind() === 'advance') return selectedHrAdvanceId > 0;
+    if (getEmployeePayKind() === 'other' && isSalariesPayableOffsetSelected()) {
+      return selectedHrSalaryId > 0;
+    }
+    return false;
+  }
+
+  function syncEmployeeAmountLock() {
+    var locked = isEmployeeHrAmountLocked();
+    var amountEl = document.getElementById('py_amount');
+    var chkAmt = document.getElementById('py_check_amount');
+    var wrap = getRcWrap();
+    if (wrap) wrap.classList.toggle('fin-py-amount-locked', locked);
+
+    if (locked && employeeLockedAmount !== null && employeeLockedAmount > 0) {
+      var formatted = fmtMoney(employeeLockedAmount);
+      if (getPayMethod() === 'check') {
+        if (chkAmt) {
+          chkAmt.value = formatted;
+          chkAmt.readOnly = true;
+          chkAmt.classList.add('fin-py-amount-readonly');
+        }
+        if (amountEl) {
+          amountEl.value = '';
+          amountEl.readOnly = true;
+        }
+      } else {
+        if (amountEl) {
+          amountEl.value = formatted;
+          amountEl.readOnly = true;
+          amountEl.classList.add('fin-py-amount-readonly');
+        }
+        if (chkAmt) {
+          chkAmt.readOnly = true;
+        }
+      }
+      return;
+    }
+
+    if (amountEl) {
+      amountEl.classList.remove('fin-py-amount-readonly');
+      if (!(currentVoucherId > 0 && voucherIsPosted)) amountEl.readOnly = false;
+    }
+    if (chkAmt) {
+      chkAmt.classList.remove('fin-py-amount-readonly');
+      if (!(currentVoucherId > 0 && voucherIsPosted)) chkAmt.readOnly = false;
+    }
+  }
+
+  function syncOffsetAccountField() {
+    var hidden = document.getElementById('py_offset_account_id');
+    if (!hidden) return;
+    var type = getPartyType();
+    if (type === 'employee') {
+      if (getEmployeePayKind() === 'advance') {
+        hidden.value = advancePayableAccountId > 0 ? String(advancePayableAccountId) : '';
+      } else {
+        var empOff = document.getElementById('py_employee_offset');
+        hidden.value = empOff && empOff.value ? empOff.value : '';
+      }
+    } else if (type === 'account') {
+      var accTarget = document.getElementById('py_account_target');
+      hidden.value = accTarget && accTarget.value ? accTarget.value : '';
+    } else {
+      hidden.value = '';
+    }
+  }
+
+  function syncHrAdvanceHidden() {
+    var hidden = document.getElementById('py_hr_advance_id');
+    if (!hidden) return;
+    hidden.value =
+      getPartyType() === 'employee' && getEmployeePayKind() === 'advance' && selectedHrAdvanceId > 0
+        ? String(selectedHrAdvanceId)
+        : '';
+  }
+
+  function renderEmployeeAdvancesList() {
+    var box = document.getElementById('py_advances_list');
+    if (!box) return;
+    if (!pendingEmployeeAdvances.length) {
+      box.innerHTML =
+        '<p class="fin-py-advances-empty muted">لا توجد سلف معتمدة من الشؤون بانتظار الصرف لهذا الموظف.</p>';
+      return;
+    }
+    var html =
+      '<table class="fin-py-advances-table"><thead><tr>' +
+      '<th></th><th>رقم السلفة</th><th>الفترة</th><th>النوع</th><th>المبلغ</th></tr></thead><tbody>';
+    pendingEmployeeAdvances.forEach(function (adv) {
+      var id = parseInt(adv.id, 10) || 0;
+      var checked = id > 0 && id === selectedHrAdvanceId;
+      html +=
+        '<tr class="fin-py-advance-row' +
+        (checked ? ' is-selected' : '') +
+        '">' +
+        '<td><input type="radio" name="py_advance_pick" value="' +
+        id +
+        '"' +
+        (checked ? ' checked' : '') +
+        '></td>' +
+        '<td>' +
+        escapeHtml(adv.advance_code || String(id)) +
+        '</td>' +
+        '<td>' +
+        escapeHtml(adv.period_label || adv.start_date || '—') +
+        '</td>' +
+        '<td>' +
+        escapeHtml(adv.advance_type_label || '') +
+        '</td>' +
+        '<td dir="ltr">' +
+        escapeHtml(fmtMoney(adv.total_amount || 0)) +
+        '</td></tr>';
+    });
+    html += '</tbody></table>';
+    box.innerHTML = html;
+    box.querySelectorAll('input[name="py_advance_pick"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        if (radio.checked) applySelectedAdvance(parseInt(radio.value, 10) || 0);
+      });
+    });
+    box.querySelectorAll('.fin-py-advance-row').forEach(function (row) {
+      row.addEventListener('click', function (e) {
+        if (e.target && e.target.name === 'py_advance_pick') return;
+        var radio = row.querySelector('input[name="py_advance_pick"]');
+        if (radio) {
+          radio.checked = true;
+          applySelectedAdvance(parseInt(radio.value, 10) || 0);
+        }
+      });
+    });
+  }
+
+  function applySelectedAdvance(advanceId) {
+    selectedHrAdvanceId = advanceId > 0 ? advanceId : 0;
+    syncHrAdvanceHidden();
+    var adv = null;
+    for (var i = 0; i < pendingEmployeeAdvances.length; i++) {
+      if (parseInt(pendingEmployeeAdvances[i].id, 10) === selectedHrAdvanceId) {
+        adv = pendingEmployeeAdvances[i];
+        break;
+      }
+    }
+    if (adv) {
+      employeeLockedAmount = parseNum(adv.total_amount || 0);
+      setEmployeePayKind('advance');
+    } else {
+      employeeLockedAmount = null;
+    }
+    renderEmployeeAdvancesList();
+    syncOffsetAccountField();
+    syncEmployeeAmountLock();
+    markFormDirty();
+  }
+
+  function clearEmployeeAdvances() {
+    pendingEmployeeAdvances = [];
+    selectedHrAdvanceId = 0;
+    advancePayableAccountId = 0;
+    syncHrAdvanceHidden();
+    renderEmployeeAdvancesList();
+    if (getEmployeePayKind() === 'advance') {
+      employeeLockedAmount = null;
+      syncEmployeeAmountLock();
+    }
+  }
+
+  function loadEmployeeAdvances(employeeId) {
+    clearEmployeeAdvances();
+    if (!apiEmployeeAdvancesUrl || employeeId < 1) return Promise.resolve();
+    return fetch(apiEmployeeAdvancesUrl + '?employee_id=' + encodeURIComponent(String(employeeId)), {
+      credentials: 'same-origin',
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) return;
+        pendingEmployeeAdvances = Array.isArray(data.advances) ? data.advances : [];
+        advancePayableAccountId = parseInt(data.payable_account_id, 10) || 0;
+        var disp = document.getElementById('py_advance_payable_display');
+        if (disp && data.payable_account_label) disp.value = data.payable_account_label;
+        if (pendingEmployeeAdvances.length === 1) {
+          applySelectedAdvance(parseInt(pendingEmployeeAdvances[0].id, 10) || 0);
+        } else {
+          renderEmployeeAdvancesList();
+          syncOffsetAccountField();
+        }
+        if (pendingEmployeeAdvances.length > 0) {
+          setEmployeePayKind('advance');
+        }
+      })
+      .catch(function () {
+        clearEmployeeAdvances();
+      });
+  }
+
+  function renderEmployeeSalariesList() {
+    var box = document.getElementById('py_salaries_list');
+    if (!box) return;
+    if (!pendingEmployeeSalaries.length) {
+      box.innerHTML =
+        '<p class="fin-py-advances-empty muted">لا توجد رواتب مرحّلة بانتظار الصرف لهذا الموظف.</p>';
+      return;
+    }
+    var html =
+      '<table class="fin-py-advances-table"><thead><tr>' +
+      '<th></th><th>الفترة</th><th>صافي الراتب</th></tr></thead><tbody>';
+    pendingEmployeeSalaries.forEach(function (sal) {
+      var id = parseInt(sal.id, 10) || 0;
+      var checked = id > 0 && id === selectedHrSalaryId;
+      html +=
+        '<tr class="fin-py-advance-row' +
+        (checked ? ' is-selected' : '') +
+        '">' +
+        '<td><input type="radio" name="py_salary_pick" value="' +
+        id +
+        '"' +
+        (checked ? ' checked' : '') +
+        '></td>' +
+        '<td>' +
+        escapeHtml(sal.period_label || '—') +
+        '</td>' +
+        '<td dir="ltr">' +
+        escapeHtml(fmtMoney(sal.net_salary || 0)) +
+        '</td></tr>';
+    });
+    html += '</tbody></table>';
+    box.innerHTML = html;
+    box.querySelectorAll('input[name="py_salary_pick"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        if (radio.checked) applySelectedSalary(parseInt(radio.value, 10) || 0);
+      });
+    });
+    box.querySelectorAll('.fin-py-advance-row').forEach(function (row) {
+      row.addEventListener('click', function (e) {
+        if (e.target && e.target.name === 'py_salary_pick') return;
+        var radio = row.querySelector('input[name="py_salary_pick"]');
+        if (radio) {
+          radio.checked = true;
+          applySelectedSalary(parseInt(radio.value, 10) || 0);
+        }
+      });
+    });
+  }
+
+  function applySelectedSalary(salaryId) {
+    selectedHrSalaryId = salaryId > 0 ? salaryId : 0;
+    syncHrSalaryHidden();
+    var sal = null;
+    for (var i = 0; i < pendingEmployeeSalaries.length; i++) {
+      if (parseInt(pendingEmployeeSalaries[i].id, 10) === selectedHrSalaryId) {
+        sal = pendingEmployeeSalaries[i];
+        break;
+      }
+    }
+    if (sal) {
+      employeeLockedAmount = parseNum(sal.net_salary || 0);
+    } else {
+      employeeLockedAmount = null;
+    }
+    renderEmployeeSalariesList();
+    syncEmployeeAmountLock();
+    markFormDirty();
+  }
+
+  function clearEmployeeSalaries() {
+    pendingEmployeeSalaries = [];
+    selectedHrSalaryId = 0;
+    syncHrSalaryHidden();
+    renderEmployeeSalariesList();
+    if (getEmployeePayKind() === 'other' && isSalariesPayableOffsetSelected()) {
+      employeeLockedAmount = null;
+      syncEmployeeAmountLock();
+    }
+  }
+
+  function loadEmployeeSalaries(employeeId) {
+    clearEmployeeSalaries();
+    if (!apiEmployeeSalariesUrl || employeeId < 1) return Promise.resolve();
+    return fetch(apiEmployeeSalariesUrl + '?employee_id=' + encodeURIComponent(String(employeeId)), {
+      credentials: 'same-origin',
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) return;
+        pendingEmployeeSalaries = Array.isArray(data.salaries) ? data.salaries : [];
+        if (
+          isSalariesPayableOffsetSelected() &&
+          pendingEmployeeSalaries.length === 1 &&
+          selectedHrSalaryId < 1
+        ) {
+          applySelectedSalary(parseInt(pendingEmployeeSalaries[0].id, 10) || 0);
+        } else {
+          renderEmployeeSalariesList();
+        }
+        syncEmployeeSalaryPanel();
+      })
+      .catch(function () {
+        clearEmployeeSalaries();
+      });
+  }
+
+  function loadEmployeeHrData(employeeId) {
+    return Promise.all([
+      loadEmployeeAdvances(employeeId),
+      loadEmployeeSalaries(employeeId),
+    ]).then(function () {
+      syncEmployeeSalaryPanel();
+      syncEmployeeAmountLock();
+    });
+  }
+
   function syncPartyTypeUi() {
     var type = getPartyType();
     var wrap = getRcWrap();
     if (wrap) {
       wrap.classList.toggle('fin-py-party-is-customer', type === 'customer');
       wrap.classList.toggle('fin-py-party-is-supplier', type === 'supplier');
+      wrap.classList.toggle('fin-py-party-is-employee', type === 'employee');
+      wrap.classList.toggle('fin-py-party-is-account', type === 'account');
     }
-    var custWrap = document.getElementById('py-party-customer-wrap');
-    var suppWrap = document.getElementById('py-party-supplier-wrap');
+    setPanelVisible(document.getElementById('py-party-customer-wrap'), type === 'customer');
+    setPanelVisible(document.getElementById('py-party-supplier-wrap'), type === 'supplier');
+    setPanelVisible(document.getElementById('py-party-employee-wrap'), type === 'employee');
+    setPanelVisible(document.getElementById('py-party-account-wrap'), type === 'account');
     var repWrap = form.querySelector('.fin-py-party-customer-only');
-    if (custWrap) custWrap.hidden = type !== 'customer';
-    if (suppWrap) suppWrap.hidden = type !== 'supplier';
-    if (repWrap) repWrap.hidden = type !== 'customer';
+    if (repWrap) {
+      repWrap.hidden = type !== 'customer';
+      repWrap.style.display = type === 'customer' ? '' : 'none';
+    }
+    if (type === 'employee') {
+      syncEmployeePayKindUi();
+    } else {
+      employeeLockedAmount = null;
+      syncOffsetAccountField();
+      syncEmployeeAmountLock();
+    }
   }
 
   function applyCustomerRep(apiRepName) {
@@ -267,10 +692,6 @@
     updateVoucherNoPostedStyle();
   }
 
-  function getRcWrap() {
-    return form.closest('.fin-py-wrap');
-  }
-
   function refreshVoucherEditState() {
     var locked = currentVoucherId > 0 && !!voucherIsPosted;
     form.classList.toggle('fin-py-form-is-posted', locked);
@@ -278,7 +699,7 @@
     if (wrap) wrap.classList.toggle('fin-py-form-is-posted', locked);
 
     var fields = form.querySelectorAll(
-      '#py_date, #py_customer, #py_supplier, #py_cash_account_id, #py_amount, #py_check_amount, #py_check_no, #py_bank_name, #py_notes, #py_pay_cash, #py_pay_check, input[name="party_type_ui"]'
+      '#py_date, #py_customer, #py_supplier, #py_employee, #py_account_target, #py_employee_offset, #py_cash_account_id, #py_amount, #py_check_amount, #py_check_no, #py_bank_name, #py_notes, #py_pay_cash, #py_pay_check, input[name="party_type_ui"], #py_employee_open, #py_account_target_open'
     );
     fields.forEach(function (el) {
       if (!el) return;
@@ -290,6 +711,7 @@
         else el.removeAttribute('readonly');
       }
     });
+    syncEmployeeAmountLock();
   }
 
   function updateVoucherNoPostedStyle() {
@@ -425,6 +847,12 @@
     if (cust && cust.value !== '') return true;
     var supp = document.getElementById('py_supplier');
     if (supp && supp.value !== '') return true;
+    var emp = document.getElementById('py_employee');
+    if (emp && emp.value !== '') return true;
+    var accTarget = document.getElementById('py_account_target');
+    if (accTarget && accTarget.value !== '') return true;
+    var empOff = document.getElementById('py_employee_offset');
+    if (empOff && empOff.value !== '') return true;
     var amt = document.getElementById('py_amount');
     if (amt && String(amt.value).trim() !== '') return true;
     var chkAmt = document.getElementById('py_check_amount');
@@ -453,7 +881,7 @@
         if (suppOpen) suppOpen.focus();
         return false;
       }
-    } else {
+    } else if (partyType === 'customer') {
       var cust = document.getElementById('py_customer');
       if (!cust || !cust.value) {
         if (global.AppDialog) AppDialog.alert('اختر العميل قبل الحفظ.', { type: 'warning' });
@@ -462,6 +890,63 @@
           var openBtn = document.getElementById('py_customer_open');
           if (openBtn) openBtn.focus();
         }
+        return false;
+      }
+    } else if (partyType === 'employee') {
+      var employee = document.getElementById('py_employee');
+      if (!employee || !employee.value) {
+        if (global.AppDialog) AppDialog.alert('اختر الموظف قبل الحفظ.', { type: 'warning' });
+        else alert('اختر الموظف قبل الحفظ.');
+        var empOpen = document.getElementById('py_employee_open');
+        if (empOpen) empOpen.focus();
+        return false;
+      }
+      syncOffsetAccountField();
+      syncHrAdvanceHidden();
+      if (getEmployeePayKind() === 'advance') {
+        if (selectedHrAdvanceId < 1) {
+          if (global.AppDialog) {
+            AppDialog.alert('اختر السلفة المعتمدة للصرف من القائمة.', { type: 'warning' });
+          } else {
+            alert('اختر السلفة المعتمدة للصرف.');
+          }
+          return false;
+        }
+        if (advancePayableAccountId < 1) {
+          if (global.AppDialog) {
+            AppDialog.alert('حساب «سلف موظفين مستحقة الصرف» غير مربوط.', { type: 'warning' });
+          }
+          return false;
+        }
+      } else {
+        var empOffset = document.getElementById('py_employee_offset');
+        if (!empOffset || !empOffset.value) {
+          if (global.AppDialog) {
+            AppDialog.alert('اختر حساب الالتزام (رواتب مستحقة / ضمان…).', { type: 'warning' });
+          } else {
+            alert('اختر حساب الالتزام.');
+          }
+          if (empOffset) empOffset.focus();
+          return false;
+        }
+        if (isSalariesPayableOffsetSelected() && selectedHrSalaryId < 1) {
+          if (global.AppDialog) {
+            AppDialog.alert('اختر الراتب المرحّل للصرف من القائمة.', { type: 'warning' });
+          } else {
+            alert('اختر الراتب المرحّل للصرف.');
+          }
+          return false;
+        }
+      }
+      syncEmployeeAmountLock();
+    } else if (partyType === 'account') {
+      syncOffsetAccountField();
+      var accTarget = document.getElementById('py_account_target');
+      if (!accTarget || !accTarget.value) {
+        if (global.AppDialog) AppDialog.alert('اختر الحساب المُصروف إليه.', { type: 'warning' });
+        else alert('اختر الحساب المُصروف إليه.');
+        var accOpen = document.getElementById('py_account_target_open');
+        if (accOpen) accOpen.focus();
         return false;
       }
     }
@@ -558,6 +1043,8 @@
   function submitPaymentForm() {
     formSubmitting = true;
     syncVoucherIdField();
+    syncOffsetAccountField();
+    syncHrAdvanceHidden();
     syncAmountForSubmit();
     setSaveBusy(true);
 
@@ -674,7 +1161,7 @@
         rcDate.value = fmtDate(v.voucher_date_dmy || v.voucher_date || '') || defaultDate;
       }
 
-      setPartyType(v.party_type === 'customer' ? 'customer' : 'supplier');
+      setPartyType(v.party_type || 'supplier');
 
       if (pyCustomerPickerApi) {
         pyCustomerPickerApi.setById(v.customer_id || 0, true);
@@ -689,6 +1176,71 @@
         var suppSel = document.getElementById('py_supplier');
         if (suppSel) suppSel.value = String(v.supplier_id || '');
       }
+
+      if (pyEmployeePickerApi) {
+        pyEmployeePickerApi.setById(v.employee_id || 0, true);
+      } else {
+        var empSel = document.getElementById('py_employee');
+        if (empSel) empSel.value = String(v.employee_id || '');
+      }
+
+      var empOffset = document.getElementById('py_employee_offset');
+      if (empOffset) {
+        empOffset.value =
+          v.party_type === 'employee' &&
+          (v.employee_pay_kind || '') === 'other' &&
+          v.offset_account_id > 0
+            ? String(v.offset_account_id)
+            : '';
+      }
+
+      setEmployeePayKind(
+        v.employee_pay_kind === 'other' || (!v.hr_advance_id && v.offset_account_id > 0 && v.party_type === 'employee')
+          ? 'other'
+          : 'advance'
+      );
+      selectedHrAdvanceId =
+        v.party_type === 'employee' && v.hr_advance_id > 0 ? parseInt(v.hr_advance_id, 10) || 0 : 0;
+      selectedHrSalaryId =
+        v.party_type === 'employee' && v.hr_salary_id > 0 ? parseInt(v.hr_salary_id, 10) || 0 : 0;
+      syncHrAdvanceHidden();
+      syncHrSalaryHidden();
+
+      var empIdForAdv = v.party_type === 'employee' ? parseInt(v.employee_id, 10) || 0 : 0;
+      if (empIdForAdv > 0) {
+        loadEmployeeHrData(empIdForAdv).then(function () {
+          if (selectedHrAdvanceId > 0) applySelectedAdvance(selectedHrAdvanceId);
+          if (selectedHrSalaryId > 0) applySelectedSalary(selectedHrSalaryId);
+          if (selectedHrAdvanceId > 0) {
+            employeeLockedAmount =
+              v.hr_advance_amount > 0 ? parseNum(v.hr_advance_amount) : employeeLockedAmount;
+          } else if (selectedHrSalaryId > 0) {
+            employeeLockedAmount =
+              v.hr_salary_amount > 0 ? parseNum(v.hr_salary_amount) : employeeLockedAmount;
+          }
+          syncEmployeeAmountLock();
+        });
+      } else {
+        clearEmployeeAdvances();
+        clearEmployeeSalaries();
+      }
+
+      if (pyAccountPickerApi && global.AccountPickerModal) {
+        AccountPickerModal.setById(
+          pyAccountPickerApi,
+          v.party_type === 'account' && v.offset_account_id > 0 ? v.offset_account_id : 0,
+          true
+        );
+      } else {
+        var accTarget = document.getElementById('py_account_target');
+        if (accTarget) {
+          accTarget.value =
+            v.party_type === 'account' && v.offset_account_id > 0
+              ? String(v.offset_account_id)
+              : '';
+        }
+      }
+      syncOffsetAccountField();
 
       applyCustomerRep(v.sales_rep_name || '');
 
@@ -997,8 +1549,26 @@
       if (cust) cust.value = '';
       var supp = document.getElementById('py_supplier');
       if (supp) supp.value = '';
+      var emp = document.getElementById('py_employee');
+      if (emp) emp.value = '';
+      var empOffset = document.getElementById('py_employee_offset');
+      if (empOffset) empOffset.value = '';
       if (pyCustomerPickerApi) pyCustomerPickerApi.setById(0, true);
       if (pySupplierPickerApi) pySupplierPickerApi.setById(0, true);
+      if (pyEmployeePickerApi) pyEmployeePickerApi.setById(0, true);
+      if (pyAccountPickerApi && global.AccountPickerModal) {
+        AccountPickerModal.setById(pyAccountPickerApi, 0, true);
+      } else {
+        var accTarget = document.getElementById('py_account_target');
+        if (accTarget) accTarget.value = '';
+      }
+      clearEmployeeAdvances();
+      clearEmployeeSalaries();
+      setEmployeePayKind('advance');
+      syncHrAdvanceHidden();
+      syncHrSalaryHidden();
+      employeeLockedAmount = null;
+      syncOffsetAccountField();
 
       setPartyType('supplier');
       applyCustomerRep('');
@@ -1030,10 +1600,12 @@
 
   function initNewPayment() {
     resetPaymentForm();
-    var focusEl =
-      getPartyType() === 'supplier'
-        ? document.getElementById('py_supplier_open')
-        : document.getElementById('py_customer_open');
+    var focusEl = null;
+    var pt = getPartyType();
+    if (pt === 'supplier') focusEl = document.getElementById('py_supplier_open');
+    else if (pt === 'customer') focusEl = document.getElementById('py_customer_open');
+    else if (pt === 'employee') focusEl = document.getElementById('py_employee_open');
+    else if (pt === 'account') focusEl = document.getElementById('py_account_target_open');
     if (focusEl) {
       setTimeout(function () {
         focusEl.focus();
@@ -1041,13 +1613,41 @@
     }
   }
 
+  function getEmployeeLabel() {
+    if (pyEmployeePickerApi && pyEmployeePickerApi.getLabel) {
+      return pyEmployeePickerApi.getLabel();
+    }
+    return global.EmployeePickerModal
+      ? EmployeePickerModal.getLabel('py_employee')
+      : '';
+  }
+
+  function getAccountTargetLabel() {
+    var display = document.getElementById('py_account_target_display');
+    if (display && !display.classList.contains('is-placeholder')) {
+      return display.textContent.trim();
+    }
+    return '';
+  }
+
+  function getPartyTypeLabel() {
+    var pt = getPartyType();
+    if (pt === 'customer') return 'صرف لعميل';
+    if (pt === 'employee') return 'صرف لموظف';
+    if (pt === 'account') return 'صرف لحساب';
+    return 'صرف لمورد';
+  }
+
   function getPartyLabel() {
-    if (getPartyType() === 'supplier') {
-      if (pySupplierPickerApi) return pySupplierPickerApi.getName();
+    var pt = getPartyType();
+    if (pt === 'supplier') {
+      if (pySupplierPickerApi && pySupplierPickerApi.getName) return pySupplierPickerApi.getName();
       return global.SupplierPickerModal
         ? SupplierPickerModal.getLabel('py_supplier')
         : '';
     }
+    if (pt === 'employee') return getEmployeeLabel();
+    if (pt === 'account') return getAccountTargetLabel();
     return getCustomerLabel();
   }
 
@@ -1070,7 +1670,15 @@
     var date = fmtDate(dateEl ? dateEl.value : '');
     var rcNoEl = document.getElementById('py_no');
     var rcNo = rcNoEl && rcNoEl.value ? rcNoEl.value : '—';
-    var partyLabel = getPartyType() === 'supplier' ? 'المورد' : 'العميل';
+    var partyType = getPartyType();
+    var partyFieldLabel =
+      partyType === 'supplier'
+        ? 'المورد'
+        : partyType === 'customer'
+          ? 'العميل'
+          : partyType === 'employee'
+            ? 'الموظف'
+            : 'الحساب';
     var party = getPartyLabel();
     var repEl = document.getElementById('py_sales_rep');
     var rep = repEl ? String(repEl.value).trim() : '';
@@ -1100,14 +1708,19 @@
     var metaRows = [
       { label: 'رقم السند', value: rcNo },
       { label: 'التاريخ', value: date },
-      {
-        label: getPartyType() === 'supplier' ? 'نوع السند' : 'نوع السند',
-        value: getPartyType() === 'supplier' ? 'صرف لمورد' : 'صرف لعميل',
-      },
-      { label: partyLabel, value: party },
+      { label: 'نوع السند', value: getPartyTypeLabel() },
+      { label: partyFieldLabel, value: party },
     ];
-    if (getPartyType() === 'customer') {
+    if (partyType === 'customer') {
       metaRows.push({ label: 'المندوب', value: rep || '—' });
+    }
+    if (partyType === 'employee') {
+      var empOff = document.getElementById('py_employee_offset');
+      var offLabel =
+        empOff && empOff.selectedIndex >= 0
+          ? empOff.options[empOff.selectedIndex].textContent.trim()
+          : '—';
+      metaRows.push({ label: 'يُصرف إلى حساب', value: offLabel });
     }
     metaRows.push(
       { label: 'يُخصم من', value: getCashAccountLabel() || '—' },
@@ -1368,6 +1981,49 @@
     trySave();
   });
 
+  function readDisburseBootstrap() {
+    var el = document.getElementById('fin-py-disburse-bootstrap-json');
+    if (!el || !el.textContent) return null;
+    try {
+      return JSON.parse(el.textContent);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function applyDisburseAdvanceBootstrap() {
+    var bootstrap = readDisburseBootstrap();
+    if (!bootstrap || !(parseInt(bootstrap.advance_id, 10) > 0)) {
+      return Promise.resolve();
+    }
+    var employeeId = parseInt(bootstrap.employee_id, 10) || 0;
+    var advanceId = parseInt(bootstrap.advance_id, 10) || 0;
+    runWithoutDirtyMark(function () {
+      setPartyType('employee');
+      setEmployeePayKind('advance');
+    });
+    if (pyEmployeePickerApi) {
+      pyEmployeePickerApi.setById(employeeId, true);
+    } else {
+      var empSel = document.getElementById('py_employee');
+      if (empSel) empSel.value = String(employeeId);
+    }
+    return loadEmployeeAdvances(employeeId).then(function () {
+      if (parseInt(bootstrap.payable_account_id, 10) > 0) {
+        advancePayableAccountId = parseInt(bootstrap.payable_account_id, 10) || 0;
+      }
+      var disp = document.getElementById('py_advance_payable_display');
+      if (disp && bootstrap.payable_account_label) {
+        disp.value = bootstrap.payable_account_label;
+      }
+      if (advanceId > 0) {
+        applySelectedAdvance(advanceId);
+      }
+      syncOffsetAccountField();
+      syncEmployeeAmountLock();
+    });
+  }
+
   function bootReceiptPage() {
     form.querySelectorAll('input[name="party_type_ui"]').forEach(function (radio) {
       radio.addEventListener('change', function () {
@@ -1375,7 +2031,27 @@
         markFormDirty();
       });
     });
+    form.querySelectorAll('input[name="employee_pay_kind_ui"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        setEmployeePayKind(radio.value);
+        if (radio.value === 'advance') {
+          selectedHrSalaryId = 0;
+          syncHrSalaryHidden();
+          employeeLockedAmount = null;
+          renderEmployeeAdvancesList();
+        } else {
+          selectedHrAdvanceId = 0;
+          syncHrAdvanceHidden();
+          employeeLockedAmount = null;
+          renderEmployeeSalariesList();
+        }
+        syncEmployeeSalaryPanel();
+        syncEmployeeAmountLock();
+        markFormDirty();
+      });
+    });
     syncPartyTypeUi();
+    syncEmployeePayKindUi();
 
     if (global.CustomerPickerModal) {
       pyCustomerPickerApi = CustomerPickerModal.bind({
@@ -1406,6 +2082,58 @@
         },
       });
     }
+    if (global.EmployeePickerModal) {
+      pyEmployeePickerApi = EmployeePickerModal.bind({
+        hidden: 'py_employee',
+        open: 'py_employee_open',
+        display: 'py_employee_display',
+        jsonId: 'fin-py-employees-json',
+        getDisabled: function () {
+          return voucherIsPosted;
+        },
+        onSelect: function (emp) {
+          var eid = emp && emp.id ? parseInt(emp.id, 10) || 0 : 0;
+          if (eid > 0) {
+            loadEmployeeHrData(eid);
+          } else {
+            clearEmployeeAdvances();
+            clearEmployeeSalaries();
+            employeeLockedAmount = null;
+            syncEmployeeAmountLock();
+          }
+          markFormDirty();
+        },
+      });
+    }
+    if (global.AccountPickerModal) {
+      pyAccountPickerApi = AccountPickerModal.bind({
+        hidden: 'py_account_target',
+        open: 'py_account_target_open',
+        display: 'py_account_target_display',
+        jsonId: 'fin-py-offset-accounts-json',
+        placeholder: 'اضغط لاختيار حساب (خصوم / مصروف)',
+        onSelect: function () {
+          syncOffsetAccountField();
+          markFormDirty();
+        },
+      });
+    }
+    var empOffsetSel = document.getElementById('py_employee_offset');
+    if (empOffsetSel) {
+      empOffsetSel.addEventListener('change', function () {
+        syncOffsetAccountField();
+        syncEmployeeSalaryPanel();
+        if (!isSalariesPayableOffsetSelected()) {
+          selectedHrSalaryId = 0;
+          syncHrSalaryHidden();
+          employeeLockedAmount = null;
+        } else if (pendingEmployeeSalaries.length === 1 && selectedHrSalaryId < 1) {
+          applySelectedSalary(parseInt(pendingEmployeeSalaries[0].id, 10) || 0);
+        }
+        syncEmployeeAmountLock();
+        markFormDirty();
+      });
+    }
     syncPayMethodUi();
     if (initialVoucherId > 0) {
       fetchVoucherResponse({ id: initialVoucherId }).then(function (data) {
@@ -1415,21 +2143,25 @@
       });
       return;
     }
-    runWithoutDirtyMark(function () {
-      refreshVoucherEditState();
-      updatePostedBadge();
-      refreshEmptyBrowseNav();
-      applyCustomerRep();
-      updateToolbarPostUnpost();
-      var focusEl =
-        getPartyType() === 'supplier'
-          ? document.getElementById('py_supplier_open')
-          : document.getElementById('py_customer_open');
-      if (focusEl) {
-        setTimeout(function () {
-          focusEl.focus();
-        }, 80);
-      }
+    applyDisburseAdvanceBootstrap().finally(function () {
+      runWithoutDirtyMark(function () {
+        refreshVoucherEditState();
+        updatePostedBadge();
+        refreshEmptyBrowseNav();
+        applyCustomerRep();
+        updateToolbarPostUnpost();
+        var focusEl = null;
+        var pt = getPartyType();
+        if (pt === 'supplier') focusEl = document.getElementById('py_supplier_open');
+        else if (pt === 'customer') focusEl = document.getElementById('py_customer_open');
+        else if (pt === 'employee') focusEl = document.getElementById('py_employee_open');
+        else if (pt === 'account') focusEl = document.getElementById('py_account_target_open');
+        if (focusEl) {
+          setTimeout(function () {
+            focusEl.focus();
+          }, 80);
+        }
+      });
     });
   }
 

@@ -46,6 +46,11 @@
     var pickerCount = document.getElementById('hr-adv-picker-count');
     var listUrl = page.getAttribute('data-list-url') || '';
     var filterEmpId = parseInt(page.getAttribute('data-filter-employee-id') || '0', 10);
+    var filterYear = parseInt(page.getAttribute('data-filter-year') || '0', 10);
+    var filterMonth = parseInt(page.getAttribute('data-filter-month') || '0', 10);
+    var monthFilterActive = page.getAttribute('data-month-filter-active') === '1';
+    var monthFilterEmployeeInp = document.getElementById('hr-adv-month-filter-employee');
+    var monthFilterForm = document.getElementById('hr-adv-month-filter-form');
     var tbody = document.getElementById('hr-adv-grid-body');
     var selectedRow = null;
     var exitUrl = page.getAttribute('data-exit-url') || '';
@@ -336,7 +341,12 @@
     }
 
     function syncTopPickerByEmployeeId(empId, silent) {
-        if (!topPickerApi || !empId) return;
+        if (!topPickerApi) return;
+        if (!empId && monthFilterActive) {
+            topPickerApi.setById(0, !!silent);
+            return;
+        }
+        if (!empId) return;
         topPickerApi.setById(parseInt(empId, 10) || 0, !!silent);
     }
 
@@ -346,6 +356,7 @@
             setTimeout(initTopEmployeePickerModal, 40);
             return;
         }
+        var initialFilterEmpId = parseInt(page.getAttribute('data-filter-employee-id') || '0', 10) || 0;
         topPickerApi = EmployeePickerModal.bind({
             hidden: 'hr-adv-picker-id',
             open: 'hr-adv-picker-id_open',
@@ -353,10 +364,18 @@
             jsonId: 'hr-adv-picker-json',
             employees: parseEmployeeList(),
             allowNew: false,
-            placeholder: 'اضغط لاختيار الموظف',
-            initialId: parseInt(page.getAttribute('data-filter-employee-id') || '0', 10) || '',
+            allowAll: true,
+            allLabel: '— جميع الموظفين —',
+            placeholder: 'اختر موظفاً — أو جميع الموظفين',
+            initialId:
+                initialFilterEmpId > 0
+                    ? initialFilterEmpId
+                    : monthFilterActive
+                      ? 0
+                      : '',
             onSelect: function (emp) {
-                var nextId = emp && emp.id ? String(emp.id) : '';
+                var empId = emp && emp.id !== undefined && emp.id !== null ? parseInt(emp.id, 10) : NaN;
+                var nextId = empId === 0 ? '0' : emp && emp.id ? String(emp.id) : '';
                 if (filterEmployee) {
                     filterEmployee.setAttribute('data-prev-value', String(filterEmployee.value || ''));
                     filterEmployee.value = nextId;
@@ -387,14 +406,22 @@
         if (unpostFilterEmployeeIdInp) {
             unpostFilterEmployeeIdInp.value = String(id);
         }
+        if (monthFilterEmployeeInp) {
+            monthFilterEmployeeInp.value = id > 0 ? String(id) : '';
+        }
     }
 
     function syncPickerDisplay() {
         if (!filterEmployee) return;
         var op = filterEmployee.options[filterEmployee.selectedIndex];
-        syncTopPickerByEmployeeId(op && op.value ? op.value : 0, true);
+        var selectedVal = filterEmployee.value;
+        if (selectedVal === '0') {
+            syncTopPickerByEmployeeId(0, true);
+        } else {
+            syncTopPickerByEmployeeId(op && op.value ? op.value : 0, true);
+        }
         if (pickerCode) {
-            if (!op || !op.value) {
+            if (!op || !op.value || op.value === '0') {
                 pickerCode.value = '—';
             } else {
                 var code = op.getAttribute('data-emp-code') || '';
@@ -402,23 +429,41 @@
             }
         }
         if (pickerCount) {
-            if (!op || !op.value) {
+            if (selectedVal === '0' && monthFilterActive) {
+                pickerCount.textContent = String(
+                    parseInt(page.getAttribute('data-filter-month-advance-count') || '0', 10) || 0
+                );
+            } else if (!op || !op.value) {
                 pickerCount.textContent = '—';
             } else {
                 pickerCount.textContent = String(op.getAttribute('data-advance-count') || '0');
             }
         }
         if (btnAdd) {
-            btnAdd.disabled = !op || !op.value;
+            btnAdd.disabled = !(op && op.value && op.value !== '0') && !monthFilterActive;
         }
     }
 
-    function employeeFilterUrl(employeeId) {
-        var id = parseInt(String(employeeId || '0'), 10);
-        if (isNaN(id) || id < 1) {
+    function buildListUrl(employeeId, year, month) {
+        var eid = parseInt(String(employeeId || '0'), 10) || 0;
+        var y = parseInt(String(typeof year === 'undefined' ? filterYear : year), 10) || 0;
+        var m = parseInt(String(typeof month === 'undefined' ? filterMonth : month), 10) || 0;
+        var parts = [];
+        if (eid > 0) {
+            parts.push('employee_id=' + encodeURIComponent(String(eid)));
+        }
+        if (y >= 2000 && m >= 1 && m <= 12) {
+            parts.push('year=' + encodeURIComponent(String(y)));
+            parts.push('month=' + encodeURIComponent(String(m)));
+        }
+        if (!parts.length) {
             return listUrl;
         }
-        return listUrl + '&employee_id=' + encodeURIComponent(String(id));
+        return listUrl + '&' + parts.join('&');
+    }
+
+    function employeeFilterUrl(employeeId) {
+        return buildListUrl(employeeId, filterYear, filterMonth);
     }
 
     function navigateToEmployeeFilter(employeeId, previousValue) {
@@ -968,6 +1013,9 @@
             var prev = filterEmployee.getAttribute('data-prev-value');
             if (prev === null || prev === '') {
                 prev = String(page.getAttribute('data-filter-employee-id') || '');
+                if (monthFilterActive && (prev === '0' || prev === '')) {
+                    prev = '0';
+                }
             }
             var newVal = filterEmployee.value;
             if (newVal === prev) {
@@ -975,7 +1023,7 @@
             }
             syncPickerDisplay();
             syncFilterHiddenFields();
-            navigateToEmployeeFilter(newVal, prev);
+            navigateToEmployeeFilter(newVal === '0' ? 0 : newVal, prev);
         });
     }
     initTopEmployeePickerModal();
@@ -1127,6 +1175,20 @@
         e.preventDefault();
         e.returnValue = '';
     });
+
+    if (monthFilterForm) {
+        page.querySelectorAll('.hr-adv-month-chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                var m = parseInt(chip.getAttribute('data-month') || '0', 10);
+                var monthInp = document.getElementById('hr-adv-filter-month');
+                if (monthInp && m >= 1 && m <= 12) {
+                    monthInp.value = String(m);
+                }
+                syncFilterHiddenFields();
+                monthFilterForm.submit();
+            });
+        });
+    }
 
     syncTypeUi();
     syncOraLovButtons();

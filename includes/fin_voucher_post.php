@@ -21,6 +21,9 @@ function fin_voucher_post_payment_ledger_by_id(PDO $pdo, int $voucherId): array
     if ($partyType === 'customer') {
         return crm_ledger_post_cash_payment_by_id($pdo, $voucherId);
     }
+    if ($partyType === 'employee' || $partyType === 'account') {
+        return ['ok' => true, 'skipped' => false, 'error' => null];
+    }
 
     return ['ok' => false, 'skipped' => false, 'error' => 'يجب ربط السند بعميل أو مورد قبل الترحيل.'];
 }
@@ -129,6 +132,20 @@ function fin_voucher_post_payments_by_ids(PDO $pdo, array $voucherIds): array
         if (fin_voucher_has_column($pdo, 'is_posted')) {
             $pdo->prepare('UPDATE fin_voucher SET is_posted = 1, posted_at = NOW() WHERE id = ?')
                 ->execute([$id]);
+        }
+        require_once app_path('includes/hr_employee_advance.php');
+        if (fin_voucher_has_column($pdo, 'hr_advance_id')) {
+            $advId = (int) ($row['hr_advance_id'] ?? 0);
+            if ($advId > 0) {
+                hr_employee_advance_mark_disbursed($pdo, $advId, $id);
+            }
+        }
+        if (fin_voucher_has_column($pdo, 'hr_salary_id')) {
+            require_once app_path('includes/hr_salary.php');
+            $salId = (int) ($row['hr_salary_id'] ?? 0);
+            if ($salId > 0) {
+                hr_salary_mark_disbursed($pdo, $salId, $id);
+            }
         }
         $out['posted']++;
         require_once app_path('includes/sys_audit_log.php');

@@ -142,6 +142,7 @@ return [
                         ['r' => 'cash_receipts_list', 'label' => 'ترحيل سندات القبض', 'icon' => '📋'],
                         ['r' => 'cash_payment', 'label' => 'سند صرف', 'icon' => '⬇'],
                         ['r' => 'cash_payments_list', 'label' => 'ترحيل سندات الصرف', 'icon' => '📋'],
+                        ['r' => 'fin_employee_advances', 'label' => 'السلف', 'icon' => '💰'],
                         ['r' => 'journal_voucher', 'label' => 'سند قيد', 'icon' => '⚖'],
                         ['r' => 'debit_notes', 'label' => 'إشعارات مدينة', 'icon' => 'Ⓓ'],
                         ['r' => 'credit_notes', 'label' => 'إشعارات دائنة', 'icon' => 'Ⓒ'],

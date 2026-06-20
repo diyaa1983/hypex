@@ -298,3 +298,155 @@ function hr_salary_load_for_print(PDO $pdo, int $salaryId): ?array
 
     return $row;
 }
+
+function hr_salary_disbursement_columns_ready(PDO $pdo): bool
+{
+    try {
+        $st = $pdo->query("SHOW COLUMNS FROM hr_salary LIKE 'disbursement_voucher_id'");
+
+        return (bool) $st->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/** @return list<array<string, mixed>> */
+function hr_salaries_pending_disbursement(PDO $pdo, int $employeeId): array
+{
+    if ($employeeId < 1 || !hr_salary_disbursement_columns_ready($pdo)) {
+        return [];
+    }
+    try {
+        $st = $pdo->prepare(
+            'SELECT id, pay_year, pay_month, net_salary, pay_date
+             FROM hr_salary
+             WHERE employee_id = ?
+               AND COALESCE(is_posted, 0) = 1
+               AND net_salary > 0.0005
+               AND (disbursement_voucher_id IS NULL OR disbursement_voucher_id = 0)
+             ORDER BY pay_year DESC, pay_month DESC, id DESC'
+        );
+        $st->execute([$employeeId]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $out = [];
+        foreach ($rows as $row) {
+            $year = (int) ($row['pay_year'] ?? 0);
+            $month = (int) ($row['pay_month'] ?? 0);
+            $out[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'pay_year' => $year,
+                'pay_month' => $month,
+                'period_label' => hr_salary_period_label_ar($year, $month),
+                'net_salary' => round((float) ($row['net_salary'] ?? 0), 3),
+                'pay_date' => (string) ($row['pay_date'] ?? ''),
+            ];
+        }
+
+        return $out;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function hr_salary_validate_for_disbursement(
+    PDO $pdo,
+    int $salaryId,
+    int $employeeId,
+    float $amount,
+    int $exceptVoucherId = 0
+): ?string {
+    if ($salaryId < 1) {
+        return 'اختر الراتب المرحّل للصرف.';
+    }
+    try {
+        $st = $pdo->prepare(
+            'SELECT employee_id, is_posted, net_salary, disbursement_voucher_id
+             FROM hr_salary WHERE id = ? LIMIT 1'
+        );
+        $st->execute([$salaryId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return 'الراتب غير موجود.';
+    }
+    if (!$row) {
+        return 'الراتب غير موجود.';
+    }
+    if ((int) ($row['employee_id'] ?? 0) !== $employeeId) {
+        return 'الراتب لا يخص الموظف المختار.';
+    }
+    if ((int) ($row['is_posted'] ?? 0) !== 1) {
+        return 'الراتب غير مرحّل من شؤون الموظفين بعد.';
+    }
+    $linkedVoucherId = (int) ($row['disbursement_voucher_id'] ?? 0);
+    if ($linkedVoucherId > 0 && $linkedVoucherId !== $exceptVoucherId) {
+        return 'تم ربط هذا الراتب بسند صرف آخر من المحاسبة.';
+    }
+    $expected = round((float) ($row['net_salary'] ?? 0), 3);
+    if ($expected <= 0.0005) {
+        return 'صافي الراتب غير صالح للصرف.';
+    }
+    if (abs($amount - $expected) > 0.009) {
+        return 'مبلغ سند الصرف يجب أن يساوي صافي الراتب (' . number_format($expected, 3) . ').';
+    }
+
+    return null;
+}
+
+function hr_salary_assign_voucher(PDO $pdo, int $salaryId, int $voucherId): void
+{
+    if (!hr_salary_disbursement_columns_ready($pdo)) {
+        return;
+    }
+    if ($voucherId > 0) {
+        $pdo->prepare(
+            'UPDATE hr_salary
+             SET disbursement_voucher_id = NULL
+             WHERE disbursement_voucher_id = ? AND id <> ?'
+        )->execute([$voucherId, $salaryId > 0 ? $salaryId : 0]);
+    }
+    if ($salaryId > 0 && $voucherId > 0) {
+        $pdo->prepare(
+            'UPDATE hr_salary SET disbursement_voucher_id = ? WHERE id = ?'
+        )->execute([$voucherId, $salaryId]);
+    }
+}
+
+function hr_salary_mark_disbursed(PDO $pdo, int $salaryId, int $voucherId): void
+{
+    if ($salaryId < 1 || $voucherId < 1 || !hr_salary_disbursement_columns_ready($pdo)) {
+        return;
+    }
+    $pdo->prepare(
+        'UPDATE hr_salary SET disbursement_voucher_id = ? WHERE id = ?'
+    )->execute([$voucherId, $salaryId]);
+}
+
+function hr_salary_clear_disbursement_by_voucher(PDO $pdo, int $voucherId): void
+{
+    if ($voucherId < 1 || !hr_salary_disbursement_columns_ready($pdo)) {
+        return;
+    }
+    $pdo->prepare(
+        'UPDATE hr_salary SET disbursement_voucher_id = NULL WHERE disbursement_voucher_id = ?'
+    )->execute([$voucherId]);
+}
+
+function hr_salary_month_has_disbursement(PDO $pdo, int $year, int $month): bool
+{
+    if (!hr_salary_disbursement_columns_ready($pdo)) {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare(
+            'SELECT 1 FROM hr_salary
+             WHERE pay_year = ? AND pay_month = ?
+               AND disbursement_voucher_id IS NOT NULL AND disbursement_voucher_id > 0
+             LIMIT 1'
+        );
+        $st->execute([$year, $month]);
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}

@@ -67,6 +67,65 @@ function fin_voucher_enrich_row(PDO $pdo, array $row): array
             $row['supplier_name'] = (string) ($s['name_ar'] ?? '');
             $row['party_name'] = $row['supplier_name'];
         }
+    } elseif ($partyType === 'employee' && $partyId > 0) {
+        require_once app_path('includes/fin_payment_parties.php');
+        $row['employee_name'] = fin_payment_employee_name($pdo, $partyId);
+        $row['party_name'] = $row['employee_name'];
+        $row['employee_id'] = $partyId;
+    } elseif ($partyType === 'account') {
+        require_once app_path('includes/fin_payment_parties.php');
+        $offsetId = (int) ($row['offset_account_id'] ?? $partyId);
+        $row['offset_account_id'] = $offsetId;
+        $row['party_name'] = fin_payment_account_label($pdo, $offsetId);
+    }
+
+    $offsetId = (int) ($row['offset_account_id'] ?? 0);
+    if ($offsetId > 0) {
+        require_once app_path('includes/fin_payment_parties.php');
+        $row['offset_account_label'] = fin_payment_account_label($pdo, $offsetId);
+    } else {
+        $row['offset_account_label'] = '';
+    }
+    $row['employee_id'] = $partyType === 'employee' ? $partyId : 0;
+
+    $hrAdvanceId = (int) ($row['hr_advance_id'] ?? 0);
+    $hrSalaryId = (int) ($row['hr_salary_id'] ?? 0);
+    $row['hr_advance_id'] = $hrAdvanceId;
+    $row['hr_salary_id'] = $hrSalaryId;
+    if ($partyType === 'employee' && $hrSalaryId > 0) {
+        $row['employee_pay_kind'] = 'other';
+    } elseif ($partyType === 'employee' && $hrAdvanceId > 0) {
+        $row['employee_pay_kind'] = 'advance';
+    } else {
+        $row['employee_pay_kind'] = 'other';
+    }
+    if ($hrAdvanceId > 0) {
+        require_once app_path('includes/hr_employee_advance.php');
+        $adv = hr_employee_advance_load($pdo, $hrAdvanceId);
+        if ($adv) {
+            $row['hr_advance_code'] = (string) ($adv['advance_code'] ?? '');
+            $row['hr_advance_amount'] = round((float) ($adv['total_amount'] ?? 0), 3);
+            $row['hr_advance_period'] = (string) ($adv['start_date'] ?? '');
+        }
+    }
+    if ($hrSalaryId > 0) {
+        require_once app_path('includes/hr_salary.php');
+        try {
+            $st = $pdo->prepare(
+                'SELECT pay_year, pay_month, net_salary FROM hr_salary WHERE id = ? LIMIT 1'
+            );
+            $st->execute([$hrSalaryId]);
+            $sal = $st->fetch(PDO::FETCH_ASSOC);
+            if ($sal) {
+                $row['hr_salary_period'] = hr_salary_period_label_ar(
+                    (int) ($sal['pay_year'] ?? 0),
+                    (int) ($sal['pay_month'] ?? 0)
+                );
+                $row['hr_salary_amount'] = round((float) ($sal['net_salary'] ?? 0), 3);
+            }
+        } catch (Throwable $e) {
+            // ignored
+        }
     }
 
     $row['pay_method'] = fin_voucher_normalize_pay_method((string) ($row['pay_method'] ?? 'cash'));

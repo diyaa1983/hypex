@@ -285,6 +285,14 @@ function acc_gl_party_name(PDO $pdo, string $partyType, int $partyId): string
         $st = $pdo->prepare('SELECT name_ar FROM crm_customer WHERE id = ? LIMIT 1');
     } elseif ($partyType === 'supplier') {
         $st = $pdo->prepare('SELECT name_ar FROM crm_supplier WHERE id = ? LIMIT 1');
+    } elseif ($partyType === 'employee') {
+        require_once app_path('includes/fin_payment_parties.php');
+
+        return fin_payment_employee_name($pdo, $partyId);
+    } elseif ($partyType === 'account') {
+        require_once app_path('includes/fin_payment_parties.php');
+
+        return fin_payment_account_label($pdo, $partyId);
     } else {
         return '';
     }
@@ -304,6 +312,29 @@ function acc_gl_pay_method_label(string $method): string
     require_once app_path('includes/fin_voucher.php');
 
     return fin_voucher_pay_method_label($method);
+}
+
+/** @return array{memo:string}|null */
+function acc_gl_payment_hr_advance_context(PDO $pdo, array $row): ?array
+{
+    if ((string) ($row['party_type'] ?? '') !== 'employee') {
+        return null;
+    }
+    require_once app_path('includes/fin_voucher_schema.php');
+    if (!fin_voucher_has_column($pdo, 'hr_advance_id')) {
+        return null;
+    }
+    $advanceId = (int) ($row['hr_advance_id'] ?? 0);
+    if ($advanceId < 1) {
+        return null;
+    }
+    require_once app_path('includes/fin_payment_parties.php');
+    $memo = fin_payment_advance_gl_memo($pdo, $advanceId, (int) ($row['party_id'] ?? 0));
+    if ($memo === '') {
+        return null;
+    }
+
+    return ['memo' => $memo];
 }
 
 function acc_gl_voucher_description(PDO $pdo, string $kind, array $row, float $amount): string
@@ -330,12 +361,31 @@ function acc_gl_voucher_description(PDO $pdo, string $kind, array $row, float $a
             $parts[] = 'إلى المورد ' . $partyName;
         } elseif ($partyType === 'customer') {
             $parts[] = 'إلى العميل ' . $partyName;
+        } elseif ($partyType === 'employee') {
+            $parts[] = 'إلى الموظف ' . $partyName;
+        } elseif ($partyType === 'account') {
+            $parts[] = 'إلى حساب ' . $partyName;
         } else {
             $parts[] = 'إلى ' . $partyName;
         }
     }
     if ($isCheck && $checkNo !== '') {
         $parts[] = 'رقم الشيك ' . $checkNo;
+    }
+
+    if ($kind === 'payment') {
+        $advCtx = acc_gl_payment_hr_advance_context($pdo, $row);
+        if ($advCtx !== null && ($advCtx['memo'] ?? '') !== '') {
+            $advParts = ['صرف سلفة', $advCtx['memo'], acc_gl_pay_method_label($payMethod), acc_gl_money_text($amount)];
+            if ($voucherNo !== '') {
+                array_splice($advParts, 1, 0, ['سند ' . $voucherNo]);
+            }
+            if ($isCheck && $checkNo !== '') {
+                $advParts[] = 'رقم الشيك ' . $checkNo;
+            }
+
+            return trim(implode(' — ', array_filter($advParts, static fn($v): bool => trim((string) $v) !== '')));
+        }
     }
 
     return trim(implode(' - ', array_filter($parts, static fn($v): bool => trim((string) $v) !== '')));
@@ -1034,11 +1084,26 @@ function acc_gl_post_cash_payment(PDO $pdo, int $voucherId): array
         if ($partyName !== '') {
             $partyMemo = $party === 'supplier' ? 'المورد: ' . $partyName : ($party === 'customer' ? 'العميل: ' . $partyName : $partyName);
         }
+        $advCtx = acc_gl_payment_hr_advance_context($pdo, $row);
+        if ($advCtx !== null && ($advCtx['memo'] ?? '') !== '') {
+            $partyMemo = (string) $advCtx['memo'];
+        }
         $lines = [acc_gl_cash_line_for_voucher($pdo, $row, 0.0, $amount, $partyMemo)];
         if ($party === 'supplier') {
             array_unshift($lines, ['rule' => 'ap_suppliers', 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo]);
         } elseif ($party === 'customer') {
             array_unshift($lines, ['rule' => 'ar_customers', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo]);
+        } elseif ($party === 'employee' || $party === 'account') {
+            $offsetId = (int) ($row['offset_account_id'] ?? 0);
+            if ($offsetId < 1) {
+                throw new RuntimeException('حساب الصرف المُدين غير محدد.');
+            }
+            array_unshift($lines, [
+                'account_id' => $offsetId,
+                'debit' => $amount,
+                'credit' => 0,
+                'memo' => $partyMemo,
+            ]);
         } else {
             array_unshift($lines, ['rule' => 'misc_expense', 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo]);
         }

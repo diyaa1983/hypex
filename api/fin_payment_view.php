@@ -140,15 +140,13 @@ if (!$row) {
 
 
 
-$partyType = (string) ($row['party_type'] ?? 'supplier');
+require_once app_path('includes/fin_payment_parties.php');
 
-if ($partyType !== 'customer' && $partyType !== 'supplier') {
-
-    $partyType = 'customer';
-
-}
+$partyType = fin_payment_normalize_party_type((string) ($row['party_type'] ?? 'supplier'));
 
 $partyId = (int) ($row['party_id'] ?? 0);
+
+$offsetAccountId = (int) ($row['offset_account_id'] ?? 0);
 
 
 
@@ -192,6 +190,22 @@ echo json_encode([
 
         'supplier_name' => (string) ($row['supplier_name'] ?? ''),
 
+        'employee_id' => $partyType === 'employee' ? $partyId : 0,
+
+        'employee_name' => (string) ($row['employee_name'] ?? ''),
+
+        'offset_account_id' => $offsetAccountId,
+
+        'offset_account_label' => (string) ($row['offset_account_label'] ?? ''),
+
+        'employee_pay_kind' => (string) ($row['employee_pay_kind'] ?? 'other'),
+
+        'hr_advance_id' => (int) ($row['hr_advance_id'] ?? 0),
+
+        'hr_advance_code' => (string) ($row['hr_advance_code'] ?? ''),
+
+        'hr_advance_amount' => (float) ($row['hr_advance_amount'] ?? 0),
+
         'sales_rep_name' => (string) ($row['sales_rep_name'] ?? ''),
 
         'cash_account_id' => (int) ($row['cash_account_id'] ?? 0),
@@ -205,4 +219,3 @@ echo json_encode([
     ],
 
 ], JSON_UNESCAPED_UNICODE);
-

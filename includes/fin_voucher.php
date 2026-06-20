@@ -257,7 +257,8 @@ function fin_voucher_save(
     string $payMethod = 'cash',
     float $checkAmount = 0.0,
     string $bankName = '',
-    ?array $checks = null
+    ?array $checks = null,
+    int $offsetAccountId = 0
 ): int {
     if (!fin_voucher_type_valid($type)) {
         throw new RuntimeException('نوع السند غير صالح.');
@@ -291,11 +292,28 @@ function fin_voucher_save(
         throw new RuntimeException('اختر حساب الصندوق/البنك.');
     }
 
-    $partyType = in_array($partyType, ['customer', 'supplier', 'other'], true) ? $partyType : 'other';
-    if ($partyType === 'other') {
+    $partyType = in_array($partyType, ['customer', 'supplier', 'employee', 'account', 'other'], true)
+        ? $partyType
+        : 'other';
+    if ($partyType === 'account') {
+        if ($offsetAccountId < 1) {
+            throw new RuntimeException('اختر الحساب المُصروف إليه.');
+        }
+        $partyId = $offsetAccountId;
+    } elseif ($partyType === 'employee') {
+        if ($partyId < 1) {
+            throw new RuntimeException('اختر الموظف.');
+        }
+        if ($offsetAccountId < 1) {
+            throw new RuntimeException('اختر حساب الالتزام (رواتب مستحقة / سلف…).');
+        }
+    } elseif ($partyType === 'other') {
         $partyId = 0;
+        $offsetAccountId = 0;
     } elseif ($partyId < 1) {
         throw new RuntimeException($partyType === 'customer' ? 'اختر العميل.' : 'اختر المورد.');
+    } else {
+        $offsetAccountId = 0;
     }
 
     if ($id > 0) {
@@ -403,6 +421,8 @@ function fin_voucher_save(
             }
         }
 
+        fin_voucher_save_apply_offset_account($pdo, $id, $offsetAccountId);
+
         return $id;
     }
 
@@ -468,7 +488,26 @@ function fin_voucher_save(
         fin_voucher_checks_replace($pdo, $newId, $checks);
     }
 
+    if ($newId > 0) {
+        fin_voucher_save_apply_offset_account($pdo, $newId, $offsetAccountId);
+    }
+
     return $newId;
+}
+
+function fin_voucher_save_apply_offset_account(PDO $pdo, int $voucherId, int $offsetAccountId): void
+{
+    if ($voucherId < 1) {
+        return;
+    }
+    require_once app_path('includes/fin_voucher_schema.php');
+    if (!fin_voucher_has_column($pdo, 'offset_account_id')) {
+        return;
+    }
+    $pdo->prepare('UPDATE fin_voucher SET offset_account_id = ? WHERE id = ?')->execute([
+        $offsetAccountId > 0 ? $offsetAccountId : null,
+        $voucherId,
+    ]);
 }
 
 function fin_voucher_delete(PDO $pdo, int $id, string $type): void
@@ -493,6 +532,12 @@ function fin_voucher_delete(PDO $pdo, int $id, string $type): void
         } catch (Throwable $e) {
             // تجاهل
         }
+    }
+    if ($type === 'payment') {
+        require_once app_path('includes/hr_employee_advance.php');
+        require_once app_path('includes/hr_salary.php');
+        hr_employee_advance_clear_disbursement_by_voucher($pdo, $id);
+        hr_salary_clear_disbursement_by_voucher($pdo, $id);
     }
     $st = $pdo->prepare('DELETE FROM fin_voucher WHERE id = ? AND voucher_type = ?');
     $st->execute([$id, $type]);

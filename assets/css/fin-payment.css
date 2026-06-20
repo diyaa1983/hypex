@@ -56,13 +56,111 @@
   min-width: min(100%, 280px);
 }
 
-.fin-py-wrap.fin-py-party-is-customer .fin-py-party-supplier {
+.fin-py-wrap .fin-py-party-fields {
+  width: 100%;
+  flex: 1 1 100%;
+  align-items: flex-start;
+}
+
+.fin-py-wrap .fin-py-party-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: flex-end;
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+.fin-py-wrap .fin-py-party-panel[hidden] {
   display: none !important;
 }
 
-.fin-py-wrap.fin-py-party-is-supplier .fin-py-party-customer,
-.fin-py-wrap.fin-py-party-is-supplier .fin-py-party-customer-only {
+.fin-py-wrap .fin-py-party-panel .sales-inv-meta-item,
+.fin-py-wrap .fin-py-party-panel .employee-picker-slot {
+  flex: 0 1 auto;
+  min-width: min(100%, 14rem);
+}
+
+.fin-py-wrap .fin-py-meta-employee-kind,
+.fin-py-wrap .fin-py-employee-advance-panel,
+.fin-py-wrap .fin-py-employee-other-panel,
+.fin-py-wrap .fin-py-advances-box {
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+.fin-py-wrap .fin-py-employee-advance-panel[hidden],
+.fin-py-wrap .fin-py-employee-other-panel[hidden] {
   display: none !important;
+}
+
+.fin-py-wrap .sales-inv-meta-offset-account .account-picker-slot,
+.fin-py-wrap .sales-inv-meta-offset-account .acc-map-picker-btn {
+  width: 100%;
+  min-width: min(100%, 280px);
+}
+
+.fin-py-wrap .sales-inv-meta-employee .sales-inv-cust-open,
+.fin-py-wrap .sales-inv-meta-offset-account .acc-map-picker-btn {
+  width: 100%;
+  min-width: min(100%, 280px);
+}
+
+.fin-py-wrap .fin-py-meta-employee-offset select,
+.fin-py-wrap #py_advance_payable_display {
+  min-width: min(100%, 320px);
+  width: 100%;
+}
+
+.fin-py-wrap .fin-py-advances-box {
+  margin-top: 0.35rem;
+}
+
+.fin-py-wrap .fin-py-advances-head {
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+  color: #334155;
+}
+
+.fin-py-wrap .fin-py-advances-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.fin-py-wrap .fin-py-advances-table th,
+.fin-py-wrap .fin-py-advances-table td {
+  border: 1px solid #cbd5e1;
+  padding: 0.35rem 0.5rem;
+  text-align: start;
+}
+
+.fin-py-wrap .fin-py-advances-table th {
+  background: #f1f5f9;
+  font-weight: 700;
+}
+
+.fin-py-wrap .fin-py-advance-row {
+  cursor: pointer;
+}
+
+.fin-py-wrap .fin-py-advance-row.is-selected {
+  background: #eff6ff;
+}
+
+.fin-py-wrap .fin-py-advances-empty {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.fin-py-wrap .fin-py-amount-readonly,
+.fin-py-wrap.fin-py-amount-locked #py_amount,
+.fin-py-wrap.fin-py-amount-locked #py_check_amount {
+  background: #f3f5f7;
+  cursor: not-allowed;
 }
 
 .fin-py-wrap.fin-py-form-is-posted .fin-py-body input:not([readonly]),
