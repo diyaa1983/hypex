@@ -29,11 +29,33 @@
   var sumVdate = document.getElementById('fin-check-sum-vdate');
   var sumDue = document.getElementById('fin-check-sum-due');
 
-  function todayIso() {
-    var d = new Date();
-    var m = String(d.getMonth() + 1).padStart(2, '0');
-    var day = String(d.getDate()).padStart(2, '0');
-    return d.getFullYear() + '-' + m + '-' + day;
+  function todayDmY() {
+    if (window.AppDatePicker && AppDatePicker.formatIsoToDmY) {
+      var d = new Date();
+      var iso =
+        d.getFullYear() +
+        '-' +
+        String(d.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(d.getDate()).padStart(2, '0');
+      return AppDatePicker.formatIsoToDmY(iso);
+    }
+    var now = new Date();
+    return (
+      String(now.getDate()).padStart(2, '0') +
+      '-' +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      now.getFullYear()
+    );
+  }
+
+  function setActionDateToday() {
+    if (!modalActionDate) {
+      return;
+    }
+    modalActionDate.value = todayDmY();
+    modalActionDate.dispatchEvent(new Event('blur', { bubbles: true }));
   }
 
   function dialogConfirm(msg, title) {
@@ -83,7 +105,7 @@
     modalAction.value = action;
     modalCheckId.value = String(checkId);
     setSummary(btn);
-    modalActionDate.value = todayIso();
+    setActionDateToday();
     modalErr.textContent = '';
     modalErr.style.display = 'none';
 

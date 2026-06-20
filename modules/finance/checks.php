@@ -51,6 +51,8 @@ if ($err === '') {
 
 $fromDisplay = $filters['from'] !== '' ? format_date_dmY($filters['from']) : '';
 $toDisplay = $filters['to'] !== '' ? format_date_dmY($filters['to']) : '';
+$today = date('Y-m-d');
+$todayDisplay = format_date_dmY($today);
 
 $finCssPath = app_path('assets/css/fin-checks.css');
 $finCssUrl = app_url('assets/css/fin-checks.css') . (is_file($finCssPath) ? '?v=' . (string) filemtime($finCssPath) : '');
@@ -125,11 +127,13 @@ sales_inv_oracle12_enqueue_assets();
             </label>
             <label class="field">
                 <span class="field-label">من (اختياري)</span>
-                <input class="input input-compact" type="text" name="from" value="<?= esc($fromDisplay) ?>" placeholder="فارغ = الكل">
+                <input class="input input-compact js-date-dmy" type="text" name="from" value="<?= esc($fromDisplay) ?>"
+                       placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off">
             </label>
             <label class="field">
                 <span class="field-label">إلى (اختياري)</span>
-                <input class="input input-compact" type="text" name="to" value="<?= esc($toDisplay) ?>" placeholder="فارغ = الكل">
+                <input class="input input-compact js-date-dmy" type="text" name="to" value="<?= esc($toDisplay) ?>"
+                       placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off">
             </label>
             <label class="field">
                 <span class="field-label">رقم الشيك</span>
@@ -325,7 +329,8 @@ sales_inv_oracle12_enqueue_assets();
                 <input type="hidden" name="check_id" id="fin-check-modal-check-id" value="">
                 <label class="field">
                     <span class="field-label">تاريخ الترحيل *</span>
-                    <input class="input input-compact" type="date" name="action_date" id="fin-check-action-date" required>
+                    <input class="input input-compact js-date-dmy" type="text" name="action_date" id="fin-check-action-date"
+                           value="<?= esc($todayDisplay) ?>" placeholder="يوم-شهر-سنة" dir="ltr" required autocomplete="off">
                 </label>
                 <div id="fin-check-account-wrap">
                     <label class="field">

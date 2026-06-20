@@ -143,7 +143,6 @@ return [
                         ['r' => 'cash_payment', 'label' => 'سند صرف', 'icon' => '⬇'],
                         ['r' => 'cash_payments_list', 'label' => 'ترحيل سندات الصرف', 'icon' => '📋'],
                         ['r' => 'journal_voucher', 'label' => 'سند قيد', 'icon' => '⚖'],
-                        ['r' => 'fin_checks', 'label' => 'شاشة الشيكات', 'icon' => '📝'],
                         ['r' => 'debit_notes', 'label' => 'إشعارات مدينة', 'icon' => 'Ⓓ'],
                         ['r' => 'credit_notes', 'label' => 'إشعارات دائنة', 'icon' => 'Ⓒ'],
                     ],
@@ -154,6 +153,7 @@ return [
                     'items' => [
                         ['r' => 'chart_of_accounts', 'label' => 'شجرة الحسابات', 'icon' => '🌳'],
                         ['r' => 'journal_entries', 'label' => 'القيود المحاسبية', 'icon' => '⚖'],
+                        ['r' => 'fin_checks', 'label' => 'شاشة الشيكات', 'icon' => '📝'],
                         ['r' => 'report_general_ledger', 'label' => 'دفتر الأستاذ العام', 'icon' => '📖'],
                         ['r' => 'acc_period_close', 'label' => 'إغلاق الأشهر المحاسبية', 'icon' => '🔒'],
                     ],
