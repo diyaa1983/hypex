@@ -112,9 +112,19 @@ $appBootMigrations = [
     'database/migrations/157_sys_audit_log.sql',
     'database/migrations/158_invoice_decimal_10_places.sql',
     'database/migrations/159_acc_journal_line_party.sql',
+    'database/migrations/160_acc_vat_trust_account.sql',
 ];
 sql_migration_bootstrap_registry($pdo, $appBootMigrations);
 sql_migration_run_files_once($pdo, $appBootMigrations);
+
+require_once app_path('includes/acc_vat_trust_account.php');
+$vatTrustErr = acc_vat_trust_account_apply_once($pdo);
+if ($vatTrustErr !== null) {
+    $_SESSION['coa_bootstrap_notice'] = array_merge(
+        is_array($_SESSION['coa_bootstrap_notice'] ?? null) ? $_SESSION['coa_bootstrap_notice'] : [],
+        ['تعذر توحيد حساب أمانات الضريبة: ' . $vatTrustErr]
+    );
+}
 
 require_once app_path('includes/acc_account_reassign.php');
 require_once app_path('includes/acc_coa_bootstrap.php');

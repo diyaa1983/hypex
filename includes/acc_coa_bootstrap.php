@@ -567,8 +567,8 @@ function acc_coa_posting_rule_canonical_codes(): array
         'purchases' => '51',
         'purchase_returns' => '55',
         'inventory' => '1001007',
-        'vat_input' => '1001004',
-        'vat_output' => '2003',
+        'vat_input' => '3001002',
+        'vat_output' => '3001002',
         'misc_expense' => '53',
         'cogs' => '54',
         'salaries_expense' => '52',
@@ -2220,21 +2220,22 @@ function acc_coa_bootstrap_run(PDO $pdo, bool $forceRemap = false): array
             ]);
         })(),
         'vat_output' => $resolve([
-            'code' => '22',
-            'name_ar' => 'ضريبة القيمة المضافة — مستحقة',
-            'parent_code' => '2',
+            'code' => '3001002',
+            'name_ar' => 'أمانات ضريبة مبيعات',
+            'parent_code' => '3001',
             'account_type' => 'liability',
             'sort_order' => 20,
-            'role_keywords' => ['ضريبة', 'مستحق', 'مبيع'],
+            'role_keywords' => ['أمانات', 'ضريبة', 'مبيع', 'vat'],
         ]),
-        'vat_input' => $resolve([
-            'code' => '1001009',
-            'name_ar' => 'ضريبة القيمة المضافة — مدخلات',
-            'parent_code' => '1001',
-            'account_type' => 'asset',
-            'sort_order' => 40,
-            'role_keywords' => ['ضريبة', 'مدخل', 'مشتري'],
-        ]),
+        'vat_input' => (static function () use ($pdo): int {
+            require_once app_path('includes/acc_vat_trust_account.php');
+            $id = acc_vat_trust_find_account_id($pdo);
+            if ($id > 0) {
+                return $id;
+            }
+
+            return acc_vat_trust_ensure_account($pdo);
+        })(),
         'misc_expense' => $miscId,
         'cogs' => (static function () use ($pdo, $resolve): int {
             $id = acc_coa_find_global_cogs_id($pdo);

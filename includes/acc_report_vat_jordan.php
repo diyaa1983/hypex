@@ -49,6 +49,9 @@ function acc_report_vat_output_net(PDO $pdo, int $accountId, string $dateFrom, s
         if ($ref === 'sale_invoice' || $ref === 'sale_return') {
             continue;
         }
+        if (in_array($ref, ['purchase_invoice', 'purchase_return'], true)) {
+            continue;
+        }
         $otherCr += (float) ($sums['credit'] ?? 0);
         $otherDr += (float) ($sums['debit'] ?? 0);
     }
@@ -136,6 +139,9 @@ function acc_report_vat_input_net(PDO $pdo, int $accountId, string $dateFrom, st
         if ($ref === 'purchase_invoice' || $ref === 'purchase_return') {
             continue;
         }
+        if (in_array($ref, ['sale_invoice', 'sale_return'], true)) {
+            continue;
+        }
         $otherDr += (float) ($sums['debit'] ?? 0);
         $otherCr += (float) ($sums['credit'] ?? 0);
     }
@@ -215,8 +221,14 @@ function acc_report_vat_jordan_summary(PDO $pdo, string $dateFrom, string $dateT
     $outId = (int) ($settings['vat_output']['account_id'] ?? 0);
     $inId = (int) ($settings['vat_input']['account_id'] ?? 0);
 
-    $outByRef = $outId > 0 ? acc_report_vat_by_ref_type($pdo, $outId, $dateFrom, $dateTo) : [];
-    $inByRef = $inId > 0 ? acc_report_vat_by_ref_type($pdo, $inId, $dateFrom, $dateTo) : [];
+    if ($outId > 0 && $outId === $inId) {
+        $unifiedByRef = acc_report_vat_by_ref_type($pdo, $outId, $dateFrom, $dateTo);
+        $outByRef = $unifiedByRef;
+        $inByRef = $unifiedByRef;
+    } else {
+        $outByRef = $outId > 0 ? acc_report_vat_by_ref_type($pdo, $outId, $dateFrom, $dateTo) : [];
+        $inByRef = $inId > 0 ? acc_report_vat_by_ref_type($pdo, $inId, $dateFrom, $dateTo) : [];
+    }
 
     $salesTax = (float) ($outByRef['sale_invoice']['credit'] ?? 0);
     $saleReturnTax = (float) ($outByRef['sale_return']['debit'] ?? 0);
