@@ -798,3 +798,135 @@
   padding: 0.65rem;
   border-radius: 4px;
 }
+
+/* كشف حساب / دفتر الأستاذ */
+.report-gl-page .report-gl-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.report-gl-page .report-gl-table .col-date {
+  width: 10%;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.report-gl-page .report-gl-table .col-entry-no {
+  width: 16%;
+  text-align: start;
+  direction: ltr;
+  unicode-bidi: isolate;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.report-gl-page .report-gl-table .col-entry-no code {
+  display: inline;
+  padding: 0;
+  background: transparent;
+  font-size: 0.78em;
+  font-weight: 700;
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.report-gl-page .report-gl-table .col-desc {
+  width: 36%;
+  text-align: start;
+  vertical-align: top;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+}
+
+.report-gl-page .report-gl-table .col-money {
+  width: 12%;
+  text-align: left;
+  direction: ltr;
+  unicode-bidi: embed;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  vertical-align: top;
+}
+
+.report-gl-page .report-gl-table thead th {
+  vertical-align: middle;
+  text-align: center;
+}
+
+.report-gl-page .report-gl-table tbody td {
+  vertical-align: top;
+}
+
+.report-gl-page .report-gl-table .report-acc-opening-row td,
+.report-gl-page .report-gl-table .report-acc-totals td {
+  vertical-align: middle;
+}
+
+@media print {
+  .report-gl-page .report-sales-print-area {
+    font-size: 8pt !important;
+  }
+
+  .report-gl-page .report-acc-summary-grid {
+    margin: 0.35rem 0 0.5rem !important;
+    gap: 0.35rem !important;
+  }
+
+  .report-gl-page .report-acc-summary-card {
+    padding: 0.25rem 0.5rem !important;
+  }
+
+  .report-gl-page .report-gl-table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    font-size: 7.5pt !important;
+  }
+
+  .report-gl-page .report-gl-table th,
+  .report-gl-page .report-gl-table td {
+    padding: 2px 3px !important;
+    line-height: 1.2 !important;
+    overflow: hidden;
+  }
+
+  .report-gl-page .report-gl-table .col-date {
+    width: 10% !important;
+    font-size: 7pt !important;
+  }
+
+  .report-gl-page .report-gl-table .col-entry-no {
+    width: 15% !important;
+    font-size: 6.5pt !important;
+    line-height: 1.15 !important;
+  }
+
+  .report-gl-page .report-gl-table .col-desc {
+    width: 37% !important;
+    font-size: 7pt !important;
+    line-height: 1.25 !important;
+  }
+
+  .report-gl-page .report-gl-table .col-money {
+    width: 12.5% !important;
+    font-size: 6.5pt !important;
+    padding-inline: 2px !important;
+  }
+
+  .report-gl-page .report-gl-table thead {
+    display: table-header-group !important;
+  }
+
+  .report-gl-page .report-gl-table tfoot {
+    display: table-row-group !important;
+  }
+
+  .report-gl-page .report-gl-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

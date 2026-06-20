@@ -973,6 +973,24 @@
       );
     }
 
+    function getGeneralLedgerPrintCss() {
+      return (
+        '.report-gl-page .report-sales-print-area{font-size:8pt!important;}' +
+        '.report-gl-page .report-acc-summary-grid{margin:0.35rem 0 0.5rem!important;gap:0.35rem!important;}' +
+        '.report-gl-table{table-layout:fixed!important;width:100%!important;font-size:7.5pt!important;}' +
+        '.report-gl-table th,.report-gl-table td{padding:2px 3px!important;line-height:1.2!important;vertical-align:top!important;overflow:hidden!important;}' +
+        '.report-gl-table thead th{vertical-align:middle!important;text-align:center!important;background:#f1f5f9!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}' +
+        '.report-gl-table .col-date{width:10%!important;white-space:nowrap!important;direction:ltr!important;unicode-bidi:embed!important;font-size:7pt!important;}' +
+        '.report-gl-table .col-entry-no{width:15%!important;text-align:start!important;direction:ltr!important;unicode-bidi:isolate!important;word-break:break-all!important;overflow-wrap:anywhere!important;font-size:6.5pt!important;line-height:1.15!important;}' +
+        '.report-gl-table .col-entry-no code{font-size:inherit!important;background:transparent!important;padding:0!important;word-break:break-all!important;white-space:normal!important;display:inline!important;font-weight:700!important;}' +
+        '.report-gl-table .col-desc{width:37%!important;text-align:start!important;white-space:normal!important;word-break:break-word!important;overflow-wrap:break-word!important;line-height:1.25!important;font-size:7pt!important;}' +
+        '.report-gl-table .col-money{width:12.5%!important;text-align:left!important;direction:ltr!important;unicode-bidi:embed!important;white-space:nowrap!important;font-size:6.5pt!important;font-variant-numeric:tabular-nums!important;padding-inline:2px!important;}' +
+        '.report-gl-table .report-acc-opening-row td,.report-gl-table .report-acc-totals td{vertical-align:middle!important;}' +
+        '.report-gl-table tfoot td{background:#eef2ff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}' +
+        '.report-gl-table .no-print{display:none!important;}'
+      );
+    }
+
     function getTrialBalancePrintCss() {
       return (
         '@page{size:A4 landscape;margin:8mm 8mm 14mm 8mm;@bottom-center{content:counter(page) " / " counter(pages);font-family:Arial,Helvetica,sans-serif;font-size:9pt;font-weight:700;color:#0f172a;}}' +
@@ -1069,7 +1087,7 @@
         routeKey === 'inventory_stocktake' ? getStocktakePrintCss() : '';
       var generalLedgerPageCss =
         routeKey === 'report_general_ledger' || routeKey === 'report_account_statement'
-          ? '.report-gl-table .col-desc{text-align:start!important;white-space:normal!important;word-break:break-word!important;}'
+          ? getGeneralLedgerPrintCss()
           : '';
       var summaryPrint =
         ((routeKey === 'report_receivables' || routeKey === 'report_supplier_payables') &&

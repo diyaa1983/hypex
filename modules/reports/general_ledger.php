@@ -154,10 +154,19 @@ $pageDataAttrs = ' class="card report-sales-page report-gl-page"'
 
             <div class="report-sales-table-wrap">
                 <table class="data-table report-sales-table report-acc-table report-gl-table">
+                    <colgroup>
+                        <col class="col-date">
+                        <col class="col-entry-no">
+                        <col class="col-desc">
+                        <col class="col-money">
+                        <col class="col-money">
+                        <col class="col-money">
+                        <col class="col-act no-print">
+                    </colgroup>
                     <thead>
                     <tr>
-                        <th>التاريخ</th>
-                        <th>رقم القيد</th>
+                        <th class="col-date">التاريخ</th>
+                        <th class="col-entry-no">رقم القيد</th>
                         <th class="col-desc">البيان</th>
                         <th class="col-money">مدين</th>
                         <th class="col-money">دائن</th>
@@ -187,8 +196,8 @@ $pageDataAttrs = ' class="card report-sales-page report-gl-page"'
                             : null;
                         ?>
                         <tr>
-                            <td><?= esc(format_date_dmY((string) $ln['entry_date'])) ?></td>
-                            <td><code><?= esc((string) $ln['entry_no']) ?></code></td>
+                            <td class="col-date"><?= esc(format_date_dmY((string) $ln['entry_date'])) ?></td>
+                            <td class="col-entry-no"><code><?= esc((string) $ln['entry_no']) ?></code></td>
                             <td class="col-desc">
                                 <?= esc((string) ($ln['description_ar'] ?? '')) ?>
                                 <?php if (($ln['memo'] ?? '') !== ''): ?>
