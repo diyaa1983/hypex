@@ -6,7 +6,7 @@ require_once app_path('includes/inv_invoice_discount.php');
 
 function invoice_amount_decimals_max(): int
 {
-    return 8;
+    return 10;
 }
 
 function invoice_amount_decimals_clamp(int $dp): int

@@ -8,7 +8,7 @@ require_once app_path('includes/company_whatsapp.php');
 require_once app_path('includes/fin_check_due_email.php');
 require_once app_path('includes/login_recaptcha.php');
 
-$pdo = db();
+$decimalPlacesMax = invoice_amount_decimals_max();
 company_settings_ensure_default_row($pdo);
 company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
 company_settings_ensure_invoice_print_decimal_places_columns($pdo);
@@ -137,17 +137,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($name === '') {
             $msg = 'اسم الشركة مطلوب.';
             $msgType = 'error';
-        } elseif ($dec < 0 || $dec > 8) {
-            $msg = 'عدد الخانات العشرية يجب أن يكون بين 0 و 8.';
+        } elseif ($dec < 0 || $dec > $decimalPlacesMax) {
+            $msg = 'عدد الخانات العشرية يجب أن يكون بين 0 و ' . $decimalPlacesMax . '.';
             $msgType = 'error';
-        } elseif ($unitPriceDec < 0 || $unitPriceDec > 8) {
-            $msg = 'خانات السعر الافرادي في الفواتير يجب أن تكون بين 0 و 8.';
+        } elseif ($unitPriceDec < 0 || $unitPriceDec > $decimalPlacesMax) {
+            $msg = 'خانات السعر الافرادي في الفواتير يجب أن تكون بين 0 و ' . $decimalPlacesMax . '.';
             $msgType = 'error';
-        } elseif ($printDec < 0 || $printDec > 8) {
-            $msg = 'خانات الطباعة للمبالغ يجب أن تكون بين 0 و 8.';
+        } elseif ($printDec < 0 || $printDec > $decimalPlacesMax) {
+            $msg = 'خانات الطباعة للمبالغ يجب أن تكون بين 0 و ' . $decimalPlacesMax . '.';
             $msgType = 'error';
-        } elseif ($printUnitPriceDec < 0 || $printUnitPriceDec > 8) {
-            $msg = 'خانات الطباعة لسعر الوحدة يجب أن تكون بين 0 و 8.';
+        } elseif ($printUnitPriceDec < 0 || $printUnitPriceDec > $decimalPlacesMax) {
+            $msg = 'خانات الطباعة لسعر الوحدة يجب أن تكون بين 0 و ' . $decimalPlacesMax . '.';
             $msgType = 'error';
         } elseif (!in_array($rowsPerPage, [10, 15, 20], true)) {
             $msg = 'عدد الأسطر بالصفحة يجب أن يكون 10 أو 15 أو 20.';
@@ -400,22 +400,22 @@ $cssUrl = app_url('assets/css/settings-oracle12.css') . (is_file($cssPath) ? '?v
             </label>
             <label class="field">
                 <span class="field-label">الخانات العشرية بعد الفاصلة (النظام)</span>
-                <input class="input" name="decimal_places" type="number" min="0" max="8" value="<?= esc((string) $dp) ?>">
-                <span class="field-hint">تُطبَّق على جميع المبالغ في النظام (إجماليات، ضريبة، قبل الضريبة، تقارير، …). حتى 8 خانات.</span>
+                <input class="input" name="decimal_places" type="number" min="0" max="<?= (int) $decimalPlacesMax ?>" value="<?= esc((string) $dp) ?>">
+                <span class="field-hint">تُطبَّق على جميع المبالغ في النظام (إجماليات، ضريبة، قبل الضريبة، تقارير، …). حتى <?= (int) $decimalPlacesMax ?> خانات.</span>
             </label>
             <label class="field">
                 <span class="field-label">الخانات العشرية للسعر الافرادي في الفواتير</span>
-                <input class="input" name="invoice_unit_price_decimal_places" type="number" min="0" max="8" value="<?= esc((string) $unitPriceDp) ?>">
-                <span class="field-hint">تُطبَّق على عمود <strong>سعر الوحدة</strong> فقط في فواتير البيع والشراء (مثلاً 8 خانات للسعر و3 لباقي المبالغ).</span>
+                <input class="input" name="invoice_unit_price_decimal_places" type="number" min="0" max="<?= (int) $decimalPlacesMax ?>" value="<?= esc((string) $unitPriceDp) ?>">
+                <span class="field-hint">تُطبَّق على عمود <strong>سعر الوحدة</strong> فقط في فواتير البيع والشراء (مثلاً <?= (int) $decimalPlacesMax ?> خانات للسعر و3 لباقي المبالغ).</span>
             </label>
             <label class="field">
                 <span class="field-label">خانات عشرية للمبالغ عند طباعة الفاتورة</span>
-                <input class="input" name="invoice_print_decimal_places" type="number" min="0" max="8" value="<?= esc((string) $printDp) ?>">
+                <input class="input" name="invoice_print_decimal_places" type="number" min="0" max="<?= (int) $decimalPlacesMax ?>" value="<?= esc((string) $printDp) ?>">
                 <span class="field-hint">تُطبَّق عند <strong>طباعة</strong> فاتورة البيع/الشراء فقط (إجماليات، ضريبة، قبل الضريبة، …) — مستقلة عن العرض على الشاشة.</span>
             </label>
             <label class="field">
                 <span class="field-label">خانات عشرية لسعر الوحدة عند طباعة الفاتورة</span>
-                <input class="input" name="invoice_print_unit_price_decimal_places" type="number" min="0" max="8" value="<?= esc((string) $printUnitPriceDp) ?>">
+                <input class="input" name="invoice_print_unit_price_decimal_places" type="number" min="0" max="<?= (int) $decimalPlacesMax ?>" value="<?= esc((string) $printUnitPriceDp) ?>">
                 <span class="field-hint">تُطبَّق على <strong>سعر الوحدة</strong> في نسخة الطباعة/PDF فقط.</span>
             </label>
             <label class="field">

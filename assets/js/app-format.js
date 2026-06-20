@@ -1,14 +1,16 @@
 (function (global) {
   'use strict';
 
+  var DECIMAL_PLACES_MAX = 10;
+
   function decimals() {
     var body = document.body;
     var fromBody = body ? parseInt(body.getAttribute('data-decimal-places') || '', 10) : NaN;
-    if (!isNaN(fromBody) && fromBody >= 0 && fromBody <= 8) {
+    if (!isNaN(fromBody) && fromBody >= 0 && fromBody <= DECIMAL_PLACES_MAX) {
       return fromBody;
     }
     var fromGlobal = parseInt(String(global.APP_DECIMAL_PLACES || ''), 10);
-    if (!isNaN(fromGlobal) && fromGlobal >= 0 && fromGlobal <= 8) {
+    if (!isNaN(fromGlobal) && fromGlobal >= 0 && fromGlobal <= DECIMAL_PLACES_MAX) {
       return fromGlobal;
     }
     return 2;
@@ -17,7 +19,7 @@
   function fmt(n, dp) {
     var d = dp !== undefined && dp !== null ? parseInt(dp, 10) : decimals();
     if (isNaN(d) || d < 0) d = 2;
-    if (d > 8) d = 8;
+    if (d > DECIMAL_PLACES_MAX) d = DECIMAL_PLACES_MAX;
     var x = Number(n);
     if (!isFinite(x)) x = 0;
     return x.toLocaleString('en-US', {
@@ -45,7 +47,7 @@
   function clampDecimals(dp) {
     var d = parseInt(dp, 10);
     if (isNaN(d) || d < 0) return 0;
-    if (d > 8) return 8;
+    if (d > DECIMAL_PLACES_MAX) return DECIMAL_PLACES_MAX;
     return d;
   }
 
@@ -60,11 +62,11 @@
     var fromBody = body
       ? parseInt(body.getAttribute('data-invoice-unit-price-decimals') || '', 10)
       : NaN;
-    if (!isNaN(fromBody) && fromBody >= 0 && fromBody <= 8) {
+    if (!isNaN(fromBody) && fromBody >= 0 && fromBody <= DECIMAL_PLACES_MAX) {
       return fromBody;
     }
     var fromGlobal = parseInt(String(global.APP_INVOICE_UNIT_PRICE_DECIMAL_PLACES || ''), 10);
-    if (!isNaN(fromGlobal) && fromGlobal >= 0 && fromGlobal <= 8) {
+    if (!isNaN(fromGlobal) && fromGlobal >= 0 && fromGlobal <= DECIMAL_PLACES_MAX) {
       return fromGlobal;
     }
     return invoiceAmountDecimals();
