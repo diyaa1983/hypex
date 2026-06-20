@@ -23,9 +23,6 @@ $v = acc_report_vat_jordan_summary($pdo, $dateFrom, $dateTo);
 $detailRows = $view === 'detail'
     ? acc_vat_report_combined_invoice_tax_lines($pdo, $dateFrom, $dateTo)
     : [];
-$detailTotals = $view === 'detail'
-    ? acc_vat_report_combined_invoice_tax_totals($detailRows)
-    : [];
 
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
@@ -130,14 +127,6 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
             <div class="report-vat-net-summary-hero__amount" style="font-size:1.75rem;font-weight:700;"><?= esc(format_money((float) $v['gl_closing_balance'])) ?></div>
             <div class="report-vat-net-summary-formula muted" style="font-size:0.82rem;margin-top:0.5rem;line-height:1.45;">
                 <div>رصيد افتتاحي: <strong><?= esc(format_money((float) $v['gl_opening_balance'])) ?></strong></div>
-                <div>حركة الفترة (مدين − دائن): <strong><?= esc(format_money((float) (($v['gl_period_debit'] ?? 0) - ($v['gl_period_credit'] ?? 0)))) ?></strong></div>
-                <div>صافي حركة الفترة (دائن − مدين): <strong><?= esc(format_money((float) $v['gl_period_net'])) ?></strong></div>
-                <?php if ((float) ($v['gl_other_debit'] ?? 0) >= 0.005): ?>
-                <div>دفعات ضريبة مسجّلة (مدين على الحساب): <strong><?= esc(format_money((float) $v['gl_other_debit'])) ?></strong></div>
-                <?php endif; ?>
-                <?php if ((float) ($v['gl_other_credit'] ?? 0) >= 0.005): ?>
-                <div>تسويات / إضافات أخرى (دائن): <strong><?= esc(format_money((float) $v['gl_other_credit'])) ?></strong></div>
-                <?php endif; ?>
             </div>
             <?php if ($accountStatementUrl !== ''): ?>
                 <p class="no-print" style="margin:0.75rem 0 0;">
@@ -148,10 +137,7 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
 
         <?php if ($v['returns_need_repost']): ?>
             <p class="alert alert-error no-print">
-                مردودات قديمة لم تُخصم ضريبتها من حساب الضريبة — راجع المستندات والدفتر. (المستندات تُظهر
-                <strong><?= esc(format_money((float) $v['doc_net_payable'])) ?></strong>
-                بينما قيود الفواتير في الدفتر
-                <strong><?= esc(format_money((float) ($v['gl_invoice_net'] ?? $v['net_payable']))) ?></strong>)
+                مردودات قديمة لم تُخصم ضريبتها من حساب الضريبة — راجع المستندات والدفتر.
             </p>
         <?php elseif ((float) $v['gl_doc_gap'] >= 0.01): ?>
             <p class="alert alert-error no-print">
@@ -159,16 +145,9 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
                 <?= esc(format_money((float) $v['gl_doc_gap'])) ?>
                 — راجع ترحيل الفواتير والمردودات.
             </p>
-        <?php elseif ((float) ($v['gl_other_debit'] ?? 0) >= 0.01 || (float) ($v['gl_other_credit'] ?? 0) >= 0.01): ?>
-            <p class="alert no-print" style="background:#eef6ff;border:1px solid #93c5fd;padding:0.65rem;border-radius:4px;">
-                يشمل حساب الفترة قيود دفع أو تسوية ضريبية
-                <?php if ((float) ($v['gl_other_debit'] ?? 0) >= 0.01): ?>
-                    (دفع: <strong><?= esc(format_money((float) $v['gl_other_debit'])) ?></strong>)
-                <?php endif; ?>
-                — هذا طبيعي ولا يُعدّ خطأً في ترحيل الفواتير.
-            </p>
         <?php endif; ?>
 
+        <?php if ($view !== 'detail'): ?>
         <?php if ($isUnified): ?>
         <table class="data-table report-acc-table" style="max-width:40rem;">
             <thead>
@@ -200,18 +179,8 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
                 <td class="col-money" style="text-align:end"><strong><?= esc(format_money((float) $v['input_net'])) ?></strong></td>
             </tr>
             <tr class="report-acc-total">
-                <td><strong>صافي ضريبة الفواتير (دفتر)</strong></td>
+                <td><strong>صافي الضريبة المستحقة (مبيعات − مشتريات)</strong></td>
                 <td class="col-money" style="text-align:end"><strong><?= esc(format_money((float) ($v['gl_invoice_net'] ?? 0))) ?></strong></td>
-            </tr>
-            <?php if ((float) ($v['gl_other_debit'] ?? 0) >= 0.005 || (float) ($v['gl_other_credit'] ?? 0) >= 0.005): ?>
-            <tr>
-                <td>دفعات / تسويات أخرى (قيد دفع ضريبة، يدوي…)</td>
-                <td class="col-money" style="text-align:end"><?= esc(format_money((float) ($v['gl_other_net'] ?? 0))) ?></td>
-            </tr>
-            <?php endif; ?>
-            <tr class="report-acc-total">
-                <td><strong>صافي حركة الفترة (دائن − مدين)</strong></td>
-                <td class="col-money" style="text-align:end"><strong><?= esc(format_money((float) $v['gl_period_net'])) ?></strong></td>
             </tr>
             </tbody>
         </table>
@@ -256,14 +225,16 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
             </tbody>
         </table>
         <?php endif; ?>
+        <?php endif; ?>
 
         <?php if ($view === 'detail'): ?>
         <div class="report-sales-table-wrap report-vat-net-detail-section" style="margin-top:1.25rem;">
             <h3 class="report-vat-net-detail-title" style="margin:0 0 0.65rem;font-size:1rem;">تفصيل فواتير المبيعات والمشتريات</h3>
             <p class="muted report-vat-net-detail-meta" style="margin:0 0 0.65rem;font-size:0.85rem;">
-                فواتير مرحّلة فقط — بدون مردودات. العدد:
-                <?= (int) ($detailTotals['total_docs'] ?? 0) ?>
-                (مبيعات: <?= (int) ($detailTotals['sale_docs'] ?? 0) ?> · مشتريات: <?= (int) ($detailTotals['purchase_docs'] ?? 0) ?>)
+                فواتير مرحّلة فقط — بدون مردودات.
+                <?php if ($detailRows !== []): ?>
+                    العدد: <?= count($detailRows) ?>
+                <?php endif; ?>
             </p>
             <table class="data-table report-sales-table report-vat-net-detail-table">
                 <colgroup>
@@ -310,51 +281,7 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
                 <?php endif; ?>
                 </tbody>
             </table>
-            <?php if ($detailRows): ?>
-            <div class="report-sales-table-wrap report-vat-net-detail-totals-wrap html2pdf-page-break-avoid">
-                <table class="data-table report-sales-table report-vat-net-detail-totals-table">
-                    <colgroup>
-                        <col class="col-seq">
-                        <col class="col-type">
-                        <col class="col-date">
-                        <col class="col-inv-no">
-                        <col class="col-tax-rate">
-                        <col class="col-total">
-                        <col class="col-tax-amt">
-                    </colgroup>
-                    <tbody>
-                    <tr class="report-sales-tfoot">
-                        <td colspan="4"><strong>المجموع</strong></td>
-                        <td class="col-money">—</td>
-                        <td class="col-money"><strong><?= esc(format_amount((float) (($detailTotals['sale_total'] ?? 0) + ($detailTotals['purchase_total'] ?? 0)))) ?></strong></td>
-                        <td class="col-money"><strong><?= esc(format_amount((float) (($detailTotals['sale_tax'] ?? 0) + ($detailTotals['purchase_tax'] ?? 0)))) ?></strong></td>
-                    </tr>
-                    <tr class="report-sales-tfoot">
-                        <td colspan="4"><strong>ضريبة المبيعات (فواتير)</strong></td>
-                        <td class="col-money">—</td>
-                        <td class="col-money"><strong><?= esc(format_amount((float) ($detailTotals['sale_total'] ?? 0))) ?></strong></td>
-                        <td class="col-money"><strong><?= esc(format_amount((float) ($detailTotals['sale_tax'] ?? 0))) ?></strong></td>
-                    </tr>
-                    <tr class="report-sales-tfoot">
-                        <td colspan="4"><strong>ضريبة المشتريات (فواتير)</strong></td>
-                        <td class="col-money">—</td>
-                        <td class="col-money"><strong><?= esc(format_amount((float) ($detailTotals['purchase_total'] ?? 0))) ?></strong></td>
-                        <td class="col-money"><strong><?= esc(format_amount((float) ($detailTotals['purchase_tax'] ?? 0))) ?></strong></td>
-                    </tr>
-                    </tbody>
-                </table>
-            </div>
-            <?php endif; ?>
         </div>
-        <?php else: ?>
-        <details class="no-print" style="margin-top:1rem;font-size:0.88rem;">
-            <summary class="muted" style="cursor:pointer;">مرجع من المستندات (للتحقق)</summary>
-            <table class="data-table" style="margin-top:0.5rem;max-width:40rem;">
-                <tr><td>ضريبة مبيعات − مردود (مستندات)</td><td style="text-align:end"><?= esc(format_money((float) $v['doc_output_net'])) ?></td></tr>
-                <tr><td>ضريبة مشتريات − مردود (مستندات)</td><td style="text-align:end"><?= esc(format_money((float) $v['doc_input_net'])) ?></td></tr>
-                <tr><td><strong>صافي مستحق (مستندات)</strong></td><td style="text-align:end"><strong><?= esc(format_money((float) $v['doc_net_payable'])) ?></strong></td></tr>
-            </table>
-        </details>
         <?php endif; ?>
 
         <?php endif; ?>
