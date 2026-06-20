@@ -741,9 +741,16 @@
     } else if (el.classList.contains('js-line-gross')) {
       tr.dataset.amountDriver = 'gross';
       recalcRow(tr, 'gross');
-    } else if (el.classList.contains('js-price') || el.classList.contains('js-qty')) {
+    } else if (el.classList.contains('js-price')) {
       tr.dataset.amountDriver = 'unit';
       recalcRow(tr, 'unit');
+    } else if (el.classList.contains('js-qty')) {
+      if (rowAmountSource(tr) === 'gross') {
+        recalcRow(tr, 'gross');
+      } else {
+        tr.dataset.amountDriver = 'unit';
+        recalcRow(tr, 'unit');
+      }
     } else if (el.classList.contains('js-tax')) {
       recalcRow(tr, rowAmountSource(tr));
     } else {
@@ -782,6 +789,10 @@
     } else if (el.classList.contains('js-line-gross')) {
       source = 'gross';
       tr.dataset.amountDriver = 'gross';
+    } else if (el.classList.contains('js-qty') && rowAmountSource(tr) === 'gross') {
+      source = 'gross';
+    } else if (el.classList.contains('js-price')) {
+      tr.dataset.amountDriver = 'unit';
     } else {
       tr.dataset.amountDriver = 'unit';
     }
@@ -1071,10 +1082,9 @@
     if (source === 'gross') {
       gross = roundMoney(parseNum(grossInp ? grossInp.value : tr.dataset.gross));
       if (!hasExplicitLineDiscount(tr)) {
-        var subFromGross = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
-        price = qty > 0 ? roundUnitPrice(subFromGross / qty) : 0;
-        lineBase = qty > 0 ? roundMoney(qty * price) : 0;
-        sub = lineBase;
+        sub = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
+        price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
+        lineBase = sub;
         discountAmt = 0;
         taxAmt = roundMoney(gross - sub);
       } else {
@@ -1097,6 +1107,10 @@
       }
       tr.dataset.amountDriver = 'gross';
     } else {
+      if (rowAmountSource(tr) === 'gross') {
+        recalcRow(tr, 'gross', opts);
+        return;
+      }
       price = parseNum(priceEl ? priceEl.value : 0);
       if (opts.normalizeStored) price = roundUnitPrice(price);
       lineBase = qty > 0 ? roundMoney(qty * price) : 0;
@@ -1107,17 +1121,16 @@
         if (!hasExplicitLineDiscount(tr)) {
           sub = roundMoney(parseNum(subInp.value));
           price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
-          lineBase = qty > 0 ? roundMoney(qty * price) : 0;
+          lineBase = sub;
           discountAmt = 0;
-          sub = lineBase;
           if (priceEl && document.activeElement !== priceEl) {
             priceEl.value = formatUnitPriceValue(price, String(price));
           }
           if (opts.normalizeStored || document.activeElement !== subInp) {
             subInp.value = formatAmountValue(sub, subInp.value);
           }
-          gross = roundMoney(sub * taxFactor);
-          taxAmt = roundMoney(gross - sub);
+          taxAmt = roundMoney((sub * rate) / 100);
+          gross = roundMoney(sub + taxAmt);
         } else {
           discountAmt = getLineDiscountAmount(tr, lineBase);
           if (document.activeElement === subInp && isDiscountInputEmpty(tr)) {

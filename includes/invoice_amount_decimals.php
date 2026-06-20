@@ -170,15 +170,13 @@ function invoice_line_amounts_gross_without_implicit_discount(
     int $decimals
 ): array {
     $fromGross = invoice_line_amounts_from_gross($qty, $gross, $taxRatePercent, $decimals);
-    $dp = invoice_amount_decimals_clamp($decimals);
     $upDp = invoice_line_unit_price_decimals(null);
     $up = $qty > 0 ? round($fromGross['sub'] / $qty, $upDp) : 0.0;
-    $lineBase = round($qty * $up, $dp);
 
     return [
         'unit_price' => $up,
-        'sub' => $lineBase,
-        'tax' => round($fromGross['gross'] - $lineBase, $dp),
+        'sub' => $fromGross['sub'],
+        'tax' => round($fromGross['gross'] - $fromGross['sub'], invoice_amount_decimals_clamp($decimals)),
         'gross' => $fromGross['gross'],
     ];
 }
@@ -190,18 +188,15 @@ function invoice_line_amounts_sub_without_implicit_discount(
     float $taxRatePercent,
     int $decimals
 ): array {
-    $dp = invoice_amount_decimals_clamp($decimals);
+    $fromSub = invoice_line_amounts_from_sub($qty, $sub, $taxRatePercent, $decimals);
     $upDp = invoice_line_unit_price_decimals(null);
-    $up = $qty > 0 ? round($sub / $qty, $upDp) : 0.0;
-    $lineBase = round($qty * $up, $dp);
-    $factor = 1 + ($taxRatePercent / 100);
-    $gross = round($lineBase * $factor, $dp);
+    $up = $qty > 0 ? round($fromSub['sub'] / $qty, $upDp) : 0.0;
 
     return [
         'unit_price' => $up,
-        'sub' => $lineBase,
-        'tax' => round($gross - $lineBase, $dp),
-        'gross' => $gross,
+        'sub' => $fromSub['sub'],
+        'tax' => $fromSub['tax'],
+        'gross' => $fromSub['gross'],
     ];
 }
 
