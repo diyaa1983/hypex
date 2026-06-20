@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once app_path('includes/acc_gl.php');
 require_once app_path('includes/acc_report.php');
+require_once app_path('includes/acc_vat_trust_account.php');
 
 /**
  * @return array<string, array{debit: float, credit: float}>
@@ -274,9 +275,57 @@ function acc_report_vat_jordan_summary(PDO $pdo, string $dateFrom, string $dateT
             || abs($purReturnTax) < 0.01 && $docPurRet > 0.01
         );
 
+    $trustId = acc_vat_trust_find_account_id($pdo);
+    if ($trustId < 1) {
+        $trustId = ($outId > 0 && $outId === $inId) ? $outId : max($outId, $inId);
+    }
+
+    $trustCode = ACC_VAT_TRUST_ACCOUNT_CODE;
+    $trustName = ACC_VAT_TRUST_ACCOUNT_NAME;
+    $glOpeningBalance = 0.0;
+    $glClosingBalance = 0.0;
+    $glPeriodDebit = 0.0;
+    $glPeriodCredit = 0.0;
+    $glPeriodNet = 0.0;
+    $unifiedAccount = $outId > 0 && $outId === $inId;
+
+    if ($trustId > 0) {
+        $stTrust = $pdo->prepare('SELECT code, name_ar FROM acc_account WHERE id = ?');
+        $stTrust->execute([$trustId]);
+        $trustRow = $stTrust->fetch(PDO::FETCH_ASSOC) ?: [];
+        $trustCode = (string) ($trustRow['code'] ?? $trustCode);
+        $trustName = (string) ($trustRow['name_ar'] ?? $trustName);
+
+        $openingSums = acc_report_account_sums($pdo, $trustId, $dateFrom, null, true);
+        $periodSums = acc_report_account_sums($pdo, $trustId, $dateFrom, $dateTo);
+        $glOpeningBalance = (float) ($openingSums['balance'] ?? 0);
+        $glPeriodDebit = (float) ($periodSums['sum_debit'] ?? 0);
+        $glPeriodCredit = (float) ($periodSums['sum_credit'] ?? 0);
+        $glClosingBalance = round($glOpeningBalance + (float) ($periodSums['balance'] ?? 0), 6);
+        $glPeriodNet = round($glPeriodCredit - $glPeriodDebit, 6);
+        $netPayable = $glPeriodNet;
+        $glGap = round(abs($netPayable - $docNetPayable), 6);
+
+        if ($unifiedAccount) {
+            $outName = $trustName;
+            $inName = $trustName;
+            $outCode = $trustCode;
+            $inCode = $trustCode;
+        }
+    }
+
     return [
         'output_account_id' => $outId,
         'input_account_id' => $inId,
+        'trust_account_id' => $trustId,
+        'trust_account_code' => $trustCode,
+        'trust_account_name' => $trustName,
+        'unified_account' => $unifiedAccount,
+        'gl_opening_balance' => $glOpeningBalance,
+        'gl_closing_balance' => $glClosingBalance,
+        'gl_period_debit' => $glPeriodDebit,
+        'gl_period_credit' => $glPeriodCredit,
+        'gl_period_net' => $glPeriodNet,
         'output_code' => $outCode,
         'output_name' => $outName,
         'input_code' => $inCode,

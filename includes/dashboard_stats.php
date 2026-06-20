@@ -184,17 +184,18 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
         $items[] = $m;
     }
 
+    require_once app_path('includes/acc_vat_trust_account.php');
     require_once app_path('includes/acc_report_vat_jordan.php');
     $vat = acc_report_vat_jordan_summary($pdo, $dateFrom, $dateTo);
-    if ((int) ($vat['output_account_id'] ?? 0) > 0 && (int) ($vat['input_account_id'] ?? 0) > 0) {
-        $net = (float) ($vat['net_payable'] ?? 0);
+    if ((int) ($vat['trust_account_id'] ?? 0) > 0) {
+        $closing = (float) ($vat['gl_closing_balance'] ?? 0);
         $periodHint = 'من ' . format_date_dmY($dateFrom) . ' إلى ' . format_date_dmY($dateTo);
         $m = dashboard_metric(
-            'صافي الضريبة المستحقة على المبيعات والمشتريات',
-            $net,
+            ACC_VAT_TRUST_REPORT_TITLE,
+            $closing,
             'money',
-            $periodHint,
-            $net > 0.0005 ? 'warn' : ($net < -0.0005 ? 'success' : 'primary')
+            $periodHint . ' — رصيد ختامي',
+            $closing < -0.0005 ? 'warn' : ($closing > 0.0005 ? 'success' : 'primary')
         );
         $m['url'] = app_url(
             'index.php?r=report_vat_net_payable'

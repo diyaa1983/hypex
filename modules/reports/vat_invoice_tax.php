@@ -110,7 +110,7 @@ if ($showResult && $err === '') {
             <?php else: ?>
                 <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_invoice_tax')) ?>">فواتير البيع</a>
             <?php endif; ?>
-            <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_vat_net_payable')) ?>">صافي الضريبة المستحق</a>
+            <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_vat_net_payable')) ?>">أمانات ضريبة مبيعات</a>
         </div>
     </form>
 

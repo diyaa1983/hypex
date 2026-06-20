@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($applyResult['fixed'] > 0 && $applyResult['errors'] === []) {
             flash_set(
                 'success',
-                'تم تحديث ' . $applyResult['fixed'] . ' قيد مردود. راجع «صافي الضريبة المستحقة على المبيعات والمشتريات».'
+                'تم تحديث ' . $applyResult['fixed'] . ' قيد مردود. راجع «أمانات ضريبة مبيعات».'
             );
             redirect(app_url('index.php?r=vat_returns_repost'));
         }
@@ -111,12 +111,12 @@ $allRows = array_merge($scan['sale'], $scan['purchase']);
         </form>
     <?php else: ?>
         <p class="alert alert-success">كل المردودات المرحّلة محدّثة — لا حاجة لتنفيذ.</p>
-        <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_vat_net_payable')) ?>">صافي الضريبة المستحقة على المبيعات والمشتريات</a>
+        <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_vat_net_payable')) ?>">أمانات ضريبة مبيعات</a>
     <?php endif; ?>
 
     <p class="muted" style="margin-top:1rem;font-size:0.82rem;">
         نصيحة: خذ نسخة احتياطية لقاعدة البيانات قبل التنفيذ. بعد التنفيذ افتح
-        <a href="<?= esc(app_url('index.php?r=report_vat_net_payable')) ?>">صافي الضريبة المستحقة على المبيعات والمشتريات</a>
+        <a href="<?= esc(app_url('index.php?r=report_vat_net_payable')) ?>">أمانات ضريبة مبيعات</a>
         للفترة الضريبية.
     </p>
 </div>

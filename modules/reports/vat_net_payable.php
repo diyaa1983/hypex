@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 require_once app_path('includes/acc_report_vat_jordan.php');
 require_once app_path('includes/acc_vat_tax_report.php');
+require_once app_path('includes/acc_report_ref.php');
+require_once app_path('includes/acc_account_tree.php');
+require_once app_path('includes/acc_vat_trust_account.php');
 require_once app_path('includes/document_header.php');
 
 $pdo = db();
@@ -30,7 +33,14 @@ $accCssPath = app_path('assets/css/report-acc.css');
 $accCssUrl = app_url('assets/css/report-acc.css') . (is_file($accCssPath) ? '?v=' . (string) filemtime($accCssPath) : '');
 
 $viewLabel = $view === 'detail' ? 'تفصيلي' : 'إجمالي';
-$reportTitle = 'صافي الضريبة المستحقة على المبيعات والمشتريات — ' . $viewLabel;
+$reportTitle = ACC_VAT_TRUST_REPORT_TITLE . ' — ' . $viewLabel;
+$trustAccountId = (int) ($v['trust_account_id'] ?? 0);
+$trustAccountLabel = acc_account_format_code((string) ($v['trust_account_code'] ?? ''))
+    . ' — ' . (string) ($v['trust_account_name'] ?? ACC_VAT_TRUST_ACCOUNT_NAME);
+$accountStatementUrl = $trustAccountId > 0
+    ? acc_report_account_statement_url($trustAccountId, $dateFrom, $dateTo)
+    : '';
+$isUnified = !empty($v['unified_account']);
 
 $exportJsPath = app_path('assets/js/report-sales-export.js');
 $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsPath) ? '?v=' . (string) filemtime($exportJsPath) : '');
@@ -72,7 +82,9 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
             </label>
         </div>
         <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem;">
-            للفترة الضريبية (كل شهرين): اختر تاريخ بداية ونهاية الفترة. المستحق = ضريبة المبيعات − ضريبة المشتريات (بعد المردودات).
+            للفترة الضريبية (كل شهرين): اختر تاريخ بداية ونهاية الفترة. الرصيد الختامي = نفس رصيد حساب
+            <strong><?= esc((string) ($v['trust_account_name'] ?? ACC_VAT_TRUST_ACCOUNT_NAME)) ?></strong>
+            في كشف الحساب.
             <?php if ($view === 'detail'): ?>
                 <strong>التفصيلي:</strong> يعرض الإجمالي وجميع فواتير المبيعات والمشتريات المرحّلة في الفترة.
             <?php endif; ?>
@@ -107,15 +119,25 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
 
         <?php if ((int) $v['output_account_id'] < 1 || (int) $v['input_account_id'] < 1): ?>
             <p class="alert alert-error">ربط حسابي <code>vat_output</code> و <code>vat_input</code> غير مكتمل في شاشة ربط الحسابات.</p>
+        <?php elseif ($trustAccountId < 1): ?>
+            <p class="alert alert-error">حساب <?= esc(ACC_VAT_TRUST_ACCOUNT_CODE) ?> (<?= esc(ACC_VAT_TRUST_ACCOUNT_NAME) ?>) غير موجود — راجع شجرة الحسابات.</p>
         <?php else: ?>
 
         <div class="report-vat-net-summary-hero" style="margin:1rem 0;padding:1.25rem;background:#eef6ff;border-radius:8px;text-align:center;">
-            <div class="muted report-vat-net-summary-hero__label" style="font-size:0.9rem;margin-bottom:0.35rem;">صافي الضريبة المستحق للدفع (من الدفتر)</div>
-            <div class="report-vat-net-summary-hero__amount" style="font-size:1.75rem;font-weight:700;"><?= esc(format_money((float) $v['net_payable'])) ?></div>
-            <div class="report-vat-net-summary-formula muted" style="font-size:0.82rem;margin-top:0.5rem;line-height:1.45;">
-                <div>ضريبة مخرجات (مبيعات − مردود بيع): <strong><?= esc(format_money((float) $v['output_net'])) ?></strong></div>
-                <div>ضريبة مدخلات (مشتريات − مردود شراء): <strong><?= esc(format_money((float) $v['input_net'])) ?></strong></div>
+            <div class="muted report-vat-net-summary-hero__label" style="font-size:0.9rem;margin-bottom:0.35rem;">
+                رصيد حساب <?= esc($trustAccountLabel) ?> (ختامي)
             </div>
+            <div class="report-vat-net-summary-hero__amount" style="font-size:1.75rem;font-weight:700;"><?= esc(format_money((float) $v['gl_closing_balance'])) ?></div>
+            <div class="report-vat-net-summary-formula muted" style="font-size:0.82rem;margin-top:0.5rem;line-height:1.45;">
+                <div>رصيد افتتاحي: <strong><?= esc(format_money((float) $v['gl_opening_balance'])) ?></strong></div>
+                <div>حركة الفترة (مدين − دائن): <strong><?= esc(format_money((float) (($v['gl_period_debit'] ?? 0) - ($v['gl_period_credit'] ?? 0)))) ?></strong></div>
+                <div>صافي حركة الفترة (دائن − مدين): <strong><?= esc(format_money((float) $v['gl_period_net'])) ?></strong></div>
+            </div>
+            <?php if ($accountStatementUrl !== ''): ?>
+                <p class="no-print" style="margin:0.75rem 0 0;">
+                    <a class="btn btn-secondary btn-sm" href="<?= esc($accountStatementUrl) ?>">كشف حساب <?= esc(acc_account_format_code((string) ($v['trust_account_code'] ?? ''))) ?></a>
+                </p>
+            <?php endif; ?>
         </div>
 
         <?php if ($v['returns_need_repost']): ?>
@@ -133,6 +155,43 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
             </p>
         <?php endif; ?>
 
+        <?php if ($isUnified): ?>
+        <table class="data-table report-acc-table" style="max-width:40rem;">
+            <thead>
+            <tr><th colspan="2">تفصيل حركة الضريبة — <?= esc($trustAccountLabel) ?></th></tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>فواتير بيع (دائن)</td>
+                <td class="col-money" style="text-align:end"><?= esc(format_money((float) $v['sales_tax'])) ?></td>
+            </tr>
+            <tr>
+                <td>مردود بيع (مدين — يخصم)</td>
+                <td class="col-money" style="text-align:end">− <?= esc(format_money((float) $v['sale_return_tax'])) ?></td>
+            </tr>
+            <tr class="report-acc-total">
+                <td><strong>صافي ضريبة المبيعات</strong></td>
+                <td class="col-money" style="text-align:end"><strong><?= esc(format_money((float) $v['output_net'])) ?></strong></td>
+            </tr>
+            <tr>
+                <td>فواتير شراء (مدين — يخصم من المستحق)</td>
+                <td class="col-money" style="text-align:end"><?= esc(format_money((float) $v['purchase_tax'])) ?></td>
+            </tr>
+            <tr>
+                <td>مردود شراء (دائن — يقلل المدخلات)</td>
+                <td class="col-money" style="text-align:end">− <?= esc(format_money((float) $v['purchase_return_tax'])) ?></td>
+            </tr>
+            <tr class="report-acc-total">
+                <td><strong>صافي ضريبة المشتريات</strong></td>
+                <td class="col-money" style="text-align:end"><strong><?= esc(format_money((float) $v['input_net'])) ?></strong></td>
+            </tr>
+            <tr class="report-acc-total">
+                <td><strong>صافي حركة الفترة (دائن − مدين)</strong></td>
+                <td class="col-money" style="text-align:end"><strong><?= esc(format_money((float) $v['gl_period_net'])) ?></strong></td>
+            </tr>
+            </tbody>
+        </table>
+        <?php else: ?>
         <table class="data-table report-acc-table" style="max-width:40rem;">
             <thead>
             <tr><th colspan="2">ضريبة المبيعات (مخرجات) — <?= esc($v['output_name']) ?></th></tr>
@@ -172,6 +231,7 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
             </tr>
             </tbody>
         </table>
+        <?php endif; ?>
 
         <?php if ($view === 'detail'): ?>
         <div class="report-sales-table-wrap report-vat-net-detail-section" style="margin-top:1.25rem;">

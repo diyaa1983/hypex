@@ -110,7 +110,7 @@ if ($showResult && $err === '') {
                 <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_vat_return_tax')) ?>">ضريبة مردود البيع</a>
                 <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_invoice_tax_purchase')) ?>">ضريبة فواتير الشراء</a>
             <?php endif; ?>
-            <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_vat_net_payable')) ?>">← التقرير الرئيسي (الصافي)</a>
+            <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_vat_net_payable')) ?>">← أمانات ضريبة مبيعات</a>
         </div>
     </form>
 

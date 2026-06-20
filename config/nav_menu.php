@@ -184,7 +184,7 @@ return [
                     'items' => [
                         ['r' => 'report_tax_declaration', 'label' => 'الإقرار الضريبي', 'icon' => '📋'],
                         ['r' => 'report_tax_ar3', 'label' => 'تقرير الضريبة (أر/3)', 'icon' => '📄'],
-                        ['r' => 'report_vat_net_payable', 'label' => 'صافي الضريبة المستحقة على المبيعات والمشتريات', 'icon' => '🇯🇴'],
+                        ['r' => 'report_vat_net_payable', 'label' => 'أمانات ضريبة مبيعات', 'icon' => '🇯🇴'],
                         ['r' => 'report_invoice_tax', 'label' => 'ضريبة فواتير البيع', 'icon' => '🧾'],
                         ['r' => 'report_invoice_tax_purchase', 'label' => 'ضريبة فواتير الشراء', 'icon' => '📥'],
                         ['r' => 'report_vat_return_tax', 'label' => 'ضريبة مردود البيع', 'icon' => '↩'],

@@ -486,7 +486,7 @@ return [
     'report_vat_net_payable' => [
         'file' => 'modules/reports/vat_net_payable.php',
         'permission' => 'report_vat_net_payable',
-        'title' => 'صافي الضريبة المستحقة على المبيعات والمشتريات',
+        'title' => 'أمانات ضريبة مبيعات',
     ],
     'report_tax_declaration' => [
         'file' => 'modules/reports/tax_declaration.php',

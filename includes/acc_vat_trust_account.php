@@ -4,6 +4,7 @@ declare(strict_types=1);
 /** حساب أمانات ضريبة المبيعات — موحّد لمخرجات ومدخلات الضريبة. */
 const ACC_VAT_TRUST_ACCOUNT_CODE = '3001002';
 const ACC_VAT_TRUST_ACCOUNT_NAME = 'أمانات ضريبة مبيعات';
+const ACC_VAT_TRUST_REPORT_TITLE = 'أمانات ضريبة مبيعات';
 const ACC_VAT_TRUST_MIGRATION_PATH = 'database/migrations/160_acc_vat_trust_account.sql';
 const ACC_VAT_TRUST_META_KEY = 'vat_trust_unified_v1';
 

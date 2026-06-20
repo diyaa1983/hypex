@@ -113,6 +113,7 @@ $appBootMigrations = [
     'database/migrations/158_invoice_decimal_10_places.sql',
     'database/migrations/159_acc_journal_line_party.sql',
     'database/migrations/160_acc_vat_trust_account.sql',
+    'database/migrations/161_report_vat_trust_title.sql',
 ];
 sql_migration_bootstrap_registry($pdo, $appBootMigrations);
 sql_migration_run_files_once($pdo, $appBootMigrations);
