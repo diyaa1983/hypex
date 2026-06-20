@@ -1,20 +1,75 @@
+/* شاشة السلف — Oracle 12c */
+
+.fin-emp-adv-page {
+  font-weight: 700;
+}
+
+.fin-emp-adv-page .sales-ora-info,
+.fin-emp-adv-page .fin-emp-adv-intro,
+.fin-emp-adv-page .fin-emp-adv-summary,
+.fin-emp-adv-page .data-table th,
+.fin-emp-adv-page .data-table td,
+.fin-emp-adv-page .btn {
+  font-weight: 700;
+}
+
 .fin-emp-adv-page .fin-emp-adv-intro {
-  margin-bottom: 1rem;
+  margin: 0;
+}
+
+.fin-emp-adv-page .fin-emp-adv-results {
+  overflow: hidden;
 }
 
 .fin-emp-adv-page .fin-emp-adv-summary {
-  margin-bottom: 0.75rem;
+  margin: 0;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--ora12-border, #cbd5e1);
+  background: #f8fafc;
+  color: var(--ora12-text, #1e293b);
+  font-size: 0.78rem;
 }
 
-.fin-emp-adv-table .fin-emp-adv-empty {
+.fin-emp-adv-page .fin-emp-adv-table thead th,
+.fin-emp-adv-page .fin-emp-adv-table tbody td {
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.fin-emp-adv-page .fin-emp-adv-table thead th {
   text-align: center;
-  padding: 1.5rem;
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+  border-bottom: 2px solid #c5d0dc;
 }
 
-.fin-emp-adv-table .fin-emp-adv-notes {
+.fin-emp-adv-page .fin-emp-adv-table tbody tr:nth-child(even) td {
+  background: var(--ora12-stripe, #f8fafc);
+}
+
+.fin-emp-adv-page .fin-emp-adv-table tbody tr:hover td {
+  background: var(--ora12-hover, #eef4fb);
+}
+
+.fin-emp-adv-page .fin-emp-adv-table .fin-emp-adv-empty {
+  text-align: center;
+  padding: 1.25rem;
+  font-weight: 700;
+  color: var(--ora12-muted, #64748b);
+}
+
+.fin-emp-adv-page .fin-emp-adv-table .fin-emp-adv-notes {
   max-width: 14rem;
   white-space: normal;
   word-break: break-word;
+  font-weight: 600;
+}
+
+.fin-emp-adv-page .fin-emp-adv-col-money {
+  text-align: left;
+  direction: ltr;
+  unicode-bidi: isolate;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .fin-emp-adv-col-action {
@@ -23,7 +78,15 @@
   white-space: nowrap;
 }
 
-.fin-emp-adv-disburse-btn {
-  font-size: 0.875rem;
-  padding: 0.35rem 0.75rem;
+.fin-emp-adv-page .fin-emp-adv-disburse-btn {
+  min-width: 6.5rem;
+  padding: 0.22rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 2px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+}
+
+.fin-emp-adv-page .fin-emp-adv-disburse-btn:hover {
+  color: #fff;
 }

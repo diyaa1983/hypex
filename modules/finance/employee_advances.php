@@ -33,7 +33,7 @@ sales_ora12_enqueue_assets();
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 
-<div class="dashboard-ora sales-ora12-screen sales-ora-list-page fin-emp-adv-page"
+<div class="dashboard-ora sales-ora12-screen sales-ora-list-page sales-inv-list-page fin-emp-adv-page fin-emp-adv-ora12"
      id="fin-emp-adv-screen"
      data-exit-url="<?= esc($exitUrl) ?>">
     <?php sales_ora12_render_title_bar('السلف', '', $activeRoute); ?>
@@ -93,11 +93,11 @@ sales_ora12_enqueue_assets();
                             <td><?= esc($empLabel !== '' ? $empLabel : '—') ?></td>
                             <td><?= esc((string) ($r['advance_type_label'] ?? '—')) ?></td>
                             <td><?= esc((string) ($r['period_label'] ?? '—')) ?></td>
-                            <td dir="ltr"><?= esc(format_money((float) ($r['total_amount'] ?? 0))) ?></td>
+                            <td dir="ltr" class="col-money fin-emp-adv-col-money"><?= esc(format_money((float) ($r['total_amount'] ?? 0))) ?></td>
                             <td dir="ltr"><?= esc($postedDisplay) ?></td>
                             <td class="fin-emp-adv-notes"><?= esc($notes !== '' ? $notes : '—') ?></td>
                             <td class="fin-emp-adv-col-action">
-                                <a class="dashboard-ora-btn dashboard-ora-btn--primary fin-emp-adv-disburse-btn"
+                                <a class="btn btn-primary btn-sm fin-emp-adv-disburse-btn"
                                    href="<?= esc(fin_payment_disburse_advance_url($advId)) ?>">
                                     صرف السلفة
                                 </a>
