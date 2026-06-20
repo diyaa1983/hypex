@@ -319,17 +319,40 @@ function acc_journal_load_entry(PDO $pdo, int $id): ?array
     }
 
     $stL = $pdo->prepare(
-        'SELECT l.id, l.account_id, l.debit, l.credit, l.memo, a.code AS account_code, a.name_ar AS account_name
+        'SELECT l.id, l.account_id, l.debit, l.credit, l.memo, l.party_type, l.party_id,
+                a.code AS account_code, a.name_ar AS account_name,
+                c.name_ar AS customer_name, c.code AS customer_code,
+                s.name_ar AS supplier_name, s.code AS supplier_code
          FROM acc_journal_line l
          INNER JOIN acc_account a ON a.id = l.account_id
+         LEFT JOIN crm_customer c ON l.party_type = \'customer\' AND c.id = l.party_id
+         LEFT JOIN crm_supplier s ON l.party_type = \'supplier\' AND s.id = l.party_id
          WHERE l.journal_id = ?
          ORDER BY l.id ASC'
     );
     $stL->execute([$id]);
+    $rawLines = $stL->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $lines = [];
+    foreach ($rawLines as $ln) {
+        $partyType = (string) ($ln['party_type'] ?? '');
+        $partyName = '';
+        $partyCode = '';
+        if ($partyType === 'customer') {
+            $partyName = (string) ($ln['customer_name'] ?? '');
+            $partyCode = (string) ($ln['customer_code'] ?? '');
+        } elseif ($partyType === 'supplier') {
+            $partyName = (string) ($ln['supplier_name'] ?? '');
+            $partyCode = (string) ($ln['supplier_code'] ?? '');
+        }
+        $ln['party_name'] = $partyName;
+        $ln['party_code'] = $partyCode;
+        unset($ln['customer_name'], $ln['customer_code'], $ln['supplier_name'], $ln['supplier_code']);
+        $lines[] = $ln;
+    }
 
     return [
         'header' => $header,
-        'lines' => $stL->fetchAll(PDO::FETCH_ASSOC) ?: [],
+        'lines' => $lines,
     ];
 }
 
@@ -364,12 +387,19 @@ function acc_journal_normalize_lines(array $lines): array
 
         $sumDebit += $debit;
         $sumCredit += $credit;
-        $out[] = [
+        $row = [
             'account_id' => $accountId,
             'debit' => $debit,
             'credit' => $credit,
             'memo' => $memo,
         ];
+        $partyType = strtolower(trim((string) ($ln['party_type'] ?? '')));
+        $partyId = (int) ($ln['party_id'] ?? 0);
+        if ($partyType !== '' && $partyId > 0) {
+            $row['party_type'] = $partyType;
+            $row['party_id'] = $partyId;
+        }
+        $out[] = $row;
     }
 
     if (count($out) < 2) {
@@ -388,18 +418,45 @@ function acc_journal_normalize_lines(array $lines): array
  */
 function acc_journal_replace_lines(PDO $pdo, int $journalId, array $lines): void
 {
+    require_once app_path('includes/acc_journal_party.php');
+    acc_journal_party_ledger_sync($pdo, $journalId, false);
+
     $pdo->prepare('DELETE FROM acc_journal_line WHERE journal_id = ?')->execute([$journalId]);
-    $st = $pdo->prepare(
-        'INSERT INTO acc_journal_line (journal_id, account_id, debit, credit, memo) VALUES (?,?,?,?,?)'
-    );
+    $hasParty = acc_journal_party_has_columns($pdo);
+    if ($hasParty) {
+        $st = $pdo->prepare(
+            'INSERT INTO acc_journal_line (journal_id, account_id, debit, credit, memo, party_type, party_id)
+             VALUES (?,?,?,?,?,?,?)'
+        );
+    } else {
+        $st = $pdo->prepare(
+            'INSERT INTO acc_journal_line (journal_id, account_id, debit, credit, memo) VALUES (?,?,?,?,?)'
+        );
+    }
     foreach ($lines as $ln) {
-        $st->execute([
-            $journalId,
-            (int) $ln['account_id'],
-            (float) $ln['debit'],
-            (float) $ln['credit'],
-            ($ln['memo'] ?? '') !== '' ? (string) $ln['memo'] : null,
-        ]);
+        if ($hasParty) {
+            $partyType = isset($ln['party_type']) && $ln['party_type'] !== '' && $ln['party_type'] !== null
+                ? (string) $ln['party_type']
+                : null;
+            $partyId = isset($ln['party_id']) && (int) $ln['party_id'] > 0 ? (int) $ln['party_id'] : null;
+            $st->execute([
+                $journalId,
+                (int) $ln['account_id'],
+                (float) $ln['debit'],
+                (float) $ln['credit'],
+                ($ln['memo'] ?? '') !== '' ? (string) $ln['memo'] : null,
+                $partyType,
+                $partyId,
+            ]);
+        } else {
+            $st->execute([
+                $journalId,
+                (int) $ln['account_id'],
+                (float) $ln['debit'],
+                (float) $ln['credit'],
+                ($ln['memo'] ?? '') !== '' ? (string) $ln['memo'] : null,
+            ]);
+        }
     }
 }
 
@@ -420,6 +477,8 @@ function acc_journal_save(
     }
 
     $normalized = acc_journal_normalize_lines($lines);
+    require_once app_path('includes/acc_journal_party.php');
+    $normalized['lines'] = acc_journal_party_normalize_lines($pdo, $normalized['lines']);
     $uid = (int) (current_user()['id'] ?? 0) ?: null;
 
     if ($id > 0) {
@@ -462,6 +521,9 @@ function acc_journal_save(
             $id,
         ]);
         acc_journal_replace_lines($pdo, $id, $normalized['lines']);
+        if ($postNow) {
+            acc_journal_party_ledger_sync($pdo, $id, true);
+        }
 
         return $id;
     }
@@ -477,6 +539,9 @@ function acc_journal_save(
     ]);
     $newId = (int) $pdo->lastInsertId();
     acc_journal_replace_lines($pdo, $newId, $normalized['lines']);
+    if ($postNow) {
+        acc_journal_party_ledger_sync($pdo, $newId, true);
+    }
 
     return $newId;
 }
@@ -503,6 +568,9 @@ function acc_journal_post_by_id(PDO $pdo, int $id): void
     acc_journal_normalize_lines($lines);
 
     $pdo->prepare("UPDATE acc_journal_entry SET status = 'posted' WHERE id = ?")->execute([$id]);
+
+    require_once app_path('includes/acc_journal_party.php');
+    acc_journal_party_ledger_sync($pdo, $id, true);
 
     require_once app_path('includes/sys_audit_log.php');
     sys_audit_log_acc_journal($pdo, 'post', $id);
@@ -531,6 +599,9 @@ function acc_journal_unpost_by_id(PDO $pdo, int $id): void
         throw new RuntimeException('هذا القيد تلقائي (من مستند آخر). افتح المستند الأصلي وافسخ ترحيله من هناك.');
     }
     $pdo->prepare("UPDATE acc_journal_entry SET status = 'draft' WHERE id = ?")->execute([$id]);
+
+    require_once app_path('includes/acc_journal_party.php');
+    acc_journal_party_ledger_sync($pdo, $id, false);
 
     require_once app_path('includes/sys_audit_log.php');
     sys_audit_log_acc_journal($pdo, 'unpost', $id);
@@ -615,6 +686,10 @@ function acc_journal_api_entry(PDO $pdo, int $id): ?array
             'debit' => (float) ($ln['debit'] ?? 0),
             'credit' => (float) ($ln['credit'] ?? 0),
             'memo' => (string) ($ln['memo'] ?? ''),
+            'party_type' => (string) ($ln['party_type'] ?? ''),
+            'party_id' => (int) ($ln['party_id'] ?? 0),
+            'party_name' => (string) ($ln['party_name'] ?? ''),
+            'party_code' => (string) ($ln['party_code'] ?? ''),
         ];
     }
 

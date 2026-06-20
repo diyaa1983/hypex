@@ -119,6 +119,9 @@ function crm_party_statement_doc_number_label(string $txnType, string $checkNo):
     if ($txnType === 'sale_invoice') {
         return 'رقم فاتورة البيع';
     }
+    if ($txnType === 'journal_voucher') {
+        return 'رقم سند القيد';
+    }
 
     return 'رقم المستند';
 }
@@ -200,6 +203,7 @@ function crm_party_statement_txn_type_label(string $txnType, string $partyType =
         'payment_voucher' => 'سند صرف',
         'cheque' => 'شيك',
         'check' => 'شيك',
+        'journal_voucher' => 'سند قيد',
         'debit_note' => 'إشعار مدين',
         'credit_note' => 'إشعار دائن',
     ];

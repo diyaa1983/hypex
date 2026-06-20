@@ -38,6 +38,8 @@
   var exitUrl = form.getAttribute('data-exit-url') || '';
   var companyName = form.getAttribute('data-company-name') || '';
   var companyLogoUrl = form.getAttribute('data-company-logo') || '';
+  var arAccountId = parseInt(form.getAttribute('data-ar-account-id') || '0', 10) || 0;
+  var apAccountId = parseInt(form.getAttribute('data-ap-account-id') || '0', 10) || 0;
   var printBtn = document.getElementById('jv-print-btn');
 
   function syncExitGuard() {
@@ -88,6 +90,130 @@
   function rowAccountId(tr) {
     var hidden = tr && tr.querySelector('.journal-account-id');
     return hidden ? parseInt(hidden.value, 10) || 0 : 0;
+  }
+
+  function partyRoleForAccount(accountId) {
+    var id = parseInt(accountId, 10) || 0;
+    if (id < 1) return '';
+    if (arAccountId > 0 && id === arAccountId) return 'customer';
+    if (apAccountId > 0 && id === apAccountId) return 'supplier';
+    return '';
+  }
+
+  function partyLabelFromData(data) {
+    if (!data) return '';
+    var name = String(data.party_name || '').trim();
+    var code = String(data.party_code || '').trim();
+    if (name && code) return code + ' — ' + name;
+    return name || code || '';
+  }
+
+  function clearRowParty(tr) {
+    if (!tr) return;
+    var typeEl = tr.querySelector('.jv-party-type');
+    var idEl = tr.querySelector('.jv-party-id');
+    if (typeEl) typeEl.value = '';
+    if (idEl) idEl.value = '';
+    var custLabel = tr.querySelector('.jv-party-customer-label');
+    var supLabel = tr.querySelector('.jv-party-supplier-label');
+    if (custLabel) {
+      custLabel.textContent = 'اختر عميلاً…';
+      custLabel.classList.add('is-placeholder');
+    }
+    if (supLabel) {
+      supLabel.textContent = 'اختر مورداً…';
+      supLabel.classList.add('is-placeholder');
+    }
+  }
+
+  function syncRowPartyVisibility(tr) {
+    if (!tr) return;
+    var role = partyRoleForAccount(rowAccountId(tr));
+    var partyCell = tr.querySelector('.col-party');
+    var custSlot = tr.querySelector('.jv-party-customer-slot');
+    var supSlot = tr.querySelector('.jv-party-supplier-slot');
+    if (partyCell) {
+      partyCell.classList.toggle('is-hidden-party', !role);
+    }
+    if (custSlot) custSlot.classList.toggle('is-hidden', role !== 'customer');
+    if (supSlot) supSlot.classList.toggle('is-hidden', role !== 'supplier');
+    var typeEl = tr.querySelector('.jv-party-type');
+    if (typeEl) typeEl.value = role || '';
+    if (!role) clearRowParty(tr);
+  }
+
+  function bindRowPartyPicker(tr, data) {
+    if (!tr || readOnly) return;
+    data = data || {};
+    syncRowPartyVisibility(tr);
+    if (tr.getAttribute('data-party-picker-bound') === '1') return;
+
+    var custHidden = tr.querySelector('.jv-party-customer-id');
+    var supHidden = tr.querySelector('.jv-party-supplier-id');
+    var typeEl = tr.querySelector('.jv-party-type');
+    var idEl = tr.querySelector('.jv-party-id');
+
+    function syncPartyHiddenFromRole() {
+      var role = partyRoleForAccount(rowAccountId(tr));
+      if (!typeEl || !idEl) return;
+      typeEl.value = role || '';
+      if (role === 'customer' && custHidden) {
+        idEl.value = custHidden.value || '';
+      } else if (role === 'supplier' && supHidden) {
+        idEl.value = supHidden.value || '';
+      } else {
+        idEl.value = '';
+      }
+    }
+
+    if (global.CustomerPickerModal && custHidden) {
+      var custOpen = tr.querySelector('.jv-party-customer-open');
+      var custLabel = tr.querySelector('.jv-party-customer-label');
+      if (custOpen && custLabel) {
+        CustomerPickerModal.bind({
+          hidden: custHidden,
+          open: custOpen,
+          display: custLabel,
+          jsonId: 'jv-customers-json',
+          placeholder: 'اختر عميلاً…',
+          allowClear: false,
+          initialId: data.party_type === 'customer' ? data.party_id : 0,
+          onSelect: function () {
+            syncPartyHiddenFromRole();
+            focusRowDebit(tr);
+          },
+        });
+      }
+    }
+
+    if (global.SupplierPickerModal && supHidden) {
+      var supOpen = tr.querySelector('.jv-party-supplier-open');
+      var supLabel = tr.querySelector('.jv-party-supplier-label');
+      if (supOpen && supLabel) {
+        SupplierPickerModal.bind({
+          hidden: supHidden,
+          open: supOpen,
+          display: supLabel,
+          jsonId: 'jv-suppliers-json',
+          placeholder: 'اختر مورداً…',
+          allowClear: false,
+          initialId: data.party_type === 'supplier' ? data.party_id : 0,
+          onSelect: function () {
+            syncPartyHiddenFromRole();
+            focusRowDebit(tr);
+          },
+        });
+      }
+    }
+
+    if (data.party_type === 'customer' && custHidden && data.party_id) {
+      custHidden.value = String(data.party_id);
+    }
+    if (data.party_type === 'supplier' && supHidden && data.party_id) {
+      supHidden.value = String(data.party_id);
+    }
+    syncPartyHiddenFromRole();
+    tr.setAttribute('data-party-picker-bound', '1');
   }
 
   function focusInput(inp) {
@@ -170,6 +296,18 @@
       allowClear: false,
       initialId: accountId > 0 ? accountId : hidden.value || '',
       onSelect: function () {
+        syncRowPartyVisibility(tr);
+        bindRowPartyPicker(tr, {});
+        var role = partyRoleForAccount(rowAccountId(tr));
+        if (role === 'customer' || role === 'supplier') {
+          var openBtnParty = tr.querySelector(
+            role === 'customer' ? '.jv-party-customer-open' : '.jv-party-supplier-open'
+          );
+          if (openBtnParty) {
+            openBtnParty.focus();
+            return;
+          }
+        }
         focusRowDebit(tr);
       },
     });
@@ -249,6 +387,92 @@
       accCell.appendChild(slot);
     }
 
+    var partyCell = document.createElement('td');
+    partyCell.className = 'col-party';
+    var partyRole = partyRoleForAccount(accId);
+    var partyLabel = partyLabelFromData(data);
+    if (readOnly) {
+      partyCell.textContent = partyLabel || '—';
+    } else {
+      lineUid += 1;
+      var partyUid = 'jv_party_' + lineUid;
+      var typeHidden = document.createElement('input');
+      typeHidden.type = 'hidden';
+      typeHidden.className = 'jv-party-type';
+      typeHidden.value = data.party_type || partyRole || '';
+
+      var idHidden = document.createElement('input');
+      idHidden.type = 'hidden';
+      idHidden.className = 'jv-party-id';
+      idHidden.value = data.party_id ? String(data.party_id) : '';
+
+      var custSlot = document.createElement('div');
+      custSlot.className = 'jv-party-slot jv-party-customer-slot' + (partyRole === 'customer' ? '' : ' is-hidden');
+
+      var custHidden = document.createElement('input');
+      custHidden.type = 'hidden';
+      custHidden.className = 'jv-party-customer-id';
+      custHidden.id = partyUid + '_cust';
+      if (data.party_type === 'customer' && data.party_id) {
+        custHidden.value = String(data.party_id);
+      }
+
+      var custOpen = document.createElement('button');
+      custOpen.type = 'button';
+      custOpen.className = 'sales-inv-cust-open input jv-party-picker-btn jv-party-customer-open';
+      custOpen.title = 'اختيار عميل';
+      var custLabel = document.createElement('span');
+      custLabel.className =
+        'sales-inv-cust-open-label jv-party-customer-label' +
+        (data.party_type === 'customer' && partyLabel ? '' : ' is-placeholder');
+      custLabel.textContent =
+        data.party_type === 'customer' && partyLabel ? partyLabel : 'اختر عميلاً…';
+      var custIco = document.createElement('span');
+      custIco.className = 'sales-inv-cust-open-ico';
+      custIco.setAttribute('aria-hidden', 'true');
+      custIco.textContent = '▾';
+      custOpen.appendChild(custLabel);
+      custOpen.appendChild(custIco);
+      custSlot.appendChild(custHidden);
+      custSlot.appendChild(custOpen);
+
+      var supSlot = document.createElement('div');
+      supSlot.className = 'jv-party-slot jv-party-supplier-slot' + (partyRole === 'supplier' ? '' : ' is-hidden');
+
+      var supHidden = document.createElement('input');
+      supHidden.type = 'hidden';
+      supHidden.className = 'jv-party-supplier-id';
+      supHidden.id = partyUid + '_sup';
+      if (data.party_type === 'supplier' && data.party_id) {
+        supHidden.value = String(data.party_id);
+      }
+
+      var supOpen = document.createElement('button');
+      supOpen.type = 'button';
+      supOpen.className = 'sales-inv-cust-open input jv-party-picker-btn jv-party-supplier-open';
+      supOpen.title = 'اختيار مورد';
+      var supLabel = document.createElement('span');
+      supLabel.className =
+        'sales-inv-cust-open-label jv-party-supplier-label' +
+        (data.party_type === 'supplier' && partyLabel ? '' : ' is-placeholder');
+      supLabel.textContent =
+        data.party_type === 'supplier' && partyLabel ? partyLabel : 'اختر مورداً…';
+      var supIco = document.createElement('span');
+      supIco.className = 'sales-inv-cust-open-ico';
+      supIco.setAttribute('aria-hidden', 'true');
+      supIco.textContent = '▾';
+      supOpen.appendChild(supLabel);
+      supOpen.appendChild(supIco);
+      supSlot.appendChild(supHidden);
+      supSlot.appendChild(supOpen);
+
+      partyCell.appendChild(typeHidden);
+      partyCell.appendChild(idHidden);
+      partyCell.appendChild(custSlot);
+      partyCell.appendChild(supSlot);
+      if (!partyRole) partyCell.classList.add('is-hidden-party');
+    }
+
     var debitCell = document.createElement('td');
     debitCell.className = 'col-money';
     if (readOnly) {
@@ -291,12 +515,14 @@
     }
 
     tr.appendChild(accCell);
+    tr.appendChild(partyCell);
     tr.appendChild(debitCell);
     tr.appendChild(creditCell);
     tr.appendChild(memoCell);
 
     if (!readOnly) {
       bindRowAccountPicker(tr, accId);
+      bindRowPartyPicker(tr, data);
       var actCell = document.createElement('td');
       actCell.className = 'col-act';
       var rm = document.createElement('button');
@@ -374,11 +600,30 @@
       if (accountId < 1 && amounts.debit <= 0 && amounts.credit <= 0) {
         return;
       }
+      var partyTypeEl = tr.querySelector('.jv-party-type');
+      var partyIdEl = tr.querySelector('.jv-party-id');
+      var partyType = partyTypeEl ? String(partyTypeEl.value || '').trim() : '';
+      var partyId = partyIdEl ? parseInt(partyIdEl.value, 10) || 0 : 0;
+      var partyName = '';
+      if (partyType === 'customer') {
+        var custLbl = tr.querySelector('.jv-party-customer-label');
+        if (custLbl && !custLbl.classList.contains('is-placeholder')) {
+          partyName = String(custLbl.textContent || '').trim();
+        }
+      } else if (partyType === 'supplier') {
+        var supLbl = tr.querySelector('.jv-party-supplier-label');
+        if (supLbl && !supLbl.classList.contains('is-placeholder')) {
+          partyName = String(supLbl.textContent || '').trim();
+        }
+      }
       lines.push({
         account_id: accountId,
         debit: amounts.debit,
         credit: amounts.credit,
         memo: memoInp ? memoInp.value.trim() : tr.dataset.memo || '',
+        party_type: partyType,
+        party_id: partyId,
+        party_name: partyName,
       });
     });
     return lines;
@@ -670,6 +915,14 @@
     if (valid.length < 2) {
       alert('أضف سطرين على الأقل: حساب مدين وحساب دائن بمبالغ صحيحة.');
       return false;
+    }
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      var role = partyRoleForAccount(ln.account_id);
+      if (role && !(parseInt(ln.party_id, 10) > 0)) {
+        alert(role === 'customer' ? 'اختر العميل للسطر على حساب ذمم العملاء.' : 'اختر المورد للسطر على حساب ذمم الموردين.');
+        return false;
+      }
     }
     if (linesJson) linesJson.value = JSON.stringify(lines);
     return true;
@@ -970,6 +1223,9 @@
         '<td class="jv-print-td jv-print-td-acc">' +
         escapeHtml(accountLabelById(ln.account_id) || '—') +
         '</td>' +
+        '<td class="jv-print-td">' +
+        escapeHtml(ln.party_name || '—') +
+        '</td>' +
         '<td class="jv-print-td jv-print-td-money">' +
         escapeHtml(ln.debit > 0 ? formatNum(ln.debit) : '—') +
         '</td>' +
@@ -984,13 +1240,14 @@
 
     if (!bodyRows) {
       bodyRows =
-        '<tr><td class="jv-print-td" colspan="4" style="text-align:center;">—</td></tr>';
+        '<tr><td class="jv-print-td" colspan="5" style="text-align:center;">—</td></tr>';
     }
 
     var linesTable =
       '<table class="jv-print-lines">' +
       '<thead><tr>' +
       '<th class="jv-print-th">الحساب</th>' +
+      '<th class="jv-print-th">عميل / مورد</th>' +
       '<th class="jv-print-th jv-print-th-money">مدين</th>' +
       '<th class="jv-print-th jv-print-th-money">دائن</th>' +
       '<th class="jv-print-th">البيان</th>' +
@@ -1000,6 +1257,7 @@
       '</tbody>' +
       '<tfoot><tr>' +
       '<td class="jv-print-td jv-print-tfoot-label"><strong>المجموع</strong></td>' +
+      '<td class="jv-print-td"></td>' +
       '<td class="jv-print-td jv-print-td-money"><strong>' +
       escapeHtml(formatNum(sumD)) +
       '</strong></td>' +

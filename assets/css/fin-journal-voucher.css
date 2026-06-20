@@ -28,6 +28,31 @@
   font-weight: 600;
 }
 
+.fin-jv-wrap .col-party {
+  min-width: 160px;
+}
+
+.fin-jv-wrap .jv-party-picker-btn {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.72rem;
+}
+
+.fin-jv-wrap .jv-party-slot.is-hidden {
+  display: none;
+}
+
+.fin-jv-wrap .col-party.is-hidden-party .jv-party-slot {
+  display: none;
+}
+
+.fin-jv-wrap .col-party.is-hidden-party::after {
+  content: '—';
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
 .fin-jv-wrap .col-acc {
   min-width: 200px;
 }

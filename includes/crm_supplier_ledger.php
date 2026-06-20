@@ -72,6 +72,32 @@ function crm_supplier_ledger_ensure_voucher_enums(PDO $pdo): void
     $done = true;
 }
 
+/** إضافة journal_voucher لعمود txn_type عند الحاجة. */
+function crm_supplier_ledger_ensure_journal_voucher_txn(PDO $pdo): void
+{
+    static $done = false;
+    if ($done || !crm_supplier_ledger_has_table($pdo)) {
+        return;
+    }
+    try {
+        $st = $pdo->query(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'crm_supplier_ledger' AND COLUMN_NAME = 'txn_type'"
+        );
+        $txnType = (string) ($st->fetchColumn() ?: '');
+        if ($txnType !== '' && stripos($txnType, 'journal_voucher') === false) {
+            $pdo->exec(
+                "ALTER TABLE crm_supplier_ledger
+                 MODIFY txn_type ENUM('purchase_invoice','purchase_return','cash_payment','journal_voucher') NOT NULL"
+            );
+        }
+    } catch (Throwable $e) {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/159_acc_journal_line_party.sql');
+    }
+    $done = true;
+}
+
 function crm_supplier_ledger_normalize_payment_type(string $paymentType): string
 {
     $p = strtolower(trim($paymentType));
@@ -521,4 +547,47 @@ function crm_supplier_ledger_post_cash_payment_by_id(PDO $pdo, int $voucherId): 
 
         return $out;
     }
+}
+
+function crm_supplier_ledger_post_journal_voucher_line(
+    PDO $pdo,
+    int $lineId,
+    int $supplierId,
+    string $txnDate,
+    string $refNo,
+    float $debit,
+    float $credit,
+    string $memo
+): void {
+    if ($lineId < 1 || $supplierId < 1 || !crm_supplier_ledger_ensure_schema($pdo)) {
+        return;
+    }
+    crm_supplier_ledger_ensure_journal_voucher_txn($pdo);
+    if (crm_supplier_ledger_exists($pdo, 'journal_voucher', $lineId)) {
+        return;
+    }
+    crm_supplier_ledger_insert(
+        $pdo,
+        $supplierId,
+        $txnDate,
+        'journal_voucher',
+        $lineId,
+        $refNo,
+        'credit',
+        $debit,
+        $credit,
+        $memo
+    );
+}
+
+function crm_supplier_ledger_delete_journal_voucher_by_journal(PDO $pdo, int $journalId): void
+{
+    if ($journalId < 1 || !crm_supplier_ledger_has_table($pdo)) {
+        return;
+    }
+    $pdo->prepare(
+        'DELETE l FROM crm_supplier_ledger l
+         INNER JOIN acc_journal_line jl ON jl.id = l.ref_id AND l.txn_type = ?
+         WHERE jl.journal_id = ?'
+    )->execute(['journal_voucher', $journalId]);
 }

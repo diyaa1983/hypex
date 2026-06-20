@@ -56,6 +56,15 @@ require_once app_path('includes/sales_oracle12_ui.php');
 $jsPath = app_path('assets/js/fin-journal-voucher.js');
 $jsUrl = app_url('assets/js/fin-journal-voucher.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
 require_once app_path('includes/account_picker.php');
+require_once app_path('includes/customer_picker.php');
+require_once app_path('includes/supplier_picker.php');
+require_once app_path('includes/acc_journal_party.php');
+require_once app_path('includes/acc_gl.php');
+
+acc_gl_ensure_schema($pdo);
+$partyAccountIds = acc_journal_party_ar_ap_ids($pdo);
+$customers = crm_customers_for_picker($pdo, false);
+$suppliers = crm_suppliers_for_picker($pdo);
 ?>
 <?php sales_inv_oracle12_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssJe) ?>">
@@ -94,7 +103,9 @@ require_once app_path('includes/account_picker.php');
           data-new-url="<?= esc($newUrl) ?>"
           data-initial-id="<?= (int) $initialId ?>"
           data-company-name="<?= esc((string) ($docBrand['company_name_ar'] ?? '')) ?>"
-          data-company-logo="<?= esc((string) ($docBrand['logo_url'] ?? '')) ?>">
+          data-company-logo="<?= esc((string) ($docBrand['logo_url'] ?? '')) ?>"
+          data-ar-account-id="<?= (int) ($partyAccountIds['ar'] ?? 0) ?>"
+          data-ap-account-id="<?= (int) ($partyAccountIds['ap'] ?? 0) ?>">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="_action" value="save_journal_voucher">
         <input type="hidden" name="entry_id" id="jv_entry_id" value="">
@@ -136,6 +147,7 @@ require_once app_path('includes/account_picker.php');
                     <thead>
                     <tr>
                         <th class="col-acc">الحساب (من شجرة الحسابات) *</th>
+                        <th class="col-party">عميل / مورد</th>
                         <th class="col-money">مدين</th>
                         <th class="col-money">دائن</th>
                         <th class="col-memo">البيان</th>
@@ -165,6 +177,10 @@ require_once app_path('includes/account_picker.php');
 
 <?php
 account_picker_enqueue_assets();
+customer_picker_enqueue_assets();
+supplier_picker_enqueue_assets();
 account_picker_json_script($accounts, 'jv-accounts-json');
+customer_picker_json_script($customers, 'jv-customers-json');
+supplier_picker_json_script($suppliers, 'jv-suppliers-json');
 ?>
 <script src="<?= esc($jsUrl) ?>" defer></script>
