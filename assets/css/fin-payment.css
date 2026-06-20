@@ -170,6 +170,19 @@
   opacity: 0.85;
 }
 
+.fin-py-wrap.fin-py-hr-advance-disburse-lock .fin-py-meta-party-type,
+.fin-py-wrap.fin-py-hr-advance-disburse-lock .fin-py-meta-employee-kind,
+.fin-py-wrap.fin-py-hr-advance-disburse-lock #py-party-employee-wrap .sales-inv-cust-open,
+.fin-py-wrap.fin-py-hr-advance-disburse-lock #py_advances_list input {
+  pointer-events: none;
+  opacity: 0.88;
+}
+
+.fin-py-wrap.fin-py-hr-advance-disburse-lock .fin-py-meta-cash-account select {
+  pointer-events: auto;
+  opacity: 1;
+}
+
 /* نقداً: المبلغ فقط — شيك: قيمة الشيك + رقم الشيك + البنك */
 .fin-py-wrap.fin-py-pay-is-check .fin-py-field-cash,
 .fin-py-wrap.fin-py-pay-is-check #rc_cash_amount_wrap,

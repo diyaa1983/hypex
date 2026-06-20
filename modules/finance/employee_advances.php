@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
+require_once app_path('includes/fin_voucher.php');
 require_once app_path('includes/fin_payment_parties.php');
 require_once app_path('includes/fin_voucher_schema.php');
 require_once app_path('includes/hr_employee_advance.php');
 require_once app_path('includes/sales_oracle12_ui.php');
-require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/fin_cash_bank_select.php');
 
 $pdo = db();
 fin_voucher_ensure_schema_full($pdo);
@@ -28,6 +29,16 @@ $payableLabel = $payableRows !== []
 
 $cssPath = app_path('assets/css/fin-employee-advances.css');
 $cssUrl = app_url('assets/css/fin-employee-advances.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
+$jsPath = app_path('assets/js/fin-employee-advances.js');
+$jsUrl = app_url('assets/js/fin-employee-advances.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
+
+require_once app_path('includes/acc_gl.php');
+$cashBankAccounts = fin_voucher_load_cash_bank_accounts($pdo);
+$defaultCashBankId = acc_gl_cash_box_account_id($pdo);
+if ($defaultCashBankId < 1 && $cashBankAccounts !== []) {
+    $defaultCashBankId = (int) ($cashBankAccounts[0]['id'] ?? 0);
+}
+$paymentBaseUrl = app_url('index.php?r=cash_payment');
 
 sales_ora12_enqueue_assets();
 ?>
@@ -35,7 +46,8 @@ sales_ora12_enqueue_assets();
 
 <div class="dashboard-ora sales-ora12-screen sales-ora-list-page sales-inv-list-page fin-emp-adv-page fin-emp-adv-ora12"
      id="fin-emp-adv-screen"
-     data-exit-url="<?= esc($exitUrl) ?>">
+     data-exit-url="<?= esc($exitUrl) ?>"
+     data-payment-url="<?= esc($paymentBaseUrl) ?>">
     <?php sales_ora12_render_title_bar('السلف', '', $activeRoute); ?>
     <?php sales_ora12_workspace_open(); ?>
 
@@ -67,13 +79,14 @@ sales_ora12_enqueue_assets();
                     <th>المبلغ</th>
                     <th>تاريخ الترحيل</th>
                     <th>ملاحظات</th>
+                    <th class="fin-emp-adv-col-cash">يُخصم من حساب</th>
                     <th class="fin-emp-adv-col-action">إجراء</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if ($rows === []): ?>
                     <tr>
-                        <td colspan="8" class="muted fin-emp-adv-empty">لا توجد سلف بانتظار الصرف.</td>
+                        <td colspan="9" class="muted fin-emp-adv-empty">لا توجد سلف بانتظار الصرف.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($rows as $r): ?>
@@ -96,11 +109,25 @@ sales_ora12_enqueue_assets();
                             <td dir="ltr" class="col-money fin-emp-adv-col-money"><?= esc(format_money((float) ($r['total_amount'] ?? 0))) ?></td>
                             <td dir="ltr"><?= esc($postedDisplay) ?></td>
                             <td class="fin-emp-adv-notes"><?= esc($notes !== '' ? $notes : '—') ?></td>
+                            <td class="fin-emp-adv-col-cash">
+                                <?php if ($cashBankAccounts === []): ?>
+                                    <span class="muted">لا توجد حسابات صندوق/بنك</span>
+                                <?php else: ?>
+                                    <select class="input input-compact fin-emp-adv-cash-select"
+                                            id="fin-emp-adv-cash-<?= $advId ?>"
+                                            data-advance-id="<?= $advId ?>"
+                                            aria-label="حساب الصندوق أو البنك">
+                                        <?= fin_cash_bank_select_options($cashBankAccounts, $defaultCashBankId) ?>
+                                    </select>
+                                <?php endif; ?>
+                            </td>
                             <td class="fin-emp-adv-col-action">
-                                <a class="btn btn-primary btn-sm fin-emp-adv-disburse-btn"
-                                   href="<?= esc(fin_payment_disburse_advance_url($advId)) ?>">
+                                <button type="button"
+                                        class="btn btn-primary btn-sm fin-emp-adv-disburse-btn"
+                                        data-advance-id="<?= $advId ?>"
+                                        <?= $cashBankAccounts === [] ? ' disabled' : '' ?>>
                                     صرف السلفة
-                                </a>
+                                </button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -112,3 +139,4 @@ sales_ora12_enqueue_assets();
 
     <?php sales_ora12_workspace_close(); ?>
 </div>
+<script src="<?= esc($jsUrl) ?>" defer></script>

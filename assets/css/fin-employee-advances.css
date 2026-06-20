@@ -72,6 +72,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+.fin-emp-adv-col-cash {
+  min-width: 12rem;
+}
+
+.fin-emp-adv-page .fin-emp-adv-cash-select {
+  width: 100%;
+  min-width: 11rem;
+  max-width: 16rem;
+  font-weight: 700;
+}
+
 .fin-emp-adv-col-action {
   width: 9rem;
   text-align: center;

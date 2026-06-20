@@ -16,14 +16,32 @@ if (!fin_voucher_ensure_schema_full($pdo)) {
     return;
 }
 
+require_once app_path('includes/fin_payment_parties.php');
+
+$initialId = (int) ($_GET['id'] ?? 0);
+$disburseAdvanceId = (int) ($_GET['disburse_advance'] ?? 0);
+$disburseCashAccountId = (int) ($_GET['cash_account_id'] ?? 0);
+$disburseBootstrap = null;
+if ($disburseAdvanceId > 0 && $initialId < 1) {
+    $disburseBootstrap = fin_payment_disburse_advance_bootstrap($pdo, $disburseAdvanceId, $disburseCashAccountId);
+    if ($disburseBootstrap === null) {
+        flash_set('error', 'السلفة غير متاحة للصرف (غير مرحّلة أو تم صرفها مسبقاً).');
+    }
+}
+
 $cashAccounts = fin_voucher_load_cash_accounts($pdo);
+if ($disburseBootstrap !== null) {
+    $cashBankOnly = fin_voucher_load_cash_bank_accounts($pdo);
+    if ($cashBankOnly !== []) {
+        $cashAccounts = $cashBankOnly;
+    }
+}
 if (!$cashAccounts) {
     echo '<div class="card"><p class="alert alert-error">لا توجد حسابات صندوق/بنك. نفّذ ترحيل <code>026_acc_journal_tables.sql</code> أولاً.</p></div>';
     return;
 }
 
 crm_sales_rep_ensure_customer_invoice_links($pdo);
-require_once app_path('includes/fin_payment_parties.php');
 require_once app_path('includes/supplier_picker.php');
 require_once app_path('includes/employee_picker.php');
 require_once app_path('includes/account_picker.php');
@@ -42,16 +60,6 @@ $customers = $pdo->query(
      ORDER BY c.name_ar'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $suppliers = crm_suppliers_for_picker($pdo);
-
-$initialId = (int) ($_GET['id'] ?? 0);
-$disburseAdvanceId = (int) ($_GET['disburse_advance'] ?? 0);
-$disburseBootstrap = null;
-if ($disburseAdvanceId > 0 && $initialId < 1) {
-    $disburseBootstrap = fin_payment_disburse_advance_bootstrap($pdo, $disburseAdvanceId);
-    if ($disburseBootstrap === null) {
-        flash_set('error', 'السلفة غير متاحة للصرف (غير مرحّلة أو تم صرفها مسبقاً).');
-    }
-}
 
 $flash = flash_get();
 $today = date('Y-m-d');
@@ -73,6 +81,12 @@ $apiDelete = app_url('api/fin_payment_delete.php');
 require_once app_path('includes/acc_gl.php');
 $cashBoxAccountId = acc_gl_cash_box_account_id($pdo);
 $defaultCashId = $cashBoxAccountId > 0 ? $cashBoxAccountId : (int) ($cashAccounts[0]['id'] ?? 0);
+if ($disburseBootstrap !== null) {
+    $pickedCashId = (int) ($disburseBootstrap['cash_account_id'] ?? 0);
+    if ($pickedCashId > 0 && fin_payment_cash_bank_account_valid($cashAccounts, $pickedCashId)) {
+        $defaultCashId = $pickedCashId;
+    }
+}
 $cssInvPath = app_path('assets/css/sales-invoice.css');
 $cssInv = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
 $cssPyPath = app_path('assets/css/fin-payment.css');

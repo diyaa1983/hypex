@@ -444,17 +444,37 @@ function fin_payment_employee_advances_pending_all(PDO $pdo): array
     return hr_employee_advances_pending_disbursement_all($pdo);
 }
 
-function fin_payment_disburse_advance_url(int $advanceId): string
+function fin_payment_disburse_advance_url(int $advanceId, int $cashAccountId = 0): string
 {
     if ($advanceId < 1) {
         return app_url('index.php?r=cash_payment');
     }
 
-    return app_url('index.php?r=cash_payment&disburse_advance=' . $advanceId);
+    $url = app_url('index.php?r=cash_payment&disburse_advance=' . $advanceId);
+    if ($cashAccountId > 0) {
+        $url .= '&cash_account_id=' . $cashAccountId;
+    }
+
+    return $url;
+}
+
+/** @param list<array{id:int, code:string, name_ar:string, group_key?:string, group_label?:string}> $cashBankAccounts */
+function fin_payment_cash_bank_account_valid(array $cashBankAccounts, int $accountId): bool
+{
+    if ($accountId < 1) {
+        return false;
+    }
+    foreach ($cashBankAccounts as $acc) {
+        if ((int) ($acc['id'] ?? 0) === $accountId) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /** @return array<string, mixed>|null */
-function fin_payment_disburse_advance_bootstrap(PDO $pdo, int $advanceId): ?array
+function fin_payment_disburse_advance_bootstrap(PDO $pdo, int $advanceId, int $cashAccountId = 0): ?array
 {
     if ($advanceId < 1) {
         return null;
@@ -485,6 +505,14 @@ function fin_payment_disburse_advance_bootstrap(PDO $pdo, int $advanceId): ?arra
         return null;
     }
 
+    require_once app_path('includes/fin_voucher.php');
+    if ($cashAccountId > 0) {
+        $cashBank = fin_voucher_load_cash_bank_accounts($pdo);
+        if (!fin_payment_cash_bank_account_valid($cashBank, $cashAccountId)) {
+            $cashAccountId = 0;
+        }
+    }
+
     $payable = fin_payment_employee_advance_payable_account($pdo);
     $payableId = (int) ($payable[0]['id'] ?? 0);
     $payableLabel = $payableId > 0
@@ -501,6 +529,8 @@ function fin_payment_disburse_advance_bootstrap(PDO $pdo, int $advanceId): ?arra
         'amount' => round((float) ($adv['total_amount'] ?? 0), 3),
         'payable_account_id' => $payableId,
         'payable_account_label' => $payableLabel,
+        'cash_account_id' => $cashAccountId > 0 ? $cashAccountId : 0,
+        'lock_hr_fields' => true,
     ];
 }
 

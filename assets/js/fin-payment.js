@@ -692,6 +692,42 @@
     updateVoucherNoPostedStyle();
   }
 
+  function isHrAdvanceDisburseLocked() {
+    if (voucherIsPosted) {
+      return false;
+    }
+    if (readDisburseBootstrap()) {
+      return true;
+    }
+    return (
+      getPartyType() === 'employee' &&
+      getEmployeePayKind() === 'advance' &&
+      selectedHrAdvanceId > 0
+    );
+  }
+
+  function refreshHrAdvanceDisburseLock() {
+    var hrLocked = isHrAdvanceDisburseLocked();
+    var wrap = getRcWrap();
+    if (wrap) {
+      wrap.classList.toggle('fin-py-hr-advance-disburse-lock', hrLocked);
+    }
+    if (!hrLocked) {
+      return;
+    }
+    form.querySelectorAll('input[name="party_type_ui"], input[name="employee_pay_kind_ui"]').forEach(function (el) {
+      el.disabled = true;
+    });
+    var empOpen = document.getElementById('py_employee_open');
+    if (empOpen) {
+      empOpen.disabled = true;
+    }
+    form.querySelectorAll('#py_advances_list input[name="py_advance_pick"]').forEach(function (el) {
+      el.disabled = true;
+    });
+    syncEmployeeAmountLock();
+  }
+
   function refreshVoucherEditState() {
     var locked = currentVoucherId > 0 && !!voucherIsPosted;
     form.classList.toggle('fin-py-form-is-posted', locked);
@@ -712,6 +748,7 @@
       }
     });
     syncEmployeeAmountLock();
+    refreshHrAdvanceDisburseLock();
   }
 
   function updateVoucherNoPostedStyle() {
@@ -2019,8 +2056,13 @@
       if (advanceId > 0) {
         applySelectedAdvance(advanceId);
       }
+      var cashSel = document.getElementById('py_cash_account_id');
+      if (cashSel && parseInt(bootstrap.cash_account_id, 10) > 0) {
+        cashSel.value = String(parseInt(bootstrap.cash_account_id, 10));
+      }
       syncOffsetAccountField();
       syncEmployeeAmountLock();
+      refreshHrAdvanceDisburseLock();
     });
   }
 

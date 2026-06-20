@@ -204,6 +204,128 @@ function fin_voucher_load_cash_accounts(PDO $pdo): array
     return $out;
 }
 
+/**
+ * @return list<array{id:int, code:string, name_ar:string, group_key:string, group_label:string}>
+ */
+function fin_voucher_load_cash_bank_accounts(PDO $pdo): array
+{
+    require_once app_path('includes/acc_journal.php');
+    if (!acc_journal_has_tables($pdo)) {
+        return [];
+    }
+
+    require_once app_path('includes/acc_gl.php');
+    $settings = acc_gl_is_ready($pdo) ? acc_gl_load_settings($pdo) : [];
+    $extraIds = [];
+    foreach (['cash', 'bank'] as $rule) {
+        $aid = (int) ($settings[$rule]['account_id'] ?? 0);
+        if ($aid > 0) {
+            $extraIds[$aid] = true;
+        }
+    }
+
+    $rows = $pdo->query(
+        "SELECT a.id, a.code, a.name_ar, a.parent_id, p.name_ar AS parent_name_ar
+         FROM acc_account a
+         LEFT JOIN acc_account p ON p.id = a.parent_id
+         WHERE a.is_active = 1 AND a.is_leaf = 1
+         ORDER BY a.code ASC, a.id ASC"
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $byId = [];
+    $nameById = [];
+    foreach (
+        $pdo->query('SELECT id, parent_id, name_ar FROM acc_account WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r
+    ) {
+        $aid = (int) ($r['id'] ?? 0);
+        if ($aid > 0) {
+            $byId[$aid] = [
+                'parent_id' => ($r['parent_id'] ?? null) !== null ? (int) $r['parent_id'] : null,
+            ];
+            $nameById[$aid] = (string) ($r['name_ar'] ?? '');
+        }
+    }
+
+    require_once app_path('includes/acc_coa_bootstrap.php');
+    $liquidityParentId = acc_coa_find_liquidity_parent_id($pdo);
+    $isUnder = static function (int $accountId, ?int $ancestorId) use (&$byId): bool {
+        if ($accountId < 1 || $ancestorId === null || $ancestorId < 1) {
+            return false;
+        }
+        $cur = $accountId;
+        $guard = 0;
+        while ($cur > 0 && $guard < 2000) {
+            if ($cur === $ancestorId) {
+                return true;
+            }
+            $parent = $byId[$cur]['parent_id'] ?? null;
+            $cur = $parent !== null ? (int) $parent : 0;
+            $guard++;
+        }
+
+        return false;
+    };
+
+    $isBankAccount = static function (int $accountId) use ($nameById, $byId): bool {
+        $cur = $accountId;
+        $guard = 0;
+        while ($cur > 0 && $guard < 200) {
+            $n = function_exists('mb_strtolower')
+                ? mb_strtolower($nameById[$cur] ?? '', 'UTF-8')
+                : strtolower($nameById[$cur] ?? '');
+            if (str_contains($n, 'بنك') || str_contains($n, 'bank')) {
+                return true;
+            }
+            $parent = $byId[$cur]['parent_id'] ?? null;
+            $cur = $parent !== null ? (int) $parent : 0;
+            $guard++;
+        }
+
+        return false;
+    };
+
+    $out = [];
+    foreach ($rows as $row) {
+        $id = (int) ($row['id'] ?? 0);
+        if ($id < 1) {
+            continue;
+        }
+        $name = (string) ($row['name_ar'] ?? '');
+        $parentName = (string) ($row['parent_name_ar'] ?? '');
+        $isPartnerLike = str_contains($name, 'شريك')
+            || str_contains($name, 'جاري')
+            || str_contains($parentName, 'شريك')
+            || str_contains($parentName, 'حصة');
+        if ($isPartnerLike) {
+            continue;
+        }
+        $isLiquid = $isUnder($id, $liquidityParentId) || isset($extraIds[$id]);
+        if (!$isLiquid) {
+            continue;
+        }
+        $isBank = $isBankAccount($id);
+        $out[] = [
+            'id' => $id,
+            'code' => (string) ($row['code'] ?? ''),
+            'name_ar' => $name,
+            'group_key' => $isBank ? 'bank' : 'cash',
+            'group_label' => $isBank ? 'حسابات البنوك' : 'حسابات الصندوق / النقد',
+        ];
+    }
+
+    usort($out, static function (array $a, array $b): int {
+        $ga = (string) ($a['group_key'] ?? '');
+        $gb = (string) ($b['group_key'] ?? '');
+        if ($ga !== $gb) {
+            return $ga === 'cash' ? -1 : 1;
+        }
+
+        return strcmp((string) ($a['code'] ?? ''), (string) ($b['code'] ?? ''));
+    });
+
+    return $out;
+}
+
 /** @return array<string, mixed>|null */
 function fin_voucher_load(PDO $pdo, int $id, string $type): ?array
 {
