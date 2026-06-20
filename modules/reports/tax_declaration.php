@@ -107,7 +107,14 @@ $vatDetailUrl = app_url(
         </p>
         <?php elseif ((float) ($decl['gl_doc_gap'] ?? 0) >= 0.01): ?>
         <p class="alert no-print tax-decl-gap-warn">
-            فرق بين الدفتر والمستندات: <?= esc(format_money((float) $decl['gl_doc_gap'])) ?>
+            فرق بين ضريبة الفواتير في الدفتر والمستندات: <?= esc(format_money((float) $decl['gl_doc_gap'])) ?>
+        </p>
+        <?php elseif (
+            (float) (($decl['vat']['gl_other_debit'] ?? 0)) >= 0.01
+            || (float) (($decl['vat']['gl_other_credit'] ?? 0)) >= 0.01
+        ): ?>
+        <p class="alert no-print" style="background:#eef6ff;border:1px solid #93c5fd;padding:0.65rem;border-radius:4px;">
+            يشمل الفترة دفعات أو تسويات ضريبية على حساب الأمانات — هذا طبيعي.
         </p>
         <?php endif; ?>
 

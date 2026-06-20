@@ -132,6 +132,12 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
                 <div>رصيد افتتاحي: <strong><?= esc(format_money((float) $v['gl_opening_balance'])) ?></strong></div>
                 <div>حركة الفترة (مدين − دائن): <strong><?= esc(format_money((float) (($v['gl_period_debit'] ?? 0) - ($v['gl_period_credit'] ?? 0)))) ?></strong></div>
                 <div>صافي حركة الفترة (دائن − مدين): <strong><?= esc(format_money((float) $v['gl_period_net'])) ?></strong></div>
+                <?php if ((float) ($v['gl_other_debit'] ?? 0) >= 0.005): ?>
+                <div>دفعات ضريبة مسجّلة (مدين على الحساب): <strong><?= esc(format_money((float) $v['gl_other_debit'])) ?></strong></div>
+                <?php endif; ?>
+                <?php if ((float) ($v['gl_other_credit'] ?? 0) >= 0.005): ?>
+                <div>تسويات / إضافات أخرى (دائن): <strong><?= esc(format_money((float) $v['gl_other_credit'])) ?></strong></div>
+                <?php endif; ?>
             </div>
             <?php if ($accountStatementUrl !== ''): ?>
                 <p class="no-print" style="margin:0.75rem 0 0;">
@@ -142,16 +148,24 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
 
         <?php if ($v['returns_need_repost']): ?>
             <p class="alert alert-error no-print">
-                مردودات قديمة لم تُخصم ضريبتها من حسابي الضريبة — راجع المستندات والدفتر. (المستندات تُظهر
+                مردودات قديمة لم تُخصم ضريبتها من حساب الضريبة — راجع المستندات والدفتر. (المستندات تُظهر
                 <strong><?= esc(format_money((float) $v['doc_net_payable'])) ?></strong>
-                بينما الدفتر
-                <strong><?= esc(format_money((float) $v['net_payable'])) ?></strong>)
+                بينما قيود الفواتير في الدفتر
+                <strong><?= esc(format_money((float) ($v['gl_invoice_net'] ?? $v['net_payable']))) ?></strong>)
             </p>
         <?php elseif ((float) $v['gl_doc_gap'] >= 0.01): ?>
-            <p class="alert no-print" style="background:#fff8e6;border:1px solid #e8d48a;padding:0.65rem;border-radius:4px;">
-                فرق بسيط بين الدفتر والمستندات:
+            <p class="alert alert-error no-print">
+                فرق بين ضريبة الفواتير في الدفتر والمستندات:
                 <?= esc(format_money((float) $v['gl_doc_gap'])) ?>
-                — راجع دفتر حسابي الضريبة.
+                — راجع ترحيل الفواتير والمردودات.
+            </p>
+        <?php elseif ((float) ($v['gl_other_debit'] ?? 0) >= 0.01 || (float) ($v['gl_other_credit'] ?? 0) >= 0.01): ?>
+            <p class="alert no-print" style="background:#eef6ff;border:1px solid #93c5fd;padding:0.65rem;border-radius:4px;">
+                يشمل حساب الفترة قيود دفع أو تسوية ضريبية
+                <?php if ((float) ($v['gl_other_debit'] ?? 0) >= 0.01): ?>
+                    (دفع: <strong><?= esc(format_money((float) $v['gl_other_debit'])) ?></strong>)
+                <?php endif; ?>
+                — هذا طبيعي ولا يُعدّ خطأً في ترحيل الفواتير.
             </p>
         <?php endif; ?>
 
@@ -185,6 +199,16 @@ $queryBase = static function (string $viewMode) use ($dateFrom, $dateTo): string
                 <td><strong>صافي ضريبة المشتريات</strong></td>
                 <td class="col-money" style="text-align:end"><strong><?= esc(format_money((float) $v['input_net'])) ?></strong></td>
             </tr>
+            <tr class="report-acc-total">
+                <td><strong>صافي ضريبة الفواتير (دفتر)</strong></td>
+                <td class="col-money" style="text-align:end"><strong><?= esc(format_money((float) ($v['gl_invoice_net'] ?? 0))) ?></strong></td>
+            </tr>
+            <?php if ((float) ($v['gl_other_debit'] ?? 0) >= 0.005 || (float) ($v['gl_other_credit'] ?? 0) >= 0.005): ?>
+            <tr>
+                <td>دفعات / تسويات أخرى (قيد دفع ضريبة، يدوي…)</td>
+                <td class="col-money" style="text-align:end"><?= esc(format_money((float) ($v['gl_other_net'] ?? 0))) ?></td>
+            </tr>
+            <?php endif; ?>
             <tr class="report-acc-total">
                 <td><strong>صافي حركة الفترة (دائن − مدين)</strong></td>
                 <td class="col-money" style="text-align:end"><strong><?= esc(format_money((float) $v['gl_period_net'])) ?></strong></td>

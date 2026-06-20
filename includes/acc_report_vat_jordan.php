@@ -150,6 +150,58 @@ function acc_report_vat_input_net(PDO $pdo, int $accountId, string $dateFrom, st
     return round($purchases - $returns + $otherDr - $otherCr, 6);
 }
 
+/** @return list<string> */
+function acc_report_vat_invoice_ref_types(): array
+{
+    return ['sale_invoice', 'sale_return', 'purchase_invoice', 'purchase_return'];
+}
+
+/** صافي ضريبة الفواتير فقط من الدفتر (بدون دفعات أو قيود يدوية). */
+function acc_report_vat_trust_invoice_gl_net(PDO $pdo, int $accountId, string $dateFrom, string $dateTo): float
+{
+    if ($accountId < 1) {
+        return 0.0;
+    }
+
+    $byRef = acc_report_vat_by_ref_type($pdo, $accountId, $dateFrom, $dateTo);
+    $sales = (float) ($byRef['sale_invoice']['credit'] ?? 0);
+    $saleRet = (float) ($byRef['sale_return']['debit'] ?? 0);
+    $pur = (float) ($byRef['purchase_invoice']['debit'] ?? 0);
+    $purRet = (float) ($byRef['purchase_return']['credit'] ?? 0);
+
+    return round($sales - $saleRet - $pur + $purRet, 6);
+}
+
+/**
+ * حركة الدفتر غير المرتبطة بفواتير (دفع ضريبة، قيد يدوي، سندات…).
+ *
+ * @return array{net: float, debit: float, credit: float}
+ */
+function acc_report_vat_trust_other_gl_sums(PDO $pdo, int $accountId, string $dateFrom, string $dateTo): array
+{
+    if ($accountId < 1) {
+        return ['net' => 0.0, 'debit' => 0.0, 'credit' => 0.0];
+    }
+
+    $byRef = acc_report_vat_by_ref_type($pdo, $accountId, $dateFrom, $dateTo);
+    $invoiceRefs = array_flip(acc_report_vat_invoice_ref_types());
+    $otherCr = 0.0;
+    $otherDr = 0.0;
+    foreach ($byRef as $ref => $sums) {
+        if (isset($invoiceRefs[$ref])) {
+            continue;
+        }
+        $otherCr += (float) ($sums['credit'] ?? 0);
+        $otherDr += (float) ($sums['debit'] ?? 0);
+    }
+
+    return [
+        'net' => round($otherCr - $otherDr, 6),
+        'debit' => round($otherDr, 6),
+        'credit' => round($otherCr, 6),
+    ];
+}
+
 /** ضريبة من المستندات المرحّلة (للمقارنة قبل/بعد إعادة ترحيل المردودات). */
 function acc_report_vat_document_tax_sum(
     PDO $pdo,
@@ -248,6 +300,28 @@ function acc_report_vat_jordan_summary(PDO $pdo, string $dateFrom, string $dateT
     $docInputNet = round($docPur - $docPurRet, 6);
     $docNetPayable = round($docOutputNet - $docInputNet, 6);
 
+    $trustId = acc_vat_trust_find_account_id($pdo);
+    if ($trustId < 1) {
+        $trustId = ($outId > 0 && $outId === $inId) ? $outId : max($outId, $inId);
+    }
+
+    $glInvoiceNet = $trustId > 0
+        ? acc_report_vat_trust_invoice_gl_net($pdo, $trustId, $dateFrom, $dateTo)
+        : round($outputNet - $inputNet, 6);
+    $glOtherSums = $trustId > 0
+        ? acc_report_vat_trust_other_gl_sums($pdo, $trustId, $dateFrom, $dateTo)
+        : ['net' => 0.0, 'debit' => 0.0, 'credit' => 0.0];
+    $glOtherNet = (float) ($glOtherSums['net'] ?? 0);
+    $glOtherDebit = (float) ($glOtherSums['debit'] ?? 0);
+    $glOtherCredit = (float) ($glOtherSums['credit'] ?? 0);
+
+    $glGap = round(abs($glInvoiceNet - $docNetPayable), 6);
+    $returnsNeedRepost = $glGap >= 0.01
+        && (
+            abs($saleReturnTax) < 0.01 && $docSaleRet > 0.01
+            || abs($purReturnTax) < 0.01 && $docPurRet > 0.01
+        );
+
     $outAcc = $outId > 0 ? $pdo->prepare('SELECT code, name_ar FROM acc_account WHERE id = ?') : null;
     $outName = '';
     $outCode = '';
@@ -266,18 +340,6 @@ function acc_report_vat_jordan_summary(PDO $pdo, string $dateFrom, string $dateT
         $a = $st->fetch(PDO::FETCH_ASSOC) ?: [];
         $inName = (string) ($a['name_ar'] ?? '');
         $inCode = (string) ($a['code'] ?? '');
-    }
-
-    $glGap = round(abs($netPayable - $docNetPayable), 6);
-    $returnsNeedRepost = $glGap >= 0.01
-        && (
-            abs($saleReturnTax) < 0.01 && $docSaleRet > 0.01
-            || abs($purReturnTax) < 0.01 && $docPurRet > 0.01
-        );
-
-    $trustId = acc_vat_trust_find_account_id($pdo);
-    if ($trustId < 1) {
-        $trustId = ($outId > 0 && $outId === $inId) ? $outId : max($outId, $inId);
     }
 
     $trustCode = ACC_VAT_TRUST_ACCOUNT_CODE;
@@ -304,7 +366,6 @@ function acc_report_vat_jordan_summary(PDO $pdo, string $dateFrom, string $dateT
         $glClosingBalance = round($glOpeningBalance + (float) ($periodSums['balance'] ?? 0), 6);
         $glPeriodNet = round($glPeriodCredit - $glPeriodDebit, 6);
         $netPayable = $glPeriodNet;
-        $glGap = round(abs($netPayable - $docNetPayable), 6);
 
         if ($unifiedAccount) {
             $outName = $trustName;
@@ -326,6 +387,10 @@ function acc_report_vat_jordan_summary(PDO $pdo, string $dateFrom, string $dateT
         'gl_period_debit' => $glPeriodDebit,
         'gl_period_credit' => $glPeriodCredit,
         'gl_period_net' => $glPeriodNet,
+        'gl_invoice_net' => $glInvoiceNet,
+        'gl_other_net' => $glOtherNet,
+        'gl_other_debit' => $glOtherDebit,
+        'gl_other_credit' => $glOtherCredit,
         'output_code' => $outCode,
         'output_name' => $outName,
         'input_code' => $inCode,
