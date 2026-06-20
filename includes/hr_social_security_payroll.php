@@ -121,7 +121,7 @@ function hr_ss_clear_employee_unposted_payroll(PDO $pdo, int $employeeId): void
     }
 }
 
-/** الراتب الخاضع للضمان من شاشة رواتب الموظف (أساسي + علاوات). */
+/** الراتب الخاضع للضمان: أساسي + علاوات شاشة رواتب الموظف فقط (بدون علاوات الشهر). */
 function hr_employee_payroll_gross(PDO $pdo, int $employeeId): float
 {
     if ($employeeId < 1) {
@@ -137,6 +137,12 @@ function hr_employee_payroll_gross(PDO $pdo, int $employeeId): float
     $totals = hr_employee_salary_totals($base, $lines);
 
     return (float) ($totals['gross'] ?? 0);
+}
+
+/** @alias أساس احتساب الضمان الاجتماعي (يستثني علاوات شاشة العلاوات الشهرية). */
+function hr_employee_ss_gross_base(PDO $pdo, int $employeeId): float
+{
+    return hr_employee_payroll_gross($pdo, $employeeId);
 }
 
 /**
@@ -160,7 +166,7 @@ function hr_ss_calc_for_employee(PDO $pdo, int $employeeId, ?float $grossOverrid
         return null;
     }
 
-    $gross = $grossOverride !== null ? (float) $grossOverride : hr_employee_payroll_gross($pdo, $employeeId);
+    $gross = $grossOverride !== null ? (float) $grossOverride : hr_employee_ss_gross_base($pdo, $employeeId);
     if ($gross < 0) {
         $gross = 0.0;
     }

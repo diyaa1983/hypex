@@ -1115,7 +1115,7 @@ function hr_payroll_calculate(PDO $pdo, int $year, int $month, array $employeeId
         $ss = null;
         $ssEmp = 0.0;
         if (hr_employee_subject_to_social_security($pdo, $empId)) {
-            $ss = hr_ss_calc_for_employee($pdo, $empId, $snap['gross']);
+            $ss = hr_ss_calc_for_employee($pdo, $empId, hr_employee_ss_gross_base($pdo, $empId));
             $ssEmp = $ss ? (float) $ss['employee_deduct'] : 0.0;
         }
 

@@ -89,7 +89,7 @@ function hr_payroll_dept_report_build(PDO $pdo, int $year, int $month, int $depa
             if ($erStored !== false && $erStored !== null) {
                 $ssEr = round((float) $erStored, 3);
             } else {
-                $calc = hr_ss_calc_for_employee($pdo, $empId, $gross);
+                $calc = hr_ss_calc_for_employee($pdo, $empId);
                 $ssEr = $calc ? round((float) ($calc['employer_amount'] ?? 0), 3) : 0.0;
             }
         }
