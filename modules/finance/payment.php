@@ -17,6 +17,7 @@ if (!fin_voucher_ensure_schema_full($pdo)) {
 }
 
 require_once app_path('includes/fin_payment_parties.php');
+require_once app_path('includes/fin_voucher.php');
 
 $initialId = (int) ($_GET['id'] ?? 0);
 $disburseAdvanceId = (int) ($_GET['disburse_advance'] ?? 0);
@@ -29,15 +30,19 @@ if ($disburseAdvanceId > 0 && $initialId < 1) {
     }
 }
 
-$cashAccounts = fin_voucher_load_cash_accounts($pdo);
-if ($disburseBootstrap !== null) {
-    $cashBankOnly = fin_voucher_load_cash_bank_accounts($pdo);
-    if ($cashBankOnly !== []) {
-        $cashAccounts = $cashBankOnly;
-    }
+$savedCashAccountId = 0;
+if ($initialId > 0) {
+    $existingVoucher = fin_voucher_load($pdo, $initialId, 'payment');
+    $savedCashAccountId = (int) ($existingVoucher['cash_account_id'] ?? 0);
 }
+
+$cashAccounts = fin_voucher_deduct_accounts_ensure_saved(
+    $pdo,
+    fin_voucher_load_cash_bank_accounts($pdo),
+    $savedCashAccountId
+);
 if (!$cashAccounts) {
-    echo '<div class="card"><p class="alert alert-error">لا توجد حسابات صندوق/بنك. نفّذ ترحيل <code>026_acc_journal_tables.sql</code> أولاً.</p></div>';
+    echo '<div class="card"><p class="alert alert-error">لا توجد حسابات صرف (صناديق، شيكات، أو بنوك). أضف حسابات تحت «الصناديق» أو «صندوق الشيكات» في شجرة الحسابات.</p></div>';
     return;
 }
 
@@ -295,7 +300,7 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
                 <strong>موظف — سلفة:</strong> اختر الموظف ثم السلفة المعتمدة من الشؤون (يُعبَّأ المبلغ تلقائياً) —
                 <strong>موظف — آخر:</strong> صرف راتب أو التزام (رواتب مستحقة، ضمان…) —
                 <strong>حساب آخر:</strong> صرف على حساب خصوم أو مصروف من الشجرة —
-                <strong>يُخصم من:</strong> الصندوق أو البنك أو حساب الشريك.
+                <strong>يُخصم من:</strong> أي حساب تحت الصناديق أو صندوق الشيكات أو البنوك في شجرة الحسابات.
             </p>
         </header>
             </div>

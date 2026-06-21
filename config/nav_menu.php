@@ -211,6 +211,7 @@ return [
                     'title' => 'تقارير شؤون الموظفين',
                     'items' => [
                         ['r' => 'report_hr_employees', 'label' => 'تقرير الموظفين', 'icon' => '📋'],
+                        ['r' => 'report_hr_employee_advances', 'label' => 'تقرير سلف الموظفين', 'icon' => '💳'],
                     ],
                 ],
                 [

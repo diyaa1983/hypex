@@ -1,0 +1,120 @@
+/* تقرير سلف الموظفين — تجميع حسب القسم ثم الموظف */
+.hr-adv-rpt-page .hr-adv-rpt-filters {
+  max-width: 1100px;
+}
+
+.hr-adv-rpt-doc {
+  margin-top: 1rem;
+}
+
+.hr-adv-rpt-empty {
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.hr-adv-rpt-dept-block {
+  margin-top: 1.25rem;
+  page-break-inside: avoid;
+}
+
+.hr-adv-rpt-dept-title {
+  margin: 0 0 0.65rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  background: #eef2f7;
+  border: 1px solid #c5ced9;
+}
+
+.hr-adv-rpt-emp-block {
+  margin: 0 0 1rem 0.75rem;
+}
+
+.hr-adv-rpt-emp-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a365d;
+}
+
+.hr-adv-rpt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.hr-adv-rpt-table th,
+.hr-adv-rpt-table td {
+  border: 1px solid #333;
+  padding: 0.35rem 0.45rem;
+  vertical-align: top;
+}
+
+.hr-adv-rpt-table thead th {
+  background: #f0f0f0;
+  font-weight: 700;
+  text-align: center;
+}
+
+.hr-adv-rpt-table td.num {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.hr-adv-rpt-emp-sum td {
+  background: #fafafa;
+}
+
+.hr-adv-rpt-dept-sum-table,
+.hr-adv-rpt-grand-table {
+  width: 100%;
+  max-width: 28rem;
+  margin: 0.5rem 0 0 auto;
+  border-collapse: collapse;
+}
+
+.hr-adv-rpt-dept-sum-table th,
+.hr-adv-rpt-dept-sum-table td,
+.hr-adv-rpt-grand-table th,
+.hr-adv-rpt-grand-table td {
+  border: 1px solid #333;
+  padding: 0.45rem 0.6rem;
+}
+
+.hr-adv-rpt-dept-sum-table th,
+.hr-adv-rpt-grand-table th {
+  background: #e8eef5;
+  font-weight: 700;
+  text-align: right;
+}
+
+.hr-adv-rpt-dept-sum-table td.num,
+.hr-adv-rpt-grand-table td.num {
+  text-align: left;
+  font-weight: 600;
+}
+
+.hr-adv-rpt-grand {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 2px solid #333;
+}
+
+.hr-adv-rpt-grand-table {
+  max-width: 32rem;
+}
+
+.hr-adv-rpt-grand-table th {
+  background: #dce6f2;
+  font-size: 1rem;
+}
+
+@media print {
+  .hr-adv-rpt-dept-block {
+    page-break-inside: auto;
+  }
+
+  .hr-adv-rpt-emp-block {
+    page-break-inside: avoid;
+  }
+}

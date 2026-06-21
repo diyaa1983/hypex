@@ -205,6 +205,8 @@ function fin_voucher_load_cash_accounts(PDO $pdo): array
 }
 
 /**
+ * حسابات الصرف في سند الصرف: الصناديق، صندوق الشيكات، والبنوك (حسب شجرة الحسابات).
+ *
  * @return list<array{id:int, code:string, name_ar:string, group_key:string, group_label:string}>
  */
 function fin_voucher_load_cash_bank_accounts(PDO $pdo): array
@@ -215,13 +217,24 @@ function fin_voucher_load_cash_bank_accounts(PDO $pdo): array
     }
 
     require_once app_path('includes/acc_gl.php');
+    require_once app_path('includes/acc_coa_bootstrap.php');
+    require_once app_path('includes/acc_account_tree.php');
+
     $settings = acc_gl_is_ready($pdo) ? acc_gl_load_settings($pdo) : [];
-    $extraIds = [];
-    foreach (['cash', 'bank'] as $rule) {
+    $forceIds = [];
+    foreach (['cash', 'bank', 'checks_fund'] as $rule) {
         $aid = (int) ($settings[$rule]['account_id'] ?? 0);
         if ($aid > 0) {
-            $extraIds[$aid] = true;
+            $forceIds[$aid] = true;
         }
+    }
+    $cashBoxId = acc_gl_cash_box_account_id($pdo);
+    if ($cashBoxId > 0) {
+        $forceIds[$cashBoxId] = true;
+    }
+    $checksFundId = acc_gl_checks_fund_account_id($pdo);
+    if ($checksFundId > 0) {
+        $forceIds[$checksFundId] = true;
     }
 
     $rows = $pdo->query(
@@ -233,21 +246,21 @@ function fin_voucher_load_cash_bank_accounts(PDO $pdo): array
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $byId = [];
-    $nameById = [];
     foreach (
-        $pdo->query('SELECT id, parent_id, name_ar FROM acc_account WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r
+        $pdo->query('SELECT id, parent_id FROM acc_account WHERE is_active = 1')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r
     ) {
         $aid = (int) ($r['id'] ?? 0);
         if ($aid > 0) {
             $byId[$aid] = [
                 'parent_id' => ($r['parent_id'] ?? null) !== null ? (int) $r['parent_id'] : null,
             ];
-            $nameById[$aid] = (string) ($r['name_ar'] ?? '');
         }
     }
 
-    require_once app_path('includes/acc_coa_bootstrap.php');
+    $cashGroupIds = acc_coa_find_cash_group_parent_ids($pdo);
+    $banksGroupIds = acc_coa_find_banks_group_parent_ids($pdo);
     $liquidityParentId = acc_coa_find_liquidity_parent_id($pdo);
+
     $isUnder = static function (int $accountId, ?int $ancestorId) use (&$byId): bool {
         if ($accountId < 1 || $ancestorId === null || $ancestorId < 1) {
             return false;
@@ -266,64 +279,179 @@ function fin_voucher_load_cash_bank_accounts(PDO $pdo): array
         return false;
     };
 
-    $isBankAccount = static function (int $accountId) use ($nameById, $byId): bool {
-        $cur = $accountId;
-        $guard = 0;
-        while ($cur > 0 && $guard < 200) {
-            $n = function_exists('mb_strtolower')
-                ? mb_strtolower($nameById[$cur] ?? '', 'UTF-8')
-                : strtolower($nameById[$cur] ?? '');
-            if (str_contains($n, 'بنك') || str_contains($n, 'bank')) {
+    $isUnderAny = static function (int $accountId, array $ancestorIds) use ($isUnder): bool {
+        foreach ($ancestorIds as $ancestorId) {
+            if ($isUnder($accountId, (int) $ancestorId)) {
                 return true;
             }
-            $parent = $byId[$cur]['parent_id'] ?? null;
-            $cur = $parent !== null ? (int) $parent : 0;
-            $guard++;
         }
 
         return false;
     };
 
+    $isChecksFundLeaf = static function (int $accountId, string $name, string $parentName, string $code) use ($checksFundId): bool {
+        if ($checksFundId > 0 && $accountId === $checksFundId) {
+            return true;
+        }
+        if (preg_match('/صندوق\s*الشيكات|شيكات\s*تحت/u', $name)) {
+            return true;
+        }
+        if (preg_match('/\bشيكات\b/u', $parentName) && preg_match('/صندوق|شيك/u', $name)) {
+            return true;
+        }
+        $digits = acc_account_code_digits($code);
+
+        return $digits !== '' && in_array($digits, ['113', '1001001002', '1001002002'], true);
+    };
+
+    $resolveGroup = static function (
+        int $accountId,
+        string $code,
+        string $name,
+        string $parentName
+    ) use (
+        $isUnderAny,
+        $cashGroupIds,
+        $banksGroupIds,
+        $liquidityParentId,
+        $isUnder,
+        $isChecksFundLeaf
+    ): ?string {
+        if ($isChecksFundLeaf($accountId, $name, $parentName, $code)) {
+            return 'checks';
+        }
+        if ($isUnderAny($accountId, $banksGroupIds)) {
+            return 'bank';
+        }
+        if ($isUnderAny($accountId, $cashGroupIds)) {
+            return 'cash';
+        }
+
+        $digits = acc_account_code_digits($code);
+        if ($digits !== '' && str_starts_with($digits, '1001003')) {
+            return 'bank';
+        }
+        if ($digits !== '' && str_starts_with($digits, '1001002')) {
+            return 'cash';
+        }
+
+        $legacyCash = in_array($digits, ['111', '1001001001', '1001002001'], true);
+        $legacyBank = in_array($digits, ['112', '1001003001', '1001003004'], true);
+        if ($legacyBank) {
+            return 'bank';
+        }
+        if ($legacyCash) {
+            return 'cash';
+        }
+
+        $hay = $name . ' ' . $parentName;
+        if ($liquidityParentId !== null && $isUnder($accountId, $liquidityParentId)) {
+            if (preg_match('/بنك|bank|مصرف/u', $hay)) {
+                return 'bank';
+            }
+            if (preg_match('/صندوق|نقد|cash|خزينة/u', $hay)) {
+                return 'cash';
+            }
+        }
+
+        return null;
+    };
+
+    $groupLabels = [
+        'cash' => 'الصناديق',
+        'checks' => 'صندوق الشيكات',
+        'bank' => 'البنوك',
+    ];
+    $groupSort = [
+        'cash' => 10,
+        'checks' => 15,
+        'bank' => 20,
+    ];
+
     $out = [];
+    $seen = [];
     foreach ($rows as $row) {
         $id = (int) ($row['id'] ?? 0);
-        if ($id < 1) {
+        if ($id < 1 || isset($seen[$id])) {
             continue;
         }
+
         $name = (string) ($row['name_ar'] ?? '');
         $parentName = (string) ($row['parent_name_ar'] ?? '');
-        $isPartnerLike = str_contains($name, 'شريك')
-            || str_contains($name, 'جاري')
-            || str_contains($parentName, 'شريك')
-            || str_contains($parentName, 'حصة');
-        if ($isPartnerLike) {
+        $code = (string) ($row['code'] ?? '');
+
+        if (preg_match('/شريك|جاري|حصة/u', $name . ' ' . $parentName)) {
             continue;
         }
-        $isLiquid = $isUnder($id, $liquidityParentId) || isset($extraIds[$id]);
-        if (!$isLiquid) {
+
+        $groupKey = $resolveGroup($id, $code, $name, $parentName);
+        if ($groupKey === null && !isset($forceIds[$id])) {
             continue;
         }
-        $isBank = $isBankAccount($id);
+        if ($groupKey === null) {
+            $groupKey = preg_match('/بنك|bank|مصرف/u', $name . ' ' . $parentName) ? 'bank' : 'cash';
+            if ($isChecksFundLeaf($id, $name, $parentName, $code)) {
+                $groupKey = 'checks';
+            }
+        }
+
+        $seen[$id] = true;
         $out[] = [
             'id' => $id,
-            'code' => (string) ($row['code'] ?? ''),
+            'code' => $code,
             'name_ar' => $name,
-            'group_key' => $isBank ? 'bank' : 'cash',
-            'group_label' => $isBank ? 'حسابات البنوك' : 'حسابات الصندوق / النقد',
+            'group_key' => $groupKey,
+            'group_label' => $groupLabels[$groupKey] ?? 'الصناديق',
+            'sort_order' => $groupSort[$groupKey] ?? 99,
         ];
     }
 
     usort($out, static function (array $a, array $b): int {
-        $ga = (string) ($a['group_key'] ?? '');
-        $gb = (string) ($b['group_key'] ?? '');
-        if ($ga !== $gb) {
-            return $ga === 'cash' ? -1 : 1;
+        $sa = (int) ($a['sort_order'] ?? 0);
+        $sb = (int) ($b['sort_order'] ?? 0);
+        if ($sa !== $sb) {
+            return $sa <=> $sb;
         }
 
         return strcmp((string) ($a['code'] ?? ''), (string) ($b['code'] ?? ''));
     });
 
     return $out;
+}
+
+/**
+ * @param list<array{id:int, code:string, name_ar:string, group_key?:string, group_label?:string}> $accounts
+ * @return list<array{id:int, code:string, name_ar:string, group_key:string, group_label:string}>
+ */
+function fin_voucher_deduct_accounts_ensure_saved(PDO $pdo, array $accounts, int $savedAccountId = 0): array
+{
+    if ($savedAccountId < 1) {
+        return $accounts;
+    }
+    foreach ($accounts as $acc) {
+        if ((int) ($acc['id'] ?? 0) === $savedAccountId) {
+            return $accounts;
+        }
+    }
+
+    $st = $pdo->prepare(
+        'SELECT id, code, name_ar FROM acc_account WHERE id = ? AND is_active = 1 LIMIT 1'
+    );
+    $st->execute([$savedAccountId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return $accounts;
+    }
+
+    $accounts[] = [
+        'id' => (int) ($row['id'] ?? 0),
+        'code' => (string) ($row['code'] ?? ''),
+        'name_ar' => (string) ($row['name_ar'] ?? ''),
+        'group_key' => 'saved',
+        'group_label' => 'حساب محفوظ سابقاً',
+    ];
+
+    return $accounts;
 }
 
 /** @return array<string, mixed>|null */

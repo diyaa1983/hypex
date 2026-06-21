@@ -120,6 +120,7 @@ $appBootMigrations = [
     'database/migrations/165_hr_advance_disbursement_fix.sql',
     'database/migrations/166_hr_salary_disbursement.sql',
     'database/migrations/167_fin_employee_advances_screen.sql',
+    'database/migrations/168_report_hr_employee_advances.sql',
 ];
 sql_migration_bootstrap_registry($pdo, $appBootMigrations);
 sql_migration_run_files_once($pdo, $appBootMigrations);

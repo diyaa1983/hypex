@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once app_path('includes/fin_payment_parties.php');
+require_once app_path('includes/fin_voucher.php');
 
 function handle_fin_payment_save(): void
 {
@@ -27,9 +28,9 @@ function handle_fin_payment_save(): void
         redirect(app_url('index.php?r=cash_payment'));
     }
 
-    $cashAccounts = fin_voucher_load_cash_accounts($pdo);
+    $cashAccounts = fin_voucher_load_cash_bank_accounts($pdo);
     if (!$cashAccounts) {
-        $msg = 'لا توجد حسابات صرف (صندوق، بنك، أو شريك).';
+        $msg = 'لا توجد حسابات صرف (صناديق، شيكات، أو بنوك).';
         if ($wantsJson) {
             json_invoice_save_response(false, ['message' => $msg], 500);
         }
@@ -118,7 +119,7 @@ function handle_fin_payment_save(): void
     }
 
     if ($err === '' && ($cashAccountId < 1 || !isset($allowedCash[$cashAccountId]))) {
-        $err = 'اختر حساب الصرف (صندوق، بنك، أو حساب شريك) الذي يُخصم منه المبلغ.';
+        $err = 'اختر حساب الصرف (صندوق، شيكات، أو بنك) الذي يُخصم منه المبلغ.';
     } elseif ($err === '' && $payMethod === 'check') {
         if ($checkAmount <= 0 && $amount <= 0) {
             $err = 'أدخل قيمة الشيك.';

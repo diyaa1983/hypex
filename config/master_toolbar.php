@@ -236,6 +236,7 @@ return [
                 'report_sales_qty_extra',
                 'report_customers',
                 'report_hr_employees',
+                'report_hr_employee_advances',
                 'report_chart_of_accounts',
                 'report_party_statement',
                 'report_customer_statement',
@@ -283,7 +284,8 @@ return [
             'label' => 'PDF',
             'variant' => 'secondary',
             'title' => 'تحميل PDF',
-            'screens' => ['sales_invoices', 'sales_delivery', 'sales_returns', 'purchase_invoices', 'purchase_returns', 'warehouse_moves', 'inventory_stocktake', 'report_sales', 'report_sales_between_dates', 'report_purchases', 'report_purchases_by_item', 'report_sales_by_rep', 'report_sales_by_item', 'report_sales_returns', 'report_sales_returns_totals', 'report_sales_qty_extra', 'report_customers', 'report_hr_employees', 'report_vouchers', 'report_incoming_checks', 'report_outgoing_checks', 'report_receivables', 'report_receivables_aging', 'report_supplier_payables', 'item_stock_movements', 'report_warehouse_items', 'report_warehouse_zero_qty', 'report_warehouse_negative_qty', 'report_warehouse_financial', 'report_warehouse_moves', 'report_trial_balance', 'report_trial_balance_detailed', 'report_general_ledger', 'report_account_statement', 'report_income_statement', 'report_income_statement_comprehensive', 'report_tax_declaration', 'report_tax_ar3', 'report_balance_sheet', 'hr_payroll_ss_report'],
+            'screens' => ['sales_invoices', 'sales_delivery', 'sales_returns', 'purchase_invoices', 'purchase_returns', 'warehouse_moves', 'inventory_stocktake', 'report_sales', 'report_sales_between_dates', 'report_purchases', 'report_purchases_by_item', 'report_sales_by_rep', 'report_sales_by_item', 'report_sales_returns', 'report_sales_returns_totals', 'report_sales_qty_extra', 'report_customers', 'report_hr_employees',
+                'report_hr_employee_advances', 'report_vouchers', 'report_incoming_checks', 'report_outgoing_checks', 'report_receivables', 'report_receivables_aging', 'report_supplier_payables', 'item_stock_movements', 'report_warehouse_items', 'report_warehouse_zero_qty', 'report_warehouse_negative_qty', 'report_warehouse_financial', 'report_warehouse_moves', 'report_trial_balance', 'report_trial_balance_detailed', 'report_general_ledger', 'report_account_statement', 'report_income_statement', 'report_income_statement_comprehensive', 'report_tax_declaration', 'report_tax_ar3', 'report_balance_sheet', 'hr_payroll_ss_report'],
         ],
         [
             'action' => 'excel',

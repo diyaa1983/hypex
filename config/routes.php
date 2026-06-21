@@ -376,6 +376,11 @@ return [
         'permission' => 'hr_employees',
         'title' => 'تقرير الموظفين',
     ],
+    'report_hr_employee_advances' => [
+        'file' => 'modules/reports/hr_employee_advances.php',
+        'permission' => 'report_hr_employee_advances',
+        'title' => 'تقرير سلف الموظفين',
+    ],
     'report_purchases' => [
         'file' => 'modules/reports/purchases.php',
         'permission' => 'report_purchases',
