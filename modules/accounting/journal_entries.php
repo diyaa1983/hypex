@@ -328,6 +328,8 @@ $q = trim((string) ($_GET['q'] ?? ''));
 $statusFilter = trim((string) ($_GET['status'] ?? ''));
 $dateFromRaw = trim((string) ($_GET['date_from'] ?? ''));
 $dateToRaw = trim((string) ($_GET['date_to'] ?? ''));
+$sortColumn = acc_journal_list_normalize_sort(trim((string) ($_GET['sort'] ?? 'entry_date')));
+$sortDir = acc_journal_list_normalize_dir(trim((string) ($_GET['dir'] ?? 'desc')));
 $searchClause = acc_journal_list_search_clause($q);
 $dateClause = acc_journal_list_date_clause($dateFromRaw, $dateToRaw);
 $dateFrom = (string) ($dateClause['from'] ?? '');
@@ -369,9 +371,11 @@ if ($dateFrom !== '') {
 if ($dateTo !== '') {
     $listPagerQuery['date_to'] = format_date_dmY($dateTo);
 }
+$listPagerQuery['sort'] = $sortColumn;
+$listPagerQuery['dir'] = $sortDir;
 $listPagerUrl = list_pager_base_url('journal_entries', $listPagerQuery);
 
-$sql .= ' GROUP BY e.id ORDER BY e.entry_date DESC, e.id DESC' . list_pager_sql_limit($pager);
+$sql .= ' GROUP BY e.id' . acc_journal_list_order_clause($sortColumn, $sortDir) . list_pager_sql_limit($pager);
 $st = $pdo->prepare($sql);
 $st->execute($params);
 $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -399,6 +403,8 @@ $screenExitUrl = journal_entries_screen_exit_url($activeRoute ?? 'journal_entrie
             <div class="dashboard-ora-panel__body">
                 <form method="get" action="<?= esc(app_url('index.php')) ?>" class="je-ora-filters">
                     <input type="hidden" name="r" value="journal_entries">
+                    <input type="hidden" name="sort" value="<?= esc($sortColumn) ?>">
+                    <input type="hidden" name="dir" value="<?= esc($sortDir) ?>">
                     <label class="field je-ora-search-field">
                         <span class="field-label">بحث</span>
                         <input class="input" type="search" name="q" value="<?= esc($q) ?>"
@@ -437,16 +443,16 @@ $screenExitUrl = journal_entries_screen_exit_url($activeRoute ?? 'journal_entrie
             <h2 class="dashboard-ora-panel__title">سجل القيود</h2>
             <div class="dashboard-ora-panel__body dashboard-ora-panel__body--flush">
                 <div class="dashboard-ora-table-wrap">
-                    <table class="dashboard-ora-table">
+                    <table class="dashboard-ora-table je-ora-list-table">
                         <thead>
                         <tr>
-                            <th>رقم القيد</th>
-                            <th>تاريخ القيد</th>
-                            <th>تاريخ الإنشاء</th>
-                            <th>البيان</th>
-                            <th>مدين</th>
-                            <th>دائن</th>
-                            <th>الحالة</th>
+                            <th><?= acc_journal_list_sort_th_html('رقم القيد', 'entry_no', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
+                            <th><?= acc_journal_list_sort_th_html('تاريخ القيد', 'entry_date', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
+                            <th><?= acc_journal_list_sort_th_html('تاريخ الإنشاء', 'created_at', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
+                            <th><?= acc_journal_list_sort_th_html('البيان', 'description_ar', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
+                            <th><?= acc_journal_list_sort_th_html('مدين', 'total_debit', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
+                            <th><?= acc_journal_list_sort_th_html('دائن', 'total_credit', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
+                            <th><?= acc_journal_list_sort_th_html('الحالة', 'status', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
                             <th>إجراءات</th>
                         </tr>
                         </thead>

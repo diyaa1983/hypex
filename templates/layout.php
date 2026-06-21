@@ -64,7 +64,8 @@ $navActiveHub = nav_resolve_active_hub($activeRoute);
 $dashboardUrl = app_url('index.php?r=dashboard');
 $logoutUrl = app_url('logout.php');
 $user = current_user();
-$printUserLabel = document_print_user_label();
+$appUserLabel = document_print_user_label();
+$printUserLabel = $appUserLabel;
 $tabPageTitle = trim($pageTitle) !== '' ? $pageTitle : (string) ($routeTitle ?? '');
 $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? ''));
 
@@ -192,7 +193,8 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
             <?php render_master_toolbar(); ?>
         </div>
         <div class="app-topbar-user">
-            <span class="app-topbar-user-name"><?= esc((string) ($user['full_name_ar'] ?? $user['username'] ?? '')) ?></span>
+            <span class="app-topbar-user-label">المستخدم:</span>
+            <span class="app-topbar-user-name"><?= esc($appUserLabel) ?></span>
             <div class="app-session-actions">
                 <?php render_nav_exit_button($activeRoute); ?>
                 <a class="btn app-topbar-logout" href="<?= esc($logoutUrl) ?>">تسجيل خروج</a>
@@ -209,7 +211,6 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
     </main>
 <?php else: ?>
     <?php $showMasterToolbar = $activeRoute !== 'dashboard' && $activeRoute !== 'menu_hub'; ?>
-    <?php if ($showMasterToolbar): ?>
     <header class="app-screen-head no-print" role="banner">
         <div class="app-screen-head-brand">
             <div class="brand-identity">
@@ -223,25 +224,17 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
         </div>
         <div class="app-screen-head-actions">
             <?php render_header_check_notifications($headerCheckNotify); ?>
+            <?php if ($showMasterToolbar): ?>
             <?php render_master_toolbar(); ?>
+            <?php endif; ?>
+        </div>
+        <div class="app-screen-head-user">
+            <span class="app-topbar-user-label">المستخدم:</span>
+            <span class="app-topbar-user-name"><?= esc($appUserLabel) ?></span>
         </div>
     </header>
-    <?php endif; ?>
     <div class="app-shell-body">
-    <aside class="sidebar<?= $showMasterToolbar ? ' sidebar--compact-head' : '' ?>">
-        <?php if (!$showMasterToolbar): ?>
-        <div class="brand">
-            <div class="brand-identity">
-                <?php if (!empty($settingsRow['logo_path'])): ?>
-                    <img class="brand-logo" src="<?= esc(app_url($settingsRow['logo_path'])) ?>" alt="">
-                <?php else: ?>
-                    <div class="brand-mark">N</div>
-                <?php endif; ?>
-                <div class="brand-name"><?= esc($settingsRow['company_name_ar']) ?></div>
-            </div>
-            <?php render_header_check_notifications($headerCheckNotify); ?>
-        </div>
-        <?php endif; ?>
+    <aside class="sidebar sidebar--compact-head">
         <nav class="sidebar-nav">
             <?php foreach ($navMenu['domains'] as $domain): ?>
                 <?php nav_render_sidebar_domain($domain, $activeRoute, $navActiveHub); ?>
@@ -256,7 +249,7 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
         <div class="sidebar-foot">
             <div class="user-chip">
                 <div>
-                    <div class="user-name"><?= esc((string) ($user['full_name_ar'] ?? '')) ?></div>
+                    <div class="user-name"><?= esc($appUserLabel) ?></div>
                     <div class="user-meta"><?= esc((string) ($user['username'] ?? '')) ?></div>
                 </div>
             </div>

@@ -202,15 +202,36 @@ body.app-body {
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+  transform: translateX(0.65rem);
+}
+
+.app-topbar-user-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--shell-text-muted);
+  white-space: nowrap;
 }
 
 .app-topbar-user-name {
-  font-size: 0.82rem;
-  color: var(--shell-text-muted);
-  max-width: 10rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--shell-text);
+  max-width: 14rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.app-screen-head-user {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  padding-inline: 0.75rem;
+  border-inline-start: 1px solid var(--shell-border);
+  min-height: 2.5rem;
+  transform: translateX(0.65rem);
 }
 
 .app-topbar-logout {
@@ -1799,6 +1820,7 @@ table.data-table {
 
 .app-topbar-brand-wrap,
 .app-screen-head-brand,
+.app-screen-head-user,
 .app-topbar-user,
 .app-session-actions,
 .app-check-bell-wrap,
@@ -1826,6 +1848,16 @@ table.data-table {
 
   .app-topbar-brand-name {
     max-width: 140px;
+  }
+
+  .app-topbar-user-name,
+  .app-screen-head-user .app-topbar-user-name {
+    max-width: 8rem;
+  }
+
+  .app-topbar-user-label,
+  .app-screen-head-user .app-topbar-user-label {
+    display: none;
   }
 
   .app-shell--focus {

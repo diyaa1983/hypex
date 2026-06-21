@@ -718,6 +718,70 @@ function acc_journal_list_from_sql(): string
              LEFT JOIN acc_account a ON a.id = l.account_id';
 }
 
+/** @return list<string> */
+function acc_journal_list_sort_columns(): array
+{
+    return ['entry_no', 'entry_date', 'created_at', 'description_ar', 'total_debit', 'total_credit', 'status'];
+}
+
+function acc_journal_list_normalize_sort(string $sort): string
+{
+    return in_array($sort, acc_journal_list_sort_columns(), true) ? $sort : 'entry_date';
+}
+
+function acc_journal_list_normalize_dir(string $dir): string
+{
+    return strtolower($dir) === 'asc' ? 'asc' : 'desc';
+}
+
+function acc_journal_list_order_clause(string $sort, string $dir): string
+{
+    $sort = acc_journal_list_normalize_sort($sort);
+    $dir = acc_journal_list_normalize_dir($dir) === 'asc' ? 'ASC' : 'DESC';
+
+    $columns = [
+        'entry_no' => 'e.entry_no',
+        'entry_date' => 'e.entry_date',
+        'created_at' => 'e.created_at',
+        'description_ar' => 'e.description_ar',
+        'total_debit' => 'total_debit',
+        'total_credit' => 'total_credit',
+        'status' => 'e.status',
+    ];
+
+    return ' ORDER BY ' . $columns[$sort] . ' ' . $dir . ', e.id DESC';
+}
+
+/**
+ * @param array<string, scalar|null> $query
+ */
+function acc_journal_list_sort_url(string $route, array $query, string $column, string $currentSort, string $currentDir): string
+{
+    $query['sort'] = $column;
+    $query['dir'] = ($currentSort === $column && acc_journal_list_normalize_dir($currentDir) === 'asc') ? 'desc' : 'asc';
+    unset($query['page']);
+
+    return list_pager_base_url($route, $query);
+}
+
+function acc_journal_list_sort_th_html(
+    string $label,
+    string $column,
+    string $route,
+    array $query,
+    string $currentSort,
+    string $currentDir
+): string {
+    $href = acc_journal_list_sort_url($route, $query, $column, $currentSort, $currentDir);
+    $class = 'je-ora-sort-th';
+    if ($currentSort === $column) {
+        $class .= acc_journal_list_normalize_dir($currentDir) === 'asc' ? ' is-sort-asc' : ' is-sort-desc';
+    }
+
+    return '<a class="' . esc($class) . '" href="' . esc($href) . '" title="ترتيب تصاعدي / تنازلي">'
+        . esc($label) . '</a>';
+}
+
 /**
  * بحث قائمة القيود: رقم القيد، البيان، التاريخ، اسم/رمز الحساب، مبلغ السطر، ملاحظة السطر.
  *

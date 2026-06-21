@@ -127,16 +127,21 @@
   function suggestCashAccountForPayMethod() {
     var sel = document.getElementById('py_cash_account_id');
     if (!sel || sel.options.length < 1) return;
-    var cur = sel.options[sel.selectedIndex];
-    if (cur && cur.getAttribute('data-group') === 'partner') {
-      return;
-    }
     var isCheck = getPayMethod() === 'check';
-    var preferred = isCheck ? ['112', '113'] : ['111'];
-    for (var p = 0; p < preferred.length; p++) {
+    var preferredGroups = isCheck ? ['checks', 'cash'] : ['cash', 'bank'];
+    var preferredCodes = isCheck ? ['113', '1001001002', '1001002002', '111'] : ['111', '1001002001'];
+    for (var g = 0; g < preferredGroups.length; g++) {
       for (var i = 0; i < sel.options.length; i++) {
-        if (sel.options[i].getAttribute('data-code') === preferred[p]) {
+        if (sel.options[i].getAttribute('data-group') === preferredGroups[g]) {
           sel.value = sel.options[i].value;
+          return;
+        }
+      }
+    }
+    for (var p = 0; p < preferredCodes.length; p++) {
+      for (var j = 0; j < sel.options.length; j++) {
+        if (sel.options[j].getAttribute('data-code') === preferredCodes[p]) {
+          sel.value = sel.options[j].value;
           return;
         }
       }
@@ -903,8 +908,8 @@
     var partyType = getPartyType();
     var cashSel = document.getElementById('py_cash_account_id');
     if (!cashSel || !cashSel.value) {
-      if (global.AppDialog) AppDialog.alert('اختر حساب الصرف (الصندوق/البنك).', { type: 'warning' });
-      else alert('اختر حساب الصرف (الصندوق/البنك).');
+      if (global.AppDialog) AppDialog.alert('اختر حساب الصرف (صندوق، شيكات، أو بنك).', { type: 'warning' });
+      else alert('اختر حساب الصرف (صندوق، شيكات، أو بنك).');
       if (cashSel) cashSel.focus();
       return false;
     }

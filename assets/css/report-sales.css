@@ -631,6 +631,97 @@
   font-size: 0.85em;
 }
 
+/* تقرير حركات التعديل */
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table {
+  table-layout: fixed;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-seq {
+  width: 2.2rem;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-datetime {
+  width: 11%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-user {
+  width: 11%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-screen {
+  width: 14%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-action {
+  width: 8%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-ref {
+  width: 12%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-docdate {
+  width: 9%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-summary {
+  width: auto;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-seq {
+  width: 2.2rem;
+  max-width: 2.2rem;
+  padding-inline: 0.15rem;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-datetime,
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-docdate {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-user,
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-screen,
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-summary {
+  text-align: start;
+  white-space: normal;
+  word-break: break-word;
+  overflow: visible;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-action {
+  white-space: nowrap;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-ref {
+  text-align: start;
+  white-space: nowrap;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-wrap code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 7rem;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-link {
+  padding: 0 0.35rem;
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-badge-delete {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 @media print {
   @page {
     margin: 8mm 10mm 10mm 10mm;

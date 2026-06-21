@@ -91,6 +91,44 @@
   font-weight: 700;
 }
 
+.journal-entries-ora .je-ora-sort-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.journal-entries-ora .je-ora-sort-th:hover {
+  color: var(--ora12-link, #0572ce);
+  text-decoration: underline;
+}
+
+.journal-entries-ora .je-ora-sort-th::after {
+  content: '⇅';
+  font-size: 0.62rem;
+  opacity: 0.45;
+  line-height: 1;
+}
+
+.journal-entries-ora .je-ora-sort-th.is-sort-asc::after {
+  content: '▲';
+  opacity: 1;
+  color: var(--ora12-link, #0572ce);
+}
+
+.journal-entries-ora .je-ora-sort-th.is-sort-desc::after {
+  content: '▼';
+  opacity: 1;
+  color: var(--ora12-link, #0572ce);
+}
+
+.journal-entries-ora .dashboard-ora-table thead th {
+  white-space: nowrap;
+}
+
 .journal-entries-ora .dashboard-ora-table tbody td code {
   font-weight: inherit;
 }

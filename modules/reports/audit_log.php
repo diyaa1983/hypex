@@ -163,19 +163,29 @@ if ($showResult) {
             </div>
 
         <div class="report-sales-table-wrap">
-            <table class="report-sales-table js-sortable-report"
+            <table class="report-sales-table report-audit-log-table js-sortable-report"
                    data-default-sort="logged_at"
                    data-default-dir="desc">
+                <colgroup>
+                    <col class="col-seq">
+                    <col class="col-audit-datetime">
+                    <col class="col-audit-user">
+                    <col class="col-audit-screen">
+                    <col class="col-audit-action">
+                    <col class="col-audit-ref">
+                    <col class="col-audit-docdate">
+                    <col class="col-audit-summary">
+                </colgroup>
                 <thead>
                 <tr>
-                    <th class="col-seq js-sort-th" data-sort="seq" data-sort-type="number">تسلسل</th>
-                    <th class="col-date js-sort-th" data-sort="logged_at" data-sort-type="text">تاريخ ووقت الحركة</th>
-                    <th class="col-customer js-sort-th" data-sort="user_name" data-sort-type="text">المستخدم</th>
-                    <th class="col-customer js-sort-th" data-sort="screen_label" data-sort-type="text">الشاشة</th>
-                    <th class="col-posted js-sort-th" data-sort="action_label" data-sort-type="text">نوع الحركة</th>
-                    <th class="col-inv-no js-sort-th" data-sort="entity_ref" data-sort-type="text">المرجع</th>
-                    <th class="col-date js-sort-th" data-sort="doc_date" data-sort-type="date">تاريخ المستند</th>
-                    <th class="col-customer js-sort-th" data-sort="summary" data-sort-type="text">ملاحظة</th>
+                    <th class="col-seq js-sort-th" data-sort="seq" data-sort-type="number">ت</th>
+                    <th class="col-audit-datetime js-sort-th" data-sort="logged_at" data-sort-type="text">تاريخ ووقت الحركة</th>
+                    <th class="col-audit-user js-sort-th" data-sort="user_name" data-sort-type="text">المستخدم</th>
+                    <th class="col-audit-screen js-sort-th" data-sort="screen_label" data-sort-type="text">الشاشة</th>
+                    <th class="col-audit-action js-sort-th" data-sort="action_label" data-sort-type="text">نوع الحركة</th>
+                    <th class="col-audit-ref js-sort-th" data-sort="entity_ref" data-sort-type="text">المرجع</th>
+                    <th class="col-audit-docdate js-sort-th" data-sort="doc_date" data-sort-type="date">تاريخ المستند</th>
+                    <th class="col-audit-summary js-sort-th" data-sort="summary" data-sort-type="text">ملاحظة</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -201,6 +211,13 @@ if ($showResult) {
                             $loggedAtDisplay = $loggedAt;
                         }
                     }
+                    $actionCode = (string) ($r['action_code'] ?? '');
+                    $actionBadgeClass = match ($actionCode) {
+                        'delete' => 'report-audit-badge-delete',
+                        'unpost' => 'badge-warn',
+                        'post' => 'badge-ok',
+                        default => 'badge-off',
+                    };
                     ?>
                     <tr data-sort-row="1"
                         data-sort-seq="<?= $seq ?>"
@@ -212,23 +229,25 @@ if ($showResult) {
                         data-sort-doc_date="<?= esc((string) ($r['doc_date'] ?? '')) ?>"
                         data-sort-summary="<?= esc((string) ($r['summary'] ?? '')) ?>">
                         <td class="col-seq"><?= $seq ?></td>
-                        <td class="col-date" dir="ltr"><?= esc($loggedAtDisplay) ?></td>
-                        <td class="col-customer"><?= esc((string) ($r['user_name'] ?? '—')) ?></td>
-                        <td class="col-customer"><?= esc((string) ($r['screen_label_ar'] ?? '')) ?></td>
-                        <td class="col-posted">
-                            <span class="badge badge-ok"><?= esc((string) ($r['action_label_ar'] ?? '')) ?></span>
+                        <td class="col-audit-datetime" dir="ltr"><?= esc($loggedAtDisplay) ?></td>
+                        <td class="col-audit-user"><?= esc((string) ($r['user_name'] ?? '—')) ?></td>
+                        <td class="col-audit-screen"><?= esc((string) ($r['screen_label_ar'] ?? '')) ?></td>
+                        <td class="col-audit-action">
+                            <span class="badge <?= esc($actionBadgeClass) ?>"><?= esc((string) ($r['action_label_ar'] ?? '')) ?></span>
                         </td>
-                        <td class="col-inv-no">
+                        <td class="col-audit-ref">
                             <?php if ($entityUrl !== null): ?>
-                                <code><?= esc((string) ($r['entity_ref'] ?? '—')) ?></code>
-                                <a class="btn btn-ghost btn-sm no-print" style="padding:0 0.35rem;font-size:0.75rem;"
-                                   href="<?= esc($entityUrl) ?>">عرض</a>
+                                <span class="report-audit-ref-wrap">
+                                    <code><?= esc((string) ($r['entity_ref'] ?? '—')) ?></code>
+                                    <a class="btn btn-ghost btn-sm no-print report-audit-ref-link"
+                                       href="<?= esc($entityUrl) ?>">عرض</a>
+                                </span>
                             <?php else: ?>
                                 <?= esc((string) ($r['entity_ref'] ?? '—')) ?>
                             <?php endif; ?>
                         </td>
-                        <td class="col-date"><?= ($r['doc_date'] ?? '') !== '' ? esc(format_date_dmY((string) $r['doc_date'])) : '—' ?></td>
-                        <td class="col-customer"><?= esc((string) ($r['summary'] ?? '')) ?></td>
+                        <td class="col-audit-docdate" dir="ltr"><?= ($r['doc_date'] ?? '') !== '' ? esc(format_date_dmY((string) $r['doc_date'])) : '—' ?></td>
+                        <td class="col-audit-summary"><?= esc((string) ($r['summary'] ?? '')) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
