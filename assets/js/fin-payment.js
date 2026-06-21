@@ -14,6 +14,7 @@
   var voucherPostUrl = form.getAttribute('data-voucher-post-url') || '';
   var voucherUnpostUrl = form.getAttribute('data-voucher-unpost-url') || '';
   var voucherDeleteUrl = form.getAttribute('data-voucher-delete-url') || '';
+  var voucherCancelUrl = form.getAttribute('data-voucher-cancel-url') || '';
   var newUrl = form.getAttribute('data-new-url') || '';
   var exitUrl = form.getAttribute('data-exit-url') || '';
   var initialVoucherId = parseInt(form.getAttribute('data-initial-id') || '0', 10);
@@ -25,6 +26,7 @@
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
   var voucherIsPosted = false;
+  var voucherIsCancelled = false;
   var formDirty = false;
   var formSubmitting = false;
   var suppressDirtyMark = 0;
@@ -626,7 +628,7 @@
   }
 
   function markFormDirty() {
-    if (suppressDirtyMark > 0 || voucherIsPosted) return;
+    if (suppressDirtyMark > 0 || voucherIsPosted || voucherIsCancelled) return;
     formDirty = true;
   }
 
@@ -733,11 +735,33 @@
     syncEmployeeAmountLock();
   }
 
+  function voucherCancelledFromPayload(v) {
+    if (!v) return false;
+    if (v.is_cancelled === true || v.is_cancelled === 1 || v.is_cancelled === '1') return true;
+    if (String(v.status || '') === 'cancelled') return true;
+    if (String(v.status_label || '') === 'ملغى') return true;
+    return false;
+  }
+
+  function lockPaymentPickerButtons(locked) {
+    form.querySelectorAll(
+      '#py_customer_open, #py_supplier_open, #py_employee_open, #py_account_target_open, ' +
+        '.sales-inv-cust-open, .js-pick-open, input[name="party_type_ui"], input[name="employee_pay_kind_ui"], ' +
+        '#py_pay_cash, #py_pay_check'
+    ).forEach(function (el) {
+      if (!el) return;
+      el.disabled = !!locked;
+    });
+  }
+
   function refreshVoucherEditState() {
-    var locked = currentVoucherId > 0 && !!voucherIsPosted;
+    var locked = currentVoucherId > 0 && (!!voucherIsPosted || !!voucherIsCancelled);
     form.classList.toggle('fin-py-form-is-posted', locked);
     var wrap = getRcWrap();
-    if (wrap) wrap.classList.toggle('fin-py-form-is-posted', locked);
+    if (wrap) {
+      wrap.classList.toggle('fin-py-form-is-posted', locked);
+      wrap.classList.toggle('fin-py-form-is-cancelled', currentVoucherId > 0 && !!voucherIsCancelled);
+    }
 
     var fields = form.querySelectorAll(
       '#py_date, #py_customer, #py_supplier, #py_employee, #py_account_target, #py_employee_offset, #py_cash_account_id, #py_amount, #py_check_amount, #py_check_no, #py_bank_name, #py_notes, #py_pay_cash, #py_pay_check, input[name="party_type_ui"], #py_employee_open, #py_account_target_open'
@@ -754,31 +778,54 @@
     });
     syncEmployeeAmountLock();
     refreshHrAdvanceDisburseLock();
+    lockPaymentPickerButtons(locked);
   }
 
   function updateVoucherNoPostedStyle() {
     var rcNo = document.getElementById('py_no');
     if (!rcNo) return;
-    rcNo.classList.remove('is-posted', 'is-unposted');
+    rcNo.classList.remove('is-posted', 'is-unposted', 'is-cancelled');
     if (currentVoucherId < 1) return;
-    if (voucherIsPosted) rcNo.classList.add('is-posted');
-    else rcNo.classList.add('is-unposted');
+    if (voucherIsCancelled) {
+      rcNo.classList.add('is-cancelled');
+    } else if (voucherIsPosted) {
+      rcNo.classList.add('is-posted');
+    } else {
+      rcNo.classList.add('is-unposted');
+    }
   }
 
   function updateToolbarPostUnpost() {
     var postBtn = document.querySelector('#master-toolbar [data-master-action="post"]');
     var unpostBtn = document.querySelector('#master-toolbar [data-master-action="unpost"]');
-    var canPost = currentVoucherId > 0 && !voucherIsPosted;
-    var canUnpost = currentVoucherId > 0 && voucherIsPosted;
+    var cancelBtn = document.querySelector('#master-toolbar [data-master-action="cancel_voucher"]');
+    var deleteBtn = document.querySelector('#master-toolbar [data-master-action="delete"]');
+    var canPost = currentVoucherId > 0 && !voucherIsPosted && !voucherIsCancelled;
+    var canUnpost = currentVoucherId > 0 && voucherIsPosted && !voucherIsCancelled;
+    var canCancel = currentVoucherId > 0 && voucherIsPosted && !voucherIsCancelled;
     if (postBtn) {
       postBtn.disabled = !canPost;
-      postBtn.title = canPost ? 'ترحيل السند' : 'احفظ السند أولاً أو السند مرحّل مسبقاً';
+      postBtn.title = canPost ? 'ترحيل السند' : 'احفظ السند أولاً أو السند مرحّل/ملغى';
     }
     if (unpostBtn) {
       unpostBtn.disabled = !canUnpost;
       unpostBtn.title = canUnpost
-        ? 'إلغاء الترحيل (يزيل أثر السند من الكشف والقيد)'
-        : 'لا يوجد ترحيل لإلغائه';
+        ? 'فك الترحيل (للتعديل ثم إعادة الترحيل)'
+        : 'لا يوجد ترحيل لفكّه';
+    }
+    if (cancelBtn) {
+      cancelBtn.disabled = !canCancel;
+      cancelBtn.title = canCancel
+        ? 'إلغاء السند (يبقى برقم التسلسل ويُلغى أثره المحاسبي)'
+        : 'يمكن إلغاء السندات المرحّلة فقط';
+    }
+    if (deleteBtn) {
+      deleteBtn.disabled = currentVoucherId > 0 && (voucherIsPosted || voucherIsCancelled);
+      deleteBtn.title = voucherIsCancelled
+        ? 'لا يمكن حذف سند ملغى'
+        : voucherIsPosted
+          ? 'لا يمكن حذف سند مرحّل — استخدم «إلغاء السند»'
+          : 'حذف مسودة السند';
     }
   }
 
@@ -792,7 +839,10 @@
     }
     if (el) {
       el.hidden = false;
-      if (voucherIsPosted) {
+      if (voucherIsCancelled) {
+        el.textContent = 'ملغى';
+        el.className = 'sales-inv-posted-badge badge badge-cancelled';
+      } else if (voucherIsPosted) {
         el.textContent = 'مرحّل';
         el.className = 'sales-inv-posted-badge badge badge-posted';
       } else {
@@ -1154,6 +1204,10 @@
 
   function trySave(onSuccess) {
     if (formSubmitting) return;
+    if (voucherIsCancelled) {
+      AppDialog.alert('لا يمكن تعديل سند ملغى.', { type: 'warning' });
+      return;
+    }
     if (voucherIsPosted) {
       if (global.AppDialog) AppDialog.alert('لا يمكن تعديل سند مرحّل.', { type: 'warning' });
       return;
@@ -1194,7 +1248,8 @@
 
     runWithoutDirtyMark(function () {
       currentVoucherId = parseInt(v.id, 10) || 0;
-      voucherIsPosted = !!v.is_posted;
+      voucherIsPosted = !!v.is_posted && !voucherCancelledFromPayload(v);
+      voucherIsCancelled = voucherCancelledFromPayload(v);
       syncVoucherIdField();
       syncVoucherNoDisplay(v.voucher_no || '');
 
@@ -1403,7 +1458,7 @@
   }
 
   function confirmUnsavedChanges(onProceed) {
-    if (!formDirty || voucherIsPosted) {
+    if (!formDirty || voucherIsPosted || voucherIsCancelled) {
       if (onProceed) onProceed();
       return;
     }
@@ -1532,6 +1587,10 @@
       if (global.AppDialog) AppDialog.alert('احفظ السند أولًا قبل الترحيل.', { type: 'warning' });
       return;
     }
+    if (voucherIsCancelled) {
+      AppDialog.alert('لا يمكن ترحيل سند ملغى.', { type: 'warning' });
+      return;
+    }
     if (voucherIsPosted) {
       if (global.AppDialog) AppDialog.alert('هذا السند مرحّل مسبقًا.', { type: 'info' });
       return;
@@ -1577,10 +1636,56 @@
       });
   }
 
+  function cancelCurrent() {
+    if (!voucherCancelUrl) {
+      if (global.AppDialog) AppDialog.alert('إلغاء السند غير متاح.', { type: 'warning' });
+      return;
+    }
+    if (currentVoucherId < 1 || !voucherIsPosted || voucherIsCancelled) {
+      if (global.AppDialog) AppDialog.alert('يمكن إلغاء السندات المرحّلة فقط.', { type: 'warning' });
+      return;
+    }
+    var csrfInput = form.querySelector('[name="_csrf"]');
+    var rcNoEl = document.getElementById('py_no');
+    var rcLabel = rcNoEl && rcNoEl.value ? rcNoEl.value : String(currentVoucherId);
+    AppDialog.confirm(
+      'إلغاء السند «' +
+        rcLabel +
+        '»؟\n\n' +
+        'يُلغى أثره المحاسبي ويبقى السند في السجل برقم التسلسل (لا يُحذف).',
+      { title: 'إلغاء سند صرف', danger: true, okText: 'إلغاء السند' }
+    ).then(function (ok) {
+      if (!ok) return;
+      var fd = new FormData();
+      fd.append('_csrf', csrfInput ? csrfInput.value : '');
+      fd.append('voucher_id', String(currentVoucherId));
+      fetch(voucherCancelUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            AppDialog.error((data && data.message) || 'تعذر الإلغاء.');
+            return;
+          }
+          voucherIsPosted = false;
+          voucherIsCancelled = true;
+          updatePostedBadge();
+          refreshVoucherEditState();
+          loadVoucherById(currentVoucherId, true);
+          AppDialog.success(data.message || 'تم إلغاء السند.');
+        })
+        .catch(function () {
+          AppDialog.error('تعذر الاتصال بالخادم.');
+        });
+    });
+  }
+
   function resetPaymentForm() {
     runWithoutDirtyMark(function () {
       currentVoucherId = 0;
       voucherIsPosted = false;
+      voucherIsCancelled = false;
       syncVoucherIdField();
       syncVoucherNoDisplay('');
 
@@ -1889,6 +1994,12 @@
       unpostCurrent();
       return;
     }
+    if (action === 'cancel_voucher') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      cancelCurrent();
+      return;
+    }
     if (action === 'print') {
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -1905,27 +2016,31 @@
           if (global.AppDialog) AppDialog.error('حذف السند غير متاح.');
           return;
         }
-        var deleteMsg = voucherIsPosted
-          ? 'السند «' +
-            rcLabel +
-            '» مرحّل.\n' +
-            'سيتم أولاً إلغاء الترحيل (إزالة الكشف والقيد) ثم حذف السند نهائياً.\n' +
-            'هل تريد المتابعة؟'
-          : 'حذف السند «' + rcLabel + '» نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.';
+        if (voucherIsCancelled) {
+          if (global.AppDialog) {
+            AppDialog.alert('لا يمكن حذف سند ملغى. يبقى في السجل للحفاظ على التسلسل.', { type: 'warning' });
+          }
+          return;
+        }
+        if (voucherIsPosted) {
+          if (global.AppDialog) {
+            AppDialog.alert(
+              'لا يمكن حذف سند مرحّل. استخدم «إلغاء السند» من الشريط العلوي.',
+              { type: 'warning' }
+            );
+          }
+          return;
+        }
+        var deleteMsg =
+          'حذف مسودة السند «' + rcLabel + '»؟\nسيُعاد استخدام رقم السند في السند التالي إن وُجد.';
         if (global.AppDialog) {
           AppDialog.confirm(deleteMsg, {
-            title: voucherIsPosted ? 'إلغاء الترحيل وحذف السند' : 'حذف السند',
+            title: 'حذف السند',
             danger: true,
             okText: 'حذف',
           }).then(function (ok) {
             if (!ok) return;
-            if (voucherIsPosted) {
-              unpostCurrent(function () {
-                deleteVoucherById(vId, rcLabel);
-              });
-            } else {
-              deleteVoucherById(vId, rcLabel);
-            }
+            deleteVoucherById(vId, rcLabel);
           });
         }
         return;
@@ -2219,7 +2334,7 @@
   }
 
   window.addEventListener('beforeunload', function (e) {
-    if (formSubmitting || !formDirty || voucherIsPosted) return;
+    if (formSubmitting || !formDirty || voucherIsPosted || voucherIsCancelled) return;
     e.preventDefault();
     e.returnValue = '';
   });

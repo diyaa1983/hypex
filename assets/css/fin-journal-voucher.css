@@ -71,3 +71,13 @@
 .fin-jv-wrap.is-readonly .col-act {
   display: none;
 }
+
+.fin-jv-wrap.fin-jv-form-is-cancelled .journal-entry-card input,
+.fin-jv-wrap.fin-jv-form-is-cancelled .journal-entry-card select,
+.fin-jv-wrap.fin-jv-form-is-cancelled .journal-entry-card textarea,
+.fin-jv-wrap.fin-jv-form-is-cancelled .jv-acc-picker-btn,
+.fin-jv-wrap.fin-jv-form-is-cancelled .jv-party-picker-btn,
+.fin-jv-wrap.fin-jv-form-is-cancelled #jv-add-line {
+  pointer-events: none;
+  cursor: default;
+}

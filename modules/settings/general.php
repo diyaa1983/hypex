@@ -653,17 +653,30 @@ $cssUrl = app_url('assets/css/settings-oracle12.css') . (is_file($cssPath) ? '?v
         </div>
     </div>
 
-    <div class="settings-ora-actions no-print">
-        <button class="btn btn-primary" type="submit">حفظ الإعدادات</button>
+    <div class="settings-ora-actions no-print sr-only" aria-hidden="true">
+        <button class="btn btn-primary" type="submit" id="settings-form-submit">حفظ الإعدادات</button>
     </div>
 </form>
+
+<p class="muted no-print settings-ora-toolbar-hint" style="margin:0.75rem 0 0;font-size:0.9rem;">
+    عدّل الإعدادات ثم اضغط <strong>حفظ</strong> في الشريط العلوي.
+</p>
 
 <script>
 document.addEventListener('master-toolbar', function (e) {
   if (e.detail && e.detail.action === 'save') {
     e.preventDefault();
+    e.stopImmediatePropagation();
     var f = document.getElementById('settings-form');
-    if (f) f.requestSubmit ? f.requestSubmit() : f.submit();
+    if (f) {
+      if (typeof f.requestSubmit === 'function') {
+        f.requestSubmit();
+      } else {
+        var btn = document.getElementById('settings-form-submit');
+        if (btn) btn.click();
+        else f.submit();
+      }
+    }
   }
 });
 </script>

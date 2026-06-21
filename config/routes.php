@@ -114,6 +114,24 @@ return [
         'title' => 'ترحيل مردودات المشتريات',
         'hide_screen_title' => true,
     ],
+    'purchase_orders' => [
+        'file' => 'modules/purchases/orders.php',
+        'permission' => 'purchase_orders',
+        'title' => 'طلب شراء',
+        'hide_screen_title' => true,
+    ],
+    'purchase_orders_documents_list' => [
+        'file' => 'modules/purchases/orders_documents_list.php',
+        'permission' => 'purchase_orders_documents_list',
+        'title' => 'قائمة طلبات الشراء',
+        'hide_screen_title' => true,
+    ],
+    'purchase_orders_list' => [
+        'file' => 'modules/purchases/orders_list.php',
+        'permission' => 'purchase_orders_list',
+        'title' => 'اعتماد طلبات الشراء',
+        'hide_screen_title' => true,
+    ],
     'customers' => [
         'file' => 'modules/master/customers.php',
         'permission' => 'customers',
@@ -396,6 +414,21 @@ return [
         'permission' => 'report_purchase_returns',
         'title' => 'تقرير مرتجعات المشتريات',
     ],
+    'report_purchase_orders' => [
+        'file' => 'modules/reports/purchase_orders.php',
+        'permission' => 'report_purchase_orders',
+        'title' => 'تقرير طلبات الشراء',
+    ],
+    'report_purchase_orders_by_item' => [
+        'file' => 'modules/reports/purchase_orders_by_item.php',
+        'permission' => 'report_purchase_orders_by_item',
+        'title' => 'تقرير طلبات الشراء حسب المادة',
+    ],
+    'report_purchase_orders_open' => [
+        'file' => 'modules/reports/purchase_orders_open.php',
+        'permission' => 'report_purchase_orders_open',
+        'title' => 'تقرير طلبات الشراء المفتوحة',
+    ],
     'item_stock_movements' => [
         'file' => 'modules/inventory/item_movements.php',
         'permission' => 'item_stock_movements',
@@ -549,6 +582,11 @@ return [
         'file' => 'modules/reports/vouchers.php',
         'permission' => 'report_vouchers',
         'title' => 'تقرير سندات القبض / الصرف',
+    ],
+    'report_cancelled_vouchers' => [
+        'file' => 'modules/reports/cancelled_vouchers.php',
+        'permission' => 'report_cancelled_vouchers',
+        'title' => 'قائمة السندات الملغاة',
     ],
     'report_incoming_checks' => [
         'file' => 'modules/reports/incoming_checks.php',

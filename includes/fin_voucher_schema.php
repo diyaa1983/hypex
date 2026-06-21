@@ -140,9 +140,50 @@ function fin_voucher_ensure_schema_full(PDO $pdo): bool
     return fin_voucher_has_table($pdo);
 }
 
+function fin_voucher_ensure_cancel_columns(PDO $pdo): void
+{
+    if (!fin_voucher_has_table($pdo)) {
+        return;
+    }
+    require_once app_path('includes/doc_number_pool.php');
+    doc_number_pool_ensure_table($pdo);
+    $alters = [
+        'is_cancelled' => 'ALTER TABLE fin_voucher ADD COLUMN is_cancelled TINYINT(1) NOT NULL DEFAULT 0',
+        'cancelled_at' => 'ALTER TABLE fin_voucher ADD COLUMN cancelled_at DATETIME NULL',
+        'cancelled_by' => 'ALTER TABLE fin_voucher ADD COLUMN cancelled_by INT UNSIGNED NULL',
+    ];
+    foreach ($alters as $col => $sql) {
+        if (!fin_voucher_has_column($pdo, $col)) {
+            try {
+                $pdo->exec($sql);
+            } catch (Throwable $e) {
+                //
+            }
+        }
+    }
+}
+
+function fin_voucher_is_cancelled(PDO $pdo, int $id): bool
+{
+    if ($id < 1 || !fin_voucher_has_table($pdo)) {
+        return false;
+    }
+    fin_voucher_ensure_cancel_columns($pdo);
+    if (!fin_voucher_has_column($pdo, 'is_cancelled')) {
+        return false;
+    }
+    $st = $pdo->prepare('SELECT is_cancelled FROM fin_voucher WHERE id = ? LIMIT 1');
+    $st->execute([$id]);
+
+    return (int) $st->fetchColumn() === 1;
+}
+
 function fin_voucher_is_posted(PDO $pdo, int $id): bool
 {
     if ($id < 1 || !fin_voucher_has_table($pdo)) {
+        return false;
+    }
+    if (fin_voucher_is_cancelled($pdo, $id)) {
         return false;
     }
     if (!fin_voucher_has_column($pdo, 'is_posted')) {

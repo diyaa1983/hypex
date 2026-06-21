@@ -82,6 +82,7 @@ $apiEmployeeSalaries = app_url('api/fin_payment_employee_salaries.php');
 $salariesPayableAccountId = fin_payment_salaries_payable_account_id($pdo);
 $apiPost = app_url('api/fin_payment_post.php');
 $apiUnpost = app_url('api/fin_payment_unpost.php');
+$apiCancel = app_url('api/fin_payment_cancel.php');
 $apiDelete = app_url('api/fin_payment_delete.php');
 require_once app_path('includes/acc_gl.php');
 $cashBoxAccountId = acc_gl_cash_box_account_id($pdo);
@@ -145,6 +146,7 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
           data-salaries-payable-account-id="<?= (int) $salariesPayableAccountId ?>"
           data-voucher-post-url="<?= esc($apiPost) ?>"
           data-voucher-unpost-url="<?= esc($apiUnpost) ?>"
+          data-voucher-cancel-url="<?= esc($apiCancel) ?>"
           data-voucher-delete-url="<?= esc($apiDelete) ?>"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
           data-exit-url="<?= esc($exitUrl) ?>"

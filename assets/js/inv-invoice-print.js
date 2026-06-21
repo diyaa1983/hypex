@@ -189,8 +189,11 @@
     var showDisc = !!opts.showDiscountTotal;
     var html = '<div class="sales-inv-print-tot">';
     if (opts.invoiceDiscountLabel) {
+      var discTitle = opts.discountTitle || 'خصم الفاتورة';
       html +=
-        '<div><span>خصم الفاتورة</span><span>' +
+        '<div><span>' +
+        escapeHtml(discTitle) +
+        '</span><span>' +
         escapeHtml(opts.invoiceDiscountLabel) +
         '</span></div>';
     }

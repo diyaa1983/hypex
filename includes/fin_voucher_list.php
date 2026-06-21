@@ -45,9 +45,15 @@ function fin_voucher_list_fetch(
             WHERE v.voucher_type = ?';
     $params = [$voucherType];
 
+    $hasCancelledCol = fin_voucher_has_column($pdo, 'is_cancelled');
+    $cancelledExpr = $hasCancelledCol ? 'COALESCE(v.is_cancelled, 0)' : '0';
+
     if ($filter === 'unposted') {
         if ($hasPostedCol) {
             $fromWhere .= ' AND v.is_posted = 0';
+            if ($hasCancelledCol) {
+                $fromWhere .= ' AND v.is_cancelled = 0';
+            }
         } elseif ($hasLedger) {
             $fromWhere .= " AND NOT EXISTS (
                 SELECT 1 FROM crm_customer_ledger l
@@ -60,6 +66,9 @@ function fin_voucher_list_fetch(
     } elseif ($filter === 'posted') {
         if ($hasPostedCol) {
             $fromWhere .= ' AND v.is_posted = 1';
+            if ($hasCancelledCol) {
+                $fromWhere .= ' AND v.is_cancelled = 0';
+            }
         } elseif ($hasLedger) {
             $fromWhere .= " AND EXISTS (
                 SELECT 1 FROM crm_customer_ledger l
@@ -87,6 +96,7 @@ function fin_voucher_list_fetch(
     $sql = "SELECT v.id, v.voucher_no, v.voucher_date, v.amount, v.party_type, v.party_id,
                    {$payCol},
                    ({$postedExpr}) AS is_posted,
+                   ({$cancelledExpr}) AS is_cancelled,
                    COALESCE(c.name_ar, s.name_ar, '—') AS party_name"
         . $fromWhere
         . ' ORDER BY v.id DESC';

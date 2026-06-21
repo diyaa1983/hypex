@@ -216,3 +216,18 @@
 .fin-py-wrap #rc_cash_amount_wrap[hidden] {
   display: none !important;
 }
+
+.fin-py-wrap.fin-py-form-is-cancelled .fin-py-body input,
+.fin-py-wrap.fin-py-form-is-cancelled .fin-py-body select,
+.fin-py-wrap.fin-py-form-is-cancelled .fin-py-body textarea,
+.fin-py-wrap.fin-py-form-is-cancelled .sales-inv-cust-open,
+.fin-py-wrap.fin-py-form-is-cancelled .fin-py-pay-opt,
+.fin-py-wrap.fin-py-form-is-cancelled input[name="party_type_ui"],
+.fin-py-wrap.fin-py-form-is-cancelled input[name="employee_pay_kind_ui"] {
+  pointer-events: none;
+  cursor: default;
+}
+
+.fin-py-wrap.fin-py-form-is-cancelled .sales-inv-no-input.is-cancelled {
+  pointer-events: auto;
+}

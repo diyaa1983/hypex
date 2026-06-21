@@ -172,6 +172,19 @@
   font-size: 1rem;
 }
 
+.fin-rc-wrap.fin-rc-form-is-cancelled .fin-rc-body input,
+.fin-rc-wrap.fin-rc-form-is-cancelled .fin-rc-body select,
+.fin-rc-wrap.fin-rc-form-is-cancelled .fin-rc-body textarea,
+.fin-rc-wrap.fin-rc-form-is-cancelled .sales-inv-cust-open,
+.fin-rc-wrap.fin-rc-form-is-cancelled .fin-rc-pay-opt {
+  pointer-events: none;
+  cursor: default;
+}
+
+.fin-rc-wrap.fin-rc-form-is-cancelled .sales-inv-no-input.is-cancelled {
+  pointer-events: auto;
+}
+
 @media print {
   .fin-rc-wrap .fin-rc-checks-table .fin-rc-col-act,
   .fin-rc-wrap .fin-rc-checks-header {

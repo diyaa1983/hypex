@@ -48,6 +48,10 @@ function fin_voucher_post_receipts_by_ids(PDO $pdo, array $voucherIds): array
             $out['errors'][] = 'سند #' . $id . ': غير موجود.';
             continue;
         }
+        if (fin_voucher_is_cancelled($pdo, $id)) {
+            $out['errors'][] = 'سند #' . $id . ': ملغى ولا يمكن ترحيله.';
+            continue;
+        }
         if (fin_voucher_is_posted($pdo, $id)) {
             $out['skipped']++;
             continue;
@@ -101,6 +105,10 @@ function fin_voucher_post_payments_by_ids(PDO $pdo, array $voucherIds): array
         $row = fin_voucher_load($pdo, $id, 'payment');
         if (!$row) {
             $out['errors'][] = 'سند #' . $id . ': غير موجود.';
+            continue;
+        }
+        if (fin_voucher_is_cancelled($pdo, $id)) {
+            $out['errors'][] = 'سند #' . $id . ': ملغى ولا يمكن ترحيله.';
             continue;
         }
         if (fin_voucher_is_posted($pdo, $id)) {
@@ -164,10 +172,14 @@ function fin_voucher_count_unposted(PDO $pdo, string $type): array
     }
     $key = $type === 'receipt' ? 'receipts' : 'payments';
     try {
+        fin_voucher_ensure_cancel_columns($pdo);
+        $hasCancelledCol = fin_voucher_has_column($pdo, 'is_cancelled');
         if (fin_voucher_has_column($pdo, 'is_posted')) {
-            $st = $pdo->prepare(
-                'SELECT COUNT(*) FROM fin_voucher WHERE voucher_type = ? AND is_posted = 0'
-            );
+            $sql = 'SELECT COUNT(*) FROM fin_voucher WHERE voucher_type = ? AND is_posted = 0';
+            if ($hasCancelledCol) {
+                $sql .= ' AND (is_cancelled = 0 OR is_cancelled IS NULL)';
+            }
+            $st = $pdo->prepare($sql);
             $st->execute([$type]);
             $out[$key] = (int) $st->fetchColumn();
         } else {

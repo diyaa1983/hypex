@@ -12,6 +12,7 @@ if (
         !user_can_sales_invoices()
         && !user_can('m_sales_invoices')
         && !user_can_purchase_invoices()
+        && !user_can_purchase_orders()
         && !user_can_purchase_returns()
         && !user_can('sales_delivery')
         && !user_can('item_stock_movements')

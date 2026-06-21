@@ -54,6 +54,15 @@ function app_detect_url_base(): string
     }
 
     $dir = str_replace('\\', '/', dirname($scriptName));
+    $stripSegments = ['api', 'modules', 'tools', 'cron'];
+    while ($dir !== '' && $dir !== '.' && $dir !== '/' && $dir !== '\\') {
+        $leaf = basename($dir);
+        if (!in_array($leaf, $stripSegments, true)) {
+            break;
+        }
+        $dir = dirname($dir);
+    }
+
     if ($dir === '' || $dir === '.' || $dir === '/' || $dir === '\\') {
         return '';
     }

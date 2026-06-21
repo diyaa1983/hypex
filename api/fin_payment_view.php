@@ -212,6 +212,10 @@ echo json_encode([
 
         'is_posted' => (bool) ($row['is_posted'] ?? false),
 
+        'is_cancelled' => (bool) ($row['is_cancelled'] ?? false),
+
+        'status_label' => (string) ($row['status_label'] ?? ''),
+
         'prev_id' => (int) ($row['prev_id'] ?? 0),
 
         'next_id' => (int) ($row['next_id'] ?? 0),

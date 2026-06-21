@@ -87,7 +87,26 @@ body.report-ora12-ui .main-content {
 
 .report-ora12-screen .report-sales-filters .form-row,
 .report-ora12-screen .report-sales-filters > div:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.55rem;
   padding: 0.55rem;
+}
+
+.report-ora12-screen .report-sales-filters .form-row .field {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.report-ora12-screen .report-sales-filters .form-row .field[style*="flex:1"] {
+  flex: 1 1 14rem;
+  min-width: 10rem;
+}
+
+.report-ora12-screen .report-sales-filters > div[style*="margin-top"] {
+  padding: 0 0.55rem 0.55rem;
 }
 
 .report-ora12-screen form.report-acc-filters {

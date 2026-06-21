@@ -9,6 +9,7 @@
   var apiDelete = form.getAttribute('api-delete') || form.getAttribute('data-api-delete') || '';
   var apiPost = form.getAttribute('data-api-post') || '';
   var apiUnpost = form.getAttribute('data-api-unpost') || '';
+  var apiCancel = form.getAttribute('data-api-cancel') || '';
   var canUnpostByPermission = form.getAttribute('data-can-unpost') === '1';
   var newUrl = form.getAttribute('data-new-url') || '';
   var defaultDate = form.getAttribute('data-default-date') || '';
@@ -682,12 +683,47 @@
 
   function updateEntryNoPostedStyle() {
     if (!noEl) return;
-    noEl.classList.remove('is-posted', 'is-unposted');
+    noEl.classList.remove('is-posted', 'is-unposted', 'is-cancelled');
     if (currentId < 1) return;
-    if (entryStatus === 'posted') {
+    if (entryStatus === 'cancelled') {
+      noEl.classList.add('is-cancelled');
+    } else if (entryStatus === 'posted') {
       noEl.classList.add('is-posted');
     } else if (entryStatus === 'draft') {
       noEl.classList.add('is-unposted');
+    }
+  }
+
+  function updateJvToolbar() {
+    var postBtn = document.querySelector('#master-toolbar [data-master-action="post"]');
+    var unpostBtn = document.querySelector('#master-toolbar [data-master-action="unpost"]');
+    var cancelBtn = document.querySelector('#master-toolbar [data-master-action="cancel_voucher"]');
+    var deleteBtn = document.querySelector('#master-toolbar [data-master-action="delete"]');
+    var canPost = currentId > 0 && entryStatus === 'draft';
+    var canUnpost = currentId > 0 && entryStatus === 'posted' && canUnpostByPermission;
+    var canCancel = currentId > 0 && entryStatus === 'posted';
+    if (postBtn) {
+      postBtn.disabled = !canPost;
+      postBtn.title = canPost ? 'ترحيل السند' : 'احفظ السند أولاً أو السند مرحّل/ملغى';
+    }
+    if (unpostBtn) {
+      unpostBtn.disabled = !canUnpost;
+      unpostBtn.title = canUnpost ? 'فك الترحيل (للتعديل ثم إعادة الترحيل)' : 'لا يوجد ترحيل لفكّه';
+    }
+    if (cancelBtn) {
+      cancelBtn.disabled = !canCancel;
+      cancelBtn.title = canCancel
+        ? 'إلغاء السند (يبقى برقم التسلسل ويُلغى أثره المحاسبي)'
+        : 'يمكن إلغاء السندات المرحّلة فقط';
+    }
+    if (deleteBtn) {
+      deleteBtn.disabled = currentId > 0 && (entryStatus === 'posted' || entryStatus === 'cancelled');
+      deleteBtn.title =
+        entryStatus === 'cancelled'
+          ? 'لا يمكن حذف سند ملغى'
+          : entryStatus === 'posted'
+            ? 'لا يمكن حذف سند مرحّل — استخدم «إلغاء السند»'
+            : 'حذف مسودة السند';
     }
   }
 
@@ -696,6 +732,7 @@
     if (currentId < 1) {
       statusBadge.hidden = true;
       updateEntryNoPostedStyle();
+      updateJvToolbar();
       return;
     }
     statusBadge.hidden = false;
@@ -705,11 +742,15 @@
     } else if (entryStatus === 'draft') {
       statusBadge.textContent = 'غير مرحّل';
       statusBadge.className = 'sales-inv-posted-badge badge badge-unposted';
+    } else if (entryStatus === 'cancelled') {
+      statusBadge.textContent = 'ملغى';
+      statusBadge.className = 'sales-inv-posted-badge badge badge-cancelled';
     } else {
-      statusBadge.textContent = entryStatus === 'cancelled' ? 'ملغى' : String(entryStatus || '');
+      statusBadge.textContent = String(entryStatus || '');
       statusBadge.className = 'sales-inv-posted-badge badge badge-posted';
     }
     updateEntryNoPostedStyle();
+    updateJvToolbar();
   }
 
   function applyEntry(entry) {
@@ -718,6 +759,9 @@
     browsePrevId = parseInt(entry.prev_id, 10) || 0;
     browseNextId = parseInt(entry.next_id, 10) || 0;
     entryStatus = String(entry.status || 'draft');
+    if (entry.is_cancelled === true || entryStatus === 'cancelled') {
+      entryStatus = 'cancelled';
+    }
     if (entryIdEl) entryIdEl.value = currentId > 0 ? String(currentId) : '';
     if (noEl) noEl.value = entry.entry_no || '';
     loadedEntryNo = String(entry.entry_no || '').trim();
@@ -725,8 +769,11 @@
     if (descEl) descEl.value = entry.description_ar || '';
 
     var editable = entry.is_editable !== false && entry.status === 'draft';
-    readOnly = !editable;
-    if (wrap) wrap.classList.toggle('is-readonly', readOnly);
+    readOnly = !editable || entryStatus === 'cancelled';
+    if (wrap) {
+      wrap.classList.toggle('is-readonly', readOnly);
+      wrap.classList.toggle('fin-jv-form-is-cancelled', entryStatus === 'cancelled');
+    }
     if (dateEl) dateEl.readOnly = readOnly;
     if (descEl) descEl.readOnly = readOnly;
     updatePostedBadge();
@@ -980,11 +1027,19 @@
       alert('لا يوجد سند محفوظ للحذف.');
       return;
     }
-    if (readOnly) {
-      alert('لا يمكن حذف سند مرحّل.');
+    if (entryStatus === 'cancelled') {
+      alert('لا يمكن حذف سند ملغى. يبقى في السجل للحفاظ على التسلسل.');
       return;
     }
-    if (!confirm('حذف سند القيد الحالي؟')) return;
+    if (entryStatus === 'posted') {
+      alert('لا يمكن حذف سند مرحّل. استخدم «إلغاء السند» من الشريط العلوي.');
+      return;
+    }
+    if (readOnly) {
+      alert('لا يمكن حذف هذا السند.');
+      return;
+    }
+    if (!confirm('حذف مسودة سند القيد؟\nسيُعاد استخدام رقم السند في السند التالي إن وُجد.')) return;
 
     var fd = new FormData();
     fd.append('_csrf', form.querySelector('[name="_csrf"]').value);
@@ -1041,6 +1096,10 @@
     }
     if (entryStatus === 'posted') {
       alert('هذا السند مرحّل مسبقاً.');
+      return;
+    }
+    if (entryStatus === 'cancelled') {
+      alert('لا يمكن ترحيل سند ملغى.');
       return;
     }
     if (entryStatus !== 'draft') {
@@ -1135,6 +1194,62 @@
       });
     } else if (window.confirm(msg)) {
       doUnpost();
+    }
+  }
+
+  function cancelCurrentEntry() {
+    if (!apiCancel) {
+      alert('إلغاء السند غير متاح.');
+      return;
+    }
+    if (currentId < 1 || entryStatus !== 'posted') {
+      alert('يمكن إلغاء السندات المرحّلة فقط.');
+      return;
+    }
+    var csrfInput = form.querySelector('[name="_csrf"]');
+    var label = noEl && noEl.value ? noEl.value : String(currentId);
+    var proceed = function () {
+      var fd = new FormData();
+      fd.append('_csrf', csrfInput ? csrfInput.value : '');
+      fd.append('entry_id', String(currentId));
+      fetch(apiCancel, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            if (global.AppDialog && AppDialog.alert) {
+              AppDialog.alert((data && data.message) || 'تعذر الإلغاء.', { type: 'warning' });
+            } else {
+              alert((data && data.message) || 'تعذر الإلغاء.');
+            }
+            return;
+          }
+          if (data.entry) {
+            applyEntry(data.entry);
+          } else {
+            return loadById(currentId);
+          }
+          if (global.AppDialog && AppDialog.success) {
+            AppDialog.success(data.message || 'تم إلغاء السند.');
+          }
+        })
+        .catch(function () {
+          alert('تعذر الاتصال بالخادم.');
+        });
+    };
+    var cancelMsg =
+      'إلغاء السند «' +
+      label +
+      '»؟\n\nيُلغى أثره المحاسبي ويبقى السند في السجل برقم التسلسل (لا يُحذف).';
+    if (global.AppDialog && AppDialog.confirm) {
+      AppDialog.confirm(cancelMsg, { title: 'إلغاء سند قيد', danger: true, okText: 'إلغاء السند' }).then(
+        function (ok) {
+          if (ok) proceed();
+        }
+      );
+    } else if (window.confirm(cancelMsg)) {
+      proceed();
     }
   }
 
@@ -1375,6 +1490,9 @@
     } else if (action === 'unpost') {
       e.preventDefault();
       unpostCurrentEntry();
+    } else if (action === 'cancel_voucher') {
+      e.preventDefault();
+      cancelCurrentEntry();
     } else if (action === 'delete') {
       e.preventDefault();
       deleteEntry();

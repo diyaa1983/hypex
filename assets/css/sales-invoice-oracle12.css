@@ -275,6 +275,17 @@
   box-shadow: none;
 }
 
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-no-input.is-cancelled,
+.dashboard-ora.sales-ora12-screen.fin-rc-wrap .sales-inv-no-input.is-cancelled,
+.dashboard-ora.sales-ora12-screen.fin-py-wrap .sales-inv-no-input.is-cancelled,
+.dashboard-ora.sales-ora12-screen.fin-jv-wrap .sales-inv-no-input.is-cancelled {
+  background: #dbeafe !important;
+  border-color: #0572ce !important;
+  color: #024d8f !important;
+  box-shadow: none;
+  font-weight: 700;
+}
+
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-cust-open,
 .dashboard-ora.sales-ora12-screen.fin-rc-wrap .sales-inv-cust-open,
 .dashboard-ora.sales-ora12-screen.fin-pay-wrap .sales-inv-cust-open {

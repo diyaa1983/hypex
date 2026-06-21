@@ -38,6 +38,8 @@ function fin_voucher_enrich_row(PDO $pdo, array $row): array
     $partyId = (int) ($row['party_id'] ?? 0);
 
     $row['is_posted'] = fin_voucher_is_posted($pdo, $id);
+    $row['is_cancelled'] = fin_voucher_is_cancelled($pdo, $id);
+    $row['status_label'] = $row['is_cancelled'] ? 'ملغى' : ($row['is_posted'] ? 'مرحّل' : 'مسودة');
     $row['prev_id'] = fin_voucher_nav_neighbor_id($pdo, $id, $type, 'prev') ?? 0;
     $row['next_id'] = fin_voucher_nav_neighbor_id($pdo, $id, $type, 'next') ?? 0;
     $row['customer_name'] = '';

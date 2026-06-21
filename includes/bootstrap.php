@@ -43,6 +43,8 @@ set_exception_handler(static function (Throwable $e) use ($appDebugMode, $bootEs
         return;
     }
 
+    error_log('[manager] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+
     echo '<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>خطأ داخلي</title>';
     echo '<body style="font-family:system-ui;padding:2rem;line-height:1.8">';
     echo '<h2 style="margin:0 0 .75rem">حدث خطأ داخلي</h2>';

@@ -41,6 +41,7 @@ $apiView = app_url('api/journal_voucher_view.php');
 $apiDelete = app_url('api/journal_voucher_delete.php');
 $apiPost = app_url('api/journal_voucher_post.php');
 $apiUnpost = app_url('api/journal_voucher_unpost.php');
+$apiCancel = app_url('api/journal_voucher_cancel.php');
 $canUnpostJv = user_can_action('action_unpost_journal_voucher');
 $initialId = (int) ($_GET['id'] ?? 0);
 
@@ -97,6 +98,7 @@ $suppliers = crm_suppliers_for_picker($pdo);
           data-api-delete="<?= esc($apiDelete) ?>"
           data-api-post="<?= esc($apiPost) ?>"
           data-api-unpost="<?= esc($apiUnpost) ?>"
+          data-api-cancel="<?= esc($apiCancel) ?>"
           data-can-unpost="<?= $canUnpostJv ? '1' : '0' ?>"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
           data-exit-url="<?= esc($exitUrl) ?>"

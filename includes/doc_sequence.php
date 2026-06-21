@@ -11,11 +11,20 @@ function doc_seq_generate_next_no(
     string $noColumn,
     string $dateIso,
     string $extraWhere = '',
-    array $extraParams = []
+    array $extraParams = [],
+    ?string $poolKey = null
 ): string {
     $ts = strtotime($dateIso);
     $year = $ts !== false ? (int) date('Y', $ts) : (int) date('Y');
     $suffix = '-' . $year;
+
+    if ($poolKey !== null && $poolKey !== '') {
+        require_once app_path('includes/doc_number_pool.php');
+        $pooled = doc_number_pool_take($pdo, $poolKey, $year, 1);
+        if ($pooled !== []) {
+            return (string) $pooled[0];
+        }
+    }
 
     $tableSafe = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
     $colSafe = preg_replace('/[^a-zA-Z0-9_]/', '', $noColumn);

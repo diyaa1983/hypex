@@ -68,6 +68,10 @@
     }
 
     if (action === 'post') {
+      var route = bar.getAttribute('data-active-route') || '';
+      if (route === 'purchase_orders' || route === 'purchase_orders_list') {
+        return;
+      }
 
       AppDialog.alert(
 

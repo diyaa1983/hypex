@@ -101,6 +101,12 @@ function user_can_sales_delivery(): bool
     return user_can('sales_delivery');
 }
 
+/** صلاحية طلب الشراء أو قائمة اعتماد الطلبات. */
+function user_can_purchase_orders(): bool
+{
+    return user_can('purchase_orders') || user_can('purchase_orders_list');
+}
+
 /** صلاحية فاتورة الشراء أو قائمة ترحيل فواتير الشراء. */
 function user_can_purchase_invoices(): bool
 {

@@ -118,6 +118,7 @@ function fin_py_list_filter_url(string $base, string $f, string $q): string
             <?php foreach ($rows as $v): ?>
                 <?php
                 $posted = !empty($v['is_posted']);
+                $cancelled = !empty($v['is_cancelled']);
                 $pay = ($v['pay_method'] ?? 'cash') === 'check' ? 'شيك' : 'نقداً';
                 $partyType = (string) ($v['party_type'] ?? '');
                 $partyLabel = (string) ($v['party_name'] ?? '—');
@@ -133,17 +134,19 @@ function fin_py_list_filter_url(string $base, string $f, string $q): string
                 <tr data-voucher-id="<?= (int) $v['id'] ?>" data-posted="<?= $posted ? '1' : '0' ?>"
                     data-can-post="<?= $canPost ? '1' : '0' ?>">
                     <td>
-                        <?php if (!$posted && $canPost): ?>
+                        <?php if (!$posted && !$cancelled && $canPost): ?>
                             <input type="checkbox" class="fin-py-row-check" value="<?= (int) $v['id'] ?>">
                         <?php endif; ?>
                     </td>
-                    <td><code><?= esc((string) $v['voucher_no']) ?></code></td>
+                    <td><code class="<?= $cancelled ? 'voucher-no-is-cancelled' : '' ?>"><?= esc((string) $v['voucher_no']) ?></code></td>
                     <td><?= esc(format_date_dmY((string) ($v['voucher_date'] ?? ''))) ?></td>
                     <td><?= esc($partyLabel) ?></td>
                     <td><?= esc($pay) ?></td>
                     <td><?= esc(format_amount((float) $v['amount'])) ?></td>
                     <td>
-                        <?php if ($posted): ?>
+                        <?php if ($cancelled): ?>
+                            <span class="badge badge-cancelled-voucher">ملغى</span>
+                        <?php elseif ($posted): ?>
                             <span class="badge badge-ok">مرحّل</span>
                         <?php else: ?>
                             <span class="badge badge-warn">غير مرحّل</span>
@@ -151,7 +154,7 @@ function fin_py_list_filter_url(string $base, string $f, string $q): string
                     </td>
                     <td class="row-actions">
                         <a class="btn btn-secondary btn-sm" href="<?= esc($viewBase . (int) $v['id']) ?>">عرض</a>
-                        <?php if (!$posted && $canPost): ?>
+                        <?php if (!$posted && !$cancelled && $canPost): ?>
                             <button type="button" class="btn btn-primary btn-sm fin-py-post-one"
                                     data-id="<?= (int) $v['id'] ?>">ترحيل</button>
                             <button type="button" class="btn btn-danger btn-sm fin-py-delete-one"

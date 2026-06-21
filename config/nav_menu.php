@@ -61,6 +61,24 @@ return [
             'title' => 'المشتريات',
             'subgroups' => [
                 [
+                    'id' => 'purchase_orders',
+                    'title' => 'طلبات الشراء',
+                    'items' => [
+                        ['r' => 'purchase_orders', 'label' => 'طلب شراء', 'icon' => '📝'],
+                        ['r' => 'purchase_orders_documents_list', 'label' => 'قائمة طلبات الشراء', 'icon' => '📋'],
+                        ['r' => 'purchase_orders_list', 'label' => 'اعتماد طلبات الشراء', 'icon' => '✅'],
+                    ],
+                ],
+                [
+                    'id' => 'purchase_orders_reports',
+                    'title' => 'تقارير طلبات الشراء',
+                    'items' => [
+                        ['r' => 'report_purchase_orders', 'label' => 'تقرير طلبات الشراء', 'icon' => '📊'],
+                        ['r' => 'report_purchase_orders_by_item', 'label' => 'تقرير طلبات الشراء حسب المادة', 'icon' => '📦'],
+                        ['r' => 'report_purchase_orders_open', 'label' => 'تقرير الطلبات المفتوحة', 'icon' => '📂'],
+                    ],
+                ],
+                [
                     'id' => 'operations',
                     'title' => 'المشتريات',
                     'items' => [
@@ -75,7 +93,7 @@ return [
                 ],
                 [
                     'id' => 'reports',
-                    'title' => 'التقارير',
+                    'title' => 'تقارير المشتريات',
                     'items' => [
                         ['r' => 'report_purchases', 'label' => 'تقرير المشتريات بين تاريخين', 'icon' => '📈'],
                         ['r' => 'report_purchases_by_item', 'label' => 'تقرير المشتريات حسب المادة', 'icon' => '📦'],
@@ -164,6 +182,7 @@ return [
                     'title' => 'التقارير',
                     'items' => [
                         ['r' => 'report_vouchers', 'label' => 'تقرير سندات القبض / الصرف', 'icon' => '📒'],
+                        ['r' => 'report_cancelled_vouchers', 'label' => 'قائمة السندات الملغاة', 'icon' => '🚫'],
                         ['r' => 'report_chart_of_accounts', 'label' => 'طباعة شجرة الحسابات', 'icon' => '🌳'],
                         ['r' => 'report_receivables', 'label' => 'كشف ذمم العملاء', 'icon' => '📒'],
                         ['r' => 'report_receivables_aging', 'label' => 'أعمار الذمم', 'icon' => '📊'],

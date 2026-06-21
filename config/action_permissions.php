@@ -38,6 +38,11 @@ return [
                     'inherit_from' => ['purchase_returns', 'purchase_returns_list'],
                 ],
                 [
+                    'code' => 'action_unapprove_purchase_order',
+                    'name_ar' => 'فك اعتماد طلب شراء',
+                    'inherit_from' => ['purchase_orders', 'purchase_orders_list'],
+                ],
+                [
                     'code' => 'action_unpost_cash_receipt',
                     'name_ar' => 'فك ترحيل سند قبض',
                     'inherit_from' => ['cash_receipt', 'cash_receipts_list'],
@@ -75,6 +80,26 @@ return [
             ],
         ],
         [
+            'title' => 'إلغاء السندات',
+            'items' => [
+                [
+                    'code' => 'action_cancel_cash_receipt',
+                    'name_ar' => 'إلغاء سند قبض',
+                    'inherit_from' => ['cash_receipt', 'cash_receipts_list'],
+                ],
+                [
+                    'code' => 'action_cancel_cash_payment',
+                    'name_ar' => 'إلغاء سند صرف',
+                    'inherit_from' => ['cash_payment', 'cash_payments_list'],
+                ],
+                [
+                    'code' => 'action_cancel_journal_voucher',
+                    'name_ar' => 'إلغاء سند قيد',
+                    'inherit_from' => ['journal_voucher'],
+                ],
+            ],
+        ],
+        [
             'title' => 'ترحيل المستندات',
             'items' => [
                 [
@@ -101,6 +126,11 @@ return [
                     'code' => 'action_post_purchase_return',
                     'name_ar' => 'ترحيل مردود مشتريات',
                     'inherit_from' => ['purchase_returns', 'purchase_returns_list'],
+                ],
+                [
+                    'code' => 'action_approve_purchase_order',
+                    'name_ar' => 'اعتماد طلب شراء',
+                    'inherit_from' => ['purchase_orders', 'purchase_orders_list'],
                 ],
                 [
                     'code' => 'action_post_cash_receipt',
@@ -161,6 +191,16 @@ return [
                     'code' => 'action_delete_purchase_return',
                     'name_ar' => 'حذف مردود مشتريات',
                     'inherit_from' => ['purchase_returns', 'purchase_returns_list'],
+                ],
+                [
+                    'code' => 'action_delete_purchase_order',
+                    'name_ar' => 'حذف طلب شراء',
+                    'inherit_from' => ['purchase_orders', 'purchase_orders_list'],
+                ],
+                [
+                    'code' => 'action_convert_purchase_order',
+                    'name_ar' => 'تحويل طلب شراء إلى فاتورة',
+                    'inherit_from' => ['purchase_orders', 'purchase_orders_list'],
                 ],
                 [
                     'code' => 'action_delete_cash_receipt',

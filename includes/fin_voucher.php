@@ -71,6 +71,7 @@ function fin_voucher_ensure_schema(PDO $pdo): bool
     fin_voucher_ensure_check_no_column($pdo);
     require_once app_path('includes/fin_voucher_schema.php');
     fin_voucher_ensure_receipt_columns($pdo);
+    fin_voucher_ensure_cancel_columns($pdo);
 
     return fin_voucher_has_table($pdo);
 }
@@ -105,6 +106,7 @@ function fin_voucher_pay_method_label(string $method): string
 function fin_voucher_next_no(PDO $pdo, string $type, string $voucherDate): string
 {
     require_once app_path('includes/doc_sequence.php');
+    require_once app_path('includes/doc_number_pool.php');
 
     return doc_seq_generate_next_no(
         $pdo,
@@ -112,7 +114,8 @@ function fin_voucher_next_no(PDO $pdo, string $type, string $voucherDate): strin
         'voucher_no',
         $voucherDate,
         'voucher_type = ?',
-        [$type]
+        [$type],
+        doc_number_pool_key_fin_voucher($type)
     );
 }
 
@@ -568,6 +571,9 @@ function fin_voucher_save(
 
     if ($id > 0) {
         require_once app_path('includes/fin_voucher_schema.php');
+        if (fin_voucher_is_cancelled($pdo, $id)) {
+            throw new RuntimeException('لا يمكن تعديل سند ملغى.');
+        }
         if (fin_voucher_is_posted($pdo, $id)) {
             throw new RuntimeException('لا يمكن تعديل سند مرحّل.');
         }
@@ -763,9 +769,22 @@ function fin_voucher_save_apply_offset_account(PDO $pdo, int $voucherId, int $of
 function fin_voucher_delete(PDO $pdo, int $id, string $type): void
 {
     require_once app_path('includes/fin_voucher_schema.php');
-    if (fin_voucher_is_posted($pdo, $id)) {
-        throw new RuntimeException('لا يمكن حذف سند مرحّل. ألغِ الترحيل أولاً إن وُجد.');
+    require_once app_path('includes/fin_voucher_unpost.php');
+    require_once app_path('includes/doc_number_pool.php');
+    if (fin_voucher_is_cancelled($pdo, $id)) {
+        throw new RuntimeException('لا يمكن حذف سند ملغى. يبقى في السجل للحفاظ على التسلسل.');
     }
+    if (fin_voucher_is_posted($pdo, $id) || fin_voucher_has_posting_artifacts($pdo, $id, $type)) {
+        throw new RuntimeException('لا يمكن حذف سند مرحّل. استخدم «إلغاء السند» للحفاظ على رقم التسلسل.');
+    }
+
+    $row = fin_voucher_load($pdo, $id, $type);
+    if (!$row) {
+        throw new RuntimeException('السند غير موجود.');
+    }
+    $voucherNo = trim((string) ($row['voucher_no'] ?? ''));
+    $voucherDate = (string) ($row['voucher_date'] ?? date('Y-m-d'));
+
     if ($type === 'receipt') {
         require_once app_path('includes/crm_customer_ledger.php');
         crm_ledger_unpost_cash_receipt($pdo, $id);
@@ -793,5 +812,8 @@ function fin_voucher_delete(PDO $pdo, int $id, string $type): void
     $st->execute([$id, $type]);
     if ($st->rowCount() < 1) {
         throw new RuntimeException('السند غير موجود.');
+    }
+    if ($voucherNo !== '') {
+        doc_number_pool_release($pdo, doc_number_pool_key_fin_voucher($type), $voucherNo, $voucherDate);
     }
 }

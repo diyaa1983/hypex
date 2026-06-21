@@ -9,14 +9,28 @@ require_once app_path('includes/sales_oracle12_ui.php');
 require_once app_path('includes/fin_cash_bank_select.php');
 
 $pdo = db();
-fin_voucher_ensure_schema_full($pdo);
-hr_employee_advance_ensure_schema($pdo);
-hr_employee_advance_ensure_post_columns($pdo);
+
+try {
+    fin_voucher_ensure_schema_full($pdo);
+    hr_employee_advance_ensure_schema($pdo);
+    hr_employee_advance_ensure_post_columns($pdo);
+} catch (Throwable $e) {
+    error_log('[fin_employee_advances] schema: ' . $e->getMessage());
+    echo '<div class="card"><p class="alert alert-error">تعذر تهيئة جداول السلف أو سندات الصرف. '
+        . 'تأكد من تشغيل migrations 154 و164 و167 على قاعدة البيانات.</p></div>';
+    return;
+}
 
 $activeRoute = $activeRoute ?? 'fin_employee_advances';
 $flash = flash_get();
 $exitUrl = nav_exit_url('fin_employee_advances');
-$rows = fin_payment_employee_advances_pending_all($pdo);
+
+try {
+    $rows = fin_payment_employee_advances_pending_all($pdo);
+} catch (Throwable $e) {
+    error_log('[fin_employee_advances] list: ' . $e->getMessage());
+    $rows = [];
+}
 $sumAmount = 0.0;
 foreach ($rows as $r) {
     $sumAmount += (float) ($r['total_amount'] ?? 0);
@@ -33,7 +47,12 @@ $jsPath = app_path('assets/js/fin-employee-advances.js');
 $jsUrl = app_url('assets/js/fin-employee-advances.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
 
 require_once app_path('includes/acc_gl.php');
-$cashBankAccounts = fin_voucher_load_cash_bank_accounts($pdo);
+try {
+    $cashBankAccounts = fin_voucher_load_cash_bank_accounts($pdo);
+} catch (Throwable $e) {
+    error_log('[fin_employee_advances] cash accounts: ' . $e->getMessage());
+    $cashBankAccounts = [];
+}
 $defaultCashBankId = acc_gl_cash_box_account_id($pdo);
 if ($defaultCashBankId < 1 && $cashBankAccounts !== []) {
     $defaultCashBankId = (int) ($cashBankAccounts[0]['id'] ?? 0);

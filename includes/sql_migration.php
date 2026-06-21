@@ -42,13 +42,26 @@ function sql_migration_split_statements(string $sql): array
  * @param list<string> $stmts
  * @return string|null رسالة خطأ أخيرة (إن وُجدت)
  */
+function sql_migration_drain_pdo(PDO $pdo): void
+{
+    try {
+        while ($pdo->nextRowset()) {
+            // استهلاك أي result sets متبقية (مثلاً بعد PREPARE/EXECUTE في ملفات SQL).
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+}
+
 function sql_migration_exec_statements(PDO $pdo, array $stmts): ?string
 {
     $lastErr = null;
     foreach ($stmts as $stmt) {
         try {
             $pdo->exec($stmt);
+            sql_migration_drain_pdo($pdo);
         } catch (Throwable $e) {
+            sql_migration_drain_pdo($pdo);
             $msg = $e->getMessage();
             if (str_contains($msg, 'already exists') || str_contains($msg, 'Duplicate')) {
                 continue;
@@ -97,12 +110,21 @@ function sql_migration_run_file_once(PDO $pdo, string $relativePath): ?string
     sql_migration_ensure_registry($pdo);
     $st = $pdo->prepare('SELECT 1 FROM sys_sql_migration WHERE path = ? LIMIT 1');
     $st->execute([$relativePath]);
-    if ($st->fetchColumn() !== false) {
+    $already = $st->fetchColumn();
+    $st->closeCursor();
+    if ($already !== false) {
         return null;
     }
 
     $err = sql_migration_run_file($pdo, $relativePath);
-    $pdo->prepare('INSERT IGNORE INTO sys_sql_migration (path) VALUES (?)')->execute([$relativePath]);
+    sql_migration_drain_pdo($pdo);
+    try {
+        $ins = $pdo->prepare('INSERT IGNORE INTO sys_sql_migration (path) VALUES (?)');
+        $ins->execute([$relativePath]);
+        $ins->closeCursor();
+    } catch (Throwable $e) {
+        error_log('[sql_migration] registry insert failed for ' . $relativePath . ': ' . $e->getMessage());
+    }
 
     return $err;
 }
@@ -136,6 +158,7 @@ function sql_migration_run_files_once(PDO $pdo, array $relativePaths): void
     $st = $pdo->prepare('SELECT path FROM sys_sql_migration WHERE path IN (' . $placeholders . ')');
     $st->execute($paths);
     $applied = array_flip($st->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    $st->closeCursor();
 
     foreach ($paths as $relativePath) {
         if (isset($applied[$relativePath])) {

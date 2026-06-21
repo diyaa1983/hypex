@@ -121,6 +121,9 @@ $appBootMigrations = [
     'database/migrations/166_hr_salary_disbursement.sql',
     'database/migrations/167_fin_employee_advances_screen.sql',
     'database/migrations/168_report_hr_employee_advances.sql',
+    'database/migrations/169_pur_order.sql',
+    'database/migrations/170_pur_order_screens_fix.sql',
+    'database/migrations/171_voucher_cancel_and_number_pool.sql',
 ];
 sql_migration_bootstrap_registry($pdo, $appBootMigrations);
 sql_migration_run_files_once($pdo, $appBootMigrations);

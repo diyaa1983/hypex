@@ -43,6 +43,7 @@ $newUrl = app_url('index.php?r=cash_receipt');
 $apiVoucher = app_url('api/fin_receipt_view.php');
 $apiPost = app_url('api/fin_receipt_post.php');
 $apiUnpost = app_url('api/fin_receipt_unpost.php');
+$apiCancel = app_url('api/fin_receipt_cancel.php');
 $apiDelete = app_url('api/fin_receipt_delete.php');
 $initialId = (int) ($_GET['id'] ?? 0);
 require_once app_path('includes/acc_gl.php');
@@ -94,6 +95,7 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
           data-api-voucher="<?= esc($apiVoucher) ?>"
           data-voucher-post-url="<?= esc($apiPost) ?>"
           data-voucher-unpost-url="<?= esc($apiUnpost) ?>"
+          data-voucher-cancel-url="<?= esc($apiCancel) ?>"
           data-voucher-delete-url="<?= esc($apiDelete) ?>"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
           data-exit-url="<?= esc($exitUrl) ?>"

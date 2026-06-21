@@ -108,6 +108,8 @@ echo json_encode([
         'sales_rep_name' => (string) ($row['sales_rep_name'] ?? ''),
         'cash_account_id' => (int) ($row['cash_account_id'] ?? 0),
         'is_posted' => (bool) ($row['is_posted'] ?? false),
+        'is_cancelled' => (bool) ($row['is_cancelled'] ?? false),
+        'status_label' => (string) ($row['status_label'] ?? ''),
         'prev_id' => (int) ($row['prev_id'] ?? 0),
         'next_id' => (int) ($row['next_id'] ?? 0),
         'checks' => $checks,

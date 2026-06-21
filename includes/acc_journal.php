@@ -609,23 +609,69 @@ function acc_journal_unpost_by_id(PDO $pdo, int $id): void
 
 function acc_journal_delete_draft(PDO $pdo, int $id): void
 {
-    $st = $pdo->prepare('SELECT status FROM acc_journal_entry WHERE id = ? LIMIT 1');
+    $st = $pdo->prepare('SELECT status, entry_no, entry_date FROM acc_journal_entry WHERE id = ? LIMIT 1');
     $st->execute([$id]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
         throw new RuntimeException('القيد غير موجود.');
     }
-    if ((string) ($row['status'] ?? '') !== 'draft') {
-        throw new RuntimeException('يمكن حذف المسودات فقط.');
+    $status = (string) ($row['status'] ?? '');
+    if ($status === 'cancelled') {
+        throw new RuntimeException('لا يمكن حذف قيد ملغى. يبقى في السجل للحفاظ على التسلسل.');
     }
+    if ($status !== 'draft') {
+        throw new RuntimeException('لا يمكن حذف قيد مرحّل. استخدم «إلغاء السند» للحفاظ على رقم التسلسل.');
+    }
+    $entryNo = trim((string) ($row['entry_no'] ?? ''));
+    $entryDate = (string) ($row['entry_date'] ?? date('Y-m-d'));
     $pdo->prepare('DELETE FROM acc_journal_entry WHERE id = ?')->execute([$id]);
+    if ($entryNo !== '') {
+        require_once app_path('includes/doc_number_pool.php');
+        doc_number_pool_release($pdo, doc_number_pool_key_journal(), $entryNo, $entryDate);
+    }
+}
+
+function acc_journal_cancel_by_id(PDO $pdo, int $id): void
+{
+    $st = $pdo->prepare('SELECT status, source, entry_no FROM acc_journal_entry WHERE id = ? LIMIT 1');
+    $st->execute([$id]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        throw new RuntimeException('القيد غير موجود.');
+    }
+    $status = (string) ($row['status'] ?? '');
+    if ($status === 'cancelled') {
+        throw new RuntimeException('القيد ملغى مسبقاً.');
+    }
+    if ($status !== 'posted') {
+        throw new RuntimeException('يمكن إلغاء القيود المرحّلة فقط. للمسودات استخدم الحذف.');
+    }
+    if ((string) ($row['source'] ?? '') !== 'manual') {
+        throw new RuntimeException('هذا القيد تلقائي (من مستند آخر). ألغِ المستند الأصلي.');
+    }
+
+    require_once app_path('includes/acc_journal_party.php');
+    acc_journal_party_ledger_sync($pdo, $id, false);
+    $pdo->prepare("UPDATE acc_journal_entry SET status = 'cancelled' WHERE id = ?")->execute([$id]);
+
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_acc_journal($pdo, 'cancel', $id);
 }
 
 function acc_journal_next_voucher_no(PDO $pdo, string $entryDate): string
 {
     require_once app_path('includes/doc_sequence.php');
+    require_once app_path('includes/doc_number_pool.php');
 
-    return doc_seq_generate_next_no($pdo, 'acc_journal_entry', 'entry_no', $entryDate);
+    return doc_seq_generate_next_no(
+        $pdo,
+        'acc_journal_entry',
+        'entry_no',
+        $entryDate,
+        '',
+        [],
+        doc_number_pool_key_journal()
+    );
 }
 
 function acc_journal_id_by_no(PDO $pdo, string $entryNo): ?int
@@ -702,6 +748,7 @@ function acc_journal_api_entry(PDO $pdo, int $id): ?array
         'status' => $status,
         'status_label' => acc_journal_status_label($status),
         'is_editable' => $status === 'draft',
+        'is_cancelled' => $status === 'cancelled',
         'lines' => $linesOut,
         'prev_id' => acc_journal_neighbor_id($pdo, $id, 'prev') ?? 0,
         'next_id' => acc_journal_neighbor_id($pdo, $id, 'next') ?? 0,
