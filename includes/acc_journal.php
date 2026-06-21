@@ -726,7 +726,7 @@ function acc_journal_list_sort_columns(): array
 
 function acc_journal_list_normalize_sort(string $sort): string
 {
-    return in_array($sort, acc_journal_list_sort_columns(), true) ? $sort : 'entry_date';
+    return in_array($sort, acc_journal_list_sort_columns(), true) ? $sort : 'created_at';
 }
 
 function acc_journal_list_normalize_dir(string $dir): string
