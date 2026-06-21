@@ -25,6 +25,13 @@
   var currentVoucherId = 0;
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
+  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
+  var DOC_NO_SEARCH_UI = {
+    noInputId: 'py_no',
+    prevBtnId: 'py_no_prev',
+    nextBtnId: 'py_no_next',
+    defaultNoTitle: 'اكتب جزءاً من رقم السند واضغط Enter للبحث',
+  };
   var voucherIsPosted = false;
   var voucherIsCancelled = false;
   var formDirty = false;
@@ -854,6 +861,14 @@
     updateToolbarPostUnpost();
   }
 
+  function applyBrowseNavFromPayload(payload) {
+    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
+      DocumentNoNav.applyBrowseNav(docNoSearch, payload, setBrowseNav, DOC_NO_SEARCH_UI);
+      return;
+    }
+    setBrowseNav(payload.prev_id || 0, payload.next_id || 0);
+  }
+
   function setBrowseNav(prevId, nextId) {
     browseNavPrevId = prevId > 0 ? prevId : 0;
     browseNavNextId = nextId > 0 ? nextId : 0;
@@ -1371,7 +1386,7 @@
       syncPayMethodUi();
       refreshVoucherEditState();
       updatePostedBadge();
-      setBrowseNav(v.prev_id || 0, v.next_id || 0);
+      applyBrowseNavFromPayload(v);
       updateHistory(currentVoucherId);
     });
   }
@@ -1407,7 +1422,7 @@
       fetchVoucherResponse({ no: no }).then(function (data) {
         if (!data || !data.ok || !data.voucher) {
           if (global.AppDialog) {
-            AppDialog.error((data && data.message) || 'لم يتم العثور على سند بهذا الرقم.');
+            AppDialog.error((data && data.message) || 'لم يتم العثور على سند يحتوي على هذا الرقم.');
           }
           return;
         }
@@ -1425,6 +1440,22 @@
   function navigateVoucherCore(dir) {
     if (currentVoucherId < 1) {
       navigateEmptyVoucher(dir);
+      return;
+    }
+    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
+      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
+        fetchById: function (id) {
+          return fetchVoucherResponse({ id: id });
+        },
+        isOk: function (data) {
+          return !!(data && data.ok && data.voucher);
+        },
+        getPayload: function (data) {
+          return data.voucher;
+        },
+        apply: applyVoucherData,
+        loadError: 'تعذر تحميل السند.',
+      });
       return;
     }
     fetchVoucherResponse({ id: currentVoucherId, dir: dir }).then(function (data) {
@@ -1683,6 +1714,7 @@
 
   function resetPaymentForm() {
     runWithoutDirtyMark(function () {
+      if (window.DocumentNoNav) DocumentNoNav.clearSearch(docNoSearch);
       currentVoucherId = 0;
       voucherIsPosted = false;
       voucherIsCancelled = false;
@@ -2113,8 +2145,10 @@
     });
     rcNoInput.addEventListener('blur', function () {
       var no = rcNoInput.value.trim();
-      if (!no) return;
-      if (no.indexOf('-') > 0) loadVoucherByNo(no);
+      if (window.DocumentNoNav && DocumentNoNav.shouldSkipBlurSearch(docNoSearch, currentVoucherId, no)) {
+        return;
+      }
+      loadVoucherByNo(no);
     });
   }
 

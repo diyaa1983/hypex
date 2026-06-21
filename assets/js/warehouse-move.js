@@ -28,6 +28,13 @@
   var moveIsPosted = form.classList.contains('wh-move-form-is-posted');
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
+  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
+  var DOC_NO_SEARCH_UI = {
+    noInputId: 'wh-move-no',
+    prevBtnId: 'wh-move-no-prev',
+    nextBtnId: 'wh-move-no-next',
+    defaultNoTitle: 'اكتب جزءاً من رقم الحركة واضغط Enter للبحث',
+  };
   var qtyDp = parseInt(form.getAttribute('data-qty-dp') || '2', 10);
   var moveNoInp = document.getElementById('wh-move-no');
   var moveDateInp = document.getElementById('wh-move-date');
@@ -105,6 +112,14 @@
     }
     moveNoInp.placeholder = '';
     updateMoveNoPostedStyle();
+  }
+
+  function applyBrowseNavFromPayload(payload) {
+    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
+      DocumentNoNav.applyBrowseNav(docNoSearch, payload, setBrowseNav, DOC_NO_SEARCH_UI);
+      return;
+    }
+    setBrowseNav(payload.prev_id || 0, payload.next_id || 0);
   }
 
   function setBrowseNav(prevId, nextId) {

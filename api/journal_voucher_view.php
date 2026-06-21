@@ -43,7 +43,13 @@ if ($id > 0 && $dir === 'prev') {
 }
 
 if ($id < 1 && $no !== '') {
-    $id = acc_journal_id_by_no($pdo, $no) ?? 0;
+    $entry = acc_journal_fetch_by_no($pdo, $no);
+    if ($entry) {
+        echo json_encode(['ok' => true, 'entry' => $entry], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode(['ok' => false, 'error' => 'not_found', 'message' => 'لم يتم العثور على سند قيد يحتوي على هذا الرقم.'], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 if ($id < 1) {

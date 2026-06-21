@@ -18,15 +18,16 @@ function fin_voucher_fetch_by_id(PDO $pdo, int $id, string $type): ?array
 /** @return array<string, mixed>|null */
 function fin_voucher_fetch_by_no(PDO $pdo, string $voucherNo, string $type): ?array
 {
-    $voucherNo = trim($voucherNo);
-    if ($voucherNo === '') {
-        return null;
-    }
-    $st = $pdo->prepare('SELECT id FROM fin_voucher WHERE voucher_no = ? AND voucher_type = ? LIMIT 1');
-    $st->execute([$voucherNo, $type]);
-    $id = $st->fetchColumn();
+    require_once app_path('includes/doc_no_fragment_search.php');
 
-    return $id !== false ? fin_voucher_fetch_by_id($pdo, (int) $id, $type) : null;
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $voucherNo,
+        'SELECT id FROM fin_voucher WHERE voucher_no = ? AND voucher_type = ? LIMIT 1',
+        [trim($voucherNo), $type],
+        static fn (string $frag) => fin_voucher_search_ids_by_no_fragment($pdo, $frag, $type),
+        static fn (int $id) => fin_voucher_fetch_by_id($pdo, $id, $type)
+    );
 }
 
 /** @param array<string, mixed> $row */

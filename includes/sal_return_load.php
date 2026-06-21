@@ -47,16 +47,16 @@ function sal_return_fetch_header(PDO $pdo, int $id): ?array
 /** @return array<string, mixed>|null */
 function sal_return_fetch_by_no(PDO $pdo, string $returnNo): ?array
 {
-    $returnNo = trim($returnNo);
-    if ($returnNo === '') {
-        return null;
-    }
+    require_once app_path('includes/doc_no_fragment_search.php');
 
-    $st = $pdo->prepare('SELECT id FROM sal_return WHERE return_no = ? LIMIT 1');
-    $st->execute([$returnNo]);
-    $id = $st->fetchColumn();
-
-    return $id !== false ? sal_return_fetch_full($pdo, (int) $id) : null;
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $returnNo,
+        'SELECT id FROM sal_return WHERE return_no = ? LIMIT 1',
+        [trim($returnNo)],
+        static fn (string $frag) => sal_return_search_ids_by_no_fragment($pdo, $frag),
+        static fn (int $id) => sal_return_fetch_full($pdo, $id)
+    );
 }
 
 /** @return list<array<string, mixed>> */

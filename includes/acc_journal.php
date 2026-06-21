@@ -687,6 +687,42 @@ function acc_journal_id_by_no(PDO $pdo, string $entryNo): ?int
     return $id !== false ? (int) $id : null;
 }
 
+/** @return list<int> */
+function acc_journal_search_ids_by_no_fragment(PDO $pdo, string $fragment, int $limit = 200): array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+    $fragment = trim($fragment);
+    if ($fragment === '') {
+        return [];
+    }
+
+    $limit = max(1, min(500, $limit));
+
+    return doc_no_search_ids_like(
+        $pdo,
+        "SELECT id FROM acc_journal_entry
+         WHERE entry_no LIKE ?
+         ORDER BY entry_no ASC, id ASC
+         LIMIT {$limit}",
+        [doc_no_sql_like_pattern($fragment)]
+    );
+}
+
+/** @return array<string, mixed>|null */
+function acc_journal_fetch_by_no(PDO $pdo, string $entryNo): ?array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $entryNo,
+        'SELECT id FROM acc_journal_entry WHERE entry_no = ? LIMIT 1',
+        [trim($entryNo)],
+        static fn (string $frag) => acc_journal_search_ids_by_no_fragment($pdo, $frag),
+        static fn (int $id) => acc_journal_api_entry($pdo, $id)
+    );
+}
+
 function acc_journal_first_id(PDO $pdo): ?int
 {
     $id = $pdo->query('SELECT id FROM acc_journal_entry ORDER BY id ASC LIMIT 1')->fetchColumn();

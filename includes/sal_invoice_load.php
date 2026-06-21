@@ -45,16 +45,16 @@ function sal_invoice_fetch_by_id(PDO $pdo, int $id, string $browseFilter = 'all'
 /** @return array<string, mixed>|null */
 function sal_invoice_fetch_by_no(PDO $pdo, string $invoiceNo, string $browseFilter = 'all'): ?array
 {
-    $invoiceNo = trim($invoiceNo);
-    if ($invoiceNo === '') {
-        return null;
-    }
+    require_once app_path('includes/doc_no_fragment_search.php');
 
-    $st = $pdo->prepare('SELECT id FROM sal_invoice WHERE invoice_no = ? LIMIT 1');
-    $st->execute([$invoiceNo]);
-    $id = $st->fetchColumn();
-
-    return $id !== false ? sal_invoice_fetch_by_id($pdo, (int) $id, $browseFilter) : null;
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $invoiceNo,
+        'SELECT id FROM sal_invoice WHERE invoice_no = ? LIMIT 1',
+        [trim($invoiceNo)],
+        static fn (string $frag) => sal_invoice_search_ids_by_no_fragment($pdo, $frag, $browseFilter),
+        static fn (int $id) => sal_invoice_fetch_by_id($pdo, $id, $browseFilter)
+    );
 }
 
 /** @param array<string, mixed> $row */

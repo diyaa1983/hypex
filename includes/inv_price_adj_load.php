@@ -35,7 +35,16 @@ function inv_price_adj_fetch_by_no(PDO $pdo, string $adjNo): ?array
         }
     }
 
-    return null;
+    require_once app_path('includes/doc_no_fragment_search.php');
+
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $adjNo,
+        'SELECT id FROM inv_price_adj_doc WHERE 1=0 LIMIT 1',
+        [],
+        static fn (string $frag) => inv_price_adj_search_ids_by_no_fragment($pdo, $frag),
+        static fn (int $id) => inv_price_adj_fetch_by_id($pdo, $id)
+    );
 }
 
 /** @param array<string, mixed> $doc */

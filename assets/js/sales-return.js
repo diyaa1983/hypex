@@ -84,6 +84,13 @@
   var isSavedMode = false;
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
+  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
+  var DOC_NO_SEARCH_UI = {
+    noInputId: 'ret_no',
+    prevBtnId: 'ret_no_prev',
+    nextBtnId: 'ret_no_next',
+    defaultNoTitle: 'اكتب جزءاً من رقم المرتجع واضغط Enter للبحث',
+  };
   var searchTimer = null;
   /** @type {object|null} */
   var lastLoadedReturn = null;
@@ -218,6 +225,14 @@
     var nextBtn = document.getElementById('ret_no_next');
     if (prevBtn) prevBtn.disabled = !(prevId > 0);
     if (nextBtn) nextBtn.disabled = !(nextId > 0);
+  }
+
+  function applyBrowseNavFromPayload(payload) {
+    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
+      DocumentNoNav.applyBrowseNav(docNoSearch, payload, setBrowseNav, DOC_NO_SEARCH_UI);
+      return;
+    }
+    setBrowseNav(payload.prev_id || 0, payload.next_id || 0);
   }
 
   function setBrowseNav(prevId, nextId) {
@@ -1711,7 +1726,7 @@
       refreshReturnEinvQrDataUrl();
     }
     setCustomerId(ret.customer_id || 0, true);
-    updateNavButtons(ret.prev_id || 0, ret.next_id || 0);
+    applyBrowseNavFromPayload(ret);
     loadInvoices(ret.customer_id, ret.invoice_id, {
       skipCatalog: true,
       keepLines: true,
@@ -1804,6 +1819,24 @@
       navigateEmptyReturn(dir);
       return;
     }
+    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
+      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
+        fetchById: function (id) {
+          return fetchReturnResponse({ id: id });
+        },
+        isOk: function (data) {
+          return !!(data && data.ok && data.return);
+        },
+        getPayload: function (data) {
+          return data.return;
+        },
+        apply: function (ret) {
+          applyReturnFetchData({ ok: true, return: ret });
+        },
+        loadError: 'تعذر تحميل المرتجع.',
+      });
+      return;
+    }
     loadReturn({ fromId: currentReturnId, dir: dir });
   }
 
@@ -1875,6 +1908,7 @@
   }
 
   function initNewReturn() {
+    if (window.DocumentNoNav) DocumentNoNav.clearSearch(docNoSearch);
     currentReturnId = 0;
     returnIsPosted = false;
     lastLoadedReturn = null;

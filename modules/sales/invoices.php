@@ -171,7 +171,7 @@ $showUnitPriceIncl = true;
                     <label for="inv_no">رقم الفاتورة</label>
                     <div class="sales-inv-no-nav">
                         <button type="button" class="sales-inv-no-arrow" id="inv_no_prev" title="الفاتورة السابقة" aria-label="الفاتورة السابقة">‹</button>
-                        <input class="input input-compact sales-inv-no-input" type="text" id="inv_no" value="" placeholder="" title="يُولَّد الرقم تلقائياً عند الحفظ — للبحث اكتب رقم فاتورة محفوظة واضغط Enter">
+                        <input class="input input-compact sales-inv-no-input" type="text" id="inv_no" value="" placeholder="" title="يُولَّد الرقم تلقائياً عند الحفظ — للبحث اكتب جزءاً من رقم الفاتورة واضغط Enter">
                         <button type="button" class="sales-inv-no-arrow" id="inv_no_next" title="الفاتورة التالية" aria-label="الفاتورة التالية">›</button>
                     </div>
                     <input type="hidden" name="invoice_id" id="inv_record_id" value="">

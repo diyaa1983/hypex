@@ -41,3 +41,25 @@ function pur_return_count_all(PDO $pdo): int
 
     return (int) $pdo->query("SELECT COUNT(*) FROM pur_return r WHERE {$cond}")->fetchColumn();
 }
+
+/** @return list<int> */
+function pur_return_search_ids_by_no_fragment(PDO $pdo, string $fragment, int $limit = 200): array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+    $fragment = trim($fragment);
+    if ($fragment === '') {
+        return [];
+    }
+
+    $cond = pur_return_browse_sql_condition('r');
+    $limit = max(1, min(500, $limit));
+
+    return doc_no_search_ids_like(
+        $pdo,
+        "SELECT r.id FROM pur_return r
+         WHERE ({$cond}) AND r.return_no LIKE ?
+         ORDER BY r.return_no ASC, r.id ASC
+         LIMIT {$limit}",
+        [doc_no_sql_like_pattern($fragment)]
+    );
+}

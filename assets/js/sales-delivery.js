@@ -36,6 +36,13 @@
   var currentDeliveryId = 0;
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
+  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
+  var DOC_NO_SEARCH_UI = {
+    noInputId: 'dlv_no',
+    prevBtnId: 'dlv_no_prev',
+    nextBtnId: 'dlv_no_next',
+    defaultNoTitle: 'اكتب جزءاً من رقم السند واضغط Enter للبحث',
+  };
   var deliveryIsPosted = false;
   var formDirty = false;
   var formSubmitting = false;
@@ -294,6 +301,14 @@
       }
     }
     updateDeliveryNoPostedStyle();
+  }
+
+  function applyBrowseNavFromPayload(payload) {
+    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
+      DocumentNoNav.applyBrowseNav(docNoSearch, payload, setBrowseNav, DOC_NO_SEARCH_UI);
+      return;
+    }
+    setBrowseNav(payload.prev_id || 0, payload.next_id || 0);
   }
 
   function setBrowseNav(prevId, nextId) {
@@ -1191,7 +1206,7 @@
       refreshDeliveryEditState();
       updatePostedBadge();
       syncInvoiceLinkHint(d);
-      setBrowseNav(d.prev_id || 0, d.next_id || 0);
+      applyBrowseNavFromPayload(d);
       updateHistory(currentDeliveryId);
       closePicker();
     });
@@ -1228,7 +1243,7 @@
       fetchDeliveryResponse({ no: no }).then(function (data) {
         if (!data || !data.ok || !data.delivery) {
           if (global.AppDialog) {
-            AppDialog.error((data && data.message) || 'لم يتم العثور على سند بهذا الرقم.');
+            AppDialog.error((data && data.message) || 'لم يتم العثور على سند يحتوي على هذا الرقم.');
           }
           return;
         }
@@ -1246,6 +1261,22 @@
   function navigateDeliveryCore(dir) {
     if (currentDeliveryId < 1) {
       navigateEmptyDelivery(dir);
+      return;
+    }
+    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
+      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
+        fetchById: function (id) {
+          return fetchDeliveryResponse({ id: id });
+        },
+        isOk: function (data) {
+          return !!(data && data.ok && data.delivery);
+        },
+        getPayload: function (data) {
+          return data;
+        },
+        apply: applyDeliveryData,
+        loadError: 'تعذر تحميل السند.',
+      });
       return;
     }
     fetchDeliveryResponse({ id: currentDeliveryId, dir: dir }).then(function (data) {
@@ -1414,6 +1445,7 @@
 
   function resetDeliveryForm() {
     runWithoutDirtyMark(function () {
+      if (window.DocumentNoNav) DocumentNoNav.clearSearch(docNoSearch);
       currentDeliveryId = 0;
       deliveryIsPosted = false;
       syncDeliveryIdField();
@@ -1919,8 +1951,10 @@
     });
     dlvNoInput.addEventListener('blur', function () {
       var no = dlvNoInput.value.trim();
-      if (!no) return;
-      if (no.indexOf('-') > 0) loadDeliveryByNo(no);
+      if (window.DocumentNoNav && DocumentNoNav.shouldSkipBlurSearch(docNoSearch, currentDeliveryId, no)) {
+        return;
+      }
+      loadDeliveryByNo(no);
     });
   }
 

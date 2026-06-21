@@ -71,3 +71,25 @@ function pur_order_count_in_filter(PDO $pdo, string $filter): int
 
     return (int) $pdo->query("SELECT COUNT(*) FROM pur_order o WHERE {$cond}")->fetchColumn();
 }
+
+/** @return list<int> */
+function pur_order_search_ids_by_no_fragment(PDO $pdo, string $fragment, string $filter, int $limit = 200): array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+    $fragment = trim($fragment);
+    if ($fragment === '') {
+        return [];
+    }
+
+    $cond = pur_order_browse_sql_condition($filter);
+    $limit = max(1, min(500, $limit));
+
+    return doc_no_search_ids_like(
+        $pdo,
+        "SELECT o.id FROM pur_order o
+         WHERE ({$cond}) AND o.order_no LIKE ?
+         ORDER BY o.order_no ASC, o.id ASC
+         LIMIT {$limit}",
+        [doc_no_sql_like_pattern($fragment)]
+    );
+}

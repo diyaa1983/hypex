@@ -50,3 +50,24 @@ function fin_voucher_first_id(PDO $pdo, string $type): ?int
 {
     return fin_voucher_latest_id($pdo, $type);
 }
+
+/** @return list<int> */
+function fin_voucher_search_ids_by_no_fragment(PDO $pdo, string $fragment, string $type, int $limit = 200): array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+    $fragment = trim($fragment);
+    if ($fragment === '' || !fin_voucher_type_valid($type)) {
+        return [];
+    }
+
+    $limit = max(1, min(500, $limit));
+
+    return doc_no_search_ids_like(
+        $pdo,
+        "SELECT id FROM fin_voucher
+         WHERE voucher_type = ? AND voucher_no LIKE ?
+         ORDER BY voucher_no ASC, id ASC
+         LIMIT {$limit}",
+        [$type, doc_no_sql_like_pattern($fragment)]
+    );
+}

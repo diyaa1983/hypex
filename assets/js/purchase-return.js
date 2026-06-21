@@ -64,6 +64,13 @@
   var isSavedMode = false;
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
+  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
+  var DOC_NO_SEARCH_UI = {
+    noInputId: 'ret_no',
+    prevBtnId: 'ret_no_prev',
+    nextBtnId: 'ret_no_next',
+    defaultNoTitle: 'اكتب جزءاً من رقم المردود واضغط Enter للبحث',
+  };
   var searchTimer = null;
   /** @type {object|null} */
   var lastLoadedReturn = null;
@@ -161,6 +168,14 @@
     var nextBtn = document.getElementById('ret_no_next');
     if (prevBtn) prevBtn.disabled = !(prevId > 0);
     if (nextBtn) nextBtn.disabled = !(nextId > 0);
+  }
+
+  function applyBrowseNavFromPayload(payload) {
+    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
+      DocumentNoNav.applyBrowseNav(docNoSearch, payload, setBrowseNav, DOC_NO_SEARCH_UI);
+      return;
+    }
+    setBrowseNav(payload.prev_id || 0, payload.next_id || 0);
   }
 
   function setBrowseNav(prevId, nextId) {
@@ -1285,7 +1300,7 @@
     if (retDateInp) retDateInp.value = fmtDate(ret.return_date || '');
     if (retNotes) retNotes.value = ret.notes || '';
     if (customerSel) customerSel.value = String(ret.supplier_id || '');
-    updateNavButtons(ret.prev_id || 0, ret.next_id || 0);
+    applyBrowseNavFromPayload(ret);
     loadInvoices(ret.supplier_id, ret.invoice_id, {
       skipCatalog: true,
       keepLines: true,
@@ -1376,6 +1391,24 @@
   function navigateReturn(dir) {
     if (currentReturnId < 1) {
       navigateEmptyReturn(dir);
+      return;
+    }
+    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
+      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
+        fetchById: function (id) {
+          return fetchReturnResponse({ id: id });
+        },
+        isOk: function (data) {
+          return !!(data && data.ok && data.return);
+        },
+        getPayload: function (data) {
+          return data.return;
+        },
+        apply: function (ret) {
+          applyReturnFetchData({ ok: true, return: ret });
+        },
+        loadError: 'تعذر تحميل المردود.',
+      });
       return;
     }
     loadReturn({ fromId: currentReturnId, dir: dir });

@@ -36,15 +36,16 @@ function pur_order_fetch_by_id(PDO $pdo, int $id, string $browseFilter = 'all'):
 /** @return array<string, mixed>|null */
 function pur_order_fetch_by_no(PDO $pdo, string $orderNo, string $browseFilter = 'all'): ?array
 {
-    $orderNo = trim($orderNo);
-    if ($orderNo === '') {
-        return null;
-    }
-    $st = $pdo->prepare('SELECT id FROM pur_order WHERE order_no = ? LIMIT 1');
-    $st->execute([$orderNo]);
-    $id = $st->fetchColumn();
+    require_once app_path('includes/doc_no_fragment_search.php');
 
-    return $id !== false ? pur_order_fetch_by_id($pdo, (int) $id, $browseFilter) : null;
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $orderNo,
+        'SELECT id FROM pur_order WHERE order_no = ? LIMIT 1',
+        [trim($orderNo)],
+        static fn (string $frag) => pur_order_search_ids_by_no_fragment($pdo, $frag, $browseFilter),
+        static fn (int $id) => pur_order_fetch_by_id($pdo, $id, $browseFilter)
+    );
 }
 
 /** @param array<string, mixed> $row */

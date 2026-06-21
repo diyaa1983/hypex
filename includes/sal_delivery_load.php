@@ -70,13 +70,14 @@ function sal_delivery_fetch_by_id(PDO $pdo, int $id): ?array
 
 function sal_delivery_fetch_by_no(PDO $pdo, string $deliveryNo): ?array
 {
-    $deliveryNo = trim($deliveryNo);
-    if ($deliveryNo === '') {
-        return null;
-    }
-    $st = $pdo->prepare('SELECT id FROM sal_delivery WHERE delivery_no = ? LIMIT 1');
-    $st->execute([$deliveryNo]);
-    $id = $st->fetchColumn();
+    require_once app_path('includes/doc_no_fragment_search.php');
 
-    return $id !== false ? sal_delivery_fetch_by_id($pdo, (int) $id) : null;
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $deliveryNo,
+        'SELECT id FROM sal_delivery WHERE delivery_no = ? LIMIT 1',
+        [trim($deliveryNo)],
+        static fn (string $frag) => sal_delivery_search_ids_by_no_fragment($pdo, $frag),
+        static fn (int $id) => sal_delivery_fetch_by_id($pdo, $id)
+    );
 }

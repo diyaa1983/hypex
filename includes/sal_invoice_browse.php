@@ -77,3 +77,25 @@ function sal_invoice_count_in_filter(PDO $pdo, string $filter): int
 
     return (int) $pdo->query("SELECT COUNT(*) FROM sal_invoice i WHERE {$cond}")->fetchColumn();
 }
+
+/** @return list<int> */
+function sal_invoice_search_ids_by_no_fragment(PDO $pdo, string $fragment, string $filter, int $limit = 200): array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+    $fragment = trim($fragment);
+    if ($fragment === '') {
+        return [];
+    }
+
+    $cond = sal_invoice_browse_sql_condition($pdo, $filter);
+    $limit = max(1, min(500, $limit));
+
+    return doc_no_search_ids_like(
+        $pdo,
+        "SELECT i.id FROM sal_invoice i
+         WHERE ({$cond}) AND i.invoice_no LIKE ?
+         ORDER BY i.invoice_no ASC, i.id ASC
+         LIMIT {$limit}",
+        [doc_no_sql_like_pattern($fragment)]
+    );
+}

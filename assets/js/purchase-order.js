@@ -29,6 +29,13 @@
   var currentOrderId = 0;
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
+  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
+  var DOC_NO_SEARCH_UI = {
+    noInputId: 'inv_no',
+    prevBtnId: 'inv_no_prev',
+    nextBtnId: 'inv_no_next',
+    defaultNoTitle: 'اكتب جزءاً من رقم الطلب واضغط Enter للبحث',
+  };
   var orderIsApproved = false;
   var orderIsEditable = true;
   var orderStatusLabel = '';
@@ -2603,6 +2610,14 @@
     return tr;
   }
 
+  function applyBrowseNavFromPayload(payload) {
+    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
+      DocumentNoNav.applyBrowseNav(docNoSearch, payload, setBrowseNav, DOC_NO_SEARCH_UI);
+      return;
+    }
+    setBrowseNav(payload.prev_id || 0, payload.next_id || 0);
+  }
+
   function setBrowseNav(prevId, nextId) {
     browseNavPrevId = prevId > 0 ? prevId : 0;
     browseNavNextId = nextId > 0 ? nextId : 0;
@@ -3020,7 +3035,7 @@
     syncInvoiceIdField();
     refreshInvoiceEditState();
     clearPersistedDraft();
-    setBrowseNav(inv.prev_id || 0, inv.next_id || 0);
+    applyBrowseNavFromPayload(inv);
     updateHistory(currentOrderId);
     updatePostedBadge();
     closePicker();
@@ -3112,7 +3127,7 @@
     confirmUnsavedChanges(function () {
       fetchInvoiceResponse({ no: no }).then(function (data) {
         if (!data || !data.ok || !data.invoice) {
-          AppDialog.error((data && data.message) || 'لم يتم العثور على فاتورة بهذا الرقم.');
+          AppDialog.error((data && data.message) || 'لم يتم العثور على طلب يحتوي على هذا الرقم.');
           return;
         }
         applyInvoiceData(data.invoice);
@@ -3187,6 +3202,22 @@
       navigateEmptyInvoice(dir);
       return;
     }
+    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
+      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
+        fetchById: function (id) {
+          return fetchInvoiceResponse({ id: id });
+        },
+        isOk: function (data) {
+          return !!(data && data.ok && data.invoice);
+        },
+        getPayload: function (data) {
+          return data.invoice;
+        },
+        apply: applyInvoiceData,
+        loadError: 'تعذر تحميل الطلب.',
+      });
+      return;
+    }
     fetchInvoiceResponse({ id: currentOrderId, dir: dir }).then(function (data) {
       if (!data || !data.ok || !data.invoice) {
         AppDialog.alert(
@@ -3201,6 +3232,7 @@
   }
 
   function initNewInvoice(keepBrowseNav) {
+    if (window.DocumentNoNav) DocumentNoNav.clearSearch(docNoSearch);
     currentOrderId = 0;
     orderIsApproved = false;
     applyEinvoiceFromInvoice(null);
@@ -3420,7 +3452,9 @@
     });
     invNoInput.addEventListener('blur', function () {
       var no = invNoInput.value.trim();
-      if (!no) return;
+      if (window.DocumentNoNav && DocumentNoNav.shouldSkipBlurSearch(docNoSearch, currentOrderId, no)) {
+        return;
+      }
       loadInvoiceByNo(no);
     });
   }

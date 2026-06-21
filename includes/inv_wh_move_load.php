@@ -36,7 +36,16 @@ function inv_wh_move_fetch_by_no(PDO $pdo, string $moveNo): ?array
         }
     }
 
-    return null;
+    require_once app_path('includes/doc_no_fragment_search.php');
+
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $moveNo,
+        'SELECT id FROM inv_wh_move WHERE 1=0 LIMIT 1',
+        [],
+        static fn (string $frag) => inv_wh_move_search_ids_by_no_fragment($pdo, $frag),
+        static fn (int $id) => inv_wh_move_fetch_by_id($pdo, $id)
+    );
 }
 
 /** @param array<string, mixed> $move */

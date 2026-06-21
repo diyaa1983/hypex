@@ -47,3 +47,24 @@ function inv_stocktake_no_lookup_candidates(string $takeNo): array
 
     return array_values(array_unique($out));
 }
+
+/** @return list<int> */
+function inv_stocktake_search_ids_by_no_fragment(PDO $pdo, string $fragment, int $limit = 200): array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+    $fragment = trim($fragment);
+    if ($fragment === '') {
+        return [];
+    }
+
+    $limit = max(1, min(500, $limit));
+
+    return doc_no_search_ids_like(
+        $pdo,
+        "SELECT id FROM inv_stocktake_doc
+         WHERE take_no LIKE ?
+         ORDER BY take_no ASC, id ASC
+         LIMIT {$limit}",
+        [doc_no_sql_like_pattern($fragment)]
+    );
+}

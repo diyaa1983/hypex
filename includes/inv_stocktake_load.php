@@ -34,7 +34,16 @@ function inv_stocktake_fetch_by_no(PDO $pdo, string $no): ?array
         }
     }
 
-    return null;
+    require_once app_path('includes/doc_no_fragment_search.php');
+
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $no,
+        'SELECT id FROM inv_stocktake_doc WHERE 1=0 LIMIT 1',
+        [],
+        static fn (string $frag) => inv_stocktake_search_ids_by_no_fragment($pdo, $frag),
+        static fn (int $id) => inv_stocktake_fetch_by_id($pdo, $id)
+    );
 }
 
 /** @param array<string,mixed> $doc @return array<string,mixed> */

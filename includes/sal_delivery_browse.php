@@ -29,3 +29,24 @@ function sal_delivery_first_id(PDO $pdo): ?int
 
     return $id !== false ? (int) $id : null;
 }
+
+/** @return list<int> */
+function sal_delivery_search_ids_by_no_fragment(PDO $pdo, string $fragment, int $limit = 200): array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+    $fragment = trim($fragment);
+    if ($fragment === '') {
+        return [];
+    }
+
+    $limit = max(1, min(500, $limit));
+
+    return doc_no_search_ids_like(
+        $pdo,
+        "SELECT id FROM sal_delivery
+         WHERE delivery_no LIKE ?
+         ORDER BY delivery_no ASC, id ASC
+         LIMIT {$limit}",
+        [doc_no_sql_like_pattern($fragment)]
+    );
+}

@@ -32,6 +32,13 @@
   var currentId = 0;
   var browsePrevId = 0;
   var browseNextId = 0;
+  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
+  var DOC_NO_SEARCH_UI = {
+    noInputId: 'jv_no',
+    prevBtnId: 'jv_no_prev',
+    nextBtnId: 'jv_no_next',
+    defaultNoTitle: 'اكتب جزءاً من رقم السند واضغط Enter للبحث',
+  };
   var readOnly = false;
   var formSubmitting = false;
   var lineUid = 0;
@@ -756,8 +763,7 @@
   function applyEntry(entry) {
     if (!entry) return;
     currentId = parseInt(entry.id, 10) || 0;
-    browsePrevId = parseInt(entry.prev_id, 10) || 0;
-    browseNextId = parseInt(entry.next_id, 10) || 0;
+    applyBrowseNavFromEntry(entry);
     entryStatus = String(entry.status || 'draft');
     if (entry.is_cancelled === true || entryStatus === 'cancelled') {
       entryStatus = 'cancelled';
@@ -795,6 +801,7 @@
   }
 
   function resetNew() {
+    if (window.DocumentNoNav) DocumentNoNav.clearSearch(docNoSearch);
     currentId = 0;
     browsePrevId = 0;
     browseNextId = 0;
@@ -819,6 +826,22 @@
     clearLines();
     syncExitGuard();
     refreshEmptyBrowseNav();
+  }
+
+  function setBrowseNavFromSearch(prevId, nextId) {
+    browsePrevId = prevId > 0 ? prevId : 0;
+    browseNextId = nextId > 0 ? nextId : 0;
+    updateJvNavButtons();
+  }
+
+  function applyBrowseNavFromEntry(entry) {
+    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
+      DocumentNoNav.applyBrowseNav(docNoSearch, entry, setBrowseNavFromSearch, DOC_NO_SEARCH_UI);
+      return;
+    }
+    browsePrevId = parseInt(entry.prev_id, 10) || 0;
+    browseNextId = parseInt(entry.next_id, 10) || 0;
+    updateJvNavButtons();
   }
 
   function updateJvNavButtons() {
@@ -893,6 +916,22 @@
         .catch(function (err) {
           alert(err.message || 'لا توجد سندات.');
         });
+      return;
+    }
+    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
+      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
+        fetchById: function (id) {
+          return fetchEntry({ id: String(id) });
+        },
+        isOk: function (data) {
+          return !!(data && data.ok && data.entry);
+        },
+        getPayload: function (data) {
+          return data.entry;
+        },
+        apply: applyEntry,
+        loadError: 'تعذر تحميل السند.',
+      });
       return;
     }
     if (dir === 'prev') {
@@ -1069,9 +1108,11 @@
   function tryLoadByNoField() {
     var no = noEl ? String(noEl.value || '').trim() : '';
     if (!no) return;
-    if (no === loadedEntryNo && currentId > 0) return;
+    if (window.DocumentNoNav && DocumentNoNav.shouldSkipBlurSearch(docNoSearch, currentId, no)) {
+      return;
+    }
     return loadByNo(no).catch(function (err) {
-      alert(err.message || 'السند غير موجود.');
+      alert(err.message || 'لم يتم العثور على سند يحتوي على هذا الرقم.');
     });
   }
 

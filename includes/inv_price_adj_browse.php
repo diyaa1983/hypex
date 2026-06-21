@@ -54,3 +54,24 @@ function inv_price_adj_no_lookup_candidates(string $adjNo): array
 
     return array_values(array_unique($candidates));
 }
+
+/** @return list<int> */
+function inv_price_adj_search_ids_by_no_fragment(PDO $pdo, string $fragment, int $limit = 200): array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+    $fragment = trim($fragment);
+    if ($fragment === '') {
+        return [];
+    }
+
+    $limit = max(1, min(500, $limit));
+
+    return doc_no_search_ids_like(
+        $pdo,
+        "SELECT id FROM inv_price_adj_doc
+         WHERE adj_no LIKE ?
+         ORDER BY adj_no ASC, id ASC
+         LIMIT {$limit}",
+        [doc_no_sql_like_pattern($fragment)]
+    );
+}
