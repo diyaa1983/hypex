@@ -16,6 +16,7 @@ echo '<link rel="stylesheet" href="' . esc($cssUrl) . '">';
 
 $hero = $dash['hero'];
 $highlights = $dash['highlights'];
+$sensitiveAccounts = $dash['sensitive_accounts'] ?? [];
 $liabilities = $dash['liabilities'] ?? [];
 $sections = $dash['sections'];
 $recentSales = $dash['recent_sales'];
@@ -71,6 +72,55 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
                     <span class="dashboard-ora-kpi-hint"><?= esc($kpi['hint']) ?></span>
                     <?php endif; ?>
                 </<?= $tag ?>>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
+
+    <?php if ($sensitiveAccounts !== []): ?>
+    <section class="dashboard-ora-panel" aria-label="الصندوق والحسابات الحساسة">
+        <h2 class="dashboard-ora-panel__title">الصندوق والحسابات الحساسة</h2>
+        <p class="dashboard-ora-panel__sub">أرصدة من الدفتر العام — الصندوق الرئيسي، البنك، الذمم، والمخزون</p>
+        <div class="dashboard-ora-panel__body">
+            <div class="dashboard-ora-kpi-grid dashboard-ora-kpi-grid--treasury">
+                <?php foreach ($sensitiveAccounts as $item): ?>
+                <?php
+                $itemUrl = trim((string) ($item['url'] ?? ''));
+                $tone = $kpiToneClass((string) ($item['tone'] ?? ''));
+                $itemClick = !empty($item['click_filter'])
+                    ? ' dashboard-ora-kpi--clickable dashboard-kpi--clickable js-check-alert-open'
+                    : '';
+                ?>
+                <?php if ($itemClick !== ''): ?>
+                <button type="button"
+                    class="dashboard-ora-kpi<?= $tone ?><?= $itemClick ?>"
+                    data-filter="<?= esc((string) $item['click_filter']) ?>"
+                    data-title="<?= esc((string) ($item['label'] ?? 'شيكات قيد التحصيل')) ?>"
+                    title="اضغط لعرض التفاصيل">
+                    <span class="dashboard-ora-kpi-label"><?= esc($item['label']) ?></span>
+                    <span class="dashboard-ora-kpi-value"><?= esc($item['value']) ?></span>
+                    <?php if (!empty($item['hint'])): ?>
+                    <span class="dashboard-ora-kpi-hint"><?= esc($item['hint']) ?></span>
+                    <?php endif; ?>
+                </button>
+                <?php elseif ($itemUrl !== ''): ?>
+                <a class="dashboard-ora-kpi<?= $tone ?>" href="<?= esc($itemUrl) ?>" title="عرض كشف الحساب">
+                    <span class="dashboard-ora-kpi-label"><?= esc($item['label']) ?></span>
+                    <span class="dashboard-ora-kpi-value"><?= esc($item['value']) ?></span>
+                    <?php if (!empty($item['hint'])): ?>
+                    <span class="dashboard-ora-kpi-hint"><?= esc($item['hint']) ?></span>
+                    <?php endif; ?>
+                </a>
+                <?php else: ?>
+                <article class="dashboard-ora-kpi<?= $tone ?>">
+                    <span class="dashboard-ora-kpi-label"><?= esc($item['label']) ?></span>
+                    <span class="dashboard-ora-kpi-value"><?= esc($item['value']) ?></span>
+                    <?php if (!empty($item['hint'])): ?>
+                    <span class="dashboard-ora-kpi-hint"><?= esc($item['hint']) ?></span>
+                    <?php endif; ?>
+                </article>
+                <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -259,7 +309,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
     </section>
     <?php endif; ?>
 
-    <?php if ($sections === [] && $highlights === [] && $liabilities === []): ?>
+    <?php if ($sections === [] && $highlights === [] && $sensitiveAccounts === [] && $liabilities === []): ?>
     <section class="dashboard-ora-panel">
         <h2 class="dashboard-ora-panel__title">بدء الاستخدام</h2>
         <div class="dashboard-ora-panel__body">

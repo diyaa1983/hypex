@@ -208,11 +208,183 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
     return $items;
 }
 
+function dashboard_sensitive_account_url(PDO $pdo, int $accountId, string $dateFrom, string $dateTo): string
+{
+    if ($accountId < 1) {
+        return '';
+    }
+    if (user_can('report_account_statement')) {
+        require_once app_path('includes/acc_report_ref.php');
+
+        return acc_report_account_statement_url($accountId, $dateFrom, $dateTo);
+    }
+    if (user_can('report_general_ledger')) {
+        return app_url(
+            'index.php?r=report_general_ledger'
+            . '&account_id=' . $accountId
+            . '&date_from=' . rawurlencode(format_date_dmY($dateFrom))
+            . '&date_to=' . rawurlencode(format_date_dmY($dateTo))
+        );
+    }
+    if (user_can('chart_of_accounts')) {
+        return app_url('index.php?r=chart_of_accounts');
+    }
+    if (user_can('account_mapping')) {
+        return app_url('index.php?r=account_mapping');
+    }
+
+    return '';
+}
+
+/** @return array{label:string, value:string, hint?:string, tone?:string, url?:string, click_filter?:string}|null */
+function dashboard_sensitive_account_metric(
+    PDO $pdo,
+    string $ruleCode,
+    string $dateFrom,
+    string $dateTo,
+    array $opts = []
+): ?array {
+    require_once app_path('includes/acc_gl.php');
+    require_once app_path('includes/acc_report.php');
+
+    if (!acc_gl_has_posting_table($pdo) || !acc_journal_has_tables($pdo)) {
+        return null;
+    }
+
+    $resolver = (string) ($opts['resolver'] ?? $ruleCode);
+    if ($resolver === 'cash') {
+        $accountId = acc_gl_cash_box_account_id($pdo);
+    } elseif ($resolver === 'checks_fund') {
+        $accountId = acc_gl_checks_fund_account_id($pdo);
+    } else {
+        $settings = acc_gl_load_settings($pdo);
+        $accountId = (int) ($settings[$ruleCode]['account_id'] ?? 0);
+    }
+
+    if ($accountId < 1) {
+        return null;
+    }
+
+    try {
+        $st = $pdo->prepare('SELECT code, name_ar FROM acc_account WHERE id = ? LIMIT 1');
+        $st->execute([$accountId]);
+        $acc = $st->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        $acc = false;
+    }
+    if (!$acc) {
+        return null;
+    }
+
+    $sums = acc_report_account_sums($pdo, $accountId);
+    $rawBal = (float) ($sums['balance'] ?? 0);
+    $isLiability = !empty($opts['liability']);
+    $displayBal = $isLiability ? max(0.0, -$rawBal) : $rawBal;
+
+    $settings = acc_gl_load_settings($pdo);
+    $label = trim((string) ($opts['label'] ?? ''));
+    if ($label === '') {
+        $label = (string) ($settings[$ruleCode]['label_ar'] ?? $ruleCode);
+    }
+
+    $hint = (string) ($acc['code'] ?? '') . ' · ' . (string) ($acc['name_ar'] ?? '') . ' — من الدفتر';
+    $hintExtra = trim((string) ($opts['hint_extra'] ?? ''));
+    if ($hintExtra !== '') {
+        $hint .= ' · ' . $hintExtra;
+    }
+
+    $tone = (string) ($opts['tone'] ?? 'primary');
+    if ($isLiability) {
+        if ($displayBal > 0.0005) {
+            $tone = 'warn';
+        } elseif ($displayBal <= 0.0005) {
+            $tone = 'success';
+        }
+    } elseif ($displayBal < -0.0005) {
+        $tone = 'warn';
+    }
+
+    $m = dashboard_metric($label, $displayBal, 'money', $hint, $tone);
+    $url = dashboard_sensitive_account_url($pdo, $accountId, $dateFrom, $dateTo);
+    if ($url !== '') {
+        $m['url'] = $url;
+    }
+    $clickFilter = trim((string) ($opts['click_filter'] ?? ''));
+    if ($clickFilter !== '') {
+        $m['click_filter'] = $clickFilter;
+    }
+
+    return $m;
+}
+
+/**
+ * @param array{total:int, overdue:int, today:int, soon:int, total_amount:float} $checkSummary
+ * @return list<array{label:string, value:string, hint?:string, tone?:string, url?:string, click_filter?:string}>
+ */
+function dashboard_collect_sensitive_accounts(PDO $pdo, string $dateFrom, string $dateTo, array $checkSummary = []): array
+{
+    require_once app_path('includes/acc_gl.php');
+    if (!acc_gl_has_posting_table($pdo)) {
+        return [];
+    }
+
+    $items = [];
+
+    $cash = dashboard_sensitive_account_metric($pdo, 'cash', $dateFrom, $dateTo, [
+        'label' => 'الصندوق الرئيسي',
+        'resolver' => 'cash',
+        'tone' => 'primary',
+    ]);
+    if ($cash !== null) {
+        $items[] = $cash;
+    }
+
+    $checksHint = '';
+    if ((int) ($checkSummary['total'] ?? 0) > 0) {
+        $checksHint = number_format((int) $checkSummary['total']) . ' شيك قيد التحصيل';
+        if ((int) ($checkSummary['overdue'] ?? 0) > 0) {
+            $checksHint .= ' · ' . (int) $checkSummary['overdue'] . ' متأخر';
+        }
+    }
+    $checksOpts = [
+        'label' => 'صندوق الشيكات',
+        'resolver' => 'checks_fund',
+        'tone' => (($checkSummary['overdue'] ?? 0) > 0 || ($checkSummary['today'] ?? 0) > 0) ? 'warn' : 'primary',
+    ];
+    if ($checksHint !== '') {
+        $checksOpts['hint_extra'] = $checksHint;
+    }
+    if ((int) ($checkSummary['total'] ?? 0) > 0 && (user_can('cash_receipt') || user_can('cash_receipts_list'))) {
+        $checksOpts['click_filter'] = 'all';
+    }
+    $checksFund = dashboard_sensitive_account_metric($pdo, 'checks_fund', $dateFrom, $dateTo, $checksOpts);
+    if ($checksFund !== null) {
+        $items[] = $checksFund;
+    }
+
+    foreach (
+        [
+            ['code' => 'bank', 'label' => 'البنك', 'tone' => 'primary'],
+            ['code' => 'ar_customers', 'label' => 'ذمم العملاء', 'tone' => 'primary'],
+            ['code' => 'ap_suppliers', 'label' => 'ذمم الموردين', 'tone' => 'warn', 'liability' => true],
+            ['code' => 'inventory', 'label' => 'المخزون', 'tone' => 'success'],
+        ] as $rule
+    ) {
+        $metric = dashboard_sensitive_account_metric($pdo, (string) $rule['code'], $dateFrom, $dateTo, $rule);
+        if ($metric !== null) {
+            $items[] = $metric;
+        }
+    }
+
+    return $items;
+}
+
 /**
  * @return array{
  *   hero: array<string, string>,
  *   highlights: list<array{label:string, value:string, hint?:string, tone?:string}>,
  *   sections: list<array{title:string, icon:string, metrics:list<array>, links?:list<array{label:string, url:string}>>}>,
+ *   sensitive_accounts: list<array{label:string, value:string, hint?:string, tone?:string, url?:string, click_filter?:string}>,
  *   liabilities: list<array{label:string, value:string, hint?:string, tone?:string, url?:string}>,
  *   check_alerts: list<array<string, mixed>>,
  *   check_alerts_summary: array{total:int, overdue:int, today:int, soon:int, total_amount:float}
@@ -271,28 +443,6 @@ function dashboard_collect(PDO $pdo): array
 
         $highlights[] = dashboard_metric('إجمالي المقبوضات', $receipts, 'money', null, 'success');
         $highlights[] = dashboard_metric('إجمالي الصرفيات', $payments, 'money', null, 'warn');
-
-        if (user_can('cash_receipt') || user_can('cash_receipts_list')) {
-            $checksFundHint = (int) $checkSummary['total'] > 0
-                ? number_format((int) $checkSummary['total']) . ' شيك · رصيد الاستاذ العام'
-                : 'رصيد حساب صندوق الشيكات في الاستاذ العام';
-            if ((int) $checkSummary['overdue'] > 0) {
-                $checksFundHint .= ' · ' . (int) $checkSummary['overdue'] . ' متأخر';
-            }
-            $checksFundTone = ($checkSummary['overdue'] > 0 || $checkSummary['today'] > 0) ? 'warn' : 'primary';
-            $checksFundKpi = dashboard_metric(
-                'صندوق الشيكات',
-                (float) $checkSummary['total_amount'],
-                'money',
-                $checksFundHint,
-                $checksFundTone
-            );
-            if ((int) $checkSummary['total'] > 0) {
-                $checksFundKpi['click_filter'] = 'all';
-            }
-            $highlights[] = $checksFundKpi;
-        }
-
     }
 
     if (dashboard_table_exists($pdo, 'crm_customer_ledger')) {
@@ -356,6 +506,7 @@ function dashboard_collect(PDO $pdo): array
     }
 
     $liabilities = dashboard_collect_liabilities($pdo, $vatDateFrom, $today);
+    $sensitiveAccounts = dashboard_collect_sensitive_accounts($pdo, $vatDateFrom, $today, $checkSummary);
 
     return [
         'hero' => [
@@ -368,6 +519,7 @@ function dashboard_collect(PDO $pdo): array
             ][date('l')] ?? '',
         ],
         'highlights' => array_slice($highlights, 0, 8),
+        'sensitive_accounts' => $sensitiveAccounts,
         'liabilities' => $liabilities,
         'sections' => $sections,
         'recent_sales' => $recentSales,

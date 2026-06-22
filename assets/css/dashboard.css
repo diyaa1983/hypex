@@ -669,6 +669,10 @@ body.dashboard-check-modal-open {
   .dashboard-ora-kpi-grid--liabilities {
     grid-template-columns: repeat(4, 1fr);
   }
+
+  .dashboard-ora-kpi-grid--treasury {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 /* ── قائمة المجلدات والشاشات (menu hub) — Oracle 12c ── */
