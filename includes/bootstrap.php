@@ -95,3 +95,7 @@ require_once app_path('includes/document_header.php');
 require_once app_path('includes/auth.php');
 require_once app_path('includes/date_defaults.php');
 app_apply_timezone();
+
+if (is_logged_in()) {
+    refresh_session_permissions();
+}

@@ -192,16 +192,6 @@ sys_repair_user_without_groups($pdo, (int) current_user()['id']);
 require_once app_path('includes/fin_check_due_email.php');
 fin_check_due_email_register_background_runner();
 
-$currentUserId = (int) current_user()['id'];
-if (
-    !isset($_SESSION['permissions'])
-    || !is_array($_SESSION['permissions'])
-    || (int) ($_SESSION['permissions_user_id'] ?? 0) !== $currentUserId
-) {
-    $_SESSION['permissions'] = load_user_permissions($currentUserId);
-    $_SESSION['permissions_user_id'] = $currentUserId;
-}
-
 $r = isset($_GET['r']) ? (string) $_GET['r'] : 'dashboard';
 $routes = require app_path('config/routes.php');
 

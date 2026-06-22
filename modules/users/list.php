@@ -145,11 +145,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($id === $currentUserId) {
-            $_SESSION['permissions'] = load_user_permissions($currentUserId);
-            $_SESSION['permissions_user_id'] = $currentUserId;
+            refresh_session_permissions($currentUserId);
             $_SESSION['user']['username'] = $username;
             $_SESSION['user']['full_name_ar'] = $fullName;
-            unset($_SESSION['is_system_admin']);
         }
 
         flash_set('success', $isNew ? 'تم إضافة المستخدم.' : 'تم حفظ بيانات المستخدم.');

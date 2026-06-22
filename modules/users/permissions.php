@@ -102,11 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $pdo->commit();
 
-                if (isset($_SESSION['user']['id'])) {
-                    $permUid = (int) $_SESSION['user']['id'];
-                    $_SESSION['permissions'] = load_user_permissions($permUid);
-                    $_SESSION['permissions_user_id'] = $permUid;
-                }
+                refresh_session_permissions();
 
                 flash_set('success', 'تم حفظ الصلاحيات.');
                 redirect($permPageUrl($gid));

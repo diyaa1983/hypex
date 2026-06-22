@@ -63,6 +63,25 @@ function load_user_permissions(int $userId): array
     return $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
 }
 
+/** إعادة تحميل صلاحيات الجلسة من قاعدة البيانات بعد تعديل المجموعات أو صلاحيات الشاشات. */
+function refresh_session_permissions(?int $userId = null): void
+{
+    if (!is_logged_in()) {
+        return;
+    }
+
+    if ($userId === null || $userId < 1) {
+        $userId = (int) (current_user()['id'] ?? 0);
+    }
+    if ($userId < 1) {
+        return;
+    }
+
+    unset($_SESSION['is_system_admin']);
+    $_SESSION['permissions'] = load_user_permissions($userId);
+    $_SESSION['permissions_user_id'] = $userId;
+}
+
 function user_can(string $screenCode): bool
 {
     if (user_is_system_admin()) {
