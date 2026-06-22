@@ -141,6 +141,11 @@ function acc_journal_party_ledger_sync(PDO $pdo, int $journalId, bool $post): vo
         return;
     }
 
+    // تجيير الشيك يُسجّل في crm_supplier_ledger كنوع check_endorse (لا سند قيد)
+    if ((string) ($loaded['header']['ref_type'] ?? '') === 'fin_check_endorse') {
+        return;
+    }
+
     $entryNo = (string) ($loaded['header']['entry_no'] ?? '');
     $entryDate = (string) ($loaded['header']['entry_date'] ?? '');
     $headerDesc = trim((string) ($loaded['header']['description_ar'] ?? ''));

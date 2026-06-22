@@ -15,6 +15,7 @@
   var voucherUnpostUrl = form.getAttribute('data-voucher-unpost-url') || '';
   var voucherDeleteUrl = form.getAttribute('data-voucher-delete-url') || '';
   var voucherCancelUrl = form.getAttribute('data-voucher-cancel-url') || '';
+  var checkActionUrl = form.getAttribute('data-check-action-url') || '';
   var newUrl = form.getAttribute('data-new-url') || '';
   var exitUrl = form.getAttribute('data-exit-url') || '';
   var initialVoucherId = parseInt(form.getAttribute('data-initial-id') || '0', 10);
@@ -38,6 +39,7 @@
   var formSubmitting = false;
   var suppressDirtyMark = 0;
   var pendingAfterSave = null;
+  var lastChecksManageData = [];
 
   function fmtDate(value) {
     return global.AppFormat && AppFormat.formatDateDmY
@@ -786,6 +788,120 @@
     syncEmployeeAmountLock();
     refreshHrAdvanceDisburseLock();
     lockPaymentPickerButtons(locked);
+    refreshPyChecksManageUi();
+  }
+
+  function getPayMethodValue() {
+    var chk = document.getElementById('py_pay_check');
+    return chk && chk.checked ? 'check' : 'cash';
+  }
+
+  function refreshPyChecksManageUi() {
+    var wrap = document.getElementById('py_check_manage_wrap');
+    if (!wrap) return;
+    var show =
+      currentVoucherId > 0 &&
+      voucherIsPosted &&
+      !voucherIsCancelled &&
+      getPayMethodValue() === 'check' &&
+      lastChecksManageData.length > 0;
+    if (!show) {
+      wrap.hidden = true;
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.hidden = false;
+    var html =
+      '<div class="dashboard-ora-panel" style="margin-top:0.65rem;border:1px solid #b8c5d6;">' +
+      '<h3 class="dashboard-ora-panel__title" style="font-size:0.85rem;padding:0.4rem 0.75rem;">متابعة الشيك</h3>' +
+      '<div class="dashboard-ora-panel__body" style="padding:0.65rem 0.75rem;background:#fff;">';
+    lastChecksManageData.forEach(function (data) {
+      var lifecycle = data.lifecycle_status || 'pending';
+      html += '<div class="fin-py-check-manage-row" style="margin-bottom:0.5rem;">';
+      html +=
+        '<strong>' +
+        escapeHtml(data.check_no || ('#' + (data.id || ''))) +
+        '</strong> — ' +
+        escapeHtml(fmtMoney(data.check_amount || 0));
+      if (data.action_was_undone) {
+        html +=
+          ' <span class="badge fin-chk-badge fin-chk-badge--undo">' +
+          escapeHtml(data.status_display || data.execute_label || 'تم الإلغاء') +
+          '</span>';
+        if (data.action_date_dmy) {
+          html += ' <small class="muted">(' + escapeHtml(data.action_date_dmy) + ')</small>';
+        }
+      } else if (lifecycle === 'pending') {
+        html += ' <span class="badge badge-warn">قيد</span>';
+      } else {
+        html +=
+          ' <span class="badge badge-ok">' + escapeHtml(data.status_display || lifecycle) + '</span>';
+        if (data.action_date_dmy) {
+          html += ' <small class="muted">(' + escapeHtml(data.action_date_dmy) + ')</small>';
+        }
+        if (data.can_undo && data.id) {
+          html +=
+            ' <button type="button" class="btn btn-secondary btn-sm fin-py-check-undo" data-check-id="' +
+            String(data.id) +
+            '" data-undo-label="' +
+            escapeHtml(data.undo_label || 'إلغاء') +
+            '">' +
+            escapeHtml(data.undo_label || 'إلغاء') +
+            '</button>';
+        }
+        if (data.journal_url) {
+          html +=
+            ' <a href="' + escapeHtml(data.journal_url) + '" class="btn btn-link btn-sm">القيد</a>';
+        }
+      }
+      html += '</div>';
+    });
+    html += '</div></div>';
+    wrap.innerHTML = html;
+  }
+
+  function undoCheckFromVoucher(checkId, undoLabel) {
+    if (!checkActionUrl || checkId < 1) return;
+    var csrfEl = form.querySelector('input[name="_csrf"]');
+    var csrf = csrfEl ? csrfEl.value : '';
+    var msg =
+      'تأكيد ' +
+      (undoLabel || 'إلغاء') +
+      '؟\n\nسيتم حذف القيد المحاسبي وإعادة الشيك إلى «قيد».';
+    var confirmFn =
+      global.AppDialog && AppDialog.confirm
+        ? function (m) {
+            return AppDialog.confirm(m, { title: undoLabel || 'تأكيد' });
+          }
+        : function (m) {
+            return Promise.resolve(window.confirm(m));
+          };
+    confirmFn(msg).then(function (ok) {
+      if (!ok) return;
+      var fd = new FormData();
+      fd.append('_csrf', csrf);
+      fd.append('action', 'undo');
+      fd.append('check_id', String(checkId));
+      fetch(checkActionUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            if (global.AppDialog && AppDialog.success) {
+              AppDialog.success((data && data.message) || 'تم الإلغاء.');
+            }
+            loadVoucherById(currentVoucherId, true);
+            return;
+          }
+          var errMsg = (data && data.message) || 'تعذر الإلغاء.';
+          if (global.AppDialog && AppDialog.error) AppDialog.error(errMsg);
+          else window.alert(errMsg);
+        })
+        .catch(function () {
+          if (global.AppDialog && AppDialog.error) AppDialog.error('خطأ في الاتصال بالخادم.');
+        });
+    });
   }
 
   function updateVoucherNoPostedStyle() {
@@ -1358,6 +1474,7 @@
 
       var payMethod = v.pay_method === 'check' ? 'check' : 'cash';
       setPayMethod(payMethod);
+      lastChecksManageData = Array.isArray(v.checks) ? v.checks.slice() : [];
 
       var amountEl = document.getElementById('py_amount');
       var chkAmt = document.getElementById('py_check_amount');
@@ -1369,6 +1486,7 @@
       } else {
         if (amountEl) amountEl.value = amt > 0 ? fmtMoney(amt) : '';
         if (chkAmt) chkAmt.value = '';
+        lastChecksManageData = [];
       }
 
       var chkNo = document.getElementById('py_check_no');
@@ -2163,6 +2281,14 @@
       }
     });
   }
+
+  form.addEventListener('click', function (e) {
+    var undoBtn = e.target.closest('.fin-py-check-undo');
+    if (!undoBtn) return;
+    e.preventDefault();
+    var checkId = parseInt(undoBtn.getAttribute('data-check-id') || '0', 10) || 0;
+    undoCheckFromVoucher(checkId, undoBtn.getAttribute('data-undo-label') || 'إلغاء');
+  });
 
   form.addEventListener('input', markFormDirtyFromEvent);
   form.addEventListener('change', markFormDirtyFromEvent);

@@ -98,7 +98,7 @@ function crm_party_statement_is_check_payment(string $paymentType, string $memo,
 /** تسمية عمود الرقم حسب نوع الحركة (فاتورة، مرتجع، سند، شيك). */
 function crm_party_statement_doc_number_label(string $txnType, string $checkNo): string
 {
-    if ($checkNo !== '' || $txnType === 'cheque' || $txnType === 'check') {
+    if ($checkNo !== '' || in_array($txnType, ['cheque', 'check', 'check_return', 'check_endorse'], true)) {
         return 'رقم الشيك';
     }
     if ($txnType === 'cash_receipt' || $txnType === 'receipt_voucher') {
@@ -178,6 +178,22 @@ function crm_party_statement_format_description(
     if ($txn === 'cheque' || $txn === 'check') {
         return 'دفعة - شيك';
     }
+    if ($txn === 'check_return') {
+        $base = 'إرجاع شيك';
+        if ($checkNo !== '') {
+            return $base . ' ' . $checkNo;
+        }
+
+        return $base;
+    }
+    if ($txn === 'check_endorse') {
+        $base = 'تجيير شيك';
+        if ($checkNo !== '') {
+            return $base . ' ' . $checkNo;
+        }
+
+        return $base;
+    }
     if ($txn === 'purchase_return') {
         $base = $isCredit ? 'مردود مشتريات ذمم' : 'مردود مشتريات نقدي';
         if ($srcInv !== '') {
@@ -205,6 +221,7 @@ function crm_party_statement_txn_type_label(string $txnType, string $partyType =
         'check' => 'شيك',
         'journal_voucher' => 'سند قيد',
         'check_return' => 'إرجاع شيك',
+        'check_endorse' => 'تجيير شيك',
         'debit_note' => 'إشعار مدين',
         'credit_note' => 'إشعار دائن',
     ];
@@ -304,6 +321,13 @@ function crm_party_statement_row_display_amounts(
     }
 
     $amt = max($debit, $credit);
+    if ($txn === 'check_endorse') {
+        if ($partyType === 'supplier' && $amt >= $eps) {
+            return ['debit' => $amt, 'credit' => 0.0, 'skip' => false];
+        }
+
+        return ['debit' => 0.0, 'credit' => 0.0, 'skip' => true];
+    }
     if ($amt < $eps) {
         return ['debit' => 0.0, 'credit' => 0.0, 'skip' => true];
     }
@@ -616,6 +640,11 @@ function crm_party_statement_build(
     $periodDebit = 0.0;
     $periodCredit = 0.0;
     foreach ($merged as $lr) {
+        $txnType = (string) ($lr['txn_type'] ?? '');
+        if ($partyType === 'customer' && $txnType === 'check_endorse') {
+            continue;
+        }
+
         $rawDebit = (float) $lr['debit'];
         $rawCredit = (float) $lr['credit'];
         $display = crm_party_statement_row_display_amounts(
@@ -642,7 +671,6 @@ function crm_party_statement_build(
         $out['total_debit'] = $periodDebit;
         $out['total_credit'] = $periodCredit;
 
-        $txnType = (string) ($lr['txn_type'] ?? '');
         $memo = (string) ($lr['memo'] ?? '');
         $checkNo = (string) ($lr['check_no'] ?? '');
         if ($checkNo === '') {
@@ -652,6 +680,9 @@ function crm_party_statement_build(
         $pay = (string) ($lr['payment_type'] ?? '');
 
         $refNo = (string) ($lr['ref_no'] ?? '');
+        if ($checkNo === '' && $txnType === 'check_endorse') {
+            $checkNo = $refNo;
+        }
         $displayRef = $checkNo !== '' ? $checkNo : $refNo;
         $docHint = crm_party_statement_receipt_doc_hint($txnType, $memo);
         $out['rows'][] = [

@@ -24,16 +24,212 @@ function fin_checks_manage_has_lifecycle(PDO $pdo): bool
     return $cached;
 }
 
+function fin_checks_manage_has_endorse_columns(PDO $pdo): bool
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    try {
+        $st = $pdo->query(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fin_voucher_check' AND COLUMN_NAME = 'endorsed_party_type'"
+        );
+        $cached = ((int) $st->fetchColumn()) > 0;
+    } catch (Throwable $e) {
+        $cached = false;
+    }
+
+    return $cached;
+}
+
+function fin_checks_manage_has_undo_columns(PDO $pdo): bool
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    try {
+        $st = $pdo->query(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fin_voucher_check' AND COLUMN_NAME = 'action_undo_at'"
+        );
+        $cached = ((int) $st->fetchColumn()) > 0;
+    } catch (Throwable $e) {
+        $cached = false;
+    }
+
+    return $cached;
+}
+
+function fin_checks_manage_has_supplier_check_endorse_txn(PDO $pdo): bool
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    require_once app_path('includes/crm_supplier_ledger.php');
+    if (!crm_supplier_ledger_has_table($pdo)) {
+        $cached = false;
+
+        return false;
+    }
+    try {
+        $st = $pdo->query(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'crm_supplier_ledger' AND COLUMN_NAME = 'txn_type'"
+        );
+        $txnType = (string) ($st->fetchColumn() ?: '');
+        $cached = stripos($txnType, 'check_endorse') !== false;
+    } catch (Throwable $e) {
+        $cached = false;
+    }
+
+    return $cached;
+}
+
+/** إزالة سجلات تجيير الشيك من دفتر العميل (التجيير يظهر في كشف المورد فقط). */
+function fin_checks_manage_purge_customer_check_endorse(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    require_once app_path('includes/crm_customer_ledger.php');
+    if (crm_ledger_has_table($pdo)) {
+        try {
+            $pdo->exec("DELETE FROM crm_customer_ledger WHERE txn_type = 'check_endorse'");
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+    $done = true;
+}
+
+/** SQL fragment: مسح علامة الإلغاء عند ترحيل إجراء جديد. */
+function fin_checks_manage_sql_clear_undo_flags(PDO $pdo): string
+{
+    return fin_checks_manage_has_undo_columns($pdo)
+        ? ', action_undo_at = NULL, undone_action = NULL'
+        : '';
+}
+
+/**
+ * @param array<string, mixed> $row
+ * @return array{
+ *   action_was_undone:bool,
+ *   execute_label:string,
+ *   undone_action_label:string,
+ *   action_undo_at:string,
+ *   action_undo_at_dmy:string,
+ *   post_status_label:string,
+ *   action_type_label:string,
+ *   status_display:string,
+ *   status_badge_class:string
+ * }
+ */
+function fin_checks_manage_undo_display(array $row, string $lifecycle): array
+{
+    $actionUndoAt = trim((string) ($row['action_undo_at'] ?? ''));
+    $undoneAction = (string) ($row['undone_action'] ?? '');
+    $actionWasUndone = $lifecycle === 'pending' && $actionUndoAt !== '';
+    $undoneLabel = match ($undoneAction) {
+        'returned' => 'إرجاع',
+        'endorsed' => 'تجيير',
+        'cleared' => 'صرف',
+        default => '',
+    };
+
+    $undoAtDmy = '';
+    if ($actionUndoAt !== '') {
+        try {
+            $undoAtDmy = format_date_dmY((new DateTimeImmutable($actionUndoAt))->format('Y-m-d'));
+        } catch (Throwable $e) {
+            $undoAtDmy = '';
+        }
+    }
+
+    if (!$actionWasUndone) {
+        return [
+            'action_was_undone' => false,
+            'execute_label' => '',
+            'undone_action_label' => '',
+            'action_undo_at' => '',
+            'action_undo_at_dmy' => '',
+            'post_status_label' => '',
+            'action_type_label' => '',
+            'status_display' => '',
+            'status_badge_class' => '',
+        ];
+    }
+
+    $statusFull = 'تم الإلغاء' . ($undoneLabel !== '' ? ' — ' . $undoneLabel : '');
+
+    return [
+        'action_was_undone' => true,
+        'execute_label' => 'تم الإلغاء',
+        'undone_action_label' => $undoneLabel,
+        'action_undo_at' => $actionUndoAt,
+        'action_undo_at_dmy' => $undoAtDmy,
+        'post_status_label' => 'تم الإلغاء',
+        'action_type_label' => $undoneLabel !== '' ? ('إلغاء ' . $undoneLabel) : '—',
+        'status_display' => $statusFull,
+        'status_badge_class' => 'fin-chk-badge fin-chk-badge--undo',
+    ];
+}
+
+/**
+ * @param array<string, mixed> $postDisplay
+ * @param array<string, mixed> $undoDisplay
+ * @return array{post_status_label:string, action_type_label:string, status_display:string, status_badge_class:string, action_date_display:string, action_date_dmy:string}
+ */
+function fin_checks_manage_row_labels(array $postDisplay, array $undoDisplay, string $actionDate): array
+{
+    if (!empty($undoDisplay['action_was_undone'])) {
+        return [
+            'post_status_label' => (string) $undoDisplay['post_status_label'],
+            'action_type_label' => (string) $undoDisplay['action_type_label'],
+            'status_display' => (string) $undoDisplay['status_display'],
+            'status_badge_class' => (string) $undoDisplay['status_badge_class'],
+            'action_date_display' => (string) ($undoDisplay['action_undo_at'] ?? ''),
+            'action_date_dmy' => (string) ($undoDisplay['action_undo_at_dmy'] ?? ''),
+        ];
+    }
+
+    $actionDate = trim($actionDate);
+
+    return [
+        'post_status_label' => (string) ($postDisplay['post'] ?? ''),
+        'action_type_label' => (string) ($postDisplay['action'] ?? ''),
+        'status_display' => (string) ($postDisplay['full'] ?? ''),
+        'status_badge_class' => (string) ($postDisplay['badge_class'] ?? ''),
+        'action_date_display' => $actionDate,
+        'action_date_dmy' => $actionDate !== '' ? format_date_dmY($actionDate) : '',
+    ];
+}
+
 function fin_checks_manage_ensure_schema(PDO $pdo): bool
 {
     if (!fin_voucher_checks_ensure_table($pdo)) {
         return false;
     }
-    if (fin_checks_manage_has_lifecycle($pdo)) {
-        return true;
+    if (!fin_checks_manage_has_lifecycle($pdo)) {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/162_fin_checks_manage.sql');
     }
-    require_once app_path('includes/sql_migration.php');
-    sql_migration_run_file($pdo, 'database/migrations/162_fin_checks_manage.sql');
+    if (!fin_checks_manage_has_endorse_columns($pdo)) {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/172_fin_check_endorse.sql');
+    }
+    if (!fin_checks_manage_has_undo_columns($pdo)) {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/173_fin_check_action_undo.sql');
+    }
+    if (!fin_checks_manage_has_supplier_check_endorse_txn($pdo)) {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/175_fin_check_endorse_supplier_ledger.sql');
+    }
+    fin_checks_manage_purge_customer_check_endorse($pdo);
 
     return fin_checks_manage_has_lifecycle($pdo);
 }
@@ -59,27 +255,63 @@ function fin_checks_manage_parse_filters(array $input): array
         $direction = 'all';
     }
     $status = (string) ($input['status'] ?? 'all');
-    if (!in_array($status, ['all', 'pending', 'cleared', 'returned'], true)) {
+    if (!in_array($status, ['all', 'pending', 'cleared', 'returned', 'endorsed', 'undone'], true)) {
         $status = 'all';
     }
     $dateField = (string) ($input['date_field'] ?? 'voucher');
-    if (!in_array($dateField, ['voucher', 'due', 'cleared', 'returned'], true)) {
+    if (!in_array($dateField, ['voucher', 'due', 'cleared', 'returned', 'endorsed'], true)) {
         $dateField = 'voucher';
     }
 
     $from = trim((string) ($input['from'] ?? ''));
     $to = trim((string) ($input['to'] ?? ''));
 
+    $sortField = (string) ($input['sort_field'] ?? 'voucher');
+    if (!in_array($sortField, ['due', 'voucher', 'action'], true)) {
+        $sortField = 'voucher';
+    }
+    $sortDir = strtolower(trim((string) ($input['sort_dir'] ?? 'asc')));
+    if (!in_array($sortDir, ['asc', 'desc'], true)) {
+        $sortDir = 'asc';
+    }
+
     return [
         'direction' => $direction,
         'check_no' => trim((string) ($input['check_no'] ?? '')),
+        'check_id' => max(0, (int) ($input['check_id'] ?? 0)),
         'status' => $status,
         'date_field' => $dateField,
+        'sort_field' => $sortField,
+        'sort_dir' => $sortDir,
         'from' => $from,
         'to' => $to,
         'overdue_only' => !empty($input['overdue_only']),
         'date_range_active' => $from !== '' && $to !== '',
     ];
+}
+
+/** تعبير SQL لتاريخ الترتيب حسب العمود المختار. */
+function fin_checks_manage_sort_expr(PDO $pdo, string $sortField): string
+{
+    return match ($sortField) {
+        'voucher' => 'v.voucher_date',
+        'action' => fin_checks_manage_has_undo_columns($pdo)
+            ? "COALESCE(
+                CASE WHEN c.action_undo_at IS NOT NULL THEN DATE(c.action_undo_at) END,
+                CASE WHEN c.lifecycle_status IN ('cleared','returned','endorsed') THEN c.action_date END
+              )"
+            : "CASE WHEN c.lifecycle_status IN ('cleared','returned','endorsed') THEN c.action_date END",
+        default => 'c.due_date',
+    };
+}
+
+function fin_checks_manage_order_sql(PDO $pdo, array $filters): string
+{
+    $sortField = (string) ($filters['sort_field'] ?? 'voucher');
+    $sortDir = strtoupper((string) ($filters['sort_dir'] ?? 'ASC')) === 'DESC' ? 'DESC' : 'ASC';
+    $primary = fin_checks_manage_sort_expr($pdo, $sortField);
+
+    return " ORDER BY ({$primary} IS NULL), {$primary} {$sortDir}, v.voucher_date ASC, c.due_date ASC, c.id ASC";
 }
 
 function fin_checks_manage_due_meta(string $dueDate, ?string $today = null): array
@@ -144,6 +376,7 @@ function fin_checks_manage_status_label(string $status): string
     return match ($status) {
         'cleared' => 'صرف',
         'returned' => 'إرجاع',
+        'endorsed' => 'تجيير',
         default => '—',
     };
 }
@@ -165,6 +398,14 @@ function fin_checks_manage_post_display(string $lifecycle): array
             'action' => 'إرجاع',
             'full' => 'تم الترحيل — إرجاع',
             'badge_class' => 'fin-chk-badge fin-chk-badge--posted-return',
+        ];
+    }
+    if ($lifecycle === 'endorsed') {
+        return [
+            'post' => 'تم الترحيل',
+            'action' => 'تجيير',
+            'full' => 'تم الترحيل — تجيير',
+            'badge_class' => 'fin-chk-badge fin-chk-badge--posted-endorse',
         ];
     }
 
@@ -385,7 +626,221 @@ function fin_checks_manage_row_data_attrs(array $row): array
 }
 
 /**
- * مزامنة الشيكات القديمة: تحصيل يدوي سابق (FIFO) أو قيود fin_check_* أو سند صرف مرحّل.
+ * شرط ترحيل السند (عمود is_posted أو قيد cash_receipt/cash_payment).
+ */
+function fin_checks_manage_voucher_posted_sql(PDO $pdo, string $alias = 'v'): string
+{
+    require_once app_path('includes/acc_gl.php');
+    $hasPostedCol = fin_voucher_has_column($pdo, 'is_posted');
+    if ($hasPostedCol && acc_gl_journal_has_ref_columns($pdo)) {
+        return "({$alias}.is_posted = 1 OR EXISTS (
+            SELECT 1 FROM acc_journal_entry e
+            WHERE e.ref_id = {$alias}.id
+              AND e.ref_type IN ('cash_receipt', 'cash_payment')
+              AND e.status = 'posted'
+        ))";
+    }
+    if ($hasPostedCol) {
+        return "{$alias}.is_posted = 1";
+    }
+
+    return '0';
+}
+
+/**
+ * إعادة الشيكات التي تُظهر «مصروف/مرتجع/مجيّر» دون قيد إجراء فعلي إلى «قيد».
+ */
+function fin_checks_manage_repair_spurious_lifecycle(PDO $pdo): void
+{
+    if (!fin_checks_manage_has_lifecycle($pdo)) {
+        return;
+    }
+    require_once app_path('includes/acc_gl.php');
+    $hasGlRef = acc_gl_journal_has_ref_columns($pdo);
+
+    try {
+        if ($hasGlRef) {
+            $pdo->exec(
+                "UPDATE fin_voucher_check c
+                 SET lifecycle_status = 'pending',
+                     action_date = NULL,
+                     action_account_id = NULL,
+                     action_journal_id = NULL,
+                     return_reason = NULL
+                 WHERE c.lifecycle_status = 'cleared'
+                   AND (c.action_journal_id IS NULL OR c.action_journal_id = 0)
+                   AND NOT EXISTS (
+                       SELECT 1 FROM acc_journal_entry e
+                       WHERE e.ref_type = 'fin_check_clear' AND e.ref_id = c.id AND e.status = 'posted'
+                   )"
+            );
+            $pdo->exec(
+                "UPDATE fin_voucher_check c
+                 SET lifecycle_status = 'pending',
+                     action_date = NULL,
+                     action_journal_id = NULL,
+                     return_reason = NULL
+                 WHERE c.lifecycle_status = 'returned'
+                   AND (c.action_journal_id IS NULL OR c.action_journal_id = 0)
+                   AND NOT EXISTS (
+                       SELECT 1 FROM acc_journal_entry e
+                       WHERE e.ref_type = 'fin_check_return' AND e.ref_id = c.id AND e.status = 'posted'
+                   )"
+            );
+            if (fin_checks_manage_has_endorse_columns($pdo)) {
+                $pdo->exec(
+                    "UPDATE fin_voucher_check c
+                     SET lifecycle_status = 'pending',
+                         action_date = NULL,
+                         action_account_id = NULL,
+                         action_journal_id = NULL,
+                         return_reason = NULL,
+                         endorsed_party_type = NULL,
+                         endorsed_party_id = NULL,
+                         endorse_notes = NULL
+                     WHERE c.lifecycle_status = 'endorsed'
+                       AND (c.action_journal_id IS NULL OR c.action_journal_id = 0)
+                       AND NOT EXISTS (
+                           SELECT 1 FROM acc_journal_entry e
+                           WHERE e.ref_type = 'fin_check_endorse' AND e.ref_id = c.id AND e.status = 'posted'
+                       )"
+                );
+            }
+        } else {
+            $pdo->exec(
+                "UPDATE fin_voucher_check
+                 SET lifecycle_status = 'pending',
+                     action_date = NULL,
+                     action_account_id = NULL,
+                     action_journal_id = NULL,
+                     return_reason = NULL
+                 WHERE lifecycle_status IN ('cleared', 'returned', 'endorsed')
+                   AND (action_journal_id IS NULL OR action_journal_id = 0)"
+            );
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+}
+
+/**
+ * تطبيق حالة «تم الإلغاء» على الشيك بعد حذف قيد الصرف/الإرجاع/التجيير.
+ */
+function fin_checks_manage_apply_undo_state(PDO $pdo, int $checkId, string $previousStatus): bool
+{
+    if ($checkId < 1 || !fin_checks_manage_ensure_schema($pdo)) {
+        return false;
+    }
+    if (!in_array($previousStatus, ['cleared', 'returned', 'endorsed'], true)) {
+        return false;
+    }
+
+    try {
+        $st = $pdo->prepare(
+            'SELECT lifecycle_status, action_undo_at FROM fin_voucher_check WHERE id = ? LIMIT 1'
+        );
+        $st->execute([$checkId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return false;
+    }
+    if (!$row) {
+        return false;
+    }
+
+    $lifecycle = (string) ($row['lifecycle_status'] ?? 'pending');
+    if ($lifecycle === 'pending' && trim((string) ($row['action_undo_at'] ?? '')) !== '') {
+        return true;
+    }
+    if ($lifecycle !== 'pending' && $lifecycle !== $previousStatus) {
+        return false;
+    }
+
+    if ($previousStatus === 'returned') {
+        fin_checks_manage_delete_party_return($pdo, $checkId);
+    }
+    if ($previousStatus === 'endorsed') {
+        fin_checks_manage_delete_party_endorse($pdo, $checkId);
+    }
+
+    $hasEndorse = fin_checks_manage_has_endorse_columns($pdo);
+    $endorseReset = $hasEndorse
+        ? ', endorsed_party_type = NULL, endorsed_party_id = NULL, endorse_notes = NULL'
+        : '';
+    $undoSet = fin_checks_manage_has_undo_columns($pdo)
+        ? ', action_undo_at = COALESCE(action_undo_at, NOW()), undone_action = COALESCE(undone_action, ?)'
+        : '';
+    $undoParams = fin_checks_manage_has_undo_columns($pdo) ? [$previousStatus] : [];
+
+    try {
+        $pdo->prepare(
+            "UPDATE fin_voucher_check
+             SET lifecycle_status = 'pending', action_date = NULL, return_reason = NULL,
+                 action_account_id = NULL, action_journal_id = NULL, action_at = NULL, action_by = NULL{$endorseReset}{$undoSet}
+             WHERE id = ?"
+        )->execute(array_merge($undoParams, [$checkId]));
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * مزامنة الشيكات التي فقدت قيودها (إلغاء من السند/القيود) مع حالة «تم الإلغاء».
+ */
+function fin_checks_manage_sync_orphan_actions(PDO $pdo): void
+{
+    if (!fin_checks_manage_has_lifecycle($pdo)) {
+        return;
+    }
+    require_once app_path('includes/acc_gl.php');
+    if (!acc_gl_journal_has_ref_columns($pdo)) {
+        return;
+    }
+
+    try {
+        $st = $pdo->query(
+            "SELECT c.id, c.lifecycle_status
+             FROM fin_voucher_check c
+             WHERE c.lifecycle_status IN ('cleared','returned','endorsed')
+               AND NOT EXISTS (
+                   SELECT 1 FROM acc_journal_entry e
+                   WHERE e.ref_id = c.id AND e.status = 'posted'
+                     AND (
+                       (c.lifecycle_status = 'cleared' AND e.ref_type = 'fin_check_clear')
+                       OR (c.lifecycle_status = 'returned' AND e.ref_type = 'fin_check_return')
+                       OR (c.lifecycle_status = 'endorsed' AND e.ref_type = 'fin_check_endorse')
+                     )
+               )"
+        );
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $checkId = (int) ($row['id'] ?? 0);
+            $status = (string) ($row['lifecycle_status'] ?? '');
+            if ($checkId > 0 && $status !== '') {
+                fin_checks_manage_apply_undo_state($pdo, $checkId, $status);
+            }
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+}
+
+/**
+ * @return 'cleared'|'returned'|'endorsed'|null
+ */
+function fin_checks_manage_ref_type_to_lifecycle(string $refType): ?string
+{
+    return match ($refType) {
+        'fin_check_clear' => 'cleared',
+        'fin_check_return' => 'returned',
+        'fin_check_endorse' => 'endorsed',
+        default => null,
+    };
+}
+
+/**
+ * مزامنة الشيكات القديمة: قيود fin_check_* المسجّلة سابقاً فقط.
  */
 function fin_checks_manage_sync_legacy_status(PDO $pdo): void
 {
@@ -395,16 +850,23 @@ function fin_checks_manage_sync_legacy_status(PDO $pdo): void
     }
     $done = true;
 
+    fin_checks_manage_repair_spurious_lifecycle($pdo);
+    fin_checks_manage_sync_orphan_actions($pdo);
+
     require_once app_path('includes/acc_gl.php');
 
     try {
+        $refTypes = "'fin_check_clear', 'fin_check_return'";
+        if (fin_checks_manage_has_endorse_columns($pdo)) {
+            $refTypes .= ", 'fin_check_endorse'";
+        }
         $st = $pdo->query(
             "SELECT c.id AS check_id, e.ref_type, e.entry_date, e.id AS journal_id,
                     (SELECT l.account_id FROM acc_journal_line l
                      WHERE l.journal_id = e.id AND l.debit > 0.000001 LIMIT 1) AS debit_account_id
              FROM fin_voucher_check c
              INNER JOIN acc_journal_entry e ON e.ref_id = c.id
-                AND e.ref_type IN ('fin_check_clear', 'fin_check_return')
+                AND e.ref_type IN ({$refTypes})
                 AND e.status = 'posted'
              WHERE c.lifecycle_status = 'pending'"
         );
@@ -419,6 +881,13 @@ function fin_checks_manage_sync_legacy_status(PDO $pdo): void
                  return_reason = COALESCE(NULLIF(return_reason, ''), 'إرجاع — قيد سابق')
              WHERE id = ? AND lifecycle_status = 'pending'"
         );
+        $updEndorse = fin_checks_manage_has_endorse_columns($pdo)
+            ? $pdo->prepare(
+                "UPDATE fin_voucher_check
+                 SET lifecycle_status = 'endorsed', action_date = ?, action_journal_id = ?
+                 WHERE id = ? AND lifecycle_status = 'pending'"
+            )
+            : null;
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
             $cid = (int) ($row['check_id'] ?? 0);
             if ($cid < 1) {
@@ -426,15 +895,22 @@ function fin_checks_manage_sync_legacy_status(PDO $pdo): void
             }
             $entryDate = (string) ($row['entry_date'] ?? '');
             $journalId = (int) ($row['journal_id'] ?? 0);
-            if ((string) ($row['ref_type'] ?? '') === 'fin_check_clear') {
+            $refType = (string) ($row['ref_type'] ?? '');
+            if ($refType === 'fin_check_clear') {
                 $updClear->execute([
                     $entryDate !== '' ? $entryDate : null,
                     (int) ($row['debit_account_id'] ?? 0) ?: null,
                     $journalId > 0 ? $journalId : null,
                     $cid,
                 ]);
-            } else {
+            } elseif ($refType === 'fin_check_return') {
                 $updReturn->execute([
+                    $entryDate !== '' ? $entryDate : null,
+                    $journalId > 0 ? $journalId : null,
+                    $cid,
+                ]);
+            } elseif ($updEndorse !== null && $refType === 'fin_check_endorse') {
+                $updEndorse->execute([
                     $entryDate !== '' ? $entryDate : null,
                     $journalId > 0 ? $journalId : null,
                     $cid,
@@ -486,54 +962,50 @@ function fin_checks_manage_sync_legacy_status(PDO $pdo): void
         // ignore
     }
 
-    // شيكات واردة مُحصّلة سابقاً (FIFO — خارج صندوق الشيكات)
+    // تجيير شيك — سجل كشف حساب المورد المُجيَّر إليه
     try {
-        $pendingInFund = fin_voucher_checks_pending_collection($pdo);
-        $stillPending = [];
-        foreach ($pendingInFund as $p) {
-            $stillPending[(int) ($p['check_id'] ?? 0)] = true;
-        }
-
-        $hasPostedCol = fin_voucher_has_column($pdo, 'is_posted');
-        $postedFilter = $hasPostedCol ? ' AND v.is_posted = 1 ' : '';
-        $st = $pdo->query(
-            "SELECT c.id, COALESCE(c.due_date, v.voucher_date) AS action_guess
-             FROM fin_voucher_check c
-             INNER JOIN fin_voucher v ON v.id = c.voucher_id AND v.voucher_type = 'receipt'
-             WHERE c.lifecycle_status = 'pending' {$postedFilter}"
-        );
-        $updLegacyClear = $pdo->prepare(
-            "UPDATE fin_voucher_check
-             SET lifecycle_status = 'cleared',
-                 action_date = COALESCE(action_date, ?),
-                 return_reason = NULL
-             WHERE id = ? AND lifecycle_status = 'pending'"
-        );
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
-            $cid = (int) ($row['id'] ?? 0);
-            if ($cid < 1 || isset($stillPending[$cid])) {
-                continue;
-            }
-            $updLegacyClear->execute([
-                (string) ($row['action_guess'] ?? '') ?: null,
-                $cid,
-            ]);
-        }
-    } catch (Throwable $e) {
-        // ignore
-    }
-
-    // شيكات صادرة — سند الصرف مرحّل = مُصروف محاسبياً
-    try {
-        if (fin_voucher_has_column($pdo, 'is_posted')) {
-            $pdo->exec(
-                "UPDATE fin_voucher_check c
-                 INNER JOIN fin_voucher v ON v.id = c.voucher_id AND v.voucher_type = 'payment'
-                 SET c.lifecycle_status = 'cleared',
-                     c.action_date = COALESCE(c.action_date, v.voucher_date),
-                     c.action_account_id = COALESCE(c.action_account_id, v.cash_account_id)
-                 WHERE c.lifecycle_status = 'pending' AND v.is_posted = 1"
+        require_once app_path('includes/crm_customer_ledger.php');
+        require_once app_path('includes/crm_supplier_ledger.php');
+        fin_checks_manage_purge_customer_check_endorse($pdo);
+        if (fin_checks_manage_has_endorse_columns($pdo) && crm_supplier_ledger_has_table($pdo)) {
+            fin_checks_manage_ensure_supplier_check_endorse_txn($pdo);
+            $st = $pdo->query(
+                "SELECT c.id AS check_id, c.check_no, c.check_amount, c.action_date, c.action_journal_id,
+                        c.endorsed_party_id, v.voucher_no
+                 FROM fin_voucher_check c
+                 INNER JOIN fin_voucher v ON v.id = c.voucher_id
+                 WHERE c.lifecycle_status = 'endorsed'
+                   AND c.endorsed_party_type = 'supplier'
+                   AND c.endorsed_party_id > 0"
             );
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $checkId = (int) ($row['check_id'] ?? 0);
+                $supplierId = (int) ($row['endorsed_party_id'] ?? 0);
+                if ($checkId < 1 || $supplierId < 1) {
+                    continue;
+                }
+                $actionDate = (string) ($row['action_date'] ?? '');
+                if ($actionDate === '') {
+                    continue;
+                }
+                $journalId = (int) ($row['action_journal_id'] ?? 0);
+                if (!crm_supplier_ledger_exists($pdo, 'check_endorse', $checkId)) {
+                    fin_checks_manage_post_party_endorse(
+                        $pdo,
+                        [
+                            'id' => $checkId,
+                            'check_no' => (string) ($row['check_no'] ?? ''),
+                            'voucher_no' => (string) ($row['voucher_no'] ?? ''),
+                            'check_amount' => (float) ($row['check_amount'] ?? 0),
+                        ],
+                        $actionDate,
+                        $supplierId,
+                        $journalId
+                    );
+                } elseif ($journalId > 0) {
+                    crm_supplier_ledger_delete_journal_voucher_by_journal($pdo, $journalId);
+                }
+            }
         }
     } catch (Throwable $e) {
         // ignore
@@ -554,6 +1026,62 @@ function fin_checks_manage_sync_legacy_status(PDO $pdo): void
     } catch (Throwable $e) {
         // ignore
     }
+}
+
+function fin_checks_manage_check_has_posted_journal(PDO $pdo, int $checkId, string $lifecycle): bool
+{
+    if ($checkId < 1 || !in_array($lifecycle, ['cleared', 'returned', 'endorsed'], true)) {
+        return false;
+    }
+    require_once app_path('includes/acc_gl.php');
+    if (!acc_gl_journal_has_ref_columns($pdo)) {
+        return false;
+    }
+    $refType = match ($lifecycle) {
+        'returned' => 'fin_check_return',
+        'endorsed' => 'fin_check_endorse',
+        default => 'fin_check_clear',
+    };
+    try {
+        $st = $pdo->prepare(
+            "SELECT 1 FROM acc_journal_entry
+             WHERE ref_type = ? AND ref_id = ? AND status = 'posted' LIMIT 1"
+        );
+        $st->execute([$refType, $checkId]);
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * @param array<string, mixed> $row
+ * @return array<string, mixed>
+ */
+function fin_checks_manage_refresh_row_after_undo(PDO $pdo, array $row): array
+{
+    $checkId = (int) ($row['check_id'] ?? $row['id'] ?? 0);
+    if ($checkId < 1) {
+        return $row;
+    }
+    try {
+        $hasUndo = fin_checks_manage_has_undo_columns($pdo);
+        $undoCols = $hasUndo ? ', action_undo_at, undone_action' : '';
+        $st = $pdo->prepare(
+            "SELECT lifecycle_status, action_date, return_reason, action_account_id, action_journal_id{$undoCols}
+             FROM fin_voucher_check WHERE id = ? LIMIT 1"
+        );
+        $st->execute([$checkId]);
+        $fresh = $st->fetch(PDO::FETCH_ASSOC);
+        if ($fresh) {
+            return array_merge($row, $fresh);
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+
+    return $row;
 }
 
 function fin_checks_manage_direction_label(string $voucherType): string
@@ -581,29 +1109,42 @@ function fin_checks_manage_fetch(PDO $pdo, array $filters, ?string $today = null
         return [];
     }
 
-    $hasPostedCol = fin_voucher_has_column($pdo, 'is_posted');
-    $postedExpr = $hasPostedCol ? 'v.is_posted' : '0';
+    $postedExpr = fin_checks_manage_voucher_posted_sql($pdo, 'v');
 
     $dateCol = match ($filters['date_field'] ?? 'voucher') {
         'due' => 'c.due_date',
         'cleared' => "CASE WHEN c.lifecycle_status = 'cleared' THEN c.action_date ELSE NULL END",
         'returned' => "CASE WHEN c.lifecycle_status = 'returned' THEN c.action_date ELSE NULL END",
+        'endorsed' => "CASE WHEN c.lifecycle_status = 'endorsed' THEN c.action_date ELSE NULL END",
         default => 'v.voucher_date',
     };
 
+    $hasEndorse = fin_checks_manage_has_endorse_columns($pdo);
+    $endorseCols = $hasEndorse
+        ? ', c.endorsed_party_type, c.endorsed_party_id, c.endorse_notes'
+        : '';
+    $hasUndo = fin_checks_manage_has_undo_columns($pdo);
+    $undoCols = $hasUndo ? ', c.action_undo_at, c.undone_action' : '';
+    $endorseJoins = $hasEndorse
+        ? '
+         LEFT JOIN crm_customer end_cust ON c.endorsed_party_type = \'customer\' AND end_cust.id = c.endorsed_party_id
+         LEFT JOIN crm_supplier end_sup ON c.endorsed_party_type = \'supplier\' AND end_sup.id = c.endorsed_party_id'
+        : '';
+
     $sql =
         "SELECT c.id AS check_id, c.check_no, c.bank_name, c.check_amount, c.due_date, c.notes,
-                c.lifecycle_status, c.action_date, c.return_reason, c.action_account_id, c.action_journal_id,
+                c.lifecycle_status, c.action_date, c.return_reason, c.action_account_id, c.action_journal_id{$endorseCols}{$undoCols},
                 v.id AS voucher_id, v.voucher_no, v.voucher_date, v.voucher_type, v.party_id, v.party_type,
                 v.cash_account_id,
                 ({$postedExpr}) AS is_posted,
                 COALESCE(cust.name_ar, sup.name_ar, '—') AS party_name,
-                COALESCE(acc.name_ar, '') AS action_account_name
+                COALESCE(acc.name_ar, '') AS action_account_name"
+        . ($hasEndorse ? ", COALESCE(end_cust.name_ar, end_sup.name_ar, '') AS endorsed_party_name" : '') . "
          FROM fin_voucher_check c
          INNER JOIN fin_voucher v ON v.id = c.voucher_id
          LEFT JOIN crm_customer cust ON v.party_type = 'customer' AND cust.id = v.party_id
          LEFT JOIN crm_supplier sup ON v.party_type = 'supplier' AND sup.id = v.party_id
-         LEFT JOIN acc_account acc ON acc.id = c.action_account_id
+         LEFT JOIN acc_account acc ON acc.id = c.action_account_id{$endorseJoins}
          WHERE c.check_amount > 0.000001";
 
     $params = [];
@@ -622,7 +1163,19 @@ function fin_checks_manage_fetch(PDO $pdo, array $filters, ?string $today = null
     }
 
     $status = (string) ($filters['status'] ?? 'all');
-    if ($status !== 'all') {
+    if ($status === 'undone') {
+        if ($hasUndo) {
+            $sql .= " AND c.lifecycle_status = 'pending' AND c.action_undo_at IS NOT NULL";
+        } else {
+            $sql .= ' AND 1=0';
+        }
+    } elseif ($status === 'pending') {
+        if ($hasUndo) {
+            $sql .= " AND c.lifecycle_status = 'pending' AND (c.action_undo_at IS NULL OR c.action_undo_at = '')";
+        } else {
+            $sql .= " AND c.lifecycle_status = 'pending'";
+        }
+    } elseif ($status !== 'all') {
         $sql .= ' AND c.lifecycle_status = ?';
         $params[] = $status;
     }
@@ -633,7 +1186,13 @@ function fin_checks_manage_fetch(PDO $pdo, array $filters, ?string $today = null
         $params[] = '%' . $checkNo . '%';
     }
 
-    $sql .= ' ORDER BY c.due_date ASC, v.voucher_date ASC, c.id ASC';
+    $focusCheckId = (int) ($filters['check_id'] ?? 0);
+    if ($focusCheckId > 0) {
+        $sql .= ' AND c.id = ?';
+        $params[] = $focusCheckId;
+    }
+
+    $sql .= fin_checks_manage_order_sql($pdo, $filters);
 
     try {
         $st = $pdo->prepare($sql);
@@ -645,7 +1204,15 @@ function fin_checks_manage_fetch(PDO $pdo, array $filters, ?string $today = null
 
     $out = [];
     foreach ($rows as $row) {
+        $checkId = (int) ($row['check_id'] ?? 0);
         $lifecycle = (string) ($row['lifecycle_status'] ?? 'pending');
+        if ($checkId > 0 && in_array($lifecycle, ['cleared', 'returned', 'endorsed'], true)
+            && !fin_checks_manage_check_has_posted_journal($pdo, $checkId, $lifecycle)) {
+            fin_checks_manage_apply_undo_state($pdo, $checkId, $lifecycle);
+            $row = fin_checks_manage_refresh_row_after_undo($pdo, $row);
+            $lifecycle = (string) ($row['lifecycle_status'] ?? 'pending');
+        }
+
         $dueMeta = fin_checks_manage_due_meta((string) ($row['due_date'] ?? ''), $today);
         if (!empty($filters['overdue_only']) && empty($dueMeta['is_overdue'])) {
             continue;
@@ -655,8 +1222,16 @@ function fin_checks_manage_fetch(PDO $pdo, array $filters, ?string $today = null
         $vid = (int) ($row['voucher_id'] ?? 0);
         $voucherRoute = $voucherType === 'payment' ? 'cash_payment' : 'cash_receipt';
         $postDisplay = fin_checks_manage_post_display($lifecycle);
+        $undoDisplay = fin_checks_manage_undo_display($row, $lifecycle);
+        $labels = fin_checks_manage_row_labels(
+            $postDisplay,
+            $undoDisplay,
+            trim((string) ($row['action_date'] ?? ''))
+        );
         $journalId = (int) ($row['action_journal_id'] ?? 0);
-        $journalUrl = $journalId > 0 ? app_url('index.php?r=journal_entries&id=' . $journalId) : '';
+        $journalUrl = $journalId > 0
+            ? app_url('index.php?r=journal_entries&action=view&id=' . $journalId)
+            : '';
 
         $out[] = [
             'check_id' => (int) ($row['check_id'] ?? 0),
@@ -667,11 +1242,12 @@ function fin_checks_manage_fetch(PDO $pdo, array $filters, ?string $today = null
             'notes' => trim((string) ($row['notes'] ?? '')),
             'lifecycle_status' => $lifecycle,
             'lifecycle_label' => fin_checks_manage_status_label($lifecycle),
-            'post_status_label' => $postDisplay['post'],
-            'action_type_label' => $postDisplay['action'],
-            'status_display' => $postDisplay['full'],
-            'status_badge_class' => $postDisplay['badge_class'],
-            'action_date' => trim((string) ($row['action_date'] ?? '')),
+            'post_status_label' => $labels['post_status_label'],
+            'action_type_label' => $labels['action_type_label'],
+            'status_display' => $labels['status_display'],
+            'status_badge_class' => $labels['status_badge_class'],
+            'action_date' => $labels['action_date_display'],
+            'action_date_dmy' => $labels['action_date_dmy'],
             'return_reason' => trim((string) ($row['return_reason'] ?? '')),
             'action_account_id' => (int) ($row['action_account_id'] ?? 0),
             'action_account_name' => trim((string) ($row['action_account_name'] ?? '')),
@@ -692,6 +1268,124 @@ function fin_checks_manage_fetch(PDO $pdo, array $filters, ?string $today = null
             'urgency' => (string) ($dueMeta['urgency'] ?? ''),
             'urgency_label' => (string) ($dueMeta['urgency_label'] ?? ''),
             'can_action' => (int) ($row['is_posted'] ?? 0) === 1 && $lifecycle === 'pending',
+            'can_undo' => (int) ($row['is_posted'] ?? 0) === 1 && in_array($lifecycle, ['cleared', 'returned', 'endorsed'], true),
+            'action_was_undone' => (bool) ($undoDisplay['action_was_undone'] ?? false),
+            'execute_label' => (string) ($undoDisplay['execute_label'] ?? ''),
+            'undone_action_label' => (string) ($undoDisplay['undone_action_label'] ?? ''),
+            'action_undo_at' => (string) ($undoDisplay['action_undo_at'] ?? ''),
+            'action_undo_at_dmy' => (string) ($undoDisplay['action_undo_at_dmy'] ?? ''),
+            'undo_label' => match ($lifecycle) {
+                'returned' => 'إلغاء الإرجاع',
+                'endorsed' => 'إلغاء التجيير',
+                default => 'إلغاء الصرف',
+            },
+            'endorsed_party_type' => (string) ($row['endorsed_party_type'] ?? ''),
+            'endorsed_party_id' => (int) ($row['endorsed_party_id'] ?? 0),
+            'endorsed_party_name' => (string) ($row['endorsed_party_name'] ?? ''),
+            'endorse_notes' => (string) ($row['endorse_notes'] ?? ''),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * شيكات السند مع حالة الترحيل (لعرضها داخل سند القبض/الصرف).
+ *
+ * @return list<array<string, mixed>>
+ */
+function fin_checks_manage_checks_for_voucher_view(PDO $pdo, int $voucherId, bool $isPosted): array
+{
+    if ($voucherId < 1) {
+        return [];
+    }
+    require_once app_path('includes/fin_voucher_checks.php');
+    if (!fin_voucher_checks_ensure_table($pdo)) {
+        return [];
+    }
+    fin_checks_manage_ensure_schema($pdo);
+
+    $hasLifecycle = fin_checks_manage_has_lifecycle($pdo);
+    $hasEndorse = fin_checks_manage_has_endorse_columns($pdo);
+    $endorseJoins = $hasEndorse
+        ? "
+         LEFT JOIN crm_customer end_cust ON c.endorsed_party_type = 'customer' AND end_cust.id = c.endorsed_party_id
+         LEFT JOIN crm_supplier end_sup ON c.endorsed_party_type = 'supplier' AND end_sup.id = c.endorsed_party_id"
+        : '';
+    $endorseCols = $hasEndorse
+        ? ', c.endorsed_party_type, c.endorsed_party_id, c.endorse_notes'
+        : '';
+    $hasUndo = fin_checks_manage_has_undo_columns($pdo);
+    $undoCols = $hasUndo ? ', c.action_undo_at, c.undone_action' : '';
+    $endorseSelect = $hasEndorse
+        ? ", COALESCE(end_cust.name_ar, end_sup.name_ar, '') AS endorsed_party_name"
+        : ", '' AS endorsed_party_name";
+
+    $lifecycleCols = $hasLifecycle
+        ? ', c.lifecycle_status, c.action_date, c.return_reason, c.action_account_id, c.action_journal_id' . $endorseCols . $undoCols
+        : ", 'pending' AS lifecycle_status, NULL AS action_date, NULL AS return_reason, NULL AS action_account_id, NULL AS action_journal_id";
+
+    try {
+        $st = $pdo->prepare(
+            "SELECT c.id, c.sort_order, c.check_no, c.bank_name, c.check_amount, c.due_date, c.notes
+                    {$lifecycleCols}
+                    {$endorseSelect}
+             FROM fin_voucher_check c{$endorseJoins}
+             WHERE c.voucher_id = ?
+             ORDER BY c.sort_order ASC, c.id ASC"
+        );
+        $st->execute([$voucherId]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($rows as $row) {
+        $due = trim((string) ($row['due_date'] ?? ''));
+        $lifecycle = $hasLifecycle ? (string) ($row['lifecycle_status'] ?? 'pending') : 'pending';
+        $postDisplay = fin_checks_manage_post_display($lifecycle);
+        $undoDisplay = fin_checks_manage_undo_display($row, $lifecycle);
+        $labels = fin_checks_manage_row_labels(
+            $postDisplay,
+            $undoDisplay,
+            trim((string) ($row['action_date'] ?? ''))
+        );
+        $journalId = (int) ($row['action_journal_id'] ?? 0);
+        $actionDate = trim((string) ($row['action_date'] ?? ''));
+
+        $out[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'sort_order' => (int) ($row['sort_order'] ?? 0),
+            'check_no' => trim((string) ($row['check_no'] ?? '')),
+            'bank_name' => trim((string) ($row['bank_name'] ?? '')),
+            'check_amount' => (float) ($row['check_amount'] ?? 0),
+            'due_date' => $due,
+            'due_date_dmy' => $due !== '' ? format_date_dmY($due) : '',
+            'notes' => trim((string) ($row['notes'] ?? '')),
+            'lifecycle_status' => $lifecycle,
+            'status_display' => $labels['status_display'],
+            'action_type_label' => $labels['action_type_label'],
+            'post_status_label' => $labels['post_status_label'],
+            'status_badge_class' => $labels['status_badge_class'],
+            'action_date' => $labels['action_date_display'],
+            'action_date_dmy' => $labels['action_date_dmy'],
+            'return_reason' => trim((string) ($row['return_reason'] ?? '')),
+            'endorsed_party_name' => trim((string) ($row['endorsed_party_name'] ?? '')),
+            'endorse_notes' => trim((string) ($row['endorse_notes'] ?? '')),
+            'action_was_undone' => (bool) ($undoDisplay['action_was_undone'] ?? false),
+            'execute_label' => (string) ($undoDisplay['execute_label'] ?? ''),
+            'undone_action_label' => (string) ($undoDisplay['undone_action_label'] ?? ''),
+            'action_undo_at_dmy' => (string) ($undoDisplay['action_undo_at_dmy'] ?? ''),
+            'can_undo' => $isPosted && in_array($lifecycle, ['cleared', 'returned', 'endorsed'], true),
+            'undo_label' => match ($lifecycle) {
+                'returned' => 'إلغاء الإرجاع',
+                'endorsed' => 'إلغاء التجيير',
+                default => 'إلغاء الصرف',
+            },
+            'journal_url' => $journalId > 0
+                ? app_url('index.php?r=journal_entries&action=view&id=' . $journalId)
+                : '',
         ];
     }
 
@@ -704,8 +1398,7 @@ function fin_checks_manage_load_check(PDO $pdo, int $checkId): ?array
     if ($checkId < 1 || !fin_checks_manage_ensure_schema($pdo)) {
         return null;
     }
-    $hasPostedCol = fin_voucher_has_column($pdo, 'is_posted');
-    $postedExpr = $hasPostedCol ? 'v.is_posted' : '0';
+    $postedExpr = fin_checks_manage_voucher_posted_sql($pdo, 'v');
     $st = $pdo->prepare(
         "SELECT c.*, v.voucher_no, v.voucher_date, v.voucher_type, v.party_id, v.party_type, v.cash_account_id,
                 ({$postedExpr}) AS is_posted
@@ -771,6 +1464,260 @@ function fin_checks_manage_post_gl(
     }
 
     return acc_gl_post_entry($pdo, $refType, $checkId, $entryDate, $description, $lines);
+}
+
+function fin_checks_manage_unpost_journal(PDO $pdo, int $journalId): void
+{
+    if ($journalId < 1) {
+        return;
+    }
+    require_once app_path('includes/crm_customer_ledger.php');
+    require_once app_path('includes/crm_supplier_ledger.php');
+    crm_ledger_delete_journal_voucher_by_journal($pdo, $journalId);
+    crm_supplier_ledger_delete_journal_voucher_by_journal($pdo, $journalId);
+    $pdo->prepare('DELETE FROM acc_journal_line WHERE journal_id = ?')->execute([$journalId]);
+    $pdo->prepare('DELETE FROM acc_journal_entry WHERE id = ?')->execute([$journalId]);
+}
+
+/**
+ * @param list<array{rule?:string, account_id?:int, debit:float, credit:float, memo?:string, party_type?:string, party_id?:int}> $lines
+ */
+function fin_checks_manage_post_gl_with_parties(
+    PDO $pdo,
+    string $refType,
+    int $checkId,
+    string $entryDate,
+    string $description,
+    array $lines
+): int {
+    require_once app_path('includes/acc_gl.php');
+    require_once app_path('includes/acc_journal.php');
+    require_once app_path('includes/acc_journal_party.php');
+
+    if (!acc_gl_is_ready($pdo)) {
+        throw new RuntimeException('نظام الربط المحاسبي غير مهيأ.');
+    }
+    if (acc_gl_ref_exists($pdo, $refType, $checkId)) {
+        $st = $pdo->prepare(
+            "SELECT id FROM acc_journal_entry WHERE ref_type = ? AND ref_id = ? AND source = 'auto' LIMIT 1"
+        );
+        $st->execute([$refType, $checkId]);
+        $existingId = (int) $st->fetchColumn();
+        if ($existingId > 0) {
+            return $existingId;
+        }
+    }
+
+    $settings = acc_gl_load_settings($pdo);
+    $resolved = [];
+    foreach ($lines as $ln) {
+        $debit = round(max(0, (float) ($ln['debit'] ?? 0)), 6);
+        $credit = round(max(0, (float) ($ln['credit'] ?? 0)), 6);
+        if ($debit <= 0 && $credit <= 0) {
+            continue;
+        }
+        $accountId = (int) ($ln['account_id'] ?? 0);
+        if ($accountId < 1 && !empty($ln['rule'])) {
+            $accountId = acc_gl_account_id($settings, (string) $ln['rule']);
+        }
+        if ($accountId < 1) {
+            continue;
+        }
+        $row = [
+            'account_id' => $accountId,
+            'debit' => $debit,
+            'credit' => $credit,
+            'memo' => trim((string) ($ln['memo'] ?? '')),
+        ];
+        $partyType = strtolower(trim((string) ($ln['party_type'] ?? '')));
+        $partyId = (int) ($ln['party_id'] ?? 0);
+        if (in_array($partyType, ['customer', 'supplier'], true) && $partyId > 0) {
+            $row['party_type'] = $partyType;
+            $row['party_id'] = $partyId;
+        }
+        $resolved[] = $row;
+    }
+
+    $normalized = acc_journal_normalize_lines($resolved);
+    $entryNo = acc_gl_next_auto_entry_no($pdo, $refType, $checkId);
+    $uid = (int) (current_user()['id'] ?? 0) ?: null;
+
+    $pdo->prepare(
+        "INSERT INTO acc_journal_entry (entry_no, entry_date, description_ar, status, ref_type, ref_id, source, created_by)
+         VALUES (?,?,?,'posted',?,?,'auto',?)"
+    )->execute([
+        $entryNo,
+        $entryDate,
+        $description !== '' ? $description : null,
+        $refType,
+        $checkId,
+        $uid,
+    ]);
+    $journalId = (int) $pdo->lastInsertId();
+    acc_journal_replace_lines($pdo, $journalId, $normalized['lines']);
+    acc_journal_party_ledger_sync($pdo, $journalId, true);
+
+    return $journalId;
+}
+
+/**
+ * @return list<array{rule?:string, account_id?:int, debit:float, credit:float, memo?:string, party_type?:string, party_id?:int}>
+ */
+function fin_checks_manage_build_endorse_lines(
+    PDO $pdo,
+    array $check,
+    string $targetPartyType,
+    int $targetPartyId
+): array {
+    require_once app_path('includes/acc_gl.php');
+
+    $amount = round((float) ($check['check_amount'] ?? 0), 6);
+    if ($amount <= 0) {
+        throw new RuntimeException('قيمة الشيك غير صالحة.');
+    }
+
+    $voucherType = (string) ($check['voucher_type'] ?? '');
+    $origPartyType = (string) ($check['party_type'] ?? '');
+    $origPartyId = (int) ($check['party_id'] ?? 0);
+    $targetPartyType = strtolower(trim($targetPartyType));
+    if ($targetPartyType !== 'supplier') {
+        throw new RuntimeException('التجيير للموردين فقط.');
+    }
+    if ($targetPartyId < 1) {
+        throw new RuntimeException('اختر المورد المُجيَّر إليه.');
+    }
+
+    $targetMemo = fin_checks_manage_party_memo($pdo, 'supplier', $targetPartyId);
+    $checksFundId = acc_gl_checks_fund_account_id($pdo);
+
+    if ($voucherType === 'receipt') {
+        if ($checksFundId < 1) {
+            throw new RuntimeException('حساب صندوق الشيكات غير مهيأ.');
+        }
+
+        return [
+            [
+                'rule' => 'ap_suppliers',
+                'debit' => $amount,
+                'credit' => 0,
+                'memo' => $targetMemo,
+                'party_type' => 'supplier',
+                'party_id' => $targetPartyId,
+            ],
+            [
+                'account_id' => $checksFundId,
+                'debit' => 0,
+                'credit' => $amount,
+                'memo' => $targetMemo,
+            ],
+        ];
+    }
+
+    if ($origPartyType !== 'supplier' || $origPartyId < 1) {
+        throw new RuntimeException('تجيير شيك صادر للموردين فقط — سند الصرف الأصلي يجب أن يكون لمورد.');
+    }
+    if ($targetPartyId === $origPartyId) {
+        throw new RuntimeException('اختر مورداً مختلفاً عن مورد السند الأصلي.');
+    }
+    $origMemo = fin_checks_manage_party_memo($pdo, 'supplier', $origPartyId);
+
+    return [
+        [
+            'rule' => 'ap_suppliers',
+            'debit' => $amount,
+            'credit' => 0,
+            'memo' => $targetMemo,
+            'party_type' => 'supplier',
+            'party_id' => $targetPartyId,
+        ],
+        [
+            'rule' => 'ap_suppliers',
+            'debit' => 0,
+            'credit' => $amount,
+            'memo' => $origMemo,
+            'party_type' => 'supplier',
+            'party_id' => $origPartyId,
+        ],
+    ];
+}
+
+/**
+ * @return array{ok:bool, journal_id:int, message:string}
+ */
+function fin_checks_manage_endorse(
+    PDO $pdo,
+    int $checkId,
+    string $targetPartyType,
+    int $targetPartyId,
+    string $actionDate,
+    string $notes
+): array {
+    fin_checks_manage_ensure_schema($pdo);
+    $check = fin_checks_manage_load_check($pdo, $checkId);
+    if (!$check) {
+        throw new RuntimeException('الشيك غير موجود.');
+    }
+    fin_checks_manage_assert_actionable($check);
+
+    $actionIso = parse_date_to_iso($actionDate);
+    if ($actionIso === null) {
+        throw new RuntimeException('تاريخ التجيير غير صالح.');
+    }
+
+    $targetPartyType = 'supplier';
+    $targetPartyId = (int) $targetPartyId;
+    $notes = trim($notes);
+
+    require_once app_path('includes/fin_voucher.php');
+    if (fin_voucher_party_name($pdo, 'supplier', $targetPartyId) === '') {
+        throw new RuntimeException('المورد المختار غير موجود.');
+    }
+
+    $checkNo = trim((string) ($check['check_no'] ?? ''));
+    $targetName = fin_voucher_party_name($pdo, 'supplier', $targetPartyId);
+    $desc = 'تجيير شيك'
+        . ($checkNo !== '' ? ' ' . $checkNo : '')
+        . ' — ' . (string) ($check['voucher_no'] ?? '')
+        . ' — إلى ' . $targetName;
+    if ($notes !== '') {
+        $desc .= ' — ' . $notes;
+    }
+
+    $lines = fin_checks_manage_build_endorse_lines($pdo, $check, $targetPartyType, $targetPartyId);
+    $journalId = fin_checks_manage_post_gl_with_parties(
+        $pdo,
+        'fin_check_endorse',
+        $checkId,
+        $actionIso,
+        $desc,
+        $lines
+    );
+
+    $uid = (int) (current_user()['id'] ?? 0) ?: null;
+    $clearUndo = fin_checks_manage_sql_clear_undo_flags($pdo);
+    $pdo->prepare(
+        "UPDATE fin_voucher_check
+         SET lifecycle_status = 'endorsed', action_date = ?, endorse_notes = ?,
+             endorsed_party_type = ?, endorsed_party_id = ?,
+             action_journal_id = ?, action_at = NOW(), action_by = ?{$clearUndo}
+         WHERE id = ? AND lifecycle_status = 'pending'"
+    )->execute([
+        $actionIso,
+        $notes !== '' ? $notes : null,
+        $targetPartyType,
+        $targetPartyId,
+        $journalId,
+        $uid,
+        $checkId,
+    ]);
+
+    fin_checks_manage_post_party_endorse($pdo, $check, $actionIso, $targetPartyId, $journalId);
+
+    return [
+        'ok' => true,
+        'journal_id' => $journalId,
+        'message' => 'تم الترحيل — تجيير الشيك (قيد محاسبي).',
+    ];
 }
 
 function fin_checks_manage_post_party_return(
@@ -847,6 +1794,71 @@ function fin_checks_manage_post_party_return(
     }
 }
 
+function fin_checks_manage_post_party_endorse(
+    PDO $pdo,
+    array $check,
+    string $actionDate,
+    int $targetSupplierId,
+    int $journalId = 0
+): void {
+    $checkId = (int) ($check['id'] ?? $check['check_id'] ?? 0);
+    $amount = round((float) ($check['check_amount'] ?? 0), 6);
+    if ($checkId < 1 || $targetSupplierId < 1 || $amount <= 0) {
+        return;
+    }
+
+    require_once app_path('includes/crm_supplier_ledger.php');
+    require_once app_path('includes/fin_voucher.php');
+    crm_supplier_ledger_ensure_schema($pdo);
+    fin_checks_manage_ensure_supplier_check_endorse_txn($pdo);
+    if (crm_supplier_ledger_exists($pdo, 'check_endorse', $checkId)) {
+        if ($journalId > 0) {
+            crm_supplier_ledger_delete_journal_voucher_by_journal($pdo, $journalId);
+        }
+
+        return;
+    }
+
+    $checkNo = trim((string) ($check['check_no'] ?? ''));
+    $voucherNo = (string) ($check['voucher_no'] ?? '');
+    $memo = 'تجيير شيك';
+    if ($checkNo !== '') {
+        $memo .= ' ' . $checkNo;
+    }
+    if ($voucherNo !== '') {
+        $memo .= ' — سند ' . $voucherNo;
+    }
+
+    crm_supplier_ledger_insert(
+        $pdo,
+        $targetSupplierId,
+        $actionDate,
+        'check_endorse',
+        $checkId,
+        $checkNo !== '' ? $checkNo : ('CHK-' . $checkId),
+        'check',
+        $amount,
+        0.0,
+        $memo
+    );
+
+    if ($journalId > 0) {
+        crm_supplier_ledger_delete_journal_voucher_by_journal($pdo, $journalId);
+    }
+}
+
+function fin_checks_manage_delete_party_endorse(PDO $pdo, int $checkId): void
+{
+    if ($checkId < 1) {
+        return;
+    }
+    require_once app_path('includes/crm_supplier_ledger.php');
+    if (crm_supplier_ledger_has_table($pdo)) {
+        $pdo->prepare("DELETE FROM crm_supplier_ledger WHERE txn_type = 'check_endorse' AND ref_id = ?")
+            ->execute([$checkId]);
+    }
+}
+
 function fin_checks_manage_ensure_customer_check_return_txn(PDO $pdo): void
 {
     static $done = false;
@@ -872,6 +1884,30 @@ function fin_checks_manage_ensure_customer_check_return_txn(PDO $pdo): void
     } catch (Throwable $e) {
         require_once app_path('includes/sql_migration.php');
         sql_migration_run_file($pdo, 'database/migrations/162_fin_checks_manage.sql');
+    }
+    $done = true;
+}
+
+function fin_checks_manage_ensure_supplier_check_endorse_txn(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    require_once app_path('includes/crm_supplier_ledger.php');
+    if (!crm_supplier_ledger_has_table($pdo)) {
+        return;
+    }
+    if (fin_checks_manage_has_supplier_check_endorse_txn($pdo)) {
+        $done = true;
+
+        return;
+    }
+    try {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/175_fin_check_endorse_supplier_ledger.sql');
+    } catch (Throwable $e) {
+        // ignore
     }
     $done = true;
 }
@@ -912,7 +1948,6 @@ function fin_checks_manage_ensure_supplier_check_return_txn(PDO $pdo): void
  */
 function fin_checks_manage_clear(PDO $pdo, int $checkId, int $accountId, string $actionDate): array
 {
-    fin_checks_manage_ensure_schema($pdo);
     $check = fin_checks_manage_load_check($pdo, $checkId);
     if (!$check) {
         throw new RuntimeException('الشيك غير موجود.');
@@ -960,10 +1995,11 @@ function fin_checks_manage_clear(PDO $pdo, int $checkId, int $accountId, string 
     }
 
     $uid = (int) (current_user()['id'] ?? 0) ?: null;
+    $clearUndo = fin_checks_manage_sql_clear_undo_flags($pdo);
     $pdo->prepare(
         "UPDATE fin_voucher_check
          SET lifecycle_status = 'cleared', action_date = ?, action_account_id = ?,
-             action_journal_id = ?, action_at = NOW(), action_by = ?
+             action_journal_id = ?, action_at = NOW(), action_by = ?{$clearUndo}
          WHERE id = ? AND lifecycle_status = 'pending'"
     )->execute([
         $actionIso,
@@ -1056,10 +2092,11 @@ function fin_checks_manage_return(PDO $pdo, int $checkId, string $reason, string
     fin_checks_manage_post_party_return($pdo, $check, $actionIso, $reason);
 
     $uid = (int) (current_user()['id'] ?? 0) ?: null;
+    $clearUndo = fin_checks_manage_sql_clear_undo_flags($pdo);
     $pdo->prepare(
         "UPDATE fin_voucher_check
          SET lifecycle_status = 'returned', action_date = ?, return_reason = ?,
-             action_journal_id = ?, action_at = NOW(), action_by = ?
+             action_journal_id = ?, action_at = NOW(), action_by = ?{$clearUndo}
          WHERE id = ? AND lifecycle_status = 'pending'"
     )->execute([
         $actionIso,
@@ -1073,5 +2110,87 @@ function fin_checks_manage_return(PDO $pdo, int $checkId, string $reason, string
         'ok' => true,
         'journal_id' => $journalId,
         'message' => 'تم الترحيل — إرجاع' . ($journalId > 0 ? ' (قيد عكسي)' : ''),
+    ];
+}
+
+function fin_checks_manage_delete_party_return(PDO $pdo, int $checkId): void
+{
+    if ($checkId < 1) {
+        return;
+    }
+
+    require_once app_path('includes/crm_customer_ledger.php');
+    require_once app_path('includes/crm_supplier_ledger.php');
+
+    if (crm_ledger_has_table($pdo)) {
+        $pdo->prepare("DELETE FROM crm_customer_ledger WHERE txn_type = 'check_return' AND ref_id = ?")
+            ->execute([$checkId]);
+    }
+    if (crm_supplier_ledger_has_table($pdo)) {
+        $pdo->prepare("DELETE FROM crm_supplier_ledger WHERE txn_type = 'check_return' AND ref_id = ?")
+            ->execute([$checkId]);
+    }
+}
+
+/**
+ * إلغاء صرف/تحصيل أو إرجاع شيك — حذف القيد وإعادة الشيك إلى «قيد».
+ *
+ * @return array{ok:bool, message:string}
+ */
+function fin_checks_manage_undo(PDO $pdo, int $checkId): array
+{
+    fin_checks_manage_ensure_schema($pdo);
+    $check = fin_checks_manage_load_check($pdo, $checkId);
+    if (!$check) {
+        throw new RuntimeException('الشيك غير موجود.');
+    }
+
+    $status = (string) ($check['lifecycle_status'] ?? 'pending');
+    if ($status === 'pending') {
+        if (trim((string) ($check['action_undo_at'] ?? '')) !== '') {
+            throw new RuntimeException('تم إلغاء إجراء هذا الشيك مسبقاً.');
+        }
+        throw new RuntimeException('الشيك لم يُصرَف ولم يُرجَع بعد.');
+    }
+    if (!in_array($status, ['cleared', 'returned', 'endorsed'], true)) {
+        throw new RuntimeException('حالة الشيك غير مدعومة.');
+    }
+
+    require_once app_path('includes/acc_gl.php');
+
+    if ($status === 'cleared') {
+        $gl = acc_gl_unpost_ref($pdo, 'fin_check_clear', $checkId);
+        if (!$gl['ok']) {
+            throw new RuntimeException($gl['error'] ?? 'تعذر إلغاء قيد الصرف.');
+        }
+        $message = 'تم إلغاء صرف/تحصيل الشيك وإعادته إلى «قيد».';
+    } elseif ($status === 'returned') {
+        $gl = acc_gl_unpost_ref($pdo, 'fin_check_return', $checkId);
+        if (!$gl['ok']) {
+            throw new RuntimeException($gl['error'] ?? 'تعذر إلغاء قيد الإرجاع.');
+        }
+        $message = 'تم إلغاء إرجاع الشيك وإعادته إلى «قيد».';
+    } else {
+        $journalId = (int) ($check['action_journal_id'] ?? 0);
+        if ($journalId < 1) {
+            $st = $pdo->prepare(
+                "SELECT id FROM acc_journal_entry
+                 WHERE ref_type = 'fin_check_endorse' AND ref_id = ? AND source = 'auto' LIMIT 1"
+            );
+            $st->execute([$checkId]);
+            $journalId = (int) $st->fetchColumn();
+        }
+        if ($journalId < 1) {
+            throw new RuntimeException('قيد التجيير غير موجود.');
+        }
+        fin_checks_manage_unpost_journal($pdo, $journalId);
+        $message = 'تم إلغاء تجيير الشيك وإعادته إلى «قيد».';
+    }
+
+    fin_checks_manage_apply_undo_state($pdo, $checkId, $status);
+
+    return [
+        'ok' => true,
+        'message' => $message,
     ];
 }

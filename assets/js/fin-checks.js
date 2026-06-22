@@ -16,9 +16,16 @@
   var modalAccount = document.getElementById('fin-check-account-id');
   var modalReasonWrap = document.getElementById('fin-check-reason-wrap');
   var modalReason = document.getElementById('fin-check-return-reason');
+  var modalEndorseWrap = document.getElementById('fin-check-endorse-wrap');
+  var modalPartyType = document.getElementById('fin-check-party-type');
+  var modalEndorseNotes = document.getElementById('fin-check-endorse-notes');
   var modalErr = document.getElementById('fin-check-modal-error');
   var modalSubmit = document.getElementById('fin-check-modal-submit');
   var modalCancel = document.getElementById('fin-check-modal-cancel');
+
+  var endorseSupplierHidden = document.getElementById('fin-check-endorse-supplier-id');
+  var endorseSupplierOpen = document.getElementById('fin-check-endorse-supplier-id_open');
+  var endorseSupplierDisplay = document.getElementById('fin-check-endorse-supplier-id_display');
 
   var sumDirection = document.getElementById('fin-check-sum-direction');
   var sumNo = document.getElementById('fin-check-sum-no');
@@ -28,6 +35,8 @@
   var sumVoucher = document.getElementById('fin-check-sum-voucher');
   var sumVdate = document.getElementById('fin-check-sum-vdate');
   var sumDue = document.getElementById('fin-check-sum-due');
+
+  var endorsePickersBound = false;
 
   function todayDmY() {
     if (window.AppDatePicker && AppDatePicker.formatIsoToDmY) {
@@ -96,6 +105,36 @@
     if (sumDue) sumDue.textContent = val('data-due-date');
   }
 
+  function resetEndorsePickers() {
+    if (endorseSupplierHidden) endorseSupplierHidden.value = '';
+    if (endorseSupplierDisplay) {
+      endorseSupplierDisplay.textContent = 'اختر المورد';
+      endorseSupplierDisplay.classList.add('is-placeholder');
+    }
+    if (modalPartyType) modalPartyType.value = 'supplier';
+    if (modalEndorseNotes) modalEndorseNotes.value = '';
+  }
+
+  function bindEndorsePickers() {
+    if (endorsePickersBound) return;
+    if (window.SupplierPickerModal && endorseSupplierHidden && endorseSupplierOpen && endorseSupplierDisplay) {
+      SupplierPickerModal.bind({
+        hidden: endorseSupplierHidden,
+        open: endorseSupplierOpen,
+        display: endorseSupplierDisplay,
+        jsonId: 'fin-checks-suppliers-json',
+        placeholder: 'اختر المورد',
+        allowClear: true,
+        initialId: 0,
+      });
+    }
+    endorsePickersBound = true;
+  }
+
+  function getEndorsePartyId() {
+    return parseInt(endorseSupplierHidden && endorseSupplierHidden.value ? endorseSupplierHidden.value : '0', 10) || 0;
+  }
+
   function openModal(action, btn) {
     if (!modal || !btn) return;
     var checkId = btn.getAttribute('data-check-id');
@@ -113,17 +152,29 @@
       modalTitle.textContent = 'ترحيل صرف / تحصيل الشيك';
       modalAccountWrap.style.display = '';
       modalReasonWrap.style.display = 'none';
+      modalEndorseWrap.style.display = 'none';
       modalReason.value = '';
       if (modalAccount) modalAccount.required = true;
       modalReason.required = false;
       if (modalSubmit) modalSubmit.textContent = 'ترحيل — صرف';
-    } else {
+    } else if (action === 'return') {
       modalTitle.textContent = 'ترحيل إرجاع الشيك';
       modalAccountWrap.style.display = 'none';
       modalReasonWrap.style.display = '';
+      modalEndorseWrap.style.display = 'none';
       if (modalAccount) modalAccount.required = false;
       modalReason.required = true;
       if (modalSubmit) modalSubmit.textContent = 'ترحيل — إرجاع';
+    } else {
+      modalTitle.textContent = 'ترحيل تجيير الشيك';
+      modalAccountWrap.style.display = 'none';
+      modalReasonWrap.style.display = 'none';
+      modalEndorseWrap.style.display = '';
+      if (modalAccount) modalAccount.required = false;
+      modalReason.required = false;
+      resetEndorsePickers();
+      bindEndorsePickers();
+      if (modalSubmit) modalSubmit.textContent = 'ترحيل — تجيير';
     }
 
     modal.hidden = false;
@@ -137,15 +188,26 @@
     modal.setAttribute('aria-hidden', 'true');
   }
 
+  if (modalPartyType) {
+    modalPartyType.value = 'supplier';
+  }
+
   screen.addEventListener('click', function (ev) {
     var btn = ev.target.closest('[data-check-action]');
     if (!btn || btn.disabled) return;
     var action = btn.getAttribute('data-check-action');
     if (!action || !btn.getAttribute('data-check-id')) return;
 
-    var intro = action === 'clear'
-      ? 'فتح شاشة ترحيل صرف/تحصيل هذا الشيك؟'
-      : 'فتح شاشة ترحيل إرجاع هذا الشيك؟';
+    if (action === 'undo') {
+      return;
+    }
+
+    var intro =
+      action === 'clear'
+        ? 'فتح شاشة ترحيل صرف/تحصيل هذا الشيك؟'
+        : action === 'return'
+          ? 'فتح شاشة ترحيل إرجاع هذا الشيك؟'
+          : 'فتح شاشة تجيير هذا الشيك إلى مورد؟';
     dialogConfirm(intro, 'ترحيل الشيك').then(function (ok) {
       if (ok) openModal(action, btn);
     });
@@ -215,9 +277,21 @@
 
       var action = modalAction.value;
       var label = modal.dataset.checkLabel || '';
-      var confirmMsg = action === 'clear'
-        ? 'تأكيد ترحيل صرف/تحصيل الشيك؟\n' + label
-        : 'تأكيد ترحيل إرجاع الشيك؟\n' + label;
+      var confirmMsg =
+        action === 'clear'
+          ? 'تأكيد ترحيل صرف/تحصيل الشيك؟\n' + label
+          : action === 'return'
+            ? 'تأكيد ترحيل إرجاع الشيك؟\n' + label
+            : 'تأكيد تجيير الشيك مع قيد محاسبي؟\n' + label;
+
+      if (action === 'endorse') {
+        var partyId = getEndorsePartyId();
+        if (partyId < 1) {
+          modalErr.textContent = 'اختر المورد المُجيَّر إليه.';
+          modalErr.style.display = '';
+          return;
+        }
+      }
 
       dialogConfirm(confirmMsg, 'ترحيل الشيك').then(function (ok) {
         if (!ok) return;
@@ -227,6 +301,9 @@
 
         var fd = new FormData(modalForm);
         fd.append('_csrf', csrf);
+        if (action === 'endorse') {
+          fd.set('party_id', String(getEndorsePartyId()));
+        }
 
         fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
           .then(function (r) { return r.json(); })

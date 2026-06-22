@@ -14,6 +14,9 @@ function acc_report_ref_type_labels(): array
         'debit_note' => 'إشعار مدين',
         'credit_note' => 'إشعار دائن',
         'warehouse_move' => 'حركة مستودع',
+        'fin_check_clear' => 'صرف/تحصيل شيك',
+        'fin_check_return' => 'إرجاع شيك',
+        'fin_check_endorse' => 'تجيير شيك',
     ];
 }
 
@@ -35,6 +38,9 @@ function acc_report_ref_routes(): array
         'debit_note' => ['r' => 'debit_notes', 'param' => 'id', 'permission' => 'debit_notes'],
         'credit_note' => ['r' => 'credit_notes', 'param' => 'id', 'permission' => 'credit_notes'],
         'warehouse_move' => ['r' => 'warehouse_moves', 'param' => 'id', 'permission' => 'warehouse_moves'],
+        'fin_check_clear' => ['r' => 'fin_checks', 'param' => 'check_id', 'permission' => 'fin_checks'],
+        'fin_check_return' => ['r' => 'fin_checks', 'param' => 'check_id', 'permission' => 'fin_checks'],
+        'fin_check_endorse' => ['r' => 'fin_checks', 'param' => 'check_id', 'permission' => 'fin_checks'],
     ];
 }
 
@@ -100,6 +106,36 @@ function acc_journal_entry_open_link(array $header, bool $withHub = true): ?arra
         'url' => app_url('index.php?r=journal_voucher&id=' . $journalId . $hub),
         'label' => 'فتح في شاشة السندات',
     ];
+}
+
+/**
+ * @param array<string, mixed> $header
+ * @return array{check_id: int, label: string}|null
+ */
+function acc_journal_entry_check_undo(array $header): ?array
+{
+    if (!user_can('fin_checks')) {
+        return null;
+    }
+
+    $source = (string) ($header['source'] ?? '');
+    $refType = trim((string) ($header['ref_type'] ?? ''));
+    $refId = (int) ($header['ref_id'] ?? 0);
+    if ($source !== 'auto' || $refId < 1) {
+        return null;
+    }
+
+    if ($refType === 'fin_check_clear') {
+        return ['check_id' => $refId, 'label' => 'إلغاء الصرف'];
+    }
+    if ($refType === 'fin_check_return') {
+        return ['check_id' => $refId, 'label' => 'إلغاء الإرجاع'];
+    }
+    if ($refType === 'fin_check_endorse') {
+        return ['check_id' => $refId, 'label' => 'إلغاء التجيير'];
+    }
+
+    return null;
 }
 
 function acc_report_journal_voucher_url(int $journalId, string $entryNo = ''): string

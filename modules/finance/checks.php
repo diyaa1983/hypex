@@ -5,6 +5,7 @@ require_once app_path('includes/fin_checks_manage.php');
 require_once app_path('includes/fin_voucher.php');
 require_once app_path('includes/sales_oracle12_ui.php');
 require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/supplier_picker.php');
 
 $pdo = db();
 fin_voucher_ensure_schema_full($pdo);
@@ -24,6 +25,7 @@ if ($cashBoxId > 0) {
 $csrf = csrf_token();
 $apiUrl = app_url('api/fin_check_action.php');
 $exitUrl = nav_exit_url('fin_checks');
+$suppliers = crm_suppliers_for_picker($pdo);
 
 $rows = [];
 $err = '';
@@ -64,8 +66,14 @@ $dateFieldLabels = [
     'due' => 'تاريخ الاستحقاق',
     'cleared' => 'تاريخ الصرف',
     'returned' => 'تاريخ الإرجاع',
+    'endorsed' => 'تاريخ التجيير',
 ];
 $dateFieldLabel = $dateFieldLabels[$filters['date_field']] ?? 'تاريخ السند';
+$sortFieldLabels = [
+    'due' => 'تاريخ الاستحقاق',
+    'voucher' => 'تاريخ السند',
+    'action' => 'تاريخ الصرف / الإرجاع / التجيير',
+];
 
 sales_ora12_enqueue_assets();
 sales_inv_oracle12_enqueue_assets();
@@ -91,7 +99,8 @@ sales_inv_oracle12_enqueue_assets();
     <?php endif; ?>
 
     <p class="sales-ora-info muted">
-        جميع شيكات النظام (واردة وصادرة). الشيكات المُحصّلة أو المُصروفة سابقاً تظهر <strong>تم الترحيل — صرف</strong>.
+        جميع شيكات النظام (واردة وصادرة). بعد صرف/إرجاع/تجيير يظهر <strong>تم الترحيل</strong>،
+        وبعد الإلغاء من السند يظهر <strong>تم الإلغاء</strong> في الجدول.
         اترك حقول التاريخ فارغة لعرض كل الشيكات، أو حدّد فترة للتصفية.
     </p>
 
@@ -113,6 +122,8 @@ sales_inv_oracle12_enqueue_assets();
                     <option value="pending" <?= $filters['status'] === 'pending' ? 'selected' : '' ?>>لم يُرحَّل</option>
                     <option value="cleared" <?= $filters['status'] === 'cleared' ? 'selected' : '' ?>>تم الترحيل — صرف</option>
                     <option value="returned" <?= $filters['status'] === 'returned' ? 'selected' : '' ?>>تم الترحيل — إرجاع</option>
+                    <option value="endorsed" <?= $filters['status'] === 'endorsed' ? 'selected' : '' ?>>تم الترحيل — تجيير</option>
+                    <option value="undone" <?= $filters['status'] === 'undone' ? 'selected' : '' ?>>تم الإلغاء</option>
                 </select>
             </label>
             <label class="field">
@@ -123,6 +134,23 @@ sales_inv_oracle12_enqueue_assets();
                             <?= esc($lbl) ?>
                         </option>
                     <?php endforeach; ?>
+                </select>
+            </label>
+            <label class="field">
+                <span class="field-label">ترتيب الجدول حسب</span>
+                <select class="input input-compact" name="sort_field">
+                    <?php foreach ($sortFieldLabels as $key => $lbl): ?>
+                        <option value="<?= esc($key) ?>" <?= ($filters['sort_field'] ?? 'voucher') === $key ? 'selected' : '' ?>>
+                            <?= esc($lbl) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <label class="field">
+                <span class="field-label">اتجاه الترتيب</span>
+                <select class="input input-compact" name="sort_dir">
+                    <option value="asc" <?= ($filters['sort_dir'] ?? 'asc') === 'asc' ? 'selected' : '' ?>>من الأقدم للأحدث</option>
+                    <option value="desc" <?= ($filters['sort_dir'] ?? 'asc') === 'desc' ? 'selected' : '' ?>>من الأحدث للأقدم</option>
                 </select>
             </label>
             <label class="field">
@@ -181,7 +209,7 @@ sales_inv_oracle12_enqueue_assets();
                     <th>متأخر؟</th>
                     <th>حالة الترحيل</th>
                     <th>الإجراء</th>
-                    <th>تاريخ الصرف / الإرجاع</th>
+                    <th>تاريخ الإجراء</th>
                     <th>تنفيذ</th>
                 </tr>
                 </thead>
@@ -209,21 +237,37 @@ sales_inv_oracle12_enqueue_assets();
                             default => 'badge badge-muted',
                         };
                         $lifecycle = (string) ($r['lifecycle_status'] ?? 'pending');
-                        $actionTagClass = match ($lifecycle) {
+                        $actionWasUndone = !empty($r['action_was_undone']);
+                        $postBadgeClass = $actionWasUndone
+                            ? 'fin-chk-badge fin-chk-badge--undo'
+                            : (string) ($r['status_badge_class'] ?? 'fin-chk-badge');
+                        $postStatusLabel = $actionWasUndone
+                            ? (string) ($r['post_status_label'] ?: 'تم الإلغاء')
+                            : (string) ($r['post_status_label'] ?? '');
+                        $actionTypeLabel = $actionWasUndone
+                            ? (string) ($r['action_type_label'] ?: '—')
+                            : (string) ($r['action_type_label'] ?? '—');
+                        $executeStatusLabel = $actionWasUndone
+                            ? (string) ($r['status_display'] ?: 'تم الإلغاء')
+                            : (string) ($r['status_display'] ?? '');
+                        $actionTagClass = $actionWasUndone
+                            ? 'fin-chk-action-tag fin-chk-action-tag--undo'
+                            : match ($lifecycle) {
                             'cleared' => 'fin-chk-action-tag fin-chk-action-tag--clear',
                             'returned' => 'fin-chk-action-tag fin-chk-action-tag--return',
+                            'endorsed' => 'fin-chk-action-tag fin-chk-action-tag--endorse',
                             default => 'fin-chk-action-tag fin-chk-action-tag--none',
                         };
                         ?>
-                        <tr class="<?= !empty($r['is_overdue']) && $lifecycle === 'pending' ? 'fin-chk-row-overdue' : '' ?>"
+                        <tr class="<?= !empty($r['is_overdue']) && $lifecycle === 'pending' && !$actionWasUndone ? 'fin-chk-row-overdue' : '' ?><?= $actionWasUndone ? ' fin-chk-row-undone' : '' ?>"
                             data-check-id="<?= (int) ($r['check_id'] ?? 0) ?>"
                             data-check-no="<?= esc((string) ($r['check_no'] ?? '')) ?>"
                             data-check-amount="<?= esc((string) ((float) ($r['check_amount'] ?? 0))) ?>">
                             <td><?= esc((string) ($r['direction'] ?? '')) ?></td>
                             <td class="fin-chk-col-no"><code><?= esc((string) ($r['check_no'] ?: '—')) ?></code></td>
-                            <td><?= esc((string) ($r['bank_name'] ?: '—')) ?></td>
+                            <td class="fin-chk-col-ellipsis" title="<?= esc((string) ($r['bank_name'] ?: '')) ?>"><?= esc((string) ($r['bank_name'] ?: '—')) ?></td>
                             <td class="fin-chk-col-money"><?= esc(format_money((float) ($r['check_amount'] ?? 0))) ?></td>
-                            <td><?= esc((string) ($r['party_name'] ?? '—')) ?></td>
+                            <td class="fin-chk-col-party fin-chk-col-ellipsis" title="<?= esc((string) ($r['party_name'] ?? '')) ?>"><?= esc((string) ($r['party_name'] ?? '—')) ?></td>
                             <td>
                                 <?php if (($r['voucher_url'] ?? '') !== ''): ?>
                                     <a href="<?= esc((string) $r['voucher_url']) ?>"><code><?= esc((string) ($r['voucher_no'] ?? '')) ?></code></a>
@@ -231,41 +275,80 @@ sales_inv_oracle12_enqueue_assets();
                                     <code><?= esc((string) ($r['voucher_no'] ?? '')) ?></code>
                                 <?php endif; ?>
                             </td>
-                            <td><?= esc(format_date_dmY((string) ($r['voucher_date'] ?? ''))) ?></td>
-                            <td><?= ($r['due_date'] ?? '') !== '' ? esc(format_date_dmY((string) $r['due_date'])) : '—' ?></td>
+                            <td class="fin-chk-col-date"><?= esc(format_date_dmY((string) ($r['voucher_date'] ?? ''))) ?></td>
+                            <td class="fin-chk-col-date"><?= ($r['due_date'] ?? '') !== '' ? esc(format_date_dmY((string) $r['due_date'])) : '—' ?></td>
                             <td>
-                                <?php if (($r['due_date'] ?? '') !== '' && $lifecycle === 'pending'): ?>
+                                <?php if (($r['due_date'] ?? '') !== '' && $lifecycle === 'pending' && !$actionWasUndone): ?>
                                     <span class="<?= esc($urgencyClass) ?>"><?= esc((string) ($r['urgency_label'] ?? '')) ?></span>
                                 <?php else: ?>
                                     —
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <span class="<?= esc((string) ($r['status_badge_class'] ?? 'fin-chk-badge')) ?>">
-                                    <?= esc((string) ($r['post_status_label'] ?? '')) ?>
+                                <span class="<?= esc($postBadgeClass) ?>">
+                                    <?= esc($postStatusLabel) ?>
                                 </span>
                             </td>
                             <td>
                                 <span class="<?= esc($actionTagClass) ?>">
-                                    <?= esc((string) ($r['action_type_label'] ?? '—')) ?>
+                                    <?= esc($actionTypeLabel) ?>
                                 </span>
                             </td>
-                            <td class="fin-chk-col-dates">
-                                <?= ($r['action_date'] ?? '') !== '' ? esc(format_date_dmY((string) $r['action_date'])) : '—' ?>
-                                <?php if (($r['return_reason'] ?? '') !== '' && $lifecycle === 'returned'): ?>
-                                    <br><small class="muted"><?= esc((string) $r['return_reason']) ?></small>
-                                <?php endif; ?>
-                                <?php if (($r['action_account_name'] ?? '') !== '' && $lifecycle === 'cleared'): ?>
-                                    <br><small class="muted"><?= esc((string) $r['action_account_name']) ?></small>
-                                <?php endif; ?>
+                            <?php
+                                    $dateNotes = [];
+                                    if ($actionWasUndone) {
+                                        $actionDateText = ($r['action_date_dmy'] ?? '') !== ''
+                                            ? (string) $r['action_date_dmy']
+                                            : '—';
+                                        if (($r['undone_action_label'] ?? '') !== '') {
+                                            $dateNotes[] = 'إلغاء ' . (string) $r['undone_action_label'];
+                                        }
+                                    } else {
+                                        $actionDateText = ($r['action_date'] ?? '') !== ''
+                                            ? format_date_dmY((string) $r['action_date'])
+                                            : '—';
+                                        if (($r['return_reason'] ?? '') !== '' && $lifecycle === 'returned') {
+                                            $dateNotes[] = (string) $r['return_reason'];
+                                        }
+                                        if (($r['action_account_name'] ?? '') !== '' && $lifecycle === 'cleared') {
+                                            $dateNotes[] = (string) $r['action_account_name'];
+                                        }
+                                        if (($r['endorsed_party_name'] ?? '') !== '' && $lifecycle === 'endorsed') {
+                                            $dateNotes[] = 'إلى: ' . (string) $r['endorsed_party_name'];
+                                        }
+                                        if (($r['endorse_notes'] ?? '') !== '' && $lifecycle === 'endorsed') {
+                                            $dateNotes[] = (string) $r['endorse_notes'];
+                                        }
+                                    }
+                                    $dateNotesText = implode(' · ', $dateNotes);
+                                    $dateLineTitle = $actionDateText;
+                                    if ($dateNotesText !== '') {
+                                        $dateLineTitle .= ' · ' . $dateNotesText;
+                                    }
+                                ?>
+                            <td class="fin-chk-col-dates" dir="ltr"<?= $dateLineTitle !== '—' ? ' title="' . esc($dateLineTitle) . '"' : '' ?>>
+                                <span class="fin-chk-date-line">
+                                    <span class="fin-chk-date-main"><?= esc($actionDateText) ?></span>
+                                    <?php if ($dateNotes !== []): ?>
+                                        <span class="fin-chk-date-sep" aria-hidden="true"> · </span>
+                                        <span class="fin-chk-date-note"><?= esc(implode(' · ', $dateNotes)) ?></span>
+                                    <?php endif; ?>
+                                </span>
                             </td>
                             <td class="row-actions fin-chk-actions-cell">
+                                <?php if ($actionWasUndone): ?>
+                                    <span class="fin-chk-badge fin-chk-badge--undo fin-chk-execute-undo">
+                                        <?= esc($executeStatusLabel) ?>
+                                    </span>
+                                <?php endif; ?>
                                 <?php if (!empty($r['can_action'])): ?>
                                     <button type="button" class="btn btn-primary btn-sm"
                                             data-check-action="clear"<?= $attrHtml ?>>صرف</button>
                                     <button type="button" class="btn btn-secondary btn-sm"
                                             data-check-action="return"<?= $attrHtml ?>>إرجاع</button>
-                                <?php elseif ($lifecycle !== 'pending'): ?>
+                                    <button type="button" class="btn btn-secondary btn-sm"
+                                            data-check-action="endorse"<?= $attrHtml ?>>تجيير</button>
+                                <?php elseif (!$actionWasUndone && $lifecycle !== 'pending'): ?>
                                     <span class="badge badge-ok"><?= esc((string) ($r['status_display'] ?? '')) ?></span>
                                 <?php elseif (!($r['is_posted'] ?? false)): ?>
                                     <span class="badge badge-warn">غير مرحّل</span>
@@ -366,6 +449,24 @@ sales_inv_oracle12_enqueue_assets();
                         <textarea class="input" name="return_reason" id="fin-check-return-reason" rows="3" placeholder="سبب الإرجاع"></textarea>
                     </label>
                 </div>
+                <div id="fin-check-endorse-wrap" style="display:none;">
+                    <input type="hidden" name="party_type" id="fin-check-party-type" value="supplier">
+                    <div class="fin-check-modal__party-pickers">
+                        <?= supplier_picker_field([
+                            'id' => 'fin-check-endorse-supplier-id',
+                            'label' => 'المورد المُجيَّر إليه *',
+                            'placeholder' => 'اختر المورد',
+                            'compact' => true,
+                            'manual_bind' => true,
+                            'json_id' => 'fin-checks-suppliers-json',
+                            'name' => null,
+                        ]) ?>
+                    </div>
+                    <label class="field">
+                        <span class="field-label">ملاحظات التجيير</span>
+                        <textarea class="input" name="endorse_notes" id="fin-check-endorse-notes" rows="2" placeholder="اختياري"></textarea>
+                    </label>
+                </div>
                 <div class="fin-check-modal__actions">
                     <button type="button" class="dashboard-ora-btn" id="fin-check-modal-cancel">إلغاء</button>
                     <button type="submit" class="dashboard-ora-btn dashboard-ora-btn--primary" id="fin-check-modal-submit">ترحيل الشيك</button>
@@ -376,3 +477,7 @@ sales_inv_oracle12_enqueue_assets();
 </div>
 
 <script src="<?= esc($jsUrl) ?>" defer></script>
+<?php
+supplier_picker_enqueue_assets();
+supplier_picker_json_script($suppliers, 'fin-checks-suppliers-json');
+?>

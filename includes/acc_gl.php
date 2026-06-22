@@ -251,6 +251,12 @@ function acc_gl_unpost_ref(PDO $pdo, string $refType, int $refId): array
         }
         $pdo->prepare('DELETE FROM acc_journal_entry WHERE id = ?')->execute([$journalId]);
         $out['skipped'] = false;
+
+        $lifecycle = fin_checks_manage_ref_type_to_lifecycle($refType);
+        if ($lifecycle !== null) {
+            require_once app_path('includes/fin_checks_manage.php');
+            fin_checks_manage_apply_undo_state($pdo, $refId, $lifecycle);
+        }
     } catch (Throwable $e) {
         $out['ok'] = false;
         $out['error'] = 'تعذر إلغاء الترحيل المحاسبي.';

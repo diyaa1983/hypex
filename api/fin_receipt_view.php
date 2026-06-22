@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/fin_voucher_load.php');
 require_once app_path('includes/fin_voucher_schema.php');
 require_once app_path('includes/fin_voucher_checks.php');
+require_once app_path('includes/fin_checks_manage.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -75,17 +76,10 @@ if (!$row) {
 $checks = [];
 $checksTotal = 0.0;
 if ((string) ($row['pay_method'] ?? '') === 'check') {
-    $list = fin_voucher_checks_load($pdo, (int) $row['id']);
-    foreach ($list as $chk) {
-        $due = (string) ($chk['due_date'] ?? '');
-        $checks[] = [
-            'check_no' => (string) ($chk['check_no'] ?? ''),
-            'bank_name' => (string) ($chk['bank_name'] ?? ''),
-            'check_amount' => (float) ($chk['check_amount'] ?? 0),
-            'due_date' => $due,
-            'due_date_dmy' => $due !== '' ? format_date_dmY($due) : '',
-            'notes' => (string) ($chk['notes'] ?? ''),
-        ];
+    $isPosted = (bool) ($row['is_posted'] ?? false);
+    fin_checks_manage_ensure_schema($pdo);
+    $checks = fin_checks_manage_checks_for_voucher_view($pdo, (int) $row['id'], $isPosted);
+    foreach ($checks as $chk) {
         $checksTotal += (float) ($chk['check_amount'] ?? 0);
     }
 }

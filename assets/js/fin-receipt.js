@@ -11,6 +11,7 @@
   var voucherUnpostUrl = form.getAttribute('data-voucher-unpost-url') || '';
   var voucherCancelUrl = form.getAttribute('data-voucher-cancel-url') || '';
   var voucherDeleteUrl = form.getAttribute('data-voucher-delete-url') || '';
+  var checkActionUrl = form.getAttribute('data-check-action-url') || '';
   var newUrl = form.getAttribute('data-new-url') || '';
   var exitUrl = form.getAttribute('data-exit-url') || '';
   var initialVoucherId = parseInt(form.getAttribute('data-initial-id') || '0', 10);
@@ -34,6 +35,7 @@
   var formSubmitting = false;
   var suppressDirtyMark = 0;
   var pendingAfterSave = null;
+  var lastChecksManageData = [];
 
   function fmtDate(value) {
     return global.AppFormat && AppFormat.formatDateDmY
@@ -366,6 +368,128 @@
     });
     return rows;
   }
+
+  function getPayMethodValue() {
+    var chk = document.getElementById('rc_pay_check');
+    if (chk && chk.checked) return 'check';
+    var bank = document.getElementById('rc_pay_bank');
+    if (bank && bank.checked) return 'bank';
+    return 'cash';
+  }
+
+  function renderCheckStatusCell(tr, data) {
+    var td = tr.querySelector('.fin-rc-check-status-cell');
+    if (!td) return;
+    data = data || {};
+    var lifecycle = data.lifecycle_status || 'pending';
+    var html = '';
+    if (data.action_was_undone) {
+      html =
+        '<span class="badge fin-chk-badge fin-chk-badge--undo">' +
+        escapeHtml(data.status_display || data.execute_label || 'تم الإلغاء') +
+        '</span>';
+      if (data.action_date_dmy) {
+        html += '<br><small class="muted">' + escapeHtml(data.action_date_dmy) + '</small>';
+      }
+      if (data.undone_action_label) {
+        html += '<br><small class="muted">إلغاء ' + escapeHtml(data.undone_action_label) + '</small>';
+      }
+    } else if (lifecycle === 'pending') {
+      html = '<span class="badge badge-warn">قيد</span>';
+    } else {
+      html =
+        '<span class="badge badge-ok">' +
+        escapeHtml(data.status_display || lifecycle) +
+        '</span>';
+      if (data.action_date_dmy) {
+        html += '<br><small class="muted">' + escapeHtml(data.action_date_dmy) + '</small>';
+      }
+      if (data.endorsed_party_name) {
+        html += '<br><small class="muted">إلى: ' + escapeHtml(data.endorsed_party_name) + '</small>';
+      }
+      if (data.can_undo && data.id) {
+        html +=
+          '<br><button type="button" class="btn btn-secondary btn-sm fin-rc-check-undo" data-check-id="' +
+          String(data.id) +
+          '" data-undo-label="' +
+          escapeHtml(data.undo_label || 'إلغاء') +
+          '">' +
+          escapeHtml(data.undo_label || 'إلغاء') +
+          '</button>';
+      }
+      if (data.journal_url) {
+        html +=
+          ' <a href="' +
+          escapeHtml(data.journal_url) +
+          '" class="btn btn-link btn-sm">القيد</a>';
+      }
+    }
+    td.innerHTML = html;
+  }
+
+  function refreshChecksManageUi() {
+    var show =
+      currentVoucherId > 0 &&
+      voucherIsPosted &&
+      !voucherIsCancelled &&
+      getPayMethodValue() === 'check';
+    var col = document.getElementById('rc_checks_status_col');
+    if (col) col.hidden = !show;
+    document.querySelectorAll('.fin-rc-check-status-cell').forEach(function (td) {
+      td.hidden = !show;
+    });
+    if (!show) return;
+    var tb = checksTbody();
+    if (!tb) return;
+    var rows = tb.querySelectorAll('tr.fin-rc-check-row');
+    rows.forEach(function (tr, idx) {
+      renderCheckStatusCell(tr, lastChecksManageData[idx] || {});
+    });
+  }
+
+  function undoCheckFromVoucher(checkId, undoLabel) {
+    if (!checkActionUrl || checkId < 1) return;
+    var csrfEl = form.querySelector('input[name="_csrf"]');
+    var csrf = csrfEl ? csrfEl.value : '';
+    var msg =
+      'تأكيد ' +
+      (undoLabel || 'إلغاء') +
+      '؟\n\nسيتم حذف القيد المحاسبي وإعادة الشيك إلى «قيد».';
+    var confirmFn =
+      global.AppDialog && AppDialog.confirm
+        ? function (m) {
+            return AppDialog.confirm(m, { title: undoLabel || 'تأكيد' });
+          }
+        : function (m) {
+            return Promise.resolve(window.confirm(m));
+          };
+    confirmFn(msg).then(function (ok) {
+      if (!ok) return;
+      var fd = new FormData();
+      fd.append('_csrf', csrf);
+      fd.append('action', 'undo');
+      fd.append('check_id', String(checkId));
+      fetch(checkActionUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            if (global.AppDialog && AppDialog.success) {
+              AppDialog.success((data && data.message) || 'تم الإلغاء.');
+            }
+            loadVoucherById(currentVoucherId, true);
+            return;
+          }
+          var errMsg = (data && data.message) || 'تعذر الإلغاء.';
+          if (global.AppDialog && AppDialog.error) AppDialog.error(errMsg);
+          else window.alert(errMsg);
+        })
+        .catch(function () {
+          if (global.AppDialog && AppDialog.error) AppDialog.error('خطأ في الاتصال بالخادم.');
+        });
+    });
+  }
   // ============== /إدارة صفوف الشيكات ==============
 
   var rcCustomerPickerApi = null;
@@ -529,6 +653,7 @@
       btn.disabled = locked;
     });
     lockVoucherPickerButtons(locked);
+    refreshChecksManageUi();
   }
 
   function updateVoucherNoPostedStyle() {
@@ -953,6 +1078,7 @@
       if (payMethod === 'check') {
         clearCheckRows();
         var list = Array.isArray(v.checks) ? v.checks : [];
+        lastChecksManageData = list.slice();
         if (list.length === 0 && (chkVal > 0 || amt > 0)) {
           list = [
             {
@@ -973,6 +1099,7 @@
       } else {
         if (amountEl) amountEl.value = amt > 0 ? fmtMoney(amt) : '';
         clearCheckRows();
+        lastChecksManageData = [];
         if (chkAmt) chkAmt.value = '';
       }
 
@@ -1798,6 +1925,14 @@
       markFormDirty();
     });
   }
+
+  form.addEventListener('click', function (e) {
+    var undoBtn = e.target.closest('.fin-rc-check-undo');
+    if (!undoBtn) return;
+    e.preventDefault();
+    var checkId = parseInt(undoBtn.getAttribute('data-check-id') || '0', 10) || 0;
+    undoCheckFromVoucher(checkId, undoBtn.getAttribute('data-undo-label') || 'إلغاء');
+  });
 
   form.addEventListener('input', markFormDirtyFromEvent);
   form.addEventListener('change', markFormDirtyFromEvent);

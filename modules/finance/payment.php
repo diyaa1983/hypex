@@ -153,6 +153,7 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
           data-new-url="<?= esc($newUrl) ?>"
           data-list-url="<?= esc($listUrl) ?>"
           data-initial-id="<?= (int) $initialId ?>"
+          data-check-action-url="<?= esc(app_url('api/fin_check_action.php')) ?>"
           data-company-name="<?= esc($companyNameAr) ?>"
           data-company-logo="<?= esc($companyLogoUrl) ?>">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -372,6 +373,7 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
                         <input class="input input-compact" type="text" name="bank_name" id="py_bank_name">
                     </div>
                 </div>
+                <div class="fin-py-check-manage no-print" id="py_check_manage_wrap" hidden></div>
                 <div class="fin-py-notes no-print">
                     <label for="py_notes">ملاحظات</label>
                     <textarea class="input" name="notes" id="py_notes" rows="2" placeholder="اختياري"></textarea>

@@ -455,4 +455,61 @@
     e.stopImmediatePropagation();
     doPrint();
   }, true);
+
+  var journalRoot = document.querySelector('.journal-entries-ora[data-check-undo-id]');
+  var checkUndoBtn = document.getElementById('journal-check-undo-btn');
+  if (journalRoot && checkUndoBtn) {
+    checkUndoBtn.addEventListener('click', function () {
+      var apiUrl = journalRoot.getAttribute('data-check-undo-api') || '';
+      var checkId = journalRoot.getAttribute('data-check-undo-id') || '';
+      var undoLabel = journalRoot.getAttribute('data-check-undo-label') || 'إلغاء';
+      var csrfInput = form && form.querySelector('[name="_csrf"]');
+      var csrfVal = csrfInput ? csrfInput.value : '';
+      if (!apiUrl || !checkId) return;
+
+      var msg =
+        'تأكيد ' +
+        undoLabel +
+        '؟\n\nسيتم حذف هذا القيد وإعادة الشيك إلى «قيد» في شاشة الشيكات.';
+
+      function runUndo() {
+        var fd = new FormData();
+        fd.append('_csrf', csrfVal);
+        fd.append('action', 'undo');
+        fd.append('check_id', checkId);
+        fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (data) {
+            if (data && data.ok) {
+              if (global.AppDialog && AppDialog.success) {
+                AppDialog.success((data && data.message) || 'تم الإلغاء.').then(function () {
+                  window.location.href = journalRoot.getAttribute('data-exit-url') || window.location.href;
+                });
+              } else {
+                alert((data && data.message) || 'تم الإلغاء.');
+                window.location.href = journalRoot.getAttribute('data-exit-url') || window.location.href;
+              }
+              return;
+            }
+            var err = (data && data.message) || 'تعذر الإلغاء.';
+            if (global.AppDialog && AppDialog.error) AppDialog.error(err);
+            else alert(err);
+          })
+          .catch(function () {
+            if (global.AppDialog && AppDialog.error) AppDialog.error('خطأ في الاتصال.');
+            else alert('خطأ في الاتصال.');
+          });
+      }
+
+      if (global.AppDialog && AppDialog.confirm) {
+        AppDialog.confirm(msg, { title: undoLabel, okText: undoLabel }).then(function (ok) {
+          if (ok) runUndo();
+        });
+      } else if (window.confirm(msg)) {
+        runUndo();
+      }
+    });
+  }
 })();

@@ -104,6 +104,7 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
           data-default-cash-id="<?= (int) $defaultCashId ?>"
           data-bank-account-id="<?= (int) $bankAccountId ?>"
           data-checks-fund-account-id="<?= (int) $checksFundAccountId ?>"
+          data-check-action-url="<?= esc(app_url('api/fin_check_action.php')) ?>"
           data-company-name="<?= esc($companyNameAr) ?>"
           data-company-logo="<?= esc($companyLogoUrl) ?>">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -190,6 +191,7 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
                                     <th class="fin-rc-col-amount">المبلغ *</th>
                                     <th class="fin-rc-col-bank">البنك</th>
                                     <th class="fin-rc-col-due">تاريخ الاستحقاق</th>
+                                    <th class="fin-rc-col-status no-print" id="rc_checks_status_col" hidden>حالة الشيك</th>
                                     <th class="fin-rc-col-act no-print">&nbsp;</th>
                                 </tr>
                             </thead>
@@ -198,7 +200,7 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
                                 <tr class="fin-rc-checks-total-row">
                                     <td colspan="2" class="fin-rc-checks-total-label">الإجمالي</td>
                                     <td class="fin-rc-checks-total-value" id="rc_checks_total">0.00</td>
-                                    <td colspan="3"></td>
+                                    <td colspan="4"></td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -220,6 +222,7 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
                         <td class="fin-rc-col-due">
                             <input class="input input-compact js-date-dmy fin-rc-check-due" type="text" name="checks[__IDX__][due_date]" dir="ltr" placeholder="يوم-شهر-سنة">
                         </td>
+                        <td class="fin-rc-col-status no-print fin-rc-check-status-cell" hidden></td>
                         <td class="fin-rc-col-act no-print">
                             <button type="button" class="btn btn-danger btn-sm fin-rc-check-remove" title="حذف">×</button>
                         </td>

@@ -47,6 +47,13 @@ try {
     } elseif ($action === 'return') {
         $reason = trim((string) ($_POST['return_reason'] ?? ''));
         $result = fin_checks_manage_return($pdo, $checkId, $reason, $actionDate);
+    } elseif ($action === 'undo') {
+        $result = fin_checks_manage_undo($pdo, $checkId);
+    } elseif ($action === 'endorse') {
+        $partyType = trim((string) ($_POST['party_type'] ?? ''));
+        $partyId = (int) ($_POST['party_id'] ?? 0);
+        $notes = trim((string) ($_POST['endorse_notes'] ?? ''));
+        $result = fin_checks_manage_endorse($pdo, $checkId, $partyType, $partyId, $actionDate, $notes);
     } else {
         throw new RuntimeException('إجراء غير معروف.');
     }

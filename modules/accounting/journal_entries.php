@@ -198,6 +198,8 @@ if ($action === 'add' || $action === 'edit' || $action === 'view') {
     $cssInvUrl = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
     $childExitUrl = journal_entries_list_return_url($listUrl);
     $jvOpenLink = $action === 'view' ? acc_journal_entry_open_link($header) : null;
+    $checkUndo = $action === 'view' ? acc_journal_entry_check_undo($header) : null;
+    $checkUndoApi = app_url('api/fin_check_action.php');
     account_picker_enqueue_assets();
     journal_entries_enqueue_oracle_assets();
     if ($readOnly) {
@@ -210,7 +212,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'view') {
     <style><?= document_print_header_css() ?></style>
     <?php endif; ?>
 
-    <div class="dashboard-ora journal-entries-ora" data-exit-guard-root data-exit-url="<?= esc($childExitUrl) ?>"<?= $readOnly ? ' data-journal-readonly="1"' : '' ?>>
+    <div class="dashboard-ora journal-entries-ora" data-exit-guard-root data-exit-url="<?= esc($childExitUrl) ?>"<?= $readOnly ? ' data-journal-readonly="1"' : '' ?><?= $checkUndo ? ' data-check-undo-api="' . esc($checkUndoApi) . '" data-check-undo-id="' . (int) $checkUndo['check_id'] . '" data-check-undo-label="' . esc($checkUndo['label']) . '"' : '' ?>>
         <header class="dashboard-ora-screen-title no-print" role="banner">
             <h1 class="dashboard-ora-screen-title__text"><?= esc($formTitle) ?></h1>
             <?php if ($readOnly): ?>
@@ -224,6 +226,9 @@ if ($action === 'add' || $action === 'edit' || $action === 'view') {
                 <a class="dashboard-ora-btn" href="<?= esc($listUrl) ?>">رجوع للقائمة</a>
                 <?php if ($jvOpenLink !== null): ?>
                     <a class="dashboard-ora-btn dashboard-ora-btn--primary" href="<?= esc($jvOpenLink['url']) ?>"><?= esc($jvOpenLink['label']) ?></a>
+                <?php endif; ?>
+                <?php if ($checkUndo !== null): ?>
+                    <button type="button" class="dashboard-ora-btn dashboard-ora-btn--danger" id="journal-check-undo-btn"><?= esc($checkUndo['label']) ?></button>
                 <?php endif; ?>
                 <?php if ($readOnly): ?>
                     <button type="button" class="dashboard-ora-btn" id="journal-entry-print-btn">طباعة</button>

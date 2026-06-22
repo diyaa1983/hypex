@@ -29,9 +29,77 @@
     font-weight: 700;
 }
 
+.fin-checks-page .fin-checks-results .table-wrap {
+    overflow-x: auto;
+}
+
+.fin-checks-page .fin-checks-table {
+    width: max-content;
+    min-width: 100%;
+    font-size: 0.68rem;
+    table-layout: auto;
+}
+
 .fin-checks-page .fin-checks-table thead th,
 .fin-checks-page .fin-checks-table tbody td {
-    font-weight: 700;
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 0.16rem 0.28rem;
+    line-height: 1.25;
+    vertical-align: middle;
+}
+
+.fin-checks-page .fin-checks-table thead th {
+    font-size: 0.64rem;
+    white-space: nowrap;
+}
+
+.fin-checks-page .fin-checks-table tbody td code {
+    font-size: 0.66rem;
+}
+
+.fin-checks-page .fin-chk-col-ellipsis {
+    max-width: 9.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fin-checks-page .fin-chk-col-party {
+    max-width: 11rem;
+}
+
+.fin-checks-page .fin-chk-col-date,
+.fin-checks-page .fin-chk-col-dates {
+    font-size: 0.66rem;
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: right;
+}
+
+.fin-checks-page .fin-chk-col-dates {
+    max-width: 13rem;
+}
+
+.fin-checks-page .fin-chk-date-line {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fin-checks-page .fin-chk-date-main {
+    font-weight: 600;
+}
+
+.fin-checks-page .fin-chk-date-sep {
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+.fin-checks-page .fin-chk-date-note {
+    font-size: inherit;
+    font-weight: 500;
+    color: #64748b;
 }
 
 .fin-checks-page .fin-checks-table tbody td code,
@@ -48,6 +116,13 @@
     background: rgba(220, 53, 69, 0.07);
 }
 
+.fin-checks-page .fin-checks-table .badge {
+    font-size: 0.62rem;
+    padding: 0.04rem 0.25rem;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
 .fin-checks-page .fin-chk-col-no code,
 .fin-checks-page .fin-chk-col-money {
     direction: ltr;
@@ -62,11 +137,12 @@
 
 .fin-checks-page .fin-chk-badge {
     display: inline-block;
-    padding: 0.12rem 0.45rem;
-    border-radius: 3px;
-    font-size: 0.78rem;
+    padding: 0.04rem 0.28rem;
+    border-radius: 2px;
+    font-size: 0.62rem;
     font-weight: 600;
     white-space: nowrap;
+    line-height: 1.2;
 }
 
 .fin-checks-page .fin-chk-badge--posted-clear {
@@ -81,6 +157,32 @@
     border: 1px solid #fca5a5;
 }
 
+.fin-checks-page .fin-chk-badge--posted-endorse {
+    background: #e0e7ff;
+    color: #3730a3;
+    border: 1px solid #a5b4fc;
+}
+
+.fin-checks-page .fin-chk-badge--undo {
+    background: #e5e7eb;
+    color: #1f2937;
+    border: 1px solid #9ca3af;
+    font-weight: 700;
+}
+
+.fin-checks-page .fin-chk-execute-undo {
+    font-size: 0.62rem;
+}
+
+.fin-checks-page .fin-chk-action-tag--undo {
+    color: #374151;
+    font-weight: 700;
+}
+
+.fin-checks-page .fin-checks-table tbody tr.fin-chk-row-undone {
+    background: rgba(107, 114, 128, 0.08);
+}
+
 .fin-checks-page .fin-chk-badge--pending {
     background: #fef3c7;
     color: #92400e;
@@ -89,22 +191,48 @@
 
 .fin-checks-page .fin-chk-action-tag {
     display: inline-block;
-    min-width: 3.25rem;
+    min-width: 0;
     text-align: center;
     font-weight: 700;
-    font-size: 0.82rem;
+    font-size: 0.66rem;
 }
 
 .fin-checks-page .fin-chk-action-tag--clear { color: #166534; }
 .fin-checks-page .fin-chk-action-tag--return { color: #991b1b; }
+.fin-checks-page .fin-chk-action-tag--endorse { color: #3730a3; }
 .fin-checks-page .fin-chk-action-tag--none { color: #94a3b8; }
+
+.fin-check-modal__party-pickers {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.fin-check-modal__party-pickers .customer-picker-slot,
+.fin-check-modal__party-pickers .supplier-picker-slot {
+    margin: 0;
+}
 
 .fin-checks-page .fin-chk-actions-cell {
     white-space: nowrap;
 }
 
+.fin-checks-page .fin-checks-table .row-actions {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.fin-checks-page .fin-chk-actions-cell .btn,
+.fin-checks-page .fin-chk-actions-cell .badge {
+    font-size: 0.62rem;
+    padding: 0.06rem 0.28rem;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
 .fin-checks-page .fin-chk-actions-cell .btn {
-    margin-inline-end: 0.25rem;
+    margin-inline-end: 0;
 }
 
 .fin-check-modal {
