@@ -2337,3 +2337,93 @@
     print-color-adjust: exact;
   }
 }
+
+/* تقرير قائمة السندات الملغاة */
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table {
+  table-layout: fixed;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table col.col-seq {
+  width: 2.4rem;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table col.col-kind {
+  width: 6.5rem;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table col.col-inv-no {
+  width: 9.5rem;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table col.col-customer {
+  width: auto;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table col.col-pay {
+  width: 5rem;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table col.col-money {
+  width: 7.25rem;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table col.col-user {
+  width: 8.5rem;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table td.col-customer,
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table th.col-customer {
+  text-align: start;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table td.col-customer {
+  max-width: 0;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table td.col-user,
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table th.col-user {
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table td.col-money,
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table th.col-money {
+  text-align: end;
+  font-weight: 600;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-voucher-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-voucher-no code {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-voucher-view {
+  flex: 0 0 auto;
+  padding: 0 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-vouchers-table tfoot td {
+  border-top: 2px solid #94a3b8;
+}
+
+@media print {
+  .report-sales-page[data-report-route="report_cancelled_vouchers"] .report-cancelled-voucher-view {
+    display: none !important;
+  }
+}

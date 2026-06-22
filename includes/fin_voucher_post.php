@@ -184,6 +184,9 @@ function fin_voucher_count_unposted(PDO $pdo, string $type): array
             $out[$key] = (int) $st->fetchColumn();
         } else {
             require_once app_path('includes/crm_customer_ledger.php');
+            $cancelledSql = $hasCancelledCol
+                ? ' AND (v.is_cancelled = 0 OR v.is_cancelled IS NULL)'
+                : '';
             if (crm_ledger_has_table($pdo)) {
                 $txnType = $type === 'receipt' ? 'cash_receipt' : 'cash_payment';
                 $st = $pdo->prepare(
@@ -192,7 +195,7 @@ function fin_voucher_count_unposted(PDO $pdo, string $type): array
                        AND NOT EXISTS (
                          SELECT 1 FROM crm_customer_ledger l
                          WHERE l.txn_type = ? AND l.ref_id = v.id
-                       )'
+                       )' . $cancelledSql
                 );
                 $st->execute([$type, $txnType]);
                 $out[$key] = (int) $st->fetchColumn();

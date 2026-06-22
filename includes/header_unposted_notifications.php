@@ -113,6 +113,7 @@ function header_unposted_notifications_collect(PDO $pdo): array
                     COALESCE(e.description_ar, '') AS party_name
              FROM acc_journal_entry e
              WHERE e.status = 'draft'
+               AND COALESCE(e.source, 'manual') = 'manual'
              ORDER BY e.entry_date ASC, e.id ASC
              LIMIT {$perKind}",
             [],
@@ -269,7 +270,8 @@ function header_unposted_notifications_count(PDO $pdo): int
     if (user_can('journal_entries') && dashboard_table_exists($pdo, 'acc_journal_entry')) {
         try {
             $total += (int) $pdo->query(
-                "SELECT COUNT(*) FROM acc_journal_entry WHERE status = 'draft'"
+                "SELECT COUNT(*) FROM acc_journal_entry
+                 WHERE status = 'draft' AND COALESCE(source, 'manual') = 'manual'"
             )->fetchColumn();
         } catch (Throwable $e) {
             // ignore
@@ -404,10 +406,23 @@ function header_unposted_fin_vouchers(PDO $pdo, string $voucherType, int $limit)
     );
 }
 
+function header_unposted_fin_voucher_not_cancelled_sql(PDO $pdo, string $alias = 'v'): string
+{
+    require_once app_path('includes/fin_voucher_schema.php');
+    fin_voucher_ensure_cancel_columns($pdo);
+    if (!fin_voucher_has_column($pdo, 'is_cancelled')) {
+        return '';
+    }
+
+    return " AND ({$alias}.is_cancelled = 0 OR {$alias}.is_cancelled IS NULL)";
+}
+
 function header_unposted_fin_voucher_where_sql(PDO $pdo, string $voucherType): string
 {
+    $notCancelled = header_unposted_fin_voucher_not_cancelled_sql($pdo, 'v');
+
     if (fin_voucher_has_column($pdo, 'is_posted')) {
-        return 'v.is_posted = 0';
+        return 'v.is_posted = 0' . $notCancelled;
     }
 
     require_once app_path('includes/crm_customer_ledger.php');
@@ -421,7 +436,7 @@ function header_unposted_fin_voucher_where_sql(PDO $pdo, string $voucherType): s
         return "NOT EXISTS (
             SELECT 1 FROM crm_customer_ledger l
             WHERE l.txn_type = 'cash_receipt' AND l.ref_id = v.id
-        )";
+        ){$notCancelled}";
     }
 
     if (!crm_ledger_has_table($pdo) && !crm_supplier_ledger_has_table($pdo)) {
@@ -445,5 +460,5 @@ function header_unposted_fin_voucher_where_sql(PDO $pdo, string $voucherType): s
         return '';
     }
 
-    return '(' . implode(' OR ', $parts) . ')';
+    return '(' . implode(' OR ', $parts) . ')' . $notCancelled;
 }

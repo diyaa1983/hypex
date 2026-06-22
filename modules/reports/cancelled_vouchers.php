@@ -143,39 +143,37 @@ if ($showResult) {
             </div>
 
             <div class="report-sales-table-wrap">
-                <table class="report-sales-table js-sortable-report"
+                <table class="report-sales-table report-cancelled-vouchers-table js-sortable-report"
                        data-default-sort="cancelled_at"
                        data-default-dir="desc">
                     <colgroup>
                         <col class="col-seq">
-                        <col class="col-pay">
+                        <col class="col-kind">
                         <col class="col-inv-no">
                         <col class="col-date">
                         <col class="col-customer">
                         <col class="col-pay">
                         <col class="col-money">
                         <col class="col-date">
-                        <col class="col-customer">
-                        <col class="col-act">
+                        <col class="col-user">
                     </colgroup>
                     <thead>
                     <tr>
                         <th class="col-seq js-sort-th" data-sort="seq" data-sort-type="number" title="ترتيب">#</th>
-                        <th class="col-pay js-sort-th" data-sort="doc_kind_label" data-sort-type="text" title="ترتيب حسب النوع">نوع السند</th>
+                        <th class="col-kind js-sort-th" data-sort="doc_kind_label" data-sort-type="text" title="ترتيب حسب النوع">نوع السند</th>
                         <th class="col-inv-no js-sort-th" data-sort="doc_no" data-sort-type="text" title="ترتيب حسب الرقم">رقم السند</th>
                         <th class="col-date js-sort-th" data-sort="doc_date" data-sort-type="date" title="ترتيب حسب تاريخ السند">تاريخ السند</th>
                         <th class="col-customer js-sort-th" data-sort="party_detail" data-sort-type="text" title="ترتيب حسب الطرف">الطرف / الوصف</th>
                         <th class="col-pay js-sort-th" data-sort="pay_method_label" data-sort-type="text" title="ترتيب حسب الدفع">الدفع</th>
                         <th class="col-money js-sort-th" data-sort="amount" data-sort-type="number" title="ترتيب حسب المبلغ">المبلغ</th>
                         <th class="col-date js-sort-th" data-sort="cancelled_at" data-sort-type="date" title="ترتيب حسب تاريخ الإلغاء">تاريخ الإلغاء</th>
-                        <th class="col-customer js-sort-th" data-sort="cancelled_by_name" data-sort-type="text" title="ترتيب حسب المستخدم">أُلغي بواسطة</th>
-                        <th class="col-act"></th>
+                        <th class="col-user js-sort-th" data-sort="cancelled_by_name" data-sort-type="text" title="ترتيب حسب المستخدم">أُلغي بواسطة</th>
                     </tr>
                     </thead>
                     <tbody>
                     <?php if (!$rows): ?>
                         <tr>
-                            <td colspan="10" class="muted" style="text-align:center;padding:1.25rem;">
+                            <td colspan="9" class="muted" style="text-align:center;padding:1.25rem;">
                                 لا توجد سندات ملغاة في الفترة المحددة.
                             </td>
                         </tr>
@@ -192,6 +190,10 @@ if ($showResult) {
                         $cancelledAt = (string) ($row['cancelled_at'] ?? '');
                         $cancelledAtIso = $cancelledAt !== '' ? substr($cancelledAt, 0, 10) : '';
                         $payLabel = trim((string) ($row['pay_method_label'] ?? ''));
+                        $payMethod = (string) ($row['pay_method'] ?? '');
+                        $payBadgeClass = $payMethod === 'check'
+                            ? 'badge-warn'
+                            : ($payMethod !== '' ? 'badge-ok' : '');
                         ?>
                         <tr data-sort-row="1"
                             data-sort-seq="<?= $seq ?>"
@@ -204,32 +206,39 @@ if ($showResult) {
                             data-sort-cancelled_at="<?= esc($cancelledAtIso) ?>"
                             data-sort-cancelled_by_name="<?= esc((string) ($row['cancelled_by_name'] ?? '—')) ?>">
                             <td class="col-seq"><?= $seq ?></td>
-                            <td class="col-pay">
+                            <td class="col-kind">
                                 <span class="badge badge-cancelled-voucher"><?= esc((string) ($row['doc_kind_label'] ?? '')) ?></span>
                             </td>
                             <td class="col-inv-no">
-                                <code class="voucher-no-is-cancelled"><?= esc((string) ($row['doc_no'] ?? '')) ?></code>
-                                <a class="btn btn-ghost btn-sm no-print" style="padding:0 0.35rem;font-size:0.75rem;"
-                                   href="<?= esc($viewUrl) ?>">عرض</a>
+                                <span class="report-cancelled-voucher-no">
+                                    <code class="voucher-no-is-cancelled"><?= esc((string) ($row['doc_no'] ?? '')) ?></code>
+                                    <a class="btn btn-ghost btn-sm no-print report-cancelled-voucher-view"
+                                       href="<?= esc($viewUrl) ?>">عرض</a>
+                                </span>
                             </td>
-                            <td class="col-date" dir="ltr"><?= esc(format_date_dmY((string) ($row['doc_date'] ?? ''))) ?></td>
-                            <td class="col-customer"><span class="report-sales-party-name"><?= esc($detail) ?></span></td>
-                            <td class="col-pay"><?= esc($payLabel !== '' ? $payLabel : '—') ?></td>
+                            <td class="col-date"><?= esc(format_date_dmY((string) ($row['doc_date'] ?? ''))) ?></td>
+                            <td class="col-customer">
+                                <span class="report-sales-party-name" title="<?= esc($detail) ?>"><?= esc($detail) ?></span>
+                            </td>
+                            <td class="col-pay">
+                                <?php if ($payLabel !== ''): ?>
+                                    <span class="badge <?= esc($payBadgeClass) ?>"><?= esc($payLabel) ?></span>
+                                <?php else: ?>
+                                    <span class="muted">—</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="col-money"><?= esc(format_money((float) ($row['amount'] ?? 0))) ?></td>
-                            <td class="col-date" dir="ltr"><?= $cancelledAtIso !== '' ? esc(format_date_dmY($cancelledAtIso)) : '—' ?></td>
-                            <td class="col-customer"><?= esc((string) ($row['cancelled_by_name'] ?? '—')) ?></td>
-                            <td class="col-act no-print">
-                                <a class="btn btn-ghost btn-sm" href="<?= esc($viewUrl) ?>">عرض</a>
-                            </td>
+                            <td class="col-date"><?= $cancelledAtIso !== '' ? esc(format_date_dmY($cancelledAtIso)) : '—' ?></td>
+                            <td class="col-user"><?= esc((string) ($row['cancelled_by_name'] ?? '—')) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
                     <?php if ($rows): ?>
                     <tfoot>
-                    <tr>
+                    <tr class="report-cancelled-vouchers-total">
                         <td colspan="6">الإجمالي — <?= count($rows) ?> سند ملغى</td>
                         <td class="col-money"><?= esc(format_money($sumAmount)) ?></td>
-                        <td colspan="3"></td>
+                        <td colspan="2"></td>
                     </tr>
                     </tfoot>
                     <?php endif; ?>
