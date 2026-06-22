@@ -3728,6 +3728,7 @@
           AppDialog.error((data && data.message) || 'لم يتم العثور على فاتورة تحتوي على هذا الرقم.');
           return;
         }
+        // عدة نتائج: التنقل بالأسهم فقط (تلميح الحقل) — بدون رسالة «معلومة».
         applyInvoiceData(data.invoice);
       });
     });

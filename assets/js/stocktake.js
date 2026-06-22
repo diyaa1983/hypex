@@ -23,6 +23,13 @@
   var nextId = 0;
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
+  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
+  var DOC_NO_SEARCH_UI = {
+    noInputId: 'stocktake-no',
+    prevBtnId: 'stocktake-no-prev',
+    nextBtnId: 'stocktake-no-next',
+    defaultNoTitle: 'اكتب جزءاً من رقم السند واضغط Enter للبحث',
+  };
 
   function alertMsg(msg) {
     if (window.AppDialog && AppDialog.alert) AppDialog.alert(msg, { type: 'warning' });
@@ -267,6 +274,26 @@
     form.requestSubmit ? form.requestSubmit() : form.submit();
   }
 
+  function setBrowseNavFromSearch(prev, next) {
+    prevId = prev > 0 ? prev : 0;
+    nextId = next > 0 ? next : 0;
+    if (window.DocumentNoNav) {
+      DocumentNoNav.updateButtons('stocktake-no-prev', 'stocktake-no-next', prevId, nextId, {
+        onEmpty: false,
+        prevTitle: 'سند الجرد السابق',
+        nextTitle: 'سند الجرد التالي',
+      });
+    }
+  }
+
+  function applyBrowseNavFromDoc(doc) {
+    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
+      DocumentNoNav.applyBrowseNav(docNoSearch, doc, setBrowseNavFromSearch, DOC_NO_SEARCH_UI);
+      return;
+    }
+    setBrowseNavFromSearch(doc.prev_id || 0, doc.next_id || 0);
+  }
+
   function setBrowseNav(prev, next) {
     browseNavPrevId = prev > 0 ? prev : 0;
     browseNavNextId = next > 0 ? next : 0;
@@ -353,15 +380,7 @@
     if (dateInp) dateInp.readOnly = isPosted;
     if (notesInp) notesInp.readOnly = isPosted;
     if (pickBtn) pickBtn.style.display = isPosted ? 'none' : '';
-    prevId = parseInt(doc.prev_id || 0, 10) || 0;
-    nextId = parseInt(doc.next_id || 0, 10) || 0;
-    if (window.DocumentNoNav) {
-      DocumentNoNav.updateButtons('stocktake-no-prev', 'stocktake-no-next', prevId, nextId, {
-        onEmpty: false,
-        prevTitle: 'سند الجرد السابق',
-        nextTitle: 'سند الجرد التالي',
-      });
-    }
+    applyBrowseNavFromDoc(doc);
     tbody.innerHTML = '';
     (doc.lines || []).forEach(function (ln) {
       addLine({
@@ -380,7 +399,7 @@
     var no = noInp ? String(noInp.value || '').trim() : '';
     if (!no) return alertMsg('أدخل رقم السند أولاً.');
     fetchDoc({ no: no }, function (d) {
-      if (!d || !d.ok || !d.doc) return alertMsg((d && d.message) || 'لم يتم العثور على السند.');
+      if (!d || !d.ok || !d.doc) return alertMsg((d && d.message) || 'لم يتم العثور على سند يحتوي على هذا الرقم.');
       applyDoc(d.doc);
     });
   }
@@ -388,6 +407,22 @@
   function navDoc(dir) {
     if (currentDocId < 1) {
       navigateEmptyStocktake(dir);
+      return;
+    }
+    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
+      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
+        fetchById: function (id) {
+          return fetchDocPromise({ id: id });
+        },
+        isOk: function (data) {
+          return !!(data && data.ok && data.doc);
+        },
+        getPayload: function (data) {
+          return data.doc;
+        },
+        apply: applyDoc,
+        loadError: 'تعذر تحميل السند.',
+      });
       return;
     }
     var target = dir === 'prev' ? prevId : nextId;

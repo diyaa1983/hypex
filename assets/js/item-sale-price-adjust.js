@@ -17,6 +17,13 @@
   var docIsPosted = form.classList.contains('item-price-adj-form-is-posted');
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
+  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
+  var DOC_NO_SEARCH_UI = {
+    noInputId: 'item-price-adj-no',
+    prevBtnId: 'item-price-adj-no-prev',
+    nextBtnId: 'item-price-adj-no-next',
+    defaultNoTitle: 'اكتب جزءاً من رقم الحركة واضغط Enter للبحث',
+  };
 
   var adjNoInp = document.getElementById('item-price-adj-no');
   var adjDateInp = document.getElementById('item-price-adj-date');
@@ -100,6 +107,14 @@
       adjNoInp.value = '';
     }
     updateAdjNoPostedStyle();
+  }
+
+  function applyBrowseNavFromPayload(payload) {
+    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
+      DocumentNoNav.applyBrowseNav(docNoSearch, payload, setBrowseNav, DOC_NO_SEARCH_UI);
+      return;
+    }
+    setBrowseNav(payload.prev_id || 0, payload.next_id || 0);
   }
 
   function setBrowseNav(prevId, nextId) {
@@ -407,7 +422,7 @@
       renumberLines();
     }
     refreshDocEditState();
-    setBrowseNav(doc.prev_id || 0, doc.next_id || 0);
+    applyBrowseNavFromPayload(doc);
     updateHistory(currentDocId);
   }
 
@@ -450,7 +465,7 @@
     if (!no) return;
     fetchDocResponse({ no: no }).then(function (data) {
       if (!data || !data.ok || !data.doc) {
-        alertMsg((data && data.message) || 'لم يتم العثور على حركة بهذا الرقم.');
+        alertMsg((data && data.message) || 'لم يتم العثور على حركة تحتوي على هذا الرقم.');
         return;
       }
       applyDocData(data.doc);
@@ -460,6 +475,22 @@
   function navigateDoc(dir) {
     if (currentDocId < 1) {
       navigateEmptyDoc(dir);
+      return;
+    }
+    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
+      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
+        fetchById: function (id) {
+          return fetchDocResponse({ id: id });
+        },
+        isOk: function (data) {
+          return !!(data && data.ok && data.doc);
+        },
+        getPayload: function (data) {
+          return data.doc;
+        },
+        apply: applyDocData,
+        loadError: 'تعذر تحميل الحركة.',
+      });
       return;
     }
     fetchDocResponse({ id: currentDocId, dir: dir }).then(function (data) {
@@ -553,6 +584,13 @@
         e.preventDefault();
         loadDocByNo(adjNoInp.value);
       }
+    });
+    adjNoInp.addEventListener('blur', function () {
+      var no = String(adjNoInp.value || '').trim();
+      if (window.DocumentNoNav && DocumentNoNav.shouldSkipBlurSearch(docNoSearch, currentDocId, no)) {
+        return;
+      }
+      loadDocByNo(no);
     });
   }
 

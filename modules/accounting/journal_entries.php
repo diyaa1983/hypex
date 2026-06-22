@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once app_path('includes/acc_journal.php');
+require_once app_path('includes/acc_report_ref.php');
 require_once app_path('includes/nav_helpers.php');
 
 function journal_entries_enqueue_oracle_assets(): void
@@ -196,12 +197,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'view') {
     $cssInvPath = app_path('assets/css/sales-invoice.css');
     $cssInvUrl = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
     $childExitUrl = journal_entries_list_return_url($listUrl);
-    $jvOpenUrl = '';
-    if ($action === 'view' && (int) ($header['id'] ?? 0) > 0 && user_can('journal_voucher')) {
-        $jvOpenUrl = app_url(
-            'index.php?r=journal_voucher&id=' . (int) $header['id'] . nav_hub_query_for_redirect()
-        );
-    }
+    $jvOpenLink = $action === 'view' ? acc_journal_entry_open_link($header) : null;
     account_picker_enqueue_assets();
     journal_entries_enqueue_oracle_assets();
     if ($readOnly) {
@@ -226,8 +222,8 @@ if ($action === 'add' || $action === 'edit' || $action === 'view') {
         <div class="dashboard-ora-workspace">
             <div class="dashboard-ora-toolbar no-print">
                 <a class="dashboard-ora-btn" href="<?= esc($listUrl) ?>">رجوع للقائمة</a>
-                <?php if ($jvOpenUrl !== ''): ?>
-                    <a class="dashboard-ora-btn dashboard-ora-btn--primary" href="<?= esc($jvOpenUrl) ?>">فتح في شاشة السندات</a>
+                <?php if ($jvOpenLink !== null): ?>
+                    <a class="dashboard-ora-btn dashboard-ora-btn--primary" href="<?= esc($jvOpenLink['url']) ?>"><?= esc($jvOpenLink['label']) ?></a>
                 <?php endif; ?>
                 <?php if ($readOnly): ?>
                     <button type="button" class="dashboard-ora-btn" id="journal-entry-print-btn">طباعة</button>

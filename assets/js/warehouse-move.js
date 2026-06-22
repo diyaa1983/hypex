@@ -285,7 +285,7 @@
     syncMovementTypeUi();
     syncWarehouseNotice();
     refreshMoveEditState();
-    setBrowseNav(move.prev_id || 0, move.next_id || 0);
+    applyBrowseNavFromPayload(move);
     updateHistory(currentMoveId);
   }
 
@@ -321,7 +321,7 @@
     if (!no) return;
     fetchMoveResponse({ no: no }).then(function (data) {
       if (!data || !data.ok || !data.move) {
-        alertMsg((data && data.message) || 'لم يتم العثور على حركة بهذا الرقم.');
+        alertMsg((data && data.message) || 'لم يتم العثور على حركة تحتوي على هذا الرقم.');
         return;
       }
       applyMoveData(data.move);
@@ -341,6 +341,22 @@
   function navigateMove(dir) {
     if (currentMoveId < 1) {
       navigateEmptyMove(dir);
+      return;
+    }
+    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
+      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
+        fetchById: function (id) {
+          return fetchMoveResponse({ id: id });
+        },
+        isOk: function (data) {
+          return !!(data && data.ok && data.move);
+        },
+        getPayload: function (data) {
+          return data.move;
+        },
+        apply: applyMoveData,
+        loadError: 'تعذر تحميل الحركة.',
+      });
       return;
     }
     fetchMoveResponse({ id: currentMoveId, dir: dir }).then(function (data) {
@@ -1250,8 +1266,9 @@
     });
     moveNoInp.addEventListener('blur', function () {
       var no = String(moveNoInp.value || '').trim();
-      if (!no || currentMoveId < 1) return;
-      if (no === String(moveNoInp.dataset.loadedNo || '')) return;
+      if (window.DocumentNoNav && DocumentNoNav.shouldSkipBlurSearch(docNoSearch, currentMoveId, no)) {
+        return;
+      }
       loadMoveByNo(no);
     });
   }

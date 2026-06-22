@@ -22,24 +22,34 @@ function acc_report_ref_type_label(string $refType): string
     return acc_report_ref_type_labels()[$refType] ?? $refType;
 }
 
+/** @return array<string, array{r: string, param: string, permission: string}> */
+function acc_report_ref_routes(): array
+{
+    return [
+        'sale_invoice' => ['r' => 'sales_invoices', 'param' => 'id', 'permission' => 'sales_invoices'],
+        'purchase_invoice' => ['r' => 'purchase_invoices', 'param' => 'id', 'permission' => 'purchase_invoices'],
+        'sale_return' => ['r' => 'sales_returns', 'param' => 'id', 'permission' => 'sales_returns'],
+        'purchase_return' => ['r' => 'purchase_returns', 'param' => 'id', 'permission' => 'purchase_returns'],
+        'cash_receipt' => ['r' => 'cash_receipt', 'param' => 'id', 'permission' => 'cash_receipt'],
+        'cash_payment' => ['r' => 'cash_payment', 'param' => 'id', 'permission' => 'cash_payment'],
+        'debit_note' => ['r' => 'debit_notes', 'param' => 'id', 'permission' => 'debit_notes'],
+        'credit_note' => ['r' => 'credit_notes', 'param' => 'id', 'permission' => 'credit_notes'],
+        'warehouse_move' => ['r' => 'warehouse_moves', 'param' => 'id', 'permission' => 'warehouse_moves'],
+    ];
+}
+
+function acc_report_ref_permission(string $refType): ?string
+{
+    return acc_report_ref_routes()[$refType]['permission'] ?? null;
+}
+
 function acc_report_ref_url(string $refType, int $refId): ?string
 {
     if ($refId < 1 || $refType === '') {
         return null;
     }
 
-    $routes = [
-        'sale_invoice' => ['r' => 'sales_invoices', 'param' => 'id'],
-        'purchase_invoice' => ['r' => 'purchase_invoices', 'param' => 'id'],
-        'sale_return' => ['r' => 'sales_returns', 'param' => 'id'],
-        'purchase_return' => ['r' => 'purchase_returns', 'param' => 'id'],
-        'cash_receipt' => ['r' => 'cash_receipt', 'param' => 'id'],
-        'cash_payment' => ['r' => 'cash_payment', 'param' => 'id'],
-        'debit_note' => ['r' => 'debit_notes', 'param' => 'id'],
-        'credit_note' => ['r' => 'credit_notes', 'param' => 'id'],
-        'warehouse_move' => ['r' => 'warehouse_moves', 'param' => 'id'],
-    ];
-
+    $routes = acc_report_ref_routes();
     if (!isset($routes[$refType])) {
         return null;
     }
@@ -47,6 +57,49 @@ function acc_report_ref_url(string $refType, int $refId): ?string
     $meta = $routes[$refType];
 
     return app_url('index.php?r=' . rawurlencode($meta['r']) . '&' . $meta['param'] . '=' . $refId);
+}
+
+/**
+ * رابط فتح المستند المرتبط بقيد (سند قبض/صرف، فاتورة… أو سند قيد يدوي).
+ *
+ * @param array<string, mixed> $header صف acc_journal_entry
+ * @return array{url: string, label: string}|null
+ */
+function acc_journal_entry_open_link(array $header, bool $withHub = true): ?array
+{
+    $journalId = (int) ($header['id'] ?? 0);
+    if ($journalId < 1) {
+        return null;
+    }
+
+    $refType = trim((string) ($header['ref_type'] ?? ''));
+    $refId = (int) ($header['ref_id'] ?? 0);
+    $source = (string) ($header['source'] ?? '');
+    $hub = $withHub && function_exists('nav_hub_query_for_redirect') ? nav_hub_query_for_redirect() : '';
+
+    if ($source === 'auto' && $refType !== '' && $refId > 0) {
+        $perm = acc_report_ref_permission($refType);
+        if ($perm !== null && user_can($perm)) {
+            $url = acc_report_ref_url($refType, $refId);
+            if ($url !== null) {
+                return [
+                    'url' => $url . $hub,
+                    'label' => 'فتح ' . acc_report_ref_type_label($refType),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    if (!user_can('journal_voucher')) {
+        return null;
+    }
+
+    return [
+        'url' => app_url('index.php?r=journal_voucher&id=' . $journalId . $hub),
+        'label' => 'فتح في شاشة السندات',
+    ];
 }
 
 function acc_report_journal_voucher_url(int $journalId, string $entryNo = ''): string
