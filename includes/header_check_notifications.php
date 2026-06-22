@@ -123,6 +123,11 @@ function header_check_notifications_collect(PDO $pdo): array
     return $data;
 }
 
+function header_check_notifications_invalidate_cache(): void
+{
+    unset($_SESSION['_header_check_notify']);
+}
+
 function header_check_notifications_user_can_see(): bool
 {
     if (user_can('cash_receipt') || user_can('cash_receipts_list')) {

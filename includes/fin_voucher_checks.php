@@ -208,6 +208,46 @@ function fin_voucher_checks_receipt_posted_sql(PDO $pdo, string $voucherAlias = 
         : "EXISTS (SELECT 1 FROM crm_customer_ledger l WHERE l.txn_type = 'cash_receipt' AND l.ref_id = {$voucherAlias}.id)";
 }
 
+/** هل جدول الشيكات يدعم حالة دورة الحياة (قيد / صرف / إرجاع / تجيير)؟ */
+function fin_voucher_checks_has_lifecycle(PDO $pdo): bool
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    if (!fin_voucher_checks_has_table($pdo)) {
+        $cached = false;
+
+        return false;
+    }
+    try {
+        $st = $pdo->query(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fin_voucher_check' AND COLUMN_NAME = 'lifecycle_status'"
+        );
+        $cached = ((int) $st->fetchColumn()) > 0;
+    } catch (Throwable $e) {
+        $cached = false;
+    }
+
+    return $cached;
+}
+
+/** شيكات ما زالت «قيد» ولم تُصرَف أو تُرجَع أو تُجيَّر — للتنبيهات والبريد. */
+function fin_voucher_checks_sql_pending_only(PDO $pdo, string $checkAlias = 'c', string $voucherAlias = 'v'): string
+{
+    require_once app_path('includes/fin_voucher_schema.php');
+    $parts = [];
+    if (fin_voucher_checks_has_lifecycle($pdo)) {
+        $parts[] = "{$checkAlias}.lifecycle_status = 'pending'";
+    }
+    if (fin_voucher_has_column($pdo, 'is_cancelled')) {
+        $parts[] = "({$voucherAlias}.is_cancelled = 0 OR {$voucherAlias}.is_cancelled IS NULL)";
+    }
+
+    return $parts === [] ? '' : ' AND ' . implode(' AND ', $parts);
+}
+
 /**
  * إجمالي دائن صندوق الشيكات من القيود المرحّلة (تحصيل / نقل إلى الصندوق عبر سند قيد…).
  */
@@ -259,6 +299,7 @@ function fin_voucher_checks_apply_collection_fifo(array $checks, float $collecte
 
 /**
  * شيكات سندات قبض مرحّلة ولا تزال في صندوق الشيكات (قيد التحصيل).
+ * يُستبعد ما صُرف أو أُرجِع أو جُيِّر أو أُلغي سنده — لا يظهر في تنبيهات الاستحقاق.
  *
  * @return list<array{
  *   check_id:int,
@@ -290,6 +331,7 @@ function fin_voucher_checks_pending_collection(PDO $pdo, ?string $today = null):
     $today = $today ?? date('Y-m-d');
     $postedExpr = fin_voucher_checks_receipt_posted_sql($pdo, 'v');
     $payFilter = fin_voucher_has_column($pdo, 'pay_method') ? " AND v.pay_method = 'check' " : '';
+    $pendingOnly = fin_voucher_checks_sql_pending_only($pdo, 'c', 'v');
     $checksFundId = fin_voucher_checks_fund_account_id($pdo);
     $glDebitFilter = '';
     $params = [];
@@ -316,6 +358,7 @@ function fin_voucher_checks_pending_collection(PDO $pdo, ?string $today = null):
          WHERE {$postedExpr}
            AND c.check_amount > 0
            {$payFilter}
+           {$pendingOnly}
            {$glDebitFilter}
          ORDER BY c.due_date ASC, v.voucher_date ASC, c.id ASC";
 

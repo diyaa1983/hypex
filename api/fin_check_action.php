@@ -58,6 +58,8 @@ try {
         throw new RuntimeException('إجراء غير معروف.');
     }
     $pdo->commit();
+    require_once app_path('includes/header_check_notifications.php');
+    header_check_notifications_invalidate_cache();
     flash_set('success', (string) ($result['message'] ?? 'تم الترحيل.'));
     echo json_encode([
         'ok' => true,
