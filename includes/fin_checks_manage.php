@@ -1471,12 +1471,8 @@ function fin_checks_manage_unpost_journal(PDO $pdo, int $journalId): void
     if ($journalId < 1) {
         return;
     }
-    require_once app_path('includes/crm_customer_ledger.php');
-    require_once app_path('includes/crm_supplier_ledger.php');
-    crm_ledger_delete_journal_voucher_by_journal($pdo, $journalId);
-    crm_supplier_ledger_delete_journal_voucher_by_journal($pdo, $journalId);
-    $pdo->prepare('DELETE FROM acc_journal_line WHERE journal_id = ?')->execute([$journalId]);
-    $pdo->prepare('DELETE FROM acc_journal_entry WHERE id = ?')->execute([$journalId]);
+    require_once app_path('includes/acc_gl.php');
+    acc_gl_delete_auto_journal($pdo, $journalId);
 }
 
 /**
@@ -2163,11 +2159,39 @@ function fin_checks_manage_undo(PDO $pdo, int $checkId): array
         if (!$gl['ok']) {
             throw new RuntimeException($gl['error'] ?? 'تعذر إلغاء قيد الصرف.');
         }
+        if ($gl['skipped']) {
+            $journalId = (int) ($check['action_journal_id'] ?? 0);
+            if ($journalId < 1) {
+                $st = $pdo->prepare(
+                    "SELECT id FROM acc_journal_entry
+                     WHERE ref_type = 'fin_check_clear' AND ref_id = ? LIMIT 1"
+                );
+                $st->execute([$checkId]);
+                $journalId = (int) $st->fetchColumn();
+            }
+            if ($journalId > 0) {
+                fin_checks_manage_unpost_journal($pdo, $journalId);
+            }
+        }
         $message = 'تم إلغاء صرف/تحصيل الشيك وإعادته إلى «قيد».';
     } elseif ($status === 'returned') {
         $gl = acc_gl_unpost_ref($pdo, 'fin_check_return', $checkId);
         if (!$gl['ok']) {
             throw new RuntimeException($gl['error'] ?? 'تعذر إلغاء قيد الإرجاع.');
+        }
+        if ($gl['skipped']) {
+            $journalId = (int) ($check['action_journal_id'] ?? 0);
+            if ($journalId < 1) {
+                $st = $pdo->prepare(
+                    "SELECT id FROM acc_journal_entry
+                     WHERE ref_type = 'fin_check_return' AND ref_id = ? LIMIT 1"
+                );
+                $st->execute([$checkId]);
+                $journalId = (int) $st->fetchColumn();
+            }
+            if ($journalId > 0) {
+                fin_checks_manage_unpost_journal($pdo, $journalId);
+            }
         }
         $message = 'تم إلغاء إرجاع الشيك وإعادته إلى «قيد».';
     } else {

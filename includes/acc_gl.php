@@ -228,6 +228,25 @@ function acc_gl_ref_exists(PDO $pdo, string $refType, int $refId): bool
     return (bool) $st->fetchColumn();
 }
 
+/** حذف قيد تلقائي مع تنظيف دفتر الذمم المرتبط بأسطر سند القيد. */
+function acc_gl_delete_auto_journal(PDO $pdo, int $journalId): void
+{
+    if ($journalId < 1) {
+        return;
+    }
+
+    require_once app_path('includes/crm_customer_ledger.php');
+    require_once app_path('includes/crm_supplier_ledger.php');
+    crm_ledger_delete_journal_voucher_by_journal($pdo, $journalId);
+    crm_supplier_ledger_delete_journal_voucher_by_journal($pdo, $journalId);
+
+    require_once app_path('includes/acc_journal_party.php');
+    acc_journal_party_ledger_sync($pdo, $journalId, false);
+
+    $pdo->prepare('DELETE FROM acc_journal_line WHERE journal_id = ?')->execute([$journalId]);
+    $pdo->prepare('DELETE FROM acc_journal_entry WHERE id = ?')->execute([$journalId]);
+}
+
 /**
  * حذف قيد الترحيل التلقائي المرتبط بمستند (عكس الترحيل المحاسبي).
  *
@@ -249,14 +268,9 @@ function acc_gl_unpost_ref(PDO $pdo, string $refType, int $refId): array
         if ($journalId < 1) {
             return $out;
         }
-        $pdo->prepare('DELETE FROM acc_journal_entry WHERE id = ?')->execute([$journalId]);
-        $out['skipped'] = false;
 
-        $lifecycle = fin_checks_manage_ref_type_to_lifecycle($refType);
-        if ($lifecycle !== null) {
-            require_once app_path('includes/fin_checks_manage.php');
-            fin_checks_manage_apply_undo_state($pdo, $refId, $lifecycle);
-        }
+        acc_gl_delete_auto_journal($pdo, $journalId);
+        $out['skipped'] = false;
     } catch (Throwable $e) {
         $out['ok'] = false;
         $out['error'] = 'تعذر إلغاء الترحيل المحاسبي.';
