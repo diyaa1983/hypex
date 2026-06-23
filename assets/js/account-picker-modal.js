@@ -292,7 +292,7 @@
   function fetchAccountsSearch(binding, q) {
     var results = getResults();
     var reqId = ++searchRequestId;
-    var url = getSearchApiUrl() + '?q=' + encodeURIComponent(q) + '&limit=120';
+    var url = getSearchApiUrl() + '?q=' + encodeURIComponent(q) + '&limit=200';
     if (binding && binding.searchWithMovements) {
       url += '&with_movements=1';
     }
@@ -462,6 +462,7 @@
       initialId: slot.getAttribute('data-initial') || '',
       searchWithMovements: slot.getAttribute('data-search-with-movements') === '1',
       searchForMapping: slot.getAttribute('data-search-for-mapping') === '1',
+      maxResults: parseInt(slot.getAttribute('data-max-results'), 10) || 150,
     });
     slot.setAttribute('data-account-picker-bound', '1');
     return api;

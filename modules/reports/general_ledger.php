@@ -26,7 +26,7 @@ if ($dateFrom > $dateTo) {
     [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
 }
 
-$accounts = acc_report_leaf_accounts_picker($pdo, $accountId > 0 ? [$accountId] : []);
+$accounts = acc_journal_accounts_picker($pdo, $accountId > 0 ? [$accountId] : []);
 
 $account = null;
 $pack = null;
@@ -76,7 +76,7 @@ $pageDataAttrs = ' class="card report-sales-page report-gl-page"'
                 'value' => $accountId,
                 'placeholder' => 'اضغط لاختيار حساب',
                 'json_id' => 'report-gl-accounts-json',
-                'search_with_movements' => true,
+                'max_results' => 500,
             ]) ?>
         </label>
         <label class="field">
