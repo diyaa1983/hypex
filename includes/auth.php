@@ -148,6 +148,24 @@ function require_permission(string $screenCode): void
     }
 }
 
+/** التحقق من كلمة مرور المستخدم الحالي (لإجراءات حساسة مثل تعديل سند مرحّل). */
+function verify_current_user_password(string $password): bool
+{
+    $user = current_user();
+    if (!$user || trim($password) === '') {
+        return false;
+    }
+
+    $st = db()->prepare('SELECT password_hash FROM sys_user WHERE id = ? AND is_active = 1 LIMIT 1');
+    $st->execute([(int) ($user['id'] ?? 0)]);
+    $hash = $st->fetchColumn();
+    if (!$hash || !is_string($hash)) {
+        return false;
+    }
+
+    return password_verify($password, $hash);
+}
+
 function attempt_login(string $username, string $password): bool
 {
     $username = trim($username);

@@ -58,6 +58,11 @@ return [
                     'inherit_from' => ['journal_voucher'],
                 ],
                 [
+                    'code' => 'action_edit_journal_voucher',
+                    'name_ar' => 'تعديل سند قيد مرحّل',
+                    'inherit_from' => ['journal_voucher'],
+                ],
+                [
                     'code' => 'action_unpost_warehouse_move',
                     'name_ar' => 'فك ترحيل حركة مستودع',
                     'inherit_from' => ['warehouse_moves'],

@@ -156,6 +156,16 @@ return [
             ],
         ],
         [
+            'action' => 'edit',
+            'label' => 'تعديل',
+            'variant' => 'secondary',
+            'title' => 'تعديل سند قيد مرحّل بعد التحقق بكلمة المرور (فك الترحيل ثم التعديل وإعادة الترحيل)',
+            'screens' => ['journal_voucher'],
+            'permission_by_screen' => [
+                'journal_voucher' => 'action_edit_journal_voucher',
+            ],
+        ],
+        [
             'action' => 'unpost',
             'label' => 'فك الترحيل',
             'variant' => 'secondary',

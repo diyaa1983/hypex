@@ -9,12 +9,16 @@
   var apiDelete = form.getAttribute('api-delete') || form.getAttribute('data-api-delete') || '';
   var apiPost = form.getAttribute('data-api-post') || '';
   var apiUnpost = form.getAttribute('data-api-unpost') || '';
+  var apiEditUnlock = form.getAttribute('data-api-edit-unlock') || '';
   var apiCancel = form.getAttribute('data-api-cancel') || '';
   var canUnpostByPermission = form.getAttribute('data-can-unpost') === '1';
+  var canEditByPermission = form.getAttribute('data-can-edit') === '1';
   var newUrl = form.getAttribute('data-new-url') || '';
   var defaultDate = form.getAttribute('data-default-date') || '';
   var initialId = parseInt(form.getAttribute('data-initial-id') || '0', 10);
   var entryStatus = '';
+  var noDeleteEntry = false;
+  var isManualEntry = true;
 
   var tbody = document.getElementById('jv-lines-body');
   var linesJson = document.getElementById('jv_lines_json');
@@ -703,15 +707,25 @@
 
   function updateJvToolbar() {
     var postBtn = document.querySelector('#master-toolbar [data-master-action="post"]');
+    var editBtn = document.querySelector('#master-toolbar [data-master-action="edit"]');
     var unpostBtn = document.querySelector('#master-toolbar [data-master-action="unpost"]');
     var cancelBtn = document.querySelector('#master-toolbar [data-master-action="cancel_voucher"]');
     var deleteBtn = document.querySelector('#master-toolbar [data-master-action="delete"]');
-    var canPost = currentId > 0 && entryStatus === 'draft';
-    var canUnpost = currentId > 0 && entryStatus === 'posted' && canUnpostByPermission;
-    var canCancel = currentId > 0 && entryStatus === 'posted';
+    var canPost = isManualEntry && currentId > 0 && entryStatus === 'draft';
+    var canEdit = canEditByPermission && isManualEntry && currentId > 0 && entryStatus === 'posted';
+    var canUnpost = isManualEntry && currentId > 0 && entryStatus === 'posted' && canUnpostByPermission;
+    var canCancel = isManualEntry && currentId > 0 && entryStatus === 'posted';
     if (postBtn) {
       postBtn.disabled = !canPost;
       postBtn.title = canPost ? 'ترحيل السند' : 'احفظ السند أولاً أو السند مرحّل/ملغى';
+    }
+    if (editBtn) {
+      editBtn.disabled = !canEdit;
+      editBtn.title = canEdit
+        ? 'تعديل السند بعد التحقق بكلمة المرور'
+        : entryStatus === 'draft'
+          ? 'السند قابل للتعديل — احفظ ثم رحّل'
+          : 'يمكن تعديل السندات المرحّلة فقط';
     }
     if (unpostBtn) {
       unpostBtn.disabled = !canUnpost;
@@ -721,16 +735,32 @@
       cancelBtn.disabled = !canCancel;
       cancelBtn.title = canCancel
         ? 'إلغاء السند (يبقى برقم التسلسل ويُلغى أثره المحاسبي)'
-        : 'يمكن إلغاء السندات المرحّلة فقط';
+        : 'يمكن إلغاء السندات المرحّلة اليدوية فقط';
+    }
+    var saveBtn = document.querySelector('#master-toolbar [data-master-action="save"]');
+    if (saveBtn) {
+      saveBtn.disabled = currentId > 0 && !isManualEntry;
+      if (currentId > 0 && !isManualEntry) {
+        saveBtn.title = 'لا يمكن حفظ قيد تلقائي من سند القيد';
+      }
     }
     if (deleteBtn) {
-      deleteBtn.disabled = currentId > 0 && (entryStatus === 'posted' || entryStatus === 'cancelled');
+      deleteBtn.disabled =
+        !isManualEntry ||
+        currentId < 1 ||
+        entryStatus === 'posted' ||
+        entryStatus === 'cancelled' ||
+        noDeleteEntry;
       deleteBtn.title =
-        entryStatus === 'cancelled'
+        !isManualEntry
+          ? 'لا يمكن حذف قيد تلقائي من سند القيد'
+          : entryStatus === 'cancelled'
           ? 'لا يمكن حذف سند ملغى'
           : entryStatus === 'posted'
-            ? 'لا يمكن حذف سند مرحّل — استخدم «إلغاء السند»'
-            : 'حذف مسودة السند';
+            ? 'لا يمكن حذف سند مرحّل — استخدم «تعديل» أو «إلغاء السند»'
+            : noDeleteEntry
+              ? 'لا يمكن حذف سند كان مرحّلاً مسبقاً'
+              : 'حذف مسودة السند';
     }
   }
 
@@ -743,7 +773,10 @@
       return;
     }
     statusBadge.hidden = false;
-    if (entryStatus === 'posted') {
+    if (!isManualEntry) {
+      statusBadge.textContent = 'قيد تلقائي';
+      statusBadge.className = 'sales-inv-posted-badge badge badge-auto';
+    } else if (entryStatus === 'posted') {
       statusBadge.textContent = 'مرحّل';
       statusBadge.className = 'sales-inv-posted-badge badge badge-posted';
     } else if (entryStatus === 'draft') {
@@ -768,17 +801,20 @@
     if (entry.is_cancelled === true || entryStatus === 'cancelled') {
       entryStatus = 'cancelled';
     }
+    noDeleteEntry = entry.no_delete === true;
+    isManualEntry = entry.is_manual !== false;
     if (entryIdEl) entryIdEl.value = currentId > 0 ? String(currentId) : '';
     if (noEl) noEl.value = entry.entry_no || '';
     loadedEntryNo = String(entry.entry_no || '').trim();
     if (dateEl) dateEl.value = entry.entry_date_dmy || entry.entry_date || defaultDate;
     if (descEl) descEl.value = entry.description_ar || '';
 
-    var editable = entry.is_editable !== false && entry.status === 'draft';
-    readOnly = !editable || entryStatus === 'cancelled';
+    var editable = entry.is_editable !== false && entry.status === 'draft' && isManualEntry;
+    readOnly = !editable || entryStatus === 'cancelled' || !isManualEntry;
     if (wrap) {
       wrap.classList.toggle('is-readonly', readOnly);
       wrap.classList.toggle('fin-jv-form-is-cancelled', entryStatus === 'cancelled');
+      wrap.classList.toggle('fin-jv-form-is-auto', !isManualEntry);
     }
     if (dateEl) dateEl.readOnly = readOnly;
     if (descEl) descEl.readOnly = readOnly;
@@ -806,6 +842,8 @@
     browsePrevId = 0;
     browseNextId = 0;
     entryStatus = '';
+    noDeleteEntry = false;
+    isManualEntry = true;
     readOnly = false;
     if (wrap) wrap.classList.remove('is-readonly');
     if (entryIdEl) entryIdEl.value = '';
@@ -977,7 +1015,23 @@
 
   function loadByNo(no) {
     return fetchEntry({ no: no }).then(function (data) {
-      if (!data.ok) throw new Error(data.message || 'غير موجود');
+      if (!data.ok) {
+        if (data.error === 'auto_entry') {
+          var msg = data.message || 'هذا قيد تلقائي — افتح المستند الأصلي للتعديل.';
+          if (data.ref_url && global.AppDialog && AppDialog.confirm) {
+            return AppDialog.confirm(msg + '\n\nهل تريد فتح المستند الأصلي؟', {
+              title: 'قيد تلقائي',
+              okText: 'فتح المستند',
+              cancelText: 'إغلاق',
+            }).then(function (ok) {
+              if (ok) window.location.href = data.ref_url;
+              throw new Error(msg);
+            });
+          }
+          throw new Error(msg);
+        }
+        throw new Error(data.message || 'غير موجود');
+      }
       applyEntry(data.entry);
     });
   }
@@ -1015,6 +1069,10 @@
   }
 
   function submitSave() {
+    if (!isManualEntry && currentId > 0) {
+      alert('هذا قيد تلقائي من مستند آخر. عدّله من شاشة المستند الأصلي.');
+      return;
+    }
     if (readOnly) {
       alert('لا يمكن تعديل سند مرحّل أو ملغى.');
       return;
@@ -1071,7 +1129,11 @@
       return;
     }
     if (entryStatus === 'posted') {
-      alert('لا يمكن حذف سند مرحّل. استخدم «إلغاء السند» من الشريط العلوي.');
+      alert('لا يمكن حذف سند مرحّل. استخدم «تعديل» أو «إلغاء السند» من الشريط العلوي.');
+      return;
+    }
+    if (noDeleteEntry) {
+      alert('لا يمكن حذف هذا السند لأنه كان مرحّلاً مسبقاً.');
       return;
     }
     if (readOnly) {
@@ -1172,6 +1234,89 @@
       .catch(function () {
         alert('تعذر الاتصال بالخادم.');
       });
+  }
+
+  function promptUserPassword(message) {
+    if (global.AppDialog && AppDialog.prompt) {
+      return AppDialog.prompt(message, {
+        title: 'التحقق بكلمة المرور',
+        okText: 'متابعة',
+        cancelText: 'إلغاء',
+        placeholder: 'كلمة المرور',
+        inputType: 'password',
+        multiline: false,
+      });
+    }
+    return Promise.resolve(window.prompt(message, ''));
+  }
+
+  function editCurrentEntry() {
+    if (!isManualEntry) {
+      alert('هذا قيد تلقائي من مستند آخر. لا يمكن تعديله من سند القيد.');
+      return;
+    }
+    if (!canEditByPermission) {
+      if (global.AppDialog && AppDialog.alert) {
+        AppDialog.alert('ليس لديك صلاحية تعديل سند قيد مرحّل.', { type: 'warning' });
+      } else {
+        alert('ليس لديك صلاحية تعديل سند قيد مرحّل.');
+      }
+      return;
+    }
+    if (!apiEditUnlock) {
+      alert('التعديل غير متاح.');
+      return;
+    }
+    if (currentId < 1) {
+      alert('افتح السند أولاً.');
+      return;
+    }
+    if (entryStatus !== 'posted') {
+      alert(entryStatus === 'draft' ? 'السند غير مرحّل — يمكنك التعديل مباشرة.' : 'لا يمكن تعديل هذا السند.');
+      return;
+    }
+
+    var label = noEl && noEl.value ? noEl.value : String(currentId);
+    var msg =
+      'لتعديل السند «' +
+      label +
+      '» أدخل كلمة مرورك.\n\nسيتم فك الترحيل تلقائياً ثم يمكنك تعديل التاريخ والحركات، وبعدها احفظ وأعد الترحيل.';
+
+    promptUserPassword(msg).then(function (password) {
+      if (password === null || String(password).trim() === '') {
+        return;
+      }
+      var csrfInput = form.querySelector('[name="_csrf"]');
+      var fd = new FormData();
+      fd.append('_csrf', csrfInput ? csrfInput.value : '');
+      fd.append('entry_id', String(currentId));
+      fd.append('password', String(password));
+      fetch(apiEditUnlock, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            if (global.AppDialog && AppDialog.alert) {
+              AppDialog.alert((data && data.message) || 'تعذر بدء التعديل.', { type: 'warning' });
+            } else {
+              alert((data && data.message) || 'تعذر بدء التعديل.');
+            }
+            return;
+          }
+          if (data.entry) {
+            applyEntry(data.entry);
+          } else {
+            return loadById(currentId);
+          }
+          if (global.AppDialog && AppDialog.success) {
+            AppDialog.success(data.message || 'يمكنك التعديل الآن.');
+          }
+        })
+        .catch(function () {
+          alert('تعذر الاتصال بالخادم.');
+        });
+    });
   }
 
   function unpostCurrentEntry() {
@@ -1528,6 +1673,9 @@
     } else if (action === 'post') {
       e.preventDefault();
       postCurrentEntry();
+    } else if (action === 'edit') {
+      e.preventDefault();
+      editCurrentEntry();
     } else if (action === 'unpost') {
       e.preventDefault();
       unpostCurrentEntry();

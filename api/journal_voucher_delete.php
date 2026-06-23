@@ -28,6 +28,7 @@ $pdo = db();
 $id = (int) ($_POST['id'] ?? 0);
 
 try {
+    acc_journal_assert_manual_voucher($pdo, $id);
     $pdo->beginTransaction();
     acc_journal_delete_draft($pdo, $id);
     $pdo->commit();

@@ -442,7 +442,8 @@
     var cancelText = options.cancelText || 'إلغاء';
     var placeholder = options.placeholder || '';
     var defaultValue = options.value || '';
-    var multiline = options.multiline !== false; // افتراضياً textarea
+    var inputType = String(options.inputType || 'text').toLowerCase();
+    var multiline = options.multiline === true || (options.multiline !== false && inputType !== 'password');
     var type = 'info';
 
     lastFocus = document.activeElement;
@@ -463,7 +464,10 @@
       input.rows = 3;
     } else {
       input = document.createElement('input');
-      input.type = 'text';
+      input.type = inputType === 'password' ? 'password' : 'text';
+      if (inputType === 'password') {
+        input.autocomplete = 'current-password';
+      }
     }
     input.className = 'ui-dialog-input-field';
     input.placeholder = placeholder;

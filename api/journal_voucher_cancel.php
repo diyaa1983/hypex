@@ -34,6 +34,7 @@ $pdo = db();
 acc_journal_ensure_schema($pdo);
 
 try {
+    acc_journal_assert_manual_voucher($pdo, $entryId);
     $pdo->beginTransaction();
     acc_journal_cancel_by_id($pdo, $entryId);
     $pdo->commit();

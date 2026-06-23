@@ -41,8 +41,10 @@ $apiView = app_url('api/journal_voucher_view.php');
 $apiDelete = app_url('api/journal_voucher_delete.php');
 $apiPost = app_url('api/journal_voucher_post.php');
 $apiUnpost = app_url('api/journal_voucher_unpost.php');
+$apiEditUnlock = app_url('api/journal_voucher_edit_unlock.php');
 $apiCancel = app_url('api/journal_voucher_cancel.php');
 $canUnpostJv = user_can_action('action_unpost_journal_voucher');
+$canEditJv = user_can_action('action_edit_journal_voucher');
 $initialId = (int) ($_GET['id'] ?? 0);
 
 $cssInvPath = app_path('assets/css/sales-invoice.css');
@@ -98,8 +100,10 @@ $suppliers = crm_suppliers_for_picker($pdo);
           data-api-delete="<?= esc($apiDelete) ?>"
           data-api-post="<?= esc($apiPost) ?>"
           data-api-unpost="<?= esc($apiUnpost) ?>"
+          data-api-edit-unlock="<?= esc($apiEditUnlock) ?>"
           data-api-cancel="<?= esc($apiCancel) ?>"
           data-can-unpost="<?= $canUnpostJv ? '1' : '0' ?>"
+          data-can-edit="<?= $canEditJv ? '1' : '0' ?>"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
           data-exit-url="<?= esc($exitUrl) ?>"
           data-new-url="<?= esc($newUrl) ?>"

@@ -38,6 +38,7 @@ if (!acc_journal_ensure_schema($pdo)) {
 }
 
 try {
+    acc_journal_assert_manual_voucher($pdo, $id);
     $pdo->beginTransaction();
     acc_journal_post_by_id($pdo, $id);
     $pdo->commit();

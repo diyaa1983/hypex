@@ -52,6 +52,133 @@ function acc_journal_next_entry_no(PDO $pdo, string $entryDate = ''): string
     return acc_journal_next_voucher_no($pdo, $entryDate);
 }
 
+/** شرط SQL: سندات القيد اليدوية فقط (مُدخلة من شاشة سند القيد). */
+function acc_journal_voucher_manual_sql(): string
+{
+    return "COALESCE(source, 'manual') = 'manual'";
+}
+
+function acc_journal_entry_source(PDO $pdo, int $id): string
+{
+    if ($id < 1) {
+        return '';
+    }
+    $st = $pdo->prepare("SELECT COALESCE(source, 'manual') AS source FROM acc_journal_entry WHERE id = ? LIMIT 1");
+    $st->execute([$id]);
+    $source = $st->fetchColumn();
+
+    return is_string($source) ? $source : 'manual';
+}
+
+function acc_journal_is_manual_voucher(PDO $pdo, int $id): bool
+{
+    return acc_journal_entry_source($pdo, $id) === 'manual';
+}
+
+function acc_journal_assert_manual_voucher(PDO $pdo, int $id): void
+{
+    if (!acc_journal_is_manual_voucher($pdo, $id)) {
+        throw new RuntimeException('هذا قيد تلقائي من مستند آخر. عدّله من شاشة المستند الأصلي وليس من سند القيد.');
+    }
+}
+
+/**
+ * @return array{ref_type:string, ref_id:int, ref_url:?string, ref_label:string}|null
+ */
+function acc_journal_auto_entry_ref(PDO $pdo, int $id): ?array
+{
+    if ($id < 1 || acc_journal_is_manual_voucher($pdo, $id)) {
+        return null;
+    }
+    $st = $pdo->prepare('SELECT ref_type, ref_id FROM acc_journal_entry WHERE id = ? LIMIT 1');
+    $st->execute([$id]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return null;
+    }
+    $refType = trim((string) ($row['ref_type'] ?? ''));
+    $refId = (int) ($row['ref_id'] ?? 0);
+    if ($refType === '' || $refId < 1) {
+        return null;
+    }
+    require_once app_path('includes/acc_report_ref.php');
+    $refUrl = acc_report_ref_url($refType, $refId);
+
+    return [
+        'ref_type' => $refType,
+        'ref_id' => $refId,
+        'ref_url' => $refUrl,
+        'ref_label' => acc_report_ref_type_label($refType),
+    ];
+}
+
+function acc_journal_voucher_first_id(PDO $pdo): ?int
+{
+    $sql = 'SELECT id FROM acc_journal_entry WHERE ' . acc_journal_voucher_manual_sql() . ' ORDER BY id ASC LIMIT 1';
+    $id = $pdo->query($sql)->fetchColumn();
+
+    return $id !== false ? (int) $id : null;
+}
+
+function acc_journal_voucher_neighbor_id(PDO $pdo, int $id, string $direction): ?int
+{
+    if ($id < 1) {
+        return null;
+    }
+    $direction = $direction === 'prev' ? 'prev' : 'next';
+    $manual = acc_journal_voucher_manual_sql();
+    if ($direction === 'prev') {
+        $st = $pdo->prepare(
+            'SELECT id FROM acc_journal_entry WHERE id < ? AND ' . $manual . ' ORDER BY id DESC LIMIT 1'
+        );
+    } else {
+        $st = $pdo->prepare(
+            'SELECT id FROM acc_journal_entry WHERE id > ? AND ' . $manual . ' ORDER BY id ASC LIMIT 1'
+        );
+    }
+    $st->execute([$id]);
+    $nid = $st->fetchColumn();
+
+    return $nid !== false ? (int) $nid : null;
+}
+
+/** @return list<int> */
+function acc_journal_voucher_search_ids_by_no_fragment(PDO $pdo, string $fragment, int $limit = 200): array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+    $fragment = trim($fragment);
+    if ($fragment === '') {
+        return [];
+    }
+
+    $limit = max(1, min(500, $limit));
+    $manual = acc_journal_voucher_manual_sql();
+
+    return doc_no_search_ids_like(
+        $pdo,
+        "SELECT id FROM acc_journal_entry
+         WHERE entry_no LIKE ? AND {$manual}
+         ORDER BY entry_no ASC, id ASC
+         LIMIT {$limit}",
+        [doc_no_sql_like_pattern($fragment)]
+    );
+}
+
+/** @return array<string, mixed>|null */
+function acc_journal_voucher_fetch_by_no(PDO $pdo, string $entryNo): ?array
+{
+    require_once app_path('includes/doc_no_fragment_search.php');
+
+    return doc_no_fetch_exact_or_fragment(
+        $pdo,
+        $entryNo,
+        'SELECT id FROM acc_journal_entry WHERE entry_no = ? AND ' . acc_journal_voucher_manual_sql() . ' LIMIT 1',
+        [trim($entryNo)],
+        static fn (string $frag): array => acc_journal_voucher_search_ids_by_no_fragment($pdo, $frag),
+        static fn (int $id): ?array => acc_journal_api_entry($pdo, $id)
+    );
+}
+
 /** @return list<array<string, mixed>> */
 function acc_journal_load_leaf_accounts(PDO $pdo): array
 {
@@ -482,6 +609,7 @@ function acc_journal_save(
     $uid = (int) (current_user()['id'] ?? 0) ?: null;
 
     if ($id > 0) {
+        acc_journal_assert_manual_voucher($pdo, $id);
         $st = $pdo->prepare('SELECT status FROM acc_journal_entry WHERE id = ? LIMIT 1');
         $st->execute([$id]);
         $cur = $st->fetch(PDO::FETCH_ASSOC);
@@ -529,12 +657,13 @@ function acc_journal_save(
     }
 
     $pdo->prepare(
-        'INSERT INTO acc_journal_entry (entry_no, entry_date, description_ar, status, created_by) VALUES (?,?,?,?,?)'
+        'INSERT INTO acc_journal_entry (entry_no, entry_date, description_ar, status, source, created_by) VALUES (?,?,?,?,?,?)'
     )->execute([
         $entryNo,
         $entryDate,
         $description !== '' ? $description : null,
         $status,
+        'manual',
         $uid,
     ]);
     $newId = (int) $pdo->lastInsertId();
@@ -607,6 +736,34 @@ function acc_journal_unpost_by_id(PDO $pdo, int $id): void
     sys_audit_log_acc_journal($pdo, 'unpost', $id);
 }
 
+function acc_journal_was_ever_posted(PDO $pdo, int $id): bool
+{
+    if ($id < 1) {
+        return false;
+    }
+
+    $st = $pdo->prepare('SELECT status FROM acc_journal_entry WHERE id = ? LIMIT 1');
+    $st->execute([$id]);
+    $status = (string) ($st->fetchColumn() ?: '');
+    if ($status === 'posted' || $status === 'cancelled') {
+        return true;
+    }
+
+    require_once app_path('includes/sys_audit_log.php');
+    if (!sys_audit_log_table_exists($pdo)) {
+        return false;
+    }
+
+    $audit = $pdo->prepare(
+        "SELECT 1 FROM sys_audit_log
+         WHERE screen_code = 'journal_voucher' AND entity_id = ? AND action_code = 'post'
+         LIMIT 1"
+    );
+    $audit->execute([$id]);
+
+    return (bool) $audit->fetchColumn();
+}
+
 function acc_journal_delete_draft(PDO $pdo, int $id): void
 {
     $st = $pdo->prepare('SELECT status, entry_no, entry_date FROM acc_journal_entry WHERE id = ? LIMIT 1');
@@ -621,6 +778,9 @@ function acc_journal_delete_draft(PDO $pdo, int $id): void
     }
     if ($status !== 'draft') {
         throw new RuntimeException('لا يمكن حذف قيد مرحّل. استخدم «إلغاء السند» للحفاظ على رقم التسلسل.');
+    }
+    if (acc_journal_was_ever_posted($pdo, $id)) {
+        throw new RuntimeException('لا يمكن حذف سند كان مرحّلاً مسبقاً. عدّل الحركات ثم احفظ وأعد الترحيل.');
     }
     $entryNo = trim((string) ($row['entry_no'] ?? ''));
     $entryDate = (string) ($row['entry_date'] ?? date('Y-m-d'));
@@ -758,6 +918,17 @@ function acc_journal_api_entry(PDO $pdo, int $id): ?array
     }
     $header = $loaded['header'];
     $status = (string) ($header['status'] ?? 'draft');
+    $source = acc_journal_entry_source($pdo, $id);
+    $isManual = $source === 'manual';
+    $refType = trim((string) ($header['ref_type'] ?? ''));
+    $refId = (int) ($header['ref_id'] ?? 0);
+    $refUrl = null;
+    $refLabel = '';
+    if (!$isManual && $refType !== '' && $refId > 0) {
+        require_once app_path('includes/acc_report_ref.php');
+        $refUrl = acc_report_ref_url($refType, $refId);
+        $refLabel = acc_report_ref_type_label($refType);
+    }
     $linesOut = [];
     foreach ($loaded['lines'] as $ln) {
         $linesOut[] = [
@@ -783,11 +954,19 @@ function acc_journal_api_entry(PDO $pdo, int $id): ?array
         'description_ar' => (string) ($header['description_ar'] ?? ''),
         'status' => $status,
         'status_label' => acc_journal_status_label($status),
-        'is_editable' => $status === 'draft',
+        'source' => $source,
+        'is_manual' => $isManual,
+        'is_editable' => $isManual && $status === 'draft',
+        'can_edit_unlock' => $isManual && $status === 'posted',
         'is_cancelled' => $status === 'cancelled',
+        'no_delete' => acc_journal_was_ever_posted($pdo, $id) || $status === 'cancelled',
+        'ref_type' => $refType,
+        'ref_id' => $refId,
+        'ref_url' => $refUrl,
+        'ref_label' => $refLabel,
         'lines' => $linesOut,
-        'prev_id' => acc_journal_neighbor_id($pdo, $id, 'prev') ?? 0,
-        'next_id' => acc_journal_neighbor_id($pdo, $id, 'next') ?? 0,
+        'prev_id' => $isManual ? (acc_journal_voucher_neighbor_id($pdo, $id, 'prev') ?? 0) : 0,
+        'next_id' => $isManual ? (acc_journal_voucher_neighbor_id($pdo, $id, 'next') ?? 0) : 0,
     ];
 }
 
