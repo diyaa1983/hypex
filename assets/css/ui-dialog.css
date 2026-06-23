@@ -278,3 +278,48 @@ body.ui-dialog-lock .m-header {
   background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
   color: #000;
 }
+
+.ui-dialog-input-wrap {
+  margin: 0;
+}
+
+.ui-dialog-input-field {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.7rem;
+  margin: 0.6rem 0 0.3rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: #0f172a;
+  background: #fff;
+  resize: vertical;
+}
+
+.ui-dialog-root.ui-dialog--oracle .ui-dialog-message:has(+ .ui-dialog-input-wrap) {
+  border-bottom: none;
+  padding-bottom: 0.35rem;
+}
+
+.ui-dialog-root.ui-dialog--oracle .ui-dialog-input-wrap {
+  background: #ece9e4;
+  padding: 0 0.55rem 0.65rem;
+  border-bottom: 1px solid #808080;
+}
+
+.ui-dialog-root.ui-dialog--oracle .ui-dialog-input-field {
+  width: 100%;
+  margin: 0;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid;
+  border-color: #808080 #fff #fff #808080;
+  border-radius: 0;
+  background: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #000;
+  resize: none;
+}

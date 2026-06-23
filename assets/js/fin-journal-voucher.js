@@ -1242,14 +1242,17 @@
     if (global.AppDialog && AppDialog.prompt) {
       return AppDialog.prompt(message, {
         title: 'التحقق بكلمة المرور',
+        type: 'confirm',
+        theme: 'oracle',
         okText: 'متابعة',
         cancelText: 'إلغاء',
         placeholder: 'كلمة المرور',
         inputType: 'password',
         multiline: false,
+        html: true,
       });
     }
-    return Promise.resolve(window.prompt(message, ''));
+    return Promise.resolve(window.prompt(message.replace(/<[^>]+>/g, ''), ''));
   }
 
   function editCurrentEntry() {
@@ -1279,12 +1282,13 @@
     }
 
     var label = noEl && noEl.value ? noEl.value : String(currentId);
-    var msg =
-      'لتعديل السند «' +
-      label +
-      '» أدخل كلمة مرورك.\n\nسيتم فك الترحيل تلقائياً ثم يمكنك تعديل التاريخ والحركات، وبعدها احفظ وأعد الترحيل.';
+    var msgHtml =
+      '<p>لتعديل السند «' +
+      escapeHtml(label) +
+      '» أدخل كلمة مرورك.</p>' +
+      '<p class="ui-dialog-warn">سيتم فك الترحيل تلقائياً ثم يمكنك تعديل التاريخ والحركات، وبعدها احفظ وأعد الترحيل.</p>';
 
-    promptUserPassword(msg).then(function (password) {
+    promptUserPassword(msgHtml).then(function (password) {
       if (password === null || String(password).trim() === '') {
         return;
       }

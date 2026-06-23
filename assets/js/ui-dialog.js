@@ -345,6 +345,10 @@
       close('cancel');
       return;
     }
+    if (root.dataset.mode === 'prompt') {
+      close(null);
+      return;
+    }
     close(root.dataset.mode === 'confirm' ? false : true);
   }
 
@@ -369,6 +373,12 @@
         return;
       }
       root.classList.remove('ui-dialog--oracle');
+      if (card) {
+        var oldWrap = card.querySelector('.ui-dialog-input-wrap');
+        if (oldWrap && oldWrap.parentNode) {
+          oldWrap.parentNode.removeChild(oldWrap);
+        }
+      }
       root.hidden = true;
       dialogBusy = false;
       dialogClosing = false;
@@ -435,29 +445,43 @@
   function promptDialog(message, options) {
     options = options || {};
     ensureDom();
-    root.classList.remove('ui-dialog--oracle');
 
-    var title = options.title || 'إدخال';
-    var okText = options.okText || 'حسنًا';
+    var theme = resolveTheme(options);
+    var type = options.type || 'confirm';
+    var title = resolveTitle(type, theme, options.title || 'إدخال');
+    var okText = options.okText || (theme === 'oracle' ? 'موافق' : 'حسنًا');
     var cancelText = options.cancelText || 'إلغاء';
     var placeholder = options.placeholder || '';
     var defaultValue = options.value || '';
     var inputType = String(options.inputType || 'text').toLowerCase();
     var multiline = options.multiline === true || (options.multiline !== false && inputType !== 'password');
-    var type = 'info';
+    var msg = String(message || '');
+    var useHtml =
+      !!options.html || (typeof msg === 'string' && /<[a-z][^>]*>/i.test(msg));
 
     lastFocus = document.activeElement;
+    root.classList.toggle('ui-dialog--oracle', theme === 'oracle');
     root.dataset.type = type;
     root.dataset.mode = 'prompt';
     root.dataset.closable = '0';
-    iconEl.textContent = ICONS.info;
+    iconEl.textContent = ICONS[type] || ICONS.info;
     titleEl.textContent = title;
-    messageEl.textContent = String(message || '');
+    if (useHtml) {
+      messageEl.innerHTML = msg;
+      messageEl.classList.add('ui-dialog-message--rich');
+    } else {
+      messageEl.textContent = msg;
+      messageEl.classList.remove('ui-dialog-message--rich');
+    }
     actionsEl.innerHTML = '';
 
-    // إنشاء حقل الإدخال داخل الـ card قبل الأزرار.
-    var oldInput = card.querySelector('.ui-dialog-input-field');
-    if (oldInput) oldInput.parentNode.removeChild(oldInput);
+    var oldWrap = card.querySelector('.ui-dialog-input-wrap');
+    if (oldWrap && oldWrap.parentNode) {
+      oldWrap.parentNode.removeChild(oldWrap);
+    }
+
+    var inputWrap = document.createElement('div');
+    inputWrap.className = 'ui-dialog-input-wrap';
     var input;
     if (multiline) {
       input = document.createElement('textarea');
@@ -472,8 +496,8 @@
     input.className = 'ui-dialog-input-field';
     input.placeholder = placeholder;
     input.value = defaultValue;
-    input.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:0.55rem 0.7rem;margin:0.6rem 0 0.3rem;border:1px solid #cbd5e1;border-radius:6px;font:inherit;font-size:0.95rem;color:#0f172a;background:#fff;resize:vertical;';
-    card.insertBefore(input, actionsEl);
+    inputWrap.appendChild(input);
+    card.insertBefore(inputWrap, actionsEl);
 
     /* في RTL: الزر الأول يظهر يميناً */
     actionsEl.appendChild(btn(okText, 'ui-dialog-btn-primary', '__OK__'));
@@ -481,12 +505,24 @@
 
     dialogBusy = true;
     root.hidden = false;
+    lockPageBehindDialog();
     requestAnimationFrame(function () {
+      if (!root || dialogClosing) {
+        return;
+      }
       root.classList.add('is-open');
-      try { input.focus(); } catch (_e) {}
+      try {
+        input.focus();
+      } catch (_e) {}
     });
 
     document.addEventListener('keydown', onKeydown);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !multiline) {
+        e.preventDefault();
+        close('__OK__');
+      }
+    });
 
     return new Promise(function (resolve) {
       resolver = function (v) {
