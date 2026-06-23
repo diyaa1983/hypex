@@ -569,7 +569,7 @@ function render_app_favicon_links(?array $settingsRow = null): void
 function render_app_screen_title(string $pageTitle, string $activeRoute = ''): void
 {
     $pageTitle = trim($pageTitle);
-    if ($pageTitle === '' || $activeRoute === 'menu_hub') {
+    if ($pageTitle === '' || $activeRoute === 'menu_hub' || $activeRoute === 'dashboard') {
         return;
     }
     echo '<header class="app-screen-title-bar">';

@@ -2,7 +2,6 @@
 declare(strict_types=1);
 
 require_once app_path('includes/dashboard_stats.php');
-require_once app_path('includes/nav_helpers.php');
 
 $pdo = db();
 $dash = dashboard_collect($pdo);
@@ -129,7 +128,6 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
     <header class="dashboard-ora-screen-title" role="banner">
         <h1 class="dashboard-ora-screen-title__text">لوحة التحكم — مرحباً، <?= esc($userLabel) ?></h1>
         <span class="dashboard-ora-screen-title__meta"><?= $headerMeta ?></span>
-        <?php nav_render_screen_close('dashboard'); ?>
     </header>
 
     <div class="dashboard-ora-workspace">
