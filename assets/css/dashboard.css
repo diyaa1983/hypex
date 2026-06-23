@@ -139,6 +139,14 @@ body:has(.dashboard-ora) .main-content {
   background: var(--ora12-surface);
 }
 
+.dashboard-ora-panel:has(.dashboard-ora-kpi--uniform) {
+  overflow: visible;
+}
+
+.dashboard-ora-panel:has(.dashboard-ora-kpi--uniform) .dashboard-ora-panel__body {
+  overflow: visible;
+}
+
 .dashboard-ora-panel__body--flush {
   padding: 0;
 }
@@ -148,6 +156,7 @@ body:has(.dashboard-ora) .main-content {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
   gap: 0.4rem;
+  align-items: start;
 }
 
 .dashboard-ora-kpi {
@@ -225,6 +234,134 @@ button.dashboard-ora-kpi {
   font-weight: 600;
   color: var(--ora12-muted);
   line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* مربعات موحّدة + تفاصيل عند المرور */
+.dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--uniform,
+.dashboard-ora-kpi-grid--liabilities .dashboard-ora-kpi--uniform {
+  position: relative;
+  height: 4.35rem;
+  min-height: 4.35rem;
+  overflow: visible;
+  z-index: 1;
+}
+
+.dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--uniform:hover,
+.dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--uniform:focus-within,
+.dashboard-ora-kpi-grid--liabilities .dashboard-ora-kpi--uniform:hover,
+.dashboard-ora-kpi-grid--liabilities .dashboard-ora-kpi--uniform:focus-within {
+  z-index: 30;
+}
+
+.dashboard-ora-kpi-tip {
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: 100%;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(18rem, 92vw);
+  padding: 0.4rem 0.45rem 0.45rem;
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+}
+
+.dashboard-ora-kpi-tip::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  inset-inline: 0;
+  height: 0.4rem;
+}
+
+.dashboard-ora-kpi--uniform:hover .dashboard-ora-kpi-tip,
+.dashboard-ora-kpi--uniform:focus-within .dashboard-ora-kpi-tip {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.dashboard-ora-kpi-tip__title {
+  display: block;
+  margin-bottom: 0.28rem;
+  padding-bottom: 0.22rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ora12-blue);
+  border-bottom: 1px solid #e8ecf0;
+}
+
+.dashboard-ora-kpi-tip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 11rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.dashboard-ora-kpi-tip-row + .dashboard-ora-kpi-tip-row {
+  border-top: 1px solid #f0f3f6;
+}
+
+.dashboard-ora-kpi-tip-link,
+.dashboard-ora-kpi-tip-static {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.22rem 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.dashboard-ora-kpi-tip-link:hover,
+.dashboard-ora-kpi-tip-link:focus-visible {
+  background: var(--ora12-hover);
+  outline: none;
+}
+
+.dashboard-ora-kpi-tip-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ora12-text);
+  line-height: 1.35;
+}
+
+.dashboard-ora-kpi-tip-code {
+  display: inline-block;
+  margin-inline-end: 0.25rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.dashboard-ora-kpi-tip-amt {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  direction: ltr;
+  unicode-bidi: embed;
+  font-variant-numeric: tabular-nums;
+  color: var(--ora12-text);
+}
+
+.dashboard-ora-kpi-tip-row--warn .dashboard-ora-kpi-tip-amt {
+  color: var(--ora12-warn);
 }
 
 /* شريط أدوات */

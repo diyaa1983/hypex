@@ -107,6 +107,124 @@ function dashboard_metric(string $label, int|float|string $value, string $format
     return $m;
 }
 
+/**
+ * مربع واحد يجمع أرصدة كل حسابات البنوك في الشجرة.
+ *
+ * @return array{type:string, label:string, value:string, hint?:string, tone?:string, banks:list<array{label:string, code:string, value:string, url?:string, tone?:string}>}|null
+ */
+function dashboard_collect_bank_balances_metric(PDO $pdo, string $dateFrom, string $dateTo): ?array
+{
+    require_once app_path('includes/fin_voucher.php');
+    require_once app_path('includes/acc_report.php');
+    require_once app_path('includes/acc_gl.php');
+
+    if (!acc_gl_has_posting_table($pdo) || !acc_journal_has_tables($pdo)) {
+        return null;
+    }
+
+    $bankRows = [];
+    foreach (fin_voucher_load_cash_bank_accounts($pdo) as $acc) {
+        if ((string) ($acc['group_key'] ?? '') !== 'bank') {
+            continue;
+        }
+        $id = (int) ($acc['id'] ?? 0);
+        if ($id < 1) {
+            continue;
+        }
+        $bankRows[$id] = $acc;
+    }
+
+    $settings = acc_gl_load_settings($pdo);
+    $mappedBankId = (int) ($settings['bank']['account_id'] ?? 0);
+    if ($mappedBankId > 0 && !isset($bankRows[$mappedBankId]) && acc_gl_is_valid_leaf_account($pdo, $mappedBankId)) {
+        try {
+            $st = $pdo->prepare('SELECT id, code, name_ar FROM acc_account WHERE id = ? AND is_active = 1 LIMIT 1');
+            $st->execute([$mappedBankId]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $bankRows[$mappedBankId] = [
+                    'id' => $mappedBankId,
+                    'code' => (string) ($row['code'] ?? ''),
+                    'name_ar' => (string) ($row['name_ar'] ?? ''),
+                    'group_key' => 'bank',
+                ];
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+
+    if ($bankRows === []) {
+        return null;
+    }
+
+    $details = [];
+    $banks = [];
+    $total = 0.0;
+    foreach ($bankRows as $id => $acc) {
+        $sums = acc_report_account_sums($pdo, (int) $id);
+        $bal = (float) ($sums['balance'] ?? 0);
+        $total += $bal;
+        $name = trim((string) ($acc['name_ar'] ?? ''));
+        $code = trim((string) ($acc['code'] ?? ''));
+        $bankTone = $bal < -0.0005 ? 'warn' : 'primary';
+        $bankItem = [
+            'label' => $name !== '' ? $name : ($code !== '' ? $code : 'حساب بنك'),
+            'code' => $code,
+            'value' => format_money($bal),
+            'balance' => $bal,
+            'tone' => $bankTone,
+        ];
+        $url = dashboard_sensitive_account_url($pdo, (int) $id, $dateFrom, $dateTo);
+        if ($url !== '') {
+            $bankItem['url'] = $url;
+        }
+        $details[] = $bankItem;
+        if (abs($bal) <= 0.0005) {
+            continue;
+        }
+        $banks[] = $bankItem;
+    }
+
+    usort($details, static function (array $a, array $b): int {
+        $cmp = abs((float) ($b['balance'] ?? 0)) <=> abs((float) ($a['balance'] ?? 0));
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+
+        return strcmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+    });
+    foreach ($details as &$detail) {
+        unset($detail['balance']);
+    }
+    unset($detail);
+
+    $count = count($bankRows);
+    $activeCount = count($banks);
+    if ($activeCount === 1) {
+        $hint = ((string) ($banks[0]['code'] ?? '') !== '' ? (string) $banks[0]['code'] . ' · ' : '') . 'من الدفتر';
+    } elseif ($activeCount > 1) {
+        $hint = $activeCount . ' بنك برصيد · من الدفتر';
+    } elseif ($count === 1) {
+        $hint = 'من الدفتر';
+    } else {
+        $hint = $count . ' حسابات · من الدفتر';
+    }
+
+    $tone = 'primary';
+    if ($total < -0.0005) {
+        $tone = 'warn';
+    }
+
+    return [
+        'label' => 'البنوك',
+        'value' => format_money($total),
+        'hint' => $hint,
+        'tone' => $tone,
+        'details' => $details,
+    ];
+}
+
 /** رصيد مستحق (دائن) لحساب مربوط بقاعدة ترحيل — من القيود المرحّلة. */
 function dashboard_posting_rule_liability_balance(PDO $pdo, string $ruleCode): ?float
 {
@@ -287,10 +405,12 @@ function dashboard_sensitive_account_metric(
         $label = (string) ($settings[$ruleCode]['label_ar'] ?? $ruleCode);
     }
 
-    $hint = (string) ($acc['code'] ?? '') . ' · ' . (string) ($acc['name_ar'] ?? '') . ' — من الدفتر';
+    $code = trim((string) ($acc['code'] ?? ''));
+    $name = trim((string) ($acc['name_ar'] ?? ''));
+    $shortHint = $code !== '' ? $code . ' · من الدفتر' : 'من الدفتر';
     $hintExtra = trim((string) ($opts['hint_extra'] ?? ''));
     if ($hintExtra !== '') {
-        $hint .= ' · ' . $hintExtra;
+        $shortHint .= ' · ' . $hintExtra;
     }
 
     $tone = (string) ($opts['tone'] ?? 'primary');
@@ -304,7 +424,7 @@ function dashboard_sensitive_account_metric(
         $tone = 'warn';
     }
 
-    $m = dashboard_metric($label, $displayBal, 'money', $hint, $tone);
+    $m = dashboard_metric($label, $displayBal, 'money', $shortHint, $tone);
     $url = dashboard_sensitive_account_url($pdo, $accountId, $dateFrom, $dateTo);
     if ($url !== '') {
         $m['url'] = $url;
@@ -313,6 +433,15 @@ function dashboard_sensitive_account_metric(
     if ($clickFilter !== '') {
         $m['click_filter'] = $clickFilter;
     }
+
+    $detailLabel = $name !== '' ? $name : ($code !== '' ? $code : $label);
+    $m['details'] = [[
+        'label' => $detailLabel,
+        'code' => $code,
+        'value' => format_money($displayBal),
+        'tone' => $tone,
+        'url' => $url,
+    ]];
 
     return $m;
 }
@@ -362,9 +491,22 @@ function dashboard_collect_sensitive_accounts(PDO $pdo, string $dateFrom, string
         $items[] = $checksFund;
     }
 
+    $banksGroup = dashboard_collect_bank_balances_metric($pdo, $dateFrom, $dateTo);
+    if ($banksGroup !== null) {
+        $items[] = $banksGroup;
+    } else {
+        $bank = dashboard_sensitive_account_metric($pdo, 'bank', $dateFrom, $dateTo, [
+            'code' => 'bank',
+            'label' => 'البنك',
+            'tone' => 'primary',
+        ]);
+        if ($bank !== null) {
+            $items[] = $bank;
+        }
+    }
+
     foreach (
         [
-            ['code' => 'bank', 'label' => 'البنك', 'tone' => 'primary'],
             ['code' => 'ar_customers', 'label' => 'ذمم العملاء', 'tone' => 'primary'],
             ['code' => 'ap_suppliers', 'label' => 'ذمم الموردين', 'tone' => 'warn', 'liability' => true],
             ['code' => 'inventory', 'label' => 'المخزون', 'tone' => 'success'],
