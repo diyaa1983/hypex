@@ -29,7 +29,7 @@ function sys_sync_action_permissions_mtime(): string
 {
     $file = app_path('config/action_permissions.php');
 
-    return is_file($file) ? (string) filemtime($file) . ':sync-v2' : '0';
+    return is_file($file) ? (string) filemtime($file) . ':sync-v3-admins-only' : '0';
 }
 
 function sys_sync_is_action_permissions_cached(PDO $pdo): bool
@@ -54,7 +54,7 @@ function sys_sync_mark_action_permissions_cached(PDO $pdo): void
     }
 }
 
-/** تسجيل صلاحيات الإجراءات في sys_screen ومنح ADMINS + نسخ من الشاشات المرجعية. */
+/** تسجيل صلاحيات الإجراءات في sys_screen ومنح ADMINS فقط (باقي المجموعات من شاشة الصلاحيات). */
 function sys_sync_action_permissions(PDO $pdo): int
 {
     if (sys_sync_is_action_permissions_cached($pdo)) {
@@ -74,13 +74,6 @@ function sys_sync_action_permissions(PDO $pdo): int
         'INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
          SELECT g.id, ?, 1 FROM sys_group g WHERE g.code = ?'
     );
-    $grantInherit = $pdo->prepare(
-        'INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
-         SELECT DISTINCT gp.group_id, ?, 1
-         FROM sys_group_permission gp
-         INNER JOIN sys_screen s_old ON s_old.id = gp.screen_id AND s_old.code = ?
-         WHERE gp.allowed = 1'
-    );
 
     foreach (action_permissions_flat() as $item) {
         $code = (string) $item['code'];
@@ -94,10 +87,6 @@ function sys_sync_action_permissions(PDO $pdo): int
             $screenId = (int) $pdo->lastInsertId();
             $added++;
             $grantAdmins->execute([$screenId, 'ADMINS']);
-            // منح أولي للمجموعات عند إنشاء الكود فقط — لا يُعاد عند كل زيارة (حتى لا يلغي إزالة الصلاحية من الشاشة).
-            foreach ($item['inherit_from'] as $srcCode) {
-                $grantInherit->execute([$screenId, (string) $srcCode]);
-            }
         } else {
             $updName->execute([$name, $code]);
         }

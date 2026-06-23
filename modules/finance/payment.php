@@ -84,6 +84,8 @@ $apiPost = app_url('api/fin_payment_post.php');
 $apiUnpost = app_url('api/fin_payment_unpost.php');
 $apiCancel = app_url('api/fin_payment_cancel.php');
 $apiDelete = app_url('api/fin_payment_delete.php');
+$apiEditUnlock = app_url('api/fin_payment_edit_unlock.php');
+$canEditPayment = user_can_action('action_edit_cash_payment');
 require_once app_path('includes/acc_gl.php');
 $cashBoxAccountId = acc_gl_cash_box_account_id($pdo);
 $defaultCashId = $cashBoxAccountId > 0 ? $cashBoxAccountId : (int) ($cashAccounts[0]['id'] ?? 0);
@@ -148,6 +150,8 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
           data-voucher-unpost-url="<?= esc($apiUnpost) ?>"
           data-voucher-cancel-url="<?= esc($apiCancel) ?>"
           data-voucher-delete-url="<?= esc($apiDelete) ?>"
+          data-api-edit-unlock="<?= esc($apiEditUnlock) ?>"
+          data-can-edit="<?= $canEditPayment ? '1' : '0' ?>"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
           data-exit-url="<?= esc($exitUrl) ?>"
           data-new-url="<?= esc($newUrl) ?>"

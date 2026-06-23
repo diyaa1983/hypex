@@ -11,6 +11,8 @@
   var voucherUnpostUrl = form.getAttribute('data-voucher-unpost-url') || '';
   var voucherCancelUrl = form.getAttribute('data-voucher-cancel-url') || '';
   var voucherDeleteUrl = form.getAttribute('data-voucher-delete-url') || '';
+  var apiEditUnlock = form.getAttribute('data-api-edit-unlock') || '';
+  var canEditByPermission = form.getAttribute('data-can-edit') === '1';
   var checkActionUrl = form.getAttribute('data-check-action-url') || '';
   var newUrl = form.getAttribute('data-new-url') || '';
   var exitUrl = form.getAttribute('data-exit-url') || '';
@@ -697,15 +699,27 @@
 
   function updateToolbarPostUnpost() {
     var postBtn = document.querySelector('#master-toolbar [data-master-action="post"]');
+    var editBtn = document.querySelector('#master-toolbar [data-master-action="edit"]');
     var unpostBtn = document.querySelector('#master-toolbar [data-master-action="unpost"]');
     var cancelBtn = document.querySelector('#master-toolbar [data-master-action="cancel_voucher"]');
     var deleteBtn = document.querySelector('#master-toolbar [data-master-action="delete"]');
     var canPost = currentVoucherId > 0 && !voucherIsPosted && !voucherIsCancelled;
+    var canEdit = canEditByPermission && currentVoucherId > 0 && voucherIsPosted && !voucherIsCancelled;
     var canUnpost = currentVoucherId > 0 && voucherIsPosted && !voucherIsCancelled;
     var canCancel = currentVoucherId > 0 && voucherIsPosted && !voucherIsCancelled;
     if (postBtn) {
       postBtn.disabled = !canPost;
       postBtn.title = canPost ? 'ترحيل السند' : 'احفظ السند أولاً أو السند مرحّل/ملغى';
+    }
+    if (editBtn) {
+      editBtn.disabled = !canEdit;
+      editBtn.title = canEdit
+        ? 'تعديل السند بعد التحقق بكلمة المرور'
+        : voucherIsCancelled
+          ? 'لا يمكن تعديل سند ملغى'
+          : !voucherIsPosted
+            ? 'السند قابل للتعديل — احفظ ثم رحّل'
+            : 'يمكن تعديل السندات المرحّلة فقط';
     }
     if (unpostBtn) {
       unpostBtn.disabled = !canUnpost;
@@ -725,7 +739,7 @@
         voucherIsCancelled
           ? 'لا يمكن حذف سند ملغى'
           : voucherIsPosted
-            ? 'لا يمكن حذف سند مرحّل — استخدم «إلغاء السند»'
+            ? 'لا يمكن حذف سند مرحّل — استخدم «تعديل» أو «إلغاء السند»'
             : 'حذف مسودة السند';
     }
   }
@@ -1346,6 +1360,95 @@
     });
   }
 
+  function promptUserPassword(message) {
+    if (global.AppDialog && AppDialog.prompt) {
+      return AppDialog.prompt(message, {
+        title: 'التحقق بكلمة المرور',
+        type: 'confirm',
+        theme: 'oracle',
+        okText: 'متابعة',
+        cancelText: 'إلغاء',
+        placeholder: 'كلمة المرور',
+        inputType: 'password',
+        multiline: false,
+        html: true,
+      });
+    }
+    return Promise.resolve(window.prompt(message.replace(/<[^>]+>/g, ''), ''));
+  }
+
+  function editCurrentVoucher() {
+    if (!canEditByPermission) {
+      if (global.AppDialog && AppDialog.alert) {
+        AppDialog.alert('ليس لديك صلاحية تعديل سند قبض مرحّل.', { type: 'warning' });
+      } else {
+        alert('ليس لديك صلاحية تعديل سند قبض مرحّل.');
+      }
+      return;
+    }
+    if (!apiEditUnlock) {
+      if (global.AppDialog) AppDialog.alert('التعديل غير متاح.', { type: 'warning' });
+      return;
+    }
+    if (currentVoucherId < 1) {
+      if (global.AppDialog) AppDialog.alert('افتح سنداً محفوظاً أولاً.', { type: 'warning' });
+      return;
+    }
+    if (voucherIsCancelled) {
+      if (global.AppDialog) AppDialog.alert('لا يمكن تعديل سند ملغى.', { type: 'warning' });
+      return;
+    }
+    if (!voucherIsPosted) {
+      if (global.AppDialog) {
+        AppDialog.alert('السند غير مرحّل — يمكنك التعديل مباشرة.', { type: 'info' });
+      }
+      return;
+    }
+
+    var rcNoEl = document.getElementById('rc_no');
+    var rcLabel = rcNoEl && rcNoEl.value ? rcNoEl.value : String(currentVoucherId);
+    var msgHtml =
+      '<p>لتعديل السند «' +
+      escapeHtml(rcLabel) +
+      '» أدخل كلمة مرورك.</p>' +
+      '<p class="ui-dialog-warn">سيتم فك الترحيل تلقائياً ثم يمكنك تعديل التاريخ والبيانات، وبعدها احفظ وأعد الترحيل.</p>';
+
+    promptUserPassword(msgHtml).then(function (password) {
+      if (password === null || String(password).trim() === '') {
+        return;
+      }
+      var csrfInput = form.querySelector('[name="_csrf"]');
+      var fd = new FormData();
+      fd.append('_csrf', csrfInput ? csrfInput.value : '');
+      fd.append('voucher_id', String(currentVoucherId));
+      fd.append('password', String(password));
+      fetch(apiEditUnlock, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            if (global.AppDialog) {
+              AppDialog.alert((data && data.message) || 'تعذر بدء التعديل.', { type: 'warning' });
+            } else {
+              alert((data && data.message) || 'تعذر بدء التعديل.');
+            }
+            return;
+          }
+          voucherIsPosted = false;
+          updatePostedBadge();
+          refreshVoucherEditState();
+          loadVoucherById(currentVoucherId, true);
+          if (global.AppDialog && AppDialog.success) {
+            AppDialog.success(data.message || 'يمكنك التعديل الآن.');
+          }
+        })
+        .catch(function () {
+          if (global.AppDialog) AppDialog.error('تعذر الاتصال بالخادم.');
+        });
+    });
+  }
+
   function unpostCurrent(onDone) {
     if (!voucherUnpostUrl) {
       if (global.AppDialog) AppDialog.alert('فك الترحيل غير متاح.', { type: 'warning' });
@@ -1766,6 +1869,12 @@
     if (action === 'post') {
       e.preventDefault();
       postCurrent();
+      return;
+    }
+    if (action === 'edit') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      editCurrentVoucher();
       return;
     }
     if (action === 'unpost') {

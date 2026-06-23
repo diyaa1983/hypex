@@ -1,5 +1,5 @@
 -- تسجيل أكواد صلاحيات الإجراءات (مرة واحدة). لا تُمنح صلاحيات المجموعات هنا —
--- المنع/المنح يتم من شاشة الصلاحيات فقط. المنح الأولي: sys_sync_action_permissions().
+-- المنع/المنح يتم من شاشة الصلاحيات فقط. المنح الأولي: sys_sync_action_permissions() → ADMINS فقط.
 
 INSERT INTO sys_screen (code, name_ar, screen_type, sort_order)
 SELECT 'action_unpost_sales_invoice', 'فك ترحيل فاتورة مبيعات', 'screen', 9101

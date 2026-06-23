@@ -45,6 +45,8 @@ $apiPost = app_url('api/fin_receipt_post.php');
 $apiUnpost = app_url('api/fin_receipt_unpost.php');
 $apiCancel = app_url('api/fin_receipt_cancel.php');
 $apiDelete = app_url('api/fin_receipt_delete.php');
+$apiEditUnlock = app_url('api/fin_receipt_edit_unlock.php');
+$canEditReceipt = user_can_action('action_edit_cash_receipt');
 $initialId = (int) ($_GET['id'] ?? 0);
 require_once app_path('includes/acc_gl.php');
 $cashBoxAccountId = acc_gl_cash_box_account_id($pdo);
@@ -97,6 +99,8 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
           data-voucher-unpost-url="<?= esc($apiUnpost) ?>"
           data-voucher-cancel-url="<?= esc($apiCancel) ?>"
           data-voucher-delete-url="<?= esc($apiDelete) ?>"
+          data-api-edit-unlock="<?= esc($apiEditUnlock) ?>"
+          data-can-edit="<?= $canEditReceipt ? '1' : '0' ?>"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
           data-exit-url="<?= esc($exitUrl) ?>"
           data-new-url="<?= esc($newUrl) ?>"

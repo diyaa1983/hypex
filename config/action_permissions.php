@@ -5,7 +5,8 @@ declare(strict_types=1);
  * صلاحيات الإجراءات الحساسة (أزرار الشريط العلوي وواجهات API).
  * لا تظهر في القائمة الجانبية — تُعرض في «صلاحيات الشاشات والتقارير» تحت أقسام منفصلة.
  *
- * inherit_from: عند المزامنة الأولى تُمنح للمجموعات التي تملك أي شاشة من القائمة.
+ * inherit_from: مرجع توثيقي للشاشات المرتبطة (لا يُستخدم للمنح التلقائي).
+ * المنح الأولي عند إضافة كود جديد: مجموعة ADMINS فقط — باقي المجموعات من شاشة الصلاحيات.
  */
 return [
     'groups' => [
@@ -50,6 +51,16 @@ return [
                 [
                     'code' => 'action_unpost_cash_payment',
                     'name_ar' => 'فك ترحيل سند صرف',
+                    'inherit_from' => ['cash_payment', 'cash_payments_list'],
+                ],
+                [
+                    'code' => 'action_edit_cash_receipt',
+                    'name_ar' => 'تعديل سند قبض مرحّل',
+                    'inherit_from' => ['cash_receipt', 'cash_receipts_list'],
+                ],
+                [
+                    'code' => 'action_edit_cash_payment',
+                    'name_ar' => 'تعديل سند صرف مرحّل',
                     'inherit_from' => ['cash_payment', 'cash_payments_list'],
                 ],
                 [

@@ -159,10 +159,12 @@ return [
             'action' => 'edit',
             'label' => 'تعديل',
             'variant' => 'secondary',
-            'title' => 'تعديل سند قيد مرحّل بعد التحقق بكلمة المرور (فك الترحيل ثم التعديل وإعادة الترحيل)',
-            'screens' => ['journal_voucher'],
+            'title' => 'تعديل سند مرحّل بعد التحقق بكلمة المرور (فك الترحيل ثم التعديل وإعادة الترحيل)',
+            'screens' => ['journal_voucher', 'cash_receipt', 'cash_payment'],
             'permission_by_screen' => [
                 'journal_voucher' => 'action_edit_journal_voucher',
+                'cash_receipt' => 'action_edit_cash_receipt',
+                'cash_payment' => 'action_edit_cash_payment',
             ],
         ],
         [
