@@ -30,6 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'تم حفظ مجلد النسخ الاحتياطي. يمكنك الآن أخذ نسخة احتياطية.');
             redirect($listUrl);
         }
+        if ($action === 'use_recommended') {
+            $userId = (int) (current_user()['id'] ?? 0);
+            $dir = sys_backup_recommended_dir();
+            sys_backup_save_dir($pdo, $dir, $userId);
+            flash_set('success', 'تم حفظ المسار المقترح للخادم: ' . $dir);
+            redirect($listUrl);
+        }
     } catch (Throwable $e) {
         flash_set('error', $e->getMessage() ?: 'تعذر إتمام العملية.');
         redirect($listUrl);
@@ -44,6 +51,10 @@ $lastBackupAt = $settings['last_backup_at'] ?? null;
 $lastBackupPath = (string) ($settings['last_backup_path'] ?? '');
 $todayFolder = sys_backup_today_folder_name();
 $hasDir = $backupDir !== '';
+$recommendedDir = sys_backup_recommended_dir();
+$pathIssue = sys_backup_path_issue($backupDir);
+$canRunBackup = $hasDir && $pathIssue === null;
+$serverLabel = sys_backup_server_label();
 $exitUrl = nav_exit_url('system_backup');
 
 $cssPath = app_path('assets/css/sys-backup.css');
@@ -72,9 +83,16 @@ $backupApiUrl = app_url('api/backup_run.php');
             <h2 class="dashboard-ora-panel__title">مجلد حفظ النسخ</h2>
             <div class="dashboard-ora-panel__body">
                 <p class="sys-backup-note muted">
+                    الخادم الحالي: <strong dir="ltr"><?= esc($serverLabel) ?></strong>.
                     حدّد مجلداً على جهاز الخادم (مرة واحدة) لحفظ النسخ الاحتياطية.
                     كل نسخة تُنشأ في مجلد باسم تاريخ اليوم (مثل: <code dir="ltr"><?= esc($todayFolder) ?></code>).
                 </p>
+
+                <?php if ($pathIssue !== null): ?>
+                <div class="alert alert-error sys-backup-flash">
+                    <?= esc($pathIssue) ?>
+                </div>
+                <?php endif; ?>
 
                 <form method="post" action="<?= esc($listUrl) ?>" class="sys-backup-form">
                     <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -82,20 +100,26 @@ $backupApiUrl = app_url('api/backup_run.php');
 
                     <label class="field sys-backup-field">
                         <span class="field-label required">مسار مجلد النسخ الاحتياطي</span>
-                        <input class="input" type="text" name="backup_dir" required dir="ltr"
-                               placeholder="D:\Backups\Manager أو /var/backups/manager"
-                               value="<?= esc($backupDir) ?>" autocomplete="off">
+                        <input class="input" type="text" name="backup_dir" id="sys-backup-dir-input" required dir="ltr"
+                               placeholder="<?= esc($recommendedDir) ?>"
+                               value="<?= esc($pathIssue !== null ? $recommendedDir : ($backupDir !== '' ? $backupDir : $recommendedDir)) ?>" autocomplete="off">
                     </label>
                     <p class="sys-backup-hint muted">
-                        مثال Windows: <code dir="ltr">D:\Backups\Manager</code>
-                        — مثال Linux: <code dir="ltr">/var/backups/manager</code>
-                        — سيُنشأ مجلد
-                        <code dir="ltr"><?= esc($todayFolder) ?></code> داخله عند أخذ النسخة.
+                        المسار المقترح لهذا الخادم:
+                        <code dir="ltr"><?= esc($recommendedDir) ?></code>
+                        <?php if (sys_backup_is_linux_server()): ?>
+                        — لا تستخدم <code dir="ltr">D:\...</code> على Linux.
+                        <?php endif; ?>
                     </p>
 
                     <div class="sys-backup-actions">
                         <button type="submit" class="btn btn-primary">حفظ المسار</button>
                     </div>
+                </form>
+                <form method="post" action="<?= esc($listUrl) ?>" class="sys-backup-form sys-backup-form--inline">
+                    <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+                    <input type="hidden" name="_action" value="use_recommended">
+                    <button type="submit" class="btn btn-ghost">استخدام المسار المقترح تلقائياً</button>
                 </form>
             </div>
         </section>
@@ -120,11 +144,13 @@ $backupApiUrl = app_url('api/backup_run.php');
 
                 <div class="sys-backup-run-wrap">
                     <button type="button" class="btn btn-primary btn-lg sys-backup-run-btn" id="sys-backup-run-btn"
-                            <?= $hasDir ? '' : 'disabled aria-disabled="true" title="احفظ مجلد النسخ أولاً"' ?>>
+                            <?= $canRunBackup ? '' : 'disabled aria-disabled="true" title="احفظ مساراً صالحاً للخادم أولاً"' ?>>
                         💾 أخذ نسخة احتياطية الآن
                     </button>
                     <?php if (!$hasDir): ?>
                         <p class="sys-backup-warn muted">احفظ مجلد النسخ الاحتياطي أولاً ثم اضغط الزر.</p>
+                    <?php elseif ($pathIssue !== null): ?>
+                        <p class="sys-backup-warn muted">المسار الحالي غير صالح لهذا الخادم. اضغط «استخدام المسار المقترح تلقائياً» ثم أعد المحاولة.</p>
                     <?php else: ?>
                         <p class="muted">مجلد اليوم: <code dir="ltr"><?= esc(sys_backup_normalize_dir($backupDir . DIRECTORY_SEPARATOR . $todayFolder)) ?></code></p>
                     <?php endif; ?>

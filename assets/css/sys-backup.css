@@ -21,6 +21,10 @@
   margin-top: 0.75rem;
 }
 
+.sys-backup-form--inline {
+  margin-top: 0.45rem;
+}
+
 .sys-backup-contents {
   margin: 0 0 1rem;
   padding-right: 1.25rem;

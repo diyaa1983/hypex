@@ -82,9 +82,67 @@ function sys_backup_normalize_dir(string $path): string
     return rtrim($path, DIRECTORY_SEPARATOR);
 }
 
+/** إصلاح مسارات ناقصة مثل d:backup → d:/backup */
+function sys_backup_prepare_input_path(string $path): string
+{
+    $path = trim($path);
+    if ($path === '') {
+        return '';
+    }
+
+    if (preg_match('/^([a-zA-Z]:)([^\\\\\\/].*)$/', $path, $m)) {
+        $path = $m[1] . DIRECTORY_SEPARATOR . $m[2];
+    }
+
+    return $path;
+}
+
 function sys_backup_is_windows_drive_path(string $path): bool
 {
     return (bool) preg_match('/^[a-zA-Z]:/', $path);
+}
+
+function sys_backup_is_linux_server(): bool
+{
+    return DIRECTORY_SEPARATOR === '/';
+}
+
+function sys_backup_server_label(): string
+{
+    return sys_backup_is_linux_server() ? 'Linux' : 'Windows';
+}
+
+/** مسار مقترح يعمل على الخادم الحالي */
+function sys_backup_recommended_dir(): string
+{
+    $appRoot = rtrim(app_path(''), DIRECTORY_SEPARATOR);
+    $parent = dirname($appRoot);
+    if ($parent !== '' && $parent !== '.' && $parent !== $appRoot) {
+        return sys_backup_normalize_dir($parent . DIRECTORY_SEPARATOR . 'manager_backups');
+    }
+
+    return sys_backup_normalize_dir($appRoot . DIRECTORY_SEPARATOR . 'backups');
+}
+
+/** @return string|null رسالة تحذير إن كان المسار المحفوظ غير مناسب للخادم */
+function sys_backup_path_issue(string $path): ?string
+{
+    $path = sys_backup_prepare_input_path($path);
+    if ($path === '') {
+        return null;
+    }
+
+    $norm = sys_backup_normalize_dir($path);
+    if (sys_backup_is_linux_server() && sys_backup_is_windows_drive_path($norm)) {
+        return 'المسار المحفوظ بصيغة Windows (مثل D:\\backup) لا يعمل على خادم Linux.'
+            . ' استخدم مساراً مثل: ' . sys_backup_recommended_dir();
+    }
+
+    if (!sys_backup_is_absolute_path($norm)) {
+        return 'المسار المحفوظ غير مطلق. أعد حفظ مسار كامل للمجلد.';
+    }
+
+    return null;
 }
 
 function sys_backup_is_absolute_path(string $path): bool
@@ -104,37 +162,54 @@ function sys_backup_is_absolute_path(string $path): bool
     return str_starts_with($path, '/');
 }
 
+function sys_backup_ensure_dir_protected(string $path): void
+{
+    if (!is_dir($path) && !@mkdir($path, 0775, true) && !is_dir($path)) {
+        throw new RuntimeException('تعذر إنشاء مجلد النسخ الاحتياطي: ' . $path);
+    }
+
+    $htaccess = $path . DIRECTORY_SEPARATOR . '.htaccess';
+    if (!is_file($htaccess)) {
+        @file_put_contents($htaccess, "Deny from all\n");
+    }
+}
+
 /** @throws RuntimeException */
 function sys_backup_validate_dir(string $path, bool $create = true): string
 {
-    $path = sys_backup_normalize_dir($path);
+    $path = sys_backup_normalize_dir(sys_backup_prepare_input_path($path));
     if ($path === '') {
         throw new RuntimeException('حدّد مجلد النسخ الاحتياطي.');
     }
 
     if (!sys_backup_is_absolute_path($path)) {
         throw new RuntimeException(
-            'يجب أن يكون المسار مطلقاً (Windows: D:\\Backups\\Manager — Linux: /var/backups/manager).'
+            'يجب أن يكون المسار مطلقاً. Windows: D:\\Backups\\Manager — Linux: '
+            . sys_backup_recommended_dir()
         );
     }
 
-    if (DIRECTORY_SEPARATOR === '/' && sys_backup_is_windows_drive_path($path)) {
+    if (sys_backup_is_linux_server() && sys_backup_is_windows_drive_path($path)) {
         throw new RuntimeException(
-            'مسار Windows (مثل D:\\Backups) لا يعمل على خادم Linux. استخدم مساراً مطلقاً مثل: /var/backups/manager'
+            'مسار Windows (مثل D:\\Backups) لا يعمل على خادم Linux. استخدم: '
+            . sys_backup_recommended_dir()
         );
     }
 
     if (!is_dir($path)) {
         if (!$create) {
-            throw new RuntimeException('مجلد النسخ الاحتياطي غير موجود.');
+            throw new RuntimeException('مجلد النسخ الاحتياطي غير موجود: ' . $path);
         }
-        if (!@mkdir($path, 0775, true) && !is_dir($path)) {
-            throw new RuntimeException('تعذر إنشاء مجلد النسخ الاحتياطي.');
-        }
+        sys_backup_ensure_dir_protected($path);
     }
 
     if (!is_writable($path)) {
-        throw new RuntimeException('مجلد النسخ الاحتياطي غير قابل للكتابة.');
+        throw new RuntimeException('مجلد النسخ الاحتياطي غير قابل للكتابة: ' . $path);
+    }
+
+    $real = realpath($path);
+    if ($real !== false) {
+        return sys_backup_normalize_dir($real);
     }
 
     return $path;
@@ -283,6 +358,8 @@ function sys_backup_should_skip_relative(string $relativePath, string $backupRoo
         'node_modules/',
         '.git/',
         'tools/',
+        'backups/',
+        'manager_backups/',
         'vendor/mpdf/mpdf/tmp/',
     ];
     foreach ($skip as $prefix) {
