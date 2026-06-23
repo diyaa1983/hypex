@@ -83,11 +83,13 @@ $backupApiUrl = app_url('api/backup_run.php');
                     <label class="field sys-backup-field">
                         <span class="field-label required">مسار مجلد النسخ الاحتياطي</span>
                         <input class="input" type="text" name="backup_dir" required dir="ltr"
-                               placeholder="D:\Backups\Manager أو C:\xampp\htdocs\manager_backups"
+                               placeholder="D:\Backups\Manager أو /var/backups/manager"
                                value="<?= esc($backupDir) ?>" autocomplete="off">
                     </label>
                     <p class="sys-backup-hint muted">
-                        مثال: <code dir="ltr">D:\Backups\Manager</code> — سيُنشأ مجلد
+                        مثال Windows: <code dir="ltr">D:\Backups\Manager</code>
+                        — مثال Linux: <code dir="ltr">/var/backups/manager</code>
+                        — سيُنشأ مجلد
                         <code dir="ltr"><?= esc($todayFolder) ?></code> داخله عند أخذ النسخة.
                     </p>
 

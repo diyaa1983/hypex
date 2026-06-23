@@ -66,10 +66,42 @@ function sys_backup_settings(PDO $pdo): array
 
 function sys_backup_normalize_dir(string $path): string
 {
-    $path = trim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path));
-    $path = rtrim($path, DIRECTORY_SEPARATOR);
+    $path = trim($path);
+    if ($path === '') {
+        return '';
+    }
 
-    return $path;
+    if (preg_match('/^[a-zA-Z]:/', $path) || preg_match('/^(\\\\\\\\|\\/\\/)/', $path)) {
+        $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
+    } elseif (DIRECTORY_SEPARATOR === '/') {
+        $path = str_replace('\\', '/', $path);
+    } else {
+        $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path);
+    }
+
+    return rtrim($path, DIRECTORY_SEPARATOR);
+}
+
+function sys_backup_is_windows_drive_path(string $path): bool
+{
+    return (bool) preg_match('/^[a-zA-Z]:/', $path);
+}
+
+function sys_backup_is_absolute_path(string $path): bool
+{
+    if ($path === '') {
+        return false;
+    }
+
+    if (preg_match('/^[a-zA-Z]:([\\\\\\/]|$)/', $path)) {
+        return true;
+    }
+
+    if (preg_match('/^(\\\\\\\\|\\/\\/)[^\\\\\\/]+([\\\\\\/]|$)/', $path)) {
+        return true;
+    }
+
+    return str_starts_with($path, '/');
 }
 
 /** @throws RuntimeException */
@@ -80,8 +112,16 @@ function sys_backup_validate_dir(string $path, bool $create = true): string
         throw new RuntimeException('حدّد مجلد النسخ الاحتياطي.');
     }
 
-    if (!preg_match('/^[a-zA-Z]:\\\\|^\\\\\\\\|^\\//', $path)) {
-        throw new RuntimeException('يجب أن يكون المسار مطلقاً (مثل: D:\\Backups\\Manager أو C:\\xampp\\htdocs\\backups).');
+    if (!sys_backup_is_absolute_path($path)) {
+        throw new RuntimeException(
+            'يجب أن يكون المسار مطلقاً (Windows: D:\\Backups\\Manager — Linux: /var/backups/manager).'
+        );
+    }
+
+    if (DIRECTORY_SEPARATOR === '/' && sys_backup_is_windows_drive_path($path)) {
+        throw new RuntimeException(
+            'مسار Windows (مثل D:\\Backups) لا يعمل على خادم Linux. استخدم مساراً مطلقاً مثل: /var/backups/manager'
+        );
     }
 
     if (!is_dir($path)) {
