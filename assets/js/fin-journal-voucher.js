@@ -41,7 +41,7 @@
     noInputId: 'jv_no',
     prevBtnId: 'jv_no_prev',
     nextBtnId: 'jv_no_next',
-    defaultNoTitle: 'اكتب جزءاً من رقم السند واضغط Enter للبحث',
+    defaultNoTitle: 'اضغط السهم › لآخر سند، أو اكتب جزءاً من الرقم واضغط Enter',
   };
   var readOnly = false;
   var formSubmitting = false;
@@ -892,6 +892,8 @@
         nextTitle: 'السند التالي',
         prevBeforeLatestTitle: 'السند قبل الأخير',
         latestTitle: 'آخر سند قيد',
+        nextTitle: 'السند الأحدث',
+        prevTitle: 'السند الأقدم',
       });
       return;
     }

@@ -112,9 +112,10 @@ function acc_journal_auto_entry_ref(PDO $pdo, int $id): ?array
     ];
 }
 
+/** آخر سند قيد يدوي (edge=first في الواجهة = أحدث مستند — مثل فواتير البيع). */
 function acc_journal_voucher_first_id(PDO $pdo): ?int
 {
-    $sql = 'SELECT id FROM acc_journal_entry WHERE ' . acc_journal_voucher_manual_sql() . ' ORDER BY id ASC LIMIT 1';
+    $sql = 'SELECT id FROM acc_journal_entry WHERE ' . acc_journal_voucher_manual_sql() . ' ORDER BY id DESC LIMIT 1';
     $id = $pdo->query($sql)->fetchColumn();
 
     return $id !== false ? (int) $id : null;
