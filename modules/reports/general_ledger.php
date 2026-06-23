@@ -38,6 +38,7 @@ if ($accountId > 0) {
 }
 
 $reportTitle = (string) $ledgerReport['title'];
+$isAccountStatement = (string) ($ledgerReport['route'] ?? '') === 'report_account_statement';
 $accountLabel = $account
     ? acc_account_format_code((string) $account['code']) . ' — ' . (string) $account['name_ar']
     : '';
@@ -46,10 +47,17 @@ $salesCssPath = app_path('assets/css/report-sales.css');
 $salesCssUrl = app_url('assets/css/report-sales.css') . (is_file($salesCssPath) ? '?v=' . (string) filemtime($salesCssPath) : '');
 $cssPath = app_path('assets/css/report-acc.css');
 $cssUrl = app_url('assets/css/report-acc.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
+$stmtCssPath = app_path('assets/css/report-account-statement.css');
+$stmtCssUrl = app_url('assets/css/report-account-statement.css')
+    . (is_file($stmtCssPath) ? '?v=' . (string) filemtime($stmtCssPath) : '');
 $exportJsPath = app_path('assets/js/report-sales-export.js');
 $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsPath) ? '?v=' . (string) filemtime($exportJsPath) : '');
 
-$pageDataAttrs = ' class="card report-sales-page report-gl-page"'
+$pageClass = 'card report-sales-page report-gl-page';
+if ($isAccountStatement) {
+    $pageClass .= ' report-account-statement-page';
+}
+$pageDataAttrs = ' class="' . $pageClass . '"'
     . ' data-report-title="' . esc($reportTitle) . '"'
     . ' data-report-route="' . esc((string) $ledgerReport['route']) . '"'
     . ' data-export-label="' . esc($accountLabel !== '' ? $accountLabel : 'ledger') . '"'
@@ -58,6 +66,9 @@ $pageDataAttrs = ' class="card report-sales-page report-gl-page"'
 ?>
 <link rel="stylesheet" href="<?= esc($salesCssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+<?php if ($isAccountStatement): ?>
+<link rel="stylesheet" href="<?= esc($stmtCssUrl) ?>">
+<?php endif; ?>
 <style><?= document_print_header_css() ?></style>
 <script src="<?= esc($exportJsUrl) ?>"></script>
 
@@ -132,7 +143,7 @@ $pageDataAttrs = ' class="card report-sales-page report-gl-page"'
                 </p>
             </div>
 
-            <div class="report-acc-summary-grid">
+            <div class="report-acc-summary-grid<?= $isAccountStatement ? ' report-acc-stmt-summary' : '' ?>">
                 <div class="report-acc-summary-card">
                     <span class="muted">رصيد افتتاحي</span>
                     <strong><?= esc(format_money($pack['opening']['balance'])) ?></strong>
@@ -152,7 +163,7 @@ $pageDataAttrs = ' class="card report-sales-page report-gl-page"'
                 </p>
             <?php endif; ?>
 
-            <div class="report-sales-table-wrap">
+            <div class="report-sales-table-wrap<?= $isAccountStatement ? ' report-acc-stmt-table-wrap' : '' ?>">
                 <table class="data-table report-sales-table report-acc-table report-gl-table">
                     <colgroup>
                         <col class="col-date">
@@ -171,16 +182,18 @@ $pageDataAttrs = ' class="card report-sales-page report-gl-page"'
                         <th class="col-money">مدين</th>
                         <th class="col-money">دائن</th>
                         <th class="col-money">الرصيد</th>
-                        <th class="no-print col-act"></th>
+                        <th class="no-print col-act">إجراء</th>
                     </tr>
                     </thead>
                     <tbody>
                     <tr class="report-acc-opening-row">
-                        <td colspan="3"><strong>رصيد افتتاحي قبل <?= esc(format_date_dmY($dateFrom)) ?></strong></td>
+                        <td class="col-date">—</td>
+                        <td class="col-entry-no">—</td>
+                        <td class="col-desc"><strong>رصيد افتتاحي قبل <?= esc(format_date_dmY($dateFrom)) ?></strong></td>
                         <td class="col-money"><?= $openSplit['debit'] > 0 ? esc(format_money($openSplit['debit'])) : '—' ?></td>
                         <td class="col-money"><?= $openSplit['credit'] > 0 ? esc(format_money($openSplit['credit'])) : '—' ?></td>
                         <td class="col-money"><strong><?= esc(format_money($pack['opening']['balance'])) ?></strong></td>
-                        <td class="no-print"></td>
+                        <td class="no-print col-act"></td>
                     </tr>
                     <?php if (!$pack['lines']): ?>
                         <tr><td colspan="7" class="muted" style="text-align:center;">لا حركة في الفترة.</td></tr>
@@ -218,11 +231,13 @@ $pageDataAttrs = ' class="card report-sales-page report-gl-page"'
                     </tbody>
                     <tfoot class="report-acc-tfoot">
                     <tr class="report-acc-totals report-sales-group-total">
-                        <td colspan="3"><strong>المجموع</strong></td>
+                        <td class="col-date">—</td>
+                        <td class="col-entry-no">—</td>
+                        <td class="col-desc"><strong>المجموع</strong></td>
                         <td class="col-money"><strong><?= esc(format_money($footerDebit)) ?></strong></td>
                         <td class="col-money"><strong><?= esc(format_money($footerCredit)) ?></strong></td>
                         <td class="col-money"><strong><?= esc(format_money($footerBalance)) ?></strong></td>
-                        <td class="no-print"></td>
+                        <td class="no-print col-act"></td>
                     </tr>
                     </tfoot>
                 </table>

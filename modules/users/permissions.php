@@ -114,63 +114,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/sales_oracle12_ui.php');
+
+$selectedGroupLabel = '';
+foreach ($groups as $g) {
+    if ((int) $g['id'] === $groupId) {
+        $selectedGroupLabel = (string) $g['name_ar'] . ' (' . (string) $g['code'] . ')';
+        break;
+    }
+}
+
+$permCssPath = app_path('assets/css/permissions-oracle12.css');
+$permCssUrl = app_url('assets/css/permissions-oracle12.css')
+    . (is_file($permCssPath) ? '?v=' . (string) filemtime($permCssPath) : '');
 ?>
-<div class="card">
+<?php sales_ora12_enqueue_assets(); ?>
+<link rel="stylesheet" href="<?= esc($permCssUrl) ?>">
+
+<div class="dashboard-ora sales-ora12-screen perm-ora12-page" data-exit-guard-root>
+    <header class="dashboard-ora-screen-title no-print" role="banner">
+        <h1 class="dashboard-ora-screen-title__text">صلاحيات الشاشات والتقارير</h1>
+        <?php if ($selectedGroupLabel !== ''): ?>
+            <span class="dashboard-ora-screen-title__meta"><?= esc($selectedGroupLabel) ?></span>
+        <?php endif; ?>
+        <?php nav_render_screen_close($activeRoute ?? 'permissions'); ?>
+    </header>
+
+    <div class="dashboard-ora-workspace">
     <?php if ($syncedScreens > 0 || $syncedActions > 0): ?>
-        <div class="alert alert-success">
+        <div class="alert alert-success perm-ora12-flash no-print">
             <?php if ($syncedScreens > 0): ?>تمت إضافة <?= (int) $syncedScreens ?> شاشة/تقرير.<?php endif; ?>
             <?php if ($syncedActions > 0): ?> تمت إضافة <?= (int) $syncedActions ?> صلاحية إجراء.<?php endif; ?>
         </div>
     <?php endif; ?>
 
     <?php if ($message !== ''): ?>
-        <div class="alert alert-<?= $messageType === 'success' ? 'success' : 'error' ?>"><?= esc($message) ?></div>
+        <div class="alert alert-<?= $messageType === 'success' ? 'success' : 'error' ?> perm-ora12-flash no-print"><?= esc($message) ?></div>
     <?php endif; ?>
 
-    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="form-grid" id="permissions-group-form" style="margin-bottom:1rem;">
-        <input type="hidden" name="r" value="permissions">
-        <label class="field" style="max-width:360px;">
-            <span class="field-label">اختر المجموعة</span>
-            <select class="input" name="group_id" id="permissions-group-select">
-                <?php foreach ($groups as $g): ?>
-                    <option value="<?= (int) $g['id'] ?>" <?= $groupId === (int) $g['id'] ? 'selected' : '' ?>>
-                        <?= esc((string) $g['name_ar']) ?> (<?= esc((string) $g['code']) ?>)
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-    </form>
+    <section class="dashboard-ora-panel perm-ora12-filters no-print">
+        <h2 class="dashboard-ora-panel__title">اختيار المجموعة والفلاتر</h2>
+        <p class="dashboard-ora-panel__sub">عدّل الصلاحيات ثم اضغط <strong>حفظ</strong> في الشريط العلوي.</p>
+        <div class="dashboard-ora-panel__body">
+            <form method="get" action="<?= esc(app_url('index.php')) ?>" class="form-row" id="permissions-group-form">
+                <input type="hidden" name="r" value="permissions">
+                <label class="field">
+                    <span class="field-label">اختر المجموعة</span>
+                    <select class="input" name="group_id" id="permissions-group-select">
+                        <?php foreach ($groups as $g): ?>
+                            <option value="<?= (int) $g['id'] ?>" <?= $groupId === (int) $g['id'] ? 'selected' : '' ?>>
+                                <?= esc((string) $g['name_ar']) ?> (<?= esc((string) $g['code']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            </form>
 
-    <p class="muted users-admin-hint" style="margin:0 0 1rem;">عدّل الصلاحيات ثم اضغط <strong>حفظ</strong> في الشريط العلوي.</p>
+            <div class="form-row perm-filter-row" style="margin-top:0.55rem;">
+                <label class="field">
+                    <span class="field-label">عرض حسب القسم</span>
+                    <select class="input" id="perm-domain-select">
+                        <option value="">كل الأقسام</option>
+                        <?php foreach ($permDomainFilters as $dom): ?>
+                            <option value="<?= esc((string) $dom['id']) ?>"><?= esc((string) $dom['title']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field-label">عرض حسب القائمة</span>
+                    <select class="input" id="perm-subgroup-select" disabled>
+                        <option value="">كل القوائم</option>
+                    </select>
+                </label>
+                <label class="field">
+                    <span class="field-label">بحث عن شاشة / تقرير / صلاحية</span>
+                    <input class="input" type="search" id="perm-search-input"
+                           placeholder="اكتب الاسم أو كود الصلاحية..."
+                           autocomplete="off" spellcheck="false">
+                </label>
+            </div>
+            <div id="perm-global-empty" class="alert alert-error perm-global-empty no-print" hidden style="margin:0.55rem 0 0;">
+                لا توجد نتائج مطابقة للفلاتر أو البحث الحالي.
+            </div>
+        </div>
+    </section>
 
-    <div class="form-row no-print perm-filter-row" style="margin:0 0 1rem;">
-        <label class="field">
-            <span class="field-label">عرض حسب القسم</span>
-            <select class="input" id="perm-domain-select">
-                <option value="">كل الأقسام</option>
-                <?php foreach ($permDomainFilters as $dom): ?>
-                    <option value="<?= esc((string) $dom['id']) ?>"><?= esc((string) $dom['title']) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label>
-        <label class="field">
-            <span class="field-label">عرض حسب القائمة</span>
-            <select class="input" id="perm-subgroup-select" disabled>
-                <option value="">كل القوائم</option>
-            </select>
-        </label>
-        <label class="field">
-            <span class="field-label">بحث عن شاشة / تقرير / صلاحية</span>
-            <input class="input" type="search" id="perm-search-input"
-                   placeholder="اكتب الاسم أو كود الصلاحية..."
-                   autocomplete="off" spellcheck="false">
-        </label>
-    </div>
-    <div id="perm-global-empty" class="alert alert-error no-print" hidden style="margin:0 0 1rem;">
-        لا توجد نتائج مطابقة للفلاتر أو البحث الحالي.
-    </div>
-
-    <form method="post" class="form-grid" id="permissions-form" action="<?= esc($permPageUrl($groupId)) ?>">
+    <form method="post" class="perm-ora12-form" id="permissions-form" action="<?= esc($permPageUrl($groupId)) ?>">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="group_id" value="<?= (int) $groupId ?>">
 
@@ -238,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php foreach ($navMenu['domains'] as $block): ?>
             <div class="perm-domain-block" data-perm-domain-id="<?= esc((string) ($block['id'] ?? '')) ?>">
                 <h3 class="perm-domain-h"><?= esc((string) $block['title']) ?></h3>
-
+                <div class="perm-domain-body">
                 <?php foreach ($block['subgroups'] as $sg): ?>
                     <details class="perm-subfold" open
                              data-perm-subgroup-id="<?= esc((string) ($sg['id'] ?? '')) ?>"
@@ -270,6 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </details>
                 <?php endforeach; ?>
+                </div>
             </div>
         <?php endforeach; ?>
 
@@ -295,19 +327,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $missingPermCodes = array_values(array_unique(array_filter($missingPermCodes)));
         ?>
         <?php if ($missingPermCodes !== []): ?>
-            <div class="alert alert-error">
+            <div class="alert alert-error perm-missing-codes no-print">
                 أكواد غير مسجّلة في قاعدة البيانات (حدّث الصفحة أو راجع المزامنة):
                 <code><?= esc(implode(', ', $missingPermCodes)) ?></code>
             </div>
         <?php endif; ?>
 
         <?php foreach ($actionCatalog['groups'] as $actionGroup): ?>
-            <div class="perm-domain-block" style="margin-top:1rem;"
+            <div class="perm-domain-block"
                  data-perm-domain-id="actions"
                  data-perm-subgroup-id="<?= esc('action_' . md5((string) ($actionGroup['title'] ?? 'actions'))) ?>"
                  data-perm-subgroup-title="<?= esc((string) ($actionGroup['title'] ?? 'الإجراءات')) ?>">
                 <h3 class="perm-domain-h">صلاحيات الإجراءات — <?= esc((string) $actionGroup['title']) ?></h3>
-                <p class="muted" style="font-size:0.82rem;margin:0 0 0.5rem;">
+                <p class="perm-domain-note">
                     أزرار الشريط العلوي وواجهات API المرتبطة (مستقلة عن فتح الشاشة نفسها).
                 </p>
                 <div class="table-wrap perm-table-wrap">
@@ -357,11 +389,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         ?>
         <?php if ($leftoverReports !== [] || $leftoverScreens !== []): ?>
-            <div class="perm-domain-block" style="margin-top:1rem;" data-perm-domain-id="extras">
+            <div class="perm-domain-block" data-perm-domain-id="extras">
                 <h3 class="perm-domain-h">باقي الشاشات والتقارير (غير موجودة في القائمة)</h3>
-                <p class="muted" style="font-size:0.82rem;margin:0 0 0.5rem;">
+                <p class="perm-domain-note">
                     هذا القسم يعرض كل الصلاحيات المسجلة في النظام لضمان عدم فقدان أي شاشة أو تقرير.
                 </p>
+                <div class="perm-domain-body">
 
                 <?php if ($leftoverReports !== []): ?>
                     <details class="perm-subfold" open data-perm-subgroup-id="extra_reports" data-perm-subgroup-title="تقارير إضافية">
@@ -422,10 +455,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </details>
                 <?php endif; ?>
+                </div>
             </div>
         <?php endif; ?>
 
     </form>
+    </div>
 </div>
 <?php
 $permJsPath = app_path('assets/js/permissions-admin.js');

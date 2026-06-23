@@ -1,0 +1,172 @@
+/* ── صلاحيات الشاشات والتقارير — Oracle 12c ── */
+
+.perm-ora12-page {
+  width: 100%;
+  max-width: 100%;
+}
+
+.perm-ora12-page .dashboard-ora-workspace {
+  padding: 0.5rem;
+}
+
+.perm-ora12-page .perm-ora12-flash {
+  margin: 0;
+}
+
+.perm-ora12-filters .perm-filter-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.45rem 0.65rem;
+  align-items: end;
+}
+
+.perm-ora12-filters .field {
+  margin: 0;
+  min-width: 0;
+}
+
+.perm-ora12-filters .field-label {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.perm-ora12-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.perm-ora12-page .perm-domain-block {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: var(--ora12-surface);
+  border: 1px solid var(--ora12-border);
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+}
+
+.perm-ora12-page .perm-domain-h {
+  margin: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+  line-height: 1.35;
+}
+
+.perm-ora12-page .perm-domain-note {
+  margin: 0;
+  padding: 0.32rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ora12-muted);
+  background: var(--ora12-blue-light);
+  border-bottom: 1px solid var(--ora12-border);
+}
+
+.perm-ora12-page .perm-domain-body {
+  padding: 0.45rem 0.55rem 0.55rem;
+  background: var(--ora12-surface);
+}
+
+.perm-ora12-page .perm-domain-block > .perm-table-wrap {
+  margin: 0;
+  border-top: 1px solid var(--ora12-border);
+}
+
+.perm-ora12-page .perm-domain-note + .perm-table-wrap {
+  border-top: none;
+}
+
+.perm-ora12-page .perm-subfold {
+  margin: 0.4rem 0 0;
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  padding: 0;
+  background: var(--ora12-surface);
+  box-shadow: none;
+}
+
+.perm-ora12-page .perm-subfold:first-of-type {
+  margin-top: 0;
+}
+
+.perm-ora12-page .perm-subfold-sum {
+  list-style: none;
+  cursor: pointer;
+  margin: 0;
+  padding: 0.38rem 0.65rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+  border-bottom: 1px solid #c5d0dc;
+}
+
+.perm-ora12-page .perm-subfold[open] > .perm-subfold-sum {
+  border-bottom-color: var(--ora12-border);
+}
+
+.perm-ora12-page .perm-subfold-sum::-webkit-details-marker {
+  display: none;
+}
+
+.perm-ora12-page .perm-subfold-sum::before {
+  content: '▸ ';
+  color: var(--ora12-blue);
+  font-size: 0.7rem;
+}
+
+.perm-ora12-page .perm-subfold[open] > .perm-subfold-sum::before {
+  content: '▾ ';
+}
+
+.perm-ora12-page .perm-table-wrap {
+  margin: 0;
+  border-radius: 0;
+  background: var(--ora12-surface);
+}
+
+.perm-ora12-page .perm-subfold .perm-table-wrap {
+  background: var(--ora12-surface);
+}
+
+.perm-ora12-page .perm-table th:first-child,
+.perm-ora12-page .perm-table td:first-child {
+  text-align: center;
+  width: 4.5rem;
+}
+
+.perm-ora12-page .perm-table td code {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.perm-ora12-page .perm-table input[type='checkbox'] {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  accent-color: var(--ora12-blue);
+  cursor: pointer;
+}
+
+.perm-ora12-page .perm-row-entry:hover td {
+  background: var(--ora12-hover);
+}
+
+.perm-ora12-page .perm-global-empty {
+  margin: 0;
+}
+
+.perm-ora12-page .perm-missing-codes {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .perm-ora12-filters .perm-filter-row {
+    grid-template-columns: 1fr;
+  }
+}

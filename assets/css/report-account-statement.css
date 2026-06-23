@@ -1,0 +1,275 @@
+/* ── كشف حساب — Oracle 12c (جدول وملخص) ── */
+
+.report-account-statement-page .report-acc-sub {
+  display: none;
+}
+
+.report-account-statement-page .report-sales-print-area {
+  padding: 0.45rem 0.55rem 0.55rem;
+}
+
+.report-account-statement-page .party-stmt-report-head {
+  margin: 0 0 0.45rem;
+  padding: 0.4rem 0.55rem;
+  text-align: center;
+  background: #eef4fb;
+  border: 1px solid var(--ora12-border, #5c6670);
+}
+
+.report-account-statement-page .party-stmt-report-customer {
+  margin: 0 0 0.25rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--ora12-text, #161513);
+  line-height: 1.35;
+}
+
+.report-account-statement-page .party-stmt-report-dates {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--ora12-muted, #5c5c5c);
+  line-height: 1.45;
+}
+
+.report-account-statement-page .party-stmt-report-dates-sep {
+  margin: 0 0.4rem;
+  color: #8a939c;
+}
+
+.report-account-statement-page .report-acc-stmt-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin: 0 0 0.45rem;
+  border: 1px solid var(--ora12-border, #5c6670);
+  border-radius: 0;
+  background: #fff;
+}
+
+.report-account-statement-page .report-acc-stmt-summary .report-acc-summary-card {
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  border: none;
+  border-radius: 0;
+  background: #f7f9fb;
+  box-shadow: none;
+}
+
+.report-account-statement-page .report-acc-stmt-summary .report-acc-summary-card:first-child {
+  border-inline-end: 1px solid var(--ora12-border, #5c6670);
+}
+
+.report-account-statement-page .report-acc-stmt-summary .report-acc-summary-card .muted {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ora12-muted, #5c5c5c);
+  margin-bottom: 0.1rem;
+}
+
+.report-account-statement-page .report-acc-stmt-summary .report-acc-summary-card strong {
+  font-size: 0.88rem;
+  font-weight: 700;
+  direction: ltr;
+  text-align: left;
+}
+
+.report-account-statement-page .report-acc-stmt-table-wrap {
+  margin-top: 0.35rem;
+  border: 1px solid var(--ora12-border, #5c6670);
+  overflow-x: auto;
+  background: #fff;
+}
+
+.report-account-statement-page .report-gl-table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.report-account-statement-page .report-gl-table col.col-date {
+  width: 9%;
+}
+
+.report-account-statement-page .report-gl-table col.col-entry-no {
+  width: 11%;
+}
+
+.report-account-statement-page .report-gl-table col.col-desc {
+  width: 34%;
+}
+
+.report-account-statement-page .report-gl-table col.col-money {
+  width: 10.5%;
+}
+
+.report-account-statement-page .report-gl-table col.col-act {
+  width: 7%;
+}
+
+.report-account-statement-page .report-gl-table thead th {
+  padding: 0.38rem 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.report-account-statement-page .report-gl-table thead th.col-desc {
+  text-align: center;
+}
+
+.report-account-statement-page .report-gl-table thead th.col-money {
+  text-align: center;
+}
+
+.report-account-statement-page .report-gl-table tbody td,
+.report-account-statement-page .report-gl-table tfoot td {
+  padding: 0.32rem 0.35rem;
+  vertical-align: top;
+  line-height: 1.35;
+}
+
+.report-account-statement-page .report-gl-table .col-date {
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: embed;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-account-statement-page .report-gl-table .col-entry-no {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: center;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.report-account-statement-page .report-gl-table .col-entry-no code {
+  display: inline;
+  padding: 0;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ora12-link, #0066cc);
+  white-space: normal;
+  word-break: break-all;
+}
+
+.report-account-statement-page .report-gl-table .col-desc {
+  text-align: start;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.report-account-statement-page .report-gl-table .col-desc .muted {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ora12-muted, #5c5c5c);
+}
+
+.report-account-statement-page .report-gl-table .col-money {
+  text-align: left;
+  direction: ltr;
+  unicode-bidi: embed;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.report-account-statement-page .report-gl-table .report-acc-opening-row td {
+  background: #eef4fb;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.report-account-statement-page .report-gl-table .report-acc-totals td {
+  background: #dde8f2;
+  font-weight: 700;
+  vertical-align: middle;
+  border-top: 2px solid var(--ora12-blue-dark, #024d8f);
+}
+
+.report-account-statement-page .report-gl-table tbody tr:nth-child(even):not(.report-acc-opening-row) td {
+  background: #f7f9fb;
+}
+
+.report-account-statement-page .report-gl-table tbody tr:hover:not(.report-acc-opening-row) td {
+  background: #eef6fc;
+}
+
+.report-account-statement-page .report-acc-links {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.2rem;
+}
+
+.report-account-statement-page .report-acc-links .btn {
+  width: 100%;
+  min-height: 1.35rem;
+  padding: 0.1rem 0.25rem;
+  font-size: 0.66rem;
+  line-height: 1.2;
+}
+
+.report-ora12-screen .report-account-statement-page .report-gl-table thead th {
+  background: var(--ora12-title);
+  color: #fff;
+  border-color: var(--ora12-blue-dark, #024d8f);
+}
+
+.report-ora12-screen .report-account-statement-page .report-gl-table td {
+  border-color: #d0d7de;
+}
+
+@media (max-width: 900px) {
+  .report-account-statement-page .report-acc-stmt-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .report-account-statement-page .report-acc-stmt-summary .report-acc-summary-card:first-child {
+    border-inline-end: none;
+    border-bottom: 1px solid var(--ora12-border, #5c6670);
+  }
+
+  .report-account-statement-page .report-acc-links {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .report-account-statement-page .report-acc-links .btn {
+    width: auto;
+  }
+}
+
+@media print {
+  .report-account-statement-page .party-stmt-report-head {
+    background: #fff !important;
+    border: none !important;
+    padding: 0.2rem 0 !important;
+  }
+
+  .report-account-statement-page .report-acc-stmt-summary {
+    border: 1px solid #000 !important;
+  }
+
+  .report-account-statement-page .report-acc-stmt-table-wrap {
+    border: none !important;
+  }
+
+  .report-account-statement-page .report-gl-table {
+    font-size: 7.5pt !important;
+  }
+
+  .report-account-statement-page .report-gl-table th,
+  .report-account-statement-page .report-gl-table td {
+    padding: 2px 3px !important;
+  }
+}
