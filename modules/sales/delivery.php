@@ -41,6 +41,14 @@ $apiUnlinkInvoice = app_url('api/sales_delivery_unlink_invoice.php');
 $apiDelete = app_url('api/sales_delivery_delete.php');
 $canUnpostDelivery = user_can_action('action_unpost_sales_delivery');
 $initialId = (int) ($_GET['id'] ?? 0);
+require_once app_path('includes/fin_voucher_archive.php');
+fin_voucher_archive_ensure_schema($pdo);
+$canArchiveDelivery = user_can_action('action_archive_sales_delivery');
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
+$archiveCssPath = app_path('assets/css/fin-voucher-archive.css');
+$archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archiveCssPath) ? '?v=' . (string) filemtime($archiveCssPath) : '');
+$archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
+$archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 $cssInvPath = app_path('assets/css/sales-invoice.css');
 $cssInv = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
 $cssDlvPath = app_path('assets/css/sales-delivery.css');
@@ -54,6 +62,7 @@ $screenTitle = 'سند تسليم بضاعة';
 ?>
 <?php sales_inv_oracle12_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssDlv) ?>">
+<link rel="stylesheet" href="<?= esc($archiveCssUrl) ?>">
 <?php
 require_once app_path('includes/customer_picker.php');
 require_once app_path('includes/item_picker.php');
@@ -108,6 +117,9 @@ customer_picker_json_script($customers, 'sales-dlv-customers-json');
           data-delivery-unlink-invoice-url="<?= esc($apiUnlinkInvoice) ?>"
           data-delivery-delete-url="<?= esc($apiDelete) ?>"
           data-can-unpost="<?= $canUnpostDelivery ? '1' : '0' ?>"
+          data-can-archive="<?= $canArchiveDelivery ? '1' : '0' ?>"
+          data-archive-api="<?= esc($archiveApiUrl) ?>"
+          data-archive-kind="sales_delivery"
           data-warehouse-required="<?= count($warehouses) > 0 ? '1' : '0' ?>"
           data-default-warehouse-id="<?= (int) ($defaultWarehouseId ?? 0) ?>"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
@@ -229,5 +241,6 @@ customer_picker_json_script($customers, 'sales-dlv-customers-json');
     </div>
 </div>
 
+<script src="<?= esc($archiveJsUrl) ?>" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="<?= esc($jsUrl) ?>" defer></script>

@@ -59,29 +59,46 @@
     return false;
   }
 
-  /** @return {{showQtyExtra:boolean,showDiscount:boolean}} */
-  function getLayout(tbody) {
+  /** @return {{showQtyExtra:boolean,showDiscount:boolean,showUnitPriceIncl:boolean}} */
+  function getLayout(tbody, opts) {
+    opts = opts || {};
+    var showQtyExtra = opts.showQtyExtra;
+    if (showQtyExtra === undefined) {
+      showQtyExtra = opts.alwaysShowQtyExtra ? true : hasQtyExtra(tbody);
+    }
+    var showDiscount = opts.showDiscount;
+    if (showDiscount === undefined) {
+      showDiscount = opts.alwaysShowDiscount ? true : hasDiscount(tbody);
+    }
     return {
-      showQtyExtra: hasQtyExtra(tbody),
-      showDiscount: hasDiscount(tbody),
+      showQtyExtra: !!showQtyExtra,
+      showDiscount: !!showDiscount,
+      showUnitPriceIncl: !!opts.showUnitPriceIncl,
+      unitPriceExclLabel: opts.unitPriceExclLabel || 'الافرادي غ.ش',
+      unitPriceInclLabel: opts.unitPriceInclLabel || 'الافرادي ش.',
     };
   }
 
   function lineColCount(layout) {
+    layout = layout || {};
     var cols = 9;
-    if (layout && layout.showQtyExtra) cols += 1;
-    if (layout && layout.showDiscount) cols += 1;
+    if (layout.showQtyExtra) cols += 1;
+    if (layout.showUnitPriceIncl) cols += 1;
+    if (layout.showDiscount) cols += 1;
     return cols;
   }
 
   function theadRow(layout) {
-    layout = layout || { showQtyExtra: false, showDiscount: false };
+    layout = layout || { showQtyExtra: false, showDiscount: false, showUnitPriceIncl: false };
     var h =
       '<th>تسلسل</th><th>رقم المادة</th><th>اسم المادة</th><th>الكمية</th>';
     if (layout.showQtyExtra) {
       h += '<th>الكمية الإضافية</th>';
     }
-    h += '<th>السعر الإفرادي</th>';
+    h += '<th>' + (layout.unitPriceExclLabel || 'الافرادي غ.ش') + '</th>';
+    if (layout.showUnitPriceIncl) {
+      h += '<th>' + (layout.unitPriceInclLabel || 'الافرادي ش.') + '</th>';
+    }
     if (layout.showDiscount) {
       h += '<th>الخصم</th>';
     }
@@ -143,7 +160,7 @@
     if (layout.showQtyExtra) {
       html +=
         '<td>' +
-        escapeHtml((tr.querySelector('.js-qty-extra') || { value: '0' }).value) +
+        escapeHtml((tr.querySelector('.js-qty-extra') || { value: '' }).value) +
         '</td>';
     }
     html +=
@@ -154,6 +171,16 @@
           : (tr.querySelector('.js-price') || { value: '' }).value
       ) +
       '</td>';
+    if (layout.showUnitPriceIncl) {
+      html +=
+        '<td>' +
+        escapeHtml(
+          typeof ctx.fmtUnitPriceIncl === 'function'
+            ? ctx.fmtUnitPriceIncl(tr)
+            : (tr.querySelector('.js-price-incl') || { value: '' }).value
+        ) +
+        '</td>';
+    }
     if (layout.showDiscount) {
       html +=
         '<td class="inv-print-cell-disc">' +

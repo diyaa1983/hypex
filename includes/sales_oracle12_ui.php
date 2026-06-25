@@ -46,6 +46,8 @@ function sales_inv_oracle12_enqueue_assets(): void
 /** شريط عنوان أزرق Oracle 12c */
 function sales_ora12_render_title_bar(string $title, string $meta = '', string $activeRoute = ''): void
 {
+    require_once app_path('includes/app_window_manager.php');
+    $activeRoute = app_mdi_resolve_route($activeRoute);
     echo '<header class="dashboard-ora-screen-title" role="banner">';
     echo '<h1 class="dashboard-ora-screen-title__text">' . esc($title) . '</h1>';
     if ($meta !== '') {

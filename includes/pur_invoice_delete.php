@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once app_path('includes/pur_invoice_post.php');
+require_once app_path('includes/pur_invoice_schema.php');
 require_once app_path('includes/crm_supplier_ledger.php');
 require_once app_path('includes/pur_return_schema.php');
 require_once app_path('includes/pur_return_post.php');
@@ -37,10 +38,10 @@ function pur_invoice_is_fully_posted(PDO $pdo, int $invoiceId): bool
     }
 }
 
-/** @return array{ok:bool, error:?string, invoice_no:?string} */
+/** @return array{ok:bool, error:?string, invoice_no:?string, invoice_date:?string} */
 function pur_invoice_can_delete(PDO $pdo, int $invoiceId): array
 {
-    $out = ['ok' => false, 'error' => null, 'invoice_no' => null];
+    $out = ['ok' => false, 'error' => null, 'invoice_no' => null, 'invoice_date' => null];
 
     if ($invoiceId < 1) {
         $out['error'] = 'معرّف الفاتورة غير صالح.';
@@ -49,7 +50,7 @@ function pur_invoice_can_delete(PDO $pdo, int $invoiceId): array
     }
 
     try {
-        $st = $pdo->prepare('SELECT invoice_no, status FROM pur_invoice WHERE id = ? LIMIT 1');
+        $st = $pdo->prepare('SELECT invoice_no, invoice_date, status FROM pur_invoice WHERE id = ? LIMIT 1');
         $st->execute([$invoiceId]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
     } catch (Throwable $e) {
@@ -65,6 +66,7 @@ function pur_invoice_can_delete(PDO $pdo, int $invoiceId): array
     }
 
     $out['invoice_no'] = (string) ($row['invoice_no'] ?? '');
+    $out['invoice_date'] = (string) ($row['invoice_date'] ?? '');
 
     if (pur_invoice_is_fully_posted($pdo, $invoiceId)) {
         $out['error'] = 'لا يمكن حذف فاتورة مرحّلة (مخزون وذمة المورد).';
@@ -170,6 +172,7 @@ function pur_invoice_delete_by_id(PDO $pdo, int $invoiceId): array
     }
 
     $no = (string) ($check['invoice_no'] ?? '');
+    $invoiceDate = (string) ($check['invoice_date'] ?? '');
 
     try {
         if (pur_return_has_tables($pdo)) {
@@ -205,12 +208,16 @@ function pur_invoice_delete_by_id(PDO $pdo, int $invoiceId): array
         return ['ok' => false, 'error' => 'تعذر حذف الفاتورة (لم يُعثر على السجل).', 'message' => null];
     }
 
+    if ($no !== '' && $invoiceDate !== '') {
+        pur_invoice_release_no_to_pool($pdo, $no, $invoiceDate);
+    }
+
     $label = $no !== '' ? $no : ('#' . $invoiceId);
 
     return [
         'ok' => true,
         'error' => null,
-        'message' => 'تم حذف الفاتورة ' . $label . '.',
+        'message' => 'تم حذف الفاتورة ' . $label . '. الرقم متاح لإعادة استخدامه في فاتورة جديدة.',
     ];
 }
 

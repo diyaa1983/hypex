@@ -762,6 +762,30 @@
               ? 'لا يمكن حذف سند كان مرحّلاً مسبقاً'
               : 'حذف مسودة السند';
     }
+    if (global.FinVoucherArchive) {
+      global.FinVoucherArchive.syncToolbar();
+    }
+  }
+
+  function journalArchiveState(id) {
+    id = parseInt(String(id), 10) || 0;
+    if (id < 1) {
+      return { allowed: false, reason: 'not_saved' };
+    }
+    if (!isManualEntry) {
+      return {
+        allowed: false,
+        reason: 'archive_blocked',
+        message: 'أرشيف المرفقات متاح لسندات القيد اليدوية فقط',
+      };
+    }
+    if (entryStatus === 'cancelled') {
+      return { allowed: false, reason: 'cancelled' };
+    }
+    if (entryStatus === 'posted') {
+      return { allowed: true, readOnly: true, reason: '' };
+    }
+    return { allowed: true, readOnly: false, reason: '' };
   }
 
   function updatePostedBadge() {
@@ -1711,6 +1735,27 @@
 
   ensureMinRows();
   recalc();
+
+  if (global.FinVoucherArchive) {
+    global.FinVoucherArchive.init({
+      apiUrl: form.getAttribute('data-archive-api') || '',
+      csrf: (form.querySelector('input[name="_csrf"]') || {}).value || '',
+      kind: form.getAttribute('data-archive-kind') || 'journal',
+      title: 'سند قيد',
+      canArchive: form.getAttribute('data-can-archive') === '1',
+      getVoucherId: function () {
+        return currentId;
+      },
+      getVoucherLabel: function () {
+        return {
+          no: (document.getElementById('jv_no') || {}).value || '',
+          date: (document.getElementById('jv_date') || {}).value || '',
+        };
+      },
+      companyName: form.getAttribute('data-company-name') || '',
+      isArchiveAllowed: journalArchiveState,
+    });
+  }
 
   if (initialId > 0) {
     loadById(initialId).catch(function () {

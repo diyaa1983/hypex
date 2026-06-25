@@ -322,6 +322,11 @@ return [
         'title' => 'الإعدادات',
         'hide_screen_title' => true,
     ],
+    'dashboard_accounts_settings' => [
+        'file' => 'modules/settings/dashboard_accounts.php',
+        'permission' => 'settings',
+        'title' => 'حسابات الشاشة الرئيسية',
+    ],
     'system_backup' => [
         'file' => 'modules/system/backup.php',
         'permission' => 'system_backup',

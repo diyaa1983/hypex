@@ -68,7 +68,56 @@ body:has(.dashboard-ora) .main-content {
   white-space: nowrap;
 }
 
-.dashboard-ora-screen-title .ora12-title-bar__close {
+.dashboard-ora-screen-title .ora12-title-bar__controls {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin-inline-start: auto;
+}
+
+.ora12-title-bar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  text-decoration: none;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.ora12-title-bar__btn:hover {
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+}
+
+.ora12-title-bar__btn:active {
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.ora12-title-bar__minimize {
+  font-size: 0.85rem;
+}
+
+.ora12-title-bar__maximize {
+  font-size: 0.78rem;
+}
+
+.app-screen-title-bar .ora12-title-bar__controls {
+  margin-inline-start: 0;
+  margin-inline-end: auto;
+}
+
+.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn),
+.app-screen-title-bar > .ora12-title-bar__close:not(.ora12-title-bar__btn) {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -86,12 +135,14 @@ body:has(.dashboard-ora) .main-content {
   border-radius: 2px;
 }
 
-.dashboard-ora-screen-title .ora12-title-bar__close:hover {
+.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn):hover,
+.app-screen-title-bar > .ora12-title-bar__close:not(.ora12-title-bar__btn):hover {
   background: rgba(0, 0, 0, 0.28);
   color: #fff;
 }
 
-.dashboard-ora-screen-title .ora12-title-bar__close:active {
+.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn):active,
+.app-screen-title-bar > .ora12-title-bar__close:not(.ora12-title-bar__btn):active {
   background: rgba(0, 0, 0, 0.38);
 }
 

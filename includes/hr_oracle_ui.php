@@ -22,9 +22,8 @@ function hr_ora_ui_link_tags(): void
 /** شريط عنوان Oracle 12c مع زر إغلاق */
 function hr_ora_render_title_bar(string $title, string $activeRoute = ''): void
 {
-    if ($activeRoute === '') {
-        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
-    }
+    require_once app_path('includes/app_window_manager.php');
+    $activeRoute = app_mdi_resolve_route($activeRoute);
 
     echo '<header class="dashboard-ora-screen-title ora12-title-bar" role="banner">';
     echo '<h1 class="dashboard-ora-screen-title__text">' . esc($title) . '</h1>';

@@ -650,6 +650,13 @@ function dashboard_collect(PDO $pdo): array
     $liabilities = dashboard_collect_liabilities($pdo, $vatDateFrom, $today);
     $sensitiveAccounts = dashboard_collect_sensitive_accounts($pdo, $vatDateFrom, $today, $checkSummary);
 
+    require_once app_path('includes/dashboard_accounts.php');
+    if (dashboard_accounts_ensure_schema($pdo)) {
+        $panels = dashboard_accounts_collect_panels($pdo, $vatDateFrom, $today, $checkSummary);
+        $sensitiveAccounts = $panels['treasury'];
+        $liabilities = $panels['liabilities'];
+    }
+
     return [
         'hero' => [
             'company' => (string) ($settings['company_name_ar'] ?? 'الشركة'),

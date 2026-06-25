@@ -568,6 +568,8 @@ function render_app_favicon_links(?array $settingsRow = null): void
 /** عنوان الشاشة بخط صغير أعلى المحتوى (يُستثنى menu_hub لأنه يعرض عنواناً داخل الصفحة). */
 function render_app_screen_title(string $pageTitle, string $activeRoute = ''): void
 {
+    require_once app_path('includes/app_window_manager.php');
+    $activeRoute = app_mdi_resolve_route($activeRoute);
     $pageTitle = trim($pageTitle);
     if ($pageTitle === '' || $activeRoute === 'menu_hub' || $activeRoute === 'dashboard') {
         return;
@@ -599,8 +601,6 @@ function render_app_screen_title(string $pageTitle, string $activeRoute = ''): v
     nav_render_screen_close($activeRoute);
     echo '</header>';
 }
-
-/** رابط المجال من الشريط الجانبي (مجلدات أو شاشة مباشرة إن كان خياراً واحداً). */
 function nav_sidebar_domain_href(array $domain): string
 {
     $domainId = (string) ($domain['id'] ?? '');
@@ -657,7 +657,11 @@ function nav_render_sidebar_domain(array $block, string $activeRoute, ?array $ac
 
     $domainId = (string) ($block['id'] ?? '');
 
+    require_once app_path('includes/app_window_manager.php');
     $href = nav_sidebar_domain_href($block);
+    if (app_mdi_is_park_menu_embed()) {
+        $href = app_mdi_park_menu_url($href);
+    }
     $isActive = nav_sidebar_domain_is_active($domainId, $activeRoute, $activeHub);
 
     echo '<a class="nav-domain-link' . ($isActive ? ' is-active' : '') . '" href="' . esc($href) . '">';
@@ -718,9 +722,16 @@ function nav_screen_close_info(string $activeRoute = ''): array
     return ['url' => $exitUrl, 'hint' => $hint];
 }
 
-/** زر × إغلاق الشاشة — الزاوية اليمنى في شريط العنوان الأزرق. */
+/** أزرار التحكم (تصغير / إغلاق) — يسار شريط العنوان الأزرق. */
 function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl = null, ?string $overrideHint = null): void
 {
+    require_once app_path('includes/app_window_manager.php');
+    $activeRoute = app_mdi_resolve_route($activeRoute);
+    if (app_mdi_route_allowed($activeRoute) && !app_mdi_is_embed_request()) {
+        app_mdi_render_title_bar_controls($activeRoute, $overrideUrl, $overrideHint);
+        return;
+    }
+
     if ($overrideUrl !== null && $overrideUrl !== '' && nav_is_safe_back_url($overrideUrl)) {
         $url = $overrideUrl;
         $hint = $overrideHint ?? 'إغلاق والعودة';
@@ -728,6 +739,9 @@ function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl 
         $info = nav_screen_close_info($activeRoute);
         $url = (string) ($info['url'] ?? '');
         $hint = (string) ($info['hint'] ?? 'إغلاق والعودة');
+    }
+    if (app_mdi_is_embed_request()) {
+        $url = app_mdi_embed_url($url);
     }
     echo '<a class="ora12-title-bar__close" href="' . esc($url) . '"';
     echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">×</a>';

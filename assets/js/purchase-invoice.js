@@ -37,6 +37,7 @@
     defaultNoTitle: 'اكتب جزءاً من رقم الفاتورة واضغط Enter للبحث',
   };
   var invoiceIsPosted = false;
+  var invoiceIsCancelled = false;
   var invoiceEinvQr = '';
   var invoiceEinvStatus = '';
   var invoiceEinvNum = '';
@@ -107,10 +108,17 @@
     updateInvoiceNoPostedStyle();
   }
 
+  function invoiceIsCancelledFrom(inv) {
+    if (!inv) return false;
+    if (inv.is_cancelled === true || inv.is_cancelled === 1 || inv.is_cancelled === '1') return true;
+    return String(inv.status || '') === 'cancelled';
+  }
+
   function refreshInvoiceEditState() {
-    var locked = ledgerView || (currentInvoiceId > 0 && !!invoiceIsPosted);
+    var locked = ledgerView || invoiceIsCancelled || (currentInvoiceId > 0 && !!invoiceIsPosted);
     isSavedMode = locked;
     form.classList.toggle('sales-inv-form-is-posted', locked && !ledgerView);
+    form.classList.toggle('sales-inv-form-is-cancelled', invoiceIsCancelled);
     form.classList.toggle('sales-inv-form-is-ledger-view', ledgerView);
     var fields = form.querySelectorAll(
       '#inv_date, #inv_payment_type, #inv_supplier, #inv_wh, #inv_notes, #inv_supplier_invoice_no'
@@ -151,6 +159,20 @@
       if (rm) rm.style.display = locked ? 'none' : '';
     });
     if (!locked) ensureEntryRow();
+    if (global.FinVoucherArchive) {
+      global.FinVoucherArchive.syncToolbar();
+    }
+  }
+
+  function invoiceArchiveState(id) {
+    id = parseInt(String(id), 10) || 0;
+    if (id < 1) {
+      return { allowed: false, reason: 'not_saved' };
+    }
+    if (invoiceIsPosted) {
+      return { allowed: true, readOnly: true, reason: '' };
+    }
+    return { allowed: true, readOnly: false, reason: '' };
   }
 
   function buildDraftSnapshot() {
@@ -289,24 +311,28 @@
     }
   }
 
-  function confirmUnsavedChanges(onProceed) {
+  function confirmUnsavedChanges(onProceed, onCancel) {
+    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.confirmSaveDiscardLeave === 'function') {
+      global.ScreenExitGuard.confirmSaveDiscardLeave({
+        when: function () {
+          return formDirty && !invoiceIsPosted;
+        },
+        onSave: function (proceed) {
+          trySave(proceed);
+        },
+        onDiscard: function (proceed) {
+          discardChangesAndProceed(proceed);
+        },
+        onProceed: onProceed,
+        onCancel: onCancel,
+      });
+      return;
+    }
     if (!formDirty || invoiceIsPosted) {
       if (onProceed) onProceed();
       return;
     }
-    AppDialog.confirm('هل تريد حفظ التغييرات؟', {
-      title: 'تغييرات غير محفوظة',
-      okText: 'نعم، احفظ',
-      cancelText: 'لا، اخرج بدون حفظ',
-    }).then(function (saveFirst) {
-      if (saveFirst) {
-        trySave(function () {
-          if (onProceed) onProceed();
-        });
-      } else {
-        discardChangesAndProceed(onProceed);
-      }
-    });
+    if (onProceed) onProceed();
   }
 
   function parseInvoiceIdFromUrl(urlStr) {
@@ -2498,7 +2524,9 @@
 
   function requestDeleteUnpostedInvoice(invId, invNoLabel, deleteUrl, listUrl) {
     AppDialog.confirm(
-      'حذف الفاتورة «' + invNoLabel + '» نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.',
+      'حذف الفاتورة «' +
+        invNoLabel +
+        '»؟\n\nسيُعاد رقمها إلى التسلسل ويُستخدم تلقائياً عند إنشاء فاتورة جديدة (إن وُجد رقم فارغ).',
       { title: 'حذف الفاتورة', danger: true, okText: 'حذف' }
     ).then(function (ok) {
       if (!ok) return;
@@ -2678,9 +2706,11 @@
   function updateInvoiceNoPostedStyle() {
     var invNo = document.getElementById('inv_no');
     if (!invNo) return;
-    invNo.classList.remove('is-posted', 'is-unposted');
+    invNo.classList.remove('is-posted', 'is-unposted', 'is-cancelled');
     if (currentInvoiceId < 1) return;
-    if (invoiceIsPosted) {
+    if (invoiceIsCancelled) {
+      invNo.classList.add('is-cancelled');
+    } else if (invoiceIsPosted) {
       invNo.classList.add('is-posted');
     } else {
       invNo.classList.add('is-unposted');
@@ -2696,7 +2726,10 @@
     }
     if (el) {
       el.hidden = false;
-      if (invoiceIsPosted) {
+      if (invoiceIsCancelled) {
+        el.textContent = 'ملغاة';
+        el.className = 'sales-inv-posted-badge badge badge-cancelled-voucher';
+      } else if (invoiceIsPosted) {
         el.textContent = 'مرحّلة';
         el.className = 'sales-inv-posted-badge badge badge-posted';
       } else {
@@ -2936,6 +2969,7 @@
     runWithoutDirtyMark(function () {
     currentInvoiceId = parseInt(inv.id, 10) || 0;
     invoiceIsPosted = !!inv.is_posted;
+    invoiceIsCancelled = invoiceIsCancelledFrom(inv);
     var invDp = parseInt(inv.amount_decimals, 10);
     if (!isNaN(invDp) && invDp >= 0) {
       form.setAttribute('data-decimals', String(invDp));
@@ -3142,6 +3176,7 @@
     if (window.DocumentNoNav) DocumentNoNav.clearSearch(docNoSearch);
     currentInvoiceId = 0;
     invoiceIsPosted = false;
+    invoiceIsCancelled = false;
     applyEinvoiceFromInvoice(null);
     updatePostedBadge();
     refreshInvoiceEditState();
@@ -3400,6 +3435,26 @@
   });
 
   function bootInvoicePage() {
+    if (global.FinVoucherArchive && form) {
+      global.FinVoucherArchive.init({
+        apiUrl: form.getAttribute('data-archive-api') || '',
+        csrf: (form.querySelector('input[name="_csrf"]') || {}).value || '',
+        kind: form.getAttribute('data-archive-kind') || 'purchase_invoice',
+        title: 'فاتورة شراء',
+        canArchive: form.getAttribute('data-can-archive') === '1',
+        getVoucherId: function () {
+          return currentInvoiceId;
+        },
+        getVoucherLabel: function () {
+          return {
+            no: (document.getElementById('inv_no') || {}).value || '',
+            date: (document.getElementById('inv_date') || {}).value || '',
+          };
+        },
+        companyName: form.getAttribute('data-company-name') || '',
+        isArchiveAllowed: invoiceArchiveState,
+      });
+    }
     refreshInvoiceDecimalsFromSettings();
     if (global.AppFormat && AppFormat.setDecimalPlaces) {
       AppFormat.setDecimalPlaces(decimals, { persist: false, silent: true });
@@ -3482,9 +3537,39 @@
   }
 
   window.addEventListener('beforeunload', function (e) {
+    if (window.__managerAllowUnload) return;
     if (formSubmitting || !formDirty || invoiceIsPosted) return;
     persistDraft();
     e.preventDefault();
     e.returnValue = '';
   });
+
+  document.addEventListener('manager:before-minimize', function (ev) {
+    if (formSubmitting || !formDirty || invoiceIsPosted) return;
+    if (ev.detail) ev.detail.dirty = true;
+    persistDraft();
+  });
+
+  if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExitDeferred === 'function') {
+    global.ScreenExitGuard.registerScreenExitDeferred({
+      hasUnsaved: function () {
+        return formDirty && !invoiceIsPosted;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  } else if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExit === 'function') {
+    global.ScreenExitGuard.registerScreenExit({
+      hasUnsaved: function () {
+        return formDirty && !invoiceIsPosted;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  } else {
+    global.ManagerScreenExit = {
+      hasUnsaved: function () {
+        return formDirty && !invoiceIsPosted;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    };
+  }
 })();

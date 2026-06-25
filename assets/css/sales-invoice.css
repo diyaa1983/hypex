@@ -246,15 +246,12 @@ code.voucher-no-is-cancelled {
   border: none !important;
 }
 
-/* اسم المادة داخل زر الاختيار — لا يُخفى الزر بالكامل بعد الترحيل (يُعرض الاسم فقط) */
+/* اسم المادة — بعد الترحيل يُعرض الاسم فقط بدون زر LOV */
+.sales-inv-form-is-posted .sales-inv-item-lov-btn.js-pick-open.is-readonly-display,
+.sales-inv-item-lov-btn.js-pick-open.is-readonly-display,
 .sales-inv-form-is-posted .sales-inv-item-pick.js-pick-open.is-readonly-display,
 .sales-inv-item-pick.js-pick-open.is-readonly-display {
-  pointer-events: none;
-  cursor: default;
-  border-color: transparent;
-  background: transparent;
-  padding: 0.15rem 0;
-  min-height: auto;
+  display: none;
 }
 
 .sales-inv-form-is-posted .sales-inv-item-pick.js-pick-open.is-readonly-display:hover,
@@ -669,9 +666,107 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
 .sales-inv-col-total { width: 10%; text-align: center; font-weight: 800; color: #4338ca; font-variant-numeric: tabular-nums; }
 .sales-inv-col-del { width: 3.5%; text-align: center; }
 
+.sales-inv-item-lov {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  direction: rtl;
+  gap: 0.35rem;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  line-height: 1.25;
+}
+
+.sales-inv-item-lov .sales-inv-item-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: #0f172a;
+  direction: rtl;
+  text-align: start;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.sales-inv-item-lov.is-empty {
+  justify-content: flex-start;
+}
+
+.sales-inv-item-lov.is-empty .sales-inv-item-name {
+  display: none;
+}
+
+.sales-inv-item-lov .sales-inv-item-name.is-placeholder {
+  color: #6366f1;
+}
+
+.sales-inv-item-lov-btn {
+  position: relative;
+  flex: 0 0 1.1rem;
+  width: 1.1rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  min-height: 1.1rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #808080;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ffffff 0%, #d4d0c8 52%, #b8b4ac 100%);
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #808080;
+  cursor: pointer;
+  appearance: none;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.sales-inv-item-lov-btn::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -34%);
+  width: 0;
+  height: 0;
+  border-left: 0.28rem solid transparent;
+  border-right: 0.28rem solid transparent;
+  border-top: 0.36rem solid #000;
+  pointer-events: none;
+}
+
+.sales-inv-item-lov-btn:focus {
+  outline: none;
+}
+
+.sales-inv-item-lov-btn:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: 1px;
+}
+
+.sales-inv-item-lov-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fffffe 0%, #ece9e4 52%, #d4d0c8 100%);
+}
+
+.sales-inv-item-lov-btn:active:not(:disabled) {
+  background: linear-gradient(180deg, #b8b4ac 0%, #d4d0c8 48%, #ece9e4 100%);
+  box-shadow: inset -1px -1px 0 #fff, inset 1px 1px 0 #808080;
+}
+
+.sales-inv-item-lov-btn:disabled,
+.sales-inv-item-lov-btn.is-readonly-display {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .sales-inv-item-pick {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
   width: 100%;
   min-height: 2rem;
   padding: 0.3rem 0.45rem;
@@ -690,6 +785,8 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
 }
 
 .sales-inv-item-pick .sales-inv-item-name {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -697,6 +794,11 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
 
 .sales-inv-item-pick .sales-inv-item-name.is-placeholder {
   color: #6366f1;
+}
+
+.sales-inv-lines-table .is-item-pick-locked {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .sales-inv-footer-grid {
@@ -2019,6 +2121,35 @@ body.app-body--focus .sales-inv-print-overlay {
   box-shadow: none;
 }
 
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov-btn {
+  flex: 0 0 0.95rem;
+  width: 0.95rem;
+  min-width: 0.95rem;
+  height: 0.85rem;
+  min-height: 0.85rem;
+  padding: 0;
+  background: linear-gradient(180deg, #ffffff 0%, #d4d0c8 55%, #c0bdb5 100%);
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #808080;
+}
+
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov-btn::after {
+  border-left-width: 0.24rem;
+  border-right-width: 0.24rem;
+  border-top-width: 0.3rem;
+  border-top-color: #000;
+}
+
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov.is-empty {
+  justify-content: flex-start;
+}
+
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov:not(.is-empty) .sales-inv-item-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #000;
+}
+
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov-btn,
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-item-pick,
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-pick-btn {
   border-radius: 0;
@@ -2028,9 +2159,31 @@ body.app-body--focus .sales-inv-print-overlay {
   box-shadow: none;
 }
 
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-pick,
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-pick-btn {
+  min-height: 1.35rem;
+  padding: 0.12rem 0.28rem;
+}
+
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fffffe 0%, #ece9e4 52%, #d4d0c8 100%);
+}
+
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-item-pick:hover:not(:disabled),
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-pick-btn:hover:not(:disabled) {
   background: #ffffe1;
+}
+
+.sales-ora-screen.sales-inv-ora-screen tr.is-entry-row td {
+  background: #fff !important;
+}
+
+.sales-ora-screen.sales-inv-ora-screen tr.is-entry-row:nth-child(even) td {
+  background: #f4f4f4 !important;
+}
+
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-lines-table .is-item-pick-locked {
+  opacity: 0.62;
 }
 
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-print-overlay-panel {

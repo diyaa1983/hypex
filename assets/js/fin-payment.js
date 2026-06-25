@@ -964,6 +964,23 @@
           ? 'لا يمكن حذف سند مرحّل — استخدم «تعديل» أو «إلغاء السند»'
           : 'حذف مسودة السند';
     }
+    if (global.FinVoucherArchive) {
+      global.FinVoucherArchive.syncToolbar();
+    }
+  }
+
+  function paymentArchiveState(id) {
+    id = parseInt(String(id), 10) || 0;
+    if (id < 1) {
+      return { allowed: false, reason: 'not_saved' };
+    }
+    if (voucherIsCancelled) {
+      return { allowed: false, reason: 'cancelled' };
+    }
+    if (voucherIsPosted) {
+      return { allowed: true, readOnly: true, reason: '' };
+    }
+    return { allowed: true, readOnly: false, reason: '' };
   }
 
   function updatePostedBadge() {
@@ -1247,6 +1264,9 @@
       if (data && data.ok && data.voucher) {
         applyVoucherData(data);
         updateHistory(voucherId);
+        if (global.FinVoucherArchive) {
+          global.FinVoucherArchive.syncToolbar();
+        }
         if (onDone) {
           onDone();
         } else if (global.AppDialog) {
@@ -1620,29 +1640,29 @@
     loadVoucherByNo(no);
   }
 
-  function confirmUnsavedChanges(onProceed) {
+  function confirmUnsavedChanges(onProceed, onCancel) {
+    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.confirmSaveDiscardLeave === 'function') {
+      global.ScreenExitGuard.confirmSaveDiscardLeave({
+        when: function () {
+          return formDirty && !voucherIsPosted && !voucherIsCancelled;
+        },
+        onSave: function (proceed) {
+          trySave(proceed);
+        },
+        onDiscard: function (proceed) {
+          clearFormDirty();
+          if (proceed) proceed();
+        },
+        onProceed: onProceed,
+        onCancel: onCancel,
+      });
+      return;
+    }
     if (!formDirty || voucherIsPosted || voucherIsCancelled) {
       if (onProceed) onProceed();
       return;
     }
-    if (!global.AppDialog || typeof AppDialog.confirm !== 'function') {
-      if (onProceed) onProceed();
-      return;
-    }
-    AppDialog.confirm('هل تريد حفظ التغييرات؟', {
-      title: 'تغييرات غير محفوظة',
-      okText: 'نعم، احفظ',
-      cancelText: 'لا، اخرج بدون حفظ',
-    }).then(function (saveFirst) {
-      if (saveFirst) {
-        trySave(function () {
-          if (onProceed) onProceed();
-        });
-      } else {
-        clearFormDirty();
-        if (onProceed) onProceed();
-      }
-    });
+    if (onProceed) onProceed();
   }
 
   function promptUserPassword(message) {
@@ -2456,6 +2476,26 @@
   }
 
   function bootReceiptPage() {
+    if (global.FinVoucherArchive) {
+      global.FinVoucherArchive.init({
+        apiUrl: form.getAttribute('data-archive-api') || '',
+        csrf: (form.querySelector('input[name="_csrf"]') || {}).value || '',
+        kind: form.getAttribute('data-archive-kind') || 'payment',
+        title: 'سند صرف',
+        canArchive: form.getAttribute('data-can-archive') === '1',
+        getVoucherId: function () {
+          return currentVoucherId;
+        },
+        getVoucherLabel: function () {
+          return {
+            no: (document.getElementById('py_no') || {}).value || '',
+            date: (document.getElementById('py_date') || {}).value || '',
+          };
+        },
+        companyName: form.getAttribute('data-company-name') || '',
+        isArchiveAllowed: paymentArchiveState,
+      });
+    }
     form.querySelectorAll('input[name="party_type_ui"]').forEach(function (radio) {
       radio.addEventListener('change', function () {
         setPartyType(radio.value);
@@ -2603,8 +2643,37 @@
   }
 
   window.addEventListener('beforeunload', function (e) {
+    if (window.__managerAllowUnload) return;
     if (formSubmitting || !formDirty || voucherIsPosted || voucherIsCancelled) return;
     e.preventDefault();
     e.returnValue = '';
   });
+
+  document.addEventListener('manager:before-minimize', function (ev) {
+    if (formSubmitting || !formDirty || voucherIsPosted || voucherIsCancelled) return;
+    if (ev.detail) ev.detail.dirty = true;
+  });
+
+  if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExitDeferred === 'function') {
+    global.ScreenExitGuard.registerScreenExitDeferred({
+      hasUnsaved: function () {
+        return formDirty && !voucherIsPosted && !voucherIsCancelled;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  } else if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExit === 'function') {
+    global.ScreenExitGuard.registerScreenExit({
+      hasUnsaved: function () {
+        return formDirty && !voucherIsPosted && !voucherIsCancelled;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  } else {
+    global.ManagerScreenExit = {
+      hasUnsaved: function () {
+        return formDirty && !voucherIsPosted && !voucherIsCancelled;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    };
+  }
 })();

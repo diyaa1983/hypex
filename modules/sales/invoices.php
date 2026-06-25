@@ -61,6 +61,14 @@ $canUnpostInvoice = user_can_action('action_unpost_sales_invoice');
 $canDeleteInvoice = user_can_action('action_delete_sales_invoice');
 $canPostInvoice = user_can_action('action_post_sales_invoice');
 $initialInvoiceId = (int) ($_GET['id'] ?? 0);
+require_once app_path('includes/fin_voucher_archive.php');
+fin_voucher_archive_ensure_schema($pdo);
+$canArchiveInvoice = user_can_action('action_archive_sales_invoice');
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
+$archiveCssPath = app_path('assets/css/fin-voucher-archive.css');
+$archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archiveCssPath) ? '?v=' . (string) filemtime($archiveCssPath) : '');
+$archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
+$archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 $apiItems = app_url('api/items_search.php');
 $apiInvoice = app_url('api/sales_invoice_view.php');
 $apiDeliveryPick = app_url('api/sales_delivery_pick_list.php');
@@ -84,6 +92,7 @@ $ledgerView = nav_is_ledger_view_request();
 $screenTitle = $ledgerView ? 'عرض فاتورة مبيعات' : 'فاتورة مبيعات';
 ?>
 <?php sales_inv_oracle12_enqueue_assets(); ?>
+<link rel="stylesheet" href="<?= esc($archiveCssUrl) ?>">
 <?php item_picker_enqueue_assets(); ?>
 <?php ledger_document_view_enqueue_assets(); ?>
 <?php customer_picker_json_script($customers, 'sales-inv-customers-json'); ?>
@@ -141,6 +150,9 @@ $showUnitPriceIncl = true;
           data-can-unpost="<?= $canUnpostInvoice ? '1' : '0' ?>"
           data-can-delete="<?= $canDeleteInvoice ? '1' : '0' ?>"
           data-can-post="<?= $canPostInvoice ? '1' : '0' ?>"
+          data-can-archive="<?= $canArchiveInvoice ? '1' : '0' ?>"
+          data-archive-api="<?= esc($archiveApiUrl) ?>"
+          data-archive-kind="sales_invoice"
           data-decimals="<?= (int) $dp ?>"
           data-unit-price-decimals="<?= (int) $unitPriceDp ?>"
           data-print-decimals="<?= (int) $printDp ?>"
@@ -300,6 +312,7 @@ $showUnitPriceIncl = true;
 
 <div id="sales-inv-export-host" class="sales-inv-export-host" aria-hidden="true"></div>
 
+<script src="<?= esc($archiveJsUrl) ?>" defer></script>
 <script src="<?= esc($jsItemDisplay) ?>" defer></script>
 <script src="<?= esc($jsInvPrint) ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/inv-invoice-discount.js')) ?>" defer></script>

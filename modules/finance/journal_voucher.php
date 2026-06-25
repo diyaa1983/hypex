@@ -45,7 +45,11 @@ $apiEditUnlock = app_url('api/journal_voucher_edit_unlock.php');
 $apiCancel = app_url('api/journal_voucher_cancel.php');
 $canUnpostJv = user_can_action('action_unpost_journal_voucher');
 $canEditJv = user_can_action('action_edit_journal_voucher');
+$canArchiveJv = user_can_action('action_archive_journal_voucher');
 $initialId = (int) ($_GET['id'] ?? 0);
+require_once app_path('includes/fin_voucher_archive.php');
+fin_voucher_archive_ensure_schema($pdo);
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
 
 $cssInvPath = app_path('assets/css/sales-invoice.css');
 $cssInv = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
@@ -58,6 +62,10 @@ $ora12CssUrl = app_url('assets/css/sales-invoice-oracle12.css') . (is_file($ora1
 require_once app_path('includes/sales_oracle12_ui.php');
 $jsPath = app_path('assets/js/fin-journal-voucher.js');
 $jsUrl = app_url('assets/js/fin-journal-voucher.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
+$archiveCssPath = app_path('assets/css/fin-voucher-archive.css');
+$archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archiveCssPath) ? '?v=' . (string) filemtime($archiveCssPath) : '');
+$archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
+$archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 require_once app_path('includes/account_picker.php');
 require_once app_path('includes/customer_picker.php');
 require_once app_path('includes/supplier_picker.php');
@@ -104,6 +112,9 @@ $suppliers = crm_suppliers_for_picker($pdo);
           data-api-cancel="<?= esc($apiCancel) ?>"
           data-can-unpost="<?= $canUnpostJv ? '1' : '0' ?>"
           data-can-edit="<?= $canEditJv ? '1' : '0' ?>"
+          data-can-archive="<?= $canArchiveJv ? '1' : '0' ?>"
+          data-archive-api="<?= esc($archiveApiUrl) ?>"
+          data-archive-kind="journal"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
           data-exit-url="<?= esc($exitUrl) ?>"
           data-new-url="<?= esc($newUrl) ?>"
@@ -189,4 +200,6 @@ account_picker_json_script($accounts, 'jv-accounts-json');
 customer_picker_json_script($customers, 'jv-customers-json');
 supplier_picker_json_script($suppliers, 'jv-suppliers-json');
 ?>
+<link rel="stylesheet" href="<?= esc($archiveCssUrl) ?>">
+<script src="<?= esc($archiveJsUrl) ?>"></script>
 <script src="<?= esc($jsUrl) ?>" defer></script>

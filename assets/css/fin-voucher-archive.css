@@ -1,0 +1,600 @@
+/* أرشيف مرفقات السندات — Oracle 12c / Forms */
+
+.fin-voucher-archive-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.fin-voucher-archive-modal[hidden] {
+  display: none !important;
+}
+
+body.fin-voucher-archive-open {
+  overflow: hidden;
+}
+
+body.fin-voucher-archive-taskbar-open {
+  padding-bottom: 2.15rem;
+}
+
+.fin-voucher-archive-modal.is-minimized {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.fin-voucher-archive-modal.is-minimized .fin-voucher-archive-backdrop,
+.fin-voucher-archive-modal.is-minimized .fin-voucher-archive-viewer {
+  visibility: hidden;
+}
+
+.fin-voucher-archive-taskbar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 1295;
+  display: flex;
+  align-items: stretch;
+  min-height: 2rem;
+  padding: 0.2rem 0.45rem;
+  background: linear-gradient(180deg, #ece9e4 0%, #d4d0c8 100%);
+  border-top: 1px solid #808080;
+  box-shadow: 0 -1px 0 #fff inset;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.fin-voucher-archive-taskbar[hidden] {
+  display: none !important;
+}
+
+.fin-voucher-archive-taskbar-inner {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  max-width: min(420px, 92vw);
+  border: 1px solid;
+  border-color: #808080 #fff #fff #808080;
+  background: #ece9e4;
+}
+
+.fin-voucher-archive-task-btn {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: min(360px, 78vw);
+  padding: 0.18rem 0.55rem;
+  border: 0;
+  border-inline-end: 1px solid #808080;
+  background: linear-gradient(180deg, #ffffe1 0%, #ece9e4 100%);
+  color: #000080;
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: start;
+}
+
+.fin-voucher-archive-task-btn:hover {
+  background: linear-gradient(180deg, #fff 0%, #f5f2ea 100%);
+}
+
+.fin-voucher-archive-task-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fin-voucher-archive-task-close {
+  flex: 0 0 1.65rem;
+  border: 0;
+  background: var(--fva-ora-shell, #d4d0c8);
+  color: #000;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.fin-voucher-archive-task-close:hover {
+  background: #f4e0e0;
+  color: #8b0000;
+}
+
+.fin-voucher-archive-modal--oracle12 .fin-voucher-archive-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: none;
+}
+
+.fin-voucher-archive-viewer--oracle12 {
+  --fva-ora-blue: #0572ce;
+  --fva-ora-blue-dark: #024d8f;
+  --fva-ora-border: #5c6670;
+  --fva-ora-shell: #d4d0c8;
+  --fva-ora-panel: #ece9e4;
+  --fva-ora-text: #000;
+  --fva-ora-muted: #5c5c5c;
+  --fva-ora-title: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+  --fva-viewer-width: min(560px, 94vw);
+  --fva-viewer-max-height: min(440px, 88vh);
+  --fva-body-height: min(300px, calc(88vh - 7rem));
+  --fva-body-min-height: 220px;
+  --fva-body-max-height: 300px;
+  --fva-sidebar-width: minmax(138px, 158px);
+  --fva-stage-min-height: 200px;
+
+  position: relative;
+  z-index: 1;
+  width: var(--fva-viewer-width);
+  max-height: var(--fva-viewer-max-height);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--fva-ora-shell);
+  color: var(--fva-ora-text);
+  border-radius: 0;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  overflow: hidden;
+  box-shadow: 2px 2px 0 #808080;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.78rem;
+}
+
+.fin-voucher-archive-modal.is-viewer-expanded {
+  padding: 0.5rem;
+}
+
+.fin-voucher-archive-modal.is-viewer-expanded .fin-voucher-archive-viewer--oracle12 {
+  --fva-viewer-width: min(960px, calc(100vw - 1rem));
+  --fva-viewer-max-height: calc(100vh - 1rem);
+  --fva-body-height: auto;
+  --fva-body-min-height: 320px;
+  --fva-body-max-height: none;
+  --fva-sidebar-width: minmax(168px, 210px);
+  --fva-stage-min-height: 280px;
+  width: var(--fva-viewer-width);
+  height: min(680px, calc(100vh - 1rem));
+  max-height: var(--fva-viewer-max-height);
+}
+
+.fin-voucher-archive-viewer--oracle12.is-expanded .fin-voucher-archive-viewer-body {
+  flex: 1 1 auto;
+}
+
+.fin-voucher-archive-viewer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.22rem 0.45rem;
+  background: var(--fva-ora-title);
+  border-bottom: 1px solid #000;
+}
+
+.fin-voucher-archive-viewer-title {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+
+.fin-voucher-archive-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.fin-voucher-archive-minimize,
+.fin-voucher-archive-size-toggle,
+.fin-voucher-archive-close {
+  flex: 0 0 auto;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+  width: 1.35rem;
+  height: 1.35rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+}
+
+.fin-voucher-archive-minimize {
+  width: auto;
+  min-width: 3.35rem;
+  height: 1.35rem;
+  padding: 0 0.35rem;
+  font-size: 0.66rem;
+  line-height: 1.1;
+  color: #024d8f;
+}
+
+.fin-voucher-archive-size-toggle {
+  font-size: 0.72rem;
+}
+
+.fin-voucher-archive-minimize:hover,
+.fin-voucher-archive-size-toggle:hover,
+.fin-voucher-archive-close:hover {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+}
+
+.fin-voucher-archive-minimize:active,
+.fin-voucher-archive-size-toggle:active,
+.fin-voucher-archive-close:active {
+  border-color: #404040 #fff #fff #404040;
+  background: #c0c0c0;
+}
+
+.fin-voucher-archive-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.45rem;
+  background: var(--fva-ora-shell);
+  border-bottom: 1px solid #808080;
+}
+
+.fin-voucher-archive-ora-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.25rem;
+  min-height: 1.45rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 0;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  box-shadow: none;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fin-voucher-archive-ora-btn:hover:not(.is-disabled) {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+  color: #000;
+}
+
+.fin-voucher-archive-ora-btn:active:not(.is-disabled) {
+  border-color: #404040 #fff #fff #404040;
+  background: #c0c0c0;
+}
+
+.fin-voucher-archive-ora-btn.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: default;
+}
+
+.fin-voucher-archive-viewer-body {
+  display: grid;
+  grid-template-columns: var(--fva-sidebar-width) minmax(0, 1fr);
+  height: var(--fva-body-height);
+  min-height: var(--fva-body-min-height);
+  max-height: var(--fva-body-max-height);
+  background: #fff;
+  border-bottom: 1px solid var(--fva-ora-border);
+}
+
+.fin-voucher-archive-viewer-body.is-single-file {
+  grid-template-columns: 1fr;
+}
+
+.fin-voucher-archive-viewer-body.is-single-file .fin-voucher-archive-sidebar {
+  display: none;
+}
+
+.fin-voucher-archive-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--fva-ora-panel);
+  color: var(--fva-ora-text);
+  border-inline-end: 1px solid var(--fva-ora-border);
+  overflow: hidden;
+}
+
+.fin-voucher-archive-sidebar-head {
+  padding: 0.28rem 0.45rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--fva-ora-title);
+  border-bottom: 1px solid var(--fva-ora-blue-dark);
+}
+
+.fin-voucher-archive-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.4rem 0.45rem;
+  border-bottom: 1px solid #808080;
+  background: var(--fva-ora-shell);
+}
+
+.fin-voucher-archive-upload[hidden],
+.fin-voucher-archive-upload.fin-voucher-archive-upload--hidden {
+  display: none !important;
+}
+
+.fin-voucher-archive-upload-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--fva-ora-blue-dark);
+}
+
+.fin-voucher-archive-file {
+  display: none;
+}
+
+.fin-voucher-archive-upload-btn {
+  width: 100%;
+  min-width: 0;
+}
+
+.fin-voucher-archive-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1 1 auto;
+  background: #fff;
+}
+
+.fin-voucher-archive-file-item {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #c0c0c0;
+}
+
+.fin-voucher-archive-file-item.is-active {
+  background: #cce5ff;
+}
+
+.fin-voucher-archive-file-item.is-active .fin-voucher-archive-file-btn-name {
+  color: #000;
+  font-weight: 700;
+}
+
+.fin-voucher-archive-file-btn {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  min-width: 0;
+  padding: 0.32rem 0.4rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+  font: inherit;
+}
+
+.fin-voucher-archive-file-btn:hover {
+  background: #e8f4fc;
+}
+
+.fin-voucher-archive-file-item.is-active .fin-voucher-archive-file-btn:hover {
+  background: #cce5ff;
+}
+
+.fin-voucher-archive-file-btn-name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #000;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.fin-voucher-archive-file-btn-meta {
+  font-size: 0.66rem;
+  color: var(--fva-ora-muted);
+}
+
+.fin-voucher-archive-file-del {
+  flex: 0 0 1.65rem;
+  border: 0;
+  border-inline-start: 1px solid #c0c0c0;
+  background: var(--fva-ora-shell);
+  color: #8b0000;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.fin-voucher-archive-file-del:hover {
+  background: #f4e0e0;
+}
+
+.fin-voucher-archive-file-empty {
+  padding: 0.55rem 0.45rem;
+  font-size: 0.72rem;
+  color: var(--fva-ora-muted);
+}
+
+.fin-voucher-archive-stage {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #808080;
+  border-inline-start: 1px solid var(--fva-ora-border);
+}
+
+.fin-voucher-archive-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: var(--fva-stage-min-height);
+  border: 0;
+  background: #808080;
+}
+
+.fin-voucher-archive-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: var(--fva-stage-min-height);
+  padding: 0.35rem;
+  box-sizing: border-box;
+  background: #808080;
+}
+
+.fin-voucher-archive-image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid #404040;
+}
+
+.fin-voucher-archive-stage-empty,
+.fin-voucher-archive-stage-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: var(--fva-stage-min-height);
+  padding: 0.65rem;
+  text-align: center;
+  color: #fff;
+  background: #808080;
+}
+
+.fin-voucher-archive-stage-fallback-name {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.fin-voucher-archive-stage-fallback-note {
+  margin: 0;
+  font-size: 0.74rem;
+}
+
+.fin-voucher-archive-stage-fallback .fin-voucher-archive-ora-btn {
+  margin-top: 0.15rem;
+}
+
+.fin-voucher-archive-viewer-foot {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.45rem 0.42rem;
+  background: var(--fva-ora-shell);
+}
+
+.fin-voucher-archive-foot-close {
+  min-width: 5.5rem;
+}
+
+.fin-voucher-archive-note,
+.fin-voucher-archive-warn {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.fin-voucher-archive-warn {
+  padding: 0.35rem 0.45rem;
+  color: #000;
+  background: #fff3cd;
+  border-bottom: 1px solid #c9a227;
+}
+
+/* زر الأرشيف في الشريط */
+#master-toolbar .master-toolbar-btn[data-master-action="archive"].fin-voucher-archive-has-files:not(:disabled) {
+  background: linear-gradient(180deg, #e8f4fc 0%, #b8daf0 100%);
+  border-color: #0572ce;
+  color: #024d8f;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+#master-toolbar .master-toolbar-btn[data-master-action="archive"].fin-voucher-archive-has-files:not(:disabled):hover {
+  background: linear-gradient(180deg, #d4ebfa 0%, #9ec5e8 100%);
+  border-color: #024d8f;
+  color: #024d8f;
+}
+
+#master-toolbar .master-toolbar-btn[data-master-action="archive"].fin-voucher-archive-read-only:not(:disabled) {
+  background: linear-gradient(180deg, #fff8e7 0%, #f5e6b8 100%);
+  border-color: #9a7b2e;
+  color: #5c4a1a;
+}
+
+#master-toolbar .master-toolbar-btn[data-master-action="archive"].fin-voucher-archive-read-only.fin-voucher-archive-has-files:not(:disabled) {
+  background: linear-gradient(180deg, #f5e6b8 0%, #e8d48a 100%);
+  border-color: #7a6220;
+  color: #4a3a12;
+}
+
+@media (max-width: 640px) {
+  .fin-voucher-archive-modal {
+    padding: 0.35rem;
+  }
+
+  .fin-voucher-archive-modal.is-viewer-expanded {
+    padding: 0.35rem;
+  }
+
+  .fin-voucher-archive-viewer--oracle12,
+  .fin-voucher-archive-modal.is-viewer-expanded .fin-voucher-archive-viewer--oracle12 {
+    --fva-viewer-width: 100%;
+    width: 100%;
+    max-height: 92vh;
+    height: auto;
+  }
+
+  .fin-voucher-archive-modal.is-viewer-expanded .fin-voucher-archive-viewer--oracle12 {
+    height: min(640px, calc(100vh - 0.7rem));
+  }
+
+  .fin-voucher-archive-viewer-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(200px, 1fr);
+    height: auto;
+    max-height: none;
+  }
+
+  .fin-voucher-archive-sidebar {
+    max-height: 118px;
+  }
+
+  .fin-voucher-archive-frame {
+    min-height: 200px;
+  }
+}

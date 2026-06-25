@@ -48,6 +48,10 @@ $apiDelete = app_url('api/fin_receipt_delete.php');
 $apiEditUnlock = app_url('api/fin_receipt_edit_unlock.php');
 $canEditReceipt = user_can_action('action_edit_cash_receipt');
 $initialId = (int) ($_GET['id'] ?? 0);
+require_once app_path('includes/fin_voucher_archive.php');
+fin_voucher_archive_ensure_schema($pdo);
+$canArchiveReceipt = user_can_action('action_archive_cash_receipt');
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
 require_once app_path('includes/acc_gl.php');
 $cashBoxAccountId = acc_gl_cash_box_account_id($pdo);
 $defaultCashId = $cashBoxAccountId > 0 ? $cashBoxAccountId : (int) ($cashAccounts[0]['id'] ?? 0);
@@ -63,6 +67,10 @@ $ora12CssUrl = app_url('assets/css/sales-invoice-oracle12.css') . (is_file($ora1
 require_once app_path('includes/sales_oracle12_ui.php');
 $jsPath = app_path('assets/js/fin-receipt.js');
 $jsUrl = app_url('assets/js/fin-receipt.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
+$archiveCssPath = app_path('assets/css/fin-voucher-archive.css');
+$archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archiveCssPath) ? '?v=' . (string) filemtime($archiveCssPath) : '');
+$archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
+$archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 $docNoNavJsPath = app_path('assets/js/document-no-nav.js');
 $docNoNavJsUrl = app_url('assets/js/document-no-nav.js') . (is_file($docNoNavJsPath) ? '?v=' . (string) filemtime($docNoNavJsPath) : '');
 ?>
@@ -101,6 +109,9 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
           data-voucher-delete-url="<?= esc($apiDelete) ?>"
           data-api-edit-unlock="<?= esc($apiEditUnlock) ?>"
           data-can-edit="<?= $canEditReceipt ? '1' : '0' ?>"
+          data-can-archive="<?= $canArchiveReceipt ? '1' : '0' ?>"
+          data-archive-api="<?= esc($archiveApiUrl) ?>"
+          data-archive-kind="receipt"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
           data-exit-url="<?= esc($exitUrl) ?>"
           data-new-url="<?= esc($newUrl) ?>"
@@ -246,4 +257,6 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
 </div>
 
 <script src="<?= esc($docNoNavJsUrl) ?>"></script>
+<link rel="stylesheet" href="<?= esc($archiveCssUrl) ?>">
+<script src="<?= esc($archiveJsUrl) ?>"></script>
 <script src="<?= esc($jsUrl) ?>"></script>

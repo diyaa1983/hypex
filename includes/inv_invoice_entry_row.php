@@ -14,8 +14,8 @@ require_once app_path('includes/app_icons.php');
  */
 $bootstrapLineId = $bootstrapLineId ?? ('L-boot-' . str_replace('.', '', uniqid('', true)));
 $showUnitPriceIncl = !empty($showUnitPriceIncl);
-$unitPriceStep = $unitPriceStep ?? $priceStep ?? '0.01';
-$amountStep = $amountStep ?? $priceStep ?? '0.01';
+$unitPriceStep = $unitPriceStep ?? ($priceStep ?? '0.01');
+$amountStep = $amountStep ?? '0.01';
 ?>
 <tr data-line-id="<?= esc((string) $bootstrapLineId) ?>" data-item-id="" data-name-ar="" class="is-entry-row">
     <td class="sales-inv-col-seq"><span class="js-seq"></span></td>
@@ -24,10 +24,10 @@ $amountStep = $amountStep ?? $priceStep ?? '0.01';
         <input type="text" class="input js-barcode-inp" placeholder="مسح أو باركود" autocomplete="off" spellcheck="false" title="امسح الباركود أو أدخل رقم المادة">
     </td>
     <td class="sales-inv-item-cell sales-inv-col-item">
-        <button type="button" class="sales-inv-cust-open input js-pick-open" title="اختيار المادة">
-            <span class="js-name sales-inv-cust-open-label is-placeholder">اضغط لاختيار المادة</span>
-            <span class="sales-inv-cust-open-ico" aria-hidden="true">▾</span>
-        </button>
+        <div class="sales-inv-item-lov is-empty">
+            <button type="button" class="sales-inv-item-lov-btn js-pick-open" title="اختيار المادة" aria-label="اختيار المادة"></button>
+            <span class="js-name sales-inv-item-name is-placeholder"></span>
+        </div>
     </td>
     <td class="sales-inv-col-qty"><input type="number" class="input input-num js-qty" min="0" step="1" inputmode="decimal" value="" placeholder=""></td>
     <td class="sales-inv-col-qty-extra"><input type="number" class="input input-num js-qty-extra" min="0" step="1" inputmode="decimal" value="" title="كمية إضافية تُحسب في المخزون فقط"></td>
@@ -47,6 +47,8 @@ $amountStep = $amountStep ?? $priceStep ?? '0.01';
             <?php endforeach; ?>
         </select>
     </td>
-    <td class="sales-inv-col-total js-line-gross" title="يُحسب تلقائياً"></td>
+    <td class="sales-inv-col-total">
+        <input type="text" class="input input-num js-line-gross" inputmode="decimal" value="" title="الإجمالي شامل الضريبة" autocomplete="off">
+    </td>
     <td class="sales-inv-col-del"><button type="button" class="btn-icon danger js-remove" title="حذف" aria-label="حذف البند" style="visibility:hidden"><?= app_icon_svg('trash', 18) ?></button></td>
 </tr>

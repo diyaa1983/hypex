@@ -50,6 +50,14 @@ $apiPostInvoice = app_url('api/purchase_invoice_post.php');
 $apiUnpostInvoice = app_url('api/purchase_invoice_unpost.php');
 $canUnpostInvoice = user_can_action('action_unpost_purchase_invoice');
 $apiDeleteInvoice = app_url('api/purchase_invoice_delete.php');
+require_once app_path('includes/fin_voucher_archive.php');
+fin_voucher_archive_ensure_schema($pdo);
+$canArchiveInvoice = user_can_action('action_archive_purchase_invoice');
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
+$archiveCssPath = app_path('assets/css/fin-voucher-archive.css');
+$archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archiveCssPath) ? '?v=' . (string) filemtime($archiveCssPath) : '');
+$archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
+$archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 $listInvoicesUrl = app_url('index.php?r=purchase_invoices_list');
 $apiEinvoiceSend = '';
 $canSendEinvoice = false;
@@ -75,6 +83,7 @@ $ledgerView = nav_is_ledger_view_request();
 $screenTitle = $ledgerView ? 'عرض فاتورة شراء' : 'فاتورة شراء';
 ?>
 <?php sales_inv_oracle12_enqueue_assets(); ?>
+<link rel="stylesheet" href="<?= esc($archiveCssUrl) ?>">
 <?php item_picker_enqueue_assets(); ?>
 <?php ledger_document_view_enqueue_assets(); ?>
 
@@ -110,6 +119,9 @@ $screenTitle = $ledgerView ? 'عرض فاتورة شراء' : 'فاتورة شر
           data-einvoice-send-url="<?= esc($apiEinvoiceSend) ?>"
           data-send-email-url="<?= esc($apiSendEmail) ?>"
           data-can-send-einvoice="<?= $canSendEinvoice ? '1' : '0' ?>"
+          data-can-archive="<?= $canArchiveInvoice ? '1' : '0' ?>"
+          data-archive-api="<?= esc($archiveApiUrl) ?>"
+          data-archive-kind="purchase_invoice"
           data-decimals="<?= (int) $dp ?>"
           data-unit-price-decimals="<?= (int) $unitPriceDp ?>"
           data-print-decimals="<?= (int) $printDp ?>"
@@ -257,6 +269,7 @@ $screenTitle = $ledgerView ? 'عرض فاتورة شراء' : 'فاتورة شر
 
 <div id="sales-inv-export-host" class="sales-inv-export-host" aria-hidden="true"></div>
 
+<script src="<?= esc($archiveJsUrl) ?>" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="<?= esc(app_url('assets/js/doc-send-email.js')) ?>" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" crossorigin="anonymous"></script>

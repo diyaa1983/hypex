@@ -1171,9 +1171,15 @@
     }, true);
 
     window.addEventListener('beforeunload', function (e) {
+        if (window.__managerAllowUnload) return;
         if (!hasUnsavedChanges()) return;
         e.preventDefault();
         e.returnValue = '';
+    });
+
+    document.addEventListener('manager:before-minimize', function (ev) {
+        if (!hasUnsavedChanges()) return;
+        if (ev.detail) ev.detail.dirty = true;
     });
 
     if (monthFilterForm) {

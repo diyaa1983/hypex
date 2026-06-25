@@ -126,6 +126,14 @@ $apiInvoices = app_url('index.php?r=purchase_returns&ajax=invoices');
 $apiLines = app_url('index.php?r=purchase_returns&ajax=lines');
 $apiReturn = app_url('api/purchase_return_view.php');
 $apiPostReturn = app_url('api/purchase_return_post.php');
+require_once app_path('includes/fin_voucher_archive.php');
+fin_voucher_archive_ensure_schema($pdo);
+$canArchiveReturn = user_can_action('action_archive_purchase_return');
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
+$archiveCssPath = app_path('assets/css/fin-voucher-archive.css');
+$archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archiveCssPath) ? '?v=' . (string) filemtime($archiveCssPath) : '');
+$archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
+$archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 $apiSendEmail = app_url('api/document_send_email.php');
 $listReturnsUrl = app_url('index.php?r=purchase_returns_list');
 $cssInvPath = app_path('assets/css/sales-invoice.css');
@@ -143,6 +151,7 @@ $screenTitle = $ledgerView ? 'عرض مردود مشتريات' : 'مردود م
 ?>
 <?php sales_inv_oracle12_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssRet) ?>">
+<link rel="stylesheet" href="<?= esc($archiveCssUrl) ?>">
 <?php ledger_document_view_enqueue_assets(); ?>
 
 <div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main sales-ret-wrap sales-inv-bold" data-exit-guard="custom">
@@ -183,6 +192,9 @@ $screenTitle = $ledgerView ? 'عرض مردود مشتريات' : 'مردود م
           data-api-lines="<?= esc($apiLines) ?>"
           data-api-return="<?= esc($apiReturn) ?>"
           data-return-post-url="<?= esc($apiPostReturn) ?>"
+          data-can-archive="<?= $canArchiveReturn ? '1' : '0' ?>"
+          data-archive-api="<?= esc($archiveApiUrl) ?>"
+          data-archive-kind="purchase_return"
           data-send-email-url="<?= esc($apiSendEmail) ?>"
           data-list-url="<?= esc($listReturnsUrl) ?>"
           data-new-url="<?= esc($newReturnUrl) ?>"
@@ -452,4 +464,5 @@ $screenTitle = $ledgerView ? 'عرض مردود مشتريات' : 'مردود م
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="<?= esc(app_url('assets/js/doc-send-email.js')) ?>" defer></script>
+<script src="<?= esc($archiveJsUrl) ?>" defer></script>
 <script src="<?= esc($jsRet) ?>" defer></script>

@@ -506,7 +506,12 @@ function sys_backup_render_sidebar_link(string $activeRoute): void
         return;
     }
 
+    require_once app_path('includes/app_window_manager.php');
+
     $url = app_url('index.php?r=system_backup');
+    if (app_mdi_is_park_menu_embed()) {
+        $url = app_mdi_park_menu_url($url);
+    }
     $isActive = $activeRoute === 'system_backup';
 
     echo '<a class="nav-domain-link nav-backup-link' . ($isActive ? ' is-active' : '') . '" href="' . esc($url) . '"';

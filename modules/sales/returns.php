@@ -129,6 +129,14 @@ $apiPostReturn = app_url('api/sales_return_post.php');
 $apiUnpostReturn = app_url('api/sales_return_unpost.php');
 $canUnpostReturn = user_can_action('action_unpost_sales_return');
 $apiDeleteReturn = app_url('api/sales_return_delete.php');
+require_once app_path('includes/fin_voucher_archive.php');
+fin_voucher_archive_ensure_schema($pdo);
+$canArchiveReturn = user_can_action('action_archive_sales_return');
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
+$archiveCssPath = app_path('assets/css/fin-voucher-archive.css');
+$archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archiveCssPath) ? '?v=' . (string) filemtime($archiveCssPath) : '');
+$archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
+$archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 $apiEinvoiceReturn = app_url('api/sales_return_einvoice_send.php');
 $apiSendEmail = app_url('api/document_send_email.php');
 $listReturnsUrl = app_url('index.php?r=sales_returns_list');
@@ -149,6 +157,7 @@ $screenTitle = $ledgerView ? 'عرض مرتجع مبيعات' : 'مرتجع مب
 ?>
 <?php sales_inv_oracle12_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssRet) ?>">
+<link rel="stylesheet" href="<?= esc($archiveCssUrl) ?>">
 <?php
 require_once app_path('includes/customer_picker.php');
 customer_picker_enqueue_assets();
@@ -197,6 +206,9 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
           data-return-post-url="<?= esc($apiPostReturn) ?>"
           data-return-unpost-url="<?= esc($apiUnpostReturn) ?>"
           data-can-unpost="<?= $canUnpostReturn ? '1' : '0' ?>"
+          data-can-archive="<?= $canArchiveReturn ? '1' : '0' ?>"
+          data-archive-api="<?= esc($archiveApiUrl) ?>"
+          data-archive-kind="sales_return"
           data-return-delete-url="<?= esc($apiDeleteReturn) ?>"
           data-return-einvoice-url="<?= esc($apiEinvoiceReturn) ?>"
           data-send-email-url="<?= esc($apiSendEmail) ?>"
@@ -496,6 +508,7 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
   };
 })(window);
 </script>
+<script src="<?= esc($archiveJsUrl) ?>" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer crossorigin="anonymous"></script>
 <script src="<?= esc($jsInvPrint) ?>" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer crossorigin="anonymous" referrerpolicy="no-referrer"></script>

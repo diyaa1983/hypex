@@ -7,6 +7,7 @@ require_once app_path('includes/company_smtp.php');
 require_once app_path('includes/company_whatsapp.php');
 require_once app_path('includes/fin_check_due_email.php');
 require_once app_path('includes/login_recaptcha.php');
+require_once app_path('includes/fin_voucher_archive.php');
 
 $decimalPlacesMax = invoice_amount_decimals_max();
 company_settings_ensure_default_row($pdo);
@@ -17,6 +18,7 @@ company_smtp_ensure_schema($pdo);
 company_whatsapp_ensure_schema($pdo);
 fin_check_due_email_ensure_settings_columns($pdo);
 login_recaptcha_ensure_schema($pdo);
+fin_voucher_archive_ensure_schema($pdo);
 
 require_once app_path('includes/sal_invoice_schema.php');
 sal_invoice_ensure_schema($pdo);
@@ -85,6 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($loginRecaptchaSiteKey !== '' && $loginRecaptchaSecret !== '') {
             $loginRecaptchaEnabled = true;
         }
+
+        $documentArchiveDir = trim((string) ($_POST['document_archive_dir'] ?? ''));
+        $documentArchiveMaxMb = max(1, min(100, (int) ($_POST['document_archive_max_mb'] ?? 10)));
 
         $waProvider = 'cloud';
         $waPhoneId = trim((string) ($_POST['wa_phone_id'] ?? ''));
@@ -163,6 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msgType = 'error';
         } elseif ($loginRecaptchaEnabled && $loginRecaptchaSecret === '') {
             $msg = 'reCAPTCHA: أدخل Secret Key من Google (مطلوب في أول حفظ).';
+            $msgType = 'error';
+        } elseif ($documentArchiveDir !== '' && sys_backup_path_issue($documentArchiveDir) !== null) {
+            $msg = sys_backup_path_issue($documentArchiveDir) ?: 'مسار أرشيف المستندات غير صالح.';
             $msgType = 'error';
         } else {
             if ($taxF < 0 || $taxF > 100) {
@@ -279,8 +287,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $GLOBALS['_company_settings_cache'] = null;
                         company_currency_reset_cache();
                         company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
-                        $msg = 'تم حفظ الإعدادات.' . ($logoSkipNote !== '' ? ' —' . $logoSkipNote : '');
-                        if ($dec !== $oldDecimalPlaces) {
+                        try {
+                            if ($documentArchiveDir !== '') {
+                                fin_voucher_archive_save_dir($pdo, $documentArchiveDir);
+                            } else {
+                                $pdo->exec('UPDATE sys_company_settings SET document_archive_dir = NULL WHERE id = 1');
+                                $GLOBALS['_company_settings_cache'] = null;
+                            }
+                            fin_voucher_archive_save_max_mb($pdo, $documentArchiveMaxMb);
+                        } catch (Throwable $archiveEx) {
+                            $msg = ($archiveEx->getMessage() ?: 'تعذر حفظ إعدادات أرشيف المستندات.') . ' (بقية الإعدادات حُفظت.)';
+                            $msgType = 'error';
+                        }
+                        if ($msgType !== 'error') {
+                            $msg = 'تم حفظ الإعدادات.' . ($logoSkipNote !== '' ? ' —' . $logoSkipNote : '');
+                        }
+                        if ($msgType !== 'error' && $dec !== $oldDecimalPlaces) {
                             require_once app_path('includes/company_decimal_reapply.php');
                             $reapply = company_reapply_decimal_places_all($pdo);
                             if (!$reapply['ok']) {
@@ -354,6 +376,13 @@ if (!isset($currencyCatalog[$currentCurrencyCode])) {
 
 $cssPath = app_path('assets/css/settings-oracle12.css');
 $cssUrl = app_url('assets/css/settings-oracle12.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
+$archiveSettings = fin_voucher_archive_settings($pdo);
+$documentArchiveDir = (string) ($archiveSettings['document_archive_dir'] ?? '');
+$documentArchiveMaxMb = (int) ($archiveSettings['document_archive_max_mb'] ?? 10);
+$archiveRecommendedDir = fin_voucher_archive_recommended_dir();
+$archivePathIssue = fin_voucher_archive_path_issue($pdo);
+$archiveTodayFolder = app_today_ymd();
+$archiveServerLabel = sys_backup_server_label();
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 
@@ -622,6 +651,43 @@ $cssUrl = app_url('assets/css/settings-oracle12.css') . (is_file($cssPath) ? '?v
     </div>
 
     <div class="settings-ora-panel">
+        <h2 class="settings-ora-panel-head">أرشيف مرفقات السندات</h2>
+        <div class="settings-ora-panel-body">
+            <p class="field-hint" style="margin:0 0 0.55rem;">
+                الخادم الحالي: <strong dir="ltr"><?= esc($archiveServerLabel) ?></strong>.
+                حدّد مجلداً على الخادم لحفظ مرفقات سندات القبض والصرف والقيد.
+                كل رفع يُنشأ في مجلد باسم تاريخ اليوم ثم نوع السند ثم رقم السند
+                (مثل: <code dir="ltr"><?= esc($archiveTodayFolder) ?>/receipts/CR-001</code>).
+            </p>
+            <?php if ($archivePathIssue !== null && $documentArchiveDir !== ''): ?>
+                <div class="alert alert-error settings-ora-flash"><?= esc($archivePathIssue) ?></div>
+            <?php endif; ?>
+            <div class="form-row">
+                <label class="field field--full">
+                    <span class="field-label">مسار مجلد الأرشيف</span>
+                    <input class="input" type="text" name="document_archive_dir" id="document-archive-dir-input" dir="ltr"
+                           placeholder="<?= esc($archiveRecommendedDir) ?>"
+                           value="<?= esc($documentArchiveDir !== '' ? $documentArchiveDir : '') ?>" autocomplete="off">
+                    <span class="field-hint">
+                        المسار المقترح:
+                        <code dir="ltr"><?= esc($archiveRecommendedDir) ?></code>
+                        <?php if (sys_backup_is_linux_server()): ?>
+                        — لا تستخدم <code dir="ltr">D:\...</code> على Linux.
+                        <?php endif; ?>
+                        <button type="button" class="btn btn-ghost btn-sm" id="document-archive-use-recommended" style="margin-inline-start:0.5rem;">استخدام المقترح</button>
+                    </span>
+                </label>
+                <label class="field">
+                    <span class="field-label">الحد الأقصى لحجم الملف (ميجابايت)</span>
+                    <input class="input" type="number" name="document_archive_max_mb" min="1" max="100"
+                           value="<?= esc((string) $documentArchiveMaxMb) ?>">
+                    <span class="field-hint">PDF، Word، JPG، PNG — من 1 إلى 100.</span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-ora-panel">
         <h2 class="settings-ora-panel-head">إعدادات WhatsApp</h2>
         <div class="settings-ora-panel-body">
             <p class="field-hint" style="margin:0 0 0.55rem;">
@@ -663,6 +729,13 @@ $cssUrl = app_url('assets/css/settings-oracle12.css') . (is_file($cssPath) ? '?v
 </p>
 
 <script>
+document.getElementById('document-archive-use-recommended')?.addEventListener('click', function () {
+  var input = document.getElementById('document-archive-dir-input');
+  if (input) {
+    input.value = <?= json_encode($archiveRecommendedDir, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    input.focus();
+  }
+});
 document.addEventListener('master-toolbar', function (e) {
   if (e.detail && e.detail.action === 'save') {
     e.preventDefault();

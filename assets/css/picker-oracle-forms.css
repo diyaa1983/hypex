@@ -366,6 +366,19 @@ body.ora12-picker-ui .sales-inv-cust-open-ico {
   font-size: 0.72rem;
 }
 
+body.hr-ora-ui .sales-inv-item-lov-btn,
+body.ora12-picker-ui .sales-inv-item-lov-btn {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border, #808080);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+}
+
+body.hr-ora-ui .sales-inv-item-lov-btn:hover:not(:disabled),
+body.ora12-picker-ui .sales-inv-item-lov-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff 0%, #eef2f6 100%);
+}
+
 body.hr-ora-ui .sales-inv-item-pick,
 body.ora12-picker-ui .sales-inv-item-pick,
 body.hr-ora-ui .sales-inv-pick-btn,

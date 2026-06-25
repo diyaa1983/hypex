@@ -94,6 +94,21 @@
       .replace(/\.$/, '');
   }
 
+  /** عرض رقم بخانات عشرية ثابتة (بدون فواصل آلاف) — لحقول مبالغ الفاتورة. */
+  function formatFixedDecimalPlain(n, dp) {
+    var d = clampDecimals(dp);
+    var x = Number(n);
+    if (!isFinite(x)) {
+      x = 0;
+    }
+    x = round(x, d);
+    return x.toLocaleString('en-US', {
+      minimumFractionDigits: d,
+      maximumFractionDigits: d,
+      useGrouping: false,
+    });
+  }
+
   /** عرض مبلغ فاتورة حسب إعداد الخانات العشرية. */
   function fmtInvoiceAmount(n) {
     var d = invoiceAmountDecimals();
@@ -188,51 +203,23 @@
   }
 
   function formatInvoiceDecimalInputWithDecimals(n, rawStr, maxDp) {
-    var maxFrac = maxDp !== undefined && maxDp !== null ? clampDecimals(maxDp) : invoiceInputDecimals();
+    var maxFrac =
+      maxDp !== undefined && maxDp !== null ? clampDecimals(maxDp) : invoiceInputDecimals();
+
     if (rawStr !== undefined && rawStr !== null && String(rawStr).trim() !== '') {
       var raw = String(rawStr).trim();
-      var trailingSep = /[.,]$/.test(raw);
-      var s = normalizeInvoiceDecimalRaw(raw);
-      if (/[.]/.test(s) || trailingSep) {
-        var dot = s.indexOf('.');
-        if (dot < 0 && trailingSep) {
-          var intOnly = s.replace(/[^\d-]/g, '') || '0';
-          return intOnly + '.';
-        }
-        if (dot >= 0) {
-          var intPart = s.slice(0, dot).replace(/[^\d-]/g, '') || '0';
-          var frac = s
-            .slice(dot + 1)
-            .replace(/[^\d]/g, '')
-            .slice(0, maxFrac);
-          if (frac.length) {
-            return intPart + '.' + frac;
-          }
-          if (trailingSep || s.endsWith('.')) {
-            return intPart + '.';
-          }
-          return intPart;
-        }
-      }
-      var parsed = parseFloat(s);
-      if (isFinite(parsed)) {
-        if (invoiceInputShouldShowEmpty(parsed, rawStr)) {
-          return '';
-        }
-        if (Math.abs(parsed - Math.round(parsed)) < 1e-12) {
-          return String(Math.round(parsed));
-        }
-        return trimTrailingZeros(String(round(parsed, maxFrac)));
+      if (/[.,]$/.test(raw)) {
+        var head = normalizeInvoiceDecimalRaw(raw.slice(0, -1));
+        var intOnly = (head.split('.')[0] || '0').replace(/[^\d-]/g, '') || '0';
+        return intOnly + '.';
       }
     }
+
     var x = round(n, maxFrac);
     if (invoiceInputShouldShowEmpty(x, rawStr)) {
       return '';
     }
-    if (Math.abs(x - Math.round(x)) < 1e-12) {
-      return String(Math.round(x));
-    }
-    return trimTrailingZeros(String(x));
+    return formatFixedDecimalPlain(x, maxFrac);
   }
 
   /** تنسيق مبلغ فاتورة (قبل الضريبة، إجمالي، …) حسب إعداد النظام. */

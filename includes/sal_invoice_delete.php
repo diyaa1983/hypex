@@ -6,6 +6,8 @@ declare(strict_types=1);
 
 require_once app_path('includes/sal_invoice_post.php');
 
+require_once app_path('includes/sal_invoice_schema.php');
+
 require_once app_path('includes/crm_customer_ledger.php');
 
 require_once app_path('includes/sal_return_schema.php');
@@ -61,7 +63,7 @@ function sal_invoice_is_fully_posted(PDO $pdo, int $invoiceId): bool
 
  *
 
- * @return array{ok:bool, error:?string, invoice_no:?string}
+ * @return array{ok:bool, error:?string, invoice_no:?string, invoice_date:?string}
 
  */
 
@@ -69,7 +71,7 @@ function sal_invoice_can_delete(PDO $pdo, int $invoiceId): array
 
 {
 
-    $out = ['ok' => false, 'error' => null, 'invoice_no' => null];
+    $out = ['ok' => false, 'error' => null, 'invoice_no' => null, 'invoice_date' => null];
 
 
 
@@ -87,7 +89,7 @@ function sal_invoice_can_delete(PDO $pdo, int $invoiceId): array
 
     try {
 
-        $st = $pdo->prepare('SELECT invoice_no, status FROM sal_invoice WHERE id = ? LIMIT 1');
+        $st = $pdo->prepare('SELECT invoice_no, invoice_date, status FROM sal_invoice WHERE id = ? LIMIT 1');
 
         $st->execute([$invoiceId]);
 
@@ -118,8 +120,7 @@ function sal_invoice_can_delete(PDO $pdo, int $invoiceId): array
 
 
     $out['invoice_no'] = (string) ($row['invoice_no'] ?? '');
-
-
+    $out['invoice_date'] = (string) ($row['invoice_date'] ?? '');
 
     if (sal_invoice_is_fully_posted($pdo, $invoiceId)) {
 
@@ -161,7 +162,7 @@ function sal_invoice_can_delete(PDO $pdo, int $invoiceId): array
 
         try {
 
-            $ret = $pdo->prepare('SELECT id FROM sal_return WHERE invoice_id = ? LIMIT 1');
+            $ret = $pdo->prepare("SELECT id FROM sal_return WHERE invoice_id = ? AND status <> 'cancelled' LIMIT 1");
 
             $ret->execute([$invoiceId]);
 
@@ -272,7 +273,7 @@ function sal_invoice_delete_cleanup_posting_artifacts(PDO $pdo, int $invoiceId):
 
 /**
 
- * حذف فاتورة بيع غير المرحّلة (البنود تُحذف تلقائياً CASCADE).
+ * حذف فاتورة بيع غير المرحّلة — يُعاد رقمها إلى التسلسل لاستخدامه في فاتورة جديدة.
 
  *
 
@@ -311,6 +312,7 @@ function sal_invoice_delete_by_id(PDO $pdo, int $invoiceId, bool $unpostFirst = 
 
 
     $no = (string) ($check['invoice_no'] ?? '');
+    $invoiceDate = (string) ($check['invoice_date'] ?? '');
 
 
 
@@ -359,8 +361,12 @@ function sal_invoice_delete_by_id(PDO $pdo, int $invoiceId, bool $unpostFirst = 
 
     if ($st->rowCount() < 1) {
 
-        return ['ok' => false, 'error' => 'تعذر حذف الفاتورة (لم تُعثر على السجل).', 'message' => null];
+        return ['ok' => false, 'error' => 'تعذر حذف الفاتورة (لم يُعثر على السجل).', 'message' => null];
 
+    }
+
+    if ($no !== '' && $invoiceDate !== '') {
+        sal_invoice_release_no_to_pool($pdo, $no, $invoiceDate);
     }
 
 
@@ -375,7 +381,7 @@ function sal_invoice_delete_by_id(PDO $pdo, int $invoiceId, bool $unpostFirst = 
 
         'error' => null,
 
-        'message' => 'تم حذف الفاتورة ' . $label . '.',
+        'message' => 'تم حذف الفاتورة ' . $label . '. الرقم متاح لإعادة استخدامه في فاتورة جديدة.',
 
     ];
 

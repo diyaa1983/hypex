@@ -135,6 +135,7 @@ function pur_invoice_enrich_row(PDO $pdo, array $row, string $browseFilter = 'al
 
     require_once app_path('includes/pur_invoice_post.php');
     $row['is_posted'] = pur_invoice_is_posted($pdo, $id);
+    $row['is_cancelled'] = pur_invoice_is_cancelled((string) ($row['status'] ?? ''));
 
     return $row;
 }

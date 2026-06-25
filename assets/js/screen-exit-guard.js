@@ -5,6 +5,185 @@
     var registry = new WeakMap();
     var boundPages = new Set();
 
+    function isUnloadAllowed() {
+        return !!global.__managerAllowUnload;
+    }
+
+    function setAllowUnload(value) {
+        global.__managerAllowUnload = !!value;
+    }
+
+    function getActiveGuard() {
+        var active = null;
+        boundPages.forEach(function (page) {
+            if (!page || !page.isConnected) {
+                return;
+            }
+            var api = registry.get(page);
+            if (api && api.hasUnsavedChanges()) {
+                active = api;
+            }
+        });
+        return active;
+    }
+
+    function prepareForMinimize() {
+        var detail = { dirty: false };
+        global.document.dispatchEvent(new CustomEvent('manager:before-minimize', { detail: detail }));
+        if (!detail.dirty) {
+            if (global.ManagerScreenExit && global.ManagerScreenExit.hasUnsaved && global.ManagerScreenExit.hasUnsaved()) {
+                detail.dirty = true;
+            } else {
+                var guard = getActiveGuard();
+                if (guard && guard.hasUnsavedChanges()) {
+                    detail.dirty = true;
+                }
+            }
+        }
+        setAllowUnload(true);
+        return detail;
+    }
+
+    function clearAllowUnload() {
+        setAllowUnload(false);
+    }
+
+    function confirmTaskbarClose(onSave, onDiscard, onCancel) {
+        showLeaveDialog(onSave, onDiscard, onCancel);
+    }
+
+    function showLeaveDialog(onSave, onDiscard, onCancel, message) {
+        message = message || DEFAULT_MSG;
+        if (!global.AppDialog || typeof global.AppDialog.confirmSaveDiscard !== 'function') {
+            if (global.confirm(message)) {
+                if (onSave) {
+                    onSave();
+                }
+            } else if (onDiscard) {
+                onDiscard();
+            } else if (onCancel) {
+                onCancel();
+            }
+            return;
+        }
+
+        global.AppDialog.confirmSaveDiscard(message, {
+            title: 'حفظ التغييرات',
+            saveText: 'نعم، احفظ',
+            discardText: 'لا، بدون حفظ',
+            cancelText: 'إلغاء',
+            theme: 'oracle',
+        }).then(function (choice) {
+            if (choice === 'save' && onSave) {
+                onSave();
+                return;
+            }
+            if (choice === 'discard' && onDiscard) {
+                onDiscard();
+                return;
+            }
+            if (onCancel) {
+                onCancel();
+            }
+        });
+    }
+
+    function confirmSaveDiscardLeave(options) {
+        options = options || {};
+        var when = options.when || function () {
+            return true;
+        };
+        if (!when()) {
+            if (options.onProceed) {
+                options.onProceed();
+            }
+            return;
+        }
+        showLeaveDialog(
+            function () {
+                if (options.onSave) {
+                    options.onSave(options.onProceed);
+                } else if (options.onProceed) {
+                    options.onProceed();
+                }
+            },
+            function () {
+                if (options.onDiscard) {
+                    options.onDiscard();
+                }
+                if (options.onProceed) {
+                    options.onProceed();
+                }
+            },
+            options.onCancel || function () {},
+            options.message
+        );
+    }
+
+    function navigateTop(href) {
+        if (!href) {
+            return;
+        }
+        if (
+            global.AppScreenWindows &&
+            typeof global.AppScreenWindows.exitCurrentPage === 'function' &&
+            global.AppScreenWindows.hasCurrentFullPageWindow &&
+            global.AppScreenWindows.hasCurrentFullPageWindow()
+        ) {
+            global.AppScreenWindows.exitCurrentPage(href);
+            return;
+        }
+        if (global.APP_EMBED && global.parent && global.parent !== global) {
+            global.parent.postMessage(
+                { type: 'manager:mdi-parent-nav', href: href },
+                global.location.origin
+            );
+            return;
+        }
+        global.location.href = href;
+    }
+
+    function confirmLeave(onProceed, onCancel) {
+        onCancel = onCancel || function () {};
+
+        if (global.ManagerScreenExit && typeof global.ManagerScreenExit.confirmLeave === 'function') {
+            if (global.ManagerScreenExit.hasUnsaved && !global.ManagerScreenExit.hasUnsaved()) {
+                if (onProceed) {
+                    onProceed();
+                }
+                return;
+            }
+            global.ManagerScreenExit.confirmLeave(onProceed, onCancel);
+            return;
+        }
+
+        var guard = getActiveGuard();
+        if (guard && guard.hasUnsavedChanges()) {
+            guard.confirmUnsavedChanges(onProceed, onCancel);
+            return;
+        }
+
+        if (onProceed) {
+            onProceed();
+        }
+    }
+
+    function registerScreenExit(api) {
+        global.ManagerScreenExit = api || null;
+    }
+
+    function registerScreenExitDeferred(api) {
+        function apply() {
+            registerScreenExit(api);
+        }
+        apply();
+        if (global.document.readyState === 'loading') {
+            global.document.addEventListener('DOMContentLoaded', apply);
+        } else {
+            global.setTimeout(apply, 0);
+        }
+    }
+
     function isSearchFilterForm(form) {
         if (!form) {
             return false;
@@ -16,22 +195,73 @@
         return method === 'get' && !form.classList.contains('master-page-form');
     }
 
-    function isDirectScreenExitClick(exitLink) {
-        if (!exitLink) {
+    function pageHasAnyUnsaved() {
+        if (global.ManagerScreenExit && global.ManagerScreenExit.hasUnsaved && global.ManagerScreenExit.hasUnsaved()) {
+            return true;
+        }
+        var guard = getActiveGuard();
+        return !!(guard && guard.hasUnsavedChanges());
+    }
+
+    function isInternalNavLink(anchor) {
+        if (!anchor || anchor.tagName !== 'A') {
             return false;
         }
-        if (!exitLink.classList.contains('ora12-title-bar__close')
-            && !exitLink.classList.contains('hr-ora-title-bar__close')) {
+        if (anchor.target === '_blank' || anchor.hasAttribute('download')) {
             return false;
         }
-        return !!exitLink.closest('.report-ora12-screen, .app-screen-title-bar');
+        if (anchor.closest('.app-mdi-window, .app-mdi-taskbar, .app-mdi-screen-minimize-btn, .fin-voucher-archive-modal, .ui-dialog-root')) {
+            return false;
+        }
+        var href = anchor.getAttribute('href') || '';
+        if (!href || href.charAt(0) === '#') {
+            return false;
+        }
+        if (href.indexOf('logout.php') >= 0) {
+            return false;
+        }
+        try {
+            var u = new URL(anchor.href, global.location.href);
+            if (u.origin !== global.location.origin) {
+                return false;
+            }
+            var cur = new URL(global.location.href);
+            if (u.pathname === cur.pathname && u.search === cur.search) {
+                return false;
+            }
+        } catch (e) {
+            return false;
+        }
+        return true;
+    }
+
+    function onGlobalNavClick(e) {
+        if (isUnloadAllowed()) {
+            return;
+        }
+        var anchor = e.target.closest ? e.target.closest('a[href]') : null;
+        if (!anchor || !isInternalNavLink(anchor)) {
+            return;
+        }
+        if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+            return;
+        }
+        if (anchor.closest('.ora12-title-bar__close, .hr-ora-title-bar__close, .nav-exit-btn')) {
+            return;
+        }
+        if (!pageHasAnyUnsaved()) {
+            return;
+        }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        var href = anchor.href;
+        confirmLeave(function () {
+            navigateTop(href);
+        });
     }
 
     function findPageRoot(el) {
         if (!el) {
-            return null;
-        }
-        if (isDirectScreenExitClick(el.closest('.ora12-title-bar__close, .hr-ora-title-bar__close'))) {
             return null;
         }
         var marked = el.closest('[data-exit-guard-root]');
@@ -206,43 +436,20 @@
                 return;
             }
 
-            var showFallback = function () {
-                if (global.confirm('هل تريد حفظ التغييرات قبل المغادرة؟')) {
+            showLeaveDialog(
+                function () {
                     onSave();
-                } else if (onProceed) {
-                    resetSnapshot();
-                    onProceed();
-                } else if (onCancel) {
-                    onCancel();
-                }
-            };
-
-            if (!global.AppDialog || typeof global.AppDialog.confirmSaveDiscard !== 'function') {
-                showFallback();
-                return;
-            }
-
-            global.AppDialog.confirmSaveDiscard(message, {
-                title: 'حفظ التغييرات',
-                saveText: 'نعم، احفظ',
-                discardText: 'لا، بدون حفظ',
-                cancelText: 'إلغاء',
-                theme: 'oracle',
-            }).then(function (choice) {
-                if (choice === 'save') {
-                    onSave();
-                    return;
-                }
-                if (choice === 'discard' && onProceed) {
+                },
+                function () {
                     delete page.dataset.screenExitDirty;
                     resetSnapshot();
-                    onProceed();
-                    return;
-                }
-                if (onCancel) {
-                    onCancel();
-                }
-            });
+                    if (onProceed) {
+                        onProceed();
+                    }
+                },
+                onCancel || function () {},
+                message
+            );
         }
 
         function navigateAway(url, onCancel) {
@@ -250,7 +457,7 @@
                 return;
             }
             confirmUnsavedChanges(function () {
-                global.location.href = url;
+                navigateTop(url);
             }, onCancel);
         }
 
@@ -263,7 +470,7 @@
         }
 
         function onBeforeUnload(e) {
-            if (!hasUnsavedChanges()) {
+            if (isUnloadAllowed() || !hasUnsavedChanges()) {
                 return;
             }
             e.preventDefault();
@@ -392,13 +599,6 @@
             return;
         }
 
-        if (isDirectScreenExitClick(exitLink)) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            global.location.href = href;
-            return;
-        }
-
         var root = findPageRoot(exitLink);
         var guard = root ? registry.get(root) : null;
 
@@ -430,7 +630,9 @@
             return;
         }
 
-        global.location.href = href;
+        confirmLeave(function () {
+            navigateTop(href);
+        });
     }
 
     function findGuardPage(el) {
@@ -543,12 +745,15 @@
     }
 
     global.document.addEventListener('click', onGlobalExitClick, true);
+    global.document.addEventListener('click', onGlobalNavClick, true);
 
     function init() {
+        clearAllowUnload();
         autoBindAll();
     }
 
     function initAfterLoad() {
+        clearAllowUnload();
         autoBindAll();
         resyncAllBoundPages();
     }
@@ -567,6 +772,16 @@
         syncFor: syncExitGuardForElement,
         syncPage: syncExitGuardPage,
         resyncAll: resyncAllBoundPages,
+        getActiveGuard: getActiveGuard,
+        prepareForMinimize: prepareForMinimize,
+        clearAllowUnload: clearAllowUnload,
+        confirmTaskbarClose: confirmTaskbarClose,
+        confirmLeave: confirmLeave,
+        confirmSaveDiscardLeave: confirmSaveDiscardLeave,
+        registerScreenExit: registerScreenExit,
+        registerScreenExitDeferred: registerScreenExitDeferred,
+        isUnloadAllowed: isUnloadAllowed,
+        navigateExit: navigateTop,
     };
     global.HrOraUnsaved = { bind: bind };
 })(typeof window !== 'undefined' ? window : globalThis);

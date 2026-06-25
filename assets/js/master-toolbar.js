@@ -99,6 +99,18 @@
     }
 
     if (action === 'exit' && defaultExitUrl) {
+      if (window.ScreenExitGuard && typeof window.ScreenExitGuard.confirmLeave === 'function') {
+        window.ScreenExitGuard.confirmLeave(function () {
+          window.location.href = defaultExitUrl;
+        });
+        return;
+      }
+      if (window.ManagerScreenExit && typeof window.ManagerScreenExit.confirmLeave === 'function') {
+        window.ManagerScreenExit.confirmLeave(function () {
+          window.location.href = defaultExitUrl;
+        });
+        return;
+      }
       window.location.href = defaultExitUrl;
     }
 

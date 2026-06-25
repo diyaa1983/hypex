@@ -126,6 +126,7 @@ function sal_invoice_enrich_row(PDO $pdo, array $row, string $browseFilter = 'al
 
     require_once app_path('includes/sal_invoice_post.php');
     $row['is_posted'] = sal_invoice_is_posted($pdo, $id);
+    $row['is_cancelled'] = sal_invoice_is_cancelled((string) ($row['status'] ?? ''));
 
     $deliveryId = (int) ($row['delivery_id'] ?? 0);
     $row['delivery_no'] = '';

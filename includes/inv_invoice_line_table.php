@@ -44,9 +44,10 @@ function inv_invoice_line_table_row_template(array $taxRates, string $unitPriceS
             <input type="text" class="input js-barcode-inp" placeholder="مسح أو باركود" autocomplete="off" spellcheck="false" title="امسح الباركود أو أدخل رقم المادة">
         </td>
         <td class="sales-inv-item-cell sales-inv-col-item">
-            <button type="button" class="sales-inv-item-pick js-pick-open">
-                <span class="js-name sales-inv-item-name is-placeholder">اضغط لاختيار المادة</span>
-            </button>
+            <div class="sales-inv-item-lov is-empty">
+                <button type="button" class="sales-inv-item-lov-btn js-pick-open" title="اختيار المادة" aria-label="اختيار المادة"></button>
+                <span class="js-name sales-inv-item-name is-placeholder"></span>
+            </div>
         </td>
         <td class="sales-inv-col-qty"><input type="number" class="input input-num js-qty" min="0" step="1" inputmode="decimal" value="" placeholder=""></td>
         <td class="sales-inv-col-qty-extra"><input type="number" class="input input-num js-qty-extra" min="0" step="1" inputmode="decimal" value="" title="كمية إضافية تُحسب في المخزون فقط"></td>

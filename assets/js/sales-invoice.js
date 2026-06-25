@@ -44,6 +44,7 @@
     defaultNoTitle: 'يُولَّد الرقم تلقائياً عند الحفظ — للبحث اكتب جزءاً من رقم الفاتورة واضغط Enter',
   };
   var invoiceIsPosted = false;
+  var invoiceIsCancelled = false;
   var invoiceEinvQr = '';
   var invoiceEinvStatus = '';
   var invoiceEinvNum = '';
@@ -255,10 +256,21 @@
     updateInvoiceNoPostedStyle();
   }
 
+  function invoiceIsCancelledFrom(inv) {
+    if (!inv) return false;
+    if (inv.is_cancelled === true || inv.is_cancelled === 1 || inv.is_cancelled === '1') return true;
+    return String(inv.status || '') === 'cancelled';
+  }
+
   function refreshInvoiceEditState() {
-    var locked = ledgerView || (currentInvoiceId > 0 && !!invoiceIsPosted) || !!invoiceEinvQr;
+    var locked =
+      ledgerView ||
+      invoiceIsCancelled ||
+      (currentInvoiceId > 0 && !!invoiceIsPosted) ||
+      !!invoiceEinvQr;
     isSavedMode = locked;
     form.classList.toggle('sales-inv-form-is-posted', locked && !ledgerView);
+    form.classList.toggle('sales-inv-form-is-cancelled', invoiceIsCancelled);
     form.classList.toggle('sales-inv-form-is-ledger-view', ledgerView);
     form.classList.toggle('sales-inv-form-is-locked', locked);
     var fields = form.querySelectorAll(
@@ -302,9 +314,24 @@
         }
       }
       if (rm) rm.style.display = locked ? 'none' : '';
+      if (!locked) applyRowItemPickLock(tr);
     });
     if (!locked) ensureEntryRow();
     syncSalesRepSelectLock();
+    if (global.FinVoucherArchive) {
+      global.FinVoucherArchive.syncToolbar();
+    }
+  }
+
+  function invoiceArchiveState(id) {
+    id = parseInt(String(id), 10) || 0;
+    if (id < 1) {
+      return { allowed: false, reason: 'not_saved' };
+    }
+    if (invoiceIsPosted) {
+      return { allowed: true, readOnly: true, reason: '' };
+    }
+    return { allowed: true, readOnly: false, reason: '' };
   }
 
   function buildDraftSnapshot() {
@@ -429,7 +456,11 @@
       if (!tr.dataset.lineId) tr.dataset.lineId = newLineId();
       applyQtyPriceInputAttrs(tr);
       bindRow(tr);
-      recalcRow(tr);
+      if (getRowItemId(tr) > 0) {
+        recalcRow(tr);
+      } else {
+        clearRowAmounts(tr);
+      }
     });
   }
 
@@ -452,46 +483,27 @@
   }
 
   function confirmUnsavedChanges(onProceed, onCancel) {
+    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.confirmSaveDiscardLeave === 'function') {
+      global.ScreenExitGuard.confirmSaveDiscardLeave({
+        when: function () {
+          return formDirty && !invoiceIsPosted;
+        },
+        onSave: function (proceed) {
+          trySave(proceed);
+        },
+        onDiscard: function (proceed) {
+          discardChangesAndProceed(proceed);
+        },
+        onProceed: onProceed,
+        onCancel: onCancel,
+      });
+      return;
+    }
     if (!formDirty || invoiceIsPosted) {
       if (onProceed) onProceed();
       return;
     }
-
-    var isOraUi = document.body && document.body.classList.contains('hr-ora-ui');
-    if (isOraUi && global.AppDialog && typeof global.AppDialog.confirmSaveDiscard === 'function') {
-      global.AppDialog.confirmSaveDiscard('هل تريد حفظ التغييرات قبل مغادرة الشاشة؟', {
-        title: 'حفظ التغييرات',
-        saveText: 'نعم، احفظ',
-        discardText: 'لا، بدون حفظ',
-        cancelText: 'إلغاء',
-        theme: 'oracle',
-      }).then(function (choice) {
-        if (choice === 'save') {
-          trySave(function () {
-            if (onProceed) onProceed();
-          });
-        } else if (choice === 'discard') {
-          discardChangesAndProceed(onProceed);
-        } else if (onCancel) {
-          onCancel();
-        }
-      });
-      return;
-    }
-
-    AppDialog.confirm('هل تريد حفظ التغييرات؟', {
-      title: 'تغييرات غير محفوظة',
-      okText: 'نعم، احفظ',
-      cancelText: 'لا، اخرج بدون حفظ',
-    }).then(function (saveFirst) {
-      if (saveFirst) {
-        trySave(function () {
-          if (onProceed) onProceed();
-        });
-      } else {
-        discardChangesAndProceed(onProceed);
-      }
-    });
+    if (onProceed) onProceed();
   }
 
   function parseInvoiceIdFromUrl(urlStr) {
@@ -682,6 +694,16 @@
     return fmtPrintUnitPrice(el ? parseNum(el.value) : 0);
   }
 
+  function getLinePriceInclPrintDisplay(tr) {
+    var el = tr.querySelector('.js-price-incl');
+    if (!el) return '';
+    return fmtPrintUnitPrice(parseNum(el.value));
+  }
+
+  var salesInvoicePrintLayoutOpts = {
+    showUnitPriceIncl: true,
+  };
+
   function invoicePrintLineCtx() {
     return {
       escapeHtml: escapeHtml,
@@ -689,6 +711,7 @@
       getLineSubDisplay: getLineSubPrintDisplay,
       getLineGrossDisplay: getLineGrossPrintDisplay,
       fmtUnitPrice: getLinePricePrintDisplay,
+      fmtUnitPriceIncl: getLinePriceInclPrintDisplay,
       getTaxAmtDisplay: getLineTaxPrintDisplay,
       fmtAmount: fmtPrintAmount,
     };
@@ -755,6 +778,14 @@
     }
     form.setAttribute('data-decimals', String(decimals));
     form.setAttribute('data-unit-price-decimals', String(unitPriceDecimals));
+    printDecimals = parseInt(form.getAttribute('data-print-decimals') || '', 10);
+    if (isNaN(printDecimals) || printDecimals < 0) {
+      printDecimals = decimals;
+    }
+    printUnitPriceDecimals = parseInt(form.getAttribute('data-print-unit-price-decimals') || '', 10);
+    if (isNaN(printUnitPriceDecimals) || printUnitPriceDecimals < 0) {
+      printUnitPriceDecimals = unitPriceDecimals;
+    }
     unitPriceStep =
       global.AppFormat && AppFormat.invoiceUnitPriceInputStep
         ? AppFormat.invoiceUnitPriceInputStep()
@@ -770,19 +801,30 @@
   }
 
   function applyDecimalPlacesToInvoiceScreen() {
-    refreshInvoiceDecimalsFromSettings();
-    if (global.AppFormat && AppFormat.setInvoiceUnitPriceDecimals) {
-      AppFormat.setInvoiceUnitPriceDecimals(unitPriceDecimals, { persist: false, silent: true });
+    if (invoiceIsPosted && currentInvoiceId > 0) {
+      var locked = parseInt(form.getAttribute('data-decimals') || '', 10);
+      if (!isNaN(locked) && locked >= 0) {
+        decimals = locked;
+      }
+      if (global.AppFormat && AppFormat.setDecimalPlaces) {
+        global.AppFormat.setDecimalPlaces(decimals, { persist: false, silent: true });
+      }
+    } else {
+      refreshInvoiceDecimalsFromSettings();
+      if (global.AppFormat && AppFormat.setDecimalPlaces) {
+        global.AppFormat.setDecimalPlaces(decimals, { persist: false, silent: true });
+      }
+      if (global.AppFormat && AppFormat.setInvoiceUnitPriceDecimals) {
+        global.AppFormat.setInvoiceUnitPriceDecimals(unitPriceDecimals, { persist: false, silent: true });
+      }
     }
     tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
       applyQtyPriceInputAttrs(tr);
-      var itemId = parseInt(tr.dataset.itemId, 10);
-      if (itemId > 0) {
+      if (getRowItemId(tr) > 0) {
         recalcRow(tr, rowAmountSource(tr), { normalizeStored: true });
+      } else {
+        clearRowAmounts(tr);
       }
-    });
-    tbody.querySelectorAll('input.js-price').forEach(function (inp) {
-      inp.value = formatUnitPriceValue(parseNum(inp.value), inp.value);
     });
     recalcFooter();
     syncJson();
@@ -811,7 +853,7 @@
     '.js-discount',
     '.js-line-sub',
     '.js-tax',
-    '.js-line-gross',
+    'input.js-line-gross',
   ];
 
   function formatAmountValue(n, rawStr) {
@@ -1014,7 +1056,10 @@
   /** إعادة حساب السطر والفاتورة حسب الحقل الذي يُحرَّر (أثناء الكتابة). */
   function recalcRowLiveFromField(tr, el) {
     if (!tr || !el) return;
-    if (!getRowItemId(tr)) return;
+    if (!getRowItemId(tr)) {
+      clearRowAmounts(tr);
+      return;
+    }
 
     if (el.classList.contains('js-qty-extra')) {
       syncJson();
@@ -1153,10 +1198,13 @@
   }
 
   function getRowNavFields(tr) {
+    if (!rowHasItem(tr)) return [];
     return LINE_NAV_SELECTORS.map(function (sel) {
       return tr.querySelector(sel);
     }).filter(function (el) {
-      return el && !el.disabled && el.offsetParent !== null;
+      if (!el || el.disabled || el.offsetParent === null) return false;
+      var tag = el.tagName;
+      return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
     });
   }
 
@@ -1179,7 +1227,12 @@
 
     var fields = getRowNavFields(tr);
     var colIdx = fields.indexOf(el);
-    if (colIdx < 0) return true;
+    if (colIdx < 0) {
+      if (!rowHasItem(tr)) {
+        focusRowItemPick(tr);
+      }
+      return true;
+    }
 
     var isRtl = document.documentElement.getAttribute('dir') === 'rtl';
     var dRow = 0;
@@ -1201,6 +1254,10 @@
       var newRowIdx = rowIdx + dRow;
       while (newRowIdx >= 0 && newRowIdx < rows.length) {
         var targetRow = rows[newRowIdx];
+        if (!rowHasItem(targetRow)) {
+          focusRowItemPick(targetRow);
+          return true;
+        }
         var targetFields = getRowNavFields(targetRow);
         if (targetFields.length) {
           var pickCol = Math.min(colIdx, targetFields.length - 1);
@@ -1368,6 +1425,10 @@
 
   function recalcRow(tr, source, opts) {
     opts = opts || {};
+    if (!getRowItemId(tr)) {
+      clearRowAmounts(tr);
+      return;
+    }
     source = source || rowAmountSource(tr);
     var qtyEl = tr.querySelector('.js-qty');
     var priceEl = tr.querySelector('.js-price');
@@ -1675,6 +1736,82 @@
     return id > 0 ? id : 0;
   }
 
+  function rowHasItem(tr) {
+    return getRowItemId(tr) > 0;
+  }
+
+  var ROW_ITEM_LOCK_SELECTORS =
+    '.js-barcode-inp, .js-qty, .js-qty-extra, .js-price, .js-price-incl, .js-discount, .js-line-sub, .js-tax, input.js-line-gross';
+
+  function applyRowItemPickLock(tr) {
+    if (!tr) return;
+    var formLocked = ledgerView || (currentInvoiceId > 0 && !!invoiceIsPosted) || !!invoiceEinvQr;
+    if (formLocked) return;
+    var needsPick = !rowHasItem(tr);
+    tr.querySelectorAll(ROW_ITEM_LOCK_SELECTORS).forEach(function (el) {
+      if (needsPick) {
+        el.setAttribute('readonly', 'readonly');
+        el.setAttribute('tabindex', '-1');
+        el.classList.add('is-item-pick-locked');
+        if (el.tagName === 'SELECT') el.disabled = true;
+      } else {
+        el.removeAttribute('readonly');
+        el.removeAttribute('tabindex');
+        el.classList.remove('is-item-pick-locked');
+        if (el.tagName === 'SELECT') el.disabled = false;
+      }
+    });
+    var pick = tr.querySelector('.js-pick-open');
+    if (pick && needsPick) {
+      pick.tabIndex = 0;
+    } else if (pick) {
+      pick.removeAttribute('tabindex');
+    }
+  }
+
+  function focusRowItemPick(tr) {
+    if (!tr) return;
+    var pick = tr.querySelector('.js-pick-open');
+    if (pick && !pick.disabled) {
+      pick.focus();
+      return;
+    }
+    openPickerForRow(tr);
+  }
+
+  function clearRowAmounts(tr) {
+    if (!tr) return;
+    tr.dataset.sub = '0';
+    tr.dataset.tax = '0';
+    tr.dataset.gross = '0';
+    tr.dataset.disc = '0';
+    tr.dataset.lineBase = '0';
+    tr.dataset.lineMerch = '0';
+    delete tr.dataset.amountDriver;
+    var qtyEl = tr.querySelector('.js-qty');
+    var qtyExtraEl = tr.querySelector('.js-qty-extra');
+    var priceEl = tr.querySelector('.js-price');
+    var priceInclEl = tr.querySelector('.js-price-incl');
+    var subInp = tr.querySelector('input.js-line-sub');
+    var grossEl = tr.querySelector('input.js-line-gross') || tr.querySelector('.js-line-gross');
+    var taxAmtEl = tr.querySelector('.js-tax-amt');
+    var discEl = tr.querySelector('.js-discount');
+    if (qtyEl && document.activeElement !== qtyEl) qtyEl.value = '';
+    if (qtyExtraEl && document.activeElement !== qtyExtraEl) qtyExtraEl.value = '';
+    if (priceEl && document.activeElement !== priceEl) priceEl.value = '';
+    if (priceInclEl && document.activeElement !== priceInclEl) priceInclEl.value = '';
+    if (subInp && document.activeElement !== subInp) subInp.value = '';
+    if (grossEl && document.activeElement !== grossEl) {
+      if (grossEl.tagName === 'INPUT') {
+        grossEl.value = '';
+      } else {
+        setAmtDisplayCell(grossEl, '', true);
+      }
+    }
+    if (taxAmtEl) setAmtDisplayCell(taxAmtEl, '', false);
+    if (discEl && document.activeElement !== discEl && !discEl.readOnly) discEl.value = '';
+  }
+
   function invoiceHasLines() {
     var hasLine = false;
     tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
@@ -1858,8 +1995,15 @@
   function setRowItemDisplay(tr, name, barcode, sku) {
     var nameEl = tr.querySelector('.js-name');
     if (nameEl) {
-      nameEl.textContent = name || 'اضغط لاختيار المادة';
+      nameEl.textContent = name || '';
       nameEl.classList.toggle('is-placeholder', !name);
+    }
+    tr.querySelectorAll('.js-pick-open').forEach(function (pickBtn) {
+      pickBtn.classList.remove('is-empty');
+    });
+    var lovWrap = tr.querySelector('.sales-inv-item-lov');
+    if (lovWrap) {
+      lovWrap.classList.toggle('is-empty', !name);
     }
     var codes = resolveLineItemCodes({
       barcode: barcode,
@@ -1881,6 +2025,7 @@
     else delete tr.dataset.itemBarcode;
     if (codes.sku) tr.dataset.itemSku = codes.sku;
     else delete tr.dataset.itemSku;
+    applyRowItemPickLock(tr);
     var barcodeInp = tr.querySelector('.js-barcode-inp');
     if (barcodeInp) {
       barcodeInp.value = String(codes.barcode || '').trim();
@@ -2124,6 +2269,7 @@
     renumberRows();
     recalcFooter();
     syncJson();
+    if (!invoiceIsPosted) markFormDirty();
     return firstFocus;
   }
 
@@ -2166,6 +2312,7 @@
     priceEl.value = formatPriceValue(salePrice, salePrice > 0 ? String(salePrice) : '');
     applyDefaultTax(tr);
     recalcRow(tr);
+    if (!invoiceIsPosted) markFormDirty();
     return true;
   }
 
@@ -2303,48 +2450,50 @@
   }
 
   function focusNextField(tr, current) {
-    var order = ['.js-qty', '.js-qty-extra', '.js-price', '.js-price-incl', '.js-discount', '.js-line-sub', '.js-tax', '.js-line-gross'];
-    var idx = -1;
-    if (current.classList.contains('js-qty')) idx = 0;
-    else if (current.classList.contains('js-qty-extra')) idx = 1;
-    else if (current.classList.contains('js-price')) idx = 2;
-    else if (current.classList.contains('js-price-incl')) idx = 3;
-    else if (current.classList.contains('js-discount')) idx = 4;
-    else if (current.classList.contains('js-line-sub')) idx = 5;
-    else if (current.classList.contains('js-tax')) idx = 6;
-    else if (current.classList.contains('js-line-gross')) idx = 7;
-    if (idx >= 0 && idx < order.length - 1) {
-      var next = tr.querySelector(order[idx + 1]);
-      if (next) {
-        next.focus();
-        if (next.select) next.select();
+    var rows = listNavRows();
+    var rowIdx = rows.indexOf(tr);
+    if (rowIdx < 0) return;
+
+    var fields = getRowNavFields(tr);
+    var colIdx = fields.indexOf(current);
+    if (colIdx < 0) {
+      if (!rowHasItem(tr)) {
+        openPickerForRow(tr);
       }
       return;
     }
-    completeLineAndNext(tr);
+
+    if (colIdx < fields.length - 1) {
+      focusFieldEl(fields[colIdx + 1]);
+      return;
+    }
+
+    if (rowIdx < rows.length - 1) {
+      var nextTr = rows[rowIdx + 1];
+      if (!rowHasItem(nextTr)) {
+        openPickerForRow(nextTr);
+        return;
+      }
+      var nextFields = getRowNavFields(nextTr);
+      if (nextFields.length) {
+        focusFieldEl(nextFields[0]);
+      }
+      return;
+    }
+
+    if (getRowItemId(tr) > 0) {
+      recalcRow(tr, rowAmountSource(tr), { normalizeStored: true });
+      if (tr.classList.contains('is-entry-row')) {
+        finalizeEntryRow(tr);
+      }
+      recalcFooter();
+      syncJson();
+    }
+    openPickerForRow(ensureEntryRow());
   }
 
   function completeLineAndNext(tr) {
-    var itemId = parseInt(tr.dataset.itemId, 10);
-    if (!itemId) {
-      openPickerForRow(tr);
-      return;
-    }
-    recalcRow(tr, rowAmountSource(tr), { normalizeStored: true });
-    recalcFooter();
-    syncJson();
-
-    if (tr.classList.contains('is-entry-row')) {
-      finalizeEntryRow(tr);
-    }
-
-    var entry = ensureEntryRow();
-    var bc = entry.querySelector('.js-barcode-inp');
-    if (bc) {
-      bc.focus();
-    } else {
-      openPickerForRow(entry);
-    }
+    focusNextField(tr, tr.querySelector('input.js-line-gross') || tr.querySelector('.js-line-gross') || tr.querySelector('.js-tax') || tr.querySelector('.js-qty'));
   }
 
   function bindRow(tr) {
@@ -2355,6 +2504,11 @@
       pickBtn.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
+        openPickerForRow(tr);
+      });
+      pickBtn.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
         openPickerForRow(tr);
       });
     });
@@ -2370,11 +2524,32 @@
     }
 
     applyQtyPriceInputAttrs(tr);
+    applyRowItemPickLock(tr);
+
+    tr.querySelectorAll(ROW_ITEM_LOCK_SELECTORS).forEach(function (lockEl) {
+      lockEl.addEventListener('mousedown', function (e) {
+        if (!rowHasItem(tr) && !invoiceIsPosted) {
+          e.preventDefault();
+          focusRowItemPick(tr);
+        }
+      });
+      lockEl.addEventListener('focus', function () {
+        if (!rowHasItem(tr) && !invoiceIsPosted) {
+          lockEl.blur();
+          focusRowItemPick(tr);
+        }
+      });
+    });
 
     var barcodeInp = tr.querySelector('.js-barcode-inp');
     if (barcodeInp) {
       barcodeInp.addEventListener('keydown', function (e) {
         if (handleTableArrowKey(e, tr, barcodeInp)) return;
+        if (e.key !== 'Enter') return;
+        if (rowHasItem(tr) && String(barcodeInp.value || '').trim() === '') {
+          e.preventDefault();
+          focusNextField(tr, barcodeInp);
+        }
       });
     }
 
@@ -2414,23 +2589,17 @@
         if (handleTableArrowKey(e, tr, el)) return;
         if (e.key !== 'Enter') return;
         e.preventDefault();
+        if (el.classList.contains('js-tax')) {
+          recalcRow(tr, rowAmountSource(tr), { normalizeStored: true });
+          recalcFooter();
+          syncJson();
+          focusNextField(tr, el);
+          return;
+        }
         if (isAmountFieldEnterCommit(el)) {
           commitAmountFieldAndRecalc(tr, el);
-          focusNextField(tr, el);
-        } else if (el.classList.contains('js-line-gross')) {
-          commitAmountFieldAndRecalc(tr, el);
-          completeLineAndNext(tr);
-        } else if (el.classList.contains('js-tax')) {
-          var grossInp = tr.querySelector('input.js-line-gross');
-          if (grossInp) {
-            grossInp.focus();
-            if (grossInp.select) grossInp.select();
-          } else {
-            completeLineAndNext(tr);
-          }
-        } else {
-          focusNextField(tr, el);
         }
+        focusNextField(tr, el);
       });
     });
 
@@ -2604,7 +2773,13 @@
     var discT = fmtPrintAmount(parseNum(disc ? disc.textContent : 0));
 
     var ipp = window.InvInvoicePrint;
-    var layout = ipp ? ipp.getLayout(tbody) : { showQtyExtra: false, showDiscount: false };
+    var layout = ipp
+      ? ipp.getLayout(tbody, salesInvoicePrintLayoutOpts)
+      : {
+          showQtyExtra: false,
+          showDiscount: false,
+          showUnitPriceIncl: true,
+        };
     var lineCols = ipp ? ipp.lineColCount(layout) : 10;
     var rowHtml = '';
     tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
@@ -2635,7 +2810,7 @@
     }
 
     var showDiscTotal =
-      (layout.showDiscount || invoiceDiscountLabel !== '') && parseNum(discT) > 0.000001;
+      (layout.showDiscount || invoiceDiscountLabel !== '') && parseNum(disc ? disc.textContent : 0) > 0.000001;
     var printTotals =
       ipp && ipp.buildPrintTotals
         ? ipp.buildPrintTotals({
@@ -3064,7 +3239,9 @@
 
   function requestDeleteUnpostedInvoice(invId, invNoLabel, deleteUrl) {
     AppDialog.confirm(
-      'حذف الفاتورة «' + invNoLabel + '» نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.',
+      'حذف الفاتورة «' +
+        invNoLabel +
+        '»؟\n\nسيُعاد رقمها إلى التسلسل ويُستخدم تلقائياً عند إنشاء فاتورة جديدة (إن وُجد رقم فارغ).',
       { title: 'حذف الفاتورة', danger: true, okText: 'حذف' }
     ).then(function (ok) {
       if (!ok) return;
@@ -3249,9 +3426,11 @@
   function updateInvoiceNoPostedStyle() {
     var invNo = document.getElementById('inv_no');
     if (!invNo) return;
-    invNo.classList.remove('is-posted', 'is-unposted');
+    invNo.classList.remove('is-posted', 'is-unposted', 'is-cancelled');
     if (currentInvoiceId < 1) return;
-    if (invoiceIsPosted) {
+    if (invoiceIsCancelled) {
+      invNo.classList.add('is-cancelled');
+    } else if (invoiceIsPosted) {
       invNo.classList.add('is-posted');
     } else {
       invNo.classList.add('is-unposted');
@@ -3267,7 +3446,10 @@
     }
     if (el) {
       el.hidden = false;
-      if (invoiceIsPosted) {
+      if (invoiceIsCancelled) {
+        el.textContent = 'ملغاة';
+        el.className = 'sales-inv-posted-badge badge badge-cancelled-voucher';
+      } else if (invoiceIsPosted) {
         el.textContent = 'مرحّلة';
         el.className = 'sales-inv-posted-badge badge badge-posted';
       } else {
@@ -3628,10 +3810,13 @@
     runWithoutDirtyMark(function () {
     currentInvoiceId = parseInt(inv.id, 10) || 0;
     invoiceIsPosted = !!inv.is_posted;
-    var invDp = parseInt(inv.amount_decimals, 10);
-    if (!isNaN(invDp) && invDp >= 0) {
-      form.setAttribute('data-decimals', String(invDp));
-      decimals = invDp;
+    invoiceIsCancelled = invoiceIsCancelledFrom(inv);
+    if (invoiceIsPosted) {
+      var invDp = parseInt(inv.amount_decimals, 10);
+      if (!isNaN(invDp) && invDp >= 0) {
+        form.setAttribute('data-decimals', String(invDp));
+        decimals = invDp;
+      }
     }
     applyEinvoiceFromInvoice(inv);
     var recId = document.getElementById('inv_record_id');
@@ -3789,6 +3974,7 @@
     if (window.DocumentNoNav) DocumentNoNav.clearSearch(docNoSearch);
     currentInvoiceId = 0;
     invoiceIsPosted = false;
+    invoiceIsCancelled = false;
     applyEinvoiceFromInvoice(null);
     updatePostedBadge();
     refreshInvoiceEditState();
@@ -3961,6 +4147,10 @@
       e.stopImmediatePropagation();
       var href = oraCloseBtn.getAttribute('href') || exitUrl;
       confirmUnsavedChanges(function () {
+        if (window.ScreenExitGuard && typeof window.ScreenExitGuard.navigateExit === 'function') {
+          window.ScreenExitGuard.navigateExit(href || '');
+          return;
+        }
         if (href) {
           window.location.href = href;
         } else {
@@ -4046,6 +4236,26 @@
   });
 
   function bootInvoicePage() {
+    if (global.FinVoucherArchive && form) {
+      global.FinVoucherArchive.init({
+        apiUrl: form.getAttribute('data-archive-api') || '',
+        csrf: (form.querySelector('input[name="_csrf"]') || {}).value || '',
+        kind: form.getAttribute('data-archive-kind') || 'sales_invoice',
+        title: 'فاتورة مبيعات',
+        canArchive: form.getAttribute('data-can-archive') === '1',
+        getVoucherId: function () {
+          return currentInvoiceId;
+        },
+        getVoucherLabel: function () {
+          return {
+            no: (document.getElementById('inv_no') || {}).value || '',
+            date: (document.getElementById('inv_date') || {}).value || '',
+          };
+        },
+        companyName: form.getAttribute('data-company-name') || '',
+        isArchiveAllowed: invoiceArchiveState,
+      });
+    }
     refreshInvoiceDecimalsFromSettings();
     if (global.AppFormat && AppFormat.setDecimalPlaces) {
       AppFormat.setDecimalPlaces(decimals, { persist: false, silent: true });
@@ -4366,11 +4576,38 @@
   }
 
   window.addEventListener('beforeunload', function (e) {
+    if (window.__managerAllowUnload) return;
     if (formSubmitting || !formDirty || invoiceIsPosted) return;
     persistDraft();
     e.preventDefault();
     e.returnValue = '';
   });
+
+  document.addEventListener('manager:before-minimize', function (ev) {
+    if (formSubmitting || !formDirty || invoiceIsPosted) return;
+    if (ev.detail) ev.detail.dirty = true;
+    persistDraft();
+  });
+
+  function registerInvoiceExitGuard() {
+    var api = {
+      hasUnsaved: function () {
+        return formDirty && !invoiceIsPosted;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    };
+    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExitDeferred === 'function') {
+      global.ScreenExitGuard.registerScreenExitDeferred(api);
+      return;
+    }
+    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExit === 'function') {
+      global.ScreenExitGuard.registerScreenExit(api);
+    } else {
+      global.ManagerScreenExit = api;
+    }
+  }
+
+  registerInvoiceExitGuard();
 
   window.ManagerSalesInvoice = {
     openPicker: function (el) {

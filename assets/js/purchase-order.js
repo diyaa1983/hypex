@@ -293,24 +293,28 @@
     }
   }
 
-  function confirmUnsavedChanges(onProceed) {
+  function confirmUnsavedChanges(onProceed, onCancel) {
+    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.confirmSaveDiscardLeave === 'function') {
+      global.ScreenExitGuard.confirmSaveDiscardLeave({
+        when: function () {
+          return formDirty && !orderIsApproved;
+        },
+        onSave: function (proceed) {
+          trySave(proceed);
+        },
+        onDiscard: function (proceed) {
+          discardChangesAndProceed(proceed);
+        },
+        onProceed: onProceed,
+        onCancel: onCancel,
+      });
+      return;
+    }
     if (!formDirty || orderIsApproved) {
       if (onProceed) onProceed();
       return;
     }
-    AppDialog.confirm('هل تريد حفظ التغييرات؟', {
-      title: 'تغييرات غير محفوظة',
-      okText: 'نعم، احفظ',
-      cancelText: 'لا، اخرج بدون حفظ',
-    }).then(function (saveFirst) {
-      if (saveFirst) {
-        trySave(function () {
-          if (onProceed) onProceed();
-        });
-      } else {
-        discardChangesAndProceed(onProceed);
-      }
-    });
+    if (onProceed) onProceed();
   }
 
   function parseInvoiceIdFromUrl(urlStr) {
@@ -3590,9 +3594,39 @@
   }
 
   window.addEventListener('beforeunload', function (e) {
+    if (window.__managerAllowUnload) return;
     if (formSubmitting || !formDirty || orderIsApproved) return;
     persistDraft();
     e.preventDefault();
     e.returnValue = '';
   });
+
+  document.addEventListener('manager:before-minimize', function (ev) {
+    if (formSubmitting || !formDirty || orderIsApproved) return;
+    if (ev.detail) ev.detail.dirty = true;
+    persistDraft();
+  });
+
+  if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExitDeferred === 'function') {
+    global.ScreenExitGuard.registerScreenExitDeferred({
+      hasUnsaved: function () {
+        return formDirty && !orderIsApproved;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  } else if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExit === 'function') {
+    global.ScreenExitGuard.registerScreenExit({
+      hasUnsaved: function () {
+        return formDirty && !orderIsApproved;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  } else {
+    global.ManagerScreenExit = {
+      hasUnsaved: function () {
+        return formDirty && !orderIsApproved;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    };
+  }
 })();

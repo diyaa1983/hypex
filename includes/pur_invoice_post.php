@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once app_path('includes/crm_supplier_ledger.php');
 require_once app_path('includes/pur_invoice_stock.php');
 require_once app_path('includes/inv_invoice_line_qty.php');
+require_once app_path('includes/pur_invoice_schema.php');
 
 function pur_inv_db_has_column(PDO $pdo, string $table, string $column): bool
 {

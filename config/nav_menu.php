@@ -288,6 +288,7 @@ return [
                     'title' => 'إعدادات النظام',
                     'items' => [
                         ['r' => 'settings', 'label' => 'الإعدادات', 'icon' => '⚙'],
+                        ['r' => 'dashboard_accounts_settings', 'label' => 'حسابات الشاشة الرئيسية', 'icon' => '⌂'],
                         ['r' => 'system_backup', 'label' => 'النسخ الاحتياطي', 'icon' => '💾'],
                         ['r' => 'tax_rates_settings', 'label' => 'معدّلات الضريبة', 'icon' => '%'],
                         ['r' => 'einvoice_settings', 'label' => 'إعدادات الفوترة', 'icon' => '🧾'],

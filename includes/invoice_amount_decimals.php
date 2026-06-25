@@ -329,18 +329,23 @@ function invoice_normalize_lines_array(array $lines, int $decimals): array
 function sal_invoice_amount_decimals(PDO $pdo, int $invoiceId): int
 {
     require_once app_path('includes/company_settings.php');
+    $companyDp = invoice_amount_decimals_clamp(company_decimal_places($pdo));
     if ($invoiceId < 1) {
-        return invoice_amount_decimals_clamp(company_decimal_places($pdo));
+        return $companyDp;
     }
     invoice_amount_decimals_ensure_schema($pdo);
     if (!sal_invoice_column_exists($pdo, 'sal_invoice', 'amount_decimals')) {
-        return invoice_amount_decimals_clamp(company_decimal_places($pdo));
+        return $companyDp;
+    }
+    require_once app_path('includes/sal_invoice_post.php');
+    if (!sal_invoice_is_posted($pdo, $invoiceId)) {
+        return $companyDp;
     }
     $st = $pdo->prepare('SELECT amount_decimals FROM sal_invoice WHERE id = ? LIMIT 1');
     $st->execute([$invoiceId]);
     $v = $st->fetchColumn();
     if ($v === false) {
-        return invoice_amount_decimals_clamp(company_decimal_places($pdo));
+        return $companyDp;
     }
 
     return invoice_amount_decimals_clamp((int) $v);
@@ -349,18 +354,23 @@ function sal_invoice_amount_decimals(PDO $pdo, int $invoiceId): int
 function pur_invoice_amount_decimals(PDO $pdo, int $invoiceId): int
 {
     require_once app_path('includes/company_settings.php');
+    $companyDp = invoice_amount_decimals_clamp(company_decimal_places($pdo));
     if ($invoiceId < 1) {
-        return invoice_amount_decimals_clamp(company_decimal_places($pdo));
+        return $companyDp;
     }
     invoice_amount_decimals_ensure_schema($pdo);
     if (!sal_invoice_column_exists($pdo, 'pur_invoice', 'amount_decimals')) {
-        return invoice_amount_decimals_clamp(company_decimal_places($pdo));
+        return $companyDp;
+    }
+    require_once app_path('includes/pur_invoice_post.php');
+    if (!pur_invoice_is_posted($pdo, $invoiceId)) {
+        return $companyDp;
     }
     $st = $pdo->prepare('SELECT amount_decimals FROM pur_invoice WHERE id = ? LIMIT 1');
     $st->execute([$invoiceId]);
     $v = $st->fetchColumn();
     if ($v === false) {
-        return invoice_amount_decimals_clamp(company_decimal_places($pdo));
+        return $companyDp;
     }
 
     return invoice_amount_decimals_clamp((int) $v);

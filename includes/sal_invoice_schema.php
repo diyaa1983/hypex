@@ -274,30 +274,50 @@ function sal_invoice_ensure_schema(PDO $pdo): void
     invoice_amount_decimals_ensure_schema($pdo);
 }
 
+function sal_invoice_is_cancelled(?string $status): bool
+{
+    return $status === 'cancelled';
+}
+
+function sal_invoice_id_is_cancelled(PDO $pdo, int $invoiceId): bool
+{
+    if ($invoiceId < 1) {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare('SELECT status FROM sal_invoice WHERE id = ? LIMIT 1');
+        $st->execute([$invoiceId]);
+
+        return sal_invoice_is_cancelled((string) ($st->fetchColumn() ?: ''));
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 /**
  * رقم فاتورة تسلسلي: 001-2026 (ثلاثة أرقام على الأقل + سنة الفاتورة).
  * التسلسل يبدأ من 1 كل سنة ويستمر 002، 003 …
  */
 function sal_invoice_generate_next_no(PDO $pdo, string $invoiceDate): string
 {
-    $year = (int) date('Y', strtotime($invoiceDate));
-    $suffix = '-' . $year;
+    require_once app_path('includes/doc_sequence.php');
+    require_once app_path('includes/doc_number_pool.php');
 
-    $st = $pdo->prepare('SELECT invoice_no FROM sal_invoice WHERE invoice_no LIKE ? FOR UPDATE');
-    $st->execute(['%' . $suffix]);
+    return doc_seq_generate_next_no(
+        $pdo,
+        'sal_invoice',
+        'invoice_no',
+        $invoiceDate,
+        '',
+        [],
+        doc_number_pool_key_sal_invoice()
+    );
+}
 
-    $maxSeq = 0;
-    $suffixQuoted = preg_quote($suffix, '/');
-    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $no) {
-        $no = (string) $no;
-        if (preg_match('/^(\d+)' . $suffixQuoted . '$/', $no, $m)) {
-            $maxSeq = max($maxSeq, (int) $m[1]);
-        }
-    }
-
-    $next = $maxSeq + 1;
-
-    return str_pad((string) $next, 3, '0', STR_PAD_LEFT) . $suffix;
+function sal_invoice_release_no_to_pool(PDO $pdo, string $invoiceNo, string $invoiceDate): void
+{
+    require_once app_path('includes/doc_number_pool.php');
+    doc_number_pool_release($pdo, doc_number_pool_key_sal_invoice(), $invoiceNo, $invoiceDate);
 }
 
 function sal_invoice_insert_header(

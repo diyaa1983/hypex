@@ -613,6 +613,11 @@ function acc_account_save(PDO $pdo, array $data): int
             'UPDATE acc_account SET name_ar = ?, is_leaf = ?, is_active = ? WHERE id = ?'
         )->execute([$name, $isLeaf, $isActive, $id]);
 
+        if ($isLeaf === 1 && $isActive === 1) {
+            require_once app_path('includes/dashboard_accounts.php');
+            dashboard_accounts_register($pdo, $id);
+        }
+
         return $id;
     }
 
@@ -652,7 +657,11 @@ function acc_account_save(PDO $pdo, array $data): int
         throw $e;
     }
 
-    return (int) $pdo->lastInsertId();
+    $newId = (int) $pdo->lastInsertId();
+    require_once app_path('includes/dashboard_accounts.php');
+    dashboard_accounts_register($pdo, $newId);
+
+    return $newId;
 }
 
 function acc_account_delete(PDO $pdo, int $id): void

@@ -34,6 +34,16 @@ function doc_number_pool_key_journal(): string
     return 'acc_journal_entry';
 }
 
+function doc_number_pool_key_sal_invoice(): string
+{
+    return 'sal_invoice';
+}
+
+function doc_number_pool_key_pur_invoice(): string
+{
+    return 'pur_invoice';
+}
+
 /** @return list<string> */
 function doc_number_pool_take(PDO $pdo, string $poolKey, int $year, int $limit = 1): array
 {
@@ -80,4 +90,31 @@ function doc_number_pool_release(PDO $pdo, string $poolKey, string $docNo, strin
     } catch (Throwable $e) {
         //
     }
+}
+
+/** @return list<array{pool_key:string, doc_no:string, doc_year:int, created_at:string}> */
+function doc_number_pool_list(PDO $pdo, ?string $poolKey = null, ?int $year = null): array
+{
+    if (!doc_number_pool_ensure_table($pdo)) {
+        return [];
+    }
+    $where = [];
+    $params = [];
+    if ($poolKey !== null && $poolKey !== '') {
+        $where[] = 'pool_key = ?';
+        $params[] = $poolKey;
+    }
+    if ($year !== null && $year > 0) {
+        $where[] = 'doc_year = ?';
+        $params[] = $year;
+    }
+    $sql = 'SELECT pool_key, doc_no, doc_year, created_at FROM doc_number_pool';
+    if ($where !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $where);
+    }
+    $sql .= ' ORDER BY pool_key ASC, doc_year ASC, doc_no ASC';
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }

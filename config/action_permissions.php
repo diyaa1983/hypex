@@ -275,5 +275,50 @@ return [
                 ],
             ],
         ],
+        [
+            'title' => 'أرشيف مرفقات السندات',
+            'items' => [
+                [
+                    'code' => 'action_archive_cash_receipt',
+                    'name_ar' => 'أرشيف مرفقات سند قبض',
+                    'inherit_from' => ['cash_receipt', 'cash_receipts_list'],
+                ],
+                [
+                    'code' => 'action_archive_cash_payment',
+                    'name_ar' => 'أرشيف مرفقات سند صرف',
+                    'inherit_from' => ['cash_payment', 'cash_payments_list'],
+                ],
+                [
+                    'code' => 'action_archive_journal_voucher',
+                    'name_ar' => 'أرشيف مرفقات سند قيد',
+                    'inherit_from' => ['journal_voucher'],
+                ],
+                [
+                    'code' => 'action_archive_sales_invoice',
+                    'name_ar' => 'أرشيف مرفقات فاتورة مبيعات',
+                    'inherit_from' => ['sales_invoices', 'sales_invoices_list'],
+                ],
+                [
+                    'code' => 'action_archive_purchase_invoice',
+                    'name_ar' => 'أرشيف مرفقات فاتورة شراء',
+                    'inherit_from' => ['purchase_invoices', 'purchase_invoices_list'],
+                ],
+                [
+                    'code' => 'action_archive_sales_delivery',
+                    'name_ar' => 'أرشيف مرفقات سند تسليم',
+                    'inherit_from' => ['sales_delivery'],
+                ],
+                [
+                    'code' => 'action_archive_sales_return',
+                    'name_ar' => 'أرشيف مرفقات مرتجع مبيعات',
+                    'inherit_from' => ['sales_returns', 'sales_returns_list'],
+                ],
+                [
+                    'code' => 'action_archive_purchase_return',
+                    'name_ar' => 'أرشيف مرفقات مرتجع شراء',
+                    'inherit_from' => ['purchase_returns', 'purchase_returns_list'],
+                ],
+            ],
+        ],
     ],
 ];

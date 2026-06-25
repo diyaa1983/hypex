@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/app_window_manager.php');
 
 $cssPath = app_path('assets/css/dashboard.css');
 $cssUrl = app_url('assets/css/dashboard.css');
@@ -62,7 +63,7 @@ if ($subId === '') {
                             <a
                                 class="nav-hub-ora-tile nav-hub-ora-tile--folder"
                                 role="listitem"
-                                href="<?= esc(nav_hub_url($domainId, $folder['id'])) ?>"
+                                href="<?= esc(app_mdi_hub_nav_url(nav_hub_url($domainId, $folder['id']))) ?>"
                             >
                                 <span class="nav-hub-ora-tile-icon" aria-hidden="true">📁</span>
                                 <span class="nav-hub-ora-tile-label"><?= esc($folder['title']) ?></span>
@@ -127,11 +128,11 @@ $hubPageSub = $domainId === 'favorites'
         <?php if ($prevFolderLink !== null || ($domainId !== 'favorites' && $visibleFolderCount > 1)): ?>
         <nav class="nav-hub-ora-breadcrumb" aria-label="تنقل المجلدات">
             <?php if ($prevFolderLink !== null): ?>
-                <a class="dashboard-ora-btn" href="<?= esc($prevFolderLink['url']) ?>"
+                <a class="dashboard-ora-btn" href="<?= esc(app_mdi_hub_nav_url($prevFolderLink['url'])) ?>"
                    title="العودة إلى المجلد السابق">← <?= esc($prevFolderLink['label']) ?></a>
             <?php endif; ?>
             <?php if ($domainId !== 'favorites' && $visibleFolderCount > 1): ?>
-                <a class="dashboard-ora-btn" href="<?= esc($backUrl) ?>">← <?= esc($domainTitle) ?></a>
+                <a class="dashboard-ora-btn" href="<?= esc(app_mdi_hub_nav_url($backUrl)) ?>">← <?= esc($domainTitle) ?></a>
             <?php endif; ?>
         </nav>
         <?php endif; ?>
@@ -148,7 +149,7 @@ $hubPageSub = $domainId === 'favorites'
                         $icon = (string) ($it['icon'] ?? '📄');
                         $label = (string) ($it['label'] ?? $r);
                         ?>
-                        <a class="nav-hub-ora-tile" role="listitem" href="<?= esc($url) ?>">
+                        <a class="nav-hub-ora-tile" role="listitem" href="<?= esc(app_mdi_hub_nav_url($url, true)) ?>"<?= (app_mdi_is_embed_request() || app_mdi_is_park_menu_embed()) ? ' target="_parent"' : '' ?>>
                             <span class="nav-hub-ora-tile-icon" aria-hidden="true"><?= esc($icon) ?></span>
                             <span class="nav-hub-ora-tile-label"><?= esc($label) ?></span>
                         </a>

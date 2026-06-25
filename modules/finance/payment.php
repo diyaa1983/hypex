@@ -86,6 +86,10 @@ $apiCancel = app_url('api/fin_payment_cancel.php');
 $apiDelete = app_url('api/fin_payment_delete.php');
 $apiEditUnlock = app_url('api/fin_payment_edit_unlock.php');
 $canEditPayment = user_can_action('action_edit_cash_payment');
+require_once app_path('includes/fin_voucher_archive.php');
+fin_voucher_archive_ensure_schema($pdo);
+$canArchivePayment = user_can_action('action_archive_cash_payment');
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
 require_once app_path('includes/acc_gl.php');
 $cashBoxAccountId = acc_gl_cash_box_account_id($pdo);
 $defaultCashId = $cashBoxAccountId > 0 ? $cashBoxAccountId : (int) ($cashAccounts[0]['id'] ?? 0);
@@ -104,6 +108,10 @@ $ora12CssUrl = app_url('assets/css/sales-invoice-oracle12.css') . (is_file($ora1
 require_once app_path('includes/sales_oracle12_ui.php');
 $jsPath = app_path('assets/js/fin-payment.js');
 $jsUrl = app_url('assets/js/fin-payment.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
+$archiveCssPath = app_path('assets/css/fin-voucher-archive.css');
+$archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archiveCssPath) ? '?v=' . (string) filemtime($archiveCssPath) : '');
+$archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
+$archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 ?>
 <?php sales_inv_oracle12_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssPy) ?>">
@@ -152,6 +160,9 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
           data-voucher-delete-url="<?= esc($apiDelete) ?>"
           data-api-edit-unlock="<?= esc($apiEditUnlock) ?>"
           data-can-edit="<?= $canEditPayment ? '1' : '0' ?>"
+          data-can-archive="<?= $canArchivePayment ? '1' : '0' ?>"
+          data-archive-api="<?= esc($archiveApiUrl) ?>"
+          data-archive-kind="payment"
           data-default-date="<?= esc(format_date_dmY($today)) ?>"
           data-exit-url="<?= esc($exitUrl) ?>"
           data-new-url="<?= esc($newUrl) ?>"
@@ -391,4 +402,6 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
     </div>
 </div>
 
+<link rel="stylesheet" href="<?= esc($archiveCssUrl) ?>">
+<script src="<?= esc($archiveJsUrl) ?>"></script>
 <script src="<?= esc($jsUrl) ?>"></script>

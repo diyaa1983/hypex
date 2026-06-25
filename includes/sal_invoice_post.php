@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once app_path('includes/crm_customer_ledger.php');
 require_once app_path('includes/inv_stock.php');
 require_once app_path('includes/inv_invoice_line_qty.php');
+require_once app_path('includes/sal_invoice_schema.php');
 
 /** هل تتطلب الفاتورة ترحيلًا مستودعيًا (مستودع + بنود قابلة للتتبع). */
 function sal_invoice_stock_posting_required(PDO $pdo, int $invoiceId): bool

@@ -124,6 +124,9 @@ $appBootMigrations = [
     'database/migrations/169_pur_order.sql',
     'database/migrations/170_pur_order_screens_fix.sql',
     'database/migrations/171_voucher_cancel_and_number_pool.sql',
+    'database/migrations/180_sys_dashboard_account.sql',
+    'database/migrations/181_fin_voucher_archive_docs.sql',
+    'database/migrations/182_clear_legacy_invoice_number_pool.sql',
 ];
 sql_migration_bootstrap_registry($pdo, $appBootMigrations);
 sql_migration_run_files_once($pdo, $appBootMigrations);
@@ -219,6 +222,7 @@ if (!empty($route['hide_screen_title'])) {
     $pageTitle = '';
 }
 $activeRoute = $r;
+$GLOBALS['activeRoute'] = $activeRoute;
 require_once app_path('includes/report_oracle12_ui.php');
 $reportOracleUi = report_ora12_route_enabled($r);
 $hrOracleUi = str_starts_with($r, 'hr_') && !empty($route['hide_screen_title']) && !$reportOracleUi;
@@ -253,4 +257,6 @@ ob_start();
 require app_path($route['file']);
 $content = ob_get_clean();
 
-require app_path('templates/layout.php');
+require_once app_path('includes/app_window_manager.php');
+$layoutEmbed = app_mdi_is_embed_request();
+require app_path($layoutEmbed ? 'templates/layout-embed.php' : 'templates/layout.php');

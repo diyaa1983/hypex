@@ -213,6 +213,20 @@
       if (rm) rm.style.display = locked ? 'none' : '';
     });
     if (!locked) ensureEntryRow();
+    if (global.FinVoucherArchive) {
+      global.FinVoucherArchive.syncToolbar();
+    }
+  }
+
+  function deliveryArchiveState(id) {
+    id = parseInt(String(id), 10) || 0;
+    if (id < 1) {
+      return { allowed: false, reason: 'not_saved' };
+    }
+    if (deliveryIsPosted) {
+      return { allowed: true, readOnly: true, reason: '' };
+    }
+    return { allowed: true, readOnly: false, reason: '' };
   }
 
   function updateDeliveryNoPostedStyle() {
@@ -1310,53 +1324,28 @@
   }
 
   function confirmUnsavedChanges(onProceed, onCancel) {
+    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.confirmSaveDiscardLeave === 'function') {
+      global.ScreenExitGuard.confirmSaveDiscardLeave({
+        when: function () {
+          return formDirty && !deliveryIsPosted;
+        },
+        onSave: function (proceed) {
+          trySave(proceed);
+        },
+        onDiscard: function (proceed) {
+          clearFormDirty();
+          if (proceed) proceed();
+        },
+        onProceed: onProceed,
+        onCancel: onCancel,
+      });
+      return;
+    }
     if (!formDirty || deliveryIsPosted) {
       if (onProceed) onProceed();
       return;
     }
-    if (!global.AppDialog) {
-      if (onProceed) onProceed();
-      return;
-    }
-    if (isOraUi() && typeof AppDialog.confirmSaveDiscard === 'function') {
-      AppDialog.confirmSaveDiscard('هل تريد حفظ التغييرات قبل مغادرة الشاشة؟', {
-        title: 'حفظ التغييرات',
-        saveText: 'نعم، احفظ',
-        discardText: 'لا، بدون حفظ',
-        cancelText: 'إلغاء',
-        theme: 'oracle',
-      }).then(function (choice) {
-        if (choice === 'save') {
-          trySave(function () {
-            if (onProceed) onProceed();
-          });
-        } else if (choice === 'discard') {
-          clearFormDirty();
-          if (onProceed) onProceed();
-        } else if (onCancel) {
-          onCancel();
-        }
-      });
-      return;
-    }
-    if (typeof AppDialog.confirm !== 'function') {
-      if (onProceed) onProceed();
-      return;
-    }
-    AppDialog.confirm('هل تريد حفظ التغييرات؟', {
-      title: 'تغييرات غير محفوظة',
-      okText: 'نعم، احفظ',
-      cancelText: 'لا، اخرج بدون حفظ',
-    }).then(function (saveFirst) {
-      if (saveFirst) {
-        trySave(function () {
-          if (onProceed) onProceed();
-        });
-      } else {
-        clearFormDirty();
-        if (onProceed) onProceed();
-      }
-    });
+    if (onProceed) onProceed();
   }
 
   function postCurrent() {
@@ -1917,6 +1906,10 @@
       e.stopImmediatePropagation();
       var href = oraCloseBtn.getAttribute('href') || exitUrl;
       confirmUnsavedChanges(function () {
+        if (window.ScreenExitGuard && typeof window.ScreenExitGuard.navigateExit === 'function') {
+          window.ScreenExitGuard.navigateExit(href || '');
+          return;
+        }
         if (href) {
           window.location.href = href;
         } else {
@@ -1969,6 +1962,26 @@
   }
 
   function bootDeliveryPage() {
+    if (global.FinVoucherArchive && form) {
+      global.FinVoucherArchive.init({
+        apiUrl: form.getAttribute('data-archive-api') || '',
+        csrf: (form.querySelector('input[name="_csrf"]') || {}).value || '',
+        kind: form.getAttribute('data-archive-kind') || 'sales_delivery',
+        title: 'سند تسليم',
+        canArchive: form.getAttribute('data-can-archive') === '1',
+        getVoucherId: function () {
+          return currentDeliveryId;
+        },
+        getVoucherLabel: function () {
+          return {
+            no: (document.getElementById('dlv_no') || {}).value || '',
+            date: (document.getElementById('dlv_date') || {}).value || '',
+          };
+        },
+        companyName: form.getAttribute('data-company-name') || '',
+        isArchiveAllowed: deliveryArchiveState,
+      });
+    }
     if (window.CustomerPickerModal) {
       dlvCustomerPickerApi = CustomerPickerModal.bind({
         hidden: 'dlv_customer',
@@ -2018,8 +2031,37 @@
   }
 
   window.addEventListener('beforeunload', function (e) {
+    if (window.__managerAllowUnload) return;
     if (formSubmitting || !formDirty || deliveryIsPosted) return;
     e.preventDefault();
     e.returnValue = '';
   });
+
+  document.addEventListener('manager:before-minimize', function (ev) {
+    if (formSubmitting || !formDirty || deliveryIsPosted) return;
+    if (ev.detail) ev.detail.dirty = true;
+  });
+
+  if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExitDeferred === 'function') {
+    global.ScreenExitGuard.registerScreenExitDeferred({
+      hasUnsaved: function () {
+        return formDirty && !deliveryIsPosted;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  } else if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExit === 'function') {
+    global.ScreenExitGuard.registerScreenExit({
+      hasUnsaved: function () {
+        return formDirty && !deliveryIsPosted;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  } else {
+    global.ManagerScreenExit = {
+      hasUnsaved: function () {
+        return formDirty && !deliveryIsPosted;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    };
+  }
 })();

@@ -44,6 +44,7 @@ require_once app_path('includes/nav_helpers.php');
 $navMenu = nav_menu_config();
 require_once app_path('includes/document_header.php');
 require_once app_path('includes/header_check_notifications.php');
+require_once app_path('includes/app_window_manager.php');
 
 $headerCheckNotify = header_check_notifications_collect(db());
 $headerCheckNotifyJson = '[]';
@@ -59,6 +60,7 @@ $docWatermarkRootCss = $hasDocWatermark ? document_print_watermark_root_css() : 
 $docWatermarkLogoUrl = $hasDocWatermark ? document_print_watermark_logo_url() : '';
 
 $activeRoute = (string) ($activeRoute ?? 'dashboard');
+$parkMenuEmbed = app_mdi_is_park_menu_embed();
 $layoutFocus = nav_layout_is_screen_focus($activeRoute);
 $navActiveHub = nav_resolve_active_hub($activeRoute);
 $dashboardUrl = app_url('index.php?r=dashboard');
@@ -142,6 +144,12 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
       }]
     }
     </script>
+    <?php if (!$parkMenuEmbed): ?>
+    <?php app_mdi_enqueue_styles(); ?>
+    <?php app_mdi_enqueue_scripts(); ?>
+    <?php else: ?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/dashboard.css')) ?><?= $dashCssV !== '' ? '?v=' . esc($dashCssV) : '' ?>">
+    <?php endif; ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/ui-dialog.css')) ?><?= $uiDlgCssV !== '' ? '?v=' . esc($uiDlgCssV) : '' ?>">
     <?php if ($hrOracleUi): ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/dashboard.css')) ?><?= $dashCssV !== '' ? '?v=' . esc($dashCssV) : '' ?>">
@@ -172,7 +180,7 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     </script>
 </head>
-<body class="app-body<?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
+<body class="app-body<?= $layoutFocus ? ' app-body--focus' : '' ?><?= $parkMenuEmbed ? ' app-body--park-menu' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
 <div class="app-shell<?= $layoutFocus ? ' app-shell--focus' : '' ?>">
 <?php if ($layoutFocus): ?>
     <header class="app-topbar no-print" role="banner">
@@ -189,6 +197,7 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
             </a>
         </div>
         <div class="app-topbar-actions">
+            <?php app_mdi_render_screen_minimize_btn($activeRoute); ?>
             <?php render_header_check_notifications($headerCheckNotify); ?>
             <?php render_master_toolbar(); ?>
         </div>
@@ -223,6 +232,7 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
             </div>
         </div>
         <div class="app-screen-head-actions">
+            <?php app_mdi_render_screen_minimize_btn($activeRoute); ?>
             <?php render_header_check_notifications($headerCheckNotify); ?>
             <?php if ($showMasterToolbar): ?>
             <?php render_master_toolbar(); ?>
@@ -277,6 +287,9 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
     </div>
 <?php endif; ?>
 </div>
+<?php if (!$parkMenuEmbed): ?>
+<?php app_mdi_render_layer(); ?>
+<?php endif; ?>
 <script src="<?= esc(app_url('assets/js/app-format.js')) ?><?= $appFormatJsV !== '' ? '?v=' . esc($appFormatJsV) : '' ?>" defer></script>
 <?php
 $favJsPath = app_path('assets/js/favorites.js');
@@ -348,6 +361,68 @@ window.UserSessionGpsConfig = {
 <script src="<?= esc(app_url('assets/js/user-session-gps.js')) ?><?= $userGpsJsV !== '' ? '?v=' . esc($userGpsJsV) : '' ?>" defer></script>
 <?php else: ?>
 <script>window.APP_GPS_ENABLED = false;</script>
+<?php endif; ?>
+<?php if ($parkMenuEmbed): ?>
+<script>
+window.APP_PARK_MENU = true;
+(function () {
+  function requestParentNav(href) {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'manager:mdi-parent-nav', href: href }, window.location.origin);
+      return true;
+    }
+    return false;
+  }
+  document.addEventListener(
+    'click',
+    function (e) {
+      var anchor = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) {
+        return;
+      }
+      var href = anchor.getAttribute('href') || '';
+      if (!href || href.charAt(0) === '#' || href.indexOf('index.php') < 0) {
+        return;
+      }
+      var isExit =
+        anchor.classList.contains('ora12-title-bar__close') ||
+        anchor.classList.contains('hr-ora-title-bar__close') ||
+        !!anchor.closest('.nav-exit-btn');
+      var u;
+      try {
+        u = new URL(anchor.href, window.location.origin);
+        var route = u.searchParams.get('r') || '';
+        if (isExit || (route !== '' && route !== 'menu_hub' && route !== 'dashboard')) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          requestParentNav(anchor.href);
+          return;
+        }
+      } catch (err) {
+        return;
+      }
+      if (anchor.classList.contains('nav-hub-ora-tile') && !anchor.classList.contains('nav-hub-ora-tile--folder')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        requestParentNav(anchor.href);
+        return;
+      }
+      if (anchor.target === '_parent') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        requestParentNav(anchor.href);
+        return;
+      }
+      if (u.searchParams.get('embed') !== 'menu') {
+        u.searchParams.set('embed', 'menu');
+        u.searchParams.delete('mdi_id');
+        anchor.href = u.pathname + u.search + u.hash;
+      }
+    },
+    true
+  );
+})();
+</script>
 <?php endif; ?>
 <?= document_print_user_footer_html($printUserLabel) ?>
 </body>

@@ -95,6 +95,38 @@
   /** @type {object|null} */
   var lastLoadedReturn = null;
 
+  function returnArchiveState(id) {
+    id = parseInt(String(id), 10) || 0;
+    if (id < 1) {
+      return { allowed: false, reason: 'not_saved' };
+    }
+    if (returnIsPosted) {
+      return { allowed: true, readOnly: true, reason: '' };
+    }
+    return { allowed: true, readOnly: false, reason: '' };
+  }
+
+  if (global.FinVoucherArchive) {
+    global.FinVoucherArchive.init({
+      apiUrl: form.getAttribute('data-archive-api') || '',
+      csrf: (form.querySelector('input[name="_csrf"]') || {}).value || '',
+      kind: form.getAttribute('data-archive-kind') || 'sales_return',
+      title: 'مرتجع مبيعات',
+      canArchive: form.getAttribute('data-can-archive') === '1',
+      getVoucherId: function () {
+        return currentReturnId;
+      },
+      getVoucherLabel: function () {
+        return {
+          no: (document.getElementById('ret_no') || {}).value || '',
+          date: (document.getElementById('ret_date') || {}).value || '',
+        };
+      },
+      companyName: companyName,
+      isArchiveAllowed: returnArchiveState,
+    });
+  }
+
   function fmtDate(value) {
     return window.AppFormat && AppFormat.formatDateDmY
       ? AppFormat.formatDateDmY(value)
@@ -1442,6 +1474,9 @@
     updateReturnEinvButtonState();
     updateToolbarUnpostButton();
     updateReasonReturnVisibility();
+    if (global.FinVoucherArchive) {
+      global.FinVoucherArchive.syncToolbar();
+    }
   }
 
   function updateToolbarUnpostButton() {
@@ -2308,6 +2343,10 @@
       e.stopImmediatePropagation();
       var href = oraCloseBtn.getAttribute('href') || exitUrl;
       confirmLeaveScreen(function () {
+        if (window.ScreenExitGuard && typeof window.ScreenExitGuard.navigateExit === 'function') {
+          window.ScreenExitGuard.navigateExit(href || '');
+          return;
+        }
         if (href) {
           window.location.href = href;
         } else {

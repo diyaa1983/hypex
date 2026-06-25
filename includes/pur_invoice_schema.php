@@ -176,14 +176,41 @@ function pur_invoice_ensure_schema(PDO $pdo): void
     inv_invoice_line_ensure_qty_extra($pdo);
 }
 
+function pur_invoice_is_cancelled(?string $status): bool
+{
+    return $status === 'cancelled';
+}
+
+function pur_invoice_id_is_cancelled(PDO $pdo, int $invoiceId): bool
+{
+    if ($invoiceId < 1) {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare('SELECT status FROM pur_invoice WHERE id = ? LIMIT 1');
+        $st->execute([$invoiceId]);
+
+        return pur_invoice_is_cancelled((string) ($st->fetchColumn() ?: ''));
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 /**
  * رقم فاتورة شراء تسلسلي: 001-2026 (ثلاثة أرقام على الأقل + سنة الفاتورة).
  * يُحتسب أعلى تسلسل سنوي (يشمل الأرقام القديمة ببادئة P إن وُجدت).
  */
 function pur_invoice_generate_next_no(PDO $pdo, string $invoiceDate): string
 {
+    require_once app_path('includes/doc_number_pool.php');
+
     $year = (int) date('Y', strtotime($invoiceDate));
     $suffix = '-' . $year;
+
+    $pooled = doc_number_pool_take($pdo, doc_number_pool_key_pur_invoice(), $year, 1);
+    if ($pooled !== []) {
+        return (string) $pooled[0];
+    }
 
     $st = $pdo->prepare('SELECT invoice_no FROM pur_invoice WHERE invoice_no LIKE ? FOR UPDATE');
     $st->execute(['%' . $suffix]);
@@ -198,6 +225,12 @@ function pur_invoice_generate_next_no(PDO $pdo, string $invoiceDate): string
     }
 
     return str_pad((string) ($maxSeq + 1), 3, '0', STR_PAD_LEFT) . $suffix;
+}
+
+function pur_invoice_release_no_to_pool(PDO $pdo, string $invoiceNo, string $invoiceDate): void
+{
+    require_once app_path('includes/doc_number_pool.php');
+    doc_number_pool_release($pdo, doc_number_pool_key_pur_invoice(), $invoiceNo, $invoiceDate);
 }
 
 function pur_invoice_insert_header(
