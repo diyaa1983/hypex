@@ -22,6 +22,8 @@
   var hubOverlayUrl = '';
   var parkedLiveId = null;
   var prefetchedUrls = {};
+  var syncTaskbarRaf = null;
+  var warmedFrameKeys = {};
 
   function esc(text) {
     var d = document.createElement('div');
@@ -257,10 +259,21 @@
     return !!(win && win.parkedLive && normalizeKey(win.href) === normalizeKey(global.location.href));
   }
 
+  function hideVisibleIframeWindows(exceptId) {
+    windows.forEach(function (w) {
+      if (!w.el || w.minimized || w.id === exceptId) {
+        return;
+      }
+      w.minimized = true;
+      layoutWindow(w);
+    });
+  }
+
   function unparkLiveWindow(win) {
     if (!win) {
       return;
     }
+    hideVisibleIframeWindows(win.id);
     win.minimized = false;
     win.parkedLive = false;
     win.fullPage = true;
@@ -269,7 +282,8 @@
       parkedLiveId = null;
     }
     hideHubOverlay();
-    persistWindowsNow();
+    document.body.classList.remove('app-mdi-page-parked');
+    persistWindows();
     syncTaskbar();
   }
 
@@ -308,8 +322,54 @@
     }
   }
 
+  function openHrefInIframe(href, opts) {
+    opts = opts || {};
+    if (!href) {
+      return null;
+    }
+    href = stripEmbedParams(href);
+    var key = normalizeKey(href);
+    var existing = findByKey(key);
+    if (existing) {
+      restoreWindow(existing.id);
+      return existing.id;
+    }
+    ensureShell();
+    if (!layerEl) {
+      global.__managerAllowUnload = true;
+      global.location.href = href;
+      return null;
+    }
+    hideHubOverlay();
+    windowSeq += 1;
+    var id = opts.id || 'app-mdi-' + windowSeq;
+    var win = {
+      id: id,
+      key: key,
+      href: href,
+      route: parseRouteFromHref(href),
+      title: opts.title || titleFromHref(href),
+      minimized: false,
+      maximized: opts.maximized !== false,
+      fullPage: false,
+      unsaved: !!opts.unsaved,
+      el: null,
+    };
+    windows.push(win);
+    attachIframeToWindow(win, { lazy: false });
+    focusWindow(id);
+    persistWindows();
+    return id;
+  }
+
   function navigateFromHubParent(href) {
     if (!href) {
+      return;
+    }
+    href = stripEmbedParams(href);
+    var parkedWin = parkedLiveId ? findWindow(parkedLiveId) : null;
+    if (parkedWin && parkedWin.parkedLive) {
+      openHrefInIframe(href, { maximized: true });
       return;
     }
     releaseParkedLiveForNavigation();
@@ -317,7 +377,7 @@
     parkedLiveId = null;
     document.body.classList.remove('app-mdi-page-parked');
     global.__managerAllowUnload = true;
-    global.location.href = stripEmbedParams(href);
+    global.location.href = href;
   }
 
   function findCurrentFullPageWindow() {
@@ -529,6 +589,7 @@
         var win = findWindow(taskBtn.getAttribute('data-mdi-id'));
         if (win && win.minimized && win.fullPage && !win.parkedLive && win.href) {
           prefetchHref(win.href);
+          warmWindowFrame(win);
         }
       },
       true
@@ -643,7 +704,7 @@
     windows = unique;
   }
 
-  function syncTaskbar() {
+  function syncTaskbarNow() {
     ensureShell();
     if (!taskbarWindowsEl) {
       return;
@@ -714,6 +775,16 @@
     persistWindows();
   }
 
+  function syncTaskbar() {
+    if (syncTaskbarRaf) {
+      return;
+    }
+    syncTaskbarRaf = global.requestAnimationFrame(function () {
+      syncTaskbarRaf = null;
+      syncTaskbarNow();
+    });
+  }
+
   function currentPageTitle() {
     if (config.currentTitle) {
       return String(config.currentTitle);
@@ -753,9 +824,9 @@
       href: spec.href,
       route: spec.route || parseRouteFromHref(spec.href),
       title: spec.title || titleFromHref(spec.href),
-      minimized: true,
-      maximized: false,
-      fullPage: true,
+      minimized: spec.minimized !== false,
+      maximized: !!spec.maximized,
+      fullPage: spec.fullPage !== false,
       unsaved: !!spec.unsaved,
       el: null,
     };
@@ -808,6 +879,88 @@
     }
   }
 
+  function buildWindowElement(win, lazyFrame) {
+    var winTitle = win.title || titleFromHref(win.href);
+    var frameSrc = buildEmbedUrl(win.href, win.id);
+    var iframeTag = lazyFrame
+      ? '<iframe class="app-mdi-frame" scrolling="yes" data-src="' +
+        esc(frameSrc) +
+        '" title="' +
+        esc(winTitle) +
+        '"></iframe>'
+      : '<iframe class="app-mdi-frame" scrolling="yes" title="' +
+        esc(winTitle) +
+        '" src="' +
+        esc(frameSrc) +
+        '"></iframe>';
+    var el = document.createElement('div');
+    el.className = 'app-mdi-window';
+    el.setAttribute('data-mdi-id', win.id);
+    el.innerHTML =
+      '<header class="app-mdi-window-head">' +
+      '<div class="app-mdi-window-chrome">' +
+      '<button type="button" class="app-mdi-tool-btn app-mdi-minimize" title="تصغير">_</button>' +
+      '<button type="button" class="app-mdi-tool-btn app-mdi-close" title="إغلاق">×</button>' +
+      '</div>' +
+      '<h2 class="app-mdi-window-title">' +
+      esc(winTitle) +
+      '</h2>' +
+      '</header>' +
+      '<div class="app-mdi-window-body">' +
+      iframeTag +
+      '</div>';
+    return el;
+  }
+
+  function attachIframeToWindow(win, options) {
+    options = options || {};
+    if (!win || win.el || win.parkedLive) {
+      return;
+    }
+    ensureShell();
+    if (!layerEl) {
+      return;
+    }
+    var lazyFrame = options.lazy !== false && !!win.minimized;
+    var el = buildWindowElement(win, lazyFrame);
+    if (win.maximized) {
+      el.classList.add('is-maximized');
+    }
+    layerEl.appendChild(el);
+    win.el = el;
+    win.fullPage = false;
+    bindWindowEvents(win);
+    layoutWindow(win);
+  }
+
+  function warmWindowFrame(win) {
+    if (!win || win.el || win.parkedLive || !win.href) {
+      return;
+    }
+    var key = win.key || normalizeKey(win.href);
+    if (warmedFrameKeys[key]) {
+      return;
+    }
+    warmedFrameKeys[key] = true;
+    attachIframeToWindow(win, { lazy: false });
+    if (win.minimized) {
+      ensureIframeLoaded(win);
+    }
+  }
+
+  function preloadHubFrame() {
+    ensureShell();
+    if (!hubFrameEl) {
+      return;
+    }
+    ensureHubFrameGuard();
+    var url = buildHubEmbedUrl(defaultHubUrl());
+    if (hubOverlayUrl !== url) {
+      hubFrameEl.src = url;
+      hubOverlayUrl = url;
+    }
+  }
+
   function mountWindow(spec, focusOnOpen) {
     ensureShell();
     if (!layerEl) {
@@ -825,39 +978,6 @@
 
     var route = spec.route || parseRouteFromHref(spec.href);
     var winTitle = spec.title || titleFromHref(spec.href);
-    var frameSrc = buildEmbedUrl(spec.href, id);
-    var lazyFrame = !!spec.minimized;
-    var iframeTag = lazyFrame
-      ? '<iframe class="app-mdi-frame" scrolling="yes" data-src="' +
-        esc(frameSrc) +
-        '" title="' +
-        esc(winTitle) +
-        '"></iframe>'
-      : '<iframe class="app-mdi-frame" scrolling="yes" title="' +
-        esc(winTitle) +
-        '" src="' +
-        esc(frameSrc) +
-        '"></iframe>';
-
-    var el = document.createElement('div');
-    el.className = 'app-mdi-window';
-    el.setAttribute('data-mdi-id', id);
-    el.innerHTML =
-      '<header class="app-mdi-window-head">' +
-      '<div class="app-mdi-window-chrome">' +
-      '<button type="button" class="app-mdi-tool-btn app-mdi-minimize" title="تصغير">_</button>' +
-      '<button type="button" class="app-mdi-tool-btn app-mdi-close" title="إغلاق">×</button>' +
-      '</div>' +
-      '<h2 class="app-mdi-window-title">' +
-      esc(winTitle) +
-      '</h2>' +
-      '</header>' +
-      '<div class="app-mdi-window-body">' +
-      iframeTag +
-      '</div>';
-
-    layerEl.appendChild(el);
-
     var win = {
       id: id,
       key: spec.key || normalizeKey(spec.href),
@@ -868,11 +988,10 @@
       maximized: !!spec.maximized,
       fullPage: !!spec.fullPage,
       unsaved: !!spec.unsaved,
-      el: el,
+      el: null,
     };
     windows.push(win);
-    bindWindowEvents(win);
-    layoutWindow(win);
+    attachIframeToWindow(win, { lazy: !!spec.minimized });
     if (!win.minimized && focusOnOpen !== false) {
       focusWindow(id);
     } else {
@@ -1202,11 +1321,25 @@
     if (!win) {
       return;
     }
+    activePanelId = null;
     if (isParkedLiveWindow(win)) {
       unparkLiveWindow(win);
       return;
     }
+    if (win.el) {
+      hideVisibleIframeWindows(id);
+      win.minimized = false;
+      win.parkedLive = false;
+      activeId = id;
+      hideHubOverlay();
+      layoutWindow(win);
+      ensureIframeLoaded(win);
+      focusWindow(id);
+      persistWindows();
+      return;
+    }
     if (parkedLiveId && parkedLiveId !== id) {
+      hideVisibleIframeWindows(null);
       releaseParkedLiveForNavigation();
     }
     var samePage = isWindowCurrentPage(win);
@@ -1214,11 +1347,16 @@
     win.parkedLive = false;
     win.fullPage = true;
     activeId = id;
-    persistWindowsNow();
+    persistWindows();
     if (samePage) {
       hideHubOverlay();
       document.body.classList.remove('app-mdi-page-parked');
       syncTaskbar();
+      return;
+    }
+    warmWindowFrame(win);
+    if (win.el) {
+      restoreWindow(id);
       return;
     }
     prefetchHref(win.href);
@@ -1252,9 +1390,12 @@
     }
     win.minimized = true;
     win.parkedLive = false;
-    win.fullPage = true;
+    if (!win.el) {
+      win.fullPage = true;
+    }
+    layoutWindow(win);
     syncTaskbar();
-    persistWindowsNow();
+    persistWindows();
   }
 
   function toggleMaximize(id) {
@@ -1437,6 +1578,7 @@
     restorePersistedWindows();
     convertLegacyIframeWindows();
     reconcileParkStateOnLoad();
+    preloadHubFrame();
     global.addEventListener('message', handleHubParentMessage);
     var btn = document.getElementById('app-mdi-minimize-screen');
     if (btn) {
