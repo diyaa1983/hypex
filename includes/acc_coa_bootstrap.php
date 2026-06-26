@@ -1990,6 +1990,31 @@ function acc_coa_meta_ensure_table(PDO $pdo): void
     }
 }
 
+function acc_coa_meta_preload(PDO $pdo): void
+{
+    if (!empty($GLOBALS['_acc_coa_meta_preloaded'])) {
+        return;
+    }
+    $GLOBALS['_acc_coa_meta_preloaded'] = true;
+    if (!acc_coa_meta_table_ready($pdo)) {
+        return;
+    }
+    if (!isset($GLOBALS['_acc_coa_meta_cache']) || !is_array($GLOBALS['_acc_coa_meta_cache'])) {
+        $GLOBALS['_acc_coa_meta_cache'] = [];
+    }
+    try {
+        $rows = $pdo->query('SELECT meta_key, meta_value FROM acc_system_meta')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $GLOBALS['_acc_coa_meta_cache'][(string) ($row['meta_key'] ?? '')] = (string) ($row['meta_value'] ?? '');
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+}
+
 function acc_coa_meta_get(PDO $pdo, string $key): ?string
 {
     if (!acc_coa_meta_table_ready($pdo)) {

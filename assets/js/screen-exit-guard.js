@@ -726,15 +726,25 @@
     global.document.addEventListener('click', onGlobalExitClick, true);
     global.document.addEventListener('click', onGlobalNavClick, true);
 
+    function scheduleAutoBind(callback) {
+        if (global.requestIdleCallback) {
+            global.requestIdleCallback(callback, { timeout: 150 });
+        } else {
+            global.setTimeout(callback, 0);
+        }
+    }
+
     function init() {
         clearAllowUnload();
-        autoBindAll();
+        scheduleAutoBind(autoBindAll);
     }
 
     function initAfterLoad() {
         clearAllowUnload();
-        autoBindAll();
-        resyncAllBoundPages();
+        scheduleAutoBind(function () {
+            autoBindAll();
+            resyncAllBoundPages();
+        });
     }
 
     if (global.document.readyState === 'loading') {

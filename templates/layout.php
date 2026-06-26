@@ -41,7 +41,6 @@ $appFormatJsV = is_file(app_path('assets/js/app-format.js'))
 
 require_once app_path('includes/master_toolbar.php');
 require_once app_path('includes/nav_helpers.php');
-$navMenu = nav_menu_config();
 require_once app_path('includes/document_header.php');
 require_once app_path('includes/header_check_notifications.php');
 require_once app_path('includes/app_window_manager.php');
@@ -61,7 +60,12 @@ $docWatermarkLogoUrl = $hasDocWatermark ? document_print_watermark_logo_url() : 
 
 $activeRoute = (string) ($activeRoute ?? 'dashboard');
 $layoutFocus = nav_layout_is_screen_focus($activeRoute);
-$navActiveHub = nav_resolve_active_hub($activeRoute);
+$navMenu = ['domains' => []];
+$navActiveHub = null;
+if (!$layoutFocus) {
+    $navMenu = nav_menu_config();
+    $navActiveHub = nav_resolve_active_hub($activeRoute);
+}
 $dashboardUrl = app_url('index.php?r=dashboard');
 $logoutUrl = app_url('logout.php');
 $user = current_user();
@@ -134,12 +138,17 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
         "source": "document",
         "where": {
           "or": [
-            { "selector_matches": ".nav-hub-ora-tile" },
+            { "selector_matches": ".nav-hub-ora-tile a[href*='index.php']" },
+            { "selector_matches": ".nav-hub-ora-tile[href*='index.php']" },
             { "selector_matches": ".sidebar-nav a[href*='index.php']" },
-            { "selector_matches": ".nav-list a[href*='index.php']" }
+            { "selector_matches": ".nav-list a[href*='index.php']" },
+            { "selector_matches": ".dashboard-ora-screen-title__close[href*='index.php']" },
+            { "selector_matches": ".nav-exit-btn[href*='index.php']" },
+            { "selector_matches": ".app-topbar-brand[href*='index.php']" },
+            { "selector_matches": "a.master-toolbar-btn[href*='index.php']" }
           ]
         },
-        "eagerness": "moderate"
+        "eagerness": "eager"
       }]
     }
     </script>
@@ -282,11 +291,13 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
 </div>
 <script>try{sessionStorage.removeItem('manager:mdi-windows-v1');}catch(e){}</script>
 <script src="<?= esc(app_url('assets/js/app-format.js')) ?><?= $appFormatJsV !== '' ? '?v=' . esc($appFormatJsV) : '' ?>" defer></script>
+<?php if (!$layoutFocus): ?>
 <?php
 $favJsPath = app_path('assets/js/favorites.js');
 $favJsV = is_file($favJsPath) ? (string) filemtime($favJsPath) : '';
 ?>
 <script src="<?= esc(app_url('assets/js/favorites.js')) ?><?= $favJsV !== '' ? '?v=' . esc($favJsV) : '' ?>" defer></script>
+<?php endif; ?>
 <?php
 $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
     ? (string) filemtime(app_path('assets/js/app-decimal-sync.js'))

@@ -5,14 +5,8 @@ require __DIR__ . '/includes/bootstrap.php';
 require_login();
 $_SESSION['app_context'] = 'desktop';
 
-require_once app_path('includes/sys_screens.php');
-require_once app_path('includes/sys_action_permissions.php');
 $pdo = db();
-sys_sync_bootstrap_caches($pdo);
-sys_sync_screens_from_routes($pdo);
-sys_sync_action_permissions($pdo);
-
-require_once app_path('includes/sql_migration.php');
+require_once app_path('includes/app_boot.php');
 $appBootMigrations = [
     'database/migrations/016_default_group_screen_permissions.sql',
     'database/migrations/018_seed_admin_if_missing.sql',
@@ -128,72 +122,7 @@ $appBootMigrations = [
     'database/migrations/181_fin_voucher_archive_docs.sql',
     'database/migrations/182_clear_legacy_invoice_number_pool.sql',
 ];
-sql_migration_bootstrap_registry($pdo, $appBootMigrations);
-sql_migration_run_files_once($pdo, $appBootMigrations);
-
-require_once app_path('includes/acc_vat_trust_account.php');
-$vatTrustErr = acc_vat_trust_account_apply_once($pdo);
-if ($vatTrustErr !== null) {
-    $_SESSION['coa_bootstrap_notice'] = array_merge(
-        is_array($_SESSION['coa_bootstrap_notice'] ?? null) ? $_SESSION['coa_bootstrap_notice'] : [],
-        ['تعذر توحيد حساب أمانات الضريبة: ' . $vatTrustErr]
-    );
-}
-
-require_once app_path('includes/acc_account_reassign.php');
-require_once app_path('includes/acc_coa_bootstrap.php');
-try {
-    if (acc_coa_meta_get($pdo, 'merge_cash_111_v1') !== '1') {
-        $cashMerge = acc_account_merge_default_cash_box($pdo);
-        if (!empty($cashMerge['ok']) && empty($cashMerge['skipped'])) {
-            acc_coa_meta_set($pdo, 'merge_cash_111_v1', '1');
-            if (($cashMerge['journal_lines'] ?? 0) > 0 || ($cashMerge['vouchers'] ?? 0) > 0) {
-                $msg = 'دمج حساب الصندوق (111) في صندوق رئيسي (1001001001): ' . (string) ($cashMerge['message'] ?? '');
-                $_SESSION['coa_bootstrap_notice'] = array_merge(
-                    is_array($_SESSION['coa_bootstrap_notice'] ?? null) ? $_SESSION['coa_bootstrap_notice'] : [],
-                    [$msg]
-                );
-            } else {
-                acc_coa_meta_set($pdo, 'merge_cash_111_v1', '1');
-            }
-        } elseif (!empty($cashMerge['ok']) && !empty($cashMerge['skipped'])) {
-            acc_coa_meta_set($pdo, 'merge_cash_111_v1', '1');
-        }
-    }
-    if (acc_coa_meta_get($pdo, 'merge_purchases_6001_v1') !== '1') {
-        $purchMerge = acc_account_merge_purchases_to_6001($pdo);
-        if (!empty($purchMerge['ok'])) {
-            if (empty($purchMerge['skipped'])) {
-                acc_coa_meta_set($pdo, 'merge_purchases_6001_v1', '1');
-            }
-            if ((int) ($purchMerge['journal_lines'] ?? 0) > 0) {
-                $msg = 'دمج المشتريات في 6001: ' . (string) ($purchMerge['message'] ?? '');
-                $_SESSION['coa_bootstrap_notice'] = array_merge(
-                    is_array($_SESSION['coa_bootstrap_notice'] ?? null) ? $_SESSION['coa_bootstrap_notice'] : [],
-                    [$msg]
-                );
-            } elseif (!empty($purchMerge['skipped']) && acc_account_find_purchases_target_6001($pdo)) {
-                acc_coa_meta_set($pdo, 'merge_purchases_6001_v1', '1');
-            }
-        }
-    }
-} catch (Throwable $e) {
-    // لا يوقف التطبيق
-}
-try {
-    $coaBootstrap = acc_coa_bootstrap_run($pdo, false);
-    if (($coaBootstrap['mapped'] ?? 0) > 0 && !empty($coaBootstrap['messages'])) {
-        $_SESSION['coa_bootstrap_notice'] = $coaBootstrap['messages'];
-    }
-} catch (Throwable $e) {
-    $_SESSION['coa_bootstrap_notice'] = ['تعذر ضبط الشجرة تلقائياً: ' . $e->getMessage()];
-}
-
-sys_ensure_dashboard_for_all_groups($pdo);
-sys_repair_user_without_groups($pdo, (int) current_user()['id']);
-
-require_once app_path('includes/fin_check_due_email.php');
-fin_check_due_email_register_background_runner();
+app_boot_run($pdo, $appBootMigrations);
 
 $r = isset($_GET['r']) ? (string) $_GET['r'] : 'dashboard';
 $routes = require app_path('config/routes.php');

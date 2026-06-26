@@ -26,10 +26,7 @@ function company_settings(?PDO $pdo = null): array
 
     try {
         $pdo = $pdo ?? db();
-        company_settings_ensure_default_row($pdo);
-        company_settings_ensure_rows_per_page_column($pdo);
-        company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
-        company_settings_ensure_invoice_print_decimal_places_columns($pdo);
+        company_settings_ensure_schema($pdo);
         $row = $pdo->query(
             'SELECT company_name_ar, tax_rate_percent, decimal_places, invoice_unit_price_decimal_places,
                     invoice_print_decimal_places, invoice_print_unit_price_decimal_places,
@@ -153,6 +150,36 @@ function company_round_invoice_line_array(array &$ln, ?PDO $pdo = null, ?int $de
 }
 
 /** يضمن وجود السجل الافتراضي id=1 حتى يعمل UPDATE من شاشة الإعدادات. */
+function company_settings_ensure_schema(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    try {
+        require_once app_path('includes/acc_coa_bootstrap.php');
+        if (acc_coa_meta_get($pdo, 'company_settings_schema_v1') === '1') {
+            return;
+        }
+    } catch (Throwable $e) {
+        // continue
+    }
+
+    company_settings_ensure_default_row($pdo);
+    company_settings_ensure_rows_per_page_column($pdo);
+    company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
+    company_settings_ensure_invoice_print_decimal_places_columns($pdo);
+
+    try {
+        require_once app_path('includes/acc_coa_bootstrap.php');
+        acc_coa_meta_set($pdo, 'company_settings_schema_v1', '1');
+    } catch (Throwable $e) {
+        // ignore
+    }
+}
+
 function company_settings_ensure_rows_per_page_column(PDO $pdo): void
 {
     try {
