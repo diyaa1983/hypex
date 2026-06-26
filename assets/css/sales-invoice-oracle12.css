@@ -134,6 +134,29 @@
   margin-inline-start: auto;
 }
 
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__end {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-inline-start: auto;
+  flex-shrink: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__end .ora12-title-bar__controls {
+  margin-inline-start: 0;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .fin-voucher-status-wrap[hidden],
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .fin-voucher-status-wrap .sales-inv-posted-badge[hidden] {
+  display: none !important;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .fin-voucher-status-wrap:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 0;
+}
+
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-posted-badge {
   margin: 0;
   padding: 0.1rem 0.42rem;

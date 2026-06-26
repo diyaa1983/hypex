@@ -790,12 +790,16 @@
 
   function updatePostedBadge() {
     if (!statusBadge) return;
+    var statusWrap = statusBadge.closest('.fin-voucher-status-wrap');
     if (currentId < 1) {
       statusBadge.hidden = true;
+      statusBadge.textContent = '';
+      if (statusWrap) statusWrap.hidden = true;
       updateEntryNoPostedStyle();
       updateJvToolbar();
       return;
     }
+    if (statusWrap) statusWrap.hidden = false;
     statusBadge.hidden = false;
     if (!isManualEntry) {
       statusBadge.textContent = 'قيد تلقائي';

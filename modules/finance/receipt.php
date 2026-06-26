@@ -85,10 +85,12 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
 <div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main fin-rc-wrap fin-rc-pay-is-cash sales-inv-bold" data-exit-guard="custom">
     <header class="dashboard-ora-screen-title no-print" role="banner">
         <h1 class="dashboard-ora-screen-title__text">سند قبض</h1>
-        <span class="dashboard-ora-screen-title__meta sales-inv-status-badges">
-            <span id="rc_posted_badge" class="sales-inv-posted-badge badge badge-warn" hidden>غير مرحّل</span>
-        </span>
-        <?php nav_render_screen_close($activeRoute ?? 'cash_receipt'); ?>
+        <div class="dashboard-ora-screen-title__end fin-voucher-title-end">
+            <span class="fin-voucher-status-wrap sales-inv-status-badges" hidden>
+                <span id="rc_posted_badge" class="sales-inv-posted-badge badge" hidden></span>
+            </span>
+            <?php nav_render_screen_close($activeRoute ?? 'cash_receipt'); ?>
+        </div>
     </header>
 
     <div class="dashboard-ora-workspace">

@@ -674,12 +674,18 @@
 
   function updatePostedBadge() {
     var el = document.getElementById('rc_posted_badge');
+    var wrap = el ? el.closest('.fin-voucher-status-wrap') : null;
     if (currentVoucherId < 1) {
-      if (el) el.hidden = true;
+      if (el) {
+        el.hidden = true;
+        el.textContent = '';
+      }
+      if (wrap) wrap.hidden = true;
       updateVoucherNoPostedStyle();
       updateToolbarPostUnpost();
       return;
     }
+    if (wrap) wrap.hidden = false;
     if (el) {
       el.hidden = false;
       if (voucherIsCancelled) {
@@ -1648,9 +1654,12 @@
     var notesVal = notes ? String(notes.value).trim() : '';
 
     var posted = !!voucherIsPosted;
-    var postedTag = posted
-      ? '<span class="rcp-status rcp-status-posted">مرحَّل</span>'
-      : '<span class="rcp-status rcp-status-unposted">غير مرحَّل</span>';
+    var postedTag =
+      currentVoucherId > 0
+        ? posted
+          ? '<span class="rcp-status rcp-status-posted">مرحَّل</span>'
+          : '<span class="rcp-status rcp-status-unposted">غير مرحَّل</span>'
+        : '';
 
     var docInfo =
       '<table class="rcp-docinfo"><tr>' +

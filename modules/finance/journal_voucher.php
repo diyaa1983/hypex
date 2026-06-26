@@ -85,10 +85,12 @@ $suppliers = crm_suppliers_for_picker($pdo);
      data-exit-guard-root data-exit-url="<?= esc($exitUrl) ?>">
     <header class="dashboard-ora-screen-title no-print" role="banner">
         <h1 class="dashboard-ora-screen-title__text">سند قيد</h1>
-        <span class="dashboard-ora-screen-title__meta sales-inv-status-badges">
-            <span id="jv_posted_badge" class="sales-inv-posted-badge badge badge-warn" hidden></span>
-        </span>
-        <?php nav_render_screen_close($activeRoute ?? 'journal_voucher'); ?>
+        <div class="dashboard-ora-screen-title__end fin-voucher-title-end">
+            <span class="fin-voucher-status-wrap sales-inv-status-badges" hidden>
+                <span id="jv_posted_badge" class="sales-inv-posted-badge badge" hidden></span>
+            </span>
+            <?php nav_render_screen_close($activeRoute ?? 'journal_voucher'); ?>
+        </div>
     </header>
 
     <div class="dashboard-ora-workspace">

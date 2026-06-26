@@ -985,12 +985,18 @@
 
   function updatePostedBadge() {
     var el = document.getElementById('py_posted_badge');
+    var wrap = el ? el.closest('.fin-voucher-status-wrap') : null;
     if (currentVoucherId < 1) {
-      if (el) el.hidden = true;
+      if (el) {
+        el.hidden = true;
+        el.textContent = '';
+      }
+      if (wrap) wrap.hidden = true;
       updateVoucherNoPostedStyle();
       updateToolbarPostUnpost();
       return;
     }
+    if (wrap) wrap.hidden = false;
     if (el) {
       el.hidden = false;
       if (voucherIsCancelled) {

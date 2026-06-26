@@ -133,10 +133,12 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
 <div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main fin-py-wrap fin-py-pay-is-cash fin-py-party-is-supplier sales-inv-bold" data-exit-guard="custom">
     <header class="dashboard-ora-screen-title no-print" role="banner">
         <h1 class="dashboard-ora-screen-title__text">سند صرف</h1>
-        <span class="dashboard-ora-screen-title__meta sales-inv-status-badges">
-            <span id="py_posted_badge" class="sales-inv-posted-badge badge badge-warn" hidden>غير مرحّل</span>
-        </span>
-        <?php nav_render_screen_close($activeRoute ?? 'cash_payment'); ?>
+        <div class="dashboard-ora-screen-title__end fin-voucher-title-end">
+            <span class="fin-voucher-status-wrap sales-inv-status-badges" hidden>
+                <span id="py_posted_badge" class="sales-inv-posted-badge badge" hidden></span>
+            </span>
+            <?php nav_render_screen_close($activeRoute ?? 'cash_payment'); ?>
+        </div>
     </header>
 
     <div class="dashboard-ora-workspace">
