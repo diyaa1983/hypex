@@ -165,24 +165,19 @@ $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
 <script src="<?= esc(app_url('assets/js/app-date-picker.js')) ?><?= $datePickerJsV !== '' ? '?v=' . esc($datePickerJsV) : '' ?>" defer></script>
 <script>
 (function () {
-  var btn = document.getElementById('app-mdi-minimize-embed');
-  if (btn) {
-    btn.addEventListener('click', function () {
-      var params = new URLSearchParams(window.location.search);
-      var mdiId = params.get('mdi_id');
-      if (window.parent && window.parent !== window && window.parent.AppScreenWindows && mdiId) {
-        window.parent.AppScreenWindows.minimize(mdiId);
-        window.parent.AppScreenWindows.persist();
-      }
-    });
-  }
-
-  function requestParentNav(href) {
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'manager:mdi-parent-nav', href: href }, window.location.origin);
-      return true;
+  function navigateFromEmbed(href) {
+    if (!href) {
+      return;
     }
-    return false;
+    try {
+      if (window.top && window.top !== window) {
+        window.top.location.href = href;
+        return;
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    window.location.href = href;
   }
 
   document.addEventListener(
@@ -206,27 +201,17 @@ $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
         if (isExit || (route !== '' && route !== 'menu_hub' && route !== 'dashboard')) {
           e.preventDefault();
           e.stopImmediatePropagation();
-          requestParentNav(anchor.href);
+          navigateFromEmbed(anchor.href);
           return;
         }
       } catch (err) {
         return;
       }
-      if (href.indexOf('embed=1') >= 0) {
-        return;
-      }
       if (anchor.classList.contains('nav-hub-ora-tile') && !anchor.classList.contains('nav-hub-ora-tile--folder')) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        requestParentNav(anchor.href);
-        return;
+        navigateFromEmbed(anchor.href);
       }
-      if (anchor.target === '_parent') {
-        return;
-      }
-      u.searchParams.set('embed', '1');
-      u.searchParams.delete('mdi_id');
-      anchor.href = u.pathname + u.search + u.hash;
     },
     true
   );

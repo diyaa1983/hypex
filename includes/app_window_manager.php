@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+/** MDI / تصغير الشاشات — معطّل */
+function app_mdi_enabled(): bool
+{
+    return false;
+}
+
 function app_mdi_is_embed_request(): bool
 {
     return isset($_GET['embed']) && (string) $_GET['embed'] === '1';
@@ -144,7 +150,7 @@ function app_mdi_route_allowed(string $route): bool
 
 function app_mdi_enqueue_styles(): void
 {
-    if (app_mdi_is_embed_request() || app_mdi_is_park_menu_embed()) {
+    if (!app_mdi_enabled() || app_mdi_is_embed_request() || app_mdi_is_park_menu_embed()) {
         return;
     }
     $cssPath = app_path('assets/css/app-window-manager.css');
@@ -157,7 +163,7 @@ function app_mdi_enqueue_styles(): void
 
 function app_mdi_render_layer(): void
 {
-    if (app_mdi_is_embed_request()) {
+    if (!app_mdi_enabled() || app_mdi_is_embed_request()) {
         return;
     }
     echo '<div id="app-mdi-hub-overlay" class="app-mdi-hub-overlay no-print" hidden aria-hidden="true">' . "\n";
@@ -186,7 +192,6 @@ function app_mdi_render_title_bar_controls(string $activeRoute, ?string $overrid
     }
 
     echo '<div class="ora12-title-bar__controls no-print">';
-    echo '<button type="button" class="ora12-title-bar__btn ora12-title-bar__minimize" id="app-mdi-minimize-screen" title="تصغير الشاشة" aria-label="تصغير الشاشة">_</button>';
     echo '<a class="ora12-title-bar__btn ora12-title-bar__close" href="' . esc($url) . '"';
     echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">×</a>';
     echo '</div>' . "\n";
@@ -199,13 +204,7 @@ function app_mdi_render_screen_minimize_btn(string $activeRoute): void
 
 function app_mdi_render_embed_minimize_btn(): void
 {
-    if (!app_mdi_is_embed_request()) {
-        return;
-    }
-    if (!app_mdi_route_allowed('')) {
-        return;
-    }
-    echo '<button type="button" class="app-mdi-screen-minimize-btn app-mdi-screen-minimize-btn--embed ora12-title-bar__minimize" id="app-mdi-minimize-embed" title="تصغير إلى الشريط السفلي" aria-label="تصغير">_</button>' . "\n";
+    // تصغير الشاشات معطّل
 }
 
 function app_mdi_after_minimize_url(string $activeRoute): string
@@ -249,7 +248,7 @@ function app_mdi_after_minimize_url(string $activeRoute): string
 
 function app_mdi_enqueue_scripts(): void
 {
-    if (app_mdi_is_embed_request() || app_mdi_is_park_menu_embed()) {
+    if (!app_mdi_enabled() || app_mdi_is_embed_request() || app_mdi_is_park_menu_embed()) {
         return;
     }
     $jsPath = app_path('assets/js/app-window-manager.js');

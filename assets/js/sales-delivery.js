@@ -2037,11 +2037,6 @@
     e.returnValue = '';
   });
 
-  document.addEventListener('manager:before-minimize', function (ev) {
-    if (formSubmitting || !formDirty || deliveryIsPosted) return;
-    if (ev.detail) ev.detail.dirty = true;
-  });
-
   if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExitDeferred === 'function') {
     global.ScreenExitGuard.registerScreenExitDeferred({
       hasUnsaved: function () {

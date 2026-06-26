@@ -28,20 +28,7 @@
     }
 
     function prepareForMinimize() {
-        var detail = { dirty: false };
-        global.document.dispatchEvent(new CustomEvent('manager:before-minimize', { detail: detail }));
-        if (!detail.dirty) {
-            if (global.ManagerScreenExit && global.ManagerScreenExit.hasUnsaved && global.ManagerScreenExit.hasUnsaved()) {
-                detail.dirty = true;
-            } else {
-                var guard = getActiveGuard();
-                if (guard && guard.hasUnsavedChanges()) {
-                    detail.dirty = true;
-                }
-            }
-        }
-        setAllowUnload(true);
-        return detail;
+        return { dirty: false };
     }
 
     function clearAllowUnload() {
@@ -124,20 +111,12 @@
         if (!href) {
             return;
         }
-        if (
-            global.AppScreenWindows &&
-            typeof global.AppScreenWindows.exitCurrentPage === 'function' &&
-            global.AppScreenWindows.hasCurrentFullPageWindow &&
-            global.AppScreenWindows.hasCurrentFullPageWindow()
-        ) {
-            global.AppScreenWindows.exitCurrentPage(href);
-            return;
-        }
         if (global.APP_EMBED && global.parent && global.parent !== global) {
-            global.parent.postMessage(
-                { type: 'manager:mdi-parent-nav', href: href },
-                global.location.origin
-            );
+            try {
+                global.top.location.href = href;
+            } catch (e) {
+                global.location.href = href;
+            }
             return;
         }
         global.location.href = href;
@@ -210,7 +189,7 @@
         if (anchor.target === '_blank' || anchor.hasAttribute('download')) {
             return false;
         }
-        if (anchor.closest('.app-mdi-window, .app-mdi-taskbar, .app-mdi-screen-minimize-btn, .fin-voucher-archive-modal, .ui-dialog-root')) {
+        if (anchor.closest('.app-mdi-window, .fin-voucher-archive-modal, .ui-dialog-root')) {
             return false;
         }
         var href = anchor.getAttribute('href') || '';

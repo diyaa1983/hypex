@@ -4583,12 +4583,6 @@
     e.returnValue = '';
   });
 
-  document.addEventListener('manager:before-minimize', function (ev) {
-    if (formSubmitting || !formDirty || invoiceIsPosted) return;
-    if (ev.detail) ev.detail.dirty = true;
-    persistDraft();
-  });
-
   function registerInvoiceExitGuard() {
     var api = {
       hasUnsaved: function () {

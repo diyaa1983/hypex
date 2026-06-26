@@ -14,23 +14,14 @@
   var fileInput = null;
   var uploadBtn = null;
   var sizeToggleBtn = null;
-  var minimizeBtn = null;
   var titleEl = null;
   var readOnlyMode = false;
   var viewerExpanded = false;
-  var viewerMinimized = false;
-  var taskbarEl = null;
-  var taskbarInner = null;
   var archiveFileCount = 0;
   var metaVoucherId = 0;
   var metaPromise = null;
   var currentFiles = [];
   var activeFileIndex = -1;
-  var ARCHIVE_PANEL_ID = 'fin-voucher-archive';
-
-  function usesUnifiedTaskbar() {
-    return !!(global.AppScreenWindows && AppScreenWindows.setPanel);
-  }
 
   function esc(text) {
     var d = document.createElement('div');
@@ -76,7 +67,6 @@
       '<header class="fin-voucher-archive-viewer-head">' +
       '<h2 id="fin-voucher-archive-title" class="fin-voucher-archive-viewer-title"></h2>' +
       '<div class="fin-voucher-archive-head-actions">' +
-      '<button type="button" class="fin-voucher-archive-minimize" aria-label="تصغير" title="تصغير إلى الشريط السفلي">تصغير</button>' +
       '<button type="button" class="fin-voucher-archive-size-toggle" aria-label="تكبير" title="تكبير">□</button>' +
       '<button type="button" class="fin-voucher-archive-close" data-archive-close aria-label="إغلاق">×</button>' +
       '</div>' +
@@ -112,19 +102,12 @@
     fileInput = modal.querySelector('.fin-voucher-archive-file');
     uploadBtn = modal.querySelector('.fin-voucher-archive-upload-btn');
     sizeToggleBtn = modal.querySelector('.fin-voucher-archive-size-toggle');
-    minimizeBtn = modal.querySelector('.fin-voucher-archive-minimize');
     titleEl = modal.querySelector('#fin-voucher-archive-title');
 
     modal.addEventListener('click', function (e) {
-      if (viewerMinimized) return;
       if (e.target.closest('[data-archive-close]')) {
         close();
       }
-    });
-
-    minimizeBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      setViewerMinimized(true);
     });
 
     sizeToggleBtn.addEventListener('click', function (e) {
@@ -169,89 +152,9 @@
     return head;
   }
 
-  function buildTaskbarLabel() {
-    var label = typeof getVoucherLabel === 'function' ? getVoucherLabel() || {} : {};
-    var no = String(label.no || '').trim();
-    var parts = ['أرشيف'];
-    if (cfg && cfg.title) parts.push(cfg.title);
-    if (no) parts.push(no);
-    return parts.join(' — ').replace(/\s+/g, ' ').trim();
-  }
-
-  function ensureTaskbar() {
-    if (usesUnifiedTaskbar()) {
-      return;
-    }
-    if (taskbarEl) return;
-    taskbarEl = document.createElement('div');
-    taskbarEl.id = 'fin-voucher-archive-taskbar';
-    taskbarEl.className = 'fin-voucher-archive-taskbar no-print';
-    taskbarEl.hidden = true;
-    taskbarEl.innerHTML = '<div class="fin-voucher-archive-taskbar-inner"></div>';
-    document.body.appendChild(taskbarEl);
-    taskbarInner = taskbarEl.querySelector('.fin-voucher-archive-taskbar-inner');
-  }
-
   function updateBodyLock() {
-    var lock = modal && !modal.hidden && !viewerMinimized;
+    var lock = modal && !modal.hidden;
     document.body.classList.toggle('fin-voucher-archive-open', lock);
-    if (!usesUnifiedTaskbar()) {
-      document.body.classList.toggle('fin-voucher-archive-taskbar-open', !!(taskbarEl && !taskbarEl.hidden));
-    }
-  }
-
-  function syncTaskbar() {
-    if (usesUnifiedTaskbar()) {
-      if (!modal || modal.hidden || !viewerMinimized) {
-        global.AppScreenWindows.removePanel(ARCHIVE_PANEL_ID);
-      } else {
-        global.AppScreenWindows.setPanel({
-          id: ARCHIVE_PANEL_ID,
-          title: buildTaskbarLabel(),
-          minimized: true,
-          onActivate: function () {
-            setViewerMinimized(false);
-          },
-          onClose: function () {
-            close();
-          },
-        });
-      }
-      updateBodyLock();
-      return;
-    }
-    ensureTaskbar();
-    if (!taskbarInner) return;
-    if (!modal || modal.hidden || !viewerMinimized) {
-      taskbarEl.hidden = true;
-      taskbarInner.innerHTML = '';
-      updateBodyLock();
-      return;
-    }
-    taskbarEl.hidden = false;
-    taskbarInner.innerHTML =
-      '<button type="button" class="fin-voucher-archive-task-btn">' +
-      '<span class="fin-voucher-archive-task-label">' +
-      esc(buildTaskbarLabel()) +
-      '</span>' +
-      '</button>' +
-      '<button type="button" class="fin-voucher-archive-task-close" aria-label="إغلاق">×</button>';
-    taskbarInner.querySelector('.fin-voucher-archive-task-btn').addEventListener('click', function () {
-      setViewerMinimized(false);
-    });
-    taskbarInner.querySelector('.fin-voucher-archive-task-close').addEventListener('click', function (e) {
-      e.stopPropagation();
-      close();
-    });
-    updateBodyLock();
-  }
-
-  function setViewerMinimized(minimized) {
-    ensureModal();
-    viewerMinimized = !!minimized;
-    modal.classList.toggle('is-minimized', viewerMinimized);
-    syncTaskbar();
-    updateBodyLock();
   }
 
   function archiveState() {
@@ -338,7 +241,6 @@
   }
 
   function toggleViewerSize() {
-    if (viewerMinimized) return;
     setViewerExpanded(!viewerExpanded);
   }
 
@@ -354,7 +256,6 @@
       titleEl.textContent = buildViewerTitle(readOnlyMode);
     }
     updateViewerLayout();
-    if (viewerMinimized) syncTaskbar();
   }
 
   function applyToolbarArchiveUi() {
@@ -638,14 +539,9 @@
       }
       ensureModal();
       if (!modal.hidden) {
-        if (viewerMinimized) {
-          setViewerMinimized(false);
-          return;
-        }
         return;
       }
       setViewerExpanded(false);
-      setViewerMinimized(false);
       activeFileIndex = -1;
       currentFiles = [];
       applyReadOnlyMode(state.readOnly);
@@ -663,10 +559,6 @@
       modal.hidden = true;
       if (stageEl) stageEl.innerHTML = '';
       setViewerExpanded(false);
-      setViewerMinimized(false);
-    }
-    if (usesUnifiedTaskbar()) {
-      global.AppScreenWindows.removePanel(ARCHIVE_PANEL_ID);
     }
     updateBodyLock();
   }
@@ -769,12 +661,6 @@
     init: init,
     open: open,
     close: close,
-    restore: function () {
-      setViewerMinimized(false);
-    },
-    isMinimized: function () {
-      return viewerMinimized;
-    },
     syncToolbar: syncToolbar,
     refreshMeta: refreshArchiveMeta,
   };
