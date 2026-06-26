@@ -326,6 +326,7 @@ return [
         'file' => 'modules/settings/dashboard_accounts.php',
         'permission' => 'settings',
         'title' => 'حسابات الشاشة الرئيسية',
+        'hide_screen_title' => true,
     ],
     'system_backup' => [
         'file' => 'modules/system/backup.php',
