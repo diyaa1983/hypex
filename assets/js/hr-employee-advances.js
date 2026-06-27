@@ -182,7 +182,7 @@
         }
 
         function renderList(queryText, browseAll) {
-            if (selectEl.disabled || inputEl.disabled) {
+            if (selectEl.disabled || inputEl.disabled || inputEl.readOnly) {
                 closeList();
                 return;
             }
@@ -411,6 +411,36 @@
         }
     }
 
+    function getFilterPayrollBlockMsg() {
+        return page.getAttribute('data-filter-payroll-block-msg')
+            || 'لا يمكن إضافة سلفة — شهر الراتب محتسب أو مرحّل.';
+    }
+
+    function isFilterMonthPayrollBlocked() {
+        return page.getAttribute('data-filter-payroll-blocked') === '1';
+    }
+
+    function canAddAdvance() {
+        return getFilterEmployeeId() > 0 && !isFilterMonthPayrollBlocked();
+    }
+
+    function syncAddButton() {
+        if (btnAdd) {
+            btnAdd.disabled = !canAddAdvance();
+        }
+    }
+
+    function defaultDeductDateForFilterMonth() {
+        if (!monthFilterActive || filterYear < 2000 || filterMonth < 1 || filterMonth > 12) {
+            return '';
+        }
+        var month = String(filterMonth);
+        if (month.length < 2) {
+            month = '0' + month;
+        }
+        return '01-' + month + '-' + String(filterYear);
+    }
+
     function syncPickerDisplay() {
         if (!filterEmployee) return;
         var op = filterEmployee.options[filterEmployee.selectedIndex];
@@ -439,9 +469,7 @@
                 pickerCount.textContent = String(op.getAttribute('data-advance-count') || '0');
             }
         }
-        if (btnAdd) {
-            btnAdd.disabled = !(op && op.value && op.value !== '0') && !monthFilterActive;
-        }
+        syncAddButton();
     }
 
     function buildListUrl(employeeId, year, month) {
@@ -481,6 +509,12 @@
     }
 
     function getFilterEmployeeId() {
+        if (filterEmployee) {
+            var liveId = parseInt(filterEmployee.value || '0', 10) || 0;
+            if (liveId > 0) {
+                return liveId;
+            }
+        }
         return parseInt(page.getAttribute('data-filter-employee-id') || '0', 10) || 0;
     }
 
@@ -490,19 +524,41 @@
 
     function setEditorEmployeeLocked(locked) {
         if (!editorEmployee) return;
-        editorEmployee.disabled = !!locked;
+        // Keep the hidden select enabled so employee_id is always posted on save.
+        editorEmployee.disabled = false;
         if (editorEmployeeSmart) {
             editorEmployeeSmart.disabled = !!locked;
+            editorEmployeeSmart.readOnly = !!locked;
+        }
+        if (editorEmployeeToggle) {
+            editorEmployeeToggle.disabled = !!locked;
         }
         syncOraLovButtons();
+    }
+
+    function syncEditorEmployeeBeforeSave() {
+        if (!editorEmployee) return;
+        editorEmployee.disabled = false;
+        var empId = parseInt(editorEmployee.value || '0', 10) || 0;
+        if (empId < 1) {
+            empId = getFilterEmployeeId();
+            if (empId > 0) {
+                editorEmployee.value = String(empId);
+                if (editorSmartApi) {
+                    editorSmartApi.syncFromSelect();
+                }
+            }
+        }
     }
 
     function syncOraLovButtons() {
         page.querySelectorAll('.hr-adv-ora-lov').forEach(function (wrap) {
             var sel = wrap.querySelector('select');
             var btn = wrap.querySelector('.hr-adv-ora-lov-btn');
+            var smart = wrap.querySelector('.hr-adv-ora-lov-smart-input');
             if (btn && sel) {
-                btn.disabled = !!sel.disabled;
+                btn.disabled = !!sel.disabled
+                    || !!(smart && (smart.disabled || smart.readOnly));
             }
         });
     }
@@ -516,6 +572,9 @@
             return;
         }
         if (btn === editorEmployeeToggle && editorSmartApi) {
+            if (editorEmployeeSmart && (editorEmployeeSmart.disabled || editorEmployeeSmart.readOnly)) {
+                return;
+            }
             if (editorEmployeeSmart) {
                 editorEmployeeSmart.focus();
             }
@@ -648,8 +707,19 @@
         return !!(tr && tr.getAttribute('data-posted') === '1');
     }
 
+    function isRowLinked(tr) {
+        return !!(tr && tr.getAttribute('data-linked') === '1');
+    }
+
+    function canEditRow(tr) {
+        if (!tr || tr.classList.contains('hr-adv-row--empty')) {
+            return false;
+        }
+        return tr.getAttribute('data-can-edit') === '1';
+    }
+
     function isRowLocked(tr) {
-        return isRowLinked(tr) || isRowPosted(tr);
+        return !canEditRow(tr);
     }
 
     function getRowData(tr) {
@@ -705,13 +775,32 @@
         syncRowActionButtons();
     }
 
+    function selectSavedAdvanceRow() {
+        var selectedId = parseInt(page.getAttribute('data-selected-advance-id') || '0', 10) || 0;
+        if (selectedId < 1 || !tbody) {
+            return;
+        }
+        var tr = tbody.querySelector('tr.hr-adv-row[data-id="' + selectedId + '"]');
+        if (!tr) {
+            return;
+        }
+        selectRow(tr);
+        try {
+            tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } catch (e) {
+            tr.scrollIntoView(true);
+        }
+    }
+
     function syncRowActionButtons() {
         if (btnEdit) {
-            btnEdit.disabled = !selectedRow || isRowLocked(selectedRow);
+            btnEdit.disabled = !canEditRow(selectedRow);
         }
         if (btnDelete) {
-            var locked = !!(selectedRow && isRowLocked(selectedRow));
-            btnDelete.disabled = !selectedRow || locked;
+            btnDelete.disabled = !selectedRow
+                || isRowPosted(selectedRow)
+                || isRowLinked(selectedRow)
+                || (selectedRow && selectedRow.getAttribute('data-status') === 'cancelled');
         }
     }
 
@@ -760,7 +849,9 @@
                 editorEmployee.value = filterId > 0 ? String(filterId) : '';
             }
             if (editorAmount) editorAmount.value = '';
-            if (editorDeductDate) editorDeductDate.value = '';
+            if (editorDeductDate) {
+                editorDeductDate.value = defaultDeductDateForFilterMonth();
+            }
             if (editorStart) editorStart.value = '';
             if (editorEnd) editorEnd.value = '';
             if (editorNotes) editorNotes.value = '';
@@ -819,6 +910,12 @@
             if (editorSmartApi) {
                 editorSmartApi.close();
             }
+            if (editorEmployeeSmart) {
+                editorEmployeeSmart.readOnly = false;
+            }
+            if (editorEmployeeToggle) {
+                editorEmployeeToggle.disabled = false;
+            }
             syncOraLovButtons();
         }
         page.classList.remove('is-editing');
@@ -833,6 +930,10 @@
             }
             return;
         }
+        if (isFilterMonthPayrollBlocked()) {
+            appDialogAlert(getFilterPayrollBlockMsg(), 'warning');
+            return;
+        }
         confirmUnsavedChanges(function () {
             clearSelection();
             openEditor('add');
@@ -844,17 +945,10 @@
             appDialogAlert('حدد سلفة من الجدول ثم اضغط «تعديل».', 'warning');
             return;
         }
-        if (selectedRow.getAttribute('data-status') === 'cancelled') {
-            appDialogAlert('السلفة ملغاة ولا يمكن تعديلها.', 'warning');
-            return;
-        }
-        if (isRowPosted(selectedRow)) {
-            appDialogAlert('السلفة مرحّلة — فك الترحيل أولاً لتعديلها.', 'warning');
-            return;
-        }
-        if (isRowLinked(selectedRow)) {
+        if (!canEditRow(selectedRow)) {
             appDialogAlert(
-                selectedRow.getAttribute('data-linked-msg') || 'لا يمكن تعديل السلفة بعد اقتطاعها من الراتب.',
+                selectedRow.getAttribute('data-edit-msg')
+                    || 'لا يمكن تعديل السلفة — شهر الراتب محتسب أو مرحّل.',
                 'warning'
             );
             return;
@@ -925,12 +1019,10 @@
         if (!editorForm) return;
         syncTypeUi();
         syncFilterHiddenFields();
+        syncEditorEmployeeBeforeSave();
         if (typeof editorForm.reportValidity === 'function' && !editorForm.reportValidity()) {
             formSubmitting = false;
             return;
-        }
-        if (isEmployeeFieldLocked() && editorEmployee) {
-            editorEmployee.disabled = false;
         }
         formSubmitting = true;
         syncEditorSnapshot();
@@ -954,8 +1046,17 @@
             appDialogAlert('اختر موظفاً أولاً ثم اطبع.', 'warning');
             return;
         }
+        if (!monthFilterActive) {
+            appDialogAlert('اختر شهراً من الشريط أعلاه ثم اطبع.', 'warning');
+            return;
+        }
         if (editor && !editor.hidden) {
             appDialogAlert('أغلق نموذج إضافة/تعديل السلفة أولاً قبل الطباعة.', 'warning');
+            return;
+        }
+        var rows = tbody ? tbody.querySelectorAll('tr.hr-adv-row:not(.hr-adv-row--empty)') : [];
+        if (!rows.length) {
+            appDialogAlert('لا توجد سلف لطباعتها في هذا الشهر.', 'warning');
             return;
         }
         window.print();
@@ -996,10 +1097,19 @@
 
     if (editorForm) {
         editorForm.addEventListener('submit', function () {
-            // Native form submit (click on "حفظ السلفة") must bypass beforeunload warnings.
+            syncEditorEmployeeBeforeSave();
+            // Native form submit must bypass beforeunload warnings.
             formSubmitting = true;
             syncEditorSnapshot();
             syncExitGuard();
+        });
+    }
+
+    var btnEditorSave = editorForm ? editorForm.querySelector('.hr-adv-editor-actions button[type="submit"]') : null;
+    if (btnEditorSave) {
+        btnEditorSave.addEventListener('click', function (e) {
+            e.preventDefault();
+            submitEditorSave();
         });
     }
 
@@ -1194,4 +1304,6 @@
     syncTypeUi();
     syncOraLovButtons();
     syncRowActionButtons();
+    syncAddButton();
+    selectSavedAdvanceRow();
 })();

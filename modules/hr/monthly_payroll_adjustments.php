@@ -7,6 +7,7 @@ require_once app_path('includes/hr_employee_monthly_payroll.php');
 require_once app_path('includes/hr_oracle_ui.php');
 require_once app_path('includes/nav_helpers.php');
 require_once app_path('includes/employee_picker.php');
+require_once app_path('includes/document_header.php');
 
 $pdo = db();
 hr_employee_ensure_schema($pdo);
@@ -136,6 +137,30 @@ $monthNames = [
     7 => 'يوليو', 8 => 'أغسطس', 9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر',
 ];
 
+$monthStatusLabels = [
+    'posted' => 'مرحّل',
+    'mixed' => 'مرحّل/محتسب',
+    'calculated' => 'محتسب',
+    'open' => 'مفتوح',
+    'empty' => '—',
+];
+
+$payMonthStatus = 'empty';
+foreach ($monthPickerOptions as $opt) {
+    if ((int) ($opt['month'] ?? 0) === $payMonth) {
+        $payMonthStatus = (string) ($opt['status'] ?? 'empty');
+        break;
+    }
+}
+$payMonthStatusLabel = $monthStatusLabels[$payMonthStatus] ?? '—';
+$payMonthName = (string) ($monthNames[$payMonth] ?? (string) $payMonth);
+$payPeriodPrintLabel = sprintf(
+    '%02d — %s / %s',
+    $payMonth,
+    $payMonthName,
+    (string) $payYear
+);
+
 $allowComponentsJson = json_encode($allowComponents, JSON_UNESCAPED_UNICODE);
 $deductComponentsJson = json_encode($deductComponents, JSON_UNESCAPED_UNICODE);
 
@@ -253,20 +278,30 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
                             <input class="input hr-mpa-year-input" type="number" name="year" id="hr-mpa-filter-year"
                                    min="2000" max="2100" value="<?= $payYear ?>" dir="ltr" required
                                    aria-label="السنة">
-                            <select class="input hr-mpa-month-select" name="month" id="hr-mpa-filter-month" required>
+                            <select class="input hr-mpa-month-select" name="month" id="hr-mpa-filter-month" required
+                                    aria-label="رقم الشهر">
                             <?php foreach ($monthPickerOptions as $opt):
                                 $m = (int) ($opt['month'] ?? 0);
                                 if ($m < 1 || $m > 12) {
                                     continue;
                                 }
-                                $monthLabel = sprintf('%02d', $m) . ' — ' . ($monthNames[$m] ?? (string) $m)
-                                    . (string) ($opt['label_suffix'] ?? '');
+                                $statusKey = (string) ($opt['status'] ?? 'empty');
                             ?>
-                                <option value="<?= $m ?>" <?= $payMonth === $m ? 'selected' : '' ?>>
-                                    <?= esc($monthLabel) ?>
+                                <option value="<?= $m ?>"
+                                        data-status="<?= esc($statusKey) ?>"
+                                        data-name="<?= esc((string) ($monthNames[$m] ?? (string) $m)) ?>"
+                                        <?= $payMonth === $m ? 'selected' : '' ?>>
+                                    <?= esc(sprintf('%02d', $m)) ?>
                                 </option>
                             <?php endforeach; ?>
                             </select>
+                            <input class="input hr-mpa-month-name" type="text" id="hr-mpa-filter-month-name"
+                                   value="<?= esc($payMonthName) ?>" readonly tabindex="-1"
+                                   aria-label="اسم الشهر">
+                            <input class="input hr-mpa-month-status" type="text" id="hr-mpa-filter-month-status"
+                                   value="<?= esc($payMonthStatusLabel) ?>" readonly tabindex="-1"
+                                   aria-label="حالة الشهر"
+                                   data-status="<?= esc($payMonthStatus) ?>">
                         </div>
                     </div>
                 </div>
@@ -274,12 +309,18 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
         </div>
     </section>
 
-    <section class="hr-mpa-print-head" aria-label="بيانات الموظف للطباعة">
-        <h2>العلاوات والاقتطاعات الشهرية</h2>
-        <div class="hr-mpa-print-meta">
-            <div><strong>الموظف:</strong> <?= esc($filterEmpName !== '' ? $filterEmpName : '—') ?></div>
-            <div><strong>رقم الموظف:</strong> <?= esc($filterEmpCode !== '' ? $filterEmpCode : '—') ?></div>
-            <div><strong>الفترة:</strong> <?= esc(($monthNames[$payMonth] ?? (string) $payMonth) . ' / ' . (string) $payYear) ?></div>
+    <div class="hr-mpa-print-area doc-print-watermark-scope">
+    <section class="hr-mpa-print-head" aria-label="ترويسة التقرير للطباعة">
+        <?= document_print_watermark_html($pdo) ?>
+        <?= document_print_header_html('علاوات واقتطاعات شهرية', $pdo) ?>
+        <div class="doc-print-meta">
+            <table>
+                <tr>
+                    <td><strong>الموظف:</strong> <?= esc($filterEmpName !== '' ? $filterEmpName : '—') ?></td>
+                    <td><strong>رقم الموظف:</strong> <span dir="ltr"><?= esc($filterEmpCode !== '' ? $filterEmpCode : '—') ?></span></td>
+                    <td><strong>الفترة:</strong> <span dir="ltr"><?= esc($payPeriodPrintLabel) ?></span></td>
+                </tr>
+            </table>
         </div>
     </section>
 
@@ -298,6 +339,7 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
         <input type="hidden" name="notes" id="hr-mpa-editor-notes" value="">
     </form>
 
+    <div class="hr-mpa-split">
     <section class="hr-mpa-panel hr-mpa-panel--allow hr-mpa-lines-panel" data-panel-type="allowance">
         <h2 class="hr-mpa-panel-title">العلاوات</h2>
         <div class="hr-mpa-panel-toolbar">
@@ -311,6 +353,11 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
         <div class="hr-mpa-panel-body hr-mpa-panel-body--flush">
             <div class="hr-mpa-grid-wrap">
                 <table class="hr-mpa-grid-table hr-mpa-lines-table">
+                    <colgroup>
+                        <col class="hr-mpa-col-num">
+                        <col class="hr-mpa-col-name">
+                        <col class="hr-mpa-col-amount">
+                    </colgroup>
                     <thead>
                     <tr>
                         <th>رقم العلاوة</th>
@@ -329,6 +376,21 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
                 </table>
             </div>
             <p class="hr-mpa-inline-hint muted" id="hr-mpa-allow-hint" hidden></p>
+            <table class="hr-mpa-grid-table hr-mpa-total-table hr-mpa-panel-total hr-mpa-lines-table">
+                <colgroup>
+                    <col class="hr-mpa-col-num">
+                    <col class="hr-mpa-col-name">
+                    <col class="hr-mpa-col-amount">
+                </colgroup>
+                <tbody>
+                <tr>
+                    <th colspan="2" class="hr-mpa-total-label">مجموع العلاوات</th>
+                    <td class="hr-mpa-col-amount hr-mpa-total-amount" dir="ltr">
+                        <?= $filterEmpId > 0 ? esc(number_format($allowTotal, 2)) : '—' ?>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
         </div>
     </section>
 
@@ -345,6 +407,11 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
         <div class="hr-mpa-panel-body hr-mpa-panel-body--flush">
             <div class="hr-mpa-grid-wrap">
                 <table class="hr-mpa-grid-table hr-mpa-lines-table">
+                    <colgroup>
+                        <col class="hr-mpa-col-num">
+                        <col class="hr-mpa-col-name">
+                        <col class="hr-mpa-col-amount">
+                    </colgroup>
                     <thead>
                     <tr>
                         <th>رقم الاقتطاع</th>
@@ -363,23 +430,16 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
                 </table>
             </div>
             <p class="hr-mpa-inline-hint muted" id="hr-mpa-deduct-hint" hidden></p>
-        </div>
-    </section>
-
-    <section class="hr-mpa-panel hr-mpa-panel--summary">
-        <h2 class="hr-mpa-panel-title">الإجماليات</h2>
-        <div class="hr-mpa-panel-body hr-mpa-panel-body--flush">
-            <table class="hr-mpa-grid-table hr-mpa-total-table">
+            <table class="hr-mpa-grid-table hr-mpa-total-table hr-mpa-panel-total hr-mpa-lines-table">
+                <colgroup>
+                    <col class="hr-mpa-col-num">
+                    <col class="hr-mpa-col-name">
+                    <col class="hr-mpa-col-amount">
+                </colgroup>
                 <tbody>
                 <tr>
-                    <th>مجموع العلاوات</th>
-                    <td class="hr-mpa-total-amount" dir="ltr">
-                        <?= $filterEmpId > 0 ? esc(number_format($allowTotal, 2)) : '—' ?>
-                    </td>
-                </tr>
-                <tr>
-                    <th>مجموع الاقتطاعات</th>
-                    <td class="hr-mpa-total-amount" dir="ltr">
+                    <th colspan="2" class="hr-mpa-total-label">مجموع الاقتطاعات</th>
+                    <td class="hr-mpa-col-amount hr-mpa-total-amount" dir="ltr">
                         <?= $filterEmpId > 0 ? esc(number_format($deductTotal, 2)) : '—' ?>
                     </td>
                 </tr>
@@ -387,6 +447,8 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
             </table>
         </div>
     </section>
+    </div>
+    </div>
 
     <form method="post" action="<?= esc(hr_mpa_build_url($payYear, $payMonth, $filterEmpId)) ?>" id="hr-mpa-delete-form" class="sr-only" aria-hidden="true">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -398,6 +460,7 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
     </form>
 </div>
 
+<script type="application/json" id="hr-mpa-month-status-labels-json"><?= json_encode($monthStatusLabels, JSON_UNESCAPED_UNICODE) ?></script>
 <script type="application/json" id="hr-mpa-allow-components-json"><?= $allowComponentsJson ?></script>
 <script type="application/json" id="hr-mpa-deduct-components-json"><?= $deductComponentsJson ?></script>
 <script src="<?= esc($jsUrl) ?>" defer></script>

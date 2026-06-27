@@ -944,22 +944,103 @@ body.hr-ora-ui .hr-adv-emp-pick-empty {
     min-width: 4.5rem;
 }
 
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-print-head {
+    display: none;
+}
+
+body.hr-ora-ui .hr-adv-ora-screen .hr-adv-print-area {
+    width: 100%;
+}
+
 @media print {
     body.hr-ora-ui .hr-adv-ora-screen {
         padding: 0;
         font-size: 11px;
     }
 
+    body.hr-ora-ui .app-topbar,
+    body.hr-ora-ui .hr-adv-ora-screen .ora12-title-bar,
+    body.hr-ora-ui .hr-adv-ora-screen .dashboard-ora-screen-title,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-filter-panel,
     body.hr-ora-ui .hr-adv-ora-screen .hr-adv-toolbar,
     body.hr-ora-ui .hr-adv-ora-screen .hr-adv-editor,
     body.hr-ora-ui .hr-adv-ora-screen .hr-adv-picker-help,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-filter-summary,
     body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-flash,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-title,
     body.hr-ora-ui .hr-adv-ora-screen .no-print {
         display: none !important;
     }
 
-    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-wrap,
-    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-picker-table-wrap {
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-print-head {
+        display: block;
+        margin: 0 0 0.55rem;
+        padding: 0;
+        border: 0;
+        background: transparent;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-print-head .doc-print-header {
+        margin-bottom: 0.45rem;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-print-head .doc-print-meta {
+        margin-bottom: 0.55rem;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-print-head .doc-print-meta td {
+        white-space: nowrap;
+        font-size: 10px;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-panel {
+        border: 0;
+        box-shadow: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-wrap {
         overflow: visible;
+        max-height: none;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10px;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-table thead th {
+        background: #e2e8f0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-table th,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-table td {
+        border: 1px solid #cbd5e1;
+        padding: 0.28rem 0.35rem;
+        white-space: nowrap;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-row.is-selected td,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-row.is-linked td,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-row.is-posted td,
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-row.is-inactive td {
+        background: #fff !important;
+        color: #0f172a !important;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-row--empty td {
+        white-space: normal;
+        text-align: center;
+    }
+
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-table--single-emp th:nth-child(1),
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-table--single-emp th:nth-child(2),
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-table--single-emp td:nth-child(1),
+    body.hr-ora-ui .hr-adv-ora-screen .hr-adv-grid-table--single-emp td:nth-child(2) {
+        display: none;
     }
 }

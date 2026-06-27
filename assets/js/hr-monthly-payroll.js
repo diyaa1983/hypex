@@ -21,8 +21,20 @@
     var masterEmpCode = document.getElementById('hr-mpa-master-emp-code');
     var filterYear = document.getElementById('hr-mpa-filter-year');
     var filterMonth = document.getElementById('hr-mpa-filter-month');
+    var filterMonthName = document.getElementById('hr-mpa-filter-month-name');
+    var filterMonthStatus = document.getElementById('hr-mpa-filter-month-status');
     var listUrl = page.getAttribute('data-list-url') || '';
     var pickerApi = null;
+
+    var monthStatusLabels = { empty: '—' };
+    var statusLabelsEl = document.getElementById('hr-mpa-month-status-labels-json');
+    if (statusLabelsEl) {
+        try {
+            monthStatusLabels = JSON.parse(statusLabelsEl.textContent || '{}');
+        } catch (eStatus) {
+            monthStatusLabels = { empty: '—' };
+        }
+    }
 
     var allowComponents = [];
     var deductComponents = [];
@@ -128,6 +140,24 @@
             month = pageMonth;
         }
         return month;
+    }
+
+    function syncMonthMetaFields() {
+        if (!filterMonth) {
+            return;
+        }
+        var opt = filterMonth.options[filterMonth.selectedIndex];
+        if (!opt) {
+            return;
+        }
+        var statusKey = opt.getAttribute('data-status') || 'empty';
+        if (filterMonthName) {
+            filterMonthName.value = opt.getAttribute('data-name') || opt.textContent.trim();
+        }
+        if (filterMonthStatus) {
+            filterMonthStatus.value = monthStatusLabels[statusKey] || monthStatusLabels.empty || '—';
+            filterMonthStatus.setAttribute('data-status', statusKey);
+        }
     }
 
     function filterUrl(employeeId) {
@@ -241,7 +271,7 @@
         }
     }
 
-    function setupInlineComponentPicker(selectEl, inputEl, listEl) {
+    function setupInlineComponentPicker(selectEl, inputEl, listEl, toggleBtn) {
         if (!selectEl || !inputEl || !listEl) return null;
         var closeTimer = null;
         var isOpen = false;
@@ -322,6 +352,13 @@
 
             listEl.innerHTML = '';
             activeIndex = -1;
+
+            if (matches.length) {
+                var head = document.createElement('div');
+                head.className = 'hr-mpa-inline-component-list-head';
+                head.innerHTML = '<span>اسم البند</span><span dir="ltr">الرقم</span>';
+                listEl.appendChild(head);
+            }
 
             if (!matches.length) {
                 var empty = document.createElement('div');
@@ -417,8 +454,35 @@
             if (e.target === inputEl || listEl.contains(e.target)) {
                 return;
             }
+            if (toggleBtn && (e.target === toggleBtn || toggleBtn.contains(e.target))) {
+                return;
+            }
             closeList();
         });
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                clearTimeout(closeTimer);
+            });
+            toggleBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (selectEl.disabled || inputEl.disabled) {
+                    return;
+                }
+                inputEl.focus();
+                openList(true);
+            });
+        }
+
+        function syncToggleDisabled() {
+            if (!toggleBtn) {
+                return;
+            }
+            toggleBtn.disabled = !!(selectEl.disabled || inputEl.disabled);
+        }
+
+        syncToggleDisabled();
 
         rebuildItems();
         syncInputFromSelect();
@@ -428,6 +492,7 @@
             refresh: rebuildItems,
             close: closeList,
             open: openList,
+            syncToggleDisabled: syncToggleDisabled,
         };
     }
 
@@ -475,10 +540,20 @@
 
         var input = document.createElement('input');
         input.type = 'text';
-        input.className = 'input input-compact hr-mpa-inline-component-smart';
+        input.className = 'input input-compact hr-mpa-ora-lov-field hr-mpa-inline-component-smart';
         input.setAttribute('autocomplete', 'off');
-        input.setAttribute('placeholder', 'بحث عن ' + labelsFor(type).compLabel);
-        input.setAttribute('aria-label', 'بحث عن ' + labelsFor(type).compLabel);
+        input.setAttribute('placeholder', labelsFor(type).compLabel);
+        input.setAttribute('aria-label', labelsFor(type).compLabel);
+
+        var lov = document.createElement('div');
+        lov.className = 'hr-mpa-ora-lov';
+
+        var toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'hr-mpa-ora-lov-btn';
+        toggleBtn.tabIndex = -1;
+        toggleBtn.setAttribute('aria-label', 'اختيار ' + labelsFor(type).compLabel);
+        toggleBtn.title = 'اختيار ' + labelsFor(type).compLabel;
 
         var list = document.createElement('div');
         list.className = 'hr-mpa-inline-component-list';
@@ -495,10 +570,12 @@
             syncAmountFromComponent();
         });
 
+        lov.appendChild(input);
+        lov.appendChild(toggleBtn);
+        wrap.appendChild(lov);
         wrap.appendChild(sel);
-        wrap.appendChild(input);
         wrap.appendChild(list);
-        setupInlineComponentPicker(sel, input, list);
+        setupInlineComponentPicker(sel, input, list, toggleBtn);
 
         wrap._hrMpaSyncAmount = syncAmountFromComponent;
         return wrap;
@@ -945,7 +1022,9 @@
     }
 
     if (filterMonth) {
+        syncMonthMetaFields();
         filterMonth.addEventListener('change', function () {
+            syncMonthMetaFields();
             navigateToFilter(selectedEmployeeId());
         });
     }

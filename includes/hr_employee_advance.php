@@ -251,10 +251,37 @@ function hr_employee_advance_employee_payroll_month(PDO $pdo, int $employeeId, i
     }
 }
 
+function hr_employee_advance_filter_month_block_message(
+    PDO $pdo,
+    int $employeeId,
+    int $year,
+    int $month
+): string {
+    if ($employeeId < 1 || $year < 2000 || $month < 1 || $month > 12) {
+        return '';
+    }
+
+    require_once app_path('includes/hr_salary.php');
+
+    $payroll = hr_employee_advance_employee_payroll_month($pdo, $employeeId, $year, $month);
+    if ($payroll === null) {
+        return '';
+    }
+
+    $periodLabel = hr_salary_period_label_ar($year, $month);
+    $statusLabel = !empty($payroll['is_posted']) ? 'مرحّل' : 'محتسب';
+
+    return 'لا يمكن إضافة سلفة — راتب الموظف لشهر '
+        . $periodLabel
+        . ' '
+        . $statusLabel
+        . ' مسبقاً.';
+}
+
 /**
  * @param array{employee_id:int, advance_type:string, start_date:string, end_date:?string} $parsed
  */
-function hr_employee_advance_assert_payroll_months_available(PDO $pdo, array $parsed): void
+function hr_employee_advance_payroll_months_block_message(PDO $pdo, array $parsed): string
 {
     require_once app_path('includes/hr_salary.php');
 
@@ -264,7 +291,7 @@ function hr_employee_advance_assert_payroll_months_available(PDO $pdo, array $pa
     $endIso = (string) ($parsed['end_date'] ?? $startIso);
 
     if ($employeeId < 1 || $startIso === '') {
-        return;
+        return '';
     }
 
     $months = hr_employee_advance_months_in_period($startIso, $endIso);
@@ -286,13 +313,25 @@ function hr_employee_advance_assert_payroll_months_available(PDO $pdo, array $pa
 
         $periodLabel = hr_salary_period_label_ar($year, $month);
         $statusLabel = !empty($payroll['is_posted']) ? 'مرحّل' : 'محتسب';
-        throw new RuntimeException(
-            'لا يمكن إنشاء أو تعديل السلفة — راتب الموظف لشهر '
+
+        return 'لا يمكن تعديل السلفة — راتب الموظف لشهر '
             . $periodLabel
             . ' '
             . $statusLabel
-            . ' مسبقاً.'
-        );
+            . ' مسبقاً.';
+    }
+
+    return '';
+}
+
+/**
+ * @param array{employee_id:int, advance_type:string, start_date:string, end_date:?string} $parsed
+ */
+function hr_employee_advance_assert_payroll_months_available(PDO $pdo, array $parsed): void
+{
+    $message = hr_employee_advance_payroll_months_block_message($pdo, $parsed);
+    if ($message !== '') {
+        throw new RuntimeException(str_replace('تعديل', 'إنشاء أو تعديل', $message));
     }
 }
 
@@ -416,9 +455,50 @@ function hr_employee_advance_delete_check(PDO $pdo, int $advanceId): array
 /** @return array{can_edit:bool, message:string} */
 function hr_employee_advance_edit_check(PDO $pdo, int $advanceId): array
 {
-    $deleteCheck = hr_employee_advance_delete_check($pdo, $advanceId);
-    if (!$deleteCheck['can_delete']) {
-        return ['can_edit' => false, 'message' => (string) $deleteCheck['message']];
+    hr_employee_advance_ensure_schema($pdo);
+    hr_employee_advance_ensure_post_columns($pdo);
+    if ($advanceId < 1) {
+        return ['can_edit' => false, 'message' => 'سلفة غير موجودة.'];
+    }
+
+    try {
+        $st = $pdo->prepare(
+            'SELECT employee_id, advance_type, start_date, end_date, status
+             FROM hr_employee_advance WHERE id = ? LIMIT 1'
+        );
+        $st->execute([$advanceId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return ['can_edit' => false, 'message' => 'سلفة غير موجودة.'];
+        }
+
+        if ((string) ($row['status'] ?? '') === 'cancelled') {
+            return ['can_edit' => false, 'message' => 'السلفة ملغاة ولا يمكن تعديلها.'];
+        }
+
+        if (hr_employee_advance_is_posted($pdo, $advanceId)) {
+            return [
+                'can_edit' => false,
+                'message' => 'السلفة مرحّلة — فك الترحيل أولاً لتعديلها.',
+            ];
+        }
+
+        $deleteCheck = hr_employee_advance_delete_check($pdo, $advanceId);
+        if (!$deleteCheck['can_delete']) {
+            return ['can_edit' => false, 'message' => (string) $deleteCheck['message']];
+        }
+
+        $payrollMsg = hr_employee_advance_payroll_months_block_message($pdo, [
+            'employee_id' => (int) ($row['employee_id'] ?? 0),
+            'advance_type' => (string) ($row['advance_type'] ?? 'once'),
+            'start_date' => (string) ($row['start_date'] ?? ''),
+            'end_date' => (string) ($row['end_date'] ?? ''),
+        ]);
+        if ($payrollMsg !== '') {
+            return ['can_edit' => false, 'message' => $payrollMsg];
+        }
+    } catch (Throwable $e) {
+        return ['can_edit' => false, 'message' => 'تعذر التحقق من إمكانية التعديل.'];
     }
 
     return ['can_edit' => true, 'message' => ''];

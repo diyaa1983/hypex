@@ -64,9 +64,20 @@
 }
 
 .hr-mpa-split {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 0.85rem;
+    align-items: start;
+}
+
+.hr-mpa-split > .hr-mpa-panel {
+    margin-bottom: 0;
+    min-width: 0;
+}
+
+.hr-mpa-panel-total {
+    margin: 0;
+    border-top: 2px solid #e2e8f0;
 }
 
 .hr-mpa-master-table .input-compact {
@@ -175,6 +186,8 @@
 .hr-mpa-col-amount,
 .hr-mpa-col-amount-h {
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    min-width: 9rem;
 }
 
 .hr-mpa-col-notes {
@@ -239,10 +252,13 @@
     font-size: 0.72rem;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
     .hr-mpa-split {
         grid-template-columns: 1fr;
     }
+}
+
+@media (max-width: 860px) {
 
     .hr-mpa-filter-grid {
         grid-template-columns: 1fr 1fr;

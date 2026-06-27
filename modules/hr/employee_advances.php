@@ -6,6 +6,7 @@ require_once app_path('includes/hr_employee_advance.php');
 require_once app_path('includes/hr_oracle_ui.php');
 require_once app_path('includes/nav_helpers.php');
 require_once app_path('includes/employee_picker.php');
+require_once app_path('includes/document_header.php');
 
 $pdo = db();
 hr_employee_advance_ensure_schema($pdo);
@@ -30,7 +31,12 @@ $pickerEmployees = hr_employee_picker_list($pdo);
 require_once app_path('includes/acc_period_lock.php');
 $monthNames = acc_period_month_names_ar();
 
-$advUrlFor = static function (int $employeeId = 0, int $year = 0, int $month = 0) use ($listUrl): string {
+$advUrlFor = static function (
+    int $employeeId = 0,
+    int $year = 0,
+    int $month = 0,
+    int $selectedId = 0
+) use ($listUrl): string {
     $parts = [];
     if ($employeeId > 0) {
         $parts[] = 'employee_id=' . $employeeId;
@@ -38,6 +44,9 @@ $advUrlFor = static function (int $employeeId = 0, int $year = 0, int $month = 0
     if ($year >= 2000 && $month >= 1 && $month <= 12) {
         $parts[] = 'year=' . $year;
         $parts[] = 'month=' . $month;
+    }
+    if ($selectedId > 0) {
+        $parts[] = 'selected_id=' . $selectedId;
     }
 
     return $parts !== [] ? $listUrl . '&' . implode('&', $parts) : $listUrl;
@@ -67,7 +76,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($act === 'save_one') {
             $id = (int) ($_POST['id'] ?? 0);
-            $parsed = hr_employee_advance_parse_row($_POST, $pdo);
+            $postRow = $_POST;
+            if ((int) ($postRow['employee_id'] ?? 0) < 1) {
+                $filterEmpFromPost = (int) ($postRow['filter_employee_id'] ?? 0);
+                if ($filterEmpFromPost > 0) {
+                    $postRow['employee_id'] = (string) $filterEmpFromPost;
+                }
+            }
+            $parsed = hr_employee_advance_parse_row($postRow, $pdo);
 
             if ($id > 0) {
                 $editChk = hr_employee_advance_edit_check($pdo, $id);
@@ -100,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id,
                 ]);
                 flash_set('success', 'تم حفظ تعديلات السلفة.');
+                $savedId = $id;
             } else {
                 $code = hr_employee_advance_next_code($pdo);
                 $st = $pdo->prepare(
@@ -116,9 +133,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $parsed['end_date'],
                     $parsed['notes'],
                 ]);
+                $savedId = (int) $pdo->lastInsertId();
                 flash_set('success', 'تم إضافة السلفة برقم ' . $code . '.');
             }
-            redirect($advUrlFor((int) $parsed['employee_id'], $returnYear, $returnMonth));
+            // After save, show all advances for the employee (no month filter) so the row stays visible.
+            redirect($advUrlFor((int) $parsed['employee_id'], 0, 0, $savedId));
         }
 
         if ($act === 'cancel_advance') {
@@ -178,6 +197,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $flash = flash_get();
+$selectedAdvanceId = (int) ($_GET['selected_id'] ?? 0);
 $filterEmpId = (int) ($_GET['employee_id'] ?? 0);
 $filterYear = (int) ($_GET['year'] ?? 0);
 $filterMonth = (int) ($_GET['month'] ?? 0);
@@ -235,6 +255,27 @@ if ($monthFilterActive) {
     $st->execute([$filterEmpId]);
     $advances = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
+$filterPayrollBlockMsg = '';
+$filterPayrollBlocked = false;
+if ($filterEmpId > 0 && $monthFilterActive) {
+    $filterPayrollBlockMsg = hr_employee_advance_filter_month_block_message(
+        $pdo,
+        $filterEmpId,
+        $filterYear,
+        $filterMonth
+    );
+    $filterPayrollBlocked = $filterPayrollBlockMsg !== '';
+}
+$canAddAdvance = $filterEmpId > 0 && !$filterPayrollBlocked;
+$advPrintPeriodLabel = '—';
+if ($monthFilterActive) {
+    $advPrintPeriodLabel = sprintf(
+        '%02d — %s / %s',
+        $filterMonth,
+        $monthNames[$filterMonth] ?? (string) $filterMonth,
+        (string) $filterYear
+    );
+}
 $nextCode = hr_employee_advance_next_code($pdo);
 $exitUrl = nav_exit_url('hr_employee_advances');
 
@@ -245,6 +286,9 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
 ?>
 <?php employee_picker_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+<style><?= document_print_header_css() ?></style>
+<style><?= document_print_watermark_root_css($pdo) ?></style>
+<style><?= document_print_watermark_css() ?></style>
 <?php employee_picker_json_script($pickerEmployees, 'hr-adv-picker-json'); ?>
 
 <div class="hr-adv-grid-page hr-adv-ora-screen"
@@ -256,10 +300,13 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
      data-filter-year="<?= $filterYear ?>"
      data-filter-month="<?= $filterMonth ?>"
      data-month-filter-active="<?= $monthFilterActive ? '1' : '0' ?>"
-     data-filter-month-advance-count="<?= (int) $filterMonthAdvanceCount ?>">
+     data-filter-month-advance-count="<?= (int) $filterMonthAdvanceCount ?>"
+     data-selected-advance-id="<?= $selectedAdvanceId ?>"
+     data-filter-payroll-blocked="<?= $filterPayrollBlocked ? '1' : '0' ?>"
+     data-filter-payroll-block-msg="<?= esc($filterPayrollBlockMsg) ?>">
 
     <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> hr-adv-grid-flash">
+        <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> hr-adv-grid-flash no-print">
             <?= esc($flash['message']) ?>
         </div>
     <?php endif; ?>
@@ -279,7 +326,7 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
         : ($filterEmpId > 0 ? (int) $filterAdvanceCount : 0);
     ?>
 
-    <div class="hr-adv-panel hr-adv-filter-panel">
+    <div class="hr-adv-panel hr-adv-filter-panel no-print">
         <h2 class="hr-adv-picker-title">البحث — موظف / شهر</h2>
         <div class="hr-adv-panel-body">
             <form method="get" action="<?= esc(app_url('index.php')) ?>" class="hr-adv-filter-form" id="hr-adv-month-filter-form">
@@ -379,13 +426,13 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
         </div>
     </div>
 
-    <div class="dashboard-ora-toolbar hr-adv-toolbar">
-        <button type="button" class="btn btn-primary btn-sm" id="hr-adv-btn-add"<?= ($filterEmpId < 1 && !$monthFilterActive) ? ' disabled' : '' ?>>إضافة سلفة</button>
+    <div class="dashboard-ora-toolbar hr-adv-toolbar no-print">
+        <button type="button" class="btn btn-primary btn-sm" id="hr-adv-btn-add"<?= !$canAddAdvance ? ' disabled' : '' ?>>إضافة سلفة</button>
         <button type="button" class="btn btn-secondary btn-sm" id="hr-adv-btn-edit" disabled>تعديل</button>
         <button type="button" class="btn btn-danger btn-sm" id="hr-adv-btn-delete" disabled>حذف السلفة</button>
     </div>
 
-    <div class="hr-adv-panel hr-adv-editor" id="hr-adv-editor" hidden>
+    <div class="hr-adv-panel hr-adv-editor no-print" id="hr-adv-editor" hidden>
         <div class="hr-adv-editor-head">
             <h2 class="hr-adv-editor-title" id="hr-adv-editor-title">إضافة سلفة</h2>
             <button type="button" class="btn btn-ghost btn-sm hr-adv-editor-close" id="hr-adv-editor-close" aria-label="إغلاق">×</button>
@@ -477,6 +524,21 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
         </div>
     </div>
 
+    <div class="hr-adv-print-area doc-print-watermark-scope">
+    <section class="hr-adv-print-head" aria-label="ترويسة التقرير للطباعة">
+        <?= document_print_watermark_html($pdo) ?>
+        <?= document_print_header_html('سلف الموظفين', $pdo) ?>
+        <div class="doc-print-meta">
+            <table>
+                <tr>
+                    <td><strong>الموظف:</strong> <?= esc($filterEmpName !== '' ? $filterEmpName : '—') ?></td>
+                    <td><strong>رقم الموظف:</strong> <span dir="ltr"><?= esc($filterEmpCode !== '' ? $filterEmpCode : '—') ?></span></td>
+                    <td><strong>الفترة:</strong> <span dir="ltr"><?= esc($advPrintPeriodLabel) ?></span></td>
+                </tr>
+            </table>
+        </div>
+    </section>
+
     <div class="hr-adv-panel hr-adv-grid-panel">
         <h2 class="hr-adv-grid-title">
             <?php if ($monthFilterActive): ?>
@@ -487,7 +549,7 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
             <?php endif; ?>
         </h2>
         <div class="hr-adv-panel-body hr-adv-grid-wrap">
-        <table class="hr-adv-grid-table">
+        <table class="hr-adv-grid-table<?= ($monthView && $filterEmpId > 0) ? ' hr-adv-grid-table--single-emp' : '' ?>">
             <thead>
             <tr>
                 <?php if ($monthView): ?>
@@ -549,6 +611,7 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
                     data-notes="<?= esc((string) ($a['notes'] ?? '')) ?>"
                     data-status="<?= esc((string) ($a['status'] ?? '')) ?>"
                     data-posted="<?= $isPosted ? '1' : '0' ?>"
+                    data-can-edit="<?= !empty($editChk['can_edit']) ? '1' : '0' ?>"
                     data-linked="<?= $linked ? '1' : '0' ?>"
                     data-linked-msg="<?= esc((string) ($delChk['message'] ?? '')) ?>"
                     data-edit-msg="<?= esc((string) ($editChk['message'] ?? '')) ?>"
@@ -570,6 +633,7 @@ $jsUrl = app_url('assets/js/hr-employee-advances.js') . (is_file($jsPath) ? '?v=
             </tbody>
         </table>
         </div>
+    </div>
     </div>
 
     <form method="post" action="<?= esc($listUrl) ?>" id="hr-adv-delete-form" class="sr-only" aria-hidden="true">

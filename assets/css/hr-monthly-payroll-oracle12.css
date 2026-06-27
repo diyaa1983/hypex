@@ -21,6 +21,16 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-panel {
     overflow: hidden;
 }
 
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-lines-panel,
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen.is-editing-allow .hr-mpa-panel--allow,
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen.is-editing-deduct .hr-mpa-panel--deduct {
+    overflow: visible;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-lines-panel .hr-mpa-panel-body--flush {
+    overflow: visible;
+}
+
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-panel-title {
     margin: 0;
     padding: 0.42rem 0.7rem;
@@ -57,14 +67,18 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-master-panel .hr-mpa-pa
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-master-grid {
     display: grid;
-    grid-template-columns: minmax(8.8rem, 9.25rem) minmax(12rem, 1fr) minmax(13rem, 0.55fr);
+    grid-template-columns: minmax(8.8rem, 9.25rem) minmax(12rem, 1fr) minmax(24rem, 1.15fr);
     gap: 0.45rem 0.65rem;
     align-items: end;
-    max-width: 52rem;
+    max-width: 58rem;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-head {
     display: none;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-area {
+    width: 100%;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-field-label {
@@ -123,8 +137,45 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-year
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-select {
+    flex: 0 0 3.6rem;
+    width: 3.6rem;
+    min-width: 3.6rem;
+    text-align: center;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-name {
     flex: 1 1 auto;
-    min-width: 0;
+    min-width: 5.5rem;
+    text-align: center;
+    background: #f8fafc;
+    cursor: default;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status {
+    flex: 0 0 6.75rem;
+    width: 6.75rem;
+    min-width: 6.75rem;
+    text-align: center;
+    background: #f8fafc;
+    cursor: default;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status[data-status='open'] {
+    color: #1d4ed8;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status[data-status='calculated'] {
+    color: #b45309;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status[data-status='posted'] {
+    color: #15803d;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status[data-status='mixed'] {
+    color: #7c3aed;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-pick-hint {
@@ -166,8 +217,25 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-grid-wrap {
     padding: 0;
     background: transparent;
     border: none;
-    overflow-x: auto;
-    max-width: 40rem;
+    overflow: visible;
+    max-width: 48rem;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-lines-table {
+    table-layout: fixed;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-lines-table td.hr-mpa-col-num {
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-lines-table th.hr-mpa-col-amount-h,
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-lines-table td.hr-mpa-col-amount {
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-grid-table {
@@ -205,23 +273,45 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-grid-table tbody tr.hr-
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-grid-table tbody tr.hr-mpa-row--entry td,
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-grid-table tbody tr.hr-mpa-row.is-editing td {
     background: #fff8e1;
+    overflow: visible;
+    position: relative;
 }
 
-body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-col-num {
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-lines-table td:nth-child(2) {
+    min-width: 11rem;
+    text-align: start;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen td.hr-mpa-col-num {
     width: 4.5rem;
 }
 
-body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-col-amount-h,
-body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-col-amount {
-    width: 5.5rem;
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen th.hr-mpa-col-amount-h,
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen td.hr-mpa-col-amount {
+    width: 9.5rem;
+    min-width: 9.5rem;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
-body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component,
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-amount {
     width: 100%;
     min-width: 0;
+    max-width: none;
     box-sizing: border-box;
+    padding: 0.18rem 0.35rem;
+    text-align: center;
+    font-size: 0.78rem;
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-amount::-webkit-outer-spin-button,
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-amount::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-amount[readonly] {
@@ -230,25 +320,47 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-amount[readonly]
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-picker {
+    position: relative;
     display: block;
     width: 100%;
-}
-
-body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-smart {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    font-weight: 700;
+    min-width: 10rem;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-list {
-    margin-top: 0.2rem;
-    border: 1px solid var(--ora12-border, #cbd5e1);
+    position: absolute;
+    top: calc(100% + 2px);
+    right: 0;
+    left: 0;
+    z-index: 40;
+    margin-top: 0;
+    border: 1px solid #024d8f;
     border-radius: 2px;
     background: #fff;
-    max-height: 11rem;
+    max-height: 12rem;
     overflow: auto;
     text-align: start;
+    box-shadow: 0 4px 14px rgba(22, 21, 19, 0.14);
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    padding: 0.28rem 0.45rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+    border-bottom: 1px solid #024d8f;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-list-head span:last-child {
+    min-width: 2.5rem;
+    text-align: center;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-item {
@@ -264,8 +376,24 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.4rem;
+    gap: 0.55rem;
     cursor: pointer;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: start;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-item code {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    color: #374151;
+    white-space: nowrap;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-item:last-child {
@@ -275,11 +403,6 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-item:l
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-item:hover,
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-item.is-active {
     background: #e8f0f8;
-}
-
-body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-item code {
-    font-size: 0.72rem;
-    color: #374151;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-component-empty {
@@ -300,8 +423,38 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-inline-hint {
     max-width: 40rem;
 }
 
-body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-panel--summary .hr-mpa-panel-body {
-    max-width: 24rem;
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem;
+    align-items: start;
+    margin-bottom: 0.45rem;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split > .hr-mpa-panel {
+    margin-bottom: 0;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-grid-wrap {
+    max-width: none;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-inline-hint {
+    max-width: none;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-panel-total {
+    margin: 0;
+    border-top: 2px solid var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-panel--allow .hr-mpa-panel-total th {
+    background: #eef5fc;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-panel--deduct .hr-mpa-panel-total th {
+    background: #eef5fc;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-total-table {
@@ -317,13 +470,87 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-total-table td {
     font-weight: 700;
 }
 
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-grid-wrap {
+    max-width: none;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table col.hr-mpa-col-num {
+    width: 24%;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table col.hr-mpa-col-name {
+    width: 46%;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table col.hr-mpa-col-amount {
+    width: 30%;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table thead th,
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table tbody td {
+    white-space: nowrap;
+    padding: 0.32rem 0.45rem;
+    line-height: 1.3;
+    vertical-align: middle;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table thead th {
+    font-size: 0.72rem;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table thead th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table tbody td:nth-child(2),
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table thead th:nth-child(2) {
+    text-align: start;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table td.hr-mpa-col-num {
+    width: auto;
+    min-width: 0;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table th.hr-mpa-col-amount-h,
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table td.hr-mpa-col-amount {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-total-table th.hr-mpa-total-label {
+    text-align: start;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-total-table .hr-mpa-total-amount {
+    width: auto;
+    text-align: center;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-row--empty td {
+    white-space: normal;
+    text-align: center;
+}
+
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-total-table th {
     background: #f8fafc;
-    width: 65%;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-total-amount {
-    width: 35%;
     font-variant-numeric: tabular-nums;
 }
 
@@ -399,6 +626,27 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-ora-lov-btn::before {
     text-align: center;
 }
 
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-ora-lov-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+    border-color: #0572ce;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-ora-lov-btn:disabled,
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-ora-lov:has(.hr-mpa-ora-lov-field:disabled) .hr-mpa-ora-lov-btn {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-ora-lov:has(.hr-mpa-ora-lov-field:disabled) {
+    background: #f8fafc;
+}
+
+@media (max-width: 900px) {
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 760px) {
     body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-master-grid {
         grid-template-columns: 1fr 1fr;
@@ -409,12 +657,33 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-ora-lov-btn::before {
     body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-master-cell--month {
         grid-column: 1 / -1;
     }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap {
+        flex-wrap: wrap;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-name {
+        flex: 1 1 40%;
+        min-width: 6rem;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status {
+        flex: 1 1 35%;
+        width: auto;
+        min-width: 5.5rem;
+    }
 }
 
 @media print {
     body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen {
         padding: 0;
         font-size: 11px;
+    }
+
+    body.hr-ora-ui .app-topbar,
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .dashboard-ora-screen-title,
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .ora12-title-bar {
+        display: none !important;
     }
 
     body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .no-print,
@@ -430,28 +699,73 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-ora-lov-btn::before {
 
     body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-head {
         display: block;
-        margin: 0 0 0.45rem;
-        padding: 0.45rem 0.6rem;
-        border: 1px solid #cbd5e1;
-        background: #fff;
+        margin: 0 0 0.55rem;
+        padding: 0;
+        border: 0;
+        background: transparent;
     }
 
-    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-head h2 {
-        margin: 0 0 0.3rem;
-        font-size: 13px;
-        font-weight: 700;
-        color: #111827;
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-head .doc-print-header {
+        margin-bottom: 0.45rem;
     }
 
-    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-meta {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.35rem 1rem;
-        font-size: 11px;
-        color: #111827;
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-head .doc-print-meta {
+        margin-bottom: 0.55rem;
     }
 
-    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-meta strong {
-        color: #1f2937;
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.35rem;
+        page-break-inside: avoid;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table {
+        font-size: 9px;
+        table-layout: fixed;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table col.hr-mpa-col-num {
+        width: 26%;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table col.hr-mpa-col-name {
+        width: 44%;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table col.hr-mpa-col-amount {
+        width: 30%;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table th.hr-mpa-col-amount-h,
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table td.hr-mpa-col-amount,
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table td.hr-mpa-col-num {
+        width: auto;
+        min-width: 0;
+        max-width: none;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table thead th,
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table tbody td,
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-total-table th,
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-total-table td {
+        white-space: nowrap;
+        padding: 0.22rem 0.28rem;
+        line-height: 1.25;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table thead th,
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-split .hr-mpa-lines-table tbody td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-head .doc-print-meta td {
+        white-space: nowrap;
+        font-size: 10px;
+    }
+
+    body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-panel-title {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 }
