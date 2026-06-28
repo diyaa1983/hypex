@@ -23,13 +23,68 @@ function acc_journal_has_tables(PDO $pdo): bool
 function acc_journal_ensure_schema(PDO $pdo): bool
 {
     if (acc_journal_has_tables($pdo)) {
+        acc_journal_ensure_updated_by_column($pdo);
+
         return true;
     }
 
     require_once app_path('includes/sql_migration.php');
     sql_migration_run_file($pdo, 'database/migrations/026_acc_journal_tables.sql');
+    acc_journal_ensure_updated_by_column($pdo);
 
     return acc_journal_has_tables($pdo);
+}
+
+function acc_journal_ensure_updated_by_column(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    if (!acc_journal_has_tables($pdo)) {
+        return;
+    }
+    try {
+        $pdo->query('SELECT updated_by FROM acc_journal_entry LIMIT 1');
+        $done = true;
+
+        return;
+    } catch (Throwable $e) {
+        // column missing — migrate below
+    }
+
+    require_once app_path('includes/sql_migration.php');
+    try {
+        sql_migration_run_file($pdo, 'database/migrations/189_acc_journal_updated_by.sql');
+    } catch (Throwable $e) {
+        try {
+            $pdo->exec(
+                'ALTER TABLE acc_journal_entry ADD COLUMN updated_by INT UNSIGNED NULL AFTER created_by'
+            );
+        } catch (Throwable $e2) {
+            // ignore if already exists
+        }
+    }
+    $done = true;
+}
+
+/** اسم منشئ القيد أو آخر معدّل له. */
+function acc_journal_entry_actor_name(array $row): string
+{
+    $updated = trim((string) ($row['updated_by_name'] ?? ''));
+    if ($updated !== '') {
+        return $updated;
+    }
+    $created = trim((string) ($row['created_by_name'] ?? ''));
+
+    return $created !== '' ? $created : '—';
+}
+
+function acc_journal_entry_actor_kind(array $row): string
+{
+    $updated = trim((string) ($row['updated_by_name'] ?? ''));
+
+    return $updated !== '' ? 'تعديل' : 'إنشاء';
 }
 
 function acc_journal_status_label(string $status): string
@@ -641,12 +696,13 @@ function acc_journal_save(
 
     if ($id > 0) {
         $pdo->prepare(
-            'UPDATE acc_journal_entry SET entry_no = ?, entry_date = ?, description_ar = ?, status = ? WHERE id = ?'
+            'UPDATE acc_journal_entry SET entry_no = ?, entry_date = ?, description_ar = ?, status = ?, updated_by = ? WHERE id = ?'
         )->execute([
             $entryNo,
             $entryDate,
             $description !== '' ? $description : null,
             $status,
+            $uid,
             $id,
         ]);
         acc_journal_replace_lines($pdo, $id, $normalized['lines']);
@@ -697,7 +753,8 @@ function acc_journal_post_by_id(PDO $pdo, int $id): void
     }
     acc_journal_normalize_lines($lines);
 
-    $pdo->prepare("UPDATE acc_journal_entry SET status = 'posted' WHERE id = ?")->execute([$id]);
+    $uid = (int) (current_user()['id'] ?? 0) ?: null;
+    $pdo->prepare("UPDATE acc_journal_entry SET status = 'posted', updated_by = ? WHERE id = ?")->execute([$uid, $id]);
 
     require_once app_path('includes/acc_journal_party.php');
     acc_journal_party_ledger_sync($pdo, $id, true);
@@ -728,7 +785,8 @@ function acc_journal_unpost_by_id(PDO $pdo, int $id): void
     if ((string) ($row['source'] ?? '') !== 'manual') {
         throw new RuntimeException('هذا القيد تلقائي (من مستند آخر). افتح المستند الأصلي وافسخ ترحيله من هناك.');
     }
-    $pdo->prepare("UPDATE acc_journal_entry SET status = 'draft' WHERE id = ?")->execute([$id]);
+    $uid = (int) (current_user()['id'] ?? 0) ?: null;
+    $pdo->prepare("UPDATE acc_journal_entry SET status = 'draft', updated_by = ? WHERE id = ?")->execute([$uid, $id]);
 
     require_once app_path('includes/acc_journal_party.php');
     acc_journal_party_ledger_sync($pdo, $id, false);
@@ -813,7 +871,8 @@ function acc_journal_cancel_by_id(PDO $pdo, int $id): void
 
     require_once app_path('includes/acc_journal_party.php');
     acc_journal_party_ledger_sync($pdo, $id, false);
-    $pdo->prepare("UPDATE acc_journal_entry SET status = 'cancelled' WHERE id = ?")->execute([$id]);
+    $uid = (int) (current_user()['id'] ?? 0) ?: null;
+    $pdo->prepare("UPDATE acc_journal_entry SET status = 'cancelled', updated_by = ? WHERE id = ?")->execute([$uid, $id]);
 
     require_once app_path('includes/sys_audit_log.php');
     sys_audit_log_acc_journal($pdo, 'cancel', $id);
@@ -978,7 +1037,9 @@ function acc_journal_list_from_sql(): string
 {
     return ' FROM acc_journal_entry e
              LEFT JOIN acc_journal_line l ON l.journal_id = e.id
-             LEFT JOIN acc_account a ON a.id = l.account_id';
+             LEFT JOIN acc_account a ON a.id = l.account_id
+             LEFT JOIN sys_user u_creator ON u_creator.id = e.created_by
+             LEFT JOIN sys_user u_updater ON u_updater.id = e.updated_by';
 }
 
 /** @return list<string> */

@@ -142,6 +142,28 @@
   padding: 0;
 }
 
+.journal-entries-ora .je-ora-entry-cell {
+  min-width: 7.5rem;
+  line-height: 1.35;
+}
+
+.journal-entries-ora .je-ora-entry-no {
+  display: block;
+  white-space: nowrap;
+}
+
+.journal-entries-ora .je-ora-entry-user {
+  display: block;
+  margin-top: 0.12rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--ora12-muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 11rem;
+}
+
 .journal-entries-ora .dashboard-ora-table .row-actions {
   display: inline-flex;
   flex-wrap: wrap;

@@ -338,6 +338,9 @@ $dateTo = (string) ($dateClause['to'] ?? '');
 $listFrom = acc_journal_list_from_sql();
 
 $sql = 'SELECT e.id, e.entry_no, e.entry_date, e.created_at, e.description_ar, e.status,
+               e.created_by, e.updated_by,
+               u_creator.full_name_ar AS created_by_name,
+               u_updater.full_name_ar AS updated_by_name,
                COALESCE(SUM(l.debit), 0) AS total_debit,
                COALESCE(SUM(l.credit), 0) AS total_credit
         ' . $listFrom . '
@@ -471,7 +474,18 @@ $screenExitUrl = journal_entries_screen_exit_url($activeRoute ?? 'journal_entrie
                             }
                             ?>
                             <tr>
-                                <td><code><?= esc((string) $e['entry_no']) ?></code></td>
+                                <td class="je-ora-entry-cell">
+                                    <code class="je-ora-entry-no"><?= esc((string) $e['entry_no']) ?></code>
+                                    <?php
+                                    $actorName = acc_journal_entry_actor_name($e);
+                                    if ($actorName !== '—'):
+                                        $actorKind = acc_journal_entry_actor_kind($e);
+                                    ?>
+                                        <span class="je-ora-entry-user" title="<?= esc($actorKind) ?>">
+                                            <?= esc($actorName) ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= esc(format_date_dmY((string) $e['entry_date'])) ?></td>
                                 <td><?= esc($createdDisplay) ?></td>
                                 <td><?= esc((string) ($e['description_ar'] ?? '')) ?></td>
