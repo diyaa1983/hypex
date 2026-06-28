@@ -1,0 +1,60 @@
+/* تقرير الموظفين حسب القسم */
+
+.hr-emp-dept-rpt-block {
+    margin: 0 0 1.25rem;
+    page-break-inside: avoid;
+}
+
+.hr-emp-dept-rpt-dept-name {
+    margin: 0 0 0.65rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: #eef2f7;
+    border: 1px solid #c5ced9;
+}
+
+.hr-emp-dept-rpt-dept-meta {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.hr-emp-dept-rpt-table .hr-emp-dept-rpt-sum td {
+    background: #f8fafc;
+    font-weight: 700;
+}
+
+.hr-emp-dept-rpt-grand {
+    margin-top: 1rem;
+    page-break-inside: avoid;
+}
+
+.hr-emp-dept-rpt-grand-table {
+    width: auto;
+    min-width: 18rem;
+    border-collapse: collapse;
+}
+
+.hr-emp-dept-rpt-grand-table th,
+.hr-emp-dept-rpt-grand-table td {
+    border: 1px solid #333;
+    padding: 0.35rem 0.55rem;
+}
+
+.hr-emp-dept-rpt-grand-table th {
+    background: #f0f0f0;
+    text-align: start;
+    font-weight: 700;
+}
+
+.hr-emp-dept-rpt-empty {
+    text-align: center;
+    padding: 1.25rem;
+}
+
+@media print {
+    .hr-emp-dept-rpt-block {
+        page-break-inside: avoid;
+    }
+}

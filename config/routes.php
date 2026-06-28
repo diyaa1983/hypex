@@ -400,10 +400,25 @@ return [
         'permission' => 'hr_employees',
         'title' => 'تقرير الموظفين',
     ],
+    'report_hr_employees_by_department' => [
+        'file' => 'modules/reports/hr_employees_by_department.php',
+        'permission' => 'hr_employees',
+        'title' => 'تقرير الموظفين حسب القسم',
+    ],
+    'report_hr_employees_resigned' => [
+        'file' => 'modules/reports/hr_employees_resigned.php',
+        'permission' => 'hr_employees',
+        'title' => 'تقرير الموظفين المستقيلين',
+    ],
     'report_hr_employee_advances' => [
         'file' => 'modules/reports/hr_employee_advances.php',
         'permission' => 'report_hr_employee_advances',
         'title' => 'تقرير سلف الموظفين',
+    ],
+    'report_hr_employee_overtime' => [
+        'file' => 'modules/reports/hr_employee_overtime.php',
+        'permission' => 'report_hr_employee_overtime',
+        'title' => 'تقرير العمل الإضافي',
     ],
     'report_purchases' => [
         'file' => 'modules/reports/purchases.php',
@@ -651,6 +666,12 @@ return [
         'title' => 'علاوات واقتطاعات شهرية',
         'hide_screen_title' => true,
     ],
+    'hr_employee_overtime' => [
+        'file' => 'modules/hr/employee_overtime.php',
+        'permission' => 'hr_salaries',
+        'title' => 'تسجيل العمل الإضافي',
+        'hide_screen_title' => true,
+    ],
     'hr_payroll_posting' => [
         'file' => 'modules/hr/payroll_posting.php',
         'permission' => 'hr_salaries',
@@ -661,6 +682,7 @@ return [
         'file' => 'modules/hr/payroll_slip_print.php',
         'permission' => 'hr_salaries',
         'title' => 'قسيمة الراتب',
+        'standalone' => true,
     ],
     'hr_payroll_dept_report' => [
         'file' => 'modules/hr/payroll_dept_report.php',
@@ -725,6 +747,12 @@ return [
         'file' => 'modules/hr/income_tax_settings.php',
         'permission' => 'hr_income_tax_settings',
         'title' => 'إعدادات ضريبة الدخل',
+        'hide_screen_title' => true,
+    ],
+    'hr_overtime_settings' => [
+        'file' => 'modules/hr/overtime_settings.php',
+        'permission' => 'hr_overtime_settings',
+        'title' => 'إعدادات العمل الإضافي',
         'hide_screen_title' => true,
     ],
 ];

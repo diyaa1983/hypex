@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once app_path('includes/hr_salary.php');
 require_once app_path('includes/company_settings.php');
 require_once app_path('includes/hr_employee_monthly_payroll.php');
+require_once app_path('includes/hr_employee_overtime.php');
 require_once app_path('includes/document_header.php');
 
 /** @return array<int, array{id:int, emp_code:string, name_ar:string}> */
@@ -166,6 +167,19 @@ function hr_payroll_slip_report_build(PDO $pdo, int $employeeId, int $year, int 
         $monthlyAllowTotal += $amount;
     }
 
+    $otItem = hr_payroll_overtime_allowance_line($pdo, $employeeId, $year, $month, $overtime);
+    if ($otItem) {
+        $item = [
+            'name' => (string) ($otItem['name_ar'] ?? 'عمل اضافة لمرة واحدة'),
+            'amount' => (float) ($otItem['amount'] ?? 0),
+            'recurring' => false,
+        ];
+        $allowLines[] = $item;
+        $allowDetailMonthly[] = $item;
+        $monthlyAllowTotal += (float) $item['amount'];
+        $overtime = (float) $item['amount'];
+    }
+
     $splitAllowTotal = round($permanentAllowTotal + $monthlyAllowTotal, 3);
     $allowDiff = round($allowTotal - $splitAllowTotal, 3);
     if (abs($allowDiff) > 0.0005) {
@@ -226,25 +240,6 @@ function hr_payroll_slip_report_build(PDO $pdo, int $employeeId, int $year, int 
         // ignored
     }
 
-    if ($overtime > 0.0005) {
-        $item = [
-            'name' => 'عمل إضافي',
-            'amount' => round($overtime, 3),
-            'recurring' => false,
-        ];
-        $allowLines[] = $item;
-        $allowDetailMonthly[] = $item;
-    }
-    if ($bonus > 0.0005) {
-        $item = [
-            'name' => 'مكافآت',
-            'amount' => round($bonus, 3),
-            'recurring' => false,
-        ];
-        $allowLines[] = $item;
-        $allowDetailMonthly[] = $item;
-    }
-
     $subjectSs = (int) ($row['subject_to_social_security'] ?? 0) === 1;
     if (!$subjectSs) {
         $ssEmp = 0.0;
@@ -267,9 +262,6 @@ function hr_payroll_slip_report_build(PDO $pdo, int $employeeId, int $year, int 
     ];
     if ($monthlyAllowTotal > 0.0005) {
         $summaryAllow[] = ['label' => 'العلاوات الإضافية الشهرية', 'amount' => round($monthlyAllowTotal, 3)];
-    }
-    if ($overtime > 0.0005) {
-        $summaryAllow[] = ['label' => 'عمل إضافي', 'amount' => round($overtime, 3)];
     }
     if ($bonus > 0.0005) {
         $summaryAllow[] = ['label' => 'مكافآت', 'amount' => round($bonus, 3)];
@@ -352,46 +344,48 @@ function hr_payroll_slip_report_render_html(array $slip): string
         <hr class="hr-pslip-rule hr-pslip-rule--thick">
 
         <section class="hr-pslip-emp-grid">
-            <table class="hr-pslip-emp-table">
-                <tr>
-                    <th>رقم الموظف:</th>
-                    <td dir="ltr"><?= esc((string) ($slip['emp_code'] ?? '—')) ?></td>
-                </tr>
-                <tr>
-                    <th>اسم الموظف:</th>
-                    <td><?= esc((string) ($slip['emp_name'] ?? '')) ?></td>
-                </tr>
-                <tr>
-                    <th>الوظيفة:</th>
-                    <td><?= esc((string) ($slip['job_title'] ?? '—')) ?></td>
-                </tr>
-                <tr>
-                    <th>الدائرة:</th>
-                    <td><?= esc((string) ($slip['department'] ?? '—')) ?></td>
-                </tr>
-            </table>
-            <table class="hr-pslip-emp-table">
-                <tr>
-                    <th>تاريخ المباشرة:</th>
-                    <td dir="ltr"><?= esc((string) ($slip['hire_date'] ?? '—')) ?></td>
-                </tr>
-                <tr>
-                    <th>البنك والفرع:</th>
-                    <td><?= esc((string) ($slip['bank_display'] ?? '—')) ?></td>
-                </tr>
-                <tr>
-                    <th>رقم الحساب:</th>
-                    <td dir="ltr"><?= esc((string) ($slip['bank_account'] ?? '—')) ?></td>
-                </tr>
-                <tr>
-                    <th>رقم الضمان:</th>
-                    <td dir="ltr"><?= esc((string) ($slip['social_security_no'] ?? '—')) ?></td>
-                </tr>
-                <tr>
-                    <th>الرمز الوظيفي:</th>
-                    <td dir="ltr"><?= esc((string) ($slip['job_code'] ?? '—')) ?></td>
-                </tr>
-            </table>
+            <div class="hr-pslip-emp-pairs">
+                <div class="hr-pslip-emp-col hr-pslip-emp-col--primary">
+                    <div class="hr-pslip-kv">
+                        <span class="hr-pslip-k">رقم الموظف:</span>
+                        <span class="hr-pslip-v" dir="ltr"><?= esc((string) ($slip['emp_code'] ?? '—')) ?></span>
+                    </div>
+                    <div class="hr-pslip-kv">
+                        <span class="hr-pslip-k">اسم الموظف:</span>
+                        <span class="hr-pslip-v"><?= esc((string) ($slip['emp_name'] ?? '')) ?></span>
+                    </div>
+                    <div class="hr-pslip-kv">
+                        <span class="hr-pslip-k">الوظيفة:</span>
+                        <span class="hr-pslip-v"><?= esc((string) ($slip['job_title'] ?? '—')) ?></span>
+                    </div>
+                    <div class="hr-pslip-kv">
+                        <span class="hr-pslip-k">الدائرة:</span>
+                        <span class="hr-pslip-v"><?= esc((string) ($slip['department'] ?? '—')) ?></span>
+                    </div>
+                    <div class="hr-pslip-kv">
+                        <span class="hr-pslip-k">الرمز الوظيفي:</span>
+                        <span class="hr-pslip-v" dir="ltr"><?= esc((string) ($slip['job_code'] ?? '—')) ?></span>
+                    </div>
+                </div>
+                <div class="hr-pslip-emp-col hr-pslip-emp-col--secondary">
+                    <div class="hr-pslip-kv">
+                        <span class="hr-pslip-k">تاريخ المباشرة:</span>
+                        <span class="hr-pslip-v" dir="ltr"><?= esc((string) ($slip['hire_date'] ?? '—')) ?></span>
+                    </div>
+                    <div class="hr-pslip-kv">
+                        <span class="hr-pslip-k">البنك والفرع:</span>
+                        <span class="hr-pslip-v"><?= esc((string) ($slip['bank_display'] ?? '—')) ?></span>
+                    </div>
+                    <div class="hr-pslip-kv">
+                        <span class="hr-pslip-k">رقم الحساب:</span>
+                        <span class="hr-pslip-v" dir="ltr"><?= esc((string) ($slip['bank_account'] ?? '—')) ?></span>
+                    </div>
+                    <div class="hr-pslip-kv">
+                        <span class="hr-pslip-k">رقم الضمان:</span>
+                        <span class="hr-pslip-v" dir="ltr"><?= esc((string) ($slip['social_security_no'] ?? '—')) ?></span>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <section class="hr-pslip-summary-wrap">
@@ -406,14 +400,14 @@ function hr_payroll_slip_report_render_html(array $slip): string
                         <?php foreach ($slip['summary_allow'] ?? [] as $ln): ?>
                             <tr>
                                 <td><?= esc((string) ($ln['label'] ?? '')) ?></td>
-                                <td dir="ltr" class="num"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></td>
+                                <td class="num" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
                         <tfoot>
                         <tr class="hr-pslip-sum-total">
                             <td>اجمالي الراتب</td>
-                            <td dir="ltr" class="num"><?= esc(hr_payroll_slip_report_fmt((float) ($slip['gross'] ?? 0))) ?></td>
+                            <td class="num" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($slip['gross'] ?? 0))) ?></td>
                         </tr>
                         </tfoot>
                     </table>
@@ -436,14 +430,14 @@ function hr_payroll_slip_report_render_html(array $slip): string
                         <?php foreach ($slip['summary_deduct'] ?? [] as $ln): ?>
                             <tr>
                                 <td><?= esc((string) ($ln['label'] ?? '')) ?></td>
-                                <td dir="ltr" class="num"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></td>
+                                <td class="num" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
                         <tfoot>
                         <tr class="hr-pslip-sum-total">
                             <td>إجمالي الاقتطاعات</td>
-                            <td dir="ltr" class="num"><?= esc(hr_payroll_slip_report_fmt((float) ($slip['total_ded'] ?? 0))) ?></td>
+                            <td class="num" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($slip['total_ded'] ?? 0))) ?></td>
                         </tr>
                         </tfoot>
                     </table>
@@ -465,9 +459,9 @@ function hr_payroll_slip_report_render_html(array $slip): string
                         <li class="muted">—</li>
                     <?php endif; ?>
                     <?php foreach ($slip['allow_detail_base_fixed'] ?? [] as $ln): ?>
-                        <li>
-                            <span class="hr-pslip-detail-name"><?= esc((string) ($ln['name'] ?? '')) ?></span>
-                            <span class="hr-pslip-detail-amt" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></span>
+                        <li class="hr-pslip-kv">
+                            <span class="hr-pslip-k"><?= esc((string) ($ln['name'] ?? '')) ?></span>
+                            <span class="hr-pslip-v" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></span>
                         </li>
                     <?php endforeach; ?>
                 </ul>
@@ -478,9 +472,9 @@ function hr_payroll_slip_report_render_html(array $slip): string
                         <li class="muted">—</li>
                     <?php endif; ?>
                     <?php foreach ($slip['allow_detail_monthly'] ?? [] as $ln): ?>
-                        <li>
-                            <span class="hr-pslip-detail-name"><?= esc((string) ($ln['name'] ?? '')) ?></span>
-                            <span class="hr-pslip-detail-amt" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></span>
+                        <li class="hr-pslip-kv">
+                            <span class="hr-pslip-k"><?= esc((string) ($ln['name'] ?? '')) ?></span>
+                            <span class="hr-pslip-v" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></span>
                         </li>
                     <?php endforeach; ?>
                 </ul>
@@ -492,9 +486,9 @@ function hr_payroll_slip_report_render_html(array $slip): string
                         <li class="muted">—</li>
                     <?php endif; ?>
                     <?php foreach ($slip['deduct_detail'] ?? [] as $ln): ?>
-                        <li>
-                            <span class="hr-pslip-detail-name"><?= esc((string) ($ln['name'] ?? '')) ?></span>
-                            <span class="hr-pslip-detail-amt" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></span>
+                        <li class="hr-pslip-kv">
+                            <span class="hr-pslip-k"><?= esc((string) ($ln['name'] ?? '')) ?></span>
+                            <span class="hr-pslip-v" dir="ltr"><?= esc(hr_payroll_slip_report_fmt((float) ($ln['amount'] ?? 0))) ?></span>
                         </li>
                     <?php endforeach; ?>
                 </ul>
@@ -503,4 +497,27 @@ function hr_payroll_slip_report_render_html(array $slip): string
     </div>
     <?php
     return (string) ob_get_clean();
+}
+
+/**
+ * @param list<array<string, mixed>> $slips
+ * @param int $activeEmployeeId عند التمرير: إظهار هذه القسيمة فقط على الشاشة (الكل يُطبع)
+ */
+function hr_payroll_slip_report_render_pages(array $slips, int $activeEmployeeId = 0): string
+{
+    if ($slips === []) {
+        return '';
+    }
+
+    $html = '';
+    foreach ($slips as $slip) {
+        $classes = 'hr-pslip-print-page';
+        $eid = (int) ($slip['employee_id'] ?? 0);
+        if ($activeEmployeeId > 0 && $eid === $activeEmployeeId) {
+            $classes .= ' hr-pslip-print-page--active';
+        }
+        $html .= '<div class="' . $classes . '">' . hr_payroll_slip_report_render_html($slip) . '</div>';
+    }
+
+    return $html;
 }

@@ -121,6 +121,12 @@ $appBootMigrations = [
     'database/migrations/180_sys_dashboard_account.sql',
     'database/migrations/181_fin_voucher_archive_docs.sql',
     'database/migrations/182_clear_legacy_invoice_number_pool.sql',
+    'database/migrations/183_report_hr_employees_by_department.sql',
+    'database/migrations/184_report_hr_employees_resigned.sql',
+    'database/migrations/185_hr_overtime.sql',
+    'database/migrations/186_hr_overtime_days_hours.sql',
+    'database/migrations/187_hr_overtime_multiplier_b.sql',
+    'database/migrations/188_report_hr_employee_overtime.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 
@@ -143,6 +149,11 @@ if (!user_can($route['permission'])) {
         }
     }
     require_permission($route['permission']);
+}
+
+if (!empty($route['standalone'])) {
+    require app_path($route['file']);
+    exit;
 }
 
 $routeTitle = (string) ($route['title'] ?? '');

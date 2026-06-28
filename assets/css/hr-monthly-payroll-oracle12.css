@@ -67,10 +67,14 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-master-panel .hr-mpa-pa
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-master-grid {
     display: grid;
-    grid-template-columns: minmax(8.8rem, 9.25rem) minmax(12rem, 1fr) minmax(24rem, 1.15fr);
+    grid-template-columns: minmax(8.8rem, 9.25rem) minmax(12rem, 1fr);
     gap: 0.45rem 0.65rem;
     align-items: end;
-    max-width: 58rem;
+    max-width: 72rem;
+}
+
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-master-cell--month {
+    grid-column: 1 / -1;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-print-head {
@@ -126,27 +130,28 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-picker-slot .sales-inv-
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(5.5rem, auto) minmax(6.75rem, auto);
+    grid-template-areas:
+        "chips chips"
+        "name status";
     gap: 0.35rem;
     align-items: center;
+    width: 100%;
+    max-width: 100%;
 }
 
-body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-year-input {
-    width: 4.5rem;
-    flex: 0 0 4.5rem;
-}
-
-body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-select {
-    flex: 0 0 3.6rem;
-    width: 3.6rem;
-    min-width: 3.6rem;
-    text-align: center;
-    padding-left: 0.25rem;
-    padding-right: 0.25rem;
+body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mchip-period-wrap {
+    grid-area: chips;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-name {
-    flex: 1 1 auto;
+    grid-area: name;
+    flex: none;
+    width: 100%;
     min-width: 5.5rem;
     text-align: center;
     background: #f8fafc;
@@ -154,8 +159,9 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-mont
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status {
-    flex: 0 0 6.75rem;
-    width: 6.75rem;
+    grid-area: status;
+    flex: none;
+    width: 100%;
     min-width: 6.75rem;
     text-align: center;
     background: #f8fafc;
@@ -167,11 +173,11 @@ body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-mont
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status[data-status='calculated'] {
-    color: #b45309;
+    color: #b91c1c;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status[data-status='posted'] {
-    color: #15803d;
+    color: #475569;
 }
 
 body.hr-ora-ui .hr-mpa-classic.hr-mpa-ora-screen .hr-mpa-month-wrap .hr-mpa-month-status[data-status='mixed'] {

@@ -142,17 +142,17 @@
         return month;
     }
 
-    function syncMonthMetaFields() {
-        if (!filterMonth) {
+    function syncMonthMetaFields(activeChip) {
+        var chip = activeChip || null;
+        if (!chip && filterForm) {
+            chip = filterForm.querySelector('.hr-mchip-chip.is-active');
+        }
+        if (!chip) {
             return;
         }
-        var opt = filterMonth.options[filterMonth.selectedIndex];
-        if (!opt) {
-            return;
-        }
-        var statusKey = opt.getAttribute('data-status') || 'empty';
+        var statusKey = chip.getAttribute('data-status') || 'empty';
         if (filterMonthName) {
-            filterMonthName.value = opt.getAttribute('data-name') || opt.textContent.trim();
+            filterMonthName.value = chip.getAttribute('data-name') || chip.textContent.trim();
         }
         if (filterMonthStatus) {
             filterMonthStatus.value = monthStatusLabels[statusKey] || monthStatusLabels.empty || '—';
@@ -1021,13 +1021,18 @@
         });
     }
 
-    if (filterMonth) {
-        syncMonthMetaFields();
-        filterMonth.addEventListener('change', function () {
-            syncMonthMetaFields();
-            navigateToFilter(selectedEmployeeId());
+    if (filterForm && window.HrMonthChipStrip) {
+        HrMonthChipStrip.bind(filterForm, {
+            monthInputId: 'hr-mpa-filter-month',
+            autoSubmit: false,
+            onSelect: function (_month, chip) {
+                syncMonthMetaFields(chip);
+                navigateToFilter(selectedEmployeeId());
+            },
         });
     }
+
+    syncMonthMetaFields();
 
     if (filterYear) {
         filterYear.addEventListener('change', function () {

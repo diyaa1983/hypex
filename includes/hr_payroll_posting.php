@@ -12,6 +12,7 @@ require_once app_path('includes/hr_social_security_payroll.php');
 require_once app_path('includes/hr_employee_advance.php');
 
 require_once app_path('includes/hr_employee_monthly_payroll.php');
+require_once app_path('includes/hr_employee_overtime.php');
 
 require_once app_path('includes/hr_payroll_gl.php');
 require_once app_path('includes/hr_income_tax.php');
@@ -883,6 +884,23 @@ function hr_payroll_employee_row_breakdown(
         $monthAllowTotal += (float) $item['amount'];
     }
 
+    $salaryOvertimeAmount = null;
+    if ($salaryId > 0) {
+        try {
+            $stOt = $pdo->prepare('SELECT overtime FROM hr_salary WHERE id = ? LIMIT 1');
+            $stOt->execute([$salaryId]);
+            $salaryOvertimeAmount = (float) ($stOt->fetchColumn() ?: 0);
+        } catch (Throwable $e) {
+            $salaryOvertimeAmount = null;
+        }
+    }
+    $overtimeLine = hr_payroll_overtime_allowance_line($pdo, $employeeId, $year, $month, $salaryOvertimeAmount);
+    $overtimeTotal = 0.0;
+    if ($overtimeLine) {
+        $monthAllowLines[] = $overtimeLine;
+        $overtimeTotal = (float) $overtimeLine['amount'];
+    }
+
     $deductionLines = [];
     $deductionTotal = 0.0;
     foreach (hr_payroll_employee_permanent_deduction_lines($pdo, $employeeId) as $line) {
@@ -916,7 +934,9 @@ function hr_payroll_employee_row_breakdown(
     return [
         'base_salary' => round($baseSalary, 3),
         'permanent_allow_total' => round($permAllowTotal, 3),
-        'monthly_allow_total' => round($monthAllowTotal, 3),
+        'monthly_allow_total' => round($monthAllowTotal + $overtimeTotal, 3),
+        'monthly_allow_core' => round($monthAllowTotal, 3),
+        'overtime_total' => round($overtimeTotal, 3),
         'permanent_allow_lines' => $permAllowLines,
         'monthly_allow_lines' => $monthAllowLines,
         'deduction_lines' => $deductionLines,
@@ -1007,7 +1027,8 @@ function hr_payroll_month_status_rows(
         $breakdown = hr_payroll_employee_row_breakdown($pdo, $eid, $year, $month, $base, $salaryId);
         $currentBase = (float) ($breakdown['base_salary'] ?? $base);
         $currentAllowTotal = (float) ($breakdown['permanent_allow_total'] ?? 0)
-            + (float) ($breakdown['monthly_allow_total'] ?? 0);
+            + (float) ($breakdown['monthly_allow_core'] ?? $breakdown['monthly_allow_total'] ?? 0);
+        $overtimeAmt = (float) ($breakdown['overtime_total'] ?? 0);
         $previewDeductions = (float) ($breakdown['deductions_preview'] ?? 0);
 
         $subjectSs = (int) ($e['subject_to_social_security'] ?? 0) === 1;
@@ -1024,11 +1045,14 @@ function hr_payroll_month_status_rows(
             $incomeTax = (float) ($sal['income_tax'] ?? 0);
             if ((int) ($sal['is_posted'] ?? 0) !== 1 && abs($previewDeductions - $deductions) > 0.0005) {
                 $deductions = $previewDeductions;
+                if ($overtimeAmt <= 0.0005) {
+                    $overtimeAmt = (float) ($sal['overtime'] ?? 0);
+                }
                 $net = hr_salary_calc_net(
                     $currentBase,
                     $currentAllowTotal,
                     $deductions,
-                    (float) ($sal['overtime'] ?? 0),
+                    $overtimeAmt,
                     (float) ($sal['bonus'] ?? 0),
                     $ssEmp,
                     $incomeTax
@@ -1112,6 +1136,8 @@ function hr_payroll_calculate(PDO $pdo, int $year, int $month, array $employeeId
         $advDed = hr_employee_advance_deductions_for_month($pdo, $empId, $year, $month, $existingSalaryId);
         $deductionsTotal = round((float) $snap['deductions'] + (float) ($advDed['total'] ?? 0), 3);
 
+        $overtimeAmt = hr_employee_overtime_amount_for_employee($pdo, $empId, $year, $month);
+
         $ss = null;
         $ssEmp = 0.0;
         if (hr_employee_subject_to_social_security($pdo, $empId)) {
@@ -1128,7 +1154,7 @@ function hr_payroll_calculate(PDO $pdo, int $year, int $month, array $employeeId
             $snap['base'],
             $snap['allowances'],
             $deductionsTotal,
-            0,
+            $overtimeAmt,
             0,
             $ssEmp,
             $salaryIdForExclude
@@ -1139,7 +1165,7 @@ function hr_payroll_calculate(PDO $pdo, int $year, int $month, array $employeeId
             $snap['base'],
             $snap['allowances'],
             $deductionsTotal,
-            0,
+            $overtimeAmt,
             0,
             $ssEmp,
             $incomeTax
@@ -1155,7 +1181,7 @@ function hr_payroll_calculate(PDO $pdo, int $year, int $month, array $employeeId
 
                 'UPDATE hr_salary SET base_salary = ?, allowances = ?, deductions = ?,
 
-                 social_security_emp = ?, income_tax = ?, net_salary = ?, pay_date = ?, is_posted = 0
+                 overtime = ?, social_security_emp = ?, income_tax = ?, net_salary = ?, pay_date = ?, is_posted = 0
 
                  WHERE id = ?'
 
@@ -1163,7 +1189,7 @@ function hr_payroll_calculate(PDO $pdo, int $year, int $month, array $employeeId
 
             $st->execute([
 
-                $snap['base'], $snap['allowances'], $deductionsTotal,
+                $snap['base'], $snap['allowances'], $deductionsTotal, $overtimeAmt,
 
                 $ssEmp, $incomeTax, $net, $payDate, $salaryId,
 
@@ -1175,15 +1201,15 @@ function hr_payroll_calculate(PDO $pdo, int $year, int $month, array $employeeId
 
                 'INSERT INTO hr_salary (employee_id, pay_year, pay_month, base_salary, allowances, deductions,
 
-                 social_security_emp, income_tax, net_salary, pay_date, is_posted)
+                 overtime, social_security_emp, income_tax, net_salary, pay_date, is_posted)
 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)'
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)'
 
             );
 
             $st->execute([
 
-                $empId, $year, $month, $snap['base'], $snap['allowances'], $deductionsTotal,
+                $empId, $year, $month, $snap['base'], $snap['allowances'], $deductionsTotal, $overtimeAmt,
 
                 $ssEmp, $incomeTax, $net, $payDate,
 

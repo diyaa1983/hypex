@@ -1,0 +1,242 @@
+/* تقرير العمل الإضافي */
+.hr-ot-rpt-page .hr-ot-rpt-filters {
+  max-width: 1200px;
+}
+
+.hr-ot-rpt-doc {
+  margin-top: 1rem;
+}
+
+.hr-ot-rpt-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  font-size: 0.95rem;
+}
+
+.hr-ot-rpt-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.hr-ot-rpt-kpi {
+  flex: 1 1 10rem;
+  min-width: 9rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #c5ced9;
+  border-radius: 0.35rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  text-align: center;
+}
+
+.hr-ot-rpt-kpi__label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.hr-ot-rpt-kpi__value {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.hr-ot-rpt-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.hr-ot-rpt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  table-layout: fixed;
+}
+
+.hr-ot-rpt-table th,
+.hr-ot-rpt-table td {
+  border: 1px solid #94a3b8;
+  padding: 0.42rem 0.55rem;
+  vertical-align: middle;
+}
+
+.hr-ot-rpt-table thead th {
+  background: #1e3a5f;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hr-ot-rpt-table tbody tr:nth-child(even):not(.hr-ot-rpt-row--month-header):not(.hr-ot-rpt-row--month-total) {
+  background: #f8fafc;
+}
+
+.hr-ot-rpt-table .col-seq {
+  width: 2.2rem;
+  text-align: center;
+}
+
+.hr-ot-rpt-col-month {
+  width: 8.5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hr-ot-rpt-col-dept {
+  width: 9rem;
+}
+
+.hr-ot-rpt-col-emp-code {
+  width: 5rem;
+  text-align: center;
+}
+
+.hr-ot-rpt-col-emp-name {
+  min-width: 9rem;
+}
+
+.hr-ot-rpt-col-hours,
+.hr-ot-rpt-col-mult {
+  width: 5.5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hr-ot-rpt-col-money {
+  width: 6.5rem;
+  text-align: end;
+}
+
+.hr-ot-rpt-col-notes {
+  width: 8rem;
+  color: #475569;
+  font-size: 0.82rem;
+}
+
+.hr-ot-rpt-dept-section {
+  margin: 0 0 1.35rem;
+  page-break-inside: avoid;
+}
+
+.hr-ot-rpt-dept-heading {
+  margin: 0 0 0.55rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 1.02rem;
+  font-weight: 800;
+  background: #eef2f7;
+  border: 1px solid #94a3b8;
+  border-radius: 0.25rem 0.25rem 0 0;
+}
+
+.hr-ot-rpt-dept-meta {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.hr-ot-rpt-dept-section .hr-ot-rpt-table-wrap {
+  margin-top: 0;
+}
+
+.hr-ot-rpt-dept-section .hr-ot-rpt-table {
+  border-top: none;
+}
+
+.hr-ot-rpt-row--dept-total td {
+  background: #e2e8f0 !important;
+  font-weight: 700;
+  color: #0f172a;
+  border-top: 2px solid #64748b;
+}
+
+.hr-ot-rpt-subtotal-label {
+  text-align: start;
+}
+
+.hr-ot-rpt-grand-wrap {
+  margin-top: 0.5rem;
+  page-break-inside: avoid;
+}
+
+.hr-ot-rpt-grand-table {
+  width: 100%;
+  max-width: 36rem;
+  margin-inline-start: auto;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.hr-ot-rpt-grand-table th,
+.hr-ot-rpt-grand-table td {
+  border: 2px solid #1e3a5f;
+  padding: 0.55rem 0.75rem;
+}
+
+.hr-ot-rpt-grand-table th {
+  background: #1e3a5f;
+  color: #fff;
+  font-weight: 800;
+  text-align: start;
+}
+
+.hr-ot-rpt-grand-table td {
+  background: #f8fafc;
+  font-weight: 700;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.hr-ot-rpt-table tfoot td {
+  background: #e2e8f0;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 0.9rem;
+  border-color: #64748b;
+  padding: 0.48rem 0.55rem;
+}
+
+.hr-ot-rpt-table tfoot .num {
+  text-align: end;
+}
+
+@media print {
+  .hr-ot-rpt-kpis {
+    gap: 0.5rem;
+  }
+
+  .hr-ot-rpt-kpi {
+    border-color: #333;
+    background: #f5f5f5;
+  }
+
+  .hr-ot-rpt-table thead th,
+  .hr-ot-rpt-table tfoot td {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .hr-ot-rpt-table-wrap {
+    overflow: visible;
+  }
+}
+
+@media (max-width: 900px) {
+  .hr-ot-rpt-table {
+    font-size: 0.8rem;
+  }
+
+  .hr-ot-rpt-col-notes {
+    display: none;
+  }
+
+  .hr-ot-rpt-table .hr-ot-rpt-col-notes-head,
+  .hr-ot-rpt-table .hr-ot-rpt-col-notes {
+    display: none;
+  }
+}

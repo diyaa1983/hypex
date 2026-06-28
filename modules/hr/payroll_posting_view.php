@@ -32,6 +32,16 @@ declare(strict_types=1);
 /** @var string $payrollFilterEmployeesJson */
 /** @var string $payrollDeptNamesJson */
 /** @var bool $currentMonthPosted */
+/** @var list<array<string, mixed>> $printReportRows */
+/** @var array<string, float> $printReportTotals */
+/** @var array{movement_no:string, movement_desc:string, movement_date:string} $printReportMovement */
+/** @var array{code:string, label:string} $printReportMonthStatus */
+/** @var string $printReportTitle */
+/** @var string $printReportDate */
+/** @var bool $hasPrintReport */
+/** @var string $printFilterLabel */
+/** @var string $slipReportCssUrl */
+/** @var string $salesInvCssUrl */
 
 /**
  * @param list<array<string, mixed>> $lines
@@ -54,8 +64,35 @@ function hr_pr_post_render_drill_cell(float $amount, array $lines, string $drill
 }
 
 $empTableColCount = $showIncomeTaxCol ? 11 : 10;
+$mchipCssUrl = hr_month_chip_strip_css_url();
+$mchipJsPath = app_path('assets/js/hr-month-chip-strip.js');
+$mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
+    . (is_file($mchipJsPath) ? '?v=' . (string) filemtime($mchipJsPath) : '');
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+<link rel="stylesheet" href="<?= esc($mchipCssUrl) ?>">
+<link rel="stylesheet" href="<?= esc($monthReportCssUrl) ?>">
+<link rel="stylesheet" href="<?= esc($salesInvCssUrl) ?>">
+<link rel="stylesheet" href="<?= esc($slipReportCssUrl) ?>">
+<style><?= document_print_header_css() ?></style>
+<style><?= document_print_watermark_root_css($pdo) ?></style>
+<style><?= document_print_watermark_css() ?></style>
+<style>
+.sales-inv-print-preview-body .hr-pslip-print-batch-head {
+    margin: 0 0 1rem;
+    padding: 0.55rem 0.75rem;
+    background: #e2e8f0;
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    font-weight: 700;
+    text-align: center;
+}
+.sales-inv-print-preview-body .hr-pslip-print-page + .hr-pslip-print-page {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px dashed #cbd5e1;
+}
+</style>
 
 <div class="hr-pr-post-classic hr-pr-post-ora-screen<?= $showEmployeeList ? '' : ' hr-pr-post-classic--pending' ?>"
      data-list-url="<?= esc($listUrl) ?>"
@@ -63,6 +100,7 @@ $empTableColCount = $showIncomeTaxCol ? 11 : 10;
      data-year="<?= (int) $payYear ?>"
      data-month="<?= (int) $payMonth ?>"
      data-list-shown="<?= $showEmployeeList ? '1' : '0' ?>"
+     data-print-ready="<?= $hasPrintReport ? '1' : '0' ?>"
      data-gate-ok="<?= $gate['ok'] ? '1' : '0' ?>"
      data-gate-message="<?= esc($gate['message'] ?? '') ?>"
      data-calculated="<?= (int) ($summary['calculated'] ?? 0) ?>"
@@ -89,33 +127,17 @@ $empTableColCount = $showIncomeTaxCol ? 11 : 10;
             <div class="hr-pr-post-panel-body">
         <div class="hr-pr-post-top-controls<?= $postedMonths !== [] ? '' : ' hr-pr-post-top-controls--single' ?>">
             <div class="hr-pr-post-filters-panel">
-                <div class="hr-pr-post-filters-stack">
-                    <label class="hr-pr-post-filter-line">
-                        <span>العام</span>
-                        <input class="input hr-pr-post-inline-input" type="number" name="year" min="2000" max="2100"
-                               value="<?= (int) $payYear ?>" required>
-                    </label>
-                    <label class="hr-pr-post-filter-line">
-                        <span>الشهر</span>
-                        <div class="hr-pr-post-ora-lov">
-                            <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="month" required>
-                                <?php foreach ($monthPickerOptions as $opt):
-                                    $m = (int) ($opt['month'] ?? 0);
-                                    if ($m < 1 || $m > 12) {
-                                        continue;
-                                    }
-                                    $suffix = trim((string) ($opt['label_suffix'] ?? ''));
-                                    $suffix = trim(str_replace('—', '', $suffix));
-                                    $monthLabel = sprintf('%02d', $m) . ' - ' . ($monthNames[$m] ?? (string) $m)
-                                        . ($suffix !== '' ? ' (' . $suffix . ')' : '');
-                                ?>
-                                    <option value="<?= $m ?>" <?= $payMonth === $m ? 'selected' : '' ?>>
-                                        <?= esc($monthLabel) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button type="button" class="hr-pr-post-ora-lov-btn" tabindex="-1" aria-label="اختيار الشهر" title="اختيار الشهر"></button>
-                        </div>
+                <div class="hr-pr-post-filters-stack hr-pr-post-filters-stack--chips">
+                    <label class="hr-pr-post-filter-line hr-pr-post-filter-line--period">
+                        <span>الشهر / السنة</span>
+                        <?php hr_render_month_chip_strip($monthPickerOptions, [
+                            'year' => $payYear,
+                            'selected_month' => $payMonth,
+                            'year_input_id' => 'hr-pr-post-filter-year',
+                            'year_input_name' => 'year',
+                            'month_input_id' => 'hr-pr-post-filter-month',
+                            'month_input_name' => 'month',
+                        ]); ?>
                     </label>
                     <label class="hr-pr-post-filter-line">
                         <span>القسم</span>
@@ -154,6 +176,9 @@ $empTableColCount = $showIncomeTaxCol ? 11 : 10;
                     <div class="hr-pr-post-filter-line hr-pr-post-filter-line--submit">
                         <span>عرض</span>
                         <button type="submit" class="btn btn-primary btn-sm">عرض</button>
+                        <?php if ($hasPrintReport): ?>
+                            <button type="button" class="btn btn-secondary btn-sm" data-side-action="print">طباعة</button>
+                        <?php endif; ?>
                     </div>
             </div>
         </div>
@@ -269,19 +294,24 @@ $empTableColCount = $showIncomeTaxCol ? 11 : 10;
 
                 <div class="hr-pr-post-grid-wrap hr-pr-post-emp-grid-wrap">
                     <table class="hr-pr-post-grid-table hr-pr-post-emp-table">
+                        <colgroup>
+                            <col class="hr-pr-post-col-seq">
+                            <col class="hr-pr-post-col-code">
+                            <col class="hr-pr-post-col-name">
+                        </colgroup>
                         <thead>
                         <tr>
-                            <th>تسلسل</th>
+                            <th class="hr-pr-post-col-seq">تسلسل</th>
                             <th class="hr-pr-post-emp-code-head">
                                 <span class="hr-pr-post-emp-code-head-inner">
                                     <label class="hr-pr-post-chk-cell">
-                                        <input type="checkbox" id="hr-pr-post-check-all" title="تحديد الكل (قابل للاحتساب)">
+                                        <input type="checkbox" id="hr-pr-post-check-all" title="تحديد الكل (للاحتساب أو القسائم)">
                                         <span class="sr-only">تحديد الكل</span>
                                     </label>
                                     <span>رقم الموظف</span>
                                 </span>
                             </th>
-                            <th>اسم الموظف</th>
+                            <th class="hr-pr-post-emp-name">اسم الموظف</th>
                             <th>الراتب الأساسي</th>
                             <th>إجمالي العلاوات</th>
                             <th>العلاوات الشهرية</th>
@@ -306,6 +336,9 @@ $empTableColCount = $showIncomeTaxCol ? 11 : 10;
                             $eid = (int) $r['id'];
                             $status = (string) ($r['status'] ?? 'none');
                             $canSelect = !empty($r['has_setup']) && $status !== 'posted';
+                            $canSlipPrint = ($status === 'calculated' || $status === 'posted')
+                                && (int) ($r['salary_id'] ?? 0) > 0;
+                            $showRowCheckbox = $canSelect || $canSlipPrint;
                             $empStatusCode = hr_payroll_employee_status_code($status, !empty($r['has_setup']));
                             $statusLabel = hr_payroll_employee_status_label($status, !empty($r['has_setup']));
                             $rowClass = 'hr-pr-post-row';
@@ -333,27 +366,25 @@ $empTableColCount = $showIncomeTaxCol ? 11 : 10;
                                 data-salary-id="<?= (int) ($r['salary_id'] ?? 0) ?>"
                                 data-status="<?= esc($status) ?>"
                                 data-can-select="<?= $canSelect ? '1' : '0' ?>"
+                                data-can-slip="<?= $canSlipPrint ? '1' : '0' ?>"
                                 data-can-cancel="<?= $status === 'calculated' ? '1' : '0' ?>"
                                 data-emp-name="<?= esc((string) ($r['name_ar'] ?? '')) ?>"
                                 data-detail="<?= esc($detailJson) ?>"
                                 tabindex="0">
-                                <td dir="ltr" class="num"><?= (int) $idx + 1 ?></td>
+                                <td dir="ltr" class="num hr-pr-post-col-seq"><?= (int) $idx + 1 ?></td>
                                 <td class="hr-pr-post-emp-code-cell">
-                                    <?php if ($canSelect): ?>
+                                    <?php if ($showRowCheckbox): ?>
                                         <label class="hr-pr-post-chk-cell">
-                                            <input type="checkbox" class="hr-pr-post-emp-chk" name="employee_ids[]" value="<?= $eid ?>">
+                                            <input type="checkbox"
+                                                   class="hr-pr-post-emp-chk"
+                                                   <?php if ($canSelect): ?>name="employee_ids[]" value="<?= $eid ?>"<?php endif; ?>>
                                             <span class="sr-only">تحديد</span>
                                         </label>
                                     <?php endif; ?>
                                     <span dir="ltr"><?= esc((string) ($r['emp_code'] ?? '—')) ?></span>
                                 </td>
-                                <td class="hr-pr-post-emp-name">
+                                <td class="hr-pr-post-emp-name" title="<?= esc((string) ($r['name_ar'] ?? '')) ?>">
                                     <?= esc((string) ($r['name_ar'] ?? '')) ?>
-                                    <?php if (empty($r['has_setup'])): ?>
-                                        <span class="hr-pr-post-cell-note">بدون راتب معرّف</span>
-                                    <?php elseif (empty($r['subject_to_social_security'])): ?>
-                                        <span class="hr-pr-post-cell-note">غير خاضع للضمان</span>
-                                    <?php endif; ?>
                                 </td>
                                 <td dir="ltr" class="num"><?= !empty($r['has_setup'])
                                     ? esc(number_format((float) ($r['base_salary'] ?? 0), 3)) : '—' ?></td>
@@ -417,6 +448,7 @@ $empTableColCount = $showIncomeTaxCol ? 11 : 10;
             </form>
 
             <div class="dashboard-ora-toolbar hr-pr-post-footer-bar no-print">
+                <button type="button" class="btn btn-secondary btn-sm" data-side-action="print_selected" title="طباعة الموظفين المحدّدين بمربع التحديد">طباعة</button>
                 <button type="button" class="btn btn-primary hr-pr-post-footer-post" data-side-action="payroll_post">
                     ترحيل
                 </button>
@@ -466,6 +498,23 @@ $empTableColCount = $showIncomeTaxCol ? 11 : 10;
         </div>
     <?php endif; ?>
 
+    <div class="hr-pr-post-report-print-host no-print" aria-hidden="true">
+        <?php hr_payroll_month_report_render_doc(
+            $pdo,
+            $payYear,
+            $payMonth,
+            $printReportRows,
+            $printReportTotals,
+            $printReportMonthStatus,
+            $printReportMovement['movement_no'],
+            $printReportMovement['movement_desc'],
+            $printReportMovement['movement_date'],
+            $printReportTitle,
+            $printReportDate,
+            $printFilterLabel
+        ); ?>
+    </div>
+
     <div id="hr-pr-post-detail-modal" class="hr-pr-post-detail-modal" hidden aria-hidden="true">
         <div class="hr-pr-post-detail-backdrop" data-detail-close="1"></div>
         <div class="hr-pr-post-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="hr-pr-post-detail-title">
@@ -491,4 +540,17 @@ $empTableColCount = $showIncomeTaxCol ? 11 : 10;
     </div>
 </div>
 
+<div id="hr-pr-post-slip-print-overlay" class="sales-inv-print-overlay no-print" hidden>
+    <div class="sales-inv-print-overlay-panel">
+        <div class="sales-inv-print-overlay-head">
+            <h3 class="sales-inv-print-overlay-title">معاينة قسائم الراتب — اضغط «قسيمة الراتب» أو «طباعة» في الشريط العلوي</h3>
+            <div class="sales-inv-print-overlay-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="hr-pr-post-slip-print-close">إغلاق</button>
+            </div>
+        </div>
+        <div class="sales-inv-print-preview-body" id="hr-pr-post-slip-print-preview"></div>
+    </div>
+</div>
+
+<script src="<?= esc($mchipJsUrl) ?>" defer></script>
 <script src="<?= esc($jsUrl) ?>" defer></script>

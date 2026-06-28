@@ -1,0 +1,37 @@
+/* إعدادات العمل الإضافي */
+
+.hr-ot-set-page {
+    max-width: none;
+    margin: 0;
+}
+
+.hr-ot-set-flash {
+    margin-bottom: 0.5rem;
+}
+
+.hr-ot-set-hint {
+    margin: 0 0 0.75rem;
+    line-height: 1.5;
+}
+
+.hr-ot-set-fields {
+    display: grid;
+    gap: 0.85rem;
+    max-width: 28rem;
+}
+
+.hr-ot-set-field-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.hr-ot-set-actions {
+    margin-top: 0.85rem;
+}
+
+.hr-ot-set-example {
+    margin: 0;
+    line-height: 1.55;
+}

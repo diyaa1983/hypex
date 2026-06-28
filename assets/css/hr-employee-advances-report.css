@@ -1,4 +1,4 @@
-/* تقرير سلف الموظفين — تجميع حسب القسم ثم الموظف */
+/* تقرير سلف الموظفين — تجميع حسب الشهر ثم القسم ثم الموظف */
 .hr-adv-rpt-page .hr-adv-rpt-filters {
   max-width: 1100px;
 }
@@ -12,9 +12,33 @@
   padding: 1.5rem;
 }
 
-.hr-adv-rpt-dept-block {
-  margin-top: 1.25rem;
+.hr-adv-rpt-month-block {
+  margin-top: 1.5rem;
   page-break-inside: avoid;
+}
+
+.hr-adv-rpt-month-title {
+  margin: 0 0 0.75rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 1.12rem;
+  font-weight: 800;
+  background: #dce6f2;
+  border: 1px solid #94a3b8;
+}
+
+.hr-adv-rpt-month-meta {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.hr-adv-rpt-dept-block {
+  margin: 0 0 1rem 0.65rem;
+  page-break-inside: avoid;
+}
+
+.hr-adv-rpt-dept-block > .hr-adv-rpt-table {
+  margin-bottom: 0.5rem;
 }
 
 .hr-adv-rpt-dept-title {
@@ -26,46 +50,92 @@
   border: 1px solid #c5ced9;
 }
 
-.hr-adv-rpt-emp-block {
-  margin: 0 0 1rem 0.75rem;
-}
-
-.hr-adv-rpt-emp-title {
-  margin: 0 0 0.35rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #1a365d;
-}
-
 .hr-adv-rpt-table {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
+  table-layout: auto;
 }
 
 .hr-adv-rpt-table th,
 .hr-adv-rpt-table td {
   border: 1px solid #333;
-  padding: 0.35rem 0.45rem;
-  vertical-align: top;
+  padding: 0.28rem 0.38rem;
+  vertical-align: middle;
 }
 
 .hr-adv-rpt-table thead th {
   background: #f0f0f0;
   font-weight: 700;
   text-align: center;
+  white-space: nowrap;
 }
 
-.hr-adv-rpt-table td.num {
-  text-align: left;
+.hr-adv-rpt-table col.col-seq,
+.hr-adv-rpt-table .col-seq {
+  width: 1.35rem;
+  max-width: 1.35rem;
+  padding-inline: 0.12rem;
+  text-align: center;
   white-space: nowrap;
+}
+
+.hr-adv-rpt-table col.hr-adv-rpt-col-emp-code,
+.hr-adv-rpt-table col.hr-adv-rpt-col-emp-name,
+.hr-adv-rpt-table col.hr-adv-rpt-col-code,
+.hr-adv-rpt-table col.hr-adv-rpt-col-type,
+.hr-adv-rpt-table col.col-date,
+.hr-adv-rpt-table col.col-money,
+.hr-adv-rpt-table col.hr-adv-rpt-col-status,
+.hr-adv-rpt-table col.hr-adv-rpt-col-disb {
+  width: 1%;
+}
+
+.hr-adv-rpt-table .hr-adv-rpt-col-emp-code,
+.hr-adv-rpt-table .hr-adv-rpt-col-emp-name,
+.hr-adv-rpt-table .hr-adv-rpt-col-code,
+.hr-adv-rpt-table .hr-adv-rpt-col-type,
+.hr-adv-rpt-table .col-date,
+.hr-adv-rpt-table .col-money,
+.hr-adv-rpt-table .hr-adv-rpt-col-status,
+.hr-adv-rpt-table .hr-adv-rpt-col-disb {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.hr-adv-rpt-table .hr-adv-rpt-col-emp-name {
+  text-align: start;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hr-adv-rpt-table .col-date,
+.hr-adv-rpt-table .col-money {
+  text-align: center;
+}
+
+.hr-adv-rpt-table td.num,
+.hr-adv-rpt-table .col-money.num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.hr-adv-rpt-table .hr-adv-rpt-col-notes {
+  width: auto;
+  min-width: 3rem;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .hr-adv-rpt-emp-sum td {
   background: #fafafa;
+  border-top: 1px solid #94a3b8;
 }
 
 .hr-adv-rpt-dept-sum-table,
+.hr-adv-rpt-month-sum-table,
 .hr-adv-rpt-grand-table {
   width: 100%;
   max-width: 28rem;
@@ -75,6 +145,8 @@
 
 .hr-adv-rpt-dept-sum-table th,
 .hr-adv-rpt-dept-sum-table td,
+.hr-adv-rpt-month-sum-table th,
+.hr-adv-rpt-month-sum-table td,
 .hr-adv-rpt-grand-table th,
 .hr-adv-rpt-grand-table td {
   border: 1px solid #333;
@@ -82,13 +154,24 @@
 }
 
 .hr-adv-rpt-dept-sum-table th,
+.hr-adv-rpt-month-sum-table th,
 .hr-adv-rpt-grand-table th {
   background: #e8eef5;
   font-weight: 700;
   text-align: right;
 }
 
+.hr-adv-rpt-month-sum-table {
+  max-width: 32rem;
+  margin-top: 0.75rem;
+}
+
+.hr-adv-rpt-month-sum-table th {
+  background: #d5e2f0;
+}
+
 .hr-adv-rpt-dept-sum-table td.num,
+.hr-adv-rpt-month-sum-table td.num,
 .hr-adv-rpt-grand-table td.num {
   text-align: left;
   font-weight: 600;
@@ -110,11 +193,11 @@
 }
 
 @media print {
-  .hr-adv-rpt-dept-block {
+  .hr-adv-rpt-month-block {
     page-break-inside: auto;
   }
 
-  .hr-adv-rpt-emp-block {
+  .hr-adv-rpt-dept-block {
     page-break-inside: avoid;
   }
 }

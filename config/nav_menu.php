@@ -230,7 +230,9 @@ return [
                     'title' => 'تقارير شؤون الموظفين',
                     'items' => [
                         ['r' => 'report_hr_employees', 'label' => 'تقرير الموظفين', 'icon' => '📋'],
-                        ['r' => 'report_hr_employee_advances', 'label' => 'تقرير سلف الموظفين', 'icon' => '💳'],
+                        ['r' => 'report_hr_employees_by_department', 'label' => 'الموظفين حسب القسم', 'icon' => '🏛'],
+                        ['r' => 'report_hr_employees_resigned', 'label' => 'الموظفين المستقيلين', 'icon' => '📤'],
+                        ['r' => 'report_hr_employee_overtime', 'label' => 'تقرير العمل الإضافي', 'icon' => '⏱'],
                     ],
                 ],
                 [
@@ -241,6 +243,14 @@ return [
                         ['r' => 'hr_monthly_payroll_adjustments', 'label' => 'علاوات واقتطاعات شهرية', 'icon' => '📅'],
                         ['r' => 'hr_employee_advances', 'label' => 'سلف الموظفين', 'icon' => '💳'],
                         ['r' => 'hr_payroll_posting', 'label' => 'قيد الرواتب', 'icon' => '📋'],
+                    ],
+                ],
+                [
+                    'id' => 'overtime',
+                    'title' => 'العمل الإضافي',
+                    'items' => [
+                        ['r' => 'hr_overtime_settings', 'label' => 'إعدادات العمل الإضافي', 'icon' => '⚙'],
+                        ['r' => 'hr_employee_overtime', 'label' => 'تسجيل ساعات العمل الإضافي', 'icon' => '⏱'],
                     ],
                 ],
                 [
@@ -266,6 +276,7 @@ return [
                         ['r' => 'hr_payroll_dept_report', 'label' => 'كشف الرواتب للأقسام', 'icon' => '📑'],
                         ['r' => 'hr_payroll_ss_report', 'label' => 'كشف الضمان الاجتماعي', 'icon' => '🛡️'],
                         ['r' => 'hr_payroll_slip_report', 'label' => 'قسيمة الراتب', 'icon' => '🧾'],
+                        ['r' => 'report_hr_employee_advances', 'label' => 'تقرير سلف الموظفين', 'icon' => '💳'],
                     ],
                 ],
             ],

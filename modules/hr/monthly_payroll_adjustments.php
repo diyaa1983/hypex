@@ -8,6 +8,7 @@ require_once app_path('includes/hr_oracle_ui.php');
 require_once app_path('includes/nav_helpers.php');
 require_once app_path('includes/employee_picker.php');
 require_once app_path('includes/document_header.php');
+require_once app_path('includes/hr_month_chip_strip.php');
 
 $pdo = db();
 hr_employee_ensure_schema($pdo);
@@ -217,6 +218,7 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
 <?php employee_picker_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssOra12Url) ?>">
+<link rel="stylesheet" href="<?= esc(hr_month_chip_strip_css_url()) ?>">
 <?php employee_picker_json_script($pickerEmployees, 'hr-mpa-picker-json'); ?>
 
 <div class="hr-mpa-classic hr-mpa-ora-screen hr-mpa-page"
@@ -273,28 +275,16 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
                         ]) ?>
                     </div>
                     <div class="hr-mpa-master-cell hr-mpa-master-cell--month">
-                        <label class="hr-mpa-field-label" for="hr-mpa-filter-month">الشهر</label>
+                        <label class="hr-mpa-field-label">الشهر / السنة</label>
                         <div class="hr-mpa-month-wrap">
-                            <input class="input hr-mpa-year-input" type="number" name="year" id="hr-mpa-filter-year"
-                                   min="2000" max="2100" value="<?= $payYear ?>" dir="ltr" required
-                                   aria-label="السنة">
-                            <select class="input hr-mpa-month-select" name="month" id="hr-mpa-filter-month" required
-                                    aria-label="رقم الشهر">
-                            <?php foreach ($monthPickerOptions as $opt):
-                                $m = (int) ($opt['month'] ?? 0);
-                                if ($m < 1 || $m > 12) {
-                                    continue;
-                                }
-                                $statusKey = (string) ($opt['status'] ?? 'empty');
-                            ?>
-                                <option value="<?= $m ?>"
-                                        data-status="<?= esc($statusKey) ?>"
-                                        data-name="<?= esc((string) ($monthNames[$m] ?? (string) $m)) ?>"
-                                        <?= $payMonth === $m ? 'selected' : '' ?>>
-                                    <?= esc(sprintf('%02d', $m)) ?>
-                                </option>
-                            <?php endforeach; ?>
-                            </select>
+                            <?php hr_render_month_chip_strip($monthPickerOptions, [
+                                'year' => $payYear,
+                                'selected_month' => $payMonth,
+                                'year_input_id' => 'hr-mpa-filter-year',
+                                'year_input_name' => 'year',
+                                'month_input_id' => 'hr-mpa-filter-month',
+                                'month_input_name' => 'month',
+                            ]); ?>
                             <input class="input hr-mpa-month-name" type="text" id="hr-mpa-filter-month-name"
                                    value="<?= esc($payMonthName) ?>" readonly tabindex="-1"
                                    aria-label="اسم الشهر">
@@ -460,7 +450,13 @@ function hr_mpa_render_rows(array $rows, float $baseSalary, string $panelType, s
     </form>
 </div>
 
+<?php
+$mchipJsPath = app_path('assets/js/hr-month-chip-strip.js');
+$mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
+    . (is_file($mchipJsPath) ? '?v=' . (string) filemtime($mchipJsPath) : '');
+?>
 <script type="application/json" id="hr-mpa-month-status-labels-json"><?= json_encode($monthStatusLabels, JSON_UNESCAPED_UNICODE) ?></script>
 <script type="application/json" id="hr-mpa-allow-components-json"><?= $allowComponentsJson ?></script>
 <script type="application/json" id="hr-mpa-deduct-components-json"><?= $deductComponentsJson ?></script>
+<script src="<?= esc($mchipJsUrl) ?>" defer></script>
 <script src="<?= esc($jsUrl) ?>" defer></script>

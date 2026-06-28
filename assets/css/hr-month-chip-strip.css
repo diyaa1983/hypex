@@ -1,0 +1,115 @@
+.hr-mchip-period-wrap {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    flex-wrap: nowrap;
+    min-width: 0;
+    width: 100%;
+}
+
+.hr-mchip-year-input {
+    width: 4.2rem;
+    min-width: 4.2rem;
+    flex: 0 0 4.2rem;
+    text-align: center;
+    font-weight: 700;
+    padding: 0.2rem 0.35rem;
+}
+
+.hr-mchip-strip {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(3.4rem, 1fr));
+    gap: 0.28rem;
+    flex: 1 1 auto;
+    min-width: 20.4rem;
+    width: 100%;
+}
+
+.hr-mchip-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.05rem;
+    min-height: 2.35rem;
+    padding: 0.15rem 0.2rem;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--ora12-text, #161513);
+    cursor: pointer;
+    line-height: 1.15;
+    transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s;
+}
+
+.hr-mchip-chip:hover {
+    background: #eef6ff;
+    border-color: #93c5fd;
+}
+
+.hr-mchip-chip.is-active {
+    background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+    border-color: #1e40af;
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.35);
+}
+
+.hr-mchip-chip[data-status='open']:not(.is-active) {
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+
+.hr-mchip-chip[data-status='calculated']:not(.is-active) {
+    border-color: #f87171;
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.hr-mchip-chip[data-status='posted']:not(.is-active) {
+    border-color: #94a3b8;
+    background: #f8fafc;
+    color: #475569;
+}
+
+.hr-mchip-chip[data-status='mixed']:not(.is-active) {
+    border-color: #c4b5fd;
+    background: #f5f3ff;
+    color: #6d28d9;
+}
+
+.hr-mchip-chip-num {
+    font-size: 0.72rem;
+    font-weight: 800;
+    opacity: 0.92;
+}
+
+.hr-mchip-chip-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+@media (max-width: 1100px) {
+    .hr-mchip-strip {
+        grid-template-columns: repeat(4, minmax(3.2rem, 1fr));
+    }
+}
+
+@media (max-width: 720px) {
+    .hr-mchip-period-wrap {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .hr-mchip-year-input {
+        width: 100%;
+        flex: none;
+    }
+
+    .hr-mchip-strip {
+        grid-template-columns: repeat(3, minmax(3rem, 1fr));
+    }
+}

@@ -3,6 +3,7 @@
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap {
     width: 100%;
     max-width: 100%;
+    font-size: 1rem;
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .dashboard-ora-screen-title__group {
@@ -24,9 +25,9 @@
     align-items: center;
     justify-content: center;
     padding: 0.14rem 0.55rem;
-    min-height: 1.45rem;
+    min-height: 1.75rem;
     font-family: inherit;
-    font-size: 0.7rem;
+    font-size: 1rem;
     font-weight: 700;
     line-height: 1.25;
     color: #fff;
@@ -67,8 +68,8 @@
     align-self: flex-end;
     margin-bottom: 0.05rem;
     padding: 0.22rem 0.6rem;
-    min-height: 1.6rem;
-    font-size: 0.72rem;
+    min-height: 1.9rem;
+    font-size: 0.88rem;
     font-weight: 700;
     color: var(--ora12-text);
     background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
@@ -125,7 +126,7 @@
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-meta-item label,
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .field-label {
-    font-size: 0.72rem;
+    font-size: 0.88rem;
     font-weight: 700;
     color: var(--ora12-muted);
     margin-bottom: 0.15rem;
@@ -134,10 +135,10 @@
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .input,
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap select.input,
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap textarea.input {
-    min-height: 1.65rem;
+    min-height: 2rem;
     padding: 0.2rem 0.45rem;
     font-family: inherit;
-    font-size: 0.78rem;
+    font-size: 0.95rem;
     color: var(--ora12-text);
     background: #fff;
     border: 1px solid var(--ora12-border);
@@ -164,14 +165,14 @@
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-no-arrow,
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-no-arrow {
-    flex: 0 0 1.55rem;
-    width: 1.55rem;
-    min-height: 1.55rem;
+    flex: 0 0 1.85rem;
+    width: 1.85rem;
+    min-height: 1.85rem;
     border: 1px solid var(--ora12-border);
     border-radius: 2px;
     background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
     color: var(--ora12-text);
-    font-size: 0.85rem;
+    font-size: 1rem;
     font-weight: 700;
     padding: 0;
     box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
@@ -205,7 +206,7 @@
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-cust-open {
-    min-height: 1.65rem;
+    min-height: 2rem;
     padding: 0.18rem 0.45rem;
     border: 1px solid var(--ora12-border);
     border-radius: 2px;
@@ -243,7 +244,7 @@
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-editor-code {
-    font-size: 0.76rem;
+    font-size: 0.92rem;
     font-weight: 700;
     color: #fff;
     background: rgba(0, 0, 0, 0.15);
@@ -253,7 +254,7 @@
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-state-badge {
-    font-size: 0.68rem;
+    font-size: 0.82rem;
     font-weight: 700;
     padding: 0.1rem 0.42rem;
     border-radius: 2px;
@@ -280,14 +281,14 @@
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-stack-tabs {
-    min-height: 1.85rem;
+    min-height: 2.2rem;
     border-bottom: 1px solid #808080;
     background: linear-gradient(180deg, #ece9e4 0%, #d4d0c8 100%);
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-stack-tab {
     border-radius: 0;
-    font-size: 0.72rem;
+    font-size: 0.88rem;
     color: #fff;
     border-color: #024d8f #4a9fd4 #6a6a6a #024d8f;
     background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
@@ -311,8 +312,8 @@
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-lov {
-    min-height: 1.65rem;
-    max-height: 1.65rem;
+    min-height: 2rem;
+    max-height: 2rem;
     border: 1px solid var(--ora12-border);
     border-radius: 2px;
     background: #fff;
@@ -331,12 +332,12 @@
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-toggle {
-    min-height: 1.65rem;
+    min-height: 2rem;
     padding: 0.22rem 0.45rem;
     border: 1px solid var(--ora12-border);
     border-radius: 2px;
     background: #fff;
-    font-size: 0.78rem;
+    font-size: 0.95rem;
     font-weight: 600;
 }
 
@@ -356,5 +357,45 @@
     background: #fff8e1;
     border: 1px solid #f0d78c;
     border-radius: 2px;
-    font-size: 0.78rem;
+    font-size: 0.95rem;
+}
+
+/* عناوين الأقسام والنصوص المساعدة */
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .dashboard-ora-panel__title {
+    font-size: 0.96rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .dashboard-ora-screen-title__text {
+    font-size: 1.05rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .sales-inv-cust-open-label {
+    font-size: 0.95rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-lov-field {
+    font-size: 0.95rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-stack-tab.is-behind {
+    font-size: 0.82rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-form-warn,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-field-warn,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-field-meta,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-status-hint {
+    font-size: 0.92rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-status-item .input.hr-emp-status-control,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-status-item .hr-emp-toggle {
+    min-height: 2rem;
+    height: 2rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap textarea.input {
+    min-height: 4.5rem;
+    line-height: 1.5;
 }

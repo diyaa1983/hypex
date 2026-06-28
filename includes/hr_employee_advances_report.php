@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once app_path('includes/hr_employee_advance.php');
 require_once app_path('includes/hr_schema.php');
+require_once app_path('includes/acc_period_lock.php');
 
 function hr_employee_advances_report_department_options(PDO $pdo): array
 {
@@ -79,19 +80,39 @@ function hr_employee_advances_report_disbursement_label(array $row, bool $disbCo
     return 'بانتظار الصرف';
 }
 
+function hr_employee_advances_report_month_label(int $year, int $month): string
+{
+    $names = acc_period_month_names_ar();
+
+    return sprintf(
+        '%02d — %s / %s',
+        $month,
+        $names[$month] ?? (string) $month,
+        (string) $year
+    );
+}
+
 /**
  * @return array{
- *   departments: list<array{
- *     dept_id:int,
- *     dept_name:string,
- *     employees: list<array{
- *       employee_id:int,
- *       emp_code:string,
- *       emp_name:string,
- *       advances: list<array<string, mixed>>,
- *       total: float
+ *   months: list<array{
+ *     year:int,
+ *     month:int,
+ *     month_label:string,
+ *     departments: list<array{
+ *       dept_id:int,
+ *       dept_name:string,
+ *       employees: list<array{
+ *         employee_id:int,
+ *         emp_code:string,
+ *         emp_name:string,
+ *         advances: list<array<string, mixed>>,
+ *         total: float
+ *       }>,
+ *       total: float,
+ *       advance_count: int
  *     }>,
- *     total: float
+ *     total: float,
+ *     advance_count: int
  *   }>,
  *   grand_total: float,
  *   advance_count: int
@@ -99,8 +120,8 @@ function hr_employee_advances_report_disbursement_label(array $row, bool $disbCo
  */
 function hr_employee_advances_report_build(
     PDO $pdo,
-    string $fromIso,
-    string $toIso,
+    int $year,
+    int $month = 0,
     int $departmentId = 0,
     int $employeeId = 0
 ): array {
@@ -110,12 +131,12 @@ function hr_employee_advances_report_build(
     hr_department_ensure_schema($pdo);
 
     $empty = [
-        'departments' => [],
+        'months' => [],
         'grand_total' => 0.0,
         'advance_count' => 0,
     ];
 
-    if ($fromIso === '' || $toIso === '') {
+    if ($year < 2000) {
         return $empty;
     }
 
@@ -134,10 +155,13 @@ function hr_employee_advances_report_build(
             INNER JOIN hr_employee e ON e.id = a.employee_id
             LEFT JOIN hr_department d ON d.id = e.department_id
             WHERE a.start_date IS NOT NULL
-              AND a.start_date >= ?
-              AND a.start_date <= ?';
-    $params = ['— بدون قسم —', $fromIso, $toIso];
+              AND YEAR(a.start_date) = ?';
+    $params = ['— بدون قسم —', $year];
 
+    if ($month >= 1 && $month <= 12) {
+        $sql .= ' AND MONTH(a.start_date) = ?';
+        $params[] = $month;
+    }
     if ($departmentId > 0) {
         $sql .= ' AND e.department_id = ?';
         $params[] = $departmentId;
@@ -147,7 +171,8 @@ function hr_employee_advances_report_build(
         $params[] = $employeeId;
     }
 
-    $sql .= ' ORDER BY dept_name ASC, e.name_ar ASC, e.id ASC, a.start_date ASC, CAST(a.advance_code AS UNSIGNED) ASC, a.id ASC';
+    $sql .= ' ORDER BY MONTH(a.start_date) ASC, dept_name ASC, e.name_ar ASC, e.id ASC,
+              a.start_date ASC, CAST(a.advance_code AS UNSIGNED) ASC, a.id ASC';
 
     try {
         $st = $pdo->prepare($sql);
@@ -161,23 +186,46 @@ function hr_employee_advances_report_build(
         return $empty;
     }
 
-    $deptGroups = [];
+    $monthGroups = [];
     foreach ($raw as $row) {
+        $startIso = (string) ($row['start_date'] ?? '');
+        if ($startIso === '') {
+            continue;
+        }
+
+        $advYear = (int) date('Y', strtotime($startIso));
+        $advMonth = (int) date('n', strtotime($startIso));
+        if ($advYear < 2000 || $advMonth < 1 || $advMonth > 12) {
+            continue;
+        }
+
+        $monthKey = sprintf('%04d-%02d', $advYear, $advMonth);
         $deptKey = (string) ($row['dept_name'] ?? '— بدون قسم —');
         $deptIdSort = (int) ($row['dept_id_sort'] ?? 0);
         $empId = (int) ($row['employee_id'] ?? 0);
         $amount = round((float) ($row['total_amount'] ?? 0), 3);
 
-        if (!isset($deptGroups[$deptKey])) {
-            $deptGroups[$deptKey] = [
+        if (!isset($monthGroups[$monthKey])) {
+            $monthGroups[$monthKey] = [
+                'year' => $advYear,
+                'month' => $advMonth,
+                'month_label' => hr_employee_advances_report_month_label($advYear, $advMonth),
+                'departments' => [],
+                'total' => 0.0,
+                'advance_count' => 0,
+            ];
+        }
+        if (!isset($monthGroups[$monthKey]['departments'][$deptKey])) {
+            $monthGroups[$monthKey]['departments'][$deptKey] = [
                 'dept_id' => $deptIdSort,
                 'dept_name' => $deptKey,
                 'employees' => [],
                 'total' => 0.0,
+                'advance_count' => 0,
             ];
         }
-        if (!isset($deptGroups[$deptKey]['employees'][$empId])) {
-            $deptGroups[$deptKey]['employees'][$empId] = [
+        if (!isset($monthGroups[$monthKey]['departments'][$deptKey]['employees'][$empId])) {
+            $monthGroups[$monthKey]['departments'][$deptKey]['employees'][$empId] = [
                 'employee_id' => $empId,
                 'emp_code' => (string) ($row['emp_code'] ?? ''),
                 'emp_name' => (string) ($row['emp_name'] ?? ''),
@@ -186,53 +234,59 @@ function hr_employee_advances_report_build(
             ];
         }
 
-        $startIso = (string) ($row['start_date'] ?? '');
         $endIso = (string) ($row['end_date'] ?? '');
-        $periodLabel = $startIso !== '' ? format_date_dmY($startIso) : '—';
+        $periodLabel = format_date_dmY($startIso);
         if ($endIso !== '' && $endIso !== $startIso) {
             $periodLabel .= ' → ' . format_date_dmY($endIso);
         }
 
-        $deptGroups[$deptKey]['employees'][$empId]['advances'][] = [
+        $monthGroups[$monthKey]['departments'][$deptKey]['employees'][$empId]['advances'][] = [
             'advance_code' => trim((string) ($row['advance_code'] ?? '')) !== ''
                 ? (string) $row['advance_code']
                 : (string) (int) ($row['id'] ?? 0),
             'advance_type_label' => hr_employee_advance_type_label((string) ($row['advance_type'] ?? '')),
             'advance_date' => $startIso,
-            'advance_date_display' => $startIso !== '' ? format_date_dmY($startIso) : '—',
+            'advance_date_display' => format_date_dmY($startIso),
             'period_label' => $periodLabel,
             'amount' => $amount,
             'hr_status_label' => hr_employee_advances_report_hr_status_label($row),
             'disbursement_label' => hr_employee_advances_report_disbursement_label($row, $disbCols),
             'notes' => trim((string) ($row['notes'] ?? '')),
         ];
-        $deptGroups[$deptKey]['employees'][$empId]['total'] += $amount;
-        $deptGroups[$deptKey]['total'] += $amount;
+
+        $monthGroups[$monthKey]['departments'][$deptKey]['employees'][$empId]['total'] += $amount;
+        $monthGroups[$monthKey]['departments'][$deptKey]['total'] += $amount;
+        $monthGroups[$monthKey]['departments'][$deptKey]['advance_count']++;
+        $monthGroups[$monthKey]['total'] += $amount;
+        $monthGroups[$monthKey]['advance_count']++;
     }
 
-    $departments = [];
+    ksort($monthGroups);
+
+    $months = [];
     $grandTotal = 0.0;
     $advanceCount = 0;
-    foreach ($deptGroups as $g) {
-        $employees = [];
-        foreach ($g['employees'] as $emp) {
-            $emp['total'] = round((float) $emp['total'], 3);
-            $seq = 1;
-            foreach ($emp['advances'] as &$adv) {
-                $adv['seq'] = $seq++;
-                $advanceCount++;
+    foreach ($monthGroups as $monthBlock) {
+        $departments = [];
+        foreach ($monthBlock['departments'] as $deptBlock) {
+            $employees = [];
+            foreach ($deptBlock['employees'] as $emp) {
+                $emp['total'] = round((float) $emp['total'], 3);
+                $employees[] = $emp;
             }
-            unset($adv);
-            $employees[] = $emp;
+            $deptBlock['employees'] = $employees;
+            $deptBlock['total'] = round((float) $deptBlock['total'], 3);
+            $departments[] = $deptBlock;
         }
-        $g['employees'] = $employees;
-        $g['total'] = round((float) $g['total'], 3);
-        $departments[] = $g;
-        $grandTotal += $g['total'];
+        $monthBlock['departments'] = $departments;
+        $monthBlock['total'] = round((float) $monthBlock['total'], 3);
+        $months[] = $monthBlock;
+        $grandTotal += $monthBlock['total'];
+        $advanceCount += (int) $monthBlock['advance_count'];
     }
 
     return [
-        'departments' => $departments,
+        'months' => $months,
         'grand_total' => round($grandTotal, 3),
         'advance_count' => $advanceCount,
     ];

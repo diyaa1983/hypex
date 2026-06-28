@@ -5,6 +5,9 @@ require_once app_path('includes/hr_schema.php');
 require_once app_path('includes/hr_payroll_posting.php');
 require_once app_path('includes/acc_report_ref.php');
 require_once app_path('includes/hr_oracle_ui.php');
+require_once app_path('includes/hr_month_chip_strip.php');
+require_once app_path('includes/hr_payroll_month_report.php');
+require_once app_path('includes/document_header.php');
 
 $pdo = db();
 hr_employee_ensure_schema($pdo);
@@ -248,5 +251,45 @@ foreach ($statusRows as $sr) {
     }
 }
 $salariesUrl = app_url('index.php?r=hr_salaries');
+
+$printAllRows = hr_payroll_month_status_rows($pdo, $payYear, $payMonth, $filterDeptId, $filterEmpId);
+$printReportFiltered = hr_payroll_month_report_filter_rows($printAllRows);
+$printReportRows = $printReportFiltered['rows'];
+$printReportTotals = $printReportFiltered['totals'];
+$printReportMovement = hr_payroll_month_report_movement($pdo, $payYear, $payMonth);
+$printReportSummary = hr_payroll_month_summary($pdo, $payYear, $payMonth, $filterDeptId, $filterEmpId);
+$printReportMonthStatus = hr_payroll_month_status_info(
+    $pdo,
+    $payYear,
+    $payMonth,
+    $printReportSummary,
+    count($printAllRows)
+);
+$printReportTitle = hr_payroll_month_report_title();
+$printReportDate = date('Y-m-d');
+$hasPrintReport = $printReportRows !== [];
+$printFilterLabel = 'جميع الموظفين';
+if ($filterEmpId > 0) {
+    $stEmpName = $pdo->prepare('SELECT name_ar FROM hr_employee WHERE id = ? LIMIT 1');
+    $stEmpName->execute([$filterEmpId]);
+    $empName = (string) ($stEmpName->fetchColumn() ?: '');
+    $printFilterLabel = $empName !== '' ? $empName : 'موظف #' . $filterEmpId;
+} elseif ($filterDeptId > 0) {
+    foreach ($departments as $d) {
+        if ((int) ($d['id'] ?? 0) === $filterDeptId) {
+            $printFilterLabel = 'قسم: ' . (string) ($d['name_ar'] ?? '');
+            break;
+        }
+    }
+}
+$monthReportCssPath = app_path('assets/css/hr-payroll-month-report.css');
+$monthReportCssUrl = app_url('assets/css/hr-payroll-month-report.css')
+    . (is_file($monthReportCssPath) ? '?v=' . (string) filemtime($monthReportCssPath) : '');
+$slipReportCssPath = app_path('assets/css/hr-payroll-slip-report.css');
+$slipReportCssUrl = app_url('assets/css/hr-payroll-slip-report.css')
+    . (is_file($slipReportCssPath) ? '?v=' . (string) filemtime($slipReportCssPath) : '');
+$salesInvCssPath = app_path('assets/css/sales-invoice.css');
+$salesInvCssUrl = app_url('assets/css/sales-invoice.css')
+    . (is_file($salesInvCssPath) ? '?v=' . (string) filemtime($salesInvCssPath) : '');
 
 require app_path('modules/hr/payroll_posting_view.php');

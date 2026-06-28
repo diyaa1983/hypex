@@ -4,21 +4,23 @@ declare(strict_types=1);
 require_once app_path('includes/hr_employee_advances_report.php');
 require_once app_path('includes/document_header.php');
 require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/acc_period_lock.php');
 
 $pdo = db();
 hr_employee_ensure_schema($pdo);
 
-$fromRaw = trim((string) ($_GET['from'] ?? ''));
-$toRaw = trim((string) ($_GET['to'] ?? ''));
+$monthNames = acc_period_month_names_ar();
+$filterYear = (int) ($_GET['year'] ?? (int) date('Y'));
+$filterMonth = (int) ($_GET['month'] ?? 0);
 $departmentId = (int) ($_GET['department_id'] ?? 0);
 $employeeId = (int) ($_GET['employee_id'] ?? 0);
 $showReport = !empty($_GET['show']);
 
-if ($fromRaw === '') {
-    $fromRaw = date('Y') . '-01-01';
+if ($filterYear < 2000 || $filterYear > 2100) {
+    $filterYear = (int) date('Y');
 }
-if ($toRaw === '') {
-    $toRaw = date('Y-m-d');
+if ($filterMonth < 0 || $filterMonth > 12) {
+    $filterMonth = 0;
 }
 
 $departments = hr_employee_advances_report_department_options($pdo);
@@ -26,28 +28,9 @@ $employees = hr_employee_advances_report_employee_options($pdo);
 
 $report = null;
 $err = '';
-$fromIso = '';
-$toIso = '';
-$fromDisplay = '';
-$toDisplay = '';
 
 if ($showReport) {
-    $fromIso = parse_date_to_iso($fromRaw) ?? '';
-    $toIso = parse_date_to_iso($toRaw) ?? '';
-    if ($fromIso === '' || $toIso === '') {
-        $err = 'تاريخ البداية والنهاية غير صالحين (يوم-شهر-سنة).';
-    } elseif ($fromIso > $toIso) {
-        $err = 'تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية.';
-    } else {
-        $fromDisplay = format_date_dmY($fromIso);
-        $toDisplay = format_date_dmY($toIso);
-        $report = hr_employee_advances_report_build($pdo, $fromIso, $toIso, $departmentId, $employeeId);
-    }
-} else {
-    $fromIso = parse_date_to_iso($fromRaw) ?? $fromRaw;
-    $toIso = parse_date_to_iso($toRaw) ?? $toRaw;
-    $fromDisplay = format_date_dmY($fromIso);
-    $toDisplay = format_date_dmY($toIso);
+    $report = hr_employee_advances_report_build($pdo, $filterYear, $filterMonth, $departmentId, $employeeId);
 }
 
 $deptLabel = 'جميع الأقسام';
@@ -72,6 +55,10 @@ if ($employeeId > 0) {
     }
 }
 
+$periodLabel = $filterMonth >= 1 && $filterMonth <= 12
+    ? hr_employee_advances_report_month_label($filterYear, $filterMonth)
+    : ('جميع أشهر ' . (string) $filterYear);
+
 $reportTitle = 'تقرير سلف الموظفين';
 $reportDate = date('Y-m-d');
 $exitUrl = nav_exit_url('report_hr_employee_advances');
@@ -93,14 +80,20 @@ $docCssUrl = document_print_stylesheet_url('assets/css/document-header.css');
         <input type="hidden" name="show" value="1">
         <div class="form-row">
             <label class="field">
-                <span class="field-label">من تاريخ</span>
-                <input class="input js-date-dmy" type="text" name="from" value="<?= esc($fromDisplay) ?>"
-                       placeholder="يوم-شهر-سنة" dir="ltr" required>
+                <span class="field-label">السنة</span>
+                <input class="input hr-adv-rpt-year" type="number" name="year" min="2000" max="2100"
+                       value="<?= $filterYear ?>" dir="ltr" required>
             </label>
             <label class="field">
-                <span class="field-label">إلى تاريخ</span>
-                <input class="input js-date-dmy" type="text" name="to" value="<?= esc($toDisplay) ?>"
-                       placeholder="يوم-شهر-سنة" dir="ltr" required>
+                <span class="field-label">الشهر</span>
+                <select class="input" name="month" id="hr-adv-rpt-month">
+                    <option value="0" <?= $filterMonth === 0 ? 'selected' : '' ?>>جميع الأشهر</option>
+                    <?php for ($m = 1; $m <= 12; $m++): ?>
+                        <option value="<?= $m ?>" <?= $filterMonth === $m ? 'selected' : '' ?>>
+                            <?= sprintf('%02d', $m) ?> — <?= esc($monthNames[$m] ?? (string) $m) ?>
+                        </option>
+                    <?php endfor; ?>
+                </select>
             </label>
             <label class="field">
                 <span class="field-label">القسم</span>
@@ -146,9 +139,7 @@ $docCssUrl = document_print_stylesheet_url('assets/css/document-header.css');
                     <tr>
                         <td>
                             <strong>الفترة:</strong>
-                            <span dir="ltr"><?= esc($fromDisplay) ?></span>
-                            —
-                            <span dir="ltr"><?= esc($toDisplay) ?></span>
+                            <span dir="ltr"><?= esc($periodLabel) ?></span>
                             &nbsp;&nbsp;|&nbsp;&nbsp;
                             <strong>تاريخ التقرير:</strong>
                             <span dir="ltr"><?= esc(format_date_dmY($reportDate)) ?></span>
@@ -166,69 +157,105 @@ $docCssUrl = document_print_stylesheet_url('assets/css/document-header.css');
                 </table>
             </div>
 
-            <?php if (($report['departments'] ?? []) === []): ?>
+            <?php if (($report['months'] ?? []) === []): ?>
                 <p class="hr-adv-rpt-empty muted">لا توجد سلف مطابقة للفترة والفلاتر المحددة.</p>
             <?php endif; ?>
 
-            <?php foreach ($report['departments'] as $deptBlock): ?>
-                <section class="hr-adv-rpt-dept-block">
-                    <h3 class="hr-adv-rpt-dept-title">القسم: <?= esc((string) $deptBlock['dept_name']) ?></h3>
+            <?php foreach ($report['months'] as $monthBlock): ?>
+                <section class="hr-adv-rpt-month-block">
+                    <h2 class="hr-adv-rpt-month-title">
+                        شهر: <span dir="ltr"><?= esc((string) ($monthBlock['month_label'] ?? '')) ?></span>
+                        <span class="hr-adv-rpt-month-meta">
+                            (<?= (int) ($monthBlock['advance_count'] ?? 0) ?> سلفة)
+                        </span>
+                    </h2>
 
-                    <?php foreach ($deptBlock['employees'] as $empBlock): ?>
-                        <div class="hr-adv-rpt-emp-block">
-                            <h4 class="hr-adv-rpt-emp-title">
-                                <?= esc(trim((string) ($empBlock['emp_code'] ?? '') . ' — ' . (string) ($empBlock['emp_name'] ?? ''))) ?>
-                            </h4>
+                    <?php foreach ($monthBlock['departments'] as $deptBlock): ?>
+                        <section class="hr-adv-rpt-dept-block">
+                            <h3 class="hr-adv-rpt-dept-title">القسم: <?= esc((string) $deptBlock['dept_name']) ?></h3>
+
                             <table class="hr-adv-rpt-table report-sales-table">
+                                <colgroup>
+                                    <col class="col-seq">
+                                    <col class="hr-adv-rpt-col-emp-code">
+                                    <col class="hr-adv-rpt-col-emp-name">
+                                    <col class="hr-adv-rpt-col-code">
+                                    <col class="hr-adv-rpt-col-type">
+                                    <col class="col-date">
+                                    <col class="col-money">
+                                    <col class="hr-adv-rpt-col-status">
+                                    <col class="hr-adv-rpt-col-disb">
+                                    <col class="hr-adv-rpt-col-notes">
+                                </colgroup>
                                 <thead>
                                 <tr>
-                                    <th>ت</th>
-                                    <th>رقم السلفة</th>
-                                    <th>نوع السلفة</th>
-                                    <th>تاريخ السلفة</th>
-                                    <th>المبلغ</th>
-                                    <th>ترحيل الشؤون</th>
-                                    <th>صرف المحاسبة</th>
-                                    <th>ملاحظات</th>
+                                    <th class="col-seq">#</th>
+                                    <th class="hr-adv-rpt-col-emp-code">رقم الموظف</th>
+                                    <th class="hr-adv-rpt-col-emp-name">اسم الموظف</th>
+                                    <th class="hr-adv-rpt-col-code">رقم السلفة</th>
+                                    <th class="hr-adv-rpt-col-type">نوع السلفة</th>
+                                    <th class="col-date">تاريخ السلفة</th>
+                                    <th class="col-money">المبلغ</th>
+                                    <th class="hr-adv-rpt-col-status">ترحيل الشؤون</th>
+                                    <th class="hr-adv-rpt-col-disb">صرف المحاسبة</th>
+                                    <th class="hr-adv-rpt-col-notes">ملاحظات</th>
                                 </tr>
                                 </thead>
                                 <tbody>
-                                <?php foreach ($empBlock['advances'] as $adv): ?>
+                                <?php
+                                $deptSeq = 0;
+                                foreach ($deptBlock['employees'] as $empBlock):
+                                    $empLabelRow = trim((string) ($empBlock['emp_code'] ?? '') . ' — ' . (string) ($empBlock['emp_name'] ?? ''));
+                                    foreach ($empBlock['advances'] as $adv):
+                                        $deptSeq++;
+                                ?>
                                     <tr>
-                                        <td><?= (int) ($adv['seq'] ?? 0) ?></td>
-                                        <td dir="ltr"><?= esc((string) ($adv['advance_code'] ?? '')) ?></td>
-                                        <td><?= esc((string) ($adv['advance_type_label'] ?? '')) ?></td>
-                                        <td dir="ltr"><?= esc((string) ($adv['advance_date_display'] ?? '')) ?></td>
-                                        <td dir="ltr" class="num"><?= esc(format_money((float) ($adv['amount'] ?? 0))) ?></td>
-                                        <td><?= esc((string) ($adv['hr_status_label'] ?? '')) ?></td>
-                                        <td><?= esc((string) ($adv['disbursement_label'] ?? '')) ?></td>
-                                        <td><?= esc((string) (($adv['notes'] ?? '') !== '' ? $adv['notes'] : '—')) ?></td>
+                                        <td class="col-seq"><?= $deptSeq ?></td>
+                                        <td class="hr-adv-rpt-col-emp-code" dir="ltr"><?= esc((string) ($empBlock['emp_code'] ?? '—')) ?></td>
+                                        <td class="hr-adv-rpt-col-emp-name"><?= esc((string) ($empBlock['emp_name'] ?? '—')) ?></td>
+                                        <td class="hr-adv-rpt-col-code" dir="ltr"><?= esc((string) ($adv['advance_code'] ?? '')) ?></td>
+                                        <td class="hr-adv-rpt-col-type"><?= esc((string) ($adv['advance_type_label'] ?? '')) ?></td>
+                                        <td class="col-date" dir="ltr"><?= esc((string) ($adv['advance_date_display'] ?? '')) ?></td>
+                                        <td class="col-money num" dir="ltr"><?= esc(format_money((float) ($adv['amount'] ?? 0))) ?></td>
+                                        <td class="hr-adv-rpt-col-status"><?= esc((string) ($adv['hr_status_label'] ?? '')) ?></td>
+                                        <td class="hr-adv-rpt-col-disb"><?= esc((string) ($adv['disbursement_label'] ?? '')) ?></td>
+                                        <td class="hr-adv-rpt-col-notes"><?= esc((string) (($adv['notes'] ?? '') !== '' ? $adv['notes'] : '—')) ?></td>
+                                    </tr>
+                                <?php
+                                    endforeach;
+                                ?>
+                                    <tr class="hr-adv-rpt-emp-sum">
+                                        <td colspan="6"><strong>مجموع الموظف: <?= esc($empLabelRow !== '' ? $empLabelRow : '—') ?></strong></td>
+                                        <td class="col-money num" dir="ltr"><strong><?= esc(format_money((float) ($empBlock['total'] ?? 0))) ?></strong></td>
+                                        <td colspan="3"></td>
                                     </tr>
                                 <?php endforeach; ?>
                                 </tbody>
-                                <tfoot>
-                                <tr class="hr-adv-rpt-emp-sum">
-                                    <td colspan="4"><strong>مجموع الموظف</strong></td>
-                                    <td dir="ltr" class="num"><strong><?= esc(format_money((float) ($empBlock['total'] ?? 0))) ?></strong></td>
-                                    <td colspan="3"></td>
-                                </tr>
-                                </tfoot>
                             </table>
-                        </div>
+
+                            <table class="hr-adv-rpt-dept-sum-table">
+                                <tbody>
+                                <tr>
+                                    <th>مجموع القسم: <?= esc((string) $deptBlock['dept_name']) ?></th>
+                                    <td dir="ltr" class="num"><?= esc(format_money((float) ($deptBlock['total'] ?? 0))) ?></td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </section>
                     <?php endforeach; ?>
 
-                    <table class="hr-adv-rpt-dept-sum-table">
+                    <table class="hr-adv-rpt-month-sum-table">
                         <tbody>
                         <tr>
-                            <th>مجموع القسم: <?= esc((string) $deptBlock['dept_name']) ?></th>
-                            <td dir="ltr" class="num"><?= esc(format_money((float) ($deptBlock['total'] ?? 0))) ?></td>
+                            <th>مجموع شهر <span dir="ltr"><?= esc((string) ($monthBlock['month_label'] ?? '')) ?></span></th>
+                            <td dir="ltr" class="num"><?= esc(format_money((float) ($monthBlock['total'] ?? 0))) ?></td>
                         </tr>
                         </tbody>
                     </table>
                 </section>
             <?php endforeach; ?>
 
-            <?php if (($report['departments'] ?? []) !== []): ?>
+            <?php if (($report['months'] ?? []) !== []): ?>
                 <footer class="hr-adv-rpt-grand">
                     <table class="hr-adv-rpt-grand-table">
                         <tbody>
@@ -250,21 +277,44 @@ $docCssUrl = document_print_stylesheet_url('assets/css/document-header.css');
   var deptSel = document.getElementById('hr-adv-rpt-dept');
   var empSel = document.getElementById('hr-adv-rpt-employee');
   if (!deptSel || !empSel) return;
-  var allOpts = Array.prototype.slice.call(empSel.options);
-  function filterEmployees() {
+
+  var allOpts = Array.prototype.slice.call(empSel.options).map(function (opt) {
+    return {
+      value: opt.value,
+      text: opt.textContent,
+      deptId: opt.getAttribute('data-dept-id') || '0',
+      selected: opt.selected
+    };
+  });
+
+  function rebuildEmployeeOptions() {
     var deptId = parseInt(deptSel.value || '0', 10) || 0;
+    var prev = empSel.value;
     empSel.innerHTML = '';
-    allOpts.forEach(function (opt) {
-      if (parseInt(opt.value || '0', 10) === 0) {
-        empSel.appendChild(opt.cloneNode(true));
+    allOpts.forEach(function (item) {
+      if (parseInt(item.value || '0', 10) === 0) {
+        var allOpt = document.createElement('option');
+        allOpt.value = '0';
+        allOpt.textContent = item.text;
+        empSel.appendChild(allOpt);
         return;
       }
-      var optDept = parseInt(opt.getAttribute('data-dept-id') || '0', 10) || 0;
+      var optDept = parseInt(item.deptId || '0', 10) || 0;
       if (deptId < 1 || optDept === deptId) {
-        empSel.appendChild(opt.cloneNode(true));
+        var opt = document.createElement('option');
+        opt.value = item.value;
+        opt.textContent = item.text;
+        opt.setAttribute('data-dept-id', item.deptId);
+        empSel.appendChild(opt);
       }
     });
+    var stillThere = Array.prototype.some.call(empSel.options, function (opt) {
+      return opt.value === prev;
+    });
+    empSel.value = stillThere ? prev : '0';
   }
-  deptSel.addEventListener('change', filterEmployees);
+
+  deptSel.addEventListener('change', rebuildEmployeeOptions);
+  rebuildEmployeeOptions();
 })();
 </script>
