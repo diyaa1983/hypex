@@ -80,6 +80,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $flash = flash_get();
 $monthAccess = hr_payroll_month_access($pdo, $payYear, $payMonth);
 $canEdit = (bool) ($monthAccess['can_edit'] ?? false);
+$monthStatusInfo = hr_employee_overtime_month_status($pdo, $payYear, $payMonth);
+$monthIsOpen = hr_employee_overtime_month_is_open($pdo, $payYear, $payMonth);
+$canEditOvertime = $canEdit && $monthIsOpen;
 
 $filterEmpCode = '';
 $filterEmpName = '';
@@ -186,7 +189,7 @@ $exitUrl = nav_exit_url('hr_employee_overtime');
      data-hour-multiplier-b="<?= esc((string) ($config['hour_multiplier_b'] ?? 1.5)) ?>"
      data-monthly-days="<?= esc((string) $config['monthly_work_days']) ?>"
      data-daily-hours="<?= esc((string) $config['daily_work_hours']) ?>"
-     data-can-edit="<?= ($canEdit && !$empSalaryPosted && $filterEmpId > 0) ? '1' : '0' ?>">
+     data-can-edit="<?= ($canEditOvertime && !$empSalaryPosted && $filterEmpId > 0) ? '1' : '0' ?>">
 
     <?php if ($flash): ?>
         <div class="alert no-print alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> hr-ot-flash">
@@ -204,7 +207,12 @@ $exitUrl = nav_exit_url('hr_employee_overtime');
         </div>
     <?php endif; ?>
 
-    <?php if ($filterEmpId > 0 && $empSalaryPosted): ?>
+    <?php if ($filterEmpId > 0 && !$monthIsOpen): ?>
+        <div class="alert no-print alert-info hr-ot-access-msg">
+            شهر <?= esc(hr_payroll_period_label($payYear, $payMonth)) ?> <?= esc((string) ($monthStatusInfo['label'] ?? '')) ?>
+            — لا يمكن إضافة أو تعديل أو حذف العمل الإضافي.
+        </div>
+    <?php elseif ($filterEmpId > 0 && $empSalaryPosted): ?>
         <div class="alert no-print alert-info hr-ot-access-msg">
             راتب هذا الموظف مرحّل لهذا الشهر — العرض فقط.
         </div>
@@ -262,8 +270,8 @@ $exitUrl = nav_exit_url('hr_employee_overtime');
     <?php if ($filterEmpId > 0): ?>
         <div class="dashboard-ora-toolbar hr-ot-top-bar no-print">
             <button type="submit" class="btn btn-primary btn-sm" form="<?= esc($editorFormId) ?>"
-                <?= ($canEdit && !$empSalaryPosted) ? '' : ' disabled' ?>>حفظ</button>
-            <?php if ($currentOvertime && $canEdit && !$empSalaryPosted): ?>
+                <?= ($canEditOvertime && !$empSalaryPosted) ? '' : ' disabled' ?>>حفظ</button>
+            <?php if ($currentOvertime && $canEditOvertime && !$empSalaryPosted): ?>
                 <button type="submit" class="btn btn-danger btn-sm" form="hr-ot-delete-form"
                         onclick="return confirm('حذف سجل العمل الإضافي لهذا الشهر؟');">حذف</button>
             <?php endif; ?>
@@ -310,8 +318,8 @@ $exitUrl = nav_exit_url('hr_employee_overtime');
                                         <input type="radio" name="hour_multiplier" id="<?= esc($mId) ?>"
                                                value="<?= esc(number_format($mVal, 3, '.', '')) ?>"
                                                <?= $checked ? 'checked' : '' ?>
-                                               <?= ($canEdit && !$empSalaryPosted && $i === 0) ? 'required' : '' ?>
-                                               <?= ($canEdit && !$empSalaryPosted) ? '' : 'disabled' ?>>
+                                               <?= ($canEditOvertime && !$empSalaryPosted && $i === 0) ? 'required' : '' ?>
+                                               <?= ($canEditOvertime && !$empSalaryPosted) ? '' : 'disabled' ?>>
                                         <span dir="ltr"><?= esc(number_format($mVal, 2, '.', '')) ?></span>
                                         <span class="muted">(<?= esc($opt['label']) ?>)</span>
                                     </label>
@@ -324,7 +332,7 @@ $exitUrl = nav_exit_url('hr_employee_overtime');
                                    min="0" max="999" step="0.001"
                                    value="<?= esc(number_format($currentHours, 3, '.', '')) ?>"
                                    dir="ltr"
-                                   <?= ($canEdit && !$empSalaryPosted) ? '' : 'readonly' ?>>
+                                   <?= ($canEditOvertime && !$empSalaryPosted) ? '' : 'readonly' ?>>
                         </label>
                         <label class="field">
                             <span class="field-label">مبلغ العمل الإضافي (محسوب)</span>
@@ -335,11 +343,11 @@ $exitUrl = nav_exit_url('hr_employee_overtime');
                             <span class="field-label">ملاحظات</span>
                             <input class="input" type="text" name="notes" maxlength="255"
                                    value="<?= esc($currentNotes) ?>"
-                                   <?= ($canEdit && !$empSalaryPosted) ? '' : 'readonly' ?>>
+                                   <?= ($canEditOvertime && !$empSalaryPosted) ? '' : 'readonly' ?>>
                         </label>
                     </div>
 
-                    <?php if ($canEdit && !$empSalaryPosted): ?>
+                    <?php if ($canEditOvertime && !$empSalaryPosted): ?>
                         <div class="hr-ot-editor-actions">
                             <button type="submit" class="btn btn-primary">حفظ</button>
                             <?php if ($currentOvertime): ?>
@@ -350,7 +358,7 @@ $exitUrl = nav_exit_url('hr_employee_overtime');
                     <?php endif; ?>
                 </form>
 
-                <?php if ($currentOvertime && $canEdit && !$empSalaryPosted): ?>
+                <?php if ($currentOvertime && $canEditOvertime && !$empSalaryPosted): ?>
                     <form id="hr-ot-delete-form" method="post" action="<?= esc(hr_ot_build_url($payYear, $payMonth, $filterEmpId)) ?>" class="hidden">
                         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                         <input type="hidden" name="_action" value="delete">

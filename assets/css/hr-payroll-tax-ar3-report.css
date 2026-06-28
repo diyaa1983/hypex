@@ -1,5 +1,7 @@
+/* نموذج أر/3 — مطابق للنموذج الرسمي لوزارة المالية */
+
 .hr-tax-ar3-page {
-  max-width: 980px;
+  max-width: 210mm;
   margin-inline: auto;
 }
 
@@ -30,143 +32,429 @@
   font-size: 0.85rem;
 }
 
+/* ——— مستند النموذج ——— */
 .hr-tax-ar3-doc {
-  padding: 1rem 1.1rem 1.5rem;
-  background: #fff;
-  border: 1px solid var(--ora12-border, #cbd5e1);
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
   position: relative;
-  font-size: 0.82rem;
+  padding: 6mm 7mm 8mm;
+  background: #fff;
+  border: 1.5px solid #000;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+  font-family: 'Traditional Arabic', 'Simplified Arabic', 'Arial', 'Tahoma', sans-serif;
+  font-size: 9pt;
   line-height: 1.35;
+  color: #000;
 }
 
-.tax-ar3-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 0.35rem;
+.hr-tax-ar3-doc .doc-print-watermark,
+.hr-tax-ar3-doc .doc-print-watermark--overlay {
+  display: none !important;
 }
 
-.tax-ar3-head__code {
-  font-weight: 700;
-  font-size: 0.78rem;
-  color: #334155;
+/* رأس النموذج */
+.tax-ar3-official-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr) minmax(0, 1fr);
+  gap: 4px;
+  align-items: start;
+  margin-bottom: 2px;
 }
 
-.tax-ar3-head__ministry {
+.tax-ar3-official-head__side--code {
+  text-align: start;
+}
+
+.tax-ar3-official-head__side--file {
+  text-align: end;
+}
+
+.tax-ar3-official-head__center {
   text-align: center;
-  flex: 1;
 }
 
-.tax-ar3-head__ministry-line {
+.tax-ar3-bismillah {
+  font-size: 9pt;
   font-weight: 700;
-  font-size: 0.9rem;
+  margin-bottom: 1px;
 }
 
-.tax-ar3-title {
-  margin: 0.35rem 0 0.25rem;
-  text-align: center;
-  font-size: 1.05rem;
+.tax-ar3-kingdom {
   font-weight: 800;
-  color: #0f172a;
+  font-size: 10pt;
+  letter-spacing: 0.02em;
 }
 
-.tax-ar3-law {
-  margin: 0 0 0.85rem;
+.tax-ar3-ministry {
+  font-weight: 800;
+  font-size: 9.5pt;
+}
+
+.tax-ar3-form-code {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid #000;
+  font-weight: 800;
+  font-size: 8.5pt;
+  white-space: nowrap;
+}
+
+.tax-ar3-official-title {
+  margin: 3px 0 6px;
   text-align: center;
-  font-size: 0.78rem;
-  color: #475569;
+  font-size: 10pt;
+  font-weight: 800;
+  line-height: 1.45;
 }
 
-.tax-ar3-emp-table,
-.tax-ar3-main-table,
+/* تسميات الحقول */
+.tax-ar3-field-label {
+  display: block;
+  font-size: 7pt;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 1px;
+  line-height: 1.2;
+}
+
+.tax-ar3-info-label {
+  font-size: 8pt;
+  font-weight: 800;
+  text-align: center;
+  background: #f0f0f0;
+}
+
+/* خلايا الأرقام */
+.tax-ar3-digit-cells {
+  display: inline-flex;
+  gap: 0;
+  flex-wrap: nowrap;
+  vertical-align: middle;
+}
+
+.tax-ar3-digit-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 16px;
+  border: 1px solid #000;
+  margin-inline-start: -1px;
+  font-size: 8pt;
+  font-weight: 700;
+  line-height: 1;
+  background: #fff;
+}
+
+.tax-ar3-digit-cells .tax-ar3-digit-cell:first-child {
+  margin-inline-start: 0;
+}
+
+.tax-ar3-nid-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 5px;
+  border: 1px solid #000;
+  margin-bottom: -1px;
+}
+
+.tax-ar3-nid-row .tax-ar3-field-label {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: 8pt;
+}
+
+/* جداول النموذج */
+.tax-ar3-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: -1px;
+}
+
+.tax-ar3-grid-table td,
+.tax-ar3-grid-table th {
+  border: 1px solid #000;
+  padding: 2px 4px;
+  vertical-align: middle;
+  text-align: right;
+}
+
+.tax-ar3-name-row td {
+  height: 28px;
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+.tax-ar3-name-row .tax-ar3-col-first {
+  width: 18%;
+}
+
+.tax-ar3-name-row .tax-ar3-col-father,
+.tax-ar3-name-row .tax-ar3-col-grand {
+  width: 16%;
+}
+
+.tax-ar3-name-row .tax-ar3-col-family {
+  width: 22%;
+}
+
+.tax-ar3-file-row td {
+  padding: 3px 5px;
+}
+
+.tax-ar3-file-row .tax-ar3-file-label {
+  width: 12%;
+  font-weight: 800;
+  font-size: 8pt;
+  text-align: center;
+  background: #f0f0f0;
+}
+
+.tax-ar3-file-row .tax-ar3-file-cells {
+  width: 38%;
+}
+
+.tax-ar3-file-row .tax-ar3-year-label {
+  width: 8%;
+  font-weight: 800;
+  font-size: 8pt;
+  text-align: center;
+  background: #f0f0f0;
+}
+
+.tax-ar3-file-row .tax-ar3-year-value {
+  width: 12%;
+  text-align: center;
+  font-weight: 800;
+  font-size: 10pt;
+}
+
+.tax-ar3-addr-head td {
+  font-weight: 800;
+  font-size: 8pt;
+  text-align: center;
+  background: #f0f0f0;
+  padding: 2px 4px;
+}
+
+.tax-ar3-addr-row td {
+  font-size: 8.5pt;
+  height: 24px;
+}
+
+.tax-ar3-addr-row .tax-ar3-addr-val {
+  font-weight: 700;
+}
+
+.tax-ar3-phone-row td {
+  font-size: 8.5pt;
+  height: 22px;
+}
+
+/* صف صاحب العمل */
+.tax-ar3-employer-table td {
+  border: 1px solid #000;
+  padding: 2px 5px;
+  vertical-align: middle;
+  text-align: right;
+  font-size: 8.5pt;
+}
+
 .tax-ar3-employer-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  margin-bottom: 0.75rem;
+  margin-bottom: -1px;
 }
 
-.tax-ar3-emp-table th,
-.tax-ar3-emp-table td,
-.tax-ar3-main-table th,
-.tax-ar3-main-table td,
-.tax-ar3-main-table tfoot td,
-.tax-ar3-employer-table td {
-  border: 1px solid #0f172a;
-  padding: 0.28rem 0.35rem;
-  vertical-align: top;
+.tax-ar3-employer-table .tax-ar3-info-label {
+  width: 11%;
+}
+
+.tax-ar3-employer-table .tax-ar3-employer-val {
+  font-weight: 700;
+}
+
+.tax-ar3-dates-row td {
+  height: 24px;
+}
+
+/* الجدول المالي الرئيسي */
+.tax-ar3-financial-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 0 0 4px;
+}
+
+.tax-ar3-financial-table th,
+.tax-ar3-financial-table td {
+  border: 1px solid #000;
+  padding: 1px 4px;
+  vertical-align: middle;
   text-align: right;
 }
 
-.tax-ar3-section-title {
+.tax-ar3-section-head {
   text-align: center !important;
-  background: #e2e8f0;
+  background: #dcdcdc !important;
   font-weight: 800;
-  padding: 0.35rem !important;
+  font-size: 8.5pt;
+  padding: 3px 4px !important;
 }
 
-.tax-ar3-emp-label {
-  display: block;
-  font-size: 0.68rem;
-  color: #64748b;
-  margin-bottom: 0.1rem;
-}
-
-.tax-ar3-emp-fullname {
-  font-size: 0.88rem;
-}
-
-.tax-ar3-name-row td {
-  width: 25%;
-}
-
-.tax-ar3-main-table thead th {
-  background: #d9d9d9;
-  text-align: center;
+.tax-ar3-sub-head th {
+  text-align: center !important;
+  background: #eee !important;
   font-weight: 700;
-  font-size: 0.74rem;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
+  font-size: 7.5pt;
+  padding: 2px !important;
 }
 
-.tax-ar3-col-desc {
-  width: 42%;
-  text-align: start !important;
-  font-size: 0.74rem;
+.tax-ar3-col-label {
+  width: 28%;
+  font-size: 7.5pt;
+  line-height: 1.25;
+  padding-inline-end: 3px !important;
 }
 
-.tax-ar3-money {
-  width: 9%;
-  text-align: center !important;
+.tax-ar3-col-amount {
+  width: 22%;
+}
+
+.tax-ar3-financial-table tbody tr td {
+  border-bottom-style: dashed;
+  min-height: 18px;
+  height: 18px;
+}
+
+.tax-ar3-financial-table tbody tr:last-child td {
+  border-bottom-style: solid;
+}
+
+.tax-ar3-amount {
+  text-align: left !important;
+  direction: ltr;
+  unicode-bidi: isolate;
   font-variant-numeric: tabular-nums;
+  font-size: 8pt;
+  font-weight: 700;
   white-space: nowrap;
+  padding-inline: 5px !important;
 }
 
+.tax-ar3-amount--empty {
+  font-weight: 400;
+}
+
+/* صف المجموع */
 .tax-ar3-total-row td {
-  background: #eef2ff;
+  border-bottom-style: solid !important;
+  background: #efefef;
+  vertical-align: top;
+  padding: 3px 4px !important;
+}
+
+.tax-ar3-total-row .tax-ar3-col-label {
   font-weight: 800;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
+  font-size: 8pt;
+  vertical-align: middle;
 }
 
+.tax-ar3-total-block {
+  text-align: left;
+  direction: rtl;
+}
+
+.tax-ar3-total-num {
+  display: block;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+  font-weight: 800;
+  font-size: 9pt;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 2px;
+}
+
+.tax-ar3-total-words {
+  display: block;
+  font-size: 6.5pt;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.tax-ar3-total-words-prefix {
+  font-weight: 800;
+}
+
+/* مدة العمل */
+.tax-ar3-work-days {
+  margin: 4px 0 6px;
+  padding: 3px 6px;
+  border: 1px solid #000;
+  font-size: 8.5pt;
+  font-weight: 700;
+  text-align: start;
+}
+
+.tax-ar3-work-days strong {
+  font-weight: 800;
+}
+
+/* الإقرار */
 .tax-ar3-declaration {
-  margin: 0.85rem 0;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid #94a3b8;
-  background: #f8fafc;
-  font-size: 0.78rem;
-  line-height: 1.5;
+  margin: 0 0 6px;
+  padding: 5px 7px;
+  border: 1px solid #000;
+  font-size: 8pt;
+  font-weight: 700;
+  line-height: 1.65;
+  text-align: justify;
 }
 
-.tax-ar3-date-row {
-  text-align: start !important;
+/* التذييل */
+.tax-ar3-footer-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tax-ar3-footer-table td {
+  border: 1px solid #000;
+  padding: 3px 5px;
+  vertical-align: middle;
+  text-align: right;
+  font-size: 8pt;
+}
+
+.tax-ar3-footer-table .tax-ar3-info-label {
+  width: 14%;
+  background: #f0f0f0;
+}
+
+.tax-ar3-sign-space {
+  min-height: 48px;
+  vertical-align: bottom !important;
+}
+
+.tax-ar3-footer-file {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tax-ar3-footer-file .tax-ar3-field-label {
+  margin: 0;
+  font-size: 8pt;
 }
 
 .tax-ar3-footnote {
-  margin: 0.5rem 0 0;
-  font-size: 0.75rem;
+  margin: 6px 0 0;
+  font-size: 7pt;
 }
 
 @media print {
@@ -175,26 +463,28 @@
   }
 
   .hr-tax-ar3-doc {
-    border: none;
+    border: 1.5px solid #000;
     box-shadow: none;
-    padding: 0;
+    padding: 5mm 6mm 6mm;
     font-size: 8pt;
-  }
-
-  .tax-ar3-title {
-    font-size: 11pt;
-  }
-
-  .tax-ar3-main-table,
-  .tax-ar3-emp-table,
-  .tax-ar3-employer-table {
     page-break-inside: avoid;
   }
 
-  .tax-ar3-section-title,
-  .tax-ar3-main-table thead th,
+  .tax-ar3-official-title {
+    font-size: 9pt;
+  }
+
+  .tax-ar3-section-head,
+  .tax-ar3-info-label,
   .tax-ar3-total-row td {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  .tax-ar3-grid-table,
+  .tax-ar3-employer-table,
+  .tax-ar3-financial-table,
+  .tax-ar3-footer-table {
+    page-break-inside: avoid;
   }
 }

@@ -422,6 +422,23 @@ function fin_voucher_load_cash_bank_accounts(PDO $pdo): array
     return $out;
 }
 
+/** @param list<array{id:int, group_key?:string}> $accounts */
+function fin_voucher_cash_account_group(array $accounts, int $accountId): ?string
+{
+    if ($accountId < 1) {
+        return null;
+    }
+    foreach ($accounts as $acc) {
+        if ((int) ($acc['id'] ?? 0) === $accountId) {
+            $group = trim((string) ($acc['group_key'] ?? ''));
+
+            return $group !== '' ? $group : null;
+        }
+    }
+
+    return null;
+}
+
 /**
  * @param list<array{id:int, code:string, name_ar:string, group_key?:string, group_label?:string}> $accounts
  * @return list<array{id:int, code:string, name_ar:string, group_key:string, group_label:string}>
@@ -557,9 +574,6 @@ function fin_voucher_save(
         if ($partyId < 1) {
             throw new RuntimeException('اختر الموظف.');
         }
-        if ($offsetAccountId < 1) {
-            throw new RuntimeException('اختر حساب الالتزام (رواتب مستحقة / سلف…).');
-        }
     } elseif ($partyType === 'other') {
         $partyId = 0;
         $offsetAccountId = 0;
@@ -679,6 +693,11 @@ function fin_voucher_save(
 
         fin_voucher_save_apply_offset_account($pdo, $id, $offsetAccountId);
 
+        if ($type === 'payment' && $payMethod === 'check') {
+            require_once app_path('includes/fin_outgoing_check_register.php');
+            fin_outgoing_check_register_sync_voucher($pdo, $id);
+        }
+
         return $id;
     }
 
@@ -746,6 +765,11 @@ function fin_voucher_save(
 
     if ($newId > 0) {
         fin_voucher_save_apply_offset_account($pdo, $newId, $offsetAccountId);
+    }
+
+    if ($type === 'payment' && $payMethod === 'check' && $newId > 0) {
+        require_once app_path('includes/fin_outgoing_check_register.php');
+        fin_outgoing_check_register_sync_voucher($pdo, $newId);
     }
 
     return $newId;

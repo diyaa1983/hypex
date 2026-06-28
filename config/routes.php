@@ -222,6 +222,12 @@ return [
         'title' => 'شاشة الشيكات',
         'hide_screen_title' => true,
     ],
+    'fin_outgoing_checks' => [
+        'file' => 'modules/finance/outgoing_checks.php',
+        'permission' => 'fin_outgoing_checks',
+        'title' => 'سجل الشيكات الصادرة',
+        'hide_screen_title' => true,
+    ],
     'fin_employee_advances' => [
         'file' => 'modules/finance/employee_advances.php',
         'permission' => 'fin_employee_advances',
@@ -389,6 +395,11 @@ return [
         'file' => 'modules/reports/sales_qty_extra.php',
         'permission' => 'report_sales_qty_extra',
         'title' => 'تقرير الكميات الإضافية على الفواتير',
+    ],
+    'report_sales_delivery' => [
+        'file' => 'modules/reports/sales_delivery.php',
+        'permission' => 'report_sales_delivery',
+        'title' => 'تقرير سندات البضاعة',
     ],
     'report_customers' => [
         'file' => 'modules/reports/customers.php',

@@ -292,7 +292,19 @@ function nav_is_safe_back_url(string $url): bool
     return true;
 }
 
-/** تسجيل الصفحة السابقة للعودة إليها عند الخروج أو «رجوع». */
+/** @param list<array{url:string, route:string}> $stack */
+function nav_sync_back_from_stack(array $stack): void
+{
+    $n = count($stack);
+    if ($n >= 2) {
+        $_SESSION['nav_back_url'] = (string) ($stack[$n - 2]['url'] ?? '');
+        $_SESSION['nav_back_route'] = (string) ($stack[$n - 2]['route'] ?? '');
+    } else {
+        unset($_SESSION['nav_back_url'], $_SESSION['nav_back_route']);
+    }
+}
+
+/** تسجيل الصفحة السابقة للعودة إليها عند الإغلاق (×) أو «رجوع». */
 function nav_track_page_visit(string $activeRoute): void
 {
     if (!is_logged_in()) {
@@ -308,16 +320,47 @@ function nav_track_page_visit(string $activeRoute): void
     }
 
     $url = nav_current_request_url();
-    $lastUrl = trim((string) ($_SESSION['nav_last_url'] ?? ''));
-
-    if ($url === $lastUrl) {
+    if (!nav_is_safe_back_url($url)) {
         return;
     }
 
-    if ($lastUrl !== '' && nav_is_safe_back_url($lastUrl) && $lastUrl !== $url) {
-        $_SESSION['nav_back_url'] = $lastUrl;
-        $_SESSION['nav_back_route'] = (string) ($_SESSION['nav_last_route'] ?? '');
+    if (!isset($_SESSION['nav_stack']) || !is_array($_SESSION['nav_stack'])) {
+        $_SESSION['nav_stack'] = [];
     }
+
+    /** @var list<array{url:string, route:string}> $stack */
+    $stack = $_SESSION['nav_stack'];
+
+    if (in_array($activeRoute, ['menu_hub', 'dashboard'], true)) {
+        $_SESSION['nav_stack'] = [['url' => $url, 'route' => $activeRoute]];
+        unset($_SESSION['nav_back_url'], $_SESSION['nav_back_route']);
+        $_SESSION['nav_last_url'] = $url;
+        $_SESSION['nav_last_route'] = $activeRoute;
+
+        return;
+    }
+
+    $count = count($stack);
+    if ($count >= 2 && (string) ($stack[$count - 2]['url'] ?? '') === $url) {
+        array_pop($stack);
+        $_SESSION['nav_stack'] = $stack;
+        nav_sync_back_from_stack($stack);
+        $_SESSION['nav_last_url'] = $url;
+        $_SESSION['nav_last_route'] = $activeRoute;
+
+        return;
+    }
+
+    if ($count > 0 && (string) ($stack[$count - 1]['url'] ?? '') === $url) {
+        return;
+    }
+
+    $stack[] = ['url' => $url, 'route' => $activeRoute];
+    if (count($stack) > 40) {
+        array_shift($stack);
+    }
+    $_SESSION['nav_stack'] = $stack;
+    nav_sync_back_from_stack($stack);
 
     $_SESSION['nav_last_url'] = $url;
     $_SESSION['nav_last_route'] = $activeRoute;
@@ -455,7 +498,23 @@ function nav_back_is_home_only(?array $back): bool
     return $route === '' || $route === 'dashboard';
 }
 
-/** رابط الخروج من الشاشة الحالية (العودة للصفحة السابقة أو شبكة الأيقونات). */
+/** رابط إغلاق الشاشة (×) — العودة للصفحة السابقة مباشرة. */
+function nav_close_url(string $activeRoute): string
+{
+    $ledgerBack = nav_exit_url_from_ledger_request();
+    if ($ledgerBack !== null) {
+        return $ledgerBack;
+    }
+
+    $back = nav_back_link($activeRoute);
+    if ($back !== null && ($back['url'] ?? '') !== '') {
+        return (string) $back['url'];
+    }
+
+    return nav_exit_url($activeRoute);
+}
+
+/** رابط الخروج الكامل — العودة لقائمة الأيقونات / المجلد الذي فُتحت منه الشاشة. */
 function nav_exit_url(string $activeRoute): string
 {
     $ledgerExit = nav_exit_url_from_ledger_request();
@@ -476,20 +535,10 @@ function nav_exit_url(string $activeRoute): string
         return $stored;
     }
 
-    $back = nav_back_link($activeRoute);
     $hub = nav_resolve_active_hub($activeRoute);
     $hubUrl = nav_hub_folder_url($hub);
-
-    if ($back !== null && !nav_back_is_home_only($back)) {
-        return (string) ($back['url'] ?? $default);
-    }
-
     if ($hubUrl !== null) {
         return $hubUrl;
-    }
-
-    if ($back !== null && ($back['url'] ?? '') !== '') {
-        return (string) $back['url'];
     }
 
     return $default;
@@ -703,23 +752,35 @@ function nav_screen_close_info(string $activeRoute = ''): array
         $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
     }
 
-    $exitUrl = nav_exit_url($activeRoute);
     $ledgerBack = nav_item_stock_ledger_back_link();
     $navBack = nav_back_link($activeRoute);
-    $hint = 'إغلاق والعودة';
+
     if ($ledgerBack !== null) {
-        $hint = 'العودة إلى ' . (string) ($ledgerBack['label'] ?? '');
-        $exitUrl = (string) ($ledgerBack['url'] ?? $exitUrl);
-    } elseif ($navBack !== null) {
-        $hint = 'العودة للصفحة السابقة';
-    } elseif ($activeRoute !== 'menu_hub' && $activeRoute !== 'dashboard') {
+        return [
+            'url' => (string) ($ledgerBack['url'] ?? nav_close_url($activeRoute)),
+            'hint' => 'العودة إلى ' . (string) ($ledgerBack['label'] ?? ''),
+        ];
+    }
+
+    if ($navBack !== null) {
+        return [
+            'url' => (string) ($navBack['url'] ?? nav_close_url($activeRoute)),
+            'hint' => 'إغلاق والعودة للصفحة السابقة',
+        ];
+    }
+
+    $hint = 'إغلاق والعودة';
+    if ($activeRoute !== 'menu_hub' && $activeRoute !== 'dashboard') {
         $hub = nav_resolve_active_hub($activeRoute);
         if ($hub !== null) {
-            $hint = 'العودة لقائمة الشاشات';
+            $hint = 'إغلاق والعودة لقائمة الشاشات';
         }
     }
 
-    return ['url' => $exitUrl, 'hint' => $hint];
+    return [
+        'url' => nav_close_url($activeRoute),
+        'hint' => $hint,
+    ];
 }
 
 /** أزرار التحكم (تصغير / إغلاق) — يسار شريط العنوان الأزرق. */

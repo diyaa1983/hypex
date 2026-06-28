@@ -62,6 +62,7 @@ function render_master_toolbar(?string $activeRoute = null): void
     $cfg = master_toolbar_config();
     require_once app_path('includes/nav_helpers.php');
     $exitUrl = nav_exit_url($activeRoute);
+    $closeUrl = nav_close_url($activeRoute);
     $ledgerBack = nav_item_stock_ledger_back_link();
     $buttons = $cfg['buttons'] ?? [];
     $allowedVariants = ['primary', 'secondary', 'danger'];
@@ -85,7 +86,8 @@ function render_master_toolbar(?string $activeRoute = null): void
 
     echo '<div class="master-toolbar no-print" id="master-toolbar" role="toolbar" aria-label="شريط الإجراءات"';
     echo ' data-active-route="' . esc($activeRoute) . '"';
-    echo ' data-exit-url="' . esc($exitUrl) . '">';
+    echo ' data-exit-url="' . esc($exitUrl) . '"';
+    echo ' data-close-url="' . esc($closeUrl) . '">';
     echo '<div class="master-toolbar-inner">';
 
     foreach ($visibleButtons as $btn) {
@@ -143,12 +145,19 @@ function render_nav_exit_button(?string $activeRoute = null): void
     require_once app_path('includes/nav_helpers.php');
     $exitUrl = nav_exit_url($activeRoute);
     $ledgerBack = nav_item_stock_ledger_back_link();
-    $navBack = nav_back_link($activeRoute);
-    $title = $navBack !== null || $ledgerBack !== null
-        ? 'العودة للصفحة السابقة'
-        : 'العودة إلى قائمة الأيقونات أو لوحة التحكم';
-    if ($ledgerBack !== null) {
-        $title = 'العودة إلى ' . $ledgerBack['label'];
+    $hub = nav_resolve_active_hub($activeRoute);
+    $hubUrl = nav_hub_folder_url($hub);
+    $storedHub = trim((string) ($_SESSION['nav_return_url'] ?? ''));
+
+    if ($storedHub !== '' && nav_is_safe_back_url($storedHub)) {
+        $title = 'الخروج والعودة إلى قائمة الشاشات';
+    } elseif ($hubUrl !== null) {
+        $title = 'الخروج والعودة إلى قائمة الشاشات';
+    } elseif ($ledgerBack !== null) {
+        $title = 'العودة إلى ' . (string) ($ledgerBack['label'] ?? '');
+        $exitUrl = (string) ($ledgerBack['url'] ?? $exitUrl);
+    } else {
+        $title = 'الخروج والعودة إلى لوحة التحكم';
     }
 
     echo '<a class="nav-exit-btn" href="' . esc($exitUrl) . '" title="' . esc($title) . '" aria-label="' . esc($title) . '">';

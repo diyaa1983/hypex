@@ -51,12 +51,7 @@ require_once app_path('includes/supplier_picker.php');
 require_once app_path('includes/employee_picker.php');
 require_once app_path('includes/account_picker.php');
 $pickerEmployees = hr_employee_picker_list($pdo);
-$employeeOtherAccounts = fin_payment_employee_other_offset_accounts($pdo);
 $otherOffsetAccounts = fin_payment_other_offset_accounts($pdo);
-$advancePayableRows = fin_payment_employee_advance_payable_account($pdo);
-$advancePayableLabel = $advancePayableRows !== []
-    ? trim((string) ($advancePayableRows[0]['code'] ?? '')) . ' — ' . trim((string) ($advancePayableRows[0]['label'] ?? ''))
-    : '2009 — سلف موظفين مستحقة الصرف';
 $customers = $pdo->query(
     'SELECT c.id, c.code, c.name_ar, c.sales_rep_id, r.name_ar AS sales_rep_name
      FROM crm_customer c
@@ -93,6 +88,23 @@ $archiveApiUrl = app_url('api/fin_voucher_archive.php');
 require_once app_path('includes/acc_gl.php');
 $cashBoxAccountId = acc_gl_cash_box_account_id($pdo);
 $defaultCashId = $cashBoxAccountId > 0 ? $cashBoxAccountId : (int) ($cashAccounts[0]['id'] ?? 0);
+$defaultBankId = 0;
+$defaultChecksId = 0;
+foreach ($cashAccounts as $accRow) {
+    $gk = (string) ($accRow['group_key'] ?? '');
+    if ($defaultBankId < 1 && $gk === 'bank') {
+        $defaultBankId = (int) ($accRow['id'] ?? 0);
+    }
+    if ($defaultChecksId < 1 && $gk === 'checks') {
+        $defaultChecksId = (int) ($accRow['id'] ?? 0);
+    }
+}
+if ($defaultBankId < 1) {
+    $defaultBankId = acc_gl_bank_account_id($pdo);
+}
+if ($defaultChecksId < 1) {
+    $defaultChecksId = acc_gl_checks_fund_account_id($pdo);
+}
 if ($disburseBootstrap !== null) {
     $pickedCashId = (int) ($disburseBootstrap['cash_account_id'] ?? 0);
     if ($pickedCashId > 0 && fin_payment_cash_bank_account_valid($cashAccounts, $pickedCashId)) {
@@ -171,6 +183,9 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
           data-list-url="<?= esc($listUrl) ?>"
           data-initial-id="<?= (int) $initialId ?>"
           data-check-action-url="<?= esc(app_url('api/fin_check_action.php')) ?>"
+          data-default-cash-id="<?= (int) $defaultCashId ?>"
+          data-default-bank-id="<?= (int) $defaultBankId ?>"
+          data-default-checks-id="<?= (int) $defaultChecksId ?>"
           data-company-name="<?= esc($companyNameAr) ?>"
           data-company-logo="<?= esc($companyLogoUrl) ?>">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -178,9 +193,7 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
         <input type="hidden" name="voucher_id" id="py_record_id" value="">
         <input type="hidden" name="party_type" id="py_party_type" value="supplier">
         <input type="hidden" name="offset_account_id" id="py_offset_account_id" value="">
-        <input type="hidden" name="employee_pay_kind" id="py_employee_pay_kind" value="advance">
         <input type="hidden" name="hr_advance_id" id="py_hr_advance_id" value="">
-        <input type="hidden" name="hr_salary_id" id="py_hr_salary_id" value="">
 
         <section class="dashboard-ora-panel no-print">
             <h2 class="dashboard-ora-panel__title">بيانات السند</h2>
@@ -252,51 +265,6 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
                     'json_id' => 'fin-py-employees-json',
                     'manual_bind' => true,
                 ]) ?>
-                <div class="sales-inv-meta-item fin-py-meta-employee-kind no-print">
-                    <label>نوع الصرف للموظف *</label>
-                    <div class="fin-py-party-row">
-                        <label class="fin-py-party-opt">
-                            <input type="radio" name="employee_pay_kind_ui" value="advance" id="py_emp_pay_advance" checked> صرف سلفة معتمدة
-                        </label>
-                        <label class="fin-py-party-opt">
-                            <input type="radio" name="employee_pay_kind_ui" value="other" id="py_emp_pay_other"> راتب / التزام آخر
-                        </label>
-                    </div>
-                </div>
-                <div id="py-employee-advance-panel" class="fin-py-employee-advance-panel">
-                    <div class="sales-inv-meta-item fin-py-meta-advance-account">
-                        <label>حساب السلفة المستحقة للصرف</label>
-                        <input class="input input-compact" type="text" id="py_advance_payable_display" readonly
-                               value="<?= esc($advancePayableLabel) ?>" tabindex="-1">
-                    </div>
-                    <div class="fin-py-advances-box">
-                        <div class="fin-py-advances-head">السلف المعتمدة من شؤون الموظفين — للصرف</div>
-                        <div id="py_advances_list" class="fin-py-advances-list">
-                            <p class="fin-py-advances-empty muted">اختر الموظف لعرض السلف المعتمدة غير المُصرفة.</p>
-                        </div>
-                    </div>
-                </div>
-                <div id="py-employee-other-panel" class="fin-py-employee-other-panel" hidden>
-                <div class="sales-inv-meta-item fin-py-meta-employee-offset">
-                    <label for="py_employee_offset">يُصرف إلى حساب *</label>
-                    <select class="input input-compact" id="py_employee_offset">
-                        <option value="">— اختر حساب الالتزام —</option>
-                        <?php foreach ($employeeOtherAccounts as $acc): ?>
-                            <option value="<?= (int) $acc['id'] ?>">
-                                <?= esc((string) ($acc['code'] ?? '') . ' — ' . (string) ($acc['label'] ?? $acc['name_ar'] ?? '')) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div id="py-employee-salary-panel" class="fin-py-employee-salary-panel" hidden>
-                    <div class="fin-py-advances-box">
-                        <div class="fin-py-advances-head">الرواتب المرحّلة من شؤون الموظفين — للصرف</div>
-                        <div id="py_salaries_list" class="fin-py-advances-list">
-                            <p class="fin-py-advances-empty muted">اختر الموظف وحساب «رواتب مستحقة» لعرض الرواتب.</p>
-                        </div>
-                    </div>
-                </div>
-                </div>
                 </div>
                 <div id="py-party-account-wrap" class="fin-py-party-account fin-py-party-panel" hidden>
                 <div class="sales-inv-meta-item sales-inv-meta-offset-account">
@@ -317,10 +285,9 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
             <p class="fin-py-party-hint no-print muted">
                 <strong>مورد:</strong> دفع مستحقات مورد —
                 <strong>عميل:</strong> رد مبلغ للعميل —
-                <strong>موظف — سلفة:</strong> اختر الموظف ثم السلفة المعتمدة من الشؤون (يُعبَّأ المبلغ تلقائياً) —
-                <strong>موظف — آخر:</strong> صرف راتب أو التزام (رواتب مستحقة، ضمان…) —
+                <strong>موظف:</strong> صرف للموظف (مثل المورد والعميل) —
                 <strong>حساب آخر:</strong> صرف على حساب خصوم أو مصروف من الشجرة —
-                <strong>يُخصم من:</strong> أي حساب تحت الصناديق أو صندوق الشيكات أو البنوك في شجرة الحسابات.
+                <strong>يُخصم من:</strong> نقداً من الصناديق — بنك من حسابات البنوك — شيك من صندوق الشيكات.
             </p>
         </header>
             </div>
@@ -336,12 +303,15 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
                         <input type="radio" name="pay_method" value="cash" id="py_pay_cash" checked> نقداً
                     </label>
                     <label class="fin-py-pay-opt">
+                        <input type="radio" name="pay_method" value="bank" id="py_pay_bank"> بنك
+                    </label>
+                    <label class="fin-py-pay-opt">
                         <input type="radio" name="pay_method" value="check" id="py_pay_check"> شيك
                     </label>
                 </div>
                 <div class="sales-inv-meta-row fin-py-cash-account-row no-print">
                     <div class="sales-inv-meta-item fin-py-meta-cash-account">
-                        <label for="py_cash_account_id">يُخصم من حساب *</label>
+                        <label for="py_cash_account_id" id="py_cash_account_label">يُخصم من — صندوق *</label>
                         <select class="input input-compact" name="cash_account_id" id="py_cash_account_id" required>
                             <?php
                             $cashGroup = '';
@@ -375,7 +345,7 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
                 <div class="sales-inv-meta-row fin-py-amount-row">
                     <div class="sales-inv-meta-item fin-py-field-cash" id="py_cash_amount_wrap">
                         <label for="py_amount">المبلغ *</label>
-                        <input class="input input-compact" type="text" name="amount" id="py_amount" dir="ltr" placeholder="0.00" title="يُعبَّأ تلقائياً من شؤون الموظفين عند اختيار سلفة أو راتب">
+                        <input class="input input-compact" type="text" name="amount" id="py_amount" dir="ltr" placeholder="0.00">
                     </div>
                     <div class="sales-inv-meta-item fin-py-field-check" id="py_check_fields" hidden>
                         <label for="py_check_amount">قيمة الشيك *</label>

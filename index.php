@@ -128,6 +128,8 @@ $appBootMigrations = [
     'database/migrations/187_hr_overtime_multiplier_b.sql',
     'database/migrations/188_report_hr_employee_overtime.sql',
     'database/migrations/189_acc_journal_updated_by.sql',
+    'database/migrations/190_report_sales_delivery.sql',
+    'database/migrations/191_fin_outgoing_checks_register.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

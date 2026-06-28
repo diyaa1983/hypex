@@ -330,3 +330,114 @@
     padding-top: 0.75rem;
     border-top: 1px solid #e2e8f0;
 }
+
+/* ——— سجل الشيكات الصادرة: طباعة ——— */
+.fin-outgoing-checks-page .fin-outgoing-checks-print-only {
+    display: none;
+}
+
+.fin-outgoing-checks-page .fin-outgoing-checks-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem 0;
+}
+
+.fin-outgoing-checks-page .fin-outgoing-checks-col-print {
+    width: 4.5rem;
+    text-align: center;
+}
+
+.fin-outgoing-checks-page .fin-outgoing-checks-col-print .btn {
+    padding: 0.15rem 0.45rem;
+    font-size: 0.72rem;
+}
+
+@media print {
+    .fin-outgoing-checks-page .no-print,
+    .fin-outgoing-checks-page .sales-ora-info,
+    .fin-outgoing-checks-page .fin-checks-filters,
+    .fin-outgoing-checks-page .fin-outgoing-checks-toolbar,
+    .fin-outgoing-checks-page .dashboard-ora-screen-title,
+    .fin-outgoing-checks-page .sales-ora-flash,
+    .fin-outgoing-checks-page .alert {
+        display: none !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-print-only {
+        display: block !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-print-area {
+        font-size: 8pt;
+        width: 100%;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-print-area .doc-print-meta {
+        font-size: 8pt;
+        margin-bottom: 0.5rem;
+    }
+
+    .fin-outgoing-checks-page .fin-checks-results {
+        border: 0;
+        box-shadow: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .fin-outgoing-checks-page .fin-checks-results .table-wrap {
+        overflow: visible !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-table {
+        width: 100% !important;
+        table-layout: fixed;
+        font-size: 7pt !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-table thead th,
+    .fin-outgoing-checks-page .fin-outgoing-checks-table tbody td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 2px 3px !important;
+        line-height: 1.15 !important;
+        border: 1px solid #cbd5e1 !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-table thead th {
+        background: #f1f5f9 !important;
+        font-size: 6.5pt !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-table a.no-print {
+        display: none !important;
+    }
+
+    .fin-outgoing-checks-page .fin-oc-print-overlay {
+        display: none !important;
+    }
+}
+
+/* معاينة طباعة الشيك داخل النظام */
+.fin-oc-print-overlay-panel {
+    max-width: min(96vw, 22cm);
+}
+
+.fin-oc-print-preview-body {
+    padding: 1rem;
+    background: #e8ecf1;
+    overflow: auto;
+    max-height: calc(100vh - 8rem);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.fin-oc-print-preview-body .bank-check-slip {
+    width: 17.8cm;
+    max-width: 100%;
+    margin: 0 auto;
+}

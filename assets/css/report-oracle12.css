@@ -109,6 +109,68 @@ body.report-ora12-ui .main-content {
   padding: 0 0.55rem 0.55rem;
 }
 
+/* فلاتر التقرير — حقول وزر العرض على سطر واحد */
+.report-ora12-screen .report-sales-filters--inline .report-sales-filters-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 0.45rem 0.55rem;
+  padding: 0.55rem;
+  overflow-x: auto;
+}
+
+.report-ora12-screen .report-sales-filter-field {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.report-ora12-screen .report-sales-filter-field > label:first-child,
+.report-ora12-screen .report-sales-filter-field > .field-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+  margin-bottom: 0.18rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.report-ora12-screen .report-sales-filter-field .input,
+.report-ora12-screen .report-sales-filter-field select.input,
+.report-ora12-screen .report-sales-filter-field .sales-inv-cust-open {
+  width: 100%;
+  min-height: 2rem;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.report-ora12-screen .report-sales-filter-field--customer {
+  width: 11.5rem;
+}
+
+.report-ora12-screen .report-sales-filter-field--rep {
+  width: 9.5rem;
+}
+
+.report-ora12-screen .report-sales-filter-field--date {
+  width: 9.25rem;
+}
+
+.report-ora12-screen .report-sales-filter-field--submit {
+  padding-bottom: 0.05rem;
+}
+
+.report-ora12-screen .report-sales-filter-field--submit .btn {
+  min-height: 2rem;
+  padding: 0.38rem 0.85rem;
+  white-space: nowrap;
+}
+
+.report-ora12-screen .report-sales-filter-field .date-dmy-field {
+  min-width: 0;
+}
+
 .report-ora12-screen form.report-acc-filters {
   flex-wrap: wrap;
   gap: 0.55rem;
@@ -359,6 +421,10 @@ body.report-ora12-ui .main-content {
   .main-wrap:has(.report-ora12-screen) .main-content,
   body.report-ora12-ui .main-content {
     padding: 0.35rem;
+  }
+
+  .report-ora12-screen .report-sales-filters--inline .report-sales-filters-row {
+    flex-wrap: wrap;
   }
 }
 

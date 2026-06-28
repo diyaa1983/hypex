@@ -204,10 +204,18 @@
 .fin-py-wrap.fin-py-pay-is-cash #rc_check_fields,
 .fin-py-wrap.fin-py-pay-is-cash #rc_check_no_wrap,
 .fin-py-wrap.fin-py-pay-is-cash #rc_bank_wrap,
+.fin-py-wrap.fin-py-pay-is-bank .fin-py-field-check,
+.fin-py-wrap.fin-py-pay-is-bank #rc_check_fields,
+.fin-py-wrap.fin-py-pay-is-bank #rc_check_no_wrap,
+.fin-py-wrap.fin-py-pay-is-bank #rc_bank_wrap,
 #fin-py-form.fin-py-pay-is-cash .fin-py-field-check,
 #fin-py-form.fin-py-pay-is-cash #rc_check_fields,
 #fin-py-form.fin-py-pay-is-cash #rc_check_no_wrap,
-#fin-py-form.fin-py-pay-is-cash #rc_bank_wrap {
+#fin-py-form.fin-py-pay-is-cash #rc_bank_wrap,
+#fin-py-form.fin-py-pay-is-bank .fin-py-field-check,
+#fin-py-form.fin-py-pay-is-bank #rc_check_fields,
+#fin-py-form.fin-py-pay-is-bank #rc_check_no_wrap,
+#fin-py-form.fin-py-pay-is-bank #rc_bank_wrap {
   display: none !important;
 }
 

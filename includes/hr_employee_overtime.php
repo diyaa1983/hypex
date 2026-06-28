@@ -52,7 +52,21 @@ function hr_employee_overtime_ensure_schema(PDO $pdo): void
     }
 }
 
-function hr_employee_overtime_assert_editable(PDO $pdo, int $employeeId, int $year, int $month): void
+function hr_employee_overtime_month_status(PDO $pdo, int $year, int $month): array
+{
+    if (!function_exists('hr_payroll_month_status_info')) {
+        require_once app_path('includes/hr_payroll_posting.php');
+    }
+
+    return hr_payroll_month_status_info($pdo, $year, $month);
+}
+
+function hr_employee_overtime_month_is_open(PDO $pdo, int $year, int $month): bool
+{
+    return (hr_employee_overtime_month_status($pdo, $year, $month)['code'] ?? '') === 'open';
+}
+
+function hr_employee_overtime_assert_can_save(PDO $pdo, int $employeeId, int $year, int $month): void
 {
     if ($year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
         throw new RuntimeException('الفترة غير صحيحة.');
@@ -66,9 +80,48 @@ function hr_employee_overtime_assert_editable(PDO $pdo, int $employeeId, int $ye
     }
     hr_payroll_assert_can_edit($pdo, $year, $month);
 
+    if (!hr_employee_overtime_month_is_open($pdo, $year, $month)) {
+        $status = hr_employee_overtime_month_status($pdo, $year, $month);
+        throw new RuntimeException(
+            'لا يمكن إضافة أو تعديل العمل الإضافي — شهر '
+            . hr_payroll_period_label($year, $month)
+            . ' ' . ($status['label'] ?? 'غير مفتوح') . '.'
+        );
+    }
+
     $existing = hr_payroll_salary_row($pdo, $employeeId, $year, $month);
     if ($existing && (int) ($existing['is_posted'] ?? 0) === 1) {
         throw new RuntimeException('راتب هذا الموظف مرحّل لهذا الشهر — لا يمكن تعديل العمل الإضافي.');
+    }
+}
+
+function hr_employee_overtime_assert_can_delete(PDO $pdo, int $employeeId, int $year, int $month): void
+{
+    if ($year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
+        throw new RuntimeException('الفترة غير صحيحة.');
+    }
+    if ($employeeId < 1) {
+        throw new RuntimeException('اختر الموظف.');
+    }
+
+    if (!function_exists('hr_payroll_validate_period')) {
+        require_once app_path('includes/hr_payroll_posting.php');
+    }
+    hr_payroll_validate_period($year, $month);
+
+    $status = hr_employee_overtime_month_status($pdo, $year, $month);
+    $code = (string) ($status['code'] ?? '');
+    if ($code !== 'open') {
+        throw new RuntimeException(
+            'لا يمكن حذف العمل الإضافي — شهر '
+            . hr_payroll_period_label($year, $month)
+            . ' ' . ($status['label'] ?? '') . '.'
+        );
+    }
+
+    $existing = hr_payroll_salary_row($pdo, $employeeId, $year, $month);
+    if ($existing && (int) ($existing['is_posted'] ?? 0) === 1) {
+        throw new RuntimeException('راتب هذا الموظف مرحّل لهذا الشهر — لا يمكن حذف العمل الإضافي.');
     }
 }
 
@@ -180,7 +233,7 @@ function hr_employee_overtime_save(PDO $pdo, array $post): int
         $notes = substr($notes, 0, 255);
     }
 
-    hr_employee_overtime_assert_editable($pdo, $employeeId, $year, $month);
+    hr_employee_overtime_assert_can_save($pdo, $employeeId, $year, $month);
 
     $grossSalary = hr_overtime_employee_gross($pdo, $employeeId);
     if ($grossSalary <= 0) {
@@ -240,7 +293,7 @@ function hr_employee_overtime_delete(PDO $pdo, int $id): void
     $employeeId = (int) ($row['employee_id'] ?? 0);
     $year = (int) ($row['pay_year'] ?? 0);
     $month = (int) ($row['pay_month'] ?? 0);
-    hr_employee_overtime_assert_editable($pdo, $employeeId, $year, $month);
+    hr_employee_overtime_assert_can_delete($pdo, $employeeId, $year, $month);
 
     $pdo->prepare('DELETE FROM hr_employee_overtime WHERE id = ?')->execute([$id]);
     hr_employee_overtime_sync_to_salary($pdo, $employeeId, $year, $month, 0.0);

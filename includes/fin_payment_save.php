@@ -50,10 +50,8 @@ function handle_fin_payment_save(): void
         default => 0,
     };
     $offsetAccountId = (int) ($_POST['offset_account_id'] ?? 0);
-    $employeePayKind = fin_payment_normalize_employee_pay_kind(trim((string) ($_POST['employee_pay_kind'] ?? 'advance')));
     $hrAdvanceId = (int) ($_POST['hr_advance_id'] ?? 0);
-    $hrSalaryId = (int) ($_POST['hr_salary_id'] ?? 0);
-    $payMethod = trim((string) ($_POST['pay_method'] ?? 'cash')) === 'check' ? 'check' : 'cash';
+    $payMethod = fin_voucher_normalize_pay_method(trim((string) ($_POST['pay_method'] ?? 'cash')));
     $amount = (float) ($_POST['amount'] ?? 0);
     $checkAmount = (float) ($_POST['check_amount'] ?? 0);
     $effectiveAmount = $amount;
@@ -86,30 +84,7 @@ function handle_fin_payment_save(): void
         $err = 'اختر العميل.';
     } elseif ($partyType === 'employee') {
         $err = fin_payment_validate_employee_party($pdo, $partyId) ?? '';
-        if ($err === '' && $employeePayKind === 'advance') {
-            if ($hrAdvanceId < 1) {
-                $err = 'اختر السلفة المعتمدة للصرف من قائمة السلف.';
-            } else {
-                $payableId = fin_payment_employee_advance_payable_account_id($pdo);
-                if ($payableId < 1) {
-                    $err = 'حساب «سلف موظفين مستحقة الصرف» غير مربوط في إعدادات الترحيل.';
-                } else {
-                    $offsetAccountId = $payableId;
-                }
-            }
-            $hrSalaryId = 0;
-        } elseif ($err === '' && $employeePayKind === 'other') {
-            $hrAdvanceId = 0;
-            if (!fin_payment_offset_account_allowed($pdo, 'employee', $offsetAccountId, 'other')) {
-                $err = 'اختر حساب الالتزام (رواتب مستحقة / ضمان…).';
-            } elseif ($offsetAccountId === fin_payment_salaries_payable_account_id($pdo)) {
-                if ($hrSalaryId < 1) {
-                    $err = 'اختر الراتب المرحّل للصرف من قائمة الرواتب.';
-                }
-            } else {
-                $hrSalaryId = 0;
-            }
-        }
+        $offsetAccountId = 0;
     } elseif ($partyType === 'account') {
         if ($offsetAccountId < 1) {
             $err = 'اختر الحساب المُصروف إليه من الشجرة.';
@@ -120,7 +95,20 @@ function handle_fin_payment_save(): void
 
     if ($err === '' && ($cashAccountId < 1 || !isset($allowedCash[$cashAccountId]))) {
         $err = 'اختر حساب الصرف (صندوق، شيكات، أو بنك) الذي يُخصم منه المبلغ.';
+    } elseif ($err === '' && $payMethod === 'bank') {
+        if (fin_voucher_cash_account_group($cashAccounts, $cashAccountId) !== 'bank') {
+            $err = 'اختر حساب بنك يُخصم منه المبلغ.';
+        }
+    } elseif ($err === '' && $payMethod === 'cash') {
+        $cashGroup = fin_voucher_cash_account_group($cashAccounts, $cashAccountId);
+        if ($cashGroup !== null && $cashGroup !== 'cash') {
+            $err = 'عند الدفع نقداً اختر حساباً من الصناديق.';
+        }
     } elseif ($err === '' && $payMethod === 'check') {
+        $checkGroup = fin_voucher_cash_account_group($cashAccounts, $cashAccountId);
+        if ($checkGroup !== null && $checkGroup !== 'checks') {
+            $err = 'عند الدفع بشيك اختر حساب صندوق الشيكات.';
+        }
         if ($checkAmount <= 0 && $amount <= 0) {
             $err = 'أدخل قيمة الشيك.';
         }
@@ -134,27 +122,13 @@ function handle_fin_payment_save(): void
         $amount = $effectiveAmount;
     }
 
-    if ($err === '' && $partyType === 'employee' && $employeePayKind === 'advance' && $hrAdvanceId > 0) {
+    if ($err === '' && $hrAdvanceId > 0) {
         require_once app_path('includes/hr_employee_advance.php');
         $advance = hr_employee_advance_load($pdo, $hrAdvanceId);
         if (!$advance) {
             $err = 'السلفة غير موجودة.';
-        } else {
-            $amount = round((float) ($advance['total_amount'] ?? 0), 3);
-            $effectiveAmount = $amount;
+        } elseif ($partyType === 'employee') {
             $err = hr_employee_advance_validate_for_disbursement($pdo, $hrAdvanceId, $partyId, $amount, $id) ?? '';
-        }
-    } elseif ($err === '' && $partyType === 'employee' && $employeePayKind === 'other' && $hrSalaryId > 0) {
-        require_once app_path('includes/hr_salary.php');
-        try {
-            $st = $pdo->prepare('SELECT net_salary FROM hr_salary WHERE id = ? LIMIT 1');
-            $st->execute([$hrSalaryId]);
-            $net = round((float) $st->fetchColumn(), 3);
-            $amount = $net;
-            $effectiveAmount = $net;
-            $err = hr_salary_validate_for_disbursement($pdo, $hrSalaryId, $partyId, $amount, $id) ?? '';
-        } catch (Throwable $e) {
-            $err = 'الراتب غير موجود.';
         }
     }
 
@@ -189,9 +163,9 @@ function handle_fin_payment_save(): void
         fin_payment_save_apply_employee_hr_links(
             $pdo,
             $savedId,
-            $employeePayKind,
-            $employeePayKind === 'advance' ? $hrAdvanceId : 0,
-            $employeePayKind === 'other' ? $hrSalaryId : 0
+            $hrAdvanceId > 0 ? 'advance' : 'other',
+            $hrAdvanceId,
+            0
         );
         $pdo->commit();
 

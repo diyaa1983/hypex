@@ -146,22 +146,22 @@ if ($showResult) {
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
     <?php endif; ?>
 
-    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print">
+    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters report-sales-filters--inline no-print">
         <input type="hidden" name="r" value="report_sales_between_dates">
 
-        <div class="form-row">
+        <div class="report-sales-filters-row">
             <?= customer_picker_field([
                 'id' => 'report_sales_cust',
                 'name' => 'customer_id',
                 'value' => $customerId >= 0 ? $customerId : '',
                 'label' => 'العميل *',
-                'wrapper_class' => 'field',
-                'wrapper_style' => 'flex:1 1 16rem',
+                'wrapper_class' => 'field report-sales-filter-field report-sales-filter-field--customer',
                 'allow_all' => true,
+                'compact' => true,
                 'json_id' => 'report-sales-customers-json',
             ]) ?>
 
-            <label class="field" style="flex:1 1 14rem;">
+            <label class="field report-sales-filter-field report-sales-filter-field--rep">
                 <span class="field-label">المندوب *</span>
                 <select class="input" name="sales_rep_id" required>
                     <option value="0" <?= $salesRepId === 0 ? 'selected' : '' ?>>جميع المندوبين</option>
@@ -173,21 +173,22 @@ if ($showResult) {
                 </select>
             </label>
 
-            <label class="field">
+            <label class="field report-sales-filter-field report-sales-filter-field--date">
                 <span class="field-label">من تاريخ *</span>
                 <input class="input js-date-dmy" type="text" name="from" value="<?= esc(format_date_dmY($from)) ?>"
                        placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
             </label>
 
-            <label class="field">
+            <label class="field report-sales-filter-field report-sales-filter-field--date">
                 <span class="field-label">إلى تاريخ *</span>
                 <input class="input js-date-dmy" type="text" name="to" value="<?= esc(format_date_dmY($to)) ?>"
                        placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
             </label>
-        </div>
 
-        <div style="margin-top:0.5rem;">
-            <button class="btn btn-primary" type="submit">عرض التقرير</button>
+            <div class="field report-sales-filter-field report-sales-filter-field--submit">
+                <span class="field-label" aria-hidden="true">&nbsp;</span>
+                <button class="btn btn-primary" type="submit">عرض التقرير</button>
+            </div>
         </div>
     </form>
 

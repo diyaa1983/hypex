@@ -96,6 +96,10 @@
         window.print();
         return;
       }
+      if (document.querySelector('.fin-outgoing-checks-page .fin-outgoing-checks-print-area')) {
+        window.print();
+        return;
+      }
     }
 
     if (action === 'exit' && defaultExitUrl) {

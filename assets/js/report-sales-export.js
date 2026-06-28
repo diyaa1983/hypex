@@ -9,6 +9,7 @@
     report_sales_returns: true,
     report_sales_returns_totals: true,
     report_sales_qty_extra: true,
+    report_sales_delivery: true,
     report_customers: true,
     report_purchases: true,
     report_purchases_by_item: true,
@@ -928,21 +929,35 @@
 
     function getHrTaxAr3PrintCss() {
       return (
-        '@page{size:A4 portrait;margin:10mm 12mm 12mm 12mm;}' +
-        '.tax-ar3-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.35rem;}' +
-        '.tax-ar3-head__code{font-weight:700;font-size:8pt;}' +
-        '.tax-ar3-head__ministry{text-align:center;flex:1;font-weight:700;font-size:9pt;}' +
-        '.tax-ar3-title{text-align:center;font-size:11pt;font-weight:800;margin:0.35rem 0;}' +
-        '.tax-ar3-law{text-align:center;font-size:8pt;margin:0 0 0.65rem;}' +
-        '.tax-ar3-emp-table,.tax-ar3-main-table,.tax-ar3-employer-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:0.55rem;font-size:7.5pt;}' +
-        '.tax-ar3-emp-table th,.tax-ar3-emp-table td,.tax-ar3-main-table th,.tax-ar3-main-table td,.tax-ar3-main-table tfoot td,.tax-ar3-employer-table td{border:1px solid #0f172a;padding:2px 3px;vertical-align:top;text-align:right;}' +
-        '.tax-ar3-section-title{text-align:center!important;background:#e2e8f0!important;font-weight:800;}' +
-        '.tax-ar3-emp-label{display:block;font-size:6.5pt;color:#64748b;}' +
-        '.tax-ar3-main-table thead th{background:#d9d9d9!important;text-align:center;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
-        '.tax-ar3-col-desc{width:42%;text-align:start!important;}' +
-        '.tax-ar3-money{text-align:center!important;font-variant-numeric:tabular-nums;}' +
-        '.tax-ar3-total-row td{background:#eef2ff!important;font-weight:800;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
-        '.tax-ar3-declaration{margin:0.55rem 0;padding:0.4rem;border:1px solid #94a3b8;background:#f8fafc;font-size:7.5pt;}' +
+        '@page{size:A4 portrait;margin:6mm 8mm 8mm 8mm;}' +
+        '.hr-tax-ar3-doc{border:1.5px solid #000!important;box-shadow:none!important;padding:5mm 6mm 6mm!important;font-family:"Traditional Arabic","Simplified Arabic",Arial,Tahoma,sans-serif!important;font-size:8pt!important;color:#000!important;}' +
+        '.hr-tax-ar3-doc .doc-print-watermark,.hr-tax-ar3-doc .doc-print-watermark--overlay{display:none!important;}' +
+        '.tax-ar3-official-head{display:grid;grid-template-columns:1fr 2.2fr 1fr;gap:3px;margin-bottom:2px;}' +
+        '.tax-ar3-official-head__center{text-align:center;}' +
+        '.tax-ar3-bismillah{font-weight:700;font-size:8pt;}' +
+        '.tax-ar3-kingdom,.tax-ar3-ministry{font-weight:800;font-size:8.5pt;}' +
+        '.tax-ar3-form-code{font-weight:800;border:1px solid #000;padding:1px 5px;display:inline-block;font-size:7.5pt;}' +
+        '.tax-ar3-official-title{text-align:center;font-size:9pt;font-weight:800;margin:2px 0 5px;}' +
+        '.tax-ar3-nid-row{display:flex;align-items:center;justify-content:space-between;gap:5px;padding:2px 4px;border:1px solid #000;margin-bottom:-1px;}' +
+        '.tax-ar3-grid-table,.tax-ar3-employer-table,.tax-ar3-financial-table,.tax-ar3-footer-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:-1px;}' +
+        '.tax-ar3-grid-table td,.tax-ar3-grid-table th,.tax-ar3-employer-table td,.tax-ar3-financial-table th,.tax-ar3-financial-table td,.tax-ar3-footer-table td{border:1px solid #000;padding:1px 3px;vertical-align:middle;text-align:right;}' +
+        '.tax-ar3-field-label{display:block;font-size:6.5pt;font-weight:700;margin-bottom:0;}' +
+        '.tax-ar3-info-label{font-size:7pt;font-weight:800;text-align:center;background:#f0f0f0!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.tax-ar3-digit-cells{display:inline-flex;gap:0;}' +
+        '.tax-ar3-digit-cell{display:inline-flex;align-items:center;justify-content:center;width:12px;height:14px;border:1px solid #000;margin-inline-start:-1px;font-size:7pt;font-weight:700;}' +
+        '.tax-ar3-digit-cells .tax-ar3-digit-cell:first-child{margin-inline-start:0;}' +
+        '.tax-ar3-section-head{text-align:center!important;background:#dcdcdc!important;font-weight:800;font-size:7.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.tax-ar3-sub-head th{background:#eee!important;font-size:6.5pt;text-align:center!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.tax-ar3-col-label{font-size:6.5pt;line-height:1.2;}' +
+        '.tax-ar3-financial-table tbody tr td{border-bottom-style:dashed;}' +
+        '.tax-ar3-amount{text-align:left!important;direction:ltr;font-variant-numeric:tabular-nums;font-size:7pt;font-weight:700;}' +
+        '.tax-ar3-total-row td{border-bottom-style:solid!important;background:#efefef!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.tax-ar3-total-num{display:block;direction:ltr;text-align:left;font-weight:800;font-size:8pt;}' +
+        '.tax-ar3-total-words{display:block;font-size:6pt;line-height:1.3;text-align:right;}' +
+        '.tax-ar3-work-days{margin:3px 0 5px;padding:2px 5px;border:1px solid #000;font-size:7.5pt;font-weight:700;}' +
+        '.tax-ar3-declaration{margin:0 0 5px;padding:4px 6px;border:1px solid #000;font-size:7pt;line-height:1.55;}' +
+        '.tax-ar3-sign-space{min-height:40px;}' +
+        '.tax-ar3-footer-file{margin-top:5px;display:flex;align-items:center;gap:6px;}' +
         '.no-print{display:none!important;}'
       );
     }

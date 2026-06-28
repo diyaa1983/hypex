@@ -278,15 +278,7 @@ function fin_payment_offset_account_allowed(PDO $pdo, string $partyType, int $ac
 
     if ($partyType === 'employee') {
 
-        $kind = fin_payment_normalize_employee_pay_kind($employeePayKind);
-
-        $allowed = $kind === 'advance'
-
-            ? fin_payment_employee_advance_payable_account($pdo)
-
-            : fin_payment_employee_other_offset_accounts($pdo);
-
-        foreach ($allowed as $row) {
+        foreach (fin_payment_employee_offset_accounts($pdo) as $row) {
 
             if ((int) ($row['id'] ?? 0) === $accountId) {
 

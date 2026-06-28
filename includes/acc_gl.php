@@ -357,6 +357,39 @@ function acc_gl_payment_hr_advance_context(PDO $pdo, array $row): ?array
     return ['memo' => $memo];
 }
 
+/**
+ * @return array{rule?:string, account_id?:int, debit:float, credit:float, memo:string}
+ */
+function acc_gl_payment_employee_debit_line(PDO $pdo, array $row, float $amount, string $memo): array
+{
+    $line = ['debit' => $amount, 'credit' => 0.0, 'memo' => $memo];
+    $offsetId = (int) ($row['offset_account_id'] ?? 0);
+    if ($offsetId > 0) {
+        $line['account_id'] = $offsetId;
+
+        return $line;
+    }
+    require_once app_path('includes/fin_voucher_schema.php');
+    $advanceId = 0;
+    if (fin_voucher_has_column($pdo, 'hr_advance_id')) {
+        $advanceId = (int) ($row['hr_advance_id'] ?? 0);
+    }
+    if ($advanceId > 0) {
+        $line['rule'] = 'hr_employee_advance_payable';
+
+        return $line;
+    }
+    $settings = acc_gl_load_settings($pdo);
+    if (acc_gl_account_id($settings, 'salaries_payable') > 0) {
+        $line['rule'] = 'salaries_payable';
+
+        return $line;
+    }
+    $line['rule'] = 'misc_expense';
+
+    return $line;
+}
+
 function acc_gl_voucher_description(PDO $pdo, string $kind, array $row, float $amount): string
 {
     $voucherNo = trim((string) ($row['voucher_no'] ?? ''));
@@ -1113,7 +1146,9 @@ function acc_gl_post_cash_payment(PDO $pdo, int $voucherId): array
             array_unshift($lines, ['rule' => 'ap_suppliers', 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo]);
         } elseif ($party === 'customer') {
             array_unshift($lines, ['rule' => 'ar_customers', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo]);
-        } elseif ($party === 'employee' || $party === 'account') {
+        } elseif ($party === 'employee') {
+            array_unshift($lines, acc_gl_payment_employee_debit_line($pdo, $row, $amount, $partyMemo));
+        } elseif ($party === 'account') {
             $offsetId = (int) ($row['offset_account_id'] ?? 0);
             if ($offsetId < 1) {
                 throw new RuntimeException('حساب الصرف المُدين غير محدد.');

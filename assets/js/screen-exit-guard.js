@@ -568,17 +568,72 @@
         return guard.hasUnsavedChanges();
     }
 
+    function resolveExitUrl() {
+        var bar = global.document.getElementById('master-toolbar');
+        return bar ? (bar.getAttribute('data-exit-url') || '') : '';
+    }
+
+    function resolveCloseUrl(fallbackHref) {
+        if (fallbackHref) {
+            return fallbackHref;
+        }
+        var bar = global.document.getElementById('master-toolbar');
+        if (bar) {
+            var closeUrl = bar.getAttribute('data-close-url') || '';
+            if (closeUrl) {
+                return closeUrl;
+            }
+        }
+        return resolveExitUrl();
+    }
+
     function onGlobalExitClick(e) {
-        var exitLink = e.target.closest('.ora12-title-bar__close, .hr-ora-title-bar__close, .nav-exit-btn');
-        if (!exitLink) {
+        var exitLink = e.target.closest('.nav-exit-btn');
+        if (exitLink) {
+            var exitHref = exitLink.getAttribute('href') || resolveExitUrl();
+            if (!exitHref) {
+                return;
+            }
+            var exitRoot = findPageRoot(exitLink);
+            var exitGuard = exitRoot ? registry.get(exitRoot) : null;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            if (exitGuard) {
+                exitGuard.navigateAway(exitHref);
+                return;
+            }
+            if (global.document.getElementById('master-toolbar')) {
+                var ev = new CustomEvent('master-toolbar', {
+                    bubbles: true,
+                    cancelable: true,
+                    detail: { action: 'exit', exitUrl: exitHref },
+                });
+                global.document.dispatchEvent(ev);
+                if (ev.defaultPrevented) {
+                    return;
+                }
+            }
+            exitGuard = tryAutoGuard(exitRoot, exitHref);
+            if (exitGuard && pageHasFormEdits(exitRoot, primaryForm(exitRoot), exitGuard)) {
+                exitGuard.navigateAway(exitHref);
+                return;
+            }
+            confirmLeave(function () {
+                navigateTop(exitHref);
+            });
             return;
         }
-        var href = exitLink.getAttribute('href');
+
+        var closeLink = e.target.closest('.ora12-title-bar__close, .hr-ora-title-bar__close');
+        if (!closeLink) {
+            return;
+        }
+        var href = closeLink.getAttribute('href') || resolveCloseUrl('');
         if (!href) {
             return;
         }
 
-        var root = findPageRoot(exitLink);
+        var root = findPageRoot(closeLink);
         var guard = root ? registry.get(root) : null;
 
         if (guard) {
@@ -590,18 +645,6 @@
 
         e.preventDefault();
         e.stopImmediatePropagation();
-
-        if (global.document.getElementById('master-toolbar')) {
-            var ev = new CustomEvent('master-toolbar', {
-                bubbles: true,
-                cancelable: true,
-                detail: { action: 'exit', exitUrl: href },
-            });
-            global.document.dispatchEvent(ev);
-            if (ev.defaultPrevented) {
-                return;
-            }
-        }
 
         guard = tryAutoGuard(root, href);
         if (guard && pageHasFormEdits(root, primaryForm(root), guard)) {
@@ -771,6 +814,8 @@
         registerScreenExitDeferred: registerScreenExitDeferred,
         isUnloadAllowed: isUnloadAllowed,
         navigateExit: navigateTop,
+        resolveExitUrl: resolveExitUrl,
+        resolveCloseUrl: resolveCloseUrl,
     };
     global.HrOraUnsaved = { bind: bind };
 })(typeof window !== 'undefined' ? window : globalThis);

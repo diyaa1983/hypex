@@ -2341,7 +2341,8 @@
     oraCloseBtn.addEventListener('click', function (e) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      var href = oraCloseBtn.getAttribute('href') || exitUrl;
+      var closeUrl = (document.getElementById('master-toolbar') || {}).getAttribute?.('data-close-url') || exitUrl;
+      var href = oraCloseBtn.getAttribute('href') || closeUrl;
       confirmLeaveScreen(function () {
         if (window.ScreenExitGuard && typeof window.ScreenExitGuard.navigateExit === 'function') {
           window.ScreenExitGuard.navigateExit(href || '');
