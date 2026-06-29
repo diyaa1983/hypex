@@ -219,7 +219,7 @@ return [
     'fin_checks' => [
         'file' => 'modules/finance/checks.php',
         'permission' => 'fin_checks',
-        'title' => 'شاشة الشيكات',
+        'title' => 'الشيكات الواردة',
         'hide_screen_title' => true,
     ],
     'fin_outgoing_checks' => [

@@ -173,7 +173,7 @@ return [
                     'items' => [
                         ['r' => 'chart_of_accounts', 'label' => 'شجرة الحسابات', 'icon' => '🌳'],
                         ['r' => 'journal_entries', 'label' => 'القيود المحاسبية', 'icon' => '⚖'],
-                        ['r' => 'fin_checks', 'label' => 'شاشة الشيكات', 'icon' => '📝'],
+                        ['r' => 'fin_checks', 'label' => 'الشيكات الواردة', 'icon' => '📝'],
                         ['r' => 'fin_outgoing_checks', 'label' => 'سجل الشيكات الصادرة', 'icon' => '📤'],
                         ['r' => 'report_general_ledger', 'label' => 'دفتر الأستاذ العام', 'icon' => '📖'],
                         ['r' => 'acc_period_close', 'label' => 'إغلاق الأشهر المحاسبية', 'icon' => '🔒'],

@@ -1,0 +1,400 @@
+/* شاشة الشيكات — Oracle 12c */
+
+.fin-checks-ora12.sales-ora12-screen .dashboard-ora-workspace {
+  gap: 0;
+}
+
+.fin-checks-ora12 .fin-checks-intro {
+  border-top: none;
+}
+
+/* ——— لوحة الفلاتر ——— */
+.fin-checks-ora12 .fin-checks-filter-panel {
+  border-top: none;
+}
+
+.fin-checks-ora12 .fin-checks-filter-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.38rem 0.55rem;
+  background: linear-gradient(180deg, #5a8fc4 0%, #4a7ebb 55%, #356091 100%);
+  border-bottom: 1px solid #2d5080;
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.fin-checks-ora12 .fin-checks-filter-panel__body {
+  padding: 0.55rem 0.6rem 0.65rem;
+  background: #eef2f7;
+  border-bottom: 1px solid var(--ora12-border, #b8c5d6);
+}
+
+.fin-checks-ora12 .fin-checks-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.45rem 0.65rem;
+  align-items: end;
+}
+
+.fin-checks-ora12 .fin-checks-filter-grid .field {
+  margin: 0;
+  min-width: 0;
+}
+
+.fin-checks-ora12 .fin-checks-filter-grid .field-label {
+  font-size: 0.7rem;
+  margin-bottom: 0.12rem;
+}
+
+.fin-checks-ora12 .fin-checks-filter-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.fin-checks-ora12 .fin-checks-filter-check .fin-checks-inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.65rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ora12-text, #1a1a1a);
+  background: #fff;
+  border: 1px solid var(--ora12-border, #b8c5d6);
+  border-radius: 2px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.fin-checks-ora12 .fin-checks-filter-check input {
+  margin: 0;
+}
+
+/* ——— تبويبات نوع الشيك ——— */
+.fin-checks-ora12 .fin-checks-status-tabs,
+.fin-checks-ora12 .fin-checks-dir-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.38rem 0.55rem;
+  background: #f3f5f7;
+  border: 1px solid var(--ora12-border, #b8c5d6);
+  border-top: none;
+}
+
+.fin-checks-ora12 .fin-checks-toolbar {
+  border-top: none;
+  margin: 0;
+}
+
+.fin-checks-ora12 .fin-checks-intro a {
+  color: var(--ora12-link, #0572ce);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.fin-checks-ora12 .fin-checks-intro a:hover {
+  text-decoration: underline;
+}
+
+/* ——— شريط الملخص ——— */
+.fin-checks-ora12 .fin-checks-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  padding: 0.42rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ora12-text, #1a1a1a);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  border: 1px solid var(--ora12-border, #b8c5d6);
+  border-top: none;
+}
+
+.fin-checks-ora12 .fin-checks-summary-bar strong {
+  color: #024d8f;
+}
+
+.fin-checks-ora12 .fin-checks-summary-sep {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+/* ——— الجدول ——— */
+.fin-checks-ora12 .fin-checks-results {
+  border-top: none;
+}
+
+.fin-checks-ora12 .fin-checks-results .table-wrap {
+  max-height: calc(100vh - 17.5rem);
+  overflow: auto;
+}
+
+.fin-checks-ora12 .fin-checks-table {
+  width: 100%;
+  min-width: 62rem;
+  table-layout: fixed;
+  font-size: 0.76rem;
+  border-collapse: collapse;
+}
+
+/* جدول مسطّر — خطوط أفقية وعمودية */
+.fin-checks-ora12 .fin-checks-grid-table {
+  border: 1px solid #9ab0c4;
+}
+
+.fin-checks-ora12 .fin-checks-grid-table thead th,
+.fin-checks-ora12 .fin-checks-grid-table tbody td {
+  border: 1px solid #c5d0dc;
+}
+
+.fin-checks-ora12 .fin-checks-grid-table .fin-checks-empty-cell {
+  text-align: center;
+  padding: 1.25rem;
+}
+
+.fin-checks-ora12 .fin-checks-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.38rem 0.42rem;
+  font-size: 0.72rem;
+  text-align: center;
+  background: linear-gradient(180deg, #f0f4f8 0%, #dce4ec 100%);
+  border-bottom: 2px solid #b8c5d6;
+  box-shadow: 0 1px 0 #fff inset;
+}
+
+.fin-checks-ora12 .fin-checks-table tbody td {
+  padding: 0.3rem 0.42rem;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fin-checks-ora12 .fin-checks-table tbody tr:nth-child(even) td {
+  background: #f4f7fa;
+}
+
+.fin-checks-ora12 .fin-checks-table tbody tr:nth-child(odd) td {
+  background: #fff;
+}
+
+.fin-checks-ora12 .fin-checks-table tbody tr:hover td {
+  background: var(--ora12-hover, #e8f0f8);
+}
+
+.fin-checks-ora12 .fin-checks-table tbody tr.fin-chk-row-overdue td {
+  background: #fff5f5;
+}
+
+.fin-checks-ora12 .fin-checks-table tbody tr.fin-chk-row-overdue:hover td {
+  background: #fee8e8;
+}
+
+.fin-checks-ora12 .fin-checks-table tbody tr.fin-chk-row-undone td {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.fin-checks-ora12 .fin-checks-table .col-voucher { width: 5.5rem; text-align: center; }
+.fin-checks-ora12 .fin-checks-table .col-vdate { width: 5.5rem; }
+.fin-checks-ora12 .fin-checks-table .col-check-no { width: 5.5rem; }
+.fin-checks-ora12 .fin-checks-table .col-due { width: 5.5rem; }
+.fin-checks-ora12 .fin-checks-table .col-money { width: 6rem; }
+.fin-checks-ora12 .fin-checks-table .col-party { width: 13rem; }
+.fin-checks-ora12 .fin-checks-table .col-post { width: 7rem; text-align: center; }
+.fin-checks-ora12 .fin-checks-table .col-action { width: 4.5rem; text-align: center; }
+.fin-checks-ora12 .fin-checks-table .col-action-date { width: 9rem; }
+.fin-checks-ora12 .fin-checks-table .col-urgency { width: 4.5rem; text-align: center; }
+.fin-checks-ora12 .fin-checks-table .col-exec { width: 9rem; text-align: center; }
+
+.fin-checks-ora12 .fin-chk-col-no code,
+.fin-checks-ora12 .fin-chk-col-money {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.fin-checks-ora12 .fin-chk-col-money {
+  text-align: left;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-checks-ora12 .fin-chk-col-date,
+.fin-checks-ora12 .fin-chk-col-dates {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: center;
+  font-size: 0.74rem;
+}
+
+.fin-checks-ora12 .fin-chk-col-ellipsis,
+.fin-checks-ora12 .fin-chk-col-party {
+  max-width: 0;
+}
+
+.fin-checks-ora12 .fin-chk-date-note {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* نوع الشيك */
+.fin-checks-ora12 .fin-chk-dir {
+  display: inline-block;
+  min-width: 2.6rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.fin-checks-ora12 .fin-chk-dir--in {
+  color: #0c4a6e;
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
+.fin-checks-ora12 .fin-chk-dir--out {
+  color: #7c2d12;
+  background: #ffedd5;
+  border-color: #fdba74;
+}
+
+/* شارات الحالة */
+.fin-checks-ora12 .fin-chk-badge {
+  display: inline-block;
+  padding: 0.12rem 0.38rem;
+  border-radius: 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  line-height: 1.3;
+}
+
+.fin-checks-ora12 .fin-chk-badge--posted-clear {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-color: #a5d6a7;
+}
+
+.fin-checks-ora12 .fin-chk-badge--posted-return {
+  background: #fdecea;
+  color: #c74634;
+  border-color: #e8b4a8;
+}
+
+.fin-checks-ora12 .fin-chk-badge--posted-endorse {
+  background: #e8eaf6;
+  color: #3949ab;
+  border-color: #9fa8da;
+}
+
+.fin-checks-ora12 .fin-chk-badge--pending {
+  background: #fff8e8;
+  color: #7a5c00;
+  border-color: #e8d4a8;
+}
+
+.fin-checks-ora12 .fin-chk-badge--undo {
+  background: #eceff1;
+  color: #455a64;
+  border-color: #b0bec5;
+}
+
+.fin-checks-ora12 .fin-chk-action-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.fin-checks-ora12 .fin-chk-action-tag--clear { color: #2e7d32; }
+.fin-checks-ora12 .fin-chk-action-tag--return { color: #c74634; }
+.fin-checks-ora12 .fin-chk-action-tag--endorse { color: #3949ab; }
+.fin-checks-ora12 .fin-chk-action-tag--none { color: #94a3b8; }
+.fin-checks-ora12 .fin-chk-action-tag--undo { color: #546e7a; }
+
+.fin-checks-ora12 .fin-chk-actions-cell {
+  white-space: nowrap;
+  text-align: center;
+}
+
+.fin-checks-ora12 .fin-chk-actions-cell .row-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+}
+
+.fin-checks-ora12 .fin-chk-act-btn {
+  min-width: 2.35rem;
+  padding: 0.14rem 0.38rem !important;
+  font-size: 0.68rem !important;
+  line-height: 1.2;
+}
+
+.fin-checks-ora12 .fin-chk-act-btn--clear {
+  color: #fff !important;
+  background: linear-gradient(180deg, #43a047 0%, #2e7d32 100%) !important;
+  border-color: #1b5e20 !important;
+}
+
+.fin-checks-ora12 .fin-chk-act-btn--return {
+  color: #fff !important;
+  background: linear-gradient(180deg, #e85d4a 0%, #c74634 100%) !important;
+  border-color: #a33a2b !important;
+}
+
+.fin-checks-ora12 .fin-chk-act-btn--endorse {
+  color: #fff !important;
+  background: linear-gradient(180deg, #5c6bc0 0%, #3949ab 100%) !important;
+  border-color: #283593 !important;
+}
+
+.fin-checks-ora12 .fin-checks-table .badge {
+  font-size: 0.68rem;
+  padding: 0.1rem 0.38rem;
+}
+
+.fin-checks-ora12 .fin-checks-table a {
+  color: var(--ora12-link, #0572ce);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.fin-checks-ora12 .fin-checks-table a:hover {
+  text-decoration: underline;
+}
+
+.fin-checks-ora12 .fin-checks-table code {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--ora12-link, #0572ce);
+  background: transparent;
+}
+
+/* نافذة الترحيل */
+.fin-checks-ora12 + .fin-check-modal .fin-check-modal__panel,
+.fin-check-modal.fin-check-modal--ora12 .fin-check-modal__panel {
+  width: min(100%, 34rem);
+  border: 1px solid #356091;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.28);
+}

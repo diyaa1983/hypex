@@ -290,6 +290,15 @@ function fin_checks_manage_parse_filters(array $input): array
     ];
 }
 
+/** فلاتر شاشة الشيكات الواردة فقط (سندات القبض). */
+function fin_checks_manage_parse_incoming_screen_filters(array $input): array
+{
+    $filters = fin_checks_manage_parse_filters($input);
+    $filters['direction'] = 'incoming';
+
+    return $filters;
+}
+
 /** تعبير SQL لتاريخ الترتيب حسب العمود المختار. */
 function fin_checks_manage_sort_expr(PDO $pdo, string $sortField): string
 {
