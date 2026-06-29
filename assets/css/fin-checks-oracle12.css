@@ -129,6 +129,22 @@
   font-weight: 400;
 }
 
+.fin-checks-ora12 .fin-checks-due-summary {
+  color: #0f4c75;
+}
+
+.fin-checks-ora12 .fin-checks-due-total {
+  color: #b45309;
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-checks-ora12 .fin-checks-due-count {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+
 /* ——— الجدول ——— */
 .fin-checks-ora12 .fin-checks-results {
   border-top: none;

@@ -31,6 +31,7 @@ $suppliers = crm_suppliers_for_picker($pdo);
 $rows = [];
 $err = '';
 $sumAmount = 0.0;
+$dueFromReceipts = ['count' => 0, 'amount' => 0.0];
 
 if ($filters['date_range_active']) {
     $fromIso = parse_date_to_iso($filters['from']);
@@ -50,6 +51,7 @@ if ($err === '') {
     foreach ($rows as $r) {
         $sumAmount += (float) ($r['check_amount'] ?? 0);
     }
+    $dueFromReceipts = fin_checks_manage_sum_due_from_receipts($pdo);
 }
 
 $fromDisplay = $filters['from'] !== '' ? format_date_dmY($filters['from']) : '';
@@ -224,6 +226,12 @@ sales_inv_oracle12_enqueue_assets();
             <span>العدد: <strong id="fin-checks-count"><?= count($rows) ?></strong></span>
             <span class="fin-checks-summary-sep">|</span>
             <span>الإجمالي: <strong id="fin-checks-total"><?= esc(format_money($sumAmount)) ?></strong></span>
+            <span class="fin-checks-summary-sep">|</span>
+            <span class="fin-checks-due-summary">
+                مجموع المستحقة من السندات:
+                <strong id="fin-checks-due-total" class="fin-checks-due-total"><?= esc(format_money((float) $dueFromReceipts['amount'])) ?></strong>
+                <span class="fin-checks-due-count">(<?= (int) $dueFromReceipts['count'] ?> شيك)</span>
+            </span>
         </p>
         <div class="table-wrap">
             <table class="data-table fin-checks-table fin-checks-grid-table" id="fin-checks-table">

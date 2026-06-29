@@ -1099,6 +1099,50 @@ function fin_checks_manage_direction_label(string $voucherType): string
 }
 
 /**
+ * إجمالي الشيكات الواردة المستحقة (قيد التحصيل) من سندات القبض المرحّلة.
+ *
+ * @return array{count:int, amount:float}
+ */
+function fin_checks_manage_sum_due_from_receipts(PDO $pdo): array
+{
+    if (!fin_checks_manage_ensure_schema($pdo) || !fin_voucher_has_table($pdo)) {
+        return ['count' => 0, 'amount' => 0.0];
+    }
+
+    fin_checks_manage_sync_legacy_status($pdo);
+
+    $postedExpr = fin_checks_manage_voucher_posted_sql($pdo, 'v');
+    $hasUndo = fin_checks_manage_has_undo_columns($pdo);
+    $undoFilter = $hasUndo ? " AND (c.action_undo_at IS NULL OR c.action_undo_at = '')" : '';
+    $cancelFilter = '';
+    if (fin_voucher_has_column($pdo, 'is_cancelled')) {
+        $cancelFilter = ' AND (v.is_cancelled = 0 OR v.is_cancelled IS NULL)';
+    }
+
+    $sql =
+        "SELECT COUNT(*) AS cnt, COALESCE(SUM(c.check_amount), 0) AS total
+         FROM fin_voucher_check c
+         INNER JOIN fin_voucher v ON v.id = c.voucher_id
+         WHERE c.check_amount > 0.000001
+           AND v.voucher_type = 'receipt'
+           AND c.lifecycle_status = 'pending'
+           {$undoFilter}
+           {$cancelFilter}
+           AND ({$postedExpr})";
+
+    try {
+        $row = $pdo->query($sql)->fetch(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return ['count' => 0, 'amount' => 0.0];
+    }
+
+    return [
+        'count' => (int) ($row['cnt'] ?? 0),
+        'amount' => (float) ($row['total'] ?? 0),
+    ];
+}
+
+/**
  * @param array<string, mixed> $filters
  * @return list<array<string, mixed>>
  */
