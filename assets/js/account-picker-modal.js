@@ -265,7 +265,12 @@
       return;
     }
 
-    var maxShow = needle || needleDigits ? Math.max(binding.maxResults, 200) : binding.maxResults;
+    var maxShow =
+      binding.maxResults === 0
+        ? matches.length
+        : needle || needleDigits
+          ? Math.max(binding.maxResults, 200)
+          : binding.maxResults;
     matches.slice(0, maxShow).forEach(function (a) {
       var row = document.createElement('button');
       row.type = 'button';
@@ -378,6 +383,13 @@
     }
   }
 
+  function parseMaxResults(raw) {
+    if (raw === null || raw === '') return 150;
+    var n = parseInt(raw, 10);
+    if (Number.isNaN(n)) return 150;
+    return n;
+  }
+
   function buildBinding(opts) {
     var hidden =
       typeof opts.hidden === 'string' ? document.getElementById(opts.hidden) : opts.hidden;
@@ -406,7 +418,7 @@
       jsonId: opts.jsonId || 'app-accounts-json',
       placeholder: opts.placeholder || 'اضغط لاختيار حساب',
       allowClear: opts.allowClear !== false,
-      maxResults: parseInt(opts.maxResults, 10) || 150,
+      maxResults: opts.maxResults !== undefined ? opts.maxResults : 150,
       searchWithMovements: opts.searchWithMovements === true,
       searchForMapping: opts.searchForMapping === true,
       onSelect: opts.onSelect || null,
@@ -462,7 +474,7 @@
       initialId: slot.getAttribute('data-initial') || '',
       searchWithMovements: slot.getAttribute('data-search-with-movements') === '1',
       searchForMapping: slot.getAttribute('data-search-for-mapping') === '1',
-      maxResults: parseInt(slot.getAttribute('data-max-results'), 10) || 150,
+      maxResults: parseMaxResults(slot.getAttribute('data-max-results')),
     });
     slot.setAttribute('data-account-picker-bound', '1');
     return api;

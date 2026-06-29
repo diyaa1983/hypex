@@ -21,7 +21,7 @@ foreach ($settings as $meta) {
         $ensureIds[$aid] = $aid;
     }
 }
-$accounts = acc_journal_accounts_picker_for_mapping($pdo, array_values($ensureIds));
+$accounts = acc_journal_accounts_picker($pdo, array_values($ensureIds));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
@@ -132,7 +132,7 @@ account_picker_json_script($accounts);
                         'value' => $selId,
                         'placeholder' => 'اختر حساباً…',
                         'allow_clear' => true,
-                        'search_for_mapping' => true,
+                        'max_results' => 0,
                     ]);
                     ?>
                 </td>

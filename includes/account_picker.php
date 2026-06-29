@@ -97,7 +97,9 @@ function account_picker_field(array $opts): string
     $manualBind = !empty($opts['manual_bind']);
     $searchWithMovements = !empty($opts['search_with_movements']);
     $searchForMapping = !empty($opts['search_for_mapping']);
-    $maxResults = max(0, (int) ($opts['max_results'] ?? 0));
+    $maxResultsAttr = array_key_exists('max_results', $opts)
+        ? ' data-max-results="' . max(0, (int) $opts['max_results']) . '"'
+        : '';
 
     $attrStr = 'id="' . esc($hiddenId) . '" value="' . ($value > 0 ? (string) $value : '') . '"';
     if ($name !== null && $name !== '') {
@@ -117,7 +119,7 @@ function account_picker_field(array $opts): string
             . ' data-json-id="' . esc($jsonId) . '"'
             . ($searchWithMovements ? ' data-search-with-movements="1"' : '')
             . ($searchForMapping ? ' data-search-for-mapping="1"' : '')
-            . ($maxResults > 0 ? ' data-max-results="' . $maxResults . '"' : '');
+            . $maxResultsAttr;
     }
 
     $html = '<div class="account-picker-slot acc-map-picker-slot"' . $dataAttrs . '>';
