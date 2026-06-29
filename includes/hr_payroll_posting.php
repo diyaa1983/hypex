@@ -1385,9 +1385,7 @@ function hr_payroll_post_month(PDO $pdo, int $year, int $month): array
     $employeeTotal = (float) ($ssResolved['employee_ss'] ?? 0);
     $payableTotal = (float) ($ssResolved['payable_ss'] ?? 0);
 
-    $salaryTotals = hr_payroll_month_salary_totals($pdo, $year, $month, true);
-    require_once app_path('includes/hr_employee_advance_gl.php');
-    $salaryTotals['advance_deductions'] = hr_payroll_month_advance_deduction_total($pdo, $year, $month, true);
+    $salaryTotals = hr_payroll_month_gl_totals($pdo, $year, $month, true);
     $glTotals = array_merge($salaryTotals, [
         'employer_ss' => $employerTotal,
     ]);

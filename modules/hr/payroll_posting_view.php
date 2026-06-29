@@ -480,7 +480,7 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                     <dd class="hr-pr-post-disburse-highlight"><?= esc(number_format((float) $disburse['fund_salaries'], 3)) ?></dd>
                 </div>
                 <div>
-                    <dt>ضمان اجتماعي مستحق (موظف + شركة)</dt>
+                    <dt>أمانات ضمان اجتماعي (موظف + شركة)</dt>
                     <dd class="hr-pr-post-disburse-highlight"><?= esc(number_format((float) $disburse['ss_payable_total'], 3)) ?></dd>
                 </div>
                 <div>

@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 require_once app_path('includes/hr_social_security_payroll.php');
 require_once app_path('includes/hr_income_tax.php');
+require_once app_path('includes/hr_employee_salary.php');
 
 const HR_PAYROLL_DEDUCTIONS_RULE_CODE = 'hr_payroll_deductions';
 const HR_PAYROLL_ACCRUAL_RULE_CODE = 'hr_payroll_accrual';
+const HR_PAYROLL_ALLOWANCES_EXPENSE_RULE_CODE = 'hr_payroll_allowances_expense';
 
 function hr_payroll_gl_ensure_posting_rules(PDO $pdo): void
 {
@@ -24,6 +26,7 @@ function hr_payroll_gl_ensure_posting_rules(PDO $pdo): void
         sql_migration_run_file($pdo, 'database/migrations/118_hr_payroll_expense_cleanup.sql');
         sql_migration_run_file($pdo, 'database/migrations/119_hr_payroll_payable_mapping_fix.sql');
         sql_migration_run_file($pdo, 'database/migrations/120_hr_payroll_liability_group.sql');
+        sql_migration_run_file($pdo, 'database/migrations/192_hr_payroll_journal_split.sql');
     } catch (Throwable $e) {
         // ignored
     }
@@ -38,9 +41,15 @@ function hr_payroll_gl_ensure_posting_rules(PDO $pdo): void
         );
         $st->execute([
             HR_PAYROLL_DEDUCTIONS_RULE_CODE,
-            'خصومات وسلف رواتب',
-            'دائن عند ترحيل الرواتب — سلف وخصومات أخرى غير الضمان',
+            'سلف وخصومات الموظفين',
+            'دائن عند ترحيل الرواتب — السلف والخصومات المقتطعة من رواتب الموظفين',
             87,
+        ]);
+        $st->execute([
+            HR_PAYROLL_ALLOWANCES_EXPENSE_RULE_CODE,
+            'بدلات ومكافئات (مصروف)',
+            'مدين عند ترحيل الرواتب — علاوات شهرية ومكافآت وعمل إضافي فوق الراتب الأساسي',
+            84,
         ]);
     } catch (Throwable $e) {
         // ignored
@@ -107,8 +116,28 @@ function hr_payroll_gl_apply_default_mapping(PDO $pdo, bool $force = false): arr
         $curAccrual = (int) ($settings[HR_PAYROLL_ACCRUAL_RULE_CODE]['account_id'] ?? 0);
         if ($force || !hr_payroll_gl_accrual_account_valid($pdo, $curAccrual)) {
             hr_payroll_gl_set_posting_account($pdo, HR_PAYROLL_ACCRUAL_RULE_CODE, $expenseId);
-            hr_payroll_gl_set_posting_account($pdo, 'salaries_expense', $expenseId);
         }
+        $curWages = (int) ($settings['salaries_expense']['account_id'] ?? 0);
+        if ($force || $curWages < 1 || $curWages === $curAccrual) {
+            $wagesId = hr_payroll_gl_resolve_expense_salary_account($pdo);
+            if ($wagesId > 0) {
+                hr_payroll_gl_set_posting_account($pdo, 'salaries_expense', $wagesId);
+            }
+        }
+    }
+
+    $allowId = hr_payroll_gl_resolve_allowances_expense_account($pdo);
+    if ($allowId > 0 && ($force || (int) ($settings[HR_PAYROLL_ALLOWANCES_EXPENSE_RULE_CODE]['account_id'] ?? 0) < 1)) {
+        hr_payroll_gl_set_posting_account($pdo, HR_PAYROLL_ALLOWANCES_EXPENSE_RULE_CODE, $allowId);
+        $acc = acc_account_get($pdo, $allowId);
+        $out['messages'][] = 'بدلات ومكافئات ← ' . hr_payroll_gl_account_label($acc);
+    }
+
+    $erSsId = hr_payroll_gl_resolve_employer_ss_expense_account($pdo);
+    if ($erSsId > 0 && ($force || (int) ($settings[HR_SS_EMPLOYER_RULE_CODE]['account_id'] ?? 0) < 1)) {
+        hr_payroll_gl_set_posting_account($pdo, HR_SS_EMPLOYER_RULE_CODE, $erSsId);
+        $acc = acc_account_get($pdo, $erSsId);
+        $out['messages'][] = 'ضمان شركة (مصروف) ← ' . hr_payroll_gl_account_label($acc);
     }
 
     hr_payroll_gl_consolidate_duplicate_payable($pdo, $payableId, $out);
@@ -215,6 +244,26 @@ function hr_payroll_gl_resolve_expense_salary_account(PDO $pdo): int
     } catch (Throwable $e) {
         return 0;
     }
+}
+
+function hr_payroll_gl_resolve_allowances_expense_account(PDO $pdo): int
+{
+    $found = hr_payroll_gl_resolve_leaf_account($pdo, '5120', 'expense');
+    if ($found > 0) {
+        return $found;
+    }
+
+    return hr_payroll_gl_resolve_leaf_by_pattern($pdo, 'expense', '%بدلات%مكافئ%');
+}
+
+function hr_payroll_gl_resolve_employer_ss_expense_account(PDO $pdo): int
+{
+    $found = hr_payroll_gl_resolve_leaf_account($pdo, '5119', 'expense');
+    if ($found > 0) {
+        return $found;
+    }
+
+    return hr_payroll_gl_resolve_leaf_by_pattern($pdo, 'expense', '%ضمان%شركة%مصروف%');
 }
 
 /** @return array{code:string, name_ar:string, parent_code:?string, account_type:string, is_leaf:bool, sort_order:int, role_keywords:list<string>} */
@@ -458,11 +507,13 @@ function hr_payroll_gl_set_posting_account(PDO $pdo, string $ruleCode, int $acco
     }
     $defaults = [
         HR_PAYROLL_ACCRUAL_RULE_CODE => ['استحقاق رواتب (مدين — داخلي)', 'مدين داخلي لموازنة قيد الرواتب', 81],
-        'salaries_expense' => ['رواتب وأجور (مصروف — داخلي)', 'مصروف رواتب — داخلي', 82],
+        'salaries_expense' => ['رواتب وأجور (مصروف)', 'مدين — الراتب + علاوات شاشة راتب الموظف', 82],
+        HR_PAYROLL_ALLOWANCES_EXPENSE_RULE_CODE => ['بدلات ومكافئات (مصروف)', 'مدين — علاوات ومكافآت وعمل إضافي', 84],
+        HR_SS_EMPLOYER_RULE_CODE => ['ضمان اجتماعي — حصة الشركة (مصروف)', 'مدين — نسبة الشركة على الرواتب', 85],
         'salaries_payable' => ['رواتب مستحقة', 'دائن — صافي مستحق للموظفين', 83],
-        HR_SS_PAYABLE_RULE_CODE => ['ضمان اجتماعي مستحق', 'دائن — حصة الموظف + الشركة', 85],
+        HR_SS_PAYABLE_RULE_CODE => ['أمانات ضمان اجتماعي', 'دائن — حصة الموظف + الشركة', 86],
         HR_INCOME_TAX_RULE_CODE => ['ضريبة دخل مستحقة', 'دائن — اقتطاع ضريبة الدخل', 88],
-        HR_PAYROLL_DEDUCTIONS_RULE_CODE => ['خصومات وسلف رواتب', 'دائن — خصومات أخرى', 87],
+        HR_PAYROLL_DEDUCTIONS_RULE_CODE => ['سلف وخصومات الموظفين', 'دائن — سلف وخصومات', 87],
     ];
     $meta = $defaults[$ruleCode] ?? [$ruleCode, '', 90];
     $pdo->prepare(
@@ -574,7 +625,10 @@ function hr_payroll_gl_ensure_accrual_account(PDO $pdo): void
         $expenseId = hr_payroll_gl_resolve_accrual_expense_account($pdo);
         if ($expenseId > 0) {
             hr_payroll_gl_set_posting_account($pdo, HR_PAYROLL_ACCRUAL_RULE_CODE, $expenseId);
-            hr_payroll_gl_set_posting_account($pdo, 'salaries_expense', $expenseId);
+            $wagesId = hr_payroll_gl_resolve_expense_salary_account($pdo);
+            if ($wagesId > 0) {
+                hr_payroll_gl_set_posting_account($pdo, 'salaries_expense', $wagesId);
+            }
         }
     } catch (Throwable $e) {
         // ignored
@@ -639,6 +693,109 @@ function hr_payroll_month_salary_totals(PDO $pdo, int $year, int $month, bool $u
 }
 
 /**
+ * مجموع علاوات شاشة راتب الموظف (الدائمة) لموظف واحد.
+ */
+function hr_payroll_gl_permanent_allow_total(PDO $pdo, int $employeeId, float $baseSalary): float
+{
+    if ($employeeId < 1) {
+        return 0.0;
+    }
+
+    $total = 0.0;
+    foreach (hr_employee_salary_allowance_lines_list($pdo, $employeeId) as $line) {
+        $total += (float) ($line['amount'] ?? 0);
+    }
+
+    return round($total, 3);
+}
+
+/**
+ * مبالغ قيد ترحيل الرواتب — تفصيل المصروفات والخصوم.
+ *
+ * @return array{
+ *   gross:float,
+ *   base_total:float,
+ *   allowances_expense:float,
+ *   net:float,
+ *   employee_ss:float,
+ *   income_tax:float,
+ *   total_deductions:float,
+ *   other_deductions:float
+ * }
+ */
+function hr_payroll_month_gl_totals(PDO $pdo, int $year, int $month, bool $unpostedOnly = true): array
+{
+    $salary = hr_payroll_month_salary_totals($pdo, $year, $month, $unpostedOnly);
+    $salaryExpense = 0.0;
+    $allowancesExpense = 0.0;
+    $gross = 0.0;
+    $totalDed = 0.0;
+
+    try {
+        $sql = 'SELECT employee_id, base_salary, allowances, overtime, bonus, deductions
+                FROM hr_salary
+                WHERE pay_year = ? AND pay_month = ?';
+        if ($unpostedOnly) {
+            $sql .= ' AND is_posted = 0';
+        }
+        $st = $pdo->prepare($sql);
+        $st->execute([$year, $month]);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            $empId = (int) ($row['employee_id'] ?? 0);
+            $base = round((float) ($row['base_salary'] ?? 0), 3);
+            $permAllow = hr_payroll_gl_permanent_allow_total($pdo, $empId, $base);
+            $rowGross = round(
+                $base
+                + (float) ($row['allowances'] ?? 0)
+                + (float) ($row['overtime'] ?? 0)
+                + (float) ($row['bonus'] ?? 0),
+                3
+            );
+            $screenSalary = round($base + $permAllow, 3);
+            $salaryExpense += $screenSalary;
+            $allowancesExpense += round(max(0, $rowGross - $screenSalary), 3);
+            $gross += $rowGross;
+            $totalDed += round((float) ($row['deductions'] ?? 0), 3);
+        }
+        $salaryExpense = round($salaryExpense, 3);
+        $allowancesExpense = round($allowancesExpense, 3);
+        $gross = round($gross, 3);
+        $totalDed = round($totalDed, 3);
+    } catch (Throwable $e) {
+        $gross = (float) ($salary['gross'] ?? 0);
+    }
+
+    if ($gross <= 0.0005) {
+        $gross = (float) ($salary['gross'] ?? 0);
+    }
+    if ($salaryExpense <= 0.0005 && $gross > 0.0005) {
+        try {
+            $sql = 'SELECT COALESCE(SUM(base_salary), 0) FROM hr_salary WHERE pay_year = ? AND pay_month = ?';
+            if ($unpostedOnly) {
+                $sql .= ' AND is_posted = 0';
+            }
+            $st = $pdo->prepare($sql);
+            $st->execute([$year, $month]);
+            $salaryExpense = round((float) ($st->fetchColumn() ?: 0), 3);
+            $allowancesExpense = round(max(0, $gross - $salaryExpense), 3);
+        } catch (Throwable $e) {
+            // ignored
+        }
+    }
+    if ($totalDed <= 0.0005) {
+        $totalDed = hr_payroll_gl_other_deductions($salary);
+    }
+
+    return array_merge($salary, [
+        'gross' => $gross,
+        'base_total' => $salaryExpense,
+        'allowances_expense' => $allowancesExpense,
+        'total_deductions' => $totalDed,
+    ]);
+}
+
+/**
  * @param array{gross?:float, net?:float, employee_ss?:float, employer_ss?:float, other_deductions?:float} $totals
  */
 function hr_payroll_gl_other_deductions(array $totals): float
@@ -669,8 +826,16 @@ function hr_payroll_posting_ready(PDO $pdo, array $totals): array
     }
 
     $gross = round((float) ($totals['gross'] ?? 0), 3);
+    $base = round(max(0, (float) ($totals['base_total'] ?? 0)), 3);
+    $allowances = round(max(0, (float) ($totals['allowances_expense'] ?? 0)), 3);
     $net = round((float) ($totals['net'] ?? 0), 3);
-    $otherDed = hr_payroll_gl_other_deductions($totals);
+    $totalDed = round(max(0, (float) ($totals['total_deductions'] ?? 0)), 3);
+    if ($totalDed <= 0.0005) {
+        $totalDed = hr_payroll_gl_other_deductions($totals);
+        if (isset($totals['advance_deductions'])) {
+            $totalDed = round($totalDed + max(0, (float) $totals['advance_deductions']), 3);
+        }
+    }
     $ssEr = round((float) ($totals['employer_ss'] ?? 0), 3);
     $ssEmp = round((float) ($totals['employee_ss'] ?? 0), 3);
     $incomeTax = round((float) ($totals['income_tax'] ?? 0), 3);
@@ -680,25 +845,26 @@ function hr_payroll_posting_ready(PDO $pdo, array $totals): array
     }
 
     $settings = acc_gl_load_settings($pdo);
-    $creditTotal = hr_payroll_posting_credit_total($totals);
 
-    if ($creditTotal > 0.0005) {
-        hr_payroll_gl_ensure_accrual_account($pdo);
-        $settings = acc_gl_load_settings($pdo);
-        if ((int) ($settings[HR_PAYROLL_ACCRUAL_RULE_CODE]['account_id'] ?? 0) < 1) {
-            $expenseId = hr_payroll_gl_resolve_accrual_expense_account($pdo);
-            if ($expenseId > 0) {
-                hr_payroll_gl_set_posting_account($pdo, HR_PAYROLL_ACCRUAL_RULE_CODE, $expenseId);
-                hr_payroll_gl_set_posting_account($pdo, 'salaries_expense', $expenseId);
-                $settings = acc_gl_load_settings($pdo);
-            }
-        }
-        if ((int) ($settings[HR_PAYROLL_ACCRUAL_RULE_CODE]['account_id'] ?? 0) < 1) {
-            return [
-                'ready' => false,
-                'message' => 'تعذر إنشاء حساب مصروف «رواتب وأجور» تلقائياً. افتح «شجرة الحسابات» وأضف حساب مصروف نهائي باسم «رواتب وأجور» تحت «المصروفات»، ثم أعد المحاولة.',
-            ];
-        }
+    if ($base > 0.0005 && (int) ($settings['salaries_expense']['account_id'] ?? 0) < 1) {
+        return [
+            'ready' => false,
+            'message' => 'اربط حساب «رواتب وأجور (مصروف)» من شاشة ربط الحسابات.',
+        ];
+    }
+
+    if ($allowances > 0.0005 && (int) ($settings[HR_PAYROLL_ALLOWANCES_EXPENSE_RULE_CODE]['account_id'] ?? 0) < 1) {
+        return [
+            'ready' => false,
+            'message' => 'اربط حساب «بدلات ومكافئات (مصروف)» من شاشة ربط الحسابات.',
+        ];
+    }
+
+    if ($ssEr > 0.0005 && (int) ($settings[HR_SS_EMPLOYER_RULE_CODE]['account_id'] ?? 0) < 1) {
+        return [
+            'ready' => false,
+            'message' => 'اربط حساب «ضمان اجتماعي — حصة الشركة (مصروف)» من شاشة ربط الحسابات.',
+        ];
     }
 
     if ($net > 0.0005 && !hr_payroll_gl_payable_account_valid($pdo, (int) ($settings['salaries_payable']['account_id'] ?? 0))) {
@@ -719,11 +885,11 @@ function hr_payroll_posting_ready(PDO $pdo, array $totals): array
             'message' => 'اربط حساب «' . $label . '» من شاشة ربط الحسابات.',
         ];
     }
-    if ($otherDed > 0.0005 && (int) ($settings[HR_PAYROLL_DEDUCTIONS_RULE_CODE]['account_id'] ?? 0) < 1) {
+    if ($totalDed > 0.0005 && (int) ($settings[HR_PAYROLL_DEDUCTIONS_RULE_CODE]['account_id'] ?? 0) < 1) {
         $label = (string) ($settings[HR_PAYROLL_DEDUCTIONS_RULE_CODE]['label_ar'] ?? HR_PAYROLL_DEDUCTIONS_RULE_CODE);
         return [
             'ready' => false,
-            'message' => 'اربط حساب «' . $label . '» من شاشة ربط الحسابات .',
+            'message' => 'اربط حساب «' . $label . '» من شاشة ربط الحسابات.',
         ];
     }
 
@@ -783,15 +949,15 @@ function hr_payroll_month_disbursement_totals(PDO $pdo, int $year, int $month): 
 }
 
 /**
- * قيد ترحيل رواتب شهري — دائن: رواتب مستحقة (صافي) + ضمان مستحق (موظف+شركة).
+ * قيد ترحيل رواتب شهري — مدين: رواتب + ضمان شركة + بدلات | دائن: مستحقات + سلف/خصومات + أمانات ضمان.
  *
- * @param array{gross?:float, net?:float, employee_ss?:float, employer_ss?:float, other_deductions?:float} $totals
+ * @param array{gross?:float, base_total?:float, allowances_expense?:float, net?:float, employee_ss?:float, employer_ss?:float, total_deductions?:float, income_tax?:float} $totals
  * @return list<array{rule:string, debit:float, credit:float, memo?:string}>
  */
 function hr_payroll_posting_gl_lines(array $totals): array
 {
     $lines = array_merge(
-        hr_payroll_posting_gl_accrual_debit_line($totals),
+        hr_payroll_posting_gl_expense_lines($totals),
         hr_payroll_posting_gl_salary_lines($totals),
         hr_payroll_posting_gl_ss_lines($totals)
     );
@@ -802,44 +968,77 @@ function hr_payroll_posting_gl_lines(array $totals): array
 }
 
 /**
- * مدين موازنة — قاعدة داخلية (لا تظهر في ربط الحسابات).
+ * @param array{base_total?:float, allowances_expense?:float, employer_ss?:float} $totals
+ * @return list<array{rule:string, debit:float, credit:float, memo?:string}>
+ */
+function hr_payroll_posting_gl_expense_lines(array $totals): array
+{
+    $lines = [];
+    $base = round(max(0, (float) ($totals['base_total'] ?? 0)), 3);
+    $allowances = round(max(0, (float) ($totals['allowances_expense'] ?? 0)), 3);
+    $erSs = round(max(0, (float) ($totals['employer_ss'] ?? 0)), 3);
+
+    if ($base > 0.0005) {
+        $lines[] = [
+            'rule' => 'salaries_expense',
+            'debit' => $base,
+            'credit' => 0,
+            'memo' => 'مصروف رواتب وأجور — الراتب وعلاوات شاشة راتب الموظف',
+        ];
+    }
+    if ($erSs > 0.0005) {
+        $lines[] = [
+            'rule' => HR_SS_EMPLOYER_RULE_CODE,
+            'debit' => $erSs,
+            'credit' => 0,
+            'memo' => 'مصروف ضمان اجتماعي — حصة الشركة على الرواتب والأجور',
+        ];
+    }
+    if ($allowances > 0.0005) {
+        $lines[] = [
+            'rule' => HR_PAYROLL_ALLOWANCES_EXPENSE_RULE_CODE,
+            'debit' => $allowances,
+            'credit' => 0,
+            'memo' => 'مصروف بدلات ومكافئات — علاوات شهرية ومكافآت وعمل إضافي',
+        ];
+    }
+
+    return $lines;
+}
+
+/**
+ * @deprecated يُستخدم فقط للتوافق — القيد الجديد يفصّل المصروفات.
  *
  * @param array{gross?:float, net?:float, employee_ss?:float, employer_ss?:float, other_deductions?:float, income_tax?:float} $totals
  * @return list<array{rule:string, debit:float, credit:float, memo?:string}>
  */
 function hr_payroll_posting_gl_accrual_debit_line(array $totals): array
 {
-    $debit = hr_payroll_posting_credit_total($totals);
-    if ($debit <= 0.0005) {
-        return [];
-    }
-
-    return [
-        [
-            'rule' => HR_PAYROLL_ACCRUAL_RULE_CODE,
-            'debit' => $debit,
-            'credit' => 0,
-            'memo' => 'استحقاق رواتب — موازنة قيد الخصوم',
-        ],
-    ];
+    return [];
 }
 
 /**
- * @param array{gross?:float, net?:float, employee_ss?:float, employer_ss?:float, other_deductions?:float} $totals
+ * @param array{net?:float, total_deductions?:float, other_deductions?:float, advance_deductions?:float, income_tax?:float} $totals
  * @return list<array{rule:string, debit:float, credit:float, memo?:string}>
  */
 function hr_payroll_posting_gl_salary_lines(array $totals): array
 {
     $net = round(max(0, (float) ($totals['net'] ?? 0)), 3);
-    $otherDed = hr_payroll_gl_other_deductions($totals);
-    $advanceDed = round(max(0, (float) ($totals['advance_deductions'] ?? 0)), 3);
-    if ($advanceDed > $otherDed + 0.0005) {
-        $advanceDed = $otherDed;
+    $totalDed = round(max(0, (float) ($totals['total_deductions'] ?? 0)), 3);
+    if ($totalDed <= 0.0005) {
+        $totalDed = hr_payroll_gl_other_deductions($totals);
+        if (isset($totals['advance_deductions'])) {
+            $advanceDed = round(max(0, (float) $totals['advance_deductions']), 3);
+            if ($advanceDed > $totalDed + 0.0005) {
+                $totalDed = $advanceDed;
+            } else {
+                $totalDed = round($totalDed + $advanceDed, 3);
+            }
+        }
     }
-    $otherNonAdvance = round(max(0, $otherDed - $advanceDed), 3);
     $incomeTax = round(max(0, (float) ($totals['income_tax'] ?? 0)), 3);
 
-    if ($net <= 0.0005 && $otherDed <= 0.0005 && $incomeTax <= 0.0005) {
+    if ($net <= 0.0005 && $totalDed <= 0.0005 && $incomeTax <= 0.0005) {
         return [];
     }
 
@@ -850,23 +1049,15 @@ function hr_payroll_posting_gl_salary_lines(array $totals): array
             'rule' => 'salaries_payable',
             'debit' => 0,
             'credit' => $net,
-            'memo' => 'رواتب مستحقة — صافي للصرف للموظفين (بعد اقتطاع حصة الموظف من الضمان)',
+            'memo' => 'رواتب مستحقة — صافي مستحق للموظفين للصرف',
         ];
     }
-    if ($advanceDed > 0.0005) {
-        $lines[] = [
-            'rule' => 'hr_employee_advance_receivable',
-            'debit' => 0,
-            'credit' => $advanceDed,
-            'memo' => 'اقتطاع سلف موظفين مرحّلة',
-        ];
-    }
-    if ($otherNonAdvance > 0.0005) {
+    if ($totalDed > 0.0005) {
         $lines[] = [
             'rule' => HR_PAYROLL_DEDUCTIONS_RULE_CODE,
             'debit' => 0,
-            'credit' => $otherNonAdvance,
-            'memo' => 'خصومات وسلف أخرى',
+            'credit' => $totalDed,
+            'memo' => 'سلف وخصومات الموظفين المقتطعة من الرواتب',
         ];
     }
     if ($incomeTax > 0.0005) {
@@ -891,17 +1082,17 @@ function hr_payroll_posting_gl_ss_lines(array $totals): array
         return [];
     }
 
-    $memo = 'ضمان اجتماعي مستحق — حصة موظف + حصة شركة';
+    $memo = 'أمانات ضمان اجتماعي — حصة موظف + حصة شركة';
     if ($ssEmp > 0.0005 && $ssEr > 0.0005) {
         $memo = sprintf(
-            'ضمان اجتماعي مستحق — حصة موظف %.3f + حصة شركة %.3f',
+            'أمانات ضمان اجتماعي — حصة موظف %.3f + حصة شركة %.3f',
             $ssEmp,
             $ssEr
         );
     } elseif ($ssEmp > 0.0005) {
-        $memo = sprintf('ضمان اجتماعي مستحق — حصة موظف %.3f', $ssEmp);
+        $memo = sprintf('أمانات ضمان اجتماعي — حصة موظف %.3f', $ssEmp);
     } elseif ($ssEr > 0.0005) {
-        $memo = sprintf('ضمان اجتماعي مستحق — حصة شركة %.3f', $ssEr);
+        $memo = sprintf('أمانات ضمان اجتماعي — حصة شركة %.3f', $ssEr);
     }
 
     return [
@@ -955,7 +1146,12 @@ function hr_payroll_gl_expense_account_ids(PDO $pdo): array
     hr_payroll_gl_ensure_accrual_account($pdo);
     $settings = acc_gl_load_settings($pdo);
     $ids = [];
-    foreach ([HR_PAYROLL_ACCRUAL_RULE_CODE, 'salaries_expense'] as $rule) {
+    foreach ([
+        HR_PAYROLL_ACCRUAL_RULE_CODE,
+        'salaries_expense',
+        HR_PAYROLL_ALLOWANCES_EXPENSE_RULE_CODE,
+        HR_SS_EMPLOYER_RULE_CODE,
+    ] as $rule) {
         $id = (int) ($settings[$rule]['account_id'] ?? 0);
         if ($id > 0) {
             $ids[$id] = true;
@@ -971,29 +1167,67 @@ function hr_payroll_gl_expense_account_ids(PDO $pdo): array
 
 function hr_payroll_gl_journal_is_stale(PDO $pdo, int $journalId): bool
 {
-    $expenseIds = hr_payroll_gl_expense_account_ids($pdo);
     if ($journalId < 1) {
         return false;
     }
 
-    if ($expenseIds !== []) {
-        $ph = implode(',', array_fill(0, count($expenseIds), '?'));
-        $params = array_merge([$journalId], $expenseIds);
-        $st = $pdo->prepare(
-            "SELECT COALESCE(SUM(credit), 0) AS sum_credit, COUNT(*) AS line_count
-             FROM acc_journal_line
-             WHERE journal_id = ? AND account_id IN ($ph)"
-        );
-        $st->execute($params);
-        $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-        $credit = (float) ($row['sum_credit'] ?? 0);
-        $count = (int) ($row['line_count'] ?? 0);
-        if ($credit > 0.0005 || $count !== 1) {
-            return true;
+    $settings = acc_gl_load_settings($pdo);
+    $accrualId = (int) ($settings[HR_PAYROLL_ACCRUAL_RULE_CODE]['account_id'] ?? 0);
+    if ($accrualId > 0) {
+        try {
+            $st = $pdo->prepare(
+                'SELECT 1 FROM acc_journal_line
+                 WHERE journal_id = ? AND account_id = ? AND debit > 0.0005
+                 LIMIT 1'
+            );
+            $st->execute([$journalId, $accrualId]);
+            if ($st->fetchColumn()) {
+                return true;
+            }
+        } catch (Throwable $e) {
+            // ignored
         }
     }
 
-    $payableId = (int) (acc_gl_load_settings($pdo)['salaries_payable']['account_id'] ?? 0);
+    try {
+        $st = $pdo->prepare(
+            "SELECT ref_id FROM acc_journal_entry
+             WHERE id = ? AND ref_type = 'hr_payroll_month' LIMIT 1"
+        );
+        $st->execute([$journalId]);
+        $refId = (int) ($st->fetchColumn() ?: 0);
+        if ($refId > 0) {
+            $year = intdiv($refId, 100);
+            $month = $refId % 100;
+            $glTotals = hr_payroll_month_gl_totals($pdo, $year, $month, false);
+            $ssTotals = hr_payroll_month_ss_totals($pdo, $year, $month);
+            $glTotals['employer_ss'] = (float) ($ssTotals['employer_total'] ?? 0);
+
+            $checks = [
+                [(float) ($glTotals['base_total'] ?? 0), (int) ($settings['salaries_expense']['account_id'] ?? 0)],
+                [(float) ($glTotals['allowances_expense'] ?? 0), (int) ($settings[HR_PAYROLL_ALLOWANCES_EXPENSE_RULE_CODE]['account_id'] ?? 0)],
+                [(float) ($glTotals['employer_ss'] ?? 0), (int) ($settings[HR_SS_EMPLOYER_RULE_CODE]['account_id'] ?? 0)],
+            ];
+            foreach ($checks as [$amount, $accountId]) {
+                if ($amount <= 0.0005 || $accountId < 1) {
+                    continue;
+                }
+                $stLine = $pdo->prepare(
+                    'SELECT COALESCE(SUM(debit), 0) FROM acc_journal_line
+                     WHERE journal_id = ? AND account_id = ?'
+                );
+                $stLine->execute([$journalId, $accountId]);
+                $posted = (float) ($stLine->fetchColumn() ?: 0);
+                if ($posted <= 0.0005 || abs($posted - $amount) > 0.001) {
+                    return true;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        // ignored
+    }
+
+    $payableId = (int) ($settings['salaries_payable']['account_id'] ?? 0);
     if ($payableId > 0 && !hr_payroll_gl_payable_account_valid($pdo, $payableId)) {
         return true;
     }
@@ -1061,7 +1295,7 @@ function hr_payroll_gl_rebuild_month_journal_if_stale(PDO $pdo, int $year, int $
         return false;
     }
 
-    $salaryTotals = hr_payroll_month_salary_totals($pdo, $year, $month, false);
+    $salaryTotals = hr_payroll_month_gl_totals($pdo, $year, $month, false);
     $ssTotals = hr_payroll_month_ss_totals($pdo, $year, $month);
     $glTotals = array_merge($salaryTotals, [
         'employer_ss' => (float) ($ssTotals['employer_total'] ?? 0),
