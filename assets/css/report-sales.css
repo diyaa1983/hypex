@@ -53,6 +53,10 @@
   width: 7rem;
 }
 
+.report-checks-filters .report-checks-field--scope {
+  width: 11rem;
+}
+
 .report-checks-filters .report-checks-field--date {
   width: 7.5rem;
 }

@@ -20,6 +20,16 @@ function fin_voucher_checks_report_parse_filters(array $input, string $partyKey 
     ];
 }
 
+function fin_voucher_checks_report_normalize_scope(string $scope): string
+{
+    return in_array($scope, ['all', 'due'], true) ? $scope : 'all';
+}
+
+function fin_voucher_checks_report_scope_label(string $scope): string
+{
+    return $scope === 'due' ? 'المستحقة فقط (قيد)' : 'الكل';
+}
+
 /**
  * @param 'receipt'|'payment' $voucherType
  * @param 'customer'|'supplier'|null $partyTypeFilter
@@ -35,7 +45,8 @@ function fin_voucher_checks_report_fetch(
     string $dateField = 'voucher',
     string $postedFilter = 'all',
     int $partyId = 0,
-    string $checkNoFilter = ''
+    string $checkNoFilter = '',
+    string $checkScope = 'all'
 ): array {
     if (!in_array($voucherType, ['receipt', 'payment'], true)) {
         return [];
@@ -46,6 +57,7 @@ function fin_voucher_checks_report_fetch(
     if (!in_array($postedFilter, ['all', 'posted', 'unposted'], true)) {
         $postedFilter = 'all';
     }
+    $checkScope = fin_voucher_checks_report_normalize_scope($checkScope);
     if ($partyId < 0) {
         $partyId = 0;
     }
@@ -57,7 +69,12 @@ function fin_voucher_checks_report_fetch(
     }
 
     $hasPostedCol = fin_voucher_has_column($pdo, 'is_posted');
+    $hasLifecycle = fin_voucher_checks_has_lifecycle($pdo);
     $postedExpr = $hasPostedCol ? 'v.is_posted' : '0';
+    $lifecycleExpr = $hasLifecycle ? 'c.lifecycle_status' : "'pending'";
+    if ($checkScope === 'due') {
+        $dateField = 'due';
+    }
     $dateCol = $dateField === 'due' ? 'c.due_date' : 'v.voucher_date';
 
     $partyJoin = '';
@@ -75,6 +92,7 @@ function fin_voucher_checks_report_fetch(
         "SELECT c.id AS check_id, c.check_no, c.bank_name, c.check_amount, c.due_date, c.notes,
                 v.id AS voucher_id, v.voucher_no, v.voucher_date, v.party_id, v.party_type,
                 ({$postedExpr}) AS is_posted,
+                ({$lifecycleExpr}) AS lifecycle_status,
                 {$partyNameExpr} AS party_name
          FROM fin_voucher_check c
          INNER JOIN fin_voucher v ON v.id = c.voucher_id AND v.voucher_type = ?
@@ -84,6 +102,13 @@ function fin_voucher_checks_report_fetch(
            AND {$dateCol} BETWEEN ? AND ?";
 
     $params = [$voucherType, $fromIso, $toIso];
+
+    if ($checkScope === 'due') {
+        $sql .= ' AND c.due_date IS NOT NULL';
+        if ($hasLifecycle) {
+            $sql .= " AND c.lifecycle_status = 'pending'";
+        }
+    }
 
     if ($partyTypeFilter !== null) {
         $sql .= ' AND v.party_type = ?';
@@ -132,7 +157,8 @@ function fin_voucher_checks_report_fetch(
         $dateField,
         $postedFilter,
         $partyId,
-        $checkNoFilter
+        $checkNoFilter,
+        $checkScope
     );
     foreach ($legacy as $row) {
         $out[] = $row;
@@ -162,6 +188,11 @@ function fin_voucher_checks_report_fetch(
  */
 function fin_voucher_checks_report_normalize_row(array $row): array
 {
+    $lifecycle = trim((string) ($row['lifecycle_status'] ?? 'pending'));
+    if ($lifecycle === '') {
+        $lifecycle = 'pending';
+    }
+
     return [
         'check_id' => (int) ($row['check_id'] ?? 0),
         'check_no' => trim((string) ($row['check_no'] ?? '')),
@@ -176,7 +207,19 @@ function fin_voucher_checks_report_normalize_row(array $row): array
         'check_date' => (string) ($row['voucher_date'] ?? ''),
         'party_name' => (string) ($row['party_name'] ?? '—'),
         'is_posted' => (int) ($row['is_posted'] ?? 0) === 1,
+        'lifecycle_status' => $lifecycle,
+        'lifecycle_label' => fin_voucher_checks_report_lifecycle_label($lifecycle),
     ];
+}
+
+function fin_voucher_checks_report_lifecycle_label(string $lifecycle): string
+{
+    return match ($lifecycle) {
+        'cleared' => 'مصروف',
+        'returned' => 'مُرجَع',
+        'endorsed' => 'مُجيَّر',
+        default => 'قيد',
+    };
 }
 
 /**
@@ -194,9 +237,10 @@ function fin_voucher_checks_report_fetch_legacy(
     string $dateField,
     string $postedFilter,
     int $partyId = 0,
-    string $checkNoFilter = ''
+    string $checkNoFilter = '',
+    string $checkScope = 'all'
 ): array {
-    if (!fin_voucher_has_column($pdo, 'pay_method') || $dateField === 'due') {
+    if (!fin_voucher_has_column($pdo, 'pay_method') || $dateField === 'due' || fin_voucher_checks_report_normalize_scope($checkScope) === 'due') {
         return [];
     }
 
