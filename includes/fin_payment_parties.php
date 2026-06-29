@@ -90,7 +90,7 @@ function fin_payment_employee_other_offset_accounts(PDO $pdo): array
 
         'hr_social_insurance_payable' => 'ضمان اجتماعي مستحق',
 
-        HR_PAYROLL_DEDUCTIONS_RULE_CODE => 'خصومات وسلف رواتب',
+        HR_PAYROLL_DEDUCTIONS_RULE_CODE => 'خصومات واقتطاعات موظفين',
 
     ];
 

@@ -28,6 +28,7 @@ function hr_payroll_gl_ensure_posting_rules(PDO $pdo): void
         sql_migration_run_file($pdo, 'database/migrations/119_hr_payroll_payable_mapping_fix.sql');
         sql_migration_run_file($pdo, 'database/migrations/120_hr_payroll_liability_group.sql');
         sql_migration_run_file($pdo, 'database/migrations/192_hr_payroll_journal_split.sql');
+        sql_migration_run_file($pdo, 'database/migrations/193_hr_payroll_deductions_account.sql');
     } catch (Throwable $e) {
         // ignored
     }
@@ -141,6 +142,27 @@ function hr_payroll_gl_apply_default_mapping(PDO $pdo, bool $force = false): arr
         $out['messages'][] = 'ضمان شركة (مصروف) ← ' . hr_payroll_gl_account_label($acc);
     }
 
+    hr_employee_advance_gl_ensure_rule($pdo);
+    $settings = acc_gl_load_settings($pdo);
+    $advanceRecvId = hr_payroll_gl_resolve_leaf_account($pdo, '1215', 'asset');
+    if ($advanceRecvId < 1) {
+        $advanceRecvId = hr_payroll_gl_resolve_leaf_by_pattern($pdo, 'asset', '%سلف%ذمة%');
+    }
+    if ($advanceRecvId > 0 && ($force || (int) ($settings[HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE]['account_id'] ?? 0) < 1)) {
+        hr_payroll_gl_set_posting_account($pdo, HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE, $advanceRecvId);
+        $acc = acc_account_get($pdo, $advanceRecvId);
+        $out['messages'][] = 'ذمة سلف الموظفين ← ' . hr_payroll_gl_account_label($acc);
+    }
+
+    $dedId = hr_payroll_gl_resolve_payroll_deductions_account($pdo);
+    $curDedId = (int) ($settings[HR_PAYROLL_DEDUCTIONS_RULE_CODE]['account_id'] ?? 0);
+    $curAdvanceId = (int) ($settings[HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE]['account_id'] ?? 0);
+    if ($dedId > 0 && ($force || $curDedId < 1 || ($curAdvanceId > 0 && $curDedId === $curAdvanceId))) {
+        hr_payroll_gl_set_posting_account($pdo, HR_PAYROLL_DEDUCTIONS_RULE_CODE, $dedId);
+        $acc = acc_account_get($pdo, $dedId);
+        $out['messages'][] = 'خصومات واقتطاعات موظفين ← ' . hr_payroll_gl_account_label($acc);
+    }
+
     hr_payroll_gl_consolidate_duplicate_payable($pdo, $payableId, $out);
 
     $settings = acc_gl_load_settings($pdo);
@@ -188,6 +210,16 @@ function hr_payroll_gl_resolve_leaf_account(PDO $pdo, string $code, string $type
     } catch (Throwable $e) {
         return 0;
     }
+}
+
+function hr_payroll_gl_resolve_payroll_deductions_account(PDO $pdo): int
+{
+    $id = hr_payroll_gl_resolve_leaf_account($pdo, '2416', 'liability');
+    if ($id > 0) {
+        return $id;
+    }
+
+    return hr_payroll_gl_resolve_leaf_by_pattern($pdo, 'liability', '%خصومات%اقتطاع%موظ%');
 }
 
 function hr_payroll_gl_resolve_leaf_by_pattern(PDO $pdo, string $type, string $nameLike): int
