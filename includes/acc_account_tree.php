@@ -34,6 +34,50 @@ function acc_account_format_code(string $code): string
     return $digits;
 }
 
+/**
+ * هل يصلح الحساب كهدف لربط الترحيل؟
+ * يرفض الأكواد القديمة (11/12/13/15…) ويقبل الحسابات الهرمية والمعتمدة (مثل 23 رواتب مستحقة).
+ */
+function acc_account_is_valid_posting_mapping_target(PDO $pdo, int $accountId): bool
+{
+    if ($accountId < 1) {
+        return false;
+    }
+    $acc = acc_account_get($pdo, $accountId);
+    if (!$acc || (int) ($acc['is_active'] ?? 0) !== 1 || (int) ($acc['is_leaf'] ?? 0) !== 1) {
+        return false;
+    }
+
+    $digits = acc_account_code_canonical_digits((string) ($acc['code'] ?? ''));
+    if ($digits === '') {
+        return false;
+    }
+
+    $legacyReject = ['11', '12', '13', '15', '112'];
+    if (in_array($digits, $legacyReject, true)) {
+        return false;
+    }
+
+    if (strlen($digits) > 3) {
+        return true;
+    }
+
+    $parentId = (int) ($acc['parent_id'] ?? 0);
+    if ($parentId < 1) {
+        return false;
+    }
+    $parent = acc_account_get($pdo, $parentId);
+    if (!$parent || (int) ($parent['is_active'] ?? 0) !== 1) {
+        return false;
+    }
+    $parentDigits = acc_account_code_canonical_digits((string) ($parent['code'] ?? ''));
+    if (in_array($parentDigits, $legacyReject, true)) {
+        return false;
+    }
+
+    return in_array($parentDigits, ['1', '2', '3', '4', '5'], true);
+}
+
 /** @return array<string, string> */
 function acc_account_type_labels(): array
 {

@@ -50,9 +50,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$acc) {
                     throw new RuntimeException('الحساب المختار لـ «' . ($meta['label_ar'] ?? $code) . '» يجب أن يكون حساباً نهائياً في الشجرة.');
                 }
-                $accCode = (string) ($acc['code'] ?? '');
-                if (strlen($accCode) <= 2) {
-                    throw new RuntimeException('الحساب المختار لـ «' . ($meta['label_ar'] ?? $code) . '» قديم (مثل 12/11) وغير معتمد. اختر حساباً هرمياً من الشجرة.');
+                if (!acc_account_is_valid_posting_mapping_target($pdo, $accId)) {
+                    throw new RuntimeException(
+                        'الحساب المختار لـ «' . ($meta['label_ar'] ?? $code) . '» قديم (مثل 11/12) وغير معتمد. اختر حساباً من الشجرة الهرمية أو حساباً معتمداً مثل 23 رواتب مستحقة.'
+                    );
                 }
             }
             $st->execute([$accId, $code]);
