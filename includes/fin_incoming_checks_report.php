@@ -21,7 +21,8 @@ function fin_incoming_checks_report_fetch(
     string $dateField = 'voucher',
     string $postedFilter = 'all',
     int $customerId = 0,
-    string $checkNoFilter = ''
+    string $checkNoFilter = '',
+    string $checkScope = 'all'
 ): array {
     return fin_voucher_checks_report_fetch(
         $pdo,
@@ -32,7 +33,8 @@ function fin_incoming_checks_report_fetch(
         $dateField,
         $postedFilter,
         $customerId,
-        $checkNoFilter
+        $checkNoFilter,
+        $checkScope
     );
 }
 
@@ -64,8 +66,7 @@ function fin_outgoing_checks_report_fetch(
     string $dateField = 'voucher',
     string $postedFilter = 'all',
     int $supplierId = 0,
-    string $checkNoFilter = '',
-    string $checkScope = 'all'
+    string $checkNoFilter = ''
 ): array {
     return fin_voucher_checks_report_fetch(
         $pdo,
@@ -76,8 +77,7 @@ function fin_outgoing_checks_report_fetch(
         $dateField,
         $postedFilter,
         $supplierId,
-        $checkNoFilter,
-        $checkScope
+        $checkNoFilter
     );
 }
 

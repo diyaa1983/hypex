@@ -18,6 +18,7 @@ $from = trim((string) ($_GET['from'] ?? ''));
 $to = trim((string) ($_GET['to'] ?? ''));
 $dateField = (string) ($_GET['date_field'] ?? 'voucher');
 $postedFilter = (string) ($_GET['posted'] ?? 'all');
+$checkScope = fin_voucher_checks_report_normalize_scope((string) ($_GET['check_scope'] ?? 'all'));
 
 if (!in_array($dateField, ['voucher', 'due'], true)) {
     $dateField = 'voucher';
@@ -39,7 +40,7 @@ $showResult = false;
 $sumAmount = 0.0;
 
 $submitted = isset($_GET['from']) || isset($_GET['to']) || isset($_GET['date_field']) || isset($_GET['posted'])
-    || isset($_GET['customer_id']) || isset($_GET['check_no']);
+    || isset($_GET['customer_id']) || isset($_GET['check_no']) || isset($_GET['check_scope']);
 
 if ($submitted) {
     $fromIso = parse_date_to_iso($from);
@@ -58,7 +59,8 @@ if ($submitted) {
             $dateField,
             $postedFilter,
             $customerId,
-            $checkNoFilter
+            $checkNoFilter,
+            $checkScope
         );
         foreach ($rows as $r) {
             $sumAmount += (float) ($r['check_amount'] ?? 0);
@@ -83,15 +85,20 @@ $sortJsUrl = app_url('assets/js/report-sales-table-sort.js') . (is_file($sortJsP
 $pageDataAttrs = ' data-report-title="' . esc($reportTitle) . '"';
 $pageDataAttrs .= ' data-report-route="report_incoming_checks"';
 if ($showResult) {
-    $dateFieldLabel = $dateField === 'due' ? 'تاريخ الصرف' : 'تاريخ الشيك';
+    $dateFieldLabel = $checkScope === 'due'
+        ? 'تاريخ الاستحقاق (مستحقة)'
+        : ($dateField === 'due' ? 'تاريخ الصرف' : 'تاريخ الشيك');
     $postedLabel = $postedFilter === 'posted' ? 'مرحّل' : ($postedFilter === 'unposted' ? 'غير مرحّل' : 'الكل');
     $pageDataAttrs .= ' data-export-label="' . esc($customerLabel . ' — ' . $dateFieldLabel) . '"';
     $pageDataAttrs .= ' data-from-dmy="' . esc(format_date_dmY($from)) . '"';
     $pageDataAttrs .= ' data-to-dmy="' . esc(format_date_dmY($to)) . '"';
 }
 
-$dateFieldLabel = $dateField === 'due' ? 'تاريخ الصرف' : 'تاريخ الشيك';
+$dateFieldLabel = $checkScope === 'due'
+    ? 'تاريخ الاستحقاق (مستحقة)'
+    : ($dateField === 'due' ? 'تاريخ الصرف' : 'تاريخ الشيك');
 $postedFilterLabel = $postedFilter === 'posted' ? 'مرحّل فقط' : ($postedFilter === 'unposted' ? 'غير مرحّل فقط' : 'الكل');
+$checkScopeLabel = fin_voucher_checks_report_scope_label($checkScope);
 $checkNoLabel = $checkNoFilter !== '' ? $checkNoFilter : 'الكل';
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
@@ -140,6 +147,13 @@ $checkNoLabel = $checkNoFilter !== '' ? $checkNoFilter : 'الكل';
                     <option value="unposted" <?= $postedFilter === 'unposted' ? 'selected' : '' ?>>غير مرحّل</option>
                 </select>
             </label>
+            <label class="field report-checks-field report-checks-field--scope">
+                <span class="field-label">نطاق الشيكات</span>
+                <select class="input" name="check_scope">
+                    <option value="all" <?= $checkScope === 'all' ? 'selected' : '' ?>>الكل</option>
+                    <option value="due" <?= $checkScope === 'due' ? 'selected' : '' ?>>المستحقة فقط (قيد)</option>
+                </select>
+            </label>
             <label class="field report-checks-field report-checks-field--date">
                 <span class="field-label">من تاريخ *</span>
                 <input class="input js-date-dmy" type="text" name="from" value="<?= esc(format_date_dmY($from)) ?>"
@@ -172,6 +186,8 @@ $checkNoLabel = $checkNoFilter !== '' ? $checkNoFilter : 'الكل';
                     <tr>
                         <td>
                             <strong>فلترة حسب:</strong> <?= esc($dateFieldLabel) ?>
+                            &nbsp;&nbsp;|&nbsp;&nbsp;
+                            <strong>نطاق الشيكات:</strong> <?= esc($checkScopeLabel) ?>
                             &nbsp;&nbsp;|&nbsp;&nbsp;
                             <strong>حالة الترحيل:</strong> <?= esc($postedFilterLabel) ?>
                         </td>
