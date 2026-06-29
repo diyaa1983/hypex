@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once app_path('includes/hr_social_security_payroll.php');
 require_once app_path('includes/hr_income_tax.php');
 require_once app_path('includes/hr_employee_salary.php');
+require_once app_path('includes/hr_employee_advance_gl.php');
 
 const HR_PAYROLL_DEDUCTIONS_RULE_CODE = 'hr_payroll_deductions';
 const HR_PAYROLL_ACCRUAL_RULE_CODE = 'hr_payroll_accrual';
@@ -41,8 +42,8 @@ function hr_payroll_gl_ensure_posting_rules(PDO $pdo): void
         );
         $st->execute([
             HR_PAYROLL_DEDUCTIONS_RULE_CODE,
-            'سلف وخصومات الموظفين',
-            'دائن عند ترحيل الرواتب — السلف والخصومات المقتطعة من رواتب الموظفين',
+            'خصومات واقتطاعات موظفين',
+            'دائن عند ترحيل الرواتب — خصومات واقتطاعات أخرى غير السلف والضمان',
             87,
         ]);
         $st->execute([
@@ -513,7 +514,7 @@ function hr_payroll_gl_set_posting_account(PDO $pdo, string $ruleCode, int $acco
         'salaries_payable' => ['رواتب مستحقة', 'دائن — صافي مستحق للموظفين', 83],
         HR_SS_PAYABLE_RULE_CODE => ['أمانات ضمان اجتماعي', 'دائن — حصة الموظف + الشركة', 86],
         HR_INCOME_TAX_RULE_CODE => ['ضريبة دخل مستحقة', 'دائن — اقتطاع ضريبة الدخل', 88],
-        HR_PAYROLL_DEDUCTIONS_RULE_CODE => ['سلف وخصومات الموظفين', 'دائن — سلف وخصومات', 87],
+        HR_PAYROLL_DEDUCTIONS_RULE_CODE => ['خصومات واقتطاعات موظفين', 'دائن — خصومات غير السلف', 87],
     ];
     $meta = $defaults[$ruleCode] ?? [$ruleCode, '', 90];
     $pdo->prepare(
@@ -720,6 +721,8 @@ function hr_payroll_gl_permanent_allow_total(PDO $pdo, int $employeeId, float $b
  *   employee_ss:float,
  *   income_tax:float,
  *   total_deductions:float,
+ *   advance_deductions:float,
+ *   payroll_other_deductions:float,
  *   other_deductions:float
  * }
  */
@@ -787,11 +790,20 @@ function hr_payroll_month_gl_totals(PDO $pdo, int $year, int $month, bool $unpos
         $totalDed = hr_payroll_gl_other_deductions($salary);
     }
 
+    $advanceDed = hr_payroll_month_advance_deduction_total($pdo, $year, $month, $unpostedOnly);
+    if ($advanceDed > $totalDed + 0.0005) {
+        $advanceDed = $totalDed;
+    }
+    $otherPayrollDed = round(max(0, $totalDed - $advanceDed), 3);
+
     return array_merge($salary, [
         'gross' => $gross,
         'base_total' => $salaryExpense,
         'allowances_expense' => $allowancesExpense,
         'total_deductions' => $totalDed,
+        'advance_deductions' => $advanceDed,
+        'payroll_other_deductions' => $otherPayrollDed,
+        'other_deductions' => $otherPayrollDed,
     ]);
 }
 
@@ -829,11 +841,15 @@ function hr_payroll_posting_ready(PDO $pdo, array $totals): array
     $base = round(max(0, (float) ($totals['base_total'] ?? 0)), 3);
     $allowances = round(max(0, (float) ($totals['allowances_expense'] ?? 0)), 3);
     $net = round((float) ($totals['net'] ?? 0), 3);
-    $totalDed = round(max(0, (float) ($totals['total_deductions'] ?? 0)), 3);
-    if ($totalDed <= 0.0005) {
-        $totalDed = hr_payroll_gl_other_deductions($totals);
-        if (isset($totals['advance_deductions'])) {
-            $totalDed = round($totalDed + max(0, (float) $totals['advance_deductions']), 3);
+    $advanceDed = round(max(0, (float) ($totals['advance_deductions'] ?? 0)), 3);
+    $otherDed = round(max(0, (float) ($totals['payroll_other_deductions'] ?? 0)), 3);
+    if ($otherDed <= 0.0005 && isset($totals['other_deductions'])) {
+        $otherDed = round(max(0, (float) $totals['other_deductions']), 3);
+    }
+    if ($advanceDed <= 0.0005 && $otherDed <= 0.0005) {
+        $totalDed = round(max(0, (float) ($totals['total_deductions'] ?? 0)), 3);
+        if ($totalDed > 0.0005) {
+            $otherDed = $totalDed;
         }
     }
     $ssEr = round((float) ($totals['employer_ss'] ?? 0), 3);
@@ -885,7 +901,18 @@ function hr_payroll_posting_ready(PDO $pdo, array $totals): array
             'message' => 'اربط حساب «' . $label . '» من شاشة ربط الحسابات.',
         ];
     }
-    if ($totalDed > 0.0005 && (int) ($settings[HR_PAYROLL_DEDUCTIONS_RULE_CODE]['account_id'] ?? 0) < 1) {
+    if ($advanceDed > 0.0005 && (int) ($settings[HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE]['account_id'] ?? 0) < 1) {
+        hr_employee_advance_gl_ensure_rule($pdo);
+        $settings = acc_gl_load_settings($pdo);
+    }
+    if ($advanceDed > 0.0005 && (int) ($settings[HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE]['account_id'] ?? 0) < 1) {
+        $label = (string) ($settings[HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE]['label_ar'] ?? 'ذمة سلف الموظفين');
+        return [
+            'ready' => false,
+            'message' => 'اربط حساب «' . $label . '» من شاشة ربط الحسابات لاقتطاع السلف من الرواتب.',
+        ];
+    }
+    if ($otherDed > 0.0005 && (int) ($settings[HR_PAYROLL_DEDUCTIONS_RULE_CODE]['account_id'] ?? 0) < 1) {
         $label = (string) ($settings[HR_PAYROLL_DEDUCTIONS_RULE_CODE]['label_ar'] ?? HR_PAYROLL_DEDUCTIONS_RULE_CODE);
         return [
             'ready' => false,
@@ -1018,27 +1045,26 @@ function hr_payroll_posting_gl_accrual_debit_line(array $totals): array
 }
 
 /**
- * @param array{net?:float, total_deductions?:float, other_deductions?:float, advance_deductions?:float, income_tax?:float} $totals
+ * @param array{net?:float, total_deductions?:float, advance_deductions?:float, payroll_other_deductions?:float, other_deductions?:float, income_tax?:float} $totals
  * @return list<array{rule:string, debit:float, credit:float, memo?:string}>
  */
 function hr_payroll_posting_gl_salary_lines(array $totals): array
 {
     $net = round(max(0, (float) ($totals['net'] ?? 0)), 3);
-    $totalDed = round(max(0, (float) ($totals['total_deductions'] ?? 0)), 3);
-    if ($totalDed <= 0.0005) {
-        $totalDed = hr_payroll_gl_other_deductions($totals);
-        if (isset($totals['advance_deductions'])) {
-            $advanceDed = round(max(0, (float) $totals['advance_deductions']), 3);
-            if ($advanceDed > $totalDed + 0.0005) {
-                $totalDed = $advanceDed;
-            } else {
-                $totalDed = round($totalDed + $advanceDed, 3);
-            }
+    $advanceDed = round(max(0, (float) ($totals['advance_deductions'] ?? 0)), 3);
+    $otherDed = round(max(0, (float) ($totals['payroll_other_deductions'] ?? 0)), 3);
+    if ($otherDed <= 0.0005 && isset($totals['other_deductions'])) {
+        $otherDed = round(max(0, (float) $totals['other_deductions']), 3);
+    }
+    if ($advanceDed <= 0.0005 && $otherDed <= 0.0005) {
+        $totalDed = round(max(0, (float) ($totals['total_deductions'] ?? 0)), 3);
+        if ($totalDed > 0.0005 && $advanceDed <= 0.0005) {
+            $otherDed = $totalDed;
         }
     }
     $incomeTax = round(max(0, (float) ($totals['income_tax'] ?? 0)), 3);
 
-    if ($net <= 0.0005 && $totalDed <= 0.0005 && $incomeTax <= 0.0005) {
+    if ($net <= 0.0005 && $advanceDed <= 0.0005 && $otherDed <= 0.0005 && $incomeTax <= 0.0005) {
         return [];
     }
 
@@ -1052,12 +1078,20 @@ function hr_payroll_posting_gl_salary_lines(array $totals): array
             'memo' => 'رواتب مستحقة — صافي مستحق للموظفين للصرف',
         ];
     }
-    if ($totalDed > 0.0005) {
+    if ($advanceDed > 0.0005) {
+        $lines[] = [
+            'rule' => HR_EMPLOYEE_ADVANCE_RECEIVABLE_RULE,
+            'debit' => 0,
+            'credit' => $advanceDed,
+            'memo' => 'اقتطاع سلف موظفين من الرواتب',
+        ];
+    }
+    if ($otherDed > 0.0005) {
         $lines[] = [
             'rule' => HR_PAYROLL_DEDUCTIONS_RULE_CODE,
             'debit' => 0,
-            'credit' => $totalDed,
-            'memo' => 'سلف وخصومات الموظفين المقتطعة من الرواتب',
+            'credit' => $otherDed,
+            'memo' => 'خصومات واقتطاعات موظفين',
         ];
     }
     if ($incomeTax > 0.0005) {
