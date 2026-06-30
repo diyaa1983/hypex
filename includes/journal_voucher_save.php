@@ -63,10 +63,17 @@ function handle_journal_voucher_save(): void
 
     $postNow = (string) ($_POST['_action'] ?? '') === 'save_journal_voucher_post';
 
+    require_once app_path('includes/acc_journal_party.php');
+    acc_journal_party_ensure_schema($pdo);
+    require_once app_path('includes/acc_gl.php');
+    acc_gl_ensure_schema($pdo);
+
     try {
         $pdo->beginTransaction();
         $savedId = acc_journal_save($pdo, $id, $entryNo, $entryDate, $description, $lines, $postNow);
-        $pdo->commit();
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
 
         require_once app_path('includes/sys_audit_log.php');
         sys_audit_log_acc_journal($pdo, 'save', $savedId);
@@ -86,23 +93,19 @@ function handle_journal_voucher_save(): void
         }
         flash_set('success', $msg);
         redirect(app_url('index.php?r=journal_voucher&id=' . $savedId));
-    } catch (RuntimeException $e) {
-        if ($pdo->inTransaction()) {
-            $pdo->rollBack();
-        }
-        if ($wantsJson) {
-            json_invoice_save_response(false, ['message' => $e->getMessage()], 400);
-        }
-        flash_set('error', $e->getMessage());
-        redirect(app_url('index.php?r=journal_voucher' . ($id > 0 ? '&id=' . $id : '')));
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        if ($wantsJson) {
-            json_invoice_save_response(false, ['message' => 'تعذر الحفظ.'], 500);
+        $msg = trim($e->getMessage());
+        if ($msg === '' || stripos($msg, 'no active transaction') !== false) {
+            $msg = 'تعذر الحفظ.';
         }
-        flash_set('error', 'تعذر الحفظ.');
-        redirect(app_url('index.php?r=journal_voucher'));
+        if ($wantsJson) {
+            $status = $e instanceof RuntimeException ? 400 : 500;
+            json_invoice_save_response(false, ['message' => $msg], $status);
+        }
+        flash_set('error', $msg);
+        redirect(app_url('index.php?r=journal_voucher' . ($id > 0 ? '&id=' . $id : '')));
     }
 }

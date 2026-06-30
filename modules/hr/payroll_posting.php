@@ -203,7 +203,7 @@ $jsPath = app_path('assets/js/hr-payroll-posting.js');
 $jsUrl = app_url('assets/js/hr-payroll-posting.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
 
 $journalEntry = $showEmployeeList ? hr_payroll_month_journal_entry($pdo, $payYear, $payMonth) : null;
-$movementNo = $journalEntry ? (string) ($journalEntry['entry_no'] ?? '') : sprintf('%04d-%02d', $payYear, $payMonth);
+$movementNo = sprintf('%04d-%02d', $payYear, $payMonth);
 $movementDesc = 'رواتب ' . hr_payroll_period_label($payYear, $payMonth);
 if ($journalEntry && (string) ($journalEntry['description_ar'] ?? '') !== '') {
     $movementDesc = (string) $journalEntry['description_ar'];
@@ -243,6 +243,8 @@ foreach ($statusRows as $gr) {
 foreach ($gridTotals as $k => $v) {
     $gridTotals[$k] = round($v, 3);
 }
+
+$employeeCount = count($statusRows);
 
 $noSetupCount = 0;
 foreach ($statusRows as $sr) {

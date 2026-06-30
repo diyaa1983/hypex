@@ -39,23 +39,28 @@ if (!acc_journal_ensure_schema($pdo)) {
 
 try {
     acc_journal_assert_manual_voucher($pdo, $id);
+    require_once app_path('includes/acc_journal_party.php');
+    acc_journal_party_ensure_schema($pdo);
+    require_once app_path('includes/acc_gl.php');
+    acc_gl_ensure_schema($pdo);
     $pdo->beginTransaction();
     acc_journal_post_by_id($pdo, $id);
-    $pdo->commit();
+    if ($pdo->inTransaction()) {
+        $pdo->commit();
+    }
     $entry = acc_journal_api_entry($pdo, $id);
     echo json_encode([
         'ok' => true,
         'message' => 'تم ترحيل سند القيد.',
         'entry' => $entry,
     ], JSON_UNESCAPED_UNICODE);
-} catch (RuntimeException $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
-    echo json_encode(['ok' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    echo json_encode(['ok' => false, 'message' => 'تعذر الترحيل.'], JSON_UNESCAPED_UNICODE);
+    $msg = trim($e->getMessage());
+    if ($msg === '' || stripos($msg, 'no active transaction') !== false) {
+        $msg = 'تعذر الترحيل.';
+    }
+    echo json_encode(['ok' => false, 'message' => $msg], JSON_UNESCAPED_UNICODE);
 }

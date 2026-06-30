@@ -974,6 +974,83 @@ function hr_payroll_posting_ready(PDO $pdo, array $totals): array
 }
 
 /**
+ * معاينة قيد ترحيل الرواتb قبل الترحيل أو بعده.
+ *
+ * @return array{
+ *   ready:bool,
+ *   message:string,
+ *   debit_total:float,
+ *   credit_total:float,
+ *   lines:list<array{rule:string, label:string, account_code:string, account_name:string, debit:float, credit:float, memo:string}>
+ * }
+ */
+function hr_payroll_gl_journal_preview_for_month(PDO $pdo, int $year, int $month): array
+{
+    $empty = [
+        'ready' => true,
+        'message' => '',
+        'debit_total' => 0.0,
+        'credit_total' => 0.0,
+        'lines' => [],
+    ];
+    if ($year < 2000 || $month < 1 || $month > 12 || !acc_gl_has_posting_table($pdo)) {
+        return $empty;
+    }
+
+    hr_payroll_gl_ensure_posting_rules($pdo);
+    hr_income_tax_ensure_posting_rule($pdo);
+    hr_ss_ensure_posting_rule($pdo);
+
+    $salaryTotals = hr_payroll_month_gl_totals($pdo, $year, $month, false);
+    $ssTotals = hr_payroll_month_ss_totals($pdo, $year, $month);
+    $glTotals = array_merge($salaryTotals, [
+        'employer_ss' => (float) ($ssTotals['employer_total'] ?? 0),
+    ]);
+
+    $ready = hr_payroll_posting_ready($pdo, $glTotals);
+    $glLines = hr_payroll_posting_gl_lines($glTotals);
+    if ($glLines === []) {
+        return array_merge($empty, [
+            'ready' => (bool) ($ready['ready'] ?? true),
+            'message' => (string) ($ready['message'] ?? ''),
+        ]);
+    }
+
+    $settings = acc_gl_load_settings($pdo);
+    $previewLines = [];
+    foreach ($glLines as $ln) {
+        $rule = (string) ($ln['rule'] ?? '');
+        $label = (string) ($settings[$rule]['label_ar'] ?? $rule);
+        $accountId = acc_gl_account_id($settings, $rule);
+        $acc = $accountId > 0 ? acc_account_get($pdo, $accountId) : null;
+        $debit = round(max(0, (float) ($ln['debit'] ?? 0)), 3);
+        $credit = round(max(0, (float) ($ln['credit'] ?? 0)), 3);
+        if ($debit <= 0.0005 && $credit <= 0.0005) {
+            continue;
+        }
+        $previewLines[] = [
+            'rule' => $rule,
+            'label' => $label,
+            'account_code' => trim((string) ($acc['code'] ?? '')) !== '' ? (string) $acc['code'] : '—',
+            'account_name' => trim((string) ($acc['name_ar'] ?? '')) !== '' ? (string) $acc['name_ar'] : '—',
+            'debit' => $debit,
+            'credit' => $credit,
+            'memo' => trim((string) ($ln['memo'] ?? '')),
+        ];
+    }
+
+    $normalized = hr_payroll_gl_resolve_lines($pdo, $glLines);
+
+    return [
+        'ready' => (bool) ($ready['ready'] ?? true),
+        'message' => (string) ($ready['message'] ?? ''),
+        'debit_total' => round((float) ($normalized['debit'] ?? 0), 3),
+        'credit_total' => round((float) ($normalized['credit'] ?? 0), 3),
+        'lines' => $previewLines,
+    ];
+}
+
+/**
  * ملخص مبالغ الصرف من صندوق المؤسسة.
  *
  * @return array{

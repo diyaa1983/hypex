@@ -24,6 +24,30 @@ function hr_render_month_chip_strip(array $monthOptions, array $cfg): void
     $yearInputId = trim((string) ($cfg['year_input_id'] ?? ''));
     $yearInputName = trim((string) ($cfg['year_input_name'] ?? 'year'));
     $renderYear = !array_key_exists('render_year', $cfg) || !empty($cfg['render_year']);
+    $compact = !empty($cfg['compact']);
+    $compactLayout = trim((string) ($cfg['compact_layout'] ?? ''));
+    $compactVertical = $compact && $compactLayout === 'vertical';
+    $compactInline = $compact && $compactLayout === 'inline';
+    $wrapClass = 'hr-mchip-period-wrap';
+    if ($compact) {
+        $wrapClass .= ' hr-mchip-period-wrap--compact';
+    }
+    if ($compactVertical) {
+        $wrapClass .= ' hr-mchip-period-wrap--compact-vertical';
+    }
+    if ($compactInline) {
+        $wrapClass .= ' hr-mchip-period-wrap--compact-inline';
+    }
+    $stripClass = 'hr-mchip-strip';
+    if ($compact) {
+        $stripClass .= ' hr-mchip-strip--compact';
+    }
+    if ($compactVertical) {
+        $stripClass .= ' hr-mchip-strip--compact-vertical';
+    }
+    if ($compactInline) {
+        $stripClass .= ' hr-mchip-strip--compact-inline';
+    }
     $monthShortNames = hr_month_short_names_ar();
 
     $statusByMonth = [];
@@ -38,7 +62,7 @@ function hr_render_month_chip_strip(array $monthOptions, array $cfg): void
         ? $selectedMonth
         : max(1, min(12, (int) date('n')));
     ?>
-    <div class="hr-mchip-period-wrap">
+    <div class="<?= esc($wrapClass) ?>">
         <?php if ($renderYear && $yearInputId !== ''): ?>
             <label class="sr-only" for="<?= esc($yearInputId) ?>">السنة</label>
             <input class="input hr-mchip-year-input" type="number"
@@ -50,7 +74,7 @@ function hr_render_month_chip_strip(array $monthOptions, array $cfg): void
                name="<?= esc($monthInputName) ?>"
                id="<?= esc($monthInputId) ?>"
                value="<?= $displayMonth ?>">
-        <div class="hr-mchip-strip" role="group" aria-label="اختر الشهر">
+        <div class="<?= esc($stripClass) ?>" role="group" aria-label="اختر الشهر">
             <?php for ($m = 1; $m <= 12; $m++):
                 $opt = $statusByMonth[$m] ?? ['month' => $m, 'status' => 'empty', 'label_suffix' => ''];
                 $status = (string) ($opt['status'] ?? 'empty');
@@ -59,14 +83,17 @@ function hr_render_month_chip_strip(array $monthOptions, array $cfg): void
                 $isSelected = $selectedMonth === $m;
             ?>
                 <button type="button"
-                        class="hr-mchip-chip<?= $isSelected ? ' is-active' : '' ?>"
+                        class="hr-mchip-chip<?= $compact ? ' hr-mchip-chip--compact' : '' ?><?= $compactInline ? ' hr-mchip-chip--compact-inline' : '' ?><?= $isSelected ? ' is-active' : '' ?>"
                         data-month="<?= $m ?>"
                         data-status="<?= esc($status) ?>"
                         data-name="<?= esc($monthShortNames[$m] ?? (string) $m) ?>"
                         title="<?= esc($title) ?>"
-                        aria-pressed="<?= $isSelected ? 'true' : 'false' ?>">
+                        aria-pressed="<?= $isSelected ? 'true' : 'false' ?>"
+                        aria-label="<?= esc($title) ?>">
                     <span class="hr-mchip-chip-num" dir="ltr"><?= sprintf('%02d', $m) ?></span>
+                    <?php if (!$compact): ?>
                     <span class="hr-mchip-chip-label"><?= esc($monthShortNames[$m] ?? (string) $m) ?></span>
+                    <?php endif; ?>
                 </button>
             <?php endfor; ?>
         </div>

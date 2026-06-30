@@ -217,32 +217,61 @@ body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table td {
 
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table th:nth-child(1),
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table td:nth-child(1) {
-    min-width: 6.5rem;
+    width: 3.5rem;
 }
 
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table th:nth-child(2),
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table td:nth-child(2) {
-    width: 4rem;
+    min-width: 4.5rem;
 }
 
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table th:nth-child(3),
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table td:nth-child(3) {
-    width: 7rem;
+    min-width: 5.5rem;
 }
 
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table th:nth-child(4),
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table td:nth-child(4) {
-    min-width: 14rem;
+    width: 4rem;
 }
 
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table th:nth-child(5),
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table td:nth-child(5) {
-    width: 6.5rem;
+    width: 7rem;
 }
 
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table th:nth-child(6),
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table td:nth-child(6) {
+    width: 6.5rem;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table th:nth-child(7),
+body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table td:nth-child(7) {
     width: 6rem;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-month-name {
+    text-align: start;
+    padding-inline: 0.45rem !important;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-status {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-status--posted {
+    color: #c74634;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-status--last {
+    color: #b45309;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-status--current {
+    color: #024d8f;
 }
 
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table code {
@@ -1011,52 +1040,40 @@ body.hr-ora-ui .hr-pr-post-ora-lov.is-smart-disabled .hr-pr-post-ora-lov-btn {
     cursor: not-allowed;
 }
 
-/* Oracle Forms 6i polish */
+/* Oracle Forms 6i polish — overridden by modern Oracle 12 layout below */
 body.hr-ora-ui .hr-pr-post-classic {
-    background: #d4d0c8;
-    color: #000;
-    font-family: Tahoma, Arial, sans-serif;
-    font-size: 0.78rem;
-}
-
-body.hr-ora-ui .hr-pr-post-classic .ora12-title-bar,
-body.hr-ora-ui .hr-pr-post-panel-title,
-body.hr-ora-ui .hr-pr-post-posted-inline-title,
-body.hr-ora-ui .hr-pr-post-extra-panel > summary {
-    color: #fff;
-    background: linear-gradient(180deg, #2f80d8 0%, #0b61bd 45%, #06428a 100%);
-    border: 1px solid;
-    border-color: #7eb4ea #03356f #03356f #7eb4ea;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    background: var(--ora12-bg, #eef2f7);
+    color: var(--ora12-text, #161513);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.8125rem;
 }
 
 body.hr-ora-ui .hr-pr-post-panel,
 body.hr-ora-ui .hr-pr-post-top-controls,
 body.hr-ora-ui .hr-pr-post-extra-panel {
-    background: #d4d0c8;
-    border: 2px solid;
-    border-color: #fff #808080 #808080 #fff;
-    box-shadow: none;
+    background: var(--ora12-surface, #fff);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
 }
 
 body.hr-ora-ui .hr-pr-post-filters-panel,
 body.hr-ora-ui .hr-pr-post-posted-inline,
 body.hr-ora-ui .hr-pr-post-grid-wrap,
 body.hr-ora-ui .hr-pr-post-doc-summary--box {
-    background: #d4d0c8;
+    background: var(--ora12-surface, #fff);
 }
 
 body.hr-ora-ui .hr-pr-post-filter-line,
 body.hr-ora-ui .hr-pr-post-grid-table th {
-    background: #d4d0c8;
+    background: var(--ora12-surface, #fff);
 }
 
 body.hr-ora-ui .hr-pr-post-filter-line > span,
 body.hr-ora-ui .hr-pr-post-grid-table thead th,
 body.hr-ora-ui .hr-pr-post-posted-inline-title {
-    color: #000;
-    background: linear-gradient(180deg, #ece9e4 0%, #d4d0c8 55%, #c8c4bc 100%);
-    border-color: #fff #808080 #808080 #fff;
+    color: var(--ora12-text, #161513);
+    background: linear-gradient(180deg, #e5edf5 0%, #d8e4ef 100%);
+    border-color: var(--ora12-border, #cbd5e1);
 }
 
 body.hr-ora-ui .hr-pr-post-grid-table th,
@@ -1065,44 +1082,127 @@ body.hr-ora-ui .hr-pr-post-filter-line,
 body.hr-ora-ui .hr-pr-post-filter-line > span,
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table th,
 body.hr-ora-ui .hr-pr-post-posted-inline .hr-pr-post-posted-table td {
-    border-color: #808080;
+    border-color: var(--ora12-border, #cbd5e1);
 }
 
 body.hr-ora-ui .hr-pr-post-filters-panel .hr-pr-post-inline-input,
 body.hr-ora-ui .hr-pr-post-filters-panel .hr-pr-post-ora-lov,
 body.hr-ora-ui .hr-pr-post-filters-panel .hr-pr-post-ora-smart-input {
-    color: #000;
+    color: var(--ora12-text, #161513);
     background: #fff !important;
-    border: 2px solid !important;
-    border-color: #808080 #fff #fff #808080 !important;
-    box-shadow: none !important;
+    border: 1px solid var(--ora12-border, #cbd5e1) !important;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04) !important;
 }
 
 body.hr-ora-ui .hr-pr-post-filters-panel .hr-pr-post-ora-lov-btn,
 body.hr-ora-ui .hr-pr-post-classic .btn,
 body.hr-ora-ui .hr-pr-post-posted-actions .btn {
-    color: #000;
-    border: 1px solid;
-    border-color: #fff #404040 #404040 #fff;
-    border-radius: 0;
-    background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+    color: var(--ora12-text, #161513);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
     box-shadow: none;
-}
-
-body.hr-ora-ui .hr-pr-post-classic .btn:active,
-body.hr-ora-ui .hr-pr-post-posted-actions .btn:active {
-    border-color: #404040 #fff #fff #404040;
-    background: #c0c0c0;
 }
 
 body.hr-ora-ui .hr-pr-post-row.is-selected td,
 body.hr-ora-ui .hr-pr-post-row.is-selected:hover td {
-    background: #0a246a;
+    background: #0572ce;
     color: #fff;
 }
 
 body.hr-ora-ui .hr-pr-post-row:hover td {
-    background: #ece9e4;
+    background: #e8f0f8;
+}
+
+/* شريط ملخص + معاينة القيد */
+body.hr-ora-ui .hr-pr-post-summary-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-bottom: 0.45rem;
+    padding: 0.45rem;
+    background: var(--ora12-surface, #fff);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+}
+
+body.hr-ora-ui .hr-pr-post-kpi {
+    flex: 1 1 7.5rem;
+    min-width: 6.5rem;
+    padding: 0.35rem 0.55rem;
+    background: var(--ora12-stripe, #f7f9fb);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-pr-post-kpi-label {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--ora12-muted, #5c5c5c);
+    margin-bottom: 0.12rem;
+}
+
+body.hr-ora-ui .hr-pr-post-kpi-value {
+    display: block;
+    font-size: 0.92rem;
+    font-variant-numeric: tabular-nums;
+}
+
+body.hr-ora-ui .hr-pr-post-kpi-value--calc {
+    color: #b45309;
+}
+
+body.hr-ora-ui .hr-pr-post-kpi-value--posted {
+    color: #c74634;
+}
+
+body.hr-ora-ui .hr-pr-post-kpi-value--fund {
+    color: #024d8f;
+}
+
+body.hr-ora-ui .hr-pr-post-gl-panel .hr-pr-post-panel-body {
+    padding: 0.55rem 0.65rem 0.65rem;
+}
+
+body.hr-ora-ui .hr-pr-post-gl-alert {
+    margin-bottom: 0.45rem;
+}
+
+body.hr-ora-ui .hr-pr-post-gl-hint {
+    margin: 0 0 0.45rem;
+    font-size: 0.76rem;
+}
+
+body.hr-ora-ui .hr-pr-post-gl-table {
+    min-width: 0;
+    table-layout: auto;
+}
+
+body.hr-ora-ui .hr-pr-post-gl-account {
+    text-align: start;
+    padding-inline: 0.45rem !important;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-pr-post-gl-account code {
+    margin-inline-end: 0.35rem;
+}
+
+body.hr-ora-ui .hr-pr-post-gl-label {
+    text-align: start;
+    padding-inline: 0.45rem !important;
+    font-size: 0.74rem;
+}
+
+body.hr-ora-ui .hr-pr-post-gl-linked {
+    margin: 0.45rem 0 0;
+    font-size: 0.76rem;
+}
+
+body.hr-ora-ui .hr-pr-post-disburse-panel .hr-pr-post-disburse {
+    padding: 0;
 }
 
 /* Keep the payroll filters in one horizontal line above the posted months grid. */
@@ -1149,13 +1249,13 @@ body.hr-ora-ui .hr-pr-post-filters-stack--chips .hr-pr-post-filter-line--period 
     grid-row: 1;
     grid-template-columns: minmax(5.5rem, 6.5rem) minmax(0, 1fr);
     border-inline-start: 0;
-    border-bottom: 1px solid #808080;
-    align-items: flex-start;
-    min-height: 3.2rem;
+    border-bottom: 1px solid var(--ora12-border, #cbd5e1);
+    align-items: center;
+    min-height: 1.85rem;
 }
 
 body.hr-ora-ui .hr-pr-post-filters-stack--chips .hr-pr-post-filter-line--period > span {
-    padding-top: 0.35rem;
+    padding-top: 0;
 }
 
 body.hr-ora-ui .hr-pr-post-filters-stack--chips .hr-pr-post-filter-line:not(.hr-pr-post-filter-line--period) {
@@ -1165,7 +1265,7 @@ body.hr-ora-ui .hr-pr-post-filters-stack--chips .hr-pr-post-filter-line:not(.hr-
 body.hr-ora-ui .hr-pr-post-filter-line {
     grid-template-columns: minmax(3.3rem, 4.3rem) minmax(0, 1fr);
     border-bottom: 0;
-    border-inline-start: 1px solid #808080;
+    border-inline-start: 1px solid var(--ora12-border, #cbd5e1);
 }
 
 body.hr-ora-ui .hr-pr-post-filter-line:first-child {
@@ -1398,5 +1498,817 @@ body.hr-ora-ui .hr-pr-post-classic .hr-pr-post-print-area .doc-print-meta {
     body.hr-ora-ui .hr-pr-post-classic .hr-pr-post-row--no-setup td {
         background: #fff !important;
         color: #0f172a !important;
+    }
+}
+
+/* ── إعادة هيكلة الشاشة: بطاقة الفترة والفلتر ── */
+body.hr-ora-ui .hr-pr-post-header-card {
+    margin-bottom: 0.45rem;
+    padding: 0.55rem 0.65rem 0.6rem;
+    background: var(--ora12-surface, #fff);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+}
+
+body.hr-ora-ui .hr-pr-post-section-label {
+    flex: 0 0 auto;
+    min-width: 3.25rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+    line-height: 1.55rem;
+}
+
+body.hr-ora-ui .hr-pr-post-period-section {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.45rem 0.75rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .hr-pr-post-period-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.55rem;
+    flex: 1 1 18rem;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-period-picker {
+    flex: 1 1 12rem;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-period-aside {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem 0.55rem;
+    flex: 0 1 auto;
+}
+
+body.hr-ora-ui .hr-pr-post-period-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--ora12-text, #161513);
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-pr-post-period-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    background: var(--ora12-stripe, #f7f9fb);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .hr-pr-post-chip-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.65rem;
+    margin-top: 0.35rem;
+    font-size: 0.64rem;
+    line-height: 1.2;
+}
+
+body.hr-ora-ui .hr-pr-post-chip-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+body.hr-ora-ui .hr-pr-post-chip-legend-item::before {
+    content: '';
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 2px;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    background: #fff;
+    flex-shrink: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-chip-legend-item--open::before {
+    border-color: #93c5fd;
+    background: #eff6ff;
+}
+
+body.hr-ora-ui .hr-pr-post-chip-legend-item--calc::before {
+    border-color: #f87171;
+    background: #fef2f2;
+}
+
+body.hr-ora-ui .hr-pr-post-chip-legend-item--posted::before {
+    border-color: #94a3b8;
+    background: #f8fafc;
+}
+
+body.hr-ora-ui .hr-pr-post-chip-legend-item--mixed::before {
+    border-color: #c4b5fd;
+    background: #f5f3ff;
+}
+
+/* ── شريط الفترة والفلتر — لوحة يمين + جدول يسار ── */
+body.hr-ora-ui .hr-pr-post-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-split {
+    display: grid;
+    grid-template-columns: minmax(28rem, 42rem) minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: stretch;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-col {
+    grid-column: 1;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-col {
+    grid-column: 2;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-split:not(:has(.hr-pr-post-posted-col)) {
+    grid-template-columns: 1fr;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel {
+    display: grid;
+    grid-template-columns:
+        minmax(3.5rem, 4.25rem)
+        minmax(0, 1fr)
+        minmax(0, 1fr)
+        minmax(4.25rem, 5.25rem);
+    grid-template-rows: 2rem 1.85rem;
+    gap: 0.35rem;
+    padding: 0.35rem;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+    background: #fff;
+    box-sizing: border-box;
+    align-items: stretch;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel--with-kpi {
+    grid-template-rows: 2rem 1.85rem auto;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-side-label {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: stretch;
+    height: 2rem;
+    max-height: 2rem;
+    min-height: 2rem;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-months-inline {
+    grid-column: 2 / 4;
+    grid-row: 1;
+    align-self: stretch;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-months-meta {
+    grid-column: 4;
+    grid-row: 1;
+    align-self: stretch;
+    height: 2rem;
+    max-height: 2rem;
+    min-height: 2rem;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-dept {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-emp-row {
+    grid-column: 3 / 5;
+    grid-row: 2;
+    display: flex;
+    align-items: stretch;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-emp-row > .hr-pr-post-toolbar-emp {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-emp-row > .hr-pr-post-toolbar-actions {
+    flex: 0 0 minmax(4.75rem, 5.5rem);
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    min-width: 0;
+    align-self: stretch;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-kpi {
+    grid-column: 1 / 5;
+    grid-row: 3;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0.28rem;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel .hr-pr-post-kpi {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 1.85rem;
+    padding: 0.1rem 0.22rem;
+    background: var(--ora12-stripe, #f7f9fb);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.02rem;
+    box-sizing: border-box;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel .hr-pr-post-kpi-label {
+    font-size: 0.56rem;
+    line-height: 1.05;
+    margin-bottom: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel .hr-pr-post-kpi-value {
+    font-size: 0.74rem;
+    line-height: 1.1;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-row {
+    display: contents;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-side-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0.15rem 0.25rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+    text-align: center;
+    line-height: 1.1;
+    background: linear-gradient(180deg, #e5edf5 0%, #d8e4ef 100%);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-posted {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(22, 21, 19, 0.04);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-posted .hr-pr-post-posted-inline-title {
+    padding: 0.28rem 0.5rem;
+    font-size: 0.72rem;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-posted .hr-pr-post-posted-wrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-posted .hr-pr-post-posted-table {
+    font-size: 0.72rem;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-posted .hr-pr-post-posted-table th,
+body.hr-ora-ui .hr-pr-post-toolbar-posted .hr-pr-post-posted-table td {
+    padding: 0.22rem 0.32rem;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-emp-row > .hr-pr-post-toolbar-actions .btn {
+    flex: 1 1 calc(50% - 0.14rem);
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 0.18rem 0.35rem;
+    font-size: 0.74rem;
+    line-height: 1.15;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-emp-row > .hr-pr-post-toolbar-actions .btn:only-child {
+    flex: 1 1 auto;
+    max-height: none;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel .hr-pr-post-filter-actions {
+    flex-wrap: nowrap;
+    align-self: stretch;
+    align-items: stretch;
+    padding-bottom: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-controls-panel .hr-pr-post-filter-actions .btn {
+    min-width: 0;
+    min-height: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-months-inline {
+    display: flex;
+    flex: 1 1 auto;
+    width: 100%;
+    align-items: stretch;
+    gap: 0.35rem;
+    min-width: 0;
+    min-height: 2rem;
+    max-height: 2rem;
+    padding: 0.1rem 0.4rem;
+    background: #fff;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+body.hr-ora-ui .hr-pr-post-months-inline .hr-mchip-period-wrap--compact-inline {
+    flex: 1 1 auto;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    align-items: stretch;
+    gap: 0.28rem;
+}
+
+body.hr-ora-ui .hr-pr-post-months-inline .hr-mchip-period-wrap--compact-inline .hr-mchip-year-input {
+    flex: 0 0 3.1rem;
+    width: 3.1rem;
+    min-width: 3.1rem;
+    height: 100%;
+    min-height: 0;
+    align-self: stretch;
+    padding: 0.08rem 0.2rem;
+    font-size: 0.74rem;
+    line-height: 1.1;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+    box-sizing: border-box;
+}
+
+body.hr-ora-ui .hr-pr-post-months-inline .hr-mchip-strip--compact-inline {
+    flex: 1 1 auto;
+    height: 100%;
+    min-height: 0;
+    align-items: stretch;
+    gap: 0.12rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+body.hr-ora-ui .hr-pr-post-months-inline .hr-mchip-strip--compact-inline::-webkit-scrollbar {
+    display: none;
+}
+
+body.hr-ora-ui .hr-pr-post-months-inline .hr-mchip-chip--compact-inline {
+    flex: 0 0 auto;
+    height: 100%;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    max-width: none;
+    max-height: none;
+    aspect-ratio: 1;
+    margin: 0;
+    padding: 0;
+    border-radius: 3px;
+}
+
+body.hr-ora-ui .hr-pr-post-months-inline .hr-mchip-chip--compact-inline .hr-mchip-chip-num {
+    font-size: 0.62rem;
+    line-height: 1;
+}
+
+body.hr-ora-ui .hr-pr-post-field-inline {
+    display: grid;
+    grid-template-columns: minmax(3rem, 3.6rem) minmax(0, 1fr);
+    align-items: stretch;
+    min-height: 1.85rem;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+    overflow: hidden;
+    background: #fff;
+    box-sizing: border-box;
+}
+
+body.hr-ora-ui .hr-pr-post-field-inline > label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0.2rem 0.3rem;
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+    text-align: center;
+    line-height: 1.15;
+    background: linear-gradient(180deg, #e5edf5 0%, #d8e4ef 100%);
+    border-inline-end: 1px solid var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .hr-pr-post-field-inline .hr-pr-post-filter-control,
+body.hr-ora-ui .hr-pr-post-field-inline .hr-pr-post-filter-control .hr-pr-post-ora-smart-input {
+    min-height: 1.85rem;
+    min-width: 0;
+    width: 100%;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+body.hr-ora-ui .hr-pr-post-field-inline .hr-pr-post-ora-lov {
+    min-width: 0;
+    width: 100%;
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-row--movement {
+    display: block;
+    padding-top: 0.1rem;
+    border-top: 1px solid var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .hr-pr-post-toolbar-row--movement .hr-pr-post-movement-section {
+    padding-top: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-months-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.04rem;
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 0.1rem 0.25rem;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+    background: var(--ora12-stripe, #f7f9fb);
+    line-height: 1.05;
+    white-space: nowrap;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+body.hr-ora-ui .hr-pr-post-months-inline .hr-pr-post-period-title {
+    font-size: 0.58rem;
+    font-weight: 700;
+}
+
+body.hr-ora-ui .hr-pr-post-months-inline .hr-pr-post-period-status {
+    font-size: 0.54rem;
+}
+
+body.hr-ora-ui .hr-pr-post-filter-field {
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-filter-field--dept,
+body.hr-ora-ui .hr-pr-post-filter-field--emp {
+    max-width: none;
+}
+
+body.hr-ora-ui .hr-pr-post-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 0 0 auto;
+    align-self: flex-end;
+    padding-bottom: 0.05rem;
+}
+
+body.hr-ora-ui .hr-pr-post-filter-active-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0 0.1rem;
+    font-size: 0.74rem;
+}
+
+body.hr-ora-ui .hr-pr-post-filter-active-row .hr-pr-post-field-label {
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .hr-pr-post-filter-active-row .hr-pr-post-filter-active {
+    padding: 0.18rem 0.4rem;
+    color: #024d8f;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 3px;
+}
+
+body.hr-ora-ui .hr-pr-post-field-label {
+    display: block;
+    margin-bottom: 0.18rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-pr-post-filter-field--hint .hr-pr-post-filter-active {
+    display: block;
+    min-height: 1.85rem;
+    padding: 0.28rem 0.45rem;
+    font-size: 0.74rem;
+    line-height: 1.25;
+    color: #024d8f;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 3px;
+    box-sizing: border-box;
+}
+
+body.hr-ora-ui .hr-pr-post-filter-actions .btn {
+    min-width: 4.25rem;
+    min-height: 1.85rem;
+}
+
+body.hr-ora-ui .hr-pr-post-header-card .hr-pr-post-filter-control,
+body.hr-ora-ui .hr-pr-post-header-card .hr-pr-post-filter-control .hr-pr-post-ora-smart-input {
+    width: 100%;
+    min-height: 1.85rem;
+    max-height: none;
+    padding: 0.28rem 0.45rem;
+    font-size: 0.76rem;
+    line-height: 1.25;
+    color: var(--ora12-text, #161513);
+    background: #fff !important;
+    border: 1px solid var(--ora12-border, #cbd5e1) !important;
+    border-radius: 3px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+    box-sizing: border-box;
+}
+
+body.hr-ora-ui .hr-pr-post-header-card .hr-pr-post-ora-lov {
+    position: relative;
+    min-height: 1.85rem;
+}
+
+body.hr-ora-ui .hr-pr-post-header-card .hr-pr-post-ora-lov-btn {
+    width: 1.2rem;
+    min-width: 1.2rem;
+    height: 1.2rem;
+}
+
+body.hr-ora-ui .hr-pr-post-movement-section {
+    display: grid;
+    grid-template-columns: minmax(6rem, 0.8fr) minmax(0, 2fr) minmax(7rem, 0.9fr);
+    gap: 0.4rem 0.55rem;
+    align-items: stretch;
+}
+
+body.hr-ora-ui .hr-pr-post-movement-item {
+    min-width: 0;
+    padding: 0.35rem 0.45rem;
+    background: var(--ora12-stripe, #f7f9fb);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 3px;
+}
+
+body.hr-ora-ui .hr-pr-post-movement-label {
+    display: block;
+    margin-bottom: 0.12rem;
+    font-size: 0.64rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-pr-post-movement-value,
+body.hr-ora-ui .hr-pr-post-movement-item .hr-pr-post-doc-code {
+    display: block;
+    font-size: 0.78rem;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+body.hr-ora-ui .hr-pr-post-movement-item--desc .hr-pr-post-movement-value {
+    font-size: 0.76rem;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-card {
+    margin-bottom: 0.45rem;
+    background: var(--ora12-surface, #fff);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+    overflow: hidden;
+}
+
+body.hr-ora-ui .hr-pr-post-posted-card-title {
+    margin: 0;
+    padding: 0.38rem 0.65rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--ora12-text, #161513);
+    background: linear-gradient(180deg, #e5edf5 0%, #d8e4ef 100%);
+    border-bottom: 1px solid var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .hr-pr-post-posted-card .hr-pr-post-posted-wrap {
+    max-height: min(9rem, 22vh);
+    overflow: auto;
+}
+
+body.hr-ora-ui .hr-pr-post-summary-strip {
+    gap: 0.35rem;
+    padding: 0.4rem 0.45rem;
+}
+
+body.hr-ora-ui .hr-pr-post-kpi {
+    flex: 1 1 6.5rem;
+    min-width: 5.5rem;
+    padding: 0.3rem 0.45rem;
+    border-radius: 4px;
+}
+
+body.hr-ora-ui .hr-pr-post-workspace--split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(13rem, 17rem);
+    gap: 0.45rem;
+    align-items: start;
+}
+
+body.hr-ora-ui .hr-pr-post-workspace--split .hr-pr-post-main {
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-aside {
+    min-width: 0;
+}
+
+body.hr-ora-ui .hr-pr-post-aside .hr-pr-post-disburse-panel {
+    margin-bottom: 0;
+    height: 100%;
+}
+
+body.hr-ora-ui .hr-pr-post-disburse-grid--stack {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+}
+
+body.hr-ora-ui .hr-pr-post-disburse-total-row {
+    margin-top: 0.15rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .hr-pr-post-disburse-total-row dt {
+    font-size: 0.74rem;
+}
+
+@media (max-width: 1100px) {
+    body.hr-ora-ui .hr-pr-post-toolbar-split {
+        grid-template-columns: 1fr;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-col,
+    body.hr-ora-ui .hr-pr-post-posted-col {
+        grid-column: 1;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-panel {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: 2rem 2rem 1.85rem;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-panel--with-kpi {
+        grid-template-rows: 2rem 2rem 1.85rem auto;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-side-label {
+        display: none;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-months-inline {
+        grid-column: 1 / 3;
+        grid-row: 1;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-months-meta {
+        grid-column: 1 / 3;
+        grid-row: 2;
+        flex-direction: row;
+        justify-content: center;
+        gap: 0.45rem;
+        height: auto;
+        max-height: none;
+        min-height: 2rem;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-dept {
+        grid-column: 1;
+        grid-row: 3;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-emp-row {
+        grid-column: 2;
+        grid-row: 3;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-kpi {
+        grid-column: 1 / 3;
+        grid-row: 4;
+    }
+
+    body.hr-ora-ui .hr-pr-post-movement-section {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    body.hr-ora-ui .hr-pr-post-movement-item--desc {
+        grid-column: 1 / -1;
+    }
+
+    body.hr-ora-ui .hr-pr-post-workspace--split {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    body.hr-ora-ui .hr-pr-post-controls-panel {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+    }
+
+    body.hr-ora-ui .hr-pr-post-toolbar-actions,
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-side-label,
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-months-inline,
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-months-meta,
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-dept,
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-emp-row,
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-kpi {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    body.hr-ora-ui .hr-pr-post-toolbar-emp-row {
+        flex-direction: column;
+    }
+
+    body.hr-ora-ui .hr-pr-post-toolbar-emp-row > .hr-pr-post-toolbar-actions {
+        flex: 0 0 auto;
+        flex-direction: row;
+    }
+
+    body.hr-ora-ui .hr-pr-post-controls-panel > .hr-pr-post-toolbar-kpi {
+        flex-wrap: wrap;
+    }
+
+    body.hr-ora-ui .hr-pr-post-movement-section {
+        grid-template-columns: 1fr;
+    }
+
+    body.hr-ora-ui .hr-pr-post-movement-item--desc {
+        grid-column: auto;
     }
 }

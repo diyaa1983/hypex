@@ -57,7 +57,6 @@ function hr_payroll_month_report_movement(PDO $pdo, int $payYear, int $payMonth)
 
     $journal = hr_payroll_month_journal_entry($pdo, $payYear, $payMonth);
     if ($journal) {
-        $movementNo = (string) ($journal['entry_no'] ?? $movementNo);
         $movementDate = (string) ($journal['entry_date'] ?? $movementDate);
         if ((string) ($journal['description_ar'] ?? '') !== '') {
             $movementDesc = (string) $journal['description_ar'];
