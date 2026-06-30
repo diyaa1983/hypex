@@ -27,6 +27,26 @@
     return { type: 'amount', value: v };
   }
 
+  /** خصم الفاتورة: رقم صحيح 1–100 بدون % يُفسَّر كنسبة (مثل 10 = 10%)؛ مبلغ بفاصلة (1.000). */
+  function parseHeaderInput(raw) {
+    var s = String(raw == null ? '' : raw).trim();
+    if (!s) return null;
+    var compact = s.replace(/\s+/g, '');
+    if (/[%٪]$/.test(compact)) {
+      return parseDiscountInput(raw);
+    }
+    if (/[.,،]/.test(s)) {
+      return parseDiscountInput(raw);
+    }
+    var p = parseDiscountInput(raw);
+    if (!p || p.type !== 'amount') return p;
+    var v = p.value;
+    if (v >= 1 && v <= 100 && Math.abs(v - Math.round(v)) < 1e-9) {
+      return { type: 'percent', value: Math.min(100, v) };
+    }
+    return p;
+  }
+
   function roundMoney(n, roundFn) {
     if (typeof roundFn === 'function') return roundFn(n);
     return Math.round(n * 100) / 100;
@@ -35,6 +55,16 @@
   function amountForBase(lineBase, rawInput, roundFn) {
     if (!(lineBase > 0)) return 0;
     var p = parseDiscountInput(rawInput);
+    if (!p) return 0;
+    if (p.type === 'percent') {
+      return roundMoney((lineBase * p.value) / 100, roundFn);
+    }
+    return roundMoney(Math.min(p.value, lineBase), roundFn);
+  }
+
+  function amountForHeaderBase(lineBase, rawInput, roundFn) {
+    if (!(lineBase > 0)) return 0;
+    var p = parseHeaderInput(rawInput);
     if (!p) return 0;
     if (p.type === 'percent') {
       return roundMoney((lineBase * p.value) / 100, roundFn);
@@ -74,7 +104,9 @@
 
   global.InvDiscount = {
     parseInput: parseDiscountInput,
+    parseHeaderInput: parseHeaderInput,
     amountForBase: amountForBase,
+    amountForHeaderBase: amountForHeaderBase,
     distribute: distributeProportional,
   };
 })(typeof window !== 'undefined' ? window : this);

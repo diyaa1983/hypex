@@ -262,9 +262,9 @@ $showUnitPriceIncl = true;
             </div>
             <div class="sales-inv-totals">
                 <div class="row sales-inv-totals-disc">
-                    <label for="inv-invoice-discount">خصم الفاتورة <span class="sales-inv-disc-hint">10% أو مبلغ</span></label>
+                    <label for="inv-invoice-discount">خصم الفاتورة <span class="sales-inv-disc-hint">10 أو 10% أو 1.000</span></label>
                     <input type="text" class="input input-compact input-num" name="invoice_discount" id="inv-invoice-discount"
-                           value="" title="يُطبَّق على مجموع الفاتورة قبل الضريبة (بعد خصم البنود إن وُجد) ويُوزَّع تناسبياً" autocomplete="off">
+                           value="" title="رقم 1–100 بدون % = نسبة (مثل 10 = 10%)؛ مبلغ بفاصلة (1.000)؛ أو نسبة مع % (10%)" autocomplete="off">
                 </div>
                 <div class="row"><span>مجموع الخصم</span><span id="sales-inv-sum-disc"><?= esc(format_amount(0)) ?></span></div>
                 <div class="row"><span>المجموع بدون ضريبة</span><span id="sales-inv-sum-sub"><?= esc(format_amount(0)) ?></span></div>

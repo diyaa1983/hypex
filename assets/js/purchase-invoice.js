@@ -999,8 +999,13 @@
 
   function getLineMerchandiseBeforeTax(tr) {
     var q = parseNum(tr.querySelector('.js-qty') ? tr.querySelector('.js-qty').value : 0);
+    if (!(q > 0)) return 0;
     var p = parseNum(tr.querySelector('.js-price') ? tr.querySelector('.js-price').value : 0);
-    return q > 0 ? roundMoney(q * p) : 0;
+    var fromPrice = roundMoney(q * p);
+    var listUp = parseNum(tr.dataset.listUnitPrice);
+    var fromList = listUp > 0 ? roundMoney(q * listUp) : 0;
+    var fromParts = roundMoney(parseNum(tr.dataset.sub) + parseNum(tr.dataset.disc));
+    return Math.max(fromPrice, fromList, fromParts);
   }
 
   function applyHeaderDiscount() {
@@ -1016,6 +1021,10 @@
       syncJson();
       return;
     }
+    headerDiscountMode = false;
+    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
+      delete tr.dataset.headerDiscShare;
+    });
     var bases = [];
     var rows = [];
     tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
@@ -1029,14 +1038,16 @@
     }
     var sumPreTax = 0;
     rows.forEach(function (tr) {
-      sumPreTax += roundMoney(parseNum(tr.dataset.sub) + parseNum(tr.dataset.disc));
+      sumPreTax += roundMoney(parseNum(tr.dataset.sub));
     });
     if (!(sumPreTax > 0)) {
       sumPreTax = bases.reduce(function (a, b) {
         return a + b;
       }, 0);
     }
-    var totalDisc = global.InvDiscount.amountForBase(sumPreTax, raw, roundMoney);
+    var totalDisc = global.InvDiscount.amountForHeaderBase
+      ? InvDiscount.amountForHeaderBase(sumPreTax, raw, roundMoney)
+      : InvDiscount.amountForBase(sumPreTax, raw, roundMoney);
     var parts = global.InvDiscount.distribute(totalDisc, bases, roundMoney);
     headerDiscountMode = true;
     rows.forEach(function (tr, i) {
@@ -1769,6 +1780,11 @@
     qtyEl.value = '';
     var costPrice =
       normalized.default_cost != null ? parseNum(normalized.default_cost) : 0;
+    if (costPrice > 0) {
+      tr.dataset.listUnitPrice = String(costPrice);
+    } else {
+      delete tr.dataset.listUnitPrice;
+    }
     priceEl.value = formatPriceValue(costPrice, costPrice > 0 ? String(costPrice) : '');
     applyDefaultTax(tr);
     recalcRow(tr);

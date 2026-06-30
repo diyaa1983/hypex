@@ -35,6 +35,54 @@ function inv_discount_parse_input(?string $raw): ?array
     return ['type' => 'amount', 'value' => $v];
 }
 
+/**
+ * خصم الفاتورة: رقم صحيح 1–100 بدون % يُفسَّر كنسبة؛ مبلغ بفاصلة عشرية (مثل 1.000).
+ *
+ * @return array{type:'percent'|'amount',value:float}|null
+ */
+function inv_discount_parse_header_input(?string $raw): ?array
+{
+    $s = trim((string) $raw);
+    if ($s === '') {
+        return null;
+    }
+    $compact = preg_replace('/\s+/u', '', $s) ?? $s;
+    if (preg_match('/[%٪]$/u', $compact)) {
+        return inv_discount_parse_input($raw);
+    }
+    if (preg_match('/[.,،]/u', $s)) {
+        return inv_discount_parse_input($raw);
+    }
+    $parsed = inv_discount_parse_input($raw);
+    if ($parsed === null || $parsed['type'] !== 'amount') {
+        return $parsed;
+    }
+    $v = $parsed['value'];
+    if ($v >= 1 && $v <= 100 && abs($v - round($v)) < 0.0001) {
+        return ['type' => 'percent', 'value' => min(100.0, $v)];
+    }
+
+    return $parsed;
+}
+
+/** مبلغ خصم الفاتورة على أساس المجموع قبل الضريبة. */
+function inv_discount_header_amount_for_base(float $lineBase, ?string $input, int $decimals = 2): float
+{
+    if ($lineBase <= 0) {
+        return 0.0;
+    }
+    $dp = invoice_amount_decimals_clamp($decimals);
+    $parsed = inv_discount_parse_header_input($input);
+    if ($parsed === null) {
+        return 0.0;
+    }
+    if ($parsed['type'] === 'percent') {
+        return min($lineBase, round($lineBase * $parsed['value'] / 100, $dp));
+    }
+
+    return min($lineBase, round($parsed['value'], $dp));
+}
+
 /** إجمالي المادة قبل الضريبة (كمية × سعر الوحدة). */
 function inv_invoice_line_merchandise_before_tax(array $ln, int $decimals): float
 {
@@ -155,7 +203,7 @@ function inv_invoice_apply_header_discount(array $lines, ?string $headerInput, i
     if ($sumPreTax <= 0) {
         $sumPreTax = array_sum($bases);
     }
-    $totalDisc = inv_discount_amount_for_base($sumPreTax, $headerInput, 0, 0, $dp);
+    $totalDisc = inv_discount_header_amount_for_base($sumPreTax, $headerInput, $dp);
     $parts = inv_discount_distribute_proportional($totalDisc, $bases, $dp);
     foreach ($lines as $i => &$ln) {
         $ln['line_discount_input'] = '';
