@@ -1,6 +1,8 @@
 (function () {
   'use strict';
 
+  var global = typeof window !== 'undefined' ? window : self;
+
   var form = document.getElementById('sales-ret-form');
   if (!form) return;
 
