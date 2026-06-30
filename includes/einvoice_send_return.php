@@ -315,6 +315,13 @@ function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '')
         return $out;
     }
 
+    require_once app_path('includes/sal_return_post.php');
+    if (!sal_return_is_posted($pdo, $returnId)) {
+        $out['error'] = 'يجب ترحيل المرتجع قبل إرساله للفوترة.';
+
+        return $out;
+    }
+
     // حفظ السبب إن أُرسل من المستخدم.
     $reasonClean = trim($reason);
     if ($reasonClean !== '') {

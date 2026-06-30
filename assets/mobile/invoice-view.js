@@ -417,7 +417,7 @@
     if (cfg.canEdit && canChange) vis.edit = true;
     if (cfg.canDelete && canChange) vis.delete = true;
     if (cfg.canPost && !inv.is_posted) vis.post = true;
-    if (cfg.canSendEinvoice && !inv.einv_sent) vis.einvoice = true;
+    if (cfg.canSendEinvoice && inv.is_posted && !inv.einv_sent) vis.einvoice = true;
     if (TB.show) TB.show(vis);
     if (loadingEl) loadingEl.hidden = true;
     if (rootEl) rootEl.hidden = false;
@@ -627,6 +627,12 @@
   if (btnEinv) {
     btnEinv.addEventListener('click', function () {
       if (!invoiceData || !cfg.einvoiceApi) return;
+      if (!invoiceData.is_posted) {
+        if (window.AppDialog && AppDialog.alert) {
+          AppDialog.alert('يجب ترحيل الفاتورة قبل إرسالها للفوترة.', { type: 'warning' });
+        }
+        return;
+      }
       if (window.AppDialog && AppDialog.confirm) {
         AppDialog.confirm('إرسال الفاتورة للفوترة الإلكترونية؟', { title: 'فوترة' }).then(function (ok) {
           if (!ok) return;

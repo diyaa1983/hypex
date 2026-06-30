@@ -3488,6 +3488,35 @@
     updateInvoiceNoPostedStyle();
     updateEinvoiceBadge();
     updateInvoiceToolbarUnpostButton();
+    updateEinvoiceButtonState();
+  }
+
+  function updateEinvoiceButtonState() {
+    var btn = document.querySelector('#master-toolbar [data-master-action="send_einvoice"]');
+    if (!btn) return;
+    var disable = false;
+    var tooltip = '';
+    if (currentInvoiceId < 1) {
+      disable = true;
+      tooltip = 'احفظ الفاتورة أولاً.';
+    } else if (invoiceEinvQr) {
+      disable = true;
+      tooltip = 'تم إرسال هذه الفاتورة للفوترة مسبقًا.';
+    } else if (!invoiceIsPosted) {
+      disable = true;
+      tooltip = 'يجب ترحيل الفاتورة قبل إرسالها للفوترة.';
+    }
+    if (disable) {
+      btn.disabled = true;
+      btn.setAttribute('title', tooltip);
+      btn.style.opacity = '0.55';
+      btn.style.cursor = 'not-allowed';
+    } else {
+      btn.disabled = false;
+      btn.removeAttribute('title');
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+    }
   }
 
   function updateInvoiceToolbarUnpostButton() {
@@ -3685,6 +3714,10 @@
 
   function performEinvoiceResend() {
     if (!einvoiceSendUrl) return;
+    if (!invoiceIsPosted) {
+      AppDialog.alert('يجب ترحيل الفاتورة قبل إرسالها للفوترة.', { type: 'warning' });
+      return;
+    }
     var csrfInput = form.querySelector('[name="_csrf"]');
     var fd = new FormData();
     fd.append('_csrf', csrfInput ? csrfInput.value : '');
@@ -3797,6 +3830,10 @@
     }
     if (currentInvoiceId < 1) {
       AppDialog.alert('احفظ الفاتورة أولًا.', { type: 'warning' });
+      return;
+    }
+    if (!invoiceIsPosted) {
+      AppDialog.alert('يجب ترحيل الفاتورة قبل إرسالها للفوترة.', { type: 'warning' });
       return;
     }
     if (invoiceEinvQr) {

@@ -709,6 +709,13 @@ function einvoice_ubl_send_sale_invoice(PDO $pdo, int $invoiceId): array
         return $out;
     }
 
+    require_once app_path('includes/sal_invoice_post.php');
+    if (!sal_invoice_is_posted($pdo, $invoiceId)) {
+        $out['error'] = 'يجب ترحيل الفاتورة قبل إرسالها للفوترة.';
+
+        return $out;
+    }
+
     $uuid = trim((string) ($raw['invoice_uuid'] ?? ''));
     if ($uuid === '') {
         $uuid = einvoice_generate_uuid();
