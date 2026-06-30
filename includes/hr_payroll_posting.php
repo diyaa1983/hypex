@@ -351,7 +351,11 @@ function hr_payroll_month_status_info(
 
 function hr_payroll_period_label(int $year, int $month): string
 {
-    return hr_salary_period_label_ar($year, $month);
+    if ($month < 1 || $month > 12) {
+        return (string) $year;
+    }
+
+    return sprintf('%02d %d', $month, $year);
 }
 
 

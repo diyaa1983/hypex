@@ -120,7 +120,7 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
     <?php hr_ora_render_title_bar('قيد الرواتب', 'hr_payroll_posting'); ?>
 
     <?php
-    $payPeriodMonthName = (string) ($monthNames[$payMonth] ?? (string) $payMonth);
+    $payPeriodMonthName = sprintf('%02d', max(1, min(12, $payMonth)));
     $payrollJournalReturnUrl = $listUrl . '&' . hr_payroll_posting_query($payYear, $payMonth, $filterDeptId, $filterEmpId, $showEmployeeList);
     ?>
     <form method="get" action="<?= esc($indexUrl) ?>" id="hr-pr-post-period-form" class="hr-pr-post-doc-form">
@@ -165,7 +165,7 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                                 </div>
                                 <span class="hr-pr-post-months-meta">
                                     <span class="hr-pr-post-period-year" dir="ltr"><?= (int) $payYear ?></span>
-                                    <span class="hr-pr-post-period-month"><?= esc($payPeriodMonthName) ?></span>
+                                    <span class="hr-pr-post-period-month" dir="ltr"><?= esc($payPeriodMonthName) ?></span>
                                     <span class="hr-pr-post-status hr-pr-post-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?> hr-pr-post-period-status">
                                         <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
                                     </span>
