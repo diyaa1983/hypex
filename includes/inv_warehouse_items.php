@@ -192,3 +192,37 @@ function inv_items_search_all_query(PDO $pdo, string $q, bool $listAll): array
 
     return ['sql' => $sql, 'params' => $params];
 }
+
+/**
+ * بحث خفيف لنافذة اختيار المواد — بدون JOIN رصيد المستودع (أسرع بكثير).
+ *
+ * @return array{sql:string, params:array<int|string>}
+ */
+function inv_items_picker_query(PDO $pdo, string $q, bool $listAll): array
+{
+    $hasBarcode = inv_item_has_barcode_column($pdo);
+    $params = [];
+    $where = ['is_active = 1'];
+
+    if ($q !== '') {
+        $like = '%' . $q . '%';
+        if ($hasBarcode) {
+            $where[] = '(name_ar LIKE ? OR sku LIKE ? OR barcode LIKE ?)';
+            $params = [$like, $like, $like];
+        } else {
+            $where[] = '(name_ar LIKE ? OR sku LIKE ?)';
+            $params = [$like, $like];
+        }
+    } elseif (!$listAll) {
+        return ['sql' => '', 'params' => []];
+    }
+
+    $cols = $hasBarcode
+        ? 'id, sku, barcode, name_ar, default_sale'
+        : 'id, sku, name_ar, default_sale';
+
+    $sql = 'SELECT ' . $cols . ' FROM inv_item WHERE ' . implode(' AND ', $where)
+        . ' ORDER BY name_ar ASC LIMIT 80';
+
+    return ['sql' => $sql, 'params' => $params];
+}

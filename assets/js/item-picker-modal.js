@@ -10,6 +10,13 @@
   var warehouseCache = { id: null, list: [], byId: {} };
   var repositionHandler = null;
   var pendingRowClickTimer = null;
+  var prefetchInFlight = null;
+  var searchDebounceTimer = null;
+
+  function appendPickerParam(url) {
+    if (!url) return url;
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'picker=1';
+  }
 
   function escapeHtml(s) {
     var d = document.createElement('p');
@@ -373,7 +380,10 @@
     if (!results || !binding) return;
     activeIndex = -1;
     var needle = norm(q);
-    var matches = binding.list.filter(function (it) {
+    var sourceList = needle && binding.remoteList && binding.remoteNeedle === needle
+      ? binding.remoteList
+      : binding.list;
+    var matches = sourceList.filter(function (it) {
       return itemMatchesNeedle(it, needle);
     });
     var limit = binding.maxResults > 0 ? binding.maxResults : 500;
@@ -407,6 +417,8 @@
       return;
     }
 
+    var frag = document.createDocumentFragment();
+
     matches.slice(0, limit).forEach(function (it) {
       var itemId = String(it.id);
       var row = document.createElement('div');
@@ -430,17 +442,22 @@
       var body = document.createElement('div');
       body.className = 'sales-inv-pick-item-body';
       var code = String(it.barcode || it.sku || '').trim();
-      body.innerHTML =
-        '<span class="sales-inv-pick-item-name">' +
-        escapeHtml(it.name_ar) +
-        '</span>' +
-        (code
-          ? '<span class="sales-inv-pick-item-barcode">' + escapeHtml(code) + '</span>'
-          : '');
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'sales-inv-pick-item-name';
+      nameSpan.textContent = it.name_ar || '';
+      body.appendChild(nameSpan);
+      if (code) {
+        var codeSpan = document.createElement('span');
+        codeSpan.className = 'sales-inv-pick-item-barcode';
+        codeSpan.textContent = code;
+        body.appendChild(codeSpan);
+      }
 
       row.appendChild(body);
-      results.appendChild(row);
+      frag.appendChild(row);
     });
+
+    results.appendChild(frag);
 
     if (matches.length > limit) {
       var more = document.createElement('div');
@@ -513,13 +530,44 @@
     return { list: list, byId: byId };
   }
 
-  function loadItems(binding) {
+  function applyItemsToBinding(binding, packed, cacheKey) {
+    binding.list = packed.list;
+    binding.byId = packed.byId;
+    binding.cacheWarehouseId = cacheKey;
+    warehouseCache.id = cacheKey;
+    warehouseCache.list = packed.list;
+    warehouseCache.byId = packed.byId;
+  }
+
+  function fetchPickerItems(binding, q, listAll) {
+    if (!binding.buildItemsUrl) {
+      return Promise.resolve(null);
+    }
+    var url = appendPickerParam(binding.buildItemsUrl(q || '', !!listAll));
+    return fetch(url, { credentials: 'same-origin' })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          return { ok: false, error: (data && (data.message || data.error)) || 'تعذر تحميل المواد' };
+        }
+        return { ok: true, packed: normalizeItems(data.items || []) };
+      })
+      .catch(function () {
+        return { ok: false, error: 'تعذر الاتصال بالخادم' };
+      });
+  }
+
+  function loadItems(binding, opts) {
+    opts = opts || {};
     var results = getResults();
-    var wh = binding.getWarehouseId ? binding.getWarehouseId() : 0;
-    if (warehouseCache.id === wh && warehouseCache.list.length) {
+    var cacheKey = 0;
+    var initialQ = String(opts.initialSearch || '').trim();
+    if (!initialQ && warehouseCache.id === cacheKey && warehouseCache.list.length) {
       binding.list = warehouseCache.list;
       binding.byId = warehouseCache.byId;
-      binding.cacheWarehouseId = wh;
+      binding.cacheWarehouseId = cacheKey;
       renderResults(binding, getSearch() ? getSearch().value : '');
       return Promise.resolve();
     }
@@ -533,39 +581,32 @@
       }
       return Promise.resolve();
     }
-    return fetch(binding.buildItemsUrl('', true), { credentials: 'same-origin' })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (data) {
-        if (!data || !data.ok) {
-          binding.list = [];
-          binding.byId = {};
-          if (results) {
-            results.innerHTML =
-              '<div class="sales-inv-pick-empty sales-inv-pick-err">' +
-              escapeHtml((data && (data.message || data.error)) || 'تعذر تحميل المواد') +
-              '</div>';
-          }
-          return;
-        }
-        var packed = normalizeItems(data.items || []);
-        binding.list = packed.list;
-        binding.byId = packed.byId;
-        binding.cacheWarehouseId = wh;
-        warehouseCache.id = wh;
-        warehouseCache.list = packed.list;
-        warehouseCache.byId = packed.byId;
-        renderResults(binding, getSearch() ? getSearch().value : '');
-      })
-      .catch(function () {
+    var fetchQ = initialQ;
+    var fetchListAll = !fetchQ;
+    return fetchPickerItems(binding, fetchQ, fetchListAll).then(function (res) {
+      if (!res || !res.ok) {
         binding.list = [];
         binding.byId = {};
         if (results) {
           results.innerHTML =
-            '<div class="sales-inv-pick-empty sales-inv-pick-err">تعذر الاتصال بالخادم</div>';
+            '<div class="sales-inv-pick-empty sales-inv-pick-err">' +
+            escapeHtml((res && res.error) || 'تعذر تحميل المواد') +
+            '</div>';
         }
-      });
+        return;
+      }
+      if (fetchQ) {
+        binding.remoteList = res.packed.list;
+        binding.remoteNeedle = norm(fetchQ);
+        binding.list = warehouseCache.list.length ? warehouseCache.list : res.packed.list;
+        binding.byId = warehouseCache.byId && Object.keys(warehouseCache.byId).length
+          ? Object.assign({}, warehouseCache.byId, res.packed.byId)
+          : res.packed.byId;
+      } else {
+        applyItemsToBinding(binding, res.packed, cacheKey);
+      }
+      renderResults(binding, getSearch() ? getSearch().value : initialQ || '');
+    });
   }
 
   function open(opts) {
@@ -580,6 +621,8 @@
       byId: {},
       selectedIds: {},
       selectedItems: {},
+      remoteList: null,
+      remoteNeedle: '',
       singleSelect: !!opts.singleSelect,
       anchorEl: opts.anchorEl || null,
       screenCenter: !!opts.screenCenter,
@@ -607,17 +650,72 @@
       search.value = initialQ;
     }
     updateAddBtn();
-    loadItems(activeBinding).then(function () {
+    loadItems(activeBinding, { initialSearch: initialQ }).then(function () {
       if (search) {
-        renderResults(activeBinding, search.value);
         scheduleReposition();
         setTimeout(function () {
           search.focus();
           search.select();
           scheduleReposition();
-        }, 50);
+        }, 0);
       }
     });
+  }
+
+  function scheduleRemoteSearch(binding, needle) {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
+    var n = norm(needle);
+    if (!n || n.length < 2) {
+      binding.remoteList = null;
+      binding.remoteNeedle = '';
+      return;
+    }
+    searchDebounceTimer = setTimeout(function () {
+      searchDebounceTimer = null;
+      if (!activeBinding || activeBinding !== binding || !isOpen()) return;
+      var search = getSearch();
+      if (!search || norm(search.value) !== n) return;
+      fetchPickerItems(binding, needle, false).then(function (res) {
+        if (!activeBinding || activeBinding !== binding || !isOpen()) return;
+        if (!search || norm(search.value) !== n) return;
+        if (!res || !res.ok) return;
+        binding.remoteList = res.packed.list;
+        binding.remoteNeedle = n;
+        res.packed.list.forEach(function (it) {
+          binding.byId[String(it.id)] = it;
+        });
+        renderResults(binding, search.value);
+      });
+    }, 280);
+  }
+
+  function prefetch(opts) {
+    if (!opts || typeof opts.buildItemsUrl !== 'function') {
+      return Promise.resolve(false);
+    }
+    if (warehouseCache.id === 0 && warehouseCache.list.length) {
+      return Promise.resolve(true);
+    }
+    if (prefetchInFlight) {
+      return prefetchInFlight;
+    }
+    prefetchInFlight = fetchPickerItems({ buildItemsUrl: opts.buildItemsUrl }, '', true).then(function (res) {
+      prefetchInFlight = null;
+      if (!res || !res.ok) return false;
+      warehouseCache.id = 0;
+      warehouseCache.list = res.packed.list;
+      warehouseCache.byId = res.packed.byId;
+      if (activeBinding) {
+        activeBinding.list = res.packed.list;
+        activeBinding.byId = res.packed.byId;
+        activeBinding.cacheWarehouseId = 0;
+      }
+      return true;
+    });
+    return prefetchInFlight;
   }
 
   function invalidateCache() {
@@ -634,7 +732,8 @@
   function reload() {
     if (!activeBinding || !isOpen()) return;
     warehouseCache.id = null;
-    loadItems(activeBinding);
+    var search = getSearch();
+    loadItems(activeBinding, { initialSearch: search ? search.value : '' });
   }
 
   function install() {
@@ -650,7 +749,10 @@
     var search = getSearch();
     if (search) {
       search.addEventListener('input', function () {
-        if (activeBinding) renderResults(activeBinding, search.value);
+        if (activeBinding) {
+          scheduleRemoteSearch(activeBinding, search.value);
+          renderResults(activeBinding, search.value);
+        }
       });
       search.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
@@ -743,6 +845,7 @@
     isOpen: isOpen,
     invalidateCache: invalidateCache,
     reload: reload,
+    prefetch: prefetch,
     getCachedItem: function (id) {
       var key = String(id);
       if (warehouseCache.byId[key]) return warehouseCache.byId[key];

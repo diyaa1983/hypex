@@ -37,6 +37,7 @@ $q = trim((string) ($_GET['q'] ?? ''));
 $exactCode = trim((string) ($_GET['code'] ?? ''));
 $warehouseId = (int) ($_GET['warehouse_id'] ?? 0);
 $listAll = isset($_GET['list']) && (string) $_GET['list'] === '1';
+$pickerMode = isset($_GET['picker']) && (string) $_GET['picker'] === '1';
 
 $pdo = db();
 
@@ -65,7 +66,11 @@ if ($q === '' && !$listAll) {
     echo json_encode(['ok' => true, 'items' => [], 'warehouse_id' => $warehouseId]);
     exit;
 }
-if ($warehouseId > 0) {
+
+if ($pickerMode) {
+    $built = inv_items_picker_query($pdo, $q, $listAll || $q === '');
+    $built['has_stock'] = false;
+} elseif ($warehouseId > 0) {
     $built = inv_warehouse_items_search_query($pdo, $warehouseId, $q, $listAll || $q === '');
 } else {
     $built = inv_items_search_all_query($pdo, $q, $listAll || $q === '');

@@ -4333,6 +4333,13 @@
     }
     loadCustomersCatalog();
     initCustomerPicker();
+    if (global.ItemPickerModal && typeof ItemPickerModal.prefetch === 'function' && apiUrl) {
+      ItemPickerModal.prefetch({
+        buildItemsUrl: function (q, listAll) {
+          return buildItemsApiUrl(q, listAll);
+        },
+      });
+    }
     var whSelect = document.getElementById('inv_wh');
     if (whSelect && global.ItemPickerModal) {
       whSelect.addEventListener('change', function () {
