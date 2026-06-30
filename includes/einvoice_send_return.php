@@ -163,6 +163,8 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
     $lnSt->execute([$returnId]);
     $lines = [];
     $totalDisc = 0.0;
+    $origInvId = (int) ($ret['invoice_id'] ?? 0);
+    $origLineSeq = einvoice_invoice_line_seq_map($pdo, $origInvId);
     foreach ($lnSt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $qty = (float) $row['qty'];
         $unitPrice = (float) ($row['unit_price'] ?? 0);
@@ -178,7 +180,9 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
         $diff = ($qty * $unitPrice) - $lineSub;
         $itemDiscount = $diff > 0.01 ? round($diff, 3) : 0.0;
         $totalDisc += $itemDiscount;
+        $invoiceLineId = (int) ($row['invoice_line_id'] ?? 0);
         $lines[] = (object) [
+            'orig_line_no' => $origLineSeq[$invoiceLineId] ?? 0,
             'quantity' => $qty,
             'unit_price' => $unitPrice,
             'line_total' => $lineSub,
@@ -214,7 +218,6 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
     //   2) استخراج TaxInclusive من einv_signed_invoice (للفواتير المُرسَلة سابقاً)
     //   3) حساب TaxInclusiveAmount بنفس صيغة XML الحالية من البنود
     //   4) sal_invoice.total كملاذ أخير
-    $origInvId = (int) ($ret['invoice_id'] ?? 0);
     $origTotal = 0.0;
     if (isset($ret['orig_invoice_einv_total']) && (float) $ret['orig_invoice_einv_total'] > 0.0001) {
         $origTotal = (float) $ret['orig_invoice_einv_total'];

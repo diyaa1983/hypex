@@ -23,6 +23,27 @@ function einvoice_generate_uuid(): string
     );
 }
 
+/**
+ * ترتيب بنود الفاتورة الأصلية كما أُرسِلت للفوترة (1، 2، 3… حسب id ASC).
+ *
+ * @return array<int, int> invoice_line_id => seq (1-based)
+ */
+function einvoice_invoice_line_seq_map(PDO $pdo, int $invoiceId): array
+{
+    if ($invoiceId < 1) {
+        return [];
+    }
+    $st = $pdo->prepare('SELECT id FROM sal_invoice_line WHERE invoice_id = ? ORDER BY id ASC');
+    $st->execute([$invoiceId]);
+    $map = [];
+    $seq = 1;
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $lineId) {
+        $map[(int) $lineId] = $seq++;
+    }
+
+    return $map;
+}
+
 /** @return array{biller:object, customer:object, inv:array, lines:list<array>} */
 function einvoice_load_sale_payload(PDO $pdo, int $invoiceId): ?array
 {
@@ -299,8 +320,13 @@ function einvoice_ubl_lines_sales(array $items, int $dp = 3): string
         $taxId = ($lineTax <= 0.0001 || $rate <= 0.0001) ? 'Z' : 'S';
         $ratePercent = $rate > 0 ? $rate : 0.0;
 
+        $lineId = (int) ($line->orig_line_no ?? 0);
+        if ($lineId < 1) {
+            $lineId = $i;
+        }
+
         $xml .= '<cac:InvoiceLine>'
-            . '<cbc:ID>' . $i . '</cbc:ID>'
+            . '<cbc:ID>' . $lineId . '</cbc:ID>'
             . '<cbc:InvoicedQuantity unitCode="PCE">' . einvoice_format_decimal($qty) . '</cbc:InvoicedQuantity>'
             . '<cbc:LineExtensionAmount currencyID="JOD">' . einvoice_format_decimal($lineExt) . '</cbc:LineExtensionAmount>'
             . '<cac:TaxTotal>'
