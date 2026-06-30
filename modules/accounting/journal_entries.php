@@ -32,26 +32,60 @@ function journal_entries_enqueue_oracle_assets(): void
 $listUrl = app_url('index.php?r=journal_entries');
 
 /**
- * رابط العودة من شاشة عرض/تعديل قيد إلى قائمة القيود (مع الحفاظ على التصفية إن وُجدت).
+ * رابط الخروج من شاشة عرض/تعديل قيد — العودة للشاشة السابقة أو قائمة القيود.
+ *
+ * @return array{url: string, hint: string}
  */
-function journal_entries_list_return_url(string $listUrl): string
+function journal_entries_view_exit_info(string $listUrl): array
 {
-    $back = nav_back_link('journal_entries');
-    if ($back === null) {
-        return $listUrl;
-    }
-    $url = trim((string) ($back['url'] ?? ''));
-    if ($url === '' || !nav_is_safe_back_url($url)) {
-        return $listUrl;
-    }
-    if (!preg_match('/[?&]r=journal_entries\b/', $url)) {
-        return $listUrl;
-    }
-    if (preg_match('/[?&]action=(?:view|edit|add)\b/', $url)) {
-        return $listUrl;
+    $fromRequest = trim((string) ($_GET['return'] ?? ''));
+    if ($fromRequest !== '' && nav_is_safe_back_url($fromRequest)) {
+        return [
+            'url' => $fromRequest,
+            'hint' => 'رجوع للشاشة السابقة',
+        ];
     }
 
-    return $url;
+    $back = nav_back_link('journal_entries');
+    if ($back === null) {
+        return [
+            'url' => $listUrl,
+            'hint' => 'العودة لقائمة القيود',
+        ];
+    }
+
+    $url = trim((string) ($back['url'] ?? ''));
+    if ($url === '' || !nav_is_safe_back_url($url)) {
+        return [
+            'url' => $listUrl,
+            'hint' => 'العودة لقائمة القيود',
+        ];
+    }
+
+    if (preg_match('/[?&]r=journal_entries\b/', $url)) {
+        if (preg_match('/[?&]action=(?:view|edit|add)\b/', $url)) {
+            return [
+                'url' => $listUrl,
+                'hint' => 'العودة لقائمة القيود',
+            ];
+        }
+
+        return [
+            'url' => $url,
+            'hint' => 'العودة لقائمة القيود',
+        ];
+    }
+
+    return [
+        'url' => $url,
+        'hint' => 'رجوع للشاشة السابقة',
+    ];
+}
+
+/** @deprecated استخدم journal_entries_view_exit_info */
+function journal_entries_list_return_url(string $listUrl): string
+{
+    return journal_entries_view_exit_info($listUrl)['url'];
 }
 
 /** خروج من قائمة القيود — إلى قائمة الأيقونات وليس إلى شاشة عرض قيد سابقة. */
@@ -196,7 +230,9 @@ if ($action === 'add' || $action === 'edit' || $action === 'view') {
     $cssUrl = app_url('assets/css/journal-entry.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
     $cssInvPath = app_path('assets/css/sales-invoice.css');
     $cssInvUrl = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
-    $childExitUrl = journal_entries_list_return_url($listUrl);
+    $childExit = journal_entries_view_exit_info($listUrl);
+    $childExitUrl = (string) ($childExit['url'] ?? $listUrl);
+    $childExitHint = (string) ($childExit['hint'] ?? 'العودة لقائمة القيود');
     $jvOpenLink = $action === 'view' ? acc_journal_entry_open_link($header) : null;
     $checkUndo = $action === 'view' ? acc_journal_entry_check_undo($header) : null;
     $checkUndoApi = app_url('api/fin_check_action.php');
@@ -218,7 +254,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'view') {
             <?php if ($readOnly): ?>
                 <span class="dashboard-ora-screen-title__meta"><?= esc(acc_journal_status_label((string) $header['status'])) ?></span>
             <?php endif; ?>
-            <?php nav_render_screen_close('journal_entries', $childExitUrl, 'العودة لقائمة القيود'); ?>
+            <?php nav_render_screen_close('journal_entries', $childExitUrl, $childExitHint); ?>
         </header>
 
         <div class="dashboard-ora-workspace">

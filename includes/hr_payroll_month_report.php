@@ -22,6 +22,7 @@ function hr_payroll_month_report_filter_rows(array $allRows): array
         'month_allow' => 0.0,
         'deductions' => 0.0,
         'ss' => 0.0,
+        'ss_er' => 0.0,
         'tax' => 0.0,
         'net' => 0.0,
     ];
@@ -36,6 +37,7 @@ function hr_payroll_month_report_filter_rows(array $allRows): array
         $totals['month_allow'] += (float) ($r['monthly_allow_total'] ?? 0);
         $totals['deductions'] += (float) ($r['deductions'] ?? 0);
         $totals['ss'] += (float) ($r['social_security_emp'] ?? 0);
+        $totals['ss_er'] += (float) ($r['social_security_er'] ?? 0);
         $totals['tax'] += (float) ($r['income_tax'] ?? 0);
         $totals['net'] += (float) ($r['net_salary'] ?? 0);
     }
@@ -135,6 +137,7 @@ function hr_payroll_month_report_render_doc(
                 <th>العلاوات الشهرية</th>
                 <th>الاقتطاعات</th>
                 <th>ضمان الموظف</th>
+                <th>ضمان الشركة</th>
                 <th>ضريبة الدخل</th>
                 <th>صافي الراتب</th>
                 <th>الحالة</th>
@@ -155,6 +158,7 @@ function hr_payroll_month_report_render_doc(
                     <td dir="ltr" class="num"><?= esc(number_format((float) ($r['monthly_allow_total'] ?? 0), 3)) ?></td>
                     <td dir="ltr" class="num"><?= esc(number_format((float) ($r['deductions'] ?? 0), 3)) ?></td>
                     <td dir="ltr" class="num"><?= esc(number_format((float) ($r['social_security_emp'] ?? 0), 3)) ?></td>
+                    <td dir="ltr" class="num"><?= esc(number_format((float) ($r['social_security_er'] ?? 0), 3)) ?></td>
                     <td dir="ltr" class="num"><?= esc(number_format((float) ($r['income_tax'] ?? 0), 3)) ?></td>
                     <td dir="ltr" class="num"><?= esc(number_format((float) ($r['net_salary'] ?? 0), 3)) ?></td>
                     <td><?= esc($statusLabel) ?></td>
@@ -169,6 +173,7 @@ function hr_payroll_month_report_render_doc(
                 <td dir="ltr" class="num"><?= esc(number_format($totals['month_allow'], 3)) ?></td>
                 <td dir="ltr" class="num"><?= esc(number_format($totals['deductions'], 3)) ?></td>
                 <td dir="ltr" class="num"><?= esc(number_format($totals['ss'], 3)) ?></td>
+                <td dir="ltr" class="num"><?= esc(number_format($totals['ss_er'], 3)) ?></td>
                 <td dir="ltr" class="num"><?= esc(number_format($totals['tax'], 3)) ?></td>
                 <td dir="ltr" class="num"><?= esc(number_format($totals['net'], 3)) ?></td>
                 <td></td>

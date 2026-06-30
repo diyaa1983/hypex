@@ -24,6 +24,9 @@
     var smartLovApis = {};
     var suppressAutoSubmit = true;
     var autoSubmitInProgress = false;
+    var busyEl = qs('#hr-pr-post-busy');
+    var busyMsgEl = qs('#hr-pr-post-busy-msg');
+    var payrollBusyActive = false;
 
     try {
         filterEmployees = JSON.parse(page.getAttribute('data-filter-employees') || '[]');
@@ -77,10 +80,14 @@
         return items;
     }
 
-    function setupSmartLovSelect(selectEl) {
+    function setupSmartLovSelect(selectEl, lovOptions) {
         if (!selectEl) return null;
         var wrap = selectEl.closest('.hr-pr-post-ora-lov');
         if (!wrap) return null;
+
+        lovOptions = lovOptions || {};
+        var emptyValues = lovOptions.emptyValues || ['0', ''];
+        var placeholder = lovOptions.placeholder || 'ابحث أو اختر من القائمة';
 
         var closeTimer = null;
         var isOpen = false;
@@ -95,9 +102,18 @@
         var inputEl = document.createElement('input');
         inputEl.type = 'text';
         inputEl.className = 'input hr-pr-post-inline-input hr-pr-post-ora-smart-input';
+        inputEl.id = (selectEl.id || 'hr-pr-post-lov') + '-smart';
         inputEl.autocomplete = 'off';
+        inputEl.placeholder = placeholder;
         inputEl.setAttribute('aria-label', selectEl.getAttribute('aria-label') || 'اختيار');
         wrap.insertBefore(inputEl, wrap.firstChild);
+
+        if (selectEl.id) {
+            var linkedLabel = document.querySelector('label[for="' + selectEl.id + '"]');
+            if (linkedLabel) {
+                linkedLabel.setAttribute('for', inputEl.id);
+            }
+        }
 
         var listEl = document.createElement('div');
         listEl.className = 'hr-pr-post-ora-smart-list';
@@ -108,9 +124,21 @@
             items = buildSmartLovItems(selectEl);
         }
 
-        function syncInputFromSelect() {
+        function displayValueForSelect() {
+            if (selectEl.disabled) {
+                return '';
+            }
             var op = selectEl.options[selectEl.selectedIndex];
-            inputEl.value = op ? String(op.textContent || '').trim() : '';
+            if (!op) return '';
+            var val = String(op.value || '').trim();
+            if (emptyValues.indexOf(val) >= 0) {
+                return '';
+            }
+            return String(op.textContent || '').trim();
+        }
+
+        function syncInputFromSelect() {
+            inputEl.value = displayValueForSelect();
         }
 
         function closeList() {
@@ -215,6 +243,7 @@
         });
         inputEl.addEventListener('blur', function () {
             scheduleClose();
+            syncInputFromSelect();
         });
         inputEl.addEventListener('keydown', function (e) {
             if (!isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -311,7 +340,7 @@
         filterEmp.innerHTML = '';
         var allOpt = document.createElement('option');
         allOpt.value = '0';
-        allOpt.textContent = '— جميع الموظفين —';
+        allOpt.textContent = 'جميع الموظفين';
         filterEmp.appendChild(allOpt);
 
         list.forEach(function (emp) {
@@ -362,8 +391,14 @@
                 btn.disabled = !!sel.disabled;
             }
         });
-        if (smartLovApis.dept) smartLovApis.dept.syncDisabled();
-        if (smartLovApis.emp) smartLovApis.emp.syncDisabled();
+        if (smartLovApis.dept) {
+            smartLovApis.dept.syncDisabled();
+            smartLovApis.dept.sync();
+        }
+        if (smartLovApis.emp) {
+            smartLovApis.emp.syncDisabled();
+            smartLovApis.emp.sync();
+        }
     }
 
     function submitFiltersAuto() {
@@ -377,8 +412,14 @@
         }
     }
 
-    smartLovApis.dept = setupSmartLovSelect(filterDept);
-    smartLovApis.emp = setupSmartLovSelect(filterEmp);
+    smartLovApis.dept = setupSmartLovSelect(filterDept, {
+        placeholder: 'جميع الأقسام — ابحث أو اختر',
+        emptyValues: ['0', ''],
+    });
+    smartLovApis.emp = setupSmartLovSelect(filterEmp, {
+        placeholder: 'جميع الموظفين — ابحث أو اختر',
+        emptyValues: ['0', ''],
+    });
 
     if (periodForm && window.HrMonthChipStrip) {
         HrMonthChipStrip.bind(periodForm, {
@@ -420,7 +461,12 @@
     syncOraLovButtons();
     suppressAutoSubmit = false;
     if (periodForm) {
-        periodForm.addEventListener('submit', syncPayrollFilters);
+        periodForm.addEventListener('submit', function () {
+            syncPayrollFilters();
+            if (!payrollBusyActive) {
+                showPayrollLoadBusy();
+            }
+        });
     }
 
     function openOraLovSelect(btn) {
@@ -428,9 +474,13 @@
         if (!wrap) return;
         var sel = wrap.querySelector('select');
         if (!sel || sel.disabled) return;
+        var input = wrap.querySelector('.hr-pr-post-ora-smart-input');
         var key = sel === filterDept ? 'dept' : (sel === filterEmp ? 'emp' : '');
         var api = key !== '' ? smartLovApis[key] : null;
         if (api && typeof api.open === 'function') {
+            if (input) {
+                input.focus();
+            }
             api.open(true);
             return;
         }
@@ -438,6 +488,9 @@
     }
 
     qsa('.hr-pr-post-ora-lov-btn', page).forEach(function (btn) {
+        btn.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+        });
         btn.addEventListener('click', function (e) {
             e.preventDefault();
             openOraLovSelect(btn);
@@ -700,6 +753,7 @@
             month: 0,
             deductions: 0,
             ss: 0,
+            ssEr: 0,
             tax: 0,
             net: 0,
         };
@@ -709,7 +763,7 @@
             if (cells[0]) {
                 cells[0].textContent = String(idx + 1);
             }
-            if (cells.length < 10) {
+            if (cells.length < 11) {
                 return;
             }
             totals.base += parsePrintAmount(cells[3].textContent);
@@ -717,19 +771,21 @@
             totals.month += parsePrintAmount(cells[5].textContent);
             totals.deductions += parsePrintAmount(cells[6].textContent);
             totals.ss += parsePrintAmount(cells[7].textContent);
-            totals.tax += parsePrintAmount(cells[8].textContent);
-            totals.net += parsePrintAmount(cells[9].textContent);
+            totals.ssEr += parsePrintAmount(cells[8].textContent);
+            totals.tax += parsePrintAmount(cells[9].textContent);
+            totals.net += parsePrintAmount(cells[10].textContent);
         });
 
         var footCells = tfootEl.querySelectorAll('td');
-        if (footCells.length >= 10) {
+        if (footCells.length >= 11) {
             footCells[3].textContent = formatPrintAmount(totals.base);
             footCells[4].textContent = formatPrintAmount(totals.perm);
             footCells[5].textContent = formatPrintAmount(totals.month);
             footCells[6].textContent = formatPrintAmount(totals.deductions);
             footCells[7].textContent = formatPrintAmount(totals.ss);
-            footCells[8].textContent = formatPrintAmount(totals.tax);
-            footCells[9].textContent = formatPrintAmount(totals.net);
+            footCells[8].textContent = formatPrintAmount(totals.ssEr);
+            footCells[9].textContent = formatPrintAmount(totals.tax);
+            footCells[10].textContent = formatPrintAmount(totals.net);
         }
 
         return true;
@@ -1024,6 +1080,36 @@
         });
     }
 
+    function payrollBusyMessage(action) {
+        var messages = {
+            load: 'جاري تحميل بيانات الشهر...',
+            calculate: 'جاري احتساب الرواتب...',
+            cancel_calculate: 'جاري إلغاء الاحتساب...',
+            post: 'جاري ترحيل الرواتب...',
+            unpost: 'جاري فك الترحيل...',
+        };
+        return messages[action] || 'جاري التنفيذ...';
+    }
+
+    function showPayrollBusy(action) {
+        if (payrollBusyActive) {
+            return;
+        }
+        payrollBusyActive = true;
+        if (busyMsgEl) {
+            busyMsgEl.textContent = payrollBusyMessage(action);
+        }
+        if (busyEl) {
+            busyEl.hidden = false;
+            busyEl.removeAttribute('hidden');
+        }
+        document.body.classList.add('hr-pr-post-is-busy');
+    }
+
+    function showPayrollLoadBusy() {
+        showPayrollBusy('load');
+    }
+
     function submitAction(action, confirmMsg) {
         var form = qs('#hr-pr-post-action-form');
         var act = qs('#hr-pr-post-action');
@@ -1063,6 +1149,7 @@
 
         var go = function () {
             act.value = action;
+            showPayrollBusy(action);
             form.submit();
         };
 

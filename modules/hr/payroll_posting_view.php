@@ -63,7 +63,7 @@ function hr_pr_post_render_drill_cell(float $amount, array $lines, string $drill
     echo '>' . esc(number_format($amount, 3)) . '</td>';
 }
 
-$empTableColCount = $showIncomeTaxCol ? 11 : 10;
+$empTableColCount = $showIncomeTaxCol ? 12 : 11;
 $mchipCssUrl = hr_month_chip_strip_css_url();
 $mchipJsPath = app_path('assets/js/hr-month-chip-strip.js');
 $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
@@ -120,7 +120,8 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
     <?php hr_ora_render_title_bar('قيد الرواتب', 'hr_payroll_posting'); ?>
 
     <?php
-    $payPeriodLabel = hr_payroll_period_label($payYear, $payMonth);
+    $payPeriodMonthName = (string) ($monthNames[$payMonth] ?? (string) $payMonth);
+    $payrollJournalReturnUrl = $listUrl . '&' . hr_payroll_posting_query($payYear, $payMonth, $filterDeptId, $filterEmpId, $showEmployeeList);
     ?>
     <form method="get" action="<?= esc($indexUrl) ?>" id="hr-pr-post-period-form" class="hr-pr-post-doc-form">
         <input type="hidden" name="r" value="hr_payroll_posting">
@@ -128,34 +129,54 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
 
         <section class="hr-pr-post-header-card no-print" aria-label="الفترة والفلتر">
             <div class="hr-pr-post-toolbar">
+                <div class="hr-pr-post-toolbar-row hr-pr-post-toolbar-row--movement">
+                    <div class="hr-pr-post-movement-section">
+                        <div class="hr-pr-post-movement-item">
+                            <span class="hr-pr-post-movement-label">رقم الحركة</span>
+                            <code class="hr-pr-post-doc-code" dir="ltr"><?= esc($movementNo) ?></code>
+                        </div>
+                        <div class="hr-pr-post-movement-item hr-pr-post-movement-item--desc">
+                            <span class="hr-pr-post-movement-label">وصف الحركة</span>
+                            <span class="hr-pr-post-movement-value"><?= esc($movementDesc) ?></span>
+                        </div>
+                        <div class="hr-pr-post-movement-item">
+                            <span class="hr-pr-post-movement-label">تاريخ الحركة</span>
+                            <span class="hr-pr-post-movement-value" dir="ltr"><?= esc(format_date_dmY($movementDate)) ?></span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="hr-pr-post-toolbar-split">
                     <div class="hr-pr-post-controls-col">
                         <div class="hr-pr-post-controls-panel<?= $showEmployeeList ? ' hr-pr-post-controls-panel--with-kpi' : '' ?>">
                             <span class="hr-pr-post-toolbar-side-label" id="hr-pr-post-period-label">الشهر / السنة</span>
-                            <div class="hr-pr-post-months-inline" aria-labelledby="hr-pr-post-period-label">
-                                <?php hr_render_month_chip_strip($monthPickerOptions, [
-                                    'year' => $payYear,
-                                    'selected_month' => $payMonth,
-                                    'year_input_id' => 'hr-pr-post-filter-year',
-                                    'year_input_name' => 'year',
-                                    'month_input_id' => 'hr-pr-post-filter-month',
-                                    'month_input_name' => 'month',
-                                    'compact' => true,
-                                    'compact_layout' => 'inline',
-                                ]); ?>
-                            </div>
-                            <span class="hr-pr-post-months-meta">
-                                <span class="hr-pr-post-period-title" dir="ltr"><?= esc($payPeriodLabel) ?></span>
-                                <span class="hr-pr-post-status hr-pr-post-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?> hr-pr-post-period-status">
-                                    <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
+                            <div class="hr-pr-post-months-row">
+                                <div class="hr-pr-post-months-inline" aria-labelledby="hr-pr-post-period-label">
+                                    <?php hr_render_month_chip_strip($monthPickerOptions, [
+                                        'year' => $payYear,
+                                        'selected_month' => $payMonth,
+                                        'year_input_id' => 'hr-pr-post-filter-year',
+                                        'year_input_name' => 'year',
+                                        'month_input_id' => 'hr-pr-post-filter-month',
+                                        'month_input_name' => 'month',
+                                        'compact' => true,
+                                        'compact_layout' => 'inline',
+                                    ]); ?>
+                                </div>
+                                <span class="hr-pr-post-months-meta">
+                                    <span class="hr-pr-post-period-year" dir="ltr"><?= (int) $payYear ?></span>
+                                    <span class="hr-pr-post-period-month"><?= esc($payPeriodMonthName) ?></span>
+                                    <span class="hr-pr-post-status hr-pr-post-status--<?= esc((string) ($monthStatus['code'] ?? 'open')) ?> hr-pr-post-period-status">
+                                        <?= esc((string) ($monthStatus['label'] ?? 'مفتوح')) ?>
+                                    </span>
                                 </span>
-                            </span>
+                            </div>
                             <div class="hr-pr-post-field-inline hr-pr-post-toolbar-dept">
                                 <label for="hr-pr-post-filter-dept">القسم</label>
                                 <div class="hr-pr-post-ora-lov hr-pr-post-filter-control">
                                     <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="dept_id" id="hr-pr-post-filter-dept"
                                             <?= $filterEmpId > 0 ? 'disabled' : '' ?>>
-                                        <option value="0" <?= $filterDeptId === 0 ? 'selected' : '' ?>>— جميع الأقسام —</option>
+                                        <option value="0" <?= $filterDeptId === 0 ? 'selected' : '' ?>>جميع الأقسام</option>
                                         <?php foreach ($departments as $d): ?>
                                             <option value="<?= (int) $d['id'] ?>"
                                                     data-dept-name="<?= esc((string) $d['name_ar']) ?>"
@@ -172,7 +193,7 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                                     <label for="hr-pr-post-filter-emp">الموظف</label>
                                     <div class="hr-pr-post-ora-lov hr-pr-post-filter-control">
                                         <select class="input hr-pr-post-inline-input hr-pr-post-ora-lov-field" name="employee_id" id="hr-pr-post-filter-emp">
-                                            <option value="0" <?= $filterEmpId === 0 ? 'selected' : '' ?>>— جميع الموظفين —</option>
+                                            <option value="0" <?= $filterEmpId === 0 ? 'selected' : '' ?>>جميع الموظفين</option>
                                             <?php foreach ($filterEmployees as $fe):
                                                 $fid = (int) ($fe['id'] ?? 0);
                                                 $fname = (string) ($fe['name_ar'] ?? '');
@@ -187,9 +208,6 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                                 </div>
                                 <div class="hr-pr-post-filter-actions hr-pr-post-toolbar-actions">
                                     <button type="submit" class="btn btn-primary btn-sm">عرض</button>
-                                    <?php if ($hasPrintReport): ?>
-                                        <button type="button" class="btn btn-secondary btn-sm" data-side-action="print">طباعة</button>
-                                    <?php endif; ?>
                                 </div>
                             </div>
                             <?php if ($showEmployeeList): ?>
@@ -244,7 +262,7 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                                         $monthUrl = $listUrl . '&' . hr_payroll_posting_query($payYear, $m, $filterDeptId, $filterEmpId, true);
                                         $jid = (int) ($pmRow['journal_id'] ?? 0);
                                         $entryNo = (string) ($pmRow['entry_no'] ?? '');
-                                        $journalUrl = $jid > 0 ? acc_report_journal_voucher_url($jid, $entryNo) : '';
+                                        $journalUrl = $jid > 0 ? acc_report_journal_voucher_url($jid, $entryNo, $payrollJournalReturnUrl) : '';
                                         $rowClass = 'hr-pr-post-posted-row';
                                         if (!empty($pmRow['is_current'])) {
                                             $rowClass .= ' hr-pr-post-posted-row--current';
@@ -294,23 +312,6 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                     </div>
                     <?php endif; ?>
                 </div>
-
-                <div class="hr-pr-post-toolbar-row hr-pr-post-toolbar-row--movement">
-                    <div class="hr-pr-post-movement-section">
-                        <div class="hr-pr-post-movement-item">
-                            <span class="hr-pr-post-movement-label">رقم الحركة</span>
-                            <code class="hr-pr-post-doc-code" dir="ltr"><?= esc($movementNo) ?></code>
-                        </div>
-                        <div class="hr-pr-post-movement-item hr-pr-post-movement-item--desc">
-                            <span class="hr-pr-post-movement-label">وصف الحركة</span>
-                            <span class="hr-pr-post-movement-value"><?= esc($movementDesc) ?></span>
-                        </div>
-                        <div class="hr-pr-post-movement-item">
-                            <span class="hr-pr-post-movement-label">تاريخ الحركة</span>
-                            <span class="hr-pr-post-movement-value" dir="ltr"><?= esc(format_date_dmY($movementDate)) ?></span>
-                        </div>
-                    </div>
-                </div>
             </div>
             <?php if ($filterDeptId > 0 || $filterEmpId > 0): ?>
             <div class="hr-pr-post-filter-active-row">
@@ -335,7 +336,7 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
     <?php endif; ?>
 
     <?php if ($showEmployeeList): ?>
-    <div class="hr-pr-post-workspace<?= !empty($disburse['has_rows']) ? ' hr-pr-post-workspace--split' : '' ?>">
+    <div class="hr-pr-post-workspace">
         <div class="hr-pr-post-main">
             <div class="hr-pr-post-panel hr-pr-post-emp-panel">
                 <h2 class="hr-pr-post-panel-title">جدول الموظفين</h2>
@@ -373,6 +374,7 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                             <th>العلاوات الشهرية</th>
                             <th>الاقتطاعات</th>
                             <th>ضمان الموظف</th>
+                            <th>ضمان الشركة</th>
                             <?php if ($showIncomeTaxCol): ?>
                             <th>ضريبة الدخل</th>
                             <?php endif; ?>
@@ -464,6 +466,8 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                                 ); ?>
                                 <td dir="ltr" class="num"><?= $hasAmounts && (float) ($r['social_security_emp'] ?? 0) > 0
                                     ? esc(number_format((float) $r['social_security_emp'], 3)) : '—' ?></td>
+                                <td dir="ltr" class="num"><?= $hasAmounts && (float) ($r['social_security_er'] ?? 0) > 0
+                                    ? esc(number_format((float) $r['social_security_er'], 3)) : '—' ?></td>
                                 <?php if ($showIncomeTaxCol): ?>
                                 <td dir="ltr" class="num"><?= $hasAmounts && (float) ($r['income_tax'] ?? 0) > 0
                                     ? esc(number_format((float) $r['income_tax'], 3)) : '—' ?></td>
@@ -491,6 +495,7 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                             <td dir="ltr" class="num"><strong><?= esc(number_format($gridTotals['month_allow'], 3)) ?></strong></td>
                             <td dir="ltr" class="num"><strong><?= esc(number_format($gridTotals['deductions'], 3)) ?></strong></td>
                             <td dir="ltr" class="num"><strong><?= esc(number_format($gridTotals['ss'], 3)) ?></strong></td>
+                            <td dir="ltr" class="num"><strong><?= esc(number_format($gridTotals['ss_er'], 3)) ?></strong></td>
                             <?php if ($showIncomeTaxCol): ?>
                             <td dir="ltr" class="num"><strong><?= esc(number_format($gridTotals['tax'], 3)) ?></strong></td>
                             <?php endif; ?>
@@ -513,41 +518,37 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                     — صافي: <strong dir="ltr"><?= esc(number_format($gridTotals['net'], 3)) ?></strong>
                 </span>
             </div>
+
+            <?php if (!empty($disburse['has_rows'])): ?>
+            <div class="hr-pr-post-disburse-strip no-print" aria-label="ملخص الصرف النقدي">
+                <div class="hr-pr-post-disburse-strip-title">ملخص الصرف النقدي</div>
+                <dl class="hr-pr-post-disburse-grid hr-pr-post-disburse-grid--inline">
+                    <div>
+                        <dt>إجمالي رواتب الموظفين</dt>
+                        <dd dir="ltr"><?= esc(number_format((float) $disburse['gross'], 3)) ?></dd>
+                    </div>
+                    <div>
+                        <dt>حصة الموظفين — مُقتطعة من الراتب</dt>
+                        <dd dir="ltr"><?= esc(number_format((float) $disburse['employee_ss'], 3)) ?></dd>
+                    </div>
+                    <div>
+                        <dt>رواتب مستحقة — صافي للموظفين</dt>
+                        <dd class="hr-pr-post-disburse-highlight" dir="ltr"><?= esc(number_format((float) $disburse['fund_salaries'], 3)) ?></dd>
+                    </div>
+                    <div>
+                        <dt>أمانات ضمان اجتماعي (موظف + شركة)</dt>
+                        <dd class="hr-pr-post-disburse-highlight" dir="ltr"><?= esc(number_format((float) $disburse['ss_payable_total'], 3)) ?></dd>
+                    </div>
+                    <div class="hr-pr-post-disburse-total-row">
+                        <dt>إجمالي نقدي للصرف</dt>
+                        <dd class="hr-pr-post-disburse-total" dir="ltr"><?= esc(number_format((float) $disburse['fund_total'], 3)) ?></dd>
+                    </div>
+                </dl>
+            </div>
+            <?php endif; ?>
                 </div>
             </div>
         </div>
-
-        <?php if (!empty($disburse['has_rows'])): ?>
-        <aside class="hr-pr-post-aside no-print">
-            <div class="hr-pr-post-panel hr-pr-post-disburse-panel">
-                <h2 class="hr-pr-post-panel-title">ملخص الصرف النقدي</h2>
-                <div class="hr-pr-post-panel-body hr-pr-post-disburse">
-                    <dl class="hr-pr-post-disburse-grid hr-pr-post-disburse-grid--stack">
-                        <div>
-                            <dt>إجمالي رواتب الموظفين</dt>
-                            <dd dir="ltr"><?= esc(number_format((float) $disburse['gross'], 3)) ?></dd>
-                        </div>
-                        <div>
-                            <dt>حصة الموظفين — مُقتطعة من الراتب</dt>
-                            <dd dir="ltr"><?= esc(number_format((float) $disburse['employee_ss'], 3)) ?></dd>
-                        </div>
-                        <div>
-                            <dt>رواتب مستحقة — صافي للموظفين</dt>
-                            <dd class="hr-pr-post-disburse-highlight" dir="ltr"><?= esc(number_format((float) $disburse['fund_salaries'], 3)) ?></dd>
-                        </div>
-                        <div>
-                            <dt>أمانات ضمان اجتماعي (موظف + شركة)</dt>
-                            <dd class="hr-pr-post-disburse-highlight" dir="ltr"><?= esc(number_format((float) $disburse['ss_payable_total'], 3)) ?></dd>
-                        </div>
-                        <div class="hr-pr-post-disburse-total-row">
-                            <dt>إجمالي نقدي للصرف</dt>
-                            <dd class="hr-pr-post-disburse-total" dir="ltr"><?= esc(number_format((float) $disburse['fund_total'], 3)) ?></dd>
-                        </div>
-                    </dl>
-                </div>
-            </div>
-        </aside>
-        <?php endif; ?>
     </div>
 
     <?php else: ?>
@@ -595,6 +596,14 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
                 <p class="hr-pr-post-detail-empty muted" id="hr-pr-post-detail-empty" hidden>لا توجد بنود.</p>
             </div>
         </div>
+    </div>
+</div>
+
+<div id="hr-pr-post-busy" class="hr-pr-post-busy no-print" hidden aria-live="polite" aria-busy="true">
+    <div class="hr-pr-post-busy-panel" role="status">
+        <div class="hr-pr-post-busy-spinner" aria-hidden="true"></div>
+        <p class="hr-pr-post-busy-msg" id="hr-pr-post-busy-msg">جاري التنفيذ...</p>
+        <p class="hr-pr-post-busy-hint">يرجى الانتظار — لا تغلق المتصفح حتى انتهاء العملية</p>
     </div>
 </div>
 

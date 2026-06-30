@@ -138,13 +138,23 @@ function acc_journal_entry_check_undo(array $header): ?array
     return null;
 }
 
-function acc_report_journal_voucher_url(int $journalId, string $entryNo = ''): string
+function acc_report_journal_voucher_url(int $journalId, string $entryNo = '', string $returnUrl = ''): string
 {
     if (str_starts_with(strtoupper($entryNo), 'SQ-')) {
-        return app_url('index.php?r=journal_voucher&id=' . $journalId);
+        $url = app_url('index.php?r=journal_voucher&id=' . $journalId);
+    } else {
+        $url = app_url('index.php?r=journal_entries&action=view&id=' . $journalId);
     }
 
-    return app_url('index.php?r=journal_entries&action=view&id=' . $journalId);
+    $returnUrl = trim($returnUrl);
+    if ($returnUrl !== '') {
+        require_once app_path('includes/nav_helpers.php');
+        if (nav_is_safe_back_url($returnUrl)) {
+            $url .= '&return=' . rawurlencode($returnUrl);
+        }
+    }
+
+    return $url;
 }
 
 function acc_report_account_statement_url(int $accountId, string $dateFrom, string $dateTo): string

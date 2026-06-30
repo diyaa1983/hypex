@@ -23,8 +23,6 @@ require_once app_path('includes/acc_gl.php');
 
 const HR_PAYROLL_GL_REF_TYPE = 'hr_payroll_month';
 
-
-
 /** @return array{year:int, month:int}|null */
 
 function hr_payroll_max_posted_period(PDO $pdo): ?array
@@ -1010,13 +1008,29 @@ function hr_payroll_month_status_rows(
         // ignored
     }
 
+    $ssErMap = [];
+    try {
+        $stSs = $pdo->prepare(
+            'SELECT employee_id, employer_share FROM hr_social_security WHERE pay_year = ? AND pay_month = ?'
+        );
+        $stSs->execute([$year, $month]);
+        foreach ($stSs->fetchAll(PDO::FETCH_ASSOC) ?: [] as $ssRow) {
+            $ssErMap[(int) ($ssRow['employee_id'] ?? 0)] = (float) ($ssRow['employer_share'] ?? 0);
+        }
+    } catch (Throwable $e) {
+        // ignored
+    }
+
     $out = [];
 
     foreach ($emps as $e) {
         $eid = (int) ($e['id'] ?? 0);
         $base = (float) ($e['base_salary'] ?? 0);
-        $lines = hr_employee_salary_allowance_lines_only(hr_employee_salary_lines_load($pdo, $eid));
-        $hasSetup = $base > 0 || $lines !== [];
+        $hasSetup = $base > 0.0005;
+        if (!$hasSetup) {
+            $lines = hr_employee_salary_allowance_lines_only(hr_employee_salary_lines_load($pdo, $eid));
+            $hasSetup = $lines !== [];
+        }
         $sal = $salaryMap[$eid] ?? null;
         $status = 'none';
         if ($sal) {
@@ -1024,7 +1038,21 @@ function hr_payroll_month_status_rows(
         }
 
         $salaryId = $sal ? (int) ($sal['id'] ?? 0) : 0;
-        $breakdown = hr_payroll_employee_row_breakdown($pdo, $eid, $year, $month, $base, $salaryId);
+        if ($sal !== null || $hasSetup) {
+            $breakdown = hr_payroll_employee_row_breakdown($pdo, $eid, $year, $month, $base, $salaryId);
+        } else {
+            $breakdown = [
+                'base_salary' => $base,
+                'permanent_allow_total' => 0.0,
+                'monthly_allow_total' => 0.0,
+                'monthly_allow_core' => 0.0,
+                'overtime_total' => 0.0,
+                'permanent_allow_lines' => [],
+                'monthly_allow_lines' => [],
+                'deduction_lines' => [],
+                'deductions_preview' => 0.0,
+            ];
+        }
         $currentBase = (float) ($breakdown['base_salary'] ?? $base);
         $currentAllowTotal = (float) ($breakdown['permanent_allow_total'] ?? 0)
             + (float) ($breakdown['monthly_allow_core'] ?? $breakdown['monthly_allow_total'] ?? 0);
@@ -1033,6 +1061,7 @@ function hr_payroll_month_status_rows(
 
         $subjectSs = (int) ($e['subject_to_social_security'] ?? 0) === 1;
         $ssEmp = 0.0;
+        $ssEr = 0.0;
         $incomeTax = 0.0;
         $deductions = 0.0;
         $net = 0.0;
@@ -1041,6 +1070,12 @@ function hr_payroll_month_status_rows(
             $net = (float) ($sal['net_salary'] ?? 0);
             if ($subjectSs) {
                 $ssEmp = (float) ($sal['social_security_emp'] ?? 0);
+                if (array_key_exists($eid, $ssErMap)) {
+                    $ssEr = round((float) $ssErMap[$eid], 3);
+                } else {
+                    $calc = hr_ss_calc_for_employee($pdo, $eid);
+                    $ssEr = $calc ? round((float) ($calc['employer_amount'] ?? 0), 3) : 0.0;
+                }
             }
             $incomeTax = (float) ($sal['income_tax'] ?? 0);
             if ((int) ($sal['is_posted'] ?? 0) !== 1 && abs($previewDeductions - $deductions) > 0.0005) {
@@ -1076,6 +1111,7 @@ function hr_payroll_month_status_rows(
             'deductions' => $deductions,
             'net_salary' => $net,
             'social_security_emp' => $ssEmp,
+            'social_security_er' => $ssEr,
             'income_tax' => $incomeTax,
             'permanent_allow_lines' => $breakdown['permanent_allow_lines'] ?? [],
             'monthly_allow_lines' => $breakdown['monthly_allow_lines'] ?? [],
@@ -1706,17 +1742,19 @@ function hr_payroll_unpost_month(PDO $pdo, int $year, int $month): array
 
 
 
-/** ملخص شهر للواجهة. */
-
+/** ملخص شهر للواجهة.
+ * @param list<array<string, mixed>>|null $rows
+ */
 function hr_payroll_month_summary(
     PDO $pdo,
     int $year,
     int $month,
     int $departmentId = 0,
-    int $employeeId = 0
+    int $employeeId = 0,
+    ?array $rows = null
 ): array {
 
-    $rows = hr_payroll_month_status_rows($pdo, $year, $month, $departmentId, $employeeId);
+    $rows = $rows ?? hr_payroll_month_status_rows($pdo, $year, $month, $departmentId, $employeeId);
 
     $calc = 0;
 

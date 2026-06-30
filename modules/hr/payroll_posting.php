@@ -132,7 +132,7 @@ $summary = [
 ];
 if ($showEmployeeList) {
     $statusRows = hr_payroll_month_status_rows($pdo, $payYear, $payMonth, $filterDeptId, $filterEmpId);
-    $summary = hr_payroll_month_summary($pdo, $payYear, $payMonth, $filterDeptId, $filterEmpId);
+    $summary = hr_payroll_month_summary($pdo, $payYear, $payMonth, $filterDeptId, $filterEmpId, $statusRows);
 } else {
     $summary = [
         'calculated' => 0,
@@ -219,6 +219,7 @@ $gridTotals = [
     'month_allow' => 0.0,
     'deductions' => 0.0,
     'ss' => 0.0,
+    'ss_er' => 0.0,
     'tax' => 0.0,
     'net' => 0.0,
 ];
@@ -234,6 +235,7 @@ foreach ($statusRows as $gr) {
     }
     $gridTotals['deductions'] += (float) ($gr['deductions'] ?? 0);
     $gridTotals['ss'] += (float) ($gr['social_security_emp'] ?? 0);
+    $gridTotals['ss_er'] += (float) ($gr['social_security_er'] ?? 0);
     $gridTotals['tax'] += (float) ($gr['income_tax'] ?? 0);
     $gridTotals['net'] += (float) ($gr['net_salary'] ?? 0);
     if ((float) ($gr['income_tax'] ?? 0) > 0) {
@@ -254,19 +256,43 @@ foreach ($statusRows as $sr) {
 }
 $salariesUrl = app_url('index.php?r=hr_salaries');
 
-$printAllRows = hr_payroll_month_status_rows($pdo, $payYear, $payMonth, $filterDeptId, $filterEmpId);
-$printReportFiltered = hr_payroll_month_report_filter_rows($printAllRows);
-$printReportRows = $printReportFiltered['rows'];
-$printReportTotals = $printReportFiltered['totals'];
-$printReportMovement = hr_payroll_month_report_movement($pdo, $payYear, $payMonth);
-$printReportSummary = hr_payroll_month_summary($pdo, $payYear, $payMonth, $filterDeptId, $filterEmpId);
-$printReportMonthStatus = hr_payroll_month_status_info(
-    $pdo,
-    $payYear,
-    $payMonth,
-    $printReportSummary,
-    count($printAllRows)
-);
+if ($showEmployeeList) {
+    $printAllRows = $statusRows;
+    $printReportFiltered = hr_payroll_month_report_filter_rows($printAllRows);
+    $printReportRows = $printReportFiltered['rows'];
+    $printReportTotals = $printReportFiltered['totals'];
+    $printReportMovement = hr_payroll_month_report_movement($pdo, $payYear, $payMonth);
+    $printReportSummary = $summary;
+    $printReportMonthStatus = hr_payroll_month_status_info(
+        $pdo,
+        $payYear,
+        $payMonth,
+        $printReportSummary,
+        count($printAllRows)
+    );
+} else {
+    $printAllRows = [];
+    $printReportFiltered = hr_payroll_month_report_filter_rows($printAllRows);
+    $printReportRows = [];
+    $printReportTotals = $printReportFiltered['totals'];
+    $printReportMovement = hr_payroll_month_report_movement($pdo, $payYear, $payMonth);
+    $printReportSummary = [
+        'calculated' => 0,
+        'posted' => 0,
+        'gate_ok' => false,
+        'gate_message' => '',
+        'gate_alert_type' => '',
+        'open_period' => hr_payroll_open_period($pdo),
+        'can_unpost' => false,
+    ];
+    $printReportMonthStatus = hr_payroll_month_status_info(
+        $pdo,
+        $payYear,
+        $payMonth,
+        $printReportSummary,
+        0
+    );
+}
 $printReportTitle = hr_payroll_month_report_title();
 $printReportDate = date('Y-m-d');
 $hasPrintReport = $printReportRows !== [];
