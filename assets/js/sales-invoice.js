@@ -55,6 +55,9 @@
   var suppressDirtyMark = 0;
   var draftPersistTimer = null;
   var draftKey = form.getAttribute('data-draft-key') || 'sales_invoices';
+  var busyEl = document.getElementById('sales-inv-busy');
+  var busyMsgEl = document.getElementById('sales-inv-busy-msg');
+  var invScreenBusyActive = false;
 
   function fmtDate(value) {
     return global.AppFormat && AppFormat.formatDateDmY
@@ -1820,16 +1823,62 @@
     return hasLine;
   }
 
-  function setSaveBusy(busy) {
+  function showSalesInvBusy(message) {
+    if (invScreenBusyActive) {
+      if (busyMsgEl && message) {
+        busyMsgEl.textContent = message;
+      }
+      return;
+    }
+    invScreenBusyActive = true;
+    if (busyMsgEl) {
+      busyMsgEl.textContent = message || 'جاري حفظ الفاتورة...';
+    }
+    if (busyEl) {
+      busyEl.hidden = false;
+      busyEl.removeAttribute('hidden');
+    }
+    document.body.classList.add('sales-inv-is-busy');
+    try {
+      document.dispatchEvent(
+        new CustomEvent('manager:invoice-busy', { detail: { busy: true } })
+      );
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function hideSalesInvBusy() {
+    if (!invScreenBusyActive) return;
+    invScreenBusyActive = false;
+    if (busyEl) {
+      busyEl.hidden = true;
+      busyEl.setAttribute('hidden', '');
+    }
+    document.body.classList.remove('sales-inv-is-busy');
+    try {
+      document.dispatchEvent(
+        new CustomEvent('manager:invoice-busy', { detail: { busy: false } })
+      );
+    } catch (e2) {
+      /* ignore */
+    }
+  }
+
+  function setSaveBusy(busy, message) {
     var saveBtn = document.querySelector('#master-toolbar [data-master-action="save"]');
     if (saveBtn) saveBtn.disabled = !!busy;
+    if (busy) {
+      showSalesInvBusy(message || 'جاري حفظ الفاتورة...');
+    } else {
+      hideSalesInvBusy();
+    }
   }
 
   var pendingAfterSave = null;
 
   function finishSaveFromJson(data, leaveAfterSave, onDone) {
     formSubmitting = false;
-    setSaveBusy(false);
     clearPersistedDraft();
     clearFormDirty();
 
@@ -1842,15 +1891,18 @@
     }
 
     if (leaveAfterSave && onDone) {
+      setSaveBusy(false);
       onDone();
       return;
     }
 
     if (savedId > 0) {
+      setSaveBusy(true, 'جاري تحميل الفاتورة...');
       loadSavedInvoiceAfterSubmit(savedId, null, null);
       return;
     }
 
+    setSaveBusy(false);
     window.location.reload();
   }
 
@@ -1867,7 +1919,7 @@
     normalizeAllLinesBeforeSave();
     syncJson();
     syncInvoiceIdField();
-    setSaveBusy(true);
+    setSaveBusy(true, 'جاري حفظ الفاتورة...');
 
     var actionUrl = form.getAttribute('action') || window.location.href;
     var fd = new FormData(form);
