@@ -525,30 +525,33 @@
   }
 
   function loadSavedInvoiceAfterSubmit(invoiceId, pageUrl, onDone) {
-    fetchInvoiceResponse({ id: invoiceId }).then(function (data) {
-      formSubmitting = false;
-      setSaveBusy(false);
-      if (data && data.ok && data.invoice) {
-        applyInvoiceData(data.invoice);
-        if (pageUrl) {
-          window.history.replaceState({ invoiceId: invoiceId }, '', pageUrl);
-        } else {
-          updateHistory(invoiceId);
+    fetchInvoiceResponse({ id: invoiceId })
+      .then(function (data) {
+        formSubmitting = false;
+        if (data && data.ok && data.invoice) {
+          applyInvoiceData(data.invoice);
+          if (pageUrl) {
+            window.history.replaceState({ invoiceId: invoiceId }, '', pageUrl);
+          } else {
+            updateHistory(invoiceId);
+          }
+          clearFormDirty();
+          if (onDone) {
+            onDone();
+          } else if (global.AppDialog) {
+            AppDialog.success('تم حفظ الفاتورة بنجاح.');
+          }
+          return;
         }
-        clearFormDirty();
-        if (onDone) {
-          onDone();
-        } else if (global.AppDialog) {
-          AppDialog.success('تم حفظ الفاتورة بنجاح.');
-        }
-        return;
-      }
-      window.location.href = pageUrl || window.location.href;
-    }).catch(function () {
-      formSubmitting = false;
-      setSaveBusy(false);
-      window.location.href = pageUrl || window.location.href;
-    });
+        window.location.href = pageUrl || window.location.href;
+      })
+      .catch(function () {
+        formSubmitting = false;
+        window.location.href = pageUrl || window.location.href;
+      })
+      .finally(function () {
+        setSaveBusy(false);
+      });
   }
 
   var decimals = parseInt(form.getAttribute('data-decimals') || '', 10);
@@ -1868,7 +1871,9 @@
     }
 
     if (savedId > 0) {
-      setSaveBusy(true, 'جاري تحميل الفاتورة...');
+      if (global.AppBusy && AppBusy.setMessage) {
+        AppBusy.setMessage('جاري تحميل الفاتورة...');
+      }
       loadSavedInvoiceAfterSubmit(savedId, null, null);
       return;
     }

@@ -41,6 +41,13 @@
         }
     }
 
+    function setMessage(message) {
+        ensureDom();
+        if (msgEl && message) {
+            msgEl.textContent = message;
+        }
+    }
+
     function show(message) {
         ensureDom();
         depth += 1;
@@ -79,7 +86,7 @@
         if (busy) {
             show(message || 'جاري الحفظ...');
         } else {
-            hide();
+            hide(true);
         }
     }
 
@@ -118,6 +125,7 @@
         show: show,
         hide: hide,
         isActive: isActive,
+        setMessage: setMessage,
         setSaveBusy: setSaveBusy,
         wrapFetch: wrapFetch,
         DEFAULT_MSG: DEFAULT_MSG,
