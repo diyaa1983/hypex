@@ -127,25 +127,38 @@ function handle_sales_return_post(): void
             }
             $lineId = (int) ($ln['invoice_line_id'] ?? 0);
             $qty = (float) ($ln['qty'] ?? 0);
-            if ($lineId < 1 || $qty <= 0) {
+            $qtyExtra = (float) ($ln['qty_extra'] ?? 0);
+            if ($lineId < 1 || ($qty <= 0 && $qtyExtra <= 0)) {
                 continue;
             }
             $validLines[] = $ln;
         }
         if (!$err && $validLines === []) {
-            $err = 'أدخل كمية إرجاع لمادة واحدة على الأقل.';
+            $err = 'أدخل كمية إرجاع أو كمية إضافية لمادة واحدة على الأقل.';
         }
     }
+
+    require_once app_path('includes/sal_return_line_qty.php');
+    require_once app_path('includes/inv_invoice_line_qty.php');
+    sal_return_line_ensure_qty_extra($pdo);
+    inv_invoice_line_ensure_qty_extra($pdo);
+    $hasExtraInv = inv_invoice_line_has_qty_extra($pdo, 'sal_invoice_line');
+    $hasExtraRet = sal_return_line_has_qty_extra($pdo);
+    $extraSoldSql = $hasExtraInv ? 'COALESCE(il.qty_extra, 0)' : '0';
+    $extraRetSql = $hasExtraRet ? 'COALESCE(SUM(rl.qty_extra), 0)' : '0';
 
     $checkedLines = [];
     if (!$err) {
         foreach ($validLines as $ln) {
             $lineId = (int) $ln['invoice_line_id'];
-            $qty = (float) $ln['qty'];
+            $qty = (float) ($ln['qty'] ?? 0);
+            $qtyExtra = (float) ($ln['qty_extra'] ?? 0);
 
             $st = $pdo->prepare(
-                'SELECT il.id, il.item_id, il.qty AS qty_sold, il.unit_price, il.line_total, il.tax_rate_percent,
-                        COALESCE(SUM(rl.qty), 0) AS qty_returned
+                'SELECT il.id, il.item_id, il.qty AS qty_sold, ' . $extraSoldSql . ' AS qty_extra_sold,
+                        il.unit_price, il.line_total, il.tax_rate_percent,
+                        COALESCE(SUM(rl.qty), 0) AS qty_returned,
+                        ' . $extraRetSql . ' AS qty_extra_returned
                  FROM sal_invoice_line il
                  LEFT JOIN sal_return_line rl ON rl.invoice_line_id = il.id
                  LEFT JOIN sal_return r ON r.id = rl.return_id AND r.status <> ?
@@ -164,9 +177,17 @@ function handle_sales_return_post(): void
                 break;
             }
             $remaining = (float) $row['qty_sold'] - (float) $row['qty_returned'];
+            $extraRemaining = (float) $row['qty_extra_sold'] - (float) $row['qty_extra_returned'];
             if ($qty > $remaining + 0.000001) {
                 $err = 'كمية الإرجاع أكبر من الكمية المتبقية للمادة.';
                 break;
+            }
+            if ($qtyExtra > $extraRemaining + 0.000001) {
+                $err = 'الكمية الإضافية المرجعة أكبر من المتبقي على الفاتورة.';
+                break;
+            }
+            if ($qty <= 0 && $qtyExtra <= 0) {
+                continue;
             }
             $unitPrice = (float) $row['unit_price'];
             $taxRate = (float) $row['tax_rate_percent'];
@@ -182,6 +203,8 @@ function handle_sales_return_post(): void
             $ln['item_id'] = (int) $row['item_id'];
             $ln['_unit_price'] = $unitPrice;
             $ln['_tax_rate'] = $taxRate;
+            $ln['qty'] = $qty;
+            $ln['qty_extra'] = $qtyExtra;
             $ln['line_subtotal'] = $amounts['line_subtotal'];
             $ln['tax_amount'] = $amounts['tax_amount'];
             $ln['line_gross'] = $amounts['line_gross'];
@@ -272,8 +295,8 @@ function handle_sales_return_post(): void
         }
 
         $insLine = $pdo->prepare(
-            'INSERT INTO sal_return_line (return_id, invoice_line_id, item_id, qty, unit_price, tax_rate_percent, line_subtotal, tax_amount, line_gross)
-             VALUES (?,?,?,?,?,?,?,?,?)'
+            'INSERT INTO sal_return_line (return_id, invoice_line_id, item_id, qty, qty_extra, unit_price, tax_rate_percent, line_subtotal, tax_amount, line_gross)
+             VALUES (?,?,?,?,?,?,?,?,?,?)'
         );
 
         foreach ($validLines as $ln) {
@@ -282,6 +305,7 @@ function handle_sales_return_post(): void
                 (int) $ln['invoice_line_id'],
                 (int) ($ln['item_id'] ?? 0),
                 round((float) $ln['qty'], 6),
+                round((float) ($ln['qty_extra'] ?? 0), 6),
                 round((float) ($ln['_unit_price'] ?? $ln['unit_price'] ?? 0), 6),
                 round((float) ($ln['_tax_rate'] ?? $ln['tax_rate_percent'] ?? 0), 3),
                 round((float) ($ln['line_subtotal'] ?? 0), 6),

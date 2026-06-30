@@ -276,7 +276,7 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
                 <h2 class="dashboard-ora-panel__title no-print">مواد المرتجع</h2>
                 <div class="dashboard-ora-panel__body dashboard-ora-panel__body--flush">
                 <p id="sales-ret-hint" class="muted sales-ret-hint no-print" style="padding:0.55rem;margin:0;">
-                    يُسمح بإرجاع <strong>فواتير بيع مرحّلة</strong> فقط. اختر العميل والفاتورة — حدّد ☑ المواد وكميات الإرجاع ثم احفظ؛ يُطبَّق الأثر <strong>مستودعياً</strong> (إرجاع الكميات) و<strong>مالياً</strong> (تخفيض ذمة العميل) تلقائياً.
+                    يُسمح بإرجاع <strong>فواتير بيع مرحّلة</strong> فقط. اختر العميل والفاتورة — حدّد ☑ المواد وكميات الإرجاع (والكمية الإضافية إن وُجدت) ثم احفظ؛ يُطبَّق الأثر <strong>مستودعياً</strong> (إرجاع الكميات) و<strong>مالياً</strong> (تخفيض ذمة العميل) تلقائياً.
                 </p>
                 <div class="sales-inv-table-wrap" id="sales-ret-table-wrap">
                     <table class="sales-inv-table sales-inv-table-grid sales-ret-table">
@@ -291,6 +291,7 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
                             <th class="sales-inv-col-seq">#</th>
                             <th class="sales-inv-col-item">المادة</th>
                             <th class="sales-inv-col-qty">كمية الإرجاع</th>
+                            <th class="sales-inv-col-qty-extra" title="كمية إضافية للمخزون — بدون أثر مالي">ك. إضافية</th>
                             <th class="sales-inv-col-price">سعر الوحدة</th>
                             <th class="sales-inv-col-money">قبل الضريبة</th>
                             <th class="sales-inv-col-money">الضريبة</th>
@@ -342,6 +343,9 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
         </td>
         <td class="sales-inv-col-qty">
             <input type="number" class="input input-num js-qty-ret" min="0" step="any" placeholder="0" disabled>
+        </td>
+        <td class="sales-inv-col-qty-extra">
+            <input type="number" class="input input-num js-qty-extra-ret" min="0" step="any" placeholder="0" disabled title="كمية إضافية للمخزون — بدون أثر مالي">
         </td>
         <td class="sales-inv-col-price js-price-readonly">0</td>
         <td class="sales-inv-col-money js-line-sub">0</td>

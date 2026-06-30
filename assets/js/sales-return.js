@@ -236,7 +236,7 @@
     if (retDateInp) retDateInp.readOnly = isSavedMode;
     if (retNotes) retNotes.readOnly = isSavedMode;
     if (tbody) {
-      tbody.querySelectorAll('.js-qty-ret, .js-ret-pick').forEach(function (el) {
+      tbody.querySelectorAll('.js-qty-ret, .js-qty-extra-ret, .js-ret-pick').forEach(function (el) {
         el.disabled = isSavedMode;
       });
     }
@@ -324,14 +324,21 @@
     return !!(pick && pick.checked);
   }
 
-  function isRowPrintable(tr) {
+  function rowHasReturnQty(tr) {
+    if (!tr) return false;
     var qtyInp = tr.querySelector('.js-qty-ret');
+    var extraInp = tr.querySelector('.js-qty-extra-ret');
     var qty = qtyInp ? parseFloat(qtyInp.value) || 0 : 0;
+    var extra = extraInp ? parseFloat(extraInp.value) || 0 : 0;
+    return qty > 0 || extra > 0;
+  }
+
+  function isRowPrintable(tr) {
     var gross = parseFloat(tr.getAttribute('data-line-gross')) || 0;
     if (isSavedMode) {
-      return qty > 0 || gross > 0 || tr.classList.contains('is-picked');
+      return rowHasReturnQty(tr) || gross > 0 || tr.classList.contains('is-picked');
     }
-    return isRowPicked(tr) && qty > 0;
+    return isRowPicked(tr) && rowHasReturnQty(tr);
   }
 
   function createRow() {
@@ -368,6 +375,15 @@
       tr.setAttribute('data-line-gross', '0');
       return;
     }
+    var extraInp = tr.querySelector('.js-qty-extra-ret');
+    if (extraInp) {
+      var extra = parseFloat(extraInp.value) || 0;
+      var maxExtra = parseFloat(tr.getAttribute('data-qty-extra-remaining')) || 0;
+      if (extra > maxExtra + 0.000001) {
+        extra = maxExtra;
+        extraInp.value = maxExtra > 0 ? formatQtyForInput(maxExtra) : '';
+      }
+    }
     var qty = parseFloat(tr.querySelector('.js-qty-ret').value) || 0;
     var max = parseFloat(tr.getAttribute('data-qty-remaining')) || 0;
     var up = parseFloat(tr.getAttribute('data-unit-price')) || 0;
@@ -400,8 +416,7 @@
     var gross = 0;
     getDataRows().forEach(function (tr) {
       if (!isRowPicked(tr)) return;
-      var qty = parseFloat(tr.querySelector('.js-qty-ret').value) || 0;
-      if (qty <= 0) return;
+      if (!rowHasReturnQty(tr)) return;
       sub += parseFloat(tr.getAttribute('data-line-sub')) || 0;
       tax += parseFloat(tr.getAttribute('data-line-tax')) || 0;
       gross += parseFloat(tr.getAttribute('data-line-gross')) || 0;
@@ -416,12 +431,16 @@
     var lines = [];
     getDataRows().forEach(function (tr) {
       if (!isRowPicked(tr)) return;
+      if (!rowHasReturnQty(tr)) return;
       var qty = parseFloat(tr.querySelector('.js-qty-ret').value) || 0;
-      if (qty <= 0) return;
+      var qtyExtra = 0;
+      var extraInp = tr.querySelector('.js-qty-extra-ret');
+      if (extraInp) qtyExtra = parseFloat(extraInp.value) || 0;
       lines.push({
         invoice_line_id: parseInt(tr.getAttribute('data-invoice-line-id'), 10),
         item_id: parseInt(tr.getAttribute('data-item-id'), 10),
         qty: qty,
+        qty_extra: qtyExtra,
         unit_price: parseFloat(tr.getAttribute('data-unit-price')) || 0,
         tax_rate_percent: parseFloat(tr.getAttribute('data-tax-rate')) || 0,
         line_subtotal: parseFloat(tr.getAttribute('data-line-sub')) || 0,
@@ -451,10 +470,16 @@
     if (!isFinite(taxRateNum)) taxRateNum = 0;
     var qtySoldNum = parseFloat(line.qty_sold);
     if (!isFinite(qtySoldNum)) qtySoldNum = 0;
+    var qtyExtraSoldNum = parseFloat(line.qty_extra_sold);
+    if (!isFinite(qtyExtraSoldNum)) qtyExtraSoldNum = 0;
+    var qtyExtraRemainingNum = parseFloat(line.qty_extra_remaining);
+    if (!isFinite(qtyExtraRemainingNum) || qtyExtraRemainingNum < 0) qtyExtraRemainingNum = 0;
     tr.setAttribute('data-invoice-line-id', String(line.invoice_line_id));
     tr.setAttribute('data-item-id', String(line.item_id));
     tr.setAttribute('data-qty-remaining', String(qtyRemainingNum));
+    tr.setAttribute('data-qty-extra-remaining', String(qtyExtraRemainingNum));
     tr.setAttribute('data-qty-sold', String(qtySoldNum));
+    tr.setAttribute('data-qty-extra-sold', String(qtyExtraSoldNum));
     tr.setAttribute('data-line-total-sold', String(parseFloat(line.line_total) || 0));
     tr.setAttribute('data-unit-price', String(unitPriceNum));
     tr.setAttribute('data-tax-rate', String(taxRateNum));
@@ -464,10 +489,25 @@
     tr.querySelector('.js-qty-ret').value = '';
     tr.querySelector('.js-qty-ret').max = String(qtyRemainingNum);
     tr.querySelector('.js-qty-ret').disabled = true;
+    var extraInp = tr.querySelector('.js-qty-extra-ret');
+    if (extraInp) {
+      extraInp.value = '';
+      extraInp.max = String(qtyExtraRemainingNum);
+      extraInp.disabled = true;
+      var extraCell = extraInp.closest('td');
+      if (extraCell) {
+        extraCell.hidden = qtyExtraSoldNum <= 0.000001 && qtyExtraRemainingNum <= 0.000001;
+      }
+    }
     var meta = tr.querySelector('.js-qty-meta');
     if (meta) {
-      meta.textContent =
+      var metaText =
         'مباع: ' + fmt(qtySoldNum) + ' · متبقي للإرجاع: ' + fmt(qtyRemainingNum);
+      if (qtyExtraSoldNum > 0.000001 || qtyExtraRemainingNum > 0.000001) {
+        metaText +=
+          ' · إضافية مباعة: ' + fmt(qtyExtraSoldNum) + ' · متبقي: ' + fmt(qtyExtraRemainingNum);
+      }
+      meta.textContent = metaText;
     }
     recalcRow(tr);
   }
@@ -482,9 +522,11 @@
     return s;
   }
 
-  function setRowPicked(tr, picked, qty) {
+  function setRowPicked(tr, picked, qty, qtyExtra) {
     var pick = tr.querySelector('.js-ret-pick');
     var qtyInp = tr.querySelector('.js-qty-ret');
+    var extraInp = tr.querySelector('.js-qty-extra-ret');
+    var maxExtra = parseFloat(tr.getAttribute('data-qty-extra-remaining')) || 0;
     if (pick) pick.checked = !!picked;
     tr.classList.toggle('is-picked', !!picked);
     if (qtyInp) {
@@ -499,6 +541,16 @@
         qtyInp.value = '';
       }
     }
+    if (extraInp) {
+      extraInp.disabled = !picked || isSavedMode || maxExtra <= 0.000001;
+      if (picked) {
+        if (qtyExtra != null && qtyExtra !== '') {
+          extraInp.value = formatQtyForInput(qtyExtra);
+        }
+      } else {
+        extraInp.value = '';
+      }
+    }
     recalcRow(tr);
   }
 
@@ -507,7 +559,7 @@
     var tr = createRow();
     if (!tr) return null;
     fillRowFromCatalogLine(tr, line);
-    setRowPicked(tr, !!opts.picked, opts.qty);
+    setRowPicked(tr, !!opts.picked, opts.qty, opts.qtyExtra);
     if (isSavedMode) {
       var pick = tr.querySelector('.js-ret-pick');
       if (pick) pick.disabled = true;
@@ -519,6 +571,14 @@
     var qtyInp = tr.querySelector('.js-qty-ret');
     if (qtyInp) {
       qtyInp.addEventListener('input', function () {
+        recalcRow(tr);
+        recalcFooter();
+        syncJson();
+      });
+    }
+    var extraInp = tr.querySelector('.js-qty-extra-ret');
+    if (extraInp) {
+      extraInp.addEventListener('input', function () {
         recalcRow(tr);
         recalcFooter();
         syncJson();
@@ -661,7 +721,13 @@
         '<strong class="sales-inv-pick-item-name">' +
         escapeHtml(line.name_ar || line.line_desc || '—') +
         '</strong><span class="sales-inv-pick-item-meta">متبقي: ' +
-        escapeHtml(fmt(line.qty_remaining)) +
+        escapeHtml(fmt(line.qty_remaining));
+      var extraRem = parseFloat(line.qty_extra_remaining) || 0;
+      if (extraRem > 0.000001) {
+        btn.innerHTML +=
+          ' · إضافية متبقية: ' + escapeHtml(fmt(extraRem));
+      }
+      btn.innerHTML +=
         ' · مباع: ' +
         escapeHtml(fmt(line.qty_sold)) +
         '</span>';
@@ -757,17 +823,26 @@
     );
   }
 
+  function formatReturnPrintQty(tr) {
+    var qtyInp = tr.querySelector('.js-qty-ret');
+    var extraInp = tr.querySelector('.js-qty-extra-ret');
+    var qty = qtyInp ? parseFloat(qtyInp.value) || 0 : 0;
+    var extra = extraInp ? parseFloat(extraInp.value) || 0 : 0;
+    if (extra > 0.000001) {
+      return fmt(qty) + ' + ' + fmt(extra) + ' إضافية';
+    }
+    return fmt(qty);
+  }
+
   function buildReturnPrintRow(tr, seq) {
     var name = tr.querySelector('.js-name') ? tr.querySelector('.js-name').textContent : '';
     var bc = tr.querySelector('.js-barcode-display') ? tr.querySelector('.js-barcode-display').textContent : '';
-    var qtyInp = tr.querySelector('.js-qty-ret');
-    var qty = qtyInp ? parseFloat(qtyInp.value) || 0 : 0;
     return (
       '<tr>' +
       printTd(escapeHtml(bc)) +
       printTd(escapeHtml(String(seq))) +
       printTd(escapeHtml(name), 'start') +
-      printTd(escapeHtml(fmt(qty))) +
+      printTd(escapeHtml(formatReturnPrintQty(tr))) +
       printTd(escapeHtml(tr.querySelector('.js-price-readonly').textContent)) +
       printTd(escapeHtml(tr.querySelector('.js-line-sub').textContent)) +
       printTd(escapeHtml(tr.querySelector('.js-tax-amt').textContent)) +
@@ -778,6 +853,8 @@
 
   function buildReturnPrintRowFromLine(line, seq) {
     var qty = parseFloat(line.qty) || 0;
+    var qtyExtra = parseFloat(line.qty_extra) || 0;
+    var qtyText = qtyExtra > 0.000001 ? fmt(qty) + ' + ' + fmt(qtyExtra) + ' إضافية' : fmt(qty);
     var name = line.name_ar || line.line_desc || '—';
     var bc = line.barcode || '—';
     var gross =
@@ -787,7 +864,7 @@
       printTd(escapeHtml(bc)) +
       printTd(escapeHtml(String(seq))) +
       printTd(escapeHtml(name), 'start') +
-      printTd(escapeHtml(fmt(qty))) +
+      printTd(escapeHtml(qtyText)) +
       printTd(escapeHtml(fmt(line.unit_price))) +
       printTd(escapeHtml(fmt(line.line_subtotal))) +
       printTd(escapeHtml(fmt(line.tax_amount))) +
@@ -826,15 +903,15 @@
     var seq = 0;
     getDataRows().forEach(function (tr) {
       if (!isRowPrintable(tr)) return;
-      var qty = parseFloat(tr.querySelector('.js-qty-ret').value) || 0;
-      if (qty <= 0) return;
+      if (!rowHasReturnQty(tr)) return;
       seq++;
       rowHtml += buildReturnPrintRow(tr, seq);
     });
     if (!rowHtml && lastLoadedReturn && lastLoadedReturn.lines) {
       lastLoadedReturn.lines.forEach(function (line) {
         var qty = parseFloat(line.qty) || 0;
-        if (qty <= 0) return;
+        var qtyExtra = parseFloat(line.qty_extra) || 0;
+        if (qty <= 0 && qtyExtra <= 0) return;
         seq++;
         rowHtml += buildReturnPrintRowFromLine(line, seq);
       });
@@ -1313,19 +1390,25 @@
       if (!isFinite(taxRateNum)) taxRateNum = 0;
       var qtySoldNum = parseFloat(line.qty_sold);
       if (!isFinite(qtySoldNum)) qtySoldNum = 0;
+      var qtyExtraNum = parseFloat(line.qty_extra);
+      if (!isFinite(qtyExtraNum) || qtyExtraNum < 0) qtyExtraNum = 0;
+      var qtyExtraSoldNum = parseFloat(line.qty_extra_sold);
+      if (!isFinite(qtyExtraSoldNum)) qtyExtraSoldNum = 0;
       var tr = createInvoiceLineRow(
         {
           invoice_line_id: line.invoice_line_id,
           item_id: line.item_id,
           qty_remaining: qtyNum,
+          qty_extra_remaining: qtyExtraNum,
           unit_price: unitPriceNum,
           tax_rate_percent: taxRateNum,
           name_ar: line.name_ar,
           line_desc: line.line_desc,
           barcode: line.barcode,
           qty_sold: qtySoldNum,
+          qty_extra_sold: qtyExtraSoldNum,
         },
-        { picked: true, qty: qtyNum }
+        { picked: true, qty: qtyNum, qtyExtra: qtyExtraNum }
       );
       if (tr) tbody.appendChild(tr);
     });
@@ -1389,7 +1472,7 @@
     recalcFooter();
     syncJson();
     updatePickAllState();
-    setHint('حدّد ☑ المواد المراد إرجاعها وعدّل كمية الإرجاع لكل مادة.');
+    setHint('حدّد ☑ المواد المراد إرجاعها وعدّل كمية الإرجاع (والكمية الإضافية إن وُجدت) لكل مادة.');
   }
 
   window.SalesRetLoadCatalog = function (lines) {
@@ -1931,7 +2014,7 @@
     syncJson();
     var lines = JSON.parse(linesJson.value || '[]');
     if (!lines.length) {
-      AppDialog.alert('حدّد مادة واحدة على الأقل (☑) وأدخل كمية إرجاع.', { type: 'warning' });
+      AppDialog.alert('حدّد مادة واحدة على الأقل (☑) وأدخل كمية إرجاع أو كمية إضافية.', { type: 'warning' });
       return;
     }
     form.submit();

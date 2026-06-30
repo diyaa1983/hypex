@@ -33,7 +33,8 @@ function sal_return_sql_is_posted_expr(string $returnAlias = 'r'): string
     $stockNeeded = "({$r}.warehouse_id IS NOT NULL AND EXISTS (
         SELECT 1 FROM sal_return_line rl
         INNER JOIN inv_item it ON it.id = rl.item_id
-        WHERE rl.return_id = {$r}.id AND it.track_inventory = 1 AND rl.qty > 0
+        WHERE rl.return_id = {$r}.id AND it.track_inventory = 1
+        AND (rl.qty + COALESCE(rl.qty_extra, 0)) > 0
     ))";
     $stockDone = "EXISTS (
         SELECT 1 FROM inv_stock_move m
@@ -130,7 +131,8 @@ function sal_return_stock_posting_required(PDO $pdo, int $returnId): bool
         'SELECT 1
          FROM sal_return_line rl
          INNER JOIN inv_item i ON i.id = rl.item_id
-         WHERE rl.return_id = ? AND i.track_inventory = 1 AND rl.qty > 0
+         WHERE rl.return_id = ? AND i.track_inventory = 1
+           AND (rl.qty + COALESCE(rl.qty_extra, 0)) > 0
          LIMIT 1'
     );
     $ln->execute([$returnId]);
@@ -249,11 +251,14 @@ function sal_return_stock_post(PDO $pdo, int $returnId): array
         return $out;
     }
 
+    require_once app_path('includes/inv_invoice_line_qty.php');
+
     $lines = $pdo->prepare(
-        'SELECT rl.item_id, rl.qty, i.name_ar, i.track_inventory
+        'SELECT rl.item_id, rl.qty, COALESCE(rl.qty_extra, 0) AS qty_extra, i.name_ar, i.track_inventory
          FROM sal_return_line rl
          INNER JOIN inv_item i ON i.id = rl.item_id
-         WHERE rl.return_id = ? AND i.track_inventory = 1 AND rl.qty > 0
+         WHERE rl.return_id = ? AND i.track_inventory = 1
+           AND (rl.qty + COALESCE(rl.qty_extra, 0)) > 0
          ORDER BY rl.id ASC'
     );
     $lines->execute([$returnId]);
@@ -264,8 +269,11 @@ function sal_return_stock_post(PDO $pdo, int $returnId): array
 
     foreach ($rows as $row) {
         $itemId = (int) $row['item_id'];
-        $qty = (float) $row['qty'];
-        if ($itemId < 1 || $qty <= 0) {
+        $stockQty = inv_invoice_line_stock_qty_sum(
+            (float) $row['qty'],
+            (float) ($row['qty_extra'] ?? 0)
+        );
+        if ($itemId < 1 || $stockQty <= 0) {
             continue;
         }
 
@@ -275,7 +283,7 @@ function sal_return_stock_post(PDO $pdo, int $returnId): array
             $moveDate,
             $warehouseId,
             $itemId,
-            $qty,
+            $stockQty,
             'sale_return',
             $returnId,
             $note
@@ -387,25 +395,38 @@ function sal_return_post_by_id(PDO $pdo, int $returnId): array
         return $out;
     }
 
+    require_once app_path('includes/sal_return_line_qty.php');
+    require_once app_path('includes/inv_invoice_line_qty.php');
+    sal_return_line_ensure_qty_extra($pdo);
+    inv_invoice_line_ensure_qty_extra($pdo);
+    $hasExtraInv = inv_invoice_line_has_qty_extra($pdo, 'sal_invoice_line');
+    $hasExtraRet = sal_return_line_has_qty_extra($pdo);
+    $extraSoldSql = $hasExtraInv ? 'COALESCE(il.qty_extra, 0)' : '0';
+    $extraRetSql = $hasExtraRet ? 'COALESCE(SUM(CASE WHEN r2.id IS NOT NULL THEN rl2.qty_extra ELSE 0 END), 0)' : '0';
+
     $lineSt = $pdo->prepare(
-        'SELECT rl.invoice_line_id, rl.qty
+        'SELECT rl.invoice_line_id, rl.qty, COALESCE(rl.qty_extra, 0) AS qty_extra
          FROM sal_return_line rl
          WHERE rl.return_id = ?'
     );
     $lineSt->execute([$returnId]);
     $returnLines = $lineSt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $qtyByInvoiceLine = [];
+    $extraByInvoiceLine = [];
     foreach ($returnLines as $rln) {
         $lineId = (int) ($rln['invoice_line_id'] ?? 0);
         if ($lineId < 1) {
             continue;
         }
         $qtyByInvoiceLine[$lineId] = ($qtyByInvoiceLine[$lineId] ?? 0.0) + (float) ($rln['qty'] ?? 0);
+        $extraByInvoiceLine[$lineId] = ($extraByInvoiceLine[$lineId] ?? 0.0) + (float) ($rln['qty_extra'] ?? 0);
     }
     foreach ($qtyByInvoiceLine as $lineId => $qtyThisLine) {
+        $extraThisLine = (float) ($extraByInvoiceLine[$lineId] ?? 0.0);
         $chk = $pdo->prepare(
-            'SELECT il.qty AS qty_sold,
-                    COALESCE(SUM(CASE WHEN r2.id IS NOT NULL THEN rl2.qty ELSE 0 END), 0) AS qty_returned
+            'SELECT il.qty AS qty_sold, ' . $extraSoldSql . ' AS qty_extra_sold,
+                    COALESCE(SUM(CASE WHEN r2.id IS NOT NULL THEN rl2.qty ELSE 0 END), 0) AS qty_returned,
+                    ' . $extraRetSql . ' AS qty_extra_returned
              FROM sal_invoice_line il
              LEFT JOIN sal_return_line rl2 ON rl2.invoice_line_id = il.id
              LEFT JOIN sal_return r2 ON r2.id = rl2.return_id
@@ -425,6 +446,43 @@ function sal_return_post_by_id(PDO $pdo, int $returnId): array
         $qtyOtherReturns = (float) $chkRow['qty_returned'];
         if ($qtyOtherReturns + $qtyThisLine > $qtySold + 0.000001) {
             $out['error'] = 'كمية الإرجاع أكبر من الكمية المتبقية على الفاتورة — راجع المرتجعات الأخرى.';
+
+            return $out;
+        }
+        $extraSold = (float) $chkRow['qty_extra_sold'];
+        $extraOtherReturns = (float) $chkRow['qty_extra_returned'];
+        if ($extraOtherReturns + $extraThisLine > $extraSold + 0.000001) {
+            $out['error'] = 'الكمية الإضافية المرجعة أكبر من المتبقي على الفاتورة — راجع المرتجعات الأخرى.';
+
+            return $out;
+        }
+    }
+    foreach ($extraByInvoiceLine as $lineId => $extraThisLine) {
+        if ($extraThisLine <= 0.000001 || isset($qtyByInvoiceLine[$lineId])) {
+            continue;
+        }
+        $chk = $pdo->prepare(
+            'SELECT ' . $extraSoldSql . ' AS qty_extra_sold,
+                    ' . $extraRetSql . ' AS qty_extra_returned
+             FROM sal_invoice_line il
+             LEFT JOIN sal_return_line rl2 ON rl2.invoice_line_id = il.id
+             LEFT JOIN sal_return r2 ON r2.id = rl2.return_id
+                 AND r2.status <> ?
+                 AND r2.id <> ?
+             WHERE il.id = ? AND il.invoice_id = ?
+             GROUP BY il.id'
+        );
+        $chk->execute(['cancelled', $returnId, $lineId, $invoiceId]);
+        $chkRow = $chk->fetch(PDO::FETCH_ASSOC);
+        if (!$chkRow) {
+            $out['error'] = 'بند فاتورة غير صالح في المرتجع.';
+
+            return $out;
+        }
+        $extraSold = (float) $chkRow['qty_extra_sold'];
+        $extraOtherReturns = (float) $chkRow['qty_extra_returned'];
+        if ($extraOtherReturns + $extraThisLine > $extraSold + 0.000001) {
+            $out['error'] = 'الكمية الإضافية المرجعة أكبر من المتبقي على الفاتورة — راجع المرتجعات الأخرى.';
 
             return $out;
         }

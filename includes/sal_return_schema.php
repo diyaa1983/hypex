@@ -97,6 +97,7 @@ function sal_return_ensure_core_tables(PDO $pdo): void
                   invoice_line_id INT UNSIGNED NOT NULL,
                   item_id INT UNSIGNED NOT NULL,
                   qty DECIMAL(18,6) NOT NULL,
+                  qty_extra DECIMAL(18,6) NOT NULL DEFAULT 0,
                   unit_price DECIMAL(18,6) NOT NULL,
                   tax_rate_percent DECIMAL(6,3) NOT NULL DEFAULT 0,
                   line_subtotal DECIMAL(18,6) NOT NULL DEFAULT 0,
@@ -113,6 +114,9 @@ function sal_return_ensure_core_tables(PDO $pdo): void
     }
 
     sal_return_has_tables($pdo, true);
+
+    require_once app_path('includes/sal_return_line_qty.php');
+    sal_return_line_ensure_qty_extra($pdo);
 }
 
 function sal_return_ensure_schema(PDO $pdo): bool
