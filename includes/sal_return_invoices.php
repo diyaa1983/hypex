@@ -58,3 +58,33 @@ function sal_return_calc_line_amounts(float $qty, float $unitPrice, float $taxRa
         'line_gross' => $gross,
     ];
 }
+
+/**
+ * مبالغ إرجاع بند فاتورة — تُوزَّع تناسبياً مع خصم البند أو خصم الفاتورة.
+ *
+ * @return array{line_subtotal: float, tax_amount: float, line_gross: float}
+ */
+function sal_return_calc_line_amounts_from_invoice(
+    float $returnQty,
+    float $qtySold,
+    float $lineTotalSold,
+    float $unitPrice,
+    float $taxRatePercent
+): array {
+    if ($returnQty <= 0) {
+        return ['line_subtotal' => 0.0, 'tax_amount' => 0.0, 'line_gross' => 0.0];
+    }
+    if ($qtySold > 0.000001) {
+        $sub = company_round_amount(($lineTotalSold / $qtySold) * $returnQty);
+    } else {
+        $sub = company_round_amount($returnQty * $unitPrice);
+    }
+    $tax = company_round_amount($sub * ($taxRatePercent / 100));
+    $gross = company_round_amount($sub + $tax);
+
+    return [
+        'line_subtotal' => $sub,
+        'tax_amount' => $tax,
+        'line_gross' => $gross,
+    ];
+}

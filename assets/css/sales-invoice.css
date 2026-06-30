@@ -101,7 +101,7 @@ body.is-ledger-document-view .sales-inv-form-is-ledger-view textarea {
   align-items: stretch;
   gap: 0.25rem;
   width: 100%;
-  /* LTR: ‹ يسار = آخر فاتورة، › يمين = التالية (أحدث في التسلسل) */
+  /* LTR: ‹ يسار = آخر مستند، › يمين = السابق قبل الأخير (في النموذج الفارغ) */
   direction: ltr;
 }
 

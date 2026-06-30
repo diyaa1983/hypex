@@ -23,7 +23,7 @@ function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId): array
     $barcodeCol = $hasBarcode ? 'i.barcode' : 'i.sku AS barcode';
 
     $sql = "SELECT il.id AS invoice_line_id, il.item_id, il.line_desc, il.qty AS qty_sold,
-                   il.unit_price, il.tax_rate_percent,
+                   il.unit_price, il.line_total, il.tax_rate_percent,
                    COALESCE(SUM(rl.qty), 0) AS qty_returned,
                    {$barcodeCol}, i.name_ar
             FROM sal_invoice_line il
@@ -55,6 +55,7 @@ function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId): array
             'qty_returned' => $returned,
             'qty_remaining' => $remaining,
             'unit_price' => (float) ($row['unit_price'] ?? 0),
+            'line_total' => (float) ($row['line_total'] ?? 0),
             'tax_rate_percent' => (float) ($row['tax_rate_percent'] ?? 0),
         ];
     }

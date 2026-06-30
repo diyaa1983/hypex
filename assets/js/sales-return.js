@@ -372,11 +372,20 @@
     var max = parseFloat(tr.getAttribute('data-qty-remaining')) || 0;
     var up = parseFloat(tr.getAttribute('data-unit-price')) || 0;
     var trate = parseFloat(tr.getAttribute('data-tax-rate')) || 0;
+    var qtySold = parseFloat(tr.getAttribute('data-qty-sold')) || 0;
+    var lineTotalSold = parseFloat(tr.getAttribute('data-line-total-sold')) || 0;
     if (qty > max + 0.000001) {
       qty = max;
       tr.querySelector('.js-qty-ret').value = max > 0 ? String(max) : '';
     }
-    var c = calcLine(qty, up, trate);
+    var c;
+    if (qtySold > 0.000001) {
+      var sub = roundMoney((lineTotalSold / qtySold) * qty);
+      var tax = roundMoney(sub * (trate / 100));
+      c = { sub: sub, tax: tax, gross: roundMoney(sub + tax) };
+    } else {
+      c = calcLine(qty, up, trate);
+    }
     tr.querySelector('.js-line-sub').textContent = fmt(c.sub);
     tr.querySelector('.js-tax-amt').textContent = fmt(c.tax);
     tr.querySelector('.js-line-gross').textContent = fmt(c.gross);
@@ -445,6 +454,8 @@
     tr.setAttribute('data-invoice-line-id', String(line.invoice_line_id));
     tr.setAttribute('data-item-id', String(line.item_id));
     tr.setAttribute('data-qty-remaining', String(qtyRemainingNum));
+    tr.setAttribute('data-qty-sold', String(qtySoldNum));
+    tr.setAttribute('data-line-total-sold', String(parseFloat(line.line_total) || 0));
     tr.setAttribute('data-unit-price', String(unitPriceNum));
     tr.setAttribute('data-tax-rate', String(taxRateNum));
     var name = line.name_ar || line.line_desc || '—';

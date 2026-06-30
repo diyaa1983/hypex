@@ -154,6 +154,8 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
         'SELECT rl.qty, rl.unit_price, rl.tax_rate_percent, rl.tax_amount,
                 rl.line_subtotal, rl.line_gross, rl.invoice_line_id,
                 it.name_ar AS product_name,
+                il.qty AS orig_qty_sold, il.line_total AS orig_line_total,
+                COALESCE(il.discount_amount, 0) AS orig_discount_amount,
                 il.discount_pct AS orig_discount_pct
          FROM sal_return_line rl
          INNER JOIN inv_item it ON it.id = rl.item_id
@@ -173,12 +175,15 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
         $lineGross = (float) ($row['line_gross'] ?? ($lineSub + $taxAmt));
         $rate = (float) ($row['tax_rate_percent'] ?? 0);
         $taxId = $rate <= 0.0001 ? 1 : 2;
-        // لا نستنتج خصم السطر من الفرق بين qty*unit_price و line_subtotal
-        // لأنه قد يكون مجرد تقريب رقمي (≤ 0.005) لا خصم فعلي، ويُربك معادلة
-        // JoFotara: TaxExclusive = sum(LineExtension) - AllowanceTotal.
-        // نَستخدم tolerance = 0.01 لتَجاهُل فُروقات تَقريب dp=2 الموروثة.
-        $diff = ($qty * $unitPrice) - $lineSub;
-        $itemDiscount = $diff > 0.01 ? round($diff, 3) : 0.0;
+        $origQtySold = (float) ($row['orig_qty_sold'] ?? 0);
+        $origDiscAmt = (float) ($row['orig_discount_amount'] ?? 0);
+        if ($origQtySold > 0.000001 && $origDiscAmt > 0.01) {
+            $itemDiscount = round(($origDiscAmt / $origQtySold) * $qty, 3);
+        } else {
+            // استنتاج من الفرق بين qty*unit_price و line_subtotal (بعد خصم الفاتورة/البند)
+            $diff = ($qty * $unitPrice) - $lineSub;
+            $itemDiscount = $diff > 0.01 ? round($diff, 3) : 0.0;
+        }
         $totalDisc += $itemDiscount;
         $invoiceLineId = (int) ($row['invoice_line_id'] ?? 0);
         $lines[] = (object) [

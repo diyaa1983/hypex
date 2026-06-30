@@ -144,7 +144,7 @@ function handle_sales_return_post(): void
             $qty = (float) $ln['qty'];
 
             $st = $pdo->prepare(
-                'SELECT il.id, il.item_id, il.qty AS qty_sold, il.unit_price, il.tax_rate_percent,
+                'SELECT il.id, il.item_id, il.qty AS qty_sold, il.unit_price, il.line_total, il.tax_rate_percent,
                         COALESCE(SUM(rl.qty), 0) AS qty_returned
                  FROM sal_invoice_line il
                  LEFT JOIN sal_return_line rl ON rl.invoice_line_id = il.id
@@ -170,7 +170,15 @@ function handle_sales_return_post(): void
             }
             $unitPrice = (float) $row['unit_price'];
             $taxRate = (float) $row['tax_rate_percent'];
-            $amounts = sal_return_calc_line_amounts($qty, $unitPrice, $taxRate);
+            $qtySold = (float) $row['qty_sold'];
+            $lineTotalSold = (float) $row['line_total'];
+            $amounts = sal_return_calc_line_amounts_from_invoice(
+                $qty,
+                $qtySold,
+                $lineTotalSold,
+                $unitPrice,
+                $taxRate
+            );
             $ln['item_id'] = (int) $row['item_id'];
             $ln['_unit_price'] = $unitPrice;
             $ln['_tax_rate'] = $taxRate;
