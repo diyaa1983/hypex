@@ -12,6 +12,14 @@
   var csrf = page.getAttribute('data-csrf') || '';
 
   function showBusy(show) {
+    if (window.AppBusy) {
+      if (show) {
+        AppBusy.show('جاري إنشاء النسخة الاحتياطية...');
+      } else {
+        AppBusy.hide();
+      }
+      return;
+    }
     if (!busyEl) {
       return;
     }

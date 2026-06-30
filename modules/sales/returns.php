@@ -200,6 +200,7 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
     </div>
 
     <form id="sales-ret-form" class="master-page-form sales-ret-form" method="post" action="<?= esc(app_url('index.php?r=sales_returns')) ?>"
+          data-app-busy-msg="جاري حفظ المرتجع..."
           data-api-invoices="<?= esc($apiInvoices) ?>"
           data-api-lines="<?= esc($apiLines) ?>"
           data-api-return="<?= esc($apiReturn) ?>"

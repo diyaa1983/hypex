@@ -130,8 +130,15 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
     $reportOra12CssV = is_file(app_path('assets/css/report-oracle12.css'))
         ? (string) filemtime(app_path('assets/css/report-oracle12.css'))
         : '';
+    $appBusyCssV = is_file(app_path('assets/css/app-busy.css'))
+        ? (string) filemtime(app_path('assets/css/app-busy.css'))
+        : '';
+    $appBusyJsV = is_file(app_path('assets/js/app-busy.js'))
+        ? (string) filemtime(app_path('assets/js/app-busy.js'))
+        : '';
     ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app.css')) ?><?= $appCssV !== '' ? '?v=' . esc($appCssV) : '' ?>">
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/app-busy.css')) ?><?= $appBusyCssV !== '' ? '?v=' . esc($appBusyCssV) : '' ?>">
     <script type="speculationrules">
     {
       "prefetch": [{
@@ -183,6 +190,7 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
             'fraction_units' => (int) ($appCurrency['fraction_units'] ?? 100),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     </script>
+    <script src="<?= esc(app_url('assets/js/app-busy.js')) ?><?= $appBusyJsV !== '' ? '?v=' . esc($appBusyJsV) : '' ?>" defer></script>
 </head>
 <body class="app-body<?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
 <div class="app-shell<?= $layoutFocus ? ' app-shell--focus' : '' ?>">
@@ -289,6 +297,10 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
     </div>
 <?php endif; ?>
 </div>
+<?php
+require_once app_path('includes/app_busy.php');
+app_busy_render_overlay();
+?>
 <script>try{sessionStorage.removeItem('manager:mdi-windows-v1');}catch(e){}</script>
 <script src="<?= esc(app_url('assets/js/app-format.js')) ?><?= $appFormatJsV !== '' ? '?v=' . esc($appFormatJsV) : '' ?>" defer></script>
 <?php if (!$layoutFocus): ?>

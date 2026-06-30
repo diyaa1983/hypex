@@ -164,6 +164,7 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
     </div>
 
     <form id="fin-py-form" class="master-page-form" method="post" action="<?= esc(app_url('index.php?r=cash_payment')) ?>" novalidate
+          data-app-busy-msg="جاري حفظ سند الصرف..."
           data-api-voucher="<?= esc($apiVoucher) ?>"
           data-api-employee-advances="<?= esc($apiEmployeeAdvances) ?>"
           data-api-employee-salaries="<?= esc($apiEmployeeSalaries) ?>"

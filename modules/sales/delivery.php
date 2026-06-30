@@ -110,6 +110,7 @@ customer_picker_json_script($customers, 'sales-dlv-customers-json');
     <?php endif; ?>
 
     <form id="sales-dlv-form" class="master-page-form" method="post" action="<?= esc(app_url('index.php?r=sales_delivery')) ?>" novalidate
+          data-app-busy-msg="جاري حفظ سند التسليم..."
           data-api-items="<?= esc($apiItems) ?>"
           data-api-delivery="<?= esc($apiDelivery) ?>"
           data-delivery-post-url="<?= esc($apiPost) ?>"

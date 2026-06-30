@@ -599,14 +599,6 @@ $mchipJsUrl = app_url('assets/js/hr-month-chip-strip.js')
     </div>
 </div>
 
-<div id="hr-pr-post-busy" class="hr-pr-post-busy no-print" hidden aria-live="polite" aria-busy="true">
-    <div class="hr-pr-post-busy-panel" role="status">
-        <div class="hr-pr-post-busy-spinner" aria-hidden="true"></div>
-        <p class="hr-pr-post-busy-msg" id="hr-pr-post-busy-msg">جاري التنفيذ...</p>
-        <p class="hr-pr-post-busy-hint">يرجى الانتظار — لا تغلق المتصفح حتى انتهاء العملية</p>
-    </div>
-</div>
-
 <div id="hr-pr-post-slip-print-overlay" class="sales-inv-print-overlay no-print" hidden>
     <div class="sales-inv-print-overlay-panel">
         <div class="sales-inv-print-overlay-head">

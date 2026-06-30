@@ -1255,7 +1255,11 @@
     return true;
   }
 
-  function setSaveBusy(busy) {
+  function setSaveBusy(busy, message) {
+    if (global.AppBusy && AppBusy.setSaveBusy) {
+      AppBusy.setSaveBusy(busy, message || 'جاري حفظ سند الصرف...');
+      return;
+    }
     var saveBtn = document.querySelector('#master-toolbar [data-master-action="save"]');
     if (saveBtn) saveBtn.disabled = !!busy;
   }

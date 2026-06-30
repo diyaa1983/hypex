@@ -104,6 +104,7 @@ customer_picker_json_script($customers, 'fin-rc-customers-json');
     </div>
 
     <form id="fin-rc-form" class="master-page-form" method="post" action="<?= esc(app_url('index.php?r=cash_receipt')) ?>" novalidate
+          data-app-busy-msg="جاري حفظ سند القبض..."
           data-api-voucher="<?= esc($apiVoucher) ?>"
           data-voucher-post-url="<?= esc($apiPost) ?>"
           data-voucher-unpost-url="<?= esc($apiUnpost) ?>"

@@ -100,6 +100,7 @@ $screenTitle = 'طلب شراء';
     <?php endif; ?>
 
     <form id="sales-inv-form" class="master-page-form" method="post" action="<?= esc(app_url('index.php?r=purchase_orders')) ?>" novalidate
+          data-app-busy-msg="جاري حفظ أمر الشراء..."
           data-api-items="<?= esc($apiItems) ?>"
           data-api-order="<?= esc($apiOrder) ?>"
           data-order-approve-url="<?= esc($apiApprove) ?>"

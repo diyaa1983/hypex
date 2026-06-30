@@ -80,6 +80,12 @@ $reportOra12CssV = is_file(app_path('assets/css/report-oracle12.css'))
 $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
     ? (string) filemtime(app_path('assets/js/app-decimal-sync.js'))
     : '';
+$appBusyCssV = is_file(app_path('assets/css/app-busy.css'))
+    ? (string) filemtime(app_path('assets/css/app-busy.css'))
+    : '';
+$appBusyJsV = is_file(app_path('assets/js/app-busy.js'))
+    ? (string) filemtime(app_path('assets/js/app-busy.js'))
+    : '';
 
 ?>
 <!DOCTYPE html>
@@ -90,6 +96,7 @@ $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
     <title><?= esc($browserTabTitle) ?></title>
     <?php render_app_favicon_links($settingsRow); ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app.css')) ?><?= $appCssV !== '' ? '?v=' . esc($appCssV) : '' ?>">
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/app-busy.css')) ?><?= $appBusyCssV !== '' ? '?v=' . esc($appBusyCssV) : '' ?>">
     <style>
       html { height: 100%; }
       body.app-body--embed {
@@ -136,6 +143,7 @@ $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
             'fraction_units' => (int) ($appCurrency['fraction_units'] ?? 100),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     </script>
+    <script src="<?= esc(app_url('assets/js/app-busy.js')) ?><?= $appBusyJsV !== '' ? '?v=' . esc($appBusyJsV) : '' ?>" defer></script>
 </head>
 <body class="app-body app-body--embed app-body--focus<?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
 <header class="app-embed-head no-print" role="banner">
@@ -150,6 +158,10 @@ $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
     report_ora12_layout_close($activeRoute);
     ?>
 </main>
+<?php
+require_once app_path('includes/app_busy.php');
+app_busy_render_overlay();
+?>
 <script src="<?= esc(app_url('assets/js/app-format.js')) ?><?= $appFormatJsV !== '' ? '?v=' . esc($appFormatJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-decimal-sync.js')) ?><?= $appDecimalSyncJsV !== '' ? '?v=' . esc($appDecimalSyncJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/document-header.js')) ?><?= $docHdrJsV !== '' ? '?v=' . esc($docHdrJsV) : '' ?>" defer></script>

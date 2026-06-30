@@ -188,6 +188,7 @@ $screenTitle = $ledgerView ? 'عرض مردود مشتريات' : 'مردود م
     </div>
 
     <form id="sales-ret-form" class="master-page-form sales-ret-form" method="post" action="<?= esc(app_url('index.php?r=purchase_returns')) ?>"
+          data-app-busy-msg="جاري حفظ مرتجع المشتريات..."
           data-api-invoices="<?= esc($apiInvoices) ?>"
           data-api-lines="<?= esc($apiLines) ?>"
           data-api-return="<?= esc($apiReturn) ?>"

@@ -134,6 +134,8 @@ $showUnitPriceIncl = true;
     <?php endif; ?>
 
     <form id="sales-inv-form" class="master-page-form" method="post" action="<?= esc(app_url('index.php?r=sales_invoices')) ?>" novalidate
+          data-app-busy-skip="1"
+          data-app-busy-msg="جاري حفظ الفاتورة..."
           data-api-items="<?= esc($apiItems) ?>"
           data-api-invoice="<?= esc($apiInvoice) ?>"
           data-delivery-pick-url="<?= esc($apiDeliveryPick) ?>"
@@ -311,14 +313,6 @@ $showUnitPriceIncl = true;
 </div>
 
 <div id="sales-inv-export-host" class="sales-inv-export-host" aria-hidden="true"></div>
-
-<div id="sales-inv-busy" class="sales-inv-busy no-print" hidden aria-live="polite" aria-busy="true">
-    <div class="sales-inv-busy-panel" role="status">
-        <div class="sales-inv-busy-spinner" aria-hidden="true"></div>
-        <p class="sales-inv-busy-msg" id="sales-inv-busy-msg">جاري حفظ الفاتورة...</p>
-        <p class="sales-inv-busy-hint">يرجى الانتظار — لا تغلق المتصفح حتى انتهاء العملية</p>
-    </div>
-</div>
 
 <script src="<?= esc($archiveJsUrl) ?>" defer></script>
 <script src="<?= esc($jsItemDisplay) ?>" defer></script>

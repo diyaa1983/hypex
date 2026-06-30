@@ -55,9 +55,15 @@
   var suppressDirtyMark = 0;
   var draftPersistTimer = null;
   var draftKey = form.getAttribute('data-draft-key') || 'sales_invoices';
-  var busyEl = document.getElementById('sales-inv-busy');
-  var busyMsgEl = document.getElementById('sales-inv-busy-msg');
-  var invScreenBusyActive = false;
+
+  function setSaveBusy(busy, message) {
+    if (global.AppBusy && AppBusy.setSaveBusy) {
+      AppBusy.setSaveBusy(busy, message || 'جاري حفظ الفاتورة...');
+      return;
+    }
+    var saveBtn = document.querySelector('#master-toolbar [data-master-action="save"]');
+    if (saveBtn) saveBtn.disabled = !!busy;
+  }
 
   function fmtDate(value) {
     return global.AppFormat && AppFormat.formatDateDmY
@@ -1823,55 +1829,20 @@
     return hasLine;
   }
 
-  function showSalesInvBusy(message) {
-    if (invScreenBusyActive) {
-      if (busyMsgEl && message) {
-        busyMsgEl.textContent = message;
+  function setInvoiceBusy(busy, message) {
+    if (global.AppBusy) {
+      if (busy) {
+        AppBusy.show(message || 'جاري التنفيذ...');
+      } else {
+        AppBusy.hide();
       }
-      return;
     }
-    invScreenBusyActive = true;
-    if (busyMsgEl) {
-      busyMsgEl.textContent = message || 'جاري حفظ الفاتورة...';
-    }
-    if (busyEl) {
-      busyEl.hidden = false;
-      busyEl.removeAttribute('hidden');
-    }
-    document.body.classList.add('sales-inv-is-busy');
     try {
       document.dispatchEvent(
-        new CustomEvent('manager:invoice-busy', { detail: { busy: true } })
+        new CustomEvent('manager:invoice-busy', { detail: { busy: !!busy } })
       );
     } catch (e) {
       /* ignore */
-    }
-  }
-
-  function hideSalesInvBusy() {
-    if (!invScreenBusyActive) return;
-    invScreenBusyActive = false;
-    if (busyEl) {
-      busyEl.hidden = true;
-      busyEl.setAttribute('hidden', '');
-    }
-    document.body.classList.remove('sales-inv-is-busy');
-    try {
-      document.dispatchEvent(
-        new CustomEvent('manager:invoice-busy', { detail: { busy: false } })
-      );
-    } catch (e2) {
-      /* ignore */
-    }
-  }
-
-  function setSaveBusy(busy, message) {
-    var saveBtn = document.querySelector('#master-toolbar [data-master-action="save"]');
-    if (saveBtn) saveBtn.disabled = !!busy;
-    if (busy) {
-      showSalesInvBusy(message || 'جاري حفظ الفاتورة...');
-    } else {
-      hideSalesInvBusy();
     }
   }
 
@@ -3650,6 +3621,7 @@
         if (linkedDeliveryId > 0) {
           fd.append('delivery_id', String(linkedDeliveryId));
         }
+        if (window.AppBusy) AppBusy.show('جاري ترحيل الفاتورة...');
         fetch(invoicePostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
           .then(parsePostInvoiceJsonResponse)
           .then(function (res) {
@@ -3674,6 +3646,9 @@
           })
           .catch(function () {
             refreshInvoiceAfterPostAttempt('تعذر الاتصال بالخادم. جارٍ التحقق من حالة الفاتورة…');
+          })
+          .finally(function () {
+            if (window.AppBusy) AppBusy.hide();
           });
       }
 
@@ -3709,6 +3684,7 @@
     var fd = new FormData();
     fd.append('_csrf', csrfInput ? csrfInput.value : '');
     fd.append('invoice_id', String(currentInvoiceId));
+    if (window.AppBusy) AppBusy.show('جاري إرسال الفاتورة للفوترة...');
     fetch(einvoiceSendUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
@@ -3723,21 +3699,14 @@
       })
       .catch(function () {
         AppDialog.error('تعذر الاتصال بالخادم.');
+      })
+      .finally(function () {
+        if (window.AppBusy) AppBusy.hide();
       });
   }
 
   var unpostDialogBusy = false;
   var unpostInFlight = false;
-
-  function setInvoiceBusy(busy) {
-    try {
-      document.dispatchEvent(
-        new CustomEvent('manager:invoice-busy', { detail: { busy: !!busy } })
-      );
-    } catch (e) {
-      /* ignore */
-    }
-  }
 
   function unpostCurrentInvoice() {
     if (!canUnpostByPermission) {
@@ -3781,7 +3750,7 @@
       if (!ok) return;
       if (unpostInFlight) return;
       unpostInFlight = true;
-      setInvoiceBusy(true);
+      setInvoiceBusy(true, 'جاري فك ترحيل الفاتورة...');
       var fd = new FormData();
       fd.append('_csrf', csrfInput ? csrfInput.value : '');
       fd.append('invoice_id', String(currentInvoiceId));
@@ -3839,6 +3808,7 @@
         var fd = new FormData();
         fd.append('_csrf', csrfInput ? csrfInput.value : '');
         fd.append('invoice_id', String(currentInvoiceId));
+        if (window.AppBusy) AppBusy.show('جاري إرسال الفاتورة للفوترة...');
         fetch(einvoiceSendUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
           .then(function (r) {
             return r.json();
@@ -3853,6 +3823,9 @@
           })
           .catch(function () {
             AppDialog.error('تعذر الاتصال بالخادم.');
+          })
+          .finally(function () {
+            if (window.AppBusy) AppBusy.hide();
           });
       }
     );

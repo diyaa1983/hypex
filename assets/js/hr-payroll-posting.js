@@ -24,9 +24,6 @@
     var smartLovApis = {};
     var suppressAutoSubmit = true;
     var autoSubmitInProgress = false;
-    var busyEl = qs('#hr-pr-post-busy');
-    var busyMsgEl = qs('#hr-pr-post-busy-msg');
-    var payrollBusyActive = false;
 
     try {
         filterEmployees = JSON.parse(page.getAttribute('data-filter-employees') || '[]');
@@ -463,7 +460,7 @@
     if (periodForm) {
         periodForm.addEventListener('submit', function () {
             syncPayrollFilters();
-            if (!payrollBusyActive) {
+            if (!window.AppBusy || !AppBusy.isActive()) {
                 showPayrollLoadBusy();
             }
         });
@@ -1092,18 +1089,10 @@
     }
 
     function showPayrollBusy(action) {
-        if (payrollBusyActive) {
+        if (!window.AppBusy) {
             return;
         }
-        payrollBusyActive = true;
-        if (busyMsgEl) {
-            busyMsgEl.textContent = payrollBusyMessage(action);
-        }
-        if (busyEl) {
-            busyEl.hidden = false;
-            busyEl.removeAttribute('hidden');
-        }
-        document.body.classList.add('hr-pr-post-is-busy');
+        AppBusy.show(payrollBusyMessage(action));
     }
 
     function showPayrollLoadBusy() {

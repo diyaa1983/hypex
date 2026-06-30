@@ -75,6 +75,7 @@ echo '<script type="application/json" id="fin-dn-suppliers-json">' . crm_supplie
     </div>
 
     <form id="fin-dn-form" class="master-page-form" method="post" action="<?= esc(app_url('index.php?r=debit_notes')) ?>" novalidate
+          data-app-busy-msg="جاري حفظ إشعار المدين..."
           data-api-note="<?= esc($apiNote) ?>"
           data-api-delete="<?= esc($apiDelete) ?>"
           data-api-items="<?= esc($apiItems) ?>"

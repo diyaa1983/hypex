@@ -1625,6 +1625,7 @@
       var fd = new FormData();
       fd.append('_csrf', csrfInput ? csrfInput.value : '');
       fd.append('return_id', String(currentReturnId));
+      if (window.AppBusy) AppBusy.show('جاري ترحيل المرتجع...');
       fetch(returnPostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function (r) {
           return r.json();
@@ -1661,6 +1662,9 @@
         })
         .catch(function () {
           AppDialog.error('تعذر الاتصال بالخادم.');
+        })
+        .finally(function () {
+          if (window.AppBusy) AppBusy.hide();
         });
     });
   }
@@ -1706,6 +1710,7 @@
       var fd = new FormData();
       fd.append('_csrf', csrfInput ? csrfInput.value : '');
       fd.append('return_id', String(currentReturnId));
+      if (window.AppBusy) AppBusy.show('جاري فك ترحيل المرتجع...');
       fetch(returnUnpostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function (r) {
           return r.json();
@@ -1724,6 +1729,9 @@
         })
         .catch(function () {
           AppDialog.error('تعذر الاتصال بالخادم.');
+        })
+        .finally(function () {
+          if (window.AppBusy) AppBusy.hide();
         });
     });
   }
@@ -2305,6 +2313,7 @@
     fd.append('_csrf', csrfInp ? csrfInp.value : '');
     fd.append('return_id', String(retId));
     fd.append('reason', reason);
+    if (window.AppBusy) AppBusy.show('جاري إرسال المرتجع للفوترة...');
     try { console.log('[einvoice-return] sending', { apiUrl: apiUrl, return_id: retId }); } catch (_e) {}
     fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(function (r) { return r.json().then(function (j) { return { status: r.status, data: j }; }); })
@@ -2325,6 +2334,9 @@
       .catch(function (err) {
         try { console.error('[einvoice-return] fetch failed', err); } catch (_e) {}
         AppDialog.error('تعذر الاتصال بالخادم.');
+      })
+      .finally(function () {
+        if (window.AppBusy) AppBusy.hide();
       });
   }
 

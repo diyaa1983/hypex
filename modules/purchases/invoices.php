@@ -109,6 +109,7 @@ $screenTitle = $ledgerView ? 'عرض فاتورة شراء' : 'فاتورة شر
     </div>
 
     <form id="sales-inv-form" class="master-page-form" method="post" action="<?= esc(app_url('index.php?r=purchase_invoices')) ?>" novalidate
+          data-app-busy-msg="جاري حفظ فاتورة المشتريات..."
           data-api-items="<?= esc($apiItems) ?>"
           data-api-invoice="<?= esc($apiInvoice) ?>"
           data-invoice-post-url="<?= esc($apiPostInvoice) ?>"
