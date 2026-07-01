@@ -11,7 +11,10 @@ $warehouses = $pdo->query(
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $warehouseId = (int) ($_GET['warehouse_id'] ?? 0);
-$includeZero = isset($_GET['include_zero']) && (string) $_GET['include_zero'] === '1';
+// افتراضياً: شامل صفر/سالب (مطابق لكشف المخzون). عند «عرض التقرير» بدون ✓ = مواد موجبة فقط.
+$includeZero = isset($_GET['run'])
+    ? (isset($_GET['include_zero']) && (string) $_GET['include_zero'] === '1')
+    : (!isset($_GET['include_zero']) || (string) $_GET['include_zero'] === '1');
 $positiveQtyOnly = !$includeZero;
 
 $from = trim((string) ($_GET['from'] ?? ''));
@@ -158,6 +161,9 @@ if ($showResult && $err === '') {
                     </tr>
                     <tr>
                         <td><strong>إجمالي قيمة المستودع:</strong> <?= esc(format_amount($totalValue)) ?></td>
+                    </tr>
+                    <tr>
+                        <td><strong>عرض المواد:</strong> <?= $includeZero ? 'شامل الرصيد صفر والسالب' : 'مواد ذات رصيد موجب فقط' ?></td>
                     </tr>
                 </table>
             </div>
