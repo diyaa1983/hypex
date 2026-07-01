@@ -221,7 +221,7 @@ $screenTitle = $ledgerView ? 'عرض مردود مشتريات' : 'مردود م
                     <label for="ret_no">رقم المردود</label>
                     <div class="sales-inv-no-nav">
                         <button type="button" class="sales-inv-no-arrow" id="ret_no_prev" title="المردود السابق" aria-label="السابق">‹</button>
-                        <input class="input input-compact sales-inv-no-input" type="text" id="ret_no" value="" placeholder="MR001-2026" title="رقم المردود — الأسهم للتنقل">
+                        <input class="input input-compact sales-inv-no-input" type="text" id="ret_no" value="" placeholder="PR001-2026" title="رقم المردود — الأسهم للتنقل">
                         <button type="button" class="sales-inv-no-arrow" id="ret_no_next" title="المردود التالي" aria-label="التالي">›</button>
                     </div>
                 </div>

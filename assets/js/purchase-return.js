@@ -1,6 +1,8 @@
 (function () {
   'use strict';
 
+  var global = typeof window !== 'undefined' ? window : self;
+
   var form = document.getElementById('sales-ret-form');
   if (!form) return;
 
@@ -1367,15 +1369,23 @@
     else if (opts.dir && opts.fromId) {
       url += '?id=' + encodeURIComponent(opts.fromId) + '&dir=' + encodeURIComponent(opts.dir);
     } else if (opts.edge === 'first') url += '?edge=first';
-    return fetch(url, { credentials: 'same-origin' }).then(function (r) {
-      return r.json();
-    });
+    return fetch(url, { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) {
+          throw new Error('http_' + r.status);
+        }
+        return r.json();
+      });
   }
 
   function applyReturnFetchData(data) {
     if (!data || !data.ok) {
       if (data && (data.error === 'no_neighbor' || data.error === 'not_found')) {
         AppDialog.alert(data.message || 'غير موجود.', { type: 'info' });
+      } else if (data && (data.error || data.message)) {
+        AppDialog.error(data.message || data.error || 'تعذر تحميل المردود.');
+      } else if (data === null) {
+        AppDialog.error('تعذر تحميل المردود — تحقق من الاتصال.');
       }
       return;
     }
@@ -1391,7 +1401,9 @@
   }
 
   function loadReturn(opts) {
-    fetchReturnResponse(opts).then(applyReturnFetchData);
+    fetchReturnResponse(opts).then(applyReturnFetchData).catch(function () {
+      AppDialog.error('تعذر تحميل المردود — حدّث الصفحة (Ctrl+F5) أو راجع سجل الأخطاء.');
+    });
   }
 
   function navigateEmptyReturn(dir) {
