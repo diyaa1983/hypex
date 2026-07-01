@@ -1034,9 +1034,12 @@ function acc_gl_post_purchase_return(PDO $pdo, int $returnId): array
         }
         $settings = acc_gl_load_settings($pdo);
         $useInventory = (int) ($settings['inventory']['account_id'] ?? 0) > 0;
-        $expRule = (int) ($settings['purchase_returns']['account_id'] ?? 0) > 0
-            ? 'purchase_returns'
-            : ($useInventory ? 'inventory' : 'purchases');
+        // عند تفعيل حساب المخزون: عكس فاتورة الشراء (دائن المخزون) ليظهر في كشف حساب المخزون.
+        $expRule = $useInventory
+            ? 'inventory'
+            : ((int) ($settings['purchase_returns']['account_id'] ?? 0) > 0
+                ? 'purchase_returns'
+                : 'purchases');
         $pay = (string) ($row['payment_type'] ?? '') === 'cash' ? 'cash' : 'credit';
         $lines = [];
         $creditBase = $sub > 0 ? $sub : ($tax > 0 ? 0 : $total);
