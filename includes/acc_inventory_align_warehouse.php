@@ -144,6 +144,12 @@ function acc_inventory_align_cogs_close_remainder(PDO $pdo, string $asOfDate, fl
         return false;
     }
 
+    $settings = acc_gl_load_settings($pdo);
+    $invId = (int) ($settings['inventory']['account_id'] ?? 0);
+    if ($invId < 1) {
+        return false;
+    }
+
     $sql =
         "SELECT i.id FROM sal_invoice i
          INNER JOIN acc_journal_entry e ON e.ref_type = 'sale_invoice' AND e.ref_id = i.id
@@ -151,13 +157,12 @@ function acc_inventory_align_cogs_close_remainder(PDO $pdo, string $asOfDate, fl
          WHERE e.entry_date <= ?
          ORDER BY (
              SELECT COALESCE(SUM(l.credit), 0) FROM acc_journal_line l
-             INNER JOIN acc_journal_entry e2 ON e2.id = l.journal_id
-             WHERE e2.ref_type = 'sale_invoice' AND e2.ref_id = i.id
+             WHERE l.journal_id = e.id AND l.account_id = ?
          ) DESC, i.id DESC
          LIMIT 1";
 
     $st = $pdo->prepare($sql);
-    $st->execute([$asOfDate]);
+    $st->execute([$asOfDate, $invId]);
     $refId = (int) $st->fetchColumn();
     if ($refId < 1) {
         return false;
@@ -330,6 +335,61 @@ function acc_inventory_align_cogs_only(PDO $pdo, string $asOfDate): array
     } catch (Throwable $e) {
         $out['ok'] = false;
         $out['error'] = $e->getMessage() !== '' ? $e->getMessage() : 'تعذرت مطابقة COGS.';
+    }
+
+    return $out;
+}
+
+/**
+ * إغلاق الفرق المتبقي فقط (بدون إعادة حساب كل COGS).
+ *
+ * @return array{ok:bool, skipped:bool, error:?string, gap_before:float, gap_after:float, steps:int}
+ */
+function acc_inventory_align_cogs_close_gap_only(PDO $pdo, string $asOfDate): array
+{
+    $out = [
+        'ok' => true,
+        'skipped' => true,
+        'error' => null,
+        'gap_before' => 0.0,
+        'gap_after' => 0.0,
+        'steps' => 0,
+    ];
+
+    acc_gl_ensure_schema($pdo);
+    if (!acc_gl_inventory_cogs_enabled(acc_gl_load_settings($pdo))) {
+        $out['ok'] = false;
+        $out['error'] = 'ربط حسابي المخزون وتكلفة المبيعات غير مكتمل.';
+
+        return $out;
+    }
+
+    try {
+        $summary = acc_inventory_align_summary($pdo, $asOfDate);
+        $out['gap_before'] = round((float) $summary['gap'], 6);
+        $out['gap_after'] = $out['gap_before'];
+
+        if (abs($out['gap_before']) < 0.01) {
+            return $out;
+        }
+
+        for ($pass = 0; $pass < 12; $pass++) {
+            $gap = round((float) acc_inventory_align_summary($pdo, $asOfDate)['gap'], 6);
+            $out['gap_after'] = $gap;
+            if (abs($gap) < 0.01) {
+                break;
+            }
+            if (!acc_inventory_align_cogs_close_remainder($pdo, $asOfDate, $gap)) {
+                break;
+            }
+            $out['steps']++;
+            $out['skipped'] = false;
+        }
+
+        $out['gap_after'] = round((float) acc_inventory_align_summary($pdo, $asOfDate)['gap'], 6);
+    } catch (Throwable $e) {
+        $out['ok'] = false;
+        $out['error'] = $e->getMessage() !== '' ? $e->getMessage() : 'تعذر إغلاق الفرق.';
     }
 
     return $out;

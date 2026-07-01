@@ -45,6 +45,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . '&as_of=' . rawurlencode(format_date_dmY($asOf))
             ));
         }
+    } elseif (($_POST['action'] ?? '') === 'close_cogs_gap') {
+        $postTo = parse_date_to_iso(trim((string) ($_POST['as_of'] ?? ''))) ?? $asOf;
+        $asOf = $postTo;
+
+        $res = acc_inventory_align_cogs_close_gap_only($pdo, $asOf);
+        if (!$res['ok']) {
+            $message = $res['error'] ?? 'فشل إغلاق الفرق.';
+            $messageType = 'error';
+        } else {
+            $msg = 'إغلاق الفرق: قبل ' . format_money((float) ($res['gap_before'] ?? 0))
+                . ' — بعد ' . format_money((float) ($res['gap_after'] ?? 0));
+            if ((int) ($res['steps'] ?? 0) > 0) {
+                $msg .= ' (' . (int) $res['steps'] . ' تعديل COGS)';
+            }
+            flash_set('success', $msg);
+            redirect(app_url(
+                'index.php?r=inventory_align_warehouse&date_from='
+                . rawurlencode(format_date_dmY($dateFrom))
+                . '&as_of=' . rawurlencode(format_date_dmY($asOf))
+            ));
+        }
     } elseif (($_POST['action'] ?? '') === 'align_cogs_only') {
         $postTo = parse_date_to_iso(trim((string) ($_POST['as_of'] ?? ''))) ?? $asOf;
         $asOf = $postTo;
@@ -191,6 +212,19 @@ try {
                 مطابقة عبر COGS فقط (حتى <?= esc(format_date_dmY($asOf)) ?>)
             </button>
         </form>
+        <?php if (abs($gap) >= 0.01): ?>
+        <form method="post" action="<?= esc(app_url('index.php?r=inventory_align_warehouse')) ?>"
+              style="margin-top:0.5rem;"
+              onsubmit="return confirm('إغلاق الفرق المتبقي (<?= esc(format_money($gap)) ?>) عبر تعديل COGS على أكبر فاتورة. المتابعة؟');">
+            <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+            <input type="hidden" name="confirm" value="yes">
+            <input type="hidden" name="action" value="close_cogs_gap">
+            <input type="hidden" name="as_of" value="<?= esc(format_date_dmY($asOf)) ?>">
+            <button type="submit" class="btn btn-secondary btn-sm">
+                إغلاق الفرق المتبقي (~<?= esc(format_money($gap)) ?>) — COGS فقط
+            </button>
+        </form>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 
