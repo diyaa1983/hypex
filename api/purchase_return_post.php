@@ -30,6 +30,10 @@ if (!verify_csrf($csrf)) {
 $pdo = db();
 pur_return_ensure_schema($pdo);
 crm_supplier_ledger_ensure_schema($pdo);
+require_once app_path('includes/inv_stock.php');
+inv_stock_move_ensure_table($pdo);
+require_once app_path('includes/acc_gl.php');
+acc_gl_ensure_schema($pdo);
 
 $ids = [];
 if (isset($_POST['return_id'])) {
@@ -49,16 +53,11 @@ if ($ids === []) {
 }
 
 try {
-    $pdo->beginTransaction();
     $result = pur_return_post_by_ids($pdo, $ids);
-    if ($result['errors'] !== []) {
-        $pdo->rollBack();
-    } else {
-        $pdo->commit();
-    }
 
     $posted = (int) $result['posted'];
     $skipped = (int) $result['skipped'];
+    $firstError = $result['errors'][0] ?? null;
 
     if ($posted === 0 && $result['errors'] === [] && $skipped > 0) {
         $msg = 'المردود غير مرحّل أو كان مرحّلاً مسبقًا.';
@@ -84,15 +83,14 @@ try {
         'errors' => $result['errors'],
         'remaining_returns' => $counts['returns'],
         'message' => $msg,
+        'error' => $firstError,
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
     http_response_code(500);
     $detail = trim($e->getMessage());
     echo json_encode([
         'ok' => false,
         'error' => $detail !== '' ? ('تعذر الترحيل: ' . $detail) : 'تعذر الترحيل.',
+        'message' => $detail !== '' ? ('تعذر الترحيل: ' . $detail) : 'تعذر الترحيل.',
     ], JSON_UNESCAPED_UNICODE);
 }

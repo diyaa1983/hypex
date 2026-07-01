@@ -39,6 +39,8 @@ require_once app_path('includes/crm_supplier_ledger.php');
 crm_supplier_ledger_ensure_schema($pdo);
 require_once app_path('includes/inv_stock.php');
 inv_stock_move_ensure_table($pdo);
+require_once app_path('includes/acc_gl.php');
+acc_gl_ensure_schema($pdo);
 
 try {
     $pdo->beginTransaction();
