@@ -125,7 +125,7 @@ if ($showResult && $err === '') {
             </label>
             <label class="field" style="flex:0 0 auto;align-self:flex-end;">
                 <input type="checkbox" name="include_zero" value="1" <?= $includeZero ? 'checked' : '' ?>>
-                <span style="margin-right:0.35rem;">شامل المواد ذات الرصيد صفر</span>
+                <span style="margin-right:0.35rem;">شامل المواد ذات الرصيد صفر أو سالب</span>
             </label>
         </div>
         <p class="muted no-print" style="margin:0.35rem 0 0;font-size:0.85rem;">
