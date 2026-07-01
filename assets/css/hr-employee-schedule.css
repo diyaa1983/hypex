@@ -1,0 +1,115 @@
+/* تعريف دوام الموظف */
+
+.hr-emp-sch-page .hr-emp-sch-flash {
+    margin: 0 0.5rem 0.5rem;
+}
+
+.hr-emp-sch-master-grid {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr) auto;
+    gap: 0.65rem 0.75rem;
+    align-items: end;
+}
+
+.hr-emp-sch-master-cell--action {
+    padding-bottom: 0.1rem;
+}
+
+.hr-emp-sch-empty {
+    padding: 1.5rem 1rem;
+    text-align: center;
+}
+
+.hr-emp-sch-tabs {
+    margin-top: 0.5rem;
+}
+
+.hr-emp-sch-tab-panels {
+    margin-top: 0;
+}
+
+.hr-emp-sch-tab-panel[hidden] {
+    display: none !important;
+}
+
+.hr-emp-sch-weekly-layout {
+    display: grid;
+    grid-template-columns: minmax(200px, 0.32fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.hr-emp-sch-periods-list {
+    list-style: none;
+    margin: 0.65rem 0 0;
+    padding: 0;
+}
+
+.hr-emp-sch-periods-list li {
+    margin: 0 0 0.35rem;
+}
+
+.hr-emp-sch-period-link {
+    display: block;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.25rem;
+    text-decoration: none;
+    color: #0f172a;
+    font-size: 0.82rem;
+}
+
+.hr-emp-sch-period-link:hover,
+.hr-emp-sch-period-link.is-active {
+    background: #e0f2fe;
+    border-color: #0369a1;
+}
+
+.hr-emp-sch-new-period {
+    width: 100%;
+    text-align: center;
+}
+
+.hr-emp-sch-hint {
+    margin: 0 0 0.75rem;
+    font-size: 0.82rem;
+}
+
+.hr-emp-sch-date-row {
+    margin-bottom: 0.75rem;
+}
+
+.hr-emp-sch-week-table-wrap {
+    margin-bottom: 0.75rem;
+}
+
+.hr-emp-sch-week-table th,
+.hr-emp-sch-week-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.hr-emp-sch-week-table select.input {
+    width: 100%;
+    min-width: 12rem;
+}
+
+.hr-emp-sch-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.hr-emp-sch-default-field {
+    max-width: 28rem;
+}
+
+@media (max-width: 900px) {
+    .hr-emp-sch-weekly-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .hr-emp-sch-master-grid {
+        grid-template-columns: 1fr;
+    }
+}

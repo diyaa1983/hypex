@@ -1,0 +1,239 @@
+/* شاشة إعدادات دوام الموظفين — الشفتات */
+
+.hr-att-shift-grid-page {
+    --hr-att-shift-accent: #0369a1;
+    --hr-att-shift-accent-soft: #e0f2fe;
+    --hr-att-shift-accent-deep: #075985;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.hr-att-shift-grid-flash {
+    margin-bottom: 0.75rem;
+}
+
+.hr-att-shift-hint {
+    margin: 0 0 0.75rem;
+    font-size: 0.82rem;
+}
+
+.hr-att-shift-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.hr-att-shift-toolbar .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.hr-att-shift-editor {
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem 1rem;
+    background: var(--hr-att-shift-accent-soft);
+    border: 1px solid var(--hr-att-shift-accent);
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 10px rgba(3, 105, 161, 0.12);
+}
+
+.hr-att-shift-editor-close {
+    min-width: 2rem;
+    padding: 0.2rem 0.45rem;
+    line-height: 1.2;
+}
+
+.hr-att-shift-editor-fields {
+    display: grid;
+    grid-template-columns: minmax(110px, 0.2fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(100px, 0.28fr);
+    gap: 0.65rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.hr-att-shift-editor-fields .field {
+    margin: 0;
+}
+
+.hr-att-shift-editor-fields .field-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.hr-att-shift-holiday-btn {
+    margin-top: 0.35rem;
+    width: 100%;
+}
+
+.hr-att-shift-holiday-tag {
+    display: inline-block;
+    margin-inline-start: 0.25rem;
+    padding: 0.05rem 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    border-radius: 0.2rem;
+    background: #fef2f2;
+}
+
+.hr-att-shift-row.is-holiday td:nth-child(2) {
+    color: #b91c1c;
+    font-weight: 600;
+}
+
+.hr-att-shift-editor-field-code .input[readonly] {
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+    cursor: not-allowed;
+}
+
+.hr-att-shift-code-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.35rem;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 0.4rem;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.05rem;
+    user-select: none;
+}
+
+.hr-att-shift-code-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.hr-att-shift-editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.hr-att-shift-grid-page.is-editing .hr-att-shift-grid-wrap {
+    outline: 2px solid #7dd3fc;
+    outline-offset: 2px;
+}
+
+.hr-att-shift-grid-wrap {
+    background: #fff;
+    border: 1px solid #0f172a;
+    border-radius: 2px;
+    overflow: auto;
+}
+
+.hr-att-shift-grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.95rem;
+}
+
+.hr-att-shift-grid-table th,
+.hr-att-shift-grid-table td {
+    border: 1px solid #0f172a;
+    padding: 0.45rem 0.5rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.hr-att-shift-grid-table thead th {
+    background: #d9d9d9;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.hr-att-shift-time-cell {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.hr-att-shift-col-active,
+.hr-att-shift-cell-active {
+    width: 5.5rem;
+}
+
+.hr-att-shift-toggle-form {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hr-att-shift-toggle-chk input[type="checkbox"] {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--hr-att-shift-accent);
+    cursor: pointer;
+}
+
+.hr-att-shift-row {
+    cursor: pointer;
+}
+
+.hr-att-shift-row.is-inactive td {
+    color: #94a3b8;
+    background: #f8fafc;
+}
+
+.hr-att-shift-row.is-selected td {
+    background: var(--hr-att-shift-accent-soft);
+}
+
+.hr-att-shift-row:hover td {
+    background: #f8fafc;
+}
+
+.hr-att-shift-row.is-selected:hover td {
+    background: var(--hr-att-shift-accent-soft);
+}
+
+.hr-att-shift-editor-field-active {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.hr-att-shift-active-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.35rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid #bae6fd;
+    border-radius: 0.4rem;
+    background: #f0f9ff;
+    cursor: pointer;
+}
+
+.hr-att-shift-active-check input[type="checkbox"] {
+    accent-color: var(--hr-att-shift-accent);
+}
+
+@media (max-width: 860px) {
+    .hr-att-shift-editor-fields {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .hr-att-shift-editor-field-code {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 520px) {
+    .hr-att-shift-editor-fields {
+        grid-template-columns: 1fr;
+    }
+}

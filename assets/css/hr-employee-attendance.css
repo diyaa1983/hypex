@@ -1,0 +1,147 @@
+/* بصمات الموظفين */
+.hr-att-wrap {
+  max-width: 1200px;
+}
+
+.hr-att-hint {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.hr-att-flash {
+  margin-bottom: 0.75rem;
+}
+
+.hr-att-config-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.hr-att-mdb-field {
+  flex: 1 1 20rem;
+  min-width: 16rem;
+}
+
+.hr-att-config-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.hr-att-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.hr-att-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.hr-att-meta dt {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.hr-att-meta dd {
+  margin: 0;
+}
+
+.hr-att-meta .is-ok {
+  color: #15803d;
+}
+
+.hr-att-meta .is-err {
+  color: #b91c1c;
+}
+
+.hr-att-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.hr-att-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.hr-att-filter-form .field {
+  min-width: 10rem;
+}
+
+.hr-att-table-wrap {
+  overflow-x: auto;
+}
+
+.hr-att-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.hr-att-table th,
+.hr-att-table td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: start;
+  vertical-align: middle;
+}
+
+.hr-att-table th {
+  background: #f8fafc;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hr-att-table tr.is-unlinked {
+  background: #fff7ed;
+}
+
+.hr-att-unlinked-tag {
+  color: #c2410c;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.hr-att-map-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.hr-att-map-batch-form .hr-att-map-picker {
+  min-width: 11rem;
+  max-width: 16rem;
+}
+
+.hr-att-map-batch-form .hr-att-map-picker .sales-inv-cust-open {
+  min-height: 1.85rem;
+  font-size: 0.8rem;
+}
+
+#master-toolbar [data-master-action="save"].is-inactive,
+#master-toolbar [data-master-action="save"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hr-att-empty {
+  padding: 1rem 0;
+  text-align: center;
+}
+
+.hr-att-unmapped-panel {
+  margin-bottom: 1rem;
+}

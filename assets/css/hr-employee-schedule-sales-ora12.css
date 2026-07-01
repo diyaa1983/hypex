@@ -1,0 +1,36 @@
+.dashboard-ora.hr-emp-sch-ora12-screen .sales-ora-tabs.hr-emp-sch-tabs .sales-ora-tab {
+    min-height: 1.65rem;
+    padding: 0.22rem 0.75rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    cursor: pointer;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .sales-ora-tabs.hr-emp-sch-tabs .sales-ora-tab.is-active {
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel__title,
+.dashboard-ora.hr-emp-sch-ora12-screen h3.dashboard-ora-panel__title {
+    font-size: 0.82rem;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .input,
+.dashboard-ora.hr-emp-sch-ora12-screen select.input {
+    min-height: 1.65rem;
+    font-size: 0.78rem;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table thead th {
+    background: #d9d9d9;
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table tbody tr:nth-child(even) {
+    background: #fafafa;
+}

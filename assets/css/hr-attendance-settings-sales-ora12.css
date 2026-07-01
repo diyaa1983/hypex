@@ -1,0 +1,188 @@
+/* شاشة إعدادات دوام الموظفين — Oracle 12c */
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap {
+    width: 100%;
+    max-width: 100%;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-grid-page {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-grid-flash,
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-hint {
+    margin: 0 0.55rem 0.5rem;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-top-bar.dashboard-ora-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.35rem 0.55rem;
+    margin: 0;
+    padding: 0.4rem 0.55rem;
+    background: #f3f5f7;
+    border: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-top-bar .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    align-self: flex-end;
+    margin-bottom: 0.05rem;
+    padding: 0.22rem 0.6rem;
+    min-height: 1.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    text-decoration: none;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    cursor: pointer;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-top-bar .btn-primary {
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-top-bar .btn-danger {
+    color: #fff;
+    background: linear-gradient(180deg, #e85a4a 0%, #c74634 55%, #a33a2b 100%);
+    border-color: #a33a2b;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-top-bar .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-editor-panel.hr-att-shift-editor {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-editor-close {
+    float: left;
+    min-width: 1.55rem;
+    margin-bottom: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-editor-fields .field-label,
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+    margin-bottom: 0.15rem;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .input {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--ora12-text);
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .input:focus {
+    outline: none;
+    border-color: #0572ce;
+    box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-code-display {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #f3f5f7;
+    color: var(--ora12-text);
+    font-weight: 700;
+    font-size: 0.88rem;
+    justify-content: flex-start;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-active-check {
+    min-height: 1.65rem;
+    padding: 0.22rem 0.45rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-active-check input[type="checkbox"],
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-toggle-chk input[type="checkbox"] {
+    width: 0.95rem;
+    height: 0.95rem;
+    accent-color: #0572ce;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0 0.55rem 0.55rem;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-grid-wrap {
+    background: #fff;
+    border: none;
+    border-radius: 0;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-row.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-row.is-inactive td {
+    color: var(--ora12-muted);
+    background: var(--ora12-stripe);
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-row.is-selected.is-inactive td,
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-row.is-selected:hover td {
+    background: #0572ce;
+    color: #fff;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-row:hover td {
+    background: var(--ora12-hover);
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap.is-editing .hr-att-shift-grid-panel .dashboard-ora-panel__body {
+    outline: 2px solid #0572ce;
+    outline-offset: -1px;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-section {
+    margin: 0;
+}
+
+.dashboard-ora.hr-att-shift-ora12-screen.hr-att-shift-wrap .hr-att-shift-editor-form .hr-att-shift-editor-fields {
+    margin-bottom: 0.5rem;
+}

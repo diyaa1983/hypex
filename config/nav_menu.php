@@ -225,6 +225,9 @@ return [
                     'title' => 'بيانات الموظف الاساسية',
                     'items' => [
                         ['r' => 'hr_employees', 'label' => 'بيانات الموظف الاساسية', 'icon' => '👤'],
+                        ['r' => 'hr_attendance_settings', 'label' => 'إعدادات دوام الموظفين', 'icon' => '⚙'],
+                        ['r' => 'hr_employee_schedule', 'label' => 'تعريف دوام الموظف', 'icon' => '📅'],
+                        ['r' => 'hr_employee_attendance', 'label' => 'بصمات الموظفين', 'icon' => '👆'],
                     ],
                 ],
                 [
@@ -235,6 +238,7 @@ return [
                         ['r' => 'report_hr_employees_by_department', 'label' => 'الموظفين حسب القسم', 'icon' => '🏛'],
                         ['r' => 'report_hr_employees_resigned', 'label' => 'الموظفين المستقيلين', 'icon' => '📤'],
                         ['r' => 'report_hr_employee_overtime', 'label' => 'تقرير العمل الإضافي', 'icon' => '⏱'],
+                        ['r' => 'report_hr_employee_attendance', 'label' => 'حركة دوام الموظفين', 'icon' => '🕐'],
                     ],
                 ],
                 [

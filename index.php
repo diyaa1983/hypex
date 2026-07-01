@@ -130,10 +130,15 @@ $appBootMigrations = [
     'database/migrations/189_acc_journal_updated_by.sql',
     'database/migrations/190_report_sales_delivery.sql',
     'database/migrations/191_fin_outgoing_checks_register.sql',
+    'database/migrations/194_hr_attendance.sql',
+    'database/migrations/195_report_hr_employee_attendance.sql',
+    'database/migrations/196_hr_attendance_shifts.sql',
+    'database/migrations/197_hr_att_shift_numeric_code.sql',
+    'database/migrations/198_hr_employee_schedule.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 
-$r = isset($_GET['r']) ? (string) $_GET['r'] : 'dashboard';
+$r = isset($_GET['r']) ? (string) $_GET['r'] : (isset($_POST['r']) ? (string) $_POST['r'] : 'dashboard');
 $routes = require app_path('config/routes.php');
 
 if (!isset($routes[$r])) {

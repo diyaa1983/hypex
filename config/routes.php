@@ -431,6 +431,11 @@ return [
         'permission' => 'report_hr_employee_overtime',
         'title' => 'تقرير العمل الإضافي',
     ],
+    'report_hr_employee_attendance' => [
+        'file' => 'modules/reports/hr_employee_attendance.php',
+        'permission' => 'report_hr_employee_attendance',
+        'title' => 'حركة دوام الموظفين',
+    ],
     'report_purchases' => [
         'file' => 'modules/reports/purchases.php',
         'permission' => 'report_purchases',
@@ -681,6 +686,24 @@ return [
         'file' => 'modules/hr/employee_overtime.php',
         'permission' => 'hr_salaries',
         'title' => 'تسجيل العمل الإضافي',
+        'hide_screen_title' => true,
+    ],
+    'hr_employee_attendance' => [
+        'file' => 'modules/hr/employee_attendance.php',
+        'permission' => 'hr_employee_attendance',
+        'title' => 'بصمات الموظفين',
+        'hide_screen_title' => true,
+    ],
+    'hr_attendance_settings' => [
+        'file' => 'modules/hr/attendance_settings.php',
+        'permission' => 'hr_attendance_settings',
+        'title' => 'إعدادات دوام الموظفين',
+        'hide_screen_title' => true,
+    ],
+    'hr_employee_schedule' => [
+        'file' => 'modules/hr/employee_schedule.php',
+        'permission' => 'hr_employee_schedule',
+        'title' => 'تعريف دوام الموظف',
         'hide_screen_title' => true,
     ],
     'hr_payroll_posting' => [
