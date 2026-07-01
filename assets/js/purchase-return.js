@@ -12,6 +12,8 @@
   var apiLines = form.getAttribute('data-api-lines') || '';
   var apiReturn = form.getAttribute('data-api-return') || '';
   var returnPostUrl = form.getAttribute('data-return-post-url') || '';
+  var returnUnpostUrl = form.getAttribute('data-return-unpost-url') || '';
+  var canUnpostByPermission = form.getAttribute('data-can-unpost') === '1';
   var sendEmailUrl = form.getAttribute('data-send-email-url') || '';
   var listReturnsUrl = form.getAttribute('data-list-url') || '';
   var newReturnUrl = form.getAttribute('data-new-url') || '';
@@ -1263,6 +1265,24 @@
     }
   }
 
+  function syncUnpostToolbar() {
+    var unpostBtn = document.querySelector('#master-toolbar [data-master-action="unpost"]');
+    if (!unpostBtn) return;
+    var canUnpost =
+      canUnpostByPermission && currentReturnId > 0 && returnIsPosted && !ledgerView;
+    unpostBtn.disabled = !canUnpost;
+    unpostBtn.classList.toggle('is-inactive', !canUnpost);
+    if (!canUnpostByPermission) {
+      unpostBtn.title = 'ليس لديك صلاحية فك الترحيل.';
+    } else if (currentReturnId < 1) {
+      unpostBtn.title = 'احفظ المردود أولاً.';
+    } else if (!returnIsPosted) {
+      unpostBtn.title = 'المردود غير مرحّل.';
+    } else {
+      unpostBtn.title = 'فك ترحيل المردود (عكس القيد وذمة المورد وحركات المستودع)';
+    }
+  }
+
   function updatePostedBadge() {
     var el = document.getElementById('ret_posted_badge');
     if (currentReturnId < 1) {
@@ -1281,9 +1301,74 @@
       }
     }
     updateReturnNoPostedStyle();
+    syncUnpostToolbar();
     if (global.FinVoucherArchive) {
       global.FinVoucherArchive.syncToolbar();
     }
+  }
+
+  function unpostCurrentReturn() {
+    if (!canUnpostByPermission) {
+      AppDialog.alert('ليس لديك صلاحية فك ترحيل مردود المشتريات.', { type: 'warning' });
+      return;
+    }
+    if (!returnUnpostUrl) {
+      AppDialog.alert('فك الترحيل غير متاح.', { type: 'warning' });
+      return;
+    }
+    if (currentReturnId < 1) {
+      AppDialog.alert('احفظ المردود أولًا.', { type: 'warning' });
+      return;
+    }
+    if (!returnIsPosted) {
+      AppDialog.alert('هذا المردود غير مرحّل.', { type: 'info' });
+      return;
+    }
+    var csrfInput = form.querySelector('[name="_csrf"]');
+    var msg =
+      '<p><strong>سيتم فك ترحيل مردود المشتريات:</strong></p>' +
+      '<ul>' +
+      '<li>إلغاء القيد المحاسبي.</li>' +
+      '<li>حذف حركات صرف المخزون (إن وُجدت).</li>' +
+      '<li>إلغاء أثر ذمة المورد.</li>' +
+      '</ul>' +
+      '<p>بعد ذلك أعد الترحيل لإتمام الأثر المستودعي والمحاسبي.</p>' +
+      '<p class="ui-dialog-question">متابعة؟</p>';
+    AppDialog.confirm(msg, {
+      title: 'فك ترحيل مردود المشتريات',
+      okText: 'فك الترحيل',
+      danger: true,
+      html: true,
+    }).then(function (ok) {
+      if (!ok) return;
+      var fd = new FormData();
+      fd.append('_csrf', csrfInput ? csrfInput.value : '');
+      fd.append('return_id', String(currentReturnId));
+      if (window.AppBusy) AppBusy.show('جاري فك ترحيل المردود...');
+      fetch(returnUnpostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) {
+            AppDialog.error((data && (data.error || data.message)) || 'تعذر فك الترحيل.');
+            return;
+          }
+          returnIsPosted = false;
+          if (lastLoadedReturn) lastLoadedReturn.is_posted = 0;
+          updatePostedBadge();
+          AppDialog.success(data.message || 'تم فك الترحيل.');
+          if (currentReturnId > 0) {
+            loadReturn({ id: currentReturnId });
+          }
+        })
+        .catch(function () {
+          AppDialog.error('تعذر الاتصال بالخادم.');
+        })
+        .finally(function () {
+          if (window.AppBusy) AppBusy.hide();
+        });
+    });
   }
 
   function postCurrentReturn() {
@@ -1576,6 +1661,9 @@
     } else if (action === 'post') {
       e.preventDefault();
       postCurrentReturn();
+    } else if (action === 'unpost') {
+      e.preventDefault();
+      unpostCurrentReturn();
     } else if (action === 'print') {
       e.preventDefault();
       handleToolbarPrint();

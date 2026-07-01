@@ -126,6 +126,8 @@ $apiInvoices = app_url('index.php?r=purchase_returns&ajax=invoices');
 $apiLines = app_url('index.php?r=purchase_returns&ajax=lines');
 $apiReturn = app_url('api/purchase_return_view.php');
 $apiPostReturn = app_url('api/purchase_return_post.php');
+$apiUnpostReturn = app_url('api/purchase_return_unpost.php');
+$canUnpostReturn = user_can_action('action_unpost_purchase_return');
 require_once app_path('includes/fin_voucher_archive.php');
 fin_voucher_archive_ensure_schema($pdo);
 $canArchiveReturn = user_can_action('action_archive_purchase_return');
@@ -193,6 +195,8 @@ $screenTitle = $ledgerView ? 'عرض مردود مشتريات' : 'مردود م
           data-api-lines="<?= esc($apiLines) ?>"
           data-api-return="<?= esc($apiReturn) ?>"
           data-return-post-url="<?= esc($apiPostReturn) ?>"
+          data-return-unpost-url="<?= esc($apiUnpostReturn) ?>"
+          data-can-unpost="<?= $canUnpostReturn ? '1' : '0' ?>"
           data-can-archive="<?= $canArchiveReturn ? '1' : '0' ?>"
           data-archive-api="<?= esc($archiveApiUrl) ?>"
           data-archive-kind="purchase_return"
