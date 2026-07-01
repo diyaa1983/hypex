@@ -93,7 +93,6 @@ return [
                 'journal_voucher',
                 'account_mapping',
                 'acc_period_close',
-                'inventory_align_warehouse',
                 'item_sale_price_adjust',
                 'inv_movement_types_settings',
                 'warehouse_moves',
