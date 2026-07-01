@@ -136,6 +136,50 @@ function acc_inventory_gl_cogs_amount(PDO $pdo, string $refType, int $refId): fl
 }
 
 /**
+ * إغلاق فجوة التقريب المتبقية عبر تعديل COGS على أكبر فاتورة بيع.
+ */
+function acc_inventory_align_cogs_close_remainder(PDO $pdo, string $asOfDate, float $gap): bool
+{
+    if (abs($gap) < 0.01) {
+        return false;
+    }
+
+    $sql =
+        "SELECT i.id FROM sal_invoice i
+         INNER JOIN acc_journal_entry e ON e.ref_type = 'sale_invoice' AND e.ref_id = i.id
+             AND e.source = 'auto' AND e.status = 'posted'
+         WHERE e.entry_date <= ?
+         ORDER BY (
+             SELECT COALESCE(SUM(l.credit), 0) FROM acc_journal_line l
+             INNER JOIN acc_journal_entry e2 ON e2.id = l.journal_id
+             WHERE e2.ref_type = 'sale_invoice' AND e2.ref_id = i.id
+         ) DESC, i.id DESC
+         LIMIT 1";
+
+    $st = $pdo->prepare($sql);
+    $st->execute([$asOfDate]);
+    $refId = (int) $st->fetchColumn();
+    if ($refId < 1) {
+        return false;
+    }
+
+    $cost = acc_inventory_gl_cogs_amount($pdo, 'sale_invoice', $refId);
+    if ($cost <= 0.000001) {
+        return false;
+    }
+
+    // gap = GL − المستودع: سالب → خفّض COGS؛ موجب → زِد COGS
+    $newCost = round(max(0, $cost + $gap), 6);
+    if (abs($newCost - $cost) < 0.000001) {
+        return false;
+    }
+
+    acc_gl_journal_refresh_cogs_lines($pdo, 'sale_invoice', $refId, $newCost, false);
+
+    return true;
+}
+
+/**
  * مطابقة رصيد المخزون مع المستودع عبر تعديل COGS فقط (فواتير بيع + مردودات بيع).
  * لا يمس المشتريات ولا قيود inventory_reconcile ولا misc_expense.
  *
@@ -271,8 +315,18 @@ function acc_inventory_align_cogs_only(PDO $pdo, string $asOfDate): array
         }
 
         $out['skipped'] = false;
-        $summaryAfter = acc_inventory_align_summary($pdo, $asOfDate);
-        $out['gap_after'] = round((float) $summaryAfter['gap'], 6);
+
+        for ($pass = 0; $pass < 8; $pass++) {
+            $summaryAfter = acc_inventory_align_summary($pdo, $asOfDate);
+            $remGap = round((float) $summaryAfter['gap'], 6);
+            $out['gap_after'] = $remGap;
+            if (abs($remGap) < 0.01) {
+                break;
+            }
+            if (!acc_inventory_align_cogs_close_remainder($pdo, $asOfDate, $remGap)) {
+                break;
+            }
+        }
     } catch (Throwable $e) {
         $out['ok'] = false;
         $out['error'] = $e->getMessage() !== '' ? $e->getMessage() : 'تعذرت مطابقة COGS.';
