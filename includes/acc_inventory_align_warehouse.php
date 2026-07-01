@@ -95,6 +95,192 @@ function acc_inventory_align_refresh_cogs(PDO $pdo): array
     return $out;
 }
 
+/** تكلفة COGS المرحّلة في قيد بيع/مردود (من سطر حساب المخزون). */
+function acc_inventory_gl_cogs_amount(PDO $pdo, string $refType, int $refId): float
+{
+    if ($refId < 1 || !in_array($refType, ['sale_invoice', 'sale_return'], true)) {
+        return 0.0;
+    }
+
+    $settings = acc_gl_load_settings($pdo);
+    $invId = (int) ($settings['inventory']['account_id'] ?? 0);
+    if ($invId < 1 || !acc_journal_has_tables($pdo)) {
+        return 0.0;
+    }
+
+    $st = $pdo->prepare(
+        "SELECT e.id FROM acc_journal_entry e
+         WHERE e.ref_type = ? AND e.ref_id = ? AND e.source = 'auto' AND e.status = 'posted'
+         LIMIT 1"
+    );
+    $st->execute([$refType, $refId]);
+    $journalId = (int) $st->fetchColumn();
+    if ($journalId < 1) {
+        return 0.0;
+    }
+
+    if ($refType === 'sale_invoice') {
+        $ln = $pdo->prepare(
+            'SELECT COALESCE(SUM(credit), 0) FROM acc_journal_line
+             WHERE journal_id = ? AND account_id = ? AND credit > 0.000001'
+        );
+    } else {
+        $ln = $pdo->prepare(
+            'SELECT COALESCE(SUM(debit), 0) FROM acc_journal_line
+             WHERE journal_id = ? AND account_id = ? AND debit > 0.000001'
+        );
+    }
+    $ln->execute([$journalId, $invId]);
+
+    return round(max(0, (float) $ln->fetchColumn()), 6);
+}
+
+/**
+ * مطابقة رصيد المخزون مع المستودع عبر تعديل COGS فقط (فواتير بيع + مردودات بيع).
+ * لا يمس المشتريات ولا قيود inventory_reconcile ولا misc_expense.
+ *
+ * @return array{
+ *   ok: bool,
+ *   skipped: bool,
+ *   error: ?string,
+ *   invoices: int,
+ *   returns: int,
+ *   gap_before: float,
+ *   gap_after: float,
+ *   scale_factor: float
+ * }
+ */
+function acc_inventory_align_cogs_only(PDO $pdo, string $asOfDate): array
+{
+    $out = [
+        'ok' => true,
+        'skipped' => true,
+        'error' => null,
+        'invoices' => 0,
+        'returns' => 0,
+        'gap_before' => 0.0,
+        'gap_after' => 0.0,
+        'scale_factor' => 1.0,
+    ];
+
+    acc_gl_ensure_schema($pdo);
+    $settings = acc_gl_load_settings($pdo);
+    if (!acc_gl_inventory_cogs_enabled($settings)) {
+        $out['ok'] = false;
+        $out['error'] = 'ربط حسابي المخزون (inventory) وتكلفة المبيعات (cogs) غير مكتمل.';
+
+        return $out;
+    }
+
+    try {
+        acc_gl_inventory_unpost_all_reconciles($pdo);
+
+        $refresh = acc_inventory_align_refresh_cogs($pdo);
+        if (!($refresh['ok'] ?? false)) {
+            $out['ok'] = false;
+            $out['error'] = $refresh['error'] ?? 'فشل تحديث تكلفة المبيعات.';
+
+            return $out;
+        }
+
+        $summaryBefore = acc_inventory_align_summary($pdo, $asOfDate);
+        $gap = round((float) $summaryBefore['gap'], 6);
+        $out['gap_before'] = $gap;
+
+        if (abs($gap) < 0.01) {
+            $out['invoices'] = (int) ($refresh['invoices'] ?? 0);
+            $out['returns'] = (int) ($refresh['returns'] ?? 0);
+
+            return $out;
+        }
+
+        $docs = [];
+
+        $stInv = $pdo->prepare(
+            "SELECT i.id FROM sal_invoice i
+             INNER JOIN acc_journal_entry e ON e.ref_type = 'sale_invoice' AND e.ref_id = i.id
+                 AND e.source = 'auto' AND e.status = 'posted'
+             WHERE e.entry_date <= ?
+             ORDER BY i.invoice_date, i.id"
+        );
+        $stInv->execute([$asOfDate]);
+        foreach ($stInv->fetchAll(PDO::FETCH_COLUMN) ?: [] as $raw) {
+            $id = (int) $raw;
+            $cost = acc_inventory_gl_cogs_amount($pdo, 'sale_invoice', $id);
+            if ($cost > 0.000001) {
+                $docs[] = ['type' => 'sale_invoice', 'id' => $id, 'cost' => $cost];
+            }
+        }
+
+        $stRet = $pdo->prepare(
+            "SELECT r.id FROM sal_return r
+             INNER JOIN acc_journal_entry e ON e.ref_type = 'sale_return' AND e.ref_id = r.id
+                 AND e.source = 'auto' AND e.status = 'posted'
+             WHERE e.entry_date <= ?
+             ORDER BY r.return_date, r.id"
+        );
+        $stRet->execute([$asOfDate]);
+        foreach ($stRet->fetchAll(PDO::FETCH_COLUMN) ?: [] as $raw) {
+            $id = (int) $raw;
+            $cost = acc_inventory_gl_cogs_amount($pdo, 'sale_return', $id);
+            if ($cost > 0.000001) {
+                $docs[] = ['type' => 'sale_return', 'id' => $id, 'cost' => $cost];
+            }
+        }
+
+        if ($docs === []) {
+            $out['ok'] = false;
+            $out['error'] = 'لا توجد قيود تكلفة مبيعات لتوزيع الفرق عليها.';
+
+            return $out;
+        }
+
+        $netEffect = 0.0;
+        foreach ($docs as $doc) {
+            if ($doc['type'] === 'sale_invoice') {
+                $netEffect -= $doc['cost'];
+            } else {
+                $netEffect += $doc['cost'];
+            }
+        }
+
+        if (abs($netEffect) < 0.000001) {
+            $out['ok'] = false;
+            $out['error'] = 'صافي تأثير COGS على المخزون صفر — لا يمكن توزيع الفرق.';
+
+            return $out;
+        }
+
+        $deltaInventory = -$gap;
+        $newNetEffect = round($netEffect + $deltaInventory, 6);
+        $factor = round($newNetEffect / $netEffect, 12);
+        $out['scale_factor'] = $factor;
+
+        foreach ($docs as $doc) {
+            $newCost = round(max(0, $doc['cost'] * $factor), 6);
+            if ($newCost <= 0.000001) {
+                continue;
+            }
+            $isReturn = $doc['type'] === 'sale_return';
+            acc_gl_journal_refresh_cogs_lines($pdo, $doc['type'], $doc['id'], $newCost, $isReturn);
+            if ($isReturn) {
+                $out['returns']++;
+            } else {
+                $out['invoices']++;
+            }
+        }
+
+        $out['skipped'] = false;
+        $summaryAfter = acc_inventory_align_summary($pdo, $asOfDate);
+        $out['gap_after'] = round((float) $summaryAfter['gap'], 6);
+    } catch (Throwable $e) {
+        $out['ok'] = false;
+        $out['error'] = $e->getMessage() !== '' ? $e->getMessage() : 'تعذرت مطابقة COGS.';
+    }
+
+    return $out;
+}
+
 /**
  * إلغاء كل قيود تسوية المخزون (inventory_reconcile) — إرجاع رصيد المخزون وإزالة المبلغ من misc_expense.
  *

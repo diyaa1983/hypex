@@ -45,6 +45,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . '&as_of=' . rawurlencode(format_date_dmY($asOf))
             ));
         }
+    } elseif (($_POST['action'] ?? '') === 'align_cogs_only') {
+        $postTo = parse_date_to_iso(trim((string) ($_POST['as_of'] ?? ''))) ?? $asOf;
+        $asOf = $postTo;
+
+        $res = acc_inventory_align_cogs_only($pdo, $asOf);
+        if (!$res['ok']) {
+            $message = $res['error'] ?? 'فشلت مطابقة COGS.';
+            $messageType = 'error';
+        } else {
+            $gapAfter = (float) ($res['gap_after'] ?? 0);
+            $msg = 'تمت مطابقة COGS: '
+                . (int) $res['invoices'] . ' فاتورة بيع، '
+                . (int) $res['returns'] . ' مرتجع.';
+            if (($res['skipped'] ?? true) === false) {
+                $msg .= ' الفرق قبل: ' . format_money((float) ($res['gap_before'] ?? 0))
+                    . ' — بعد: ' . format_money($gapAfter) . '.';
+            } else {
+                $msg .= ' الرصيدان متطابقان مسبقاً.';
+            }
+            flash_set('success', $msg);
+            redirect(app_url(
+                'index.php?r=inventory_align_warehouse&date_from='
+                . rawurlencode(format_date_dmY($dateFrom))
+                . '&as_of=' . rawurlencode(format_date_dmY($asOf))
+            ));
+        }
     } elseif (($_POST['action'] ?? '') === 'match_all') {
         $postFrom = parse_date_to_iso(trim((string) ($_POST['date_from'] ?? ''))) ?? $dateFrom;
         $postTo = parse_date_to_iso(trim((string) ($_POST['as_of'] ?? ''))) ?? $asOf;
@@ -148,6 +174,25 @@ try {
         </tr>
         </tbody>
     </table>
+
+    <?php if ($summary['cogs_enabled']): ?>
+    <div style="padding:1rem;border:1px solid #b6d4fe;border-radius:8px;background:#f0f7ff;margin-bottom:1rem;">
+        <p style="margin:0 0 0.75rem;font-size:0.92rem;line-height:1.55;">
+            <strong>مطابقة عبر تكلفة البضاعة فقط</strong> — يُحدَّث COGS في قيود فواتير البيع ومرتجعاتها
+            (حساب تكلفة البضاعة + المخزون) دون مسّ المشتريات أو مردوداتها أو قيود تسوية المصروفات.
+        </p>
+        <form method="post" action="<?= esc(app_url('index.php?r=inventory_align_warehouse')) ?>"
+              onsubmit="return confirm('مطابقة الرصيدين عبر تعديل COGS فقط. المتابعة؟');">
+            <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+            <input type="hidden" name="confirm" value="yes">
+            <input type="hidden" name="action" value="align_cogs_only">
+            <input type="hidden" name="as_of" value="<?= esc(format_date_dmY($asOf)) ?>">
+            <button type="submit" class="btn btn-primary">
+                مطابقة عبر COGS فقط (حتى <?= esc(format_date_dmY($asOf)) ?>)
+            </button>
+        </form>
+    </div>
+    <?php endif; ?>
 
     <details class="no-print" style="margin-top:0.5rem;">
         <summary class="muted" style="cursor:pointer;font-size:0.88rem;">مطابقة تلقائية (اختياري — لاحقاً)</summary>
