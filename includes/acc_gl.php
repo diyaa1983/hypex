@@ -497,6 +497,21 @@ function acc_gl_post_entry(
     $entryNo = acc_gl_next_auto_entry_no($pdo, $refType, $refId);
     $uid = (int) (current_user()['id'] ?? 0) ?: null;
 
+    $noSt = $pdo->prepare('SELECT id, ref_type, ref_id FROM acc_journal_entry WHERE entry_no = ? LIMIT 1');
+    $noSt->execute([$entryNo]);
+    $noRow = $noSt->fetch(PDO::FETCH_ASSOC);
+    if ($noRow) {
+        $sameRef = (string) ($noRow['ref_type'] ?? '') === $refType
+            && (int) ($noRow['ref_id'] ?? 0) === $refId;
+        if ($sameRef) {
+            return (int) ($noRow['id'] ?? 0);
+        }
+
+        throw new RuntimeException(
+            'رقم القيد «' . $entryNo . '» مستخدم لقيد آخر — احذف القيد العالق من «قيود اليومية» أو تواصل مع الدعم.'
+        );
+    }
+
     $pdo->prepare(
         "INSERT INTO acc_journal_entry (entry_no, entry_date, description_ar, status, ref_type, ref_id, source, created_by)
          VALUES (?,?,?,'posted',?,?,'auto',?)"

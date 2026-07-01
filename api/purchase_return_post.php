@@ -90,5 +90,9 @@ try {
         $pdo->rollBack();
     }
     http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'تعذر الترحيل.'], JSON_UNESCAPED_UNICODE);
+    $detail = trim($e->getMessage());
+    echo json_encode([
+        'ok' => false,
+        'error' => $detail !== '' ? ('تعذر الترحيل: ' . $detail) : 'تعذر الترحيل.',
+    ], JSON_UNESCAPED_UNICODE);
 }

@@ -1396,7 +1396,11 @@
         })
         .then(function (data) {
           if (!data.ok) {
-            AppDialog.error(data.error || data.message || 'تعذر الترحيل.');
+            var errMsg = data.error || data.message || 'تعذر الترحيل.';
+            if (data.errors && data.errors.length) {
+              errMsg = data.errors.join('\n');
+            }
+            AppDialog.error(errMsg);
             return;
           }
           returnIsPosted = true;
