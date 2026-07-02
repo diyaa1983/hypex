@@ -1,0 +1,176 @@
+/* تقارير الإجازات والمغادرات بين تاريخين */
+.hr-ld-rpt-page .hr-ld-rpt-filters {
+  max-width: 1200px;
+}
+
+.hr-ld-rpt-doc {
+  margin-top: 1rem;
+}
+
+.hr-ld-rpt-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  font-size: 0.95rem;
+}
+
+.hr-ld-rpt-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.hr-ld-rpt-kpi {
+  flex: 1 1 10rem;
+  min-width: 9rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #c5ced9;
+  border-radius: 0.35rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  text-align: center;
+}
+
+.hr-ld-rpt-kpi__label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.hr-ld-rpt-kpi__value {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.hr-ld-rpt-dept-section {
+  margin-bottom: 1.5rem;
+}
+
+.hr-ld-rpt-dept-heading {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.hr-ld-rpt-dept-meta {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.hr-ld-rpt-table-wrap {
+  overflow-x: auto;
+}
+
+.hr-ld-rpt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.hr-ld-rpt-table th,
+.hr-ld-rpt-table td {
+  border: 1px solid #cbd5e1;
+  padding: 0.35rem 0.45rem;
+  vertical-align: middle;
+}
+
+.hr-ld-rpt-table thead th {
+  background: #e8eef5;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.hr-ld-rpt-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.hr-ld-rpt-col-voucher {
+  width: 4.5rem;
+  text-align: center;
+}
+
+.hr-ld-rpt-col-emp-code {
+  width: 5rem;
+  text-align: center;
+}
+
+.hr-ld-rpt-col-emp-name {
+  min-width: 8rem;
+}
+
+.hr-ld-rpt-col-type {
+  min-width: 6rem;
+}
+
+.hr-ld-rpt-col-days,
+.hr-ld-rpt-col-duration,
+.hr-ld-rpt-col-time {
+  width: 4.5rem;
+  text-align: center;
+}
+
+.hr-ld-rpt-col-status {
+  width: 4.5rem;
+  text-align: center;
+}
+
+.hr-ld-rpt-col-notes {
+  min-width: 6rem;
+  max-width: 12rem;
+}
+
+.hr-ld-rpt-row--dept-total td {
+  background: #eef2f7;
+  font-weight: 700;
+}
+
+.hr-ld-rpt-subtotal-label {
+  text-align: right;
+}
+
+.hr-ld-rpt-grand-wrap {
+  margin-top: 1rem;
+}
+
+.hr-ld-rpt-grand-table {
+  width: 100%;
+  max-width: 28rem;
+  margin-right: 0;
+  margin-left: auto;
+  border-collapse: collapse;
+}
+
+.hr-ld-rpt-grand-table th,
+.hr-ld-rpt-grand-table td {
+  border: 1px solid #94a3b8;
+  padding: 0.5rem 0.75rem;
+}
+
+.hr-ld-rpt-grand-table th {
+  background: #dbeafe;
+  text-align: right;
+  font-weight: 800;
+}
+
+.hr-ld-rpt-grand-table td {
+  text-align: center;
+  font-weight: 800;
+  background: #f8fafc;
+}
+
+@media print {
+  .hr-ld-rpt-kpis {
+    display: none;
+  }
+
+  .hr-ld-rpt-dept-section {
+    break-inside: avoid;
+  }
+}

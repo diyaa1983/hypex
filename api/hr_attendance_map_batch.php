@@ -31,7 +31,15 @@ if (!is_array($maps)) {
 
 try {
     $pdo = db();
-    $result = hr_attendance_save_manual_maps_batch($pdo, $maps);
+    if ($maps !== []) {
+        $result = hr_attendance_save_manual_maps_batch($pdo, $maps);
+    } else {
+        $empCodes = $_POST['emp_codes'] ?? [];
+        if (!is_array($empCodes)) {
+            $empCodes = [];
+        }
+        $result = hr_attendance_save_manual_maps_by_emp_code_batch($pdo, $empCodes);
+    }
     $saved = (int) ($result['saved'] ?? 0);
     $errors = $result['errors'] ?? [];
 

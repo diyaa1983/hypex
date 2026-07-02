@@ -1,0 +1,226 @@
+/* شاشات الإجازات والمغادرات — Oracle 12c */
+
+.dashboard-ora.hr-leave-ora12-screen {
+    width: 100%;
+    max-width: 100%;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-page,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-bal-page,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-page {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-leave-grid-flash,
+.dashboard-ora.hr-leave-ora12-screen .hr-dep-grid-flash {
+    margin: 0;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .dashboard-ora-toolbar .btn,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-actions .btn,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-filter-actions .btn,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.22rem 0.6rem;
+    min-height: 1.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .btn-primary {
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .btn-danger {
+    color: #fff;
+    background: linear-gradient(180deg, #e85a4a 0%, #c74634 55%, #a33a2b 100%);
+    border-color: #a33a2b;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .btn-secondary {
+    color: var(--ora12-text);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .input,
+.dashboard-ora.hr-leave-ora12-screen select.input,
+.dashboard-ora.hr-leave-ora12-screen .sales-inv-cust-open {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .input:focus,
+.dashboard-ora.hr-leave-ora12-screen select.input:focus,
+.dashboard-ora.hr-leave-ora12-screen .sales-inv-cust-open:focus-visible {
+    outline: none;
+    border-color: #0572ce;
+    box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .dashboard-ora-table th,
+.dashboard-ora.hr-leave-ora12-screen .dashboard-ora-table td,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-table th,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-table td,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-bal-table th,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-bal-table td,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-table th,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-table td {
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-toolbar.dashboard-ora-toolbar,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-toolbar.dashboard-ora-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.65rem;
+    margin: 0;
+    padding: 0.4rem 0.55rem;
+    background: #f3f5f7;
+    border: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-voucher-bar,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-voucher-bar {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-voucher-label,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-employee-head .field-label,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-voucher-label,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-employee-head .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+    white-space: nowrap;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-employee-head,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-employee-head {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-no-arrow,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-no-arrow {
+    border-radius: 2px;
+    border: 1px solid var(--ora12-border);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-no-arrow:hover,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-no-arrow:hover {
+    background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-fields,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.45rem 0.65rem;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-fields .field-label,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-fields .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+    margin-bottom: 0.15rem;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-bal-filter-row {
+    padding: 0.4rem 0.55rem;
+    background: #f3f5f7;
+    border: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-table tbody tr.is-selected td,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-table tbody tr.is-selected:hover td,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-table tbody tr.is-selected td,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-table tbody tr.is-selected:hover td {
+    background: #0572ce;
+    color: #fff;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-table tbody tr:hover td,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-table tbody tr:hover td {
+    background: var(--ora12-hover);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-table tbody tr.is-selected a,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-table tbody tr.is-selected a {
+    color: #fff;
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-bal-table th,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-bal-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-bal-table tbody tr:hover td {
+    background: var(--ora12-hover);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-inline-form,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-inline-form {
+    display: inline;
+    margin: 0;
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-meta,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-bal-meta,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-hint,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-bal-hint {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ora12-muted);
+}
+
+/* لون حقل رقم السند — مثل المبيعات والمشتريات */
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-no-input.sales-inv-no-input.is-posted,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-no-input.sales-inv-no-input.is-posted {
+    background: #fef2f2 !important;
+    border-color: #ef4444 !important;
+    color: #b91c1c !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18);
+}
+
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-leave-no-input.sales-inv-no-input.is-unposted,
+.dashboard-ora.hr-leave-ora12-screen .hr-emp-dep-no-input.sales-inv-no-input.is-unposted {
+    background: #ecfdf5 !important;
+    border-color: #22c55e !important;
+    color: #047857 !important;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}

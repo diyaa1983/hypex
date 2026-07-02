@@ -5,7 +5,6 @@ require_once app_path('includes/hr_schema.php');
 require_once app_path('includes/hr_attendance.php');
 require_once app_path('includes/hr_oracle_ui.php');
 require_once app_path('includes/nav_helpers.php');
-require_once app_path('includes/employee_picker.php');
 
 $pdo = db();
 hr_attendance_ensure_schema($pdo);
@@ -14,7 +13,6 @@ hr_employee_ensure_schema($pdo);
 $listUrl = app_url('index.php?r=hr_employee_attendance');
 $config = hr_attendance_load_config($pdo);
 $employees = hr_employee_active_list($pdo);
-$pickerEmployees = hr_attendance_picker_employees_available($pdo);
 
 $dateFrom = trim((string) ($_GET['date_from'] ?? $_POST['date_from'] ?? date('Y-m-01')));
 $dateTo = trim((string) ($_GET['date_to'] ?? $_POST['date_to'] ?? date('Y-m-d')));
@@ -61,19 +59,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect($returnUrl);
         }
 
+        if ($act === 'mark_all_flags') {
+            $mark = hr_attendance_mdb_mark_all_pending_flags($config['mdb_path']);
+            flash_set($mark['ok'] ? 'success' : 'error', $mark['message']);
+            redirect($returnUrl);
+        }
+
         if ($act === 'auto_map') {
             $n = hr_attendance_auto_map_existing($pdo);
-            flash_set('success', $n > 0 ? 'تم ربط ' . $n . ' مستخدم بصمة بموظفين (حسب رقم الموظف).' : 'لا يوجد ربط تلقائي جديد — تأكد من تطابق emp_code مع BADGENUMBER.');
+            flash_set('success', $n > 0
+                ? 'تم ربط ' . $n . ' سجل — رقم الموظف في النظام = رقم البصمة في Access.'
+                : 'لا يوجد ربط تلقائي جديد — تأكد من تطابق رقم الموظف مع رقم البصمة.');
             redirect($returnUrl);
         }
 
         if ($act === 'map_employee') {
-            hr_attendance_save_manual_map(
-                $pdo,
-                (int) ($_POST['zk_user_id'] ?? 0),
-                (int) ($_POST['employee_id'] ?? 0)
-            );
-            flash_set('success', 'تم ربط مستخدم البصمة بالموظف.');
+            $empCode = trim((string) ($_POST['emp_code'] ?? ''));
+            if ($empCode !== '') {
+                hr_attendance_save_manual_map_by_emp_code(
+                    $pdo,
+                    (int) ($_POST['zk_user_id'] ?? 0),
+                    $empCode
+                );
+            } else {
+                hr_attendance_save_manual_map(
+                    $pdo,
+                    (int) ($_POST['zk_user_id'] ?? 0),
+                    (int) ($_POST['employee_id'] ?? 0)
+                );
+            }
+            flash_set('success', 'تم ربط رقم الموظف برقم البصمة.');
             redirect($returnUrl);
         }
 
@@ -82,7 +97,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!is_array($maps)) {
                 $maps = [];
             }
-            $result = hr_attendance_save_manual_maps_batch($pdo, $maps);
+            if ($maps === []) {
+                $empCodes = $_POST['emp_codes'] ?? [];
+                if (is_array($empCodes) && $empCodes !== []) {
+                    $result = hr_attendance_save_manual_maps_by_emp_code_batch($pdo, $empCodes);
+                } else {
+                    throw new RuntimeException('اختر موظفاً ورقم بصمة واحداً على الأقل للربط.');
+                }
+            } else {
+                $result = hr_attendance_save_manual_maps_batch($pdo, $maps);
+            }
             $message = $result['saved'] > 0
                 ? 'تم حفظ ' . $result['saved'] . ' ربط.'
                 : 'لم يُحفظ أي ربط.';
@@ -90,6 +114,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message .= ' ' . implode(' — ', array_slice($result['errors'], 0, 3));
             }
             flash_set($result['saved'] > 0 ? 'success' : 'error', $message);
+            redirect($returnUrl);
+        }
+
+        if ($act === 'unmap_employee') {
+            hr_attendance_delete_map($pdo, (int) ($_POST['zk_user_id'] ?? 0));
+            flash_set('success', 'تم إلغاء ربط مستخدم البصمة بالموظف.');
             redirect($returnUrl);
         }
     } catch (Throwable $e) {
@@ -100,14 +130,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $flash = flash_get();
 $punches = hr_attendance_list_punches($pdo, $dateFrom, $dateTo, $filterEmpId);
-$unmapped = hr_attendance_unmapped_zk_users($pdo);
+$linkEmployees = hr_attendance_picker_employees_available($pdo);
+usort($linkEmployees, static function (array $a, array $b): int {
+    return strnatcmp(
+        trim((string) ($a['emp_code'] ?? '')),
+        trim((string) ($b['emp_code'] ?? ''))
+    );
+});
+$zkForLink = hr_attendance_zk_users_for_link($pdo);
+$mapped = hr_attendance_list_mapped_users($pdo);
 $totalPunches = hr_attendance_count_punches($pdo);
 $odbcOk = hr_attendance_pdo_odbc_available();
 $comOk = hr_attendance_com_available();
 $mdbTest = null;
-if (is_file($config['mdb_path'])) {
-    $mdbTest = hr_attendance_test_mdb($config['mdb_path']);
-}
 
 $filterEmpName = '';
 if ($filterEmpId > 0) {
@@ -121,6 +156,9 @@ if ($filterEmpId > 0) {
 
 $cssPath = app_path('assets/css/hr-employee-attendance.css');
 $cssUrl = app_url('assets/css/hr-employee-attendance.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
+$cssOraPath = app_path('assets/css/hr-employee-attendance-sales-ora12.css');
+$cssOraUrl = app_url('assets/css/hr-employee-attendance-sales-ora12.css')
+    . (is_file($cssOraPath) ? '?v=' . (string) filemtime($cssOraPath) : '');
 $exitUrl = nav_exit_url('hr_employee_attendance');
 $mapPostUrl = hr_att_build_url($dateFrom, $dateTo, $filterEmpId);
 $mapApiUrl = app_url('api/hr_attendance_map_batch.php');
@@ -129,8 +167,9 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
     . (is_file($attJsPath) ? '?v=' . (string) filemtime($attJsPath) : '');
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+<link rel="stylesheet" href="<?= esc($cssOraUrl) ?>">
 
-<div class="dashboard-ora hr-att-ora12-screen hr-att-wrap"
+<div class="dashboard-ora hr-att-ora12-screen hr-att-wrap hr-att-page hr-att-ora-screen"
      data-exit-url="<?= esc($exitUrl) ?>"
      data-exit-guard="custom"
      data-map-api="<?= esc($mapApiUrl) ?>">
@@ -158,10 +197,14 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
         <?php endif; ?>
 
         <p class="hr-att-hint muted">
-            يُحمَّل الحضور من برنامج ZKT إلى <strong>att2000.mdb</strong> (Access)، ثم تُزامَن السجلات الجديدة إلى Manager.
-            الربط التلقائي عند تطابق <strong>رقم الموظف</strong> في النظام مع <strong>BADGENUMBER</strong> في البصمة.
-            <br><strong>مهم:</strong> أثناء المزامنة أغلق برنامج Attendance Management، أو ضع نسخة من الملف في
-            <code dir="ltr">data\zk_cache\att2000_sync.mdb</code> وحدّد مسارها أدناه.
+            يُحمَّل الحضور من برنامج ZKT إلى <strong>att2000.mdb</strong> (Access)، ثم تُزامَن السجلات إلى Manager.
+            <strong>الربط:</strong> رقم الموظف في النظام ←→ رقم البصمة (<strong>BADGENUMBER</strong>) في Access.
+            عند التطابق يُربَط تلقائياً أثناء المزامنة أو عبر «ربط تلقائي».
+            <br><strong>مهم:</strong> أثناء المزامنة أغلق برنامج Attendance Management.
+            لتحديث <strong>Flag</strong> في Access تلقائياً، يجب أن يكون مسار الملف <strong>قابلاً للكتابة</strong>
+            (مثل <code dir="ltr">C:\ZKTData\att2000.mdb</code>) — المسار داخل
+            <code dir="ltr">Program Files</code> غالباً للقراءة فقط من Apache.
+            استخدم «اختبار الاتصال» للتحقق من صلاحية الكتابة.
         </p>
 
         <section class="dashboard-ora-panel hr-att-config-panel">
@@ -203,70 +246,149 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
                     مزامنة الآن
                 </button>
             </form>
+            <form method="post" action="<?= esc(hr_att_build_url($dateFrom, $dateTo, $filterEmpId)) ?>" class="hr-att-sync-form"
+                  onsubmit="return confirm('تعليم كل السجلات الحالية في Access كـ Flag=1؟ نفّذ هذا مرة واحدة بعد إضافة الحقل إذا كانت البيانات موجودة مسبقاً في Manager.');">
+                <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+                <input type="hidden" name="_action" value="mark_all_flags">
+                <input type="hidden" name="date_from" value="<?= esc($dateFrom) ?>">
+                <input type="hidden" name="date_to" value="<?= esc($dateTo) ?>">
+                <input type="hidden" name="filter_employee_id" value="<?= (int) $filterEmpId ?>">
+                <button type="submit" class="btn btn-secondary btn-sm" <?= ($odbcOk || $comOk) ? '' : 'disabled' ?>>
+                    تعليم الكل Flag=1
+                </button>
+            </form>
             <form method="post" action="<?= esc(hr_att_build_url($dateFrom, $dateTo, $filterEmpId)) ?>" class="hr-att-sync-form">
                 <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                 <input type="hidden" name="_action" value="auto_map">
                 <input type="hidden" name="date_from" value="<?= esc($dateFrom) ?>">
                 <input type="hidden" name="date_to" value="<?= esc($dateTo) ?>">
                 <input type="hidden" name="filter_employee_id" value="<?= (int) $filterEmpId ?>">
-                <button type="submit" class="btn btn-secondary btn-sm">ربط تلقائي (emp_code)</button>
+                <button type="submit" class="btn btn-secondary btn-sm">ربط تلقائي (رقم الموظف = رقم البصمة)</button>
             </form>
         </div>
 
-        <?php if ($unmapped !== []): ?>
-            <section class="dashboard-ora-panel hr-att-unmapped-panel">
-                <h2 class="dashboard-ora-panel__title">مستخدمون غير مربوطين بموظف</h2>
+        <?php if ($mapped !== []): ?>
+            <section class="dashboard-ora-panel hr-att-mapped-panel">
+                <h2 class="dashboard-ora-panel__title">الموظفون المربوطون بالبصمة</h2>
                 <div class="dashboard-ora-panel__body">
-                    <p class="hr-att-map-hint muted">
-                        اختر الموظفين من القائمة ثم اضغط <strong>حفظ</strong> من شريط الأدوات أعلى الشاشة.
-                        الموظفون المربوطون مسبقاً ببصمة أخرى لا يظهرون في القائمة.
+                    <div class="dashboard-ora-table-wrap hr-att-table-wrap">
+                        <table class="dashboard-ora-table hr-att-table">
+                            <thead>
+                            <tr>
+                                <th>رقم الموظف (النظام)</th>
+                                <th>اسم الموظف</th>
+                                <th>رقم البصمة (Access)</th>
+                                <th>الاسم في Access</th>
+                                <th>آخر بصمة</th>
+                                <th>عدد السجلات</th>
+                                <th class="hr-att-col-actions">إجراء</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($mapped as $mp): ?>
+                                <?php
+                                $zkUid = (int) ($mp['zk_user_id'] ?? 0);
+                                $badge = trim((string) ($mp['badge_number'] ?? ''));
+                                $empCode = trim((string) ($mp['emp_code'] ?? ''));
+                                $empName = trim((string) ($mp['emp_name'] ?? ''));
+                                $matchClass = hr_attendance_badge_matches_emp_code($badge, $empCode) ? 'is-match' : 'is-mismatch';
+                                ?>
+                                <tr class="hr-att-map-row is-mapped <?= esc($matchClass) ?>">
+                                    <td dir="ltr"><?= esc($empCode !== '' ? $empCode : '—') ?></td>
+                                    <td><?= esc($empName !== '' ? $empName : '—') ?></td>
+                                    <td dir="ltr"><?= esc($badge !== '' ? $badge : '—') ?></td>
+                                    <td><?= esc((string) ($mp['zk_name'] ?? '—')) ?></td>
+                                    <td dir="ltr"><?= esc((string) ($mp['last_punch'] ?? '—')) ?></td>
+                                    <td><?= (int) ($mp['punch_count'] ?? 0) ?></td>
+                                    <td class="hr-att-col-actions">
+                                        <form method="post" action="<?= esc($mapPostUrl) ?>" class="hr-att-unmap-form"
+                                              onsubmit="return confirm('إلغاء ربط هذا الموظف برقم البصمة؟');">
+                                            <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+                                            <input type="hidden" name="_action" value="unmap_employee">
+                                            <input type="hidden" name="zk_user_id" value="<?= $zkUid ?>">
+                                            <input type="hidden" name="date_from" value="<?= esc($dateFrom) ?>">
+                                            <input type="hidden" name="date_to" value="<?= esc($dateTo) ?>">
+                                            <input type="hidden" name="filter_employee_id" value="<?= (int) $filterEmpId ?>">
+                                            <button type="submit" class="btn btn-secondary btn-sm hr-att-unmap-btn">إلغاء الربط</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        <?php endif; ?>
+
+        <section class="dashboard-ora-panel hr-att-link-panel">
+            <h2 class="dashboard-ora-panel__title">ربط موظف بالبصمة</h2>
+            <div class="dashboard-ora-panel__body">
+                <p class="hr-att-map-hint muted">
+                    اختر <strong>موظفاً من النظام</strong> و<strong>رقم بصمة من Access</strong> من القائمتين ثم اضغط <strong>حفظ</strong> من شريط الأدوات.
+                </p>
+                <?php if ($linkEmployees === [] || $zkForLink === []): ?>
+                    <p class="muted hr-att-empty">
+                        <?php if ($linkEmployees === [] && $zkForLink === []): ?>
+                            لا يوجد موظفون متاحون للربط ولا أرقام بصمة غير مربوطة.
+                        <?php elseif ($linkEmployees === []): ?>
+                            جميع الموظفين مربوطون مسبقاً — لا يوجد موظف متاح للربط.
+                        <?php else: ?>
+                            لا توجد أرقام بصمة غير مربوطة — نفّذ «مزامنة الآن» أو تحقق من ملف Access.
+                        <?php endif; ?>
                     </p>
-                    <form method="post" action="<?= esc($mapPostUrl) ?>" id="hr-att-map-batch-form" class="hr-att-map-batch-form master-page-form no-exit-guard" novalidate>
+                <?php else: ?>
+                    <form method="post" action="<?= esc($mapPostUrl) ?>" id="hr-att-map-batch-form"
+                          class="hr-att-map-batch-form master-page-form no-exit-guard" novalidate>
                         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                         <input type="hidden" name="r" value="hr_employee_attendance">
                         <input type="hidden" name="_action" value="map_batch">
                         <input type="hidden" name="date_from" value="<?= esc($dateFrom) ?>">
                         <input type="hidden" name="date_to" value="<?= esc($dateTo) ?>">
                         <input type="hidden" name="filter_employee_id" value="<?= (int) $filterEmpId ?>">
-                        <table class="hr-att-table">
-                            <thead>
-                            <tr>
-                                <th>ZK USERID</th>
-                                <th>رقم البصمة</th>
-                                <th>الاسم في الجهاز</th>
-                                <th>آخر بصمة</th>
-                                <th>عدد السجلات</th>
-                                <th>ربط بموظف</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach ($unmapped as $um): ?>
-                                <?php $zkUid = (int) ($um['zk_user_id'] ?? 0); ?>
-                                <tr class="hr-att-map-row" data-zk-user-id="<?= $zkUid ?>">
-                                    <td><?= $zkUid ?></td>
-                                    <td><?= esc((string) ($um['badge_number'] ?? '—')) ?></td>
-                                    <td><?= esc((string) ($um['zk_name'] ?? '—')) ?></td>
-                                    <td><?= esc((string) ($um['last_punch'] ?? '—')) ?></td>
-                                    <td><?= (int) ($um['punch_count'] ?? 0) ?></td>
-                                    <td>
-                                        <?= employee_picker_field([
-                                            'id' => 'hr-att-map-emp-' . $zkUid,
-                                            'name' => 'maps[' . $zkUid . ']',
-                                            'compact' => true,
-                                            'label' => '',
-                                            'wrapper_class' => 'hr-att-map-picker',
-                                            'json_id' => 'hr-att-picker-json',
-                                            'placeholder' => 'اختر موظفاً',
-                                        ]) ?>
-                                    </td>
+                        <div class="dashboard-ora-table-wrap hr-att-table-wrap">
+                            <table class="dashboard-ora-table hr-att-table hr-att-link-table">
+                                <thead>
+                                <tr>
+                                    <th>موظف النظام (رقم — اسم)</th>
+                                    <th>رقم البصمة (Access)</th>
+                                    <th class="hr-att-col-actions"></th>
                                 </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody id="hr-att-link-rows"></tbody>
+                            </table>
+                        </div>
+                        <div class="hr-att-link-actions no-print">
+                            <button type="button" class="btn btn-secondary btn-sm" id="hr-att-add-link-row">+ إضافة سطر</button>
+                        </div>
                     </form>
-                </div>
-            </section>
-        <?php endif; ?>
+                    <?php
+                    $linkEmployeesJson = array_map(static function (array $e): array {
+                        return [
+                            'id' => (int) ($e['id'] ?? 0),
+                            'code' => trim((string) ($e['emp_code'] ?? '')),
+                            'name' => trim((string) ($e['name_ar'] ?? '')),
+                            'label' => hr_attendance_link_label_employee($e),
+                        ];
+                    }, $linkEmployees);
+                    $linkZkJson = array_map(static function (array $z): array {
+                        return [
+                            'zk_user_id' => (int) ($z['zk_user_id'] ?? 0),
+                            'badge' => trim((string) ($z['badge_number'] ?? '')),
+                            'name' => trim((string) ($z['zk_name'] ?? '')),
+                            'label' => hr_attendance_link_label_zk($z),
+                        ];
+                    }, $zkForLink);
+                    $jsonFlags = JSON_UNESCAPED_UNICODE;
+                    if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+                        $jsonFlags |= JSON_INVALID_UTF8_SUBSTITUTE;
+                    }
+                    ?>
+                    <script type="application/json" id="hr-att-link-employees-json"><?= json_encode($linkEmployeesJson, $jsonFlags) ?: '[]' ?></script>
+                    <script type="application/json" id="hr-att-link-zk-json"><?= json_encode($linkZkJson, $jsonFlags) ?: '[]' ?></script>
+                <?php endif; ?>
+            </div>
+        </section>
 
         <section class="dashboard-ora-panel">
             <h2 class="dashboard-ora-panel__title">سجلات الحضور المُزامَنة</h2>
@@ -300,8 +422,8 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
                 <?php if ($punches === []): ?>
                     <p class="muted hr-att-empty">لا توجد سجلات في الفترة المحددة. استخدم «مزامنة الآن» بعد تحميل البيانات من جهاز ZKT.</p>
                 <?php else: ?>
-                    <div class="hr-att-table-wrap">
-                        <table class="hr-att-table">
+                    <div class="dashboard-ora-table-wrap hr-att-table-wrap">
+                        <table class="dashboard-ora-table hr-att-table">
                             <thead>
                             <tr>
                                 <th>التاريخ والوقت</th>
@@ -340,8 +462,4 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
         </section>
     </div>
 </div>
-<?php
-employee_picker_enqueue_assets();
-employee_picker_json_script($pickerEmployees, 'hr-att-picker-json');
-?>
 <script src="<?= esc($attJsUrl) ?>" defer></script>

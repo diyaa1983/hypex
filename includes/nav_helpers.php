@@ -56,11 +56,14 @@ function nav_menu_inject_favorites(array $menu): array
     return $menu;
 }
 
-function nav_hub_url(string $domainId, string $subId): string
+function nav_hub_url(string $domainId, string $subId, string $nestedSubId = ''): string
 {
-    return app_url(
-        'index.php?r=menu_hub&d=' . rawurlencode($domainId) . '&s=' . rawurlencode($subId)
-    );
+    $q = 'index.php?r=menu_hub&d=' . rawurlencode($domainId) . '&s=' . rawurlencode($subId);
+    if ($nestedSubId !== '') {
+        $q .= '&ss=' . rawurlencode($nestedSubId);
+    }
+
+    return app_url($q);
 }
 
 /** عرض مجلدات المجال في منطقة المحتوى الرئيسية. */
@@ -97,11 +100,60 @@ function nav_find_subgroup(string $domainId, string $subId): ?array
     return null;
 }
 
+/** @return list<array<string, mixed>> */
+function nav_subgroup_nested_folders(array $subgroup): array
+{
+    $out = [];
+    foreach ($subgroup['subgroups'] ?? [] as $child) {
+        if (!is_array($child)) {
+            continue;
+        }
+        if (nav_subgroup_visible($child)) {
+            $out[] = $child;
+        }
+    }
+
+    return $out;
+}
+
+function nav_subgroup_is_folder_container(array $subgroup): bool
+{
+    return nav_subgroup_nested_folders($subgroup) !== [] && nav_subgroup_allowed_items($subgroup) === [];
+}
+
+/** @return array{domain: array, subgroup: array, nested_subgroup?: array}|null */
+function nav_find_subgroup_path(string $domainId, string $subId, string $nestedSubId = ''): ?array
+{
+    $found = nav_find_subgroup($domainId, $subId);
+    if ($found === null) {
+        return null;
+    }
+
+    $nestedSubId = trim($nestedSubId);
+    if ($nestedSubId === '') {
+        return $found;
+    }
+
+    foreach ($found['subgroup']['subgroups'] ?? [] as $child) {
+        if (!is_array($child) || ($child['id'] ?? '') !== $nestedSubId) {
+            continue;
+        }
+
+        return [
+            'domain' => $found['domain'],
+            'subgroup' => $found['subgroup'],
+            'nested_subgroup' => $child,
+        ];
+    }
+
+    return null;
+}
+
 /** @return list<array{r: string, label: string, icon: string}> */
 function nav_subgroup_allowed_items(array $subgroup): array
 {
     $out = [];
-    foreach ($subgroup['items'] as $it) {
+    foreach ($subgroup['items'] ?? [] as $it) {
         if (!is_array($it) || empty($it['r'])) {
             continue;
         }
@@ -120,7 +172,7 @@ function nav_domain_visible(array $domain): bool
     }
 
     foreach ($domain['subgroups'] as $sg) {
-        if (nav_subgroup_allowed_items($sg) !== []) {
+        if (nav_subgroup_visible($sg)) {
             return true;
         }
     }
@@ -130,7 +182,11 @@ function nav_domain_visible(array $domain): bool
 
 function nav_subgroup_visible(array $subgroup): bool
 {
-    return nav_subgroup_allowed_items($subgroup) !== [];
+    if (nav_subgroup_allowed_items($subgroup) !== []) {
+        return true;
+    }
+
+    return nav_subgroup_nested_folders($subgroup) !== [];
 }
 
 /** @return array{domain_id: string, sub_id: string}|null */
@@ -139,8 +195,14 @@ function nav_resolve_active_hub(string $activeRoute): ?array
     if ($activeRoute === 'menu_hub') {
         $d = trim((string) ($_GET['d'] ?? ''));
         $s = trim((string) ($_GET['s'] ?? ''));
+        $ss = trim((string) ($_GET['ss'] ?? ''));
         if ($d !== '') {
-            return ['domain_id' => $d, 'sub_id' => $s];
+            $hub = ['domain_id' => $d, 'sub_id' => $s];
+            if ($ss !== '') {
+                $hub['nested_sub_id'] = $ss;
+            }
+
+            return $hub;
         }
 
         return null;
@@ -150,9 +212,24 @@ function nav_resolve_active_hub(string $activeRoute): ?array
         $domainId = (string) ($domain['id'] ?? '');
         foreach ($domain['subgroups'] as $sg) {
             $subId = (string) ($sg['id'] ?? '');
-            foreach ($sg['items'] as $it) {
+            foreach ($sg['items'] ?? [] as $it) {
                 if (is_array($it) && ($it['r'] ?? '') === $activeRoute && user_can((string) $it['r'])) {
                     return ['domain_id' => $domainId, 'sub_id' => $subId];
+                }
+            }
+            foreach ($sg['subgroups'] ?? [] as $nested) {
+                if (!is_array($nested)) {
+                    continue;
+                }
+                $nestedSubId = (string) ($nested['id'] ?? '');
+                foreach ($nested['items'] ?? [] as $it) {
+                    if (is_array($it) && ($it['r'] ?? '') === $activeRoute && user_can((string) $it['r'])) {
+                        return [
+                            'domain_id' => $domainId,
+                            'sub_id' => $subId,
+                            'nested_sub_id' => $nestedSubId,
+                        ];
+                    }
                 }
             }
         }
@@ -174,7 +251,7 @@ function nav_first_visible_subgroup_id(array $domain): ?string
 }
 
 /** تسجيل زيارة مجلد أصفر (subgroup) لتفعيل زر العودة للمجلد السابق. */
-function nav_hub_track_folder_visit(string $domainId, string $subId, string $subTitle): void
+function nav_hub_track_folder_visit(string $domainId, string $subId, string $subTitle, string $nestedSubId = ''): void
 {
     if ($domainId === '' || $subId === '') {
         return;
@@ -185,15 +262,23 @@ function nav_hub_track_folder_visit(string $domainId, string $subId, string $sub
         's' => $subId,
         'title' => trim($subTitle) !== '' ? trim($subTitle) : $subId,
     ];
+    if ($nestedSubId !== '') {
+        $current['ss'] = $nestedSubId;
+    }
 
     $last = $_SESSION['nav_hub_last_folder'] ?? null;
     if (
         is_array($last)
-        && (($last['d'] ?? '') !== $domainId || ($last['s'] ?? '') !== $subId)
+        && (
+            ($last['d'] ?? '') !== $domainId
+            || ($last['s'] ?? '') !== $subId
+            || (string) ($last['ss'] ?? '') !== $nestedSubId
+        )
     ) {
         $_SESSION['nav_hub_prev_folder'] = [
             'd' => (string) ($last['d'] ?? ''),
             's' => (string) ($last['s'] ?? ''),
+            'ss' => (string) ($last['ss'] ?? ''),
             'title' => (string) ($last['title'] ?? ''),
         ];
     }
@@ -206,7 +291,7 @@ function nav_hub_track_folder_visit(string $domainId, string $subId, string $sub
  *
  * @return array{url: string, label: string}|null
  */
-function nav_hub_previous_folder_link(string $currentDomainId, string $currentSubId): ?array
+function nav_hub_previous_folder_link(string $currentDomainId, string $currentSubId, string $currentNestedSubId = ''): ?array
 {
     $prev = $_SESSION['nav_hub_prev_folder'] ?? null;
     if (!is_array($prev)) {
@@ -215,22 +300,38 @@ function nav_hub_previous_folder_link(string $currentDomainId, string $currentSu
 
     $d = trim((string) ($prev['d'] ?? ''));
     $s = trim((string) ($prev['s'] ?? ''));
+    $ss = trim((string) ($prev['ss'] ?? ''));
     $title = trim((string) ($prev['title'] ?? ''));
-    if ($d === '' || $s === '' || ($d === $currentDomainId && $s === $currentSubId)) {
+    if (
+        $d === ''
+        || $s === ''
+        || ($d === $currentDomainId && $s === $currentSubId && $ss === $currentNestedSubId)
+    ) {
         return null;
     }
 
-    $found = nav_find_subgroup($d, $s);
-    if ($found === null || !nav_subgroup_visible($found['subgroup'])) {
+    $found = nav_find_subgroup_path($d, $s, $ss);
+    if ($found === null) {
+        return null;
+    }
+    if ($ss !== '') {
+        if (!nav_subgroup_visible($found['nested_subgroup'] ?? [])) {
+            return null;
+        }
+    } elseif (!nav_subgroup_visible($found['subgroup'])) {
         return null;
     }
 
     if ($title === '') {
-        $title = (string) ($found['subgroup']['title'] ?? $s);
+        if ($ss !== '' && isset($found['nested_subgroup'])) {
+            $title = (string) ($found['nested_subgroup']['title'] ?? $ss);
+        } else {
+            $title = (string) ($found['subgroup']['title'] ?? $s);
+        }
     }
 
     return [
-        'url' => nav_hub_url($d, $s),
+        'url' => nav_hub_url($d, $s, $ss),
         'label' => $title,
     ];
 }
@@ -250,12 +351,13 @@ function nav_apply_return_from_request(string $activeRoute): void
 
     $hubD = trim((string) ($_GET['hub_d'] ?? ''));
     $hubS = trim((string) ($_GET['hub_s'] ?? ''));
-    if ($hubD === '' || $hubS === '' || nav_find_subgroup($hubD, $hubS) === null) {
+    $hubSs = trim((string) ($_GET['hub_ss'] ?? ''));
+    if ($hubD === '' || $hubS === '' || nav_find_subgroup_path($hubD, $hubS, $hubSs) === null) {
         return;
     }
 
-    $_SESSION['nav_return_url'] = nav_hub_url($hubD, $hubS);
-    $_SESSION['nav_return_hub'] = ['d' => $hubD, 's' => $hubS];
+    $_SESSION['nav_return_url'] = nav_hub_url($hubD, $hubS, $hubSs);
+    $_SESSION['nav_return_hub'] = ['d' => $hubD, 's' => $hubS, 'ss' => $hubSs];
 }
 
 /** عنوان URL الحالي للشاشة (مع معاملات GET). */
@@ -471,8 +573,9 @@ function nav_hub_folder_url(?array $hub): ?string
     }
 
     $subId = trim((string) ($hub['sub_id'] ?? ''));
+    $nestedSubId = trim((string) ($hub['nested_sub_id'] ?? ''));
     if ($subId !== '') {
-        return nav_hub_url((string) ($hub['domain_id'] ?? ''), $subId);
+        return nav_hub_url((string) ($hub['domain_id'] ?? ''), $subId, $nestedSubId);
     }
 
     $domainId = trim((string) ($hub['domain_id'] ?? ''));
@@ -719,11 +822,14 @@ function nav_render_sidebar_domain(array $block, string $activeRoute, ?array $ac
 }
 
 /** رابط شاشة مع تمرير مصدر الـ hub للعودة لاحقاً. */
-function nav_screen_url(string $routeCode, string $hubDomainId, string $hubSubId): string
+function nav_screen_url(string $routeCode, string $hubDomainId, string $hubSubId, string $hubNestedSubId = ''): string
 {
     $q = 'index.php?r=' . rawurlencode($routeCode);
     if ($hubDomainId !== '' && $hubSubId !== '') {
         $q .= '&hub_d=' . rawurlencode($hubDomainId) . '&hub_s=' . rawurlencode($hubSubId);
+        if ($hubNestedSubId !== '') {
+            $q .= '&hub_ss=' . rawurlencode($hubNestedSubId);
+        }
     }
 
     return app_url($q);
@@ -738,11 +844,17 @@ function nav_hub_query_for_redirect(): string
     }
     $d = trim((string) ($hub['d'] ?? ''));
     $s = trim((string) ($hub['s'] ?? ''));
+    $ss = trim((string) ($hub['ss'] ?? ''));
     if ($d === '' || $s === '') {
         return '';
     }
 
-    return '&hub_d=' . rawurlencode($d) . '&hub_s=' . rawurlencode($s);
+    $q = '&hub_d=' . rawurlencode($d) . '&hub_s=' . rawurlencode($s);
+    if ($ss !== '') {
+        $q .= '&hub_ss=' . rawurlencode($ss);
+    }
+
+    return $q;
 }
 
 /** بيانات زر × إغلاق الشاشة (رابط + تلميح). */

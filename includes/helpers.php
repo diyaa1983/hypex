@@ -90,7 +90,23 @@ function parse_date_to_iso(string $date): ?string
         return checkdate($mo, $d, $y) ? sprintf('%04d-%02d-%02d', $y, $mo, $d) : null;
     }
 
+    if (preg_match('/^(\d{8})$/', $date, $m)) {
+        $d = (int) substr($m[1], 0, 2);
+        $mo = (int) substr($m[1], 2, 2);
+        $y = (int) substr($m[1], 4, 4);
+
+        return checkdate($mo, $d, $y) ? sprintf('%04d-%02d-%02d', $y, $mo, $d) : null;
+    }
+
     if (preg_match('/^(\d{1,2})-(\d{1,2})-(\d{4})$/', $date, $m)) {
+        $d = (int) $m[1];
+        $mo = (int) $m[2];
+        $y = (int) $m[3];
+
+        return checkdate($mo, $d, $y) ? sprintf('%04d-%02d-%02d', $y, $mo, $d) : null;
+    }
+
+    if (preg_match('/^(\d{1,2})\s+(\d{1,2})\s+(\d{4})$/', $date, $m)) {
         $d = (int) $m[1];
         $mo = (int) $m[2];
         $y = (int) $m[3];

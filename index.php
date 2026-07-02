@@ -135,6 +135,13 @@ $appBootMigrations = [
     'database/migrations/196_hr_attendance_shifts.sql',
     'database/migrations/197_hr_att_shift_numeric_code.sql',
     'database/migrations/198_hr_employee_schedule.sql',
+    'database/migrations/199_hr_departure_types.sql',
+    'database/migrations/200_hr_employee_departures.sql',
+    'database/migrations/201_hr_leave_types.sql',
+    'database/migrations/202_hr_employee_leave_balance.sql',
+    'database/migrations/203_hr_employee_leaves.sql',
+    'database/migrations/204_hr_leave_type_prorate_yearly.sql',
+    'database/migrations/205_report_hr_employee_leaves_departures.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

@@ -1,0 +1,125 @@
+.dashboard-ora.hr-emp-leave-bal-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-filter-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 0.5rem 0.65rem;
+    grid-template-columns: none;
+    margin-bottom: 0.55rem;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-filter-row .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-bottom: 0;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-filter-row .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #475569;
+    white-space: nowrap;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-filter-row .input,
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-filter-row select.input {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    height: 1.7rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.78rem;
+    border-radius: 2px;
+    box-sizing: border-box;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-field-employee select.input {
+    width: 12.5rem;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-picker-slot {
+    width: 12.5rem;
+    min-width: 12.5rem;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-picker-slot .sales-inv-cust-open {
+    width: 100%;
+    min-width: 0;
+    height: 1.7rem;
+    min-height: 1.7rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.78rem;
+    border-radius: 2px;
+    box-sizing: border-box;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-picker-slot .sales-inv-cust-open-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-field-date .input {
+    width: 6.4rem;
+    text-align: center;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-filter-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 0.05rem;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-filter-actions .btn {
+    height: 1.7rem;
+    min-height: 1.7rem;
+    padding: 0.15rem 0.65rem;
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-panel {
+    margin-top: 0.1rem;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-meta {
+    margin: 0 0 0.75rem;
+    font-size: 0.92rem;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-table th,
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-table td {
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-table td.num,
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-table td.center {
+    text-align: center;
+}
+
+.dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-hint {
+    margin: 0.75rem 0 0;
+    font-size: 0.88rem;
+}
+
+@media (max-width: 720px) {
+    .dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-filter-row {
+        flex-wrap: wrap;
+    }
+
+    .dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-field-employee select.input,
+    .dashboard-ora.hr-emp-leave-bal-page .hr-emp-leave-bal-picker-slot {
+        width: 11rem;
+        min-width: 11rem;
+    }
+}

@@ -13,6 +13,7 @@ echo '<link rel="stylesheet" href="' . esc($cssUrl) . '">' . "\n";
 
 $domainId = trim((string) ($_GET['d'] ?? ''));
 $subId = trim((string) ($_GET['s'] ?? ''));
+$nestedSubId = trim((string) ($_GET['ss'] ?? ''));
 
 $domain = nav_find_domain($domainId);
 if (!$domain) {
@@ -29,6 +30,19 @@ if ($subId === '') {
         if (!nav_subgroup_visible($sg)) {
             continue;
         }
+        if (nav_subgroup_is_folder_container($sg)) {
+            $nested = nav_subgroup_nested_folders($sg);
+            if ($nested === []) {
+                continue;
+            }
+            $folders[] = [
+                'id' => (string) ($sg['id'] ?? ''),
+                'title' => (string) ($sg['title'] ?? ''),
+                'count' => count($nested),
+                'meta' => count($nested) . ' مجلد',
+            ];
+            continue;
+        }
         $items = nav_subgroup_allowed_items($sg);
         if ($items === []) {
             continue;
@@ -37,6 +51,7 @@ if ($subId === '') {
             'id' => (string) ($sg['id'] ?? ''),
             'title' => (string) ($sg['title'] ?? ''),
             'count' => count($items),
+            'meta' => count($items) . ' شاشة',
         ];
     }
 
@@ -67,6 +82,92 @@ if ($subId === '') {
                             >
                                 <span class="nav-hub-ora-tile-icon" aria-hidden="true">📁</span>
                                 <span class="nav-hub-ora-tile-label"><?= esc($folder['title']) ?></span>
+                                <span class="nav-hub-ora-tile-meta"><?= esc((string) ($folder['meta'] ?? '')) ?></span>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+    <?php
+    return;
+}
+
+$found = nav_find_subgroup_path($domainId, $subId, $nestedSubId);
+if (!$found) {
+    http_response_code(404);
+    echo '<div class="dashboard-ora nav-hub-ora"><div class="dashboard-ora-workspace"><div class="alert alert-error">المجلد غير موجود.</div></div></div>';
+    return;
+}
+
+$subgroup = $found['subgroup'];
+$nestedSubgroup = $found['nested_subgroup'] ?? null;
+
+if ($nestedSubId === '' && nav_subgroup_is_folder_container($subgroup)) {
+    $nestedFolders = [];
+    foreach (nav_subgroup_nested_folders($subgroup) as $child) {
+        $childItems = nav_subgroup_allowed_items($child);
+        if ($childItems === []) {
+            continue;
+        }
+        $nestedFolders[] = [
+            'id' => (string) ($child['id'] ?? ''),
+            'title' => (string) ($child['title'] ?? ''),
+            'count' => count($childItems),
+        ];
+    }
+
+    if ($nestedFolders === []) {
+        http_response_code(403);
+        echo '<div class="dashboard-ora nav-hub-ora"><div class="dashboard-ora-workspace"><div class="alert alert-error">ليس لديك صلاحية لأي شاشة في هذا المجلد.</div></div></div>';
+        return;
+    }
+
+    $subTitle = (string) ($subgroup['title'] ?? '');
+    nav_hub_track_folder_visit($domainId, $subId, $subTitle);
+    $prevFolderLink = nav_hub_previous_folder_link($domainId, $subId);
+    $backUrl = nav_domain_hub_url($domainId);
+    $visibleFolderCount = 0;
+    foreach ($domain['subgroups'] as $sg) {
+        if (nav_subgroup_visible($sg)) {
+            $visibleFolderCount++;
+        }
+    }
+
+    ?>
+    <div class="dashboard-ora nav-hub-ora">
+        <header class="dashboard-ora-screen-title" role="banner">
+            <h1 class="dashboard-ora-screen-title__text"><?= esc($subTitle) ?></h1>
+            <span class="dashboard-ora-screen-title__meta"><?= esc($domainTitle) ?></span>
+            <?php nav_render_screen_close($activeRoute ?? 'menu_hub'); ?>
+        </header>
+        <div class="dashboard-ora-workspace">
+            <?php if ($prevFolderLink !== null || $visibleFolderCount > 1): ?>
+            <nav class="nav-hub-ora-breadcrumb" aria-label="تنقل المجلدات">
+                <?php if ($prevFolderLink !== null): ?>
+                    <a class="dashboard-ora-btn" href="<?= esc(app_mdi_hub_nav_url($prevFolderLink['url'])) ?>"
+                       title="العودة إلى المجلد السابق">← <?= esc($prevFolderLink['label']) ?></a>
+                <?php endif; ?>
+                <?php if ($visibleFolderCount > 1): ?>
+                    <a class="dashboard-ora-btn" href="<?= esc(app_mdi_hub_nav_url($backUrl)) ?>">← <?= esc($domainTitle) ?></a>
+                <?php endif; ?>
+            </nav>
+            <?php endif; ?>
+
+            <section class="dashboard-ora-panel" aria-label="مجلدات <?= esc($subTitle) ?>">
+                <h2 class="dashboard-ora-panel__title">المجلدات</h2>
+                <p class="dashboard-ora-panel__sub">اختر مجلداً لعرض الشاشات والتقارير</p>
+                <div class="dashboard-ora-panel__body nav-hub-ora-grid-wrap">
+                    <div class="nav-hub-ora-grid nav-hub-ora-grid--folders" role="list">
+                        <?php foreach ($nestedFolders as $folder): ?>
+                            <a
+                                class="nav-hub-ora-tile nav-hub-ora-tile--folder"
+                                role="listitem"
+                                href="<?= esc(app_mdi_hub_nav_url(nav_hub_url($domainId, $subId, $folder['id']))) ?>"
+                            >
+                                <span class="nav-hub-ora-tile-icon" aria-hidden="true">📁</span>
+                                <span class="nav-hub-ora-tile-label"><?= esc($folder['title']) ?></span>
                                 <span class="nav-hub-ora-tile-meta"><?= (int) $folder['count'] ?> شاشة</span>
                             </a>
                         <?php endforeach; ?>
@@ -79,15 +180,8 @@ if ($subId === '') {
     return;
 }
 
-$found = nav_find_subgroup($domainId, $subId);
-if (!$found) {
-    http_response_code(404);
-    echo '<div class="dashboard-ora nav-hub-ora"><div class="dashboard-ora-workspace"><div class="alert alert-error">المجلد غير موجود.</div></div></div>';
-    return;
-}
-
-$subgroup = $found['subgroup'];
-$items = nav_subgroup_allowed_items($subgroup);
+$leafSubgroup = is_array($nestedSubgroup) ? $nestedSubgroup : $subgroup;
+$items = nav_subgroup_allowed_items($leafSubgroup);
 
 if ($items === []) {
     if ($domainId === 'favorites') {
@@ -99,12 +193,14 @@ if ($items === []) {
     return;
 }
 
-$subTitle = (string) ($subgroup['title'] ?? '');
+$subTitle = (string) ($leafSubgroup['title'] ?? '');
 if ($domainId !== 'favorites') {
-    nav_hub_track_folder_visit($domainId, $subId, $subTitle);
+    nav_hub_track_folder_visit($domainId, $subId, $subTitle, $nestedSubId);
 }
-$prevFolderLink = $domainId === 'favorites' ? null : nav_hub_previous_folder_link($domainId, $subId);
-$backUrl = nav_domain_hub_url($domainId);
+$prevFolderLink = $domainId === 'favorites' ? null : nav_hub_previous_folder_link($domainId, $subId, $nestedSubId);
+$backUrl = $nestedSubId !== ''
+    ? nav_hub_url($domainId, $subId)
+    : nav_domain_hub_url($domainId);
 $visibleFolderCount = 0;
 foreach ($domain['subgroups'] as $sg) {
     if (nav_subgroup_visible($sg)) {
@@ -115,7 +211,7 @@ foreach ($domain['subgroups'] as $sg) {
 $hubPageTitle = $domainId === 'favorites' ? $domainTitle : $subTitle;
 $hubPageSub = $domainId === 'favorites'
     ? 'الشاشات والتقارير التي أضفتها بالنجمة ★'
-    : $domainTitle;
+    : ($nestedSubId !== '' ? (string) ($subgroup['title'] ?? $domainTitle) : $domainTitle);
 
 ?>
 <div class="dashboard-ora nav-hub-ora">
@@ -125,14 +221,14 @@ $hubPageSub = $domainId === 'favorites'
         <?php nav_render_screen_close($activeRoute ?? 'menu_hub'); ?>
     </header>
     <div class="dashboard-ora-workspace">
-        <?php if ($prevFolderLink !== null || ($domainId !== 'favorites' && $visibleFolderCount > 1)): ?>
+        <?php if ($prevFolderLink !== null || ($domainId !== 'favorites' && ($visibleFolderCount > 1 || $nestedSubId !== ''))): ?>
         <nav class="nav-hub-ora-breadcrumb" aria-label="تنقل المجلدات">
             <?php if ($prevFolderLink !== null): ?>
                 <a class="dashboard-ora-btn" href="<?= esc(app_mdi_hub_nav_url($prevFolderLink['url'])) ?>"
                    title="العودة إلى المجلد السابق">← <?= esc($prevFolderLink['label']) ?></a>
             <?php endif; ?>
-            <?php if ($domainId !== 'favorites' && $visibleFolderCount > 1): ?>
-                <a class="dashboard-ora-btn" href="<?= esc(app_mdi_hub_nav_url($backUrl)) ?>">← <?= esc($domainTitle) ?></a>
+            <?php if ($domainId !== 'favorites' && ($visibleFolderCount > 1 || $nestedSubId !== '')): ?>
+                <a class="dashboard-ora-btn" href="<?= esc(app_mdi_hub_nav_url($backUrl)) ?>">← <?= esc($nestedSubId !== '' ? (string) ($subgroup['title'] ?? $domainTitle) : $domainTitle) ?></a>
             <?php endif; ?>
         </nav>
         <?php endif; ?>
@@ -145,7 +241,7 @@ $hubPageSub = $domainId === 'favorites'
                     <?php foreach ($items as $it): ?>
                         <?php
                         $r = (string) $it['r'];
-                        $url = nav_screen_url($r, $domainId, $subId);
+                        $url = nav_screen_url($r, $domainId, $subId, $nestedSubId);
                         $icon = (string) ($it['icon'] ?? '📄');
                         $label = (string) ($it['label'] ?? $r);
                         ?>

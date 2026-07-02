@@ -213,8 +213,9 @@ function app_mdi_after_minimize_url(string $activeRoute): string
 
     $hubD = trim((string) ($_GET['hub_d'] ?? ''));
     $hubS = trim((string) ($_GET['hub_s'] ?? ''));
+    $hubSs = trim((string) ($_GET['hub_ss'] ?? ''));
     if ($hubD !== '' && $hubS !== '') {
-        return nav_hub_url($hubD, $hubS);
+        return nav_hub_url($hubD, $hubS, $hubSs);
     }
     if ($hubD !== '') {
         return nav_domain_hub_url($hubD);
@@ -224,8 +225,9 @@ function app_mdi_after_minimize_url(string $activeRoute): string
     if (is_array($sessionHub)) {
         $sd = trim((string) ($sessionHub['d'] ?? ''));
         $ss = trim((string) ($sessionHub['s'] ?? ''));
+        $sns = trim((string) ($sessionHub['ss'] ?? ''));
         if ($sd !== '' && $ss !== '') {
-            return nav_hub_url($sd, $ss);
+            return nav_hub_url($sd, $ss, $sns);
         }
         if ($sd !== '') {
             return nav_domain_hub_url($sd);
@@ -236,8 +238,9 @@ function app_mdi_after_minimize_url(string $activeRoute): string
     if ($hub !== null && ($hub['domain_id'] ?? '') !== '') {
         $domainId = (string) $hub['domain_id'];
         $subId = (string) ($hub['sub_id'] ?? '');
+        $nestedSubId = (string) ($hub['nested_sub_id'] ?? '');
         if ($subId !== '') {
-            return nav_hub_url($domainId, $subId);
+            return nav_hub_url($domainId, $subId, $nestedSubId);
         }
 
         return nav_domain_hub_url($domainId);

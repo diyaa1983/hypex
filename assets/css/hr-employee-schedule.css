@@ -1,115 +1,372 @@
-/* تعريف دوام الموظف */
+/* تعريف دوام الموظف — Oracle 12c */
+
+.dashboard-ora.hr-emp-sch-ora12-screen.hr-emp-sch-wrap {
+    width: 100%;
+    max-width: 100%;
+}
 
 .hr-emp-sch-page .hr-emp-sch-flash {
-    margin: 0 0.5rem 0.5rem;
+    margin: 0 0 0.45rem;
 }
 
 .hr-emp-sch-master-grid {
     display: grid;
-    grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr) auto;
-    gap: 0.65rem 0.75rem;
+    grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr) auto;
+    gap: 0.55rem 0.75rem;
     align-items: end;
+    max-width: 52rem;
 }
 
 .hr-emp-sch-master-cell--action {
-    padding-bottom: 0.1rem;
+    padding-bottom: 0.05rem;
 }
 
 .hr-emp-sch-empty {
-    padding: 1.5rem 1rem;
+    padding: 0.35rem 0 0.65rem;
     text-align: center;
+    font-size: 0.82rem;
+}
+
+.hr-emp-sch-week-panel.is-empty-state .hr-emp-sch-week-table-wrap select:disabled,
+.hr-emp-sch-week-panel.is-empty-state .input[readonly] {
+    background: #f3f5f7;
+    color: var(--ora12-muted, #64748b);
+    cursor: not-allowed;
+}
+
+.hr-emp-sch-period-actions .btn.is-disabled {
+    opacity: 0.45;
+    pointer-events: none;
 }
 
 .hr-emp-sch-tabs {
-    margin-top: 0.5rem;
+    margin: 0.35rem 0 0;
 }
 
 .hr-emp-sch-tab-panels {
-    margin-top: 0;
+    margin-top: 0.35rem;
 }
 
 .hr-emp-sch-tab-panel[hidden] {
     display: none !important;
 }
 
-.hr-emp-sch-weekly-layout {
-    display: grid;
-    grid-template-columns: minmax(200px, 0.32fr) minmax(0, 1fr);
-    gap: 0.75rem;
-    align-items: start;
+.hr-emp-sch-week-panel {
+    margin: 0;
+    overflow: visible;
 }
 
-.hr-emp-sch-periods-list {
-    list-style: none;
-    margin: 0.65rem 0 0;
-    padding: 0;
+.hr-emp-sch-week-body {
+    display: flex;
+    justify-content: flex-start;
+    padding: 0.75rem 0.65rem 1rem !important;
 }
 
-.hr-emp-sch-periods-list li {
-    margin: 0 0 0.35rem;
+.hr-emp-sch-week-center {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    width: min(100%, 38rem);
+    max-width: 100%;
+    margin-inline-end: auto;
+    margin-inline-start: 0;
 }
 
-.hr-emp-sch-period-link {
-    display: block;
-    padding: 0.4rem 0.55rem;
-    border: 1px solid #cbd5e1;
-    border-radius: 0.25rem;
-    text-decoration: none;
-    color: #0f172a;
-    font-size: 0.82rem;
-}
-
-.hr-emp-sch-period-link:hover,
-.hr-emp-sch-period-link.is-active {
-    background: #e0f2fe;
-    border-color: #0369a1;
-}
-
-.hr-emp-sch-new-period {
+.hr-emp-sch-period-bar {
     width: 100%;
+}
+
+.hr-emp-sch-period-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #cbd5e1;
+    border-radius: 2px;
+    overflow: visible;
+}
+
+.hr-emp-sch-period-nav {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr) auto minmax(0, 1fr) 2rem;
+    align-items: end;
+    gap: 0.35rem 0.4rem;
+    width: 100%;
+    direction: rtl;
+}
+
+.hr-emp-sch-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 1.85rem;
+    margin-bottom: 0.05rem;
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #1e293b;
+    text-decoration: none;
+    background: linear-gradient(180deg, #fff 0%, #e8ecf0 100%);
+    border: 1px solid #94a3b8;
+    border-radius: 2px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+    cursor: pointer;
+    user-select: none;
+}
+
+.hr-emp-sch-nav-btn--prev {
+    grid-column: 1;
+}
+
+.hr-emp-sch-date-field--from {
+    grid-column: 2;
+}
+
+.hr-emp-sch-period-sep {
+    grid-column: 3;
+}
+
+.hr-emp-sch-date-field--to {
+    grid-column: 4;
+}
+
+.hr-emp-sch-nav-btn--next {
+    grid-column: 5;
+}
+
+.hr-emp-sch-nav-btn:hover {
+    border-color: #0572ce;
+    color: #0572ce;
+    background: #fff;
+}
+
+.hr-emp-sch-nav-btn.is-disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.hr-emp-sch-date-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+    min-width: 0;
+}
+
+.hr-emp-sch-date-field--from,
+.hr-emp-sch-date-field--to {
+    min-width: 7.5rem;
+}
+
+.hr-emp-sch-date-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #64748b;
+    white-space: nowrap;
     text-align: center;
 }
 
-.hr-emp-sch-hint {
-    margin: 0 0 0.75rem;
-    font-size: 0.82rem;
+.hr-emp-sch-date-field .date-dmy-field {
+    width: 100%;
+    min-width: 0;
+    direction: ltr;
+    position: relative;
+    z-index: 1;
 }
 
-.hr-emp-sch-date-row {
-    margin-bottom: 0.75rem;
+.hr-emp-sch-date-field .date-dmy-field:focus-within {
+    z-index: 2;
+}
+
+.hr-emp-sch-date-field .js-date-dmy {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+}
+
+.hr-emp-sch-date-field .date-dmy-picker-btn {
+    min-width: 1.85rem;
+    padding: 0 0.3rem;
+}
+
+.hr-emp-sch-period-sep {
+    align-self: center;
+    margin-bottom: 0.35rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #94a3b8;
+    line-height: 1;
+}
+
+.hr-emp-sch-period-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem 0.5rem;
+    padding-top: 0.15rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.hr-emp-sch-period-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.6rem;
+    padding: 0.1rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #0369a1;
+    background: #e0f2fe;
+    border: 1px solid #7dd3fc;
+    border-radius: 2px;
+    white-space: nowrap;
+}
+
+.hr-emp-sch-new-week-btn.is-active {
+    background: #e0f2fe;
+    border-color: #0369a1;
+    color: #0369a1;
+}
+
+.hr-emp-sch-week-hint {
+    margin: 0;
+    padding: 0;
+    font-size: 0.72rem;
+    line-height: 1.4;
+    text-align: start;
+    max-width: 36rem;
+}
+
+.hr-emp-sch-week-hint:empty {
+    display: none;
 }
 
 .hr-emp-sch-week-table-wrap {
-    margin-bottom: 0.75rem;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    overflow-x: visible;
+}
+
+.hr-emp-sch-week-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+.hr-emp-sch-col-idx {
+    width: 7%;
+    text-align: center;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.hr-emp-sch-col-day {
+    width: 16%;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.hr-emp-sch-col-date {
+    width: 20%;
+    text-align: center;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.hr-emp-sch-col-shift {
+    width: 57%;
 }
 
 .hr-emp-sch-week-table th,
 .hr-emp-sch-week-table td {
-    text-align: center;
     vertical-align: middle;
+    padding: 0.32rem 0.45rem;
+}
+
+.hr-emp-sch-week-table thead th {
+    text-align: center;
+    font-size: 0.76rem;
+}
+
+.hr-emp-sch-week-table tbody .hr-emp-sch-col-day {
+    text-align: start;
 }
 
 .hr-emp-sch-week-table select.input {
     width: 100%;
-    min-width: 12rem;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 0.74rem;
+    padding: 0.18rem 0.35rem;
+    box-sizing: border-box;
+}
+
+.hr-emp-sch-week-table tbody tr:nth-child(even) td {
+    background: #f8fafc;
+}
+
+.hr-emp-sch-week-table tbody tr:hover td {
+    background: #eef6ff;
 }
 
 .hr-emp-sch-form-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
+    justify-content: flex-start;
+    gap: 0.4rem;
+    width: 100%;
+}
+
+.hr-emp-sch-hint {
+    margin: 0 0 0.65rem;
+    font-size: 0.8rem;
+    line-height: 1.45;
 }
 
 .hr-emp-sch-default-field {
-    max-width: 28rem;
+    max-width: 32rem;
 }
 
-@media (max-width: 900px) {
-    .hr-emp-sch-weekly-layout {
+@media (max-width: 700px) {
+    .hr-emp-sch-master-grid {
         grid-template-columns: 1fr;
     }
 
-    .hr-emp-sch-master-grid {
-        grid-template-columns: 1fr;
+    .hr-emp-sch-week-center {
+        width: 100%;
+    }
+
+    .hr-emp-sch-period-nav {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 0.4rem;
+    }
+
+    .hr-emp-sch-nav-btn--prev,
+    .hr-emp-sch-nav-btn--next,
+    .hr-emp-sch-date-field,
+    .hr-emp-sch-period-sep {
+        grid-column: auto;
+    }
+
+    .hr-emp-sch-date-field {
+        flex: 1 1 8.5rem;
+        max-width: calc(50% - 1.5rem);
+    }
+
+    .hr-emp-sch-week-table-wrap {
+        overflow-x: auto;
     }
 }

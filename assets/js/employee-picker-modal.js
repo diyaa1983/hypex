@@ -36,16 +36,6 @@
     return document.getElementById('app-employee-picker-results');
   }
 
-  function isOtherPickerOpen() {
-    if (window.CustomerPickerModal && CustomerPickerModal.isOpen && CustomerPickerModal.isOpen()) {
-      return true;
-    }
-    if (window.ItemPickerModal && ItemPickerModal.isOpen && ItemPickerModal.isOpen()) {
-      return true;
-    }
-    return false;
-  }
-
   function closeOtherPickers() {
     if (window.CustomerPickerModal && CustomerPickerModal.close) {
       CustomerPickerModal.close();
@@ -53,6 +43,22 @@
     if (window.ItemPickerModal && ItemPickerModal.close) {
       ItemPickerModal.close();
     }
+    if (window.BadgePickerModal && BadgePickerModal.close) {
+      BadgePickerModal.close();
+    }
+  }
+
+  function isOtherPickerOpen() {
+    if (window.CustomerPickerModal && CustomerPickerModal.isOpen && CustomerPickerModal.isOpen()) {
+      return true;
+    }
+    if (window.ItemPickerModal && ItemPickerModal.isOpen && ItemPickerModal.isOpen()) {
+      return true;
+    }
+    if (window.BadgePickerModal && BadgePickerModal.isOpen && BadgePickerModal.isOpen()) {
+      return true;
+    }
+    return false;
   }
 
   function ensureBackdrop() {
@@ -133,9 +139,26 @@
     return !!(modal && modal.classList.contains('is-open'));
   }
 
-  function employeeLabel(emp) {
+  function employeeLabel(emp, binding) {
     if (!emp) return '';
+    if (binding && binding.displayField) {
+      var displayVal = emp[binding.displayField];
+      if (displayVal != null && String(displayVal).trim() !== '') {
+        return String(displayVal).trim();
+      }
+    }
     return String(emp.label || emp.name_ar || '').trim();
+  }
+
+  function employeeListName(emp, binding) {
+    if (!emp) return '';
+    if (binding && binding.listNameField) {
+      var listVal = emp[binding.listNameField];
+      if (listVal != null && String(listVal).trim() !== '') {
+        return String(listVal).trim();
+      }
+    }
+    return employeeLabel(emp, binding);
   }
 
   function employeeMatches(emp, needle) {
@@ -179,7 +202,7 @@
     var id = binding.hidden ? parseInt(binding.hidden.value, 10) : 0;
     var emp = findEmployee(binding, id);
     if (emp) {
-      binding.display.textContent = employeeLabel(emp);
+      binding.display.textContent = employeeLabel(emp, binding);
       binding.display.classList.remove('is-placeholder');
     } else {
       binding.display.textContent = binding.placeholder;
@@ -286,7 +309,7 @@
       body.className = 'sales-inv-pick-item-body';
       body.innerHTML =
         '<span class="sales-inv-pick-item-name">' +
-        escapeHtml(employeeLabel(emp)) +
+        escapeHtml(employeeListName(emp, binding)) +
         '</span>' +
         (code
           ? '<span class="sales-inv-pick-item-barcode">' + escapeHtml(code) + '</span>'
@@ -379,6 +402,8 @@
       allowNew: !!opts.allowNew,
       newLabel: opts.newLabel || '— موظف جديد —',
       maxResults: parseInt(opts.maxResults, 10) || 120,
+      displayField: opts.displayField || '',
+      listNameField: opts.listNameField || '',
       onSelect: opts.onSelect || null,
       getDisabled: opts.getDisabled || null,
     };
@@ -441,6 +466,8 @@
     var placeholder = slot.getAttribute('data-placeholder') || 'اضغط لاختيار الموظف';
     var allowNew = slot.getAttribute('data-allow-new') === '1';
     var newLabel = slot.getAttribute('data-new-label') || '— موظف جديد —';
+    var allowAll = slot.getAttribute('data-allow-all') === '1';
+    var allLabel = slot.getAttribute('data-all-label') || 'جميع الموظفين';
     var initial = slot.getAttribute('data-initial') || '';
     var api = bind({
       hidden: hiddenId,
@@ -450,6 +477,8 @@
       placeholder: placeholder,
       allowNew: allowNew,
       newLabel: newLabel,
+      allowAll: allowAll,
+      allLabel: allLabel,
       initialId: initial !== '' ? parseInt(initial, 10) : '',
     });
     slot.setAttribute('data-employee-picker-bound', '1');
@@ -466,10 +495,28 @@
       setById: function (id, silent) {
         return apiSetById(binding, id, !!silent);
       },
+      setEmployees: function (list) {
+        if (!Array.isArray(list)) {
+          list = [];
+        }
+        binding.list = list;
+        binding.byId = {};
+        list.forEach(function (emp) {
+          var empId = parseInt(emp.id, 10);
+          if (empId > 0) {
+            binding.byId[empId] = emp;
+          }
+        });
+        var cur = parseInt(binding.hidden.value, 10) || 0;
+        if (cur > 0 && !binding.byId[cur]) {
+          apiSetById(binding, 0, true);
+        }
+        return binding;
+      },
       getLabel: function () {
         var eid = parseInt(binding.hidden.value, 10);
         var emp = findEmployee(binding, eid);
-        return emp ? employeeLabel(emp) : '';
+        return emp ? employeeLabel(emp, binding) : '';
       },
       getEmployee: function () {
         return findEmployee(binding, parseInt(binding.hidden.value, 10));
@@ -542,7 +589,7 @@
     var b = bindings[hiddenId];
     if (!b) return '';
     var emp = findEmployee(b, parseInt(b.hidden.value, 10));
-    return emp ? employeeLabel(emp) : '';
+    return emp ? employeeLabel(emp, b) : '';
   }
 
   window.EmployeePickerModal = {

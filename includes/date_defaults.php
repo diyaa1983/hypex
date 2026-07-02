@@ -54,3 +54,19 @@ function app_default_date_to(): string
 {
     return app_today_ymd();
 }
+
+/** أول يوم في الشهر الحالي (Y-m-d). */
+function app_default_month_from(): string
+{
+    app_apply_timezone();
+
+    return date('Y-m-01');
+}
+
+/** آخر يوم في الشهر الحالي (Y-m-d). */
+function app_default_month_to(): string
+{
+    app_apply_timezone();
+
+    return date('Y-m-t');
+}

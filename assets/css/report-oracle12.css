@@ -117,6 +117,7 @@ body.report-ora12-ui .main-content {
   gap: 0.45rem 0.55rem;
   padding: 0.55rem;
   overflow-x: auto;
+  overflow-y: visible;
 }
 
 .report-ora12-screen .report-sales-filter-field {

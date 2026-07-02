@@ -115,8 +115,11 @@ function employee_picker_modal_once(): void
  *   new_label?: string,
  *   json_id?: string,
  *   manual_bind?: bool,
+ *   form_id?: string,
  *   name?: string|null,
  *   required?: bool,
+ *   allow_all?: bool,
+ *   all_label?: string,
  * } $opts
  */
 function employee_picker_field(array $opts): string
@@ -133,23 +136,41 @@ function employee_picker_field(array $opts): string
     $wrapperClass = trim('employee-picker-slot ' . (string) ($opts['wrapper_class'] ?? ''));
     $allowNew = !empty($opts['allow_new']);
     $newLabel = (string) ($opts['new_label'] ?? '— موظف جديد —');
+    $allowAll = !empty($opts['allow_all']);
+    $allLabel = (string) ($opts['all_label'] ?? 'جميع الموظفين');
     $jsonId = (string) ($opts['json_id'] ?? 'hr-employees-picker-json');
     $manualBind = !empty($opts['manual_bind']);
+    $formId = trim((string) ($opts['form_id'] ?? ''));
     $value = (int) ($opts['value'] ?? 0);
+
+    $hiddenVal = '';
+    if ($allowAll && $value === 0) {
+        $hiddenVal = '0';
+    } elseif ($value > 0) {
+        $hiddenVal = (string) $value;
+    }
 
     $btnClass = 'sales-inv-cust-open input' . ($compact ? ' input-compact' : '');
 
     $dataAttrs = '';
     if (!$manualBind) {
+        $initial = '';
+        if ($allowAll && $value === 0) {
+            $initial = '0';
+        } elseif ($value > 0) {
+            $initial = (string) $value;
+        }
         $dataAttrs =
             ' data-employee-picker'
             . ' data-hidden-id="' . esc($hiddenId) . '"'
             . ' data-open-id="' . esc($openId) . '"'
             . ' data-display-id="' . esc($displayId) . '"'
             . ' data-placeholder="' . esc($placeholder) . '"'
-            . ' data-initial="' . ($value > 0 ? (string) $value : '') . '"'
+            . ' data-initial="' . esc($initial) . '"'
             . ($allowNew ? ' data-allow-new="1"' : '')
             . ' data-new-label="' . esc($newLabel) . '"'
+            . ($allowAll ? ' data-allow-all="1"' : '')
+            . ' data-all-label="' . esc($allLabel) . '"'
             . ' data-json-id="' . esc($jsonId) . '"';
     }
 
@@ -159,8 +180,9 @@ function employee_picker_field(array $opts): string
     }
     $html .= '<input type="hidden" id="' . esc($hiddenId) . '"'
         . ($hiddenName !== '' ? ' name="' . esc($hiddenName) . '"' : '')
+        . ($formId !== '' ? ' form="' . esc($formId) . '"' : '')
         . ($required ? ' required' : '')
-        . ' value="' . esc($value > 0 ? (string) $value : '') . '">';
+        . ' value="' . esc($hiddenVal) . '">';
     $html .= '<button type="button" class="' . esc($btnClass) . '" id="' . esc($openId) . '" title="اختيار الموظف">';
     $html .= '<span id="' . esc($displayId) . '" class="sales-inv-cust-open-label is-placeholder">' . esc($placeholder) . '</span>';
     $html .= '<span class="sales-inv-cust-open-ico" aria-hidden="true">▾</span>';

@@ -60,6 +60,144 @@
   pointer-events: none;
 }
 
+.date-dmy-native.date-dmy-native--anchored {
+  clip: auto;
+}
+
+/* تقويم عربي — أسبوع يبدأ من السبت */
+.date-dmy-popup {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  z-index: 12000;
+  width: min(17.5rem, 92vw);
+  padding: 0.45rem;
+  background: #fff;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  font-size: 0.78rem;
+  color: #1e293b;
+}
+
+.date-dmy-popup.date-dmy-popup--anchored {
+  position: fixed;
+  transform: translateX(-50%);
+}
+
+.date-dmy-popup__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.date-dmy-popup__title {
+  flex: 1 1 auto;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+
+.date-dmy-popup__nav {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%);
+  color: #334155;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.date-dmy-popup__nav:hover {
+  border-color: #0572ce;
+  color: #0572ce;
+}
+
+.date-dmy-popup__week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.1rem;
+  margin-bottom: 0.2rem;
+}
+
+.date-dmy-popup__dow {
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748b;
+  padding: 0.15rem 0;
+}
+
+.date-dmy-popup__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.1rem;
+}
+
+.date-dmy-popup__day {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.85rem;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: transparent;
+  color: #1e293b;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.date-dmy-popup__day.is-empty {
+  pointer-events: none;
+}
+
+.date-dmy-popup__day:hover:not(.is-empty) {
+  background: #e8f4fc;
+  border-color: #9ec9ef;
+}
+
+.date-dmy-popup__day.is-today {
+  border-color: #94a3b8;
+}
+
+.date-dmy-popup__day.is-selected {
+  background: #0572ce;
+  border-color: #024d8f;
+  color: #fff;
+}
+
+.date-dmy-popup__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.date-dmy-popup__foot-btn {
+  border: 0;
+  background: transparent;
+  color: #0572ce;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+}
+
+.date-dmy-popup__foot-btn:hover {
+  text-decoration: underline;
+}
+
 /* حقول meta في الفواتير */
 .sales-inv-meta-item .date-dmy-field {
   width: 100%;

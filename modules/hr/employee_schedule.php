@@ -22,11 +22,14 @@ $dayNames = hr_employee_schedule_day_names();
 
 $employeeId = (int) ($_GET['employee_id'] ?? $_POST['employee_id'] ?? 0);
 $weeklyId = (int) ($_GET['weekly_id'] ?? $_POST['weekly_id'] ?? 0);
+$isNewWeekly = !empty($_GET['new_week']);
 
-function hr_emp_sch_url(int $employeeId, int $weeklyId = 0): string
+function hr_emp_sch_url(int $employeeId, int $weeklyId = 0, bool $newWeek = false): string
 {
     $q = 'employee_id=' . $employeeId;
-    if ($weeklyId > 0) {
+    if ($newWeek) {
+        $q .= '&new_week=1';
+    } elseif ($weeklyId > 0) {
         $q .= '&weekly_id=' . $weeklyId;
     }
 
@@ -80,9 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $flash = flash_get();
-$schedule = hr_employee_schedule_load($pdo, $employeeId);
+$scheduleLoaded = $employeeId > 0;
+$schedule = $scheduleLoaded ? hr_employee_schedule_load($pdo, $employeeId) : ['weekly_periods' => [], 'default_shift_id' => 0];
 $weeklyPeriods = $schedule['weekly_periods'];
 $defaultShiftId = (int) ($schedule['default_shift_id'] ?? 0);
+$canEditSchedule = $scheduleLoaded && $shiftOptions !== [];
 
 $empCode = '';
 $empName = '';
@@ -109,14 +114,82 @@ if ($weeklyId > 0) {
         }
     }
 }
-if ($editWeekly === null && $weeklyPeriods !== []) {
+if (!$isNewWeekly && $editWeekly === null && $weeklyPeriods !== []) {
     $editWeekly = $weeklyPeriods[count($weeklyPeriods) - 1];
     $weeklyId = (int) ($editWeekly['id'] ?? 0);
 }
 
-$weeklyDateFrom = $editWeekly ? (string) ($editWeekly['date_from_dmY'] ?? '') : '';
-$weeklyDateTo = $editWeekly ? (string) ($editWeekly['date_to_dmY'] ?? '') : '';
-$weeklyDays = $editWeekly ? (array) ($editWeekly['days'] ?? []) : array_fill(0, 7, 0);
+$weeklyDateFrom = '';
+$weeklyDateTo = '';
+$weeklyDays = array_fill(0, 7, 0);
+if ($editWeekly) {
+    $weeklyDateFrom = (string) ($editWeekly['date_from_dmY'] ?? '');
+    $weeklyDateTo = (string) ($editWeekly['date_to_dmY'] ?? '');
+    $weeklyDays = (array) ($editWeekly['days'] ?? array_fill(0, 7, 0));
+} elseif ($isNewWeekly || ($scheduleLoaded && $weeklyPeriods === [])) {
+    $suggestedWeek = hr_employee_schedule_suggest_next_week($weeklyPeriods);
+    $weeklyDateFrom = (string) ($suggestedWeek['date_from_dmY'] ?? '');
+    $weeklyDateTo = (string) ($suggestedWeek['date_to_dmY'] ?? '');
+}
+
+$weeklyPeriodTotal = count($weeklyPeriods);
+$weeklyPeriodPos = -1;
+if ($weeklyId > 0) {
+    foreach ($weeklyPeriods as $idx => $p) {
+        if ((int) ($p['id'] ?? 0) === $weeklyId) {
+            $weeklyPeriodPos = $idx;
+            break;
+        }
+    }
+}
+
+$prevWeeklyUrl = '';
+$nextWeeklyUrl = '';
+$newWeeklyUrl = hr_emp_sch_url($employeeId, 0, true);
+
+if ($isNewWeekly) {
+    if ($weeklyPeriodTotal > 0) {
+        $lastPeriod = $weeklyPeriods[$weeklyPeriodTotal - 1];
+        $prevWeeklyUrl = hr_emp_sch_url($employeeId, (int) ($lastPeriod['id'] ?? 0));
+    }
+} elseif ($weeklyPeriodPos >= 0) {
+    if ($weeklyPeriodPos > 0) {
+        $prevWeeklyUrl = hr_emp_sch_url(
+            $employeeId,
+            (int) ($weeklyPeriods[$weeklyPeriodPos - 1]['id'] ?? 0)
+        );
+    }
+    if ($weeklyPeriodPos < $weeklyPeriodTotal - 1) {
+        $nextWeeklyUrl = hr_emp_sch_url(
+            $employeeId,
+            (int) ($weeklyPeriods[$weeklyPeriodPos + 1]['id'] ?? 0)
+        );
+    } else {
+        $nextWeeklyUrl = $newWeeklyUrl;
+    }
+}
+
+$weeklyNavLabel = '';
+if ($isNewWeekly) {
+    $weeklyNavLabel = $weeklyPeriodTotal > 0
+        ? ('فترة جديدة (' . ($weeklyPeriodTotal + 1) . ')')
+        : 'فترة جديدة';
+} elseif ($weeklyPeriodPos >= 0) {
+    $weeklyNavLabel = 'الفترة ' . ($weeklyPeriodPos + 1) . ' من ' . $weeklyPeriodTotal;
+}
+
+$weekDayDates = array_fill(0, 7, '');
+$weekStartIso = parse_date_to_iso($weeklyDateFrom) ?? '';
+if ($weekStartIso !== '') {
+    for ($d = 0; $d <= 6; $d++) {
+        $ts = strtotime($weekStartIso . ' +' . $d . ' days');
+        $weekDayDates[$d] = $ts !== false ? format_date_dmY(date('Y-m-d', $ts)) : '';
+    }
+}
+
+$defaultShiftLabel = $defaultShiftId > 0
+    ? hr_employee_schedule_shift_label($pdo, $defaultShiftId)
+    : '— غير معرّف —';
 
 $cssPath = app_path('assets/css/hr-employee-schedule.css');
 $cssUrl = app_url('assets/css/hr-employee-schedule.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
@@ -133,24 +206,28 @@ $exitUrl = nav_exit_url('hr_employee_schedule');
 <?php employee_picker_json_script($pickerEmployees, 'hr-emp-sch-picker-json'); ?>
 <script src="<?= esc($jsUrl) ?>" defer></script>
 
-<div class="dashboard-ora hr-emp-sch-ora12-screen hr-emp-sch-wrap hr-emp-sch-page"
+<div class="dashboard-ora hr-emp-sch-ora12-screen hr-emp-sch-wrap hr-emp-sch-page hr-emp-sch-ora-screen"
      data-list-url="<?= esc($listUrl) ?>"
      data-exit-url="<?= esc($exitUrl) ?>"
      data-weekly-form-id="<?= esc($weeklyFormId) ?>"
      data-default-form-id="<?= esc($defaultFormId) ?>"
-     data-employee-id="<?= $employeeId ?>">
+     data-employee-id="<?= $employeeId ?>"
+     data-schedule-loaded="<?= $scheduleLoaded ? '1' : '0' ?>">
 
+    <header class="dashboard-ora-screen-title" role="banner">
+        <h1 class="dashboard-ora-screen-title__text">تعريف دوام الموظف</h1>
+        <?php nav_render_screen_close('hr_employee_schedule'); ?>
+    </header>
+
+    <div class="dashboard-ora-workspace">
     <?php if ($flash): ?>
         <div class="alert no-print alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> hr-emp-sch-flash">
             <?= esc($flash['message']) ?>
         </div>
     <?php endif; ?>
 
-    <?php hr_ora_render_title_bar('تعريف دوام الموظف', 'hr_employee_schedule'); ?>
-
-    <div class="dashboard-ora-workspace">
         <section class="dashboard-ora-panel hr-emp-sch-master-panel no-print">
-            <h2 class="dashboard-ora-panel__title">اختيار الموظف</h2>
+            <h2 class="dashboard-ora-panel__title">بيانات الموظف</h2>
             <div class="dashboard-ora-panel__body">
                 <form method="get" action="<?= esc(app_url('index.php')) ?>" id="hr-emp-sch-filter-form" class="hr-emp-sch-filter-form">
                     <input type="hidden" name="r" value="hr_employee_schedule">
@@ -182,130 +259,154 @@ $exitUrl = nav_exit_url('hr_employee_schedule');
             </div>
         </section>
 
-        <?php if ($employeeId < 1): ?>
-            <p class="hr-emp-sch-empty muted">اختر موظفاً لعرض وتعريف دوامه.</p>
-        <?php elseif ($shiftOptions === []): ?>
+        <?php if ($scheduleLoaded && $shiftOptions === []): ?>
             <p class="hr-emp-sch-empty muted">
                 لا توجد شفتات مفعّلة —
                 <a href="<?= esc(app_url('index.php?r=hr_attendance_settings')) ?>">عرّف الشفتات أولاً</a>.
             </p>
-        <?php else: ?>
-            <div class="sales-ora-tabs hr-emp-sch-tabs no-print" role="tablist">
-                <button type="button" class="sales-ora-tab is-active" data-tab="weekly" role="tab" aria-selected="true">جدول أسبوعي</button>
-                <button type="button" class="sales-ora-tab" data-tab="default" role="tab" aria-selected="false">الشفت الافتراضي</button>
-            </div>
+        <?php endif; ?>
 
-            <div class="hr-emp-sch-tab-panels">
-                <section class="hr-emp-sch-tab-panel is-active" data-panel="weekly">
-                    <div class="hr-emp-sch-weekly-layout">
-                        <aside class="hr-emp-sch-periods-panel dashboard-ora-panel">
-                            <h3 class="dashboard-ora-panel__title">فترات الدوام</h3>
-                            <div class="dashboard-ora-panel__body">
-                                <a class="btn btn-secondary btn-sm hr-emp-sch-new-period"
-                                   href="<?= esc(hr_emp_sch_url($employeeId)) ?>">فترة جديدة</a>
-                                <ul class="hr-emp-sch-periods-list">
-                                    <?php if ($weeklyPeriods === []): ?>
-                                        <li class="muted">لا توجد فترات بعد</li>
+        <div class="sales-ora-tabs hr-emp-sch-tabs no-print" role="tablist">
+            <button type="button" class="sales-ora-tab is-active" data-tab="weekly" role="tab" aria-selected="true">جدول أسبوعي</button>
+            <button type="button" class="sales-ora-tab" data-tab="default" role="tab" aria-selected="false">الشفت الافتراضي</button>
+        </div>
+
+        <div class="hr-emp-sch-tab-panels">
+            <section class="hr-emp-sch-tab-panel is-active" data-panel="weekly">
+                <form id="<?= esc($weeklyFormId) ?>" method="post" action="<?= esc(hr_emp_sch_url($employeeId, $weeklyId)) ?>">
+                    <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+                    <input type="hidden" name="_action" value="save_weekly">
+                    <input type="hidden" name="employee_id" value="<?= $employeeId ?>">
+                    <input type="hidden" name="weekly_id" value="<?= $weeklyId ?>">
+
+                    <section class="dashboard-ora-panel hr-emp-sch-week-panel<?= !$scheduleLoaded ? ' is-empty-state' : '' ?>">
+                        <h2 class="dashboard-ora-panel__title">الجدول الأسبوعي</h2>
+                        <div class="dashboard-ora-panel__body hr-emp-sch-week-body">
+                            <?php if (!$scheduleLoaded): ?>
+                                <p class="hr-emp-sch-empty muted">اختر موظفاً ثم اضغط «عرض» لتحميل جدول دوامه.</p>
+                            <?php endif; ?>
+                            <div class="hr-emp-sch-week-center">
+                                <div class="hr-emp-sch-period-bar no-print">
+                                    <div class="hr-emp-sch-period-strip">
+                                        <div class="hr-emp-sch-period-nav" role="group" aria-label="تنقّل بين الفترات الأسبوعية" dir="rtl">
+                                            <?php if ($canEditSchedule && $prevWeeklyUrl !== ''): ?>
+                                                <a class="hr-emp-sch-nav-btn hr-emp-sch-nav-btn--prev" href="<?= esc($prevWeeklyUrl) ?>"
+                                                   title="الفترة السابقة" aria-label="الفترة السابقة">‹</a>
+                                            <?php else: ?>
+                                                <span class="hr-emp-sch-nav-btn hr-emp-sch-nav-btn--prev is-disabled" aria-hidden="true">‹</span>
+                                            <?php endif; ?>
+
+                                            <label class="hr-emp-sch-date-field hr-emp-sch-date-field--from">
+                                                <span class="hr-emp-sch-date-label">من (سبت)</span>
+                                                <input class="input input-compact js-date-dmy" type="text" name="date_from" id="hr-emp-sch-date-from"
+                                                       value="<?= esc($weeklyDateFrom) ?>" dir="ltr" autocomplete="off"
+                                                       <?= $canEditSchedule ? 'required' : 'readonly' ?>
+                                                       data-date-calendar="ar-sat">
+                                            </label>
+
+                                            <span class="hr-emp-sch-period-sep" aria-hidden="true">—</span>
+
+                                            <label class="hr-emp-sch-date-field hr-emp-sch-date-field--to">
+                                                <span class="hr-emp-sch-date-label">إلى (جمعة)</span>
+                                                <input class="input input-compact js-date-dmy" type="text" name="date_to" id="hr-emp-sch-date-to"
+                                                       value="<?= esc($weeklyDateTo) ?>" dir="ltr" autocomplete="off"
+                                                       <?= $canEditSchedule ? 'required' : 'readonly' ?>
+                                                       data-date-calendar="ar-sat">
+                                            </label>
+
+                                            <?php if ($canEditSchedule && $nextWeeklyUrl !== ''): ?>
+                                                <a class="hr-emp-sch-nav-btn hr-emp-sch-nav-btn--next" href="<?= esc($nextWeeklyUrl) ?>"
+                                                   title="<?= $nextWeeklyUrl === $newWeeklyUrl ? 'فترة جديدة' : 'الفترة التالية' ?>"
+                                                   aria-label="<?= $nextWeeklyUrl === $newWeeklyUrl ? 'فترة جديدة' : 'الفترة التالية' ?>">›</a>
+                                            <?php else: ?>
+                                                <span class="hr-emp-sch-nav-btn hr-emp-sch-nav-btn--next is-disabled" aria-hidden="true">›</span>
+                                            <?php endif; ?>
+                                        </div>
+
+                                        <div class="hr-emp-sch-period-actions no-print">
+                                            <?php if ($canEditSchedule && $weeklyNavLabel !== ''): ?>
+                                                <span class="hr-emp-sch-period-badge"><?= esc($weeklyNavLabel) ?></span>
+                                            <?php endif; ?>
+                                            <?php if ($canEditSchedule): ?>
+                                                <a class="btn btn-secondary btn-sm hr-emp-sch-new-week-btn<?= $isNewWeekly ? ' is-active' : '' ?>"
+                                                   href="<?= esc($newWeeklyUrl) ?>">إضافة فترة جديدة</a>
+                                            <?php else: ?>
+                                                <span class="btn btn-secondary btn-sm is-disabled" aria-disabled="true">إضافة فترة جديدة</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <p class="hr-emp-sch-week-hint muted" id="hr-emp-sch-week-hint"></p>
+
+                                <div class="dashboard-ora-table-wrap hr-emp-sch-week-table-wrap">
+                                    <table class="dashboard-ora-table hr-emp-sch-week-table">
+                                    <thead>
+                                    <tr>
+                                        <th class="hr-emp-sch-col-idx">#</th>
+                                        <th class="hr-emp-sch-col-day">اليوم</th>
+                                        <th class="hr-emp-sch-col-date">التاريخ</th>
+                                        <th class="hr-emp-sch-col-shift">الشفت</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <?php for ($d = 0; $d <= 6; $d++): ?>
+                                        <tr>
+                                            <td class="hr-emp-sch-col-idx"><?= $d + 1 ?></td>
+                                            <td class="hr-emp-sch-col-day"><?= esc((string) ($dayNames[$d] ?? '')) ?></td>
+                                            <td class="hr-emp-sch-col-date" dir="ltr">
+                                                <span class="hr-emp-sch-day-date" data-day-offset="<?= $d ?>">
+                                                    <?= esc($scheduleLoaded && $weekDayDates[$d] !== '' ? $weekDayDates[$d] : '—') ?>
+                                                </span>
+                                            </td>
+                                            <td class="hr-emp-sch-col-shift">
+                                                <select class="input" name="day_shift[<?= $d ?>]" <?= $canEditSchedule ? '' : 'disabled' ?>>
+                                                    <option value="0">— الشفت الافتراضي —</option>
+                                                    <?php foreach ($shiftOptions as $opt): ?>
+                                                        <option value="<?= (int) $opt['id'] ?>"
+                                                            <?= $scheduleLoaded && (int) ($weeklyDays[$d] ?? 0) === (int) $opt['id'] ? 'selected' : '' ?>>
+                                                            <?= esc((string) $opt['label']) ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    <?php endfor; ?>
+                                    </tbody>
+                                </table>
+                                </div>
+
+                                <div class="hr-emp-sch-form-actions no-print">
+                                    <button type="submit" class="btn btn-primary btn-sm" <?= $canEditSchedule ? '' : 'disabled' ?>>حفظ الأسبوع</button>
+                                    <?php if ($canEditSchedule && $weeklyId > 0): ?>
+                                        <button type="button" class="btn btn-danger btn-sm" id="hr-emp-sch-delete-weekly">حذف الفترة</button>
                                     <?php endif; ?>
-                                    <?php foreach ($weeklyPeriods as $p): ?>
-                                        <?php $pid = (int) ($p['id'] ?? 0); ?>
-                                        <li>
-                                            <a class="hr-emp-sch-period-link<?= $pid === $weeklyId ? ' is-active' : '' ?>"
-                                               href="<?= esc(hr_emp_sch_url($employeeId, $pid)) ?>">
-                                                <span dir="ltr"><?= esc((string) ($p['date_from_dmY'] ?? '')) ?></span>
-                                                —
-                                                <span dir="ltr"><?= esc((string) ($p['date_to_dmY'] ?? '')) ?></span>
-                                            </a>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            </div>
-                        </aside>
-
-                        <div class="hr-emp-sch-weekly-editor dashboard-ora-panel">
-                            <h3 class="dashboard-ora-panel__title">الجدول الأسبوعي للفترة</h3>
-                            <div class="dashboard-ora-panel__body">
-                                <p class="hr-emp-sch-hint muted">
-                                    حدّد الفترة ثم عيّن شفتاً لكل يوم. إذا تركت يوماً بدون شفت يُستخدم
-                                    <strong>الشفت الافتراضي</strong> من التبويب الثاني.
-                                </p>
-
-                                <form id="<?= esc($weeklyFormId) ?>" method="post" action="<?= esc(hr_emp_sch_url($employeeId, $weeklyId)) ?>">
-                                    <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                                    <input type="hidden" name="_action" value="save_weekly">
-                                    <input type="hidden" name="employee_id" value="<?= $employeeId ?>">
-                                    <input type="hidden" name="weekly_id" value="<?= $weeklyId ?>">
-
-                                    <div class="hr-emp-sch-date-row form-row">
-                                        <label class="field">
-                                            <span class="field-label required">من تاريخ</span>
-                                            <input class="input js-date-dmy" type="text" name="date_from"
-                                                   value="<?= esc($weeklyDateFrom) ?>" dir="ltr" autocomplete="off" required>
-                                        </label>
-                                        <label class="field">
-                                            <span class="field-label required">إلى تاريخ</span>
-                                            <input class="input js-date-dmy" type="text" name="date_to"
-                                                   value="<?= esc($weeklyDateTo) ?>" dir="ltr" autocomplete="off" required>
-                                        </label>
-                                    </div>
-
-                                    <div class="dashboard-ora-table-wrap hr-emp-sch-week-table-wrap">
-                                        <table class="dashboard-ora-table hr-emp-sch-week-table">
-                                            <thead>
-                                            <tr>
-                                                <th>اليوم</th>
-                                                <th>الشفت</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            <?php for ($d = 0; $d <= 6; $d++): ?>
-                                                <tr>
-                                                    <td><?= esc((string) ($dayNames[$d] ?? '')) ?></td>
-                                                    <td>
-                                                        <select class="input" name="day_shift[<?= $d ?>]">
-                                                            <option value="0">— الشفت الافتراضي —</option>
-                                                            <?php foreach ($shiftOptions as $opt): ?>
-                                                                <option value="<?= (int) $opt['id'] ?>"
-                                                                    <?= (int) ($weeklyDays[$d] ?? 0) === (int) $opt['id'] ? 'selected' : '' ?>>
-                                                                    <?= esc((string) $opt['label']) ?>
-                                                                </option>
-                                                            <?php endforeach; ?>
-                                                        </select>
-                                                    </td>
-                                                </tr>
-                                            <?php endfor; ?>
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-                                    <div class="hr-emp-sch-form-actions">
-                                        <button type="submit" class="btn btn-primary btn-sm">حفظ الفترة الأسبوعية</button>
-                                        <?php if ($weeklyId > 0): ?>
-                                            <button type="button" class="btn btn-danger btn-sm" id="hr-emp-sch-delete-weekly">حذف الفترة</button>
-                                        <?php endif; ?>
-                                    </div>
-                                </form>
-
-                                <?php if ($weeklyId > 0): ?>
-                                    <form method="post" action="<?= esc(hr_emp_sch_url($employeeId)) ?>" id="hr-emp-sch-delete-form" class="sr-only">
-                                        <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                                        <input type="hidden" name="_action" value="delete_weekly">
-                                        <input type="hidden" name="employee_id" value="<?= $employeeId ?>">
-                                        <input type="hidden" name="weekly_id" value="<?= $weeklyId ?>">
-                                    </form>
-                                <?php endif; ?>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
+                </form>
 
-                <section class="hr-emp-sch-tab-panel" data-panel="default" hidden>
-                    <div class="dashboard-ora-panel hr-emp-sch-default-panel">
-                        <h3 class="dashboard-ora-panel__title">الشفت الافتراضي للموظف</h3>
-                        <div class="dashboard-ora-panel__body">
+                <?php if ($canEditSchedule && $weeklyId > 0): ?>
+                    <form method="post" action="<?= esc(hr_emp_sch_url($employeeId)) ?>" id="hr-emp-sch-delete-form" class="sr-only">
+                        <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+                        <input type="hidden" name="_action" value="delete_weekly">
+                        <input type="hidden" name="employee_id" value="<?= $employeeId ?>">
+                        <input type="hidden" name="weekly_id" value="<?= $weeklyId ?>">
+                    </form>
+                <?php endif; ?>
+            </section>
+
+            <section class="hr-emp-sch-tab-panel" data-panel="default" hidden>
+                <div class="dashboard-ora-panel hr-emp-sch-default-panel">
+                    <h2 class="dashboard-ora-panel__title">الشفت الافتراضي للموظف</h2>
+                    <div class="dashboard-ora-panel__body">
+                        <?php if (!$scheduleLoaded): ?>
+                            <p class="hr-emp-sch-hint muted">اختر موظفاً ثم اضغط «عرض» لتعريف الشفت الافتراضي.</p>
+                        <?php else: ?>
                             <p class="hr-emp-sch-hint muted">
-                                يُستخدم عندما لا تغطي أي فترة أسبوعية التاريخ المطلوب،
-                                أو عندما يكون يوم معيّن في الجدول الأسبوعي بدون شفت محدد.
+                                يُستخدم للأيام بدون شفت محدد، أو عندما لا توجد فترة أسبوعية تغطي التاريخ.
+                                الشفت الحالي: <strong><?= esc($defaultShiftLabel) ?></strong>
                             </p>
                             <form id="<?= esc($defaultFormId) ?>" method="post" action="<?= esc(hr_emp_sch_url($employeeId)) ?>">
                                 <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -313,7 +414,7 @@ $exitUrl = nav_exit_url('hr_employee_schedule');
                                 <input type="hidden" name="employee_id" value="<?= $employeeId ?>">
                                 <label class="field hr-emp-sch-default-field">
                                     <span class="field-label required">الشفت الافتراضي</span>
-                                    <select class="input" name="default_shift_id" required>
+                                    <select class="input" name="default_shift_id" required <?= $shiftOptions === [] ? 'disabled' : '' ?>>
                                         <option value="">— اختر شفتاً —</option>
                                         <?php foreach ($shiftOptions as $opt): ?>
                                             <option value="<?= (int) $opt['id'] ?>"
@@ -324,13 +425,13 @@ $exitUrl = nav_exit_url('hr_employee_schedule');
                                     </select>
                                 </label>
                                 <div class="hr-emp-sch-form-actions">
-                                    <button type="submit" class="btn btn-primary btn-sm">حفظ الشفت الافتراضي</button>
+                                    <button type="submit" class="btn btn-primary btn-sm" <?= $shiftOptions === [] ? 'disabled' : '' ?>>حفظ الشفت الافتراضي</button>
                                 </div>
                             </form>
-                        </div>
+                        <?php endif; ?>
                     </div>
-                </section>
-            </div>
-        <?php endif; ?>
+                </div>
+            </section>
+        </div>
     </div>
 </div>

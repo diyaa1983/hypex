@@ -4,12 +4,15 @@ declare(strict_types=1);
 require_once app_path('includes/hr_schema.php');
 require_once app_path('includes/hr_social_security_payroll.php');
 require_once app_path('includes/hr_income_tax.php');
+require_once app_path('includes/hr_attendance.php');
 require_once app_path('includes/hr_oracle_ui.php');
 require_once app_path('includes/nav_helpers.php');
 require_once app_path('includes/employee_picker.php');
+require_once app_path('includes/badge_picker.php');
 
 $pdo = db();
 hr_employee_ensure_schema($pdo);
+hr_attendance_ensure_schema($pdo);
 $listUrl = app_url('index.php?r=hr_employees');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -206,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($subjectToIt === 0) {
                     hr_income_tax_clear_employee_unposted_payroll($pdo, $id);
                 }
-                flash_set('success', 'تم حفظ تعديلات الموظف.');
+                $successMsg = 'تم حفظ تعديلات الموظف.';
             } else {
                 $st = $pdo->prepare(
                     'INSERT INTO hr_employee (emp_code, name_ar, name_first, name_father, name_grandfather, name_family,
@@ -231,8 +234,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $notes !== '' ? $notes : null, $isActive,
                 ]);
                 $id = (int) $pdo->lastInsertId();
-                flash_set('success', 'تم إضافة الموظف برقم ' . $code . '.');
+                $successMsg = 'تم إضافة الموظف برقم ' . $code . '.';
             }
+
+            if (array_key_exists('att_zk_user_id', $_POST)) {
+                try {
+                    hr_attendance_apply_employee_badge_link(
+                        $pdo,
+                        $id,
+                        (int) ($_POST['att_zk_user_id'] ?? 0)
+                    );
+                } catch (Throwable $eAtt) {
+                    $attMsg = trim($eAtt->getMessage());
+                    $successMsg .= ' — تعذر ربط البصمة'
+                        . ($attMsg !== '' ? ': ' . $attMsg : '.');
+                }
+            }
+
+            flash_set('success', $successMsg);
             redirect($listUrl . '&id=' . $id);
         }
         if ($act === 'delete') {
@@ -437,12 +456,17 @@ $empResignDate = (string) ($row['resignation_date'] ?? '');
 $empIsResigned = $empResignDate !== '' || hr_employee_is_resignation_posted($row);
 $empDeleteCheck = $currentId > 0 ? hr_employee_delete_check($pdo, $currentId) : ['can_delete' => true, 'message' => ''];
 $exitUrl = nav_exit_url('hr_employees');
+$attZkOptions = hr_attendance_zk_users_for_employee_form($pdo, $currentId);
+$attZkCurrent = hr_attendance_employee_zk_map($pdo, $currentId);
+$attZkSelected = $attZkCurrent ? (int) ($attZkCurrent['zk_user_id'] ?? 0) : 0;
 ?>
 <?php employee_picker_enqueue_assets(); ?>
+<?php badge_picker_enqueue_assets(); ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssInvMetaUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssUrlSalesOra) ?>">
 <?php employee_picker_json_script($pickerEmployees, 'hr-employees-picker-json'); ?>
+<?php badge_picker_json_script($attZkOptions, 'hr-emp-badge-picker-json'); ?>
 
 <div class="dashboard-ora hr-emp-ora12-screen hr-emp-wrap hr-emp-grid-page hr-emp-ora-screen"
      data-list-url="<?= esc($listUrl) ?>"
@@ -474,41 +498,52 @@ $exitUrl = nav_exit_url('hr_employees');
         </div>
     <?php endif; ?>
 
-    <div class="dashboard-ora-toolbar hr-emp-top-bar hr-emp-toolbar">
-        <a class="btn btn-primary btn-sm" href="<?= esc($listUrl) ?>">موظف جديد</a>
-        <a class="btn btn-secondary btn-sm" href="<?= esc($browseListUrl) ?>">القائمة</a>
-        <div class="sales-inv-meta-row hr-emp-meta-row hr-emp-meta-row--inline">
-            <div class="sales-inv-meta-item hr-emp-meta-item hr-emp-meta-no">
-                <label for="hr-emp-picker-code">الرقم</label>
-                <div class="sales-inv-no-nav hr-emp-no-nav" role="group" aria-label="تنقّل بين الموظفين">
-                    <button type="button" class="sales-inv-no-arrow hr-emp-no-arrow" id="hr-emp-nav-prev"
-                            title="السابق" aria-label="السابق"<?= $prevUrlAttr === '' ? ' disabled' : '' ?>>‹</button>
-                    <input type="text" class="input input-compact sales-inv-no-input hr-emp-picker-code" id="hr-emp-picker-code"
-                           value="<?= esc($pickerCurrentCode) ?>"
-                           dir="ltr" inputmode="numeric" autocomplete="off"
-                           placeholder="رقم" title="أدخل الرقم الوظيفي ثم Enter">
-                    <button type="button" class="sales-inv-no-arrow hr-emp-no-arrow" id="hr-emp-nav-next"
-                            title="التالي" aria-label="التالي"<?= $nextUrlAttr === '' ? ' disabled' : '' ?>>›</button>
-                </div>
-            </div>
-            <?= employee_picker_field([
-                'id' => 'hr-emp-picker-id',
-                'label' => 'الاسم',
-                'compact' => true,
-                'wrapper_class' => 'sales-inv-meta-item hr-emp-meta-item hr-emp-meta-name hr-emp-picker-slot',
-                'json_id' => 'hr-employees-picker-json',
-                'manual_bind' => true,
-                'value' => $currentId,
-                'placeholder' => 'اضغط لاختيار الموظف',
-                'allow_new' => true,
-                'new_label' => '— موظف جديد —',
-            ]) ?>
-            <div class="sales-inv-meta-item hr-emp-meta-item hr-emp-meta-pos">
-                <label for="hr-emp-picker-pos">السجل</label>
-                <input type="text" class="input input-compact hr-emp-pos-display" id="hr-emp-picker-pos" readonly dir="ltr"
-                       value="<?php if ($totalEmployees > 0 && $currentId > 0): ?><?= (int) $empPosition ?> / <?= (int) $totalEmployees ?><?php elseif ($totalEmployees > 0): ?>— / <?= (int) $totalEmployees ?><?php else: ?>—<?php endif; ?>">
+    <div class="dashboard-ora-toolbar hr-emp-top-bar hr-emp-toolbar hr-emp-toolbar-strip">
+        <a class="btn btn-primary btn-sm hr-emp-toolbar-new" href="<?= esc($listUrl) ?>">موظف جديد</a>
+        <div class="sales-inv-meta-item hr-emp-meta-item hr-emp-meta-no">
+            <label for="hr-emp-picker-code">رقم السند</label>
+            <div class="sales-inv-no-nav hr-emp-no-nav" role="group" aria-label="تنقّل بين الموظفين">
+                <button type="button" class="sales-inv-no-arrow hr-emp-no-arrow" id="hr-emp-nav-prev"
+                        title="السابق" aria-label="السابق"<?= $prevUrlAttr === '' ? ' disabled' : '' ?>>‹</button>
+                <input type="text" class="input input-compact sales-inv-no-input hr-emp-picker-code" id="hr-emp-picker-code"
+                       value="<?= esc($pickerCurrentCode) ?>"
+                       dir="ltr" inputmode="numeric" autocomplete="off"
+                       placeholder="رقم السند" title="أدخل رقم السند ثم Enter">
+                <button type="button" class="sales-inv-no-arrow hr-emp-no-arrow" id="hr-emp-nav-next"
+                        title="التالي" aria-label="التالي"<?= $nextUrlAttr === '' ? ' disabled' : '' ?>>›</button>
             </div>
         </div>
+        <div class="sales-inv-meta-item hr-emp-meta-item hr-emp-meta-pos">
+            <label for="hr-emp-picker-pos">السجل</label>
+            <input type="text" class="input input-compact hr-emp-pos-display" id="hr-emp-picker-pos" readonly dir="ltr"
+                   value="<?php if ($totalEmployees > 0 && $currentId > 0): ?><?= (int) $empPosition ?> / <?= (int) $totalEmployees ?><?php elseif ($totalEmployees > 0): ?>— / <?= (int) $totalEmployees ?><?php else: ?>—<?php endif; ?>">
+        </div>
+        <?= employee_picker_field([
+            'id' => 'hr-emp-picker-id',
+            'label' => 'قائمة الاسم',
+            'compact' => true,
+            'wrapper_class' => 'sales-inv-meta-item hr-emp-meta-item hr-emp-meta-name hr-emp-picker-slot',
+            'json_id' => 'hr-employees-picker-json',
+            'manual_bind' => true,
+            'value' => $currentId,
+            'placeholder' => 'اضغط لاختيار الموظف',
+            'allow_new' => true,
+            'new_label' => '— موظف جديد —',
+        ]) ?>
+        <?= badge_picker_field([
+            'id' => 'hr-emp-att-zk',
+            'name' => 'att_zk_user_id',
+            'label' => 'قائمة أرقام البصمة',
+            'value' => $attZkSelected,
+            'compact' => true,
+            'allow_none' => true,
+            'none_label' => '— بلا بصمة —',
+            'placeholder' => '— بلا بصمة —',
+            'form_id' => 'hr-emp-form',
+            'json_id' => 'hr-emp-badge-picker-json',
+            'disabled' => $empLocked,
+            'wrapper_class' => 'sales-inv-meta-item hr-emp-meta-item hr-emp-meta-badge hr-emp-badge-picker-slot',
+        ]) ?>
     </div>
 
     <section class="dashboard-ora-panel hr-emp-editor-panel<?= $empLocked ? ' is-resignation-posted' : '' ?>">

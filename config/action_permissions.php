@@ -93,6 +93,16 @@ return [
                     'name_ar' => 'فك ترحيل سلفة موظف',
                     'inherit_from' => ['hr_salaries', 'hr_employee_advances'],
                 ],
+                [
+                    'code' => 'action_unpost_employee_departure',
+                    'name_ar' => 'فك ترحيل مغادرة موظف',
+                    'inherit_from' => ['hr_employee_departures'],
+                ],
+                [
+                    'code' => 'action_unpost_employee_leave',
+                    'name_ar' => 'فك ترحيل إجازة موظف',
+                    'inherit_from' => ['hr_employee_leaves'],
+                ],
             ],
         ],
         [
@@ -177,6 +187,16 @@ return [
                     'code' => 'action_post_employee_advance',
                     'name_ar' => 'ترحيل سلفة موظف',
                     'inherit_from' => ['hr_salaries', 'hr_employee_advances'],
+                ],
+                [
+                    'code' => 'action_post_employee_departure',
+                    'name_ar' => 'ترحيل مغادرة موظف',
+                    'inherit_from' => ['hr_employee_departures'],
+                ],
+                [
+                    'code' => 'action_post_employee_leave',
+                    'name_ar' => 'ترحيل إجازة موظف',
+                    'inherit_from' => ['hr_employee_leaves'],
                 ],
             ],
         ],

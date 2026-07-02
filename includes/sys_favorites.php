@@ -149,7 +149,7 @@ function sys_favorites_menu_items_for_user(PDO $pdo, int $userId): array
     $labelByCode = [];
     foreach ($menu['domains'] as $domain) {
         foreach ($domain['subgroups'] as $sg) {
-            foreach ($sg['items'] as $it) {
+            foreach ($sg['items'] ?? [] as $it) {
                 if (!is_array($it) || empty($it['r'])) {
                     continue;
                 }
@@ -157,6 +157,21 @@ function sys_favorites_menu_items_for_user(PDO $pdo, int $userId): array
                 if (!isset($iconByCode[$r])) {
                     $iconByCode[$r] = (string) ($it['icon'] ?? '★');
                     $labelByCode[$r] = (string) ($it['label'] ?? '');
+                }
+            }
+            foreach ($sg['subgroups'] ?? [] as $nested) {
+                if (!is_array($nested)) {
+                    continue;
+                }
+                foreach ($nested['items'] ?? [] as $it) {
+                    if (!is_array($it) || empty($it['r'])) {
+                        continue;
+                    }
+                    $r = (string) $it['r'];
+                    if (!isset($iconByCode[$r])) {
+                        $iconByCode[$r] = (string) ($it['icon'] ?? '★');
+                        $labelByCode[$r] = (string) ($it['label'] ?? '');
+                    }
                 }
             }
         }

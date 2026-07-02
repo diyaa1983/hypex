@@ -72,6 +72,9 @@
       if (route === 'purchase_orders' || route === 'purchase_orders_list') {
         return;
       }
+      if (route === 'hr_employee_leaves' || route === 'hr_employee_departures' || route === 'hr_employee_advances' || route === 'hr_employees') {
+        return;
+      }
 
       AppDialog.alert(
 

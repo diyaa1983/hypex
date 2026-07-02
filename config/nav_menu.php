@@ -223,40 +223,136 @@ return [
                 [
                     'id' => 'employees',
                     'title' => 'بيانات الموظف الاساسية',
-                    'items' => [
-                        ['r' => 'hr_employees', 'label' => 'بيانات الموظف الاساسية', 'icon' => '👤'],
-                        ['r' => 'hr_attendance_settings', 'label' => 'إعدادات دوام الموظفين', 'icon' => '⚙'],
-                        ['r' => 'hr_employee_schedule', 'label' => 'تعريف دوام الموظف', 'icon' => '📅'],
-                        ['r' => 'hr_employee_attendance', 'label' => 'بصمات الموظفين', 'icon' => '👆'],
+                    'subgroups' => [
+                        [
+                            'id' => 'employee_screens',
+                            'title' => 'شاشات الموظفين',
+                            'items' => [
+                                ['r' => 'hr_employees', 'label' => 'بيانات الموظف الاساسية', 'icon' => '👤'],
+                            ],
+                        ],
+                        [
+                            'id' => 'employee_reports',
+                            'title' => 'تقارير الموظفين',
+                            'items' => [
+                                ['r' => 'report_hr_employees', 'label' => 'تقرير الموظفين', 'icon' => '📋'],
+                                ['r' => 'report_hr_employees_by_department', 'label' => 'الموظفين حسب القسم', 'icon' => '🏛'],
+                                ['r' => 'report_hr_employees_resigned', 'label' => 'الموظفين المستقيلين', 'icon' => '📤'],
+                            ],
+                        ],
                     ],
                 ],
                 [
-                    'id' => 'hr_employee_reports',
-                    'title' => 'تقارير شؤون الموظفين',
-                    'items' => [
-                        ['r' => 'report_hr_employees', 'label' => 'تقرير الموظفين', 'icon' => '📋'],
-                        ['r' => 'report_hr_employees_by_department', 'label' => 'الموظفين حسب القسم', 'icon' => '🏛'],
-                        ['r' => 'report_hr_employees_resigned', 'label' => 'الموظفين المستقيلين', 'icon' => '📤'],
-                        ['r' => 'report_hr_employee_overtime', 'label' => 'تقرير العمل الإضافي', 'icon' => '⏱'],
-                        ['r' => 'report_hr_employee_attendance', 'label' => 'حركة دوام الموظفين', 'icon' => '🕐'],
+                    'id' => 'employee_attendance',
+                    'title' => 'بصمات الموظفين',
+                    'subgroups' => [
+                        [
+                            'id' => 'attendance_screens',
+                            'title' => 'شاشات البصمات',
+                            'items' => [
+                                ['r' => 'hr_employee_attendance', 'label' => 'بصمات الموظفين', 'icon' => '👆'],
+                                ['r' => 'hr_employee_schedule', 'label' => 'تعريف دوام الموظف', 'icon' => '📅'],
+                                ['r' => 'hr_attendance_settings', 'label' => 'إعدادات دوام الموظفين', 'icon' => '⚙'],
+                            ],
+                        ],
+                        [
+                            'id' => 'attendance_reports',
+                            'title' => 'تقارير البصمات',
+                            'items' => [
+                                ['r' => 'report_hr_employee_attendance', 'label' => 'حركة دوام الموظفين', 'icon' => '🕐'],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    'id' => 'departures',
+                    'title' => 'المغادرات',
+                    'subgroups' => [
+                        [
+                            'id' => 'departure_screens',
+                            'title' => 'شاشات المغادرات',
+                            'items' => [
+                                ['r' => 'hr_departure_types', 'label' => 'أنواع المغادرات', 'icon' => '📋'],
+                                ['r' => 'hr_employee_departures', 'label' => 'مغادرات الموظفين', 'icon' => '🚪'],
+                            ],
+                        ],
+                        [
+                            'id' => 'departure_reports',
+                            'title' => 'تقارير المغادرات',
+                            'items' => [
+                                ['r' => 'report_hr_employee_departures', 'label' => 'تقرير المغادرات بين تاريخين', 'icon' => '📊'],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    'id' => 'leaves',
+                    'title' => 'الإجازات',
+                    'subgroups' => [
+                        [
+                            'id' => 'leave_screens',
+                            'title' => 'شاشات الإجازات',
+                            'items' => [
+                                ['r' => 'hr_leave_types', 'label' => 'إعدادات الإجازات', 'icon' => '📋'],
+                                ['r' => 'hr_employee_leave_balances', 'label' => 'رصيد إجازات الموظفين', 'icon' => '📊'],
+                                ['r' => 'hr_employee_leaves', 'label' => 'إدخال الإجازات', 'icon' => '🏖'],
+                            ],
+                        ],
+                        [
+                            'id' => 'leave_reports',
+                            'title' => 'تقارير الإجازات',
+                            'items' => [
+                                ['r' => 'report_hr_employee_leaves', 'label' => 'تقرير الإجازات بين تاريخين', 'icon' => '📊'],
+                            ],
+                        ],
                     ],
                 ],
                 [
                     'id' => 'salaries',
                     'title' => 'الرواتب',
-                    'items' => [
-                        ['r' => 'hr_salaries', 'label' => 'رواتب الموظفين', 'icon' => '💵'],
-                        ['r' => 'hr_monthly_payroll_adjustments', 'label' => 'علاوات واقتطاعات شهرية', 'icon' => '📅'],
-                        ['r' => 'hr_employee_advances', 'label' => 'سلف الموظفين', 'icon' => '💳'],
-                        ['r' => 'hr_payroll_posting', 'label' => 'قيد الرواتب', 'icon' => '📋'],
+                    'subgroups' => [
+                        [
+                            'id' => 'salary_screens',
+                            'title' => 'شاشات الرواتب',
+                            'items' => [
+                                ['r' => 'hr_salaries', 'label' => 'رواتب الموظفين', 'icon' => '💵'],
+                                ['r' => 'hr_monthly_payroll_adjustments', 'label' => 'علاوات واقتطاعات شهرية', 'icon' => '📅'],
+                                ['r' => 'hr_employee_advances', 'label' => 'سلف الموظفين', 'icon' => '💳'],
+                                ['r' => 'hr_payroll_posting', 'label' => 'قيد الرواتب', 'icon' => '📋'],
+                            ],
+                        ],
+                        [
+                            'id' => 'salary_reports',
+                            'title' => 'تقارير الرواتب',
+                            'items' => [
+                                ['r' => 'hr_payroll_month_report', 'label' => 'تقرير قيود الرواتب حسب الشهر', 'icon' => '🖨'],
+                                ['r' => 'hr_payroll_dept_report', 'label' => 'كشف الرواتب للأقسام', 'icon' => '📑'],
+                                ['r' => 'hr_payroll_ss_report', 'label' => 'كشف الضمان الاجتماعي', 'icon' => '🛡️'],
+                                ['r' => 'hr_payroll_slip_report', 'label' => 'قسيمة الراتب', 'icon' => '🧾'],
+                                ['r' => 'report_hr_employee_advances', 'label' => 'تقرير سلف الموظفين', 'icon' => '💳'],
+                            ],
+                        ],
                     ],
                 ],
                 [
                     'id' => 'overtime',
                     'title' => 'العمل الإضافي',
-                    'items' => [
-                        ['r' => 'hr_overtime_settings', 'label' => 'إعدادات العمل الإضافي', 'icon' => '⚙'],
-                        ['r' => 'hr_employee_overtime', 'label' => 'تسجيل ساعات العمل الإضافي', 'icon' => '⏱'],
+                    'subgroups' => [
+                        [
+                            'id' => 'overtime_screens',
+                            'title' => 'شاشات العمل الإضافي',
+                            'items' => [
+                                ['r' => 'hr_overtime_settings', 'label' => 'إعدادات العمل الإضافي', 'icon' => '⚙'],
+                                ['r' => 'hr_employee_overtime', 'label' => 'تسجيل ساعات العمل الإضافي', 'icon' => '⏱'],
+                            ],
+                        ],
+                        [
+                            'id' => 'overtime_reports',
+                            'title' => 'تقارير العمل الإضافي',
+                            'items' => [
+                                ['r' => 'report_hr_employee_overtime', 'label' => 'تقرير العمل الإضافي', 'icon' => '⏱'],
+                            ],
+                        ],
                     ],
                 ],
                 [
@@ -272,17 +368,6 @@ return [
                         ['r' => 'hr_social_security_rates', 'label' => 'نسب الضمان الاجتماعي', 'icon' => '📊'],
                         ['r' => 'hr_income_tax_settings', 'label' => 'إعدادات ضريبة الدخل', 'icon' => '🧮'],
                         ['r' => 'hr_social_security', 'label' => 'قيود الضمان', 'icon' => '🛡'],
-                    ],
-                ],
-                [
-                    'id' => 'payroll_reports',
-                    'title' => 'تقارير الرواتب',
-                    'items' => [
-                        ['r' => 'hr_payroll_month_report', 'label' => 'تقرير قيود الرواتب حسب الشهر', 'icon' => '🖨'],
-                        ['r' => 'hr_payroll_dept_report', 'label' => 'كشف الرواتب للأقسام', 'icon' => '📑'],
-                        ['r' => 'hr_payroll_ss_report', 'label' => 'كشف الضمان الاجتماعي', 'icon' => '🛡️'],
-                        ['r' => 'hr_payroll_slip_report', 'label' => 'قسيمة الراتب', 'icon' => '🧾'],
-                        ['r' => 'report_hr_employee_advances', 'label' => 'تقرير سلف الموظفين', 'icon' => '💳'],
                     ],
                 ],
             ],

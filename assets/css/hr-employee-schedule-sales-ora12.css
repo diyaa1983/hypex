@@ -1,3 +1,50 @@
+/* تعريف دوام الموظف — Oracle 12c */
+
+body.hr-ora-ui .dashboard-ora.hr-emp-sch-ora12-screen.hr-emp-sch-wrap,
+.dashboard-ora.hr-emp-sch-ora12-screen.hr-emp-sch-wrap {
+    width: 100%;
+    max-width: 100%;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.8125rem;
+    color: var(--ora12-text, #161513);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel,
+.dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel {
+    margin-bottom: 0.45rem;
+    background: var(--ora12-surface, #fff);
+    border: 1px solid var(--ora12-border, #5c6670);
+    box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+    overflow: hidden;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel.hr-emp-sch-week-panel,
+.dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel.hr-emp-sch-week-panel {
+    overflow: visible;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel__title,
+.dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel__title {
+    margin: 0;
+    padding: 0.42rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+    border-bottom: 1px solid #024d8f;
+    text-align: start;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel__body,
+.dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel__body {
+    padding: 0.55rem 0.65rem 0.65rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel__body--flush,
+.dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel__body--flush {
+    padding: 0;
+}
+
 .dashboard-ora.hr-emp-sch-ora12-screen .sales-ora-tabs.hr-emp-sch-tabs .sales-ora-tab {
     min-height: 1.65rem;
     padding: 0.22rem 0.75rem;
@@ -15,22 +62,100 @@
     border-color: #024d8f;
 }
 
-.dashboard-ora.hr-emp-sch-ora12-screen .dashboard-ora-panel__title,
-.dashboard-ora.hr-emp-sch-ora12-screen h3.dashboard-ora-panel__title {
-    font-size: 0.82rem;
+.dashboard-ora.hr-emp-sch-ora12-screen .field-label,
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-date-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
 }
 
 .dashboard-ora.hr-emp-sch-ora12-screen .input,
 .dashboard-ora.hr-emp-sch-ora12-screen select.input {
     min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
     font-size: 0.78rem;
+    font-weight: 700;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-period-strip {
+    background: var(--ora12-stripe, #f7f9fb);
+    border-color: var(--ora12-border);
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-period-actions {
+    border-top-color: var(--ora12-border);
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-date-field .date-dmy-picker-btn {
+    border-color: var(--ora12-border);
+    background: #fff;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-nav-btn {
+    border-color: var(--ora12-border);
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-nav-btn:hover {
+    border-color: #0572ce;
+    color: #0572ce;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-period-badge {
+    color: #024d8f;
+    background: #e8f4fc;
+    border-color: #9ec9ef;
 }
 
 .dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table thead th {
     background: #d9d9d9;
     font-weight: 700;
+    font-size: 0.76rem;
 }
 
-.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table tbody tr:nth-child(even) {
-    background: #fafafa;
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table td {
+    border-color: var(--ora12-border);
+    font-size: 0.78rem;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table tbody tr:nth-child(even) td {
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table tbody tr:hover td {
+    background: #e8f0f8;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-body {
+    background: var(--ora12-surface, #fff);
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table-wrap {
+    border-color: var(--ora12-border);
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table-wrap.dashboard-ora-table-wrap {
+    overflow-x: visible;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table td,
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-week-table th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-col-shift {
+    overflow: visible;
+}
+
+.dashboard-ora.hr-emp-sch-ora12-screen .hr-emp-sch-form-actions .btn {
+    min-height: 1.6rem;
+    padding: 0.22rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
 }

@@ -1,0 +1,241 @@
+/* ── بصمات الموظفين — Oracle 12c ── */
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen.hr-att-wrap,
+.dashboard-ora.hr-att-ora12-screen.hr-att-wrap {
+    width: 100%;
+    max-width: 100%;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen.hr-att-wrap .hr-att-page,
+.dashboard-ora.hr-att-ora12-screen.hr-att-wrap .hr-att-page {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--ora12-text, #161513);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-hint,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-flash {
+    margin: 0 0.55rem 0.5rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-panel,
+.dashboard-ora.hr-att-ora12-screen .dashboard-ora-panel {
+    margin-bottom: 0.45rem;
+    background: var(--ora12-surface, #fff);
+    border: 1px solid var(--ora12-border, #5c6670);
+    box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+    overflow: hidden;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-panel__title {
+    margin: 0;
+    padding: 0.42rem 0.7rem;
+    text-align: start;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+    border-bottom: 1px solid #024d8f;
+    line-height: 1.35;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-panel__body {
+    padding: 0.55rem 0.65rem 0.65rem;
+    background: var(--ora12-surface, #fff);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+    margin-bottom: 0.15rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .input,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen select.input {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ora12-text, #161513);
+    background: #fff;
+    border: 1px solid var(--ora12-border, #5c6670);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .input:focus {
+    outline: none;
+    border-color: #0572ce;
+    box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-config-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    align-items: flex-end;
+    margin-bottom: 0.65rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-mdb-field {
+    flex: 1 1 22rem;
+    min-width: 16rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-config-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 0.45rem 0.75rem;
+    margin: 0;
+    padding: 0.4rem 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    background: var(--ora12-stripe, #f7f9fb);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-meta dt {
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-meta dd {
+    margin: 0;
+    color: var(--ora12-text, #161513);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-meta .is-ok {
+    color: #2e7d32;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-meta .is-err {
+    color: #c74634;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-toolbar.dashboard-ora-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.55rem;
+    margin: 0 0 0.45rem;
+    padding: 0.4rem 0.55rem;
+    background: #f3f5f7;
+    border: 1px solid var(--ora12-border, #5c6670);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem 0.65rem;
+    align-items: flex-end;
+    margin-bottom: 0.65rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-filter-form .field {
+    min-width: 9.5rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-map-hint {
+    margin: 0 0 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-table-wrap,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-table-wrap {
+    overflow-x: auto;
+    background: #fff;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-table,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-table.hr-att-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    font-weight: 700;
+    background: var(--ora12-surface, #fff);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-table th,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-table td,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-table.hr-att-table th,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-table.hr-att-table td {
+    padding: 0.32rem 0.45rem;
+    border: 1px solid var(--ora12-border, #5c6670);
+    text-align: start;
+    vertical-align: middle;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-table th,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-table.hr-att-table th {
+    background: #d9d9d9;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-table tbody tr:nth-child(even) td,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-table.hr-att-table tbody tr:nth-child(even) td {
+    background: var(--ora12-stripe, #f7f9fb);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-table tbody tr:hover td,
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .dashboard-ora-table.hr-att-table tbody tr:hover td {
+    background: var(--ora12-hover, #e8f0f8);
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-table tr.is-unlinked td {
+    background: #fff7ed;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-unlinked-tag {
+    color: #c74634;
+    font-weight: 700;
+    font-size: 0.72rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-map-batch-form .hr-att-map-picker {
+    min-width: 11rem;
+    max-width: 16rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-map-batch-form .hr-att-map-picker .sales-inv-cust-open {
+    min-height: 1.65rem;
+    padding: 0.18rem 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: #fff;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-empty {
+    padding: 0.75rem 0;
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen .hr-att-unmapped-panel {
+    margin-bottom: 0.45rem;
+}
+
+body.hr-ora-ui .dashboard-ora.hr-att-ora12-screen code {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.05rem 0.25rem;
+    background: var(--ora12-stripe, #f7f9fb);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+}

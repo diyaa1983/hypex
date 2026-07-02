@@ -399,6 +399,32 @@
         pickerCode.value = String(emp.code || '').trim();
     }
 
+    function initBadgePicker() {
+        if (!window.BadgePickerModal) {
+            setTimeout(initBadgePicker, 40);
+            return;
+        }
+        BadgePickerModal.bind({
+            hidden: 'hr-emp-att-zk',
+            open: 'hr-emp-att-zk_open',
+            display: 'hr-emp-att-zk_display',
+            jsonId: 'hr-emp-badge-picker-json',
+            allowNone: true,
+            noneLabel: '— بلا بصمة —',
+            placeholder: '— بلا بصمة —',
+            initialId: (function () {
+                var hidden = document.getElementById('hr-emp-att-zk');
+                if (!hidden) return 0;
+                var v = parseInt(hidden.value || '0', 10);
+                return isNaN(v) ? 0 : v;
+            })(),
+            getDisabled: function () {
+                var open = document.getElementById('hr-emp-att-zk_open');
+                return open ? !!open.disabled : false;
+            },
+        });
+    }
+
     function initEmployeePicker() {
         if (!window.EmployeePickerModal) {
             setTimeout(initEmployeePicker, 40);
@@ -436,6 +462,7 @@
 
     if (!isBrowse) {
         initEmployeePicker();
+        initBadgePicker();
     }
 
     function syncOraLovButtons() {

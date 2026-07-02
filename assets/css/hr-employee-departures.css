@@ -1,0 +1,239 @@
+.hr-emp-dep-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.hr-emp-dep-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.hr-emp-dep-voucher-bar {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+}
+
+.hr-emp-dep-voucher-label {
+    font-weight: 700;
+    color: #334155;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    margin: 0;
+}
+
+.hr-emp-dep-no-nav {
+    display: inline-flex;
+    align-items: stretch;
+    gap: 0.25rem;
+    direction: ltr;
+}
+
+.hr-emp-dep-no-arrow {
+    flex: 0 0 1.7rem;
+    width: 1.7rem;
+    height: 1.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border, #cbd5e1);
+    border-radius: 2px;
+    background: #f1f5f9;
+    color: #334155;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+.hr-emp-dep-no-arrow:hover {
+    background: #e2e8f0;
+}
+
+.hr-emp-dep-no-arrow.is-disabled {
+    opacity: 0.35;
+    cursor: default;
+    pointer-events: none;
+}
+
+.hr-emp-dep-no-input {
+    width: auto;
+    min-width: 2.5rem;
+    max-width: 6.5rem;
+    height: 1.7rem;
+    text-align: center;
+    font-weight: 800;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.82rem;
+    box-sizing: border-box;
+    border-radius: 2px;
+}
+
+.hr-emp-dep-employee-head {
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.45rem;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.hr-emp-dep-employee-head .field-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #334155;
+    white-space: nowrap;
+    margin: 0;
+}
+
+.hr-emp-dep-picker-slot {
+    width: 14rem;
+    min-width: 11rem;
+    max-width: 18rem;
+}
+
+.hr-emp-dep-picker-slot .sales-inv-cust-open,
+.hr-emp-dep-employee-readonly {
+    width: 100%;
+    min-width: 11rem;
+    max-width: 18rem;
+    height: 1.7rem;
+    min-height: 1.7rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.82rem;
+    box-sizing: border-box;
+    border-radius: 2px;
+}
+
+.hr-emp-dep-picker-slot .sales-inv-cust-open-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hr-emp-dep-inline-form {
+    display: inline;
+    margin: 0;
+}
+
+.hr-emp-dep-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem 0.75rem;
+}
+
+.hr-emp-dep-fields .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin: 0;
+    flex: 0 0 auto;
+    min-width: 0;
+}
+
+.hr-emp-dep-fields .field-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #334155;
+    white-space: nowrap;
+}
+
+.hr-emp-dep-fields .input,
+.hr-emp-dep-fields select.input {
+    width: auto;
+    min-width: 7rem;
+    height: 1.7rem;
+    min-height: 1.7rem;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.82rem;
+    border-radius: 2px;
+    box-sizing: border-box;
+}
+
+.hr-emp-dep-field-created .input {
+    min-width: 9.5rem;
+}
+
+.hr-emp-dep-field-date .input {
+    width: 6.5rem;
+    text-align: center;
+}
+
+.hr-emp-dep-field-type select.input {
+    min-width: 11rem;
+    max-width: 16rem;
+}
+
+.hr-emp-dep-field-time .input {
+    width: 4.5rem;
+    text-align: center;
+}
+
+.hr-emp-dep-notes {
+    flex: 1 1 12rem;
+    min-width: 10rem;
+    max-width: 22rem;
+}
+
+.hr-emp-dep-notes .input {
+    width: 100%;
+    min-width: 0;
+}
+
+.hr-emp-dep-field-status .input {
+    min-width: 6rem;
+}
+
+.hr-emp-dep-actions {
+    margin-top: 0.75rem;
+}
+
+.hr-emp-dep-table th,
+.hr-emp-dep-table td {
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.hr-emp-dep-table tr.is-selected td {
+    background: #eff6ff;
+}
+
+@media (max-width: 900px) {
+    .hr-emp-dep-toolbar {
+        align-items: flex-start;
+    }
+
+    .hr-emp-dep-employee-head {
+        flex: 1 1 100%;
+    }
+
+    .hr-emp-dep-fields {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .hr-emp-dep-fields .field,
+    .hr-emp-dep-notes {
+        flex: 1 1 auto;
+        max-width: none;
+    }
+
+    .hr-emp-dep-fields .input,
+    .hr-emp-dep-fields select.input {
+        width: 100%;
+        max-width: none;
+    }
+}

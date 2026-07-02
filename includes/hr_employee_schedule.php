@@ -176,6 +176,143 @@ function hr_employee_schedule_assert_shift(PDO $pdo, int $shiftId): void
     }
 }
 
+function hr_employee_schedule_week_days_count(): int
+{
+    return 7;
+}
+
+/** السبت (بداية الأسبوع) لتاريخ ضمن نفس الأسبوع. */
+function hr_employee_schedule_week_saturday(string $isoDate): string
+{
+    $isoDate = parse_date_to_iso(trim($isoDate)) ?? '';
+    if ($isoDate === '') {
+        throw new RuntimeException('تاريخ غير صالح.');
+    }
+
+    $dayIndex = hr_attendance_report_day_index($isoDate);
+    if ($dayIndex === 0) {
+        return $isoDate;
+    }
+
+    $ts = strtotime($isoDate . ' -' . $dayIndex . ' days');
+    if ($ts === false) {
+        throw new RuntimeException('تاريخ غير صالح.');
+    }
+
+    return date('Y-m-d', $ts);
+}
+
+function hr_employee_schedule_week_friday(string $saturdayIso): string
+{
+    $saturdayIso = hr_employee_schedule_week_saturday($saturdayIso);
+    $ts = strtotime($saturdayIso . ' +' . (hr_employee_schedule_week_days_count() - 1) . ' days');
+    if ($ts === false) {
+        throw new RuntimeException('تاريخ غير صالح.');
+    }
+
+    return date('Y-m-d', $ts);
+}
+
+/**
+ * @return array{date_from:string,date_to:string,date_from_dmY:string,date_to_dmY:string}
+ */
+function hr_employee_schedule_normalize_week_range(string $dateFrom, string $dateTo): array
+{
+    $dateFrom = parse_date_to_iso(trim($dateFrom)) ?? '';
+    $dateTo = parse_date_to_iso(trim($dateTo)) ?? '';
+    if ($dateFrom === '' || $dateTo === '') {
+        throw new RuntimeException('أدخل تاريخ البداية والنهاية بصيغة صحيحة.');
+    }
+    if ($dateFrom > $dateTo) {
+        throw new RuntimeException('تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية.');
+    }
+
+    if (hr_attendance_report_day_index($dateFrom) !== 0) {
+        throw new RuntimeException('تاريخ البداية يجب أن يكون يوم سبت.');
+    }
+    if (hr_attendance_report_day_index($dateTo) !== 6) {
+        throw new RuntimeException('تاريخ النهاية يجب أن يكون يوم جمعة.');
+    }
+
+    $expectedEnd = hr_employee_schedule_week_friday($dateFrom);
+    if ($dateTo !== $expectedEnd) {
+        throw new RuntimeException(
+            'مدة الفترة يجب أن تكون 7 أيام (من السبت إلى الجمعة).'
+            . ' لتاريخ البداية ' . format_date_dmY($dateFrom)
+            . ' يجب أن يكون تاريخ النهاية ' . format_date_dmY($expectedEnd) . '.'
+        );
+    }
+
+    return [
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'date_from_dmY' => format_date_dmY($dateFrom),
+        'date_to_dmY' => format_date_dmY($dateTo),
+    ];
+}
+
+function hr_employee_schedule_assert_no_week_overlap(
+    PDO $pdo,
+    int $employeeId,
+    string $dateFrom,
+    string $dateTo,
+    int $excludeWeeklyId = 0
+): void {
+    $st = $pdo->prepare(
+        'SELECT id, date_from, date_to FROM hr_att_employee_weekly
+         WHERE employee_id = ? AND id <> ?
+           AND date_from <= ? AND date_to >= ?
+         LIMIT 1'
+    );
+    $st->execute([$employeeId, $excludeWeeklyId, $dateTo, $dateFrom]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return;
+    }
+
+    throw new RuntimeException(
+        'تتداخل هذه الفترة مع أسبوع آخر للموظف: '
+        . format_date_dmY((string) ($row['date_from'] ?? ''))
+        . ' — '
+        . format_date_dmY((string) ($row['date_to'] ?? ''))
+        . '.'
+    );
+}
+
+/**
+ * @param list<array<string,mixed>> $weeklyPeriods
+ * @return array{date_from:string,date_to:string,date_from_dmY:string,date_to_dmY:string}
+ */
+function hr_employee_schedule_suggest_next_week(array $weeklyPeriods): array
+{
+    if ($weeklyPeriods !== []) {
+        $last = $weeklyPeriods[count($weeklyPeriods) - 1];
+        $lastTo = parse_date_to_iso((string) ($last['date_to'] ?? '')) ?? '';
+        if ($lastTo !== '') {
+            $ts = strtotime($lastTo . ' +1 day');
+            if ($ts !== false) {
+                $weekStart = hr_employee_schedule_week_saturday(date('Y-m-d', $ts));
+
+                return [
+                    'date_from' => $weekStart,
+                    'date_to' => hr_employee_schedule_week_friday($weekStart),
+                    'date_from_dmY' => format_date_dmY($weekStart),
+                    'date_to_dmY' => format_date_dmY(hr_employee_schedule_week_friday($weekStart)),
+                ];
+            }
+        }
+    }
+
+    $weekStart = hr_employee_schedule_week_saturday(date('Y-m-d'));
+
+    return [
+        'date_from' => $weekStart,
+        'date_to' => hr_employee_schedule_week_friday($weekStart),
+        'date_from_dmY' => format_date_dmY($weekStart),
+        'date_to_dmY' => format_date_dmY(hr_employee_schedule_week_friday($weekStart)),
+    ];
+}
+
 function hr_employee_schedule_save_default(PDO $pdo, int $employeeId, int $shiftId): void
 {
     hr_employee_schedule_ensure_schema($pdo);
@@ -208,14 +345,10 @@ function hr_employee_schedule_save_weekly(
     hr_employee_schedule_ensure_schema($pdo);
     hr_employee_schedule_assert_employee($pdo, $employeeId);
 
-    $dateFrom = parse_date_to_iso(trim($dateFrom)) ?? '';
-    $dateTo = parse_date_to_iso(trim($dateTo)) ?? '';
-    if ($dateFrom === '' || $dateTo === '') {
-        throw new RuntimeException('أدخل تاريخ البداية والنهاية بصيغة صحيحة.');
-    }
-    if ($dateFrom > $dateTo) {
-        throw new RuntimeException('تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية.');
-    }
+    $weekRange = hr_employee_schedule_normalize_week_range($dateFrom, $dateTo);
+    $dateFrom = $weekRange['date_from'];
+    $dateTo = $weekRange['date_to'];
+    hr_employee_schedule_assert_no_week_overlap($pdo, $employeeId, $dateFrom, $dateTo, $weeklyId);
 
     $parsedDays = [];
     $hasAnyDay = false;
@@ -229,7 +362,11 @@ function hr_employee_schedule_save_weekly(
     }
 
     if (!$hasAnyDay) {
-        throw new RuntimeException('عيّن شفتاً ليوم واحد على الأقل، أو استخدم تبويب الشفت الافتراضي.');
+        $stDef = $pdo->prepare('SELECT shift_id FROM hr_att_employee_default_shift WHERE employee_id = ? LIMIT 1');
+        $stDef->execute([$employeeId]);
+        if ((int) ($stDef->fetchColumn() ?: 0) < 1) {
+            throw new RuntimeException('عيّن شفتاً ليوم واحد على الأقل، أو عيّن الشفت الافتراضي في التبويب المخصص.');
+        }
     }
 
     if ($weeklyId > 0) {
@@ -260,6 +397,23 @@ function hr_employee_schedule_save_weekly(
     }
 
     return $weeklyId;
+}
+
+function hr_employee_schedule_weekly_covers_date(PDO $pdo, int $employeeId, string $workDate): bool
+{
+    if ($employeeId < 1 || $workDate === '') {
+        return false;
+    }
+
+    hr_employee_schedule_ensure_schema($pdo);
+    $st = $pdo->prepare(
+        'SELECT 1 FROM hr_att_employee_weekly
+         WHERE employee_id = ? AND ? BETWEEN date_from AND date_to
+         LIMIT 1'
+    );
+    $st->execute([$employeeId, $workDate]);
+
+    return (bool) $st->fetchColumn();
 }
 
 function hr_employee_schedule_delete_weekly(PDO $pdo, int $employeeId, int $weeklyId): void

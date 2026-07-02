@@ -121,14 +121,38 @@
   font-size: 0.85rem;
 }
 
-.hr-att-map-batch-form .hr-att-map-picker {
-  min-width: 11rem;
-  max-width: 16rem;
+.hr-att-link-table .hr-att-sel-employee,
+.hr-att-link-table .hr-att-sel-zk {
+  width: 100%;
+  min-width: 12rem;
+  max-width: 22rem;
+  font-size: 0.82rem;
 }
 
-.hr-att-map-batch-form .hr-att-map-picker .sales-inv-cust-open {
-  min-height: 1.85rem;
-  font-size: 0.8rem;
+.hr-att-link-actions {
+  margin-top: 0.65rem;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.hr-att-link-row.is-match .hr-att-sel-employee,
+.hr-att-link-row.is-match .hr-att-sel-zk {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.hr-att-link-row.is-mismatch .hr-att-sel-employee,
+.hr-att-link-row.is-mismatch .hr-att-sel-zk {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.hr-att-map-row.is-match td {
+  background: #f0fdf4;
+}
+
+.hr-att-map-row.is-mismatch td {
+  background: #fffbeb;
 }
 
 #master-toolbar [data-master-action="save"].is-inactive,
@@ -143,5 +167,24 @@
 }
 
 .hr-att-unmapped-panel {
-  margin-bottom: 1rem;
+  margin-top: 0.75rem;
+}
+
+.hr-att-mapped-panel {
+  margin-top: 0.75rem;
+}
+
+.hr-att-remap-actions {
+  margin-top: 0.65rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.hr-att-col-actions {
+  width: 6.5rem;
+  white-space: nowrap;
+}
+
+.hr-att-unmap-btn {
+  min-width: 5.5rem;
 }

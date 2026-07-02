@@ -7,9 +7,10 @@ function hr_attendance_shift_ensure_schema(PDO $pdo): void
 {
     hr_attendance_ensure_schema($pdo);
 
+    $tableReady = false;
     try {
         $pdo->query('SELECT id FROM hr_att_shift LIMIT 1');
-        return;
+        $tableReady = true;
     } catch (Throwable $e) {
         if (
             strpos($e->getMessage(), "doesn't exist") === false
@@ -20,13 +21,14 @@ function hr_attendance_shift_ensure_schema(PDO $pdo): void
         }
     }
 
-    try {
-        require_once app_path('includes/sql_migration.php');
-        sql_migration_run_file($pdo, 'database/migrations/196_hr_attendance_shifts.sql');
-    } catch (Throwable $e) {
+    if (!$tableReady) {
         try {
-            $pdo->exec(
-                'CREATE TABLE IF NOT EXISTS hr_att_shift (
+            require_once app_path('includes/sql_migration.php');
+            sql_migration_run_file($pdo, 'database/migrations/196_hr_attendance_shifts.sql');
+        } catch (Throwable $e) {
+            try {
+                $pdo->exec(
+                    'CREATE TABLE IF NOT EXISTS hr_att_shift (
                     id INT UNSIGNED NOT NULL AUTO_INCREMENT,
                     shift_code VARCHAR(20) NOT NULL,
                     shift_name VARCHAR(80) NOT NULL,
@@ -38,9 +40,10 @@ function hr_attendance_shift_ensure_schema(PDO $pdo): void
                     PRIMARY KEY (id),
                     UNIQUE KEY uk_hr_att_shift_code (shift_code)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
-            );
-        } catch (Throwable $e2) {
-            // ignored
+                );
+            } catch (Throwable $e2) {
+                // ignored
+            }
         }
     }
 }
@@ -48,17 +51,27 @@ function hr_attendance_shift_ensure_schema(PDO $pdo): void
 function hr_attendance_shift_next_code(PDO $pdo): string
 {
     hr_attendance_shift_ensure_schema($pdo);
-    $maxNum = 0;
+
+    $maxCode = 0;
+    $maxId = 0;
+
     try {
-        $maxNum = (int) $pdo->query(
-            "SELECT COALESCE(MAX(CAST(shift_code AS UNSIGNED)), 0) FROM hr_att_shift
-             WHERE shift_code REGEXP '^[0-9]+$'"
+        $maxCode = (int) $pdo->query(
+            'SELECT COALESCE(MAX(CAST(shift_code AS UNSIGNED)), 0) FROM hr_att_shift'
         )->fetchColumn();
     } catch (Throwable $e) {
-        $maxNum = (int) $pdo->query('SELECT COALESCE(MAX(id), 0) FROM hr_att_shift')->fetchColumn();
+        // ignore — fallback to max(id) below
     }
 
-    return (string) ($maxNum + 1);
+    try {
+        $maxId = (int) $pdo->query(
+            'SELECT COALESCE(MAX(id), 0) FROM hr_att_shift'
+        )->fetchColumn();
+    } catch (Throwable $e) {
+        // ignore
+    }
+
+    return (string) (max($maxCode, $maxId) + 1);
 }
 
 function hr_attendance_shift_parse_code(string $raw): string
@@ -111,12 +124,38 @@ function hr_attendance_shift_parse_time_input(string $raw, string $label): strin
     return sprintf('%02d:%02d', $h, $m);
 }
 
+function hr_attendance_shift_time_to_minutes(string $hhmm): int
+{
+    $hhmm = hr_attendance_shift_format_time($hhmm);
+    if ($hhmm === '' || !preg_match('/^\d{1,2}:\d{2}$/', $hhmm)) {
+        return 0;
+    }
+    [$h, $m] = array_map('intval', explode(':', $hhmm, 2));
+
+    return max(0, $h * 60 + $m);
+}
+
 function hr_attendance_shift_is_holiday(string $start, string $end): bool
 {
     $start = hr_attendance_shift_format_time($start);
     $end = hr_attendance_shift_format_time($end);
 
     return $start === '00:00' && $end === '00:00';
+}
+
+/** شفت يعبر منتصف الليل: نهاية الشفت قبل بدايته (مثل 19:00 → 07:00). */
+function hr_attendance_shift_is_overnight(string $start, string $end): bool
+{
+    $start = hr_attendance_shift_format_time($start);
+    $end = hr_attendance_shift_format_time($end);
+    if ($start === '' || $end === '' || hr_attendance_shift_is_holiday($start, $end)) {
+        return false;
+    }
+
+    $startMins = (int) substr($start, 0, 2) * 60 + (int) substr($start, 3, 2);
+    $endMins = (int) substr($end, 0, 2) * 60 + (int) substr($end, 3, 2);
+
+    return $endMins < $startMins;
 }
 
 function hr_attendance_shift_name_taken(PDO $pdo, string $name, int $excludeId = 0): bool
@@ -159,16 +198,13 @@ function hr_attendance_shift_parse_row(PDO $pdo, array $row, int $id): array
         }
         $code = hr_attendance_shift_parse_code((string) ($cur['shift_code'] ?? ''));
     } else {
-        $rawCode = trim((string) ($row['shift_code'] ?? ''));
-        $code = $rawCode !== ''
-            ? hr_attendance_shift_parse_code($rawCode)
-            : hr_attendance_shift_next_code($pdo);
+        $code = '';
         if (!array_key_exists('is_active', $row)) {
             $isActive = 1;
         }
     }
 
-    if (hr_attendance_shift_code_taken($pdo, $code, $id)) {
+    if ($code !== '' && hr_attendance_shift_code_taken($pdo, $code, $id)) {
         throw new RuntimeException('رقم الشفت ' . $code . ' مستخدم مسبقاً.');
     }
 
@@ -285,4 +321,56 @@ function hr_attendance_shift_delete_check(PDO $pdo, int $shiftId): array
     }
 
     return ['can_delete' => true, 'usage_count' => 0, 'message' => ''];
+}
+
+function hr_attendance_shift_insert(PDO $pdo, array $parsed): array
+{
+    hr_attendance_shift_ensure_schema($pdo);
+
+    $startedTx = !$pdo->inTransaction();
+    if ($startedTx) {
+        $pdo->beginTransaction();
+    }
+
+    try {
+        $pdo->query('SELECT id FROM hr_att_shift ORDER BY id DESC LIMIT 1 FOR UPDATE');
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $code = hr_attendance_shift_next_code($pdo);
+            try {
+                $st = $pdo->prepare(
+                    'INSERT INTO hr_att_shift (shift_code, shift_name, start_time, end_time, is_active)
+                     VALUES (?, ?, ?, ?, ?)'
+                );
+                $st->execute([
+                    $code,
+                    $parsed['name'],
+                    $parsed['start'],
+                    $parsed['end'],
+                    $parsed['active'],
+                ]);
+                $newId = (int) $pdo->lastInsertId();
+                if ($startedTx) {
+                    $pdo->commit();
+                }
+
+                return ['id' => $newId, 'code' => $code];
+            } catch (PDOException $e) {
+                $msg = $e->getMessage();
+                $isDuplicateCode = str_contains($msg, '1062')
+                    && str_contains($msg, 'uk_hr_att_shift_code');
+                if ($isDuplicateCode && $attempt < 4) {
+                    continue;
+                }
+                throw $e;
+            }
+        }
+    } catch (Throwable $e) {
+        if ($startedTx && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    throw new RuntimeException('تعذر توليد رقم شفت جديد.');
 }

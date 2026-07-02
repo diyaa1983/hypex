@@ -436,6 +436,16 @@ return [
         'permission' => 'report_hr_employee_attendance',
         'title' => 'حركة دوام الموظفين',
     ],
+    'report_hr_employee_leaves' => [
+        'file' => 'modules/reports/hr_employee_leaves.php',
+        'permission' => 'report_hr_employee_leaves',
+        'title' => 'تقرير الإجازات بين تاريخين',
+    ],
+    'report_hr_employee_departures' => [
+        'file' => 'modules/reports/hr_employee_departures.php',
+        'permission' => 'report_hr_employee_departures',
+        'title' => 'تقرير المغادرات بين تاريخين',
+    ],
     'report_purchases' => [
         'file' => 'modules/reports/purchases.php',
         'permission' => 'report_purchases',
@@ -692,6 +702,36 @@ return [
         'file' => 'modules/hr/employee_attendance.php',
         'permission' => 'hr_employee_attendance',
         'title' => 'بصمات الموظفين',
+        'hide_screen_title' => true,
+    ],
+    'hr_departure_types' => [
+        'file' => 'modules/hr/departure_types.php',
+        'permission' => 'hr_departure_types',
+        'title' => 'أنواع المغادرات',
+        'hide_screen_title' => true,
+    ],
+    'hr_employee_departures' => [
+        'file' => 'modules/hr/employee_departures.php',
+        'permission' => 'hr_employee_departures',
+        'title' => 'مغادرات الموظفين',
+        'hide_screen_title' => true,
+    ],
+    'hr_leave_types' => [
+        'file' => 'modules/hr/leave_types.php',
+        'permission' => 'hr_leave_types',
+        'title' => 'إعدادات الإجازات',
+        'hide_screen_title' => true,
+    ],
+    'hr_employee_leave_balances' => [
+        'file' => 'modules/hr/employee_leave_balances.php',
+        'permission' => 'hr_employee_leave_balances',
+        'title' => 'رصيد إجازات الموظفين',
+        'hide_screen_title' => true,
+    ],
+    'hr_employee_leaves' => [
+        'file' => 'modules/hr/employee_leaves.php',
+        'permission' => 'hr_employee_leaves',
+        'title' => 'إدخال الإجازات',
         'hide_screen_title' => true,
     ],
     'hr_attendance_settings' => [
