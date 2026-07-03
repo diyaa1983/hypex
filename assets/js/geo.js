@@ -1311,8 +1311,15 @@
           return new Promise(function (resolve, reject) {
             setTimeout(function () {
               tryFresh().then(resolve).catch(reject);
-            }, 1200);
+            }, 800);
           });
+        })
+        .catch(function () {
+          var cached = getFreshPostGpsCache(120000, 250);
+          if (cached) {
+            return cached;
+          }
+          return Promise.reject(new Error('gps_failed'));
         });
     }
 
@@ -1363,38 +1370,15 @@
       onReady(gps);
     }
 
-    function finishWithFallback() {
-      offerLocationFallback(
-        source,
-        function (gps) {
-          if (gps === undefined) {
-            finish(undefined);
-            return;
-          }
-          if (!gps) {
-            finish(null);
-            return;
-          }
-          finish(gps);
-        },
-        { forPost: true, requireLocation: true }
-      );
+    function finishSilent(gps) {
+      finish(gps || null);
     }
 
     if (autoOnly) {
-      if (isHttpLanBlocked()) {
-        finishWithFallback();
-        return;
-      }
       resolveGpsForPost(source)
-        .then(function (gps) {
-          if (!isAcceptablePostGps(gps)) {
-            return Promise.reject(new Error('gps_coarse'));
-          }
-          finish(gps);
-        })
+        .then(finishSilent)
         .catch(function () {
-          finishWithFallback();
+          finishSilent(null);
         });
       return;
     }

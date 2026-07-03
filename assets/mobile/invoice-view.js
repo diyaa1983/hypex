@@ -573,15 +573,7 @@
                   fallback: 'تم ترحيل الفاتورة.',
                 })
               : (data && data.message) || 'تم ترحيل الفاتورة.';
-          if (data && data.gps_saved === 0 && (cfg.gpsEnabled || window.APP_GPS_ENABLED)) {
-            var gpsWarn =
-              (data.warnings && data.warnings[0]) ||
-              (data.warning) ||
-              'تم الترحيل بدون حفظ موقع GPS — استخدم الخريطة عند الترحيل القادم.';
-            showPostStatus(gpsWarn, 'error');
-          } else {
-            showPostStatus(okMsg, 'success');
-          }
+          showPostStatus(okMsg, 'success');
           postFlowBusy = false;
           loadInvoice();
         })
@@ -594,9 +586,6 @@
 
     mobileConfirm(
       'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\n' +
-        (cfg.gpsEnabled || window.APP_GPS_ENABLED
-          ? 'سيُطلب موقعك الحالي (GPS) أو تحديده على الخريطة — لا يُستخدم موقع قديم.\n'
-          : '') +
         'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.',
       {
         title: 'تأكيد الترحيل',
@@ -609,27 +598,12 @@
         return;
       }
       if (cfg.gpsEnabled || (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost)) {
-        showPostStatus('جاري تحديد موقعك بدقة (GPS)...', 'success');
+        showPostStatus('جاري الترحيل...', 'success');
         AppGeo.withGpsForPost('mobile', function (gps) {
           if (gps === undefined) {
             postFlowBusy = false;
-            showPostStatus('تم إلغاء الترحيل — يجب تحديد موقعك على الخريطة.', 'error');
             return;
           }
-          if (
-            !gps ||
-            (window.AppGeo &&
-              AppGeo.isAcceptablePostGps &&
-              !AppGeo.isAcceptablePostGps(gps))
-          ) {
-            postFlowBusy = false;
-            showPostStatus(
-              'لم يُحدَّد موقع صالح. اضغط «موقعي الآن» على الخريطة أو انقر على موقعك.',
-              'error'
-            );
-            return;
-          }
-          showPostStatus('جاري الترحيل...', 'success');
           submitPost(gps);
         });
         return;
@@ -721,4 +695,8 @@
   }
 
   loadInvoice();
+
+  if ((cfg.gpsEnabled || window.APP_GPS_ENABLED) && window.AppGeo && AppGeo.prefetchForPost) {
+    AppGeo.prefetchForPost('mobile');
+  }
 })();
