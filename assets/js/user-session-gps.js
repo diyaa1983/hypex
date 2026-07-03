@@ -238,6 +238,13 @@
 
     }
 
+    // تتبع دوري للمندوب — تطبيق APK فقط؛ لا نُظهر طلب موقع على متصفح الهاتف.
+    if (cfg.source === 'mobile') {
+
+      return;
+
+    }
+
     if (!cfg.pingApi || !sessionGpsEnabled()) {
 
       return;

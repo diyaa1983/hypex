@@ -418,10 +418,6 @@
     if (cfg.canDelete && canChange) vis.delete = true;
     if (cfg.canPost && !inv.is_posted) vis.post = true;
     if (cfg.canSendEinvoice && inv.is_posted && !inv.einv_sent) vis.einvoice = true;
-    var gpsPanel = document.getElementById('m-inv-gps-place-panel');
-    if (gpsPanel) {
-      gpsPanel.hidden = !!inv.is_posted || !cfg.gpsEnabled || !vis.post;
-    }
     if (TB.show) TB.show(vis);
     if (loadingEl) loadingEl.hidden = true;
     if (rootEl) rootEl.hidden = false;
@@ -546,10 +542,6 @@
       if (window.AppGeo && AppGeo.appendToFormData && gps) {
         AppGeo.appendToFormData(fd, gps, 'mobile');
       }
-      var placeInput = document.getElementById('m-inv-gps-place');
-      if (placeInput && String(placeInput.value || '').trim() !== '') {
-        fd.append('gps_place', String(placeInput.value).trim());
-      }
       var btnPost = TB.btn ? TB.btn('post') : null;
       if (btnPost) btnPost.disabled = true;
       fetch(cfg.postApi, {
@@ -597,14 +589,10 @@
         postFlowBusy = false;
         return;
       }
+      showPostStatus('جاري الترحيل...', 'success');
       if (cfg.gpsEnabled || (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost)) {
-        showPostStatus('جاري الترحيل...', 'success');
         AppGeo.withGpsForPost('mobile', function (gps) {
-          if (gps === undefined) {
-            postFlowBusy = false;
-            return;
-          }
-          submitPost(gps);
+          submitPost(gps && gps !== undefined ? gps : null);
         });
         return;
       }
@@ -695,8 +683,4 @@
   }
 
   loadInvoice();
-
-  if ((cfg.gpsEnabled || window.APP_GPS_ENABLED) && window.AppGeo && AppGeo.prefetchForPost) {
-    AppGeo.prefetchForPost('mobile');
-  }
 })();

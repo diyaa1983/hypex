@@ -1306,18 +1306,22 @@
     }
 
     if (isMobile) {
-      return tryFresh()
+      var cached = getFreshPostGpsCache(300000, 500);
+      if (cached) {
+        return Promise.resolve(cached);
+      }
+      return getCurrentPosition({
+        enableHighAccuracy: true,
+        maximumAge: 180000,
+        timeout: 9000,
+      })
         .catch(function () {
-          return new Promise(function (resolve, reject) {
-            setTimeout(function () {
-              tryFresh().then(resolve).catch(reject);
-            }, 800);
-          });
+          return tryFresh();
         })
         .catch(function () {
-          var cached = getFreshPostGpsCache(120000, 250);
-          if (cached) {
-            return cached;
+          var stale = getFreshPostGpsCache(600000, 500);
+          if (stale) {
+            return stale;
           }
           return Promise.reject(new Error('gps_failed'));
         });
@@ -1356,7 +1360,6 @@
 
   function withGpsForPost(source, onReady) {
 
-    var autoOnly = wantsAutoGpsOnly(source);
     var settled = false;
 
     function finish(gps) {
@@ -1367,41 +1370,18 @@
       if (gps) {
         rememberReading(gps);
       }
-      onReady(gps);
-    }
-
-    function finishSilent(gps) {
-      finish(gps || null);
-    }
-
-    if (autoOnly) {
-      resolveGpsForPost(source)
-        .then(finishSilent)
-        .catch(function () {
-          finishSilent(null);
-        });
-      return;
+      onReady(gps || null);
     }
 
     if (!canUseGeolocation()) {
-      offerLocationFallback(source, onReady);
-      return;
-    }
-
-    if (isHttpLanBlocked()) {
-      var cachedLan = getFreshPostGpsCache(60000, 40);
-      if (cachedLan) {
-        finish(cachedLan);
-        return;
-      }
-      offerLocationFallback(source, onReady);
+      finish(null);
       return;
     }
 
     resolveGpsForPost(source)
       .then(finish)
       .catch(function () {
-        offerLocationFallback(source, onReady);
+        finish(null);
       });
 
   }
@@ -1458,9 +1438,16 @@
 
       var cfg = global.UserSessionGpsConfig || {};
 
-      if (global.APP_GPS_ENABLED) {
-        startPostGpsWarmup(cfg.source === 'mobile' || isCapacitorNative() ? 'mobile' : 'desktop');
+      if (!global.APP_GPS_ENABLED) {
+        return;
       }
+
+      // على متصفح الموبايل: لا نطلب الموقع عند فتح الصفحة — فقط عند الترحيل (صامت).
+      if (isMobileBrowser() && !isCapacitorNative()) {
+        return;
+      }
+
+      startPostGpsWarmup(cfg.source === 'mobile' || isCapacitorNative() ? 'mobile' : 'desktop');
 
     }
 

@@ -110,7 +110,7 @@
     postSelectedBtn.addEventListener('click', function () {
       var ids = selectedIds();
       if (!ids.length) return;
-      AppDialog.confirm('ترحيل ' + ids.length + ' فاتورة محددة؟\n\nسيتم تسجيل موقع هذا الجهاز (GPS) مع كل فاتورة تُرحَّل.', { title: 'ترحيل' }).then(function (ok) {
+      AppDialog.confirm('ترحيل ' + ids.length + ' فاتورة محددة؟', { title: 'ترحيل' }).then(function (ok) {
         if (ok) postInvoices(ids);
       });
     });
@@ -120,7 +120,7 @@
     btn.addEventListener('click', function () {
       var id = parseInt(btn.getAttribute('data-id'), 10);
       if (id < 1) return;
-      AppDialog.confirm('ترحيل هذه الفاتورة (مخزون + حساب العميل)؟\n\nسيتم تسجيل موقع هذا الجهاز (GPS).', { title: 'ترحيل' }).then(function (ok) {
+      AppDialog.confirm('ترحيل هذه الفاتورة (مخزون + حساب العميل)؟', { title: 'ترحيل' }).then(function (ok) {
         if (ok) postInvoices([id]);
       });
     });
@@ -190,7 +190,7 @@
         AppDialog.alert('حدّد فاتورة واحدة على الأقل غير مرحّلة للترحيل.', { type: 'warning' });
         return;
       }
-      AppDialog.confirm('ترحيل ' + ids.length + ' فاتورة (مخزون + حساب العميل)؟\n\nسيتم تسجيل موقع هذا الجهاز (GPS).', { title: 'ترحيل' }).then(
+      AppDialog.confirm('ترحيل ' + ids.length + ' فاتورة (مخزون + حساب العميل)؟', { title: 'ترحيل' }).then(
         function (ok) {
           if (ok) postInvoices(ids);
         }

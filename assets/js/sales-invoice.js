@@ -3662,11 +3662,8 @@
     }
     var csrfInput = form.querySelector('[name="_csrf"]');
     postDialogBusy = true;
-    if (window.AppGeo && AppGeo.prefetchForPost) {
-      AppGeo.prefetchForPost('desktop');
-    }
     AppDialog.confirm(
-      'ترحيل هذه الفاتورة (صرف مخزون + حساب العميل)؟\n\nسيتم تسجيل موقع هذا الجهاز (GPS).\nيُسمح بالصرف حتى لو أصبح الرصيد سالبًا؛ يُصحَّح لاحقًا عند إدخال شراء أو رصيد للمادة.',
+      'ترحيل هذه الفاتورة (صرف مخزون + حساب العميل)؟\n\nيُسمح بالصرف حتى لو أصبح الرصيد سالبًا؛ يُصحَّح لاحقًا عند إدخال شراء أو رصيد للمادة.',
       { title: 'ترحيل' }
     ).then(function (ok) {
       postDialogBusy = false;

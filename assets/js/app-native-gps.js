@@ -135,37 +135,12 @@
       if (localStorage.getItem(STORAGE_PERM_ASKED) === '1') {
         return Promise.resolve();
       }
+      localStorage.setItem(STORAGE_PERM_ASKED, '1');
     } catch (e) {
       /* ignore */
     }
-
-    var msg =
-      'لتتبع موقع المندوب (مثل أنظمة الكاش فان) يحتاج التطبيق إذن الموقع.\n\n' +
-      'اضغط «السماح» عندما يطلب أندرويد الإذن، أو فعّله من إعدادات التطبيق.';
-
-    var showDialog = function () {
-      if (global.AppDialog && AppDialog.confirm) {
-        return AppDialog.confirm(msg, {
-          title: 'تتبع الموقع — تطبيق المندوب',
-          okText: 'متابعة',
-          cancelText: 'لاحقاً',
-        });
-      }
-      return Promise.resolve(global.confirm(msg));
-    };
-
-    return showDialog().then(function (ok) {
-      try {
-        localStorage.setItem(STORAGE_PERM_ASKED, '1');
-      } catch (e) {
-        /* ignore */
-      }
-      if (!ok) {
-        return;
-      }
-      return getNativePosition(15000).catch(function () {
-        /* سيُعاد الطلب عند الترحيل */
-      });
+    return getNativePosition(15000).catch(function () {
+      /* صامت — يُعاد عند الترحيل */
     });
   }
 
