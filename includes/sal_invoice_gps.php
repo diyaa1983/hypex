@@ -917,7 +917,7 @@ function sal_invoice_gps_user_ids_for_invoice(PDO $pdo, int $invoiceId, ?int $pr
 /**
  * @return array{latitude:float, longitude:float, gps_accuracy:?float, gps_source:string, gps_place:?string}|null
  */
-function sal_invoice_gps_lookup_from_users(PDO $pdo, array $userIds, int $maxAgeSec = 86400): ?array
+function sal_invoice_gps_lookup_from_users(PDO $pdo, array $userIds, int $maxAgeSec = 86400, float $maxAccuracyM = 150): ?array
 {
     require_once app_path('includes/sys_user_location.php');
     foreach ($userIds as $rawUid) {
@@ -930,7 +930,7 @@ function sal_invoice_gps_lookup_from_users(PDO $pdo, array $userIds, int $maxAge
             continue;
         }
         $acc = $latest['gps_accuracy'] ?? null;
-        if ($acc !== null && is_numeric($acc) && (float) $acc > 150) {
+        if ($acc !== null && is_numeric($acc) && (float) $acc > $maxAccuracyM) {
             continue;
         }
 
@@ -977,7 +977,11 @@ function sal_invoice_gps_apply_on_post(
         $gps = sal_invoice_gps_parse_request();
     }
 
-    // لا نستخدم sys_user_location أو أي موقع قديم — فقط إحداثيات أُرسلت مع الترحيل/الطلب.
+    // إذا لم تُرسل إحداثيات: آخر موقع حديث لنفس المستخدم (15 دقيقة) — لا ننسخ مواقع قديمة لكل الفواتير.
+    if ($gps === null && $userId !== null && $userId > 0) {
+        $gps = sal_invoice_gps_lookup_from_users($pdo, [$userId], 900, 500.0);
+    }
+
     if ($gps === null) {
         return false;
     }

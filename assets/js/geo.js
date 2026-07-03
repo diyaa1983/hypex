@@ -798,19 +798,41 @@
 
 
 
+  function isValidCoordReading(gps) {
+    return !!(
+      gps &&
+      isFinite(gps.latitude) &&
+      isFinite(gps.longitude) &&
+      !(Math.abs(gps.latitude) < 0.000001 && Math.abs(gps.longitude) < 0.000001)
+    );
+  }
+
+  function pingUserLocationSilently(gps, source) {
+    var cfg = global.UserSessionGpsConfig || {};
+    if (!cfg.pingApi || !gps || !isValidCoordReading(gps)) {
+      return;
+    }
+    var fd = new FormData();
+    fd.append('_csrf', cfg.csrf || '');
+    fd.append('latitude', String(gps.latitude));
+    fd.append('longitude', String(gps.longitude));
+    if (gps.accuracy != null && isFinite(gps.accuracy)) {
+      fd.append('gps_accuracy', String(gps.accuracy));
+    }
+    fd.append('gps_source', source || cfg.source || 'mobile');
+    fetch(cfg.pingApi, {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    }).catch(function () {
+      /* صامت */
+    });
+  }
+
   function isAcceptablePostGps(gps) {
 
-    if (
-
-      !gps ||
-
-      !isFinite(gps.latitude) ||
-
-      !isFinite(gps.longitude) ||
-
-      (Math.abs(gps.latitude) < 0.000001 && Math.abs(gps.longitude) < 0.000001)
-
-    ) {
+    if (!isValidCoordReading(gps)) {
 
       return false;
 
@@ -1253,21 +1275,20 @@
       return getBestPosition(
         Object.assign(
           {
-            sampleMs: 12000,
-            goodEnoughM: 18,
-            timeout: 18000,
+            sampleMs: 14000,
+            goodEnoughM: 50,
+            timeout: 22000,
           },
           postOpts
         )
       )
         .then(function (reading) {
-          if (isCoarseReading(reading, 120)) {
-            return getBestPosition(
+          if (isCoarseReading(reading, 200)) {
+            return getCurrentPosition(
               Object.assign(
                 {
-                  sampleMs: 8000,
-                  goodEnoughM: 12,
-                  timeout: 15000,
+                  timeout: 18000,
+                  maximumAge: 60000,
                 },
                 postOpts
               )
@@ -1279,30 +1300,70 @@
           return getCurrentPosition(
             Object.assign(
               {
-                timeout: 15000,
+                timeout: 20000,
+                maximumAge: 120000,
               },
               postOpts
             )
           );
         });
     }
-    return getCurrentPosition(
+    return getBestPosition(
       Object.assign(
         {
-          timeout: 15000,
+          sampleMs: 10000,
+          goodEnoughM: 80,
+          timeout: 22000,
         },
         postOpts
       )
-    );
+    ).catch(function () {
+      return getCurrentPosition(
+        Object.assign(
+          {
+            timeout: 18000,
+            maximumAge: 60000,
+          },
+          postOpts
+        )
+      );
+    });
   }
 
 
 
   function resolveGpsForPost(source) {
     var isMobile = isMobileLikeClient(source);
+    var isNative = !!getNativeGeoPlugin();
 
     function tryFresh() {
       return requestGpsForPost(source);
+    }
+
+    function cacheFallback(maxAgeMs) {
+      var stale = getPostGpsCache(maxAgeMs);
+      if (stale && isValidCoordReading(stale)) {
+        return stale;
+      }
+      return null;
+    }
+
+    if (isNative) {
+      return getCurrentPosition({
+        enableHighAccuracy: true,
+        maximumAge: 60000,
+        timeout: 22000,
+      })
+        .catch(function () {
+          return tryFresh();
+        })
+        .catch(function () {
+          var c = cacheFallback(600000);
+          if (c) {
+            return c;
+          }
+          return Promise.reject(new Error('gps_failed'));
+        });
     }
 
     if (isMobile) {
@@ -1312,14 +1373,14 @@
       }
       return getCurrentPosition({
         enableHighAccuracy: true,
-        maximumAge: 180000,
-        timeout: 9000,
+        maximumAge: 120000,
+        timeout: 12000,
       })
         .catch(function () {
           return tryFresh();
         })
         .catch(function () {
-          var stale = getFreshPostGpsCache(600000, 500);
+          var stale = cacheFallback(600000);
           if (stale) {
             return stale;
           }
@@ -1327,18 +1388,17 @@
         });
     }
 
-    var cachedDesktop = getPostGpsCache(900000);
+    var cachedDesktop = cacheFallback(900000);
     if (cachedDesktop) {
       return Promise.resolve(cachedDesktop);
     }
 
-    return getBestPosition({
-      sampleMs: 12000,
-      goodEnoughM: 50,
-      timeout: 22000,
-      enableHighAccuracy: true,
-    }).catch(function () {
-      return tryFresh();
+    return tryFresh().catch(function () {
+      var stale = cacheFallback(600000);
+      if (stale) {
+        return stale;
+      }
+      return Promise.reject(new Error('gps_failed'));
     });
   }
 
@@ -1367,10 +1427,11 @@
         return;
       }
       settled = true;
-      if (gps) {
+      if (gps && isValidCoordReading(gps)) {
         rememberReading(gps);
+        pingUserLocationSilently(gps, source);
       }
-      onReady(gps || null);
+      onReady(gps && isValidCoordReading(gps) ? gps : null);
     }
 
     if (!canUseGeolocation()) {
@@ -1378,9 +1439,16 @@
       return;
     }
 
+    startPostGpsWarmup(source);
+
     resolveGpsForPost(source)
       .then(finish)
       .catch(function () {
+        var cached = getPostGpsCache(600000);
+        if (cached && isValidCoordReading(cached)) {
+          finish(cached);
+          return;
+        }
         finish(null);
       });
 
