@@ -62,11 +62,6 @@ window.MInvoiceList = {
 $gridJsV = is_file(app_path('assets/mobile/doc-list-grid.js'))
     ? (string) filemtime(app_path('assets/mobile/doc-list-grid.js'))
     : '';
-$pdfJsV = is_file(app_path('assets/mobile/pdf-export.js'))
-    ? (string) filemtime(app_path('assets/mobile/pdf-export.js'))
-    : '';
 ?>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
-<script src="<?= esc(app_url('assets/mobile/pdf-export.js')) ?><?= $pdfJsV !== '' ? '?v=' . esc($pdfJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/mobile/doc-list-grid.js')) ?><?= $gridJsV !== '' ? '?v=' . esc($gridJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/mobile/invoice-list.js')) ?><?= $listJsV !== '' ? '?v=' . esc($listJsV) : '' ?>" defer></script>

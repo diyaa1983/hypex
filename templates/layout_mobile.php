@@ -186,9 +186,9 @@ $pdfExportV = is_file(app_path('assets/mobile/pdf-export.js'))
     ? (string) filemtime(app_path('assets/mobile/pdf-export.js'))
     : '';
 ?>
-<script src="<?= esc(app_url('assets/mobile/pdf-filename.js')) ?><?= $pdfFnV !== '' ? '?v=' . esc($pdfFnV) : '' ?>"></script>
-<script src="<?= esc(app_url('assets/mobile/pdf-export.js')) ?><?= $pdfExportV !== '' ? '?v=' . esc($pdfExportV) : '' ?>"></script>
-<script src="<?= esc(app_url('assets/mobile/app.js')) ?><?= $jsV !== '' ? '?v=' . esc($jsV) : '' ?>"></script>
+<script src="<?= esc(app_url('assets/mobile/pdf-filename.js')) ?><?= $pdfFnV !== '' ? '?v=' . esc($pdfFnV) : '' ?>" defer></script>
+<script src="<?= esc(app_url('assets/mobile/pdf-export.js')) ?><?= $pdfExportV !== '' ? '?v=' . esc($pdfExportV) : '' ?>" defer></script>
+<script src="<?= esc(app_url('assets/mobile/app.js')) ?><?= $jsV !== '' ? '?v=' . esc($jsV) : '' ?>" defer></script>
 <?php
 $browserHintV = is_file(app_path('assets/mobile/app-browser-hint.js'))
     ? (string) filemtime(app_path('assets/mobile/app-browser-hint.js'))
@@ -206,6 +206,18 @@ $browserHintV = is_file(app_path('assets/mobile/app-browser-hint.js'))
 </script>
 <?php if (app_gps_enabled()): ?>
 <?php
+$mobileGpsRoutes = [
+    'm_sales_invoices',
+    'm_sales_invoice_view',
+    'm_sales_invoice_gps',
+    'm_user_gps_locations',
+    'm_rep_load',
+    'm_rep_return',
+];
+$loadMobileGpsScripts = in_array($activeRouteKey, $mobileGpsRoutes, true);
+?>
+<script>window.APP_GPS_ENABLED = true;</script>
+<?php if ($loadMobileGpsScripts):
 $userGpsJsPath = app_path('assets/js/user-session-gps.js');
 $userGpsJsV = is_file($userGpsJsPath) ? (string) filemtime($userGpsJsPath) : '';
 $geoJsPath = app_path('assets/js/geo.js');
@@ -240,6 +252,7 @@ $nativeGpsJsV = is_file($nativeGpsJsPath) ? (string) filemtime($nativeGpsJsPath)
 ?>
 <script src="<?= esc(app_url('assets/js/app-native-gps.js')) ?><?= $nativeGpsJsV !== '' ? '?v=' . esc($nativeGpsJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/user-session-gps.js')) ?><?= $userGpsJsV !== '' ? '?v=' . esc($userGpsJsV) : '' ?>" defer></script>
+<?php endif; ?>
 <?php else: ?>
 <script>window.APP_GPS_ENABLED = false;</script>
 <?php endif; ?>

@@ -16,6 +16,32 @@
 
   var IFRAME_W = 720;
 
+  var html2pdfLoadPromise = null;
+
+  function ensureHtml2Pdf() {
+    if (typeof global.html2pdf !== 'undefined') {
+      return Promise.resolve();
+    }
+    if (html2pdfLoadPromise) {
+      return html2pdfLoadPromise;
+    }
+    html2pdfLoadPromise = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      s.crossOrigin = 'anonymous';
+      s.async = true;
+      s.onload = function () {
+        resolve();
+      };
+      s.onerror = function () {
+        html2pdfLoadPromise = null;
+        reject(new Error('no_html2pdf'));
+      };
+      document.head.appendChild(s);
+    });
+    return html2pdfLoadPromise;
+  }
+
   function isReceiptDoc(doc) {
     if (!doc) return false;
     var s = String(doc.inner_pdf || doc.inner || doc.html_pdf || doc.html || '');
@@ -360,6 +386,13 @@
 
     opts = opts || {};
 
+    return ensureHtml2Pdf().then(function () {
+      return exportFromDocInner(doc, opts);
+    });
+  }
+
+  function exportFromDocInner(doc, opts) {
+
     if (typeof global.html2pdf === 'undefined') {
 
       return Promise.reject(new Error('no_html2pdf'));
@@ -638,6 +671,13 @@
   function runIframe(opts) {
 
     opts = opts || {};
+
+    return ensureHtml2Pdf().then(function () {
+      return runIframeInner(opts);
+    });
+  }
+
+  function runIframeInner(opts) {
 
     if (typeof global.html2pdf === 'undefined') {
 
@@ -990,6 +1030,7 @@
     waitForImages: waitForImages,
     exportFromDoc: exportFromDoc,
     runIframe: runIframe,
+    ensureHtml2Pdf: ensureHtml2Pdf,
     run: run,
 
     resetPreviewStyles: function (preview) {

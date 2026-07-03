@@ -82,10 +82,6 @@
         delayMs: 550,
       });
     }
-    if (typeof global.html2pdf === 'undefined') {
-      if (global.AppDialog && AppDialog.error) AppDialog.error('مكتبة PDF غير محمّلة.');
-      return Promise.reject(new Error('no_html2pdf'));
-    }
     if (MobilePdfExport.exportFromDoc) {
       return MobilePdfExport.exportFromDoc(doc, {
         filename: filename || 'document.pdf',
@@ -93,7 +89,7 @@
         delayMs: 500,
       });
     }
-    if (global.MobilePdfExport && MobilePdfExport.runIframe) {
+    if (MobilePdfExport.runIframe) {
       return MobilePdfExport.runIframe({
         fullDocument: doc.html_pdf || doc.html || '',
         html: doc.inner_pdf || doc.inner || '',

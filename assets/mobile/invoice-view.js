@@ -601,11 +601,13 @@
         return;
       }
       if (cfg.gpsEnabled || (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost)) {
+        showPostStatus('جاري تحديد موقعك بدقة (GPS)...', 'success');
         AppGeo.withGpsForPost('mobile', function (gps) {
           if (gps === undefined) {
             postFlowBusy = false;
             return;
           }
+          showPostStatus('جاري الترحيل...', 'success');
           submitPost(gps);
         });
         return;
@@ -697,4 +699,8 @@
   }
 
   loadInvoice();
+
+  if ((cfg.gpsEnabled || window.APP_GPS_ENABLED) && window.AppGeo && AppGeo.prefetchForPost) {
+    AppGeo.prefetchForPost('mobile');
+  }
 })();

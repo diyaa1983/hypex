@@ -2,7 +2,6 @@
   'use strict';
 
   var cfg = window.MInvoiceList || {};
-  var MDL = window.MobileDocList;
   var listEl = document.getElementById('m-inv-list');
   var hubEl = document.querySelector('.m-hub--invoice-list');
   var searchInp = document.getElementById('m-inv-list-search');
@@ -12,49 +11,66 @@
   var filterRadios = document.querySelectorAll('input[name="m_inv_filter"]');
   var timer = null;
   var printCache = {};
-
-  if (!MDL) return;
-
+  var bootAttempts = 0;
+  var TB = window.MobileToolbar || {};
+  var bar = null;
   var stripIcon = cfg.stripIconHtml || '';
+
+  function getMdl() {
+    return window.MobileDocList || null;
+  }
+
+  function failBoot(msg) {
+    if (loadingEl) {
+      loadingEl.hidden = false;
+      loadingEl.textContent = msg;
+    }
+  }
 
   function editLink(id) {
     var base = cfg.editUrl || cfg.newUrl || '';
     return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(String(id));
   }
 
-  var TB = window.MobileToolbar || {};
-  var bar = MDL.createActionBar({
-    hubEl: hubEl,
-    barEl: TB.root ? TB.root() : null,
-    titleEl: TB.titleEl ? TB.titleEl() : null,
-    itemSelector: '.m-inv-strip',
-    selectedClass: 'm-inv-strip--selected',
-    editBtn: TB.btn ? TB.btn('edit') : null,
-    printBtn: TB.btn ? TB.btn('print') : null,
-    pdfBtn: TB.btn ? TB.btn('pdf') : null,
-    deleteBtn: TB.btn ? TB.btn('delete') : null,
-    onEdit: function (item) {
-      window.location.href = editLink(item.id);
-    },
-    onPrint: function (item) {
-      runPrint(item);
-    },
-    onPdf: function (item) {
-      runPdf(item);
-    },
-    onDelete: function (item) {
-      runDelete(item);
-    },
-  });
+  function viewLink(id) {
+    var base = cfg.viewUrl || '';
+    return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(String(id));
+  }
 
   function getFilter() {
     var r = document.querySelector('input[name="m_inv_filter"]:checked');
     return r ? r.value : 'all';
   }
 
-  function viewLink(id) {
-    var base = cfg.viewUrl || '';
-    return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(String(id));
+  function ensureBar() {
+    var MDL = getMdl();
+    if (!MDL || bar) {
+      return MDL;
+    }
+    bar = MDL.createActionBar({
+      hubEl: hubEl,
+      barEl: TB.root ? TB.root() : null,
+      titleEl: TB.titleEl ? TB.titleEl() : null,
+      itemSelector: '.m-inv-strip',
+      selectedClass: 'm-inv-strip--selected',
+      editBtn: TB.btn ? TB.btn('edit') : null,
+      printBtn: TB.btn ? TB.btn('print') : null,
+      pdfBtn: TB.btn ? TB.btn('pdf') : null,
+      deleteBtn: TB.btn ? TB.btn('delete') : null,
+      onEdit: function (item) {
+        window.location.href = editLink(item.id);
+      },
+      onPrint: function (item) {
+        runPrint(item);
+      },
+      onPdf: function (item) {
+        runPdf(item);
+      },
+      onDelete: function (item) {
+        runDelete(item);
+      },
+    });
+    return MDL;
   }
 
   function fetchPrintDoc(id) {
@@ -76,6 +92,8 @@
   }
 
   function runPrint(item) {
+    var MDL = getMdl();
+    if (!MDL) return;
     var btn = TB.btn ? TB.btn('print') : null;
     if (btn) btn.disabled = true;
     fetchPrintDoc(item.id)
@@ -90,6 +108,8 @@
   }
 
   function runPdf(item) {
+    var MDL = getMdl();
+    if (!MDL) return;
     var btn = TB.btn ? TB.btn('pdf') : null;
     if (btn) btn.disabled = true;
     fetchPrintDoc(item.id)
@@ -108,7 +128,7 @@
   }
 
   function runDelete(item) {
-    if (!cfg.canDelete || !cfg.deleteApi) return;
+    if (!cfg.canDelete || !cfg.deleteApi || !bar) return;
     bar.mobileConfirm('حذف الفاتورة؟ لا يمكن التراجع.').then(function (ok) {
       if (!ok) return;
       var btn = TB.btn ? TB.btn('delete') : null;
@@ -161,7 +181,8 @@
   }
 
   function render(rows) {
-    if (!listEl) return;
+    var MDL = ensureBar();
+    if (!MDL || !listEl || !bar) return;
     listEl.innerHTML = '';
     printCache = {};
     bar.select(null);
@@ -223,6 +244,9 @@
   }
 
   function loadErrorMessage(err, fallback) {
+    if (err && err.name === 'AbortError') {
+      return 'انتهت مهلة التحميل — تحقق من الاتصال بالسيرفر.';
+    }
     if (err && err.message && String(err.message).trim() !== '') {
       return String(err.message);
     }
@@ -234,18 +258,28 @@
 
   function load() {
     if (!cfg.listApi) {
-      if (loadingEl) loadingEl.hidden = true;
-      if (window.AppDialog && AppDialog.error) {
-        AppDialog.error('عنوان قائمة الفواتير غير مضبوط.');
-      }
+      failBoot('عنوان قائمة الفواتير غير مضبوط.');
       return;
     }
     var q = searchInp ? searchInp.value.trim() : '';
     var filter = getFilter();
-    if (loadingEl) loadingEl.hidden = false;
+    if (loadingEl) {
+      loadingEl.hidden = false;
+      loadingEl.textContent = 'جاري التحميل...';
+    }
     var url = cfg.listApi + '?filter=' + encodeURIComponent(filter);
     if (q) url += '&q=' + encodeURIComponent(q);
-    fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timeoutId = ctrl
+      ? setTimeout(function () {
+          ctrl.abort();
+        }, 25000)
+      : null;
+    fetch(url, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+      signal: ctrl ? ctrl.signal : undefined,
+    })
       .then(function (r) {
         return parseJsonResponse(r).then(function (data) {
           if (!r.ok || !data || !data.ok) {
@@ -266,23 +300,43 @@
         if (window.AppDialog && AppDialog.error) {
           AppDialog.error(loadErrorMessage(err, 'تعذر الاتصال بالخادم.'));
         }
+      })
+      .finally(function () {
+        if (timeoutId) clearTimeout(timeoutId);
       });
   }
 
-  if (searchInp) {
-    searchInp.addEventListener('input', function () {
-      clearTimeout(timer);
-      timer = setTimeout(load, 280);
+  function bindUi() {
+    if (searchInp) {
+      searchInp.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(load, 280);
+      });
+    }
+    filterRadios.forEach(function (radio) {
+      radio.addEventListener('change', load);
     });
-  }
-  filterRadios.forEach(function (radio) {
-    radio.addEventListener('change', load);
-  });
-  if (btnNew && cfg.newUrl) {
-    btnNew.addEventListener('click', function () {
-      window.location.href = cfg.newUrl;
-    });
+    if (btnNew && cfg.newUrl) {
+      btnNew.addEventListener('click', function () {
+        window.location.href = cfg.newUrl;
+      });
+    }
+    load();
   }
 
-  load();
+  function boot() {
+    bootAttempts += 1;
+    if (!getMdl()) {
+      if (bootAttempts < 80) {
+        setTimeout(boot, 50);
+        return;
+      }
+      failBoot('تعذر تحميل القائمة — أعد تحميل الصفحة.');
+      return;
+    }
+    ensureBar();
+    bindUi();
+  }
+
+  boot();
 })();

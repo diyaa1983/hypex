@@ -849,6 +849,11 @@ function sal_invoice_gps_parse_request(?array $source = null): ?array
         }
     }
 
+    // تجاهل قراءات GPS تقريبية جداً (شبكة/WiFi) — أفضل عدم حفظ موقع خاطئ
+    if ($accuracy !== null && $accuracy > 350) {
+        return null;
+    }
+
     $place = trim((string) ($source['gps_place'] ?? ''));
     if ($place !== '') {
         $place = sal_invoice_gps_trim_place($place);
@@ -920,6 +925,10 @@ function sal_invoice_gps_lookup_from_users(PDO $pdo, array $userIds, int $maxAge
         }
         $latest = sys_user_location_latest_for_user($pdo, $uid, $maxAgeSec);
         if ($latest === null) {
+            continue;
+        }
+        $acc = $latest['gps_accuracy'] ?? null;
+        if ($acc !== null && is_numeric($acc) && (float) $acc > 350) {
             continue;
         }
 
@@ -1012,7 +1021,7 @@ function sal_invoice_gps_apply_on_post(
 
     if ($gps === null) {
         $userIds = sal_invoice_gps_user_ids_for_invoice($pdo, $invoiceId, $userId);
-        foreach ([900, 3600, 86400, 604800] as $maxAge) {
+        foreach ([120, 300] as $maxAge) {
             $gps = sal_invoice_gps_lookup_from_users($pdo, $userIds, $maxAge);
             if ($gps !== null) {
                 break;
@@ -1021,6 +1030,11 @@ function sal_invoice_gps_apply_on_post(
     }
 
     if ($gps === null) {
+        return false;
+    }
+
+    $acc = $gps['gps_accuracy'] ?? null;
+    if ($acc !== null && is_numeric($acc) && (float) $acc > 350) {
         return false;
     }
 
@@ -1041,16 +1055,7 @@ function sal_invoice_gps_apply_on_post(
         sal_invoice_gps_set_place($pdo, $invoiceId, $manualPlace);
     }
 
-    try {
-        sal_invoice_gps_fill_location_for_invoice(
-            $pdo,
-            $invoiceId,
-            (float) $gps['latitude'],
-            (float) $gps['longitude']
-        );
-    } catch (Throwable $e) {
-        error_log('sal_invoice_gps_apply_on_post geocode: ' . $e->getMessage());
-    }
+    // اسم الشارع يُحدَّد لاحقاً عند فتح الخريطة (lazy geocode) — لا نبطئ الترحيل.
 
     return true;
 }

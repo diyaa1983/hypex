@@ -242,6 +242,10 @@
   function readingFromPosition(pos) {
 
     var coords = pos && pos.coords ? pos.coords : pos;
+    var capturedAt =
+      pos && typeof pos.timestamp === 'number' && isFinite(pos.timestamp)
+        ? pos.timestamp
+        : Date.now();
 
     return {
 
@@ -257,7 +261,80 @@
 
           : null,
 
+      capturedAt: capturedAt,
+
     };
+
+  }
+
+
+
+  function readingAgeMs(reading) {
+
+    if (!reading || reading.capturedAt == null || !isFinite(reading.capturedAt)) {
+
+      return null;
+
+    }
+
+    return Math.max(0, Date.now() - reading.capturedAt);
+
+  }
+
+
+
+  function isCoarseReading(gps, maxAccuracyM) {
+
+    return !!(
+
+      gps &&
+
+      gps.accuracy != null &&
+
+      isFinite(gps.accuracy) &&
+
+      gps.accuracy > maxAccuracyM
+
+    );
+
+  }
+
+
+
+  /** قراءة حديثة ودقيقة بما يكفي لترحيل الفاتورة */
+  function isFreshPostReading(gps, maxAgeMs, maxAccuracyM) {
+
+    if (
+
+      !gps ||
+
+      !isFinite(gps.latitude) ||
+
+      !isFinite(gps.longitude) ||
+
+      (Math.abs(gps.latitude) < 0.000001 && Math.abs(gps.longitude) < 0.000001)
+
+    ) {
+
+      return false;
+
+    }
+
+    var age = readingAgeMs(gps);
+
+    if (age != null && age > maxAgeMs) {
+
+      return false;
+
+    }
+
+    if (isCoarseReading(gps, maxAccuracyM)) {
+
+      return false;
+
+    }
+
+    return true;
 
   }
 
@@ -271,6 +348,22 @@
 
     }
 
+    if (candidate.accuracy == null && current.accuracy == null) {
+
+      var cAge = readingAgeMs(candidate);
+
+      var curAge = readingAgeMs(current);
+
+      if (cAge != null && curAge != null) {
+
+        return cAge < curAge;
+
+      }
+
+      return false;
+
+    }
+
     if (candidate.accuracy == null) {
 
       return false;
@@ -280,6 +373,34 @@
     if (current.accuracy == null) {
 
       return true;
+
+    }
+
+    if (candidate.accuracy < current.accuracy - 10) {
+
+      return true;
+
+    }
+
+    if (current.accuracy < candidate.accuracy - 10) {
+
+      return false;
+
+    }
+
+    var candAge = readingAgeMs(candidate);
+
+    var currAge = readingAgeMs(current);
+
+    if (candAge != null && currAge != null && candAge + 4000 < currAge) {
+
+      return true;
+
+    }
+
+    if (currAge != null && candAge != null && currAge + 4000 < candAge) {
+
+      return false;
 
     }
 
@@ -368,21 +489,50 @@
     options = options || {};
     var geoOpts = defaultGeoOptions(options);
     geoOpts.enableHighAccuracy = true;
+    geoOpts.maximumAge = 0;
     return ensureNativeGeoPermission(plugin).then(function () {
-      return getCurrentPositionNative(geoOpts).then(function (first) {
+      var readings = [];
+      function sampleOnce() {
+        return getCurrentPositionNative(geoOpts);
+      }
+      return sampleOnce().then(function (first) {
+        readings.push(first);
         return new Promise(function (resolve) {
           setTimeout(function () {
-            getCurrentPositionNative(geoOpts)
+            sampleOnce()
               .then(function (second) {
-                resolve(isBetterReading(second, first) ? second : first);
+                readings.push(second);
+                setTimeout(function () {
+                  sampleOnce()
+                    .then(function (third) {
+                      readings.push(third);
+                      resolve(pickBestReading(readings));
+                    })
+                    .catch(function () {
+                      resolve(pickBestReading(readings));
+                    });
+                }, 2800);
               })
               .catch(function () {
-                resolve(first);
+                resolve(pickBestReading(readings));
               });
-          }, 2500);
+          }, 2800);
         });
       });
     });
+  }
+
+  function pickBestReading(readings) {
+    var best = null;
+    readings.forEach(function (reading) {
+      if (isBetterReading(reading, best)) {
+        best = reading;
+      }
+    });
+    if (!best) {
+      throw new Error('gps_failed');
+    }
+    return best;
   }
 
 
@@ -710,7 +860,17 @@
       latitude: postGpsCache.latitude,
       longitude: postGpsCache.longitude,
       accuracy: postGpsCache.accuracy,
+      capturedAt: postGpsCache.at,
     };
+  }
+
+  /** موقع حديث للترحيل — لا نستخدم قراءات قديمة أو تقريبية */
+  function getFreshPostGpsCache(maxAgeMs, maxAccuracyM) {
+    var cached = getPostGpsCache(maxAgeMs);
+    if (!cached || !isFreshPostReading(cached, maxAgeMs, maxAccuracyM)) {
+      return null;
+    }
+    return cached;
   }
 
 
@@ -724,7 +884,7 @@
     function tickNative() {
       getCurrentPosition({
         enableHighAccuracy: true,
-        maximumAge: 120000,
+        maximumAge: 0,
         timeout: 22000,
       })
         .then(function (gps) {
@@ -758,7 +918,7 @@
 
     var opts = defaultGeoOptions({
       enableHighAccuracy: true,
-      maximumAge: 8000,
+      maximumAge: 0,
       timeout: 28000,
     });
 
@@ -1007,31 +1167,55 @@
       return Promise.reject(new Error('no_geolocation'));
     }
     var isMobile = isMobileLikeClient(source);
-    if (isMobile) {
-      if (getNativeGeoPlugin()) {
-        return getCurrentPosition({
-          enableHighAccuracy: true,
-          maximumAge: 120000,
-          timeout: 22000,
-        }).catch(function () {
-          return getBestPosition({
-            sampleMs: 14000,
-            goodEnoughM: 35,
-            timeout: 30000,
-          });
-        });
-      }
-      return getBestPosition({
-        sampleMs: 14000,
-        goodEnoughM: 35,
-        timeout: 30000,
-      });
-    }
-    return getCurrentPosition({
+    var postOpts = {
       enableHighAccuracy: true,
       maximumAge: 0,
-      timeout: 15000,
-    });
+    };
+    if (isMobile) {
+      return getBestPosition(
+        Object.assign(
+          {
+            sampleMs: 12000,
+            goodEnoughM: 18,
+            timeout: 18000,
+          },
+          postOpts
+        )
+      )
+        .then(function (reading) {
+          if (isCoarseReading(reading, 120)) {
+            return getBestPosition(
+              Object.assign(
+                {
+                  sampleMs: 8000,
+                  goodEnoughM: 12,
+                  timeout: 15000,
+                },
+                postOpts
+              )
+            );
+          }
+          return reading;
+        })
+        .catch(function () {
+          return getCurrentPosition(
+            Object.assign(
+              {
+                timeout: 15000,
+              },
+              postOpts
+            )
+          );
+        });
+    }
+    return getCurrentPosition(
+      Object.assign(
+        {
+          timeout: 15000,
+        },
+        postOpts
+      )
+    );
   }
 
 
@@ -1049,11 +1233,14 @@
           return new Promise(function (resolve, reject) {
             setTimeout(function () {
               tryFresh().then(resolve).catch(reject);
-            }, 1800);
+            }, 1200);
           });
         })
         .catch(function () {
-          var cached = getPostGpsCache(getNativeGeoPlugin() ? 900000 : 600000);
+          var cached = getFreshPostGpsCache(
+            getNativeGeoPlugin() ? 90000 : 60000,
+            getNativeGeoPlugin() ? 35 : 25
+          );
           if (cached) {
             return cached;
           }
@@ -1108,17 +1295,22 @@
       onReady(gps);
     }
 
+    if (autoOnly) {
+      resolveGpsForPost(source)
+        .then(finish)
+        .catch(function () {
+          finish(null);
+        });
+      return;
+    }
+
     if (!canUseGeolocation()) {
-      if (autoOnly) {
-        finish(getPostGpsCache(900000));
-        return;
-      }
       offerLocationFallback(source, onReady);
       return;
     }
 
-    if (!autoOnly && isHttpLanBlocked()) {
-      var cachedLan = getPostGpsCache(900000);
+    if (isHttpLanBlocked()) {
+      var cachedLan = getFreshPostGpsCache(60000, 40);
       if (cachedLan) {
         finish(cachedLan);
         return;
@@ -1130,10 +1322,6 @@
     resolveGpsForPost(source)
       .then(finish)
       .catch(function () {
-        if (autoOnly) {
-          finish(null);
-          return;
-        }
         offerLocationFallback(source, onReady);
       });
 

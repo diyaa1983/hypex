@@ -208,7 +208,5 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
     };
 
 </script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
 <script src="<?= esc(app_url('assets/mobile/invoice-view.js')) ?><?= $viewJsV !== '' ? '?v=' . esc($viewJsV) : '' ?>" defer></script>
 
