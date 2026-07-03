@@ -337,19 +337,53 @@
     });
   }
 
+  function activatePrimaryButton() {
+    if (!root || dialogClosing || !actionsEl) {
+      return;
+    }
+    var primary = actionsEl.querySelector('.ui-dialog-btn-primary, .ui-dialog-btn-danger');
+    if (primary && !primary.disabled) {
+      primary.click();
+    }
+  }
+
   function onKeydown(e) {
-    if (!root || !root.classList.contains('is-open')) return;
-    if (e.key !== 'Escape') return;
+    if (!root || !root.classList.contains('is-open') || dialogClosing) {
+      return;
+    }
+
+    var isEnter = e.key === 'Enter' || e.key === 'NumpadEnter';
+    var isEscape = e.key === 'Escape';
+    if (!isEnter && !isEscape) {
+      return;
+    }
+
+    var mode = root.dataset.mode || 'alert';
+    var active = document.activeElement;
+
+    if (isEnter) {
+      if (active && active.tagName === 'TEXTAREA') {
+        return;
+      }
+      if (active && active.tagName === 'INPUT' && mode === 'prompt') {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      activatePrimaryButton();
+      return;
+    }
+
     e.preventDefault();
-    if (root.dataset.mode === 'save-discard') {
+    if (mode === 'save-discard') {
       close('cancel');
       return;
     }
-    if (root.dataset.mode === 'prompt') {
+    if (mode === 'prompt') {
       close(null);
       return;
     }
-    close(root.dataset.mode === 'confirm' ? false : true);
+    close(mode === 'confirm' ? false : true);
   }
 
   function close(result) {

@@ -573,7 +573,15 @@
                   fallback: 'تم ترحيل الفاتورة.',
                 })
               : (data && data.message) || 'تم ترحيل الفاتورة.';
-          showPostStatus(okMsg, 'success');
+          if (data && data.gps_saved === 0 && (cfg.gpsEnabled || window.APP_GPS_ENABLED)) {
+            var gpsWarn =
+              (data.warnings && data.warnings[0]) ||
+              (data.warning) ||
+              'تم الترحيل بدون حفظ موقع GPS — استخدم الخريطة عند الترحيل القادم.';
+            showPostStatus(gpsWarn, 'error');
+          } else {
+            showPostStatus(okMsg, 'success');
+          }
           postFlowBusy = false;
           loadInvoice();
         })
@@ -587,7 +595,7 @@
     mobileConfirm(
       'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\n' +
         (cfg.gpsEnabled || window.APP_GPS_ENABLED
-          ? 'سيتم أيضاً تسجيل موقعك الحالي (GPS) مع الفاتورة.\n'
+          ? 'سيُطلب موقعك الحالي (GPS) أو تحديده على الخريطة — لا يُستخدم موقع قديم.\n'
           : '') +
         'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.',
       {

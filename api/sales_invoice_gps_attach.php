@@ -55,7 +55,9 @@ if (!sal_invoice_is_posted($pdo, $invoiceId)) {
     exit;
 }
 
-if (sal_invoice_gps_has_coords($pdo, $invoiceId)) {
+$force = !empty($_POST['force']) && (string) $_POST['force'] !== '0';
+
+if (sal_invoice_gps_has_coords($pdo, $invoiceId) && !$force) {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'الفاتورة لديها موقع GPS مسجّل مسبقاً.'], JSON_UNESCAPED_UNICODE);
     exit;
@@ -69,7 +71,7 @@ if ($gps === null) {
 }
 
 $userId = (int) (current_user()['id'] ?? 0);
-if (!sal_invoice_gps_apply_on_post($pdo, $invoiceId, $gps, $userId > 0 ? $userId : null)) {
+if (!sal_invoice_gps_apply_on_post($pdo, $invoiceId, $gps, $userId > 0 ? $userId : null, $force)) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'تعذر حفظ الموقع.'], JSON_UNESCAPED_UNICODE);
     exit;

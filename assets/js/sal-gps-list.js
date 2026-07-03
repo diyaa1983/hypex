@@ -6,15 +6,7 @@
 
   var listCfg = window.SalGpsListConfig || {};
 
-  page.addEventListener('click', function (e) {
-    var btn = e.target && e.target.closest ? e.target.closest('.sal-gps-attach-btn') : null;
-    if (!btn || btn.disabled) return;
-    e.preventDefault();
-
-    var invoiceId = parseInt(btn.getAttribute('data-invoice-id') || '0', 10);
-    var invoiceNo = btn.getAttribute('data-invoice-no') || String(invoiceId);
-    if (invoiceId < 1 || !listCfg.attachApi) return;
-
+  function attachGps(btn, invoiceId, invoiceNo, forceReplace) {
     if (!window.APP_GPS_ENABLED || !window.AppGeo || !AppGeo.withGpsForPost) {
       if (window.AppDialog && AppDialog.alert) {
         AppDialog.alert('GPS غير متاح في هذا المتصفح. فعّل الموقع في Windows والمتصفح.', { type: 'warning' });
@@ -22,9 +14,11 @@
       return;
     }
 
-    var msg = 'تسجيل موقع هذا الجهاز على الفاتورة «' + invoiceNo + '»؟';
+    var msg = forceReplace
+      ? 'تصحيح موقع الفاتورة «' + invoiceNo + '» بموقع هذا الجهاز الآن؟'
+      : 'تسجيل موقع هذا الجهاز على الفاتورة «' + invoiceNo + '»؟';
     var proceed = window.AppDialog && AppDialog.confirm
-      ? AppDialog.confirm(msg, { title: 'تسجيل GPS', okText: 'نعم' })
+      ? AppDialog.confirm(msg, { title: forceReplace ? 'تصحيح GPS' : 'تسجيل GPS', okText: 'نعم' })
       : Promise.resolve(window.confirm(msg));
 
     proceed.then(function (ok) {
@@ -43,6 +37,9 @@
         var fd = new FormData();
         fd.append('_csrf', listCfg.csrf || '');
         fd.append('invoice_id', String(invoiceId));
+        if (forceReplace) {
+          fd.append('force', '1');
+        }
         AppGeo.appendToFormData(fd, gps, 'desktop');
         fetch(listCfg.attachApi, { method: 'POST', body: fd, credentials: 'same-origin' })
           .then(function (r) {
@@ -72,6 +69,18 @@
           });
       });
     });
+  }
+
+  page.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest('.sal-gps-attach-btn') : null;
+    if (!btn || btn.disabled) return;
+    e.preventDefault();
+
+    var invoiceId = parseInt(btn.getAttribute('data-invoice-id') || '0', 10);
+    var invoiceNo = btn.getAttribute('data-invoice-no') || String(invoiceId);
+    if (invoiceId < 1 || !listCfg.attachApi) return;
+
+    attachGps(btn, invoiceId, invoiceNo, btn.getAttribute('data-force') === '1');
   });
 
   document.addEventListener('master-toolbar', function (e) {

@@ -945,56 +945,11 @@ function sal_invoice_gps_lookup_from_users(PDO $pdo, array $userIds, int $maxAge
 }
 
 /**
- * محاولة ملء GPS للفواتير المرحّلة مؤخراً بدون إحداثيات (من sys_user_location).
+ * @deprecated لا تُستخدم — كانت تنسخ موقع المستخدم الواحد (sys_user_location) لكل الفواتير.
  */
 function sal_invoice_gps_backfill_recent(PDO $pdo, int $days = 14, int $limit = 200): int
 {
-    if (!app_gps_enabled() || $days < 1) {
-        return 0;
-    }
-
-    require_once app_path('includes/sal_invoice_post.php');
-    sal_invoice_gps_ensure_schema($pdo);
-
-    $postedExpr = sal_invoice_sql_is_posted_expr('i');
-    $hasPostedBy = sal_invoice_gps_has_posted_by_column($pdo);
-    $postedBySelect = $hasPostedBy ? 'i.posted_by' : 'NULL AS posted_by';
-    $since = date('Y-m-d', strtotime('-' . $days . ' days'));
-
-    $sql = "SELECT i.id, i.created_by, {$postedBySelect}
-            FROM sal_invoice i
-            WHERE i.status = 'confirmed'
-              AND ({$postedExpr})
-              AND (i.post_latitude IS NULL OR i.post_longitude IS NULL)
-              AND i.invoice_date >= ?
-            ORDER BY i.id DESC
-            LIMIT " . max(1, min(500, $limit));
-
-    $st = $pdo->prepare($sql);
-    $st->execute([$since]);
-    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    $filled = 0;
-    foreach ($rows as $row) {
-        $invoiceId = (int) ($row['id'] ?? 0);
-        if ($invoiceId < 1) {
-            continue;
-        }
-        $userIds = sal_invoice_gps_user_ids_for_invoice(
-            $pdo,
-            $invoiceId,
-            (int) ($row['posted_by'] ?? 0) ?: (int) ($row['created_by'] ?? 0)
-        );
-        $gps = sal_invoice_gps_lookup_from_users($pdo, $userIds, 86400 * max(1, $days));
-        if ($gps === null) {
-            continue;
-        }
-        if (sal_invoice_gps_apply_on_post($pdo, $invoiceId, $gps, $userIds[0] ?? null)) {
-            $filled++;
-        }
-    }
-
-    return $filled;
+    return 0;
 }
 
 /**
@@ -1006,12 +961,13 @@ function sal_invoice_gps_apply_on_post(
     PDO $pdo,
     int $invoiceId,
     ?array $gps = null,
-    ?int $userId = null
+    ?int $userId = null,
+    bool $allowReplace = false
 ): bool {
     if (!app_gps_enabled() || $invoiceId < 1) {
         return false;
     }
-    if (sal_invoice_gps_has_coords($pdo, $invoiceId)) {
+    if (sal_invoice_gps_has_coords($pdo, $invoiceId) && !$allowReplace) {
         return false;
     }
 
@@ -1019,16 +975,7 @@ function sal_invoice_gps_apply_on_post(
         $gps = sal_invoice_gps_parse_request();
     }
 
-    if ($gps === null) {
-        $userIds = sal_invoice_gps_user_ids_for_invoice($pdo, $invoiceId, $userId);
-        foreach ([120, 300] as $maxAge) {
-            $gps = sal_invoice_gps_lookup_from_users($pdo, $userIds, $maxAge);
-            if ($gps !== null) {
-                break;
-            }
-        }
-    }
-
+    // لا نستخدم sys_user_location أو أي موقع قديم — فقط إحداثيات أُرسلت مع الترحيل/الطلب.
     if ($gps === null) {
         return false;
     }

@@ -1235,16 +1235,6 @@
               tryFresh().then(resolve).catch(reject);
             }, 1200);
           });
-        })
-        .catch(function () {
-          var cached = getFreshPostGpsCache(
-            getNativeGeoPlugin() ? 90000 : 60000,
-            getNativeGeoPlugin() ? 35 : 25
-          );
-          if (cached) {
-            return cached;
-          }
-          return Promise.reject(new Error('gps_failed'));
         });
     }
 
@@ -1295,11 +1285,25 @@
       onReady(gps);
     }
 
+    function finishWithFallback() {
+      offerLocationFallback(source, function (gps) {
+        if (gps === undefined) {
+          finish(null);
+          return;
+        }
+        finish(gps);
+      });
+    }
+
     if (autoOnly) {
+      if (isHttpLanBlocked()) {
+        finishWithFallback();
+        return;
+      }
       resolveGpsForPost(source)
         .then(finish)
         .catch(function () {
-          finish(null);
+          finishWithFallback();
         });
       return;
     }

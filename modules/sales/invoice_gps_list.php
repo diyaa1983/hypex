@@ -57,9 +57,6 @@ if (!$submitted) {
     $dates = sal_gps_list_parse_dates(null, null);
     $dateErr = (string) ($dates['error'] ?? '');
     if ($dateErr === '') {
-        if (app_gps_enabled()) {
-            sal_invoice_gps_backfill_recent($pdo, 14, 200);
-        }
         $rows = sal_invoice_gps_list_rows($pdo, $search, 500, $dates['from'], $dates['to']);
         $showResults = true;
     }
@@ -82,9 +79,6 @@ if ($submitted) {
     $listUrl = sal_gps_list_build_query_url('sales_invoice_gps', $dates['from_dmy'], $dates['to_dmy'], $search);
 
     if ($dateErr === '') {
-        if (app_gps_enabled()) {
-            sal_invoice_gps_backfill_recent($pdo, 14, 200);
-        }
         $rows = sal_invoice_gps_list_rows($pdo, $search, 500, $dates['from'], $dates['to']);
         $showResults = true;
     }
@@ -243,6 +237,11 @@ $gpsListJsUrl = app_url('assets/js/sal-gps-list.js')
 
                                     <?php if (!empty($row['has_gps'])): ?>
                                     <?= sal_invoice_gps_map_button_html($row) ?>
+                                    <button type="button" class="btn btn-sm sal-gps-attach-btn sal-gps-replace-btn no-print"
+                                            data-invoice-id="<?= (int) ($row['id'] ?? 0) ?>"
+                                            data-invoice-no="<?= esc((string) ($row['invoice_no'] ?? '')) ?>"
+                                            data-force="1"
+                                            title="تصحيح موقع الفاتورة">تصحيح</button>
                                     <?php else: ?>
                                     <button type="button" class="btn btn-sm sal-gps-attach-btn no-print"
                                             data-invoice-id="<?= (int) ($row['id'] ?? 0) ?>"
