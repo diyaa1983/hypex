@@ -19,6 +19,9 @@ if (
         && !user_can('item_sale_price_adjust')
         && !user_can('items')
         && !user_can('report_warehouse_items')
+        && !user_can('m_sales_returns')
+        && !user_can('m_rep_load')
+        && !user_can('m_rep_return')
         && !user_can('warehouse_moves')
         && !user_can('report_sales_qty_extra')
         && !user_can('report_sales_by_item')
@@ -40,6 +43,32 @@ $listAll = isset($_GET['list']) && (string) $_GET['list'] === '1';
 $pickerMode = isset($_GET['picker']) && (string) $_GET['picker'] === '1';
 
 $pdo = db();
+
+require_once dirname(__DIR__) . '/includes/warehouse_access.php';
+
+$whAccessMode = 'view';
+if (
+    user_can_sales_invoices()
+    || user_can('m_sales_invoices')
+    || user_can('sales_delivery')
+    || user_can('m_sales_returns')
+    || user_can('warehouse_moves')
+    || user_can('m_rep_load')
+    || user_can('m_rep_return')
+) {
+    $whAccessMode = 'issue';
+}
+
+if ($warehouseId > 0 && !wh_access_can($pdo, $warehouseId, $whAccessMode)) {
+    http_response_code(403);
+    echo json_encode([
+        'ok' => false,
+        'error' => $whAccessMode === 'issue'
+            ? wh_access_deny_issue_message()
+            : wh_access_deny_view_message(),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 if ($exactCode !== '') {
     $rows = inv_items_find_by_code($pdo, $exactCode, $warehouseId);

@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_permission('users');
 
 $pdo = db();
+require_once app_path('includes/crm_sales_rep_schema.php');
+crm_sales_rep_ensure_mobile_custody_schema($pdo);
 $listUrl = app_url('index.php?r=users');
 $currentUserId = (int) (current_user()['id'] ?? 0);
 
@@ -42,6 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         $validGroupIds = array_keys($validGroupIds);
+
+        $salesRepId = (int) ($_POST['sales_rep_id'] ?? 0);
+        if ($salesRepId < 1) {
+            $salesRepId = null;
+        } elseif (crm_sales_rep_resolve_id($pdo, $salesRepId) === null) {
+            throw new RuntimeException('المندوب المحدد غير موجود أو غير نشط.');
+        }
 
         if ($username === '' || strlen($username) < 2) {
             throw new RuntimeException('اسم المستخدم مطلوب (حرفان على الأقل).');
@@ -90,19 +99,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new RuntimeException('البريد الإلكتروني مستخدم لحساب آخر.');
         }
 
+        if ($salesRepId !== null) {
+            $dupRep = $pdo->prepare('SELECT id, username FROM sys_user WHERE sales_rep_id = ? AND id <> ? LIMIT 1');
+            $dupRep->execute([$salesRepId, $id]);
+            $other = $dupRep->fetch(PDO::FETCH_ASSOC);
+            if ($other) {
+                throw new RuntimeException(
+                    'هذا المندوب مرتبط بالفعل بالمستخدم «' . (string) ($other['username'] ?? '') . '».'
+                );
+            }
+        }
+
         $pdo->beginTransaction();
         try {
             if ($isNew) {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
                 $ins = $pdo->prepare(
-                    'INSERT INTO sys_user (username, password_hash, full_name_ar, email, is_active)
-                     VALUES (?,?,?,?,?)'
+                    'INSERT INTO sys_user (username, password_hash, full_name_ar, email, sales_rep_id, is_active)
+                     VALUES (?,?,?,?,?,?)'
                 );
                 $ins->execute([
                     $username,
                     $hash,
                     $fullName,
                     $email !== '' ? $email : null,
+                    $salesRepId,
                     $isActive,
                 ]);
                 $id = (int) $pdo->lastInsertId();
@@ -114,12 +135,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $upd = $pdo->prepare(
-                    'UPDATE sys_user SET username = ?, full_name_ar = ?, email = ?, is_active = ? WHERE id = ?'
+                    'UPDATE sys_user SET username = ?, full_name_ar = ?, email = ?, sales_rep_id = ?, is_active = ? WHERE id = ?'
                 );
                 $upd->execute([
                     $username,
                     $fullName,
                     $email !== '' ? $email : null,
+                    $salesRepId,
                     $isActive,
                     $id,
                 ]);
@@ -163,6 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $groups = $pdo->query('SELECT id, code, name_ar, description FROM sys_group ORDER BY name_ar, id')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$salesReps = crm_sales_rep_load_active($pdo);
 
 $isNew = false;
 $editId = 0;
@@ -188,12 +211,13 @@ $row = [
     'username' => '',
     'full_name_ar' => '',
     'email' => '',
+    'sales_rep_id' => null,
     'is_active' => 1,
 ];
 $memberGroupIds = [];
 
 if (!$isNew && $editId > 0) {
-    $st = $pdo->prepare('SELECT id, username, full_name_ar, email, is_active FROM sys_user WHERE id = ? LIMIT 1');
+    $st = $pdo->prepare('SELECT id, username, full_name_ar, email, sales_rep_id, is_active FROM sys_user WHERE id = ? LIMIT 1');
     $st->execute([$editId]);
     $dbRow = $st->fetch(PDO::FETCH_ASSOC);
     if (!$dbRow) {
@@ -303,6 +327,25 @@ $formId = 'user-form';
                            placeholder="user@company.com">
                     <span class="field-hint">مطلوب لاستعادة كلمة المرور من شاشة تسجيل الدخول.</span>
                 </label>
+                <label class="field">
+                    <span class="field-label">مندوب المبيعات (للهاتف)</span>
+                    <select class="input" name="sales_rep_id">
+                        <option value="">— بدون ربط —</option>
+                        <?php
+                        $currentRepId = (int) ($row['sales_rep_id'] ?? 0);
+                        foreach ($salesReps as $rep):
+                            $rid = (int) $rep['id'];
+                            ?>
+                            <option value="<?= $rid ?>"<?= $currentRepId === $rid ? ' selected' : '' ?>>
+                                <?= esc((string) $rep['name_ar']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span class="field-hint">للمستخدمين الذين يعملون كمندوبين من الهاتف (تحميل/إرجاع العهدة).</span>
+                </label>
+            </div>
+
+            <div class="form-row">
                 <label class="field users-admin-active-field">
                     <span class="field-label">الحالة</span>
                     <label class="users-admin-check-inline">
@@ -320,6 +363,7 @@ $formId = 'user-form';
             <fieldset class="users-admin-fieldset">
                 <legend>المجموعات (الصلاحيات)</legend>
                 <p class="muted users-admin-groups-note">صلاحيات الشاشات تُحدد لكل مجموعة من شاشة «صلاحيات الشاشات والتقارير».</p>
+                <p class="muted users-admin-groups-note">لتطبيق الهاتف: أضف المستخدم لمجموعة <strong>هاتف (MOBILE)</strong> للدخول، ثم مجموعة أخرى (أو نفس MOBILE) لتحديد شاشات <strong>هاتف — …</strong> التي تظهر له.</p>
                 <?php if ($groups === []): ?>
                     <p class="muted">لا توجد مجموعات. أنشئ مجموعة أولًا من شاشة مجموعات المستخدمين.</p>
                 <?php else: ?>

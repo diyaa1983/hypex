@@ -229,7 +229,11 @@ $gpsListJsUrl = app_url('assets/js/sal-gps-list.js')
 
                                     <?php if (!empty($row['place_label'])): ?>
 
-                                        <span class="sal-gps-place-label"><?= esc((string) $row['place_label']) ?></span>
+                                        <?= sal_invoice_gps_place_link_html(
+                                            (float) ($row['latitude'] ?? 0),
+                                            (float) ($row['longitude'] ?? 0),
+                                            (string) $row['place_label']
+                                        ) ?>
 
                                     <?php else: ?>
 

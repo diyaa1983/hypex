@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 
 require_once app_path('includes/mobile_invoice.php');
-
+require_once app_path('includes/app_gps.php');
 require_once app_path('includes/company_settings.php');
 
 
@@ -44,6 +44,19 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 <div class="m-ora12-workspace">
 <div id="m-inv-view-loading" class="m-inv-view-loading muted">جاري تحميل الفاتورة...</div>
 <div id="m-inv-post-status" class="m-alert" hidden role="status" aria-live="polite"></div>
+<?php if (app_gps_enabled() && mobile_can_post_sales_invoice()): ?>
+<section class="m-ora12-panel m-inv-gps-place-panel no-print" id="m-inv-gps-place-panel">
+    <h2 class="m-ora12-panel__title">موقع الترحيل (GPS)</h2>
+    <div class="m-ora12-panel__body">
+        <p class="muted m-inv-gps-place-hint">يُسجَّل موقعك تلقائياً عند الترحيل. يمكنك كتابة اسم الشارع أو العنوان للتوضيح.</p>
+        <label class="m-field m-field--full">
+            <span class="m-field-label">الشارع / العنوان (اختياري)</span>
+            <input class="m-input" type="text" id="m-inv-gps-place" maxlength="500"
+                   placeholder="مثال: شارع الملك حسين — عمان" autocomplete="off">
+        </label>
+    </div>
+</section>
+<?php endif; ?>
 
 <div id="m-inv-view-root" class="m-inv-view-page" hidden>
 
@@ -188,7 +201,9 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 
         canDelete: <?= mobile_can_delete_sales_invoice() ? 'true' : 'false' ?>,
 
-        canPost: <?= mobile_can_post_sales_invoice() ? 'true' : 'false' ?>
+        canPost: <?= mobile_can_post_sales_invoice() ? 'true' : 'false' ?>,
+
+        gpsEnabled: <?= app_gps_enabled() ? 'true' : 'false' ?>
 
     };
 

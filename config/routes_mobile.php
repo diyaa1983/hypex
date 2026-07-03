@@ -154,5 +154,31 @@ return [
         'tile_kind' => 'list',
         'home_tile' => true,
     ],
+    'm_rep_load' => [
+        'file' => 'modules/mobile/rep_load.php',
+        'permission' => 'm_rep_load',
+        'title' => 'تحميل عهدة',
+        'home_label' => 'تحميل عهدة',
+        'icon' => 'load',
+        'tile_kind' => 'doc',
+        'home_tile' => true,
+    ],
+    'm_rep_return' => [
+        'file' => 'modules/mobile/rep_return.php',
+        'permission' => 'm_rep_return',
+        'title' => 'إرجاع عهدة',
+        'home_label' => 'إرجاع عهدة',
+        'icon' => 'return',
+        'tile_kind' => 'doc',
+        'home_tile' => true,
+    ],
+    'm_rep_stock' => [
+        'file' => 'modules/mobile/rep_stock.php',
+        'permission' => 'm_rep_stock',
+        'title' => 'رصيد العهدة',
+        'icon' => 'stock',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
 ];
 

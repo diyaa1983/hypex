@@ -172,6 +172,13 @@ function sal_invoice_stock_post(PDO $pdo, int $invoiceId): array
         return $out;
     }
 
+    require_once app_path('includes/warehouse_access.php');
+    if (!wh_access_can_issue($pdo, $warehouseId)) {
+        $out['error'] = wh_access_deny_issue_message();
+
+        return $out;
+    }
+
     $lines = $pdo->prepare(
         'SELECT il.item_id, il.qty, COALESCE(il.qty_extra, 0) AS qty_extra, il.line_desc, i.name_ar, i.track_inventory
          FROM sal_invoice_line il

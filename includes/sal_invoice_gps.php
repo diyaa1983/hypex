@@ -239,7 +239,7 @@ function sal_invoice_gps_save_on_post(
     );
     $st->execute($params);
 
-    return $st->rowCount() > 0;
+    return sal_invoice_gps_has_coords($pdo, $invoiceId);
 }
 
 function sal_invoice_gps_trim_place(string $place): string
@@ -796,6 +796,265 @@ function sal_invoice_gps_map_url(float $lat, float $lng): string
     return 'https://www.google.com/maps?q=' . rawurlencode(sprintf('%.7F,%.7F', $lat, $lng));
 }
 
+function sal_invoice_gps_has_coords(PDO $pdo, int $invoiceId): bool
+{
+    if ($invoiceId < 1) {
+        return false;
+    }
+    sal_invoice_gps_ensure_schema($pdo);
+    if (!sal_invoice_column_exists($pdo, 'sal_invoice', 'post_latitude')) {
+        return false;
+    }
+    $st = $pdo->prepare(
+        'SELECT post_latitude, post_longitude FROM sal_invoice WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$invoiceId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return false;
+    }
+
+    return sal_invoice_gps_coords_valid(
+        (float) ($row['post_latitude'] ?? 0),
+        (float) ($row['post_longitude'] ?? 0)
+    );
+}
+
+/**
+ * @param array<string, mixed>|null $source
+ * @return array{latitude:float, longitude:float, gps_accuracy:?float, gps_source:string, gps_place:?string}|null
+ */
+function sal_invoice_gps_parse_request(?array $source = null): ?array
+{
+    $source = $source ?? $_POST;
+    if (!is_array($source)) {
+        return null;
+    }
+
+    if (!isset($source['latitude'], $source['longitude'])) {
+        return null;
+    }
+
+    $lat = (float) $source['latitude'];
+    $lng = (float) $source['longitude'];
+    if (!sal_invoice_gps_coords_valid($lat, $lng)) {
+        return null;
+    }
+
+    $accuracy = null;
+    if (isset($source['gps_accuracy']) && $source['gps_accuracy'] !== '') {
+        $accuracy = (float) $source['gps_accuracy'];
+        if (!is_finite($accuracy) || $accuracy <= 0) {
+            $accuracy = null;
+        }
+    }
+
+    $place = trim((string) ($source['gps_place'] ?? ''));
+    if ($place !== '') {
+        $place = sal_invoice_gps_trim_place($place);
+    } else {
+        $place = null;
+    }
+
+    return [
+        'latitude' => $lat,
+        'longitude' => $lng,
+        'gps_accuracy' => $accuracy,
+        'gps_source' => sal_invoice_gps_normalize_source((string) ($source['gps_source'] ?? 'mobile')),
+        'gps_place' => $place,
+    ];
+}
+
+function sal_invoice_gps_place_link_html(float $lat, float $lng, string $label, string $class = 'sal-gps-place-link'): string
+{
+    if (!sal_invoice_gps_coords_valid($lat, $lng)) {
+        return esc($label);
+    }
+    $url = sal_invoice_gps_map_url($lat, $lng);
+    $title = 'فتح على Google Maps';
+
+    return '<a href="' . esc($url) . '" target="_blank" rel="noopener noreferrer"'
+        . ' class="' . esc($class) . '" title="' . esc($title) . '">'
+        . esc($label)
+        . '</a>';
+}
+
+/** @return list<int> */
+function sal_invoice_gps_user_ids_for_invoice(PDO $pdo, int $invoiceId, ?int $preferUserId = null): array
+{
+    $ids = [];
+    if ($preferUserId !== null && $preferUserId > 0) {
+        $ids[] = $preferUserId;
+    }
+
+    sal_invoice_gps_ensure_schema($pdo);
+    $cols = ['created_by'];
+    if (sal_invoice_gps_has_posted_by_column($pdo)) {
+        $cols[] = 'posted_by';
+    }
+    $st = $pdo->prepare(
+        'SELECT ' . implode(', ', $cols) . ' FROM sal_invoice WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$invoiceId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+    foreach (['posted_by', 'created_by'] as $key) {
+        $uid = (int) ($row[$key] ?? 0);
+        if ($uid > 0 && !in_array($uid, $ids, true)) {
+            $ids[] = $uid;
+        }
+    }
+
+    return $ids;
+}
+
+/**
+ * @return array{latitude:float, longitude:float, gps_accuracy:?float, gps_source:string, gps_place:?string}|null
+ */
+function sal_invoice_gps_lookup_from_users(PDO $pdo, array $userIds, int $maxAgeSec = 86400): ?array
+{
+    require_once app_path('includes/sys_user_location.php');
+    foreach ($userIds as $rawUid) {
+        $uid = (int) $rawUid;
+        if ($uid < 1) {
+            continue;
+        }
+        $latest = sys_user_location_latest_for_user($pdo, $uid, $maxAgeSec);
+        if ($latest === null) {
+            continue;
+        }
+
+        return [
+            'latitude' => (float) $latest['latitude'],
+            'longitude' => (float) $latest['longitude'],
+            'gps_accuracy' => $latest['gps_accuracy'] ?? null,
+            'gps_source' => (string) ($latest['gps_source'] ?? 'mobile'),
+            'gps_place' => null,
+        ];
+    }
+
+    return null;
+}
+
+/**
+ * محاولة ملء GPS للفواتير المرحّلة مؤخراً بدون إحداثيات (من sys_user_location).
+ */
+function sal_invoice_gps_backfill_recent(PDO $pdo, int $days = 14, int $limit = 200): int
+{
+    if (!app_gps_enabled() || $days < 1) {
+        return 0;
+    }
+
+    require_once app_path('includes/sal_invoice_post.php');
+    sal_invoice_gps_ensure_schema($pdo);
+
+    $postedExpr = sal_invoice_sql_is_posted_expr('i');
+    $hasPostedBy = sal_invoice_gps_has_posted_by_column($pdo);
+    $postedBySelect = $hasPostedBy ? 'i.posted_by' : 'NULL AS posted_by';
+    $since = date('Y-m-d', strtotime('-' . $days . ' days'));
+
+    $sql = "SELECT i.id, i.created_by, {$postedBySelect}
+            FROM sal_invoice i
+            WHERE i.status = 'confirmed'
+              AND ({$postedExpr})
+              AND (i.post_latitude IS NULL OR i.post_longitude IS NULL)
+              AND i.invoice_date >= ?
+            ORDER BY i.id DESC
+            LIMIT " . max(1, min(500, $limit));
+
+    $st = $pdo->prepare($sql);
+    $st->execute([$since]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $filled = 0;
+    foreach ($rows as $row) {
+        $invoiceId = (int) ($row['id'] ?? 0);
+        if ($invoiceId < 1) {
+            continue;
+        }
+        $userIds = sal_invoice_gps_user_ids_for_invoice(
+            $pdo,
+            $invoiceId,
+            (int) ($row['posted_by'] ?? 0) ?: (int) ($row['created_by'] ?? 0)
+        );
+        $gps = sal_invoice_gps_lookup_from_users($pdo, $userIds, 86400 * max(1, $days));
+        if ($gps === null) {
+            continue;
+        }
+        if (sal_invoice_gps_apply_on_post($pdo, $invoiceId, $gps, $userIds[0] ?? null)) {
+            $filled++;
+        }
+    }
+
+    return $filled;
+}
+
+/**
+ * حفظ موقع الترحيل من الطلب أو آخر موقع مسجّل للمستخدم.
+ *
+ * @param array{latitude:float, longitude:float, gps_accuracy:?float, gps_source:string, gps_place:?string}|null $gps
+ */
+function sal_invoice_gps_apply_on_post(
+    PDO $pdo,
+    int $invoiceId,
+    ?array $gps = null,
+    ?int $userId = null
+): bool {
+    if (!app_gps_enabled() || $invoiceId < 1) {
+        return false;
+    }
+    if (sal_invoice_gps_has_coords($pdo, $invoiceId)) {
+        return false;
+    }
+
+    if ($gps === null) {
+        $gps = sal_invoice_gps_parse_request();
+    }
+
+    if ($gps === null) {
+        $userIds = sal_invoice_gps_user_ids_for_invoice($pdo, $invoiceId, $userId);
+        foreach ([900, 3600, 86400, 604800] as $maxAge) {
+            $gps = sal_invoice_gps_lookup_from_users($pdo, $userIds, $maxAge);
+            if ($gps !== null) {
+                break;
+            }
+        }
+    }
+
+    if ($gps === null) {
+        return false;
+    }
+
+    $saved = sal_invoice_gps_save_on_post(
+        $pdo,
+        $invoiceId,
+        (float) $gps['latitude'],
+        (float) $gps['longitude'],
+        $gps['gps_accuracy'] ?? null,
+        (string) ($gps['gps_source'] ?? 'mobile')
+    );
+    if (!$saved) {
+        return false;
+    }
+
+    $manualPlace = trim((string) ($gps['gps_place'] ?? ''));
+    if ($manualPlace !== '') {
+        sal_invoice_gps_set_place($pdo, $invoiceId, $manualPlace);
+    }
+
+    try {
+        sal_invoice_gps_fill_location_for_invoice(
+            $pdo,
+            $invoiceId,
+            (float) $gps['latitude'],
+            (float) $gps['longitude']
+        );
+    } catch (Throwable $e) {
+        error_log('sal_invoice_gps_apply_on_post geocode: ' . $e->getMessage());
+    }
+
+    return true;
+}
+
 /** خريطة تفاعلية داخل النظام (OpenStreetMap embed). */
 function sal_invoice_gps_embed_url(float $lat, float $lng): string
 {
@@ -867,8 +1126,6 @@ function sal_invoice_gps_list_rows(
             LEFT JOIN sys_user uc ON uc.id = i.created_by
             LEFT JOIN sys_user up ON up.id = {$postedJoinExpr}
             WHERE i.status = 'confirmed'
-              AND i.post_latitude IS NOT NULL
-              AND i.post_longitude IS NOT NULL
               AND ({$postedExpr})";
     $params = [];
 
@@ -905,12 +1162,13 @@ function sal_invoice_gps_list_rows(
     foreach ($rows as &$row) {
         $lat = (float) ($row['post_latitude'] ?? 0);
         $lng = (float) ($row['post_longitude'] ?? 0);
+        $row['has_gps'] = sal_invoice_gps_coords_valid($lat, $lng);
         $row['invoice_date_dmy'] = format_date_dmY((string) ($row['invoice_date'] ?? ''));
         $gpsTs = !empty($row['post_gps_at']) ? strtotime((string) $row['post_gps_at']) : false;
         $row['gps_at_dmy'] = $gpsTs !== false ? date('d-m-Y H:i', $gpsTs) : '';
-        $row['coords_label'] = sprintf('%.6F, %.6F', $lat, $lng);
-        $row['map_url'] = sal_invoice_gps_map_url($lat, $lng);
-        $row['map_embed_url'] = sal_invoice_gps_embed_url($lat, $lng);
+        $row['coords_label'] = $row['has_gps'] ? sprintf('%.6F, %.6F', $lat, $lng) : '';
+        $row['map_url'] = $row['has_gps'] ? sal_invoice_gps_map_url($lat, $lng) : '';
+        $row['map_embed_url'] = $row['has_gps'] ? sal_invoice_gps_embed_url($lat, $lng) : '';
         $row['post_latitude'] = $lat;
         $row['post_longitude'] = $lng;
         $row['post_gps_place'] = trim((string) ($row['post_gps_place'] ?? ''));

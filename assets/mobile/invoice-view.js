@@ -418,6 +418,10 @@
     if (cfg.canDelete && canChange) vis.delete = true;
     if (cfg.canPost && !inv.is_posted) vis.post = true;
     if (cfg.canSendEinvoice && inv.is_posted && !inv.einv_sent) vis.einvoice = true;
+    var gpsPanel = document.getElementById('m-inv-gps-place-panel');
+    if (gpsPanel) {
+      gpsPanel.hidden = !!inv.is_posted || !cfg.gpsEnabled || !vis.post;
+    }
     if (TB.show) TB.show(vis);
     if (loadingEl) loadingEl.hidden = true;
     if (rootEl) rootEl.hidden = false;
@@ -534,10 +538,18 @@
   function runPostInvoice() {
     if (postFlowBusy || !cfg.postApi || !cfg.invoiceId) return;
     postFlowBusy = true;
-    var doPost = function () {
+
+    function submitPost(gps) {
       var fd = new FormData();
       fd.append('_csrf', cfg.csrf || '');
       fd.append('invoice_id', String(cfg.invoiceId));
+      if (window.AppGeo && AppGeo.appendToFormData && gps) {
+        AppGeo.appendToFormData(fd, gps, 'mobile');
+      }
+      var placeInput = document.getElementById('m-inv-gps-place');
+      if (placeInput && String(placeInput.value || '').trim() !== '') {
+        fd.append('gps_place', String(placeInput.value).trim());
+      }
       var btnPost = TB.btn ? TB.btn('post') : null;
       if (btnPost) btnPost.disabled = true;
       fetch(cfg.postApi, {
@@ -570,9 +582,14 @@
           if (btnPost) btnPost.disabled = false;
           showPostStatus('تعذر الاتصال بالخادم.', 'error');
         });
-    };
+    }
+
     mobileConfirm(
-      'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\nيُسمح بالصرف حتى لو أصبح الرصيد سالبًا.',
+      'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\n' +
+        (cfg.gpsEnabled || window.APP_GPS_ENABLED
+          ? 'سيتم أيضاً تسجيل موقعك الحالي (GPS) مع الفاتورة.\n'
+          : '') +
+        'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.',
       {
         title: 'تأكيد الترحيل',
         okText: 'نعم، رحّل',
@@ -583,7 +600,17 @@
         postFlowBusy = false;
         return;
       }
-      doPost();
+      if (cfg.gpsEnabled || (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost)) {
+        AppGeo.withGpsForPost('mobile', function (gps) {
+          if (gps === undefined) {
+            postFlowBusy = false;
+            return;
+          }
+          submitPost(gps);
+        });
+        return;
+      }
+      submitPost(null);
     });
   }
 

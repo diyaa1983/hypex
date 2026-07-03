@@ -78,7 +78,12 @@ function refresh_session_permissions(?int $userId = null): void
     }
 
     unset($_SESSION['is_system_admin']);
-    $_SESSION['permissions'] = load_user_permissions($userId);
+    if (($_SESSION['app_context'] ?? '') === 'mobile') {
+        require_once app_path('includes/mobile_auth.php');
+        $_SESSION['permissions'] = load_user_mobile_permissions($userId);
+    } else {
+        $_SESSION['permissions'] = load_user_permissions($userId);
+    }
     $_SESSION['permissions_user_id'] = $userId;
 }
 

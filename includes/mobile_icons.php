@@ -32,6 +32,9 @@ function mobile_icon_svg(string $key): string
         'return' => '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path ' . $stroke . ' d="M9 14L4 9l5-5"/><path ' . $stroke . ' d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
         'return-list' => '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path ' . $stroke . ' d="M8 4h12v16H8z"/><path ' . $stroke . ' d="M6 6H4v14h2M10 9h8M10 13h6"/><path ' . $stroke . ' d="M9 14L6 11l3-3"/></svg>',
         'map-pin' => '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path ' . $stroke . ' d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5" ' . $stroke . '/></svg>',
+        'load' => '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path ' . $stroke . ' d="M12 4v10"/><path ' . $stroke . ' d="M8 10l4 4 4-4"/><path ' . $stroke . ' d="M4 18h16"/></svg>',
+        'stock' => '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path ' . $stroke . ' d="M4 8l8-4 8 4-8 4-8-4z"/><path ' . $stroke . ' d="M4 12l8 4 8-4"/><path ' . $stroke . ' d="M4 16l8 4 8-4"/></svg>',
+        'bag' => '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path ' . $stroke . ' d="M8 7V5a4 4 0 0 1 8 0v2"/><path ' . $stroke . ' d="M5 7h14l-1.2 13H6.2L5 7z"/></svg>',
     ];
 
     return $icons[$key] ?? $icons['invoice'];

@@ -20,7 +20,7 @@ if (!defined('APP_TIMEZONE')) {
 
 /** حفظ GPS عند الترحيل وتتبع موقع المستخدم — false = معطّل بالكامل. */
 if (!defined('APP_GPS_ENABLED')) {
-    define('APP_GPS_ENABLED', false);
+    define('APP_GPS_ENABLED', true);
 }
 
 /**
@@ -54,7 +54,7 @@ function app_detect_url_base(): string
     }
 
     $dir = str_replace('\\', '/', dirname($scriptName));
-    $stripSegments = ['api', 'modules', 'tools', 'cron'];
+    $stripSegments = ['api', 'modules', 'tools', 'cron', 'm'];
     while ($dir !== '' && $dir !== '.' && $dir !== '/' && $dir !== '\\') {
         $leaf = basename($dir);
         if (!in_array($leaf, $stripSegments, true)) {

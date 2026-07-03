@@ -142,6 +142,9 @@ $appBootMigrations = [
     'database/migrations/203_hr_employee_leaves.sql',
     'database/migrations/204_hr_leave_type_prorate_yearly.sql',
     'database/migrations/205_report_hr_employee_leaves_departures.sql',
+    'database/migrations/207_crm_sales_rep_mobile_custody.sql',
+    'database/migrations/208_mobile_rep_custody.sql',
+    'database/migrations/209_sys_group_warehouse.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

@@ -41,6 +41,15 @@
     m_receipt_list: {
       title: 'اختر سنداً من القائمة',
     },
+    m_rep_load: {
+      skip: true,
+    },
+    m_rep_return: {
+      skip: true,
+    },
+    m_rep_stock: {
+      title: 'رصيد عهدة المندوب',
+    },
   };
 
   function initRouteToolbar() {

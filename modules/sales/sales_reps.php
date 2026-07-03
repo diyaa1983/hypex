@@ -8,6 +8,7 @@ require_once app_path('includes/sales_oracle12_ui.php');
 
 $pdo = db();
 require_once app_path('includes/crm_sales_rep_schema.php');
+crm_sales_rep_ensure_mobile_custody_schema($pdo);
 if (!crm_sales_rep_ensure_schema($pdo)) {
     ?>
     <div class="alert alert-error">
@@ -34,6 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $name = trim((string) ($_POST['name_ar'] ?? ''));
             $phone = trim((string) ($_POST['phone'] ?? ''));
             $address = trim((string) ($_POST['address_ar'] ?? ''));
+            $warehouseId = (int) ($_POST['warehouse_id'] ?? 0);
+            $autoCreateWarehouse = isset($_POST['auto_create_warehouse']);
 
             if ($name === '') {
                 throw new RuntimeException('اسم المندوب مطلوب.');
@@ -55,28 +58,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('رمز المندوب مستخدم مسبقًا.');
             }
 
+            if ($warehouseId > 0) {
+                $whChk = $pdo->prepare('SELECT id FROM inv_warehouse WHERE id = ? AND is_active = 1 LIMIT 1');
+                $whChk->execute([$warehouseId]);
+                if (!$whChk->fetch()) {
+                    throw new RuntimeException('مستودع العهدة المحدد غير موجود أو غير نشط.');
+                }
+            } else {
+                $warehouseId = null;
+            }
+
+            $hasWhCol = crm_sales_rep_has_warehouse_link($pdo);
+
             if ($id > 0) {
-                $st = $pdo->prepare(
-                    'UPDATE crm_sales_rep SET code=?, name_ar=?, phone=?, address_ar=? WHERE id=?'
-                );
-                $st->execute([
-                    $code,
-                    $name,
-                    $phone !== '' ? $phone : null,
-                    $address !== '' ? $address : null,
-                    $id,
-                ]);
+                if ($hasWhCol) {
+                    $st = $pdo->prepare(
+                        'UPDATE crm_sales_rep SET code=?, name_ar=?, phone=?, address_ar=?, warehouse_id=? WHERE id=?'
+                    );
+                    $st->execute([
+                        $code,
+                        $name,
+                        $phone !== '' ? $phone : null,
+                        $address !== '' ? $address : null,
+                        $warehouseId,
+                        $id,
+                    ]);
+                } else {
+                    $st = $pdo->prepare(
+                        'UPDATE crm_sales_rep SET code=?, name_ar=?, phone=?, address_ar=? WHERE id=?'
+                    );
+                    $st->execute([
+                        $code,
+                        $name,
+                        $phone !== '' ? $phone : null,
+                        $address !== '' ? $address : null,
+                        $id,
+                    ]);
+                }
+                if ($autoCreateWarehouse && $warehouseId === null) {
+                    crm_sales_rep_ensure_custody_warehouse($pdo, $id);
+                }
                 flash_set('success', 'تم تحديث بيانات المندوب.');
             } else {
-                $st = $pdo->prepare(
-                    'INSERT INTO crm_sales_rep (code, name_ar, phone, address_ar, is_active) VALUES (?,?,?,?,1)'
-                );
-                $st->execute([
-                    $code,
-                    $name,
-                    $phone !== '' ? $phone : null,
-                    $address !== '' ? $address : null,
-                ]);
+                if ($hasWhCol) {
+                    $st = $pdo->prepare(
+                        'INSERT INTO crm_sales_rep (code, name_ar, phone, address_ar, warehouse_id, is_active) VALUES (?,?,?,?,?,1)'
+                    );
+                    $st->execute([
+                        $code,
+                        $name,
+                        $phone !== '' ? $phone : null,
+                        $address !== '' ? $address : null,
+                        $warehouseId,
+                    ]);
+                } else {
+                    $st = $pdo->prepare(
+                        'INSERT INTO crm_sales_rep (code, name_ar, phone, address_ar, is_active) VALUES (?,?,?,?,1)'
+                    );
+                    $st->execute([
+                        $code,
+                        $name,
+                        $phone !== '' ? $phone : null,
+                        $address !== '' ? $address : null,
+                    ]);
+                }
+                $newId = (int) $pdo->lastInsertId();
+                if ($autoCreateWarehouse && $warehouseId === null && $newId > 0) {
+                    crm_sales_rep_ensure_custody_warehouse($pdo, $newId);
+                }
                 flash_set('success', 'تم إضافة المندوب.');
             }
         } elseif ($act === 'toggle') {
@@ -109,6 +158,7 @@ if ($action === 'add' || $action === 'edit') {
         'name_ar' => '',
         'phone' => '',
         'address_ar' => '',
+        'warehouse_id' => null,
         'is_active' => 1,
     ];
     if ($action === 'edit') {
@@ -126,6 +176,10 @@ if ($action === 'add' || $action === 'edit') {
         }
         $row = array_merge($row, $dbRow);
     }
+
+    $warehouses = $pdo->query(
+        'SELECT id, code, name_ar FROM inv_warehouse WHERE is_active = 1 ORDER BY name_ar'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $formTitle = $action === 'add' ? 'إضافة مندوب' : 'تعديل مندوب';
     ?>
@@ -163,6 +217,30 @@ if ($action === 'add' || $action === 'edit') {
                 <textarea class="input" name="address_ar" rows="3"><?= esc((string) ($row['address_ar'] ?? '')) ?></textarea>
             </label>
 
+            <?php if (crm_sales_rep_has_warehouse_link($pdo)): ?>
+            <label class="field">
+                <span class="field-label">مستودع العهدة</span>
+                <select class="input" name="warehouse_id">
+                    <option value="">— اختيار لاحقًا / تلقائي —</option>
+                    <?php
+                    $currentWhId = (int) ($row['warehouse_id'] ?? 0);
+                    foreach ($warehouses as $wh):
+                        $wid = (int) $wh['id'];
+                        ?>
+                        <option value="<?= $wid ?>"<?= $currentWhId === $wid ? ' selected' : '' ?>>
+                            <?= esc((string) $wh['name_ar']) ?> (<?= esc((string) $wh['code']) ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="field-hint muted">مستودع يحمل فيه المندوب المواد من المستودع الرئيسي.</span>
+            </label>
+            <label class="field users-admin-check-inline" style="display:flex;align-items:center;gap:.5rem;">
+                <input type="checkbox" name="auto_create_warehouse" value="1"
+                    <?= $currentWhId < 1 ? 'checked' : '' ?>>
+                <span>إنشاء مستودع عهدة تلقائيًا (VAN-رمز المندوب) إن لم يُحدَّد مستودع</span>
+            </label>
+            <?php endif; ?>
+
             <input type="hidden" name="code" value="<?= esc((string) $row['code']) ?>">
 
             <div>
@@ -178,10 +256,13 @@ if ($action === 'add' || $action === 'edit') {
 
 $search = trim((string) ($_GET['q'] ?? ''));
 
-$sql = 'SELECT id, code, name_ar, phone, address_ar, is_active, created_at FROM crm_sales_rep';
+$sql = 'SELECT r.id, r.code, r.name_ar, r.phone, r.address_ar, r.is_active, r.created_at,
+        w.name_ar AS warehouse_name_ar, w.code AS warehouse_code
+        FROM crm_sales_rep r
+        LEFT JOIN inv_warehouse w ON w.id = r.warehouse_id';
 $params = [];
 if ($search !== '') {
-    $sql .= ' WHERE (name_ar LIKE ? OR code LIKE ? OR phone LIKE ? OR address_ar LIKE ?)';
+    $sql .= ' WHERE (r.name_ar LIKE ? OR r.code LIKE ? OR r.phone LIKE ? OR r.address_ar LIKE ?)';
     $like = '%' . $search . '%';
     $params = array_fill(0, 4, $like);
 }
@@ -197,7 +278,7 @@ $listTotal = (int) $stCount->fetchColumn();
 $pager = list_pager_with_total(list_pager_from_request($pdo), $listTotal);
 $listPagerUrl = list_pager_base_url('sales_reps', $search !== '' ? ['q' => $search] : []);
 
-$sql .= ' ORDER BY name_ar ASC, id DESC' . list_pager_sql_limit($pager);
+$sql .= ' ORDER BY r.name_ar ASC, r.id DESC' . list_pager_sql_limit($pager);
 
 $st = $pdo->prepare($sql);
 $st->execute($params);
@@ -243,6 +324,7 @@ $addUrl = app_url('index.php?r=sales_reps&action=add');
                 <th>الرمز</th>
                 <th>اسم المندوب</th>
                 <th>التلفون</th>
+                <th>مستودع العهدة</th>
                 <th>العنوان</th>
                 <th>الحالة</th>
                 <th>إجراءات</th>
@@ -251,7 +333,7 @@ $addUrl = app_url('index.php?r=sales_reps&action=add');
             <tbody>
             <?php if (!$rows): ?>
                 <tr>
-                    <td colspan="7" class="muted">
+                    <td colspan="8" class="muted">
                         <?= $search !== '' ? 'لا يوجد مندوب مطابق لبحثك.' : 'لا يوجد مندوبون بعد.' ?>
                     </td>
                 </tr>
@@ -262,6 +344,14 @@ $addUrl = app_url('index.php?r=sales_reps&action=add');
                     <td><code><?= esc((string) $rep['code']) ?></code></td>
                     <td><?= esc((string) $rep['name_ar']) ?></td>
                     <td><?= esc((string) ($rep['phone'] ?? '—')) ?></td>
+                    <td>
+                        <?php if (!empty($rep['warehouse_name_ar'])): ?>
+                            <?= esc((string) $rep['warehouse_name_ar']) ?>
+                            <span class="muted">(<?= esc((string) ($rep['warehouse_code'] ?? '')) ?>)</span>
+                        <?php else: ?>
+                            <span class="muted">—</span>
+                        <?php endif; ?>
+                    </td>
                     <td class="muted sales-reps-address-cell"><?= esc((string) ($rep['address_ar'] ?? '—')) ?></td>
                     <td>
                         <?php if ((int) $rep['is_active']): ?>

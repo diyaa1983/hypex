@@ -57,6 +57,10 @@ if ($activeRouteKey === 'm_receipt') {
     $pageBodyClass .= ' m-page-sales-return';
 } elseif ($activeRouteKey === 'm_sales_returns_list') {
     $pageBodyClass .= ' m-page-return-list';
+} elseif ($activeRouteKey === 'm_rep_load' || $activeRouteKey === 'm_rep_return') {
+    $pageBodyClass .= ' m-page-rep-custody';
+} elseif ($activeRouteKey === 'm_rep_stock') {
+    $pageBodyClass .= ' m-page-rep-stock';
 }
 
 $showBottomDock = $activeRouteKey !== 'm_home';

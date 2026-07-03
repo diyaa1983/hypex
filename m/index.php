@@ -16,6 +16,9 @@ sql_migration_run_files_once($pdo, [
     'database/migrations/129_user_gps_locations_screens.sql',
     'database/migrations/130_sys_user_location_landmark.sql',
     'database/migrations/131_sys_user_location_place.sql',
+    'database/migrations/207_crm_sales_rep_mobile_custody.sql',
+    'database/migrations/208_mobile_rep_custody.sql',
+    'database/migrations/209_sys_group_warehouse.sql',
 ]);
 
 require_mobile_login();

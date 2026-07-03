@@ -381,3 +381,143 @@ function crm_sales_rep_load_active(PDO $pdo): array
         'SELECT id, name_ar, phone FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
     )->fetchAll() ?: [];
 }
+
+function crm_sales_rep_user_has_link(PDO $pdo, bool $refresh = false): bool
+{
+    static $ok = null;
+    if (!$refresh && $ok !== null) {
+        return $ok;
+    }
+    try {
+        $pdo->query('SELECT sales_rep_id FROM sys_user LIMIT 1');
+        $ok = true;
+    } catch (Throwable $e) {
+        $ok = false;
+    }
+
+    return $ok;
+}
+
+function crm_sales_rep_has_warehouse_link(PDO $pdo, bool $refresh = false): bool
+{
+    static $ok = null;
+    if (!$refresh && $ok !== null) {
+        return $ok;
+    }
+    try {
+        $pdo->query('SELECT warehouse_id FROM crm_sales_rep LIMIT 1');
+        $ok = true;
+    } catch (Throwable $e) {
+        $ok = false;
+    }
+
+    return $ok;
+}
+
+/** أعمدة ربط المستخدم بالمندوب ومستودع العهدة (تطبيق الهاتف). */
+function crm_sales_rep_ensure_mobile_custody_schema(PDO $pdo): void
+{
+    crm_sales_rep_ensure_schema($pdo);
+    if (!crm_sales_rep_has_table($pdo)) {
+        return;
+    }
+
+    if (!crm_sales_rep_user_has_link($pdo) || !crm_sales_rep_has_warehouse_link($pdo)) {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/207_crm_sales_rep_mobile_custody.sql');
+    }
+
+    crm_sales_rep_user_has_link($pdo, true);
+    crm_sales_rep_has_warehouse_link($pdo, true);
+}
+
+function crm_sales_rep_id_for_user(PDO $pdo, int $userId): ?int
+{
+    if ($userId < 1) {
+        return null;
+    }
+    crm_sales_rep_ensure_mobile_custody_schema($pdo);
+    if (!crm_sales_rep_user_has_link($pdo)) {
+        return null;
+    }
+    $st = $pdo->prepare('SELECT sales_rep_id FROM sys_user WHERE id = ? LIMIT 1');
+    $st->execute([$userId]);
+    $v = $st->fetchColumn();
+
+    return ($v !== false && $v !== null && (int) $v > 0) ? (int) $v : null;
+}
+
+/** @return ?array{id:int,code:string,name_ar:string,warehouse_id:?int,is_active:int} */
+function crm_sales_rep_row_for_user(PDO $pdo, int $userId): ?array
+{
+    $repId = crm_sales_rep_id_for_user($pdo, $userId);
+    if ($repId === null) {
+        return null;
+    }
+    crm_sales_rep_ensure_mobile_custody_schema($pdo);
+    $cols = 'id, code, name_ar, is_active';
+    if (crm_sales_rep_has_warehouse_link($pdo)) {
+        $cols .= ', warehouse_id';
+    }
+    $st = $pdo->prepare("SELECT {$cols} FROM crm_sales_rep WHERE id = ? AND is_active = 1 LIMIT 1");
+    $st->execute([$repId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+
+    return $row ?: null;
+}
+
+function crm_sales_rep_warehouse_id_for_user(PDO $pdo, int $userId): ?int
+{
+    $rep = crm_sales_rep_row_for_user($pdo, $userId);
+    if ($rep === null) {
+        return null;
+    }
+    $whId = (int) ($rep['warehouse_id'] ?? 0);
+
+    return $whId > 0 ? $whId : null;
+}
+
+/** إنشاء مستودع عهدة VAN-{code} إن لم يكن موجودًا وربطه بالمندوب. */
+function crm_sales_rep_ensure_custody_warehouse(PDO $pdo, int $repId): ?int
+{
+    if ($repId < 1 || !crm_sales_rep_has_table($pdo)) {
+        return null;
+    }
+    crm_sales_rep_ensure_mobile_custody_schema($pdo);
+
+    $st = $pdo->prepare('SELECT id, code, name_ar, warehouse_id FROM crm_sales_rep WHERE id = ? LIMIT 1');
+    $st->execute([$repId]);
+    $rep = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$rep) {
+        return null;
+    }
+
+    $existing = (int) ($rep['warehouse_id'] ?? 0);
+    if ($existing > 0) {
+        return $existing;
+    }
+
+    $code = 'VAN-' . preg_replace('/[^A-Za-z0-9\-_]/', '', (string) $rep['code']);
+    if ($code === 'VAN-' || strlen($code) > 40) {
+        $code = 'VAN-REP-' . str_pad((string) $repId, 4, '0', STR_PAD_LEFT);
+    }
+
+    $chk = $pdo->prepare('SELECT id FROM inv_warehouse WHERE UPPER(TRIM(code)) = UPPER(?) LIMIT 1');
+    $chk->execute([$code]);
+    $whId = $chk->fetchColumn();
+    if ($whId === false || $whId === null) {
+        $name = 'عهدة — ' . trim((string) $rep['name_ar']);
+        if ($name === 'عهدة — ') {
+            $name = 'عهدة مندوب ' . $code;
+        }
+        $ins = $pdo->prepare('INSERT INTO inv_warehouse (code, name_ar, is_active) VALUES (?,?,1)');
+        $ins->execute([$code, $name]);
+        $whId = (int) $pdo->lastInsertId();
+    } else {
+        $whId = (int) $whId;
+    }
+
+    $pdo->prepare('UPDATE crm_sales_rep SET warehouse_id = ? WHERE id = ?')->execute([$whId, $repId]);
+
+    return $whId > 0 ? $whId : null;
+}

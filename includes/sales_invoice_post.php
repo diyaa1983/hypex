@@ -40,7 +40,9 @@ function handle_sales_invoice_post(): void
     $deliveryId = (int) ($_POST['delivery_id'] ?? 0);
     $lines = json_decode((string) ($_POST['lines_json'] ?? '[]'), true);
 
-    $whCount = (int) $pdo->query('SELECT COUNT(*) FROM inv_warehouse WHERE is_active = 1')->fetchColumn();
+    require_once app_path('includes/warehouse_access.php');
+    $issueWarehouses = wh_access_list_warehouses($pdo, 'issue');
+    $whCount = count($issueWarehouses);
     $whFinal = $whCount > 0 ? $warehouseId : null;
 
     $err = '';
@@ -52,6 +54,11 @@ function handle_sales_invoice_post(): void
         $err = 'اختر العميل.';
     } elseif ($whCount > 0 && $warehouseId < 1) {
         $err = 'اختر المستودع.';
+    } elseif ($whCount > 0 && $warehouseId > 0) {
+        require_once app_path('includes/warehouse_access.php');
+        if (!wh_access_can_issue($pdo, $warehouseId)) {
+            $err = wh_access_deny_issue_message();
+        }
     } elseif (!is_array($lines)) {
         $err = 'بيانات الأسطر غير صالحة.';
     } elseif (count($lines) < 1 && $invoiceId < 1) {

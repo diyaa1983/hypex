@@ -80,12 +80,22 @@
   font-size: 0.72rem;
 }
 
-.dashboard-ora.sales-ora12-screen.sal-invoice-gps-page .sal-gps-place-label {
+.dashboard-ora.sales-ora12-screen.sal-invoice-gps-page .sal-gps-place-label,
+.dashboard-ora.sales-ora12-screen.sal-invoice-gps-page .sal-gps-place-link {
   display: block;
   font-size: 0.72rem;
   font-weight: 600;
   color: #0b6e63;
   line-height: 1.35;
+}
+
+.dashboard-ora.sales-ora12-screen.sal-invoice-gps-page .sal-gps-place-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dashboard-ora.sales-ora12-screen.sal-invoice-gps-page .sal-gps-place-link:hover {
+  color: #084f48;
 }
 
 .dashboard-ora.sales-ora12-screen.sal-invoice-gps-page .sal-gps-landmark-label {

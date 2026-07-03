@@ -18,9 +18,9 @@ $flash = flash_get();
 $customers = $pdo->query(
     'SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 500'
 )->fetchAll();
-$warehouses = $pdo->query('SELECT id, code, name_ar FROM inv_warehouse WHERE is_active = 1 ORDER BY name_ar')->fetchAll();
-require_once app_path('includes/inv_warehouse_items.php');
-$defaultWarehouseId = inv_default_warehouse_id($pdo);
+require_once app_path('includes/warehouse_access.php');
+$warehouses = wh_access_list_warehouses($pdo, 'issue');
+$defaultWarehouseId = wh_access_default_issue_warehouse_id($pdo);
 
 $settings = company_settings($pdo);
 $dp = company_decimal_places($pdo);
@@ -128,6 +128,9 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
                 </select>
             </label>
             <?php else: ?>
+            <div class="m-alert m-alert--error m-field--full">
+                لا توجد صلاحية صرف من أي مستودع. راجع صلاحيات المستودعات للمجموعة.
+            </div>
             <input type="hidden" name="warehouse_id" value="0" id="m-warehouse-id">
             <?php endif; ?>
             <label class="m-field m-field--full">

@@ -57,14 +57,22 @@ function user_in_mobile_group(?int $userId = null): bool
 
 function load_user_mobile_permissions(int $userId): array
 {
+    if (user_is_system_admin($userId)) {
+        $codes = db()->query(
+            "SELECT code FROM sys_screen WHERE code LIKE 'm_%' ORDER BY sort_order, id"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        return $codes ?: ['m_home'];
+    }
+
     $sql = 'SELECT DISTINCT s.code
             FROM sys_user_group ug
-            INNER JOIN sys_group g ON g.id = ug.group_id AND g.code = ?
             INNER JOIN sys_group_permission gp ON gp.group_id = ug.group_id AND gp.allowed = 1
             INNER JOIN sys_screen s ON s.id = gp.screen_id
-            WHERE ug.user_id = ? AND s.code LIKE ?';
+            WHERE ug.user_id = ? AND s.code LIKE ?
+            ORDER BY s.code';
     $st = db()->prepare($sql);
-    $st->execute([MOBILE_GROUP_CODE, $userId, 'm_%']);
+    $st->execute([$userId, 'm_%']);
 
     return $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
 }

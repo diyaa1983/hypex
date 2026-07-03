@@ -26,12 +26,15 @@
     }
     if (!postUrl || !ids.length) return;
 
-    function sendPost() {
+    function sendPost(gps) {
       var fd = new FormData();
       fd.append('_csrf', csrf);
       ids.forEach(function (id) {
         fd.append('invoice_ids[]', String(id));
       });
+      if (window.AppGeo && AppGeo.appendToFormData && gps) {
+        AppGeo.appendToFormData(fd, gps, 'desktop');
+      }
       fetch(postUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function (r) {
           return r.json();
@@ -55,7 +58,20 @@
         });
     }
 
-    sendPost();
+    function startPost() {
+      if (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost) {
+        AppGeo.withGpsForPost('desktop', function (gps) {
+          if (gps === undefined) {
+            return;
+          }
+          sendPost(gps);
+        });
+        return;
+      }
+      sendPost(null);
+    }
+
+    startPost();
   }
 
   function selectedIds() {
@@ -94,7 +110,7 @@
     postSelectedBtn.addEventListener('click', function () {
       var ids = selectedIds();
       if (!ids.length) return;
-      AppDialog.confirm('ترحيل ' + ids.length + ' فاتورة محددة؟', { title: 'ترحيل' }).then(function (ok) {
+      AppDialog.confirm('ترحيل ' + ids.length + ' فاتورة محددة؟\n\nسيتم تسجيل موقع هذا الجهاز (GPS) مع كل فاتورة تُرحَّل.', { title: 'ترحيل' }).then(function (ok) {
         if (ok) postInvoices(ids);
       });
     });
@@ -104,7 +120,7 @@
     btn.addEventListener('click', function () {
       var id = parseInt(btn.getAttribute('data-id'), 10);
       if (id < 1) return;
-      AppDialog.confirm('ترحيل هذه الفاتورة (مخزون + حساب العميل)؟', { title: 'ترحيل' }).then(function (ok) {
+      AppDialog.confirm('ترحيل هذه الفاتورة (مخزون + حساب العميل)؟\n\nسيتم تسجيل موقع هذا الجهاز (GPS).', { title: 'ترحيل' }).then(function (ok) {
         if (ok) postInvoices([id]);
       });
     });
@@ -174,7 +190,7 @@
         AppDialog.alert('حدّد فاتورة واحدة على الأقل غير مرحّلة للترحيل.', { type: 'warning' });
         return;
       }
-      AppDialog.confirm('ترحيل ' + ids.length + ' فاتورة (مخزون + حساب العميل)؟', { title: 'ترحيل' }).then(
+      AppDialog.confirm('ترحيل ' + ids.length + ' فاتورة (مخزون + حساب العميل)؟\n\nسيتم تسجيل موقع هذا الجهاز (GPS).', { title: 'ترحيل' }).then(
         function (ok) {
           if (ok) postInvoices(ids);
         }

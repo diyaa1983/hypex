@@ -52,6 +52,19 @@ $listUrl = sal_gps_list_build_query_url('sales_invoice_gps', $dates['from_dmy'],
 
 $exitUrl = nav_exit_url('sales_invoice_gps');
 
+if (!$submitted) {
+    $search = trim((string) ($_GET['q'] ?? ''));
+    $dates = sal_gps_list_parse_dates(null, null);
+    $dateErr = (string) ($dates['error'] ?? '');
+    if ($dateErr === '') {
+        if (app_gps_enabled()) {
+            sal_invoice_gps_backfill_recent($pdo, 14, 200);
+        }
+        $rows = sal_invoice_gps_list_rows($pdo, $search, 500, $dates['from'], $dates['to']);
+        $showResults = true;
+    }
+}
+
 if ($submitted) {
 
     $search = trim((string) ($_GET['q'] ?? ''));
@@ -69,11 +82,11 @@ if ($submitted) {
     $listUrl = sal_gps_list_build_query_url('sales_invoice_gps', $dates['from_dmy'], $dates['to_dmy'], $search);
 
     if ($dateErr === '') {
-
+        if (app_gps_enabled()) {
+            sal_invoice_gps_backfill_recent($pdo, 14, 200);
+        }
         $rows = sal_invoice_gps_list_rows($pdo, $search, 500, $dates['from'], $dates['to']);
-
         $showResults = true;
-
     }
 
 }
@@ -169,11 +182,11 @@ $gpsListJsUrl = app_url('assets/js/sal-gps-list.js')
 
             <?php if ($rows === []): ?>
 
-                <p class="muted sal-gps-empty-msg">لا توجد فواتير مرحّلة بإحداثيات GPS في الفترة المحددة.</p>
+                <p class="muted sal-gps-empty-msg">لا توجد فواتير مرحّلة في الفترة المحددة.</p>
 
             <?php else: ?>
 
-                <p class="sal-gps-intro no-print">اضغط أيقونة GPS لعرض الموقع على الخريطة.</p>
+                <p class="sal-gps-intro no-print">الفواتير المرحّلة — اضغط GPS لتسجيل موقع أو فتح الخريطة. للفواتير بدون موقع اضغط زر <strong>GPS</strong> من نفس الجهاز.</p>
 
                 <div class="report-sales-table-wrap table-wrap">
 
@@ -228,7 +241,14 @@ $gpsListJsUrl = app_url('assets/js/sal-gps-list.js')
 
                                 <td class="col-map no-print-col">
 
+                                    <?php if (!empty($row['has_gps'])): ?>
                                     <?= sal_invoice_gps_map_button_html($row) ?>
+                                    <?php else: ?>
+                                    <button type="button" class="btn btn-sm sal-gps-attach-btn no-print"
+                                            data-invoice-id="<?= (int) ($row['id'] ?? 0) ?>"
+                                            data-invoice-no="<?= esc((string) ($row['invoice_no'] ?? '')) ?>"
+                                            title="تسجيل موقع هذا الجهاز على الفاتورة">GPS</button>
+                                    <?php endif; ?>
 
                                     <?php if (!empty($row['accuracy_label'])): ?>
 
@@ -242,7 +262,11 @@ $gpsListJsUrl = app_url('assets/js/sal-gps-list.js')
 
                                     <?php if (!empty($row['place_label'])): ?>
 
-                                        <span class="sal-gps-place-label"><?= esc((string) $row['place_label']) ?></span>
+                                        <?= sal_invoice_gps_place_link_html(
+                                            (float) ($row['post_latitude'] ?? 0),
+                                            (float) ($row['post_longitude'] ?? 0),
+                                            (string) $row['place_label']
+                                        ) ?>
 
                                     <?php else: ?>
 
@@ -350,6 +374,11 @@ window.SalInvoiceGpsMapConfig = {
 
     geocodeApi: <?= json_encode($geocodeApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
 
+};
+
+window.SalGpsListConfig = {
+    attachApi: <?= json_encode(app_url('api/sales_invoice_gps_attach.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+    csrf: <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>
 };
 
 </script>

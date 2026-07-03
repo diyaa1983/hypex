@@ -3,10 +3,24 @@ declare(strict_types=1);
 
 require_once app_path('includes/sys_screens.php');
 require_once app_path('includes/sys_action_permissions.php');
+require_once app_path('includes/sql_migration.php');
 $pdoPerm = db();
+sql_migration_run_file_once($pdoPerm, 'database/migrations/208_mobile_rep_custody.sql');
+require_once app_path('includes/warehouse_access.php');
+wh_access_ensure_schema($pdoPerm);
 $syncedScreens = sys_sync_screens_from_routes($pdoPerm);
+$repScreenCount = (int) $pdoPerm->query(
+    "SELECT COUNT(*) FROM sys_screen WHERE code IN ('m_rep_load', 'm_rep_return', 'm_rep_stock')"
+)->fetchColumn();
+if ($repScreenCount < 3) {
+    require_once app_path('includes/acc_coa_bootstrap.php');
+    acc_coa_meta_set($pdoPerm, 'sys_sync_routes_mtime', '');
+    $syncedScreens += sys_sync_screens_from_routes($pdoPerm);
+}
 $syncedActions = sys_sync_action_permissions($pdoPerm);
 $actionCatalog = action_permissions_catalog();
+
+require_once app_path('includes/mobile_auth.php');
 
 $groups = db()->query('SELECT id, code, name_ar FROM sys_group ORDER BY id')->fetchAll();
 if (!$groups) {
@@ -40,6 +54,7 @@ foreach ((array) ($navMenu['domains'] ?? []) as $domainBlock) {
     ];
 }
 $permDomainFilters[] = ['id' => 'actions', 'title' => 'صلاحيات الإجراءات'];
+$permDomainFilters[] = ['id' => 'warehouses', 'title' => 'صلاحيات المستودعات'];
 $permDomainFilters[] = ['id' => 'extras', 'title' => 'شاشات وتقارير إضافية'];
 
 $idByCode = [];
@@ -61,6 +76,23 @@ $reloadAllowed = static function (int $gid) {
 };
 
 $allowed = $reloadAllowed($groupId);
+$allWarehouses = $pdoPerm->query(
+    'SELECT id, code, name_ar FROM inv_warehouse WHERE is_active = 1 ORDER BY name_ar'
+)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$whGrants = wh_access_load_group($pdoPerm, $groupId);
+
+$selectedGroupCode = '';
+foreach ($groups as $g) {
+    if ((int) $g['id'] === $groupId) {
+        $selectedGroupCode = strtoupper(trim((string) ($g['code'] ?? '')));
+        break;
+    }
+}
+$isMobilePermissionsGroup = $selectedGroupCode === MOBILE_GROUP_CODE;
+
+$permIsMobileCode = static function (string $code): bool {
+    return str_starts_with($code, 'm_');
+};
 
 $message = '';
 $messageType = '';
@@ -89,17 +121,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo = db();
             $pdo->beginTransaction();
             try {
-                $del = $pdo->prepare('DELETE FROM sys_group_permission WHERE group_id = ?');
-                $del->execute([$gid]);
+                $stGroupCode = $pdo->prepare('SELECT code FROM sys_group WHERE id = ? LIMIT 1');
+                $stGroupCode->execute([$gid]);
+                $saveGroupCode = strtoupper(trim((string) ($stGroupCode->fetchColumn() ?: '')));
+                $saveMobileOnly = $saveGroupCode === MOBILE_GROUP_CODE;
+
+                if ($saveMobileOnly) {
+                    $del = $pdo->prepare(
+                        'DELETE gp FROM sys_group_permission gp
+                         INNER JOIN sys_screen s ON s.id = gp.screen_id
+                         WHERE gp.group_id = ? AND s.code LIKE ?'
+                    );
+                    $del->execute([$gid, 'm_%']);
+                } else {
+                    $del = $pdo->prepare('DELETE FROM sys_group_permission WHERE group_id = ?');
+                    $del->execute([$gid]);
+                }
 
                 $ins = $pdo->prepare('INSERT INTO sys_group_permission (group_id, screen_id, allowed) VALUES (?, ?, 1)');
-                $allScreens = $pdo->query('SELECT id FROM sys_screen')->fetchAll(PDO::FETCH_COLUMN);
+                if ($saveMobileOnly) {
+                    $allScreens = $pdo->query(
+                        "SELECT id FROM sys_screen WHERE code LIKE 'm_%'"
+                    )->fetchAll(PDO::FETCH_COLUMN);
+                } else {
+                    $allScreens = $pdo->query('SELECT id FROM sys_screen')->fetchAll(PDO::FETCH_COLUMN);
+                }
                 foreach ($allScreens as $rawSid) {
                     $sid = (int) $rawSid;
                     if ($sid > 0 && in_array($sid, $selectedIds, true)) {
                         $ins->execute([$gid, $sid]);
                     }
                 }
+
+                $whView = $_POST['wh_view'] ?? [];
+                $whIssue = $_POST['wh_issue'] ?? [];
+                if (!is_array($whView)) {
+                    $whView = [];
+                }
+                if (!is_array($whIssue)) {
+                    $whIssue = [];
+                }
+                wh_access_save_group($pdo, $gid, $whView, $whIssue);
+
                 $pdo->commit();
 
                 refresh_session_permissions();
@@ -157,6 +220,12 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
     <section class="dashboard-ora-panel perm-ora12-filters no-print">
         <h2 class="dashboard-ora-panel__title">اختيار المجموعة والفلاتر</h2>
         <p class="dashboard-ora-panel__sub">عدّل الصلاحيات ثم اضغط <strong>حفظ</strong> في الشريط العلوي.</p>
+        <?php if ($isMobilePermissionsGroup): ?>
+        <p class="dashboard-ora-panel__sub perm-mobile-group-note">
+            مجموعة <strong>هاتف (MOBILE)</strong>: شاشات التطبيق و<strong>صلاحيات المستودعات</strong>
+            (حدّد أي مستودع يراه المندوب في الفواتير والعهدة — اترك المستودع الرئيسي بدون ✓ لإخفائه).
+        </p>
+        <?php endif; ?>
         <div class="dashboard-ora-panel__body">
             <form method="get" action="<?= esc(app_url('index.php')) ?>" class="form-row" id="permissions-group-form">
                 <input type="hidden" name="r" value="permissions">
@@ -201,7 +270,9 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
         </div>
     </section>
 
-    <form method="post" class="perm-ora12-form" id="permissions-form" action="<?= esc($permPageUrl($groupId)) ?>">
+    <form method="post" class="perm-ora12-form" id="permissions-form"
+          action="<?= esc($permPageUrl($groupId)) ?>"
+          data-mobile-only-group="<?= $isMobilePermissionsGroup ? '1' : '0' ?>">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="group_id" value="<?= (int) $groupId ?>">
 
@@ -224,7 +295,7 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
             array $idByCode,
             callable $permTypeLabel,
             bool $markShown = true
-        ) use (&$shownPermCodes): void {
+        ) use (&$shownPermCodes, $isMobilePermissionsGroup, $permIsMobileCode): void {
             $printed = 0;
             foreach ($items as $it) {
                 $permCode = trim((string) ($it['code'] ?? ''));
@@ -232,6 +303,9 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
                     $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
                 }
                 if ($permCode === '' || !isset($idByCode[$permCode])) {
+                    continue;
+                }
+                if ($isMobilePermissionsGroup && !$permIsMobileCode($permCode)) {
                     continue;
                 }
                 if ($markShown && isset($shownPermCodes[$permCode])) {
@@ -264,12 +338,75 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
                 </tr>
             <?php endif;
         };
+
+        $renderWarehousePermTable = static function () use ($allWarehouses, $whGrants): void {
+            if ($allWarehouses === []) {
+                return;
+            }
+            ?>
+            <p class="perm-domain-note">
+                حدّد المستودعات المسموحة. <strong>عرض</strong> = يرى الرصيد.
+                <strong>صرف</strong> = يبيع ويصرف (فواتير الموبايل).
+                إذا لم تُحدَّد أي مستودع يبقى الوصول لكل المستودعات.
+            </p>
+            <div class="table-wrap perm-table-wrap">
+                <table class="data-table perm-table">
+                    <thead>
+                    <tr>
+                        <th>المستودع</th>
+                        <th style="width:5rem;text-align:center;">عرض</th>
+                        <th style="width:5rem;text-align:center;">صرف</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($allWarehouses as $whRow): ?>
+                        <?php
+                        $whId = (int) ($whRow['id'] ?? 0);
+                        if ($whId < 1) {
+                            continue;
+                        }
+                        $whGrant = $whGrants[$whId] ?? ['view' => false, 'issue' => false];
+                        ?>
+                        <tr class="perm-row-entry">
+                            <td>
+                                <?= esc((string) ($whRow['name_ar'] ?? '')) ?>
+                                <code><?= esc((string) ($whRow['code'] ?? '')) ?></code>
+                            </td>
+                            <td style="text-align:center;">
+                                <input type="checkbox" name="wh_view[<?= $whId ?>]" value="1"
+                                    <?= !empty($whGrant['view']) ? 'checked' : '' ?>>
+                            </td>
+                            <td style="text-align:center;">
+                                <input type="checkbox" name="wh_issue[<?= $whId ?>]" value="1"
+                                    <?= !empty($whGrant['issue']) ? 'checked' : '' ?>>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php
+        };
         ?>
 
         <?php foreach ($navMenu['domains'] as $block): ?>
-            <div class="perm-domain-block" data-perm-domain-id="<?= esc((string) ($block['id'] ?? '')) ?>">
+            <?php
+            $blockDomainId = (string) ($block['id'] ?? '');
+            if ($isMobilePermissionsGroup && $blockDomainId !== 'mobile') {
+                continue;
+            }
+            ?>
+            <div class="perm-domain-block" data-perm-domain-id="<?= esc($blockDomainId) ?>">
                 <h3 class="perm-domain-h"><?= esc((string) $block['title']) ?></h3>
                 <div class="perm-domain-body">
+                <?php if ($blockDomainId === 'mobile' && $isMobilePermissionsGroup && $allWarehouses !== []): ?>
+                    <details class="perm-subfold" open
+                             data-perm-subgroup-id="mobile_warehouses"
+                             data-perm-subgroup-title="صلاحيات المستودعات">
+                        <summary class="perm-subfold-sum">صلاحيات المستودعات</summary>
+                        <?php $renderWarehousePermTable(); ?>
+                    </details>
+                <?php endif; ?>
                 <?php foreach ($block['subgroups'] as $sg): ?>
                     <details class="perm-subfold" open
                              data-perm-subgroup-id="<?= esc((string) ($sg['id'] ?? '')) ?>"
@@ -333,6 +470,7 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
             </div>
         <?php endif; ?>
 
+        <?php if (!$isMobilePermissionsGroup): ?>
         <?php foreach ($actionCatalog['groups'] as $actionGroup): ?>
             <div class="perm-domain-block"
                  data-perm-domain-id="actions"
@@ -368,6 +506,7 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
                 </div>
             </div>
         <?php endforeach; ?>
+        <?php endif; ?>
 
         <?php
         $leftoverReports = [];
@@ -375,6 +514,9 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
         foreach ($screens as $screenRow) {
             $code = (string) ($screenRow['code'] ?? '');
             if ($code === '' || isset($shownPermCodes[$code])) {
+                continue;
+            }
+            if ($isMobilePermissionsGroup && !$permIsMobileCode($code)) {
                 continue;
             }
             $sid = (int) ($screenRow['id'] ?? 0);
@@ -456,6 +598,13 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
                     </details>
                 <?php endif; ?>
                 </div>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($allWarehouses !== [] && !$isMobilePermissionsGroup): ?>
+            <div class="perm-domain-block" data-perm-domain-id="warehouses">
+                <h3 class="perm-domain-h">صلاحيات المستودعات</h3>
+                <?php $renderWarehousePermTable(); ?>
             </div>
         <?php endif; ?>
 

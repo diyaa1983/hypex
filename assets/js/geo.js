@@ -749,7 +749,7 @@
       return;
     }
 
-    if (!isMobileLikeClient(source || 'mobile') || !navigator.geolocation) {
+    if (!navigator.geolocation) {
       return;
     }
     if (postGpsWatchId != null) {
@@ -805,12 +805,42 @@
 
 
 
+  /** http على IP الشبكة (XAMPP) — المتصفح يمنع GPS التلقائي؛ الخريطة اليدوية تعمل. */
+  function isHttpLanBlocked() {
+    if (isCapacitorNative()) {
+      return false;
+    }
+    if (isLocalHostAccess()) {
+      return false;
+    }
+    if (typeof global.isSecureContext === 'boolean' && global.isSecureContext) {
+      return false;
+    }
+    return isPrivateLanBrowser() || !isGeoSupported();
+  }
+
+  function prefetchForPost(source) {
+    if (!canUseGeolocation() || isHttpLanBlocked()) {
+      return;
+    }
+    resolveGpsForPost(source || 'desktop')
+      .then(function (gps) {
+        rememberReading(gps);
+      })
+      .catch(function () {
+        /* صامت */
+      });
+  }
+
   function offerLocationFallback(source, onReady) {
 
     var inApk = isCapacitorNative();
+    var httpLan = isHttpLanBlocked();
     var mapMsg = inApk
       ? 'تعذر تحديد الموقع من GPS الهاتف.\n\nتأكد من:\n• تفعيل الموقع في إعدادات أندرويد\n• السماح للتطبيق «النظام المحاسبي» بالوصول للموقع\n\nأو حدّد موقعك يدوياً على الخريطة.'
-      : 'تعذر تحديد الموقع تلقائياً (GPS).\n\nيمكنك تحديد موقعك يدوياً على الخريطة — يعمل بدون إذن GPS من المتصفح.';
+      : httpLan
+        ? 'النظام يعمل عبر http على الشبكة المحلية (XAMPP) — المتصفح لا يسمح بـ GPS التلقائي إلا على localhost أو https.\n\n• اختر «فتح الخريطة» لتحديد موقع الفاتورة (يعمل الآن)\n• بعد الرفع على HostGator بـ https سيعمل GPS تلقائياً عند الترحيل'
+        : 'تعذر تحديد الموقع تلقائياً (GPS).\n\nيمكنك تحديد موقعك يدوياً على الخريطة — يعمل بدون إذن GPS من المتصفح.';
 
     if (global.AppDialog && AppDialog.confirm) {
 
@@ -1031,7 +1061,19 @@
         });
     }
 
-    return tryFresh();
+    var cachedDesktop = getPostGpsCache(900000);
+    if (cachedDesktop) {
+      return Promise.resolve(cachedDesktop);
+    }
+
+    return getBestPosition({
+      sampleMs: 12000,
+      goodEnoughM: 50,
+      timeout: 22000,
+      enableHighAccuracy: true,
+    }).catch(function () {
+      return tryFresh();
+    });
   }
 
 
@@ -1075,6 +1117,16 @@
       return;
     }
 
+    if (!autoOnly && isHttpLanBlocked()) {
+      var cachedLan = getPostGpsCache(900000);
+      if (cachedLan) {
+        finish(cachedLan);
+        return;
+      }
+      offerLocationFallback(source, onReady);
+      return;
+    }
+
     resolveGpsForPost(source)
       .then(finish)
       .catch(function () {
@@ -1097,6 +1149,8 @@
 
     isPrivateLanBrowser: isPrivateLanBrowser,
 
+    isHttpLanBlocked: isHttpLanBlocked,
+
     isMobileBrowser: isMobileBrowser,
 
     canUseGeolocation: canUseGeolocation,
@@ -1110,6 +1164,8 @@
     appendToFormData: appendToFormData,
 
     withGpsForPost: withGpsForPost,
+
+    prefetchForPost: prefetchForPost,
 
     pickMapLocation: pickMapLocation,
 
@@ -1133,10 +1189,8 @@
 
       var cfg = global.UserSessionGpsConfig || {};
 
-      if (cfg.source === 'mobile' || isCapacitorNative()) {
-
-        startPostGpsWarmup('mobile');
-
+      if (global.APP_GPS_ENABLED) {
+        startPostGpsWarmup(cfg.source === 'mobile' || isCapacitorNative() ? 'mobile' : 'desktop');
       }
 
     }

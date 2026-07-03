@@ -3662,8 +3662,11 @@
     }
     var csrfInput = form.querySelector('[name="_csrf"]');
     postDialogBusy = true;
+    if (window.AppGeo && AppGeo.prefetchForPost) {
+      AppGeo.prefetchForPost('desktop');
+    }
     AppDialog.confirm(
-      'ترحيل هذه الفاتورة (صرف مخزون + حساب العميل)؟\nيُسمح بالصرف حتى لو أصبح الرصيد سالبًا؛ يُصحَّح لاحقًا عند إدخال شراء أو رصيد للمادة.',
+      'ترحيل هذه الفاتورة (صرف مخزون + حساب العميل)؟\n\nسيتم تسجيل موقع هذا الجهاز (GPS).\nيُسمح بالصرف حتى لو أصبح الرصيد سالبًا؛ يُصحَّح لاحقًا عند إدخال شراء أو رصيد للمادة.',
       { title: 'ترحيل' }
     ).then(function (ok) {
       postDialogBusy = false;
@@ -3708,7 +3711,57 @@
           });
       }
 
+      function runPostWithGps(gps) {
+        var fd = new FormData();
+        fd.append('_csrf', csrfInput ? csrfInput.value : '');
+        fd.append('invoice_id', String(currentInvoiceId));
+        if (linkedDeliveryId > 0) {
+          fd.append('delivery_id', String(linkedDeliveryId));
+        }
+        if (window.AppGeo && AppGeo.appendToFormData && gps) {
+          AppGeo.appendToFormData(fd, gps, 'desktop');
+        }
+        if (window.AppBusy) AppBusy.show('جاري ترحيل الفاتورة...');
+        fetch(invoicePostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+          .then(parsePostInvoiceJsonResponse)
+          .then(function (res) {
+            var data = res.data;
+            if (!data) {
+              return refreshInvoiceAfterPostAttempt('تعذر قراءة رد الخادم. جارٍ التحقق من حالة الفاتورة…');
+            }
+            if (!data.ok) {
+              var errText = data.error || data.message || 'تعذر الترحيل.';
+              return refreshInvoiceAfterPostAttempt(errText);
+            }
+            invoiceIsPosted = true;
+            updatePostedBadge();
+            var successMsg = AppDialog.formatActionMessage
+              ? AppDialog.formatActionMessage(data, { fallback: 'تم الترحيل.' })
+              : data.message || 'تم الترحيل.';
+            AppDialog.success(successMsg).then(function () {
+              if (currentInvoiceId > 0) {
+                loadInvoiceById(currentInvoiceId);
+              }
+            });
+          })
+          .catch(function () {
+            refreshInvoiceAfterPostAttempt('تعذر الاتصال بالخادم. جارٍ التحقق من حالة الفاتورة…');
+          })
+          .finally(function () {
+            if (window.AppBusy) AppBusy.hide();
+          });
+      }
+
       function startPost() {
+        if (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost) {
+          AppGeo.withGpsForPost('desktop', function (gps) {
+            if (gps === undefined) {
+              return;
+            }
+            runPostWithGps(gps);
+          });
+          return;
+        }
         runPost();
       }
 

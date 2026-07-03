@@ -32,6 +32,11 @@
       form.querySelectorAll('.perm-domain-block[data-perm-domain-id]')
     );
 
+    if (form.getAttribute('data-mobile-only-group') === '1') {
+      domainSelect.value = 'mobile';
+      domainSelect.disabled = true;
+    }
+
     function normalizeSearchText(value) {
       return String(value || '').toLowerCase().trim();
     }

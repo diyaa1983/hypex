@@ -6,6 +6,7 @@ require_once app_path('includes/sal_invoice_post.php');
 require_once app_path('includes/sal_invoice_schema.php');
 require_once app_path('includes/sal_delivery_invoice_link.php');
 require_once app_path('includes/mobile_invoice.php');
+require_once app_path('includes/sal_invoice_gps.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -66,6 +67,19 @@ if ($linkDeliveryId > 0 && count($ids) === 1) {
 try {
     $result = sal_invoice_post_by_ids($pdo, $ids);
 
+    $gpsPayload = sal_invoice_gps_parse_request();
+    $postUserId = (int) (current_user()['id'] ?? 0);
+    $gpsSaved = 0;
+    foreach ($ids as $rawInvId) {
+        $invId = (int) $rawInvId;
+        if ($invId < 1 || !sal_invoice_is_posted($pdo, $invId)) {
+            continue;
+        }
+        if (sal_invoice_gps_apply_on_post($pdo, $invId, $gpsPayload, $postUserId > 0 ? $postUserId : null)) {
+            $gpsSaved++;
+        }
+    }
+
     $posted = (int) $result['posted'];
     $skipped = (int) $result['skipped'];
     $warnings = $result['warnings'] ?? [];
@@ -76,6 +90,11 @@ try {
         $msg = 'تم ترحيل ' . $posted . ' فاتورة (مستودعيًا وماليًا).';
         if ($skipped > 0) {
             $msg .= ' (' . $skipped . ' كانت مرحّلة مسبقًا)';
+        }
+        if ($gpsSaved > 0 && app_gps_enabled()) {
+            $msg .= ' — تم تسجيل موقع GPS.';
+        } elseif ($posted > 0 && app_gps_enabled()) {
+            $warnings[] = 'لم يُسجَّل موقع GPS — على http/XAMPP استخدم «فتح الخريطة» عند الترحيل أو زر GPS في «مواقع فواتير البيع». بعد الرفع على https سيعمل تلقائياً.';
         }
     } else {
         $msg = 'لم يُرحَّل أي مستند.';
@@ -91,6 +110,7 @@ try {
         'ok' => $ok,
         'posted' => $posted,
         'skipped' => $skipped,
+        'gps_saved' => $gpsSaved,
         'errors' => $result['errors'],
         'warnings' => $warnings,
         'warning' => $warnings[0] ?? null,

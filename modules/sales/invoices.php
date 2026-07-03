@@ -17,9 +17,9 @@ $flash = flash_get();
 crm_sales_rep_ensure_customer_invoice_links($pdo);
 require_once app_path('includes/customer_picker.php');
 $customers = crm_customers_for_picker($pdo);
-require_once app_path('includes/inv_warehouse_items.php');
-$warehouses = $pdo->query('SELECT id, code, name_ar FROM inv_warehouse WHERE is_active = 1 ORDER BY name_ar')->fetchAll();
-$defaultWarehouseId = inv_default_warehouse_id($pdo);
+require_once app_path('includes/warehouse_access.php');
+$warehouses = wh_access_list_warehouses($pdo, 'issue');
+$defaultWarehouseId = wh_access_default_issue_warehouse_id($pdo);
 
 $settings = company_settings($pdo);
 $dp = company_decimal_places($pdo);

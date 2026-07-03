@@ -69,7 +69,7 @@ $cssV = is_file(app_path('assets/mobile/app.css')) ? (string) filemtime(app_path
             <div class="m-login-mark" aria-hidden="true">📱</div>
         <?php endif; ?>
         <h1 class="m-login-title"><?= esc((string) $settingsRow['company_name_ar']) ?></h1>
-        <p class="m-login-sub">تطبيق الهاتف — تسجيل الدخول</p>
+        <p class="m-login-sub">تسجيل الدخول</p>
         <?php if ($error !== ''): ?>
             <div class="m-alert m-alert--error"><?= esc($error) ?></div>
         <?php endif; ?>

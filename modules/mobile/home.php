@@ -6,6 +6,15 @@ require_once app_path('includes/mobile_icons.php');
 
 $flash = flash_get();
 $homeTiles = mobile_home_launcher_tiles();
+$userName = trim((string) (current_user()['full_name_ar'] ?? ''));
+$avatarLetter = 'م';
+if ($userName !== '') {
+    if (function_exists('mb_substr')) {
+        $avatarLetter = mb_substr($userName, 0, 1, 'UTF-8');
+    } else {
+        $avatarLetter = substr($userName, 0, 1);
+    }
+}
 ?>
 <?php if ($flash): ?>
 <div class="m-alert m-alert--<?= esc($flash['type'] === 'error' ? 'error' : 'success') ?>">
@@ -14,8 +23,14 @@ $homeTiles = mobile_home_launcher_tiles();
 <?php endif; ?>
 
 <div class="m-home">
-    <p class="m-home-welcome">مرحباً، <?= esc((string) (current_user()['full_name_ar'] ?? '')) ?></p>
-    <p class="m-home-sub muted">اختر شاشة للبدء</p>
+    <div class="m-home-hero">
+        <div class="m-home-avatar" aria-hidden="true"><?= esc($avatarLetter) ?></div>
+        <div class="m-home-hero-text">
+            <p class="m-home-welcome">مرحباً، <?= esc($userName !== '' ? $userName : '—') ?></p>
+            <p class="m-home-sub muted">اختر شاشة للبدء</p>
+        </div>
+    </div>
+
     <?php if ($homeTiles !== []): ?>
     <div class="m-tile-grid m-tile-grid--square" role="list">
         <?php foreach ($homeTiles as $tile): ?>
@@ -30,5 +45,4 @@ $homeTiles = mobile_home_launcher_tiles();
     <?php else: ?>
     <p class="m-home-empty muted">لا توجد شاشات متاحة لحسابك على الهاتف.</p>
     <?php endif; ?>
-    <p class="m-home-note muted">نفس بيانات النظام الرئيسي — واجهة مخصصة للهاتف فقط.</p>
 </div>
