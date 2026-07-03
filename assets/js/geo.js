@@ -791,6 +791,53 @@
 
     }
 
+    var capturedAt = gps.capturedAt != null ? gps.capturedAt : Date.now();
+    fd.append('gps_captured_at', String(Math.floor(capturedAt)));
+
+  }
+
+
+
+  function isAcceptablePostGps(gps) {
+
+    if (
+
+      !gps ||
+
+      !isFinite(gps.latitude) ||
+
+      !isFinite(gps.longitude) ||
+
+      (Math.abs(gps.latitude) < 0.000001 && Math.abs(gps.longitude) < 0.000001)
+
+    ) {
+
+      return false;
+
+    }
+
+    if (gps.manual) {
+
+      return true;
+
+    }
+
+    if (isCoarseReading(gps, 150)) {
+
+      return false;
+
+    }
+
+    var age = readingAgeMs(gps);
+
+    if (age != null && age > 180000) {
+
+      return false;
+
+    }
+
+    return true;
+
   }
 
 
@@ -844,7 +891,6 @@
         typeof gps.accuracy === 'number' && isFinite(gps.accuracy) ? gps.accuracy : null,
       at: Date.now(),
     };
-    rememberGps(gps);
   }
 
 
@@ -935,11 +981,13 @@
 
 
 
-  function pickMapLocation() {
+  function pickMapLocation(options) {
+
+    options = options || {};
 
     if (global.AppGeoMapPick && typeof AppGeoMapPick.pickLocationOnMap === 'function') {
 
-      return AppGeoMapPick.pickLocationOnMap();
+      return AppGeoMapPick.pickLocationOnMap(options);
 
     }
 
@@ -992,15 +1040,23 @@
       });
   }
 
-  function offerLocationFallback(source, onReady) {
+  function offerLocationFallback(source, onReady, fallbackOpts) {
+
+    fallbackOpts = fallbackOpts || {};
+    var forPost = !!fallbackOpts.forPost;
+    var requireLocation = !!fallbackOpts.requireLocation;
 
     var inApk = isCapacitorNative();
     var httpLan = isHttpLanBlocked();
     var mapMsg = inApk
-      ? 'تعذر تحديد الموقع من GPS الهاتف.\n\nتأكد من:\n• تفعيل الموقع في إعدادات أندرويد\n• السماح للتطبيق «النظام المحاسبي» بالوصول للموقع\n\nأو حدّد موقعك يدوياً على الخريطة.'
+      ? 'تعذر تحديد الموقع من GPS الهاتف.\n\nتأكد من:\n• تفعيل الموقع في إعدادات أندرويد\n• السماح للتطبيق «النظام المحاسبي» بالوصول للموقع\n\nحدّد موقعك على الخريطة (اضغط «موقعي الآن» أو انقر على موقعك).'
       : httpLan
-        ? 'النظام يعمل عبر http على الشبكة المحلية (XAMPP) — المتصفح لا يسمح بـ GPS التلقائي إلا على localhost أو https.\n\n• اختر «فتح الخريطة» لتحديد موقع الفاتورة (يعمل الآن)\n• بعد الرفع على HostGator بـ https سيعمل GPS تلقائياً عند الترحيل'
-        : 'تعذر تحديد الموقع تلقائياً (GPS).\n\nيمكنك تحديد موقعك يدوياً على الخريطة — يعمل بدون إذن GPS من المتصفح.';
+        ? 'GPS التلقائي غير متاح عبر http على الشبكة المحلية.\n\n• اضغط «فتح الخريطة»\n• ثم «موقعي الآن» أو انقر على موقعك\n\nبعد الرفع على https سيعمل GPS تلقائياً.'
+        : 'تعذر تحديد الموقع تلقائياً (GPS).\n\nحدّد موقعك على الخريطة — اضغط «موقعي الآن» أو انقر على موقعك.';
+
+    if (requireLocation) {
+      mapMsg += '\n\nلا يمكن إتمام الترحيل بدون تحديد موقع صحيح.';
+    }
 
     if (global.AppDialog && AppDialog.confirm) {
 
@@ -1010,15 +1066,23 @@
 
         okText: 'فتح الخريطة',
 
-        cancelText: 'خيارات أخرى',
+        cancelText: requireLocation ? 'إلغاء الترحيل' : 'خيارات أخرى',
 
       }).then(function (useMap) {
 
         if (useMap) {
 
-          pickMapLocation()
+          pickMapLocation({ forPost: forPost || requireLocation })
 
             .then(function (gps) {
+
+              if (!isAcceptablePostGps(gps)) {
+                if (global.AppDialog && AppDialog.alert) {
+                  AppDialog.alert('الموقع المحدّد غير صالح. حاول مرة أخرى.', { type: 'warning' });
+                }
+                onReady(undefined);
+                return;
+              }
 
               rememberGps(gps);
 
@@ -1029,6 +1093,8 @@
             .catch(function (err) {
 
               if (err && err.message === 'cancelled') {
+
+                onReady(undefined);
 
                 return;
 
@@ -1046,7 +1112,11 @@
 
               }
 
-              offerPostWithoutGps(onReady);
+              if (requireLocation) {
+                onReady(undefined);
+              } else {
+                offerPostWithoutGps(onReady);
+              }
 
             });
 
@@ -1054,7 +1124,11 @@
 
         }
 
-        offerPostWithoutGps(onReady);
+        if (requireLocation) {
+          onReady(undefined);
+        } else {
+          offerPostWithoutGps(onReady);
+        }
 
       });
 
@@ -1062,7 +1136,11 @@
 
     }
 
-    offerPostWithoutGps(onReady);
+    if (requireLocation) {
+      onReady(undefined);
+    } else {
+      offerPostWithoutGps(onReady);
+    }
 
   }
 
@@ -1286,13 +1364,21 @@
     }
 
     function finishWithFallback() {
-      offerLocationFallback(source, function (gps) {
-        if (gps === undefined) {
-          finish(null);
-          return;
-        }
-        finish(gps);
-      });
+      offerLocationFallback(
+        source,
+        function (gps) {
+          if (gps === undefined) {
+            finish(undefined);
+            return;
+          }
+          if (!gps) {
+            finish(null);
+            return;
+          }
+          finish(gps);
+        },
+        { forPost: true, requireLocation: true }
+      );
     }
 
     if (autoOnly) {
@@ -1301,7 +1387,12 @@
         return;
       }
       resolveGpsForPost(source)
-        .then(finish)
+        .then(function (gps) {
+          if (!isAcceptablePostGps(gps)) {
+            return Promise.reject(new Error('gps_coarse'));
+          }
+          finish(gps);
+        })
         .catch(function () {
           finishWithFallback();
         });
@@ -1354,6 +1445,8 @@
     getBestPosition: getBestPosition,
 
     appendToFormData: appendToFormData,
+
+    isAcceptablePostGps: isAcceptablePostGps,
 
     withGpsForPost: withGpsForPost,
 

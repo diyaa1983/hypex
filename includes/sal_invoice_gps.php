@@ -850,8 +850,16 @@ function sal_invoice_gps_parse_request(?array $source = null): ?array
     }
 
     // تجاهل قراءات GPS تقريبية جداً (شبكة/WiFi) — أفضل عدم حفظ موقع خاطئ
-    if ($accuracy !== null && $accuracy > 350) {
+    if ($accuracy !== null && $accuracy > 150) {
         return null;
+    }
+
+    $sourceNorm = sal_invoice_gps_normalize_source((string) ($source['gps_source'] ?? 'mobile'));
+    if ($sourceNorm !== 'manual' && $sourceNorm !== 'خريطة يدوية') {
+        $capturedAt = isset($source['gps_captured_at']) ? (int) $source['gps_captured_at'] : 0;
+        if ($capturedAt < 1 || (time() - $capturedAt) > 300) {
+            return null;
+        }
     }
 
     $place = trim((string) ($source['gps_place'] ?? ''));
@@ -865,7 +873,7 @@ function sal_invoice_gps_parse_request(?array $source = null): ?array
         'latitude' => $lat,
         'longitude' => $lng,
         'gps_accuracy' => $accuracy,
-        'gps_source' => sal_invoice_gps_normalize_source((string) ($source['gps_source'] ?? 'mobile')),
+        'gps_source' => $sourceNorm,
         'gps_place' => $place,
     ];
 }
@@ -928,7 +936,7 @@ function sal_invoice_gps_lookup_from_users(PDO $pdo, array $userIds, int $maxAge
             continue;
         }
         $acc = $latest['gps_accuracy'] ?? null;
-        if ($acc !== null && is_numeric($acc) && (float) $acc > 350) {
+        if ($acc !== null && is_numeric($acc) && (float) $acc > 150) {
             continue;
         }
 
@@ -981,7 +989,7 @@ function sal_invoice_gps_apply_on_post(
     }
 
     $acc = $gps['gps_accuracy'] ?? null;
-    if ($acc !== null && is_numeric($acc) && (float) $acc > 350) {
+    if ($acc !== null && is_numeric($acc) && (float) $acc > 150) {
         return false;
     }
 

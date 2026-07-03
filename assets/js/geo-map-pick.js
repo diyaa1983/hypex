@@ -63,14 +63,14 @@
     return { lat: DEFAULT_LAT, lng: DEFAULT_LNG, isDefault: true };
   }
 
-  function tryGpsCoords(timeoutMs) {
+  function tryGpsCoords(timeoutMs, forPost) {
     if (!global.AppGeo || typeof AppGeo.getCurrentPosition !== 'function') {
       return Promise.resolve(null);
     }
     return AppGeo.getCurrentPosition({
       enableHighAccuracy: true,
-      maximumAge: 120000,
-      timeout: timeoutMs || 14000,
+      maximumAge: forPost ? 0 : 120000,
+      timeout: timeoutMs || (forPost ? 20000 : 14000),
     })
       .then(function (gps) {
         if (
@@ -79,7 +79,13 @@
           isFinite(gps.longitude) &&
           !(Math.abs(gps.latitude) < 0.000001 && Math.abs(gps.longitude) < 0.000001)
         ) {
-          return { lat: gps.latitude, lng: gps.longitude, fromGps: true };
+          return {
+            lat: gps.latitude,
+            lng: gps.longitude,
+            fromGps: true,
+            accuracy: gps.accuracy != null ? gps.accuracy : null,
+            capturedAt: gps.capturedAt != null ? gps.capturedAt : Date.now(),
+          };
         }
         return null;
       })
@@ -88,13 +94,12 @@
       });
   }
 
-  /** GPS → آخر موقع محفوظ → الافتراضي */
+  /** GPS → آخر موقع محفوظ → الافتراضي (أو GPS فقط عند الترحيل) */
   function resolveStartCoords(options) {
-    if (
-      options &&
-      isFinite(options.latitude) &&
-      isFinite(options.longitude)
-    ) {
+    options = options || {};
+    var forPost = !!options.forPost;
+
+    if (isFinite(options.latitude) && isFinite(options.longitude)) {
       return Promise.resolve({
         lat: options.latitude,
         lng: options.longitude,
@@ -102,11 +107,31 @@
         isDefault: false,
       });
     }
-    return tryGpsCoords(14000).then(function (gps) {
+
+    return tryGpsCoords(forPost ? 22000 : 14000, forPost).then(function (gps) {
       if (gps) {
-        rememberCoords(gps.lat, gps.lng);
-        return gps;
+        if (!forPost) {
+          rememberCoords(gps.lat, gps.lng);
+        }
+        return {
+          lat: gps.lat,
+          lng: gps.lng,
+          fromGps: true,
+          isDefault: false,
+          accuracy: gps.accuracy,
+          capturedAt: gps.capturedAt,
+        };
       }
+
+      if (forPost) {
+        return {
+          lat: DEFAULT_LAT,
+          lng: DEFAULT_LNG,
+          fromGps: false,
+          isDefault: true,
+        };
+      }
+
       var last = readLastCoords();
       return {
         lat: last.lat,
@@ -117,7 +142,13 @@
     });
   }
 
-  function hintForStart(start) {
+  function hintForStart(start, forPost) {
+    if (forPost) {
+      if (start && start.fromGps) {
+        return 'تم جلب موقعك من GPS. تحقق من الدبوس ثم «تأكيد الموقع» — أو انقر على الخريطة لتعديله.';
+      }
+      return 'لم يُعثر على GPS تلقائياً. اضغط «موقعي الآن» أو انقر على موقعك الصحيح على الخريطة — لا تؤكد قبل تحديد مكانك.';
+    }
     if (start && start.fromGps) {
       return 'تم جلب موقعك من GPS. انقر على الخريطة لتعديل الدبوس إن لزم، ثم «تأكيد الموقع».';
     }
@@ -136,11 +167,23 @@
     }
   }
 
+  function alertPickRequired(forPost) {
+    var msg = forPost
+      ? 'حدّد موقعك أولاً:\n\n• اضغط «موقعي الآن»\n• أو انقر على موقعك على الخريطة\n\nلا تُستخدم إحداثيات قديمة أو افتراضية.'
+      : 'حدّد موقعاً على الخريطة أو اضغط «موقعي الآن».';
+    if (global.AppDialog && AppDialog.alert) {
+      return AppDialog.alert(msg, { type: 'warning', title: 'تحديد الموقع' });
+    }
+    global.alert(msg);
+    return Promise.resolve();
+  }
+
   /**
-   * @returns {Promise<{latitude:number, longitude:number, accuracy:null, manual:boolean}>}
+   * @returns {Promise<{latitude:number, longitude:number, accuracy:number|null, manual:boolean, capturedAt:number}>}
    */
   function pickLocationOnMap(options) {
     options = options || {};
+    var forPost = !!options.forPost;
 
     return ensureLeaflet()
       .then(function () {
@@ -151,6 +194,10 @@
           var lat = start.lat;
           var lng = start.lng;
           var settled = false;
+          var userAdjusted = false;
+          var freshGpsAtStart = !!(start && start.fromGps);
+          var startAccuracy = start && start.accuracy != null ? start.accuracy : null;
+          var startCapturedAt = start && start.capturedAt != null ? start.capturedAt : null;
 
           var root = document.createElement('div');
           root.className = 'geo-map-pick-root';
@@ -158,7 +205,9 @@
             '<div class="geo-map-pick-backdrop" data-geo-map-cancel></div>' +
             '<div class="geo-map-pick-panel" role="dialog" aria-modal="true">' +
             '<header class="geo-map-pick-head">' +
-            '<h3 class="geo-map-pick-title">تحديد الموقع على الخريطة</h3>' +
+            '<h3 class="geo-map-pick-title">' +
+            (forPost ? 'موقع ترحيل الفاتورة' : 'تحديد الموقع على الخريطة') +
+            '</h3>' +
             '<button type="button" class="geo-map-pick-close" data-geo-map-cancel aria-label="إغلاق">×</button>' +
             '</header>' +
             '<p class="geo-map-pick-hint" id="geo-map-pick-hint"></p>' +
@@ -177,11 +226,12 @@
           var coordsEl = root.querySelector('#geo-map-pick-coords');
           var mapEl = root.querySelector('#geo-map-pick-map');
           var myLocBtn = root.querySelector('[data-geo-map-my-loc]');
+          var okBtn = root.querySelector('[data-geo-map-ok]');
           var map = null;
           var marker = null;
 
           if (hintEl) {
-            hintEl.textContent = hintForStart(start);
+            hintEl.textContent = hintForStart(start, forPost);
           }
 
           function updateCoordsLabel() {
@@ -214,9 +264,13 @@
             }
           }
 
-          function setPoint(newLat, newLng, flyTo) {
+          function setPoint(newLat, newLng, flyTo, fromGpsRefresh) {
             lat = newLat;
             lng = newLng;
+            if (fromGpsRefresh) {
+              userAdjusted = true;
+              freshGpsAtStart = true;
+            }
             if (!marker) {
               marker = global.L.marker([lat, lng]).addTo(map);
             } else {
@@ -228,23 +282,41 @@
             updateCoordsLabel();
           }
 
+          function canConfirmForPost() {
+            if (!forPost) {
+              return true;
+            }
+            if (userAdjusted) {
+              return true;
+            }
+            if (freshGpsAtStart && !start.isDefault) {
+              return true;
+            }
+            return false;
+          }
+
           function refreshFromGps() {
             if (!myLocBtn || myLocBtn.disabled) {
               return;
             }
             myLocBtn.disabled = true;
             myLocBtn.textContent = 'جاري تحديد الموقع…';
-            tryGpsCoords(18000)
+            tryGpsCoords(forPost ? 22000 : 18000, forPost)
               .then(function (gps) {
                 if (gps) {
-                  rememberCoords(gps.lat, gps.lng);
-                  setPoint(gps.lat, gps.lng, true);
+                  startAccuracy = gps.accuracy;
+                  startCapturedAt = gps.capturedAt;
+                  setPoint(gps.lat, gps.lng, true, true);
                   if (hintEl) {
-                    hintEl.textContent = hintForStart({ fromGps: true });
+                    hintEl.textContent = hintForStart({ fromGps: true }, forPost);
+                  }
+                  if (!forPost) {
+                    rememberCoords(gps.lat, gps.lng);
                   }
                 } else if (hintEl) {
-                  hintEl.textContent =
-                    'تعذر جلب GPS. على المحاكي: Android Studio → ⋮ → Location → Send. أو انقر موقعك على الخريطة.';
+                  hintEl.textContent = forPost
+                    ? 'تعذر جلب GPS. انقر موقعك على الخريطة ثم «تأكيد الموقع».'
+                    : 'تعذر جلب GPS. على المحاكي: Android Studio → ⋮ → Location → Send. أو انقر موقعك على الخريطة.';
                 }
               })
               .finally(function () {
@@ -261,13 +333,18 @@
             });
           });
 
-          root.querySelector('[data-geo-map-ok]').addEventListener('click', function () {
+          okBtn.addEventListener('click', function () {
+            if (!canConfirmForPost()) {
+              alertPickRequired(forPost);
+              return;
+            }
             rememberCoords(lat, lng);
             finish(null, {
               latitude: lat,
               longitude: lng,
-              accuracy: null,
+              accuracy: startAccuracy,
               manual: true,
+              capturedAt: startCapturedAt != null ? startCapturedAt : Date.now(),
             });
           });
 
@@ -277,7 +354,7 @@
 
           document.body.appendChild(root);
 
-          map = global.L.map(mapEl, { zoomControl: true }).setView([lat, lng], 16);
+          map = global.L.map(mapEl, { zoomControl: true }).setView([lat, lng], forPost ? 15 : 16);
           global.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap',
@@ -288,6 +365,7 @@
 
           map.on('click', function (ev) {
             if (ev && ev.latlng) {
+              userAdjusted = true;
               setPoint(ev.latlng.lat, ev.latlng.lng);
             }
           });
@@ -297,6 +375,10 @@
               map.invalidateSize();
             }
           }, 120);
+
+          if (forPost && !freshGpsAtStart) {
+            setTimeout(refreshFromGps, 280);
+          }
         });
       })
       .catch(function () {

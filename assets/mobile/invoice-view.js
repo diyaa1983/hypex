@@ -613,6 +613,20 @@
         AppGeo.withGpsForPost('mobile', function (gps) {
           if (gps === undefined) {
             postFlowBusy = false;
+            showPostStatus('تم إلغاء الترحيل — يجب تحديد موقعك على الخريطة.', 'error');
+            return;
+          }
+          if (
+            !gps ||
+            (window.AppGeo &&
+              AppGeo.isAcceptablePostGps &&
+              !AppGeo.isAcceptablePostGps(gps))
+          ) {
+            postFlowBusy = false;
+            showPostStatus(
+              'لم يُحدَّد موقع صالح. اضغط «موقعي الآن» على الخريطة أو انقر على موقعك.',
+              'error'
+            );
             return;
           }
           showPostStatus('جاري الترحيل...', 'success');
@@ -707,8 +721,4 @@
   }
 
   loadInvoice();
-
-  if ((cfg.gpsEnabled || window.APP_GPS_ENABLED) && window.AppGeo && AppGeo.prefetchForPost) {
-    AppGeo.prefetchForPost('mobile');
-  }
 })();
