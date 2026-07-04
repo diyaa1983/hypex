@@ -4,7 +4,8 @@
   يقرأ att2000.mdb عبر ADODB ويرسل للسيرفر
 #>
 param(
-    [switch]$Quiet
+    [switch]$Quiet,
+    [switch]$Diagnose
 )
 
 $ErrorActionPreference = 'Stop'
@@ -111,7 +112,7 @@ LEFT JOIN USERINFO AS u ON u.USERID = c.USERID
     while (-not $rs.EOF) {
         $checkRaw = $rs.Fields.Item('CHECKTIME').Value
         $checkStr = Format-CheckTimeValue $checkRaw
-        if ($checkStr -match '#Error|Error') {
+        if ($checkStr -match '#Error') {
             $rs.MoveNext()
             continue
         }
@@ -205,8 +206,21 @@ try {
     $conn = Open-MdbConnection -MdbPath $cfg.MdbPath
     $hasFlag = Test-HasFlagColumn -Conn $conn
     $rows = Get-PunchRows -Conn $conn -UseFlag $cfg.UseFlag -HasFlag $hasFlag
+    $rowArray = @($rows)
+    $rowCount = $rowArray.Count
 
-    if ($rows.Count -eq 0) {
+    if ($Diagnose) {
+        $pending = if ($hasFlag) { Get-PendingFlagCount -Conn $conn } else { -1 }
+        $total = Get-TotalCheckinCount -Conn $conn
+        Write-Host "mdb=$($cfg.MdbPath) use_flag=$($cfg.UseFlag) hasFlag=$hasFlag"
+        Write-Host "pending=$pending total=$total rows_to_send=$rowCount"
+        foreach ($r in $rowArray) {
+            Write-Host "  USERID=$($r.USERID) CHECKTIME=$($r.CHECKTIME)"
+        }
+        exit 0
+    }
+
+    if ($rowCount -lt 1) {
         if ($cfg.UseFlag -and $hasFlag) {
             $pending = Get-PendingFlagCount -Conn $conn
             $total = Get-TotalCheckinCount -Conn $conn
@@ -221,16 +235,17 @@ try {
         exit 0
     }
 
-    Write-Log ('Found {0} punch(es) to send.' -f ([int]$rows.Count))
+    Write-Log ('Found {0} punch(es) to send.' -f $rowCount)
     $batchSize = [Math]::Max(50, [Math]::Min(2000, $cfg.BatchSize))
     $totalInserted = 0
     $totalSkipped = 0
     $chunkIndex = 0
-    $chunkCount = [Math]::Ceiling($rows.Count / $batchSize)
+    $chunkCount = [Math]::Ceiling($rowCount / $batchSize)
 
-    for ($i = 0; $i -lt $rows.Count; $i += $batchSize) {
+    for ($i = 0; $i -lt $rowCount; $i += $batchSize) {
         $chunkIndex++
-        $chunk = @($rows[$i..([Math]::Min($i + $batchSize - 1, $rows.Count - 1))])
+        $end = [Math]::Min($i + $batchSize - 1, $rowCount - 1)
+        $chunk = $rowArray[$i..$end]
         Write-Log ("Sending batch {0}/{1} ({2} records)..." -f $chunkIndex, $chunkCount, $chunk.Count)
 
         $payload = foreach ($r in $chunk) {
