@@ -436,6 +436,11 @@ return [
         'permission' => 'report_hr_employee_attendance',
         'title' => 'حركة دوام الموظفين',
     ],
+    'report_hr_att_punch_movements' => [
+        'file' => 'modules/reports/hr_att_punch_movements.php',
+        'permission' => 'report_hr_att_punch_movements',
+        'title' => 'تقرير حركات البصمات',
+    ],
     'report_hr_employee_leaves' => [
         'file' => 'modules/reports/hr_employee_leaves.php',
         'permission' => 'report_hr_employee_leaves',

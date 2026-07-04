@@ -260,6 +260,7 @@ return [
                             'title' => 'تقارير البصمات',
                             'items' => [
                                 ['r' => 'report_hr_employee_attendance', 'label' => 'حركة دوام الموظفين', 'icon' => '🕐'],
+                                ['r' => 'report_hr_att_punch_movements', 'label' => 'حركات البصمات (الكل)', 'icon' => '👆'],
                             ],
                         ],
                     ],
