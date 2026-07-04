@@ -55,6 +55,7 @@ $recommendedDir = sys_backup_recommended_dir();
 $pathIssue = sys_backup_path_issue($backupDir);
 $canRunBackup = $hasDir && $pathIssue === null;
 $serverLabel = sys_backup_server_label();
+$recentBackups = sys_backup_recent_folders($pdo, 8);
 $exitUrl = nav_exit_url('system_backup');
 
 $cssPath = app_path('assets/css/sys-backup.css');
@@ -66,7 +67,10 @@ $backupApiUrl = app_url('api/backup_run.php');
 <div class="dashboard-ora sys-backup-page"
      data-exit-url="<?= esc($exitUrl) ?>"
      data-backup-api="<?= esc($backupApiUrl) ?>"
-     data-csrf="<?= esc(csrf_token()) ?>">
+     data-csrf="<?= esc(csrf_token()) ?>"
+     data-backup-dir="<?= esc($backupDir) ?>"
+     data-recommended-dir="<?= esc($recommendedDir) ?>"
+     data-is-linux="<?= sys_backup_is_linux_server() ? '1' : '0' ?>">
     <header class="dashboard-ora-screen-title" role="banner">
         <h1 class="dashboard-ora-screen-title__text">النسخ الاحتياطي</h1>
         <?php nav_render_screen_close('system_backup'); ?>
@@ -84,8 +88,12 @@ $backupApiUrl = app_url('api/backup_run.php');
             <div class="dashboard-ora-panel__body">
                 <p class="sys-backup-note muted">
                     الخادم الحالي: <strong dir="ltr"><?= esc($serverLabel) ?></strong>.
-                    حدّد مجلداً على جهاز الخادم (مرة واحدة) لحفظ النسخ الاحتياطية.
+                    حدّد مجلداً على <strong>جهاز الخادم</strong> (مرة واحدة) لحفظ النسخ الاحتياطية.
                     كل نسخة تُنشأ في مجلد باسم تاريخ اليوم (مثل: <code dir="ltr"><?= esc($todayFolder) ?></code>).
+                </p>
+                <p class="sys-backup-note sys-backup-note--info muted">
+                    عند الرفع على الإنترنت (Linux) لا يمكن حفظ النسخ مباشرة على قرص جهازك (<code dir="ltr">D:\...</code>).
+                    النسخ تُحفظ على الخادم أولاً، ثم يمكنك <strong>تنزيلها إلى الكمبيوتر</strong> من قسم «تنزيل إلى جهازك» أدناه.
                 </p>
 
                 <?php if ($pathIssue !== null): ?>
@@ -143,18 +151,53 @@ $backupApiUrl = app_url('api/backup_run.php');
                 <?php endif; ?>
 
                 <div class="sys-backup-run-wrap">
-                    <button type="button" class="btn btn-primary btn-lg sys-backup-run-btn" id="sys-backup-run-btn"
-                            <?= $canRunBackup ? '' : 'disabled aria-disabled="true" title="احفظ مساراً صالحاً للخادم أولاً"' ?>>
+                    <button type="button" class="btn btn-primary btn-lg sys-backup-run-btn" id="sys-backup-run-btn">
                         💾 أخذ نسخة احتياطية الآن
                     </button>
-                    <?php if (!$hasDir): ?>
-                        <p class="sys-backup-warn muted">احفظ مجلد النسخ الاحتياطي أولاً ثم اضغط الزر.</p>
-                    <?php elseif ($pathIssue !== null): ?>
-                        <p class="sys-backup-warn muted">المسار الحالي غير صالح لهذا الخادم. اضغط «استخدام المسار المقترح تلقائياً» ثم أعد المحاولة.</p>
-                    <?php else: ?>
+                    <p class="muted sys-backup-run-hint">سيُطلب منك تحديد مجلد الحفظ عند كل نسخة (يُحفظ المسار للمرة القادمة).</p>
+                    <?php if ($hasDir && $pathIssue === null): ?>
+                        <p class="muted">المسار المحفوظ: <code dir="ltr"><?= esc($backupDir) ?></code></p>
                         <p class="muted">مجلد اليوم: <code dir="ltr"><?= esc(sys_backup_normalize_dir($backupDir . DIRECTORY_SEPARATOR . $todayFolder)) ?></code></p>
+                    <?php elseif ($pathIssue !== null): ?>
+                        <p class="sys-backup-warn muted">المسار المحفوظ غير صالح — سيُعرض المسار المقترح عند أخذ النسخة.</p>
                     <?php endif; ?>
                 </div>
+            </div>
+        </section>
+
+        <section class="dashboard-ora-panel sys-backup-panel">
+            <h2 class="dashboard-ora-panel__title">تنزيل إلى جهازك</h2>
+            <div class="dashboard-ora-panel__body">
+                <p class="sys-backup-note muted">
+                    بعد أخذ النسخة على الخادم، اضغط أحد الأزرار لتنزيل الملفات إلى مجلد التنزيلات في جهازك
+                    (مثل <code dir="ltr">D:\Downloads</code>) — يمكنك نقلها لاحقاً إلى أي مجلد تحفظ فيه النسخ.
+                </p>
+
+                <?php if ($recentBackups === []): ?>
+                    <p class="sys-backup-warn muted">لا توجد نسخ محفوظة بعد. خذ نسخة احتياطية أولاً ثم عد لهذا القسم.</p>
+                <?php else: ?>
+                    <div class="sys-backup-download-list">
+                        <?php foreach ($recentBackups as $entry): ?>
+                            <?php
+                            $df = (string) ($entry['date_folder'] ?? '');
+                            $bundleUrl = sys_backup_download_url($df, 'bundle');
+                            $dbUrl = sys_backup_download_url($df, 'database');
+                            $filesUrl = sys_backup_download_url($df, 'files');
+                            ?>
+                            <article class="sys-backup-download-item">
+                                <div class="sys-backup-download-item__head">
+                                    <strong dir="ltr"><?= esc($df) ?></strong>
+                                    <span class="muted" dir="ltr"><?= esc((string) ($entry['path'] ?? '')) ?></span>
+                                </div>
+                                <div class="sys-backup-download-item__actions">
+                                    <a class="btn btn-primary" href="<?= esc($bundleUrl) ?>">⬇ تنزيل النسخة الكاملة (ZIP)</a>
+                                    <a class="btn btn-ghost" href="<?= esc($dbUrl) ?>">قاعدة البيانات</a>
+                                    <a class="btn btn-ghost" href="<?= esc($filesUrl) ?>">ملفات النظام</a>
+                                </div>
+                            </article>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </section>
     </div>

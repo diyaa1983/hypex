@@ -325,9 +325,11 @@ body.ui-dialog-lock .m-header {
   border: 1px solid #94a3b8;
   border-radius: 8px;
   background: #fff;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: Consolas, 'Courier New', monospace;
   font-size: 0.78rem;
   font-weight: 600;
   color: #000;
   resize: none;
+  direction: ltr;
+  text-align: left;
 }

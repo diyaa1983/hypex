@@ -416,6 +416,204 @@ function sys_backup_zip_app(string $zipPath, string $backupRootNorm): void
     }
 }
 
+function sys_backup_bundle_filename(): string
+{
+    return 'backup_full.zip';
+}
+
+function sys_backup_bundle_path(string $targetDir): string
+{
+    return sys_backup_normalize_dir($targetDir) . DIRECTORY_SEPARATOR . sys_backup_bundle_filename();
+}
+
+/** @return list<string> */
+function sys_backup_allowed_download_files(): array
+{
+    return ['backup_full.zip', 'database.sql', 'system_files.zip'];
+}
+
+/**
+ * @return array{dir:string, file:string, label:string}|null
+ */
+function sys_backup_resolve_download(PDO $pdo, string $dateFolder, string $fileKey): ?array
+{
+    $dateFolder = trim($dateFolder);
+    if ($dateFolder === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFolder)) {
+        return null;
+    }
+
+    $settings = sys_backup_settings($pdo);
+    $root = trim($settings['backup_dir'] ?? '');
+    if ($root === '') {
+        return null;
+    }
+
+    try {
+        $root = sys_backup_validate_dir($root, false);
+    } catch (Throwable $e) {
+        return null;
+    }
+
+    $targetDir = sys_backup_normalize_dir($root . DIRECTORY_SEPARATOR . $dateFolder);
+    $rootReal = realpath($root);
+    $dirReal = realpath($targetDir);
+    if ($rootReal === false || $dirReal === false || !str_starts_with($dirReal, $rootReal)) {
+        return null;
+    }
+
+    $map = [
+        'bundle' => ['file' => sys_backup_bundle_filename(), 'label' => 'backup_full.zip'],
+        'database' => ['file' => 'database.sql', 'label' => 'database.sql'],
+        'files' => ['file' => 'system_files.zip', 'label' => 'system_files.zip'],
+    ];
+    $fileKey = strtolower(trim($fileKey));
+    if (!isset($map[$fileKey])) {
+        return null;
+    }
+
+    $filename = $map[$fileKey]['file'];
+    if (!in_array($filename, sys_backup_allowed_download_files(), true)) {
+        return null;
+    }
+
+    $fullPath = $dirReal . DIRECTORY_SEPARATOR . $filename;
+    if ($fileKey === 'bundle' && (!is_file($fullPath) || !is_readable($fullPath))) {
+        sys_backup_create_bundle($dirReal);
+        $fullPath = $dirReal . DIRECTORY_SEPARATOR . $filename;
+    }
+    if (!is_file($fullPath) || !is_readable($fullPath)) {
+        return null;
+    }
+
+    return [
+        'dir' => $dirReal,
+        'file' => $fullPath,
+        'label' => $map[$fileKey]['label'],
+    ];
+}
+
+function sys_backup_create_bundle(string $targetDir): bool
+{
+    if (!class_exists('ZipArchive')) {
+        return false;
+    }
+
+    $targetDir = sys_backup_normalize_dir($targetDir);
+    $bundlePath = sys_backup_bundle_path($targetDir);
+    $parts = [
+        'database.sql',
+        'system_files.zip',
+        'README.txt',
+    ];
+
+    $zip = new ZipArchive();
+    if ($zip->open($bundlePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        return false;
+    }
+
+    foreach ($parts as $name) {
+        $full = $targetDir . DIRECTORY_SEPARATOR . $name;
+        if (is_file($full)) {
+            $zip->addFile($full, $name);
+        }
+    }
+
+    $zip->close();
+
+    return is_file($bundlePath) && filesize($bundlePath) > 0;
+}
+
+/** @return list<array{date_folder:string, path:string, has_bundle:bool}> */
+function sys_backup_recent_folders(PDO $pdo, int $limit = 8): array
+{
+    $settings = sys_backup_settings($pdo);
+    $root = trim($settings['backup_dir'] ?? '');
+    if ($root === '') {
+        return [];
+    }
+
+    try {
+        $root = sys_backup_validate_dir($root, false);
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    if (!is_dir($root)) {
+        return [];
+    }
+
+    $entries = [];
+    foreach (scandir($root, SCANDIR_SORT_DESC) ?: [] as $name) {
+        if ($name === '.' || $name === '..') {
+            continue;
+        }
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $name)) {
+            continue;
+        }
+        $dir = sys_backup_normalize_dir($root . DIRECTORY_SEPARATOR . $name);
+        if (!is_dir($dir)) {
+            continue;
+        }
+        $entries[] = [
+            'date_folder' => $name,
+            'path' => $dir,
+            'has_bundle' => is_file(sys_backup_bundle_path($dir)),
+        ];
+        if (count($entries) >= max(1, $limit)) {
+            break;
+        }
+    }
+
+    return $entries;
+}
+
+function sys_backup_download_url(string $dateFolder, string $fileKey = 'bundle'): string
+{
+    return app_url('api/backup_download.php')
+        . '?date=' . rawurlencode($dateFolder)
+        . '&file=' . rawurlencode($fileKey);
+}
+
+function sys_backup_stream_file(string $fullPath, string $downloadName): void
+{
+    if (!is_file($fullPath) || !is_readable($fullPath)) {
+        throw new RuntimeException('الملف غير موجود.');
+    }
+
+    $size = filesize($fullPath);
+    if ($size === false) {
+        throw new RuntimeException('تعذر قراءة حجم الملف.');
+    }
+
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $downloadName) . '"');
+    header('Content-Length: ' . (string) $size);
+    header('Cache-Control: no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
+
+    $fh = fopen($fullPath, 'rb');
+    if ($fh === false) {
+        throw new RuntimeException('تعذر فتح الملف للتنزيل.');
+    }
+
+    while (!feof($fh)) {
+        $chunk = fread($fh, 1024 * 1024);
+        if ($chunk === false) {
+            break;
+        }
+        echo $chunk;
+        if (function_exists('flush')) {
+            flush();
+        }
+    }
+    fclose($fh);
+    exit;
+}
+
 /**
  * @return array{ok:bool, message:string, path:string, date_folder:string}
  */
@@ -487,6 +685,8 @@ function sys_backup_run(PDO $pdo, int $userId = 0): array
         . "- system_files.zip (ملفات النظام)\r\n";
     file_put_contents($readmeFile, $readme);
 
+    sys_backup_create_bundle($targetDir);
+
     $st = $pdo->prepare(
         'UPDATE sys_backup_settings SET last_backup_at = NOW(), last_backup_path = ?, updated_by = ? WHERE id = 1'
     );
@@ -497,6 +697,9 @@ function sys_backup_run(PDO $pdo, int $userId = 0): array
         'message' => 'تم إنشاء النسخة الاحتياطية بنجاح في مجلد ' . $dateFolder . '.',
         'path' => $targetDir,
         'date_folder' => $dateFolder,
+        'download_url' => sys_backup_download_url($dateFolder, 'bundle'),
+        'download_database_url' => sys_backup_download_url($dateFolder, 'database'),
+        'download_files_url' => sys_backup_download_url($dateFolder, 'files'),
     ];
 }
 

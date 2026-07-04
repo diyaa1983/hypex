@@ -31,16 +31,26 @@ if (!verify_csrf($csrf)) {
     exit;
 }
 
+$backupDirInput = trim((string) ($_POST['backup_dir'] ?? ''));
+
 try {
     $pdo = db();
     sys_backup_ensure_schema($pdo);
     $userId = (int) (current_user()['id'] ?? 0);
+
+    if ($backupDirInput !== '') {
+        sys_backup_save_dir($pdo, $backupDirInput, $userId);
+    }
+
     $result = sys_backup_run($pdo, $userId);
     echo json_encode([
         'ok' => (bool) ($result['ok'] ?? false),
         'message' => (string) ($result['message'] ?? ''),
         'path' => (string) ($result['path'] ?? ''),
         'date_folder' => (string) ($result['date_folder'] ?? ''),
+        'download_url' => (string) ($result['download_url'] ?? ''),
+        'download_database_url' => (string) ($result['download_database_url'] ?? ''),
+        'download_files_url' => (string) ($result['download_files_url'] ?? ''),
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     http_response_code(500);

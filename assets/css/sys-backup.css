@@ -40,6 +40,46 @@
   min-width: 14rem;
 }
 
+.sys-backup-run-hint {
+  margin-top: 0.65rem;
+  max-width: 36rem;
+  line-height: 1.55;
+}
+
+.sys-backup-note--info {
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.sys-backup-download-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.sys-backup-download-item {
+  padding: 0.85rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.sys-backup-download-item__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  align-items: baseline;
+  margin-bottom: 0.65rem;
+}
+
+.sys-backup-download-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
 .sys-backup-warn {
   margin-top: 0.65rem;
 }

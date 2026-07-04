@@ -10,6 +10,9 @@
   var busyEl = document.getElementById('sys-backup-busy');
   var apiUrl = page.getAttribute('data-backup-api') || '';
   var csrf = page.getAttribute('data-csrf') || '';
+  var savedDir = page.getAttribute('data-backup-dir') || '';
+  var recommendedDir = page.getAttribute('data-recommended-dir') || '';
+  var isLinux = page.getAttribute('data-is-linux') === '1';
 
   function showBusy(show) {
     if (window.AppBusy) {
@@ -41,26 +44,59 @@
     return Promise.resolve();
   }
 
-  function confirmBackup() {
-    var msg =
-      'سيتم إنشاء نسخة احتياطية بتاريخ اليوم تتضمن قاعدة البيانات وملفات النظام.\n\n' +
-      'قد تستغرق العملية عدة دقائق. هل تريد المتابعة؟';
+  function buildPathPromptMessage() {
+    if (isLinux) {
+      return (
+        'حدّد مجلد حفظ النسخ على الخادم (Linux).\n\n' +
+        'مثال:\n' + (recommendedDir || '/home/.../manager_backups') + '\n\n' +
+        'ملاحظة: لا يمكن استخدام D:\\ على Linux.\n' +
+        'بعد إنشاء النسخة يمكنك تنزيلها إلى جهازك من الأسفل أو تلقائياً.'
+      );
+    }
+    return (
+      'حدّد مجلد حفظ النسخ الاحتياطي على هذا الجهاز.\n\n' +
+      'Windows مثال:\nD:\\Backups\\Manager'
+    );
+  }
 
-    if (window.AppDialog && AppDialog.confirm) {
-      return AppDialog.confirm(msg, {
-        title: 'تأكيد النسخ الاحتياطي',
+  function promptBackupPath() {
+    var defaultVal = savedDir || recommendedDir;
+    var msg = buildPathPromptMessage();
+
+    if (window.AppDialog && AppDialog.prompt) {
+      return AppDialog.prompt(msg, {
+        title: 'مكان النسخ الاحتياطي',
+        value: defaultVal,
+        placeholder: recommendedDir || 'مسار المجلد',
         okText: 'نعم، أخذ نسخة',
         cancelText: 'إلغاء',
         theme: 'oracle',
+        multiline: false,
+        inputType: 'text',
+      }).then(function (path) {
+        if (path === null || path === undefined) {
+          return null;
+        }
+        path = String(path).trim();
+        return path !== '' ? path : null;
       });
     }
 
-    return Promise.resolve(window.confirm(msg));
+    var raw = window.prompt(msg, defaultVal);
+    if (raw === null) {
+      return Promise.resolve(null);
+    }
+    raw = String(raw).trim();
+    return Promise.resolve(raw !== '' ? raw : null);
   }
 
-  function runBackup() {
+  function runBackup(backupDir) {
     if (!apiUrl || !csrf) {
       alertMsg('إعدادات النسخ غير مكتملة.', 'error');
+      return;
+    }
+    if (!backupDir) {
+      alertMsg('يجب تحديد مجلد النسخ الاحتياطي.', 'warning');
       return;
     }
 
@@ -71,6 +107,7 @@
 
     var body = new FormData();
     body.append('_csrf', csrf);
+    body.append('backup_dir', backupDir);
 
     fetch(apiUrl, {
       method: 'POST',
@@ -94,7 +131,20 @@
         }
 
         if (data && data.ok) {
-          alertMsg(data.message || 'تم إنشاء النسخة الاحتياطية بنجاح.', 'success').then(function () {
+          savedDir = backupDir;
+          page.setAttribute('data-backup-dir', backupDir);
+          var msg = data.message || 'تم إنشاء النسخة الاحتياطية بنجاح.';
+          if (data.download_url) {
+            msg += '\n\nسيبدأ تنزيل النسخة إلى جهازك.';
+          }
+          alertMsg(msg, 'success').then(function () {
+            if (data.download_url) {
+              window.location.href = data.download_url;
+              setTimeout(function () {
+                window.location.reload();
+              }, 1200);
+              return;
+            }
             window.location.reload();
           });
           return;
@@ -113,14 +163,15 @@
 
   if (runBtn) {
     runBtn.addEventListener('click', function () {
-      if (runBtn.disabled || runBtn.getAttribute('aria-disabled') === 'true') {
+      if (runBtn.disabled) {
         return;
       }
 
-      confirmBackup().then(function (ok) {
-        if (ok) {
-          runBackup();
+      promptBackupPath().then(function (path) {
+        if (!path) {
+          return;
         }
+        runBackup(path);
       });
     });
   }
