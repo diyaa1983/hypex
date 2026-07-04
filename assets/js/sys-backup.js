@@ -44,23 +44,73 @@
     return Promise.resolve();
   }
 
+  function isWindowsDrivePath(path) {
+    return /^[a-zA-Z]:[\\/]/.test(String(path || '').trim());
+  }
+
+  function isLinuxServerPath(path) {
+    path = String(path || '').trim();
+    return path !== '' && path.charAt(0) === '/' && !isWindowsDrivePath(path);
+  }
+
+  /** مسار افتراضي صالح للخادم أو Windows */
+  function resolveDefaultPath() {
+    if (isLinux) {
+      if (isLinuxServerPath(savedDir)) {
+        return savedDir;
+      }
+      if (isLinuxServerPath(recommendedDir)) {
+        return recommendedDir;
+      }
+      return recommendedDir || savedDir;
+    }
+    if (savedDir) {
+      return savedDir;
+    }
+    return recommendedDir || '';
+  }
+
   function buildPathPromptMessage() {
     if (isLinux) {
       return (
-        'حدّد مجلد حفظ النسخ على الخادم (Linux).\n\n' +
-        'مثال:\n' + (recommendedDir || '/home/.../manager_backups') + '\n\n' +
-        'ملاحظة: لا يمكن استخدام D:\\ على Linux.\n' +
-        'بعد إنشاء النسخة يمكنك تنزيلها إلى جهازك من الأسفل أو تلقائياً.'
+        'مجلد الحفظ على الخادم (Linux) — لا تستخدم D:\\\n\n' +
+        'مثال:\n' +
+        (recommendedDir || '/home/.../manager_backups') +
+        '\n\nبعد إنشاء النسخة سيتم تنزيلها إلى جهازك تلقائياً.'
       );
     }
     return (
-      'حدّد مجلد حفظ النسخ الاحتياطي على هذا الجهاز.\n\n' +
-      'Windows مثال:\nD:\\Backups\\Manager'
+      'حدّد مجلد حفظ النسخ الاحتياطي على هذا الجهاز.\n\n' + 'Windows مثال:\nD:\\Backups\\Manager'
     );
   }
 
+  function validateBackupPath(path) {
+    path = String(path || '').trim();
+    if (!path) {
+      return { ok: false, message: 'يجب تحديد مجلد النسخ الاحتياطي.' };
+    }
+    if (isLinux && isWindowsDrivePath(path)) {
+      return {
+        ok: false,
+        message:
+          'مسار Windows (مثل D:\\Backups) لا يعمل على خادم Linux.\n\n' +
+          'استخدم مسار الخادم، مثلاً:\n' +
+          (recommendedDir || '/home/.../manager_backups') +
+          '\n\nبعد النسخ يُنزَّل الملف إلى جهازك (Downloads).',
+      };
+    }
+    if (isLinux && !isLinuxServerPath(path)) {
+      return {
+        ok: false,
+        message:
+          'المسار يجب أن يبدأ بـ / على Linux.\n\nمثال:\n' + (recommendedDir || '/home/.../manager_backups'),
+      };
+    }
+    return { ok: true, path: path };
+  }
+
   function promptBackupPath() {
-    var defaultVal = savedDir || recommendedDir;
+    var defaultVal = resolveDefaultPath();
     var msg = buildPathPromptMessage();
 
     if (window.AppDialog && AppDialog.prompt) {
@@ -90,15 +140,37 @@
     return Promise.resolve(raw !== '' ? raw : null);
   }
 
+  function confirmLinuxBackup(path) {
+    var msg =
+      'سيتم حفظ النسخة على الخادم في:\n' +
+      path +
+      '\n\n' +
+      'ثم تُنزَّل تلقائياً إلى جهازك (مجلد التنزيلات).\n\n' +
+      'هل تريد المتابعة؟';
+
+    if (window.AppDialog && AppDialog.confirm) {
+      return AppDialog.confirm(msg, {
+        title: 'تأكيد النسخ الاحتياطي',
+        okText: 'نعم، أخذ نسخة',
+        cancelText: 'إلغاء',
+        theme: 'oracle',
+      });
+    }
+    return Promise.resolve(window.confirm(msg));
+  }
+
   function runBackup(backupDir) {
     if (!apiUrl || !csrf) {
       alertMsg('إعدادات النسخ غير مكتملة.', 'error');
       return;
     }
-    if (!backupDir) {
-      alertMsg('يجب تحديد مجلد النسخ الاحتياطي.', 'warning');
+
+    var check = validateBackupPath(backupDir);
+    if (!check.ok) {
+      alertMsg(check.message, 'warning');
       return;
     }
+    backupDir = check.path;
 
     if (runBtn) {
       runBtn.disabled = true;
@@ -161,18 +233,43 @@
       });
   }
 
+  function startBackupFlow() {
+    if (isLinux) {
+      var path = resolveDefaultPath();
+      if (!isLinuxServerPath(path)) {
+        path = recommendedDir;
+      }
+      if (!path) {
+        alertMsg('تعذر تحديد مسار النسخ على الخادم.', 'error');
+        return;
+      }
+      confirmLinuxBackup(path).then(function (ok) {
+        if (ok) {
+          runBackup(path);
+        }
+      });
+      return;
+    }
+
+    promptBackupPath().then(function (path) {
+      if (!path) {
+        return;
+      }
+      var check = validateBackupPath(path);
+      if (!check.ok) {
+        alertMsg(check.message, 'warning');
+        return;
+      }
+      runBackup(check.path);
+    });
+  }
+
   if (runBtn) {
     runBtn.addEventListener('click', function () {
       if (runBtn.disabled) {
         return;
       }
-
-      promptBackupPath().then(function (path) {
-        if (!path) {
-          return;
-        }
-        runBackup(path);
-      });
+      startBackupFlow();
     });
   }
 

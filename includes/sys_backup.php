@@ -202,8 +202,10 @@ function sys_backup_validate_dir(string $path, bool $create = true): string
 
     if (sys_backup_is_linux_server() && sys_backup_is_windows_drive_path($path)) {
         throw new RuntimeException(
-            'مسار Windows (مثل D:\\Backups) لا يعمل على خادم Linux. استخدم: '
-            . sys_backup_recommended_dir()
+            'مسار Windows (مثل D:\\Backups) لا يعمل على خادم Linux.' . "\n\n"
+            . 'استخدم مسار الخادم، مثلاً:' . "\n"
+            . sys_backup_recommended_dir() . "\n\n"
+            . 'بعد النسخ يمكنك تنزيل الملف إلى جهازك من قسم «تنزيل إلى جهازك».'
         );
     }
 

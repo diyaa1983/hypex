@@ -169,7 +169,14 @@ $backupApiUrl = app_url('api/backup_run.php');
                     <button type="button" class="btn btn-primary btn-lg sys-backup-run-btn" id="sys-backup-run-btn">
                         💾 أخذ نسخة احتياطية الآن
                     </button>
-                    <p class="muted sys-backup-run-hint">سيُطلب منك تحديد مجلد الحفظ عند كل نسخة (يُحفظ المسار للمرة القادمة).</p>
+                    <?php if (sys_backup_is_linux_server()): ?>
+                    <p class="muted sys-backup-run-hint">
+                        اضغط الزر → تُحفظ النسخة على السيرفر → تُنزَّل تلقائياً إلى جهازك.
+                        لا تستخدم <code dir="ltr">D:\...</code>.
+                    </p>
+                    <?php else: ?>
+                    <p class="muted sys-backup-run-hint">سيُطلب منك تحديد مجلد الحفظ (مثل <code dir="ltr">D:\Backups</code>).</p>
+                    <?php endif; ?>
                     <?php if ($hasDir && $pathIssue === null): ?>
                         <p class="muted">المسار المحفوظ: <code dir="ltr"><?= esc($backupDir) ?></code></p>
                         <p class="muted">مجلد اليوم: <code dir="ltr"><?= esc(sys_backup_normalize_dir($backupDir . DIRECTORY_SEPARATOR . $todayFolder)) ?></code></p>
