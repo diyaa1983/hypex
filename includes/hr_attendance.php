@@ -102,11 +102,6 @@ function hr_attendance_remote_agent_marker(): string
     return 'remote://zk-agent';
 }
 
-function hr_attendance_uses_remote_agent(): bool
-{
-    return hr_attendance_is_linux_server();
-}
-
 /** @return array{mdb_path:string,last_sync_at:?string,last_punch_time:?string,sync_token:?string} */
 function hr_attendance_load_config(PDO $pdo): array
 {
@@ -192,6 +187,62 @@ function hr_attendance_com_available(): bool
 function hr_attendance_is_linux_server(): bool
 {
     return DIRECTORY_SEPARATOR === '/';
+}
+
+/**
+ * auto = Linux → وكيل ZKT | Windows → قراءة مباشرة من att2000.mdb
+ * remote | local = تجاوز يدوي للاختبار (في config/app.local.php: HR_ATT_SYNC_MODE)
+ *
+ * @return 'auto'|'local'|'remote'
+ */
+function hr_attendance_sync_mode_setting(): string
+{
+    if (defined('HR_ATT_SYNC_MODE')) {
+        $mode = strtolower(trim((string) HR_ATT_SYNC_MODE));
+        if (in_array($mode, ['auto', 'local', 'remote'], true)) {
+            return $mode;
+        }
+    }
+
+    return 'auto';
+}
+
+function hr_attendance_uses_remote_agent(): bool
+{
+    $mode = hr_attendance_sync_mode_setting();
+    if ($mode === 'remote') {
+        return true;
+    }
+    if ($mode === 'local') {
+        return false;
+    }
+
+    return hr_attendance_is_linux_server();
+}
+
+/** @return array{key:string,label:string,hint:string} */
+function hr_attendance_sync_mode_info(): array
+{
+    $setting = hr_attendance_sync_mode_setting();
+    $remote = hr_attendance_uses_remote_agent();
+
+    if ($remote) {
+        return [
+            'key' => 'remote',
+            'label' => $setting === 'remote'
+                ? 'وكيل ZKT (إعداد يدوي)'
+                : 'وكيل ZKT (سيرفر Linux)',
+            'hint' => 'ملف att2000.mdb يبقى على جهاز البصمة — شغّل zk_sync_run.bat لإرسال البصمات.',
+        ];
+    }
+
+    return [
+        'key' => 'local',
+        'label' => $setting === 'local'
+            ? 'مزامنة مباشرة (إعداد يدوي)'
+            : 'مزامنة مباشرة (Windows محلي)',
+        'hint' => 'يقرأ Manager ملف att2000.mdb مباشرة — زر «مزامنة الآن» من داخل النظام.',
+    ];
 }
 
 function hr_attendance_is_windows_drive_path(string $path): bool

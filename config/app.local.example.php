@@ -51,3 +51,13 @@ if (!defined('APP_LICENSE_ENFORCE')) {
 if (!defined('APP_LICENSE_SECRET')) {
     define('APP_LICENSE_SECRET', 'CHANGE_THIS_TO_A_LONG_RANDOM_SECRET');
 }
+
+/**
+ * مزامنة البصمة (ZKT):
+ * - auto   = تلقائي: Linux → وكيل ZKT | Windows/XAMPP → قراءة مباشرة من att2000.mdb
+ * - remote = فرض وكيل ZKT (للاختبار على Windows)
+ * - local  = فرض المزامنة المباشرة (للاختبار — لا يعمل على Linux بدون ملف mdb)
+ */
+// if (!defined('HR_ATT_SYNC_MODE')) {
+//     define('HR_ATT_SYNC_MODE', 'auto');
+// }

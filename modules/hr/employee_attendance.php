@@ -192,6 +192,7 @@ $linuxServer = hr_attendance_is_linux_server();
 $recommendedMdb = hr_attendance_recommended_mdb_path();
 $canSyncMdb = !$linuxServer && ($odbcOk || $comOk || $mdbtoolsOk);
 $remoteAgentMode = hr_attendance_uses_remote_agent();
+$syncModeInfo = hr_attendance_sync_mode_info();
 $syncToken = $remoteAgentMode ? hr_attendance_sync_token_ensure($pdo) : null;
 $pushApiUrl = hr_attendance_push_api_url();
 $mdbPathIssue = hr_attendance_path_issue($config['mdb_path']);
@@ -244,8 +245,8 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
 
         <?php if ($remoteAgentMode): ?>
             <div class="alert alert-success hr-att-flash" style="background:#eff6ff;border-color:#93c5fd;color:#1e3a8a;">
-                <strong>وضع السيرفر (Linux):</strong> ملف <code dir="ltr">att2000.mdb</code> يبقى على <strong>جهاز ZKT (Windows)</strong>.
-                ثبّت <strong>وكيل المزامنة</strong> على ذلك الجهاز ليرسل البصمات تلقائياً إلى السيرفر.
+                <strong><?= esc($syncModeInfo['label']) ?>:</strong>
+                <?= esc($syncModeInfo['hint']) ?>
             </div>
         <?php elseif (!$canSyncMdb): ?>
             <div class="alert alert-error hr-att-flash">
@@ -253,7 +254,14 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
             </div>
         <?php elseif (!$odbcOk && $comOk): ?>
             <div class="alert alert-success hr-att-flash" style="background:#ecfdf5;border-color:#86efac;color:#166534;">
-                ODBC غير متاح — سيُستخدم <strong>OLEDB (COM)</strong> لقراءة قاعدة البصمة (مناسب لـ XAMPP على Windows).
+                <strong><?= esc($syncModeInfo['label']) ?>:</strong>
+                <?= esc($syncModeInfo['hint']) ?>
+                ODBC غير متاح — سيُستخدم <strong>OLEDB (COM)</strong> لقراءة قاعدة البصمة.
+            </div>
+        <?php elseif (!$remoteAgentMode && $canSyncMdb): ?>
+            <div class="alert alert-success hr-att-flash" style="background:#ecfdf5;border-color:#86efac;color:#166534;">
+                <strong><?= esc($syncModeInfo['label']) ?>:</strong>
+                <?= esc($syncModeInfo['hint']) ?>
             </div>
         <?php endif; ?>
 
