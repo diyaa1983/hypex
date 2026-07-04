@@ -787,6 +787,24 @@ function hr_attendance_parse_checktime(mixed $raw): ?string
         return null;
     }
 
+    // Access/ZKT: 31/07/2026 12:08:15 م I  (التاريخ أولاً + ص/م)
+    $dateFirst = preg_replace('/\s*[IO]\s*$/u', '', $str) ?? $str;
+    $dateFirst = trim(preg_replace('/\s*[صم]\s*$/u', '', trim($dateFirst)) ?? $dateFirst);
+    if (preg_match(
+        '/^(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}(?::\d{2})?)/u',
+        $dateFirst,
+        $df
+    )) {
+        $timePart = $df[2];
+        if (substr_count($timePart, ':') === 1) {
+            $timePart .= ':00';
+        }
+        $dt = DateTimeImmutable::createFromFormat('d/m/Y H:i:s', $df[1] . ' ' . $timePart);
+        if ($dt instanceof DateTimeInterface) {
+            return $dt->format('Y-m-d H:i:s');
+        }
+    }
+
     // Access/ZKT: 12:08:15 31/05/2025 I  أو  ص 08:10:23 01/06/2026
     if (preg_match(
         '/^(\d{1,2}:\d{2}(?::\d{2})?)\s+(\d{1,2}\/\d{1,2}\/\d{4})/u',
@@ -2013,6 +2031,7 @@ function hr_attendance_push_punches(PDO $pdo, array $rows): array
     $unlinked = 0;
     $parseFailed = 0;
     $sourceKeysInserted = [];
+    $sourceKeysProcessed = [];
 
     foreach ($rows as $row) {
         if (!is_array($row)) {
@@ -2063,6 +2082,7 @@ function hr_attendance_push_punches(PDO $pdo, array $rows): array
         } else {
             $skipped++;
         }
+        $sourceKeysProcessed[] = $sourceKey;
     }
 
     $now = date('Y-m-d H:i:s');
@@ -2091,9 +2111,11 @@ function hr_attendance_push_punches(PDO $pdo, array $rows): array
         'inserted' => $inserted,
         'skipped' => $skipped,
         'unlinked' => $unlinked,
+        'parse_failed' => $parseFailed,
         'last_punch_time' => $newLastPunch,
         'message' => $msg,
         'source_keys_inserted' => $sourceKeysInserted,
+        'source_keys_processed' => $sourceKeysProcessed,
     ];
 }
 

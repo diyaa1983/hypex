@@ -81,6 +81,20 @@ function Test-HasFlagColumn([object]$Conn) {
     }
 }
 
+function Format-CheckTimeValue($raw) {
+    if ($null -eq $raw) {
+        return ''
+    }
+    if ($raw -is [datetime]) {
+        return $raw.ToString('yyyy-MM-dd HH:mm:ss')
+    }
+    $text = [string]$raw
+    if ($text -match '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$') {
+        return $text
+    }
+    return $text.Trim()
+}
+
 function Get-PunchRows([object]$Conn, [bool]$UseFlag, [bool]$HasFlag) {
     $sql = @'
 SELECT c.USERID, c.CHECKTIME, c.CHECKTYPE, c.VERIFYCODE, c.SENSORID,
@@ -95,9 +109,15 @@ LEFT JOIN USERINFO AS u ON u.USERID = c.USERID
     $rs = $Conn.Execute($sql)
     $rows = New-Object System.Collections.Generic.List[object]
     while (-not $rs.EOF) {
+        $checkRaw = $rs.Fields.Item('CHECKTIME').Value
+        $checkStr = Format-CheckTimeValue $checkRaw
+        if ($checkStr -match '#Error|Error') {
+            $rs.MoveNext()
+            continue
+        }
         $rows.Add([pscustomobject]@{
             USERID      = [int]$rs.Fields.Item('USERID').Value
-            CHECKTIME   = [string]$rs.Fields.Item('CHECKTIME').Value
+            CHECKTIME   = $checkStr
             CHECKTYPE   = [string]$rs.Fields.Item('CHECKTYPE').Value
             VERIFYCODE  = [string]$rs.Fields.Item('VERIFYCODE').Value
             SENSORID    = [string]$rs.Fields.Item('SENSORID').Value
@@ -107,6 +127,30 @@ LEFT JOIN USERINFO AS u ON u.USERID = c.USERID
         $rs.MoveNext()
     }
     return $rows
+}
+
+function Get-PendingFlagCount([object]$Conn) {
+    try {
+        $rs = $Conn.Execute('SELECT COUNT(*) AS c FROM CHECKINOUT WHERE ([Flag] = 0 OR [Flag] IS NULL)')
+        if (-not $rs.EOF) {
+            return [int]$rs.Fields.Item(0).Value
+        }
+    } catch {
+        return -1
+    }
+    return 0
+}
+
+function Get-TotalCheckinCount([object]$Conn) {
+    try {
+        $rs = $Conn.Execute('SELECT COUNT(*) FROM CHECKINOUT')
+        if (-not $rs.EOF) {
+            return [int]$rs.Fields.Item(0).Value
+        }
+    } catch {
+        return -1
+    }
+    return 0
 }
 
 function Send-Batch([string]$Url, [string]$Token, [object[]]$Punches) {
@@ -127,10 +171,26 @@ function Send-Batch([string]$Url, [string]$Token, [object[]]$Punches) {
     }
 }
 
-function Mark-RowSynced([object]$Conn, [int]$UserId, [string]$CheckTime) {
-    $lit = '#' + ([datetime]$CheckTime).ToString('yyyy/MM/dd HH:mm:ss') + '#'
+function Mark-RowSynced([object]$Conn, [int]$UserId, [string]$CheckTimeIso) {
+    $dt = [datetime]$CheckTimeIso
+    $lit = '#' + $dt.ToString('yyyy/MM/dd HH:mm:ss') + '#'
     $sql = "UPDATE CHECKINOUT SET [Flag] = 1 WHERE USERID = $UserId AND CHECKTIME = $lit"
     $Conn.Execute($sql) | Out-Null
+}
+
+function Mark-ProcessedKeys([object]$Conn, [string[]]$Keys) {
+    foreach ($key in $Keys) {
+        if ([string]::IsNullOrWhiteSpace($key)) { continue }
+        $parts = $key -split '\|', 2
+        if ($parts.Count -lt 2) { continue }
+        $userId = 0
+        if (-not [int]::TryParse($parts[0], [ref]$userId) -or $userId -lt 1) { continue }
+        try {
+            Mark-RowSynced -Conn $Conn -UserId $userId -CheckTimeIso $parts[1]
+        } catch {
+            Write-Log ("Could not mark Flag=1 for $key : $($_.Exception.Message)")
+        }
+    }
 }
 
 try {
@@ -147,11 +207,21 @@ try {
     $rows = Get-PunchRows -Conn $conn -UseFlag $cfg.UseFlag -HasFlag $hasFlag
 
     if ($rows.Count -eq 0) {
-        Write-Log 'No new punches to send.'
+        if ($cfg.UseFlag -and $hasFlag) {
+            $pending = Get-PendingFlagCount -Conn $conn
+            $total = Get-TotalCheckinCount -Conn $conn
+            if ($pending -eq 0 -and $total -gt 0) {
+                Write-Log ('No new punches to send. All {0} record(s) have Flag=1. Set Flag=0 on new rows or use_flag=false in config.' -f $total)
+            } else {
+                Write-Log ('No new punches to send. Pending Flag=0: {0}, total CHECKINOUT: {1}' -f $pending, $total)
+            }
+        } else {
+            Write-Log 'No new punches to send.'
+        }
         exit 0
     }
 
-    Write-Log ("Found {0} punch(es) to send." -f $rows.Count)
+    Write-Log ('Found {0} punch(es) to send.' -f ([int]$rows.Count))
     $batchSize = [Math]::Max(50, [Math]::Min(2000, $cfg.BatchSize))
     $totalInserted = 0
     $totalSkipped = 0
@@ -176,12 +246,26 @@ try {
         }
 
         $result = Send-Batch -Url $cfg.ServerUrl -Token $cfg.SyncToken -Punches $payload
+        if ($result.message) {
+            Write-Log ('Server: {0}' -f $result.message)
+        }
+        $parseFailed = 0
+        if ($null -ne $result.parse_failed) {
+            $parseFailed = [int]$result.parse_failed
+        }
+        if ($parseFailed -gt 0) {
+            Write-Log ('Warning: {0} punch(es) rejected (bad date format). They stay Flag=0 — upload includes/hr_attendance.php fix to server.' -f $parseFailed)
+        }
         $totalInserted += [int]$result.inserted
         $totalSkipped += [int]$result.skipped
 
         if ($cfg.MarkFlagsAfterPush -and $hasFlag) {
-            foreach ($r in $chunk) {
-                try { Mark-RowSynced -Conn $conn -UserId $r.USERID -CheckTime $r.CHECKTIME } catch { }
+            $processedKeys = @()
+            if ($null -ne $result.source_keys_processed) {
+                $processedKeys = @($result.source_keys_processed)
+            }
+            if ($processedKeys.Count -gt 0) {
+                Mark-ProcessedKeys -Conn $conn -Keys $processedKeys
             }
         }
     }

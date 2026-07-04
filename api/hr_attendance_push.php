@@ -70,9 +70,11 @@ try {
         'inserted' => (int) ($result['inserted'] ?? 0),
         'skipped' => (int) ($result['skipped'] ?? 0),
         'unlinked' => (int) ($result['unlinked'] ?? 0),
+        'parse_failed' => (int) ($result['parse_failed'] ?? 0),
         'last_punch_time' => $result['last_punch_time'] ?? null,
         'message' => (string) ($result['message'] ?? ''),
         'source_keys_inserted' => $result['source_keys_inserted'] ?? [],
+        'source_keys_processed' => $result['source_keys_processed'] ?? [],
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     http_response_code(500);
