@@ -132,14 +132,14 @@ function hr_attendance_load_config(PDO $pdo): array
     ];
 }
 
-function hr_attendance_save_config(PDO $pdo, string $mdbPath): void
+function hr_attendance_save_config(PDO $pdo, string $mdbPath, bool $forceLocalScreen = false): void
 {
     hr_attendance_ensure_schema($pdo);
     $mdbPath = trim($mdbPath);
     if ($mdbPath === '') {
         throw new RuntimeException('أدخل مسار ملف att2000.mdb.');
     }
-    if (hr_attendance_uses_remote_agent()) {
+    if (!$forceLocalScreen && hr_attendance_uses_remote_agent()) {
         if ($mdbPath === hr_attendance_remote_agent_marker() || hr_attendance_path_issue($mdbPath) !== null) {
             $mdbPath = hr_attendance_remote_agent_marker();
             $st = $pdo->prepare(
@@ -2173,9 +2173,9 @@ function hr_attendance_push_punches(PDO $pdo, array $rows): array
 /**
  * @return array{inserted:int,skipped:int,unlinked:int,last_punch_time:?string,message:string}
  */
-function hr_attendance_sync(PDO $pdo): array
+function hr_attendance_sync(PDO $pdo, bool $forceLocalScreen = false): array
 {
-    if (hr_attendance_uses_remote_agent()) {
+    if (!$forceLocalScreen && hr_attendance_uses_remote_agent()) {
         throw new RuntimeException(
             'المزامنة المباشرة من السيرفر غير متاحة — شغّل وكيل المزامنة على جهاز ZKT (Windows).'
         );

@@ -709,6 +709,18 @@ return [
         'title' => 'بصمات الموظفين',
         'hide_screen_title' => true,
     ],
+    'hr_attendance_sync_server' => [
+        'file' => 'modules/hr/attendance_sync_server.php',
+        'permission' => 'hr_employee_attendance',
+        'title' => 'مزامنة البصمة — السيرفر',
+        'hide_screen_title' => true,
+    ],
+    'hr_attendance_sync_local' => [
+        'file' => 'modules/hr/attendance_sync_local.php',
+        'permission' => 'hr_employee_attendance',
+        'title' => 'مزامنة البصمة — Windows',
+        'hide_screen_title' => true,
+    ],
     'hr_departure_types' => [
         'file' => 'modules/hr/departure_types.php',
         'permission' => 'hr_departure_types',

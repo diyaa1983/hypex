@@ -1,4 +1,36 @@
 /* بصمات الموظفين */
+.hr-att-screen-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 1rem;
+  padding: 0.25rem;
+  background: var(--ora-panel-bg, #f8fafc);
+  border: 1px solid var(--ora-border, #e2e8f0);
+  border-radius: 8px;
+}
+
+.hr-att-screen-tab {
+  padding: 0.45rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  text-decoration: none;
+  color: var(--ora-text-muted, #475569);
+  border: 1px solid transparent;
+}
+
+.hr-att-screen-tab:hover {
+  background: #fff;
+  color: var(--ora-text, #0f172a);
+}
+
+.hr-att-screen-tab.is-active {
+  background: #fff;
+  color: var(--ora-primary, #2563eb);
+  border-color: #93c5fd;
+  font-weight: 600;
+}
+
 .hr-att-wrap {
   max-width: 1200px;
 }

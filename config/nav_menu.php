@@ -251,6 +251,8 @@ return [
                             'title' => 'شاشات البصمات',
                             'items' => [
                                 ['r' => 'hr_employee_attendance', 'label' => 'بصمات الموظفين', 'icon' => '👆'],
+                                ['r' => 'hr_attendance_sync_server', 'label' => 'مزامنة السيرفر (ZKT)', 'icon' => '🌐'],
+                                ['r' => 'hr_attendance_sync_local', 'label' => 'مزامنة Windows (محلي)', 'icon' => '💻'],
                                 ['r' => 'hr_employee_schedule', 'label' => 'تعريف دوام الموظف', 'icon' => '📅'],
                                 ['r' => 'hr_attendance_settings', 'label' => 'إعدادات دوام الموظفين', 'icon' => '⚙'],
                             ],

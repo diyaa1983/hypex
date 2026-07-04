@@ -21,6 +21,7 @@ sql_migration_run_files_once($pdo, [
     'database/migrations/209_sys_group_warehouse.sql',
     'database/migrations/210_hr_attendance_sync_token.sql',
     'database/migrations/211_report_hr_att_punch_movements.sql',
+    'database/migrations/212_hr_attendance_sync_screens.sql',
 ]);
 
 require_mobile_login();
