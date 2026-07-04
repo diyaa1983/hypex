@@ -19,6 +19,7 @@ sql_migration_run_files_once($pdo, [
     'database/migrations/207_crm_sales_rep_mobile_custody.sql',
     'database/migrations/208_mobile_rep_custody.sql',
     'database/migrations/209_sys_group_warehouse.sql',
+    'database/migrations/210_hr_attendance_sync_token.sql',
 ]);
 
 require_mobile_login();

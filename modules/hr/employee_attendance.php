@@ -42,8 +42,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($act === 'save_config') {
-            hr_attendance_save_config($pdo, (string) ($_POST['mdb_path'] ?? ''));
-            flash_set('success', 'تم حفظ مسار قاعدة البصمة.');
+            if (hr_attendance_uses_remote_agent()) {
+                hr_attendance_save_config($pdo, hr_attendance_remote_agent_marker());
+                flash_set('success', 'تم حفظ إعدادات المزامنة (وضع الوكيل المحلي).');
+            } else {
+                hr_attendance_save_config($pdo, (string) ($_POST['mdb_path'] ?? ''));
+                flash_set('success', 'تم حفظ مسار قاعدة البصمة.');
+            }
+            redirect($listUrl);
+        }
+
+        if ($act === 'regenerate_sync_token') {
+            hr_attendance_sync_token_regenerate($pdo);
+            hr_attendance_save_config($pdo, hr_attendance_remote_agent_marker());
+            flash_set('success', 'تم إنشاء رمز مزامنة جديد — حدّث zk_sync.local.php على جهاز ZKT.');
+            redirect($listUrl);
+        }
+
+        if ($act === 'upload_mdb') {
+            if (!isset($_FILES['mdb_file']) || !is_array($_FILES['mdb_file'])) {
+                throw new RuntimeException('لم يُرفَع أي ملف.');
+            }
+            $upload = $_FILES['mdb_file'];
+            $err = (int) ($upload['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($err !== UPLOAD_ERR_OK) {
+                throw new RuntimeException('تعذر رفع الملف (رمز ' . $err . ').');
+            }
+            $tmp = (string) ($upload['tmp_name'] ?? '');
+            $orig = strtolower((string) ($upload['name'] ?? ''));
+            if ($tmp === '' || !is_uploaded_file($tmp)) {
+                throw new RuntimeException('ملف الرفع غير صالح.');
+            }
+            if (!str_ends_with($orig, '.mdb')) {
+                throw new RuntimeException('يجب أن يكون الملف att2000.mdb (Access).');
+            }
+            $dest = hr_attendance_recommended_mdb_path();
+            $destDir = dirname($dest);
+            if (!is_dir($destDir) && !@mkdir($destDir, 0755, true) && !is_dir($destDir)) {
+                throw new RuntimeException('تعذر إنشاء مجلد: ' . $destDir);
+            }
+            if (!@move_uploaded_file($tmp, $dest)) {
+                if (!@copy($tmp, $dest)) {
+                    throw new RuntimeException('تعذر حفظ الملف على الخادم.');
+                }
+            }
+            @chmod($dest, 0644);
+            hr_attendance_save_config($pdo, $dest);
+            flash_set('success', 'تم رفع att2000.mdb وحفظ المسار. يمكنك «اختبار الاتصال» ثم «مزامنة الآن».');
             redirect($listUrl);
         }
 
@@ -142,6 +187,17 @@ $mapped = hr_attendance_list_mapped_users($pdo);
 $totalPunches = hr_attendance_count_punches($pdo);
 $odbcOk = hr_attendance_pdo_odbc_available();
 $comOk = hr_attendance_com_available();
+$mdbtoolsOk = hr_attendance_mdbtools_available();
+$linuxServer = hr_attendance_is_linux_server();
+$recommendedMdb = hr_attendance_recommended_mdb_path();
+$canSyncMdb = !$linuxServer && ($odbcOk || $comOk || $mdbtoolsOk);
+$remoteAgentMode = hr_attendance_uses_remote_agent();
+$syncToken = $remoteAgentMode ? hr_attendance_sync_token_ensure($pdo) : null;
+$pushApiUrl = hr_attendance_push_api_url();
+$mdbPathIssue = hr_attendance_path_issue($config['mdb_path']);
+$displayMdbPath = $remoteAgentMode
+    ? hr_attendance_remote_agent_marker()
+    : ($mdbPathIssue !== null ? $recommendedMdb : $config['mdb_path']);
 $mdbTest = null;
 
 $filterEmpName = '';
@@ -186,7 +242,12 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
             </div>
         <?php endif; ?>
 
-        <?php if (!$odbcOk && !$comOk): ?>
+        <?php if ($remoteAgentMode): ?>
+            <div class="alert alert-success hr-att-flash" style="background:#eff6ff;border-color:#93c5fd;color:#1e3a8a;">
+                <strong>وضع السيرفر (Linux):</strong> ملف <code dir="ltr">att2000.mdb</code> يبقى على <strong>جهاز ZKT (Windows)</strong>.
+                ثبّت <strong>وكيل المزامنة</strong> على ذلك الجهاز ليرسل البصمات تلقائياً إلى السيرفر.
+            </div>
+        <?php elseif (!$canSyncMdb): ?>
             <div class="alert alert-error hr-att-flash">
                 لا يمكن قراءة att2000.mdb: فعّل <strong>pdo_odbc</strong> أو <strong>com_dotnet</strong> في php.ini ثم أعد تشغيل Apache.
             </div>
@@ -196,27 +257,60 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
             </div>
         <?php endif; ?>
 
+        <?php if (!$remoteAgentMode && $mdbPathIssue !== null): ?>
+            <div class="alert alert-error hr-att-flash">
+                <?= esc($mdbPathIssue) ?>
+            </div>
+        <?php endif; ?>
+
         <p class="hr-att-hint muted">
             يُحمَّل الحضور من برنامج ZKT إلى <strong>att2000.mdb</strong> (Access)، ثم تُزامَن السجلات إلى Manager.
-            <strong>الربط:</strong> رقم الموظف في النظام ←→ رقم البصمة (<strong>BADGENUMBER</strong>) في Access.
-            عند التطابق يُربَط تلقائياً أثناء المزامنة أو عبر «ربط تلقائي».
-            <br><strong>مهم:</strong> أثناء المزامنة أغلق برنامج Attendance Management.
-            لتحديث <strong>Flag</strong> في Access تلقائياً، يجب أن يكون مسار الملف <strong>قابلاً للكتابة</strong>
-            (مثل <code dir="ltr">C:\ZKTData\att2000.mdb</code>) — المسار داخل
-            <code dir="ltr">Program Files</code> غالباً للقراءة فقط من Apache.
-            استخدم «اختبار الاتصال» للتحقق من صلاحية الكتابة.
+            <?php if ($remoteAgentMode): ?>
+                <br><strong>على السيرفر:</strong> لا تُرفَع قاعدة البصمة — شغّل الوكيل على جهاز ZKT (انظر الإعدادات أدناه).
+            <?php else: ?>
+                <strong>الربط:</strong> رقم الموظف في النظام ←→ رقم البصمة (<strong>BADGENUMBER</strong>) في Access.
+                عند التطابق يُربَط تلقائياً أثناء المزامنة أو عبر «ربط تلقائي».
+                <br><strong>مهم:</strong> أثناء المزامنة أغلق برنامج Attendance Management.
+            <?php endif; ?>
         </p>
 
         <section class="dashboard-ora-panel hr-att-config-panel">
-            <h2 class="dashboard-ora-panel__title">إعدادات المزامنة</h2>
+            <h2 class="dashboard-ora-panel__title"><?= $remoteAgentMode ? 'مزامنة من جهاز ZKT' : 'إعدادات المزامنة' ?></h2>
             <div class="dashboard-ora-panel__body">
+                <?php if ($remoteAgentMode): ?>
+                <div class="hr-att-agent-box">
+                    <p class="hr-att-hint">
+                        1. على <strong>جهاز ZKT (Windows)</strong> انسخ مجلد <code dir="ltr">tools</code> من المشروع
+                        (أو نسخة XAMPP المحلية) إلى الجهاز.<br>
+                        2. انسخ <code dir="ltr">tools/zk_sync.local.example.php</code> إلى
+                        <code dir="ltr">tools/zk_sync.local.php</code> وضع الرمز أدناه.<br>
+                        3. شغّل <code dir="ltr">tools\zk_sync_run.bat</code> أو جدوله في Windows Task Scheduler كل 5–15 دقيقة.
+                    </p>
+                    <dl class="hr-att-meta hr-att-agent-meta">
+                        <div>
+                            <dt>رابط API</dt>
+                            <dd dir="ltr"><code><?= esc($pushApiUrl) ?></code></dd>
+                        </div>
+                        <div>
+                            <dt>رمز المزامنة</dt>
+                            <dd dir="ltr"><code class="hr-att-sync-token"><?= esc((string) $syncToken) ?></code></dd>
+                        </div>
+                    </dl>
+                    <form method="post" action="<?= esc($listUrl) ?>" class="hr-att-config-form"
+                          onsubmit="return confirm('إنشاء رمز جديد؟ يجب تحديث zk_sync.local.php على جهاز ZKT.');">
+                        <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+                        <input type="hidden" name="_action" value="regenerate_sync_token">
+                        <button type="submit" class="btn btn-secondary btn-sm">رمز مزامنة جديد</button>
+                    </form>
+                </div>
+                <?php else: ?>
                 <form method="post" action="<?= esc($listUrl) ?>" class="hr-att-config-form">
                     <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                     <input type="hidden" name="_action" value="save_config">
                     <label class="field hr-att-mdb-field">
                         <span class="field-label">مسار att2000.mdb</span>
                         <input class="input" type="text" name="mdb_path" dir="ltr"
-                               value="<?= esc($config['mdb_path']) ?>" required>
+                               value="<?= esc($displayMdbPath) ?>" required>
                     </label>
                     <div class="hr-att-config-actions">
                         <button type="submit" class="btn btn-secondary btn-sm">حفظ المسار</button>
@@ -224,6 +318,7 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
                                 name="_action" value="test_mdb" formnovalidate>اختبار الاتصال</button>
                     </div>
                 </form>
+                <?php endif; ?>
                 <dl class="hr-att-meta">
                     <div><dt>آخر مزامنة</dt><dd><?= esc($config['last_sync_at'] ?: '—') ?></dd></div>
                     <div><dt>آخر بصمة مُزامَنة</dt><dd><?= esc($config['last_punch_time'] ?: '—') ?></dd></div>
@@ -242,8 +337,9 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
                 <input type="hidden" name="date_from" value="<?= esc($dateFrom) ?>">
                 <input type="hidden" name="date_to" value="<?= esc($dateTo) ?>">
                 <input type="hidden" name="filter_employee_id" value="<?= (int) $filterEmpId ?>">
-                <button type="submit" class="btn btn-primary btn-sm" <?= ($odbcOk || $comOk) ? '' : 'disabled' ?>>
-                    مزامنة الآن
+                <button type="submit" class="btn btn-primary btn-sm" <?= $canSyncMdb ? '' : 'disabled' ?>
+                        title="<?= $remoteAgentMode ? 'المزامنة من جهاز ZKT عبر الوكيل' : '' ?>">
+                    <?= $remoteAgentMode ? 'مزامنة من السيرفر (معطّلة)' : 'مزامنة الآن' ?>
                 </button>
             </form>
             <form method="post" action="<?= esc(hr_att_build_url($dateFrom, $dateTo, $filterEmpId)) ?>" class="hr-att-sync-form"
@@ -253,7 +349,7 @@ $attJsUrl = app_url('assets/js/hr-employee-attendance.js')
                 <input type="hidden" name="date_from" value="<?= esc($dateFrom) ?>">
                 <input type="hidden" name="date_to" value="<?= esc($dateTo) ?>">
                 <input type="hidden" name="filter_employee_id" value="<?= (int) $filterEmpId ?>">
-                <button type="submit" class="btn btn-secondary btn-sm" <?= ($odbcOk || $comOk) ? '' : 'disabled' ?>>
+                <button type="submit" class="btn btn-secondary btn-sm" <?= ($canSyncMdb && ($odbcOk || $comOk)) ? '' : 'disabled' ?>>
                     تعليم الكل Flag=1
                 </button>
             </form>

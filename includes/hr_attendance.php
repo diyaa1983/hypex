@@ -1,10 +1,16 @@
 <?php
 declare(strict_types=1);
 
-require_once app_path('includes/hr_schema.php');
+if (!defined('HR_ATT_MDB_ONLY')) {
+    require_once app_path('includes/hr_schema.php');
+}
 
 function hr_attendance_ensure_schema(PDO $pdo): void
 {
+    if (defined('HR_ATT_MDB_ONLY')) {
+        return;
+    }
+
     hr_employee_ensure_schema($pdo);
 
     try {
@@ -67,19 +73,57 @@ function hr_attendance_ensure_schema(PDO $pdo): void
             // ignored
         }
     }
+
+    hr_attendance_ensure_sync_token_column($pdo);
 }
 
-/** @return array{mdb_path:string,last_sync_at:?string,last_punch_time:?string} */
+function hr_attendance_ensure_sync_token_column(PDO $pdo): void
+{
+    try {
+        $pdo->query('SELECT sync_token FROM hr_att_config LIMIT 1');
+    } catch (Throwable $e) {
+        if (
+            str_contains($e->getMessage(), 'Unknown column')
+            || str_contains($e->getMessage(), 'no such column')
+        ) {
+            try {
+                $pdo->exec(
+                    'ALTER TABLE hr_att_config ADD COLUMN sync_token VARCHAR(64) NULL DEFAULT NULL AFTER last_punch_time'
+                );
+            } catch (Throwable $e2) {
+                // ignored
+            }
+        }
+    }
+}
+
+function hr_attendance_remote_agent_marker(): string
+{
+    return 'remote://zk-agent';
+}
+
+function hr_attendance_uses_remote_agent(): bool
+{
+    return hr_attendance_is_linux_server();
+}
+
+/** @return array{mdb_path:string,last_sync_at:?string,last_punch_time:?string,sync_token:?string} */
 function hr_attendance_load_config(PDO $pdo): array
 {
     hr_attendance_ensure_schema($pdo);
-    $row = $pdo->query('SELECT mdb_path, last_sync_at, last_punch_time FROM hr_att_config WHERE id = 1 LIMIT 1')
+    hr_attendance_ensure_sync_token_column($pdo);
+    $row = $pdo->query('SELECT mdb_path, last_sync_at, last_punch_time, sync_token FROM hr_att_config WHERE id = 1 LIMIT 1')
         ->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
+        $defaultPath = hr_attendance_uses_remote_agent()
+            ? hr_attendance_remote_agent_marker()
+            : 'C:\\Program Files (x86)\\ZKTeco\\att2000.mdb';
+
         return [
-            'mdb_path' => 'C:\\Program Files (x86)\\ZKTeco\\att2000.mdb',
+            'mdb_path' => $defaultPath,
             'last_sync_at' => null,
             'last_punch_time' => null,
+            'sync_token' => null,
         ];
     }
 
@@ -87,6 +131,9 @@ function hr_attendance_load_config(PDO $pdo): array
         'mdb_path' => (string) ($row['mdb_path'] ?? ''),
         'last_sync_at' => $row['last_sync_at'] !== null ? (string) $row['last_sync_at'] : null,
         'last_punch_time' => $row['last_punch_time'] !== null ? (string) $row['last_punch_time'] : null,
+        'sync_token' => isset($row['sync_token']) && (string) $row['sync_token'] !== ''
+            ? (string) $row['sync_token']
+            : null,
     ];
 }
 
@@ -97,8 +144,32 @@ function hr_attendance_save_config(PDO $pdo, string $mdbPath): void
     if ($mdbPath === '') {
         throw new RuntimeException('أدخل مسار ملف att2000.mdb.');
     }
+    if (hr_attendance_uses_remote_agent()) {
+        if ($mdbPath === hr_attendance_remote_agent_marker() || hr_attendance_path_issue($mdbPath) !== null) {
+            $mdbPath = hr_attendance_remote_agent_marker();
+            $st = $pdo->prepare(
+                'INSERT INTO hr_att_config (id, mdb_path) VALUES (1, ?)
+                 ON DUPLICATE KEY UPDATE mdb_path = VALUES(mdb_path)'
+            );
+            $st->execute([$mdbPath]);
+
+            return;
+        }
+    }
+    if (hr_attendance_path_issue($mdbPath) !== null) {
+        throw new RuntimeException(
+            'مسار Windows (مثل C:\\Program Files\\...) لا يعمل على خادم Linux.' . "\n\n"
+            . 'ارفع att2000.mdb إلى:' . "\n"
+            . hr_attendance_recommended_mdb_path()
+        );
+    }
     if (!is_file($mdbPath)) {
-        throw new RuntimeException('ملف قاعدة البصمة غير موجود: ' . $mdbPath);
+        throw new RuntimeException(
+            'ملف قاعدة البصمة غير موجود: ' . $mdbPath
+            . (hr_attendance_is_linux_server()
+                ? "\n\nارفع الملف من جهاز ZKT عبر FTP/cPanel إلى المسار أعلاه."
+                : '')
+        );
     }
 
     $st = $pdo->prepare(
@@ -118,8 +189,225 @@ function hr_attendance_com_available(): bool
     return class_exists('COM', false);
 }
 
+function hr_attendance_is_linux_server(): bool
+{
+    return DIRECTORY_SEPARATOR === '/';
+}
+
+function hr_attendance_is_windows_drive_path(string $path): bool
+{
+    return (bool) preg_match('/^[a-zA-Z]:/', trim($path));
+}
+
+function hr_attendance_recommended_mdb_path(): string
+{
+    return hr_attendance_mdb_cache_file();
+}
+
+/** @return string|null */
+function hr_attendance_path_issue(string $path): ?string
+{
+    $path = trim($path);
+    if ($path === '') {
+        return null;
+    }
+    if (hr_attendance_is_linux_server() && hr_attendance_is_windows_drive_path($path)) {
+        return 'المسار المحفوظ بصيغة Windows (C:\\...) لا يعمل على خادم Linux.'
+            . ' ارفع att2000.mdb إلى: ' . hr_attendance_recommended_mdb_path();
+    }
+
+    return null;
+}
+
+function hr_attendance_mdbtools_bin(): ?string
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached !== '' ? $cached : null;
+    }
+
+    $candidates = ['mdb-export', '/usr/bin/mdb-export', '/usr/local/bin/mdb-export'];
+    foreach ($candidates as $bin) {
+        $out = [];
+        $code = 1;
+        @exec(escapeshellarg($bin) . ' 2>&1', $out, $code);
+        $text = strtolower(implode(' ', $out));
+        if ($code === 0 || str_contains($text, 'usage') || str_contains($text, 'mdb-export')) {
+            $cached = $bin;
+
+            return $bin;
+        }
+    }
+
+    $whichOut = [];
+    @exec('command -v mdb-export 2>/dev/null', $whichOut, $whichCode);
+    if ($whichCode === 0 && !empty($whichOut[0])) {
+        $cached = trim((string) $whichOut[0]);
+
+        return $cached;
+    }
+
+    $cached = '';
+
+    return null;
+}
+
+function hr_attendance_mdbtools_available(): bool
+{
+    return hr_attendance_mdbtools_bin() !== null;
+}
+
+function hr_attendance_mdb_driver_label(): string
+{
+    if (hr_attendance_pdo_odbc_available()) {
+        return 'PDO ODBC';
+    }
+    if (hr_attendance_com_available()) {
+        return 'OLEDB (COM)';
+    }
+    if (hr_attendance_mdbtools_available()) {
+        return 'mdbtools (Linux)';
+    }
+
+    return 'غير متاح';
+}
+
+/**
+ * @return list<array<string, string>>
+ */
+function hr_attendance_mdbtools_export_table(string $mdbPath, string $table): array
+{
+    $bin = hr_attendance_mdbtools_bin();
+    if ($bin === null) {
+        throw new RuntimeException('حزمة mdbtools غير متوفرة على الخادم (mdb-export).');
+    }
+
+    $table = preg_replace('/[^A-Za-z0-9_]/', '', $table) ?? '';
+    if ($table === '') {
+        throw new RuntimeException('اسم جدول غير صالح.');
+    }
+
+    $cmd = escapeshellarg($bin)
+        . ' -H -D ' . escapeshellarg('%Y-%m-%d %H:%M:%S')
+        . ' ' . escapeshellarg($mdbPath)
+        . ' ' . escapeshellarg($table);
+
+    $lines = [];
+    $code = 1;
+    @exec($cmd . ' 2>&1', $lines, $code);
+    if ($code !== 0 || $lines === []) {
+        throw new RuntimeException(
+            'تعذر قراءة جدول ' . $table . ' عبر mdbtools.'
+            . ($lines !== [] ? ' ' . implode(' ', array_slice($lines, 0, 2)) : '')
+        );
+    }
+
+    $headers = str_getcsv((string) $lines[0]);
+    $rows = [];
+    for ($i = 1, $n = count($lines); $i < $n; $i++) {
+        $cols = str_getcsv((string) $lines[$i]);
+        if ($cols === [null] || $cols === []) {
+            continue;
+        }
+        $row = [];
+        foreach ($headers as $idx => $header) {
+            $row[(string) $header] = isset($cols[$idx]) ? (string) $cols[$idx] : '';
+        }
+        $rows[] = $row;
+    }
+
+    return $rows;
+}
+
+/**
+ * @return list<array<string,mixed>>
+ */
+function hr_attendance_mdbtools_fetch_punches_joined(string $mdbPath): array
+{
+    $checkins = hr_attendance_mdbtools_export_table($mdbPath, 'CHECKINOUT');
+    $users = hr_attendance_mdbtools_export_table($mdbPath, 'USERINFO');
+    $userMap = [];
+    foreach ($users as $user) {
+        $uid = (int) ($user['USERID'] ?? 0);
+        if ($uid > 0) {
+            $userMap[$uid] = $user;
+        }
+    }
+
+    $rows = [];
+    foreach ($checkins as $row) {
+        $uid = (int) ($row['USERID'] ?? 0);
+        $info = $userMap[$uid] ?? [];
+        $rows[] = [
+            'USERID' => $uid,
+            'CHECKTIME' => $row['CHECKTIME'] ?? '',
+            'CHECKTYPE' => $row['CHECKTYPE'] ?? '',
+            'VERIFYCODE' => $row['VERIFYCODE'] ?? '',
+            'SENSORID' => $row['SENSORID'] ?? '',
+            'Flag' => $row['Flag'] ?? null,
+            'BADGENUMBER' => $info['BADGENUMBER'] ?? '',
+            'NAME' => $info['NAME'] ?? '',
+        ];
+    }
+
+    usort($rows, static function (array $a, array $b): int {
+        $ta = hr_attendance_parse_checktime($a['CHECKTIME'] ?? null) ?? '';
+        $tb = hr_attendance_parse_checktime($b['CHECKTIME'] ?? null) ?? '';
+
+        return strcmp($ta, $tb);
+    });
+
+    return $rows;
+}
+
+function hr_attendance_mdbtools_flag_is_pending(mixed $flag): bool
+{
+    if ($flag === null || $flag === '') {
+        return true;
+    }
+
+    return (int) $flag === 0;
+}
+
+function hr_attendance_mdbtools_table_has_column(string $mdbPath, string $table, string $column): bool
+{
+    $bin = hr_attendance_mdbtools_bin();
+    if ($bin === null) {
+        return false;
+    }
+
+    $table = preg_replace('/[^A-Za-z0-9_]/', '', $table) ?? '';
+    $column = preg_replace('/[^A-Za-z0-9_]/', '', $column) ?? '';
+    if ($table === '' || $column === '') {
+        return false;
+    }
+
+    $cmd = escapeshellarg($bin)
+        . ' -H -D ' . escapeshellarg('%Y-%m-%d %H:%M:%S')
+        . ' ' . escapeshellarg($mdbPath)
+        . ' ' . escapeshellarg($table);
+
+    $lines = [];
+    @exec($cmd . ' 2>&1', $lines, $code);
+    if ($code !== 0 || $lines === []) {
+        return false;
+    }
+
+    $headers = str_getcsv((string) $lines[0]);
+
+    return in_array($column, $headers, true);
+}
+
 function hr_attendance_normalize_mdb_path(string $mdbPath): string
 {
+    $mdbPath = trim($mdbPath);
+    if ($mdbPath === '') {
+        return '';
+    }
+    if (hr_attendance_is_linux_server() && !hr_attendance_is_windows_drive_path($mdbPath)) {
+        return str_replace('\\', '/', $mdbPath);
+    }
+
     return trim(str_replace('/', '\\', $mdbPath));
 }
 
@@ -127,7 +415,11 @@ function hr_attendance_assert_mdb_readable(string $mdbPath): string
 {
     $mdbPath = hr_attendance_normalize_mdb_path($mdbPath);
     if (!is_file($mdbPath)) {
-        throw new RuntimeException('ملف قاعدة البصمة غير موجود: ' . $mdbPath);
+        $extra = hr_attendance_is_linux_server()
+            ? "\n\nعلى Linux: انسخ att2000.mdb من جهاز ZKT وارفعه إلى:\n" . hr_attendance_recommended_mdb_path()
+            : '';
+
+        throw new RuntimeException('ملف قاعدة البصمة غير موجود: ' . $mdbPath . $extra);
     }
     if (!is_readable($mdbPath)) {
         throw new RuntimeException('لا يمكن قراءة ملف قاعدة البصمة (صلاحيات): ' . $mdbPath);
@@ -672,9 +964,17 @@ function hr_attendance_mdb_checkinout_has_flag(string $mdbPath): bool
         if (hr_attendance_pdo_odbc_available()) {
             $mdb = hr_attendance_mdb_open_pdo($mdbPath);
             $mdb->query('SELECT TOP 1 ' . $col . ' FROM CHECKINOUT')->fetch(PDO::FETCH_ASSOC);
-        } else {
+        } elseif (hr_attendance_com_available()) {
             $conn = hr_attendance_mdb_com_open_path($mdbPath);
             hr_attendance_mdb_com_fetch_all($conn, 'SELECT TOP 1 ' . $col . ' FROM CHECKINOUT');
+        } elseif (hr_attendance_mdbtools_available()) {
+            $cache[$mdbPath] = hr_attendance_mdbtools_table_has_column($mdbPath, 'CHECKINOUT', 'Flag');
+
+            return $cache[$mdbPath];
+        } else {
+            $cache[$mdbPath] = false;
+
+            return false;
         }
         $cache[$mdbPath] = true;
     } catch (Throwable $e) {
@@ -719,9 +1019,22 @@ function hr_attendance_mdb_fetch_unsynced_punches(string $mdbPath): array
         return $mdb->query($sql['odbc'])->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    $conn = hr_attendance_mdb_com_open_path($mdbPath);
+    if (hr_attendance_com_available()) {
+        $conn = hr_attendance_mdb_com_open_path($mdbPath);
 
-    return hr_attendance_mdb_com_fetch_all($conn, $sql['com']);
+        return hr_attendance_mdb_com_fetch_all($conn, $sql['com']);
+    }
+
+    if (hr_attendance_mdbtools_available()) {
+        $all = hr_attendance_mdbtools_fetch_punches_joined($mdbPath);
+
+        return array_values(array_filter(
+            $all,
+            static fn (array $row): bool => hr_attendance_mdbtools_flag_is_pending($row['Flag'] ?? null)
+        ));
+    }
+
+    throw new RuntimeException('لا يمكن قراءة att2000.mdb — فعّل ODBC/COM أو mdbtools.');
 }
 
 function hr_attendance_mdb_count_unsynced_punches(string $mdbPath): int
@@ -735,9 +1048,17 @@ function hr_attendance_mdb_count_unsynced_punches(string $mdbPath): int
         return (int) $mdb->query('SELECT COUNT(*) FROM CHECKINOUT' . $where)->fetchColumn();
     }
 
-    $conn = hr_attendance_mdb_com_open_path($mdbPath);
+    if (hr_attendance_com_available()) {
+        $conn = hr_attendance_mdb_com_open_path($mdbPath);
 
-    return hr_attendance_mdb_com_scalar($conn, 'SELECT COUNT(*) FROM CHECKINOUT' . $where);
+        return hr_attendance_mdb_com_scalar($conn, 'SELECT COUNT(*) FROM CHECKINOUT' . $where);
+    }
+
+    if (hr_attendance_mdbtools_available()) {
+        return count(hr_attendance_mdb_fetch_unsynced_punches($mdbPath));
+    }
+
+    throw new RuntimeException('لا يمكن قراءة att2000.mdb — فعّل ODBC/COM أو mdbtools.');
 }
 
 function hr_attendance_mdb_checktime_param(mixed $checkTimeRaw): mixed
@@ -996,9 +1317,21 @@ function hr_attendance_mdb_fetch_all_punches(string $mdbPath): array
         return $mdb->query($sql['odbc'])->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    $conn = hr_attendance_mdb_com_open_path($mdbPath);
+    if (hr_attendance_com_available()) {
+        $conn = hr_attendance_mdb_com_open_path($mdbPath);
 
-    return hr_attendance_mdb_com_fetch_all($conn, $sql['com']);
+        return hr_attendance_mdb_com_fetch_all($conn, $sql['com']);
+    }
+
+    if (hr_attendance_mdbtools_available()) {
+        return hr_attendance_mdbtools_fetch_punches_joined($mdbPath);
+    }
+
+    throw new RuntimeException(
+        hr_attendance_is_linux_server()
+            ? 'على Linux: ارفع att2000.mdb ثم ثبّت mdbtools (mdb-export).'
+            : 'فعّل pdo_odbc أو com_dotnet لقراءة att2000.mdb.'
+    );
 }
 
 /**
@@ -1084,16 +1417,38 @@ function hr_attendance_mdb_fetch_punches_since(string $mdbPath, string $since): 
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    $conn = hr_attendance_mdb_com_open($mdbPath);
-    $sinceLit = hr_attendance_access_date_literal($since);
-    $sql = 'SELECT c.USERID, c.CHECKTIME, c.CHECKTYPE, c.VERIFYCODE, c.SENSORID,
-                   u.BADGENUMBER, u.NAME
-            FROM CHECKINOUT AS c
-            LEFT JOIN USERINFO AS u ON u.USERID = c.USERID
-            WHERE c.CHECKTIME > ' . $sinceLit . '
-            ORDER BY c.CHECKTIME ASC';
+    if (hr_attendance_com_available()) {
+        $conn = hr_attendance_mdb_com_open($mdbPath);
+        $sinceLit = hr_attendance_access_date_literal($since);
+        $sql = 'SELECT c.USERID, c.CHECKTIME, c.CHECKTYPE, c.VERIFYCODE, c.SENSORID,
+                       u.BADGENUMBER, u.NAME
+                FROM CHECKINOUT AS c
+                LEFT JOIN USERINFO AS u ON u.USERID = c.USERID
+                WHERE c.CHECKTIME > ' . $sinceLit . '
+                ORDER BY c.CHECKTIME ASC';
 
-    return hr_attendance_mdb_com_fetch_all($conn, $sql);
+        return hr_attendance_mdb_com_fetch_all($conn, $sql);
+    }
+
+    if (hr_attendance_mdbtools_available()) {
+        $sinceTs = strtotime($since);
+        $all = hr_attendance_mdbtools_fetch_punches_joined($mdbPath);
+        if ($sinceTs === false) {
+            return $all;
+        }
+
+        return array_values(array_filter($all, static function (array $row) use ($sinceTs): bool {
+            $parsed = hr_attendance_parse_checktime($row['CHECKTIME'] ?? null);
+            if ($parsed === null) {
+                return false;
+            }
+            $ts = strtotime($parsed);
+
+            return $ts !== false && $ts > $sinceTs;
+        }));
+    }
+
+    throw new RuntimeException('لا يمكن قراءة att2000.mdb — فعّل ODBC/COM أو mdbtools.');
 }
 
 /** @return array{checkinout_count:int,userinfo_count:int,driver:string} */
@@ -1115,23 +1470,43 @@ function hr_attendance_mdb_stats(string $mdbPath): array
         ];
     }
 
-    $conn = hr_attendance_mdb_com_open($mdbPath);
-    $provider = 'OLEDB';
-    try {
-        if (stripos((string) $conn->ConnectionString, 'ACE.OLEDB') !== false) {
-            $provider = 'OLEDB ACE';
-        } elseif (stripos((string) $conn->ConnectionString, 'Jet.OLEDB') !== false) {
-            $provider = 'OLEDB Jet';
+    if (hr_attendance_com_available()) {
+        $conn = hr_attendance_mdb_com_open($mdbPath);
+        $provider = 'OLEDB';
+        try {
+            if (stripos((string) $conn->ConnectionString, 'ACE.OLEDB') !== false) {
+                $provider = 'OLEDB ACE';
+            } elseif (stripos((string) $conn->ConnectionString, 'Jet.OLEDB') !== false) {
+                $provider = 'OLEDB Jet';
+            }
+        } catch (Throwable $e) {
+            // ignore
         }
-    } catch (Throwable $e) {
-        // ignore
+
+        return [
+            'checkinout_count' => hr_attendance_mdb_com_scalar($conn, 'SELECT COUNT(*) FROM CHECKINOUT'),
+            'userinfo_count' => hr_attendance_mdb_com_scalar($conn, 'SELECT COUNT(*) FROM USERINFO'),
+            'driver' => $provider,
+        ];
     }
 
-    return [
-        'checkinout_count' => hr_attendance_mdb_com_scalar($conn, 'SELECT COUNT(*) FROM CHECKINOUT'),
-        'userinfo_count' => hr_attendance_mdb_com_scalar($conn, 'SELECT COUNT(*) FROM USERINFO'),
-        'driver' => $provider,
-    ];
+    if (hr_attendance_mdbtools_available()) {
+        $checkins = hr_attendance_mdbtools_export_table($mdbPath, 'CHECKINOUT');
+        $users = hr_attendance_mdbtools_export_table($mdbPath, 'USERINFO');
+
+        return [
+            'checkinout_count' => count($checkins),
+            'userinfo_count' => count($users),
+            'driver' => 'mdbtools (Linux — قراءة فقط)',
+        ];
+    }
+
+    throw new RuntimeException(
+        hr_attendance_is_linux_server()
+            ? 'على Linux: ارفع att2000.mdb إلى ' . hr_attendance_recommended_mdb_path()
+            . ' وثبّت mdbtools، أو نفّذ المزامنة من Windows (XAMPP).'
+            : 'فعّل pdo_odbc أو com_dotnet في php.ini.'
+    );
 }
 
 /** @return array{BADGENUMBER?:string,NAME?:string}|null */
@@ -1157,11 +1532,29 @@ function hr_attendance_mdb_fetch_userinfo(string $mdbPath, int $zkUserId): ?arra
         }
     }
 
-    $conn = hr_attendance_mdb_com_open($mdbPath);
-    $sql = 'SELECT BADGENUMBER, NAME FROM USERINFO WHERE USERID = ' . $zkUserId;
-    $rows = hr_attendance_mdb_com_fetch_all($conn, $sql);
+    if (hr_attendance_com_available()) {
+        $conn = hr_attendance_mdb_com_open($mdbPath);
+        $sql = 'SELECT BADGENUMBER, NAME FROM USERINFO WHERE USERID = ' . $zkUserId;
+        $rows = hr_attendance_mdb_com_fetch_all($conn, $sql);
 
-    return $rows[0] ?? null;
+        return $rows[0] ?? null;
+    }
+
+    if (hr_attendance_mdbtools_available()) {
+        $users = hr_attendance_mdbtools_export_table($mdbPath, 'USERINFO');
+        foreach ($users as $user) {
+            if ((int) ($user['USERID'] ?? 0) === $zkUserId) {
+                return [
+                    'BADGENUMBER' => $user['BADGENUMBER'] ?? '',
+                    'NAME' => $user['NAME'] ?? '',
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    throw new RuntimeException('لا يمكن قراءة att2000.mdb — فعّل ODBC/COM أو mdbtools.');
 }
 
 /** @return array{ok:bool,message:string,checkinout_count:int,userinfo_count:int} */
@@ -1173,10 +1566,14 @@ function hr_attendance_test_mdb(string $mdbPath): array
             . $stats['checkinout_count'] . '، موظفين في البصمة: ' . $stats['userinfo_count'];
         if (hr_attendance_mdb_checkinout_has_flag($mdbPath)) {
             $msg .= ' — حقل Flag موجود (مزامنة سريعة)';
-            $writeTest = hr_attendance_mdb_test_write_access($mdbPath);
-            $msg .= $writeTest['ok']
-                ? ' — ' . $writeTest['message']
-                : ' — تحذير: ' . $writeTest['message'];
+            if (hr_attendance_mdbtools_available() && !hr_attendance_pdo_odbc_available() && !hr_attendance_com_available()) {
+                $msg .= ' — قراءة فقط على Linux (لا يُحدَّث Flag في Access)';
+            } else {
+                $writeTest = hr_attendance_mdb_test_write_access($mdbPath);
+                $msg .= $writeTest['ok']
+                    ? ' — ' . $writeTest['message']
+                    : ' — تحذير: ' . $writeTest['message'];
+            }
         }
 
         return [
@@ -1537,11 +1934,175 @@ function hr_attendance_build_source_key(int $zkUserId, string $punchTime): strin
     return $zkUserId . '|' . $punchTime;
 }
 
+function hr_attendance_sync_token_generate(): string
+{
+    return bin2hex(random_bytes(32));
+}
+
+function hr_attendance_sync_token_ensure(PDO $pdo): string
+{
+    hr_attendance_ensure_schema($pdo);
+    hr_attendance_ensure_sync_token_column($pdo);
+    $cfg = hr_attendance_load_config($pdo);
+    if ($cfg['sync_token'] !== null && $cfg['sync_token'] !== '') {
+        return $cfg['sync_token'];
+    }
+
+    return hr_attendance_sync_token_regenerate($pdo);
+}
+
+function hr_attendance_sync_token_regenerate(PDO $pdo): string
+{
+    hr_attendance_ensure_schema($pdo);
+    hr_attendance_ensure_sync_token_column($pdo);
+    $token = hr_attendance_sync_token_generate();
+    $st = $pdo->prepare(
+        'INSERT INTO hr_att_config (id, mdb_path, sync_token) VALUES (1, ?, ?)
+         ON DUPLICATE KEY UPDATE sync_token = VALUES(sync_token)'
+    );
+    $marker = hr_attendance_uses_remote_agent()
+        ? hr_attendance_remote_agent_marker()
+        : 'C:\\Program Files (x86)\\ZKTeco\\att2000.mdb';
+    $st->execute([$marker, $token]);
+
+    return $token;
+}
+
+function hr_attendance_verify_sync_token(PDO $pdo, string $token): bool
+{
+    $token = trim($token);
+    if ($token === '' || strlen($token) < 32) {
+        return false;
+    }
+    hr_attendance_ensure_schema($pdo);
+    hr_attendance_ensure_sync_token_column($pdo);
+    $st = $pdo->prepare('SELECT sync_token FROM hr_att_config WHERE id = 1 LIMIT 1');
+    $st->execute();
+    $saved = $st->fetchColumn();
+
+    return is_string($saved) && $saved !== '' && hash_equals($saved, $token);
+}
+
+function hr_attendance_push_api_url(): string
+{
+    return app_url('api/hr_attendance_push.php');
+}
+
+/**
+ * @param list<array<string,mixed>> $rows
+ * @return array{inserted:int,skipped:int,unlinked:int,last_punch_time:?string,message:string,source_keys_inserted:list<string>}
+ */
+function hr_attendance_push_punches(PDO $pdo, array $rows): array
+{
+    @set_time_limit(300);
+    hr_attendance_ensure_schema($pdo);
+    $cfg = hr_attendance_load_config($pdo);
+
+    $insertSt = $pdo->prepare(
+        'INSERT IGNORE INTO hr_att_punch
+            (employee_id, zk_user_id, badge_number, zk_name, punch_time, punch_type, verify_code, sensor_id, source_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    );
+
+    $inserted = 0;
+    $skipped = 0;
+    $unlinked = 0;
+    $parseFailed = 0;
+    $sourceKeysInserted = [];
+
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $zkUserId = (int) ($row['USERID'] ?? $row['zk_user_id'] ?? $row['userid'] ?? 0);
+        if ($zkUserId < 1) {
+            continue;
+        }
+
+        $punchTime = hr_attendance_parse_checktime($row['CHECKTIME'] ?? $row['checktime'] ?? $row['punch_time'] ?? null);
+        if ($punchTime === null) {
+            $parseFailed++;
+            continue;
+        }
+
+        $sourceKey = hr_attendance_build_source_key($zkUserId, $punchTime);
+        $badge = trim((string) ($row['BADGENUMBER'] ?? $row['badgenumber'] ?? $row['badge_number'] ?? ''));
+        $zkName = trim((string) ($row['NAME'] ?? $row['name'] ?? $row['zk_name'] ?? ''));
+        $employeeId = hr_attendance_find_employee_id($pdo, $zkUserId, $badge);
+        if ($employeeId !== null && $employeeId > 0) {
+            hr_attendance_upsert_map($pdo, $zkUserId, $employeeId, $badge, $zkName);
+        } else {
+            $unlinked++;
+        }
+
+        $punchType = hr_attendance_resolve_punch_type($row);
+        $insertSt->execute([
+            $employeeId > 0 ? $employeeId : null,
+            $zkUserId,
+            $badge !== '' ? $badge : null,
+            $zkName !== '' ? $zkName : null,
+            $punchTime,
+            $punchType,
+            isset($row['VERIFYCODE']) || isset($row['verifycode'])
+                ? (int) ($row['VERIFYCODE'] ?? $row['verifycode'])
+                : null,
+            isset($row['SENSORID']) || isset($row['sensorid'])
+                ? trim((string) ($row['SENSORID'] ?? $row['sensorid']))
+                : null,
+            $sourceKey,
+        ]);
+
+        if ($insertSt->rowCount() > 0) {
+            $inserted++;
+            $sourceKeysInserted[] = $sourceKey;
+        } else {
+            $skipped++;
+        }
+    }
+
+    $now = date('Y-m-d H:i:s');
+    $newLastPunch = $pdo->query('SELECT MAX(punch_time) FROM hr_att_punch')->fetchColumn();
+    $newLastPunch = ($newLastPunch !== false && (string) $newLastPunch !== '')
+        ? (string) $newLastPunch
+        : $cfg['last_punch_time'];
+
+    $upd = $pdo->prepare(
+        'UPDATE hr_att_config SET last_sync_at = ?, last_punch_time = ? WHERE id = 1'
+    );
+    $upd->execute([$now, $newLastPunch]);
+
+    $msg = 'استلام من جهاز البصمة: ' . $inserted . ' سجل جديد';
+    if ($skipped > 0) {
+        $msg .= '، ' . $skipped . ' موجود مسبقاً';
+    }
+    if ($unlinked > 0) {
+        $msg .= '، ' . $unlinked . ' غير مربوط بموظف';
+    }
+    if ($parseFailed > 0) {
+        $msg .= '، ' . $parseFailed . ' تخطّى (صيغة وقت غير مقروءة)';
+    }
+
+    return [
+        'inserted' => $inserted,
+        'skipped' => $skipped,
+        'unlinked' => $unlinked,
+        'last_punch_time' => $newLastPunch,
+        'message' => $msg,
+        'source_keys_inserted' => $sourceKeysInserted,
+    ];
+}
+
 /**
  * @return array{inserted:int,skipped:int,unlinked:int,last_punch_time:?string,message:string}
  */
 function hr_attendance_sync(PDO $pdo): array
 {
+    if (hr_attendance_uses_remote_agent()) {
+        throw new RuntimeException(
+            'المزامنة المباشرة من السيرفر غير متاحة — شغّل وكيل المزامنة على جهاز ZKT (Windows).'
+        );
+    }
     @set_time_limit(600);
     hr_attendance_ensure_schema($pdo);
     $cfg = hr_attendance_load_config($pdo);
