@@ -58,6 +58,9 @@ $cssUrl = app_url('assets/css/hr-att-punch-report.css') . (is_file($cssPath) ? '
 $reportSalesCssUrl = document_print_stylesheet_url('assets/css/report-sales.css');
 $docCssUrl = document_print_stylesheet_url('assets/css/document-header.css');
 
+$jsPath = app_path('assets/js/hr-att-punch-report.js');
+$jsUrl = app_url('assets/js/hr-att-punch-report.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
+
 $periodFromDmY = format_date_dmY($dateFrom);
 $periodToDmY = format_date_dmY($dateTo);
 ?>
@@ -66,6 +69,7 @@ $periodToDmY = format_date_dmY($dateTo);
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <?php employee_picker_enqueue_assets(); ?>
 <script type="application/json" id="hr-att-punch-rpt-picker-json"><?= hr_employee_attendance_report_picker_json($employees) ?></script>
+<script src="<?= esc($jsUrl) ?>" defer></script>
 <style><?= document_print_header_css() ?></style>
 
 <div class="card report-sales-page hr-att-punch-rpt-page" data-exit-url="<?= esc($exitUrl) ?>">
@@ -101,7 +105,7 @@ $periodToDmY = format_date_dmY($dateTo);
                 'compact' => true,
                 'allow_all' => true,
                 'all_label' => 'جميع الموظفين',
-                'placeholder' => 'جميع الموظفين',
+                'placeholder' => 'جميع الموظفين — أو اضغط للبحث',
                 'manual_bind' => true,
                 'wrapper_class' => 'field report-sales-filter-field report-sales-filter-field--customer',
             ]) ?>
@@ -124,7 +128,8 @@ $periodToDmY = format_date_dmY($dateTo);
                 <div>الفترة: <span dir="ltr"><?= esc($periodFromDmY) ?></span> — <span dir="ltr"><?= esc($periodToDmY) ?></span></div>
                 <div>القسم: <?= esc($deptLabel) ?> | الموظف: <?= esc($empLabel) ?></div>
                 <div>
-                    إجمالي الحركات: <strong><?= (int) $report['total'] ?></strong>
+                    إجمالي البصمات: <strong><?= (int) $report['total'] ?></strong>
+                    — أيام/صفوف: <strong><?= count($report['day_rows'] ?? []) ?></strong>
                     (مربوط: <?= (int) $report['linked'] ?>، غير مربوط: <?= (int) $report['unlinked'] ?>)
                 </div>
                 <?php if (!empty($report['truncated'])): ?>
@@ -134,7 +139,7 @@ $periodToDmY = format_date_dmY($dateTo);
                 <?php endif; ?>
             </div>
 
-            <?php if (($report['rows'] ?? []) === []): ?>
+            <?php if (($report['day_rows'] ?? []) === []): ?>
                 <p class="muted hr-att-punch-rpt-empty">لا توجد حركات بصمة في الفترة المحددة.</p>
             <?php else: ?>
                 <div class="hr-att-punch-rpt-table-wrap">
@@ -142,33 +147,24 @@ $periodToDmY = format_date_dmY($dateTo);
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>التاريخ</th>
-                                <th>الوقت</th>
                                 <th>رقم الموظف</th>
-                                <th>اسم الموظف / البصمة</th>
-                                <th>رقم ZKT</th>
-                                <th>رقم البصمة</th>
-                                <th>النوع</th>
-                                <th>التحقق</th>
-                                <th>الجهاز</th>
+                                <th>اسم الموظف</th>
+                                <th>التاريخ</th>
+                                <th>البصمات</th>
+                                <th>رقم الجهاز</th>
                                 <th>القسم</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php $n = 0; foreach ($report['rows'] as $row): $n++; ?>
-                                <?php $dt = hr_att_punch_report_format_datetime($row['punch_time'] ?? null); ?>
-                                <tr class="<?= (int) ($row['employee_id'] ?? 0) < 1 ? 'is-unlinked' : '' ?>">
+                            <?php $n = 0; foreach ($report['day_rows'] as $row): $n++; ?>
+                                <tr class="<?= !empty($row['is_unlinked']) ? 'is-unlinked' : '' ?>">
                                     <td><?= $n ?></td>
-                                    <td dir="ltr"><?= esc($dt['date']) ?></td>
-                                    <td dir="ltr"><?= esc($dt['time']) ?></td>
-                                    <td dir="ltr"><?= esc(trim((string) ($row['emp_code'] ?? '')) ?: (string) ($row['badge_number'] ?? '—')) ?></td>
-                                    <td><?= esc(hr_att_punch_report_employee_label($row)) ?></td>
-                                    <td dir="ltr"><?= (int) ($row['zk_user_id'] ?? 0) ?></td>
-                                    <td dir="ltr"><?= esc((string) ($row['badge_number'] ?? '—')) ?></td>
-                                    <td><?= esc(hr_attendance_punch_type_label($row['punch_type'] ?? null)) ?></td>
-                                    <td><?= esc(hr_attendance_verify_label(isset($row['verify_code']) ? (int) $row['verify_code'] : null)) ?></td>
-                                    <td dir="ltr"><?= esc((string) ($row['sensor_id'] ?? '—')) ?></td>
-                                    <td><?= esc(trim((string) ($row['dept_name'] ?? '')) ?: '—') ?></td>
+                                    <td dir="ltr"><?= esc((string) ($row['emp_code'] ?? '—')) ?></td>
+                                    <td><?= esc((string) ($row['emp_name'] ?? '—')) ?></td>
+                                    <td dir="ltr"><?= esc((string) ($row['date'] ?? '—')) ?></td>
+                                    <td class="col-punches" dir="ltr"><?= esc((string) ($row['punch_times'] ?? '—')) ?></td>
+                                    <td dir="ltr"><?= esc((string) ($row['sensor_label'] ?? '—')) ?></td>
+                                    <td><?= esc((string) ($row['dept_name'] ?? '') !== '' ? (string) $row['dept_name'] : '—') ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -184,12 +180,3 @@ $periodToDmY = format_date_dmY($dateTo);
 
     <?php nav_render_screen_close('report_hr_att_punch_movements'); ?>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    var jsonEl = document.getElementById('hr-att-punch-rpt-picker-json');
-    if (jsonEl && typeof initEmployeePicker === 'function') {
-        initEmployeePicker('hr-att-punch-rpt-employee-id', JSON.parse(jsonEl.textContent || '[]'));
-    }
-});
-</script>

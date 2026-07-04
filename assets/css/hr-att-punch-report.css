@@ -42,6 +42,12 @@
     background: #fff7ed;
 }
 
+.hr-att-punch-rpt-table .col-punches {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
 @media print {
     .hr-att-punch-rpt-table {
         font-size: 8pt;
