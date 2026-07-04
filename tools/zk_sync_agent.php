@@ -32,7 +32,7 @@ if (!is_file($cfgFile)) {
 $cfg = require $cfgFile;
 $serverUrl = trim((string) ($cfg['server_url'] ?? ''));
 $syncToken = trim((string) ($cfg['sync_token'] ?? ''));
-$mdbPath = trim((string) ($cfg['mdb_path'] ?? 'C:\\Program Files (x86)\\ZKTeco\\att2000.mdb'));
+$mdbPath = trim((string) ($cfg['mdb_path'] ?? 'C:\\zktdata\\att2000.mdb'));
 $useFlag = !array_key_exists('use_flag', $cfg) || (bool) $cfg['use_flag'];
 $batchSize = max(50, min(2000, (int) ($cfg['batch_size'] ?? 500)));
 $markFlags = !array_key_exists('mark_flags_after_push', $cfg) || (bool) $cfg['mark_flags_after_push'];

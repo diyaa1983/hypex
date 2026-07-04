@@ -7,10 +7,10 @@ return [
     'server_url' => 'https://biodev.gppjo.com/manager/api/hr_attendance_push.php',
 
     /** رمز المزامنة — انسخه من شاشة بصمات الموظفين على السيرفر */
-    'sync_token' => 'PASTE_SYNC_TOKEN_HERE',
+    'sync_token' => 'e8ba26681f3cde9f4a4ce6cf602961716fd99dbd78b4c4809f5d96fea47250f1',
 
     /** مسار att2000.mdb على جهاز ZKT (Windows) */
-    'mdb_path' => 'C:\\Program Files (x86)\\ZKTeco\\att2000.mdb',
+    'mdb_path' => 'C:\\zktdata\\att2000.mdb',
 
     /** true = يرسل فقط السجلات ذات Flag=0 ثم يعلّمها محلياً بعد النجاح */
     'use_flag' => true,
