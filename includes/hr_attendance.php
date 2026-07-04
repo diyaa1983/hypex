@@ -1985,6 +1985,10 @@ function hr_attendance_verify_sync_token(PDO $pdo, string $token): bool
 
 function hr_attendance_push_api_url(): string
 {
+    if (PHP_SAPI !== 'cli' && !empty($_SERVER['HTTP_HOST'])) {
+        return app_absolute_url('api/hr_attendance_push.php');
+    }
+
     return app_url('api/hr_attendance_push.php');
 }
 

@@ -12,9 +12,47 @@ declare(strict_types=1);
 
 define('HR_ATT_MDB_ONLY', true);
 
-$root = dirname(__DIR__);
+function zk_agent_resolve_manager_root(array $cfg): string
+{
+    $explicit = trim((string) ($cfg['manager_root'] ?? ''));
+    if ($explicit !== '') {
+        $explicit = rtrim(str_replace('/', '\\', $explicit), '\\');
+        if (is_file($explicit . '\\config\\app.php')) {
+            return $explicit;
+        }
+    }
+
+    $candidates = [];
+    $toolsDir = __DIR__;
+    $parent = dirname($toolsDir);
+    $candidates[] = $parent;
+    $candidates[] = $parent . '\\manager';
+    $candidates[] = 'C:\\xampp\\htdocs\\manager';
+    $candidates[] = 'D:\\xampp\\htdocs\\manager';
+    $candidates[] = 'C:\\xampp\\htdocs\\manager\\manager';
+
+    foreach ($candidates as $path) {
+        $path = rtrim(str_replace('/', '\\', (string) $path), '\\');
+        if ($path !== '' && is_file($path . '\\config\\app.php')) {
+            return $path;
+        }
+    }
+
+    return $explicit !== '' ? $explicit : $parent;
+}
+
+$cfgBootstrap = __DIR__ . '/zk_sync.local.php';
+$earlyCfg = is_file($cfgBootstrap) ? (require $cfgBootstrap) : [];
+if (!is_array($earlyCfg)) {
+    $earlyCfg = [];
+}
+
+$root = zk_agent_resolve_manager_root($earlyCfg);
+
 if (!is_file($root . '/config/app.php')) {
     fwrite(STDERR, "Manager root not found: {$root}\n");
+    fwrite(STDERR, "Add to zk_sync.local.php:\n");
+    fwrite(STDERR, "  'manager_root' => 'C:\\\\xampp\\\\htdocs\\\\manager',\n");
     exit(1);
 }
 
@@ -32,7 +70,11 @@ if (!is_file($cfgFile)) {
 $cfg = require $cfgFile;
 $serverUrl = trim((string) ($cfg['server_url'] ?? ''));
 $syncToken = trim((string) ($cfg['sync_token'] ?? ''));
-$mdbPath = trim((string) ($cfg['mdb_path'] ?? 'C:\\zktdata\\att2000.mdb'));
+$mdbPath = trim((string) ($cfg['mdb_path'] ?? ''));
+if ($mdbPath === '') {
+    $defaultMdb = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'att2000.mdb';
+    $mdbPath = is_file($defaultMdb) ? $defaultMdb : 'C:\\zktdata\\att2000.mdb';
+}
 $useFlag = !array_key_exists('use_flag', $cfg) || (bool) $cfg['use_flag'];
 $batchSize = max(50, min(2000, (int) ($cfg['batch_size'] ?? 500)));
 $markFlags = !array_key_exists('mark_flags_after_push', $cfg) || (bool) $cfg['mark_flags_after_push'];
