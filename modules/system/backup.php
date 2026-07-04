@@ -53,9 +53,17 @@ $todayFolder = sys_backup_today_folder_name();
 $hasDir = $backupDir !== '';
 $recommendedDir = sys_backup_recommended_dir();
 $pathIssue = sys_backup_path_issue($backupDir);
-$canRunBackup = $hasDir && $pathIssue === null;
 $serverLabel = sys_backup_server_label();
-$recentBackups = sys_backup_recent_folders($pdo, 8);
+$recentBackups = [];
+$backupDownloadReady = function_exists('sys_backup_download_url');
+try {
+    if (function_exists('sys_backup_recent_folders')) {
+        $recentBackups = sys_backup_recent_folders($pdo, 8);
+    }
+} catch (Throwable $e) {
+    error_log('[manager] sys_backup_recent_folders: ' . $e->getMessage());
+    $recentBackups = [];
+}
 $exitUrl = nav_exit_url('system_backup');
 
 $cssPath = app_path('assets/css/sys-backup.css');
@@ -80,6 +88,13 @@ $backupApiUrl = app_url('api/backup_run.php');
         <?php if ($flash): ?>
             <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sys-backup-flash">
                 <?= esc($flash['message']) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!$backupDownloadReady): ?>
+            <div class="alert alert-error sys-backup-flash">
+                ملف <code dir="ltr">includes/sys_backup.php</code> غير محدّث على الخادم.
+                ارفع آخر نسخة من المشروع (يشمل <code dir="ltr">api/backup_download.php</code>) ثم أعد تحميل الصفحة.
             </div>
         <?php endif; ?>
 
@@ -175,7 +190,7 @@ $backupApiUrl = app_url('api/backup_run.php');
 
                 <?php if ($recentBackups === []): ?>
                     <p class="sys-backup-warn muted">لا توجد نسخ محفوظة بعد. خذ نسخة احتياطية أولاً ثم عد لهذا القسم.</p>
-                <?php else: ?>
+                <?php elseif ($backupDownloadReady): ?>
                     <div class="sys-backup-download-list">
                         <?php foreach ($recentBackups as $entry): ?>
                             <?php

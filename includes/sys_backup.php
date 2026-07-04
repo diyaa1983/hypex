@@ -162,6 +162,17 @@ function sys_backup_is_absolute_path(string $path): bool
     return str_starts_with($path, '/');
 }
 
+function sys_backup_dir_is_within_root(string $dirReal, string $rootReal): bool
+{
+    $rootNorm = rtrim(str_replace('\\', '/', $rootReal), '/');
+    $dirNorm = str_replace('\\', '/', $dirReal);
+    if ($rootNorm === '' || $dirNorm === '') {
+        return false;
+    }
+
+    return $dirNorm === $rootNorm || str_starts_with($dirNorm, $rootNorm . '/');
+}
+
 function sys_backup_ensure_dir_protected(string $path): void
 {
     if (!is_dir($path) && !@mkdir($path, 0775, true) && !is_dir($path)) {
@@ -457,7 +468,7 @@ function sys_backup_resolve_download(PDO $pdo, string $dateFolder, string $fileK
     $targetDir = sys_backup_normalize_dir($root . DIRECTORY_SEPARATOR . $dateFolder);
     $rootReal = realpath($root);
     $dirReal = realpath($targetDir);
-    if ($rootReal === false || $dirReal === false || !str_starts_with($dirReal, $rootReal)) {
+    if ($rootReal === false || $dirReal === false || !sys_backup_dir_is_within_root($dirReal, $rootReal)) {
         return null;
     }
 
@@ -543,7 +554,14 @@ function sys_backup_recent_folders(PDO $pdo, int $limit = 8): array
     }
 
     $entries = [];
-    foreach (scandir($root, SCANDIR_SORT_DESC) ?: [] as $name) {
+    $names = @scandir($root);
+    if (!is_array($names)) {
+        return [];
+    }
+    $names = array_values(array_diff($names, ['.', '..']));
+    rsort($names, SORT_STRING);
+
+    foreach ($names as $name) {
         if ($name === '.' || $name === '..') {
             continue;
         }
