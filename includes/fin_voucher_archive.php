@@ -189,7 +189,14 @@ function fin_voucher_archive_root(PDO $pdo): string
     $settings = fin_voucher_archive_settings($pdo);
     $path = trim($settings['document_archive_dir']);
     if ($path === '') {
-        throw new RuntimeException('حدّد مسار أرشيف المستندات من الإعدادات أولاً.');
+        $path = fin_voucher_archive_recommended_dir();
+        try {
+            fin_voucher_archive_save_dir($pdo, $path);
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'تعذر تهيئة مسار أرشيف المستندات على السيرفر: ' . ($e->getMessage() ?: 'خطأ غير معروف')
+            );
+        }
     }
 
     $path = sys_backup_validate_dir($path, true);

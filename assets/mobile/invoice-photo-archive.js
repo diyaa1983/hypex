@@ -97,7 +97,7 @@
     this.pendingFile = file;
     this.notifyPending();
     this.alert(
-      'تم التقاط الصورة.\n\nاحفظ الفاتورة الآن لإرفاقها تلقائياً بأرشيف الفاتورة.',
+      'تم التقاط الصورة.\n\nاحفظ الفاتورة الآن — ستُرفع الصورة تلقائياً إلى السيرفر وتُحفظ في أرشيف الفاتورة.',
       'success'
     );
   };
@@ -163,7 +163,7 @@
           return true;
         }
         return self
-          .alert((data && data.message) || 'تم حفظ صورة الطلبية في أرشيف الفاتورة.', 'success')
+          .alert((data && data.message) || 'تم رفع الصورة إلى السيرفر وحفظها في أرشيف الفاتورة.', 'success')
           .then(function () {
             return true;
           });
@@ -197,6 +197,16 @@
 
   InvoicePhotoArchive.prototype.hasPending = function () {
     return !!this.pendingFile;
+  };
+
+  InvoicePhotoArchive.prototype.takePendingFile = function () {
+    if (!this.pendingFile) {
+      return null;
+    }
+    var prepared = this.prepareUploadFile(this.pendingFile);
+    this.pendingFile = null;
+    this.notifyPending();
+    return prepared;
   };
 
   InvoicePhotoArchive.prototype.bindToolbar = function (toolbar) {

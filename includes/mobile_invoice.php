@@ -156,3 +156,37 @@ function mobile_invoice_list_rows(PDO $pdo, string $filter = 'all', string $sear
 
     return $rows;
 }
+
+/**
+ * رفع صورة الطلبية إلى أرشيف السيرفر مع حفظ الفاتورة (multipart archive_photo).
+ *
+ * @param array<string, mixed> $file
+ * @return string|null رسالة خطأ أو null عند النجاح
+ */
+function sal_invoice_archive_upload_photo_from_request(PDO $pdo, int $invoiceId, array $file): ?string
+{
+    if ($invoiceId < 1) {
+        return 'معرّف الفاتورة غير صالح.';
+    }
+    $err = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($err === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($err !== UPLOAD_ERR_OK) {
+        return 'تعذر رفع الصورة إلى السيرفر (رمز ' . $err . ').';
+    }
+
+    require_once app_path('includes/fin_voucher_archive.php');
+    if (!mobile_can_archive_sales_invoice() && !user_can_action('action_archive_sales_invoice')) {
+        return 'لا تملك صلاحية رفع صور الأرشيف.';
+    }
+
+    try {
+        $userId = (int) (current_user()['id'] ?? 0);
+        fin_voucher_archive_upload($pdo, 'sales_invoice', $invoiceId, $file, $userId > 0 ? $userId : 0);
+
+        return null;
+    } catch (Throwable $e) {
+        return $e->getMessage() !== '' ? $e->getMessage() : 'تعذر حفظ الصورة على السيرفر.';
+    }
+}

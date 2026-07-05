@@ -65,7 +65,7 @@ $invoicePrintApi = app_url('api/mobile_invoice_print.php');
 $invoiceDeleteApi = app_url('api/sales_invoice_delete.php');
 $canDeleteInvoice = mobile_can_delete_sales_invoice();
 $canArchiveInvoice = mobile_can_archive_sales_invoice();
-$archiveApiUrl = app_url('api/fin_voucher_archive.php');
+$archiveApiUrl = app_absolute_url('api/fin_voucher_archive.php');
 
 $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
     ? (string) filemtime(app_path('assets/mobile/sales-invoice.js'))

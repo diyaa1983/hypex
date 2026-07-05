@@ -106,7 +106,7 @@ try {
         $saved = fin_voucher_archive_upload($pdo, $kind, $voucherId, $file, $userId);
         echo json_encode([
             'ok' => true,
-            'message' => 'تم حفظ الملف في الأرشيف.',
+            'message' => 'تم رفع الملف إلى السيرفر وحفظه في الأرشيف.',
             'file' => $saved,
         ], JSON_UNESCAPED_UNICODE);
         exit;

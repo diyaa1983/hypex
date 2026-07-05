@@ -194,7 +194,7 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 
         canArchive: <?= mobile_can_archive_sales_invoice() ? 'true' : 'false' ?>,
 
-        archiveApi: <?= json_encode(app_url('api/fin_voucher_archive.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+        archiveApi: <?= json_encode(app_absolute_url('api/fin_voucher_archive.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
 
     };
 

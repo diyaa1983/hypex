@@ -1049,6 +1049,12 @@
       var btn = saveBtn;
       if (btn) btn.disabled = true;
       var fd = new FormData(form);
+      if (photoArchive && photoArchive.takePendingFile) {
+        var pendingPhoto = photoArchive.takePendingFile();
+        if (pendingPhoto && pendingPhoto.file) {
+          fd.append('archive_photo', pendingPhoto.file, pendingPhoto.name);
+        }
+      }
       fetch(form.action, {
         method: 'POST',
         body: fd,
@@ -1092,19 +1098,36 @@
             var pay = document.getElementById('m-payment-type');
             if (pay) pay.value = 'credit';
           }
+          if (data.archive_uploaded) {
+            if (window.AppDialog && AppDialog.success) {
+              AppDialog.success('تم حفظ الفاتورة ورفع صورة الطلبية إلى السيرفر.').then(afterSaveRedirect);
+              return;
+            }
+            afterSaveRedirect();
+            return;
+          }
+          if (data.archive_error) {
+            if (window.AppDialog && AppDialog.error) {
+              AppDialog.error(
+                'تم حفظ الفاتورة، لكن تعذر رفع الصورة إلى السيرفر:\n\n' + data.archive_error
+              );
+            }
+            refreshActionBar();
+            return;
+          }
           if (invId > 0 && photoArchive && photoArchive.hasPending()) {
             photoArchive.flushPending(invId, { silent: true }).then(function (uploadOk) {
               if (!uploadOk) {
                 if (window.AppDialog && AppDialog.error) {
                   AppDialog.error(
-                    'تم حفظ الفاتورة، لكن تعذر حفظ صورة الطلبية في الأرشيف.\n\nاضغط «تصوير» مرة أخرى أو تحقق من مسار الأرشيف في الإعدادات.'
+                    'تم حفظ الفاتورة، لكن تعذر رفع صورة الطلبية إلى السيرفر.\n\nاضغط «تصوير» مرة أخرى.'
                   );
                 }
                 refreshActionBar();
                 return;
               }
               if (window.AppDialog && AppDialog.success) {
-                AppDialog.success('تم حفظ الفاتورة وصورة الطلبية في الأرشيف.').then(afterSaveRedirect);
+                AppDialog.success('تم حفظ الفاتورة ورفع صورة الطلبية إلى السيرفر.').then(afterSaveRedirect);
                 return;
               }
               afterSaveRedirect();

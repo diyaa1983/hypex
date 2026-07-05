@@ -201,12 +201,26 @@ function handle_sales_invoice_post(): void
         require_once app_path('includes/sys_audit_log.php');
         sys_audit_log_sal_invoice($pdo, 'save', $invoiceId);
 
+        $archiveUploaded = false;
+        $archiveError = null;
+        if ($invoiceId > 0 && isset($_FILES['archive_photo']) && is_array($_FILES['archive_photo'])) {
+            require_once app_path('includes/mobile_invoice.php');
+            $archiveError = sal_invoice_archive_upload_photo_from_request($pdo, $invoiceId, $_FILES['archive_photo']);
+            $archiveUploaded = $archiveError === null;
+        }
+
         if ($wantsJson) {
-            json_invoice_save_response(true, [
+            $payload = [
                 'invoice_id' => $invoiceId,
                 'invoice_no' => $savedInvoiceNo,
                 'amount_decimals' => $amountDecimals,
-            ]);
+            ];
+            if ($archiveUploaded) {
+                $payload['archive_uploaded'] = true;
+            } elseif ($archiveError !== null) {
+                $payload['archive_error'] = $archiveError;
+            }
+            json_invoice_save_response(true, $payload);
         }
 
         require_once app_path('includes/mobile_auth.php');
