@@ -479,6 +479,16 @@
         self.fileCount = self.archiveFiles.length;
         self.updateArchiveBadge();
         if (loading) loading.hidden = true;
+        var sub = self.viewerRoot.querySelector('.m-inv-archive-sub');
+        if (sub) {
+          if (data.path_issue) {
+            sub.textContent = data.path_issue;
+            sub.classList.add('m-inv-archive-sub--warn');
+          } else {
+            sub.textContent = 'نفس أرشيف فواتير المبيعات في النظام — المسار من إعدادات الشركة';
+            sub.classList.remove('m-inv-archive-sub--warn');
+          }
+        }
         self.renderArchiveList();
       })
       .catch(function (err) {

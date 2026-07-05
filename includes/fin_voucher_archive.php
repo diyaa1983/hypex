@@ -167,7 +167,7 @@ function fin_voucher_archive_recommended_dir(): string
 function fin_voucher_archive_save_dir(PDO $pdo, string $path): void
 {
     fin_voucher_archive_ensure_schema($pdo);
-    $path = sys_backup_validate_dir($path, true);
+    $path = fin_voucher_archive_validate_dir($path, true);
     sys_backup_ensure_dir_protected($path);
     $st = $pdo->prepare('UPDATE sys_company_settings SET document_archive_dir = ? WHERE id = 1');
     $st->execute([$path]);
@@ -181,6 +181,21 @@ function fin_voucher_archive_save_max_mb(PDO $pdo, int $maxMb): void
     $st = $pdo->prepare('UPDATE sys_company_settings SET document_archive_max_mb = ? WHERE id = 1');
     $st->execute([$maxMb]);
     $GLOBALS['_company_settings_cache'] = null;
+}
+
+/** @throws RuntimeException */
+function fin_voucher_archive_validate_dir(string $path, bool $create = true): string
+{
+    try {
+        return sys_backup_validate_dir($path, $create);
+    } catch (RuntimeException $e) {
+        $msg = str_replace(
+            ['مجلد النسخ الاحتياطي', 'مسار النسخ الاحتياطي', 'حدّد مجلد النسخ الاحتياطي'],
+            ['مجلد أرشيف المستندات', 'مسار أرشيف المستندات', 'حدّد مسار أرشيف المستندات'],
+            $e->getMessage()
+        );
+        throw new RuntimeException($msg !== '' ? $msg : 'مسار أرشيف المستندات غير صالح.');
+    }
 }
 
 /** @throws RuntimeException */
@@ -199,7 +214,7 @@ function fin_voucher_archive_root(PDO $pdo): string
         }
     }
 
-    $path = sys_backup_validate_dir($path, true);
+    $path = fin_voucher_archive_validate_dir($path, true);
     sys_backup_ensure_dir_protected($path);
 
     return $path;
@@ -581,8 +596,8 @@ function fin_voucher_archive_file_urls(int $docId, string $kind): array
     $q = 'action=download&id=' . $docId . '&kind=' . rawurlencode($kind);
 
     return [
-        'download_url' => app_url('api/fin_voucher_archive.php?' . $q),
-        'view_url' => app_url('api/fin_voucher_archive.php?action=view&id=' . $docId . '&kind=' . rawurlencode($kind)),
+        'download_url' => app_absolute_url('api/fin_voucher_archive.php?' . $q),
+        'view_url' => app_absolute_url('api/fin_voucher_archive.php?action=view&id=' . $docId . '&kind=' . rawurlencode($kind)),
     ];
 }
 
@@ -642,7 +657,10 @@ function fin_voucher_archive_upload(PDO $pdo, string $kind, int $voucherId, arra
     $storedName = date('His') . '_' . bin2hex(random_bytes(4)) . '.' . $upload['ext'];
     $dest = $targetDir . DIRECTORY_SEPARATOR . $storedName;
     if (!move_uploaded_file($upload['tmp'], $dest)) {
-        throw new RuntimeException('تعذر حفظ الملف في الأرشيف.');
+        $hint = is_writable($targetDir)
+            ? 'تحقق من مساحة القرص أو إعدادات رفع PHP.'
+            : 'مجلد الأرشيف غير قابل للكتابة: ' . $targetDir;
+        throw new RuntimeException('تعذر حفظ الملف في الأرشيف على السيرفر. ' . $hint);
     }
 
     $relative = fin_voucher_archive_relative_path($root, $dest);
@@ -736,8 +754,21 @@ function fin_voucher_archive_path_issue(PDO $pdo): ?string
     $settings = fin_voucher_archive_settings($pdo);
     $path = trim($settings['document_archive_dir']);
     if ($path === '') {
-        return 'لم يُحدَّد مسار أرشيف المستندات بعد.';
+        return null;
     }
 
-    return sys_backup_path_issue($path);
+    $formatIssue = sys_backup_path_issue($path);
+    if ($formatIssue !== null) {
+        return $formatIssue;
+    }
+
+    $norm = sys_backup_normalize_dir(sys_backup_prepare_input_path($path));
+    if (!is_dir($norm)) {
+        return 'مجلد الأرشيف غير موجود على السيرفر: ' . $norm;
+    }
+    if (!is_writable($norm)) {
+        return 'مجلد الأرشيف غير قابل للكتابة من PHP — اضبط صلاحيات المجلد: ' . $norm;
+    }
+
+    return null;
 }

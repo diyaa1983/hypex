@@ -750,6 +750,10 @@ body.m-inv-archive-open {
   line-height: 1.35;
 }
 
+.m-inv-archive-sub--warn {
+  color: #b42318;
+}
+
 .m-inv-archive-loading,
 .m-inv-archive-empty {
   padding: 1rem 0.5rem;
