@@ -495,6 +495,7 @@
       if (AppGeo.seedMobileSessionGps) AppGeo.seedMobileSessionGps('mobile');
       else if (AppGeo.prefetchForPost) AppGeo.prefetchForPost('mobile');
       if (AppGeo.startPostGpsWarmup) AppGeo.startPostGpsWarmup('mobile');
+      refreshLocationPermissionBanner();
     }
     printDoc = null;
     fetchPrintDocument(false).catch(function () {});
@@ -594,16 +595,48 @@
       clearTimeout(postStatusTimer);
       postStatusTimer = null;
     }
-    el.className = 'm-alert m-alert--' + (type === 'error' ? 'error' : 'success');
+    el.className = 'm-alert m-alert--' + (type === 'error' ? 'error' : type === 'warn' ? 'info' : 'success');
     el.textContent = String(message || '').trim();
     el.hidden = !el.textContent;
     if (!el.textContent) {
+      return;
+    }
+    if (type === 'error' || type === 'warn') {
       return;
     }
     postStatusTimer = setTimeout(function () {
       el.hidden = true;
       el.textContent = '';
     }, 9000);
+  }
+
+  function refreshLocationPermissionBanner() {
+    if (!(cfg.gpsEnabled || window.APP_GPS_ENABLED) || !window.AppGeo) {
+      return;
+    }
+    if (AppGeo.gpsEnvironmentHint && AppGeo.gpsEnvironmentHint() === 'need_https') {
+      showPostStatus(
+        'افتح الموقع عبر https:// — GPS على الهاتف لا يعمل عبر http.',
+        'warn'
+      );
+      return;
+    }
+    if (!AppGeo.queryLocationPermission) {
+      return;
+    }
+    AppGeo.queryLocationPermission().then(function (state) {
+      if (state === 'denied') {
+        showPostStatus(
+          'صلاحية الموقع مرفوضة على الهاتف. الترحيل يعمل لكن بدون GPS. فعّل الموقع من إعدادات Safari/Chrome ثم أعد تحميل الصفحة.',
+          'warn'
+        );
+      } else if (state === 'prompt') {
+        showPostStatus(
+          'عند الضغط على «ترحيل» سيظهر سؤال «السماح بالموقع؟» — اضغط «سماح» أو Allow.',
+          'warn'
+        );
+      }
+    });
   }
 
   function runPostInvoice() {
@@ -687,16 +720,21 @@
       }
     }
 
-    function openPostConfirm() {
-      mobileConfirm(
+    function openPostConfirm(permState) {
+      var confirmMsg =
         'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\n' +
-          'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.',
-        {
-          title: 'تأكيد الترحيل',
-          okText: 'نعم، رحّل',
-          cancelText: 'إلغاء',
-        }
-      ).then(function (ok) {
+        'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.';
+      if (gpsEnabled && permState === 'prompt') {
+        confirmMsg +=
+          '\n\n📍 سيظهر على الهاتف سؤال «السماح بالموقع؟» — اضغط «سماح» أو Allow لحفظ موقع الترحيل.';
+      } else if (gpsEnabled && permState === 'denied') {
+        confirmMsg += '\n\n⚠ صلاحية الموقع مرفوضة — سيتم الترحيل بدون GPS.';
+      }
+      mobileConfirm(confirmMsg, {
+        title: 'تأكيد الترحيل',
+        okText: 'نعم، رحّل',
+        cancelText: 'إلغاء',
+      }).then(function (ok) {
         if (!ok) {
           postFlowBusy = false;
           if (window.AppGeo && AppGeo.clearPrimedPostGps) {
@@ -711,12 +749,31 @@
       });
     }
 
+    function beginPostConfirmFlow() {
+      if (!gpsEnabled || !window.AppGeo || !AppGeo.queryLocationPermission) {
+        openPostConfirm('granted');
+        return;
+      }
+      AppGeo.queryLocationPermission().then(function (state) {
+        if (state === 'denied' && AppGeo.showLocationPermissionHelp) {
+          AppGeo.showLocationPermissionHelp('denied').then(function () {
+            openPostConfirm('denied');
+          });
+          return;
+        }
+        if (state === 'need_https' && AppGeo.showLocationPermissionHelp) {
+          AppGeo.showLocationPermissionHelp('need_https');
+        }
+        openPostConfirm(state);
+      });
+    }
+
     if (gpsEnabled && gpsPrimed) {
-      setTimeout(openPostConfirm, 400);
+      setTimeout(beginPostConfirmFlow, 1500);
       return;
     }
 
-    openPostConfirm();
+    beginPostConfirmFlow();
   }
 
   var btnEdit = TB.btn ? TB.btn('edit') : null;

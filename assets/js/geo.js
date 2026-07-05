@@ -1133,6 +1133,101 @@
     return 'ok';
   }
 
+  /**
+   * حالة صلاحية الموقع: granted | prompt | denied | need_https | unsupported
+   * @returns {Promise<string>}
+   */
+  function queryLocationPermission() {
+    var env = gpsEnvironmentHint();
+    if (env === 'need_https' || env === 'no_geolocation') {
+      return Promise.resolve(env);
+    }
+
+    if (getNativeGeoPlugin()) {
+      var plugin = getNativeGeoPlugin();
+      if (plugin && typeof plugin.checkPermissions === 'function') {
+        return plugin
+          .checkPermissions()
+          .then(function (res) {
+            var loc = res && res.location;
+            if (loc === 'granted') {
+              return 'granted';
+            }
+            if (loc === 'denied') {
+              return 'denied';
+            }
+            return 'prompt';
+          })
+          .catch(function () {
+            return 'prompt';
+          });
+      }
+      return Promise.resolve('prompt');
+    }
+
+    if (
+      global.navigator &&
+      navigator.permissions &&
+      typeof navigator.permissions.query === 'function'
+    ) {
+      return navigator.permissions
+        .query({ name: 'geolocation' })
+        .then(function (result) {
+          return (result && result.state) || 'prompt';
+        })
+        .catch(function () {
+          return 'prompt';
+        });
+    }
+
+    return Promise.resolve('prompt');
+  }
+
+  function locationPermissionHelpMessage(state) {
+    state = state || 'prompt';
+    if (state === 'need_https') {
+      return (
+        'GPS على الهاتف يعمل فقط عبر HTTPS.\n\n' +
+        'افتح الموقع بـ https:// وليس http://'
+      );
+    }
+    if (state === 'denied') {
+      return (
+        'تم رفض صلاحية الموقع على الهاتف.\n\n' +
+        'لتفعيلها:\n' +
+        '• أندroid (Chrome): ⋮ → الإعدادات → أذونات الموقع → «سماح»\n' +
+        '• iPhone (Safari): الإعدادات → Safari → الموقع → «اسأل» أو «سماح»\n' +
+        '• أو: الإعدادات → الخصوصية → خدمات الموقع → Safari/Chrome → «أثناء الاستخدام»\n\n' +
+        'بعد التفعيل أعد تحميل الصفحة.'
+      );
+    }
+    if (state === 'prompt') {
+      return (
+        'سيظهر على الهاتف سؤال «السماح بالموقع؟»\n\n' +
+        'اضغط «سماح» أو «Allow» لحفظ موقع الترحيل.\n\n' +
+        'إذا لم يظهر السؤال، تحقق من إعدادات الموقع في الهاتف.'
+      );
+    }
+    return '';
+  }
+
+  function showLocationPermissionHelp(state) {
+    var msg = locationPermissionHelpMessage(state);
+    if (!msg) {
+      return Promise.resolve(true);
+    }
+    if (global.AppDialog && typeof AppDialog.alert === 'function') {
+      return AppDialog.alert(msg, {
+        title: state === 'denied' ? 'صلاحية الموقع مرفوضة' : 'صلاحية الموقع',
+        type: state === 'denied' ? 'warning' : 'info',
+      }).then(function () {
+        return true;
+      });
+    }
+    global.alert(msg);
+    return Promise.resolve(true);
+  }
+
   function prefetchForPost(source) {
     if (!canUseGeolocation() || isHttpLanBlocked()) {
       return;
@@ -1758,6 +1853,12 @@
     seedMobileSessionGps: seedMobileSessionGps,
 
     gpsEnvironmentHint: gpsEnvironmentHint,
+
+    queryLocationPermission: queryLocationPermission,
+
+    locationPermissionHelpMessage: locationPermissionHelpMessage,
+
+    showLocationPermissionHelp: showLocationPermissionHelp,
 
     prefetchForPost: prefetchForPost,
 
