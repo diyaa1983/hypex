@@ -1,8 +1,6 @@
 (function () {
   'use strict';
 
-  var prefetched = new Set();
-  var prefetchMax = 6;
   var progressEl = null;
 
   function ensureProgressBar() {
@@ -50,50 +48,6 @@
     }
     return href.indexOf('index.php') >= 0 || href.indexOf('?r=') >= 0;
   }
-
-  function prefetchUrl(url) {
-    if (!url || prefetched.has(url)) {
-      return;
-    }
-    if (prefetched.size >= prefetchMax) {
-      return;
-    }
-    prefetched.add(url);
-    try {
-      var link = document.createElement('link');
-      link.rel = 'prefetch';
-      link.as = 'document';
-      link.href = url;
-      document.head.appendChild(link);
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  function onIntent(anchor) {
-    if (!isNavigableLink(anchor)) {
-      return;
-    }
-    prefetchUrl(anchor.href);
-  }
-
-  document.addEventListener(
-    'mouseover',
-    function (e) {
-      var anchor = e.target && e.target.closest ? e.target.closest('a[href]') : null;
-      onIntent(anchor);
-    },
-    { passive: true }
-  );
-
-  document.addEventListener(
-    'touchstart',
-    function (e) {
-      var anchor = e.target && e.target.closest ? e.target.closest('a[href]') : null;
-      onIntent(anchor);
-    },
-    { passive: true }
-  );
 
   document.addEventListener(
     'click',

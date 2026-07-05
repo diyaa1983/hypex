@@ -16,7 +16,7 @@ declare(strict_types=1);
  */
 function header_check_notifications_collect(PDO $pdo): array
 {
-    $cacheTtl = 90;
+    $cacheTtl = 180;
     $cached = $_SESSION['_header_check_notify'] ?? null;
     if (
         is_array($cached)

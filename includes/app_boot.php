@@ -33,7 +33,10 @@ function app_boot_try_fast(PDO $pdo, int $migrationCount): bool
     require_once app_path('includes/sys_screens.php');
     sys_repair_user_without_groups($pdo, (int) (current_user()['id'] ?? 0));
     require_once app_path('includes/fin_check_due_email.php');
-    fin_check_due_email_register_background_runner();
+    if (empty($_SESSION['_app_fin_check_bg'])) {
+        fin_check_due_email_register_background_runner();
+        $_SESSION['_app_fin_check_bg'] = 1;
+    }
 
     return true;
 }

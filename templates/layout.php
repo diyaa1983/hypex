@@ -146,26 +146,6 @@ $appHeaderUiJsV = is_file(app_path('assets/js/app-header-ui.js'))
     ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app.css')) ?><?= $appCssV !== '' ? '?v=' . esc($appCssV) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app-busy.css')) ?><?= $appBusyCssV !== '' ? '?v=' . esc($appBusyCssV) : '' ?>">
-    <script type="speculationrules">
-    {
-      "prefetch": [{
-        "source": "document",
-        "where": {
-          "or": [
-            { "selector_matches": ".nav-hub-ora-tile a[href*='index.php']" },
-            { "selector_matches": ".nav-hub-ora-tile[href*='index.php']" },
-            { "selector_matches": ".sidebar-nav a[href*='index.php']" },
-            { "selector_matches": ".nav-list a[href*='index.php']" },
-            { "selector_matches": ".dashboard-ora-screen-title__close[href*='index.php']" },
-            { "selector_matches": ".nav-exit-btn[href*='index.php']" },
-            { "selector_matches": ".app-topbar-brand[href*='index.php']" },
-            { "selector_matches": "a.master-toolbar-btn[href*='index.php']" }
-          ]
-        },
-        "eagerness": "moderate"
-      }]
-    }
-    </script>
     <?php app_mdi_enqueue_styles(); ?>
     <?php app_mdi_enqueue_scripts(); ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/ui-dialog.css')) ?><?= $uiDlgCssV !== '' ? '?v=' . esc($uiDlgCssV) : '' ?>">
@@ -363,10 +343,34 @@ window.UserSessionGpsConfig = {
     geoTimeoutMs: 8000,
     goodEnoughM: 30
 };
+(function () {
+    var files = [
+        <?= json_encode(app_url('assets/js/geo-map-pick.js') . ($geoMapPickJsV !== '' ? '?v=' . $geoMapPickJsV : ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+        <?= json_encode(app_url('assets/js/geo.js') . ($geoJsV !== '' ? '?v=' . $geoJsV : ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+        <?= json_encode(app_url('assets/js/user-session-gps.js') . ($userGpsJsV !== '' ? '?v=' . $userGpsJsV : ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
+    ];
+    function loadGpsScripts() {
+        files.forEach(function (src) {
+            var s = document.createElement('script');
+            s.src = src;
+            s.defer = true;
+            document.body.appendChild(s);
+        });
+    }
+    function schedule() {
+        if (window.requestIdleCallback) {
+            window.requestIdleCallback(loadGpsScripts, { timeout: 4000 });
+        } else {
+            window.setTimeout(loadGpsScripts, 2000);
+        }
+    }
+    if (document.readyState === 'complete') {
+        schedule();
+    } else {
+        window.addEventListener('load', schedule, { once: true });
+    }
+})();
 </script>
-<script src="<?= esc(app_url('assets/js/geo-map-pick.js')) ?><?= $geoMapPickJsV !== '' ? '?v=' . esc($geoMapPickJsV) : '' ?>" defer></script>
-<script src="<?= esc(app_url('assets/js/geo.js')) ?><?= $geoJsV !== '' ? '?v=' . esc($geoJsV) : '' ?>" defer></script>
-<script src="<?= esc(app_url('assets/js/user-session-gps.js')) ?><?= $userGpsJsV !== '' ? '?v=' . esc($userGpsJsV) : '' ?>" defer></script>
 <?php else: ?>
 <script>window.APP_GPS_ENABLED = false;</script>
 <?php endif; ?>
