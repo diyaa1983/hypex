@@ -17,7 +17,7 @@ $mayPost = is_logged_in() && (
 
 if (!$mayPost) {
     http_response_code(403);
-    echo json_encode(['ok' => false, 'error' => 'forbidden'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'error' => 'forbidden', 'message' => 'لا توجد صلاحية ترحيل الفاتورة.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $csrf = $_POST['_csrf'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
 if (!verify_csrf($csrf)) {
     http_response_code(400);
-    echo json_encode(['ok' => false, 'error' => 'csrf'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'error' => 'csrf', 'message' => 'انتهت صلاحية الجلسة. أعد تحميل الصفحة.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 

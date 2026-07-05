@@ -27,7 +27,11 @@ function mobile_can_post_sales_invoice(): bool
         return true;
     }
 
-    return user_can('m_sales_invoices') && mobile_is_context();
+    if (!user_can('m_sales_invoices')) {
+        return false;
+    }
+
+    return mobile_is_context() || user_in_mobile_group();
 }
 
 /** حذف فاتورة غير مرحّلة من الهاتف (صلاحية حذف سطح المكتب أو شاشة فاتورة الموبايل). */

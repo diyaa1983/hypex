@@ -73,10 +73,52 @@
 
   function parseJsonResponse(r) {
     return r
-      .json()
-      .catch(function () {
-        return { ok: false, error: 'تعذر قراءة رد الخادم.' };
+      .text()
+      .then(function (text) {
+        var data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch (e) {
+          data = null;
+        }
+        if (!data || typeof data !== 'object') {
+          if (r.status === 403) {
+            return { ok: false, error: 'forbidden', message: 'لا توجد صلاحية الترحيل.' };
+          }
+          if (r.status === 400) {
+            return { ok: false, error: 'bad_request', message: 'طلب غير صالح أو انتهت الجلسة.' };
+          }
+          return { ok: false, error: 'invalid_json', message: 'تعذر قراءة رد الخادم.' };
+        }
+        if (!data.message && data.error) {
+          if (data.error === 'forbidden') {
+            data.message = 'لا توجد صلاحية الترحيل.';
+          } else if (data.error === 'csrf') {
+            data.message = 'انتهت صلاحية الجلسة. أعد تحميل الصفحة وحاول مرة أخرى.';
+          }
+        }
+        return data;
       });
+  }
+
+  function waitForPostGps(source, primed, maxWaitMs) {
+    maxWaitMs = maxWaitMs || 12000;
+    if (!window.AppGeo || !AppGeo.captureForPost) {
+      return Promise.resolve(null);
+    }
+    var gpsPromise = AppGeo.captureForPost(source, { primed: primed })
+      .then(function (gps) {
+        return gps && gps.latitude != null ? gps : null;
+      })
+      .catch(function () {
+        return null;
+      });
+    var timeoutPromise = new Promise(function (resolve) {
+      setTimeout(function () {
+        resolve(null);
+      }, maxWaitMs);
+    });
+    return Promise.race([gpsPromise, timeoutPromise]);
   }
 
   function fetchPrintDocument(force) {
@@ -663,23 +705,9 @@
           return;
         }
         showPostStatus('جاري الترحيل...', 'success');
-        if (gpsEnabled && window.AppGeo && AppGeo.captureForPost) {
-          AppGeo.captureForPost('mobile', { primed: gpsPrimed }).then(function (gps) {
-            submitPost(gps || null);
-          });
-          return;
-        }
-        if (gpsEnabled && window.AppGeo && AppGeo.withGpsForPost) {
-          AppGeo.withGpsForPost(
-            'mobile',
-            function (gps) {
-              submitPost(gps || null);
-            },
-            { primed: gpsPrimed, silent: true }
-          );
-          return;
-        }
-        submitPost(null);
+        waitForPostGps('mobile', gpsPrimed, 12000).then(function (gps) {
+          submitPost(gps || null);
+        });
       });
     }
 

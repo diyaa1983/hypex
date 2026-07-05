@@ -25,6 +25,7 @@ sql_migration_run_files_once($pdo, [
 ]);
 
 require_mobile_login();
+$_SESSION['app_context'] = 'mobile';
 
 $routes = require app_path('config/routes_mobile.php');
 $r = isset($_GET['r']) ? (string) $_GET['r'] : 'm_home';

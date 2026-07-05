@@ -1114,6 +1114,9 @@
           return gps;
         }
         return null;
+      })
+      .catch(function () {
+        return null;
       });
   }
 
@@ -1534,13 +1537,17 @@
       enableHighAccuracy: true,
       maximumAge: 600000,
       timeout: 20000,
-    }).catch(function () {
-      return getCurrentPosition({
-        enableHighAccuracy: false,
-        maximumAge: 900000,
-        timeout: 12000,
+    })
+      .catch(function () {
+        return getCurrentPosition({
+          enableHighAccuracy: false,
+          maximumAge: 900000,
+          timeout: 12000,
+        });
+      })
+      .catch(function () {
+        return null;
       });
-    });
   }
 
   /**
