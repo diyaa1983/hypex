@@ -218,6 +218,7 @@ $loadMobileGpsScripts = in_array($activeRouteKey, $mobileGpsRoutes, true);
 ?>
 <script>window.APP_GPS_ENABLED = true;</script>
 <?php if ($loadMobileGpsScripts):
+require_once app_path('includes/app_osm.php');
 $userGpsJsPath = app_path('assets/js/user-session-gps.js');
 $userGpsJsV = is_file($userGpsJsPath) ? (string) filemtime($userGpsJsPath) : '';
 $geoJsPath = app_path('assets/js/geo.js');
@@ -230,12 +231,14 @@ $geoMapPickJsV = is_file($geoMapPickJsPath) ? (string) filemtime($geoMapPickJsPa
 <link rel="stylesheet" href="<?= esc(app_url('assets/css/geo-map-pick.css')) ?><?= $geoMapPickCssV !== '' ? '?v=' . esc($geoMapPickCssV) : '' ?>">
 <script>
 window.APP_GPS_ENABLED = true;
+window.APP_GPS_SILENT_POST = <?= (defined('APP_GPS_SILENT_POST') && APP_GPS_SILENT_POST) ? 'true' : 'false' ?>;
+window.AppOsmConfig = <?= json_encode(app_osm_js_config(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 window.UserSessionGpsConfig = {
     pingApi: <?= json_encode(app_url('api/user_location_ping.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     csrf: <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>,
     source: 'mobile',
     intervalMs: 600000,
-    initialDelayMs: 45000,
+    initialDelayMs: 8000,
     nativeIntervalMs: 180000,
     nativeInitialDelayMs: 3000,
     nativeGeoTimeoutMs: 25000,

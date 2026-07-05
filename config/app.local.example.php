@@ -61,3 +61,35 @@ if (!defined('APP_LICENSE_SECRET')) {
 // if (!defined('HR_ATT_SYNC_MODE')) {
 //     define('HR_ATT_SYNC_MODE', 'auto');
 // }
+
+/**
+ * ── OpenStreetMap / Geocoding (اختياري — بعد الاشتراك) ──
+ *
+ * 1) انسخ app.local.php إلى السيرفر إن لم يكن موجوداً.
+ * 2) ضع بريدك في APP_OSM_CONTACT_EMAIL (مطلوب من سياسة OSM).
+ * 3) إن كان لديك مفتاح API من المزود، ضعه في APP_OSM_NOMINATIM_API_KEY.
+ *
+ * أمثلة:
+ *
+ * Nominatim عام (مجاني — محدود):
+ *   define('APP_OSM_NOMINATIM_URL', 'https://nominatim.openstreetmap.org/reverse');
+ *
+ * LocationIQ (مدفوع — مثال):
+ *   define('APP_OSM_NOMINATIM_URL', 'https://us1.locationiq.com/v1/reverse?key={key}&lat={lat}&lon={lng}&format=json&accept-language=ar,en&addressdetails=1&namedetails=1');
+ *   define('APP_OSM_NOMINATIM_API_KEY', 'YOUR_KEY');
+ *
+ * بلاطات الخريطة (MapTiler مثال):
+ *   define('APP_OSM_TILE_URL', 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=YOUR_KEY');
+ */
+// if (!defined('APP_OSM_CONTACT_EMAIL')) {
+//     define('APP_OSM_CONTACT_EMAIL', 'admin@yourdomain.com');
+// }
+// if (!defined('APP_OSM_NOMINATIM_URL')) {
+//     define('APP_OSM_NOMINATIM_URL', 'https://nominatim.openstreetmap.org/reverse');
+// }
+// if (!defined('APP_OSM_NOMINATIM_API_KEY')) {
+//     define('APP_OSM_NOMINATIM_API_KEY', '');
+// }
+// if (!defined('APP_OSM_TILE_URL')) {
+//     define('APP_OSM_TILE_URL', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+// }

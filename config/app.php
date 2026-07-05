@@ -23,6 +23,11 @@ if (!defined('APP_GPS_ENABLED')) {
     define('APP_GPS_ENABLED', true);
 }
 
+/** ترحيل الموبايل: GPS صامت — بدون خريطة أو رسائل للمستخدم (يُكمل الترحيل تلقائياً). */
+if (!defined('APP_GPS_SILENT_POST')) {
+    define('APP_GPS_SILENT_POST', true);
+}
+
 /**
  * تفعيل نظام الترخيص:
  * - false: يعمل النظام بدون تحقق ترخيص.

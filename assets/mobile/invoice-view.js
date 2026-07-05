@@ -570,7 +570,6 @@
     var gpsEnabled = !!(cfg.gpsEnabled || window.APP_GPS_ENABLED);
     var gpsPrimed = null;
     if (gpsEnabled && window.AppGeo && AppGeo.primePostGpsFromUserGesture) {
-      showPostStatus('يُطلب السماح بالوصول للموقع من المتصفح...', 'success');
       gpsPrimed = AppGeo.primePostGpsFromUserGesture('mobile');
     }
 
@@ -618,10 +617,7 @@
     function openPostConfirm() {
       mobileConfirm(
         'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\n' +
-          'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.\n\n' +
-          (gpsEnabled
-            ? 'إذا ظهر طلب «السماح بالموقع» من المتصفح، اضغط السماح ثم أكّد الترحيل.'
-            : ''),
+          'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.',
         {
           title: 'تأكيد الترحيل',
           okText: 'نعم، رحّل',
@@ -640,14 +636,9 @@
           AppGeo.withGpsForPost(
             'mobile',
             function (gps) {
-              if (gps === undefined) {
-                postFlowBusy = false;
-                showPostStatus('تم إلغاء الترحيل — الموقع مطلوب.', 'error');
-                return;
-              }
-              submitPost(gps);
+              submitPost(gps || null);
             },
-            { primed: gpsPrimed }
+            { primed: gpsPrimed, silent: true }
           );
           return;
         }

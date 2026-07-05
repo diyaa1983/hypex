@@ -1409,6 +1409,28 @@
     return source === 'mobile' || isCapacitorNative() || isMobileLikeClient(source);
   }
 
+  function isSilentPost(source, opts) {
+    if (opts && opts.silent) {
+      return true;
+    }
+    if (global.APP_GPS_SILENT_POST) {
+      return wantsAutoGpsOnly(source);
+    }
+    return false;
+  }
+
+  function onPostGpsUnavailable(source, opts, done, offerMapFallback) {
+    if (isSilentPost(source, opts)) {
+      done(null);
+      return;
+    }
+    if (isMobileLikeClient(source)) {
+      offerMapFallback();
+      return;
+    }
+    done(null);
+  }
+
   /**
    * يُستدعى مباشرة من نقرة المستخدم (قبل أي await) لإظهار طلب صلاحية الموقع في المتصفح.
    * @returns {Promise<object>|null}
@@ -1490,14 +1512,22 @@
     }
 
     function offerMapFallback() {
+      if (isSilentPost(source, opts)) {
+        done(null);
+        return;
+      }
       if (!global.AppGeoMapPick || typeof AppGeoMapPick.pickLocationOnMap !== 'function') {
-        done(mobilePost ? undefined : null);
+        done(isMobileLikeClient(source) && !isSilentPost(source, opts) ? undefined : null);
         return;
       }
       offerLocationFallback(source, done, {
         forPost: true,
-        requireLocation: mobilePost,
+        requireLocation: mobilePost && !isSilentPost(source, opts),
       });
+    }
+
+    function gpsUnavailable() {
+      onPostGpsUnavailable(source, opts, done, offerMapFallback);
     }
 
     function runResolvePath() {
@@ -1507,8 +1537,12 @@
             done(gps);
             return;
           }
-          if (mobilePost) {
+          if (mobilePost && !isSilentPost(source, opts)) {
             offerMapFallback();
+            return;
+          }
+          if (mobilePost) {
+            gpsUnavailable();
             return;
           }
           done(null);
@@ -1519,8 +1553,12 @@
             done(cached);
             return;
           }
-          if (mobilePost) {
+          if (mobilePost && !isSilentPost(source, opts)) {
             offerMapFallback();
+            return;
+          }
+          if (mobilePost) {
+            gpsUnavailable();
             return;
           }
           done(null);
@@ -1534,14 +1572,14 @@
             done(gps);
             return;
           }
-          if (mobilePost) {
+          if (mobilePost && !isSilentPost(source, opts)) {
             offerMapFallback();
             return;
           }
           runResolvePath();
         })
         .catch(function () {
-          if (mobilePost) {
+          if (mobilePost && !isSilentPost(source, opts)) {
             offerMapFallback();
             return;
           }
@@ -1552,7 +1590,7 @@
 
     if (!canUseGeolocation()) {
       if (mobilePost) {
-        offerMapFallback();
+        gpsUnavailable();
         return;
       }
       done(null);

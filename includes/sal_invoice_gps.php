@@ -361,31 +361,9 @@ function sal_invoice_gps_nominatim_reverse(float $lat, float $lng): ?array
         return null;
     }
 
-    $url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2'
-        . '&lat=' . rawurlencode(sprintf('%.7F', $lat))
-        . '&lon=' . rawurlencode(sprintf('%.7F', $lng))
-        . '&accept-language=ar,en'
-        . '&zoom=18'
-        . '&addressdetails=1'
-        . '&namedetails=1'
-        . '&extratags=1';
+    require_once app_path('includes/app_osm.php');
 
-    $ctx = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'header' => "User-Agent: ManagerAccounting-GPS/1.0\r\nAccept: application/json\r\n",
-            'timeout' => 8,
-        ],
-    ]);
-
-    $raw = @file_get_contents($url, false, $ctx);
-    if ($raw === false || $raw === '') {
-        return null;
-    }
-
-    $data = json_decode($raw, true);
-
-    return is_array($data) ? $data : null;
+    return app_osm_nominatim_fetch($lat, $lng);
 }
 
 /** @param array<string, mixed> $data */

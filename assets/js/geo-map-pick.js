@@ -355,9 +355,13 @@
           document.body.appendChild(root);
 
           map = global.L.map(mapEl, { zoomControl: true }).setView([lat, lng], forPost ? 15 : 16);
-          global.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          var osmCfg = global.AppOsmConfig || {};
+          var tileUrl =
+            (osmCfg.tileUrl && String(osmCfg.tileUrl)) || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+          var attribution = (osmCfg.attribution && String(osmCfg.attribution)) || '&copy; OpenStreetMap';
+          global.L.tileLayer(tileUrl, {
             maxZoom: 19,
-            attribution: '&copy; OpenStreetMap',
+            attribution: attribution,
           }).addTo(map);
 
           marker = global.L.marker([lat, lng]).addTo(map);
