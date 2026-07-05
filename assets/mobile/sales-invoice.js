@@ -1067,6 +1067,9 @@
             return;
           }
           var invId = parseInt(data.invoice_id, 10) || 0;
+          if (invoiceIdInp && invId > 0) {
+            invoiceIdInp.value = String(invId);
+          }
           function afterSaveRedirect() {
             if (invId > 0 && window.AppMobile && AppMobile.mobileUrl) {
               var viewUrl =
@@ -1090,7 +1093,22 @@
             if (pay) pay.value = 'credit';
           }
           if (invId > 0 && photoArchive && photoArchive.hasPending()) {
-            photoArchive.flushPending(invId).then(afterSaveRedirect);
+            photoArchive.flushPending(invId, { silent: true }).then(function (uploadOk) {
+              if (!uploadOk) {
+                if (window.AppDialog && AppDialog.error) {
+                  AppDialog.error(
+                    'تم حفظ الفاتورة، لكن تعذر حفظ صورة الطلبية في الأرشيف.\n\nاضغط «تصوير» مرة أخرى أو تحقق من مسار الأرشيف في الإعدادات.'
+                  );
+                }
+                refreshActionBar();
+                return;
+              }
+              if (window.AppDialog && AppDialog.success) {
+                AppDialog.success('تم حفظ الفاتورة وصورة الطلبية في الأرشيف.').then(afterSaveRedirect);
+                return;
+              }
+              afterSaveRedirect();
+            });
             return;
           }
           afterSaveRedirect();

@@ -208,18 +208,20 @@ function fin_voucher_archive_assert_kind(string $kind): void
 function fin_voucher_archive_assert_access(string $kind): void
 {
     fin_voucher_archive_assert_kind($kind);
+
+    if ($kind === 'sales_invoice') {
+        require_once app_path('includes/mobile_invoice.php');
+        if (mobile_can_archive_sales_invoice()) {
+            return;
+        }
+    }
+
     $perm = fin_voucher_archive_permission($kind);
     if ($perm === '' || !user_can_action($perm)) {
         throw new RuntimeException('لا تملك صلاحية أرشيف المستندات لهذا السند.');
     }
     $route = fin_voucher_archive_screen_route($kind);
     if ($route !== '' && !user_can($route)) {
-        if ($kind === 'sales_invoice') {
-            require_once app_path('includes/mobile_invoice.php');
-            if (mobile_can_archive_sales_invoice()) {
-                return;
-            }
-        }
         throw new RuntimeException('لا تملك صلاحية فتح هذه الشاشة.');
     }
 }

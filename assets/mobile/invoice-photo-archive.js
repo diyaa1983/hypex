@@ -102,7 +102,20 @@
     );
   };
 
-  InvoicePhotoArchive.prototype.upload = function (voucherId, file) {
+  InvoicePhotoArchive.prototype.prepareUploadFile = function (file) {
+    var name = String(file.name || '').trim();
+    var ext = name.indexOf('.') >= 0 ? name.split('.').pop().toLowerCase() : '';
+    if (!ext || ['jpg', 'jpeg', 'png', 'gif', 'webp'].indexOf(ext) < 0) {
+      ext = 'jpg';
+      if (file.type === 'image/png') ext = 'png';
+      else if (file.type === 'image/webp') ext = 'webp';
+      name = 'order-photo-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + ext;
+    }
+    return { file: file, name: name };
+  };
+
+  InvoicePhotoArchive.prototype.upload = function (voucherId, file, opts) {
+    opts = opts || {};
     var self = this;
     voucherId = parseInt(String(voucherId), 10) || 0;
     if (voucherId < 1 || !file || !this.cfg.apiUrl) {
@@ -112,19 +125,13 @@
       return Promise.resolve(false);
     }
     this.busy = true;
+    var prepared = this.prepareUploadFile(file);
     var fd = new FormData();
     fd.append('_csrf', this.cfg.csrf || '');
     fd.append('action', 'upload');
     fd.append('kind', this.cfg.kind || 'sales_invoice');
     fd.append('voucher_id', String(voucherId));
-    var name = String(file.name || '').trim();
-    if (!name) {
-      var ext = 'jpg';
-      if (file.type === 'image/png') ext = 'png';
-      else if (file.type === 'image/webp') ext = 'webp';
-      name = 'order-photo-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + ext;
-    }
-    fd.append('file', file, name);
+    fd.append('file', prepared.file, prepared.name);
 
     return fetch(this.cfg.apiUrl, {
       method: 'POST',
@@ -133,7 +140,17 @@
       headers: { Accept: 'application/json' },
     })
       .then(function (r) {
-        return r.json();
+        return r
+          .json()
+          .catch(function () {
+            throw new Error('تعذر قراءة رد الخادم أثناء حفظ الصورة.');
+          })
+          .then(function (data) {
+            if (!r.ok) {
+              throw new Error((data && data.message) || 'تعذر حفظ الصورة في الأرشيف.');
+            }
+            return data;
+          });
       })
       .then(function (data) {
         if (!data || !data.ok) {
@@ -142,13 +159,19 @@
         if (typeof self.cfg.onUploaded === 'function') {
           self.cfg.onUploaded(data.file || null);
         }
-        return self.alert((data && data.message) || 'تم حفظ صورة الطلبية في أرشيف الفاتورة.', 'success').then(
-          function () {
+        if (opts.silent) {
+          return true;
+        }
+        return self
+          .alert((data && data.message) || 'تم حفظ صورة الطلبية في أرشيف الفاتورة.', 'success')
+          .then(function () {
             return true;
-          }
-        );
+          });
       })
       .catch(function (err) {
+        if (opts.silent) {
+          return false;
+        }
         return self.alert(err.message || 'تعذر حفظ الصورة.', 'error').then(function () {
           return false;
         });
@@ -158,7 +181,7 @@
       });
   };
 
-  InvoicePhotoArchive.prototype.flushPending = function (voucherId) {
+  InvoicePhotoArchive.prototype.flushPending = function (voucherId, opts) {
     if (!this.pendingFile) {
       return Promise.resolve(false);
     }
@@ -169,7 +192,7 @@
     var file = this.pendingFile;
     this.pendingFile = null;
     this.notifyPending();
-    return this.upload(voucherId, file);
+    return this.upload(voucherId, file, opts);
   };
 
   InvoicePhotoArchive.prototype.hasPending = function () {
