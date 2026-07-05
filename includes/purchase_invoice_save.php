@@ -45,23 +45,12 @@ function handle_purchase_invoice_post(): void
         $err = 'اختر المستودع.';
     } elseif (!is_array($lines)) {
         $err = 'بيانات الأسطر غير صالحة.';
-    } elseif (count($lines) < 1 && $invoiceId < 1) {
-        $err = 'أضف مادة واحدة على الأقل.';
-    } elseif (count($lines) >= 1) {
-        foreach ($lines as $ln) {
-            if (!is_array($ln)) {
-                $err = 'بيانات الأسطر غير صالحة.';
-                break;
-            }
-            $iid = (int) ($ln['item_id'] ?? 0);
-            require_once app_path('includes/inv_invoice_line_qty.php');
-            $qty = (float) ($ln['qty'] ?? 0);
-            $qtyExtra = (float) ($ln['qty_extra'] ?? 0);
-            $up = (float) ($ln['unit_price'] ?? 0);
-            if ($iid < 1 || inv_invoice_line_stock_qty_sum($qty, $qtyExtra) <= 0 || $up < 0) {
-                $err = 'تأكد من الكمية أو الكمية الإضافية والأسعار لكل سطر.';
-                break;
-            }
+    } else {
+        require_once app_path('includes/inv_invoice_line_qty.php');
+        $allowEmptyLines = $invoiceId > 0 && count($lines) < 1;
+        $lineErr = inv_invoice_validate_save_lines($lines, $allowEmptyLines);
+        if ($lineErr !== null) {
+            $err = $lineErr;
         }
     }
 

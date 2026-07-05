@@ -54,30 +54,23 @@ function handle_sales_invoice_post(): void
         $err = 'اختر العميل.';
     } elseif ($whCount > 0 && $warehouseId < 1) {
         $err = 'اختر المستودع.';
-    } elseif ($whCount > 0 && $warehouseId > 0) {
+    }
+
+    if ($err === '' && $whCount > 0 && $warehouseId > 0) {
         require_once app_path('includes/warehouse_access.php');
         if (!wh_access_can_issue($pdo, $warehouseId)) {
             $err = wh_access_deny_issue_message();
         }
-    } elseif (!is_array($lines)) {
+    }
+
+    if ($err === '' && !is_array($lines)) {
         $err = 'بيانات الأسطر غير صالحة.';
-    } elseif (count($lines) < 1 && $invoiceId < 1) {
-        $err = 'أضف مادة واحدة على الأقل.';
-    } elseif (count($lines) >= 1) {
-        foreach ($lines as $ln) {
-            if (!is_array($ln)) {
-                $err = 'بيانات الأسطر غير صالحة.';
-                break;
-            }
-            $iid = (int) ($ln['item_id'] ?? 0);
-            require_once app_path('includes/inv_invoice_line_qty.php');
-            $qty = (float) ($ln['qty'] ?? 0);
-            $qtyExtra = (float) ($ln['qty_extra'] ?? 0);
-            $up = (float) ($ln['unit_price'] ?? 0);
-            if ($iid < 1 || inv_invoice_line_stock_qty_sum($qty, $qtyExtra) <= 0 || $up < 0) {
-                $err = 'تأكد من الكمية أو الكمية الإضافية والأسعار لكل سطر.';
-                break;
-            }
+    } elseif ($err === '' && is_array($lines)) {
+        require_once app_path('includes/inv_invoice_line_qty.php');
+        $allowEmptyLines = $invoiceId > 0 && count($lines) < 1;
+        $lineErr = inv_invoice_validate_save_lines($lines, $allowEmptyLines);
+        if ($lineErr !== null) {
+            $err = $lineErr;
         }
     }
 

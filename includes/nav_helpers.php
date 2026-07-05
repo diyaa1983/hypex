@@ -736,7 +736,9 @@ function render_app_titlebar(string $pageTitle, string $routeTitle, string $acti
 /** @return array{href: string, type: string} */
 function app_favicon_meta(?array $settingsRow = null): array
 {
-    $defaultHref = app_url('assets/favicon.svg');
+    $defaultPath = app_path('assets/favicon.svg');
+    $defaultV = is_file($defaultPath) ? (string) filemtime($defaultPath) : '';
+    $defaultHref = app_url('assets/favicon.svg') . ($defaultV !== '' ? '?v=' . rawurlencode($defaultV) : '');
     $default = ['href' => $defaultHref, 'type' => 'image/svg+xml'];
 
     if ($settingsRow === null) {

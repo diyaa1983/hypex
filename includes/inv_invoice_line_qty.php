@@ -99,3 +99,36 @@ function inv_invoice_line_normalize_qty_extra(array $ln): array
 
     return $ln;
 }
+
+/**
+ * التحقق من بنود الفاتورة قبل الحفظ.
+ *
+ * @return string|null رسالة خطأ أو null عند النجاح
+ */
+function inv_invoice_validate_save_lines(array $lines, bool $allowEmpty): ?string
+{
+    if (count($lines) < 1) {
+        return $allowEmpty ? null : 'أضف مادة واحدة على الأقل.';
+    }
+
+    foreach ($lines as $ln) {
+        if (!is_array($ln)) {
+            return 'بيانات الأسطر غير صالحة.';
+        }
+        $iid = (int) ($ln['item_id'] ?? 0);
+        $qty = (float) ($ln['qty'] ?? 0);
+        $qtyExtra = (float) ($ln['qty_extra'] ?? 0);
+        $up = (float) ($ln['unit_price'] ?? 0);
+        if ($iid < 1) {
+            return 'تأكد من اختيار مادة لكل سطر.';
+        }
+        if (inv_invoice_line_stock_qty_sum($qty, $qtyExtra) <= 0) {
+            return 'أدخل كمية لكل مادة في الفاتورة.';
+        }
+        if ($up < 0) {
+            return 'تأكد من أسعار كل سطر.';
+        }
+    }
+
+    return null;
+}

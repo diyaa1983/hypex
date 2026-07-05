@@ -856,8 +856,7 @@
     applyDecimalPlacesToInvoiceScreen();
   });
 
-  var LINE_NAV_SELECTORS = [
-    '.js-barcode-inp',
+  var LINE_NAV_AFTER_ITEM_SELECTORS = [
     '.js-qty',
     '.js-qty-extra',
     '.js-price',
@@ -867,6 +866,9 @@
     '.js-tax',
     'input.js-line-gross',
   ];
+
+  var ROW_QTY_LOCK_SELECTORS =
+    '.js-qty-extra, .js-price, .js-price-incl, .js-discount, .js-line-sub, .js-tax, input.js-line-gross';
 
   function formatAmountValue(n, rawStr) {
     if (global.AppFormat && AppFormat.formatInvoiceDecimalInput) {
@@ -1211,13 +1213,50 @@
 
   function getRowNavFields(tr) {
     if (!rowHasItem(tr)) return [];
-    return LINE_NAV_SELECTORS.map(function (sel) {
+    return LINE_NAV_AFTER_ITEM_SELECTORS.map(function (sel) {
       return tr.querySelector(sel);
     }).filter(function (el) {
-      if (!el || el.disabled || el.offsetParent === null) return false;
+      if (!el || el.disabled || el.readOnly || el.offsetParent === null) return false;
+      if (el.classList.contains('is-item-pick-locked') || el.classList.contains('is-qty-required-locked')) {
+        return false;
+      }
       var tag = el.tagName;
       return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
     });
+  }
+
+  function focusRowQtyField(tr) {
+    if (!tr) return;
+    var run = function () {
+      var qtyEl = tr.querySelector('.js-qty');
+      if (!qtyEl || qtyEl.disabled || qtyEl.classList.contains('is-item-pick-locked')) return;
+      qtyEl.focus();
+      if (qtyEl.select) qtyEl.select();
+    };
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(function () {
+        window.setTimeout(run, 0);
+      });
+    } else {
+      window.setTimeout(run, 0);
+    }
+  }
+
+  function rowNeedsQtyInput(tr) {
+    return rowHasItem(tr) && rowStockQty(tr) <= 0;
+  }
+
+  function blockLineNavIfQtyMissing(tr, current) {
+    if (!current || !rowNeedsQtyInput(tr)) return false;
+    if (
+      current.classList.contains('js-qty') ||
+      current.classList.contains('js-qty-extra') ||
+      current.classList.contains('js-barcode-inp')
+    ) {
+      focusRowQtyField(tr);
+      return true;
+    }
+    return false;
   }
 
   function focusFieldEl(el) {
@@ -1742,6 +1781,18 @@
       AppDialog.alert('أضف سطرًا واحدًا على الأقل للمواد.', { type: 'warning' });
       return false;
     }
+    if (!opts.allowEmptyLines) {
+      recalcAllItemRows();
+      var qtyCheck = validateInvoiceLineQuantities();
+      if (!qtyCheck.ok) {
+        AppDialog.alert(qtyCheck.msg, { type: 'warning' });
+        if (qtyCheck.tr) {
+          var qtyEl = qtyCheck.tr.querySelector('.js-qty');
+          if (qtyEl) qtyEl.focus();
+        }
+        return false;
+      }
+    }
     var repSel = document.getElementById('inv_sales_rep');
     if (repSel && !repSel.disabled && !repSel.value) {
       AppDialog.alert('اختر مندوب المبيعات لهذا العميل.', { type: 'warning' });
@@ -1764,7 +1815,7 @@
   }
 
   var ROW_ITEM_LOCK_SELECTORS =
-    '.js-barcode-inp, .js-qty, .js-qty-extra, .js-price, .js-price-incl, .js-discount, .js-line-sub, .js-tax, input.js-line-gross';
+    '.js-qty, .js-qty-extra, .js-price, .js-price-incl, .js-discount, .js-line-sub, .js-tax, input.js-line-gross';
 
   function applyRowItemPickLock(tr) {
     if (!tr) return;
@@ -1790,10 +1841,66 @@
     } else if (pick) {
       pick.removeAttribute('tabindex');
     }
+    if (needsPick) {
+      var barcodeInp = tr.querySelector('.js-barcode-inp');
+      if (barcodeInp) {
+        barcodeInp.removeAttribute('readonly');
+        barcodeInp.removeAttribute('tabindex');
+        barcodeInp.classList.remove('is-item-pick-locked');
+      }
+    }
+    applyRowQtyLock(tr);
+  }
+
+  function applyRowQtyLock(tr) {
+    if (!tr) return;
+    var formLocked = ledgerView || (currentInvoiceId > 0 && !!invoiceIsPosted) || !!invoiceEinvQr;
+    if (formLocked || !rowHasItem(tr)) {
+      tr.querySelectorAll('.js-qty').forEach(function (el) {
+        el.classList.remove('is-qty-required');
+      });
+      return;
+    }
+    var needsQty = rowStockQty(tr) <= 0;
+    tr.querySelectorAll(ROW_QTY_LOCK_SELECTORS).forEach(function (el) {
+      if (needsQty) {
+        el.setAttribute('readonly', 'readonly');
+        el.setAttribute('tabindex', '-1');
+        el.classList.add('is-qty-required-locked');
+        if (el.tagName === 'SELECT') el.disabled = true;
+      } else if (el.classList.contains('is-qty-required-locked')) {
+        el.removeAttribute('readonly');
+        el.removeAttribute('tabindex');
+        el.classList.remove('is-qty-required-locked');
+        if (el.tagName === 'SELECT') el.disabled = false;
+      }
+    });
+    var qtyEl = tr.querySelector('.js-qty');
+    if (qtyEl) {
+      qtyEl.classList.toggle('is-qty-required', needsQty);
+      qtyEl.removeAttribute('readonly');
+      qtyEl.removeAttribute('tabindex');
+      qtyEl.classList.remove('is-item-pick-locked');
+    }
+  }
+
+  function focusRowMaterialCodeField(tr) {
+    if (!tr) return;
+    var bc = tr.querySelector('.js-barcode-inp');
+    if (bc && !bc.disabled) {
+      bc.focus();
+      if (bc.select) bc.select();
+      return;
+    }
+    openPickerForRow(tr);
   }
 
   function focusRowItemPick(tr) {
     if (!tr) return;
+    if (!rowHasItem(tr) && !invoiceIsPosted) {
+      focusRowMaterialCodeField(tr);
+      return;
+    }
     var pick = tr.querySelector('.js-pick-open');
     if (pick && !pick.disabled) {
       pick.focus();
@@ -1841,6 +1948,29 @@
       if (getRowItemId(tr) > 0) hasLine = true;
     });
     return hasLine;
+  }
+
+  function rowStockQty(tr) {
+    var qty = parseNum(tr.querySelector('.js-qty') ? tr.querySelector('.js-qty').value : 0);
+    var qtyExtra = parseNum(tr.querySelector('.js-qty-extra') ? tr.querySelector('.js-qty-extra').value : 0);
+    return qty + qtyExtra;
+  }
+
+  function validateInvoiceLineQuantities() {
+    var firstBad = null;
+    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
+      if (!getRowItemId(tr)) return;
+      if (rowStockQty(tr) <= 0 && !firstBad) firstBad = tr;
+    });
+    if (!firstBad) {
+      return { ok: true };
+    }
+    var name = firstBad.dataset.nameAr || 'مادة بدون اسم';
+    return {
+      ok: false,
+      msg: 'أدخل كمية لكل مادة في الفاتورة.\n\nالمادة: ' + name,
+      tr: firstBad,
+    };
   }
 
   function setInvoiceBusy(busy, message) {
@@ -2136,21 +2266,7 @@
     syncJson();
 
     if (focusTr) {
-      var qtyEl = focusTr.querySelector('.js-qty');
-      var qtyVal = parseNum(qtyEl ? qtyEl.value : 0);
-      var priceEl = focusTr.querySelector('.js-price');
-      var salePrice = parseNum(priceEl ? priceEl.value : 0);
-      var grossInp = focusTr.querySelector('input.js-line-gross');
-      if (qtyVal <= 0 && qtyEl) {
-        qtyEl.focus();
-        if (qtyEl.select) qtyEl.select();
-      } else if (salePrice <= 0 && grossInp) {
-        grossInp.focus();
-        if (grossInp.select) grossInp.select();
-      } else if (qtyEl) {
-        qtyEl.focus();
-        if (qtyEl.select) qtyEl.select();
-      }
+      focusRowQtyField(focusTr);
     }
     return true;
   }
@@ -2375,8 +2491,13 @@
   function itemMatchesCode(item, code) {
     var c = normalizeItemCode(code);
     if (!c || !item) return false;
+    var material = normalizeItemCode(
+      item.material_number || itemMaterialNumber(item.barcode, item.sku)
+    );
     return (
-      normalizeItemCode(item.barcode) === c || normalizeItemCode(item.sku) === c
+      normalizeItemCode(item.barcode) === c ||
+      normalizeItemCode(item.sku) === c ||
+      (material !== '' && material === c)
     );
   }
 
@@ -2415,21 +2536,7 @@
       if (!focusTr) focusTr = appended;
     }
     if (focusTr) {
-      var qtyEl = focusTr.querySelector('.js-qty');
-      var qtyVal = parseNum(qtyEl ? qtyEl.value : 0);
-      var priceEl = focusTr.querySelector('.js-price');
-      var salePrice = parseNum(priceEl ? priceEl.value : 0);
-      var grossInp = focusTr.querySelector('input.js-line-gross');
-      if (qtyVal <= 0 && qtyEl) {
-        qtyEl.focus();
-        if (qtyEl.select) qtyEl.select();
-      } else if (salePrice <= 0 && grossInp) {
-        grossInp.focus();
-        if (grossInp.select) grossInp.select();
-      } else if (qtyEl) {
-        qtyEl.focus();
-        if (qtyEl.select) qtyEl.select();
-      }
+      focusRowQtyField(focusTr);
     }
   }
 
@@ -2494,6 +2601,8 @@
   }
 
   function focusNextField(tr, current) {
+    if (blockLineNavIfQtyMissing(tr, current)) return;
+
     var rows = listNavRows();
     var rowIdx = rows.indexOf(tr);
     if (rowIdx < 0) return;
@@ -2501,6 +2610,10 @@
     var fields = getRowNavFields(tr);
     var colIdx = fields.indexOf(current);
     if (colIdx < 0) {
+      if (rowHasItem(tr)) {
+        focusRowQtyField(tr);
+        return;
+      }
       if (!rowHasItem(tr)) {
         openPickerForRow(tr);
       }
@@ -2508,14 +2621,21 @@
     }
 
     if (colIdx < fields.length - 1) {
-      focusFieldEl(fields[colIdx + 1]);
+      var nextField = fields[colIdx + 1];
+      if (blockLineNavIfQtyMissing(tr, current)) return;
+      focusFieldEl(nextField);
+      return;
+    }
+
+    if (rowNeedsQtyInput(tr)) {
+      focusRowQtyField(tr);
       return;
     }
 
     if (rowIdx < rows.length - 1) {
       var nextTr = rows[rowIdx + 1];
       if (!rowHasItem(nextTr)) {
-        openPickerForRow(nextTr);
+        focusRowMaterialCodeField(nextTr);
         return;
       }
       var nextFields = getRowNavFields(nextTr);
@@ -2533,7 +2653,12 @@
       recalcFooter();
       syncJson();
     }
-    openPickerForRow(ensureEntryRow());
+    focusEntryMaterialCodeField();
+  }
+
+  function focusEntryMaterialCodeField() {
+    var entry = ensureEntryRow();
+    focusRowMaterialCodeField(entry);
   }
 
   function completeLineAndNext(tr) {
@@ -2570,14 +2695,24 @@
     applyQtyPriceInputAttrs(tr);
     applyRowItemPickLock(tr);
 
-    tr.querySelectorAll(ROW_ITEM_LOCK_SELECTORS).forEach(function (lockEl) {
+    tr.querySelectorAll(ROW_ITEM_LOCK_SELECTORS + ',' + ROW_QTY_LOCK_SELECTORS).forEach(function (lockEl) {
       lockEl.addEventListener('mousedown', function (e) {
+        if (lockEl.classList.contains('is-qty-required-locked')) {
+          e.preventDefault();
+          focusRowQtyField(tr);
+          return;
+        }
         if (!rowHasItem(tr) && !invoiceIsPosted) {
           e.preventDefault();
           focusRowItemPick(tr);
         }
       });
       lockEl.addEventListener('focus', function () {
+        if (lockEl.classList.contains('is-qty-required-locked')) {
+          lockEl.blur();
+          focusRowQtyField(tr);
+          return;
+        }
         if (!rowHasItem(tr) && !invoiceIsPosted) {
           lockEl.blur();
           focusRowItemPick(tr);
@@ -2595,6 +2730,23 @@
           focusNextField(tr, barcodeInp);
         }
       });
+      barcodeInp.addEventListener('blur', function () {
+        var code = String(barcodeInp.value || '').trim();
+        if (!rowHasItem(tr) && code) {
+          resolveBarcodeOnRow(tr);
+        }
+      });
+    }
+
+    var skuCell = tr.querySelector('.sales-inv-col-sku');
+    if (skuCell) {
+      skuCell.addEventListener('click', function (e) {
+        if (e.target.closest('.js-barcode-inp')) return;
+        if (!rowHasItem(tr) && barcodeInp && !invoiceIsPosted) {
+          e.preventDefault();
+          focusRowMaterialCodeField(tr);
+        }
+      });
     }
 
     tr
@@ -2604,6 +2756,9 @@
       .forEach(function (el) {
       el.addEventListener('input', function () {
         recalcRowLiveFromField(tr, el);
+        if (el.classList.contains('js-qty') || el.classList.contains('js-qty-extra')) {
+          applyRowQtyLock(tr);
+        }
       });
       el.addEventListener('change', function () {
         if (el.classList.contains('js-qty')) normalizeQtyInput(el);
@@ -2643,6 +2798,7 @@
         if (isAmountFieldEnterCommit(el)) {
           commitAmountFieldAndRecalc(tr, el);
         }
+        if (blockLineNavIfQtyMissing(tr, el)) return;
         focusNextField(tr, el);
       });
     });

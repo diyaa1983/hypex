@@ -1138,10 +1138,18 @@ body:has(.sales-inv-main) .sales-inv-dlv-pick-modal {
 
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-qty-extra .input,
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .input[readonly],
-.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .input.is-item-pick-locked {
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .input.is-item-pick-locked,
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .input.is-qty-required-locked {
   background: transparent !important;
   color: var(--ora12-muted);
   opacity: 0.72;
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody .input.is-qty-required {
+  background: #fffbea !important;
+  color: inherit !important;
+  opacity: 1 !important;
+  box-shadow: inset 0 0 0 1px #d97706;
 }
 
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-del {

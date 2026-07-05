@@ -41,7 +41,7 @@ function inv_invoice_line_table_row_template(array $taxRates, string $unitPriceS
         <td class="sales-inv-col-seq"><span class="js-seq"></span></td>
         <td class="sales-inv-col-sku">
             <code class="js-sku"></code>
-            <input type="text" class="input js-barcode-inp" placeholder="مسح أو باركود" autocomplete="off" spellcheck="false" title="امسح الباركود أو أدخل رقم المادة">
+            <input type="text" class="input js-barcode-inp" placeholder="رقم المادة" autocomplete="off" spellcheck="false" title="أدخل رقم المادة أو الباركود ثم Enter — أو اختر من القائمة">
         </td>
         <td class="sales-inv-item-cell sales-inv-col-item">
             <div class="sales-inv-item-lov is-empty">
