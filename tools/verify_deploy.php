@@ -207,6 +207,48 @@ $mdiJs = is_file(app_path('assets/js/app-window-manager.js'))
     && str_contains((string) file_get_contents(app_path('assets/js/app-window-manager.js')), 'exitCurrentPage');
 deploy_line($mdiJs ? 'OK' : 'FAIL', 'app-window-manager.js — exitCurrentPage (MDI)');
 
+echo "\n--- GPS / الموبايل ---\n";
+$gpsFiles = [
+    'assets/js/geo.js',
+    'assets/mobile/invoice-view.js',
+    'includes/app_osm.php',
+    'includes/sal_invoice_gps.php',
+    'api/sales_invoice_gps_attach.php',
+];
+foreach ($gpsFiles as $rel) {
+    deploy_file_ok($rel);
+}
+$geoHasCapture = is_file(app_path('assets/js/geo.js'))
+    && str_contains((string) file_get_contents(app_path('assets/js/geo.js')), 'captureForPost');
+deploy_line($geoHasCapture ? 'OK' : 'FAIL', 'geo.js — captureForPost (تحديث GPS الموبايل)');
+
+if (defined('APP_GPS_ENABLED') && APP_GPS_ENABLED) {
+    deploy_line('OK', 'APP_GPS_ENABLED = true');
+} else {
+    deploy_line('FAIL', 'APP_GPS_ENABLED معطّل');
+}
+
+$localCfg = app_path('config/app.local.php');
+if (is_file($localCfg)) {
+    deploy_line('OK', 'config/app.local.php موجود على السيرفر');
+} else {
+    deploy_line('WARN', 'config/app.local.php غير موجود — لا يُرفع عبر Git (انسخه يدوياً لإعدادات OSM)');
+}
+
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+if ($isHttps) {
+    deploy_line('OK', 'الموقع يُفتح عبر HTTPS — GPS من الموبايل ممكن');
+} else {
+    deploy_line('FAIL', 'الموقع على HTTP — GPS من متصفح الموبايل لن يعمل (فعّل SSL/HTTPS)');
+}
+
+deploy_sql_count(
+    $pdo,
+    'عمود sal_invoice.post_latitude (122)',
+    "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sal_invoice' AND COLUMN_NAME = 'post_latitude'"
+);
+
 echo "\n=== الملخص ===\n";
 echo "OK: {$ok}  |  FAIL: {$fail}  |  WARN: {$warn}\n\n";
 

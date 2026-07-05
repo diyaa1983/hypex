@@ -450,7 +450,8 @@
     if (loadingEl) loadingEl.hidden = true;
     if (rootEl) rootEl.hidden = false;
     if (vis.post && (cfg.gpsEnabled || window.APP_GPS_ENABLED) && window.AppGeo) {
-      if (AppGeo.prefetchForPost) AppGeo.prefetchForPost('mobile');
+      if (AppGeo.seedMobileSessionGps) AppGeo.seedMobileSessionGps('mobile');
+      else if (AppGeo.prefetchForPost) AppGeo.prefetchForPost('mobile');
       if (AppGeo.startPostGpsWarmup) AppGeo.startPostGpsWarmup('mobile');
     }
     printDoc = null;
@@ -662,6 +663,12 @@
           return;
         }
         showPostStatus('جاري الترحيل...', 'success');
+        if (gpsEnabled && window.AppGeo && AppGeo.captureForPost) {
+          AppGeo.captureForPost('mobile', { primed: gpsPrimed }).then(function (gps) {
+            submitPost(gps || null);
+          });
+          return;
+        }
         if (gpsEnabled && window.AppGeo && AppGeo.withGpsForPost) {
           AppGeo.withGpsForPost(
             'mobile',

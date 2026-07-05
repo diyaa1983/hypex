@@ -1050,6 +1050,86 @@
     return isPrivateLanBrowser() || !isGeoSupported();
   }
 
+  function seedMobileSessionGps(source) {
+    source = source || 'mobile';
+    if (!canUseGeolocation()) {
+      return;
+    }
+    getCurrentPosition({
+      enableHighAccuracy: true,
+      maximumAge: 180000,
+      timeout: 18000,
+    })
+      .then(function (gps) {
+        if (gps && isValidCoordReading(gps)) {
+          rememberReading(gps);
+          pingUserLocationSilently(gps, source);
+        }
+      })
+      .catch(function () {
+        /* صامت */
+      })
+      .finally(function () {
+        startPostGpsWarmup(source);
+      });
+  }
+
+  function captureForPost(source, opts) {
+    opts = opts || {};
+    source = source || 'mobile';
+    var primed = consumePrimedPostGps(opts.primed);
+
+    function fromPrimed() {
+      if (primed && typeof primed.then === 'function') {
+        return primed
+          .then(function (gps) {
+            return gps && isValidCoordReading(gps) ? gps : null;
+          })
+          .catch(function () {
+            return null;
+          });
+      }
+      return Promise.resolve(null);
+    }
+
+    return fromPrimed()
+      .then(function (gps) {
+        if (gps) {
+          return gps;
+        }
+        return resolveGpsForPost(source).catch(function () {
+          return null;
+        });
+      })
+      .then(function (gps) {
+        if (gps && isValidCoordReading(gps)) {
+          return gps;
+        }
+        return silentPostFinalAttempt(source);
+      })
+      .then(function (gps) {
+        if (gps && isValidCoordReading(gps)) {
+          rememberReading(gps);
+          pingUserLocationSilently(gps, source);
+          return gps;
+        }
+        return null;
+      });
+  }
+
+  function gpsEnvironmentHint() {
+    if (isCapacitorNative()) {
+      return 'apk';
+    }
+    if (typeof global.isSecureContext === 'boolean' && !global.isSecureContext && !isLocalHostAccess()) {
+      return 'need_https';
+    }
+    if (!canUseGeolocation()) {
+      return 'no_geolocation';
+    }
+    return 'ok';
+  }
+
   function prefetchForPost(source) {
     if (!canUseGeolocation() || isHttpLanBlocked()) {
       return;
@@ -1665,6 +1745,12 @@
     primePostGpsFromUserGesture: primePostGpsFromUserGesture,
 
     clearPrimedPostGps: clearPrimedPostGps,
+
+    captureForPost: captureForPost,
+
+    seedMobileSessionGps: seedMobileSessionGps,
+
+    gpsEnvironmentHint: gpsEnvironmentHint,
 
     prefetchForPost: prefetchForPost,
 
