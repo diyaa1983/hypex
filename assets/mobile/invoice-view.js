@@ -627,7 +627,7 @@
     AppGeo.queryLocationPermission().then(function (state) {
       if (state === 'denied') {
         showPostStatus(
-          'صلاحية الموقع مرفوضة على الهاتف. الترحيل يعمل لكن بدون GPS. فعّل الموقع من إعدادات Safari/Chrome ثم أعد تحميل الصفحة.',
+          'صلاحية الموقع مرفوضة على الهاتف. فعّل الموقع من إعدادات Safari/Chrome ثم أعد تحميل الصفحة.',
           'warn'
         );
       } else if (state === 'prompt') {

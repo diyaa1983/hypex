@@ -682,8 +682,10 @@ function fin_voucher_archive_upload(PDO $pdo, string $kind, int $voucherId, arra
         $userId > 0 ? $userId : null,
     ]);
 
+    $docId = (int) $pdo->lastInsertId();
+
     return [
-        'id' => (int) $pdo->lastInsertId(),
+        'id' => $docId,
         'name' => $upload['original'],
         'size' => $upload['size'],
     ];
