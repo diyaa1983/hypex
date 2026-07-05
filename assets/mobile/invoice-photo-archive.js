@@ -18,6 +18,7 @@
     this.busy = false;
     this.input = null;
     this.viewerRoot = null;
+    this.progressRoot = null;
     this.archiveFiles = [];
     this.archiveReadOnly = false;
     this.fileCount = 0;
@@ -52,6 +53,158 @@
     }
     var id = this.getInvoiceId();
     return id > 0 ? 'فاتورة #' + id : 'فاتورة';
+  };
+
+  InvoicePhotoArchive.prototype.setCameraBusy = function (busy) {
+    var camBtn = document.getElementById('m-toolbar-camera');
+    if (!camBtn) return;
+    camBtn.classList.toggle('m-toolbar-btn--busy', !!busy);
+    camBtn.disabled = !!busy;
+  };
+
+  InvoicePhotoArchive.prototype.ensureProgressOverlay = function () {
+    if (this.progressRoot) return this.progressRoot;
+    var root = document.createElement('div');
+    root.className = 'm-inv-upload-progress';
+    root.hidden = true;
+    root.setAttribute('role', 'status');
+    root.setAttribute('aria-live', 'polite');
+    root.innerHTML =
+      '<div class="m-inv-upload-progress__card">' +
+      '<p class="m-inv-upload-progress__title">جاري الرفع...</p>' +
+      '<div class="m-inv-upload-progress__track" aria-hidden="true">' +
+      '<div class="m-inv-upload-progress__bar"></div>' +
+      '</div>' +
+      '<p class="m-inv-upload-progress__pct">0%</p>' +
+      '</div>';
+    document.body.appendChild(root);
+    this.progressRoot = root;
+    return root;
+  };
+
+  InvoicePhotoArchive.prototype.showUploadProgress = function (title, percent) {
+    var root = this.ensureProgressOverlay();
+    var titleEl = root.querySelector('.m-inv-upload-progress__title');
+    var bar = root.querySelector('.m-inv-upload-progress__bar');
+    var pctEl = root.querySelector('.m-inv-upload-progress__pct');
+    if (titleEl) titleEl.textContent = title || 'جاري الرفع...';
+    var pct = Math.max(0, Math.min(100, parseInt(String(percent), 10) || 0));
+    if (bar) bar.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+    root.hidden = false;
+    document.body.classList.add('m-inv-upload-busy');
+    this.setCameraBusy(true);
+  };
+
+  InvoicePhotoArchive.prototype.updateUploadProgress = function (percent, title) {
+    if (!this.progressRoot || this.progressRoot.hidden) {
+      this.showUploadProgress(title || 'جاري الرفع...', percent);
+      return;
+    }
+    if (title) {
+      var titleEl = this.progressRoot.querySelector('.m-inv-upload-progress__title');
+      if (titleEl) titleEl.textContent = title;
+    }
+    var bar = this.progressRoot.querySelector('.m-inv-upload-progress__bar');
+    var pctEl = this.progressRoot.querySelector('.m-inv-upload-progress__pct');
+    var pct = Math.max(0, Math.min(100, parseInt(String(percent), 10) || 0));
+    if (bar) bar.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+  };
+
+  InvoicePhotoArchive.prototype.hideUploadProgress = function () {
+    if (this.progressRoot) this.progressRoot.hidden = true;
+    document.body.classList.remove('m-inv-upload-busy');
+    this.setCameraBusy(false);
+  };
+
+  /** ضغط الصورة لتسريع الرفع على الشبكة المحمولة. */
+  InvoicePhotoArchive.prototype.compressImage = function (file) {
+    var maxW = 1600;
+    var maxH = 1600;
+    var quality = 0.82;
+    return new Promise(function (resolve) {
+      if (!file || !file.type || String(file.type).indexOf('image/') !== 0) {
+        resolve(file);
+        return;
+      }
+      if (file.size < 350000 && /jpe?g$/i.test(String(file.name || ''))) {
+        resolve(file);
+        return;
+      }
+      var img = new Image();
+      var objectUrl = URL.createObjectURL(file);
+      img.onload = function () {
+        URL.revokeObjectURL(objectUrl);
+        var w = img.naturalWidth || img.width || 1;
+        var h = img.naturalHeight || img.height || 1;
+        var scale = Math.min(1, maxW / w, maxH / h);
+        var cw = Math.max(1, Math.round(w * scale));
+        var ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, cw, ch);
+        canvas.toBlob(
+          function (blob) {
+            resolve(blob && blob.size > 0 ? blob : file);
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+      img.src = objectUrl;
+    });
+  };
+
+  InvoicePhotoArchive.prototype.xhrPost = function (url, formData, opts) {
+    opts = opts || {};
+    var self = this;
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.withCredentials = true;
+      xhr.setRequestHeader('Accept', 'application/json');
+      if (opts.headers) {
+        Object.keys(opts.headers).forEach(function (key) {
+          xhr.setRequestHeader(key, opts.headers[key]);
+        });
+      }
+      xhr.upload.onprogress = function (ev) {
+        if (typeof opts.onProgress !== 'function') return;
+        if (ev.lengthComputable && ev.total > 0) {
+          opts.onProgress(Math.min(99, Math.round((ev.loaded / ev.total) * 100)));
+        }
+      };
+      xhr.onload = function () {
+        var data = null;
+        try {
+          data = JSON.parse(xhr.responseText || '');
+        } catch (e) {
+          reject(new Error('تعذر قراءة رد الخادم.'));
+          return;
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && data && data.ok) {
+          if (typeof opts.onProgress === 'function') opts.onProgress(100);
+          resolve(data);
+          return;
+        }
+        reject(new Error((data && data.message) || 'تعذر إتمام العملية.'));
+      };
+      xhr.onerror = function () {
+        reject(new Error('تعذر الاتصال بالخادم.'));
+      };
+      xhr.send(formData);
+    });
   };
 
   InvoicePhotoArchive.prototype.updateArchiveBadge = function () {
@@ -161,20 +314,40 @@
   };
 
   InvoicePhotoArchive.prototype.handleSelectedFile = function (file) {
-    if (!file || this.isLocked()) {
+    if (!file || this.isLocked() || this.busy) {
       return;
     }
-    var id = this.getInvoiceId();
-    if (id > 0) {
-      this.upload(id, file);
-      return;
-    }
-    this.pendingFile = file;
-    this.notifyPending();
-    this.alert(
-      'تم التقاط الصورة.\n\nاحفظ الفاتورة الآن — ستُرفع الصورة تلقائياً إلى السيرفر وتُحفظ في أرشيف الفاتورة.',
-      'success'
-    );
+    var self = this;
+    this.busy = true;
+    this.showUploadProgress('جاري معالجة الصورة...', 8);
+    this.compressImage(file)
+      .then(function (compressed) {
+        self.updateUploadProgress(22, 'جاري تجهيز الرفع...');
+        var id = self.getInvoiceId();
+        if (id > 0) {
+          self.busy = false;
+          return self.upload(id, compressed, { skipCompress: true });
+        }
+        self.pendingFile = compressed;
+        self.notifyPending();
+        self.busy = false;
+        self.hideUploadProgress();
+        self.updateArchiveBadge();
+        var camBtn = document.getElementById('m-toolbar-camera');
+        if (camBtn) {
+          camBtn.classList.add('m-toolbar-btn--has-badge');
+          var lbl = camBtn.querySelector('.m-toolbar-btn__lbl');
+          if (lbl) lbl.textContent = 'صورة جاهزة';
+        }
+        if (global.AppDialog && AppDialog.toast) {
+          AppDialog.toast('تم التقاط الصورة — احفظ الفاتورة لرفعها للسيرفر.', { type: 'success' });
+        }
+      })
+      .catch(function (err) {
+        self.busy = false;
+        self.hideUploadProgress();
+        self.alert(err.message || 'تعذر معالجة الصورة.', 'error');
+      });
   };
 
   InvoicePhotoArchive.prototype.prepareUploadFile = function (file) {
@@ -185,6 +358,9 @@
       if (file.type === 'image/png') ext = 'png';
       else if (file.type === 'image/webp') ext = 'webp';
       name = 'order-photo-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.' + ext;
+    }
+    if (file.type === 'image/jpeg' && !/\.jpe?g$/i.test(name)) {
+      name = name.replace(/\.[^.]+$/, '') + '.jpg';
     }
     return { file: file, name: name };
   };
@@ -200,63 +376,81 @@
       return Promise.resolve(false);
     }
     this.busy = true;
-    var prepared = this.prepareUploadFile(file);
-    var fd = new FormData();
-    fd.append('_csrf', this.cfg.csrf || '');
-    fd.append('action', 'upload');
-    fd.append('kind', this.cfg.kind || 'sales_invoice');
-    fd.append('voucher_id', String(voucherId));
-    fd.append('file', prepared.file, prepared.name);
 
-    return fetch(this.cfg.apiUrl, {
-      method: 'POST',
-      body: fd,
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' },
-    })
-      .then(function (r) {
-        return r
-          .json()
-          .catch(function () {
-            throw new Error('تعذر قراءة رد الخادم أثناء حفظ الصورة.');
-          })
-          .then(function (data) {
-            if (!r.ok) {
-              throw new Error((data && data.message) || 'تعذر حفظ الصورة في الأرشيف.');
+    var runUpload = function (blob) {
+      var prepared = self.prepareUploadFile(blob);
+      var fd = new FormData();
+      fd.append('_csrf', self.cfg.csrf || '');
+      fd.append('action', 'upload');
+      fd.append('kind', self.cfg.kind || 'sales_invoice');
+      fd.append('voucher_id', String(voucherId));
+      fd.append('file', prepared.file, prepared.name);
+
+      if (!opts.silent) {
+        self.showUploadProgress('جاري رفع الصورة إلى السيرفر...', 25);
+      }
+
+      return self
+        .xhrPost(self.cfg.apiUrl, fd, {
+          onProgress: function (pct) {
+            if (!opts.silent) {
+              var mapped = 25 + Math.round(pct * 0.75);
+              self.updateUploadProgress(mapped, 'جاري رفع الصورة إلى السيرفر...');
             }
-            return data;
-          });
-      })
-      .then(function (data) {
-        if (!data || !data.ok) {
-          throw new Error((data && data.message) || 'تعذر حفظ الصورة في الأرشيف.');
-        }
-        if (typeof self.cfg.onUploaded === 'function') {
-          self.cfg.onUploaded(data.file || null);
-        }
-        self.refreshMeta();
-        if (self.viewerRoot && !self.viewerRoot.hidden) {
-          self.loadArchiveList();
-        }
-        if (opts.silent) {
-          return true;
-        }
-        return self
-          .alert((data && data.message) || 'تم رفع الصورة إلى السيرفر وحفظها في أرشيف الفاتورة.', 'success')
-          .then(function () {
+          },
+        })
+        .then(function (data) {
+          if (typeof self.cfg.onUploaded === 'function') {
+            self.cfg.onUploaded(data.file || null);
+          }
+          self.fileCount = Math.max(self.fileCount, 0) + 1;
+          self.updateArchiveBadge();
+          self.refreshMeta();
+          if (self.viewerRoot && !self.viewerRoot.hidden) {
+            self.loadArchiveList();
+          }
+          if (opts.silent) {
             return true;
+          }
+          self.updateUploadProgress(100, 'تم الرفع بنجاح');
+          return self
+            .alert((data && data.message) || 'تم رفع الصورة إلى السيرفر وحفظها في أرشيف الفاتورة.', 'success')
+            .then(function () {
+              return true;
+            });
+        })
+        .catch(function (err) {
+          if (opts.silent) {
+            return false;
+          }
+          return self.alert(err.message || 'تعذر حفظ الصورة.', 'error').then(function () {
+            return false;
           });
+        })
+        .finally(function () {
+          self.hideUploadProgress();
+          self.busy = false;
+        });
+    };
+
+    if (opts.skipCompress) {
+      return runUpload(file);
+    }
+
+    self.showUploadProgress('جاري معالجة الصورة...', 10);
+    return self
+      .compressImage(file)
+      .then(function (compressed) {
+        self.updateUploadProgress(20, 'جاري رفع الصورة إلى السيرفر...');
+        return runUpload(compressed);
       })
       .catch(function (err) {
-        if (opts.silent) {
-          return false;
-        }
-        return self.alert(err.message || 'تعذر حفظ الصورة.', 'error').then(function () {
+        self.hideUploadProgress();
+        self.busy = false;
+        if (opts.silent) return false;
+        return self.alert(err.message || 'تعذر معالجة الصورة.', 'error').then(function () {
           return false;
         });
-      })
-      .finally(function () {
-        self.busy = false;
       });
   };
 
@@ -271,7 +465,7 @@
     var file = this.pendingFile;
     this.pendingFile = null;
     this.notifyPending();
-    return this.upload(voucherId, file, opts);
+    return this.upload(voucherId, file, Object.assign({ skipCompress: true }, opts));
   };
 
   InvoicePhotoArchive.prototype.hasPending = function () {
@@ -285,6 +479,12 @@
     var prepared = this.prepareUploadFile(this.pendingFile);
     this.pendingFile = null;
     this.notifyPending();
+    var camBtn = document.getElementById('m-toolbar-camera');
+    if (camBtn) {
+      camBtn.classList.remove('m-toolbar-btn--has-badge');
+      var lbl = camBtn.querySelector('.m-toolbar-btn__lbl');
+      if (lbl) lbl.textContent = 'تصوير';
+    }
     return prepared;
   };
 
@@ -302,7 +502,10 @@
       '<button type="button" class="m-inv-archive-close" data-m-archive-close aria-label="إغلاق">×</button>' +
       '</header>' +
       '<p class="m-inv-archive-sub muted">نفس أرشيف فواتير المبيعات في النظام — المسار من إعدادات الشركة</p>' +
-      '<div class="m-inv-archive-loading" hidden>جاري التحميل...</div>' +
+      '<div class="m-inv-archive-loading" hidden>' +
+      '<div class="m-inv-archive-loading-bar" aria-hidden="true"><span></span></div>' +
+      '<span class="m-inv-archive-loading-txt">جاري تحميل الأرشيف...</span>' +
+      '</div>' +
       '<div class="m-inv-archive-empty" hidden>لا توجد صور أو مرفقات في الأرشيف.</div>' +
       '<ul class="m-inv-archive-grid" role="list"></ul>' +
       '</div>' +

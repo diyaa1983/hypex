@@ -1058,12 +1058,113 @@
       var btn = saveBtn;
       if (btn) btn.disabled = true;
       var fd = new FormData(form);
+      var hasArchivePhoto = false;
       if (photoArchive && photoArchive.takePendingFile) {
         var pendingPhoto = photoArchive.takePendingFile();
         if (pendingPhoto && pendingPhoto.file) {
           fd.append('archive_photo', pendingPhoto.file, pendingPhoto.name);
+          hasArchivePhoto = true;
         }
       }
+
+      function handleSaveResponse(data) {
+        if (btn) btn.disabled = false;
+        if (!data || !data.ok) {
+          var msg = (data && data.message) || 'تعذر الحفظ.';
+          if (window.AppDialog && AppDialog.error) AppDialog.error(msg);
+          return;
+        }
+        var invId = parseInt(data.invoice_id, 10) || 0;
+        if (invoiceIdInp && invId > 0) {
+          invoiceIdInp.value = String(invId);
+        }
+        function afterSaveRedirect() {
+          if (invId > 0 && window.AppMobile && AppMobile.mobileUrl) {
+            var viewUrl =
+              AppMobile.mobileUrl + '?r=m_sales_invoice_view&id=' + encodeURIComponent(String(invId));
+            window.location.href = viewUrl;
+            return;
+          }
+          var no = data.invoice_no || '';
+          if (window.AppDialog && AppDialog.success) {
+            AppDialog.success('تم حفظ الفاتورة' + (no ? ' رقم ' + no : '') + ' (غير مرحّلة).');
+          }
+          lines = [];
+          allItems = [];
+          itemsLoadedForWh = null;
+          syncAll();
+          form.reset();
+          clearCustomerSelection();
+          var dateInp = form.querySelector('[name="invoice_date"]');
+          if (dateInp) dateInp.value = new Date().toISOString().slice(0, 10);
+          var pay = document.getElementById('m-payment-type');
+          if (pay) pay.value = 'credit';
+        }
+        if (data.archive_uploaded) {
+          if (photoArchive) photoArchive.refreshMeta();
+          if (window.AppDialog && AppDialog.success) {
+            AppDialog.success('تم حفظ الفاتورة ورفع صورة الطلبية إلى السيرفر.').then(afterSaveRedirect);
+            return;
+          }
+          afterSaveRedirect();
+          return;
+        }
+        if (data.archive_error) {
+          if (window.AppDialog && AppDialog.error) {
+            AppDialog.error(
+              'تم حفظ الفاتورة، لكن تعذر رفع الصورة إلى السيرفر:\n\n' + data.archive_error
+            );
+          }
+          refreshActionBar();
+          return;
+        }
+        if (invId > 0 && photoArchive && photoArchive.hasPending()) {
+          photoArchive.flushPending(invId, { silent: true }).then(function (uploadOk) {
+            if (!uploadOk) {
+              if (window.AppDialog && AppDialog.error) {
+                AppDialog.error(
+                  'تم حفظ الفاتورة، لكن تعذر رفع صورة الطلبية إلى السيرفر.\n\nاضغط «تصوير» مرة أخرى.'
+                );
+              }
+              refreshActionBar();
+              return;
+            }
+            if (window.AppDialog && AppDialog.success) {
+              AppDialog.success('تم حفظ الفاتورة ورفع صورة الطلبية إلى السيرفر.').then(afterSaveRedirect);
+              return;
+            }
+            afterSaveRedirect();
+          });
+          return;
+        }
+        afterSaveRedirect();
+      }
+
+      if (hasArchivePhoto && photoArchive && photoArchive.xhrPost) {
+        photoArchive.showUploadProgress('جاري حفظ الفاتورة ورفع الصورة...', 5);
+        photoArchive
+          .xhrPost(form.action, fd, {
+            headers: { 'X-Invoice-Save': '1' },
+            onProgress: function (pct) {
+              photoArchive.updateUploadProgress(pct, 'جاري حفظ الفاتورة ورفع الصورة...');
+            },
+          })
+          .then(function (data) {
+            photoArchive.updateUploadProgress(100, 'تم الحفظ والرفع');
+            return handleSaveResponse(data);
+          })
+          .catch(function (err) {
+            if (btn) btn.disabled = false;
+            if (window.AppDialog && AppDialog.error) {
+              AppDialog.error(err.message || 'تعذر الاتصال بالخادم.');
+            }
+          })
+          .finally(function () {
+            if (photoArchive.hideUploadProgress) photoArchive.hideUploadProgress();
+          });
+        return;
+      }
+
       fetch(form.action, {
         method: 'POST',
         body: fd,
@@ -1074,78 +1175,7 @@
         }
       })
         .then(function (r) { return r.json(); })
-        .then(function (data) {
-          if (btn) btn.disabled = false;
-          if (!data || !data.ok) {
-            var msg = (data && data.message) || 'تعذر الحفظ.';
-            if (window.AppDialog && AppDialog.error) AppDialog.error(msg);
-            return;
-          }
-          var invId = parseInt(data.invoice_id, 10) || 0;
-          if (invoiceIdInp && invId > 0) {
-            invoiceIdInp.value = String(invId);
-          }
-          function afterSaveRedirect() {
-            if (invId > 0 && window.AppMobile && AppMobile.mobileUrl) {
-              var viewUrl =
-                AppMobile.mobileUrl + '?r=m_sales_invoice_view&id=' + encodeURIComponent(String(invId));
-              window.location.href = viewUrl;
-              return;
-            }
-            var no = data.invoice_no || '';
-            if (window.AppDialog && AppDialog.success) {
-              AppDialog.success('تم حفظ الفاتورة' + (no ? ' رقم ' + no : '') + ' (غير مرحّلة).');
-            }
-            lines = [];
-            allItems = [];
-            itemsLoadedForWh = null;
-            syncAll();
-            form.reset();
-            clearCustomerSelection();
-            var dateInp = form.querySelector('[name="invoice_date"]');
-            if (dateInp) dateInp.value = new Date().toISOString().slice(0, 10);
-            var pay = document.getElementById('m-payment-type');
-            if (pay) pay.value = 'credit';
-          }
-          if (data.archive_uploaded) {
-            if (photoArchive) photoArchive.refreshMeta();
-            if (window.AppDialog && AppDialog.success) {
-              AppDialog.success('تم حفظ الفاتورة ورفع صورة الطلبية إلى السيرفر.').then(afterSaveRedirect);
-              return;
-            }
-            afterSaveRedirect();
-            return;
-          }
-          if (data.archive_error) {
-            if (window.AppDialog && AppDialog.error) {
-              AppDialog.error(
-                'تم حفظ الفاتورة، لكن تعذر رفع الصورة إلى السيرفر:\n\n' + data.archive_error
-              );
-            }
-            refreshActionBar();
-            return;
-          }
-          if (invId > 0 && photoArchive && photoArchive.hasPending()) {
-            photoArchive.flushPending(invId, { silent: true }).then(function (uploadOk) {
-              if (!uploadOk) {
-                if (window.AppDialog && AppDialog.error) {
-                  AppDialog.error(
-                    'تم حفظ الفاتورة، لكن تعذر رفع صورة الطلبية إلى السيرفر.\n\nاضغط «تصوير» مرة أخرى.'
-                  );
-                }
-                refreshActionBar();
-                return;
-              }
-              if (window.AppDialog && AppDialog.success) {
-                AppDialog.success('تم حفظ الفاتورة ورفع صورة الطلبية إلى السيرفر.').then(afterSaveRedirect);
-                return;
-              }
-              afterSaveRedirect();
-            });
-            return;
-          }
-          afterSaveRedirect();
-        })
+        .then(handleSaveResponse)
         .catch(function () {
           if (btn) btn.disabled = false;
           if (window.AppDialog && AppDialog.error) AppDialog.error('تعذر الاتصال بالخادم.');

@@ -876,3 +876,107 @@ body.m-inv-archive-open {
 .m-toolbar-btn--has-badge .m-toolbar-btn__lbl {
   font-weight: 700;
 }
+
+.m-toolbar-btn--busy {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+/* شريط تقدم رفع الصورة */
+body.m-inv-upload-busy {
+  touch-action: none;
+}
+
+.m-inv-upload-progress {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.m-inv-upload-progress[hidden] {
+  display: none !important;
+}
+
+.m-inv-upload-progress__card {
+  width: min(92vw, 360px);
+  background: #fff;
+  border-radius: 12px;
+  padding: 1rem 1.1rem 0.9rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.m-inv-upload-progress__title {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.m-inv-upload-progress__track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8edf3;
+  overflow: hidden;
+}
+
+.m-inv-upload-progress__bar {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2e6fd4, #1a8f4c);
+  transition: width 0.18s ease-out;
+}
+
+.m-inv-upload-progress__pct {
+  margin: 0.55rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2e6fd4;
+  direction: ltr;
+}
+
+.m-inv-archive-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+
+.m-inv-archive-loading[hidden] {
+  display: none !important;
+}
+
+.m-inv-archive-loading-bar {
+  width: 100%;
+  max-width: 220px;
+  height: 6px;
+  border-radius: 999px;
+  background: #e8edf3;
+  overflow: hidden;
+}
+
+.m-inv-archive-loading-bar span {
+  display: block;
+  height: 100%;
+  width: 35%;
+  border-radius: inherit;
+  background: #2e6fd4;
+  animation: m-inv-archive-indeterminate 1s ease-in-out infinite;
+}
+
+@keyframes m-inv-archive-indeterminate {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+.m-inv-archive-loading-txt {
+  font-size: 0.82rem;
+  color: #5a6578;
+}
