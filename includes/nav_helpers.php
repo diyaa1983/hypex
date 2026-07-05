@@ -777,7 +777,6 @@ function render_app_favicon_links(?array $settingsRow = null): void
     $type = esc($meta['type']);
     echo '<link rel="icon" href="' . $href . '" type="' . $type . '">' . "\n";
     echo '<link rel="shortcut icon" href="' . $href . '">' . "\n";
-    echo '<link rel="apple-touch-icon" href="' . $href . '">' . "\n";
 }
 
 /** عنوان الشاشة بخط صغير أعلى المحتوى (يُستثنى menu_hub لأنه يعرض عنواناً داخل الصفحة). */

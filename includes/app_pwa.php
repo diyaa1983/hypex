@@ -20,35 +20,51 @@ function app_pwa_start_url(): string
 /** @return string */
 function app_pwa_brand_icon_url(): string
 {
-    $path = app_path('assets/pwa/app-icon.svg');
-    $v = is_file($path) ? (string) filemtime($path) : '';
+    return app_pwa_icon_png_url(192);
+}
 
-    return app_url('assets/pwa/app-icon.svg') . ($v !== '' ? '?v=' . rawurlencode($v) : '');
+/** @return string */
+function app_pwa_icon_png_url(int $size): string
+{
+    $size = $size >= 512 ? 512 : 192;
+    $file = 'icon-' . $size . '.png';
+    $path = app_path('assets/pwa/' . $file);
+    if (!is_file($path)) {
+        $svgPath = app_path('assets/pwa/app-icon.svg');
+        $v = is_file($svgPath) ? (string) filemtime($svgPath) : '';
+
+        return app_url('assets/pwa/app-icon.svg') . ($v !== '' ? '?v=' . rawurlencode($v) : '');
+    }
+    $v = (string) filemtime($path);
+
+    return app_url('assets/pwa/' . $file) . ($v !== '' ? '?v=' . rawurlencode($v) : '');
 }
 
 /** @return list<array{src: string, sizes: string, type: string, purpose?: string}> */
 function app_pwa_icons(?array $settingsRow = null): array
 {
     unset($settingsRow);
-    $brand = app_pwa_brand_icon_url();
+    $icon192 = app_pwa_icon_png_url(192);
+    $icon512 = app_pwa_icon_png_url(512);
+    $isPng = str_contains($icon512, '.png');
 
     return [
         [
-            'src' => $brand,
+            'src' => $icon512,
             'sizes' => '512x512',
-            'type' => 'image/svg+xml',
+            'type' => $isPng ? 'image/png' : 'image/svg+xml',
             'purpose' => 'any',
         ],
         [
-            'src' => $brand,
+            'src' => $icon192,
             'sizes' => '192x192',
-            'type' => 'image/svg+xml',
+            'type' => $isPng ? 'image/png' : 'image/svg+xml',
             'purpose' => 'any',
         ],
         [
-            'src' => $brand,
+            'src' => $icon512,
             'sizes' => '512x512',
-            'type' => 'image/svg+xml',
+            'type' => $isPng ? 'image/png' : 'image/svg+xml',
             'purpose' => 'maskable',
         ],
     ];
@@ -104,8 +120,11 @@ function render_app_pwa_head(?array $settingsRow = null): void
 
     echo '<link rel="manifest" href="' . $manifest . '">' . "\n";
     echo '<meta name="theme-color" content="' . esc($theme) . '">' . "\n";
-    $brandIcon = esc(app_pwa_brand_icon_url());
-    echo '<link rel="apple-touch-icon" href="' . $brandIcon . '">' . "\n";
+    $brand192 = esc(app_pwa_icon_png_url(192));
+    $brand512 = esc(app_pwa_icon_png_url(512));
+    echo '<link rel="icon" type="image/png" sizes="192x192" href="' . $brand192 . '">' . "\n";
+    echo '<link rel="icon" type="image/png" sizes="512x512" href="' . $brand512 . '">' . "\n";
+    echo '<link rel="apple-touch-icon" href="' . $brand512 . '">' . "\n";
     echo '<meta name="mobile-web-app-capable" content="yes">' . "\n";
     echo '<meta name="apple-mobile-web-app-capable" content="yes">' . "\n";
     echo '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">' . "\n";
