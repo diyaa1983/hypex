@@ -20,6 +20,13 @@
       getInvoiceId: function () {
         return parseInt(invoiceIdInp && invoiceIdInp.value, 10) || 0;
       },
+      getInvoiceLabel: function () {
+        var noEl = document.getElementById('m-inv-no');
+        var no = noEl && noEl.textContent ? String(noEl.textContent).trim() : '';
+        if (no) return no;
+        var id = parseInt(invoiceIdInp && invoiceIdInp.value, 10) || 0;
+        return id > 0 ? 'فاتورة #' + id : '';
+      },
       isLocked: function () {
         return !!(form && form.classList.contains('m-invoice-form--locked'));
       },
@@ -721,6 +728,7 @@
     var vis = {};
     if (!locked) vis.save = true;
     if (cfg.canArchive && !locked) vis.camera = true;
+    if (cfg.canArchive && id > 0) vis.archive = true;
     if (cfg.canDelete && id > 0 && !locked) vis.delete = true;
     if (id > 0) {
       vis.print = true;
@@ -733,6 +741,7 @@
     if (TB.show) {
       TB.show(vis, { formId: 'm-invoice-form', cols: cols > 0 ? cols : undefined });
     }
+    if (photoArchive) photoArchive.refreshMeta();
   }
 
   function fetchPrintDoc(id) {
@@ -1099,6 +1108,7 @@
             if (pay) pay.value = 'credit';
           }
           if (data.archive_uploaded) {
+            if (photoArchive) photoArchive.refreshMeta();
             if (window.AppDialog && AppDialog.success) {
               AppDialog.success('تم حفظ الفاتورة ورفع صورة الطلبية إلى السيرفر.').then(afterSaveRedirect);
               return;

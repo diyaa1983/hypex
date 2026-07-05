@@ -18,6 +18,12 @@
       getInvoiceId: function () {
         return parseInt(String(cfg.invoiceId || 0), 10) || 0;
       },
+      getInvoiceLabel: function () {
+        if (invoiceData && invoiceData.invoice_no) {
+          return String(invoiceData.invoice_no);
+        }
+        return cfg.invoiceId > 0 ? 'فاتورة #' + cfg.invoiceId : '';
+      },
       isLocked: function () {
         return !!(invoiceData && invoiceData.is_posted);
       },
@@ -434,11 +440,13 @@
     if (cfg.canPost && !inv.is_posted) vis.post = true;
     if (cfg.canSendEinvoice && inv.is_posted && !inv.einv_sent) vis.einvoice = true;
     if (cfg.canArchive && canChange) vis.camera = true;
+    if (cfg.canArchive && cfg.invoiceId > 0) vis.archive = true;
     var cols = 0;
     Object.keys(vis).forEach(function (k) {
       if (vis[k]) cols++;
     });
     if (TB.show) TB.show(vis, { cols: cols > 0 ? cols : undefined });
+    if (photoArchive) photoArchive.refreshMeta();
     if (loadingEl) loadingEl.hidden = true;
     if (rootEl) rootEl.hidden = false;
     if (vis.post && (cfg.gpsEnabled || window.APP_GPS_ENABLED) && window.AppGeo) {
