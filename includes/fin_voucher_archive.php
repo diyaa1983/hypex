@@ -214,6 +214,12 @@ function fin_voucher_archive_assert_access(string $kind): void
     }
     $route = fin_voucher_archive_screen_route($kind);
     if ($route !== '' && !user_can($route)) {
+        if ($kind === 'sales_invoice') {
+            require_once app_path('includes/mobile_invoice.php');
+            if (mobile_can_archive_sales_invoice()) {
+                return;
+            }
+        }
         throw new RuntimeException('لا تملك صلاحية فتح هذه الشاشة.');
     }
 }

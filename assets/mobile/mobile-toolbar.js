@@ -5,7 +5,7 @@
   'use strict';
 
   var ROOT_ID = 'm-main-toolbar';
-  var NAMES = ['save', 'open', 'edit', 'delete', 'run', 'print', 'pdf', 'post', 'einvoice'];
+  var NAMES = ['save', 'open', 'edit', 'delete', 'run', 'print', 'pdf', 'post', 'einvoice', 'camera'];
 
   function root() {
     return document.getElementById(ROOT_ID);

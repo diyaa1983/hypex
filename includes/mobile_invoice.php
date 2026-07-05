@@ -43,6 +43,19 @@ function mobile_can_delete_sales_invoice(): bool
     return user_can('m_sales_invoices') && mobile_is_context();
 }
 
+/** رفع صورة الطلبية إلى أرشيف الفاتورة من الهاتف. */
+function mobile_can_archive_sales_invoice(): bool
+{
+    if (!mobile_can_access_sales_invoice_api()) {
+        return false;
+    }
+    if (user_can_action('action_archive_sales_invoice')) {
+        return true;
+    }
+
+    return user_can('m_sales_invoices') && mobile_is_context();
+}
+
 /** إرسال فوترة: صلاحية سطح المكتب أو مدير النظام. */
 function mobile_can_send_sales_einvoice(): bool
 {

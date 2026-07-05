@@ -26,6 +26,7 @@ function mobile_icon_svg(string $key): string
         'edit' => '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path ' . $stroke . ' d="M4 20h4l10-10-4-4L4 16z"/><path ' . $stroke . ' d="M14 6l4 4"/></svg>',
         'print' => '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path ' . $stroke . ' d="M7 9V4h10v5"/><path ' . $stroke . ' d="M6 9h12a2 2 0 0 1 2 2v5H4v-5a2 2 0 0 1 2-2z"/><path ' . $stroke . ' d="M6 16v4h12v-4"/></svg>',
         'pdf' => '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path ' . $stroke . ' d="M8 3h8l2 2v16H6V3z"/><path ' . $stroke . ' d="M8 11h8M8 15h5"/><path ' . $stroke . ' fill="currentColor" stroke="none" d="M9 17h1.2v2H9z"/></svg>',
+        'camera' => '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path ' . $stroke . ' d="M5 7h2l1.5-2h7L17 7h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z"/><circle cx="12" cy="13" r="3.5" ' . $stroke . '/></svg>',
         'post' => '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path ' . $stroke . ' d="M5 12l5 5L20 7"/></svg>',
         'einvoice' => '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path ' . $stroke . ' d="M7 4h10v16H7z"/><path ' . $stroke . ' d="M10 8h4M10 12h4M10 16h2"/><path ' . $stroke . ' d="M4 8h2M4 12h2M4 16h2"/></svg>',
         'run' => '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" ' . $stroke . '/><path ' . $stroke . ' d="M20 20l-3-3"/></svg>',

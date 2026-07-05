@@ -64,6 +64,8 @@ $invoiceViewApi = app_url('api/sales_invoice_view.php');
 $invoicePrintApi = app_url('api/mobile_invoice_print.php');
 $invoiceDeleteApi = app_url('api/sales_invoice_delete.php');
 $canDeleteInvoice = mobile_can_delete_sales_invoice();
+$canArchiveInvoice = mobile_can_archive_sales_invoice();
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
 
 $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
     ? (string) filemtime(app_path('assets/mobile/sales-invoice.js'))
@@ -263,6 +265,8 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         deleteApi: <?= json_encode($invoiceDeleteApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         csrf: <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>,
         canDelete: <?= $canDeleteInvoice ? 'true' : 'false' ?>,
+        canArchive: <?= $canArchiveInvoice ? 'true' : 'false' ?>,
+        archiveApi: <?= json_encode($archiveApiUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         decimalPlaces: <?= (int) $dp ?>,
         defaultTax: <?= json_encode($defaultTax, JSON_UNESCAPED_UNICODE) ?>,
         mobileDefaultTax: <?= json_encode($mobileDefaultTaxPercent, JSON_UNESCAPED_UNICODE) ?>,
@@ -291,4 +295,10 @@ $swipeJsV = is_file(app_path('assets/mobile/inv-line-swipe.js'))
     : '';
 ?>
 <script src="<?= esc(app_url('assets/mobile/inv-line-swipe.js')) ?><?= $swipeJsV !== '' ? '?v=' . esc($swipeJsV) : '' ?>"></script>
+<?php
+$photoArchJsV = is_file(app_path('assets/mobile/invoice-photo-archive.js'))
+    ? (string) filemtime(app_path('assets/mobile/invoice-photo-archive.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/mobile/invoice-photo-archive.js')) ?><?= $photoArchJsV !== '' ? '?v=' . esc($photoArchJsV) : '' ?>"></script>
 <script src="<?= esc(app_url('assets/mobile/sales-invoice.js')) ?><?= $siJsV !== '' ? '?v=' . esc($siJsV) : '' ?>"></script>

@@ -190,10 +190,20 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 
         canPost: <?= mobile_can_post_sales_invoice() ? 'true' : 'false' ?>,
 
-        gpsEnabled: <?= app_gps_enabled() ? 'true' : 'false' ?>
+        gpsEnabled: <?= app_gps_enabled() ? 'true' : 'false' ?>,
+
+        canArchive: <?= mobile_can_archive_sales_invoice() ? 'true' : 'false' ?>,
+
+        archiveApi: <?= json_encode(app_url('api/fin_voucher_archive.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
 
     };
 
 </script>
+<?php
+$photoArchJsV = is_file(app_path('assets/mobile/invoice-photo-archive.js'))
+    ? (string) filemtime(app_path('assets/mobile/invoice-photo-archive.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/mobile/invoice-photo-archive.js')) ?><?= $photoArchJsV !== '' ? '?v=' . esc($photoArchJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/mobile/invoice-view.js')) ?><?= $viewJsV !== '' ? '?v=' . esc($viewJsV) : '' ?>" defer></script>
 

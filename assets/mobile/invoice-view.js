@@ -9,6 +9,21 @@
   var printDoc = null;
   var printLoading = false;
   var TB = window.MobileToolbar || {};
+  var photoArchive = null;
+  if (cfg.canArchive && window.MobileInvoicePhotoArchive) {
+    photoArchive = MobileInvoicePhotoArchive.create({
+      apiUrl: cfg.archiveApi || '',
+      csrf: cfg.csrf || '',
+      kind: 'sales_invoice',
+      getInvoiceId: function () {
+        return parseInt(String(cfg.invoiceId || 0), 10) || 0;
+      },
+      isLocked: function () {
+        return !!(invoiceData && invoiceData.is_posted);
+      },
+    });
+    photoArchive.bindToolbar(TB);
+  }
 
   function roundN(n) {
     var p = Math.pow(10, dp);
@@ -418,7 +433,12 @@
     if (cfg.canDelete && canChange) vis.delete = true;
     if (cfg.canPost && !inv.is_posted) vis.post = true;
     if (cfg.canSendEinvoice && inv.is_posted && !inv.einv_sent) vis.einvoice = true;
-    if (TB.show) TB.show(vis);
+    if (cfg.canArchive && canChange) vis.camera = true;
+    var cols = 0;
+    Object.keys(vis).forEach(function (k) {
+      if (vis[k]) cols++;
+    });
+    if (TB.show) TB.show(vis, { cols: cols > 0 ? cols : undefined });
     if (loadingEl) loadingEl.hidden = true;
     if (rootEl) rootEl.hidden = false;
     if (vis.post && (cfg.gpsEnabled || window.APP_GPS_ENABLED) && window.AppGeo) {
@@ -539,6 +559,13 @@
     if (postFlowBusy || !cfg.postApi || !cfg.invoiceId) return;
     postFlowBusy = true;
 
+    var gpsEnabled = !!(cfg.gpsEnabled || window.APP_GPS_ENABLED);
+    var gpsPrimed = null;
+    if (gpsEnabled && window.AppGeo && AppGeo.primePostGpsFromUserGesture) {
+      showPostStatus('يُطلب السماح بالوصول للموقع من المتصفح...', 'success');
+      gpsPrimed = AppGeo.primePostGpsFromUserGesture('mobile');
+    }
+
     function submitPost(gps) {
       var fd = new FormData();
       fd.append('_csrf', cfg.csrf || '');
@@ -580,34 +607,52 @@
         });
     }
 
-    mobileConfirm(
-      'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\n' +
-        'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.\n\n' +
-        'سُيطلب تحديد موقعك (GPS أو الخريطة) لحفظ مكان الترحيل.',
-      {
-        title: 'تأكيد الترحيل',
-        okText: 'نعم، رحّل',
-        cancelText: 'إلغاء',
-      }
-    ).then(function (ok) {
-      if (!ok) {
-        postFlowBusy = false;
-        return;
-      }
-      showPostStatus('جاري الترحيل...', 'success');
-      if (cfg.gpsEnabled || (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost)) {
-        AppGeo.withGpsForPost('mobile', function (gps) {
-          if (gps === undefined) {
-            postFlowBusy = false;
-            showPostStatus('تم إلغاء الترحيل — الموقع مطلوب.', 'error');
-            return;
+    function openPostConfirm() {
+      mobileConfirm(
+        'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\n' +
+          'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.\n\n' +
+          (gpsEnabled
+            ? 'إذا ظهر طلب «السماح بالموقع» من المتصفح، اضغط السماح ثم أكّد الترحيل.'
+            : ''),
+        {
+          title: 'تأكيد الترحيل',
+          okText: 'نعم، رحّل',
+          cancelText: 'إلغاء',
+        }
+      ).then(function (ok) {
+        if (!ok) {
+          postFlowBusy = false;
+          if (window.AppGeo && AppGeo.clearPrimedPostGps) {
+            AppGeo.clearPrimedPostGps();
           }
-          submitPost(gps);
-        });
-        return;
-      }
-      submitPost(null);
-    });
+          return;
+        }
+        showPostStatus('جاري الترحيل...', 'success');
+        if (gpsEnabled && window.AppGeo && AppGeo.withGpsForPost) {
+          AppGeo.withGpsForPost(
+            'mobile',
+            function (gps) {
+              if (gps === undefined) {
+                postFlowBusy = false;
+                showPostStatus('تم إلغاء الترحيل — الموقع مطلوب.', 'error');
+                return;
+              }
+              submitPost(gps);
+            },
+            { primed: gpsPrimed }
+          );
+          return;
+        }
+        submitPost(null);
+      });
+    }
+
+    if (gpsEnabled && gpsPrimed) {
+      setTimeout(openPostConfirm, 400);
+      return;
+    }
+
+    openPostConfirm();
   }
 
   var btnEdit = TB.btn ? TB.btn('edit') : null;

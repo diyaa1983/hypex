@@ -17,7 +17,8 @@ function mobile_main_toolbar_html(): string
         . mobile_toolbar_button_html('print', 'طباعة', 'print', $tb . ' m-btn--secondary')
         . mobile_toolbar_button_html('pdf', 'PDF', 'pdf', $tb . ' m-btn--primary')
         . mobile_toolbar_button_html('post', 'ترحيل', 'post', $tb . ' m-btn--primary')
-        . mobile_toolbar_button_html('einvoice', 'فوترة', 'einvoice', $tb . ' m-btn--secondary');
+        . mobile_toolbar_button_html('einvoice', 'فوترة', 'einvoice', $tb . ' m-btn--secondary')
+        . mobile_toolbar_button_html('camera', 'تصوير', 'camera', $tb . ' m-btn--secondary');
 
     return '<footer id="m-main-toolbar" class="m-action-dock m-main-toolbar" aria-label="أدوات الشاشة">'
         . '<p class="m-action-dock-title" id="m-toolbar-title" hidden></p>'

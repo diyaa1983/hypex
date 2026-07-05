@@ -11,6 +11,29 @@
   var barDeleteBtn = TB.btn ? TB.btn('delete') : null;
   var barPrintBtn = TB.btn ? TB.btn('print') : null;
   var barPdfBtn = TB.btn ? TB.btn('pdf') : null;
+  var photoArchive = null;
+  if (cfg.canArchive && window.MobileInvoicePhotoArchive) {
+    photoArchive = MobileInvoicePhotoArchive.create({
+      apiUrl: cfg.archiveApi || '',
+      csrf: cfg.csrf || '',
+      kind: 'sales_invoice',
+      getInvoiceId: function () {
+        return parseInt(invoiceIdInp && invoiceIdInp.value, 10) || 0;
+      },
+      isLocked: function () {
+        return !!(form && form.classList.contains('m-invoice-form--locked'));
+      },
+      onPending: function (hasPending) {
+        if (!editBanner) return;
+        if (hasPending) {
+          showEditBanner('صورة الطلبية جاهزة — احفظ الفاتورة لإرفاقها بالأرشيف.', 'info');
+        } else if (editBanner.textContent.indexOf('صورة الطلبية') >= 0) {
+          editBanner.hidden = true;
+        }
+      },
+    });
+    photoArchive.bindToolbar(TB);
+  }
   var printCache = null;
   var linesJson = document.getElementById('m-lines-json');
   var linesTbody = document.getElementById('m-lines-tbody');
@@ -697,13 +720,18 @@
     var locked = form && form.classList.contains('m-invoice-form--locked');
     var vis = {};
     if (!locked) vis.save = true;
+    if (cfg.canArchive && !locked) vis.camera = true;
     if (cfg.canDelete && id > 0 && !locked) vis.delete = true;
     if (id > 0) {
       vis.print = true;
       vis.pdf = true;
     }
+    var cols = 0;
+    Object.keys(vis).forEach(function (k) {
+      if (vis[k]) cols++;
+    });
     if (TB.show) {
-      TB.show(vis, { formId: 'm-invoice-form' });
+      TB.show(vis, { formId: 'm-invoice-form', cols: cols > 0 ? cols : undefined });
     }
   }
 
@@ -1039,25 +1067,33 @@
             return;
           }
           var invId = parseInt(data.invoice_id, 10) || 0;
-          if (invId > 0 && window.AppMobile && AppMobile.mobileUrl) {
-            var viewUrl = AppMobile.mobileUrl + '?r=m_sales_invoice_view&id=' + encodeURIComponent(String(invId));
-            window.location.href = viewUrl;
+          function afterSaveRedirect() {
+            if (invId > 0 && window.AppMobile && AppMobile.mobileUrl) {
+              var viewUrl =
+                AppMobile.mobileUrl + '?r=m_sales_invoice_view&id=' + encodeURIComponent(String(invId));
+              window.location.href = viewUrl;
+              return;
+            }
+            var no = data.invoice_no || '';
+            if (window.AppDialog && AppDialog.success) {
+              AppDialog.success('تم حفظ الفاتورة' + (no ? ' رقم ' + no : '') + ' (غير مرحّلة).');
+            }
+            lines = [];
+            allItems = [];
+            itemsLoadedForWh = null;
+            syncAll();
+            form.reset();
+            clearCustomerSelection();
+            var dateInp = form.querySelector('[name="invoice_date"]');
+            if (dateInp) dateInp.value = new Date().toISOString().slice(0, 10);
+            var pay = document.getElementById('m-payment-type');
+            if (pay) pay.value = 'credit';
+          }
+          if (invId > 0 && photoArchive && photoArchive.hasPending()) {
+            photoArchive.flushPending(invId).then(afterSaveRedirect);
             return;
           }
-          var no = data.invoice_no || '';
-          if (window.AppDialog && AppDialog.success) {
-            AppDialog.success('تم حفظ الفاتورة' + (no ? ' رقم ' + no : '') + ' (غير مرحّلة).');
-          }
-          lines = [];
-          allItems = [];
-          itemsLoadedForWh = null;
-          syncAll();
-          form.reset();
-          clearCustomerSelection();
-          var dateInp = form.querySelector('[name="invoice_date"]');
-          if (dateInp) dateInp.value = new Date().toISOString().slice(0, 10);
-          var pay = document.getElementById('m-payment-type');
-          if (pay) pay.value = 'credit';
+          afterSaveRedirect();
         })
         .catch(function () {
           if (btn) btn.disabled = false;

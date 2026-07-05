@@ -1409,20 +1409,67 @@
     return source === 'mobile' || isCapacitorNative() || isMobileLikeClient(source);
   }
 
+  /**
+   * يُستدعى مباشرة من نقرة المستخدم (قبل أي await) لإظهار طلب صلاحية الموقع في المتصفح.
+   * @returns {Promise<object>|null}
+   */
+  function primePostGpsFromUserGesture(source) {
+    primedPostGpsPromise = null;
+    if (!canUseGeolocation()) {
+      return null;
+    }
+
+    var postOpts = {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 30000,
+    };
+
+    if (getNativeGeoPlugin()) {
+      primedPostGpsPromise = ensureNativeGeoPermission()
+        .then(function () {
+          return getCurrentPosition(postOpts);
+        })
+        .catch(function () {
+          return requestGpsForPost(source);
+        });
+      return primedPostGpsPromise;
+    }
+
+    primedPostGpsPromise = getCurrentPosition(postOpts).catch(function () {
+      return requestGpsForPost(source);
+    });
+    return primedPostGpsPromise;
+  }
+
+  function clearPrimedPostGps() {
+    primedPostGpsPromise = null;
+  }
+
+  function consumePrimedPostGps(externalPrimed) {
+    var primed = externalPrimed || primedPostGpsPromise;
+    primedPostGpsPromise = null;
+    return primed || null;
+  }
+
 
 
   /**
 
    * @param {'mobile'|'desktop'} source
 
-   * @param {function(object|null): void} onReady — null = بدون GPS، undefined = أُلغي
+   * @param {function(object|null|undefined): void} onReady — null = بدون GPS، undefined = أُلغي
+
+   * @param {{ primed?: Promise<object>|null }} [opts]
 
    */
 
-  function withGpsForPost(source, onReady) {
+  function withGpsForPost(source, onReady, opts) {
 
+    opts = opts || {};
     var settled = false;
     var mobilePost = isMobileLikeClient(source);
+    var primed = consumePrimedPostGps(opts.primed);
 
     function done(gps) {
       if (settled) {
@@ -1453,6 +1500,56 @@
       });
     }
 
+    function runResolvePath() {
+      resolveGpsForPost(source)
+        .then(function (gps) {
+          if (gps && isValidCoordReading(gps)) {
+            done(gps);
+            return;
+          }
+          if (mobilePost) {
+            offerMapFallback();
+            return;
+          }
+          done(null);
+        })
+        .catch(function () {
+          var cached = getPostGpsCache(600000);
+          if (cached && isValidCoordReading(cached)) {
+            done(cached);
+            return;
+          }
+          if (mobilePost) {
+            offerMapFallback();
+            return;
+          }
+          done(null);
+        });
+    }
+
+    if (primed && typeof primed.then === 'function') {
+      primed
+        .then(function (gps) {
+          if (gps && isValidCoordReading(gps)) {
+            done(gps);
+            return;
+          }
+          if (mobilePost) {
+            offerMapFallback();
+            return;
+          }
+          runResolvePath();
+        })
+        .catch(function () {
+          if (mobilePost) {
+            offerMapFallback();
+            return;
+          }
+          runResolvePath();
+        });
+      return;
+    }
+
     if (!canUseGeolocation()) {
       if (mobilePost) {
         offerMapFallback();
@@ -1463,31 +1560,7 @@
     }
 
     startPostGpsWarmup(source);
-
-    resolveGpsForPost(source)
-      .then(function (gps) {
-        if (gps && isValidCoordReading(gps)) {
-          done(gps);
-          return;
-        }
-        if (mobilePost) {
-          offerMapFallback();
-          return;
-        }
-        done(null);
-      })
-      .catch(function () {
-        var cached = getPostGpsCache(600000);
-        if (cached && isValidCoordReading(cached)) {
-          done(cached);
-          return;
-        }
-        if (mobilePost) {
-          offerMapFallback();
-          return;
-        }
-        done(null);
-      });
+    runResolvePath();
 
   }
 
@@ -1518,6 +1591,10 @@
     isAcceptablePostGps: isAcceptablePostGps,
 
     withGpsForPost: withGpsForPost,
+
+    primePostGpsFromUserGesture: primePostGpsFromUserGesture,
+
+    clearPrimedPostGps: clearPrimedPostGps,
 
     prefetchForPost: prefetchForPost,
 
