@@ -1,4 +1,4 @@
-/* سند تسليم بضاعة — نفس تفاصيل وحجم فاتورة المبيعات (Oracle 12c) */
+/* سند تسليم بضاعة — نفس تفاصيل جدول فاتورة المبيعات (Oracle 12c) */
 
 .dashboard-ora.sales-ora12-screen.sales-dlv-wrap .sales-inv-table {
   min-width: 720px;
@@ -12,7 +12,7 @@
   width: 3.5rem;
 }
 
-.sales-dlv-wrap .sales-dlv-table .sales-inv-col-barcode {
+.sales-dlv-wrap .sales-dlv-table .sales-inv-col-sku {
   width: 14%;
 }
 

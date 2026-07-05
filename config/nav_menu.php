@@ -31,13 +31,73 @@ return [
                     'items' => [
                         ['r' => 'sales_invoices', 'label' => 'فاتورة مبيعات', 'icon' => '🧾'],
                         ['r' => 'sales_documents_list', 'label' => 'قائمة فواتير المبيعات', 'icon' => '📑'],
-                        ['r' => 'sales_returns_documents_list', 'label' => 'قائمة المرتجعات', 'icon' => '↩'],
                         ['r' => 'sales_invoices_list', 'label' => 'ترحيل فواتير المبيعات', 'icon' => '📋'],
-                        ['r' => 'sales_delivery', 'label' => 'سند تسليم بضاعة', 'icon' => '📦'],
-                        ['r' => 'sales_returns', 'label' => 'مرتجع مبيعات', 'icon' => '↩'],
-                        ['r' => 'sales_returns_list', 'label' => 'ترحيل مرتجعات المبيعات', 'icon' => '📋'],
+                    ],
+                ],
+                [
+                    'id' => 'sales_delivery',
+                    'title' => 'سند التسليم',
+                    'subgroups' => [
+                        [
+                            'id' => 'operations',
+                            'title' => 'سند التسليم',
+                            'items' => [
+                                ['r' => 'sales_delivery', 'label' => 'سند تسليم بضاعة', 'icon' => '📦'],
+                            ],
+                        ],
+                        [
+                            'id' => 'reports',
+                            'title' => 'التقارير',
+                            'items' => [
+                                ['r' => 'report_sales_delivery', 'label' => 'تقرير سندات البضاعة', 'icon' => '📦'],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    'id' => 'sales_returns',
+                    'title' => 'مرتجعات المبيعات',
+                    'subgroups' => [
+                        [
+                            'id' => 'operations',
+                            'title' => 'مرتجعات المبيعات',
+                            'items' => [
+                                ['r' => 'sales_returns', 'label' => 'مرتجع مبيعات', 'icon' => '↩'],
+                                ['r' => 'sales_returns_documents_list', 'label' => 'قائمة المرتجعات', 'icon' => '↩'],
+                                ['r' => 'sales_returns_list', 'label' => 'ترحيل مرتجعات المبيعات', 'icon' => '📋'],
+                            ],
+                        ],
+                        [
+                            'id' => 'reports',
+                            'title' => 'التقارير',
+                            'items' => [
+                                ['r' => 'report_sales_returns', 'label' => 'تقرير المرتجعات', 'icon' => '↩️'],
+                                ['r' => 'report_sales_returns_totals', 'label' => 'إجمالي المرتجعات', 'icon' => '∑'],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    'id' => 'reports',
+                    'title' => 'التقارير',
+                    'items' => [
+                        ['r' => 'report_sales', 'label' => 'تقرير المبيعات الشهري حسب العميل', 'icon' => '📈'],
+                        ['r' => 'report_sales_between_dates', 'label' => 'تقرير المبيعات بين تاريخين', 'icon' => '📆'],
+                        ['r' => 'report_sales_by_item', 'label' => 'تقرير المبيعات حسب المادة', 'icon' => '📦'],
+                        ['r' => 'report_sales_qty_extra', 'label' => 'تقرير الكميات الإضافية على الفواتير', 'icon' => '➕'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'customers',
+            'title' => 'العملاء',
+            'subgroups' => [
+                [
+                    'id' => 'operations',
+                    'title' => 'العملاء',
+                    'items' => [
                         ['r' => 'customers', 'label' => 'العملاء', 'icon' => '👤'],
-                        ['r' => 'sales_reps', 'label' => 'المندوبين', 'icon' => '🧑‍💼'],
                     ],
                 ],
                 [
@@ -45,14 +105,26 @@ return [
                     'title' => 'التقارير',
                     'items' => [
                         ['r' => 'report_customers', 'label' => 'تقرير العملاء', 'icon' => '👥'],
-                        ['r' => 'report_sales', 'label' => 'تقرير المبيعات الشهري حسب العميل', 'icon' => '📈'],
-                        ['r' => 'report_sales_between_dates', 'label' => 'تقرير المبيعات بين تاريخين', 'icon' => '📆'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'id' => 'sales_reps',
+            'title' => 'المندوبين',
+            'subgroups' => [
+                [
+                    'id' => 'operations',
+                    'title' => 'المندوبين',
+                    'items' => [
+                        ['r' => 'sales_reps', 'label' => 'المندوبين', 'icon' => '🧑‍💼'],
+                    ],
+                ],
+                [
+                    'id' => 'reports',
+                    'title' => 'التقارير',
+                    'items' => [
                         ['r' => 'report_sales_by_rep', 'label' => 'تقرير المبيعات حسب المندوب', 'icon' => '📊'],
-                        ['r' => 'report_sales_by_item', 'label' => 'تقرير المبيعات حسب المادة', 'icon' => '📦'],
-                        ['r' => 'report_sales_returns', 'label' => 'تقرير المرتجعات', 'icon' => '↩️'],
-                        ['r' => 'report_sales_returns_totals', 'label' => 'إجمالي المرتجعات', 'icon' => '∑'],
-                        ['r' => 'report_sales_qty_extra', 'label' => 'تقرير الكميات الإضافية على الفواتير', 'icon' => '➕'],
-                        ['r' => 'report_sales_delivery', 'label' => 'تقرير سندات البضاعة', 'icon' => '📦'],
                     ],
                 ],
             ],

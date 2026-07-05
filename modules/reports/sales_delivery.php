@@ -110,34 +110,34 @@ if ($showResult) {
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
     <?php endif; ?>
 
-    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters report-sales-filters--inline no-print">
+    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print">
         <input type="hidden" name="r" value="report_sales_delivery">
 
-        <div class="report-sales-filters-row">
+        <div class="form-row">
             <?= customer_picker_field([
                 'id' => 'report_sales_delivery_cust',
                 'name' => 'customer_id',
                 'value' => $customerId >= 0 ? $customerId : '',
                 'label' => 'العميل *',
-                'wrapper_class' => 'field report-sales-filter-field report-sales-filter-field--customer',
+                'wrapper_class' => 'field',
+                'wrapper_style' => 'flex:1 1 16rem',
                 'allow_all' => true,
-                'compact' => true,
                 'json_id' => 'report-sales-delivery-customers-json',
             ]) ?>
 
-            <label class="field report-sales-filter-field report-sales-filter-field--date">
+            <label class="field report-sales-filter-field--date">
                 <span class="field-label">من تاريخ *</span>
                 <input class="input js-date-dmy" type="text" name="from" value="<?= esc(format_date_dmY($from)) ?>"
                        placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
             </label>
 
-            <label class="field report-sales-filter-field report-sales-filter-field--date">
+            <label class="field report-sales-filter-field--date">
                 <span class="field-label">إلى تاريخ *</span>
                 <input class="input js-date-dmy" type="text" name="to" value="<?= esc(format_date_dmY($to)) ?>"
                        placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
             </label>
 
-            <label class="field report-sales-filter-field report-sales-filter-field--rep">
+            <label class="field" style="flex:0 0 9.5rem;min-width:9.5rem;">
                 <span class="field-label">الحالة</span>
                 <select class="input" name="status">
                     <option value="all"<?= $statusFilter === 'all' ? ' selected' : '' ?>>الكل</option>
@@ -147,11 +147,10 @@ if ($showResult) {
                     <option value="cancelled"<?= $statusFilter === 'cancelled' ? ' selected' : '' ?>>ملغى</option>
                 </select>
             </label>
+        </div>
 
-            <div class="field report-sales-filter-field report-sales-filter-field--submit">
-                <span class="field-label" aria-hidden="true">&nbsp;</span>
-                <button class="btn btn-primary" type="submit">عرض التقرير</button>
-            </div>
+        <div style="margin-top:0.5rem;">
+            <button class="btn btn-primary" type="submit">عرض التقرير</button>
         </div>
     </form>
 
@@ -181,8 +180,20 @@ if ($showResult) {
                 </table>
             </div>
 
+            <div class="report-sales-period-head">
+                <strong>الفترة:</strong>
+                <span class="report-sales-period-from" dir="ltr"><?= esc(format_date_dmY($from)) ?></span>
+                <span class="report-sales-period-sep">إلى</span>
+                <span class="report-sales-period-to" dir="ltr"><?= esc(format_date_dmY($to)) ?></span>
+            </div>
+
+            <?php
+            $totalColspan = $showAllCustomers ? 6 : 5;
+            $emptyColspan = 2;
+            ?>
+            <div class="report-sales-table-stack">
             <div class="report-sales-table-wrap">
-                <table class="report-sales-table js-sortable-report<?= $showAllCustomers ? ' report-sales-table--all-customers' : '' ?>"
+                <table class="report-sales-table report-sales-table--delivery js-sortable-report<?= $showAllCustomers ? ' report-sales-table--all-customers' : '' ?>"
                        data-default-sort="<?= esc($defaultSortKey) ?>"
                        data-default-dir="asc">
                     <colgroup>
@@ -192,12 +203,12 @@ if ($showResult) {
                         <col class="col-customer">
                         <?php endif; ?>
                         <col class="col-date">
-                        <col class="col-customer">
+                        <col class="col-warehouse">
                         <col class="col-posted">
-                        <col class="col-seq">
-                        <col class="col-money">
-                        <col class="col-inv-no">
-                        <col class="col-customer">
+                        <col class="col-lines">
+                        <col class="col-qty">
+                        <col class="col-linked-inv">
+                        <col class="col-notes">
                     </colgroup>
                     <thead>
                     <tr>
@@ -207,12 +218,12 @@ if ($showResult) {
                         <th class="col-customer js-sort-th" data-sort="customer_name" data-sort-type="text" title="ترتيب حسب العميل">العميل</th>
                         <?php endif; ?>
                         <th class="col-date js-sort-th" data-sort="delivery_date" data-sort-type="date" title="ترتيب حسب التاريخ">التاريخ</th>
-                        <th class="col-customer js-sort-th" data-sort="warehouse_name" data-sort-type="text" title="ترتيب حسب المستودع">المستودع</th>
+                        <th class="col-warehouse js-sort-th" data-sort="warehouse_name" data-sort-type="text" title="ترتيب حسب المستودع">المستودع</th>
                         <th class="col-posted js-sort-th" data-sort="status_label" data-sort-type="text" title="ترتيب حسب الحالة">الحالة</th>
-                        <th class="col-seq js-sort-th" data-sort="line_count" data-sort-type="number" title="ترتيب حسب البنود">البنود</th>
-                        <th class="col-money js-sort-th" data-sort="total_qty" data-sort-type="number" title="ترتيب حسب الكمية">الكمية</th>
-                        <th class="col-inv-no js-sort-th" data-sort="linked_invoice_no" data-sort-type="text" title="ترتيب حسب الفاتورة">فاتورة مرتبطة</th>
-                        <th class="col-customer js-sort-th" data-sort="notes" data-sort-type="text" title="ترتيب حسب الملاحظات">ملاحظات</th>
+                        <th class="col-lines js-sort-th" data-sort="line_count" data-sort-type="number" title="ترتيب حسب البنود">البنود</th>
+                        <th class="col-qty js-sort-th" data-sort="total_qty" data-sort-type="number" title="ترتيب حسب الكمية">الكمية</th>
+                        <th class="col-linked-inv js-sort-th" data-sort="linked_invoice_no" data-sort-type="text" title="ترتيب حسب الفاتورة">فاتورة مرتبطة</th>
+                        <th class="col-notes js-sort-th" data-sort="notes" data-sort-type="text" title="ترتيب حسب الملاحظات">ملاحظات</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -231,6 +242,8 @@ if ($showResult) {
                         $invUrl = (int) ($r['linked_invoice_id'] ?? 0) > 0
                             ? app_url('index.php?r=sales_invoices&id=' . (int) $r['linked_invoice_id'])
                             : '';
+                        $status = (string) ($r['status'] ?? 'confirmed');
+                        $isPosted = (int) ($r['is_posted'] ?? 0);
                         ?>
                         <tr data-sort-row="1"
                             data-sort-seq="<?= $seq ?>"
@@ -255,34 +268,54 @@ if ($showResult) {
                             <td class="col-customer"><span class="report-sales-party-name"><?= esc((string) ($r['customer_name'] ?? '')) ?></span></td>
                             <?php endif; ?>
                             <td class="col-date" dir="ltr"><?= esc(format_date_dmY((string) ($r['delivery_date'] ?? ''))) ?></td>
-                            <td><?= ($r['warehouse_name'] ?? '') !== '' ? esc((string) $r['warehouse_name']) : '—' ?></td>
-                            <td class="col-posted"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
-                            <td class="col-seq"><?= (int) ($r['line_count'] ?? 0) ?></td>
-                            <td class="col-money"><?= esc(format_amount((float) ($r['total_qty'] ?? 0), 3)) ?></td>
-                            <td class="col-inv-no">
+                            <td class="col-warehouse"><?= ($r['warehouse_name'] ?? '') !== '' ? esc((string) $r['warehouse_name']) : '—' ?></td>
+                            <td class="col-posted"><?= sal_delivery_report_status_badge_html($status, $isPosted) ?></td>
+                            <td class="col-lines"><?= (int) ($r['line_count'] ?? 0) ?></td>
+                            <td class="col-qty"><?= esc(format_amount((float) ($r['total_qty'] ?? 0), 3)) ?></td>
+                            <td class="col-linked-inv">
                                 <?php if ($invUrl !== ''): ?>
                                     <code><?= esc((string) $r['linked_invoice_no']) ?></code>
                                     <a class="btn btn-ghost btn-sm no-print" style="padding:0 0.35rem;font-size:0.75rem;"
                                        href="<?= esc($invUrl) ?>">عرض</a>
                                 <?php else: ?>
-                                    —
+                                    <span class="muted">—</span>
                                 <?php endif; ?>
                             </td>
-                            <td><?= ($r['notes'] ?? '') !== '' ? esc((string) $r['notes']) : '—' ?></td>
+                            <td class="col-notes"><?= ($r['notes'] ?? '') !== '' ? esc((string) $r['notes']) : '—' ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
-                    <?php if ($rows): ?>
-                    <tfoot>
-                    <tr>
-                        <td colspan="<?= $showAllCustomers ? 6 : 5 ?>">الإجمالي</td>
-                        <td class="col-seq"><?= $sumLineCount ?></td>
-                        <td class="col-money"><?= esc(format_amount($sumQty, 3)) ?></td>
-                        <td colspan="2"></td>
-                    </tr>
-                    </tfoot>
-                    <?php endif; ?>
                 </table>
+            </div>
+
+            <?php if ($rows): ?>
+            <div class="report-sales-table-wrap report-sales-grand-total-wrap">
+                <table class="report-sales-table report-sales-table--delivery report-sales-grand-total-table<?= $showAllCustomers ? ' report-sales-table--all-customers' : '' ?>">
+                    <colgroup>
+                        <col class="col-seq">
+                        <col class="col-inv-no">
+                        <?php if ($showAllCustomers): ?>
+                        <col class="col-customer">
+                        <?php endif; ?>
+                        <col class="col-date">
+                        <col class="col-warehouse">
+                        <col class="col-posted">
+                        <col class="col-lines">
+                        <col class="col-qty">
+                        <col class="col-linked-inv">
+                        <col class="col-notes">
+                    </colgroup>
+                    <tbody>
+                    <tr class="report-sales-grand-total-row">
+                        <td colspan="<?= $totalColspan ?>">الإجمالي</td>
+                        <td class="col-lines"><?= $sumLineCount ?></td>
+                        <td class="col-qty"><?= esc(format_amount($sumQty, 3)) ?></td>
+                        <td colspan="<?= $emptyColspan ?>"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <?php endif; ?>
             </div>
         </div>
     <?php endif; ?>

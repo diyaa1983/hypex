@@ -1092,7 +1092,7 @@
       if (title) {
         title.textContent = forPdf
           ? 'معاينة — اختر «حفظ كـ PDF» من نافذة الطباعة'
-          : 'معاينة الطباعة — اضغط «طباعة» في الشريط العلوي';
+          : 'معاينة الطباعة';
       }
       overlay.hidden = false;
     };
@@ -2482,7 +2482,13 @@
   }
 
   var printCloseBtn = document.getElementById('sales-inv-print-close');
+  var printRunBtn = document.getElementById('sales-inv-print-run');
   var printOverlay = document.getElementById('sales-inv-print-overlay');
+  if (printRunBtn) {
+    printRunBtn.addEventListener('click', function () {
+      runPrintFromPreview();
+    });
+  }
   if (printCloseBtn) {
     printCloseBtn.addEventListener('click', closePrintPreview);
   }

@@ -29,6 +29,29 @@ function sal_delivery_report_status_filter_label(string $filter): string
     };
 }
 
+function sal_delivery_report_status_badge_class(string $status, int $isPosted): string
+{
+    if ($status === 'cancelled') {
+        return 'badge-off';
+    }
+    if ($isPosted === 1) {
+        return 'badge-ok';
+    }
+    if ($status === 'draft') {
+        return 'badge-warn';
+    }
+
+    return 'badge-warn';
+}
+
+function sal_delivery_report_status_badge_html(string $status, int $isPosted): string
+{
+    $label = sal_delivery_report_status_label($status, $isPosted);
+    $class = sal_delivery_report_status_badge_class($status, $isPosted);
+
+    return '<span class="badge ' . esc($class) . '">' . esc($label) . '</span>';
+}
+
 /**
  * @return list<array<string,mixed>>
  */

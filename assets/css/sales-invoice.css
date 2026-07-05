@@ -707,35 +707,39 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
 
 .sales-inv-item-lov-btn {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 1.1rem;
   width: 1.1rem;
   min-width: 1.1rem;
   height: 1.1rem;
   min-height: 1.1rem;
-  margin: 0;
+  margin: 0 2px;
   padding: 0;
   border: 1px solid #808080;
   border-radius: 2px;
-  background: linear-gradient(180deg, #ffffff 0%, #d4d0c8 52%, #b8b4ac 100%);
-  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #808080;
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  box-shadow: none;
   cursor: pointer;
   appearance: none;
-  font-family: inherit;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 0.45rem;
   line-height: 1;
+  color: #161513;
+  user-select: none;
+}
+
+.sales-inv-item-lov-btn::before {
+  content: "\25BC";
+  display: block;
+  line-height: 1rem;
+  text-align: center;
 }
 
 .sales-inv-item-lov-btn::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -34%);
-  width: 0;
-  height: 0;
-  border-left: 0.28rem solid transparent;
-  border-right: 0.28rem solid transparent;
-  border-top: 0.36rem solid #000;
-  pointer-events: none;
+  content: none;
+  display: none;
 }
 
 .sales-inv-item-lov-btn:focus {
@@ -748,12 +752,12 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
 }
 
 .sales-inv-item-lov-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, #fffffe 0%, #ece9e4 52%, #d4d0c8 100%);
+  background: linear-gradient(180deg, #fff 0%, #eef2f6 100%);
+  border-color: #0572ce;
 }
 
 .sales-inv-item-lov-btn:active:not(:disabled) {
-  background: linear-gradient(180deg, #b8b4ac 0%, #d4d0c8 48%, #ece9e4 100%);
-  box-shadow: inset -1px -1px 0 #fff, inset 1px 1px 0 #808080;
+  background: linear-gradient(180deg, #e8ecf0 0%, #fafbfc 100%);
 }
 
 .sales-inv-item-lov-btn:disabled,
@@ -2122,34 +2126,20 @@ body.app-body--focus .sales-inv-print-overlay {
 }
 
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov-btn {
-  flex: 0 0 0.95rem;
-  width: 0.95rem;
-  min-width: 0.95rem;
-  height: 0.85rem;
-  min-height: 0.85rem;
-  padding: 0;
-  background: linear-gradient(180deg, #ffffff 0%, #d4d0c8 55%, #c0bdb5 100%);
-  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #808080;
+  flex: 0 0 1.1rem;
+  width: 1.1rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  min-height: 1.1rem;
+  margin: 0 2px;
+  border: 1px solid #808080;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  box-shadow: none;
+  color: #161513;
+  font-size: 0.45rem;
 }
 
-.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov-btn::after {
-  border-left-width: 0.24rem;
-  border-right-width: 0.24rem;
-  border-top-width: 0.3rem;
-  border-top-color: #000;
-}
-
-.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov.is-empty {
-  justify-content: flex-start;
-}
-
-.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov:not(.is-empty) .sales-inv-item-name {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #000;
-}
-
-.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov-btn,
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-item-pick,
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-pick-btn {
   border-radius: 0;
@@ -2165,8 +2155,19 @@ body.app-body--focus .sales-inv-print-overlay {
   padding: 0.12rem 0.28rem;
 }
 
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov.is-empty {
+  justify-content: flex-start;
+}
+
+.sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov:not(.is-empty) .sales-inv-item-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #000;
+}
+
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-item-lov-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, #fffffe 0%, #ece9e4 52%, #d4d0c8 100%);
+  background: linear-gradient(180deg, #fff 0%, #eef2f6 100%);
+  border-color: #0572ce;
 }
 
 .sales-ora-screen.sales-inv-ora-screen .sales-inv-item-pick:hover:not(:disabled),

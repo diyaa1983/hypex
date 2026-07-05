@@ -146,22 +146,22 @@ if ($showResult) {
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
     <?php endif; ?>
 
-    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters report-sales-filters--inline no-print">
+    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print">
         <input type="hidden" name="r" value="report_sales_between_dates">
 
-        <div class="report-sales-filters-row">
+        <div class="form-row">
             <?= customer_picker_field([
                 'id' => 'report_sales_cust',
                 'name' => 'customer_id',
                 'value' => $customerId >= 0 ? $customerId : '',
                 'label' => 'العميل *',
-                'wrapper_class' => 'field report-sales-filter-field report-sales-filter-field--customer',
+                'wrapper_class' => 'field',
+                'wrapper_style' => 'flex:1 1 16rem',
                 'allow_all' => true,
-                'compact' => true,
                 'json_id' => 'report-sales-customers-json',
             ]) ?>
 
-            <label class="field report-sales-filter-field report-sales-filter-field--rep">
+            <label class="field" style="flex:1 1 12rem;">
                 <span class="field-label">المندوب *</span>
                 <select class="input" name="sales_rep_id" required>
                     <option value="0" <?= $salesRepId === 0 ? 'selected' : '' ?>>جميع المندوبين</option>
@@ -173,22 +173,21 @@ if ($showResult) {
                 </select>
             </label>
 
-            <label class="field report-sales-filter-field report-sales-filter-field--date">
+            <label class="field report-sales-filter-field--date">
                 <span class="field-label">من تاريخ *</span>
                 <input class="input js-date-dmy" type="text" name="from" value="<?= esc(format_date_dmY($from)) ?>"
                        placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
             </label>
 
-            <label class="field report-sales-filter-field report-sales-filter-field--date">
+            <label class="field report-sales-filter-field--date">
                 <span class="field-label">إلى تاريخ *</span>
                 <input class="input js-date-dmy" type="text" name="to" value="<?= esc(format_date_dmY($to)) ?>"
                        placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
             </label>
+        </div>
 
-            <div class="field report-sales-filter-field report-sales-filter-field--submit">
-                <span class="field-label" aria-hidden="true">&nbsp;</span>
-                <button class="btn btn-primary" type="submit">عرض التقرير</button>
-            </div>
+        <div style="margin-top:0.5rem;">
+            <button class="btn btn-primary" type="submit">عرض التقرير</button>
         </div>
     </form>
 
@@ -223,6 +222,13 @@ if ($showResult) {
                 </table>
             </div>
 
+            <div class="report-sales-period-head">
+                <strong>الفترة:</strong>
+                <span class="report-sales-period-from" dir="ltr"><?= esc(format_date_dmY($from)) ?></span>
+                <span class="report-sales-period-sep">إلى</span>
+                <span class="report-sales-period-to" dir="ltr"><?= esc(format_date_dmY($to)) ?></span>
+            </div>
+
             <div class="report-sales-item-filter no-print" aria-label="بحث عن مادة في نتائج التقرير">
                 <label class="report-sales-item-filter-field">
                     <span class="field-label">بحث عن مادة</span>
@@ -236,8 +242,9 @@ if ($showResult) {
                 <p class="report-sales-item-filter-hint js-report-item-filter-hint" hidden></p>
             </div>
 
+            <div class="report-sales-table-stack">
             <div class="report-sales-table-wrap">
-                <table class="report-sales-table js-sortable-report<?= $showAllCustomers ? ' report-sales-table--all-customers' : '' ?>"
+                <table class="report-sales-table report-sales-table--between-dates js-sortable-report<?= $showAllCustomers ? ' report-sales-table--all-customers' : '' ?>"
                        data-default-sort="<?= esc($defaultSortKey) ?>"
                        data-default-dir="asc">
                     <colgroup>
@@ -324,7 +331,7 @@ if ($showResult) {
 
             <?php if ($rows): ?>
             <div class="report-sales-table-wrap report-sales-grand-total-wrap">
-                <table class="report-sales-table report-sales-grand-total-table<?= $showAllCustomers ? ' report-sales-table--all-customers' : '' ?>">
+                <table class="report-sales-table report-sales-table--between-dates report-sales-grand-total-table<?= $showAllCustomers ? ' report-sales-table--all-customers' : '' ?>">
                     <colgroup>
                         <col class="col-seq">
                         <col class="col-inv-no">
@@ -348,6 +355,7 @@ if ($showResult) {
                 </table>
             </div>
             <?php endif; ?>
+            </div>
         </div>
     <?php endif; ?>
 </div>

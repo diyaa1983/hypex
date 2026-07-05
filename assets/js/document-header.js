@@ -189,6 +189,7 @@
   function ensurePrintUserFooter(doc) {
     doc = doc || (typeof document !== 'undefined' ? document : null);
     if (!doc || !doc.body) return;
+    if (doc.body.querySelector('.doc-print-user-footer--end')) return;
     if (doc.body.querySelector('.doc-print-user-footer')) return;
     var html = buildPrintUserFooter();
     if (html) {

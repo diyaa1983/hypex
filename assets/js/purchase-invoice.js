@@ -136,14 +136,15 @@
     tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
       var pick = tr.querySelector('.js-pick-open');
       var rm = tr.querySelector('.js-remove');
-      if (locked) {
-        tr.querySelectorAll('.js-qty, .js-qty-extra, .js-price, .js-line-sub, .js-line-gross, .js-discount, .js-tax, .js-barcode-inp').forEach(function (inp) {
+      tr.querySelectorAll('.js-qty, .js-qty-extra, .js-price, .js-line-sub, .js-line-gross, .js-discount, .js-tax, .js-barcode-inp').forEach(function (inp) {
+        if (locked) {
           inp.setAttribute('readonly', 'readonly');
           if (inp.tagName === 'SELECT') inp.disabled = true;
-        });
-      } else {
-        applyRowItemPickLock(tr);
-      }
+        } else {
+          inp.removeAttribute('readonly');
+          if (inp.tagName === 'SELECT') inp.disabled = false;
+        }
+      });
       if (pick) {
         if (locked) {
           pick.disabled = true;
@@ -156,6 +157,7 @@
         }
       }
       if (rm) rm.style.display = locked ? 'none' : '';
+      if (!locked) applyRowItemPickLock(tr);
     });
     if (!locked) ensureEntryRow();
     if (global.FinVoucherArchive) {
@@ -927,9 +929,20 @@
     }
 
     if (dRow !== 0) {
+      if (rowNeedsQtyInput(tr)) {
+        focusRowQtyField(tr);
+        return true;
+      }
       var newRowIdx = rowIdx + dRow;
       while (newRowIdx >= 0 && newRowIdx < rows.length) {
         var targetRow = rows[newRowIdx];
+        if (getRowItemId(targetRow) < 1) {
+          if (blockItemPickUntilQty(targetRow, { alert: false, actionLabel: 'الانتقال لسطر جديد' })) {
+            return true;
+          }
+          focusRowItemPick(targetRow);
+          return true;
+        }
         var targetFields = getRowNavFields(targetRow);
         if (targetFields.length) {
           var pickCol = Math.min(colIdx, targetFields.length - 1);
@@ -1289,6 +1302,49 @@
     return getRowItemId(tr) > 0 && rowStockQty(tr) <= 0;
   }
 
+  function findFirstRowMissingQty() {
+    var found = null;
+    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
+      if (found) return;
+      if (rowNeedsQtyInput(tr)) found = tr;
+    });
+    return found;
+  }
+
+  function alertQtyRequired(tr, actionLabel) {
+    if (!tr || !global.AppDialog) return;
+    var name = tr.dataset.nameAr || 'المادة';
+    AppDialog.alert(
+      'أدخل الكمية قبل ' + (actionLabel || 'المتابعة') + '.\n\nالمادة: ' + name,
+      { type: 'warning', title: 'الكمية مطلوبة' }
+    );
+  }
+
+  /** يمنع اختيار/تغيير مادة حتى إدخال الكمية في السطر الحالي أو أي سطر سابق ناقص. */
+  function blockItemPickUntilQty(tr, opts) {
+    opts = opts || {};
+    if (invoiceIsPosted || invoiceIsCancelled || ledgerView) return false;
+
+    if (tr && rowNeedsQtyInput(tr)) {
+      if (opts.alert !== false) {
+        alertQtyRequired(tr, opts.actionLabel || 'اختيار مادة أخرى');
+      }
+      focusRowQtyField(tr);
+      return true;
+    }
+
+    var pending = findFirstRowMissingQty();
+    if (pending && (!tr || pending !== tr)) {
+      if (opts.alert !== false) {
+        alertQtyRequired(pending, opts.actionLabel || 'اختيار مادة أخرى');
+      }
+      focusRowQtyField(pending);
+      return true;
+    }
+
+    return false;
+  }
+
   function applyRowQtyLock(tr) {
     if (!tr) return;
     var formLocked = ledgerView || invoiceIsCancelled || (currentInvoiceId > 0 && !!invoiceIsPosted);
@@ -1312,6 +1368,25 @@
         if (el.tagName === 'SELECT') el.disabled = false;
       }
     });
+    var pick = tr.querySelector('.js-pick-open');
+    if (pick) {
+      pick.classList.toggle('is-qty-required-locked', needsQty);
+      pick.disabled = !!needsQty;
+    }
+    var itemCell = tr.querySelector('.sales-inv-item-cell');
+    if (itemCell) {
+      itemCell.classList.toggle('is-qty-required-locked', needsQty);
+    }
+    var barcodeInpLock = tr.querySelector('.js-barcode-inp');
+    if (barcodeInpLock && getRowItemId(tr) > 0) {
+      if (needsQty) {
+        barcodeInpLock.setAttribute('readonly', 'readonly');
+        barcodeInpLock.classList.add('is-qty-required-locked');
+      } else if (barcodeInpLock.classList.contains('is-qty-required-locked')) {
+        barcodeInpLock.removeAttribute('readonly');
+        barcodeInpLock.classList.remove('is-qty-required-locked');
+      }
+    }
     var qtyEl = tr.querySelector('.js-qty');
     if (qtyEl) {
       qtyEl.classList.toggle('is-qty-required', needsQty);
@@ -1373,6 +1448,7 @@
 
   function focusRowMaterialCodeField(tr) {
     if (!tr) return;
+    if (blockItemPickUntilQty(tr, { alert: false, actionLabel: 'إدخال مادة' })) return;
     var bc = tr.querySelector('.js-barcode-inp');
     if (bc && !bc.disabled) {
       bc.focus();
@@ -1640,6 +1716,10 @@
       nameEl.textContent = name || 'اضغط لاختيار المادة';
       nameEl.classList.toggle('is-placeholder', !name);
     }
+    var lovWrap = tr.querySelector('.sales-inv-item-lov');
+    if (lovWrap) {
+      lovWrap.classList.toggle('is-empty', !name);
+    }
     var materialNo = itemMaterialNumber(barcode, sku);
     var skuEl = tr.querySelector('.js-sku');
     if (skuEl) {
@@ -1719,6 +1799,7 @@
   function applyBarcodeItemToRow(tr, item) {
     var normalized = normalizePickerItem(item);
     if (!normalized || !tr) return false;
+    if (blockItemPickUntilQty(tr, { actionLabel: 'إدخال مادة' })) return false;
 
     var wasEntry = tr.classList.contains('is-entry-row');
     var emptyLine = !parseInt(tr.dataset.itemId, 10);
@@ -1885,6 +1966,7 @@
 
   function appendItemsToInvoice(items) {
     if (!items || !items.length) return null;
+    if (blockItemPickUntilQty(null, { actionLabel: 'إضافة مادة' })) return null;
     var firstFocus = null;
     items.forEach(function (raw) {
       var row = appendLineFromPickerItem(raw);
@@ -1985,6 +2067,10 @@
 
   function addPickerItems(items) {
     if (!items || !items.length) return;
+    if (blockItemPickUntilQty(activePickRow, { actionLabel: 'اختيار مادة' })) {
+      closePicker();
+      return;
+    }
     var focusTr = null;
     var queue = items.slice();
     if (activePickRow && !parseInt(activePickRow.dataset.itemId, 10)) {
@@ -2026,7 +2112,8 @@
 
   function openPickerForRow(tr, opts) {
     opts = opts || {};
-    if (invoiceIsPosted) return;
+    if (invoiceIsPosted || invoiceIsCancelled) return;
+    if (blockItemPickUntilQty(tr, { actionLabel: 'اختيار مادة' })) return;
     if (!tr) return;
     if (!global.ItemPickerModal) {
       if (global.AppDialog) {
@@ -2116,6 +2203,10 @@
       finalizeEntryRow(tr);
     }
 
+    if (blockItemPickUntilQty(null, { alert: false, actionLabel: 'إضافة سطر جديد' })) {
+      return;
+    }
+
     var entry = ensureEntryRow();
     var bc = entry.querySelector('.js-barcode-inp');
     if (bc) {
@@ -2144,6 +2235,14 @@
         e.preventDefault();
         e.stopPropagation();
         openPickerForRow(tr);
+      });
+      itemCell.addEventListener('mousedown', function (e) {
+        if (e.target.closest('.js-pick-open')) return;
+        if (itemCell.classList.contains('is-qty-required-locked')) {
+          e.preventDefault();
+          alertQtyRequired(tr, 'اختيار مادة أخرى');
+          focusRowQtyField(tr);
+        }
       });
     }
 
@@ -2217,6 +2316,9 @@
         if (el.classList.contains('js-line-sub')) normalizeSubInput(el);
         if (el.classList.contains('js-line-gross')) normalizeGrossInput(el);
         recalcRowLiveFromField(tr, el);
+        if (el.classList.contains('js-qty') || el.classList.contains('js-qty-extra')) {
+          applyRowQtyLock(tr);
+        }
       });
       el.addEventListener('blur', function () {
         if (
@@ -2230,6 +2332,9 @@
         } else if (el.classList.contains('js-qty-extra')) {
           normalizeQtyExtraInput(el);
           syncJson();
+        }
+        if (el.classList.contains('js-qty') || el.classList.contains('js-qty-extra')) {
+          applyRowQtyLock(tr);
         }
       });
       el.addEventListener('keydown', function (e) {

@@ -29,6 +29,17 @@ $monthNames = [
     12 => 'ديسمبر',
 ];
 
+$monthDisplayLabel = static function (int $mon) use ($monthNames): string {
+    if ($mon === 0) {
+        return 'كل الأشهر';
+    }
+    if (!isset($monthNames[$mon])) {
+        return 'غير محدد';
+    }
+
+    return sprintf('%02d - %s', $mon, $monthNames[$mon]);
+};
+
 $currentYear = (int) date('Y');
 $currentMonth = (int) date('n');
 $year = isset($_GET['year']) ? (int) $_GET['year'] : $currentYear;
@@ -88,7 +99,7 @@ $showResult = false;
 $invoiceDocCount = 0;
 $returnDocCount = 0;
 $err = '';
-$monthLabel = $month === 0 ? 'كل الأشهر' : ($monthNames[$month] ?? 'غير محدد');
+$monthLabel = $monthDisplayLabel($month);
 [$from, $to] = $periodFromTo($year, ($month >= 0 && $month <= 12) ? $month : $currentMonth);
 
 $submitted = isset($_GET['customer_id']) && $_GET['customer_id'] !== '';
@@ -101,7 +112,7 @@ if ($submitted) {
         $err = 'الشهر غير صالح.';
     } else {
         [$from, $to] = $periodFromTo($year, $month);
-        $monthLabel = $month === 0 ? 'كل الأشهر' : ($monthNames[$month] ?? 'غير محدد');
+        $monthLabel = $monthDisplayLabel($month);
 
         if ($customerId === 0) {
             $customerLabel = 'جميع العملاء';
@@ -200,7 +211,7 @@ if ($showResult) {
                     <option value="0" <?= $month === 0 ? 'selected' : '' ?>>كل الأشهر</option>
                     <?php foreach ($monthNames as $monthNo => $monthName): ?>
                         <option value="<?= (int) $monthNo ?>" <?= $month === (int) $monthNo ? 'selected' : '' ?>>
-                            <?= esc($monthName) ?>
+                            <?= esc(sprintf('%02d - %s', $monthNo, $monthName)) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>

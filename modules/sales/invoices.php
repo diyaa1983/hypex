@@ -305,6 +305,7 @@ $showUnitPriceIncl = true;
         <div class="sales-inv-print-overlay-head">
             <h3 class="sales-inv-print-overlay-title">معاينة الطباعة</h3>
             <div class="sales-inv-print-overlay-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="sales-inv-print-run">طباعة</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="sales-inv-print-close">إغلاق</button>
             </div>
         </div>

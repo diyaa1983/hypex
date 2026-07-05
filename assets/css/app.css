@@ -145,6 +145,23 @@ body.app-body {
   color: #fff;
 }
 
+.app-titlebar__home-btn {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.app-titlebar__home-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+.app-titlebar__btn-svg {
+  display: block;
+  flex-shrink: 0;
+}
+
 .app-titlebar__btn--placeholder {
   width: 1.65rem;
   height: 1.65rem;

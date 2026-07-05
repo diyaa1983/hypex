@@ -37,8 +37,8 @@ $submitted = isset($_GET['customer_id']) && $_GET['customer_id'] !== ''
 if ($submitted) {
     if ($customerId < 0) {
         $err = 'اختر العميل أو «جميع العملاء».';
-    } elseif ($itemId < 0) {
-        $err = 'اختر المادة أو «جميع المواد».';
+    } elseif ($itemId < 1) {
+        $err = 'اختر المادة.';
     } else {
         $fromIso = parse_date_to_iso($from);
         $toIso = parse_date_to_iso($to);
@@ -64,19 +64,14 @@ if ($submitted) {
             }
 
             if ($err === '') {
-                if ($itemId === 0) {
-                    $itemLabel = 'جميع المواد';
-                    $itemDisplayName = 'جميع المواد';
+                $stItem = $pdo->prepare('SELECT name_ar FROM inv_item WHERE id = ? LIMIT 1');
+                $stItem->execute([$itemId]);
+                $itRow = $stItem->fetch(PDO::FETCH_ASSOC);
+                if (!$itRow) {
+                    $err = 'المادة غير موجودة.';
                 } else {
-                    $stItem = $pdo->prepare('SELECT name_ar FROM inv_item WHERE id = ? AND is_active = 1 LIMIT 1');
-                    $stItem->execute([$itemId]);
-                    $itRow = $stItem->fetch(PDO::FETCH_ASSOC);
-                    if (!$itRow) {
-                        $err = 'المادة غير موجودة.';
-                    } else {
-                        $itemLabel = (string) ($itRow['name_ar'] ?? '');
-                        $itemDisplayName = $itemLabel;
-                    }
+                    $itemLabel = (string) ($itRow['name_ar'] ?? '');
+                    $itemDisplayName = $itemLabel;
                 }
             }
 
@@ -86,10 +81,8 @@ if ($submitted) {
             }
         }
     }
-} elseif ($itemId === 0) {
-    $itemDisplayName = 'جميع المواد';
 } elseif ($itemId > 0) {
-    $stItem = $pdo->prepare('SELECT name_ar FROM inv_item WHERE id = ? AND is_active = 1 LIMIT 1');
+    $stItem = $pdo->prepare('SELECT name_ar FROM inv_item WHERE id = ? LIMIT 1');
     $stItem->execute([$itemId]);
     $itRow = $stItem->fetch(PDO::FETCH_ASSOC);
     if ($itRow) {
@@ -154,7 +147,7 @@ customer_picker_json_script($customers, 'report-sales-item-customers-json');
                 'label' => 'المادة *',
                 'wrapper_class' => 'field',
                 'wrapper_style' => 'flex:1 1 16rem',
-                'allow_all' => true,
+                'warehouse_id' => 0,
                 'api_items' => $apiItems,
             ]) ?>
             <label class="field">

@@ -115,7 +115,6 @@ function sal_ret_list_filter_url(string $base, string $f, string $q): string
          data-delete-url="<?= esc($apiDelete) ?>"
          data-csrf="<?= esc($csrf) ?>">
         <a class="btn btn-primary btn-sm" href="<?= esc($newUrl) ?>">➕ مرتجع جديد</a>
-        <button type="button" class="btn btn-secondary btn-sm" id="sal-ret-post-selected" disabled>ترحيل المحدد</button>
     </div>
 
     <div class="sales-ora-panel card">

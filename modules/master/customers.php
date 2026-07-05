@@ -12,6 +12,21 @@ require_once app_path('includes/crm_party_delete.php');
 crm_sales_rep_ensure_customer_invoice_links($pdo);
 $salesReps = crm_sales_rep_load_active($pdo);
 
+function crm_customer_generate_code(PDO $pdo): string
+{
+    $maxId = (int) $pdo->query('SELECT IFNULL(MAX(id), 0) FROM crm_customer')->fetchColumn();
+    for ($attempt = 0; $attempt < 100; $attempt++) {
+        $code = 'C-' . str_pad((string) ($maxId + 1 + $attempt), 5, '0', STR_PAD_LEFT);
+        $chk = $pdo->prepare('SELECT id FROM crm_customer WHERE code = ? LIMIT 1');
+        $chk->execute([$code]);
+        if (!$chk->fetch()) {
+            return $code;
+        }
+    }
+
+    throw new RuntimeException('تعذر توليد رمز العميل.');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
         flash_set('error', 'جلسة غير صالحة، أعد المحاولة.');
@@ -23,7 +38,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($act === 'save') {
             $id = (int) ($_POST['id'] ?? 0);
-            $code = trim((string) ($_POST['code'] ?? ''));
             $name = trim((string) ($_POST['name_ar'] ?? ''));
             $phone = trim((string) ($_POST['phone'] ?? ''));
             $email = trim((string) ($_POST['email'] ?? ''));
@@ -41,28 +55,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('البريد الإلكتروني غير صالح.');
             }
 
-            if ($code === '') {
-                $n = (int) $pdo->query('SELECT IFNULL(MAX(id), 0) FROM crm_customer')->fetchColumn();
-                $code = 'C-' . str_pad((string) ($n + 1), 5, '0', STR_PAD_LEFT);
-            }
-
-            if ($id > 0) {
-                $chk = $pdo->prepare('SELECT id FROM crm_customer WHERE code = ? AND id <> ? LIMIT 1');
-                $chk->execute([$code, $id]);
-            } else {
-                $chk = $pdo->prepare('SELECT id FROM crm_customer WHERE code = ? LIMIT 1');
-                $chk->execute([$code]);
-            }
-            if ($chk->fetch()) {
-                throw new RuntimeException('رمز العميل مستخدم مسبقًا.');
-            }
-
             if ($id > 0) {
                 $st = $pdo->prepare(
-                    'UPDATE crm_customer SET code=?, name_ar=?, phone=?, email=?, tax_number=?, address_ar=? WHERE id=?'
+                    'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=? WHERE id=?'
                 );
                 $st->execute([
-                    $code,
                     $name,
                     $phone !== '' ? $phone : null,
                     $email !== '' ? $email : null,
@@ -73,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 crm_customer_save_sales_reps($pdo, $id, $repIdsRaw);
                 flash_set('success', 'تم تحديث بيانات العميل.');
             } else {
+                $code = crm_customer_generate_code($pdo);
                 $st = $pdo->prepare(
                     'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active) VALUES (?,?,?,?,?,?,?,1)'
                 );
@@ -178,8 +176,10 @@ if ($action === 'add' || $action === 'edit') {
 
             <div class="form-row">
                 <label class="field">
-                    <span class="field-label">الرمز (اتركه فارغًا للتوليد التلقائي)</span>
-                    <input class="input" name="code" value="<?= esc((string) $row['code']) ?>" placeholder="مثال: C-00012">
+                    <span class="field-label">رمز العميل</span>
+                    <input class="input" value="<?= esc((string) $row['code']) ?>"
+                           placeholder="يُولَّد تلقائياً عند الحفظ"
+                           readonly tabindex="-1" aria-readonly="true">
                 </label>
                 <label class="field">
                     <span class="field-label">اسم العميل *</span>

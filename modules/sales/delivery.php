@@ -55,6 +55,8 @@ $cssDlvPath = app_path('assets/css/sales-delivery.css');
 $cssDlv = app_url('assets/css/sales-delivery.css') . (is_file($cssDlvPath) ? '?v=' . (string) filemtime($cssDlvPath) : '');
 $ora12CssPath = app_path('assets/css/sales-invoice-oracle12.css');
 $ora12CssUrl = app_url('assets/css/sales-invoice-oracle12.css') . (is_file($ora12CssPath) ? '?v=' . (string) filemtime($ora12CssPath) : '');
+$jsItemDisplayPath = app_path('assets/js/inv-item-display.js');
+$jsItemDisplay = app_url('assets/js/inv-item-display.js') . (is_file($jsItemDisplayPath) ? '?v=' . (string) filemtime($jsItemDisplayPath) : '');
 $jsPath = app_path('assets/js/sales-delivery.js');
 $jsUrl = app_url('assets/js/sales-delivery.js') . (is_file($jsPath) ? '?v=' . (string) filemtime($jsPath) : '');
 $bootstrapLineId = 'L-boot-' . str_replace('.', '', uniqid('', true));
@@ -68,23 +70,13 @@ require_once app_path('includes/customer_picker.php');
 require_once app_path('includes/item_picker.php');
 item_picker_enqueue_assets();
 customer_picker_json_script($customers, 'sales-dlv-customers-json');
+
+require_once app_path('includes/inv_delivery_line_table.php');
 ?>
 
 
 <template id="sales-dlv-line-template">
-    <tr data-line-id="" data-item-id="" data-name-ar="" class="is-entry-row">
-        <td class="sales-inv-col-seq"><span class="js-seq"></span></td>
-        <td class="sales-inv-col-barcode">
-            <input type="text" class="input js-barcode-inp" placeholder="باركود" autocomplete="off">
-        </td>
-        <td class="sales-inv-item-cell sales-inv-col-item">
-            <button type="button" class="sales-inv-item-pick js-pick-open">
-                <span class="js-name sales-inv-item-name is-placeholder">اضغط لاختيار المادة</span>
-            </button>
-        </td>
-        <td class="sales-inv-col-qty"><input type="number" class="input input-num js-qty" min="0.000001" step="1" value="1"></td>
-        <td class="sales-inv-col-del"><button type="button" class="btn-icon danger js-remove" title="حذف" aria-label="حذف البند"><?= app_icon_svg('trash', 18) ?></button></td>
-    </tr>
+    <?php inv_delivery_line_table_row_template(); ?>
 </template>
 
 <div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main sales-dlv-wrap sales-inv-bold" data-exit-guard="custom">
@@ -189,25 +181,23 @@ customer_picker_json_script($customers, 'sales-dlv-customers-json');
                 <div class="sales-inv-table-wrap">
                     <table class="sales-inv-table sales-dlv-table">
                         <thead>
-                        <tr>
-                            <th class="sales-inv-col-seq">#</th>
-                            <th class="sales-inv-col-barcode">باركود</th>
-                            <th class="sales-inv-col-item">المادة</th>
-                            <th class="sales-inv-col-qty">الكمية</th>
-                            <th class="sales-inv-col-del"></th>
-                        </tr>
+                        <?php inv_delivery_line_table_head(); ?>
                         </thead>
                         <tbody id="sales-dlv-lines-body">
                         <?php if ($initialId < 1): ?>
-                        <tr data-line-id="<?= esc($bootstrapLineId) ?>" data-item-id="" class="is-entry-row">
+                        <tr data-line-id="<?= esc((string) $bootstrapLineId) ?>" data-item-id="" data-name-ar="" class="is-entry-row">
                             <td class="sales-inv-col-seq"><span class="js-seq"></span></td>
-                            <td class="sales-inv-col-barcode"><input type="text" class="input js-barcode-inp" placeholder="باركود" autocomplete="off"></td>
-                            <td class="sales-inv-item-cell sales-inv-col-item">
-                                <button type="button" class="sales-inv-item-pick js-pick-open">
-                                    <span class="js-name sales-inv-item-name is-placeholder">اضغط لاختيار المادة</span>
-                                </button>
+                            <td class="sales-inv-col-sku">
+                                <code class="js-sku"></code>
+                                <input type="text" class="input js-barcode-inp" placeholder="مسح أو باركود" autocomplete="off" spellcheck="false" title="امسح الباركود أو أدخل رقم المادة">
                             </td>
-                            <td class="sales-inv-col-qty"><input type="number" class="input input-num js-qty" min="0.000001" step="1" value="1"></td>
+                            <td class="sales-inv-item-cell sales-inv-col-item">
+                                <div class="sales-inv-item-lov is-empty">
+                                    <button type="button" class="sales-inv-item-lov-btn js-pick-open" title="اختيار المادة" aria-label="اختيار المادة"></button>
+                                    <span class="js-name sales-inv-item-name is-placeholder"></span>
+                                </div>
+                            </td>
+                            <td class="sales-inv-col-qty"><input type="number" class="input input-num js-qty" min="0" step="1" inputmode="decimal" value="" placeholder=""></td>
                             <td class="sales-inv-col-del"><button type="button" class="btn-icon danger js-remove" title="حذف" aria-label="حذف البند" style="visibility:hidden"><?= app_icon_svg('trash', 18) ?></button></td>
                         </tr>
                         <?php endif; ?>
@@ -235,6 +225,7 @@ customer_picker_json_script($customers, 'sales-dlv-customers-json');
         <div class="sales-inv-print-overlay-head">
             <h3 class="sales-inv-print-overlay-title">معاينة الطباعة</h3>
             <div class="sales-inv-print-overlay-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="sales-inv-print-run">طباعة</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="sales-inv-print-close">إغلاق</button>
             </div>
         </div>
@@ -244,4 +235,5 @@ customer_picker_json_script($customers, 'sales-dlv-customers-json');
 
 <script src="<?= esc($archiveJsUrl) ?>" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="<?= esc($jsItemDisplay) ?>" defer></script>
 <script src="<?= esc($jsUrl) ?>" defer></script>

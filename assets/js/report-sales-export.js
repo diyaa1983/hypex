@@ -93,6 +93,16 @@
         fitSalesReportCustomerNames(document);
       }
 
+      if (isDeliveryReportRoute()) {
+        window.addEventListener('beforeprint', function () {
+          fitDeliveryReportPrintCells(document);
+          setTimeout(function () {
+            fitDeliveryReportPrintCells(document);
+          }, 0);
+        });
+        fitDeliveryReportPrintCells(document);
+      }
+
       if (isSalesItemNameFitReport()) {
         window.addEventListener('beforeprint', function () {
           fitSalesReportItemNames(document);
@@ -133,6 +143,102 @@
       return !!document.querySelector('.report-sales-print-area');
     }
 
+    /** فصل صف الإجمالي عن الجدول الرئيسي قبل الطباعة/PDF لتجنّب تداخله مع آخر صفحة */
+    function normalizeSalesReportGrandTotal(root) {
+      if (!root || !root.querySelectorAll) return;
+      root.querySelectorAll('.report-sales-table').forEach(function (tbl) {
+        if (tbl.classList.contains('report-sales-grand-total-table')) return;
+        var tfoot = tbl.querySelector('tfoot');
+        if (!tfoot) return;
+        var wrap = tbl.closest('.report-sales-table-wrap');
+        if (!wrap) return;
+        if (wrap.nextElementSibling && wrap.nextElementSibling.classList.contains('report-sales-grand-total-wrap')) {
+          tfoot.remove();
+          return;
+        }
+
+        var totalWrap = document.createElement('div');
+        totalWrap.className = wrap.className;
+        if (totalWrap.className.indexOf('report-sales-grand-total-wrap') === -1) {
+          totalWrap.className += ' report-sales-grand-total-wrap';
+        }
+
+        var totalTable = document.createElement('table');
+        totalTable.className = tbl.className.replace(/\s*js-sortable-report\s*/g, ' ').trim();
+        if (totalTable.className.indexOf('report-sales-grand-total-table') === -1) {
+          totalTable.className += ' report-sales-grand-total-table';
+        }
+
+        var colgroup = tbl.querySelector('colgroup');
+        if (colgroup) {
+          totalTable.appendChild(colgroup.cloneNode(true));
+        }
+
+        var tbody = document.createElement('tbody');
+        Array.prototype.slice.call(tfoot.rows).forEach(function (row) {
+          tbody.appendChild(row.cloneNode(true));
+        });
+        totalTable.appendChild(tbody);
+        totalWrap.appendChild(totalTable);
+        tfoot.remove();
+
+        var stack = wrap.closest('.report-sales-table-stack');
+        if (stack) {
+          stack.appendChild(totalWrap);
+        } else {
+          wrap.parentNode.insertBefore(totalWrap, wrap.nextSibling);
+        }
+      });
+    }
+
+    function isPeriodInvoiceReportRouteKey(routeKey) {
+      return (
+        routeKey === 'report_sales' ||
+        routeKey === 'report_sales_between_dates' ||
+        routeKey === 'report_purchases'
+      );
+    }
+
+    function appendStaticPrintUserFooter(container) {
+      if (!container || !window.DocumentHeader || !window.DocumentHeader.buildPrintUserFooter) {
+        return;
+      }
+      if (container.querySelector('.doc-print-user-footer--end')) {
+        return;
+      }
+      var tmp = document.createElement('div');
+      tmp.innerHTML = window.DocumentHeader.buildPrintUserFooter();
+      var footer = tmp.firstElementChild;
+      if (!footer) {
+        return;
+      }
+      footer.classList.add('doc-print-user-footer--end');
+      container.appendChild(footer);
+    }
+
+    function wrapPrintContentNoFixedFooter(html, logoUrl) {
+      var inner = html || '';
+      if (logoUrl && inner && window.DocumentHeader && window.DocumentHeader.watermarkHtml) {
+        inner =
+          '<div class="doc-print-watermark-root">' + window.DocumentHeader.watermarkHtml(logoUrl) + inner + '</div>';
+      }
+      return inner;
+    }
+
+    function getPeriodInvoicePrintFooterCss() {
+      return (
+        '.doc-print-user-footer:not(.doc-print-user-footer--end){display:none!important;visibility:hidden!important;' +
+        'height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;}' +
+        '.doc-print-user-footer--end{display:block!important;position:static!important;clear:both!important;' +
+        'margin-top:8mm!important;padding-top:2mm!important;page-break-inside:avoid!important;break-inside:avoid-page!important;}' +
+        '.doc-print-user-footer--end .doc-print-user-footer-line{display:block!important;width:100%!important;' +
+        'height:0!important;margin:0!important;border:0!important;border-top:1px solid #000!important;}' +
+        '.doc-print-user-footer--end .doc-print-user-footer-text{display:block!important;margin:0!important;' +
+        'padding:2px 0 0 6mm!important;font-family:Arial,Helvetica,sans-serif!important;font-size:7pt!important;' +
+        'font-weight:400!important;line-height:1.3!important;color:#000!important;text-align:left!important;direction:rtl!important;}'
+      );
+    }
+
     function isTrialBalanceReportRoute(routeKey) {
       return routeKey === 'report_trial_balance' || routeKey === 'report_trial_balance_detailed';
     }
@@ -152,9 +258,15 @@
       clone.querySelectorAll('.no-print').forEach(function (el) {
         el.remove();
       });
+      normalizeSalesReportGrandTotal(clone);
+      if (isPeriodInvoiceReportRouteKey(routeKey)) {
+        appendStaticPrintUserFooter(clone);
+      }
       var html = clone.innerHTML;
       var logoUrl = getCompanyLogoUrl();
-      if (window.DocumentHeader && window.DocumentHeader.wrapPrintContent) {
+      if (isPeriodInvoiceReportRouteKey(routeKey)) {
+        html = wrapPrintContentNoFixedFooter(html, logoUrl);
+      } else if (window.DocumentHeader && window.DocumentHeader.wrapPrintContent) {
         html = window.DocumentHeader.wrapPrintContent(html, logoUrl || '');
       }
       return html;
@@ -177,9 +289,21 @@
     }
 
     function isSalesAllCustomersReport() {
+      var route = page.getAttribute('data-report-route') || '';
       return (
-        page.getAttribute('data-report-route') === 'report_sales' &&
+        (route === 'report_sales' || route === 'report_sales_between_dates') &&
         page.getAttribute('data-sales-all-customers') === '1'
+      );
+    }
+
+    function isDeliveryReportRoute() {
+      return page.getAttribute('data-report-route') === 'report_sales_delivery';
+    }
+
+    function isDeliveryAllCustomersReport() {
+      return (
+        page.getAttribute('data-report-route') === 'report_sales_delivery' &&
+        page.getAttribute('data-delivery-all-customers') === '1'
       );
     }
 
@@ -203,6 +327,7 @@
     function isSalesCustomerNameFitReport() {
       return (
         isSalesAllCustomersReport() ||
+        isDeliveryAllCustomersReport() ||
         isSalesByRepReport() ||
         isSalesReturnsReport() ||
         isPurchaseReturnsReport()
@@ -240,7 +365,7 @@
     }
 
     function isPeriodInvoiceReportRoute() {
-      return isReportSalesRoute() || isReportPurchasesRoute();
+      return isReportSalesRoute() || isReportPurchasesRoute() || isDeliveryReportRoute();
     }
 
     /** أنماط عمود اسم العميل — طباعة/PDF (إطار مستقل بدون report-sales-page) */
@@ -307,24 +432,82 @@
       );
     }
 
+    /** طباعة/PDF تقرير سندات البضاعة — كل الخلايا في سطر واحد */
+    function getDeliveryReportPrintCss() {
+      var all = isDeliveryAllCustomersReport();
+      var css =
+        '.report-sales-table--delivery{font-size:7.5pt!important;table-layout:fixed!important;width:100%!important;}' +
+        '.report-sales-table--delivery th,.report-sales-table--delivery td{font-size:7.5pt!important;padding:2px 3px!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;word-break:keep-all!important;vertical-align:middle!important;}' +
+        '.report-sales-table--delivery col.col-seq,.report-sales-table--delivery .col-seq{width:4mm!important;max-width:4mm!important;text-align:center!important;}' +
+        '.report-sales-table--delivery col.col-date,.report-sales-table--delivery .col-date{width:18mm!important;min-width:18mm!important;max-width:18mm!important;white-space:nowrap!important;direction:ltr!important;unicode-bidi:embed!important;overflow:visible!important;text-overflow:clip!important;}' +
+        '.report-sales-table--delivery th.col-date,.report-sales-table--delivery td.col-date{overflow:visible!important;text-overflow:clip!important;}' +
+        '.report-sales-table--delivery col.col-inv-no{width:10%!important;}' +
+        '.report-sales-table--delivery col.col-warehouse{width:10%!important;}' +
+        '.report-sales-table--delivery col.col-posted{width:7%!important;}' +
+        '.report-sales-table--delivery col.col-lines{width:6mm!important;}' +
+        '.report-sales-table--delivery col.col-qty{width:9mm!important;}' +
+        '.report-sales-table--delivery col.col-linked-inv{width:9%!important;}' +
+        '.report-sales-table--delivery .col-inv-no code,.report-sales-table--delivery .col-linked-inv code{white-space:nowrap!important;font-size:inherit!important;word-break:keep-all!important;}' +
+        '.report-sales-table--delivery .col-customer,.report-sales-table--delivery .report-sales-party-name,.report-sales-table--delivery .col-warehouse,.report-sales-table--delivery .col-notes{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;word-break:keep-all!important;text-align:start!important;}' +
+        '.report-sales-table--delivery .col-lines,.report-sales-table--delivery .col-qty{text-align:center!important;font-variant-numeric:tabular-nums!important;}' +
+        '.report-sales-table--delivery .col-posted .badge{padding:0 0.25rem!important;font-size:6.5pt!important;line-height:1.2!important;white-space:nowrap!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.report-sales-period-head{display:block!important;margin:0.35rem 0 0.65rem!important;padding:0.35rem 0.5rem!important;font-size:7.5pt!important;font-weight:700!important;text-align:center!important;border:1px solid #cbd5e1!important;background:#f8fafc!important;}';
+      if (all) {
+        css +=
+          getSalesCustomerNamePrintCss() +
+          '.report-sales-table--delivery.report-sales-table--all-customers col.col-customer{width:14%!important;}' +
+          '.report-sales-table--delivery.report-sales-table--all-customers td.col-customer{width:14%!important;max-width:14%!important;}';
+      }
+      return css;
+    }
+
     /** طباعة تقرير مبيعات العميل — تاريخ واسم عميل في سطر واحد */
     function getReportSalesPrintCss() {
       var all = isSalesAllCustomersReport();
+      var routeKey = page.getAttribute('data-report-route') || '';
+      var betweenDates = routeKey === 'report_sales_between_dates';
+      var dateColWidth = betweenDates ? '16mm' : '14mm';
       var css =
         '.report-sales-table{font-size:7.5pt!important;table-layout:fixed!important;width:100%!important;}' +
         '.report-sales-table th,.report-sales-table td{font-size:7.5pt!important;padding:2px 3px!important;line-height:1.15!important;}' +
         '.report-sales-table col.col-seq,.report-sales-table .col-seq{width:4mm!important;max-width:4mm!important;padding:2px 1px!important;text-align:center!important;}' +
-        '.report-sales-table col.col-date,.report-sales-table .col-date{width:14mm!important;min-width:14mm!important;max-width:14mm!important;white-space:nowrap!important;direction:ltr!important;unicode-bidi:embed!important;overflow:hidden!important;text-overflow:clip!important;}' +
+        '.report-sales-table col.col-date,.report-sales-table .col-date{width:' +
+        dateColWidth +
+        '!important;min-width:' +
+        dateColWidth +
+        '!important;max-width:' +
+        dateColWidth +
+        '!important;white-space:nowrap!important;direction:ltr!important;unicode-bidi:embed!important;overflow:visible!important;text-overflow:clip!important;visibility:visible!important;}' +
+        '.report-sales-table thead th.col-date,.report-sales-table tbody td.col-date{display:table-cell!important;visibility:visible!important;}' +
+        '.report-sales-period-head{display:block!important;margin:0.35rem 0 0.65rem!important;padding:0.35rem 0.5rem!important;' +
+        'font-size:7.5pt!important;font-weight:700!important;text-align:center!important;border:1px solid #cbd5e1!important;background:#f8fafc!important;}' +
+        '.report-sales-period-sep{margin:0 0.35rem!important;color:#64748b!important;}' +
         '.report-sales-table .col-inv-no,.report-sales-table .col-rep,.report-sales-table .col-pay,.report-sales-table .col-posted,.report-sales-table .col-money{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}' +
+        '.report-sales-table th.col-date,.report-sales-table td.col-date{overflow:visible!important;text-overflow:clip!important;}' +
         '.report-sales-table .col-money{text-align:center!important;font-variant-numeric:tabular-nums!important;}';
       if (all) {
         css +=
           getSalesCustomerNamePrintCss() +
-          '.report-sales-table col.col-inv-no{width:11%!important;}' +
-          '.report-sales-table col.col-rep{width:9%!important;}' +
-          '.report-sales-table col.col-pay{width:8%!important;}' +
-          '.report-sales-table col.col-posted{width:8%!important;}' +
-          '.report-sales-table col.col-money{width:10%!important;}';
+          '.report-sales-table col.col-inv-no{width:' +
+          (betweenDates ? '10' : '11') +
+          '%!important;}' +
+          '.report-sales-table col.col-rep{width:' +
+          (betweenDates ? '8' : '9') +
+          '%!important;}' +
+          '.report-sales-table col.col-pay{width:' +
+          (betweenDates ? '7' : '8') +
+          '%!important;}' +
+          '.report-sales-table col.col-posted{width:' +
+          (betweenDates ? '7' : '8') +
+          '%!important;}' +
+          '.report-sales-table col.col-money{width:' +
+          (betweenDates ? '9.5' : '10') +
+          '%!important;}';
+        if (betweenDates) {
+          css +=
+            '.report-sales-print-area .report-sales-table--all-customers col.col-customer{width:30%!important;}' +
+            '.report-sales-print-area .report-sales-table--all-customers td.col-customer{width:30%!important;max-width:30%!important;}';
+        }
       } else {
         css +=
           '.report-sales-table col.col-inv-no{width:14%!important;}' +
@@ -343,7 +526,7 @@
     function fitSalesReportCustomerNames(doc) {
       doc = doc || document;
       var cells = doc.querySelectorAll(
-        '.report-sales-table--all-customers td.col-customer, .report-sales-table--by-rep td.col-customer, .report-sales-table--returns td.col-customer'
+        '.report-sales-table--all-customers td.col-customer, .report-sales-table--by-rep td.col-customer, .report-sales-table--returns td.col-customer, .report-sales-table--delivery td.col-customer'
       );
       if (!cells.length) return;
       cells.forEach(function (td) {
@@ -388,6 +571,46 @@
         if (cellW < 8) {
           cellW = 240;
         }
+        while (el.scrollWidth > cellW && pt > 4.8 && guard < 60) {
+          pt -= 0.12;
+          el.style.fontSize = pt + 'pt';
+          guard += 1;
+        }
+      });
+    }
+
+    /** تصغير خط خلايا سندات البضاعة (مستودع، رقم سند) لتبقى في سطر واحد */
+    function fitDeliveryReportPrintCells(doc) {
+      doc = doc || document;
+      var cells = doc.querySelectorAll(
+        '.report-sales-table--delivery td.col-warehouse, .report-sales-table--delivery td.col-inv-no, .report-sales-table--delivery td.col-linked-inv'
+      );
+      if (!cells.length) return;
+      cells.forEach(function (td) {
+        td.style.whiteSpace = 'nowrap';
+        td.style.overflow = 'hidden';
+        td.style.wordBreak = 'keep-all';
+        var el = td.querySelector('code') || td;
+        if (el !== td) {
+          el.style.display = 'inline-block';
+          el.style.whiteSpace = 'nowrap';
+          el.style.wordBreak = 'keep-all';
+          el.style.maxWidth = '100%';
+          el.style.overflow = 'hidden';
+          el.style.lineHeight = '1.15';
+        }
+        var table = td.closest('.report-sales-table');
+        var pt = 7.5;
+        if (el.style) el.style.fontSize = pt + 'pt';
+        var guard = 0;
+        var cellW = td.clientWidth || td.offsetWidth;
+        if (cellW < 8 && table) {
+          var tableW = table.getBoundingClientRect().width || table.clientWidth || table.offsetWidth;
+          if (tableW > 0) {
+            cellW = Math.floor(tableW * (td.classList.contains('col-inv-no') ? 0.1 : 0.1));
+          }
+        }
+        if (cellW < 8) cellW = 120;
         while (el.scrollWidth > cellW && pt > 4.8 && guard < 60) {
           pt -= 0.12;
           el.style.fontSize = pt + 'pt';
@@ -1087,6 +1310,7 @@
       var reportSalesCss = isReportSalesRoute() ? getReportSalesPrintCss() : '';
       var reportSalesByRepCss = isSalesByRepReport() ? getReportSalesByRepPrintCss() : '';
       var reportSalesByItemCss = isSalesByItemReport() ? getReportSalesByItemPrintCss() : '';
+      var reportDeliveryCss = isDeliveryReportRoute() ? getDeliveryReportPrintCss() : '';
       var reportSalesReturnsCss =
         isSalesReturnsReport() || isPurchaseReturnsReport() ? getReportSalesReturnsPrintCss() : '';
       var reportPurchasesCss = isReportPurchasesRoute() ? getReportPurchasesPrintCss() : '';
@@ -1126,7 +1350,13 @@
       var bodyMarginTop = trialBalancePrint ? '0' : '6mm';
       var bodyMarginSides = summaryPrint ? '5mm' : itemStockPrint ? '5mm' : agingPrint ? '5mm' : trialBalancePrint ? '0' : '12mm';
       var bodyMarginBottom =
-        routeKey === 'report_receivables' && !summaryPrint ? '16mm' : trialBalancePrint ? '0' : '12mm';
+        routeKey === 'report_receivables' && !summaryPrint
+          ? '16mm'
+          : periodInvoicePrint
+            ? '18mm'
+            : trialBalancePrint
+              ? '0'
+              : '12mm';
       return (
         docPrintWatermarkStyles() +
         hdr +
@@ -1189,7 +1419,17 @@
         '.report-sales-table .col-money{text-align:center;font-variant-numeric:tabular-nums;}' +
         '.report-sales-table tfoot td,.report-sales-grand-total-table td{background:#e2e8f0;}' +
         '.report-sales-page[data-report-route="report_sales"] .report-sales-table:not(.report-sales-grand-total-table) tfoot{display:table-row-group!important;}' +
+        '.report-sales-table-stack{width:100%;}' +
+        '.report-sales-table-stack .report-sales-table{width:100%!important;table-layout:fixed!important;}' +
+        '.report-sales-table-stack .report-sales-grand-total-wrap{margin-top:0!important;}' +
         '.report-sales-grand-total-wrap{break-inside:avoid;page-break-inside:avoid;}' +
+        (periodInvoicePrint
+          ? '@page{size:A4 portrait;margin:6mm 10mm 14mm 10mm;}' +
+            '.report-sales-table thead{display:table-header-group!important;}' +
+            '.report-sales-table tbody tr{page-break-inside:auto!important;break-inside:auto!important;}' +
+            '.report-sales-grand-total-wrap,.report-sales-grand-total-table,.doc-print-user-footer--end{break-inside:avoid!important;page-break-inside:avoid!important;}' +
+            getPeriodInvoicePrintFooterCss()
+          : '') +
         '.doc-print-header-co,.doc-print-header-title{font-family:Arial,Helvetica,sans-serif;font-weight:700;color:#0f172a;}' +
         '.doc-print-meta{margin:0.35rem 0 0.65rem;font-size:12px;}' +
         '.doc-print-meta td{border:none;padding:0.2rem 0;text-align:start;}' +
@@ -1198,6 +1438,7 @@
         '.party-stmt-report-dates{margin:0;font-size:11pt;font-weight:600;color:#334155;}' +
         '.party-stmt-report-dates-sep{margin:0 0.5rem;color:#94a3b8;}' +
         reportSalesByItemCss +
+        reportDeliveryCss +
         reportSalesReturnsCss +
         getPdfCaptureSafetyCss(pdfOrientation)
       );
@@ -1315,6 +1556,17 @@
         printArea.style.maxWidth = '100%';
         printArea.style.padding = '0';
         printArea.style.boxSizing = 'border-box';
+      }
+
+      normalizeSalesReportGrandTotal(clonedDoc.body);
+
+      if (isPeriodInvoiceReportRouteKey(routeKey)) {
+        clonedDoc.querySelectorAll('.doc-print-user-footer:not(.doc-print-user-footer--end)').forEach(function (el) {
+          el.remove();
+        });
+        if (printArea && !printArea.querySelector('.doc-print-user-footer--end')) {
+          appendStaticPrintUserFooter(printArea);
+        }
       }
 
       if (isVatNetPayableReport(routeKey)) {
@@ -1471,11 +1723,12 @@
       var win = frame.contentWindow;
       var summaryFit = isReceivablesSummaryMode();
       var salesFit = isSalesCustomerNameFitReport();
+      var deliveryFit = isDeliveryReportRoute();
       var salesItemFit = isSalesItemNameFitReport();
       var purchasesFit = isPurchasesAllSuppliersReport();
       var itemStockFit = isItemStockLedgerReport();
       var incomingChecksFit = isVoucherChecksReport();
-      var needsFit = summaryFit || salesFit || salesItemFit || purchasesFit || itemStockFit || incomingChecksFit;
+      var needsFit = summaryFit || salesFit || deliveryFit || salesItemFit || purchasesFit || itemStockFit || incomingChecksFit;
       var frameLayoutW = frame.style.width;
       var frameLayoutH = frame.style.height;
       if (needsFit) {
@@ -1494,6 +1747,12 @@
             fitSalesReportCustomerNames(win.document);
             setTimeout(function () {
               fitSalesReportCustomerNames(win.document);
+            }, 0);
+          }
+          if (deliveryFit) {
+            fitDeliveryReportPrintCells(win.document);
+            setTimeout(function () {
+              fitDeliveryReportPrintCells(win.document);
             }, 0);
           }
           if (salesItemFit) {
@@ -1631,6 +1890,9 @@
       if (isVatNetPayableReport(routeKey)) {
         return orientation === 'landscape' ? [4, 4, 10, 4] : [8, 10, 14, 10];
       }
+      if (isPeriodInvoiceReportRouteKey(routeKey)) {
+        return [6, 10, 16, 10];
+      }
       return [6, 10, 10, 10];
     }
 
@@ -1692,6 +1954,8 @@
       var pagebreak = { mode: ['css', 'legacy'] };
       if (isVatNetPayableReport(routeKey)) {
         pagebreak.avoid = ['.report-vat-net-detail-totals-wrap'];
+      } else if (isPeriodInvoiceReportRouteKey(routeKey)) {
+        pagebreak.avoid = ['.report-sales-grand-total-wrap', '.report-sales-grand-total-table', '.doc-print-user-footer--end'];
       }
       return {
         margin: getPdfMargins(routeKey, pdfOrientation),
@@ -1891,6 +2155,9 @@
           if (isSalesCustomerNameFitReport()) {
             fitSalesReportCustomerNames(win.document);
           }
+          if (isDeliveryReportRoute()) {
+            fitDeliveryReportPrintCells(win.document);
+          }
           if (isSalesItemNameFitReport()) {
             fitSalesReportItemNames(win.document);
           }
@@ -1974,6 +2241,9 @@
         }
         if (isSalesCustomerNameFitReport()) {
           fitSalesReportCustomerNames(host);
+        }
+        if (isDeliveryReportRoute()) {
+          fitDeliveryReportPrintCells(host);
         }
         if (isSalesItemNameFitReport()) {
           fitSalesReportItemNames(host);

@@ -676,6 +676,23 @@ function nav_show_header_back_button(string $activeRoute): bool
     return $activeRoute !== 'dashboard';
 }
 
+/** رابط الشاشة الرئيسية (لوحة التحكم). */
+function nav_home_url(): string
+{
+    $cfg = require app_path('config/master_toolbar.php');
+    $homeRoute = (string) ($cfg['exit_route'] ?? 'dashboard');
+
+    return app_url('index.php?r=' . rawurlencode($homeRoute));
+}
+
+function nav_show_header_home_button(string $activeRoute): bool
+{
+    $cfg = require app_path('config/master_toolbar.php');
+    $homeRoute = (string) ($cfg['exit_route'] ?? 'dashboard');
+
+    return $activeRoute !== $homeRoute;
+}
+
 /** زر إغلاق/رجوع في ترويسة التطبيق — الزاوية اليسرى (مثل ERPNext). */
 function render_app_header_back_button(?string $activeRoute = null): void
 {
@@ -710,6 +727,26 @@ function render_app_titlebar_refresh_button(): void
     echo '</button>';
 }
 
+function render_app_titlebar_home_button(?string $activeRoute = null): void
+{
+    if ($activeRoute === null) {
+        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
+    }
+
+    if (!nav_show_header_home_button($activeRoute)) {
+        return;
+    }
+
+    $url = nav_home_url();
+    $hint = 'الشاشة الرئيسية';
+
+    echo '<a class="app-titlebar__btn app-titlebar__home-btn" href="' . esc($url) . '"';
+    echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">';
+    echo '<svg class="app-titlebar__btn-svg" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">';
+    echo '<path fill="currentColor" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>';
+    echo '</svg></a>';
+}
+
 function render_app_titlebar(string $pageTitle, string $routeTitle, string $activeRoute, string $companyNameAr = ''): void
 {
     $screen = trim($pageTitle) !== '' ? trim($pageTitle) : trim($routeTitle);
@@ -725,6 +762,7 @@ function render_app_titlebar(string $pageTitle, string $routeTitle, string $acti
     echo '<div class="app-titlebar__row">';
     render_app_header_back_button($activeRoute);
     render_app_titlebar_refresh_button();
+    render_app_titlebar_home_button($activeRoute);
     if ($fullTitle !== '') {
         echo '<span class="app-titlebar__title app-titlebar__title--wco">' . esc($fullTitle) . '</span>';
         echo '<span class="app-titlebar__title app-titlebar__title--browser">' . esc($fullTitle) . '</span>';

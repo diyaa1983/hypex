@@ -8,7 +8,6 @@
   var deleteUrl = screen.getAttribute('data-delete-url') || '';
   var csrf = screen.getAttribute('data-csrf') || '';
   var unpostedEl = document.getElementById('sal-ret-unposted-count');
-  var postSelectedBtn = document.getElementById('sal-ret-post-selected');
   var checkAll = document.getElementById('sal-ret-check-all');
 
   function updateUnpostedCount(n) {
@@ -57,31 +56,11 @@
     return ids;
   }
 
-  function syncPostSelectedBtn() {
-    if (!postSelectedBtn) return;
-    postSelectedBtn.disabled = selectedIds().length === 0;
-  }
-
-  document.querySelectorAll('.sal-ret-row-check').forEach(function (cb) {
-    cb.addEventListener('change', syncPostSelectedBtn);
-  });
-
   if (checkAll) {
     checkAll.addEventListener('change', function () {
       var on = checkAll.checked;
       document.querySelectorAll('.sal-ret-row-check').forEach(function (cb) {
         cb.checked = on;
-      });
-      syncPostSelectedBtn();
-    });
-  }
-
-  if (postSelectedBtn) {
-    postSelectedBtn.addEventListener('click', function () {
-      var ids = selectedIds();
-      if (!ids.length) return;
-      AppDialog.confirm('ترحيل ' + ids.length + ' مرتجع محدد؟', { title: 'ترحيل' }).then(function (ok) {
-        if (ok) postReturns(ids);
       });
     });
   }
