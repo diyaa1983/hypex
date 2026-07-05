@@ -421,6 +421,10 @@
     if (TB.show) TB.show(vis);
     if (loadingEl) loadingEl.hidden = true;
     if (rootEl) rootEl.hidden = false;
+    if (vis.post && (cfg.gpsEnabled || window.APP_GPS_ENABLED) && window.AppGeo) {
+      if (AppGeo.prefetchForPost) AppGeo.prefetchForPost('mobile');
+      if (AppGeo.startPostGpsWarmup) AppGeo.startPostGpsWarmup('mobile');
+    }
     printDoc = null;
     fetchPrintDocument(false).catch(function () {});
   }
@@ -578,7 +582,8 @@
 
     mobileConfirm(
       'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\n' +
-        'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.',
+        'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.\n\n' +
+        'سُيطلب تحديد موقعك (GPS أو الخريطة) لحفظ مكان الترحيل.',
       {
         title: 'تأكيد الترحيل',
         okText: 'نعم، رحّل',
@@ -592,7 +597,12 @@
       showPostStatus('جاري الترحيل...', 'success');
       if (cfg.gpsEnabled || (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost)) {
         AppGeo.withGpsForPost('mobile', function (gps) {
-          submitPost(gps && gps !== undefined ? gps : null);
+          if (gps === undefined) {
+            postFlowBusy = false;
+            showPostStatus('تم إلغاء الترحيل — الموقع مطلوب.', 'error');
+            return;
+          }
+          submitPost(gps);
         });
         return;
       }

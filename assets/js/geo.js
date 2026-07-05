@@ -8,6 +8,7 @@
   var postGpsCache = null;
   var postGpsWarmupTimer = null;
   var postGpsWatchId = null;
+  var primedPostGpsPromise = null;
 
   function isCapacitorNative() {
     try {
@@ -1421,35 +1422,71 @@
   function withGpsForPost(source, onReady) {
 
     var settled = false;
+    var mobilePost = isMobileLikeClient(source);
 
-    function finish(gps) {
+    function done(gps) {
       if (settled) {
         return;
       }
       settled = true;
+      if (gps === undefined) {
+        onReady(undefined);
+        return;
+      }
       if (gps && isValidCoordReading(gps)) {
         rememberReading(gps);
         pingUserLocationSilently(gps, source);
+        onReady(gps);
+        return;
       }
-      onReady(gps && isValidCoordReading(gps) ? gps : null);
+      onReady(null);
+    }
+
+    function offerMapFallback() {
+      if (!global.AppGeoMapPick || typeof AppGeoMapPick.pickLocationOnMap !== 'function') {
+        done(mobilePost ? undefined : null);
+        return;
+      }
+      offerLocationFallback(source, done, {
+        forPost: true,
+        requireLocation: mobilePost,
+      });
     }
 
     if (!canUseGeolocation()) {
-      finish(null);
+      if (mobilePost) {
+        offerMapFallback();
+        return;
+      }
+      done(null);
       return;
     }
 
     startPostGpsWarmup(source);
 
     resolveGpsForPost(source)
-      .then(finish)
+      .then(function (gps) {
+        if (gps && isValidCoordReading(gps)) {
+          done(gps);
+          return;
+        }
+        if (mobilePost) {
+          offerMapFallback();
+          return;
+        }
+        done(null);
+      })
       .catch(function () {
         var cached = getPostGpsCache(600000);
         if (cached && isValidCoordReading(cached)) {
-          finish(cached);
+          done(cached);
           return;
         }
-        finish(null);
+        if (mobilePost) {
+          offerMapFallback();
+          return;
+        }
+        done(null);
       });
 
   }
