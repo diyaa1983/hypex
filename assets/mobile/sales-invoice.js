@@ -1102,6 +1102,10 @@
         }
         if (data.archive_uploaded) {
           if (photoArchive) photoArchive.refreshMeta();
+          if (photoArchive && photoArchive.showBriefSuccess) {
+            photoArchive.showBriefSuccess('تم التحميل بنجاح', 1000).then(afterSaveRedirect);
+            return;
+          }
           if (window.AppDialog && AppDialog.success) {
             AppDialog.success('تم حفظ الفاتورة ورفع صورة الطلبية إلى السيرفر.').then(afterSaveRedirect);
             return;
@@ -1133,6 +1137,10 @@
               AppDialog.success('تم حفظ الفاتورة ورفع صورة الطلبية إلى السيرفر.').then(afterSaveRedirect);
               return;
             }
+            if (photoArchive && photoArchive.showBriefSuccess) {
+              photoArchive.showBriefSuccess('تم التحميل بنجاح', 1000).then(afterSaveRedirect);
+              return;
+            }
             afterSaveRedirect();
           });
           return;
@@ -1150,17 +1158,35 @@
             },
           })
           .then(function (data) {
-            photoArchive.updateUploadProgress(100, 'تم الحفظ والرفع');
+            if (btn) btn.disabled = false;
+            if (!data || !data.ok) {
+              photoArchive.hideUploadProgress();
+              var msg = (data && data.message) || 'تعذر الحفظ.';
+              if (window.AppDialog && AppDialog.error) AppDialog.error(msg);
+              return;
+            }
+            if (data.archive_uploaded && photoArchive.showBriefSuccess) {
+              if (photoArchive) photoArchive.refreshMeta();
+              var invId = parseInt(data.invoice_id, 10) || 0;
+              if (invoiceIdInp && invId > 0) invoiceIdInp.value = String(invId);
+              return photoArchive.showBriefSuccess('تم التحميل بنجاح', 1000).then(function () {
+                if (invId > 0 && window.AppMobile && AppMobile.mobileUrl) {
+                  window.location.href =
+                    AppMobile.mobileUrl + '?r=m_sales_invoice_view&id=' + encodeURIComponent(String(invId));
+                  return;
+                }
+                handleSaveResponse(data);
+              });
+            }
+            photoArchive.hideUploadProgress();
             return handleSaveResponse(data);
           })
           .catch(function (err) {
             if (btn) btn.disabled = false;
+            if (photoArchive.hideUploadProgress) photoArchive.hideUploadProgress();
             if (window.AppDialog && AppDialog.error) {
               AppDialog.error(err.message || 'تعذر الاتصال بالخادم.');
             }
-          })
-          .finally(function () {
-            if (photoArchive.hideUploadProgress) photoArchive.hideUploadProgress();
           });
         return;
       }

@@ -118,6 +118,45 @@
     this.setCameraBusy(false);
   };
 
+  /** رسالة نجاح تظهر ثانية واحدة ثم تختفي. */
+  InvoicePhotoArchive.prototype.showBriefSuccess = function (message, durationMs) {
+    var self = this;
+    message = message || 'تم التحميل بنجاح';
+    durationMs = parseInt(String(durationMs), 10) || 1000;
+    this.hideUploadProgress();
+    if (this._briefSuccessTimer) {
+      clearTimeout(this._briefSuccessTimer);
+      this._briefSuccessTimer = null;
+    }
+    var toast = this._briefSuccessToast;
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'm-inv-upload-toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toast);
+      this._briefSuccessToast = toast;
+    }
+    toast.textContent = message;
+    toast.hidden = false;
+    toast.classList.remove('is-hiding');
+    requestAnimationFrame(function () {
+      toast.classList.add('is-visible');
+    });
+    return new Promise(function (resolve) {
+      self._briefSuccessTimer = setTimeout(function () {
+        self._briefSuccessTimer = null;
+        toast.classList.add('is-hiding');
+        toast.classList.remove('is-visible');
+        setTimeout(function () {
+          toast.hidden = true;
+          toast.classList.remove('is-hiding');
+          resolve();
+        }, 220);
+      }, durationMs);
+    });
+  };
+
   /** ضغط الصورة لتسريع الرفع على الشبكة المحمولة. */
   InvoicePhotoArchive.prototype.compressImage = function (file) {
     var maxW = 1600;
@@ -341,6 +380,8 @@
         }
         if (global.AppDialog && AppDialog.toast) {
           AppDialog.toast('تم التقاط الصورة — احفظ الفاتورة لرفعها للسيرفر.', { type: 'success' });
+        } else {
+          self.showBriefSuccess('تم التقاط الصورة — احفظ الفاتورة', 1200);
         }
       })
       .catch(function (err) {
@@ -412,23 +453,20 @@
           if (opts.silent) {
             return true;
           }
-          self.updateUploadProgress(100, 'تم الرفع بنجاح');
-          return self
-            .alert((data && data.message) || 'تم رفع الصورة إلى السيرفر وحفظها في أرشيف الفاتورة.', 'success')
-            .then(function () {
-              return true;
-            });
+          return self.showBriefSuccess('تم التحميل بنجاح', 1000).then(function () {
+            return true;
+          });
         })
         .catch(function (err) {
           if (opts.silent) {
             return false;
           }
+          self.hideUploadProgress();
           return self.alert(err.message || 'تعذر حفظ الصورة.', 'error').then(function () {
             return false;
           });
         })
         .finally(function () {
-          self.hideUploadProgress();
           self.busy = false;
         });
     };

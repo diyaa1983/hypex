@@ -941,6 +941,40 @@ body.m-inv-upload-busy {
   direction: ltr;
 }
 
+.m-inv-upload-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 13100;
+  transform: translateX(-50%) translateY(12px);
+  max-width: min(92vw, 340px);
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  background: #1a8f4c;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.m-inv-upload-toast[hidden] {
+  display: none !important;
+}
+
+.m-inv-upload-toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.m-inv-upload-toast.is-hiding {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+
 .m-inv-archive-loading {
   display: flex;
   flex-direction: column;
