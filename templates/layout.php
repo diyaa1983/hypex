@@ -162,7 +162,7 @@ $appHeaderUiJsV = is_file(app_path('assets/js/app-header-ui.js'))
             { "selector_matches": "a.master-toolbar-btn[href*='index.php']" }
           ]
         },
-        "eagerness": "eager"
+        "eagerness": "moderate"
       }]
     }
     </script>

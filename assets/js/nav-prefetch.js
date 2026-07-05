@@ -2,6 +2,7 @@
   'use strict';
 
   var prefetched = new Set();
+  var prefetchMax = 6;
   var progressEl = null;
 
   function ensureProgressBar() {
@@ -54,6 +55,9 @@
     if (!url || prefetched.has(url)) {
       return;
     }
+    if (prefetched.size >= prefetchMax) {
+      return;
+    }
     prefetched.add(url);
     try {
       var link = document.createElement('link');
@@ -71,21 +75,6 @@
       return;
     }
     prefetchUrl(anchor.href);
-  }
-
-  function prefetchVisibleNavLinks() {
-    var selectors = [
-      '.nav-hub-ora-tile a[href*="index.php"]',
-      '.nav-list a[href*="index.php"]',
-      '.sidebar-nav a[href*="index.php"]',
-      '.dashboard-ora-screen-title__close[href*="index.php"]',
-      '.nav-exit-btn[href*="index.php"]',
-    ];
-    selectors.forEach(function (selector) {
-      document.querySelectorAll(selector).forEach(function (anchor) {
-        onIntent(anchor);
-      });
-    });
   }
 
   document.addEventListener(
@@ -124,19 +113,6 @@
     true
   );
 
-  function scheduleVisiblePrefetch() {
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(prefetchVisibleNavLinks, { timeout: 800 });
-    } else {
-      window.setTimeout(prefetchVisibleNavLinks, 120);
-    }
-  }
-
   window.addEventListener('pageshow', hideProgress);
   window.addEventListener('load', hideProgress);
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', scheduleVisiblePrefetch);
-  } else {
-    scheduleVisiblePrefetch();
-  }
 })();
