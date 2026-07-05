@@ -597,6 +597,10 @@
             showPostStatus(msg, 'error');
             return;
           }
+          var gpsSaved = parseInt(data.gps_saved, 10) || 0;
+          if (gpsSaved < 1 && gpsEnabled && !gps) {
+            attachGpsAfterPost(cfg.invoiceId);
+          }
           var okMsg =
             window.AppDialog && AppDialog.formatActionMessage
               ? AppDialog.formatActionMessage(data, {
@@ -612,6 +616,32 @@
           if (btnPost) btnPost.disabled = false;
           showPostStatus('تعذر الاتصال بالخادم.', 'error');
         });
+    }
+
+    function attachGpsAfterPost(invoiceId) {
+      if (!cfg.gpsAttachApi || !window.AppGeo) return;
+      var tryAttach = function (gps) {
+        if (!gps || !AppGeo.appendToFormData) return;
+        var fd = new FormData();
+        fd.append('_csrf', cfg.csrf || '');
+        fd.append('invoice_id', String(invoiceId));
+        AppGeo.appendToFormData(fd, gps, 'mobile');
+        fetch(cfg.gpsAttachApi, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        }).catch(function () {});
+      };
+      if (AppGeo.getCurrentPosition) {
+        AppGeo.getCurrentPosition({
+          enableHighAccuracy: true,
+          maximumAge: 300000,
+          timeout: 25000,
+        })
+          .then(tryAttach)
+          .catch(function () {});
+      }
     }
 
     function openPostConfirm() {

@@ -955,9 +955,9 @@ function sal_invoice_gps_apply_on_post(
         $gps = sal_invoice_gps_parse_request();
     }
 
-    // إذا لم تُرسل إحداثيات: آخر موقع حديث لنفس المستخدم (15 دقيقة) — لا ننسخ مواقع قديمة لكل الفواتير.
+    // إذا لم تُرسل إحداثيات: آخر موقع مسجّل للمستخدم (حتى 4 ساعات — من تتبع الجلسة).
     if ($gps === null && $userId !== null && $userId > 0) {
-        $gps = sal_invoice_gps_lookup_from_users($pdo, [$userId], 900, 500.0);
+        $gps = sal_invoice_gps_lookup_from_users($pdo, [$userId], 14400, 500.0);
     }
 
     if ($gps === null) {

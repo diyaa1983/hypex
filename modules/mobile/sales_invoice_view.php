@@ -172,7 +172,9 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 
         deleteApi: <?= json_encode(app_url('api/sales_invoice_delete.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
 
-        postApi: <?= json_encode(app_url('api/sales_invoice_post.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+        postApi: <?= json_encode(app_absolute_url('api/sales_invoice_post.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+
+        gpsAttachApi: <?= json_encode(app_absolute_url('api/sales_invoice_gps_attach.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
 
         listUrl: <?= json_encode(mobile_url('r=m_sales_invoice_list'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
 

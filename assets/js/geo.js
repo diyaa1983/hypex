@@ -1421,7 +1421,18 @@
 
   function onPostGpsUnavailable(source, opts, done, offerMapFallback) {
     if (isSilentPost(source, opts)) {
-      done(null);
+      silentPostFinalAttempt(source)
+        .then(function (gps) {
+          if (gps && isValidCoordReading(gps)) {
+            rememberReading(gps);
+            done(gps);
+            return;
+          }
+          done(null);
+        })
+        .catch(function () {
+          done(null);
+        });
       return;
     }
     if (isMobileLikeClient(source)) {
@@ -1429,6 +1440,27 @@
       return;
     }
     done(null);
+  }
+
+  function silentPostFinalAttempt(source) {
+    if (!canUseGeolocation()) {
+      return Promise.resolve(null);
+    }
+    var cached = getPostGpsCache(14400000);
+    if (cached && isValidCoordReading(cached)) {
+      return Promise.resolve(cached);
+    }
+    return getCurrentPosition({
+      enableHighAccuracy: true,
+      maximumAge: 600000,
+      timeout: 20000,
+    }).catch(function () {
+      return getCurrentPosition({
+        enableHighAccuracy: false,
+        maximumAge: 900000,
+        timeout: 12000,
+      });
+    });
   }
 
   /**

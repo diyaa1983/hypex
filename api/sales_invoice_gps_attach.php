@@ -6,12 +6,15 @@ require_once app_path('includes/sal_invoice_gps.php');
 require_once app_path('includes/sal_invoice_post.php');
 require_once app_path('includes/sal_invoice_schema.php');
 
+require_once app_path('includes/mobile_invoice.php');
+
 header('Content-Type: application/json; charset=utf-8');
 
 $may = is_logged_in() && (
     user_can('sales_invoice_gps')
     || user_can_sales_invoices()
     || user_can('sales_documents_list')
+    || mobile_can_post_sales_invoice()
 );
 
 if (!$may) {

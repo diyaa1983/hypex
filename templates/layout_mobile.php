@@ -238,7 +238,7 @@ window.UserSessionGpsConfig = {
     csrf: <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>,
     source: 'mobile',
     intervalMs: 600000,
-    initialDelayMs: 8000,
+    initialDelayMs: 3000,
     nativeIntervalMs: 180000,
     nativeInitialDelayMs: 3000,
     nativeGeoTimeoutMs: 25000,
