@@ -60,19 +60,19 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= esc($loginTabTitle) ?></title>
     <?php render_app_favicon_links($loginSettings); ?>
-    <link rel="stylesheet" href="<?= esc(app_url('assets/css/app.css')) ?>">
+    <?php
+    require_once app_path('includes/app_pwa.php');
+    render_app_pwa_head($loginSettings);
+    ?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/app.css')) ?><?= is_file(app_path('assets/css/app.css')) ? '?v=' . filemtime(app_path('assets/css/app.css')) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/ui-dialog.css')) ?>">
     <?= login_recaptcha_script_tag(null) ?>
 </head>
 <body class="login-body">
+<div class="login-page-main">
 <div class="login-card">
-    <div class="login-brand">
-        <div class="brand-mark lg">N</div>
-        <div>
-            <div class="login-title">نظام محاسبة متكامل</div>
-            <div class="login-sub">تسجيل الدخول</div>
-        </div>
-    </div>
+    <?php render_app_pwa_install_banner(); ?>
+    <p class="login-sub login-sub--center">تسجيل الدخول</p>
     <?php if ($error !== ''): ?>
         <div class="alert alert-error"><?= esc($error) ?></div>
     <?php endif; ?>
@@ -91,6 +91,7 @@ try {
     <p class="login-forgot-link">
         <a href="<?= esc(app_url('forgot_password.php')) ?>">نسيت كلمة المرور؟</a>
     </p>
+</div>
 </div>
 <script src="<?= esc(app_url('assets/js/ui-dialog.js')) ?>"></script>
 </body>

@@ -135,7 +135,7 @@
       true
     );
 
-    document.querySelectorAll('.sidebar-logout-btn, .app-topbar-logout').forEach(function (link) {
+    document.querySelectorAll('.sidebar-logout-btn').forEach(function (link) {
       link.addEventListener('click', clearStoredOpenState);
     });
   }

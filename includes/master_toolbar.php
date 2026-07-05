@@ -22,6 +22,26 @@ function master_toolbar_exit_icon_svg(): string
         . '</svg>';
 }
 
+function app_logout_icon_svg(): string
+{
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        . '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>'
+        . '<polyline points="16 17 21 12 16 7"/>'
+        . '<line x1="21" y1="12" x2="9" y2="12"/>'
+        . '</svg>';
+}
+
+/** اسم المستخدم + أيقونة تسجيل الخروج في الترويسة. */
+function render_app_header_account(string $userLabel, string $logoutUrl): void
+{
+    echo '<div class="app-header-account">';
+    echo '<span class="app-header-account__name">' . esc($userLabel) . '</span>';
+    echo '<a class="app-header-logout-btn" href="' . esc($logoutUrl) . '" title="تسجيل خروج" aria-label="تسجيل خروج">';
+    echo '<span class="app-header-logout-btn__icon" aria-hidden="true">' . app_logout_icon_svg() . '</span>';
+    echo '</a>';
+    echo '</div>';
+}
+
 /** @param array<string, mixed> $btn */
 function master_toolbar_button_visible(array $btn, string $activeRoute): bool
 {

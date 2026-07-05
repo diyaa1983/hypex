@@ -1,0 +1,41 @@
+.app-pwa-install {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+  color: #1e3a8a;
+  position: relative;
+}
+
+.app-pwa-install[hidden] {
+  display: none !important;
+}
+
+.app-pwa-install__text {
+  margin: 0;
+  flex: 1 1 12rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.app-pwa-install__dismiss {
+  position: absolute;
+  top: 0.35rem;
+  inset-inline-start: 0.45rem;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+}
+
+.app-pwa-install.is-standalone {
+  display: none !important;
+}

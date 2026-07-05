@@ -83,6 +83,10 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
     <title><?= esc($browserTabTitle) ?></title>
     <?php render_app_favicon_links($settingsRow); ?>
     <?php
+    require_once app_path('includes/app_pwa.php');
+    render_app_pwa_head($settingsRow);
+    ?>
+    <?php
     $appCssV = is_file(app_path('assets/css/app.css')) ? (string) filemtime(app_path('assets/css/app.css')) : '';
     $uiDlgCssV = is_file(app_path('assets/css/ui-dialog.css')) ? (string) filemtime(app_path('assets/css/ui-dialog.css')) : '';
     $uiDlgJsV = is_file(app_path('assets/js/ui-dialog.js')) ? (string) filemtime(app_path('assets/js/ui-dialog.js')) : '';
@@ -118,9 +122,12 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
     $hrOraUnsavedJsV = is_file(app_path('assets/js/hr-ora-unsaved.js'))
         ? (string) filemtime(app_path('assets/js/hr-ora-unsaved.js'))
         : '';
-    $screenExitGuardJsV = is_file(app_path('assets/js/screen-exit-guard.js'))
-        ? (string) filemtime(app_path('assets/js/screen-exit-guard.js'))
-        : '';
+$screenExitGuardJsV = is_file(app_path('assets/js/screen-exit-guard.js'))
+    ? (string) filemtime(app_path('assets/js/screen-exit-guard.js'))
+    : '';
+$appHeaderUiJsV = is_file(app_path('assets/js/app-header-ui.js'))
+    ? (string) filemtime(app_path('assets/js/app-header-ui.js'))
+    : '';
     $docNoNavJsV = is_file(app_path('assets/js/document-no-nav.js'))
         ? (string) filemtime(app_path('assets/js/document-no-nav.js'))
         : '';
@@ -193,32 +200,16 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
     <script src="<?= esc(app_url('assets/js/app-busy.js')) ?><?= $appBusyJsV !== '' ? '?v=' . esc($appBusyJsV) : '' ?>" defer></script>
 </head>
 <body class="app-body<?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
+<?php render_app_titlebar($tabPageTitle, (string) $routeTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? '')); ?>
 <div class="app-shell<?= $layoutFocus ? ' app-shell--focus' : '' ?>">
 <?php if ($layoutFocus): ?>
     <header class="app-topbar no-print" role="banner">
-        <div class="app-topbar-brand-wrap">
-            <a class="app-topbar-brand" href="<?= esc($dashboardUrl) ?>" title="لوحة التحكم">
-                <span class="brand-identity">
-                    <?php if (!empty($settingsRow['logo_path'])): ?>
-                        <img class="brand-logo" src="<?= esc(app_url($settingsRow['logo_path'])) ?>" alt="">
-                    <?php else: ?>
-                        <div class="brand-mark">N</div>
-                    <?php endif; ?>
-                    <span class="app-topbar-brand-name"><?= esc($settingsRow['company_name_ar']) ?></span>
-                </span>
-            </a>
+        <div class="app-topbar-account">
+            <?php render_app_header_account($appUserLabel, $logoutUrl); ?>
         </div>
-        <div class="app-topbar-actions">
+        <div class="app-topbar-main">
             <?php render_header_check_notifications($headerCheckNotify); ?>
             <?php render_master_toolbar(); ?>
-        </div>
-        <div class="app-topbar-user">
-            <span class="app-topbar-user-label">المستخدم:</span>
-            <span class="app-topbar-user-name"><?= esc($appUserLabel) ?></span>
-            <div class="app-session-actions">
-                <?php render_nav_exit_button($activeRoute); ?>
-                <a class="btn app-topbar-logout" href="<?= esc($logoutUrl) ?>">تسجيل خروج</a>
-            </div>
         </div>
     </header>
     <main class="main-content main-content--focus">
@@ -232,25 +223,14 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
 <?php else: ?>
     <?php $showMasterToolbar = $activeRoute !== 'dashboard' && $activeRoute !== 'menu_hub'; ?>
     <header class="app-screen-head no-print" role="banner">
-        <div class="app-screen-head-brand">
-            <div class="brand-identity">
-                <?php if (!empty($settingsRow['logo_path'])): ?>
-                    <img class="brand-logo" src="<?= esc(app_url($settingsRow['logo_path'])) ?>" alt="">
-                <?php else: ?>
-                    <div class="brand-mark">N</div>
-                <?php endif; ?>
-                <div class="brand-name"><?= esc($settingsRow['company_name_ar']) ?></div>
-            </div>
+        <div class="app-screen-head-account">
+            <?php render_app_header_account($appUserLabel, $logoutUrl); ?>
         </div>
-        <div class="app-screen-head-actions">
+        <div class="app-screen-head-main">
             <?php render_header_check_notifications($headerCheckNotify); ?>
             <?php if ($showMasterToolbar): ?>
             <?php render_master_toolbar(); ?>
             <?php endif; ?>
-        </div>
-        <div class="app-screen-head-user">
-            <span class="app-topbar-user-label">المستخدم:</span>
-            <span class="app-topbar-user-name"><?= esc($appUserLabel) ?></span>
         </div>
     </header>
     <div class="app-shell-body">
@@ -302,6 +282,19 @@ require_once app_path('includes/app_busy.php');
 app_busy_render_overlay();
 ?>
 <script>try{sessionStorage.removeItem('manager:mdi-windows-v1');}catch(e){}</script>
+<script>
+(function () {
+  if (window.matchMedia('(display-mode: standalone)').matches) {
+    document.body.classList.add('app-body--standalone');
+  }
+  if (!('windowControlsOverlay' in navigator)) return;
+  function syncWco() {
+    document.body.classList.toggle('app-body--wco', navigator.windowControlsOverlay.visible);
+  }
+  syncWco();
+  navigator.windowControlsOverlay.addEventListener('geometrychange', syncWco);
+})();
+</script>
 <script src="<?= esc(app_url('assets/js/app-format.js')) ?><?= $appFormatJsV !== '' ? '?v=' . esc($appFormatJsV) : '' ?>" defer></script>
 <?php if (!$layoutFocus): ?>
 <?php
@@ -319,6 +312,7 @@ $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
 <script src="<?= esc(app_url('assets/js/document-header.js')) ?><?= $docHdrJsV !== '' ? '?v=' . esc($docHdrJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/document-no-nav.js')) ?><?= $docNoNavJsV !== '' ? '?v=' . esc($docNoNavJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/ui-dialog.js')) ?><?= $uiDlgJsV !== '' ? '?v=' . esc($uiDlgJsV) : '' ?>" defer></script>
+<script src="<?= esc(app_url('assets/js/app-header-ui.js')) ?><?= $appHeaderUiJsV !== '' ? '?v=' . esc($appHeaderUiJsV) : '' ?>" defer></script>
 <?php if ($activeRoute === 'system_backup'): ?>
 <?php
 $sysBackupJsV = is_file(app_path('assets/js/sys-backup.js'))

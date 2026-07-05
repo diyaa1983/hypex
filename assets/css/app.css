@@ -46,27 +46,230 @@ body.app-body {
   font-family: var(--font);
   background: var(--bg);
   color: var(--text);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* شريط عنوان — ERPNext: أزرار + اسم الشركة/الشاشة على سطر واحد */
+.app-titlebar {
+  flex-shrink: 0;
+  width: 100%;
+  background: #1e3a5f;
+  color: #fff;
+  border-bottom: 1px solid #152a47;
+  box-sizing: border-box;
+  -webkit-app-region: drag;
+  app-region: drag;
+  z-index: 50;
+}
+
+.app-titlebar__row {
+  direction: ltr;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  height: 33px;
+  min-height: 33px;
+  max-height: 33px;
+  padding: 0 0.65rem 0 0.4rem;
+  overflow: hidden;
+}
+
+.app-titlebar__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  direction: rtl;
+  text-align: left;
+  unicode-bidi: plaintext;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 33px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  app-region: drag;
+}
+
+.app-titlebar__btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  border-radius: 4px;
+  box-sizing: border-box;
+  cursor: pointer;
+  app-region: no-drag;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* رجوع — رمادي فاتح مثل ERPNext */
+.app-titlebar__back-btn {
+  width: 1.65rem;
+  height: 1.65rem;
+  color: #1e293b;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+}
+
+.app-titlebar__back-btn:hover {
+  background: #cbd5e1;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* تحديث — شفاف على الأزرق */
+.app-titlebar__refresh-btn {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.app-titlebar__refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+.app-titlebar__btn--placeholder {
+  width: 1.65rem;
+  height: 1.65rem;
+  visibility: hidden;
+  pointer-events: none;
+  border: none;
+  background: transparent;
+}
+
+.app-titlebar__btn-icon {
+  display: block;
+  line-height: 1;
+}
+
+.app-titlebar__title--wco {
+  display: none;
+}
+
+.app-titlebar__title--browser {
+  display: block;
+}
+
+body.app-body--wco .app-titlebar__title--browser {
+  display: none;
+}
+
+body.app-body--wco .app-titlebar__title--wco {
+  display: block;
+}
+
+@supports (height: env(titlebar-area-height)) {
+  @media (display-mode: standalone), (display-mode: window-controls-overlay) {
+    body.app-body--wco {
+      padding-top: env(titlebar-area-height, 33px);
+    }
+
+    body.app-body--wco .app-titlebar {
+      position: fixed;
+      top: env(titlebar-area-y, 0);
+      left: env(titlebar-area-x, 0);
+      width: env(titlebar-area-width, 100%);
+      height: env(titlebar-area-height, 33px);
+      min-height: env(titlebar-area-height, 33px);
+      max-height: env(titlebar-area-height, 33px);
+      border-bottom: none;
+      z-index: 10000;
+    }
+
+    body.app-body--wco .app-titlebar__row {
+      height: 100%;
+      min-height: 0;
+      max-height: none;
+      padding: 0 0.55rem 0 0.35rem;
+    }
+
+    body.app-body--wco .app-titlebar__title {
+      line-height: 1.2;
+      align-self: center;
+    }
+  }
+}
+
+@media (display-mode: standalone) {
+  /* PWA: العنوان في شريط Windows فقط — أزرار بدون تكرار النص */
+  body.app-body:not(.app-body--wco) .app-titlebar {
+    background: transparent;
+    border-bottom: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: auto;
+    z-index: 10001;
+    pointer-events: none;
+  }
+
+  body.app-body:not(.app-body--wco) .app-titlebar__row {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    padding: 0.35rem 0 0 0.4rem;
+  }
+
+  body.app-body:not(.app-body--wco) .app-titlebar__title {
+    display: none !important;
+  }
+
+  body.app-body:not(.app-body--wco) .app-titlebar__btn {
+    pointer-events: auto;
+  }
+
+  body.app-body:not(.app-body--wco) .app-shell {
+    min-height: 100vh;
+  }
+
+  body.app-body:not(.app-body--wco) .app-shell:not(.app-shell--focus) {
+    min-height: 100vh;
+  }
+
+  body.app-body:not(.app-body--wco) .sidebar--compact-head {
+    min-height: calc(100vh - 3.35rem);
+  }
 }
 
 .app-shell {
   display: flex;
-  min-height: 100vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-height: calc(100vh - 33px);
   direction: rtl;
 }
 
 .app-shell:not(.app-shell--focus) {
   flex-wrap: wrap;
   align-content: flex-start;
-  min-height: 100vh;
+  min-height: calc(100vh - 33px);
 }
 
 .app-screen-head {
   flex: 0 0 100%;
   width: 100%;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0;
-  padding: 0.45rem 0 0.45rem 1rem;
+  gap: 0.5rem 0.75rem;
+  padding: 0.45rem 1rem;
   background: var(--shell-bg);
   border-bottom: 1px solid var(--shell-border);
   z-index: 12;
@@ -74,41 +277,34 @@ body.app-body {
   height: auto;
 }
 
-.app-screen-head-brand {
-  display: flex;
-  align-items: center;
+.app-screen-head-account,
+.app-topbar-account {
+  grid-column: 1;
+  justify-self: start;
   flex-shrink: 0;
-  width: 280px;
-  max-width: 280px;
-  padding: 0 0.75rem;
-  box-sizing: border-box;
-  border-inline-end: 1px solid var(--shell-border);
 }
 
-.app-screen-head-brand .brand-identity {
-  width: 100%;
-}
-
-.app-screen-head-actions,
-.app-topbar-actions {
+.app-screen-head-main,
+.app-topbar-main {
+  grid-column: 2;
   flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.4rem;
+  gap: 0.5rem;
+  min-width: 0;
   overflow: visible;
 }
 
-.app-screen-head-actions .app-check-bell-wrap,
-.app-topbar-actions .app-check-bell-wrap {
+.app-screen-head-main .app-check-bell-wrap,
+.app-topbar-main .app-check-bell-wrap {
   flex-shrink: 0;
 }
 
-.app-screen-head-actions .master-toolbar,
-.app-topbar-actions .master-toolbar {
+.app-screen-head-main .master-toolbar,
+.app-topbar-main .master-toolbar {
   flex: 1;
   min-width: 0;
   background: transparent;
@@ -117,9 +313,100 @@ body.app-body {
   z-index: auto;
 }
 
-.app-screen-head-actions .master-toolbar-inner,
-.app-topbar-actions .master-toolbar-inner {
+.app-screen-head-main .master-toolbar-inner,
+.app-topbar-main .master-toolbar-inner {
   justify-content: flex-start;
+}
+
+.app-header-account {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding-inline-end: 0.75rem;
+  border-inline-end: 1px solid var(--shell-border);
+  min-height: 2.5rem;
+}
+
+.app-header-account__name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--shell-text);
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header-logout-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: #0f172a;
+  background: #e8eaef;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.app-header-logout-btn:hover {
+  background: #dde1e8;
+  border-color: #64748b;
+  color: #0f172a;
+}
+
+.app-header-logout-btn__icon {
+  display: flex;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.app-header-logout-btn__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.app-header-back {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #0f172a;
+  text-decoration: none;
+  background: #e8eaef;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.app-header-back:hover {
+  background: #dde1e8;
+  color: #0f172a;
+  border-color: #64748b;
+}
+
+.app-header-back--placeholder {
+  width: 2rem;
+  height: 2rem;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* زر الإغلاق في الترويسة — إخفاء النسخة داخل الشريط الأزرق */
+body:not(.app-body--embed) .dashboard-ora-screen-title > .ora12-title-bar__close:not(.app-header-back),
+body:not(.app-body--embed) .app-screen-title-bar > .ora12-title-bar__close,
+body:not(.app-body--embed) .dashboard-ora-screen-title .ora12-title-bar__controls {
+  display: none !important;
 }
 
 .app-shell-body {
@@ -140,15 +427,15 @@ body.app-body {
   align-self: stretch;
   height: auto;
   max-height: none;
-  min-height: calc(100vh - 3.35rem);
+  min-height: calc(100vh - 33px - 3.35rem);
 }
 
 /* وضع ملء الشاشة: بدون قائمة جانبية — شريط علوي (شعار + أزرار) فقط */
 .app-shell--focus {
   flex-direction: column;
-  min-height: 100vh;
-  height: 100vh;
-  max-height: 100vh;
+  min-height: calc(100vh - 33px);
+  height: calc(100vh - 33px);
+  max-height: calc(100vh - 33px);
   overflow: hidden;
 }
 
@@ -158,10 +445,10 @@ body.app-body {
 
 .app-topbar {
   flex-shrink: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.5rem 0.75rem;
-  flex-wrap: nowrap;
   padding: 0.5rem 1.25rem;
   background: var(--shell-bg);
   border-bottom: 1px solid var(--shell-border);
@@ -170,85 +457,9 @@ body.app-body {
   height: auto;
 }
 
+.app-topbar-brand-wrap,
 .app-topbar-brand {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-  color: var(--shell-text);
-  flex-shrink: 0;
-  max-width: min(260px, 32vw);
-}
-
-.app-topbar-brand .brand-identity {
-  gap: 0.55rem;
-}
-
-.app-topbar-brand:hover {
-  color: var(--shell-text);
-}
-
-.app-topbar-brand-name {
-  flex: 1;
-  min-width: 0;
-  font-weight: 700;
-  font-size: 0.9rem;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.app-topbar-user {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-  transform: translateX(0.65rem);
-}
-
-.app-topbar-user-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--shell-text-muted);
-  white-space: nowrap;
-}
-
-.app-topbar-user-name {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--shell-text);
-  max-width: 14rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.app-screen-head-user {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-shrink: 0;
-  margin-inline-start: auto;
-  padding-inline: 0.75rem;
-  border-inline-start: 1px solid var(--shell-border);
-  min-height: 2.5rem;
-  transform: translateX(0.65rem);
-}
-
-.app-topbar-logout {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #0f172a;
-  background: #e8eaef;
-  border: 1px solid #94a3b8;
-  border-radius: 8px;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.app-topbar-logout:hover {
-  background: #dde1e8;
-  color: #0f172a;
+  display: none !important;
 }
 
 .sidebar-logout-btn {
@@ -332,14 +543,14 @@ body.app-body {
   transform: scaleX(-1);
 }
 
-.app-shell--focus .app-topbar-actions {
+.app-shell--focus .app-topbar-main {
   flex: 1;
   min-width: 0;
   overflow: visible;
   align-self: center;
 }
 
-.app-shell--focus .app-topbar-actions .master-toolbar {
+.app-shell--focus .app-topbar-main .master-toolbar {
   flex: 1;
   min-width: 0;
   background: transparent;
@@ -349,7 +560,7 @@ body.app-body {
   overflow: visible;
 }
 
-.app-shell--focus .app-topbar-actions .master-toolbar-inner {
+.app-shell--focus .app-topbar-main .master-toolbar-inner {
   justify-content: flex-start;
   flex-wrap: wrap;
   overflow: visible;
@@ -1126,7 +1337,7 @@ body.app-body {
 }
 
 .main-wrap > .main-content,
-.app-screen-head-actions > .master-toolbar {
+.app-screen-head-main > .master-toolbar {
   position: relative;
   z-index: 1;
 }
@@ -1606,8 +1817,9 @@ table.data-table {
 .login-body {
   min-height: 100vh;
   margin: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   background: radial-gradient(1200px 600px at 20% 0%, #e0e7ff, transparent),
               radial-gradient(900px 500px at 100% 20%, #dbeafe, transparent),
               var(--bg);
@@ -1615,18 +1827,33 @@ table.data-table {
   direction: rtl;
 }
 
+.login-page-main {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem 1rem 2rem;
+}
+
 .login-card {
   width: min(420px, 92vw);
   background: var(--surface);
-  padding: 2rem;
+  padding: 1.5rem 1.75rem 2rem;
   border-radius: 20px;
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
+  overflow: hidden;
 }
 
 .login-brand { display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; }
 .login-title { font-weight: 800; font-size: 1.1rem; }
 .login-sub { color: var(--muted); font-size: 0.9rem; margin-top: 0.2rem; }
+.login-sub--center {
+  text-align: center;
+  margin: 0 0 1.25rem;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
 .login-hint { font-size: 0.78rem; color: var(--muted); margin-top: 1rem; line-height: 1.5; }
 .login-forgot-link { text-align: center; margin-top: 1rem; font-size: 0.9rem; }
 .login-forgot-link a { color: var(--primary, #2563eb); text-decoration: none; font-weight: 600; }
@@ -1807,22 +2034,20 @@ table.data-table {
 }
 
 /* ثبات شريط النظام والأيقونات عند تكبير المتصفح (Ctrl + / zoom) */
-.app-screen-head-actions .master-toolbar,
-.app-topbar-actions .master-toolbar {
+.app-screen-head-main .master-toolbar,
+.app-topbar-main .master-toolbar {
   overflow: visible;
 }
 
-.app-screen-head-actions .master-toolbar-inner,
-.app-topbar-actions .master-toolbar-inner {
+.app-screen-head-main .master-toolbar-inner,
+.app-topbar-main .master-toolbar-inner {
   flex-wrap: wrap;
   overflow: visible;
 }
 
 .app-topbar-brand-wrap,
-.app-screen-head-brand,
-.app-screen-head-user,
-.app-topbar-user,
-.app-session-actions,
+.app-screen-head-account,
+.app-topbar-account,
 .app-check-bell-wrap,
 .nav-exit-btn {
   flex-shrink: 0;
@@ -1846,18 +2071,8 @@ table.data-table {
     padding: 0.5rem 0.75rem;
   }
 
-  .app-topbar-brand-name {
-    max-width: 140px;
-  }
-
-  .app-topbar-user-name,
-  .app-screen-head-user .app-topbar-user-name {
+  .app-header-account__name {
     max-width: 8rem;
-  }
-
-  .app-topbar-user-label,
-  .app-screen-head-user .app-topbar-user-label {
-    display: none;
   }
 
   .app-shell--focus {

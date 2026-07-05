@@ -656,20 +656,81 @@ function nav_layout_is_screen_focus(string $activeRoute): bool
 }
 
 /**
- * عنوان تبويب المتصفح: اسم الشاشة/التقرير — اسم الشركة.
+ * عنوان تبويب المتصفح / نافذة PWA.
+ * اسم الشاشة فقط — اسم الشركة يظهر في manifest وشريط التطبيق.
  */
 function app_browser_tab_title(string $pageTitle, string $activeRoute, string $companyNameAr): string
 {
-    $company = trim($companyNameAr);
-    if ($company === '') {
-        $company = 'الشركة';
-    }
     $pageTitle = trim($pageTitle);
-    if ($pageTitle === '') {
-        return $company;
+    if ($pageTitle !== '') {
+        return $pageTitle;
     }
 
-    return $pageTitle . ' — ' . $company;
+    $company = trim($companyNameAr);
+
+    return $company !== '' ? $company : 'الشركة';
+}
+
+function nav_show_header_back_button(string $activeRoute): bool
+{
+    return $activeRoute !== 'dashboard';
+}
+
+/** زر إغلاق/رجوع في ترويسة التطبيق — الزاوية اليسرى (مثل ERPNext). */
+function render_app_header_back_button(?string $activeRoute = null): void
+{
+    if ($activeRoute === null) {
+        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
+    }
+
+    if (!nav_show_header_back_button($activeRoute)) {
+        echo '<span class="app-titlebar__btn app-titlebar__btn--placeholder" aria-hidden="true"></span>';
+
+        return;
+    }
+
+    require_once app_path('includes/app_window_manager.php');
+    $activeRoute = app_mdi_resolve_route($activeRoute);
+    $info = nav_screen_close_info($activeRoute);
+    $url = (string) ($info['url'] ?? nav_close_url($activeRoute));
+    $hint = (string) ($info['hint'] ?? 'إغلاق والعودة');
+    if (app_mdi_is_embed_request()) {
+        $url = app_mdi_embed_url($url);
+    }
+
+    echo '<a class="app-titlebar__btn app-titlebar__back-btn ora12-title-bar__close" href="' . esc($url) . '"';
+    echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '"><span class="app-titlebar__btn-icon" aria-hidden="true">←</span></a>';
+}
+
+/** شريط عنوان PWA — أزرار رجوع/تحديث + اسم الشاشة على سطر واحد. */
+function render_app_titlebar_refresh_button(): void
+{
+    echo '<button type="button" class="app-titlebar__btn app-titlebar__refresh-btn" id="app-titlebar-refresh" title="تحديث الصفحة" aria-label="تحديث الصفحة">';
+    echo '<span class="app-titlebar__btn-icon" aria-hidden="true">↻</span>';
+    echo '</button>';
+}
+
+function render_app_titlebar(string $pageTitle, string $routeTitle, string $activeRoute, string $companyNameAr = ''): void
+{
+    $screen = trim($pageTitle) !== '' ? trim($pageTitle) : trim($routeTitle);
+    $company = trim($companyNameAr);
+    $fullTitle = $screen;
+    if ($company !== '' && $screen !== '') {
+        $fullTitle = $company . ' - ' . $screen;
+    } elseif ($company !== '') {
+        $fullTitle = $company;
+    }
+
+    echo '<header class="app-titlebar no-print" role="banner">';
+    echo '<div class="app-titlebar__row">';
+    render_app_header_back_button($activeRoute);
+    render_app_titlebar_refresh_button();
+    if ($fullTitle !== '') {
+        echo '<span class="app-titlebar__title app-titlebar__title--wco">' . esc($fullTitle) . '</span>';
+        echo '<span class="app-titlebar__title app-titlebar__title--browser">' . esc($fullTitle) . '</span>';
+    }
+    echo '</div>';
+    echo '</header>';
 }
 
 /** @return array{href: string, type: string} */
