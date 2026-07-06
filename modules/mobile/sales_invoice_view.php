@@ -148,6 +148,8 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 </div>
 </div>
 
+<footer id="m-inv-fixed-actions" class="m-inv-fixed-actions" aria-label="إجراءات الفاتورة"></footer>
+
 <div id="m-inv-print-host" hidden></div>
 
 <div id="m-inv-pdf-overlay" class="m-inv-pdf-overlay" hidden aria-hidden="true">

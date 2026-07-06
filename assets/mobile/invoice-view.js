@@ -533,9 +533,13 @@
   cfg.listUrl = cfg.listUrl || mobileListFallback();
 
   function bootViewActionBar() {
-    if (TB.pinToBottomDock) {
+    var mounted = false;
+    if (TB.mountInto && document.getElementById('m-inv-fixed-actions')) {
+      mounted = TB.mountInto('m-inv-fixed-actions');
+    }
+    if (!mounted && TB.pinToBottomDock) {
       TB.pinToBottomDock();
-    } else if (TB.ensureVisible) {
+    } else if (!mounted && TB.ensureVisible) {
       TB.ensureVisible();
     }
   }

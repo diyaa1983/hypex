@@ -172,7 +172,11 @@
     var host = typeof hostId === 'string' ? document.getElementById(hostId) : hostId;
     var toolbar = root();
     if (!host || !toolbar) return false;
-    if (host.classList && host.classList.contains('m-inv-doc-actions--fixed') && host.parentNode !== document.body) {
+    if (
+      host.classList &&
+      (host.classList.contains('m-inv-fixed-actions') || host.classList.contains('m-inv-doc-actions--fixed')) &&
+      host.parentNode !== document.body
+    ) {
       document.body.appendChild(host);
     }
     host.appendChild(toolbar);

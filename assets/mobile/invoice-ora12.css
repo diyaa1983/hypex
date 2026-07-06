@@ -404,10 +404,10 @@
   margin-bottom: 0.28rem;
 }
 
-.m-ora12-invoice-ui .m-inv-doc-actions--fixed .m-action-dock-actions .m-toolbar-btn {
-  --m-toolbar-btn-h: 2.05rem;
-  --m-toolbar-btn-ico: 0.82rem;
-  --m-toolbar-btn-lbl: 0.48rem;
+.m-ora12-invoice-ui .m-inv-fixed-actions .m-action-dock-actions .m-toolbar-btn {
+  --m-toolbar-btn-h: 2.15rem;
+  --m-toolbar-btn-ico: 0.88rem;
+  --m-toolbar-btn-lbl: 0.5rem;
 }
 
 .m-ora12-invoice-ui .m-inv-line-delete--inline {

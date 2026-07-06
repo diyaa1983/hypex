@@ -188,13 +188,15 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         </div>
     </section>
 
-    <div class="m-inv-save-fallback" id="m-inv-save-fallback" hidden>
+    <div class="m-inv-save-fallback" id="m-inv-save-fallback">
         <button type="submit" class="m-btn m-btn--success m-inv-save-fallback__btn">حفظ الفاتورة</button>
     </div>
 
 </form>
 </div>
 </div>
+
+<footer id="m-inv-fixed-actions" class="m-inv-fixed-actions" aria-label="إجراءات الفاتورة"></footer>
 
 <!-- شاشة اختيار العميل — شبكة مربعات -->
 <div id="m-customer-picker" class="m-picker m-picker--customers" hidden aria-hidden="true">

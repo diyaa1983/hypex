@@ -849,8 +849,14 @@
   function syncSaveFallback() {
     var fb = document.getElementById('m-inv-save-fallback');
     if (!fb) return;
-    var toolbarSaveVisible = saveBtn && !saveBtn.hidden;
-    fb.hidden = !!toolbarSaveVisible;
+    var visible = 0;
+    ['save', 'open', 'edit', 'delete', 'print', 'pdf', 'post', 'camera', 'archive'].forEach(function (key) {
+      var b = TB.btn ? TB.btn(key) : null;
+      if (b && !b.hidden) visible += 1;
+    });
+    var host = document.getElementById('m-inv-fixed-actions');
+    var toolbarMounted = !!(host && host.querySelector('#m-main-toolbar'));
+    fb.hidden = visible > 0 && toolbarMounted;
     document.body.classList.toggle('m-inv-save-fallback-visible', !fb.hidden);
   }
 
@@ -1463,13 +1469,18 @@
   }
 
   function bootActionBar() {
-    if (TB.pinToBottomDock) {
+    var mounted = false;
+    if (TB.mountInto && document.getElementById('m-inv-fixed-actions')) {
+      mounted = TB.mountInto('m-inv-fixed-actions');
+    }
+    if (!mounted && TB.pinToBottomDock) {
       TB.pinToBottomDock();
-    } else if (TB.ensureVisible) {
+    } else if (!mounted && TB.ensureVisible) {
       TB.ensureVisible();
     }
     refreshActionBar();
     requestAnimationFrame(refreshActionBar);
+    window.setTimeout(refreshActionBar, 80);
   }
 
   bootActionBar();
