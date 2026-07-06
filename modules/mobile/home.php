@@ -24,6 +24,7 @@ if ($userName !== '') {
 
 <div class="m-home">
     <div class="m-home-hero">
+        <a class="m-home-logout" href="<?= esc(app_url('m/logout.php')) ?>">خروج</a>
         <div class="m-home-avatar" aria-hidden="true"><?= esc($avatarLetter) ?></div>
         <div class="m-home-hero-text">
             <p class="m-home-welcome">مرحباً، <?= esc($userName !== '' ? $userName : '—') ?></p>

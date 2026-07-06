@@ -13,6 +13,7 @@
   --m-radius: 10px;
   --m-tab-h: 3.85rem;
   --m-action-dock-h: 0px;
+  --m-safe-t: env(safe-area-inset-top, 0px);
   --m-safe-b: env(safe-area-inset-bottom, 0px);
   --m-toolbar-btn-h: 2.35rem;
   --m-toolbar-btn-ico: 1.05rem;
@@ -47,6 +48,10 @@ body.m-has-action-dock.m-action-dock--titled {
 
 body.m-page-home {
   padding-bottom: calc(var(--m-safe-b) + 0.75rem);
+}
+
+body.m-no-tabbar {
+  --m-tab-h: 0px;
 }
 
 /* مربعات التأكيد على الهاتف */
@@ -292,6 +297,36 @@ body.m-page-home {
 .m-action-dock-actions--5,
 .m-doc-list-bar-actions--5 {
   grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.m-action-dock-actions--6,
+.m-doc-list-bar-actions--6 {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.m-action-dock-actions--7,
+.m-doc-list-bar-actions--7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.m-action-dock-actions--8,
+.m-doc-list-bar-actions--8 {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.m-action-dock-actions--9,
+.m-doc-list-bar-actions--9 {
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+}
+
+.m-action-dock-actions--10,
+.m-doc-list-bar-actions--10 {
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+}
+
+.m-action-dock-actions--many,
+.m-doc-list-bar-actions--many {
+  grid-template-columns: repeat(var(--m-action-cols, 10), minmax(0, 1fr));
 }
 
 .m-main-toolbar {
@@ -980,6 +1015,7 @@ html.m-installed-app .m-browser-hint {
 }
 
 .m-home-hero {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.85rem;
@@ -988,6 +1024,22 @@ html.m-installed-app .m-browser-hint {
   border: 1px solid #c4cdd5;
   border-radius: var(--m-radius);
   box-shadow: var(--m-shadow-sm);
+}
+
+.m-home-logout {
+  display: none;
+  position: absolute;
+  top: 0.45rem;
+  inset-inline-end: 0.45rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  line-height: 1.2;
 }
 
 .m-home-avatar {
@@ -1025,6 +1077,41 @@ html.m-installed-app .m-browser-hint {
   margin: 0 0 1rem;
   text-align: center;
   font-size: 0.9rem;
+}
+
+/* الشاشة الرئيسية — أيقونات مربعات أصغر */
+.m-home .m-tile-grid--square {
+  gap: 0.42rem;
+}
+
+.m-home .m-tile--square {
+  padding: 0.38rem 0.28rem;
+}
+
+.m-home .m-tile-icon-wrap {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9px;
+  margin-bottom: 0.22rem;
+  box-shadow: 0 1px 5px rgba(5, 114, 206, 0.18);
+}
+
+.m-home .m-tile-icon-wrap svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.m-home .m-tile--square .m-tile-label {
+  font-size: 0.64rem;
+  line-height: 1.2;
+  -webkit-line-clamp: 2;
+}
+
+.m-home .m-tile--list.m-tile--square::before {
+  top: 0.28rem;
+  inset-inline-start: 0.28rem;
+  font-size: 0.48rem;
+  padding: 0.08rem 0.28rem;
 }
 
 /* شبكة مربعات — الشاشة الرئيسية للهاتف */
@@ -2008,6 +2095,86 @@ html.m-installed-app .m-browser-hint {
   padding: 1.5rem;
 }
 
+body.m-inv-actions-inline.m-has-action-dock {
+  --m-action-dock-h: 0px;
+}
+
+body.m-inv-actions-inline .m-bottom-dock--toolbar-inline {
+  display: none !important;
+}
+
+body.m-inv-actions-inline.m-page-invoice-doc .m-main {
+  padding-bottom: calc(var(--m-safe-b) + 0.35rem);
+}
+
+body.m-inv-actions-inline.m-page-inv-view .m-main {
+  padding-bottom: calc(var(--m-safe-b) + 0.35rem);
+}
+
+.m-inv-doc-actions {
+  flex: 0 0 auto;
+  margin-top: 0.45rem;
+}
+
+.m-inv-doc-actions .m-main-toolbar,
+.m-inv-doc-actions .m-action-dock {
+  position: static;
+  border: 1px solid #c4cdd5;
+  border-radius: var(--m-radius);
+  box-shadow: var(--m-shadow-sm);
+  padding: 0.32rem 0.38rem;
+}
+
+.m-inv-doc-actions .m-action-dock-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.22rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  grid-template-columns: unset;
+}
+
+.m-inv-doc-actions .m-action-dock-actions .m-toolbar-btn {
+  flex: 1 1 0;
+  min-width: 2.85rem;
+  max-width: none;
+}
+
+.m-inv-doc-actions .m-action-dock-actions .m-toolbar-btn[hidden] {
+  display: none !important;
+}
+
+#m-toolbar-save { order: 1; }
+#m-toolbar-post { order: 2; }
+#m-toolbar-camera { order: 3; }
+#m-toolbar-archive { order: 4; }
+#m-toolbar-print { order: 5; }
+#m-toolbar-pdf { order: 6; }
+#m-toolbar-open { order: 7; }
+#m-toolbar-edit { order: 8; }
+#m-toolbar-delete { order: 9; }
+#m-toolbar-einvoice { order: 10; }
+
+.m-ora12-invoice-ui .m-inv-doc-actions .m-main-toolbar,
+.m-ora12-invoice-ui .m-inv-doc-actions .m-action-dock {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+  padding: 0.35rem 0.4rem;
+}
+
+.m-ora12-invoice-ui .m-inv-doc-actions .m-action-dock-actions .m-toolbar-btn {
+  --m-toolbar-btn-h: 2.15rem;
+  --m-toolbar-btn-ico: 0.9rem;
+  --m-toolbar-btn-lbl: 0.52rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-page .m-inv-doc-actions {
+  margin-top: 0.35rem;
+}
+
 /* عرض الفاتورة: بدون تمرير للصفحة — التمرير داخل جدول البنود فقط */
 body.m-page-inv-view {
   height: 100%;
@@ -2030,7 +2197,23 @@ body.m-page-inv-view .m-main {
   overflow: hidden;
   padding: 0.45rem 0.65rem 0.25rem;
   margin-bottom: 0;
-  padding-bottom: calc(var(--m-tab-h) + var(--m-action-dock-h) + var(--m-safe-b) + 0.35rem);
+  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 0.35rem);
+}
+
+/* عرض الفاتورة — كل أزرار الشريط في صف واحد */
+body.m-page-inv-view .m-action-dock {
+  padding: 0.28rem 0.3rem 0.24rem;
+}
+
+body.m-page-inv-view .m-action-dock-actions {
+  gap: 0.18rem;
+}
+
+body.m-page-inv-view .m-action-dock-actions .m-toolbar-btn {
+  --m-toolbar-btn-h: 2.2rem;
+  --m-toolbar-btn-ico: 0.92rem;
+  --m-toolbar-btn-lbl: 0.52rem;
+  padding: 0.1rem 0.06rem;
 }
 
 .m-inv-view-page {
@@ -2103,9 +2286,12 @@ body.m-page-inv-view .m-main {
 }
 
 .m-inv-view-totals {
-  margin-top: 0.45rem;
-  padding-top: 0.4rem;
-  border-top: 1px solid #e2e8f0;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.45rem 0.65rem 0.5rem;
+  background: var(--m-surface);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--m-radius);
 }
 
 .m-inv-view-total-row {
@@ -2219,10 +2405,10 @@ body.m-page-inv-view .m-main {
 
 .m-inv-view-line-card-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.3rem 0.25rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.22rem 0.12rem;
   margin: 0;
-  padding: 0.4rem 0.45rem 0.45rem;
+  padding: 0.4rem 0.35rem 0.45rem;
 }
 
 .m-inv-view-line-card-grid > div {
@@ -2233,25 +2419,22 @@ body.m-page-inv-view .m-main {
 
 .m-inv-view-line-card-grid dt {
   margin: 0;
-  font-size: 0.58rem;
+  font-size: 0.52rem;
   font-weight: 700;
   color: var(--m-muted);
-  line-height: 1.2;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .m-inv-view-line-card-grid dd {
-  margin: 0.12rem 0 0;
-  font-size: 0.68rem;
+  margin: 0.1rem 0 0;
+  font-size: 0.62rem;
   font-weight: 800;
   color: var(--m-text);
-  line-height: 1.2;
+  line-height: 1.15;
   word-break: break-word;
-}
-
-@media (max-width: 360px) {
-  .m-inv-view-line-card-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
 .m-inv-view-extra {
@@ -2618,6 +2801,22 @@ body.m-picker-open .m-bottom-dock {
   border-color: var(--m-accent);
   background: #eef2ff;
   box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.m-item-tile-check {
+  position: absolute;
+  top: 0.28rem;
+  left: 0.28rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: var(--m-accent);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  line-height: 1;
 }
 
 .m-item-tile-name {
@@ -3177,6 +3376,81 @@ body.m-picker-open .m-bottom-dock {
   padding: 0.4rem 0.45rem 0.45rem;
 }
 
+/* بند الفاتورة — صف واحد: مادة + حقول + حذف + الإجمالي */
+.m-inv-line-all {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1.15fr) repeat(5, minmax(0, 0.72fr)) 1.55rem minmax(0, 0.85fr);
+  gap: 0.12rem 0.1rem;
+  align-items: end;
+  padding: 0.38rem 0.42rem 0.42rem;
+}
+
+.m-inv-line-all .m-inv-seq {
+  align-self: end;
+  margin-bottom: 0.12rem;
+}
+
+.m-inv-line-all .m-inv-item-name {
+  font-weight: 800;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  align-self: end;
+  margin-bottom: 0.38rem;
+  min-width: 0;
+}
+
+.m-inv-line-all .m-inv-mini {
+  min-width: 0;
+}
+
+.m-inv-line-all .m-inv-mini span {
+  font-size: 0.48rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.m-inv-line-all .m-input--xs,
+.m-inv-line-all .m-select {
+  min-height: 1.45rem;
+  padding: 0.22rem 0.12rem;
+  font-size: 16px;
+}
+
+.m-inv-line-all .m-inp-tax {
+  padding-inline: 0.1rem 1rem;
+  font-size: 13px;
+}
+
+.m-inv-line-delete--inline {
+  align-self: end;
+  width: 1.55rem;
+  height: 1.55rem;
+  min-height: 1.45rem;
+  margin-bottom: 0.02rem;
+  box-shadow: none;
+  border-radius: 6px;
+}
+
+.m-inv-line-delete--inline svg {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.m-inv-gross--inline {
+  font-weight: 800;
+  color: var(--m-accent-dark);
+  font-size: 0.68rem;
+  white-space: nowrap;
+  text-align: center;
+  align-self: end;
+  margin-bottom: 0.38rem;
+  min-width: 0;
+}
+
 .m-inv-field-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -3264,6 +3538,37 @@ body.m-picker-open .m-bottom-dock {
 @media (max-width: 380px) {
   .m-inv-field-grid {
     gap: 0.22rem 0.15rem;
+  }
+
+  .m-inv-line-all {
+    grid-template-columns: 1rem minmax(0, 1fr) repeat(5, minmax(0, 0.62fr)) 1.45rem minmax(0, 0.72fr);
+    gap: 0.08rem 0.06rem;
+    padding: 0.32rem 0.35rem 0.35rem;
+  }
+
+  .m-inv-line-all .m-inv-item-name {
+    font-size: 0.62rem;
+    margin-bottom: 0.32rem;
+  }
+
+  .m-inv-line-all .m-inv-mini span {
+    font-size: 0.44rem;
+  }
+
+  .m-inv-line-all .m-input--xs,
+  .m-inv-line-all .m-select {
+    min-height: 1.38rem;
+    padding: 0.18rem 0.08rem;
+  }
+
+  .m-inv-gross--inline {
+    font-size: 0.62rem;
+    margin-bottom: 0.32rem;
+  }
+
+  .m-inv-line-delete--inline {
+    width: 1.45rem;
+    height: 1.45rem;
   }
 
   .m-inv-mini span {
@@ -5180,6 +5485,55 @@ body.m-rep-qty-open {
   .m-rep-item-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+/* ملء الشاشة — تطبيق مثبّت / APK / عرض هاتف */
+html.m-immersive,
+html.cap-native-app {
+  height: 100%;
+}
+
+html.m-immersive body.m-body,
+html.cap-native-app body.m-body {
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+}
+
+html.m-immersive .m-header,
+html.cap-native-app .m-header {
+  display: none;
+}
+
+html.m-immersive .m-main,
+html.cap-native-app .m-main {
+  padding-top: calc(0.45rem + var(--m-safe-t));
+}
+
+html.m-immersive body.m-page-home,
+html.cap-native-app body.m-page-home {
+  padding-bottom: calc(var(--m-safe-b) + 0.75rem);
+}
+
+html.m-immersive .m-home-logout,
+html.cap-native-app .m-home-logout {
+  display: inline-flex;
+  align-items: center;
+}
+
+html.m-immersive .m-home-hero,
+html.cap-native-app .m-home-hero {
+  padding-top: calc(0.85rem + var(--m-safe-t));
+}
+
+html.m-immersive .m-bottom-dock,
+html.cap-native-app .m-bottom-dock {
+  padding-bottom: calc(0.28rem + var(--m-safe-b));
+}
+
+html.m-immersive .m-picker,
+html.cap-native-app .m-picker {
+  padding-top: var(--m-safe-t);
+  padding-bottom: var(--m-safe-b);
 }
 
 /* عرض بحجم هاتف عند فتح التطبيق من متصفح سطح المكتب (وليس من تطبيق مثبّت) */

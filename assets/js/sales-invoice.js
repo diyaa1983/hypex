@@ -1024,7 +1024,7 @@
     var el = tr.querySelector('.js-line-gross');
     if (!el) return;
     if (el.tagName === 'INPUT' && document.activeElement === el) return;
-    var txt = Math.abs(gross) < 1e-12 ? '' : fmtAmount(gross);
+    var txt = fmtAmount(gross);
     if (el.tagName === 'INPUT') {
       el.value = formatAmountValue(gross, '');
     } else {
@@ -1049,7 +1049,7 @@
     if (rowAmountSource(tr) === 'unit_incl') {
       if (opts && opts.normalizeStored && document.activeElement !== priceInclEl) {
         var keepIncl = roundUnitPriceIncl(parseNum(priceInclEl.value));
-        priceInclEl.value = keepIncl > 0 ? formatUnitPriceInclValue(keepIncl, priceInclEl.value) : '';
+        priceInclEl.value = formatUnitPriceInclValue(keepIncl, priceInclEl.value);
       }
       return;
     }
@@ -1059,12 +1059,12 @@
     var gross = parseNum(tr.dataset.gross);
     if (qty > 0 && gross > 0) {
       var inclFromGross = roundUnitPriceIncl(gross / qty);
-      priceInclEl.value = inclFromGross > 0 ? formatUnitPriceInclValue(inclFromGross, '') : '';
+      priceInclEl.value = formatUnitPriceInclValue(inclFromGross, '');
       return;
     }
     var taxFactor = 1 + rate / 100;
     var incl = unitPriceInclFromExcl(priceExcl, taxFactor);
-    priceInclEl.value = incl > 0 ? formatUnitPriceInclValue(incl, '') : '';
+    priceInclEl.value = formatUnitPriceInclValue(incl, '');
   }
 
   /** إعادة حساب السطر والفاتورة حسب الحقل الذي يُحرَّر (أثناء الكتابة). */
@@ -1485,7 +1485,7 @@
         dEl.readOnly = true;
         dEl.classList.add('is-header-discount');
         var amt = parts[i] || 0;
-        dEl.value = amt > 0.0000001 ? formatAmountValue(amt, '') : '';
+        dEl.value = formatAmountValue(amt, '');
       }
     });
     recalcAllItemRows();
@@ -1601,7 +1601,7 @@
           priceInclVal = roundUnitPriceIncl(priceInclVal);
           if (document.activeElement !== priceInclEl) {
             priceInclEl.value =
-              priceInclVal > 0 ? formatUnitPriceInclValue(priceInclVal, priceInclEl.value) : '';
+              formatUnitPriceInclValue(priceInclVal, priceInclEl.value);
           }
         }
         gross = roundMoney(qty * priceInclVal);
@@ -1699,7 +1699,7 @@
     }
     setAmtDisplayCell(
       taxAmtEl,
-      Math.abs(taxAmt) < 1e-12 ? '' : fmtAmount(taxAmt),
+      fmtAmount(taxAmt),
       false
     );
     setLineGrossDisplay(tr, gross);
@@ -1998,17 +1998,19 @@
     var discEl = tr.querySelector('.js-discount');
     if (qtyEl && document.activeElement !== qtyEl) qtyEl.value = '';
     if (qtyExtraEl && document.activeElement !== qtyExtraEl) qtyExtraEl.value = '';
-    if (priceEl && document.activeElement !== priceEl) priceEl.value = '';
-    if (priceInclEl && document.activeElement !== priceInclEl) priceInclEl.value = '';
-    if (subInp && document.activeElement !== subInp) subInp.value = '';
+    if (priceEl && document.activeElement !== priceEl) priceEl.value = formatUnitPriceValue(0, '');
+    if (priceInclEl && document.activeElement !== priceInclEl) {
+      priceInclEl.value = formatUnitPriceInclValue(0, '');
+    }
+    if (subInp && document.activeElement !== subInp) subInp.value = formatAmountValue(0, '');
     if (grossEl && document.activeElement !== grossEl) {
       if (grossEl.tagName === 'INPUT') {
-        grossEl.value = '';
+        grossEl.value = formatAmountValue(0, '');
       } else {
-        setAmtDisplayCell(grossEl, '', true);
+        setAmtDisplayCell(grossEl, fmtAmount(0), true);
       }
     }
-    if (taxAmtEl) setAmtDisplayCell(taxAmtEl, '', false);
+    if (taxAmtEl) setAmtDisplayCell(taxAmtEl, fmtAmount(0), false);
     if (discEl && document.activeElement !== discEl && !discEl.readOnly) discEl.value = '';
   }
 
@@ -2434,9 +2436,9 @@
     tr.querySelector('.js-qty').value = '';
     var qtyExtraReset = tr.querySelector('.js-qty-extra');
     if (qtyExtraReset) qtyExtraReset.value = '';
-    tr.querySelector('.js-price').value = '';
+    tr.querySelector('.js-price').value = formatUnitPriceValue(0, '');
     var priceInclReset = tr.querySelector('.js-price-incl');
-    if (priceInclReset) priceInclReset.value = '';
+    if (priceInclReset) priceInclReset.value = formatUnitPriceInclValue(0, '');
     applyDefaultTax(tr);
     if (isEntry) {
       tr.classList.add('is-entry-row');
@@ -2541,7 +2543,7 @@
     } else {
       delete tr.dataset.listUnitPrice;
     }
-    priceEl.value = formatPriceValue(salePrice, salePrice > 0 ? String(salePrice) : '');
+    priceEl.value = formatPriceValue(salePrice, '');
     applyDefaultTax(tr);
     recalcRow(tr);
     if (!invoiceIsPosted) markFormDirty();

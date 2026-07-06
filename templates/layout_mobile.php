@@ -64,8 +64,12 @@ if ($activeRouteKey === 'm_receipt') {
 }
 
 $showBottomDock = $activeRouteKey !== 'm_home';
+$hideTabbarRoutes = ['m_sales_invoices', 'm_sales_invoice_view'];
+$showTabbar = $showBottomDock && !in_array($activeRouteKey, $hideTabbarRoutes, true);
 if (!$showBottomDock) {
     $pageBodyClass .= ' m-page-home';
+} elseif (!$showTabbar) {
+    $pageBodyClass .= ' m-no-tabbar';
 }
 
 ?>
@@ -75,6 +79,22 @@ if (!$showBottomDock) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#0572ce">
+    <script>
+    (function () {
+      var immersive = false;
+      try {
+        if (window.matchMedia) {
+          if (window.matchMedia('(display-mode: fullscreen)').matches) immersive = true;
+          if (window.matchMedia('(display-mode: standalone)').matches) immersive = true;
+        }
+        if (navigator.standalone === true) immersive = true;
+      } catch (e) { /* ignore */ }
+      if (!immersive && window.matchMedia && window.matchMedia('(max-width: 519px)').matches) {
+        immersive = true;
+      }
+      if (immersive) document.documentElement.classList.add('m-immersive');
+    })();
+    </script>
     <title><?= esc(trim($pageTitle) !== '' ? $pageTitle . ' — هاتف' : 'تطبيق الهاتف') ?></title>
     <?php render_app_favicon_links($settingsRow); ?>
     <?php render_mobile_pwa_head($settingsRow); ?>
@@ -156,6 +176,7 @@ $toolbarRoutesJsV = is_file(app_path('assets/mobile/mobile-toolbar-routes.js'))
     <div class="m-action-dock-slot" id="m-action-dock-slot" aria-live="polite">
         <?= mobile_main_toolbar_html() ?>
     </div>
+<?php if ($showTabbar): ?>
 <nav class="m-tabbar" aria-label="التنقل الرئيسي">
     <?php $tabHome = mobile_icon_tile('home'); $tabInv = mobile_icon_tile('invoice'); $tabList = mobile_icon_tile('list'); ?>
     <a class="m-tabbar-item<?= $activeRoute === 'm_home' ? ' is-active' : '' ?>" href="<?= esc(mobile_url('r=m_home')) ?>">
@@ -175,6 +196,7 @@ $toolbarRoutesJsV = is_file(app_path('assets/mobile/mobile-toolbar-routes.js'))
     </a>
     <?php endif; ?>
 </nav>
+<?php endif; ?>
 </div>
 <?php endif; ?>
 <main class="m-main">
@@ -200,6 +222,7 @@ $browserHintV = is_file(app_path('assets/mobile/app-browser-hint.js'))
   try {
     if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
       document.documentElement.classList.add('cap-native-app');
+      document.documentElement.classList.add('m-immersive');
     }
   } catch (e) { /* ignore */ }
 })();

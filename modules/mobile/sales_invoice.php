@@ -5,6 +5,7 @@ require_once app_path('includes/sales_invoice_post.php');
 require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/mobile_invoice.php');
 require_once app_path('includes/mobile_icons.php');
+require_once app_path('includes/app_gps.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'save_invoice') {
     handle_sales_invoice_post();
@@ -87,17 +88,14 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
     <input type="hidden" name="invoice_id" id="m-invoice-id" value="<?= (int) $editInvoiceId ?>">
     <input type="hidden" name="lines_json" id="m-lines-json" value="[]">
 
-    <section class="m-ora12-panel">
-        <h2 class="m-ora12-panel__title">بيانات الفاتورة</h2>
-        <div class="m-ora12-panel__body">
-        <div class="m-meta-grid m-ora12-meta">
-            <div class="m-field m-field--full m-field--customer-pick">
-                <span class="m-field-label">العميل</span>
-                <input type="hidden" name="customer_id" id="m-customer-id" value="" required>
-                <div class="m-customer-chosen" id="m-customer-chosen" hidden>
-                    <span class="m-customer-chosen-name" id="m-customer-label"></span>
-                </div>
-                <button type="button" class="m-btn m-btn--pick m-btn--block" id="m-open-customer-picker">
+    <section class="m-ora12-panel m-ora12-panel--inv-top">
+        <div class="m-ora12-panel__body m-ora12-panel__body--compact">
+            <input type="hidden" name="customer_id" id="m-customer-id" value="" required>
+            <div class="m-customer-chosen" id="m-customer-chosen" hidden>
+                <span class="m-customer-chosen-name" id="m-customer-label"></span>
+            </div>
+            <div class="m-inv-pick-row">
+                <button type="button" class="m-btn m-btn--pick" id="m-open-customer-picker">
                     <svg class="m-btn-pick-ico" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false">
                         <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
                         <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
@@ -106,40 +104,50 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
                     </svg>
                     <span class="m-btn-pick-label">اختيار العميل</span>
                 </button>
+                <button type="button" class="m-btn m-btn--pick" id="m-open-picker">
+                    <svg class="m-btn-pick-ico" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false">
+                        <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
+                        <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
+                        <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" fill="currentColor"/>
+                        <rect x="9" y="9" width="5.5" height="5.5" rx="1" fill="currentColor"/>
+                    </svg>
+                    <span class="m-btn-pick-label">اختيار المواد</span>
+                </button>
             </div>
-            <label class="m-field">
-                <span class="m-field-label">التاريخ</span>
-                <input class="m-input" type="date" name="invoice_date" value="<?= esc($today) ?>" required>
-            </label>
-            <label class="m-field">
-                <span class="m-field-label">النوع</span>
-                <select class="m-input m-select" name="payment_type" id="m-payment-type">
-                    <option value="credit" selected>ذمة</option>
-                    <option value="cash">نقدي</option>
-                </select>
-            </label>
-            <?php if (count($warehouses) > 0): ?>
-            <label class="m-field m-field--full">
-                <span class="m-field-label">المستودع</span>
-                <select class="m-input m-select" name="warehouse_id" id="m-warehouse-id" required>
-                    <?php foreach ($warehouses as $w): ?>
-                    <option value="<?= (int) $w['id'] ?>"<?= (int) $w['id'] === $defaultWarehouseId ? ' selected' : '' ?>>
-                        <?= esc((string) $w['name_ar']) ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-            </label>
-            <?php else: ?>
-            <div class="m-alert m-alert--error m-field--full">
-                لا توجد صلاحية صرف من أي مستودع. راجع صلاحيات المستودعات للمجموعة.
+            <div class="m-meta-grid m-ora12-meta m-inv-meta-row">
+                <label class="m-field">
+                    <span class="m-field-label">التاريخ</span>
+                    <input class="m-input" type="date" name="invoice_date" value="<?= esc($today) ?>" required>
+                </label>
+                <label class="m-field">
+                    <span class="m-field-label">النوع</span>
+                    <select class="m-input m-select" name="payment_type" id="m-payment-type">
+                        <option value="credit" selected>ذمة</option>
+                        <option value="cash">نقدي</option>
+                    </select>
+                </label>
+                <?php if (count($warehouses) > 0): ?>
+                <label class="m-field">
+                    <span class="m-field-label">المستودع</span>
+                    <select class="m-input m-select m-select--truncate" name="warehouse_id" id="m-warehouse-id" required>
+                        <?php foreach ($warehouses as $w): ?>
+                        <option value="<?= (int) $w['id'] ?>"<?= (int) $w['id'] === $defaultWarehouseId ? ' selected' : '' ?>>
+                            <?= esc((string) $w['name_ar']) ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <?php else: ?>
+                <div class="m-alert m-alert--error m-field--full">
+                    لا توجد صلاحية صرف من أي مستودع. راجع صلاحيات المستودعات للمجموعة.
+                </div>
+                <input type="hidden" name="warehouse_id" value="0" id="m-warehouse-id">
+                <?php endif; ?>
             </div>
-            <input type="hidden" name="warehouse_id" value="0" id="m-warehouse-id">
-            <?php endif; ?>
-            <label class="m-field m-field--full">
+            <label class="m-field m-field--full m-inv-notes-field">
                 <span class="m-field-label">ملاحظات</span>
                 <input class="m-input" type="text" name="notes" placeholder="اختياري">
             </label>
-        </div>
         </div>
     </section>
 
@@ -150,19 +158,10 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         </div>
         <div class="m-ora12-panel__body m-ora12-panel__body--flush">
         <p class="m-lines-swipe-hint muted">اضغط مطوّلاً على البند (خارج الحقول) ثم اسحب لليمين لحذف المادة</p>
-        <p class="m-lines-empty muted" id="m-lines-empty">لا توجد بنود — اضغط «اختيار المواد» ثم أدخل الكمية والسعر لكل مادة.</p>
+        <p class="m-lines-empty muted" id="m-lines-empty">لا توجد بنود — اضغط «اختيار المواد»، حدّد المواد، ثم «تم تحديد المواد»، وأدخل الكمية والسعر لكل مادة.</p>
         <div class="m-inv-lines-wrap" id="m-inv-table-wrap" hidden>
             <div id="m-lines-tbody" class="m-inv-lines" aria-live="polite"></div>
         </div>
-        <button type="button" class="m-btn m-btn--pick m-btn--block m-btn--add-line" id="m-open-picker">
-            <svg class="m-btn-pick-ico" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false">
-                <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                <rect x="9" y="9" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-            </svg>
-            <span class="m-btn-pick-label">اختيار المواد</span>
-        </button>
         </div>
     </section>
 
@@ -185,6 +184,8 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         </div>
         </div>
     </section>
+
+    <div id="m-invoice-actions-host" class="m-inv-doc-actions" aria-label="إجراءات الفاتورة"></div>
 
 </form>
 </div>
@@ -225,8 +226,8 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         <p class="m-picker-loading muted" id="m-picker-loading">جاري التحميل...</p>
     </div>
     <footer class="m-picker-foot">
-        <p class="m-picker-hint muted">اضغط المادة ثم أدخل الكمية والسعر</p>
-        <button type="button" class="m-btn m-btn--primary m-btn--block" id="m-picker-done">تم — العودة للفاتورة</button>
+        <p class="m-picker-hint muted">اضغط على المادة لتحديدها أو إلغاء تحديدها — ثم «تم تحديد المواد»</p>
+        <button type="button" class="m-btn m-btn--primary m-btn--block" id="m-picker-done">تم تحديد المواد</button>
     </footer>
     <div id="m-item-quick" class="m-item-quick" hidden aria-hidden="true">
         <div class="m-item-quick-backdrop" id="m-item-quick-backdrop"></div>
@@ -267,6 +268,9 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         canDelete: <?= $canDeleteInvoice ? 'true' : 'false' ?>,
         canArchive: <?= $canArchiveInvoice ? 'true' : 'false' ?>,
         archiveApi: <?= json_encode($archiveApiUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+        canPost: <?= mobile_can_post_sales_invoice() ? 'true' : 'false' ?>,
+        postApi: <?= json_encode(app_absolute_url('api/sales_invoice_post.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+        gpsEnabled: <?= app_gps_enabled() ? 'true' : 'false' ?>,
         decimalPlaces: <?= (int) $dp ?>,
         defaultTax: <?= json_encode($defaultTax, JSON_UNESCAPED_UNICODE) ?>,
         mobileDefaultTax: <?= json_encode($mobileDefaultTaxPercent, JSON_UNESCAPED_UNICODE) ?>,

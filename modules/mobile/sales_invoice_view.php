@@ -109,18 +109,6 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 
         </dl>
 
-        <div class="m-inv-view-totals" aria-label="المجاميع">
-
-            <div class="m-inv-view-total-row"><span>قبل الضريبة</span><span id="m-inv-view-sub"></span></div>
-
-            <div class="m-inv-view-total-row"><span>الضريبة</span><span id="m-inv-view-tax"></span></div>
-
-            <div class="m-inv-view-total-row m-inv-view-total-row--grand"><span>الإجمالي</span><strong id="m-inv-view-grand"></strong></div>
-
-            <div class="m-inv-view-lines-count muted" id="m-inv-view-lines-count"></div>
-
-        </div>
-
     </section>
 
 
@@ -134,6 +122,24 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
         </div>
 
     </section>
+
+
+
+    <section class="m-inv-view-totals" aria-label="المجاميع">
+
+        <div class="m-inv-view-total-row"><span>قبل الضريبة</span><span id="m-inv-view-sub"></span></div>
+
+        <div class="m-inv-view-total-row"><span>الضريبة</span><span id="m-inv-view-tax"></span></div>
+
+        <div class="m-inv-view-total-row m-inv-view-total-row--grand"><span>الإجمالي</span><strong id="m-inv-view-grand"></strong></div>
+
+        <div class="m-inv-view-lines-count muted" id="m-inv-view-lines-count"></div>
+
+    </section>
+
+
+
+    <div id="m-invoice-actions-host" class="m-inv-doc-actions" aria-label="إجراءات الفاتورة"></div>
 
 
 

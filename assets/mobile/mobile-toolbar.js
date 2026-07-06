@@ -45,18 +45,28 @@
     var actions = actionsEl();
     if (actions) {
       actions.classList.toggle('m-action-dock-actions--empty', cols === 0);
-      actions.classList.remove(
-        'm-action-dock-actions--1',
-        'm-action-dock-actions--2',
-        'm-action-dock-actions--3',
-        'm-action-dock-actions--4',
-        'm-action-dock-actions--5'
-      );
-      if (cols === 1) {
-        actions.classList.add('m-action-dock-actions--1');
-      } else if (cols >= 2 && cols <= 5) {
-        actions.classList.add('m-action-dock-actions--' + cols);
-      }
+      applyActionCols(actions, cols);
+    }
+  }
+
+  function applyActionCols(actions, cols) {
+    if (!actions) return;
+    var i;
+    for (i = 1; i <= 10; i++) {
+      actions.classList.remove('m-action-dock-actions--' + i);
+    }
+    actions.classList.remove('m-action-dock-actions--many');
+    if (cols === 1) {
+      actions.classList.add('m-action-dock-actions--1');
+      actions.style.removeProperty('--m-action-cols');
+    } else if (cols >= 2 && cols <= 10) {
+      actions.classList.add('m-action-dock-actions--' + cols);
+      actions.style.removeProperty('--m-action-cols');
+    } else if (cols > 10) {
+      actions.classList.add('m-action-dock-actions--many');
+      actions.style.setProperty('--m-action-cols', String(cols));
+    } else {
+      actions.style.removeProperty('--m-action-cols');
     }
   }
 
@@ -108,20 +118,9 @@
     }
     var actions = actionsEl();
     if (actions) {
-      actions.classList.remove(
-        'm-action-dock-actions--1',
-        'm-action-dock-actions--2',
-        'm-action-dock-actions--3',
-        'm-action-dock-actions--4',
-        'm-action-dock-actions--5'
-      );
       var cols = opts.cols;
       if (!cols) cols = visibleButtonCount();
-      if (cols === 1) {
-        actions.classList.add('m-action-dock-actions--1');
-      } else if (cols >= 2 && cols <= 5) {
-        actions.classList.add('m-action-dock-actions--' + cols);
-      }
+      applyActionCols(actions, cols);
     }
     refresh();
   }
@@ -152,6 +151,20 @@
     applyRouteDefaults(route || '');
   }
 
+  function mountInto(hostId) {
+    var host = typeof hostId === 'string' ? document.getElementById(hostId) : hostId;
+    var toolbar = root();
+    if (!host || !toolbar) return false;
+    host.appendChild(toolbar);
+    var dock = document.getElementById('m-bottom-dock');
+    if (dock) {
+      dock.classList.add('m-bottom-dock--toolbar-inline');
+    }
+    document.body.classList.add('m-inv-actions-inline');
+    refresh();
+    return true;
+  }
+
   global.MobileToolbar = {
     root: root,
     btn: btn,
@@ -162,5 +175,6 @@
     ensureVisible: ensureVisible,
     applyRouteDefaults: applyRouteDefaults,
     resetRoute: resetRoute,
+    mountInto: mountInto,
   };
 })(typeof window !== 'undefined' ? window : this);

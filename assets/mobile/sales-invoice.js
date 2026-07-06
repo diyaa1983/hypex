@@ -11,6 +11,9 @@
   var barDeleteBtn = TB.btn ? TB.btn('delete') : null;
   var barPrintBtn = TB.btn ? TB.btn('print') : null;
   var barPdfBtn = TB.btn ? TB.btn('pdf') : null;
+  var barPostBtn = TB.btn ? TB.btn('post') : null;
+  var barOpenBtn = TB.btn ? TB.btn('open') : null;
+  var postFlowBusy = false;
   var photoArchive = null;
   if (cfg.canArchive && window.MobileInvoicePhotoArchive) {
     photoArchive = MobileInvoicePhotoArchive.create({
@@ -95,6 +98,8 @@
   var allItems = [];
   var itemsLoadedForWh = null;
   var searchTimer = null;
+  /** @type {Set<number>|null} */
+  var pickerPendingIds = null;
 
   function roundN(n) {
     var p = Math.pow(10, dp);
@@ -109,7 +114,7 @@
     return parseFloat(String(val == null ? '' : val).replace(/,/g, '')) || 0;
   }
 
-  /** عرض الحقل فارغاً عند الصفر — للإدخال على الهاتف */
+  /** عرض كمية — فارغ عند الصفر */
   function inputDisplayNum(n) {
     var v = parseNum(n);
     if (v === 0) return '';
@@ -117,6 +122,11 @@
       return String(Math.round(v));
     }
     return fmt(v);
+  }
+
+  /** عرض مبلغ — صفر بالخانات العشرية للنظام */
+  function inputDisplayAmount(n) {
+    return fmt(parseNum(n));
   }
 
   function inputHasValue(el) {
@@ -214,25 +224,97 @@
     return ln ? ln.qty : 0;
   }
 
+  function initPickerPendingFromLines() {
+    pickerPendingIds = new Set();
+    lines.forEach(function (ln) {
+      var iid = parseInt(ln.item_id, 10) || 0;
+      if (iid > 0) pickerPendingIds.add(iid);
+    });
+  }
+
   function updatePickerBadge() {
     if (pickerSelCount) {
-      pickerSelCount.textContent = lines.length > 0 ? lines.length + ' بند' : '';
+      if (pickerPendingIds) {
+        pickerSelCount.textContent = pickerPendingIds.size > 0 ? pickerPendingIds.size + ' مادة' : '0';
+      } else {
+        pickerSelCount.textContent = lines.length > 0 ? lines.length + ' بند' : '0';
+      }
     }
-    if (!itemGrid) return;
+    if (!itemGrid || !pickerPendingIds || picker.hidden) return;
     itemGrid.querySelectorAll('.m-item-tile').forEach(function (tile) {
       var iid = parseInt(tile.getAttribute('data-item-id'), 10) || 0;
-      var q = lineCountForItem(iid);
-      tile.classList.toggle('is-selected', q > 0);
-      var badge = tile.querySelector('.m-item-tile-qty');
-      if (badge) {
-        if (q > 0) {
-          badge.textContent = fmt(q);
-          badge.hidden = false;
-        } else {
-          badge.hidden = true;
-        }
+      var selected = pickerPendingIds.has(iid);
+      tile.classList.toggle('is-selected', selected);
+      var check = tile.querySelector('.m-item-tile-check');
+      if (check) check.hidden = !selected;
+    });
+  }
+
+  function togglePickerItem(it) {
+    if (!pickerPendingIds || !it) return;
+    var iid = parseInt(it.id, 10) || 0;
+    if (iid < 1) return;
+    if (pickerPendingIds.has(iid)) {
+      pickerPendingIds.delete(iid);
+    } else {
+      pickerPendingIds.add(iid);
+    }
+    updatePickerBadge();
+  }
+
+  function findItemById(iid) {
+    var i;
+    for (i = 0; i < allItems.length; i++) {
+      if ((parseInt(allItems[i].id, 10) || 0) === iid) return allItems[i];
+    }
+    return null;
+  }
+
+  function addPendingLineFromItem(it) {
+    var iid = parseInt(it.id, 10) || 0;
+    if (iid < 1) return;
+    var lab = itemLabel(it);
+    var tax = defaultTaxFields();
+    lines.push({
+      id: ++lineIdSeq,
+      item_id: iid,
+      item_name: lab.name,
+      item_code: lab.code,
+      qty: 0,
+      qty_extra: 0,
+      unit_price: 0,
+      line_discount_input: '',
+      tax_rate_id: tax.tax_rate_id,
+      tax_rate_percent: tax.tax_rate_percent,
+      default_unit_price: itemSalePrice(it),
+    });
+  }
+
+  function confirmPickerSelection() {
+    if (!pickerPendingIds) {
+      closePicker();
+      return;
+    }
+    if (pickerPendingIds.size < 1) {
+      if (window.AppDialog && AppDialog.alert) {
+        AppDialog.alert('حدّد مادة واحدة على الأقل.', { type: 'warning' });
+      }
+      return;
+    }
+    lines = lines.filter(function (ln) {
+      return pickerPendingIds.has(parseInt(ln.item_id, 10) || 0);
+    });
+    pickerPendingIds.forEach(function (iid) {
+      var exists = lines.some(function (ln) {
+        return (parseInt(ln.item_id, 10) || 0) === iid;
+      });
+      if (!exists) {
+        var it = findItemById(iid);
+        if (it) addPendingLineFromItem(it);
       }
     });
+    pickerPendingIds = null;
+    closePicker();
   }
 
   function syncLineFromRow(row) {
@@ -247,13 +329,16 @@
     ln.qty = parseNum(qtyEl ? qtyEl.value : 0);
     ln.qty_extra = parseNum(qeEl ? qeEl.value : 0);
     ln.unit_price = parseNum(priceEl ? priceEl.value : 0);
+    if (ln.unit_price <= 0 && priceEl && String(priceEl.placeholder || '').trim() !== '') {
+      ln.unit_price = parseNum(priceEl.placeholder);
+    }
     ln.line_discount_input = discEl ? String(discEl.value || '').trim() : '';
     if (taxEl) {
       ln.tax_rate_id = parseInt(taxEl.value, 10) || 0;
       var opt = taxEl.options[taxEl.selectedIndex];
       ln.tax_rate_percent = parseNum(opt ? opt.getAttribute('data-rate') : mobileDefaultTax);
     }
-    var grossEl = row.querySelector('.m-inv-gross');
+    var grossEl = row.querySelector('.m-inv-gross--inline, .m-inv-gross');
     if (grossEl) grossEl.textContent = fmt(amountsForLine(ln).gross);
   }
 
@@ -297,29 +382,23 @@
       wrap.setAttribute('data-line-id', String(ln.id));
       var card = document.createElement('article');
       card.className = 'm-inv-line m-inv-line__panel';
+      var priceVal = inputDisplayAmount(ln.unit_price);
+      var pricePh =
+        ln.unit_price <= 0 && ln.default_unit_price > 0 ? inputDisplayAmount(ln.default_unit_price) : '';
       card.innerHTML =
-        '<header class="m-inv-line-head">' +
+        '<div class="m-inv-line-all">' +
         '<span class="m-inv-seq">' + (idx + 1) + '</span>' +
-        '<div class="m-inv-item-text">' +
-        '<div class="m-inv-item-name">' + escapeHtml(ln.item_name) + '</div>' +
-        '<div class="m-inv-item-code muted">' + escapeHtml(ln.item_code || '') + '</div>' +
-        '</div>' +
-        '<div class="m-inv-line-head-end">' +
-        '<span class="m-inv-gross">' + fmt(a.gross) + '</span>' +
-        '</div></header>' +
-        '<div class="m-inv-line-body">' +
-        '<div class="m-inv-field-grid m-inv-field-grid--6">' +
-        '<label class="m-inv-mini"><span>كمية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayNum(ln.qty)) + '"></label>' +
-        '<label class="m-inv-mini"><span>إضافية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty-extra" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayNum(ln.qty_extra)) + '" title="للمخزون"></label>' +
-        '<label class="m-inv-mini"><span>سعر</span><input type="text" class="m-input m-input--xs m-input--num m-inp-price" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayNum(ln.unit_price)) + '"></label>' +
-        '<label class="m-inv-mini"><span>خصم</span><input type="text" class="m-input m-input--xs m-inp-disc" inputmode="decimal" autocomplete="off" placeholder="%" value="' + escapeHtml(ln.line_discount_input || '') + '"></label>' +
+        '<div class="m-inv-item-name" title="' + escapeHtml(ln.item_code || '') + '">' + escapeHtml(ln.item_name) + '</div>' +
+        '<label class="m-inv-mini m-inv-mini--qty"><span>كمية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayNum(ln.qty)) + '"></label>' +
+        '<label class="m-inv-mini m-inv-mini--extra"><span>إضافية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty-extra" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayNum(ln.qty_extra)) + '" title="للمخزون"></label>' +
+        '<label class="m-inv-mini m-inv-mini--price"><span>سعر</span><input type="text" class="m-input m-input--xs m-input--num m-inp-price" inputmode="decimal" autocomplete="off" placeholder="' + escapeHtml(pricePh) + '" value="' + escapeHtml(priceVal) + '"></label>' +
+        '<label class="m-inv-mini m-inv-mini--disc"><span>خصم</span><input type="text" class="m-input m-input--xs m-inp-disc" inputmode="decimal" autocomplete="off" placeholder="%" value="' + escapeHtml(ln.line_discount_input || '') + '"></label>' +
         '<label class="m-inv-mini m-inv-mini--tax"><span>ض%</span>' + buildTaxSelect(ln) + '</label>' +
-        '<div class="m-inv-mini m-inv-mini--del">' +
-        '<span class="m-inv-mini-del-lbl">حذف</span>' +
-        '<button type="button" class="m-inv-line-delete" aria-label="حذف البند" title="حذف">' +
+        '<button type="button" class="m-inv-line-delete m-inv-line-delete--inline" aria-label="حذف البند" title="حذف">' +
         (trashIconHtml || '×') +
-        '</button></div>' +
-        '</div></div>';
+        '</button>' +
+        '<span class="m-inv-gross m-inv-gross--inline">' + fmt(a.gross) + '</span>' +
+        '</div>';
       var rail = document.createElement('div');
       rail.className = 'm-inv-line-swipe__rail';
       rail.innerHTML =
@@ -379,14 +458,14 @@
       quickAmountDriver = 'total';
       var totalIn = parseNum(itemQuickTotal.value);
       if (qty > 0 && inputHasValue(itemQuickTotal)) {
-        itemQuickUnit.value = inputDisplayNum(roundN(totalIn / qty));
+        itemQuickUnit.value = inputDisplayAmount(roundN(totalIn / qty));
       }
       return;
     }
     if (source === 'qty' && quickAmountDriver === 'total') {
       var totalKeep = parseNum(itemQuickTotal.value);
       if (qty > 0 && inputHasValue(itemQuickTotal)) {
-        itemQuickUnit.value = inputDisplayNum(roundN(totalKeep / qty));
+        itemQuickUnit.value = inputDisplayAmount(roundN(totalKeep / qty));
       }
       return;
     }
@@ -399,7 +478,7 @@
     }
     var unit = parseNum(itemQuickUnit.value);
     if (hasQty && hasUnit) {
-      itemQuickTotal.value = inputDisplayNum(roundN(qty * unit));
+      itemQuickTotal.value = inputDisplayAmount(roundN(qty * unit));
     } else if (source !== 'total') {
       itemQuickTotal.value = '';
     }
@@ -417,8 +496,8 @@
     if (itemQuickCode) itemQuickCode.textContent = lab.code ? 'الرمز: ' + lab.code : '';
     if (itemQuickQty) itemQuickQty.value = existing ? inputDisplayNum(existing.qty) : '';
     if (itemQuickUnit) {
-      itemQuickUnit.value = existing ? inputDisplayNum(existing.unit_price) : '';
-      itemQuickUnit.placeholder = !existing && defaultUnit > 0 ? inputDisplayNum(defaultUnit) : '';
+      itemQuickUnit.value = existing ? inputDisplayAmount(existing.unit_price) : inputDisplayAmount(0);
+      itemQuickUnit.placeholder = !existing && defaultUnit > 0 ? inputDisplayAmount(defaultUnit) : '';
     }
     if (itemQuickTotal) itemQuickTotal.value = '';
     recalcItemQuick('unit');
@@ -523,19 +602,20 @@
       var lab = itemLabel(it);
       var iid = parseInt(it.id, 10) || 0;
       var price = itemSalePrice(it);
-      var q = lineCountForItem(iid);
+      var selected = pickerPendingIds ? pickerPendingIds.has(iid) : lineCountForItem(iid) > 0;
       var tile = document.createElement('button');
       tile.type = 'button';
-      tile.className = 'm-item-tile' + (q > 0 ? ' is-selected' : '');
+      tile.className = 'm-item-tile' + (selected ? ' is-selected' : '');
       tile.setAttribute('data-item-id', String(iid));
       tile.setAttribute('role', 'option');
+      tile.setAttribute('aria-selected', selected ? 'true' : 'false');
       tile.innerHTML =
-        '<span class="m-item-tile-qty"' + (q > 0 ? '' : ' hidden') + '>' + (q > 0 ? fmt(q) : '') + '</span>' +
+        '<span class="m-item-tile-check"' + (selected ? '' : ' hidden') + ' aria-hidden="true">✓</span>' +
         '<span class="m-item-tile-name">' + escapeHtml(lab.name) + '</span>' +
         '<span class="m-item-tile-code muted">' + escapeHtml(lab.code || '—') + '</span>' +
         '<span class="m-item-tile-price">' + fmt(price) + '</span>';
       tile.addEventListener('click', function () {
-        openItemQuick(it);
+        togglePickerItem(it);
       });
       itemGrid.appendChild(tile);
     });
@@ -544,18 +624,19 @@
 
   function openPicker() {
     if (!picker) return;
+    initPickerPendingFromLines();
     picker.hidden = false;
     picker.setAttribute('aria-hidden', 'false');
     document.body.classList.add('m-picker-open');
     if (pickerSearch) pickerSearch.value = '';
     fetchAllItems(function (items) {
       renderItemGrid(items);
-      if (pickerSearch) pickerSearch.focus();
     });
   }
 
   function closePicker() {
     closeItemQuick();
+    pickerPendingIds = null;
     if (!picker) return;
     picker.hidden = true;
     picker.setAttribute('aria-hidden', 'true');
@@ -671,7 +752,6 @@
     document.body.classList.add('m-picker-open');
     if (customerPickerSearch) {
       customerPickerSearch.value = '';
-      customerPickerSearch.focus();
     }
     renderCustomerGrid(allCustomers);
   }
@@ -726,14 +806,21 @@
     var id = currentInvoiceId();
     var locked = form && form.classList.contains('m-invoice-form--locked');
     var vis = {};
-    if (!locked) vis.save = true;
-    if (cfg.canArchive && !locked) vis.camera = true;
-    if (cfg.canArchive && id > 0) vis.archive = true;
-    if (cfg.canDelete && id > 0 && !locked) vis.delete = true;
+
     if (id > 0) {
+      vis.open = true;
       vis.print = true;
       vis.pdf = true;
+      if (cfg.canArchive) vis.archive = true;
     }
+
+    if (!locked) {
+      vis.save = true;
+      if (cfg.canArchive) vis.camera = true;
+      if (cfg.canDelete && id > 0) vis.delete = true;
+      if (cfg.canPost && id > 0) vis.post = true;
+    }
+
     var cols = 0;
     Object.keys(vis).forEach(function (k) {
       if (vis[k]) cols++;
@@ -742,6 +829,131 @@
       TB.show(vis, { formId: 'm-invoice-form', cols: cols > 0 ? cols : undefined });
     }
     if (photoArchive) photoArchive.refreshMeta();
+  }
+
+  function viewInvoiceHref() {
+    var id = currentInvoiceId();
+    if (id < 1 || !cfg.viewUrl) return '';
+    var base = cfg.viewUrl;
+    var sep = base.indexOf('?') >= 0 ? '&' : '?';
+    return base + sep + 'id=' + encodeURIComponent(String(id));
+  }
+
+  function mobileConfirm(message, options) {
+    options = options || {};
+    if (window.AppDialog && typeof AppDialog.confirm === 'function') {
+      return AppDialog.confirm(String(message), {
+        title: options.title || 'تأكيد',
+        okText: options.okText || 'نعم',
+        cancelText: options.cancelText || 'إلغاء',
+        danger: !!options.danger,
+      }).then(function (ok) {
+        return !!ok;
+      });
+    }
+    return Promise.resolve(window.confirm(String(message)));
+  }
+
+  function parseJsonResponse(r) {
+    return r
+      .text()
+      .then(function (text) {
+        var data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch (e) {
+          data = null;
+        }
+        if (!data || typeof data !== 'object') {
+          return { ok: false, message: 'تعذر قراءة رد الخادم.' };
+        }
+        return data;
+      });
+  }
+
+  function runBarPost() {
+    if (postFlowBusy || !cfg.canPost || !cfg.postApi) return;
+    var id = currentInvoiceId();
+    if (id < 1) {
+      if (window.AppDialog && AppDialog.alert) {
+        AppDialog.alert('احفظ الفاتورة أولاً ثم رحّلها.', { type: 'warning' });
+      }
+      return;
+    }
+    if (form && form.classList.contains('m-invoice-form--locked')) return;
+
+    var gpsEnabled = !!(cfg.gpsEnabled || window.APP_GPS_ENABLED);
+    var gpsPrimed = null;
+    if (gpsEnabled && window.AppGeo && AppGeo.primePostGpsFromUserGesture) {
+      gpsPrimed = AppGeo.primePostGpsFromUserGesture('mobile');
+    }
+
+    function submitPost(gps) {
+      var fd = new FormData();
+      fd.append('_csrf', cfg.csrf || '');
+      fd.append('invoice_id', String(id));
+      if (window.AppGeo && AppGeo.appendToFormData && gps) {
+        AppGeo.appendToFormData(fd, gps, 'mobile');
+      }
+      if (barPostBtn) barPostBtn.disabled = true;
+      postFlowBusy = true;
+      fetch(cfg.postApi, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(parseJsonResponse)
+        .then(function (data) {
+          if (barPostBtn) barPostBtn.disabled = false;
+          postFlowBusy = false;
+          if (!data || !data.ok) {
+            var msg = (data && (data.message || data.error)) || 'تعذر ترحيل الفاتورة.';
+            if (window.AppDialog && AppDialog.error) AppDialog.error(msg);
+            return;
+          }
+          var href = viewInvoiceHref();
+          if (href) {
+            window.location.href = href;
+            return;
+          }
+          if (window.AppDialog && AppDialog.success) {
+            AppDialog.success((data && data.message) || 'تم ترحيل الفاتورة.');
+          }
+          loadInvoiceForEdit(id);
+        })
+        .catch(function () {
+          postFlowBusy = false;
+          if (barPostBtn) barPostBtn.disabled = false;
+          if (window.AppDialog && AppDialog.error) AppDialog.error('تعذر الاتصال بالخادم.');
+        });
+    }
+
+    function beginPost() {
+      var confirmMsg =
+        'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.';
+      if (gpsEnabled) {
+        confirmMsg += '\n\n📍 قد يُطلب السماح بالموقع على الهاتف.';
+      }
+      mobileConfirm(confirmMsg, { title: 'تأكيد الترحيل', okText: 'ترحيل' }).then(function (ok) {
+        if (!ok) {
+          return;
+        }
+        if (window.AppGeo && AppGeo.captureForPost) {
+          AppGeo.captureForPost('mobile', { primed: gpsPrimed })
+            .then(function (gps) {
+              submitPost(gps && gps.latitude != null ? gps : null);
+            })
+            .catch(function () {
+              submitPost(null);
+            });
+          return;
+        }
+        submitPost(null);
+      });
+    }
+
+    beginPost();
   }
 
   function fetchPrintDoc(id) {
@@ -865,6 +1077,13 @@
   if (barPrintBtn) barPrintBtn.addEventListener('click', runBarPrint);
   if (barPdfBtn) barPdfBtn.addEventListener('click', runBarPdf);
   if (barDeleteBtn) barDeleteBtn.addEventListener('click', runBarDelete);
+  if (barPostBtn) barPostBtn.addEventListener('click', runBarPost);
+  if (barOpenBtn) {
+    barOpenBtn.addEventListener('click', function () {
+      var href = viewInvoiceHref();
+      if (href) window.location.href = href;
+    });
+  }
 
   function lockInvoiceForm(message) {
     if (form) form.classList.add('m-invoice-form--locked');
@@ -970,7 +1189,7 @@
 
   if (btnOpenPicker) btnOpenPicker.addEventListener('click', openPicker);
   if (pickerClose) pickerClose.addEventListener('click', closePicker);
-  if (pickerDone) pickerDone.addEventListener('click', closePicker);
+  if (pickerDone) pickerDone.addEventListener('click', confirmPickerSelection);
 
   if (pickerSearch) {
     pickerSearch.addEventListener('input', function () {
@@ -1044,6 +1263,17 @@
         if (stock <= 0) {
           if (window.AppDialog && AppDialog.alert) {
             AppDialog.alert('أدخل كمية أو كمية إضافية للمادة: ' + ln.item_name, { type: 'warning' });
+          }
+          return;
+        }
+        var unitPrice = parseNum(ln.unit_price);
+        if (unitPrice <= 0 && ln.default_unit_price > 0) {
+          unitPrice = parseNum(ln.default_unit_price);
+          ln.unit_price = unitPrice;
+        }
+        if (unitPrice <= 0) {
+          if (window.AppDialog && AppDialog.alert) {
+            AppDialog.alert('أدخل السعر للمادة: ' + ln.item_name, { type: 'warning' });
           }
           return;
         }
@@ -1210,6 +1440,7 @@
   }
 
   function bootActionBar() {
+    if (TB.mountInto) TB.mountInto('m-invoice-actions-host');
     refreshActionBar();
   }
 

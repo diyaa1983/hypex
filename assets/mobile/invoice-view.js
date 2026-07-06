@@ -532,6 +532,8 @@
 
   cfg.listUrl = cfg.listUrl || mobileListFallback();
 
+  if (TB.mountInto) TB.mountInto('m-invoice-actions-host');
+
   function editInvoiceHref() {
     var base = cfg.editUrl || '';
     var sep = base.indexOf('?') >= 0 ? '&' : '?';

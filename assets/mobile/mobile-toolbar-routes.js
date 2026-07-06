@@ -10,9 +10,7 @@
       skip: true,
     },
     m_sales_invoices: {
-      buttons: { save: true },
-      formId: 'm-invoice-form',
-      cols: 1,
+      skip: true,
     },
     m_sales_invoice_list: {
       title: 'اختر فاتورة من القائمة',

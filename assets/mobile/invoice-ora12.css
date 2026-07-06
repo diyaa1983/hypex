@@ -25,6 +25,16 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
+/* إدخال فاتورة البيع: ملء الشاشة بدون ترويسة التطبيق */
+.m-ora12-invoice-ui.m-page-invoice-doc .m-header {
+  display: none;
+}
+
+.m-ora12-invoice-ui.m-page-invoice-doc .m-main {
+  padding-top: calc(0.35rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 0.35rem);
+}
+
 .m-ora12-invoice-ui .m-header-brand {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.28);
@@ -109,6 +119,88 @@
 
 .m-ora12-invoice-ui .m-ora12-meta .m-field {
   margin-bottom: 0;
+}
+
+.m-ora12-invoice-ui .m-ora12-panel__body--compact {
+  padding: 0.45rem 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-inv-pick-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+
+.m-ora12-invoice-ui .m-inv-pick-row .m-btn--pick {
+  width: 100%;
+  min-width: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-pick-row .m-btn-pick-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 1.2fr);
+  align-items: end;
+  padding: 0.4rem 0.45rem;
+  background: #f3f5f7;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-field-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--ora12-text);
+  letter-spacing: 0.01em;
+  margin-bottom: 0.2rem;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-input,
+.m-ora12-invoice-ui .m-inv-meta-row .m-select {
+  min-width: 0;
+  width: 100%;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ora12-text);
+  padding: 0.32rem 0.38rem;
+  min-height: 2rem;
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-inv-notes-field .m-field-label {
+  font-weight: 800;
+  color: var(--ora12-text);
+}
+
+.m-ora12-invoice-ui .m-inv-notes-field .m-input {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ora12-text);
+}
+
+/* منع تكبير iOS في شاشات الاختيار */
+.m-ora12-invoice-ui .m-picker .m-input,
+.m-ora12-invoice-ui .m-picker .m-input--sm {
+  font-size: 16px;
+}
+
+.m-ora12-invoice-ui .m-select--truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-ora12-invoice-ui .m-inv-notes-field {
+  margin-top: 0.45rem;
+}
+
+.m-ora12-invoice-ui .m-ora12-panel--inv-top .m-customer-chosen {
+  margin-bottom: 0.35rem;
 }
 
 .m-ora12-invoice-ui .m-field-label {
@@ -231,11 +323,43 @@
   padding: 0.35rem 0.45rem 0.45rem;
 }
 
+.m-ora12-invoice-ui .m-inv-line-all {
+  padding: 0.35rem 0.4rem 0.4rem;
+  gap: 0.1rem 0.08rem;
+  border-bottom: 1px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-inv-line-all .m-inv-item-name {
+  font-size: 0.66rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.m-ora12-invoice-ui .m-inv-line-all .m-inv-mini span {
+  font-size: 0.46rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-inv-gross--inline {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--ora12-blue-dark);
+  margin-bottom: 0.35rem;
+}
+
+.m-ora12-invoice-ui .m-inv-line-delete--inline {
+  border-radius: 2px;
+  border: 1px solid #e8b4a8;
+  background: #fdecea;
+}
+
 .m-ora12-invoice-ui .m-inv-line .m-input--xs,
 .m-ora12-invoice-ui .m-inv-line .m-select {
   border: 1px solid var(--ora12-border);
   border-radius: 2px;
-  font-size: 0.76rem;
+  font-size: 16px;
+  font-weight: 700;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
@@ -408,7 +532,8 @@
 
 /* عرض الفاتورة */
 .m-ora12-invoice-ui .m-inv-view-doc,
-.m-ora12-invoice-ui .m-inv-view-lines-panel {
+.m-ora12-invoice-ui .m-inv-view-lines-panel,
+.m-ora12-invoice-ui .m-inv-view-totals {
   border: 1px solid var(--ora12-border);
   border-radius: 2px;
   box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
@@ -468,10 +593,11 @@
 }
 
 .m-ora12-invoice-ui .m-inv-view-totals {
+  flex: 0 0 auto;
   margin: 0;
-  padding: 0.45rem 0.65rem;
+  padding: 0.45rem 0.65rem 0.5rem;
   background: #f3f5f7;
-  border-top: 1px solid var(--ora12-border);
+  border-top: none;
 }
 
 .m-ora12-invoice-ui .m-inv-view-total-row {
@@ -536,12 +662,18 @@
 }
 
 .m-ora12-invoice-ui .m-inv-view-line-card-grid {
-  padding: 0.35rem 0.55rem 0.45rem;
+  padding: 0.32rem 0.4rem 0.4rem;
+  gap: 0.18rem 0.1rem;
 }
 
 .m-ora12-invoice-ui .m-inv-view-line-card-grid dt {
-  font-size: 0.62rem;
+  font-size: 0.5rem;
   color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-grid dd {
+  font-size: 0.6rem;
+  font-weight: 700;
 }
 
 .m-ora12-invoice-ui .m-inv-view-extra .m-btn--ghost {

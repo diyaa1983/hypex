@@ -155,22 +155,16 @@
     return isFinite(x) ? x : 0;
   }
 
-  /** عرض حقل فاتورة فارغاً بدل 0 عندما لا يوجد قيمة فعلية. */
-  function invoiceInputShouldShowEmpty(n, rawStr) {
-    if (!isFinite(n) || Math.abs(n) < 1e-12) {
-      if (rawStr === undefined || rawStr === null) {
-        return true;
-      }
-      var raw = String(rawStr).trim();
-      if (raw === '') {
-        return true;
-      }
-      return Math.abs(parseInvoiceDecimalInput(raw)) < 1e-12;
-    }
-    return false;
+  /** كمية السطر — تبقى فارغة عند الصفر (ليست حقل مبلغ). */
+  function qtyInputShouldShowEmpty(n, rawStr) {
+    if (isFinite(n) && Math.abs(n) >= 1e-12) return false;
+    if (rawStr === undefined || rawStr === null) return true;
+    var raw = String(rawStr).trim();
+    if (raw === '') return true;
+    return Math.abs(parseInvoiceDecimalInput(raw)) < 1e-12;
   }
 
-  /** تنسيق كمية سطر فاتورة — فارغ عند الصفر. */
+  /** تنسيق كمية سطر فاتورة — فارغ عند الصفر (الكمية ليست مبلغاً). */
   function formatInvoiceQtyInput(n, rawStr) {
     if (rawStr !== undefined && rawStr !== null && String(rawStr).trim() !== '') {
       var s = String(rawStr).trim().replace(/,/g, '');
@@ -184,7 +178,7 @@
         if (isFinite(xDec)) {
           s = String(s).replace(/,/g, '.');
           s = s.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
-          if (invoiceInputShouldShowEmpty(xDec, rawStr)) {
+          if (qtyInputShouldShowEmpty(xDec, rawStr)) {
             return '';
           }
           return s === '' ? '' : s;
@@ -192,7 +186,7 @@
       }
     }
     var x = Number(n);
-    if (!isFinite(x) || invoiceInputShouldShowEmpty(x, rawStr)) {
+    if (!isFinite(x) || qtyInputShouldShowEmpty(x, rawStr)) {
       return '';
     }
     if (Math.abs(x - Math.round(x)) < 1e-9) {
@@ -216,9 +210,6 @@
     }
 
     var x = round(n, maxFrac);
-    if (invoiceInputShouldShowEmpty(x, rawStr)) {
-      return '';
-    }
     return formatFixedDecimalPlain(x, maxFrac);
   }
 

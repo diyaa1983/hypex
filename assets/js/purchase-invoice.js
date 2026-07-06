@@ -578,6 +578,9 @@
     tbody.querySelectorAll('input.js-price').forEach(function (inp) {
       inp.value = formatUnitPriceValue(parseNum(inp.value), inp.value);
     });
+    tbody.querySelectorAll('input.js-line-sub, input.js-line-gross').forEach(function (inp) {
+      inp.value = formatAmountValue(parseNum(inp.value), inp.value);
+    });
     recalcFooter();
     syncJson();
   }
@@ -744,7 +747,7 @@
     var el = tr.querySelector('.js-line-gross');
     if (!el) return;
     if (el.tagName === 'INPUT' && document.activeElement === el) return;
-    var txt = Math.abs(gross) < 1e-12 ? '' : fmtAmount(gross);
+    var txt = fmtAmount(gross);
     if (el.tagName === 'INPUT') {
       el.value = formatAmountValue(gross, '');
     } else {
@@ -1069,7 +1072,7 @@
         dEl.readOnly = true;
         dEl.classList.add('is-header-discount');
         var amt = parts[i] || 0;
-        dEl.value = amt > 0.0000001 ? formatAmountValue(amt, '') : '';
+        dEl.value = formatAmountValue(amt, '');
       }
     });
     recalcAllItemRows();
@@ -1233,7 +1236,7 @@
     }
     setAmtDisplayCell(
       taxAmtEl,
-      Math.abs(taxAmt) < 1e-12 ? '' : fmtAmount(taxAmt),
+      fmtAmount(taxAmt),
       false
     );
     setLineGrossDisplay(tr, gross);
@@ -1916,7 +1919,7 @@
     tr.querySelector('.js-qty').value = '';
     var qtyExtraReset = tr.querySelector('.js-qty-extra');
     if (qtyExtraReset) qtyExtraReset.value = '';
-    tr.querySelector('.js-price').value = '';
+    tr.querySelector('.js-price').value = formatUnitPriceValue(0, '');
     applyDefaultTax(tr);
     if (isEntry) {
       tr.classList.add('is-entry-row');
@@ -2017,7 +2020,7 @@
     } else {
       delete tr.dataset.listUnitPrice;
     }
-    priceEl.value = formatPriceValue(costPrice, costPrice > 0 ? String(costPrice) : '');
+    priceEl.value = formatPriceValue(costPrice, '');
     applyDefaultTax(tr);
     recalcRow(tr);
     applyRowItemPickLock(tr);
