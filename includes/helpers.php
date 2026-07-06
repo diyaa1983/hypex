@@ -74,7 +74,7 @@ function format_date_dmY(string $isoDate): string
     return $ts !== false ? date('d-m-Y', $ts) : $isoDate;
 }
 
-/** قبول Y-m-d أو d-m-Y → Y-m-d صالح أو null. */
+/** قبول Y-m-d أو d-m-Y أو d/m/Y → Y-m-d صالح أو null. */
 function parse_date_to_iso(string $date): ?string
 {
     $date = trim($date);
@@ -98,7 +98,7 @@ function parse_date_to_iso(string $date): ?string
         return checkdate($mo, $d, $y) ? sprintf('%04d-%02d-%02d', $y, $mo, $d) : null;
     }
 
-    if (preg_match('/^(\d{1,2})-(\d{1,2})-(\d{4})$/', $date, $m)) {
+    if (preg_match('/^(\d{1,2})[-\/\.](\d{1,2})[-\/\.](\d{4})$/', $date, $m)) {
         $d = (int) $m[1];
         $mo = (int) $m[2];
         $y = (int) $m[3];

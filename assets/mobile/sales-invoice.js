@@ -143,6 +143,37 @@
     return dd + '/' + mm + '/' + d.getFullYear();
   }
 
+  /** تحويل يوم/شهر/سنة إلى Y-m-d قبل الإرسال */
+  function parseDateDigitsToIso(s) {
+    var raw = String(s || '').trim();
+    if (!raw) return '';
+    var m = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+    if (m) {
+      var d = parseInt(m[1], 10);
+      var mo = parseInt(m[2], 10);
+      var y = parseInt(m[3], 10);
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && y >= 1900) {
+        return String(y).padStart(4, '0') + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+      }
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    return '';
+  }
+
+  function validateInvoiceDateValue() {
+    var dateInp = document.getElementById('m-invoice-date');
+    if (!dateInp) return '';
+    var iso = parseDateDigitsToIso(dateInp.value);
+    if (!iso) {
+      if (window.AppDialog && AppDialog.alert) {
+        AppDialog.alert('تاريخ الفاتورة غير صالح. استخدم صيغة يوم/شهر/سنة مثل 06/07/2026', { type: 'warning' });
+      }
+      dateInp.focus();
+      return null;
+    }
+    return iso;
+  }
+
   function inputHasValue(el) {
     return el && String(el.value || '').trim() !== '';
   }
@@ -820,27 +851,37 @@
     var id = currentInvoiceId();
     var locked = form && form.classList.contains('m-invoice-form--locked');
     var vis = {};
+    var disabled = {};
+    var saved = id > 0;
 
-    if (id > 0) {
-      vis.open = true;
-      vis.print = true;
-      vis.pdf = true;
-      if (cfg.canArchive) vis.archive = true;
+    vis.print = true;
+    vis.pdf = true;
+    vis.open = true;
+    if (!saved) {
+      disabled.print = true;
+      disabled.pdf = true;
+      disabled.open = true;
     }
 
     if (!locked) {
       vis.save = true;
-      if (cfg.canArchive) vis.camera = true;
-      if (cfg.canDelete && id > 0) vis.delete = true;
-      if (cfg.canPost && id > 0) vis.post = true;
     }
 
-    var cols = 0;
-    Object.keys(vis).forEach(function (k) {
-      if (vis[k]) cols++;
-    });
+    if (cfg.canPost) {
+      vis.post = true;
+      if (!saved) disabled.post = true;
+    }
+    if (cfg.canDelete) {
+      vis.delete = true;
+      if (!saved) disabled.delete = true;
+    }
+    if (cfg.canArchive) {
+      vis.camera = true;
+      if (saved) vis.archive = true;
+    }
+
     if (TB.show) {
-      TB.show(vis, { formId: 'm-invoice-form', cols: cols > 0 ? cols : undefined });
+      TB.show(vis, { formId: 'm-invoice-form', disabled: disabled });
     }
     syncSaveFallback();
     if (photoArchive) photoArchive.refreshMeta();
@@ -1277,6 +1318,8 @@
   if (form && cfg.mobileSave) {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      var invoiceDateIso = validateInvoiceDateValue();
+      if (!invoiceDateIso) return;
       syncAllFromDom();
       updateTotalsOnly();
       if (lines.length < 1) {
@@ -1317,6 +1360,7 @@
       var btn = saveBtn;
       if (btn) btn.disabled = true;
       var fd = new FormData(form);
+      fd.set('invoice_date', invoiceDateIso);
       var hasArchivePhoto = false;
       if (photoArchive && photoArchive.takePendingFile) {
         var pendingPhoto = photoArchive.takePendingFile();

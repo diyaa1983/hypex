@@ -95,7 +95,7 @@
 
   /**
    * @param {Record<string, boolean>} visible
-   * @param {{ title?: string, formId?: string, cols?: number }} [opts]
+   * @param {{ title?: string, formId?: string, cols?: number, disabled?: Record<string, boolean> }} [opts]
    */
   function show(visible, opts) {
     opts = opts || {};
@@ -116,6 +116,12 @@
     } else if (s) {
       s.type = 'button';
       s.removeAttribute('form');
+    }
+    if (opts.disabled) {
+      Object.keys(opts.disabled).forEach(function (key) {
+        var b = btn(key);
+        if (b && visible[key]) b.disabled = !!opts.disabled[key];
+      });
     }
     var actions = actionsEl();
     if (actions) {
