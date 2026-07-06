@@ -149,13 +149,24 @@
 }
 
 .m-ora12-invoice-ui .m-inv-meta-row {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 1.2fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: end;
   padding: 0.28rem 0.35rem;
   background: #f3f5f7;
   border: 1px solid var(--ora12-border);
   border-radius: 2px;
-  gap: 0.22rem 0.28rem;
+  gap: 0.22rem 0.2rem;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-field {
+  min-width: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-field--date .m-input--date-digits {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  text-align: center;
+  direction: ltr;
 }
 
 .m-ora12-invoice-ui .m-inv-meta-row .m-field-label {
@@ -291,8 +302,22 @@
 }
 
 .m-ora12-invoice-ui .m-inv-lines-wrap {
-  margin: 0;
-  border-top: 1px solid var(--ora12-border);
+  margin: 0.35rem 0.4rem 0.45rem;
+}
+
+.m-ora12-invoice-ui .m-inv-lines-scroll {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+  max-height: min(38vh, 17.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.m-page-invoice-doc .m-lines-swipe-hint {
+  margin: 0.35rem 0.45rem 0.3rem;
 }
 
 .m-ora12-invoice-ui .m-inv-lines {

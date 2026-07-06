@@ -532,13 +532,19 @@
 
   cfg.listUrl = cfg.listUrl || mobileListFallback();
 
-  if (TB.mountInto) {
-    TB.mountInto('m-invoice-actions-host');
-  } else if (TB.pinToBottomDock) {
-    TB.pinToBottomDock();
-  } else if (TB.ensureVisible) {
-    TB.ensureVisible();
+  function bootViewActionBar() {
+    if (TB.pinToBottomDock) {
+      TB.pinToBottomDock();
+    } else if (TB.ensureVisible) {
+      TB.ensureVisible();
+    }
   }
+
+  bootViewActionBar();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootViewActionBar);
+  }
+  window.addEventListener('load', bootViewActionBar);
 
   function editInvoiceHref() {
     var base = cfg.editUrl || '';

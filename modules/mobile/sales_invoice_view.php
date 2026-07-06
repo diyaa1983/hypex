@@ -139,10 +139,6 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 
 
 
-    <div id="m-invoice-actions-host" class="m-inv-doc-actions m-inv-doc-actions--fixed" aria-label="إجراءات الفاتورة"></div>
-
-
-
     <div class="m-inv-view-extra">
         <a class="m-btn m-btn--ghost" href="<?= esc(mobile_url('r=m_sales_invoices')) ?>">جديد</a>
         <a class="m-btn m-btn--ghost" href="<?= esc(mobile_url('r=m_sales_invoice_list')) ?>">القائمة</a>

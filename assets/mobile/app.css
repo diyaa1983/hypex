@@ -78,6 +78,28 @@ body.m-action-dock--multiline .m-action-dock-actions .m-toolbar-btn {
   --m-toolbar-btn-ico: 0.85rem;
 }
 
+body.m-page-invoice-doc #m-bottom-dock,
+body.m-page-inv-view #m-bottom-dock {
+  display: flex !important;
+  z-index: 250;
+  visibility: visible !important;
+}
+
+body.m-page-invoice-doc #m-main-toolbar,
+body.m-page-inv-view #m-main-toolbar {
+  display: block !important;
+}
+
+body.m-page-invoice-doc #m-bottom-dock .m-action-dock-actions,
+body.m-page-inv-view #m-bottom-dock .m-action-dock-actions {
+  display: grid !important;
+}
+
+body.m-page-invoice-doc.m-no-tabbar #m-bottom-dock,
+body.m-page-inv-view.m-no-tabbar #m-bottom-dock {
+  padding-bottom: calc(0.28rem + var(--m-safe-b));
+}
+
 #m-invoice-actions-host:empty {
   display: none;
 }
@@ -141,6 +163,37 @@ html.m-in-browser .m-inv-doc-actions--fixed {
   width: 100%;
   max-width: 430px;
   transform: translateX(-50%);
+}
+
+.m-inv-save-fallback {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 240;
+  padding: 0.38rem 0.5rem calc(0.38rem + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+  border-top: 1px solid #c4cdd5;
+  box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.12);
+}
+
+.m-inv-save-fallback__btn {
+  width: 100%;
+  min-height: 2.5rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+html.m-in-browser .m-inv-save-fallback {
+  left: 50%;
+  right: auto;
+  width: 100%;
+  max-width: 430px;
+  transform: translateX(-50%);
+}
+
+body.m-inv-save-fallback-visible .m-main {
+  padding-bottom: calc(3.35rem + var(--m-safe-b) + 0.55rem);
 }
 
 body.m-page-home {
@@ -2200,8 +2253,16 @@ body.m-inv-actions-inline.m-has-action-dock.m-action-dock--multiline {
   --m-action-dock-h: 5.55rem;
 }
 
-body.m-inv-actions-inline .m-bottom-dock--toolbar-inline {
-  display: none !important;
+body.m-inv-actions-inline .m-bottom-dock--toolbar-inline .m-action-dock-slot:empty {
+  display: none;
+}
+
+body.m-inv-actions-inline .m-bottom-dock--toolbar-inline:not(:has(.m-main-toolbar)) {
+  min-height: 0;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
 }
 
 body.m-inv-actions-inline.m-page-invoice-doc .m-main,
@@ -3276,6 +3337,17 @@ body.m-picker-open .m-bottom-dock {
 /* بنود الفاتورة — بطاقة لكل سطر */
 .m-inv-lines-wrap {
   margin: 0 0 0.65rem;
+}
+
+.m-inv-lines-scroll {
+  border: 1px solid #c4cdd5;
+  border-radius: var(--m-radius);
+  background: #fff;
+  max-height: min(38vh, 17.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .m-inv-lines {

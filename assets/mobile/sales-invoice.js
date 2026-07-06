@@ -129,6 +129,20 @@
     return fmt(parseNum(n));
   }
 
+  function formatDateDigits(iso) {
+    var s = String(iso || '').trim();
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '/' + m[2] + '/' + m[1];
+    return s;
+  }
+
+  function todayDateDigits() {
+    var d = new Date();
+    var dd = String(d.getDate()).padStart(2, '0');
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    return dd + '/' + mm + '/' + d.getFullYear();
+  }
+
   function inputHasValue(el) {
     return el && String(el.value || '').trim() !== '';
   }
@@ -828,7 +842,16 @@
     if (TB.show) {
       TB.show(vis, { formId: 'm-invoice-form', cols: cols > 0 ? cols : undefined });
     }
+    syncSaveFallback();
     if (photoArchive) photoArchive.refreshMeta();
+  }
+
+  function syncSaveFallback() {
+    var fb = document.getElementById('m-inv-save-fallback');
+    if (!fb) return;
+    var toolbarSaveVisible = saveBtn && !saveBtn.hidden;
+    fb.hidden = !!toolbarSaveVisible;
+    document.body.classList.toggle('m-inv-save-fallback-visible', !fb.hidden);
   }
 
   function viewInvoiceHref() {
@@ -1121,7 +1144,7 @@
       }
     }
     var dateInp = form.querySelector('[name="invoice_date"]');
-    if (dateInp && inv.invoice_date) dateInp.value = inv.invoice_date;
+    if (dateInp && inv.invoice_date) dateInp.value = formatDateDigits(inv.invoice_date);
     var pay = document.getElementById('m-payment-type');
     if (pay && inv.payment_type) pay.value = inv.payment_type === 'cash' ? 'cash' : 'credit';
     if (whEl && inv.warehouse_id) whEl.value = String(parseInt(inv.warehouse_id, 10));
@@ -1326,7 +1349,7 @@
           form.reset();
           clearCustomerSelection();
           var dateInp = form.querySelector('[name="invoice_date"]');
-          if (dateInp) dateInp.value = new Date().toISOString().slice(0, 10);
+          if (dateInp) dateInp.value = todayDateDigits();
           var pay = document.getElementById('m-payment-type');
           if (pay) pay.value = 'credit';
         }
@@ -1440,19 +1463,19 @@
   }
 
   function bootActionBar() {
-    if (TB.mountInto) {
-      TB.mountInto('m-invoice-actions-host');
-    } else if (TB.pinToBottomDock) {
+    if (TB.pinToBottomDock) {
       TB.pinToBottomDock();
     } else if (TB.ensureVisible) {
       TB.ensureVisible();
     }
     refreshActionBar();
+    requestAnimationFrame(refreshActionBar);
   }
 
   bootActionBar();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootActionBar);
   }
+  window.addEventListener('load', bootActionBar);
   syncAll();
 })();

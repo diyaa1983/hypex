@@ -27,6 +27,7 @@ $settings = company_settings($pdo);
 $dp = company_decimal_places($pdo);
 $defaultTax = (float) ($settings['tax_rate_percent'] ?? 15);
 $today = date('Y-m-d');
+$todayDmy = date('d/m/Y');
 
 $taxRates = [];
 try {
@@ -115,9 +116,11 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
                 </button>
             </div>
             <div class="m-meta-grid m-ora12-meta m-inv-meta-row">
-                <label class="m-field">
+                <label class="m-field m-field--date">
                     <span class="m-field-label">التاريخ</span>
-                    <input class="m-input" type="date" name="invoice_date" value="<?= esc($today) ?>" required>
+                    <input class="m-input m-input--date-digits" type="text" name="invoice_date" id="m-invoice-date"
+                        value="<?= esc($todayDmy) ?>" inputmode="numeric" autocomplete="off"
+                        placeholder="يوم/شهر/سنة" dir="ltr" required>
                 </label>
                 <label class="m-field">
                     <span class="m-field-label">النوع</span>
@@ -159,7 +162,7 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         <div class="m-ora12-panel__body m-ora12-panel__body--flush">
         <p class="m-lines-swipe-hint muted">اضغط مطوّلاً على البند (خارج الحقول) ثم اسحب لليمين لحذف المادة</p>
         <p class="m-lines-empty muted" id="m-lines-empty">لا توجد بنود — اضغط «اختيار المواد»، حدّد المواد، ثم «تم تحديد المواد»، وأدخل الكمية والسعر لكل مادة.</p>
-        <div class="m-inv-lines-wrap" id="m-inv-table-wrap" hidden>
+        <div class="m-inv-lines-wrap m-inv-lines-scroll" id="m-inv-table-wrap" hidden>
             <div id="m-lines-tbody" class="m-inv-lines" aria-live="polite"></div>
         </div>
         </div>
@@ -185,7 +188,9 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         </div>
     </section>
 
-    <div id="m-invoice-actions-host" class="m-inv-doc-actions m-inv-doc-actions--fixed" aria-label="إجراءات الفاتورة"></div>
+    <div class="m-inv-save-fallback" id="m-inv-save-fallback" hidden>
+        <button type="submit" class="m-btn m-btn--success m-inv-save-fallback__btn">حفظ الفاتورة</button>
+    </div>
 
 </form>
 </div>
