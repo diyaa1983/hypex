@@ -1281,14 +1281,6 @@ tr.is-entry-row td {
   background: #fafbff !important;
 }
 
-tr.is-entry-row.is-entry-row--hidden {
-  display: none !important;
-}
-
-.sales-inv-table tbody tr.is-entry-row.is-entry-row--hidden {
-  display: none !important;
-}
-
 .sales-inv-table tbody tr:nth-child(even) td {
   background: #fcfdff;
 }

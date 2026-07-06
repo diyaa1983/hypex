@@ -419,10 +419,6 @@
   background: var(--ora12-hover);
 }
 
-.dashboard-ora.sales-ora12-screen.sales-inv-wrap tr.is-entry-row.is-entry-row--hidden {
-  display: none !important;
-}
-
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap tr.is-entry-row td {
   background: #fafbfc !important;
 }

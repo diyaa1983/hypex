@@ -326,7 +326,6 @@
       if (!locked) applyRowItemPickLock(tr);
     });
     if (!locked) ensureEntryRow();
-    syncLinesEmptyState();
     syncSalesRepSelectLock();
     if (global.FinVoucherArchive) {
       global.FinVoucherArchive.syncToolbar();
@@ -472,7 +471,6 @@
         clearRowAmounts(tr);
       }
     });
-    syncEntryRowVisibility();
   }
 
   function safeEnsureEntryRow() {
@@ -1250,27 +1248,9 @@
     return 'unit';
   }
 
-  function isEntryRowHidden(tr) {
-    return !!(tr && tr.classList.contains('is-entry-row--hidden'));
-  }
-
-  function syncEntryRowVisibility(entry) {
-    entry = entry || getEntryRow();
-    if (!entry || !entry.classList.contains('is-entry-row')) return;
-    if (getRowItemId(entry) > 0) {
-      entry.classList.remove('is-entry-row--hidden');
-      entry.hidden = false;
-      return;
-    }
-    entry.classList.add('is-entry-row--hidden');
-    entry.hidden = true;
-  }
-
   function listNavRows() {
     return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-line-id]')).filter(function (tr) {
-      if (tr.classList.contains('is-entry-row')) {
-        return !isEntryRowHidden(tr);
-      }
+      if (tr.classList.contains('is-entry-row')) return true;
       return parseInt(tr.dataset.itemId, 10) > 0;
     });
   }
@@ -1792,7 +1772,6 @@
     document.getElementById('sales-inv-sum-sub').textContent = fmtAmount(sub);
     document.getElementById('sales-inv-sum-tax').textContent = fmtAmount(tax);
     document.getElementById('sales-inv-sum-grand').textContent = fmtAmount(gross);
-    syncLinesEmptyState();
   }
 
   function syncJson() {
@@ -2022,10 +2001,6 @@
   function focusRowMaterialCodeField(tr) {
     if (!tr) return;
     if (blockItemPickUntilQty(tr, { alert: false, actionLabel: 'إدخال مادة' })) return;
-    if (tr.classList.contains('is-entry-row') && isEntryRowHidden(tr)) {
-      openPickerForRow(tr);
-      return;
-    }
     var bc = tr.querySelector('.js-barcode-inp');
     if (bc && !bc.disabled) {
       bc.focus();
@@ -2512,11 +2487,8 @@
     applyDefaultTax(tr);
     if (isEntry) {
       tr.classList.add('is-entry-row');
-      tr.classList.add('is-entry-row--hidden');
-      tr.hidden = true;
     } else {
       tr.classList.remove('is-entry-row');
-      tr.classList.remove('is-entry-row--hidden');
       tr.hidden = false;
     }
     applyQtyPriceInputAttrs(tr);
@@ -2582,19 +2554,17 @@
       if (entry !== tbody.lastElementChild) {
         tbody.appendChild(entry);
       }
-      syncEntryRowVisibility(entry);
+      entry.hidden = false;
       return entry;
     }
     entry = createRow(true);
     tbody.appendChild(entry);
-    syncEntryRowVisibility(entry);
     return entry;
   }
 
   function finalizeEntryRow(tr) {
     if (!tr.classList.contains('is-entry-row')) return;
     tr.classList.remove('is-entry-row');
-    tr.classList.remove('is-entry-row--hidden');
     tr.hidden = false;
     var removeBtn = tr.querySelector('.js-remove');
     if (removeBtn) removeBtn.style.visibility = 'visible';
@@ -2711,56 +2681,6 @@
     if (global.ItemPickerModal) {
       ItemPickerModal.close();
     }
-  }
-
-  function openPickerForNewLine() {
-    if (invoiceIsPosted || ledgerView) return;
-    if (blockItemPickUntilQty(null, { actionLabel: 'إضافة مادة' })) return;
-    var entry = ensureEntryRow();
-    openPickerForRow(entry);
-  }
-
-  function revealEntryRowForBarcode() {
-    if (invoiceIsPosted || ledgerView) return;
-    if (blockItemPickUntilQty(null, { actionLabel: 'إدخال باركود', alert: false })) return;
-    var entry = ensureEntryRow();
-    entry.classList.remove('is-entry-row--hidden');
-    entry.hidden = false;
-    var bc = entry.querySelector('.js-barcode-inp');
-    if (bc && !bc.disabled) {
-      bc.focus();
-      if (bc.select) bc.select();
-    }
-  }
-
-  function syncLinesEmptyState() {
-    var emptyEl = document.getElementById('sales-inv-lines-empty');
-    if (!emptyEl) return;
-    emptyEl.hidden = invoiceHasMaterialLines();
-  }
-
-  function bindAddLineControls() {
-    var addBtn = document.getElementById('sales-inv-add-line');
-    if (addBtn && !addBtn.dataset.bound) {
-      addBtn.dataset.bound = '1';
-      addBtn.addEventListener('click', function () {
-        openPickerForNewLine();
-      });
-    }
-    var scanBtn = document.getElementById('sales-inv-scan-line');
-    if (scanBtn && !scanBtn.dataset.bound) {
-      scanBtn.dataset.bound = '1';
-      scanBtn.addEventListener('click', function () {
-        revealEntryRowForBarcode();
-      });
-    }
-    document.querySelectorAll('[data-sales-inv-add-line]').forEach(function (btn) {
-      if (btn.dataset.bound) return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', function () {
-        openPickerForNewLine();
-      });
-    });
   }
 
   function openPickerForRow(tr, opts) {
@@ -2951,10 +2871,6 @@
         var code = String(barcodeInp.value || '').trim();
         if (!rowHasItem(tr) && code) {
           resolveBarcodeOnRow(tr);
-        } else if (tr.classList.contains('is-entry-row') && !rowHasItem(tr)) {
-          window.setTimeout(function () {
-            if (!rowHasItem(tr)) syncEntryRowVisibility(tr);
-          }, 250);
         }
       });
     }
@@ -4389,7 +4305,6 @@
       recalcFooter();
     }
     applyDecimalPlacesToInvoiceScreen();
-    syncEntryRowVisibility();
     syncInvoiceIdField();
     refreshInvoiceEditState();
     clearPersistedDraft();
@@ -4768,7 +4683,6 @@
   });
 
   function bootInvoicePage() {
-    bindAddLineControls();
     if (global.FinVoucherArchive && form) {
       global.FinVoucherArchive.init({
         apiUrl: form.getAttribute('data-archive-api') || '',
@@ -5138,10 +5052,8 @@
     openPicker: function (el) {
       var tr = el && el.closest ? el.closest('tr[data-line-id]') : null;
       if (tr) openPickerForRow(tr);
-      else openPickerForNewLine();
+      else openPickerForRow(ensureEntryRow());
     },
-    openPickerForNewLine: openPickerForNewLine,
-    revealEntryRowForBarcode: revealEntryRowForBarcode,
     refreshCustomerRep: applyCustomerSalesRep,
     closeItemPicker: closePicker,
   };

@@ -17,7 +17,7 @@ $showUnitPriceIncl = !empty($showUnitPriceIncl);
 $unitPriceStep = $unitPriceStep ?? ($priceStep ?? '0.01');
 $amountStep = $amountStep ?? '0.01';
 ?>
-<tr data-line-id="<?= esc((string) $bootstrapLineId) ?>" data-item-id="" data-name-ar="" class="is-entry-row is-entry-row--hidden" hidden>
+<tr data-line-id="<?= esc((string) $bootstrapLineId) ?>" data-item-id="" data-name-ar="" class="is-entry-row">
     <td class="sales-inv-col-seq"><span class="js-seq"></span></td>
     <td class="sales-inv-col-sku">
         <code class="js-sku"></code>
