@@ -450,6 +450,47 @@ code.voucher-no-is-cancelled {
   border-bottom: 1px solid #e2e8f0;
 }
 
+.sales-inv-lines-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.55rem;
+  padding: 0.55rem 0.75rem 0.45rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.sales-inv-lines-toolbar-hint {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.sales-inv-lines-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 1.35rem 1rem;
+  text-align: center;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fafbff;
+}
+
+.sales-inv-lines-empty__text {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.sales-inv-form-is-posted .sales-inv-lines-toolbar,
+.sales-inv-form-is-posted .sales-inv-lines-empty,
+.sales-inv-form-is-locked .sales-inv-lines-toolbar,
+.sales-inv-form-is-locked .sales-inv-lines-empty {
+  display: none !important;
+}
+
 .sales-inv-lines-title {
   margin: 0;
   font-size: 0.95rem;
@@ -1238,6 +1279,14 @@ tr.is-picker-active td {
 
 tr.is-entry-row td {
   background: #fafbff !important;
+}
+
+tr.is-entry-row.is-entry-row--hidden {
+  display: none !important;
+}
+
+.sales-inv-table tbody tr.is-entry-row.is-entry-row--hidden {
+  display: none !important;
 }
 
 .sales-inv-table tbody tr:nth-child(even) td {

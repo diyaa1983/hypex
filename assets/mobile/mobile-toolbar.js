@@ -42,6 +42,7 @@
     document.body.classList.add('m-has-action-dock');
     document.body.classList.toggle('m-action-dock--titled', hasTitle);
     document.body.classList.toggle('m-action-dock--empty', cols === 0 && !hasTitle);
+    document.body.classList.toggle('m-action-dock--multiline', cols > 4);
     var actions = actionsEl();
     if (actions) {
       actions.classList.toggle('m-action-dock-actions--empty', cols === 0);
@@ -151,10 +152,29 @@
     applyRouteDefaults(route || '');
   }
 
+  function pinToBottomDock() {
+    var toolbar = root();
+    var slot = document.getElementById('m-action-dock-slot');
+    if (!toolbar || !slot) return false;
+    if (toolbar.parentNode !== slot) {
+      slot.appendChild(toolbar);
+    }
+    var dock = document.getElementById('m-bottom-dock');
+    if (dock) {
+      dock.classList.remove('m-bottom-dock--toolbar-inline');
+    }
+    document.body.classList.remove('m-inv-actions-inline');
+    refresh();
+    return true;
+  }
+
   function mountInto(hostId) {
     var host = typeof hostId === 'string' ? document.getElementById(hostId) : hostId;
     var toolbar = root();
     if (!host || !toolbar) return false;
+    if (host.classList && host.classList.contains('m-inv-doc-actions--fixed') && host.parentNode !== document.body) {
+      document.body.appendChild(host);
+    }
     host.appendChild(toolbar);
     var dock = document.getElementById('m-bottom-dock');
     if (dock) {
@@ -176,5 +196,6 @@
     applyRouteDefaults: applyRouteDefaults,
     resetRoute: resetRoute,
     mountInto: mountInto,
+    pinToBottomDock: pinToBottomDock,
   };
 })(typeof window !== 'undefined' ? window : this);

@@ -139,7 +139,7 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 
 
 
-    <div id="m-invoice-actions-host" class="m-inv-doc-actions" aria-label="إجراءات الفاتورة"></div>
+    <div id="m-invoice-actions-host" class="m-inv-doc-actions m-inv-doc-actions--fixed" aria-label="إجراءات الفاتورة"></div>
 
 
 

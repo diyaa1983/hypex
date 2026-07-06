@@ -35,6 +35,10 @@
   padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 0.35rem);
 }
 
+.m-ora12-invoice-ui.m-page-inv-view .m-main {
+  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 0.35rem);
+}
+
 .m-ora12-invoice-ui .m-header-brand {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.28);
@@ -46,7 +50,7 @@
 
 .m-ora12 {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: var(--ora12-text);
 }
 
@@ -65,8 +69,8 @@
 
 .m-ora12-panel__title {
   margin: 0;
-  padding: 0.42rem 0.7rem;
-  font-size: 0.8rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #fff;
   background: var(--ora12-title);
@@ -138,6 +142,7 @@
 }
 
 .m-ora12-invoice-ui .m-inv-pick-row .m-btn-pick-label {
+  font-size: 0.68rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -146,30 +151,37 @@
 .m-ora12-invoice-ui .m-inv-meta-row {
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 1.2fr);
   align-items: end;
-  padding: 0.4rem 0.45rem;
+  padding: 0.28rem 0.35rem;
   background: #f3f5f7;
   border: 1px solid var(--ora12-border);
   border-radius: 2px;
+  gap: 0.22rem 0.28rem;
 }
 
 .m-ora12-invoice-ui .m-inv-meta-row .m-field-label {
-  font-size: 0.62rem;
-  font-weight: 800;
-  color: var(--ora12-text);
-  letter-spacing: 0.01em;
-  margin-bottom: 0.2rem;
+  font-size: 0.54rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+  letter-spacing: 0;
+  margin-bottom: 0.12rem;
 }
 
 .m-ora12-invoice-ui .m-inv-meta-row .m-input,
 .m-ora12-invoice-ui .m-inv-meta-row .m-select {
   min-width: 0;
   width: 100%;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--ora12-text);
-  padding: 0.32rem 0.38rem;
-  min-height: 2rem;
+  padding: 0.22rem 0.3rem;
+  min-height: 1.55rem;
   background: #fff;
+  line-height: 1.25;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-input:focus,
+.m-ora12-invoice-ui .m-inv-meta-row .m-select:focus {
+  font-size: 16px;
 }
 
 .m-ora12-invoice-ui .m-inv-notes-field .m-field-label {
@@ -178,9 +190,15 @@
 }
 
 .m-ora12-invoice-ui .m-inv-notes-field .m-input {
-  font-size: 16px;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--ora12-text);
+  min-height: 1.55rem;
+  padding: 0.22rem 0.35rem;
+}
+
+.m-ora12-invoice-ui .m-inv-notes-field .m-input:focus {
+  font-size: 16px;
 }
 
 /* منع تكبير iOS في شاشات الاختيار */
@@ -330,22 +348,41 @@
 }
 
 .m-ora12-invoice-ui .m-inv-line-all .m-inv-item-name {
-  font-size: 0.66rem;
+  font-size: 0.58rem;
   font-weight: 700;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.28rem;
 }
 
 .m-ora12-invoice-ui .m-inv-line-all .m-inv-mini span {
-  font-size: 0.46rem;
+  font-size: 0.42rem;
   font-weight: 700;
   color: var(--ora12-muted);
 }
 
+.m-ora12-invoice-ui .m-inv-line-all .m-input--xs,
+.m-ora12-invoice-ui .m-inv-line-all .m-select {
+  min-height: 1.24rem;
+  padding: 0.12rem 0.06rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.m-ora12-invoice-ui .m-inv-line-all .m-input--xs:focus,
+.m-ora12-invoice-ui .m-inv-line-all .m-select:focus {
+  font-size: 16px;
+}
+
 .m-ora12-invoice-ui .m-inv-gross--inline {
-  font-size: 0.66rem;
+  font-size: 0.58rem;
   font-weight: 700;
   color: var(--ora12-blue-dark);
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.28rem;
+}
+
+.m-ora12-invoice-ui .m-inv-doc-actions--fixed .m-action-dock-actions .m-toolbar-btn {
+  --m-toolbar-btn-h: 2.05rem;
+  --m-toolbar-btn-ico: 0.82rem;
+  --m-toolbar-btn-lbl: 0.48rem;
 }
 
 .m-ora12-invoice-ui .m-inv-line-delete--inline {
@@ -354,12 +391,17 @@
   background: #fdecea;
 }
 
+.m-ora12-invoice-ui .m-inv-line-all .m-input--xs,
+.m-ora12-invoice-ui .m-inv-line-all .m-select {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
 .m-ora12-invoice-ui .m-inv-line .m-input--xs,
 .m-ora12-invoice-ui .m-inv-line .m-select {
   border: 1px solid var(--ora12-border);
   border-radius: 2px;
-  font-size: 16px;
-  font-weight: 700;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 

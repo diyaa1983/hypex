@@ -243,6 +243,15 @@ $showUnitPriceIncl = true;
         <section class="dashboard-ora-panel sales-inv-card">
             <h2 class="dashboard-ora-panel__title no-print">بنود الفاتورة</h2>
             <div class="dashboard-ora-panel__body dashboard-ora-panel__body--flush">
+            <div class="sales-inv-lines-toolbar no-print" id="sales-inv-lines-toolbar">
+                <button type="button" class="btn btn-primary btn-sm" id="sales-inv-add-line">➕ إضافة مادة</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="sales-inv-scan-line" title="إظهار حقل الباركود للمسح الضوئي">مسح باركود</button>
+                <span class="muted sales-inv-lines-toolbar-hint">أو أكمِل آخر بند في الجدول ثم Enter لإضافة مادة جديدة</span>
+            </div>
+            <div class="sales-inv-lines-empty no-print" id="sales-inv-lines-empty" hidden>
+                <p class="sales-inv-lines-empty__text">لا توجد مواد في الفاتورة بعد.</p>
+                <button type="button" class="btn btn-primary btn-sm" data-sales-inv-add-line>إضافة أول مادة</button>
+            </div>
             <div class="sales-inv-table-wrap" id="sales-inv-table-wrap">
                 <table class="sales-inv-table">
                     <thead>

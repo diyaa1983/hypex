@@ -114,10 +114,10 @@
     return parseFloat(String(val == null ? '' : val).replace(/,/g, '')) || 0;
   }
 
-  /** عرض كمية — فارغ عند الصفر */
-  function inputDisplayNum(n) {
+  /** عرض كمية بند — صفر عند عدم وجود كمية */
+  function inputDisplayQty(n) {
     var v = parseNum(n);
-    if (v === 0) return '';
+    if (v === 0) return '0';
     if (Math.abs(v - Math.round(v)) < 0.0000001) {
       return String(Math.round(v));
     }
@@ -389,8 +389,8 @@
         '<div class="m-inv-line-all">' +
         '<span class="m-inv-seq">' + (idx + 1) + '</span>' +
         '<div class="m-inv-item-name" title="' + escapeHtml(ln.item_code || '') + '">' + escapeHtml(ln.item_name) + '</div>' +
-        '<label class="m-inv-mini m-inv-mini--qty"><span>كمية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayNum(ln.qty)) + '"></label>' +
-        '<label class="m-inv-mini m-inv-mini--extra"><span>إضافية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty-extra" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayNum(ln.qty_extra)) + '" title="للمخزون"></label>' +
+        '<label class="m-inv-mini m-inv-mini--qty"><span>كمية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayQty(ln.qty)) + '"></label>' +
+        '<label class="m-inv-mini m-inv-mini--extra"><span>إضافية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty-extra" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayQty(ln.qty_extra)) + '" title="للمخزون"></label>' +
         '<label class="m-inv-mini m-inv-mini--price"><span>سعر</span><input type="text" class="m-input m-input--xs m-input--num m-inp-price" inputmode="decimal" autocomplete="off" placeholder="' + escapeHtml(pricePh) + '" value="' + escapeHtml(priceVal) + '"></label>' +
         '<label class="m-inv-mini m-inv-mini--disc"><span>خصم</span><input type="text" class="m-input m-input--xs m-inp-disc" inputmode="decimal" autocomplete="off" placeholder="%" value="' + escapeHtml(ln.line_discount_input || '') + '"></label>' +
         '<label class="m-inv-mini m-inv-mini--tax"><span>ض%</span>' + buildTaxSelect(ln) + '</label>' +
@@ -494,7 +494,7 @@
     var defaultUnit = itemSalePrice(it);
     if (itemQuickName) itemQuickName.textContent = lab.name;
     if (itemQuickCode) itemQuickCode.textContent = lab.code ? 'الرمز: ' + lab.code : '';
-    if (itemQuickQty) itemQuickQty.value = existing ? inputDisplayNum(existing.qty) : '';
+    if (itemQuickQty) itemQuickQty.value = existing ? inputDisplayQty(existing.qty) : '';
     if (itemQuickUnit) {
       itemQuickUnit.value = existing ? inputDisplayAmount(existing.unit_price) : inputDisplayAmount(0);
       itemQuickUnit.placeholder = !existing && defaultUnit > 0 ? inputDisplayAmount(defaultUnit) : '';
@@ -1440,7 +1440,13 @@
   }
 
   function bootActionBar() {
-    if (TB.mountInto) TB.mountInto('m-invoice-actions-host');
+    if (TB.mountInto) {
+      TB.mountInto('m-invoice-actions-host');
+    } else if (TB.pinToBottomDock) {
+      TB.pinToBottomDock();
+    } else if (TB.ensureVisible) {
+      TB.ensureVisible();
+    }
     refreshActionBar();
   }
 

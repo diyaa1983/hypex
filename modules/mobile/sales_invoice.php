@@ -185,7 +185,7 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         </div>
     </section>
 
-    <div id="m-invoice-actions-host" class="m-inv-doc-actions" aria-label="إجراءات الفاتورة"></div>
+    <div id="m-invoice-actions-host" class="m-inv-doc-actions m-inv-doc-actions--fixed" aria-label="إجراءات الفاتورة"></div>
 
 </form>
 </div>

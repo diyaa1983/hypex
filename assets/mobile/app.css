@@ -46,6 +46,103 @@ body.m-has-action-dock.m-action-dock--titled {
   --m-action-dock-h: 3.85rem;
 }
 
+body.m-has-action-dock.m-action-dock--multiline {
+  --m-action-dock-h: 5.45rem;
+}
+
+body.m-page-invoice-doc.m-has-action-dock,
+body.m-page-inv-view.m-has-action-dock {
+  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 0.35rem);
+}
+
+body.m-page-invoice-doc.m-no-tabbar,
+body.m-page-inv-view.m-no-tabbar {
+  --m-tab-h: 0px;
+}
+
+body.m-page-invoice-doc .m-bottom-dock .m-action-dock-actions.m-action-dock-actions--many,
+body.m-page-invoice-doc .m-bottom-dock .m-action-dock-actions[class*="m-action-dock-actions--"],
+body.m-page-inv-view .m-bottom-dock .m-action-dock-actions.m-action-dock-actions--many,
+body.m-page-inv-view .m-bottom-dock .m-action-dock-actions[class*="m-action-dock-actions--"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+body.m-action-dock--multiline .m-action-dock-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.2rem 0.22rem;
+}
+
+body.m-action-dock--multiline .m-action-dock-actions .m-toolbar-btn {
+  --m-toolbar-btn-h: 2rem;
+  --m-toolbar-btn-lbl: 0.5rem;
+  --m-toolbar-btn-ico: 0.85rem;
+}
+
+#m-invoice-actions-host:empty {
+  display: none;
+}
+
+body.m-page-invoice-doc.m-inv-actions-inline,
+body.m-page-inv-view.m-inv-actions-inline {
+  --m-action-dock-h: 3.1rem;
+}
+
+body.m-page-invoice-doc.m-inv-actions-inline.m-action-dock--multiline,
+body.m-page-inv-view.m-inv-actions-inline.m-action-dock--multiline {
+  --m-action-dock-h: 5.55rem;
+}
+
+body.m-page-invoice-doc.m-inv-actions-inline .m-main,
+body.m-page-inv-view.m-inv-actions-inline .m-main {
+  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 0.55rem);
+}
+
+.m-inv-doc-actions--fixed {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 120;
+  margin: 0;
+  padding: 0.32rem 0.42rem calc(0.32rem + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+  border-top: 1px solid #c4cdd5;
+  box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.12);
+  display: block;
+}
+
+.m-inv-doc-actions--fixed .m-main-toolbar,
+.m-inv-doc-actions--fixed .m-action-dock {
+  position: static;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
+}
+
+.m-inv-doc-actions--fixed .m-action-dock-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.2rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.m-inv-doc-actions--fixed .m-action-dock-actions .m-toolbar-btn {
+  flex: 1 1 0;
+  min-width: 2.65rem;
+}
+
+html.m-in-browser .m-inv-doc-actions--fixed {
+  left: 50%;
+  right: auto;
+  width: 100%;
+  max-width: 430px;
+  transform: translateX(-50%);
+}
+
 body.m-page-home {
   padding-bottom: calc(var(--m-safe-b) + 0.75rem);
 }
@@ -2096,19 +2193,20 @@ html.m-installed-app .m-browser-hint {
 }
 
 body.m-inv-actions-inline.m-has-action-dock {
-  --m-action-dock-h: 0px;
+  --m-action-dock-h: 3.1rem;
+}
+
+body.m-inv-actions-inline.m-has-action-dock.m-action-dock--multiline {
+  --m-action-dock-h: 5.55rem;
 }
 
 body.m-inv-actions-inline .m-bottom-dock--toolbar-inline {
   display: none !important;
 }
 
-body.m-inv-actions-inline.m-page-invoice-doc .m-main {
-  padding-bottom: calc(var(--m-safe-b) + 0.35rem);
-}
-
+body.m-inv-actions-inline.m-page-invoice-doc .m-main,
 body.m-inv-actions-inline.m-page-inv-view .m-main {
-  padding-bottom: calc(var(--m-safe-b) + 0.35rem);
+  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 0.55rem);
 }
 
 .m-inv-doc-actions {
@@ -3415,14 +3513,26 @@ body.m-picker-open .m-bottom-dock {
 
 .m-inv-line-all .m-input--xs,
 .m-inv-line-all .m-select {
-  min-height: 1.45rem;
-  padding: 0.22rem 0.12rem;
+  min-height: 1.28rem;
+  padding: 0.14rem 0.08rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.m-inv-line-all .m-input--xs:focus,
+.m-inv-line-all .m-select:focus {
   font-size: 16px;
 }
 
 .m-inv-line-all .m-inp-tax {
-  padding-inline: 0.1rem 1rem;
-  font-size: 13px;
+  padding-inline: 0.06rem 0.85rem;
+  font-size: 0.68rem;
+}
+
+.m-inv-line-all .m-inp-tax:focus {
+  font-size: 14px;
 }
 
 .m-inv-line-delete--inline {
@@ -3441,13 +3551,13 @@ body.m-picker-open .m-bottom-dock {
 }
 
 .m-inv-gross--inline {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--m-accent-dark);
-  font-size: 0.68rem;
+  font-size: 0.58rem;
   white-space: nowrap;
   text-align: center;
   align-self: end;
-  margin-bottom: 0.38rem;
+  margin-bottom: 0.32rem;
   min-width: 0;
 }
 
@@ -3557,8 +3667,9 @@ body.m-picker-open .m-bottom-dock {
 
   .m-inv-line-all .m-input--xs,
   .m-inv-line-all .m-select {
-    min-height: 1.38rem;
-    padding: 0.18rem 0.08rem;
+    min-height: 1.22rem;
+    padding: 0.12rem 0.06rem;
+    font-size: 0.68rem;
   }
 
   .m-inv-gross--inline {

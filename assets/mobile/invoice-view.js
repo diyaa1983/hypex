@@ -532,7 +532,13 @@
 
   cfg.listUrl = cfg.listUrl || mobileListFallback();
 
-  if (TB.mountInto) TB.mountInto('m-invoice-actions-host');
+  if (TB.mountInto) {
+    TB.mountInto('m-invoice-actions-host');
+  } else if (TB.pinToBottomDock) {
+    TB.pinToBottomDock();
+  } else if (TB.ensureVisible) {
+    TB.ensureVisible();
+  }
 
   function editInvoiceHref() {
     var base = cfg.editUrl || '';

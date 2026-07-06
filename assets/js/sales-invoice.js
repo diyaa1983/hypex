@@ -326,6 +326,7 @@
       if (!locked) applyRowItemPickLock(tr);
     });
     if (!locked) ensureEntryRow();
+    syncLinesEmptyState();
     syncSalesRepSelectLock();
     if (global.FinVoucherArchive) {
       global.FinVoucherArchive.syncToolbar();
@@ -471,6 +472,7 @@
         clearRowAmounts(tr);
       }
     });
+    syncEntryRowVisibility();
   }
 
   function safeEnsureEntryRow() {
@@ -941,13 +943,15 @@
 
   function normalizeQtyInput(inp) {
     if (!inp) return;
+    var tr = inp.closest('tr[data-line-id]');
+    var hasItem = tr && getRowItemId(tr) > 0;
     if (String(inp.value).trim() === '') {
-      inp.value = '';
+      inp.value = hasItem ? '0' : '';
       return;
     }
     var n = parseNum(inp.value);
     if (n <= 0) {
-      inp.value = '';
+      inp.value = hasItem ? '0' : '';
       return;
     }
     inp.value = formatQtyValue(n, inp.value);
@@ -955,13 +959,55 @@
 
   function normalizeQtyExtraInput(inp) {
     if (!inp) return;
+    var tr = inp.closest('tr[data-line-id]');
+    var hasItem = tr && getRowItemId(tr) > 0;
     if (String(inp.value).trim() === '') {
-      inp.value = '';
+      inp.value = hasItem ? '0' : '';
       return;
     }
     var n = parseNum(inp.value);
     if (n < 0) n = 0;
+    if (n <= 0 && hasItem) {
+      inp.value = '0';
+      return;
+    }
     inp.value = formatQtyValue(n, inp.value);
+  }
+
+  /** صف فيه مادة — لا يُترك أي حقل مبلغ/كمية فارغاً */
+  function applyItemRowZeroDefaults(tr) {
+    if (!getRowItemId(tr)) return;
+    var qtyEl = tr.querySelector('.js-qty');
+    if (qtyEl && document.activeElement !== qtyEl && String(qtyEl.value).trim() === '') {
+      qtyEl.value = '0';
+    }
+    var qtyExtraEl = tr.querySelector('.js-qty-extra');
+    if (qtyExtraEl && document.activeElement !== qtyExtraEl && String(qtyExtraEl.value).trim() === '') {
+      qtyExtraEl.value = '0';
+    }
+    var priceEl = tr.querySelector('.js-price');
+    if (priceEl && document.activeElement !== priceEl && String(priceEl.value).trim() === '') {
+      priceEl.value = formatUnitPriceValue(0, '');
+    }
+    var priceInclEl = tr.querySelector('.js-price-incl');
+    if (priceInclEl && document.activeElement !== priceInclEl && String(priceInclEl.value).trim() === '') {
+      priceInclEl.value = formatUnitPriceInclValue(0, '');
+    }
+    var subInp = tr.querySelector('input.js-line-sub');
+    if (subInp && document.activeElement !== subInp && String(subInp.value).trim() === '') {
+      subInp.value = formatAmountValue(0, '');
+    }
+    var grossInp = tr.querySelector('input.js-line-gross');
+    if (grossInp && document.activeElement !== grossInp && String(grossInp.value).trim() === '') {
+      grossInp.value = formatAmountValue(0, '');
+    }
+    var taxAmtEl = tr.querySelector('.js-tax-amt');
+    if (taxAmtEl && taxAmtEl.tagName !== 'INPUT') {
+      var taxTxt = (taxAmtEl.textContent || '').trim();
+      if (!taxTxt) {
+        setAmtDisplayCell(taxAmtEl, fmtAmount(0), false);
+      }
+    }
   }
 
   function normalizeUnitPriceInput(inp) {
@@ -1204,9 +1250,27 @@
     return 'unit';
   }
 
+  function isEntryRowHidden(tr) {
+    return !!(tr && tr.classList.contains('is-entry-row--hidden'));
+  }
+
+  function syncEntryRowVisibility(entry) {
+    entry = entry || getEntryRow();
+    if (!entry || !entry.classList.contains('is-entry-row')) return;
+    if (getRowItemId(entry) > 0) {
+      entry.classList.remove('is-entry-row--hidden');
+      entry.hidden = false;
+      return;
+    }
+    entry.classList.add('is-entry-row--hidden');
+    entry.hidden = true;
+  }
+
   function listNavRows() {
     return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-line-id]')).filter(function (tr) {
-      if (tr.classList.contains('is-entry-row')) return true;
+      if (tr.classList.contains('is-entry-row')) {
+        return !isEntryRowHidden(tr);
+      }
       return parseInt(tr.dataset.itemId, 10) > 0;
     });
   }
@@ -1704,6 +1768,7 @@
     );
     setLineGrossDisplay(tr, gross);
     syncUnitPriceInclField(tr, price, rate, opts);
+    applyItemRowZeroDefaults(tr);
     tr.dataset.disc = String(discountAmt);
     tr.dataset.sub = String(sub);
     tr.dataset.tax = String(taxAmt);
@@ -1727,6 +1792,7 @@
     document.getElementById('sales-inv-sum-sub').textContent = fmtAmount(sub);
     document.getElementById('sales-inv-sum-tax').textContent = fmtAmount(tax);
     document.getElementById('sales-inv-sum-grand').textContent = fmtAmount(gross);
+    syncLinesEmptyState();
   }
 
   function syncJson() {
@@ -1956,6 +2022,10 @@
   function focusRowMaterialCodeField(tr) {
     if (!tr) return;
     if (blockItemPickUntilQty(tr, { alert: false, actionLabel: 'إدخال مادة' })) return;
+    if (tr.classList.contains('is-entry-row') && isEntryRowHidden(tr)) {
+      openPickerForRow(tr);
+      return;
+    }
     var bc = tr.querySelector('.js-barcode-inp');
     if (bc && !bc.disabled) {
       bc.focus();
@@ -2442,8 +2512,12 @@
     applyDefaultTax(tr);
     if (isEntry) {
       tr.classList.add('is-entry-row');
+      tr.classList.add('is-entry-row--hidden');
+      tr.hidden = true;
     } else {
       tr.classList.remove('is-entry-row');
+      tr.classList.remove('is-entry-row--hidden');
+      tr.hidden = false;
     }
     applyQtyPriceInputAttrs(tr);
     bindRow(tr);
@@ -2508,16 +2582,20 @@
       if (entry !== tbody.lastElementChild) {
         tbody.appendChild(entry);
       }
+      syncEntryRowVisibility(entry);
       return entry;
     }
     entry = createRow(true);
     tbody.appendChild(entry);
+    syncEntryRowVisibility(entry);
     return entry;
   }
 
   function finalizeEntryRow(tr) {
     if (!tr.classList.contains('is-entry-row')) return;
     tr.classList.remove('is-entry-row');
+    tr.classList.remove('is-entry-row--hidden');
+    tr.hidden = false;
     var removeBtn = tr.querySelector('.js-remove');
     if (removeBtn) removeBtn.style.visibility = 'visible';
   }
@@ -2535,7 +2613,9 @@
       tr.dataset.materialNumber = normalized.material_number;
     }
     setRowItemDisplay(tr, normalized.name_ar || '', normalized.barcode, normalized.sku);
-    qtyEl.value = '';
+    qtyEl.value = '0';
+    var qtyExtraEl = tr.querySelector('.js-qty-extra');
+    if (qtyExtraEl) qtyExtraEl.value = '0';
     var salePrice =
       normalized.default_sale != null ? parseNum(normalized.default_sale) : 0;
     if (salePrice > 0) {
@@ -2631,6 +2711,56 @@
     if (global.ItemPickerModal) {
       ItemPickerModal.close();
     }
+  }
+
+  function openPickerForNewLine() {
+    if (invoiceIsPosted || ledgerView) return;
+    if (blockItemPickUntilQty(null, { actionLabel: 'إضافة مادة' })) return;
+    var entry = ensureEntryRow();
+    openPickerForRow(entry);
+  }
+
+  function revealEntryRowForBarcode() {
+    if (invoiceIsPosted || ledgerView) return;
+    if (blockItemPickUntilQty(null, { actionLabel: 'إدخال باركود', alert: false })) return;
+    var entry = ensureEntryRow();
+    entry.classList.remove('is-entry-row--hidden');
+    entry.hidden = false;
+    var bc = entry.querySelector('.js-barcode-inp');
+    if (bc && !bc.disabled) {
+      bc.focus();
+      if (bc.select) bc.select();
+    }
+  }
+
+  function syncLinesEmptyState() {
+    var emptyEl = document.getElementById('sales-inv-lines-empty');
+    if (!emptyEl) return;
+    emptyEl.hidden = invoiceHasMaterialLines();
+  }
+
+  function bindAddLineControls() {
+    var addBtn = document.getElementById('sales-inv-add-line');
+    if (addBtn && !addBtn.dataset.bound) {
+      addBtn.dataset.bound = '1';
+      addBtn.addEventListener('click', function () {
+        openPickerForNewLine();
+      });
+    }
+    var scanBtn = document.getElementById('sales-inv-scan-line');
+    if (scanBtn && !scanBtn.dataset.bound) {
+      scanBtn.dataset.bound = '1';
+      scanBtn.addEventListener('click', function () {
+        revealEntryRowForBarcode();
+      });
+    }
+    document.querySelectorAll('[data-sales-inv-add-line]').forEach(function (btn) {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        openPickerForNewLine();
+      });
+    });
   }
 
   function openPickerForRow(tr, opts) {
@@ -2821,6 +2951,10 @@
         var code = String(barcodeInp.value || '').trim();
         if (!rowHasItem(tr) && code) {
           resolveBarcodeOnRow(tr);
+        } else if (tr.classList.contains('is-entry-row') && !rowHasItem(tr)) {
+          window.setTimeout(function () {
+            if (!rowHasItem(tr)) syncEntryRowVisibility(tr);
+          }, 250);
         }
       });
     }
@@ -3591,10 +3725,12 @@
     tr.dataset.sub = String(ln.line_subtotal != null ? ln.line_subtotal : ln.line_total || 0);
     tr.dataset.tax = String(ln.tax_amount || 0);
     tr.dataset.gross = String(ln.line_gross != null ? ln.line_gross : ln.line_total || 0);
-    tr.querySelector('.js-qty').value = formatQtyValue(ln.qty);
+    var qtyLoaded = parseNum(ln.qty);
+    tr.querySelector('.js-qty').value = qtyLoaded > 0 ? formatQtyValue(ln.qty) : '0';
     var qtyExtraEl = tr.querySelector('.js-qty-extra');
     if (qtyExtraEl) {
-      qtyExtraEl.value = formatQtyValue(ln.qty_extra != null ? ln.qty_extra : 0);
+      var qeLoaded = parseNum(ln.qty_extra != null ? ln.qty_extra : 0);
+      qtyExtraEl.value = qeLoaded > 0 ? formatQtyValue(ln.qty_extra) : '0';
     }
     tr.querySelector('.js-price').value = formatUnitPriceValue(
       ln.unit_price,
@@ -4253,6 +4389,7 @@
       recalcFooter();
     }
     applyDecimalPlacesToInvoiceScreen();
+    syncEntryRowVisibility();
     syncInvoiceIdField();
     refreshInvoiceEditState();
     clearPersistedDraft();
@@ -4631,6 +4768,7 @@
   });
 
   function bootInvoicePage() {
+    bindAddLineControls();
     if (global.FinVoucherArchive && form) {
       global.FinVoucherArchive.init({
         apiUrl: form.getAttribute('data-archive-api') || '',
@@ -4725,15 +4863,6 @@
       syncJson();
       refreshInvoiceEditState();
       refreshEmptyBrowseNav();
-      var firstEntry = getEntryRow();
-      if (firstEntry) {
-        setTimeout(function () {
-          var bc = firstEntry.querySelector('.js-barcode-inp');
-          if (bc) {
-            bc.focus();
-          }
-        }, 80);
-      }
     });
   }
 
@@ -5009,7 +5138,10 @@
     openPicker: function (el) {
       var tr = el && el.closest ? el.closest('tr[data-line-id]') : null;
       if (tr) openPickerForRow(tr);
+      else openPickerForNewLine();
     },
+    openPickerForNewLine: openPickerForNewLine,
+    revealEntryRowForBarcode: revealEntryRowForBarcode,
     refreshCustomerRep: applyCustomerSalesRep,
     closeItemPicker: closePicker,
   };
