@@ -749,6 +749,11 @@ body.m-app-ui.m-action-dock--multiline .m-action-dock-actions .m-toolbar-btn {
 }
 
 /* ── روابط ── */
+.m-app-ui.m-page-rep-custody-list.m-has-action-dock .m-main,
+.m-app-ui.m-page-rep-custody-list .m-main {
+  padding-bottom: calc(var(--m-action-dock-h, 4.75rem) + 0.85rem);
+}
+
 .m-app-ui.m-page-rep-custody.m-has-action-dock .m-main {
   padding-bottom: calc(var(--m-action-dock-h, 4.75rem) + 0.85rem);
 }

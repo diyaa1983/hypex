@@ -145,7 +145,12 @@ function mobile_home_launcher_tiles(): array
             continue;
         }
         $perm = (string) ($route['permission'] ?? $code);
-        if (!user_can($perm)) {
+        if ($code === 'm_rep_custody_list') {
+            require_once app_path('includes/mobile_rep_custody.php');
+            if (!mobile_can_access_rep_custody_list()) {
+                continue;
+            }
+        } elseif (!user_can($perm)) {
             continue;
         }
         $tiles[] = [

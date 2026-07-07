@@ -262,17 +262,23 @@
   };
 
   InvoicePhotoArchive.prototype.updateArchiveBadge = function () {
-    var btn = document.getElementById('m-toolbar-archive');
-    if (!btn) return;
     var count = this.fileCount;
     if (this.getInvoiceId() < 1 && this.pendingFile) {
       count = Math.max(count, 1);
     }
-    btn.classList.toggle('m-toolbar-btn--has-badge', count > 0);
-    var lbl = btn.querySelector('.m-toolbar-btn__lbl');
-    if (lbl) {
-      lbl.textContent = count > 0 ? 'أرشيف (' + count + ')' : 'أرشيف';
-    }
+    var buttons = [
+      document.getElementById('m-toolbar-archive'),
+      document.getElementById('m-rep-cart-archive'),
+    ];
+    buttons.forEach(function (btn) {
+      if (!btn) return;
+      btn.classList.toggle('m-toolbar-btn--has-badge', count > 0);
+      btn.classList.toggle('m-rep-cart-archive-btn--has-badge', count > 0);
+      var lbl = btn.querySelector('.m-toolbar-btn__lbl') || btn.querySelector('.m-rep-cart-archive-lbl');
+      if (lbl) {
+        lbl.textContent = count > 0 ? 'أرشيف (' + count + ')' : 'أرشيف';
+      }
+    });
   };
 
   InvoicePhotoArchive.prototype.refreshMeta = function () {

@@ -25,6 +25,7 @@ $saveApi = app_url('api/mobile_rep_transfer.php');
 $printApi = app_url('api/mobile_rep_transfer_print.php');
 $pdfApi = app_url('api/mobile_rep_transfer_pdf.php');
 $stockUrl = mobile_url('r=m_rep_stock');
+$custodyListUrl = mobile_url('r=m_rep_custody_list');
 $canArchiveMove = mobile_can_archive_warehouse_move();
 $archiveApiUrl = app_absolute_url('api/fin_voucher_archive.php');
 $jsV = is_file(app_path('assets/mobile/rep-transfer.js'))
@@ -61,6 +62,12 @@ $toLabel = $repTransferDirection === 'return'
         <span class="m-rep-topbar-ico" aria-hidden="true"><?= $stockIcon ?></span>
         <span class="m-rep-topbar-label">رصيد العهدة</span>
     </a>
+    <?php if (mobile_can_access_rep_custody_list()): ?>
+    <a class="m-rep-topbar-btn m-rep-topbar-btn--list" href="<?= esc($custodyListUrl) ?>">
+        <span class="m-rep-topbar-ico" aria-hidden="true"><?= mobile_icon_svg('list') ?></span>
+        <span class="m-rep-topbar-label">العهود</span>
+    </a>
+    <?php endif; ?>
 </div>
 
 <div id="m-rep-status" class="m-alert" hidden role="status"></div>
@@ -153,8 +160,17 @@ $toLabel = $repTransferDirection === 'return'
         </div>
         <p id="m-rep-cart-posted-msg" class="m-rep-cart-posted-msg" hidden role="status"></p>
         <footer class="m-rep-cart-footer" id="m-rep-cart-footer">
-            <div class="m-rep-cart-footer-normal" id="m-rep-cart-footer-normal">
+            <div class="m-rep-cart-footer-normal<?= $canArchiveMove ? '' : ' m-rep-cart-footer-normal--no-archive' ?>" id="m-rep-cart-footer-normal">
                 <button type="button" class="m-btn m-btn--ghost m-rep-cart-footer-btn" id="m-rep-cart-clear">تفريغ</button>
+                <?php if ($canArchiveMove): ?>
+                <button type="button" class="m-btn m-btn--secondary m-rep-cart-footer-btn m-rep-cart-archive-btn" id="m-rep-cart-archive" title="أرشيف وتصوير">
+                    <svg class="m-rep-cart-archive-ico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z"/>
+                        <path fill="currentColor" d="M9 4.5 7.2 6H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2.2L15 4.5zM12 17.5a5.2 5.2 0 1 1 0-10.4 5.2 5.2 0 0 1 0 10.4z"/>
+                    </svg>
+                    <span class="m-rep-cart-archive-lbl">أرشيف</span>
+                </button>
+                <?php endif; ?>
                 <button type="button" class="m-btn m-btn--secondary m-rep-cart-footer-btn" id="m-rep-btn-save">حفظ</button>
                 <button type="button" class="m-btn m-btn--primary m-rep-cart-footer-btn" id="m-rep-btn-post">ترحيل</button>
                 <button type="button" class="m-btn m-btn--pdf m-rep-cart-footer-btn" id="m-rep-btn-pdf" disabled title="ترحيل ثم PDF">PDF</button>
@@ -192,18 +208,7 @@ window.MRepTransferConfig = {
     archiveApi: <?= json_encode($archiveApiUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
 };
 </script>
-<?php if ($canArchiveMove): ?>
-<script>
-(function () {
-    var TB = window.MobileToolbar;
-    var cfg = window.MRepTransferConfig;
-    if (!TB || !TB.show || !cfg) return;
-    if (TB.pinToBottomDock) TB.pinToBottomDock();
-    document.body.classList.add('m-has-action-dock');
-    TB.show({ archive: true }, { title: '<?= esc($repTransferTitle) ?>' });
-})();
-</script>
-<?php
+<?php if ($canArchiveMove):
 $photoArchJsV = is_file(app_path('assets/mobile/invoice-photo-archive.js'))
     ? (string) filemtime(app_path('assets/mobile/invoice-photo-archive.js'))
     : '';

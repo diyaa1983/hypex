@@ -163,6 +163,15 @@ return [
         'tile_kind' => 'doc',
         'home_tile' => true,
     ],
+    'm_rep_custody_list' => [
+        'file' => 'modules/mobile/rep_custody_list.php',
+        'permission' => 'm_rep_custody_list',
+        'title' => 'قائمة العهدات المستلمة',
+        'home_label' => 'عهود مستلمة',
+        'icon' => 'list',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
     'm_rep_return' => [
         'file' => 'modules/mobile/rep_return.php',
         'permission' => 'm_rep_return',

@@ -22,6 +22,8 @@ sql_migration_run_files_once($pdo, [
     'database/migrations/210_hr_attendance_sync_token.sql',
     'database/migrations/211_report_hr_att_punch_movements.sql',
     'database/migrations/212_hr_attendance_sync_screens.sql',
+    'database/migrations/213_warehouse_move_archive.sql',
+    'database/migrations/214_mobile_rep_custody_list.sql',
 ]);
 
 require_mobile_login();
@@ -36,7 +38,19 @@ if (!isset($routes[$r])) {
 }
 
 $route = $routes[$r];
-require_mobile_permission((string) $route['permission']);
+if ($r === 'm_rep_custody_list') {
+    require_once app_path('includes/mobile_rep_custody.php');
+    if (!mobile_can_access_rep_custody_list()) {
+        http_response_code(403);
+        echo '<!DOCTYPE html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
+        echo '<title>ممنوع</title><body style="font-family:system-ui;padding:1.5rem;text-align:center;">';
+        echo '<p>ليس لديك صلاحية لهذه الشاشة على الهاتف.</p>';
+        echo '<p><a href="' . esc(mobile_url('r=m_home')) . '">العودة</a></p></body></html>';
+        exit;
+    }
+} else {
+    require_mobile_permission((string) $route['permission']);
+}
 
 $pageTitle = (string) ($route['title'] ?? '');
 $activeRoute = $r;

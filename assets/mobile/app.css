@@ -5326,8 +5326,34 @@ body.m-rep-overlay-open {
 
 .m-rep-cart-footer-normal {
   display: grid;
-  grid-template-columns: auto 1fr 1fr 1fr;
+  grid-template-columns: auto auto 1fr 1fr 1fr;
   gap: 0.35rem;
+}
+
+.m-rep-cart-footer-normal--no-archive {
+  grid-template-columns: auto 1fr 1fr 1fr;
+}
+
+.m-rep-cart-archive-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding-inline: 0.45rem;
+}
+
+.m-rep-cart-archive-ico {
+  flex-shrink: 0;
+}
+
+.m-rep-cart-archive-btn--has-badge {
+  box-shadow: inset 0 0 0 2px rgba(5, 114, 206, 0.35);
+}
+
+.m-rep-topbar-btn--list {
+  background: #fff;
+  color: #0572ce;
+  border: 1px solid #dbeafe;
 }
 
 .m-rep-cart-footer-btn {

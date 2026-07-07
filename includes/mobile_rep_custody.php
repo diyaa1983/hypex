@@ -399,3 +399,66 @@ function mobile_wh_move_archive_upload_photo_from_request(PDO $pdo, int $moveId,
         return $e->getMessage() !== '' ? $e->getMessage() : 'تعذر حفظ المرفق على السيرفر.';
     }
 }
+
+function mobile_can_access_rep_custody_list(): bool
+{
+    if (!is_logged_in()) {
+        return false;
+    }
+
+    return user_can('m_rep_custody_list') || user_can('m_rep_load');
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function mobile_rep_custody_list_rows(PDO $pdo, array $ctx, string $search = '', int $limit = 100): array
+{
+    require_once app_path('includes/helpers.php');
+
+    $fromWh = mobile_rep_custody_source_warehouse_id($ctx, 'load');
+    $toWh = mobile_rep_custody_dest_warehouse_id($ctx, 'load');
+    $tag = '[MREP:load]';
+    $limit = max(1, min(200, $limit));
+
+    $sql = 'SELECT m.id, m.move_no, m.move_date, m.status, m.posted_at, m.notes,
+            (SELECT COUNT(*) FROM inv_wh_move_line l WHERE l.move_id = m.id) AS line_count
+            FROM inv_wh_move m
+            WHERE m.movement_type_code = ?
+              AND m.status = ?
+              AND m.notes LIKE ?
+              AND m.warehouse_id = ?
+              AND m.warehouse_to_id = ?';
+    $params = ['transfer', 'posted', '%' . $tag . '%', $fromWh, $toWh];
+
+    $search = trim($search);
+    if ($search !== '') {
+        $sql .= ' AND m.move_no LIKE ?';
+        $params[] = '%' . $search . '%';
+    }
+
+    $sql .= ' ORDER BY COALESCE(m.posted_at, m.move_date) DESC, m.id DESC LIMIT ' . $limit;
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    $rows = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $dateIso = (string) ($row['move_date'] ?? '');
+        $dateDmy = $dateIso !== '' ? format_date_dmY($dateIso) : '';
+        $moveNo = mobile_rep_custody_format_move_no((string) ($row['move_no'] ?? ''));
+        $lineCount = (int) ($row['line_count'] ?? 0);
+        $rows[] = [
+            'id' => (int) ($row['id'] ?? 0),
+            'move_no' => $moveNo,
+            'move_date' => $dateIso,
+            'move_date_dmy' => $dateDmy,
+            'line_count' => $lineCount,
+            'line_count_fmt' => (string) $lineCount,
+            'direction' => 'load',
+            'direction_label' => mobile_rep_custody_direction_label('load'),
+            'is_posted' => true,
+        ];
+    }
+
+    return $rows;
+}

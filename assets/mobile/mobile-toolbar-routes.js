@@ -45,6 +45,9 @@
     m_rep_return: {
       skip: true,
     },
+    m_rep_custody_list: {
+      title: 'اختر عهدة من القائمة',
+    },
     m_rep_stock: {
       title: 'رصيد عهدة المندوب',
     },
