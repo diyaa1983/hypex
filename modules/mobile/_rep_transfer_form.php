@@ -22,10 +22,12 @@ $bagIcon = mobile_icon_svg('bag');
 $stockIcon = mobile_icon_svg('stock');
 $itemsApi = app_url('api/mobile_rep_items.php?direction=' . rawurlencode($repTransferDirection));
 $saveApi = app_url('api/mobile_rep_transfer.php');
+$viewApi = app_url('api/mobile_rep_transfer_view.php');
 $printApi = app_url('api/mobile_rep_transfer_print.php');
 $pdfApi = app_url('api/mobile_rep_transfer_pdf.php');
 $stockUrl = mobile_url('r=m_rep_stock');
 $custodyListUrl = mobile_url('r=m_rep_custody_list');
+$editMoveId = (int) ($_GET['id'] ?? 0);
 $canArchiveMove = mobile_can_archive_warehouse_move();
 $archiveApiUrl = app_absolute_url('api/fin_voucher_archive.php');
 $jsV = is_file(app_path('assets/mobile/rep-transfer.js'))
@@ -197,6 +199,8 @@ window.MRepTransferConfig = {
     direction: <?= json_encode($repTransferDirection, JSON_UNESCAPED_UNICODE) ?>,
     itemsApi: <?= json_encode($itemsApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     saveApi: <?= json_encode($saveApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+    viewApi: <?= json_encode($viewApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+    editMoveId: <?= (int) $editMoveId ?>,
     printApi: <?= json_encode($printApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     pdfApi: <?= json_encode($pdfApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     csrf: <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>,

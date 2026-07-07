@@ -5,7 +5,7 @@ require_once app_path('includes/mobile_rep_custody.php');
 require_once app_path('includes/mobile_icons.php');
 
 if (!mobile_can_access_rep_custody_list()) {
-    flash_set('error', 'لا توجد صلاحية لعرض قائمة العهدات.');
+    flash_set('error', 'لا توجد صلاحية لعرض قائمة العهدة.');
     redirect(mobile_url('r=m_home'));
 }
 
@@ -14,20 +14,29 @@ $listApi = app_url('api/mobile_rep_custody_list.php');
 $printApi = app_url('api/mobile_rep_transfer_print.php');
 $pdfApi = app_url('api/mobile_rep_transfer_pdf.php');
 $newUrl = mobile_url('r=m_rep_load');
+$editUrl = mobile_url('r=m_rep_load');
 $canArchive = mobile_can_archive_warehouse_move();
 $archiveApiUrl = app_absolute_url('api/fin_voucher_archive.php');
 $listJsV = is_file(app_path('assets/mobile/rep-custody-list.js'))
     ? (string) filemtime(app_path('assets/mobile/rep-custody-list.js'))
     : '';
 ?>
+<div class="m-ora12 m-ora12-invoice">
+<div class="m-ora12-workspace">
 <div class="m-hub m-hub--list m-hub--rep-custody-list">
 <div class="m-hub-strip m-hub-strip--rep" aria-hidden="true">
     <span class="m-hub-strip-badge">قائمة</span>
-    <span class="m-hub-strip-hint">العهود المحمّلة والمرحّلة لمندوبك</span>
+    <span class="m-hub-strip-hint">اختر عهدة ثم طباعة أو PDF أو أرشيف</span>
 </div>
 <button type="button" class="m-btn m-btn--primary m-btn--block m-hub-head-btn" id="m-rep-custody-list-new">+ تحميل عهدة جديدة</button>
-<section class="m-card m-card--hub-list m-rep-custody-list-page">
-    <h2 class="m-card-title">العهدات المستلمة</h2>
+<section class="m-ora12-panel m-ora12-list-panel m-rep-custody-list-page">
+    <h2 class="m-ora12-panel__title">قائمة العهدة المستلمة</h2>
+    <div class="m-ora12-panel__body">
+    <div class="m-seg m-inv-list-filters" role="group" aria-label="تصفية">
+        <label class="m-seg-item"><input type="radio" name="m_rep_custody_filter" value="all" checked> الكل</label>
+        <label class="m-seg-item"><input type="radio" name="m_rep_custody_filter" value="unposted"> غير مرحّلة</label>
+        <label class="m-seg-item"><input type="radio" name="m_rep_custody_filter" value="posted"> مرحّلة</label>
+    </div>
     <div class="m-inv-list-search-row">
         <input class="m-input m-input--sm m-inv-list-search-input" type="search" id="m-rep-custody-list-search"
             placeholder="رقم السند..." autocomplete="off" enterkeyhint="search">
@@ -39,9 +48,12 @@ $listJsV = is_file(app_path('assets/mobile/rep-custody-list.js'))
         </button>
     </div>
     <p class="m-inv-list-loading muted" id="m-rep-custody-list-loading">جاري التحميل...</p>
-    <p class="m-inv-list-empty muted" id="m-rep-custody-list-empty" hidden>لا توجد عهود مستلمة</p>
-    <div id="m-rep-custody-list" class="m-inv-strip-list" role="list" aria-label="العهدات المستلمة"></div>
+    <p class="m-inv-list-empty muted" id="m-rep-custody-list-empty" hidden>لا توجد عهود</p>
+    <div id="m-rep-custody-list" class="m-inv-strip-list" role="list" aria-label="قائمة العهدة المستلمة"></div>
+    </div>
 </section>
+</div>
+</div>
 </div>
 
 <script>
@@ -50,6 +62,8 @@ window.MRepCustodyList = {
     printApi: <?= json_encode($printApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     pdfApi: <?= json_encode($pdfApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     newUrl: <?= json_encode($newUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+    editUrl: <?= json_encode($editUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+    canEdit: true,
     csrf: <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>,
     canArchive: <?= $canArchive ? 'true' : 'false' ?>,
     archiveApi: <?= json_encode($archiveApiUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,

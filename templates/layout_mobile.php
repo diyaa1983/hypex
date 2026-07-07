@@ -60,7 +60,7 @@ if ($activeRouteKey === 'm_receipt') {
 } elseif ($activeRouteKey === 'm_rep_load' || $activeRouteKey === 'm_rep_return') {
     $pageBodyClass .= ' m-page-rep-custody m-ora12-invoice-ui';
 } elseif ($activeRouteKey === 'm_rep_custody_list') {
-    $pageBodyClass .= ' m-page-rep-custody-list m-page-list m-ora12-invoice-ui';
+    $pageBodyClass .= ' m-page-rep-custody-list m-page-list m-ora12-invoice-ui m-page-invoice-list';
 } elseif ($activeRouteKey === 'm_rep_stock') {
     $pageBodyClass .= ' m-page-rep-stock';
 }

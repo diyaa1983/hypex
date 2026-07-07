@@ -30,7 +30,8 @@ try {
     }
 
     $q = trim((string) ($_GET['q'] ?? ''));
-    $rows = mobile_rep_custody_list_rows($pdo, $ctx, $q, 100);
+    $filter = trim((string) ($_GET['filter'] ?? 'all'));
+    $rows = mobile_rep_custody_list_rows($pdo, $ctx, $filter, $q, 100);
 
     echo json_encode([
         'ok' => true,

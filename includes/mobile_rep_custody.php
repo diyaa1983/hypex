@@ -412,24 +412,43 @@ function mobile_can_access_rep_custody_list(): bool
 /**
  * @return list<array<string, mixed>>
  */
-function mobile_rep_custody_list_rows(PDO $pdo, array $ctx, string $search = '', int $limit = 100): array
-{
+function mobile_rep_custody_list_rows(
+    PDO $pdo,
+    array $ctx,
+    string $filter = 'all',
+    string $search = '',
+    int $limit = 100
+): array {
     require_once app_path('includes/helpers.php');
 
     $fromWh = mobile_rep_custody_source_warehouse_id($ctx, 'load');
     $toWh = mobile_rep_custody_dest_warehouse_id($ctx, 'load');
     $tag = '[MREP:load]';
+    $userId = (int) ($ctx['user_id'] ?? 0);
     $limit = max(1, min(200, $limit));
+    $filter = in_array($filter, ['all', 'posted', 'unposted'], true) ? $filter : 'all';
 
     $sql = 'SELECT m.id, m.move_no, m.move_date, m.status, m.posted_at, m.notes,
             (SELECT COUNT(*) FROM inv_wh_move_line l WHERE l.move_id = m.id) AS line_count
             FROM inv_wh_move m
             WHERE m.movement_type_code = ?
-              AND m.status = ?
               AND m.notes LIKE ?
               AND m.warehouse_id = ?
               AND m.warehouse_to_id = ?';
-    $params = ['transfer', 'posted', '%' . $tag . '%', $fromWh, $toWh];
+    $params = ['transfer', '%' . $tag . '%', $fromWh, $toWh];
+
+    if ($filter === 'posted') {
+        $sql .= ' AND m.status = ?';
+        $params[] = 'posted';
+    } elseif ($filter === 'unposted') {
+        $sql .= ' AND m.status = ?';
+        $params[] = 'draft';
+    }
+
+    if ($userId > 0) {
+        $sql .= ' AND (m.created_by IS NULL OR m.created_by = 0 OR m.created_by = ?)';
+        $params[] = $userId;
+    }
 
     $search = trim($search);
     if ($search !== '') {
@@ -441,12 +460,14 @@ function mobile_rep_custody_list_rows(PDO $pdo, array $ctx, string $search = '',
 
     $st = $pdo->prepare($sql);
     $st->execute($params);
+    $repName = (string) ($ctx['rep_name'] ?? '');
     $rows = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $dateIso = (string) ($row['move_date'] ?? '');
         $dateDmy = $dateIso !== '' ? format_date_dmY($dateIso) : '';
         $moveNo = mobile_rep_custody_format_move_no((string) ($row['move_no'] ?? ''));
         $lineCount = (int) ($row['line_count'] ?? 0);
+        $isPosted = (string) ($row['status'] ?? '') === 'posted';
         $rows[] = [
             'id' => (int) ($row['id'] ?? 0),
             'move_no' => $moveNo,
@@ -454,11 +475,62 @@ function mobile_rep_custody_list_rows(PDO $pdo, array $ctx, string $search = '',
             'move_date_dmy' => $dateDmy,
             'line_count' => $lineCount,
             'line_count_fmt' => (string) $lineCount,
+            'rep_name' => $repName,
             'direction' => 'load',
             'direction_label' => mobile_rep_custody_direction_label('load'),
-            'is_posted' => true,
+            'is_posted' => $isPosted,
+            'status_label' => $isPosted ? 'مرحّلة' : 'غير مرحّلة',
         ];
     }
 
     return $rows;
+}
+
+/**
+ * @return ?array{id:int, move_no:string, move_date:string, move_date_dmy:string, is_posted:bool, lines:list<array{item_id:int, sku:string, name_ar:string, qty:float}>}
+ */
+function mobile_rep_custody_fetch_for_edit(
+    PDO $pdo,
+    array $ctx,
+    string $direction,
+    int $moveId,
+    int $userId
+): ?array {
+    if ($moveId < 1 || !in_array($direction, ['load', 'return'], true)) {
+        return null;
+    }
+    if (!mobile_rep_custody_move_belongs_to_rep($pdo, $ctx, $direction, $moveId, $userId)) {
+        return null;
+    }
+
+    $move = inv_wh_move_by_id($pdo, $moveId);
+    if ($move === null || (string) ($move['status'] ?? '') !== 'draft') {
+        return null;
+    }
+
+    require_once app_path('includes/helpers.php');
+    $dateIso = (string) ($move['move_date'] ?? '');
+    $lines = [];
+    foreach (inv_wh_move_lines($pdo, $moveId) as $ln) {
+        $itemId = (int) ($ln['item_id'] ?? 0);
+        $qty = (float) ($ln['qty'] ?? 0);
+        if ($itemId < 1 || $qty <= 0) {
+            continue;
+        }
+        $lines[] = [
+            'item_id' => $itemId,
+            'sku' => (string) ($ln['sku'] ?? ''),
+            'name_ar' => (string) ($ln['item_name'] ?? ''),
+            'qty' => $qty,
+        ];
+    }
+
+    return [
+        'id' => $moveId,
+        'move_no' => mobile_rep_custody_format_move_no((string) ($move['move_no'] ?? '')),
+        'move_date' => $dateIso,
+        'move_date_dmy' => $dateIso !== '' ? format_date_dmY($dateIso) : '',
+        'is_posted' => false,
+        'lines' => $lines,
+    ];
 }

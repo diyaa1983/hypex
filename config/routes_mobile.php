@@ -166,8 +166,8 @@ return [
     'm_rep_custody_list' => [
         'file' => 'modules/mobile/rep_custody_list.php',
         'permission' => 'm_rep_custody_list',
-        'title' => 'قائمة العهدات المستلمة',
-        'home_label' => 'عهود مستلمة',
+        'title' => 'قائمة العهدة المستلمة',
+        'home_label' => 'قائمة العهدة المستلمة',
         'icon' => 'list',
         'tile_kind' => 'list',
         'home_tile' => true,

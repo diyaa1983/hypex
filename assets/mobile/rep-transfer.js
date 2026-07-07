@@ -482,7 +482,7 @@
   function loadItems() {
     var url = cfg.itemsApi + (cfg.itemsApi.indexOf('?') >= 0 ? '&' : '?') +
       'list=1' + (cfg.positiveStockOnly ? '&positive=1' : '');
-    fetch(url, { credentials: 'same-origin' })
+    return fetch(url, { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.ok) {
@@ -502,6 +502,50 @@
           itemEmpty.hidden = false;
           itemEmpty.textContent = 'تعذر الاتصال بالخادم.';
         }
+      });
+  }
+
+  function loadMoveForEdit() {
+    var editId = parseInt(cfg.editMoveId || '0', 10);
+    if (editId < 1 || !cfg.viewApi) {
+      return Promise.resolve();
+    }
+    showStatus('جاري تحميل العهدة...', 'success');
+    var url =
+      cfg.viewApi +
+      '?id=' +
+      encodeURIComponent(String(editId)) +
+      '&direction=' +
+      encodeURIComponent(cfg.direction || 'load');
+    return fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.ok || !data.move) {
+          showStatus(data.message || 'تعذر تحميل العهدة للتعديل.', 'error');
+          return;
+        }
+        var mv = data.move;
+        moveId = parseInt(mv.id, 10) || 0;
+        if (moveIdEl) moveIdEl.value = String(moveId);
+        if (moveNoEl) moveNoEl.value = fmtMoveNo(mv.move_no);
+        var dateEl = document.getElementById('m-rep-date');
+        if (dateEl && mv.move_date_dmy) dateEl.value = mv.move_date_dmy;
+        cart = (mv.lines || []).map(function (ln) {
+          return {
+            item_id: parseInt(ln.item_id, 10) || 0,
+            sku: ln.sku || '',
+            name_ar: ln.name_ar || '',
+            qty: ln.qty,
+          };
+        });
+        renderCart();
+        renderItemGrid(itemSearch ? itemSearch.value : '');
+        hideStatus();
+        if (photoArchive) photoArchive.refreshMeta();
+        openCart();
+      })
+      .catch(function () {
+        showStatus('تعذر الاتصال بالخادم.', 'error');
       });
   }
 
@@ -760,7 +804,10 @@
 
   if (moveNoEl) moveNoEl.value = fmtMoveNo(moveNoEl.value);
   document.body.classList.add('m-page-rep-custody');
-  loadItems();
-  renderCart();
-  updatePdfButtonState();
+  loadItems().then(function () {
+    return loadMoveForEdit();
+  }).then(function () {
+    renderCart();
+    updatePdfButtonState();
+  });
 })();
