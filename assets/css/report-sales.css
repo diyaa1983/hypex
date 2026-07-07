@@ -792,6 +792,23 @@
   text-align: start;
 }
 
+.report-sales-table--invoice-discount .col-pct {
+  width: 12%;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-sales-discount-invoice-total td {
+  background: #f8fafc !important;
+  font-weight: 600;
+  border-top: 1px solid #cbd5e1;
+}
+
+.report-sales-discount-invoice-total-label {
+  text-align: start;
+  color: #334155;
+}
+
 .report-sales-grand-total-wrap {
   margin-top: 0;
 }

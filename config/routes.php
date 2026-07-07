@@ -396,6 +396,11 @@ return [
         'permission' => 'report_sales_qty_extra',
         'title' => 'تقرير الكميات الإضافية على الفواتير',
     ],
+    'report_sales_invoice_discount' => [
+        'file' => 'modules/reports/sales_invoice_discount.php',
+        'permission' => 'report_sales_invoice_discount',
+        'title' => 'الخصم على الفواتير',
+    ],
     'report_sales_delivery' => [
         'file' => 'modules/reports/sales_delivery.php',
         'permission' => 'report_sales_delivery',

@@ -85,6 +85,7 @@ return [
                         ['r' => 'report_sales_between_dates', 'label' => 'تقرير المبيعات بين تاريخين', 'icon' => '📆'],
                         ['r' => 'report_sales_by_item', 'label' => 'تقرير المبيعات حسب المادة', 'icon' => '📦'],
                         ['r' => 'report_sales_qty_extra', 'label' => 'تقرير الكميات الإضافية على الفواتير', 'icon' => '➕'],
+                        ['r' => 'report_sales_invoice_discount', 'label' => 'الخصم على الفواتير', 'icon' => '🏷️'],
                     ],
                 ],
             ],
