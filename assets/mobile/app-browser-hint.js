@@ -32,21 +32,50 @@
     return false;
   }
 
-  function isPhoneViewport() {
+  /** هاتف عمودي أو أفقي — لا نعامل العرض الأفقي كمتصفح سطح مكتب */
+  function isPhoneLike() {
     try {
-      return !!(window.matchMedia && window.matchMedia('(max-width: 519px)').matches);
+      if (!window.matchMedia) return false;
+      if (window.matchMedia('(max-width: 519px)').matches) return true;
+      if (window.matchMedia('(max-height: 519px) and (orientation: landscape)').matches) return true;
+    } catch (e) {
+      /* ignore */
+    }
+    return false;
+  }
+
+  function isLandscape() {
+    try {
+      return !!(window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
     } catch (e) {
       return false;
     }
   }
 
-  var immersive = isNativeApp() || isStandalonePwa() || isPhoneViewport();
-  if (immersive) {
-    document.documentElement.classList.add('m-immersive');
+  function applyDeviceUi() {
+    var html = document.documentElement;
+    var native = isNativeApp();
+    var standalone = isStandalonePwa();
+    var phone = isPhoneLike();
+    var landscape = isLandscape();
+    var immersive = native || standalone || phone;
+
+    html.classList.toggle('cap-native-app', native);
+    html.classList.toggle('m-immersive', immersive);
+    html.classList.toggle('m-phone', phone || native || standalone);
+    html.classList.toggle('m-landscape', landscape);
+    html.classList.toggle('m-portrait', !landscape);
+    html.classList.toggle('m-installed-app', native || standalone);
+    html.classList.toggle('m-in-browser', !(native || standalone));
   }
-  if (isNativeApp() || isStandalonePwa()) {
-    document.documentElement.classList.add('m-installed-app');
-  } else {
-    document.documentElement.classList.add('m-in-browser');
+
+  applyDeviceUi();
+
+  window.addEventListener('orientationchange', function () {
+    setTimeout(applyDeviceUi, 120);
+  });
+  window.addEventListener('resize', applyDeviceUi);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', applyDeviceUi);
   }
 })();

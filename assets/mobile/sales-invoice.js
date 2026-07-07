@@ -13,6 +13,9 @@
   var barPdfBtn = TB.btn ? TB.btn('pdf') : null;
   var barPostBtn = TB.btn ? TB.btn('post') : null;
   var barOpenBtn = TB.btn ? TB.btn('open') : null;
+  var barEditBtn = TB.btn ? TB.btn('edit') : null;
+  var barArchiveBtn = TB.btn ? TB.btn('archive') : null;
+  var barCameraBtn = TB.btn ? TB.btn('camera') : null;
   var postFlowBusy = false;
   var photoArchive = null;
   if (cfg.canArchive && window.MobileInvoicePhotoArchive) {
@@ -46,8 +49,8 @@
   }
   var printCache = null;
   var linesJson = document.getElementById('m-lines-json');
-  var linesTbody = document.getElementById('m-lines-tbody');
-  var tableWrap = document.getElementById('m-inv-table-wrap');
+  var linesList = document.getElementById('m-lines-list');
+  var linesSwipeHint = document.getElementById('m-lines-swipe-hint');
   var linesEmpty = document.getElementById('m-lines-empty');
   var linesCountEl = document.getElementById('m-lines-count');
   var whEl = document.getElementById('m-warehouse-id');
@@ -79,7 +82,7 @@
 
   var customerIdInp = document.getElementById('m-customer-id');
   var customerLabel = document.getElementById('m-customer-label');
-  var customerChosenEl = document.getElementById('m-customer-chosen');
+  var customerAvatarEl = document.getElementById('m-customer-avatar');
   var btnOpenCustomer = document.getElementById('m-open-customer-picker');
   var customerPicker = document.getElementById('m-customer-picker');
   var customerPickerClose = document.getElementById('m-customer-picker-close');
@@ -98,8 +101,6 @@
   var allItems = [];
   var itemsLoadedForWh = null;
   var searchTimer = null;
-  /** @type {Set<number>|null} */
-  var pickerPendingIds = null;
 
   function roundN(n) {
     var p = Math.pow(10, dp);
@@ -113,6 +114,25 @@
   function parseNum(val) {
     return parseFloat(String(val == null ? '' : val).replace(/,/g, '')) || 0;
   }
+
+  /** تحديد كل النص عند التركيز — لتسهيل استبدال الكمية أو المبلغ */
+  function selectInputAll(inp) {
+    if (!inp || inp.readOnly || inp.disabled) return;
+    var el = inp;
+    setTimeout(function () {
+      try {
+        var len = String(el.value || '').length;
+        if (len > 0 && typeof el.setSelectionRange === 'function') {
+          el.setSelectionRange(0, len);
+        } else if (typeof el.select === 'function') {
+          el.select();
+        }
+      } catch (e) { /* ignore */ }
+    }, 0);
+  }
+
+  var invoiceNumericFieldSel =
+    '.m-inp-qty, .m-inp-qty-extra, .m-inp-price, .m-inp-disc, .m-input--num';
 
   /** عرض كمية بند — صفر عند عدم وجود كمية */
   function inputDisplayQty(n) {
@@ -239,7 +259,7 @@
   }
 
   function buildTaxSelect(ln) {
-    var h = '<select class="m-input m-input--xs m-select m-inp-tax" aria-label="الضريبة">';
+    var h = '<select class="m-input m-input--xs m-select m-inp-tax" aria-label="نسبة الضريبة">';
     var i;
     for (i = 0; i < taxRates.length; i++) {
       var tr = taxRates[i];
@@ -264,47 +284,24 @@
     };
   }
 
-  function lineCountForItem(itemId) {
-    var ln = lines.find(function (l) { return l.item_id === itemId; });
-    return ln ? ln.qty : 0;
-  }
-
-  function initPickerPendingFromLines() {
-    pickerPendingIds = new Set();
-    lines.forEach(function (ln) {
-      var iid = parseInt(ln.item_id, 10) || 0;
-      if (iid > 0) pickerPendingIds.add(iid);
-    });
+  function syncItemTileSelection(tile, selected) {
+    if (!tile) return;
+    tile.classList.toggle('is-selected', !!selected);
+    tile.setAttribute('aria-selected', selected ? 'true' : 'false');
   }
 
   function updatePickerBadge() {
     if (pickerSelCount) {
-      if (pickerPendingIds) {
-        pickerSelCount.textContent = pickerPendingIds.size > 0 ? pickerPendingIds.size + ' مادة' : '0';
-      } else {
-        pickerSelCount.textContent = lines.length > 0 ? lines.length + ' بند' : '0';
-      }
+      pickerSelCount.textContent = lines.length > 0 ? lines.length + ' بند' : '0';
     }
-    if (!itemGrid || !pickerPendingIds || picker.hidden) return;
+    if (!itemGrid) return;
     itemGrid.querySelectorAll('.m-item-tile').forEach(function (tile) {
       var iid = parseInt(tile.getAttribute('data-item-id'), 10) || 0;
-      var selected = pickerPendingIds.has(iid);
-      tile.classList.toggle('is-selected', selected);
-      var check = tile.querySelector('.m-item-tile-check');
-      if (check) check.hidden = !selected;
+      var inLines = lines.some(function (l) {
+        return (parseInt(l.item_id, 10) || 0) === iid;
+      });
+      syncItemTileSelection(tile, inLines);
     });
-  }
-
-  function togglePickerItem(it) {
-    if (!pickerPendingIds || !it) return;
-    var iid = parseInt(it.id, 10) || 0;
-    if (iid < 1) return;
-    if (pickerPendingIds.has(iid)) {
-      pickerPendingIds.delete(iid);
-    } else {
-      pickerPendingIds.add(iid);
-    }
-    updatePickerBadge();
   }
 
   function findItemById(iid) {
@@ -315,50 +312,7 @@
     return null;
   }
 
-  function addPendingLineFromItem(it) {
-    var iid = parseInt(it.id, 10) || 0;
-    if (iid < 1) return;
-    var lab = itemLabel(it);
-    var tax = defaultTaxFields();
-    lines.push({
-      id: ++lineIdSeq,
-      item_id: iid,
-      item_name: lab.name,
-      item_code: lab.code,
-      qty: 0,
-      qty_extra: 0,
-      unit_price: 0,
-      line_discount_input: '',
-      tax_rate_id: tax.tax_rate_id,
-      tax_rate_percent: tax.tax_rate_percent,
-      default_unit_price: itemSalePrice(it),
-    });
-  }
-
   function confirmPickerSelection() {
-    if (!pickerPendingIds) {
-      closePicker();
-      return;
-    }
-    if (pickerPendingIds.size < 1) {
-      if (window.AppDialog && AppDialog.alert) {
-        AppDialog.alert('حدّد مادة واحدة على الأقل.', { type: 'warning' });
-      }
-      return;
-    }
-    lines = lines.filter(function (ln) {
-      return pickerPendingIds.has(parseInt(ln.item_id, 10) || 0);
-    });
-    pickerPendingIds.forEach(function (iid) {
-      var exists = lines.some(function (ln) {
-        return (parseInt(ln.item_id, 10) || 0) === iid;
-      });
-      if (!exists) {
-        var it = findItemById(iid);
-        if (it) addPendingLineFromItem(it);
-      }
-    });
-    pickerPendingIds = null;
     closePicker();
   }
 
@@ -387,9 +341,15 @@
     if (grossEl) grossEl.textContent = fmt(amountsForLine(ln).gross);
   }
 
+  function lineRowEl(row) {
+    if (!row) return null;
+    if (row.matches && row.matches('[data-line-id]')) return row;
+    return row.closest ? row.closest('[data-line-id]') : null;
+  }
+
   function syncAllFromDom() {
-    if (!linesTbody) return;
-    linesTbody.querySelectorAll('.m-inv-line-swipe').forEach(syncLineFromRow);
+    if (!linesList) return;
+    linesList.querySelectorAll('[data-line-id]').forEach(syncLineFromRow);
   }
 
   function updateTotalsOnly() {
@@ -417,42 +377,49 @@
     syncAll();
   }
 
-  function renderLinesTable() {
-    if (!linesTbody) return;
-    linesTbody.innerHTML = '';
+  function renderLines() {
+    if (!linesList) return;
+    linesList.innerHTML = '';
     lines.forEach(function (ln, idx) {
       var a = amountsForLine(ln);
-      var wrap = document.createElement('div');
-      wrap.className = 'm-inv-line-swipe';
-      wrap.setAttribute('data-line-id', String(ln.id));
-      var card = document.createElement('article');
-      card.className = 'm-inv-line m-inv-line__panel';
       var priceVal = inputDisplayAmount(ln.unit_price);
       var pricePh =
         ln.unit_price <= 0 && ln.default_unit_price > 0 ? inputDisplayAmount(ln.default_unit_price) : '';
-      card.innerHTML =
-        '<div class="m-inv-line-all">' +
-        '<span class="m-inv-seq">' + (idx + 1) + '</span>' +
-        '<div class="m-inv-item-name" title="' + escapeHtml(ln.item_code || '') + '">' + escapeHtml(ln.item_name) + '</div>' +
-        '<label class="m-inv-mini m-inv-mini--qty"><span>كمية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayQty(ln.qty)) + '"></label>' +
-        '<label class="m-inv-mini m-inv-mini--extra"><span>إضافية</span><input type="text" class="m-input m-input--xs m-input--num m-inp-qty-extra" inputmode="decimal" autocomplete="off" placeholder="" value="' + escapeHtml(inputDisplayQty(ln.qty_extra)) + '" title="للمخزون"></label>' +
-        '<label class="m-inv-mini m-inv-mini--price"><span>سعر</span><input type="text" class="m-input m-input--xs m-input--num m-inp-price" inputmode="decimal" autocomplete="off" placeholder="' + escapeHtml(pricePh) + '" value="' + escapeHtml(priceVal) + '"></label>' +
-        '<label class="m-inv-mini m-inv-mini--disc"><span>خصم</span><input type="text" class="m-input m-input--xs m-inp-disc" inputmode="decimal" autocomplete="off" placeholder="%" value="' + escapeHtml(ln.line_discount_input || '') + '"></label>' +
-        '<label class="m-inv-mini m-inv-mini--tax"><span>ض%</span>' + buildTaxSelect(ln) + '</label>' +
-        '<button type="button" class="m-inv-line-delete m-inv-line-delete--inline" aria-label="حذف البند" title="حذف">' +
-        (trashIconHtml || '×') +
-        '</button>' +
-        '<span class="m-inv-gross m-inv-gross--inline">' + fmt(a.gross) + '</span>' +
-        '</div>';
-      var rail = document.createElement('div');
-      rail.className = 'm-inv-line-swipe__rail';
-      rail.innerHTML =
+      var wrap = document.createElement('div');
+      wrap.className = 'm-inv-line-swipe';
+      wrap.setAttribute('data-line-id', String(ln.id));
+      wrap.innerHTML =
+        '<div class="m-inv-line-swipe__rail">' +
         '<button type="button" class="m-inv-swipe-delete" aria-label="حذف البند" title="حذف">' +
         (trashIconHtml || '×') +
-        '</button>';
-      wrap.appendChild(rail);
-      wrap.appendChild(card);
-      linesTbody.appendChild(wrap);
+        '</button></div>' +
+        '<div class="m-inv-line__panel m-inv-line m-inv-app-line-card">' +
+        '<div class="m-inv-line-head">' +
+        '<span class="m-inv-seq">' + (idx + 1) + '</span>' +
+        '<div class="m-inv-item-text">' +
+        '<div class="m-inv-item-name">' + escapeHtml(ln.item_name) + '</div>' +
+        '<div class="m-inv-item-code muted">' + escapeHtml(ln.item_code || '—') + '</div>' +
+        '</div>' +
+        '<div class="m-inv-line-head-end">' +
+        '<span class="m-inv-gross">' + fmt(a.gross) + '</span>' +
+        '</div></div>' +
+        '<div class="m-inv-line-body">' +
+        '<div class="m-inv-field-grid m-inv-field-grid--5">' +
+        '<label class="m-inv-mini"><span>كمية</span>' +
+        '<input type="text" class="m-input m-input--xs m-input--num m-inp-qty" inputmode="decimal" autocomplete="off" aria-label="الكمية" value="' +
+        escapeHtml(inputDisplayQty(ln.qty)) + '"></label>' +
+        '<label class="m-inv-mini"><span>إضافي</span>' +
+        '<input type="text" class="m-input m-input--xs m-input--num m-inp-qty-extra" inputmode="decimal" autocomplete="off" aria-label="الكمية الإضافية" value="' +
+        escapeHtml(inputDisplayQty(ln.qty_extra)) + '" title="للمخزون"></label>' +
+        '<label class="m-inv-mini"><span>سعر</span>' +
+        '<input type="text" class="m-input m-input--xs m-input--num m-inp-price" inputmode="decimal" autocomplete="off" aria-label="السعر" placeholder="' +
+        escapeHtml(pricePh) + '" value="' + escapeHtml(priceVal) + '"></label>' +
+        '<label class="m-inv-mini"><span>خصم</span>' +
+        '<input type="text" class="m-input m-input--xs m-inp-disc" inputmode="decimal" autocomplete="off" aria-label="الخصم" placeholder="%" value="' +
+        escapeHtml(ln.line_discount_input || '') + '"></label>' +
+        '<label class="m-inv-mini m-inv-mini--tax"><span>ضريبة</span>' + buildTaxSelect(ln) + '</label>' +
+        '</div></div></div>';
+      linesList.appendChild(wrap);
     });
     updateTotalsOnly();
     updatePickerBadge();
@@ -461,8 +428,9 @@
   function syncAll() {
     var hasLines = lines.length > 0;
     if (linesEmpty) linesEmpty.style.display = hasLines ? 'none' : 'block';
-    if (tableWrap) tableWrap.hidden = !hasLines;
-    renderLinesTable();
+    if (linesList) linesList.hidden = !hasLines;
+    if (linesSwipeHint) linesSwipeHint.hidden = !hasLines;
+    renderLines();
   }
 
   function upsertLineFromQuick(it, qty, unitPrice) {
@@ -589,6 +557,7 @@
     }
     upsertLineFromQuick(quickItemDraft, qty, unit);
     closeItemQuick();
+    syncAll();
     if (pickerSearch) {
       renderItemGrid(filterItems(pickerSearch.value));
     } else {
@@ -647,7 +616,9 @@
       var lab = itemLabel(it);
       var iid = parseInt(it.id, 10) || 0;
       var price = itemSalePrice(it);
-      var selected = pickerPendingIds ? pickerPendingIds.has(iid) : lineCountForItem(iid) > 0;
+      var selected = lines.some(function (l) {
+        return (parseInt(l.item_id, 10) || 0) === iid;
+      });
       var tile = document.createElement('button');
       tile.type = 'button';
       tile.className = 'm-item-tile' + (selected ? ' is-selected' : '');
@@ -655,12 +626,12 @@
       tile.setAttribute('role', 'option');
       tile.setAttribute('aria-selected', selected ? 'true' : 'false');
       tile.innerHTML =
-        '<span class="m-item-tile-check"' + (selected ? '' : ' hidden') + ' aria-hidden="true">✓</span>' +
+        '<span class="m-item-tile-check" aria-hidden="true">✓</span>' +
         '<span class="m-item-tile-name">' + escapeHtml(lab.name) + '</span>' +
         '<span class="m-item-tile-code muted">' + escapeHtml(lab.code || '—') + '</span>' +
         '<span class="m-item-tile-price">' + fmt(price) + '</span>';
       tile.addEventListener('click', function () {
-        togglePickerItem(it);
+        openItemQuick(it);
       });
       itemGrid.appendChild(tile);
     });
@@ -669,7 +640,7 @@
 
   function openPicker() {
     if (!picker) return;
-    initPickerPendingFromLines();
+    closeItemQuick();
     picker.hidden = false;
     picker.setAttribute('aria-hidden', 'false');
     document.body.classList.add('m-picker-open');
@@ -681,7 +652,6 @@
 
   function closePicker() {
     closeItemQuick();
-    pickerPendingIds = null;
     if (!picker) return;
     picker.hidden = true;
     picker.setAttribute('aria-hidden', 'true');
@@ -731,10 +701,15 @@
   function updateCustomerPickField(name) {
     var displayName = String(name || '').trim();
     if (customerLabel) {
-      customerLabel.textContent = displayName;
+      customerLabel.textContent = displayName || 'اضغط لاختيار العميل';
+      customerLabel.classList.toggle('is-placeholder', !displayName);
     }
-    if (customerChosenEl) {
-      customerChosenEl.hidden = !displayName;
+    if (customerAvatarEl) {
+      if (displayName) {
+        customerAvatarEl.innerHTML = buildCustomerAvatarHtml(displayName, 'm-inv-app-customer__avatar-inner');
+      } else {
+        customerAvatarEl.innerHTML = '<span class="m-inv-app-customer__avatar-empty" aria-hidden="true">👤</span>';
+      }
     }
   }
 
@@ -854,51 +829,82 @@
     var disabled = {};
     var saved = id > 0;
 
-    vis.print = true;
-    vis.pdf = true;
-    vis.open = true;
-    if (!saved) {
-      disabled.print = true;
-      disabled.pdf = true;
-      disabled.open = true;
-    }
-
     if (!locked) {
       vis.save = true;
     }
 
-    if (cfg.canPost) {
-      vis.post = true;
-      if (!saved) disabled.post = true;
-    }
-    if (cfg.canDelete) {
-      vis.delete = true;
-      if (!saved) disabled.delete = true;
-    }
-    if (cfg.canArchive) {
-      vis.camera = true;
-      if (saved) vis.archive = true;
+    vis.post = true;
+    vis.delete = true;
+    vis.edit = true;
+    vis.print = true;
+    vis.pdf = true;
+    vis.archive = true;
+
+    if (!cfg.canPost) delete vis.post;
+    if (!cfg.canDelete) delete vis.delete;
+    if (!cfg.canEdit) delete vis.edit;
+    if (!cfg.canArchive) {
+      delete vis.archive;
     }
 
-    if (TB.show) {
-      TB.show(vis, { formId: 'm-invoice-form', disabled: disabled });
+    if (!saved) {
+      disabled.post = true;
+      disabled.delete = true;
+      disabled.edit = true;
+      disabled.print = true;
+      disabled.pdf = true;
     }
-    syncSaveFallback();
+
+    if (locked) {
+      disabled.save = true;
+      disabled.post = true;
+      disabled.delete = true;
+      disabled.edit = true;
+      disabled.print = false;
+      disabled.pdf = false;
+    }
+
+    document.body.classList.add('m-inv-full-toolbar');
+
+    if (TB.show) {
+      TB.show(vis, {
+        formId: locked ? undefined : 'm-invoice-form',
+        disabled: disabled,
+      });
+    }
     if (photoArchive) photoArchive.refreshMeta();
   }
 
-  function syncSaveFallback() {
-    var fb = document.getElementById('m-inv-save-fallback');
-    if (!fb) return;
-    var visible = 0;
-    ['save', 'open', 'edit', 'delete', 'print', 'pdf', 'post', 'camera', 'archive'].forEach(function (key) {
-      var b = TB.btn ? TB.btn(key) : null;
-      if (b && !b.hidden) visible += 1;
-    });
-    var host = document.getElementById('m-inv-fixed-actions');
-    var toolbarMounted = !!(host && host.querySelector('#m-main-toolbar'));
-    fb.hidden = visible > 0 && toolbarMounted;
-    document.body.classList.toggle('m-inv-save-fallback-visible', !fb.hidden);
+  function bootActionBar() {
+    if (TB.pinToBottomDock) {
+      TB.pinToBottomDock();
+    }
+    document.body.classList.add('m-inv-full-toolbar');
+    document.body.classList.remove('m-inv-actions-inline');
+    if (TB.refresh) {
+      TB.refresh();
+    } else if (TB.ensureVisible) {
+      TB.ensureVisible();
+    }
+    refreshActionBar();
+    requestAnimationFrame(refreshActionBar);
+  }
+
+  bootActionBar();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootActionBar);
+  }
+  window.addEventListener('load', bootActionBar);
+
+  function editInvoiceHref() {
+    var id = currentInvoiceId();
+    if (id < 1) return '';
+    var base = cfg.editUrl || '';
+    if (!base && window.AppMobile && AppMobile.mobileUrl) {
+      base = AppMobile.mobileUrl + '?r=m_sales_invoices';
+    }
+    var sep = base.indexOf('?') >= 0 ? '&' : '?';
+    return base + sep + 'id=' + encodeURIComponent(String(id));
   }
 
   function viewInvoiceHref() {
@@ -1154,6 +1160,19 @@
       if (href) window.location.href = href;
     });
   }
+  if (barEditBtn) {
+    barEditBtn.addEventListener('click', function () {
+      var id = currentInvoiceId();
+      if (id < 1) {
+        if (window.AppDialog && AppDialog.alert) {
+          AppDialog.alert('احفظ الفاتورة أولاً ثم يمكنك تعديلها.', { type: 'warning' });
+        }
+        return;
+      }
+      var href = editInvoiceHref();
+      if (href) window.location.href = href;
+    });
+  }
 
   function lockInvoiceForm(message) {
     if (form) form.classList.add('m-invoice-form--locked');
@@ -1271,35 +1290,36 @@
     });
   }
 
-  if (linesTbody) {
-    linesTbody.addEventListener('input', function (e) {
-      var row = e.target.closest('.m-inv-line-swipe');
+  if (linesList) {
+    if (window.MobileInvLineSwipe && MobileInvLineSwipe.bind) {
+      MobileInvLineSwipe.bind(linesList, {
+        onDelete: function (id) {
+          if (form && form.classList.contains('m-invoice-form--locked')) return;
+          deleteLineById(id);
+        },
+      });
+    }
+    linesList.addEventListener('input', function (e) {
+      var row = lineRowEl(e.target);
       if (!row) return;
       syncLineFromRow(row);
       updateTotalsOnly();
     });
-    linesTbody.addEventListener('change', function (e) {
-      var row = e.target.closest('.m-inv-line-swipe');
+    linesList.addEventListener('change', function (e) {
+      var row = lineRowEl(e.target);
       if (!row) return;
       syncLineFromRow(row);
       updateTotalsOnly();
     });
-    linesTbody.addEventListener('click', function (e) {
+    linesList.addEventListener('click', function (e) {
       var delBtn = e.target.closest('.m-inv-line-delete');
       if (!delBtn || form.classList.contains('m-invoice-form--locked')) return;
-      var row = delBtn.closest('.m-inv-line-swipe');
+      var row = lineRowEl(delBtn);
       if (!row) return;
       e.preventDefault();
       e.stopPropagation();
       var id = parseInt(row.getAttribute('data-line-id'), 10);
       if (id) deleteLineById(id);
-    });
-  }
-
-  if (linesTbody && global.MobileInvLineSwipe && MobileInvLineSwipe.bind) {
-    MobileInvLineSwipe.bind(linesTbody, {
-      trashIconHtml: trashIconHtml,
-      onDelete: deleteLineById,
     });
   }
 
@@ -1311,6 +1331,23 @@
         fetchAllItems(function (items) {
           renderItemGrid(filterItems(pickerSearch ? pickerSearch.value : ''));
         });
+      }
+    });
+  }
+
+  if (form) {
+    form.addEventListener('focusin', function (e) {
+      var t = e.target;
+      if (t && t.matches && t.matches(invoiceNumericFieldSel)) {
+        selectInputAll(t);
+      }
+    });
+  }
+  if (itemQuick) {
+    itemQuick.addEventListener('focusin', function (e) {
+      var t = e.target;
+      if (t && t.matches && t.matches('.m-input--num')) {
+        selectInputAll(t);
       }
     });
   }
@@ -1430,7 +1467,7 @@
             if (!uploadOk) {
               if (window.AppDialog && AppDialog.error) {
                 AppDialog.error(
-                  'تم حفظ الفاتورة، لكن تعذر رفع صورة الطلبية إلى السيرفر.\n\nاضغط «تصوير» مرة أخرى.'
+                  'تم حفظ الفاتورة، لكن تعذر رفع صورة الطلبية إلى السيرفر.\n\nافتح «أرشيف» وحاول التصوير مرة أخرى.'
                 );
               }
               refreshActionBar();
@@ -1512,25 +1549,5 @@
     });
   }
 
-  function bootActionBar() {
-    var mounted = false;
-    if (TB.mountInto && document.getElementById('m-inv-fixed-actions')) {
-      mounted = TB.mountInto('m-inv-fixed-actions');
-    }
-    if (!mounted && TB.pinToBottomDock) {
-      TB.pinToBottomDock();
-    } else if (!mounted && TB.ensureVisible) {
-      TB.ensureVisible();
-    }
-    refreshActionBar();
-    requestAnimationFrame(refreshActionBar);
-    window.setTimeout(refreshActionBar, 80);
-  }
-
-  bootActionBar();
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bootActionBar);
-  }
-  window.addEventListener('load', bootActionBar);
   syncAll();
 })();

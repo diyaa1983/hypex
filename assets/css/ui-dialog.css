@@ -3,7 +3,9 @@ body.ui-dialog-lock .m-main,
 body.ui-dialog-lock .m-action-dock,
 body.ui-dialog-lock .m-tabbar,
 body.ui-dialog-lock .m-bottom-dock,
-body.ui-dialog-lock .m-header {
+body.ui-dialog-lock .m-header,
+body.ui-dialog-lock .m-inv-archive-root,
+body.ui-dialog-lock .m-inv-upload-progress {
   pointer-events: none !important;
 }
 
@@ -332,4 +334,10 @@ body.ui-dialog-lock .m-header {
   resize: none;
   direction: ltr;
   text-align: left;
+}
+
+/* فوق أرشيف الموبايل وشريط رفع الصور (z-index أعلى من 12000) */
+body.m-inv-archive-open .ui-dialog-root,
+body.m-inv-upload-busy .ui-dialog-root {
+  z-index: 13200;
 }

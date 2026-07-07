@@ -32,6 +32,15 @@
     return cols;
   }
 
+  function syncDockHeight() {
+    var dock = document.getElementById('m-bottom-dock');
+    if (!dock || dock.hidden) return;
+    var h = Math.ceil(dock.getBoundingClientRect().height);
+    if (h > 0) {
+      document.documentElement.style.setProperty('--m-action-dock-h', h + 'px');
+    }
+  }
+
   function refresh() {
     var bar = root();
     if (!bar) return;
@@ -48,6 +57,7 @@
       actions.classList.toggle('m-action-dock-actions--empty', cols === 0);
       applyActionCols(actions, cols);
     }
+    requestAnimationFrame(syncDockHeight);
   }
 
   function applyActionCols(actions, cols) {
@@ -113,6 +123,7 @@
     if (s && opts.formId) {
       s.setAttribute('form', opts.formId);
       s.type = 'submit';
+      s.disabled = !!(opts.disabled && opts.disabled.save);
     } else if (s) {
       s.type = 'button';
       s.removeAttribute('form');
@@ -202,10 +213,21 @@
     show: show,
     hideAll: hideAll,
     refresh: refresh,
+    syncDockHeight: syncDockHeight,
     ensureVisible: ensureVisible,
     applyRouteDefaults: applyRouteDefaults,
     resetRoute: resetRoute,
     mountInto: mountInto,
     pinToBottomDock: pinToBottomDock,
   };
+
+  window.addEventListener('resize', syncDockHeight);
+  window.addEventListener('orientationchange', function () {
+    setTimeout(syncDockHeight, 120);
+  });
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', syncDockHeight);
+  } else {
+    syncDockHeight();
+  }
 })(typeof window !== 'undefined' ? window : this);

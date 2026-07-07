@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $cssV = is_file(app_path('assets/mobile/app.css')) ? (string) filemtime(app_path('assets/mobile/app.css')) : '';
+$appNativeV = is_file(app_path('assets/mobile/app-native.css')) ? (string) filemtime(app_path('assets/mobile/app-native.css')) : '';
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -59,8 +60,9 @@ $cssV = is_file(app_path('assets/mobile/app.css')) ? (string) filemtime(app_path
     <?php render_app_favicon_links($settingsRow); ?>
     <?php render_mobile_pwa_head($settingsRow); ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/mobile/app.css')) ?><?= $cssV !== '' ? '?v=' . esc($cssV) : '' ?>">
+    <link rel="stylesheet" href="<?= esc(app_url('assets/mobile/app-native.css')) ?><?= $appNativeV !== '' ? '?v=' . esc($appNativeV) : '' ?>">
 </head>
-<body class="m-body m-body--login">
+<body class="m-body m-body--login m-app-ui">
 <div class="m-login">
     <div class="m-login-card">
         <?php if (!empty($settingsRow['logo_path']) && is_file(app_path((string) $settingsRow['logo_path']))): ?>

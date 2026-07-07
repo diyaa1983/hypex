@@ -56,10 +56,25 @@
   };
 
   InvoicePhotoArchive.prototype.setCameraBusy = function (busy) {
+    var archCam = this.viewerRoot && this.viewerRoot.querySelector('[data-m-archive-camera]');
+    if (archCam) {
+      archCam.classList.toggle('m-inv-archive-camera-btn--busy', !!busy);
+      archCam.disabled = !!busy;
+    }
     var camBtn = document.getElementById('m-toolbar-camera');
-    if (!camBtn) return;
-    camBtn.classList.toggle('m-toolbar-btn--busy', !!busy);
-    camBtn.disabled = !!busy;
+    if (camBtn) {
+      camBtn.classList.toggle('m-toolbar-btn--busy', !!busy);
+      camBtn.disabled = !!busy;
+    }
+  };
+
+  InvoicePhotoArchive.prototype.updateArchiveCameraVisibility = function () {
+    this.ensureViewer();
+    var btn = this.viewerRoot.querySelector('[data-m-archive-camera]');
+    if (!btn) return;
+    var show = !this.isLocked() && !!this.cfg.apiUrl;
+    btn.hidden = !show;
+    btn.disabled = !!this.busy;
   };
 
   InvoicePhotoArchive.prototype.ensureProgressOverlay = function () {
@@ -249,10 +264,14 @@
   InvoicePhotoArchive.prototype.updateArchiveBadge = function () {
     var btn = document.getElementById('m-toolbar-archive');
     if (!btn) return;
-    btn.classList.toggle('m-toolbar-btn--has-badge', this.fileCount > 0);
+    var count = this.fileCount;
+    if (this.getInvoiceId() < 1 && this.pendingFile) {
+      count = Math.max(count, 1);
+    }
+    btn.classList.toggle('m-toolbar-btn--has-badge', count > 0);
     var lbl = btn.querySelector('.m-toolbar-btn__lbl');
     if (lbl) {
-      lbl.textContent = this.fileCount > 0 ? 'أرشيف (' + this.fileCount + ')' : 'أرشيف';
+      lbl.textContent = count > 0 ? 'أرشيف (' + count + ')' : 'أرشيف';
     }
   };
 
@@ -372,11 +391,8 @@
         self.busy = false;
         self.hideUploadProgress();
         self.updateArchiveBadge();
-        var camBtn = document.getElementById('m-toolbar-camera');
-        if (camBtn) {
-          camBtn.classList.add('m-toolbar-btn--has-badge');
-          var lbl = camBtn.querySelector('.m-toolbar-btn__lbl');
-          if (lbl) lbl.textContent = 'صورة جاهزة';
+        if (self.viewerRoot && !self.viewerRoot.hidden) {
+          self.renderArchiveContent();
         }
         if (global.AppDialog && AppDialog.toast) {
           AppDialog.toast('تم التقاط الصورة — احفظ الفاتورة لرفعها للسيرفر.', { type: 'success' });
@@ -503,6 +519,7 @@
     var file = this.pendingFile;
     this.pendingFile = null;
     this.notifyPending();
+    this.revokePendingPreview();
     return this.upload(voucherId, file, Object.assign({ skipCompress: true }, opts));
   };
 
@@ -510,18 +527,35 @@
     return !!this.pendingFile;
   };
 
+  InvoicePhotoArchive.prototype.revokePendingPreview = function () {
+    if (this._pendingPreviewUrl) {
+      try {
+        URL.revokeObjectURL(this._pendingPreviewUrl);
+      } catch (e) { /* ignore */ }
+      this._pendingPreviewUrl = null;
+    }
+  };
+
+  InvoicePhotoArchive.prototype.getPendingPreviewUrl = function () {
+    if (!this.pendingFile) {
+      this.revokePendingPreview();
+      return '';
+    }
+    this.revokePendingPreview();
+    this._pendingPreviewUrl = URL.createObjectURL(this.pendingFile);
+    return this._pendingPreviewUrl;
+  };
+
   InvoicePhotoArchive.prototype.takePendingFile = function () {
+    this.revokePendingPreview();
     if (!this.pendingFile) {
       return null;
     }
     var prepared = this.prepareUploadFile(this.pendingFile);
     this.pendingFile = null;
     this.notifyPending();
-    var camBtn = document.getElementById('m-toolbar-camera');
-    if (camBtn) {
-      camBtn.classList.remove('m-toolbar-btn--has-badge');
-      var lbl = camBtn.querySelector('.m-toolbar-btn__lbl');
-      if (lbl) lbl.textContent = 'تصوير';
+    if (this.viewerRoot && !this.viewerRoot.hidden) {
+      this.renderArchiveContent();
     }
     return prepared;
   };
@@ -546,6 +580,14 @@
       '</div>' +
       '<div class="m-inv-archive-empty" hidden>لا توجد صور أو مرفقات في الأرشيف.</div>' +
       '<ul class="m-inv-archive-grid" role="list"></ul>' +
+      '<footer class="m-inv-archive-foot">' +
+      '<button type="button" class="m-inv-archive-camera-btn" data-m-archive-camera>' +
+      '<svg class="m-inv-archive-camera-btn__ico" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">' +
+      '<path fill="currentColor" d="M9.5 6.5v-1a1.5 1.5 0 0 1 1.5-1.5h2a1.5 1.5 0 0 1 1.5 1.5v1H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h3.5zm3 10.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>' +
+      '</svg>' +
+      '<span class="m-inv-archive-camera-btn__lbl">تصوير</span>' +
+      '</button>' +
+      '</footer>' +
       '</div>' +
       '<div class="m-inv-archive-lightbox" hidden>' +
       '<button type="button" class="m-inv-archive-lightbox-close" data-m-archive-lightbox-close aria-label="إغلاق">×</button>' +
@@ -570,6 +612,13 @@
         if (e.target === lb) lb.hidden = true;
       });
     }
+    var archCam = root.querySelector('[data-m-archive-camera]');
+    if (archCam) {
+      archCam.addEventListener('click', function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        self.openCamera();
+      });
+    }
     this.viewerRoot = root;
     return root;
   };
@@ -578,6 +627,7 @@
     if (!this.viewerRoot) return;
     this.viewerRoot.hidden = true;
     document.body.classList.remove('m-inv-archive-open');
+    this.revokePendingPreview();
     var lb = this.viewerRoot.querySelector('.m-inv-archive-lightbox');
     if (lb) lb.hidden = true;
   };
@@ -587,28 +637,58 @@
     var lb = this.viewerRoot.querySelector('.m-inv-archive-lightbox');
     var img = this.viewerRoot.querySelector('.m-inv-archive-lightbox-img');
     if (!lb || !img) return;
-    img.src = this.absUrl(viewUrl);
+    img.src = /^blob:/i.test(viewUrl) ? viewUrl : this.absUrl(viewUrl);
     img.alt = name || 'مرفق';
     lb.hidden = false;
   };
 
-  InvoicePhotoArchive.prototype.renderArchiveList = function () {
+  InvoicePhotoArchive.prototype.renderArchiveContent = function () {
     this.ensureViewer();
     var grid = this.viewerRoot.querySelector('.m-inv-archive-grid');
     var empty = this.viewerRoot.querySelector('.m-inv-archive-empty');
     var self = this;
     if (!grid) return;
     grid.innerHTML = '';
-    if (!this.archiveFiles.length) {
+    var hasPending = !!this.pendingFile && !this.isLocked();
+    var hasFiles = this.archiveFiles.length > 0;
+    if (!hasPending && !hasFiles) {
       if (empty) {
         empty.hidden = false;
-        empty.textContent = this.archiveReadOnly
-          ? 'لا توجد صور في أرشيف هذه الفاتورة.'
-          : 'لا توجد صور بعد — استخدم زر «تصوير» لإضافة صورة الطلبية.';
+        if (this.isLocked()) {
+          empty.textContent = 'لا توجد صور في أرشيف هذه الفاتورة.';
+        } else if (this.getInvoiceId() < 1) {
+          empty.textContent = 'لا توجد صور بعد — اضغط «تصوير» بالأسفل، ثم احفظ الفاتورة لرفعها.';
+        } else {
+          empty.textContent = 'لا توجد صور بعد — اضغط «تصوير» بالأسفل لإضافة صورة الطلبية.';
+        }
       }
+      this.updateArchiveCameraVisibility();
       return;
     }
     if (empty) empty.hidden = true;
+
+    if (hasPending) {
+      var pendingLi = document.createElement('li');
+      pendingLi.className = 'm-inv-archive-item m-inv-archive-item--pending';
+      var pendingUrl = self.getPendingPreviewUrl();
+      var pendingName = self.prepareUploadFile(self.pendingFile).name;
+      pendingLi.innerHTML =
+        '<button type="button" class="m-inv-archive-card m-inv-archive-card--pending" data-view-url="' +
+        self.esc(pendingUrl) +
+        '" data-name="' +
+        self.esc(pendingName) +
+        '" data-is-image="1">' +
+        '<img class="m-inv-archive-thumb" src="' +
+        self.esc(pendingUrl) +
+        '" alt="" loading="lazy">' +
+        '<span class="m-inv-archive-card-name">' +
+        self.esc(pendingName) +
+        '</span>' +
+        '<span class="m-inv-archive-card-meta m-inv-archive-card-meta--pending">بانتظار الحفظ</span>' +
+        '</button>';
+      grid.appendChild(pendingLi);
+    }
+
     this.archiveFiles.forEach(function (file) {
       var li = document.createElement('li');
       li.className = 'm-inv-archive-item';
@@ -688,6 +768,11 @@
         });
       });
     }
+    this.updateArchiveCameraVisibility();
+  };
+
+  InvoicePhotoArchive.prototype.renderArchiveList = function () {
+    this.renderArchiveContent();
   };
 
   InvoicePhotoArchive.prototype.loadArchiveList = function () {
@@ -739,33 +824,37 @@
   };
 
   InvoicePhotoArchive.prototype.openViewer = function () {
-    var id = this.getInvoiceId();
-    if (id < 1) {
-      this.alert('احفظ الفاتورة أولاً لعرض الأرشيف.', 'warning');
-      return;
-    }
     if (!this.cfg.apiUrl) {
       this.alert('رابط الأرشيف غير مضبوط.', 'warning');
       return;
     }
     this.ensureViewer();
+    var id = this.getInvoiceId();
     var title = this.viewerRoot.querySelector('.m-inv-archive-title');
-    if (title) title.textContent = 'أرشيف — ' + this.getInvoiceLabel();
+    if (title) {
+      title.textContent = 'أرشيف — ' + this.getInvoiceLabel();
+    }
     this.viewerRoot.hidden = false;
     document.body.classList.add('m-inv-archive-open');
-    this.loadArchiveList();
+    this.updateArchiveCameraVisibility();
+    if (id > 0) {
+      this.loadArchiveList();
+      return;
+    }
+    this.archiveFiles = [];
+    this.archiveReadOnly = this.isLocked();
+    var loading = this.viewerRoot.querySelector('.m-inv-archive-loading');
+    if (loading) loading.hidden = true;
+    var sub = this.viewerRoot.querySelector('.m-inv-archive-sub');
+    if (sub) {
+      sub.textContent = 'صورة الطلبية تُرفع تلقائياً إلى الأرشيف عند حفظ الفاتورة.';
+      sub.classList.remove('m-inv-archive-sub--warn');
+    }
+    this.renderArchiveContent();
   };
 
   InvoicePhotoArchive.prototype.bindToolbar = function (toolbar) {
     var self = this;
-    var camBtn = toolbar && toolbar.btn ? toolbar.btn('camera') : document.getElementById('m-toolbar-camera');
-    if (camBtn && camBtn.dataset.photoArchiveBound !== '1') {
-      camBtn.dataset.photoArchiveBound = '1';
-      camBtn.addEventListener('click', function (e) {
-        if (e && e.preventDefault) e.preventDefault();
-        self.openCamera();
-      });
-    }
     var archBtn = toolbar && toolbar.btn ? toolbar.btn('archive') : document.getElementById('m-toolbar-archive');
     if (archBtn && archBtn.dataset.archiveViewBound !== '1') {
       archBtn.dataset.archiveViewBound = '1';

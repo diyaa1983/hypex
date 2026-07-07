@@ -18,9 +18,76 @@
     cb();
   }
 
-  /** إطار طباعة بعرض كامل — تجنّب width:0 الذي يُقصّ المحتوى على الهاتف */
+  function ensurePrintIsolateStyles() {
+    var id = 'm-doc-list-print-style';
+    if (document.getElementById(id)) return;
+    var st = document.createElement('style');
+    st.id = id;
+    st.textContent =
+      '@media print{' +
+      'body.m-doc-print-active > *:not(iframe.m-print-frame){display:none!important;visibility:hidden!important;}' +
+      'body.m-doc-print-active iframe.m-print-frame{' +
+      'display:block!important;position:fixed!important;left:0!important;top:0!important;' +
+      'width:100%!important;min-width:100%!important;max-width:none!important;' +
+      'height:100%!important;min-height:100%!important;opacity:1!important;' +
+      'visibility:visible!important;z-index:2147483647!important;pointer-events:auto!important;' +
+      'border:0!important;margin:0!important;padding:0!important;overflow:visible!important;}' +
+      '}';
+    document.head.appendChild(st);
+  }
+
+  function isMobilePrintEnv() {
+    if (typeof navigator === 'undefined') return false;
+    return /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent || ''
+    );
+  }
+
+  /** نافذة منفصلة — الأكثر موثوقية على الهاتف عند الضغط من زر المستخدم */
+  function printHtmlViaPopup(html) {
+    var w = null;
+    try {
+      w = global.open('', '_blank', 'noopener,noreferrer');
+    } catch (_e) {
+      w = null;
+    }
+    if (!w) return false;
+    try {
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+    } catch (_e2) {
+      try {
+        w.close();
+      } catch (_e3) {}
+      return false;
+    }
+    waitForImages(w.document.body, function () {
+      setTimeout(function () {
+        try {
+          w.focus();
+          w.print();
+        } catch (_e4) {}
+        setTimeout(function () {
+          try {
+            w.close();
+          } catch (_e5) {}
+        }, 800);
+      }, 400);
+    });
+    return true;
+  }
+
+  /** إطار طباعة — على الهاتف يُطبَع المستند المحدد فقط وليس قائمة الشاشة */
   function printHtml(html, frameId) {
     frameId = frameId || 'm-doc-list-print-frame';
+    if (!html) return;
+
+    if (isMobilePrintEnv() && printHtmlViaPopup(html)) {
+      return;
+    }
+
+    ensurePrintIsolateStyles();
     var frame = document.getElementById(frameId);
     if (!frame) {
       frame = document.createElement('iframe');
@@ -31,6 +98,7 @@
       document.body.appendChild(frame);
     }
     var win = frame.contentWindow;
+    if (!win) return;
     var doc = win.document;
     doc.open();
     doc.write(html);
@@ -45,15 +113,39 @@
           de ? de.scrollHeight : 0,
           400
         );
-        frame.style.cssText =
+        var hiddenFrameStyle =
           'position:fixed;left:0;top:0;width:210mm;min-width:680px;max-width:100vw;height:' +
           Math.ceil(h + 40) +
           'px;border:0;opacity:0;pointer-events:none;z-index:-1;overflow:visible;';
+        frame.style.cssText = hiddenFrameStyle;
+
+        var cleaned = false;
+        function cleanup() {
+          if (cleaned) return;
+          cleaned = true;
+          document.body.classList.remove('m-doc-print-active');
+          frame.style.cssText = hiddenFrameStyle;
+        }
+
+        window.addEventListener('afterprint', cleanup, { once: true });
+        if (win.addEventListener) {
+          win.addEventListener('afterprint', cleanup, { once: true });
+        }
+
+        document.body.classList.add('m-doc-print-active');
         setTimeout(function () {
           try {
-            win.focus();
-            win.print();
-          } catch (_e) {}
+            if (isMobilePrintEnv()) {
+              global.focus();
+              global.print();
+            } else {
+              win.focus();
+              win.print();
+            }
+          } catch (_e) {
+            cleanup();
+          }
+          setTimeout(cleanup, 6000);
         }, 450);
       });
     });

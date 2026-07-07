@@ -148,8 +148,6 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
 </div>
 </div>
 
-<footer id="m-inv-fixed-actions" class="m-inv-fixed-actions" aria-label="إجراءات الفاتورة"></footer>
-
 <div id="m-inv-print-host" hidden></div>
 
 <div id="m-inv-pdf-overlay" class="m-inv-pdf-overlay" hidden aria-hidden="true">
@@ -203,6 +201,14 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
         archiveApi: <?= json_encode(app_absolute_url('api/fin_voucher_archive.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
 
     };
+    (function () {
+        var TB = window.MobileToolbar;
+        if (!TB || !TB.show) return;
+        if (TB.pinToBottomDock) TB.pinToBottomDock();
+        document.body.classList.remove('m-inv-actions-inline');
+        document.body.classList.add('m-inv-full-toolbar');
+        TB.show({ print: true, pdf: true }, { cols: 2 });
+    })();
 
 </script>
 <?php

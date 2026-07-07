@@ -5,6 +5,7 @@
   var listEl = document.getElementById('m-inv-list');
   var hubEl = document.querySelector('.m-hub--invoice-list');
   var searchInp = document.getElementById('m-inv-list-search');
+  var searchBtn = document.getElementById('m-inv-list-search-btn');
   var loadingEl = document.getElementById('m-inv-list-loading');
   var emptyEl = document.getElementById('m-inv-list-empty');
   var btnNew = document.getElementById('m-inv-list-new');
@@ -306,12 +307,27 @@
       });
   }
 
+  function runSearch() {
+    clearTimeout(timer);
+    if (searchInp) searchInp.blur();
+    load();
+  }
+
   function bindUi() {
     if (searchInp) {
       searchInp.addEventListener('input', function () {
         clearTimeout(timer);
         timer = setTimeout(load, 280);
       });
+      searchInp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          runSearch();
+        }
+      });
+    }
+    if (searchBtn) {
+      searchBtn.addEventListener('click', runSearch);
     }
     filterRadios.forEach(function (radio) {
       radio.addEventListener('change', load);

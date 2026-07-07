@@ -3,10 +3,14 @@ declare(strict_types=1);
 
 require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/mobile_icons.php');
+require_once app_path('includes/nav_helpers.php');
 
 $flash = flash_get();
 $homeTiles = mobile_home_launcher_tiles();
 $userName = trim((string) (current_user()['full_name_ar'] ?? ''));
+$docBrand = document_header_brand(db());
+$companyNameAr = (string) ($docBrand['company_name_ar'] ?? 'النظام المحاسبي');
+$companyLogoUrl = $docBrand['logo_url'] ?? null;
 $avatarLetter = 'م';
 if ($userName !== '') {
     if (function_exists('mb_substr')) {
@@ -24,9 +28,12 @@ if ($userName !== '') {
 
 <div class="m-home">
     <div class="m-home-hero">
-        <a class="m-home-logout" href="<?= esc(app_url('m/logout.php')) ?>">خروج</a>
         <div class="m-home-avatar" aria-hidden="true"><?= esc($avatarLetter) ?></div>
         <div class="m-home-hero-text">
+            <?php if (is_string($companyLogoUrl) && $companyLogoUrl !== ''): ?>
+            <img class="m-home-company-logo" src="<?= esc($companyLogoUrl) ?>" alt="">
+            <?php endif; ?>
+            <p class="m-home-company"><?= esc($companyNameAr) ?></p>
             <p class="m-home-welcome">مرحباً، <?= esc($userName !== '' ? $userName : '—') ?></p>
             <p class="m-home-sub muted">اختر شاشة للبدء</p>
         </div>

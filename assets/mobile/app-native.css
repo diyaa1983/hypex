@@ -1,0 +1,855 @@
+/* ── تطبيق الهاتف — واجهة موحّدة (Native Mobile App UI) ── */
+
+.m-app-ui {
+  --m-bg: #f0f2f5;
+  --m-radius: 14px;
+  --m-radius-lg: 18px;
+  --m-radius-sm: 10px;
+  --m-shadow-card: 0 2px 14px rgba(15, 23, 42, 0.07);
+  --m-shadow-card-hover: 0 4px 20px rgba(15, 23, 42, 0.1);
+  --m-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.m-app-ui,
+.m-app-ui .m-ora12 {
+  font-family: var(--m-font);
+}
+
+.m-app-ui.m-body {
+  background: var(--m-bg);
+  color: #0f172a;
+}
+
+/* ── الشاشة الرئيسية ── */
+.m-app-ui.m-page-home .m-main {
+  padding-top: 0.65rem;
+  max-width: 520px;
+  margin-inline: auto;
+}
+
+.m-app-ui .m-home {
+  gap: 1rem;
+}
+
+.m-app-ui .m-home-hero {
+  border: none;
+  border-radius: var(--m-radius-lg);
+  padding: 1.15rem 1.1rem;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 55%, #eef4fb 100%);
+  box-shadow: var(--m-shadow-card);
+}
+
+.m-app-ui .m-home-avatar {
+  width: 3.35rem;
+  height: 3.35rem;
+  font-size: 1.25rem;
+  box-shadow: 0 4px 14px rgba(5, 114, 206, 0.25);
+}
+
+.m-app-ui .m-home-company-logo {
+  display: block;
+  max-height: 1.75rem;
+  max-width: 8rem;
+  margin-bottom: 0.35rem;
+  object-fit: contain;
+}
+
+.m-app-ui .m-home-company {
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0572ce;
+  letter-spacing: 0.01em;
+}
+
+.m-app-ui .m-home-welcome {
+  font-size: 1.12rem;
+}
+
+.m-app-ui .m-home-sub {
+  font-size: 0.8rem;
+}
+
+.m-app-ui .m-home .m-tile-grid--square {
+  gap: 0.65rem;
+}
+
+.m-app-ui .m-home .m-tile--square {
+  padding: 0.65rem 0.45rem;
+  border: none;
+  border-radius: var(--m-radius-lg);
+  background: #fff;
+  box-shadow: var(--m-shadow-card);
+}
+
+.m-app-ui .m-home .m-tile--square:active {
+  box-shadow: var(--m-shadow-card-hover);
+  transform: scale(0.97);
+}
+
+.m-app-ui .m-home .m-tile-icon-wrap {
+  width: 2.65rem;
+  height: 2.65rem;
+  border-radius: 14px;
+  margin-bottom: 0.4rem;
+  box-shadow: 0 3px 10px rgba(5, 114, 206, 0.2);
+}
+
+.m-app-ui .m-home .m-tile-icon-wrap svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.m-app-ui .m-home .m-tile--square .m-tile-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.3;
+}
+
+.m-app-ui .m-home .m-tile--list.m-tile--square::before {
+  top: 0.4rem;
+  inset-inline-start: 0.4rem;
+  font-size: 0.52rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: 6px;
+}
+
+/* ── الترويسة ── */
+.m-app-ui .m-header {
+  border-bottom: none;
+  box-shadow: 0 2px 16px rgba(5, 114, 206, 0.18);
+}
+
+.m-app-ui .m-header-bar {
+  min-height: 3.25rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.m-app-ui .m-header-back,
+.m-app-ui .m-header-home,
+.m-app-ui .m-header-logout {
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+}
+
+.m-app-ui .m-header-brand {
+  border-radius: 12px;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.m-app-ui .m-header-logo-wrap {
+  border-radius: 8px;
+}
+
+.m-app-ui .m-header-title {
+  font-size: 0.95rem;
+}
+
+.m-app-ui .m-header-side--end {
+  gap: 0.35rem;
+}
+
+.m-app-ui .m-header-home {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  padding: 0.32rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+}
+
+.m-app-ui .m-header-home__ico {
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
+
+.m-app-ui .m-header-home__ico svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.m-app-ui .m-header-home:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.m-app-ui .m-header-home.is-active {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* ── المحتوى ── */
+.m-app-ui .m-main {
+  padding: 0.75rem 0.85rem 1rem;
+}
+
+.m-app-ui.m-page-list .m-main,
+.m-app-ui.m-page-doc .m-main {
+  padding-top: 0.65rem;
+}
+
+/* ── شريط التبويب السفلي ── */
+.m-app-ui .m-tabbar {
+  border-top: none;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 -4px 24px rgba(15, 23, 42, 0.08);
+  padding-top: 0.15rem;
+}
+
+.m-app-ui .m-tabbar-item {
+  font-size: 0.64rem;
+  gap: 0.18rem;
+}
+
+.m-app-ui .m-tabbar-item.is-active::before {
+  height: 3px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, #1a8fe8, #0572ce);
+}
+
+.m-app-ui .m-tabbar-icon-wrap--tab {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 11px;
+}
+
+.m-app-ui .m-tabbar-item.is-active .m-tabbar-icon-wrap--tab {
+  background: #e8f4fc;
+  box-shadow: 0 2px 8px rgba(5, 114, 206, 0.15);
+}
+
+/* ── شريط الإجراءات — تصميم تطبيق موبايل ── */
+.m-app-ui .m-bottom-dock {
+  border-radius: 20px 20px 0 0;
+  border-top: none;
+  box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.m-app-ui .m-action-dock,
+.m-app-ui .m-doc-list-bar {
+  border-top: none;
+  padding: 0.35rem 0 0;
+  background: transparent;
+}
+
+.m-app-ui .m-action-dock-actions {
+  gap: 0.45rem;
+  padding: 0.45rem 0.7rem 0.35rem;
+}
+
+/* بلاطات موحّدة: أيقونة داخل مربع + تسمية */
+.m-app-ui .m-action-dock-actions .m-toolbar-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 3.45rem;
+  height: auto;
+  max-height: none;
+  padding: 0.42rem 0.2rem 0.38rem;
+  border: none !important;
+  border-radius: 14px !important;
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  box-shadow: none !important;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.15;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.m-app-ui .m-action-dock-actions .m-toolbar-btn:active:not(:disabled) {
+  transform: scale(0.96);
+  background: #e2e8f0 !important;
+}
+
+.m-app-ui .m-action-dock-actions .m-toolbar-btn:disabled {
+  opacity: 0.42;
+  transform: none;
+}
+
+.m-app-ui .m-toolbar-btn__ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem !important;
+  height: 2.15rem !important;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.08);
+  color: #475569;
+}
+
+.m-app-ui .m-toolbar-btn__ico svg {
+  width: 1.1rem !important;
+  height: 1.1rem !important;
+}
+
+.m-app-ui .m-toolbar-btn__lbl {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #475569;
+  max-width: 100%;
+}
+
+/* ألوان الأيقونات حسب الإجراء */
+.m-app-ui #m-toolbar-post .m-toolbar-btn__ico { background: #dbeafe; color: #1d4ed8; }
+.m-app-ui #m-toolbar-archive .m-toolbar-btn__ico { background: #ede9fe; color: #6d28d9; }
+.m-app-ui #m-toolbar-print .m-toolbar-btn__ico,
+.m-app-ui #m-toolbar-pdf .m-toolbar-btn__ico { background: #e0f2fe; color: #0369a1; }
+.m-app-ui #m-toolbar-edit .m-toolbar-btn__ico { background: #dcfce7; color: #15803d; }
+.m-app-ui #m-toolbar-delete .m-toolbar-btn__ico { background: #fee2e2; color: #b91c1c; }
+.m-app-ui #m-toolbar-einvoice .m-toolbar-btn__ico { background: #fef3c7; color: #b45309; }
+.m-app-ui #m-toolbar-open .m-toolbar-btn__ico,
+.m-app-ui #m-toolbar-run .m-toolbar-btn__ico { background: #e0f2fe; color: #0369a1; }
+
+/* صف واحد (٤ أزرار أو أقل) */
+.m-app-ui .m-action-dock-actions--1,
+.m-app-ui .m-action-dock-actions--2,
+.m-app-ui .m-action-dock-actions--3,
+.m-app-ui .m-action-dock-actions--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.m-app-ui .m-action-dock-actions--1 .m-toolbar-btn {
+  grid-column: span 4;
+  flex-direction: row;
+  min-height: 2.85rem;
+  font-size: 0.85rem;
+  gap: 0.45rem;
+}
+
+/* صفوف متعددة (فاتورة وغيرها) — شبكة ٣ أعمدة + حفظ بعرض كامل */
+.m-app-ui.m-action-dock--multiline .m-action-dock-actions {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.45rem;
+  padding: 0.45rem 0.7rem 0.5rem;
+}
+
+.m-app-ui.m-action-dock--multiline .m-action-dock-actions .m-toolbar-btn {
+  min-height: 3.35rem;
+}
+
+.m-app-ui.m-action-dock--multiline #m-toolbar-save {
+  grid-column: 1 / -1;
+  order: 50;
+  flex-direction: row;
+  gap: 0.5rem;
+  min-height: 2.95rem;
+  margin-top: 0.1rem;
+  font-size: 0.9rem;
+  background: linear-gradient(135deg, #22c55e 0%, #057a55 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 16px rgba(5, 122, 85, 0.28) !important;
+}
+
+.m-app-ui.m-action-dock--multiline #m-toolbar-save .m-toolbar-btn__ico {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #fff !important;
+  box-shadow: none;
+  width: 1.85rem !important;
+  height: 1.85rem !important;
+}
+
+.m-app-ui.m-action-dock--multiline #m-toolbar-save .m-toolbar-btn__lbl {
+  color: #fff;
+  font-size: 0.88rem;
+}
+
+.m-app-ui.m-action-dock--multiline #m-toolbar-save:active:not(:disabled) {
+  background: linear-gradient(135deg, #16a34a 0%, #046c4a 100%) !important;
+}
+
+/* ترتيب منطقي للأزرار */
+.m-app-ui #m-toolbar-post { order: 1; }
+.m-app-ui #m-toolbar-archive { order: 2; }
+.m-app-ui #m-toolbar-print { order: 3; }
+.m-app-ui #m-toolbar-pdf { order: 4; }
+.m-app-ui #m-toolbar-edit { order: 5; }
+.m-app-ui #m-toolbar-delete { order: 6; }
+.m-app-ui #m-toolbar-einvoice { order: 7; }
+.m-app-ui #m-toolbar-open { order: 8; }
+.m-app-ui #m-toolbar-run { order: 8; }
+
+/* ارتفاع الشريط السفلي — يجب أن يغطي صفّين + زر الحفظ */
+body.m-app-ui.m-action-dock--multiline {
+  --m-action-dock-h: 10.5rem;
+}
+
+body.m-app-ui.m-page-invoice-doc.m-action-dock--multiline,
+body.m-app-ui.m-page-inv-view.m-action-dock--multiline,
+body.m-app-ui.m-inv-full-toolbar.m-action-dock--multiline {
+  --m-action-dock-h: 11rem;
+}
+
+/* فاتورة التعديل: 6 أزرار + حفظ بعرض كامل */
+body.m-app-ui.m-page-invoice-doc.m-action-dock--multiline:has(#m-toolbar-save:not([hidden])),
+body.m-app-ui.m-page-inv-view.m-action-dock--multiline:has(#m-toolbar-save:not([hidden])) {
+  --m-action-dock-h: 13.75rem;
+}
+
+body.m-app-ui.m-action-dock--multiline:not(:has(#m-toolbar-save:not([hidden]))) {
+  --m-action-dock-h: 7.5rem;
+}
+
+body.m-app-ui.m-action-dock--multiline .m-action-dock-actions .m-toolbar-btn {
+  --m-toolbar-btn-h: 3.35rem;
+  --m-toolbar-btn-ico: 1.1rem;
+  --m-toolbar-btn-lbl: 0.62rem;
+}
+
+/* أزرار أساسية في صف واحد (بدون حفظ بعرض كامل) */
+.m-app-ui .m-action-dock-actions .m-toolbar-btn.m-btn--primary:not(#m-toolbar-save) {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  box-shadow: none !important;
+}
+
+.m-app-ui .m-action-dock-actions .m-toolbar-btn.m-btn--success:not(#m-toolbar-save) {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  box-shadow: none !important;
+}
+
+.m-app-ui .m-action-dock-actions .m-toolbar-btn.m-btn--danger {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+}
+
+.m-app-ui .m-action-dock-actions .m-toolbar-btn.m-btn--secondary,
+.m-app-ui .m-action-dock-actions .m-toolbar-btn.m-btn--ghost {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border: none !important;
+}
+
+/* شارة الأرشيف */
+.m-app-ui .m-toolbar-btn--has-badge .m-toolbar-btn__lbl {
+  color: #6d28d9;
+}
+
+.m-app-ui .m-inv-fixed-actions .m-action-dock-actions .m-toolbar-btn,
+.m-app-ui #m-bottom-dock .m-action-dock-actions .m-toolbar-btn {
+  min-width: 0;
+}
+
+/* ── بطاقات عامة ── */
+.m-app-ui .m-card {
+  border: none;
+  border-radius: var(--m-radius-lg);
+  box-shadow: var(--m-shadow-card);
+  padding: 1rem 1.05rem;
+}
+
+.m-app-ui .m-card--doc-entry {
+  border-width: 0 !important;
+}
+
+.m-app-ui .m-card-title {
+  font-size: 1rem;
+}
+
+.m-app-ui .m-doc-entry-kicker {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── حقول الإدخال والأزرار ── */
+.m-app-ui .m-input,
+.m-app-ui .m-select,
+.m-app-ui textarea.m-input {
+  border-radius: var(--m-radius-sm);
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  min-height: 2.5rem;
+}
+
+.m-app-ui .m-input:focus,
+.m-app-ui .m-select:focus {
+  border-color: #0572ce;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(5, 114, 206, 0.12);
+}
+
+.m-app-ui .m-btn {
+  border-radius: var(--m-radius-sm);
+  font-weight: 700;
+  min-height: 2.65rem;
+}
+
+.m-app-ui .m-btn--primary {
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+  border: none;
+  box-shadow: 0 4px 14px rgba(5, 114, 206, 0.25);
+}
+
+.m-app-ui .m-btn--primary:active {
+  transform: scale(0.98);
+}
+
+.m-app-ui .m-btn--pick {
+  border-radius: var(--m-radius-sm);
+  border-color: #e2e8f0;
+  background: #fff;
+  box-shadow: var(--m-shadow-sm);
+}
+
+.m-app-ui .m-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.m-app-ui .m-meta-grid {
+  gap: 0.65rem;
+}
+
+/* ── تنبيهات ── */
+.m-app-ui .m-alert {
+  border: none;
+  border-radius: var(--m-radius);
+  box-shadow: var(--m-shadow-sm);
+}
+
+/* ── شرائح التصفية ── */
+.m-app-ui .m-seg-item {
+  border-radius: var(--m-radius-sm);
+  border-color: #e2e8f0;
+  background: #fff;
+  font-weight: 700;
+  padding: 0.48rem 0.55rem;
+  box-shadow: var(--m-shadow-sm);
+}
+
+.m-app-ui .m-seg-item:has(input:checked) {
+  background: #e8f4fc;
+  border-color: #0572ce;
+  color: #024d8f;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.15);
+}
+
+/* ── قوائم المستندات (شرائط) ── */
+.m-app-ui .m-inv-strip-list {
+  gap: 0.6rem;
+}
+
+.m-app-ui .m-inv-strip {
+  border: none;
+  border-radius: var(--m-radius);
+  background: #fff;
+  box-shadow: var(--m-shadow-card);
+  padding: 0.75rem 0.85rem;
+}
+
+.m-app-ui .m-inv-strip:active {
+  transform: scale(0.99);
+  box-shadow: var(--m-shadow-card-hover);
+}
+
+.m-app-ui .m-inv-strip--selected {
+  background: #e8f4fc;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.35);
+}
+
+.m-app-ui .m-inv-strip-icon-wrap {
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+  box-shadow: 0 3px 10px rgba(5, 114, 206, 0.22);
+}
+
+.m-app-ui .m-tag {
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+}
+
+/* ── Oracle 12 / قوائم الفواتير ── */
+.m-app-ui.m-ora12-invoice-ui.m-body {
+  background: var(--m-bg);
+}
+
+.m-app-ui .m-ora12-workspace {
+  gap: 0.75rem;
+}
+
+.m-app-ui .m-ora12-panel {
+  border: none;
+  border-radius: var(--m-radius-lg);
+  box-shadow: var(--m-shadow-card);
+  overflow: hidden;
+}
+
+.m-app-ui .m-ora12-panel__title,
+.m-app-ui .m-ora12-panel__head {
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+  border-bottom: none;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.88rem;
+}
+
+.m-app-ui .m-ora12-panel__body {
+  padding: 0.75rem 0.85rem;
+}
+
+.m-app-ui .m-ora12-panel__body--flush {
+  padding: 0;
+}
+
+.m-app-ui .m-ora12-panel__body--compact {
+  padding: 0.7rem 0.85rem;
+}
+
+.m-app-ui .m-hub-strip {
+  border: none;
+  border-radius: var(--m-radius);
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.65rem;
+  box-shadow: var(--m-shadow-sm);
+}
+
+.m-app-ui .m-hub-strip--invoice {
+  background: linear-gradient(135deg, #e8f4fc 0%, #dbeafe 100%);
+}
+
+.m-app-ui .m-hub-strip--receipt {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.m-app-ui .m-hub-strip--return {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+}
+
+.m-app-ui .m-hub-head-btn {
+  border-radius: var(--m-radius-sm);
+  border: none;
+  box-shadow: 0 4px 14px rgba(5, 114, 206, 0.25);
+  margin-bottom: 0.65rem;
+}
+
+.m-app-ui .m-ora12-invoice-ui .m-inv-strip-list {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  gap: 0.55rem;
+}
+
+.m-app-ui .m-ora12-invoice-ui .m-inv-strip {
+  border: none;
+  border-radius: var(--m-radius);
+  background: #fff;
+  box-shadow: var(--m-shadow-card);
+  margin: 0;
+}
+
+.m-app-ui .m-ora12-invoice-ui .m-inv-strip:nth-child(even) {
+  background: #fff;
+}
+
+.m-app-ui .m-ora12-invoice-ui .m-inv-strip--selected {
+  background: #e8f4fc;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.3);
+}
+
+.m-app-ui .m-ora12-invoice-ui .m-inv-strip-icon-wrap {
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+}
+
+/* ── عرض الفاتورة ── */
+.m-app-ui .m-inv-view-doc,
+.m-app-ui .m-inv-view-lines-panel {
+  border: none;
+  border-radius: var(--m-radius-lg);
+  box-shadow: var(--m-shadow-card);
+  overflow: hidden;
+}
+
+.m-app-ui .m-inv-view-doc-head {
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.m-app-ui .m-inv-view-lines-title {
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+  border-bottom: none;
+}
+
+.m-app-ui .m-inv-view-line-card {
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff;
+}
+
+.m-app-ui .m-inv-view-line-card:nth-child(even) {
+  background: #fafbfc;
+}
+
+.m-app-ui .m-inv-view-totals {
+  border: none;
+  border-radius: var(--m-radius-lg);
+  box-shadow: var(--m-shadow-card);
+  background: #fff;
+}
+
+/* ── شاشات الاختيار (عميل / مواد) ── */
+.m-app-ui .m-picker-head {
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+  border-bottom: none;
+}
+
+.m-app-ui .m-picker .m-item-tile,
+.m-app-ui .m-picker .m-customer-tile {
+  border-radius: var(--m-radius);
+  border-color: #e8edf3;
+  box-shadow: var(--m-shadow-sm);
+}
+
+.m-app-ui .m-picker .m-item-tile.is-selected {
+  background: #e8f4fc;
+  border-color: #0572ce;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.3);
+}
+
+.m-app-ui .m-item-quick-panel {
+  border-radius: var(--m-radius-lg) var(--m-radius-lg) 0 0;
+}
+
+/* ── كشف حساب ── */
+.m-app-ui .m-ps-result-card {
+  border: none;
+  border-radius: var(--m-radius-lg);
+  box-shadow: var(--m-shadow-card);
+  overflow: hidden;
+}
+
+.m-app-ui .m-ps-summary {
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+}
+
+.m-app-ui .m-ps-th {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+/* ── روابط ── */
+.m-app-ui .m-doc-list-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: var(--m-shadow-sm);
+}
+
+/* ── بحث قائمة الفواتير ── */
+.m-app-ui .m-inv-list-search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.m-app-ui .m-inv-list-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.65rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 16px;
+}
+
+.m-app-ui .m-inv-list-search-input:focus {
+  border-color: #0572ce;
+  box-shadow: 0 0 0 3px rgba(5, 114, 206, 0.12);
+}
+
+.m-app-ui .m-inv-list-search-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 4.25rem;
+  min-height: 2.65rem;
+  padding: 0.45rem 0.85rem;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: 0 3px 12px rgba(5, 114, 206, 0.25);
+}
+
+.m-app-ui .m-inv-list-search-btn:active {
+  transform: scale(0.97);
+}
+
+.m-app-ui .m-inv-list-search-btn__ico {
+  flex-shrink: 0;
+}
+
+/* ── إخفاء ترويسة الفاتورة (ملء الشاشة) ── */
+.m-app-ui.m-page-invoice-doc .m-header {
+  display: none;
+}
+
+.m-app-ui.m-page-invoice-doc .m-main {
+  padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+}
+
+.m-app-ui.m-page-invoice-doc,
+.m-app-ui.m-page-inv-view {
+  scroll-padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 1.5rem);
+}
+
+.m-app-ui .m-lines-list {
+  padding-bottom: 0.35rem;
+}
+
+/* ── شاشة الدخول ── */
+.m-app-ui.m-body--login {
+  background: linear-gradient(165deg, #0572ce 0%, #024d8f 45%, #0f172a 100%);
+}
+
+.m-app-ui .m-login-card {
+  border: none;
+  border-radius: 22px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.22);
+  padding: 1.75rem 1.5rem;
+}
+
+.m-app-ui .m-login-title {
+  font-size: 1.15rem;
+}
+
+.m-app-ui .m-login .m-input {
+  min-height: 2.75rem;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.m-app-ui .m-login .m-btn--primary {
+  min-height: 2.85rem;
+  border-radius: 12px;
+  font-size: 1rem;
+  margin-top: 0.35rem;
+}

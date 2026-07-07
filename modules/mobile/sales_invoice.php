@@ -67,13 +67,14 @@ $invoicePrintApi = app_url('api/mobile_invoice_print.php');
 $invoiceDeleteApi = app_url('api/sales_invoice_delete.php');
 $canDeleteInvoice = mobile_can_delete_sales_invoice();
 $canArchiveInvoice = mobile_can_archive_sales_invoice();
+$canEditInvoice = mobile_can_edit_sales_invoice();
 $archiveApiUrl = app_absolute_url('api/fin_voucher_archive.php');
 
 $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
     ? (string) filemtime(app_path('assets/mobile/sales-invoice.js'))
     : '';
 ?>
-<div class="m-ora12 m-ora12-invoice">
+<div class="m-ora12 m-ora12-invoice m-inv-app">
 <div class="m-ora12-workspace">
 <?php if ($flash): ?>
 <div class="m-alert m-alert--<?= esc($flash['type'] === 'error' ? 'error' : 'success') ?>">
@@ -88,115 +89,94 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
     <input type="hidden" name="_action" value="save_invoice">
     <input type="hidden" name="invoice_id" id="m-invoice-id" value="<?= (int) $editInvoiceId ?>">
     <input type="hidden" name="lines_json" id="m-lines-json" value="[]">
+    <input type="hidden" name="customer_id" id="m-customer-id" value="" required>
 
-    <section class="m-ora12-panel m-ora12-panel--inv-top">
-        <div class="m-ora12-panel__body m-ora12-panel__body--compact">
-            <input type="hidden" name="customer_id" id="m-customer-id" value="" required>
-            <div class="m-customer-chosen" id="m-customer-chosen" hidden>
-                <span class="m-customer-chosen-name" id="m-customer-label"></span>
-            </div>
-            <div class="m-inv-pick-row">
-                <button type="button" class="m-btn m-btn--pick" id="m-open-customer-picker">
-                    <svg class="m-btn-pick-ico" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false">
-                        <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                        <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                        <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                        <rect x="9" y="9" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                    </svg>
-                    <span class="m-btn-pick-label">اختيار العميل</span>
-                </button>
-                <button type="button" class="m-btn m-btn--pick" id="m-open-picker">
-                    <svg class="m-btn-pick-ico" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false">
-                        <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                        <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                        <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                        <rect x="9" y="9" width="5.5" height="5.5" rx="1" fill="currentColor"/>
-                    </svg>
-                    <span class="m-btn-pick-label">اختيار المواد</span>
-                </button>
-            </div>
-            <div class="m-meta-grid m-ora12-meta m-inv-meta-row">
-                <label class="m-field m-field--date">
-                    <span class="m-field-label">التاريخ</span>
-                    <input class="m-input m-input--date-digits" type="text" name="invoice_date" id="m-invoice-date"
-                        value="<?= esc($todayDmy) ?>" inputmode="numeric" autocomplete="off"
-                        placeholder="يوم/شهر/سنة" dir="ltr" required>
-                </label>
-                <label class="m-field">
-                    <span class="m-field-label">النوع</span>
-                    <select class="m-input m-select" name="payment_type" id="m-payment-type">
-                        <option value="credit" selected>ذمة</option>
-                        <option value="cash">نقدي</option>
-                    </select>
-                </label>
-                <?php if (count($warehouses) > 0): ?>
-                <label class="m-field">
-                    <span class="m-field-label">المستودع</span>
-                    <select class="m-input m-select m-select--truncate" name="warehouse_id" id="m-warehouse-id" required>
-                        <?php foreach ($warehouses as $w): ?>
-                        <option value="<?= (int) $w['id'] ?>"<?= (int) $w['id'] === $defaultWarehouseId ? ' selected' : '' ?>>
-                            <?= esc((string) $w['name_ar']) ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <?php else: ?>
-                <div class="m-alert m-alert--error m-field--full">
-                    لا توجد صلاحية صرف من أي مستودع. راجع صلاحيات المستودعات للمجموعة.
-                </div>
-                <input type="hidden" name="warehouse_id" value="0" id="m-warehouse-id">
-                <?php endif; ?>
-            </div>
-            <label class="m-field m-field--full m-inv-notes-field">
-                <span class="m-field-label">ملاحظات</span>
-                <input class="m-input" type="text" name="notes" placeholder="اختياري">
+    <section class="m-inv-app-sheet" aria-label="بيانات الفاتورة">
+        <button type="button" class="m-inv-app-customer" id="m-open-customer-picker">
+            <span class="m-inv-app-customer__avatar" id="m-customer-avatar" aria-hidden="true">
+                <span class="m-inv-app-customer__avatar-empty" aria-hidden="true">👤</span>
+            </span>
+            <span class="m-inv-app-customer__info">
+                <span class="m-inv-app-customer__lbl">العميل</span>
+                <span class="m-inv-app-customer__name is-placeholder" id="m-customer-label">اضغط لاختيار العميل</span>
+            </span>
+            <span class="m-inv-app-customer__arrow" aria-hidden="true">‹</span>
+        </button>
+
+        <button type="button" class="m-inv-app-items-btn" id="m-open-picker">
+            <svg class="m-inv-app-items-btn__ico" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/>
+            </svg>
+            <span>إضافة مواد</span>
+        </button>
+
+        <div class="m-inv-app-meta">
+            <label class="m-inv-app-meta__field m-inv-app-meta__field--date">
+                <span class="m-inv-app-meta__lbl">التاريخ</span>
+                <input class="m-inv-app-meta__input m-input--date-digits" type="text" name="invoice_date" id="m-invoice-date"
+                    value="<?= esc($todayDmy) ?>" inputmode="numeric" autocomplete="off"
+                    placeholder="يوم/شهر/سنة" dir="ltr" required>
             </label>
+            <label class="m-inv-app-meta__field">
+                <span class="m-inv-app-meta__lbl">النوع</span>
+                <select class="m-inv-app-meta__input m-select" name="payment_type" id="m-payment-type">
+                    <option value="credit" selected>ذمة</option>
+                    <option value="cash">نقدي</option>
+                </select>
+            </label>
+            <?php if (count($warehouses) > 0): ?>
+            <label class="m-inv-app-meta__field m-inv-app-meta__field--wh">
+                <span class="m-inv-app-meta__lbl">المستودع</span>
+                <select class="m-inv-app-meta__input m-select m-select--truncate" name="warehouse_id" id="m-warehouse-id" required>
+                    <?php foreach ($warehouses as $w): ?>
+                    <option value="<?= (int) $w['id'] ?>"<?= (int) $w['id'] === $defaultWarehouseId ? ' selected' : '' ?>>
+                        <?= esc((string) $w['name_ar']) ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <?php else: ?>
+            <div class="m-alert m-alert--error m-inv-app-meta__field--full">
+                لا توجد صلاحية صرف من أي مستودع. راجع صلاحيات المستودعات للمجموعة.
+            </div>
+            <input type="hidden" name="warehouse_id" value="0" id="m-warehouse-id">
+            <?php endif; ?>
         </div>
+
+        <label class="m-inv-app-notes">
+            <span class="m-inv-app-notes__lbl">ملاحظات</span>
+            <input class="m-inv-app-notes__input" type="text" name="notes" placeholder="اختياري">
+        </label>
     </section>
 
-    <section class="m-ora12-panel">
-        <div class="m-ora12-panel__head">
-            <h2 class="m-ora12-panel__title">بنود الفاتورة</h2>
-            <span class="m-lines-count" id="m-lines-count">0 سطر</span>
+    <section class="m-inv-app-section" aria-label="بنود الفاتورة">
+        <div class="m-inv-app-section__head">
+            <h2 class="m-inv-app-section__title">بنود الفاتورة</h2>
+            <span class="m-inv-app-section__badge" id="m-lines-count">0 سطر</span>
         </div>
-        <div class="m-ora12-panel__body m-ora12-panel__body--flush">
-        <p class="m-lines-swipe-hint muted">اضغط مطوّلاً على البند (خارج الحقول) ثم اسحب لليمين لحذف المادة</p>
-        <p class="m-lines-empty muted" id="m-lines-empty">لا توجد بنود — اضغط «اختيار المواد»، حدّد المواد، ثم «تم تحديد المواد»، وأدخل الكمية والسعر لكل مادة.</p>
-        <div class="m-inv-lines-wrap m-inv-lines-scroll" id="m-inv-table-wrap" hidden>
-            <div id="m-lines-tbody" class="m-inv-lines" aria-live="polite"></div>
-        </div>
-        </div>
+        <p class="m-inv-app-empty muted" id="m-lines-empty">لا توجد بنود — اضغط «إضافة مواد»، اختر المادة، أدخل الكمية والسعر.</p>
+        <p class="m-lines-swipe-hint muted" id="m-lines-swipe-hint" hidden>اضغط مطوّلاً على البند ثم اسحب لليمين للحذف</p>
+        <div class="m-lines-list" id="m-lines-list" hidden aria-live="polite"></div>
     </section>
 
-    <section class="m-ora12-panel">
-        <h2 class="m-ora12-panel__title">المجاميع</h2>
-        <div class="m-ora12-panel__body m-ora12-totals">
-        <div class="m-total-grid">
-            <div class="m-total-row">
-                <span>قبل الضريبة</span>
-                <span id="m-subtotal">0</span>
-            </div>
-            <div class="m-total-row">
-                <span>الضريبة</span>
-                <span id="m-tax-total">0</span>
-            </div>
-            <div class="m-total-row m-total-row--grand">
-                <span>الإجمالي</span>
-                <strong id="m-grand-total">0</strong>
-            </div>
+    <section class="m-inv-app-totals" aria-label="المجاميع">
+        <div class="m-inv-app-totals__row">
+            <span>قبل الضريبة</span>
+            <span id="m-subtotal">0</span>
         </div>
+        <div class="m-inv-app-totals__row">
+            <span>الضريبة</span>
+            <span id="m-tax-total">0</span>
+        </div>
+        <div class="m-inv-app-totals__row m-inv-app-totals__row--grand">
+            <span>الإجمالي</span>
+            <strong id="m-grand-total">0</strong>
         </div>
     </section>
-
-    <div class="m-inv-save-fallback" id="m-inv-save-fallback">
-        <button type="submit" class="m-btn m-btn--success m-inv-save-fallback__btn">حفظ الفاتورة</button>
-    </div>
 
 </form>
 </div>
 </div>
-
-<footer id="m-inv-fixed-actions" class="m-inv-fixed-actions" aria-label="إجراءات الفاتورة"></footer>
 
 <!-- شاشة اختيار العميل — شبكة مربعات -->
 <div id="m-customer-picker" class="m-picker m-picker--customers" hidden aria-hidden="true">
@@ -233,8 +213,8 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         <p class="m-picker-loading muted" id="m-picker-loading">جاري التحميل...</p>
     </div>
     <footer class="m-picker-foot">
-        <p class="m-picker-hint muted">اضغط على المادة لتحديدها أو إلغاء تحديدها — ثم «تم تحديد المواد»</p>
-        <button type="button" class="m-btn m-btn--primary m-btn--block" id="m-picker-done">تم تحديد المواد</button>
+        <p class="m-picker-hint muted">اضغط على المادة لإدخال الكمية والسعر — مادة مادة</p>
+        <button type="button" class="m-btn m-btn--primary m-btn--block" id="m-picker-done">تم</button>
     </footer>
     <div id="m-item-quick" class="m-item-quick" hidden aria-hidden="true">
         <div class="m-item-quick-backdrop" id="m-item-quick-backdrop"></div>
@@ -257,7 +237,7 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
             </div>
             <div class="m-item-quick-actions">
                 <button type="button" class="m-btn m-btn--secondary" id="m-item-quick-cancel">إلغاء</button>
-                <button type="button" class="m-btn m-btn--primary" id="m-item-quick-confirm">إضافة للفاتورة</button>
+                <button type="button" class="m-btn m-btn--primary" id="m-item-quick-confirm">تأكيد</button>
             </div>
         </div>
     </div>
@@ -268,11 +248,13 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         itemsApi: <?= json_encode($itemsApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         invoiceApi: <?= json_encode($invoiceViewApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         editInvoiceId: <?= (int) $editInvoiceId ?>,
+        editUrl: <?= json_encode(mobile_url('r=m_sales_invoices'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         viewUrl: <?= json_encode(mobile_url('r=m_sales_invoice_view'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         printApi: <?= json_encode($invoicePrintApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         deleteApi: <?= json_encode($invoiceDeleteApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         csrf: <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>,
         canDelete: <?= $canDeleteInvoice ? 'true' : 'false' ?>,
+        canEdit: <?= $canEditInvoice ? 'true' : 'false' ?>,
         canArchive: <?= $canArchiveInvoice ? 'true' : 'false' ?>,
         archiveApi: <?= json_encode($archiveApiUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         canPost: <?= mobile_can_post_sales_invoice() ? 'true' : 'false' ?>,
@@ -287,6 +269,31 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         trashIconHtml: <?= json_encode(mobile_icon_svg('trash'), JSON_UNESCAPED_UNICODE) ?>,
         mobileSave: true
     };
+    (function () {
+        var TB = window.MobileToolbar;
+        var cfg = window.MSalesInvoice;
+        if (!TB || !TB.show || !cfg) return;
+        if (TB.pinToBottomDock) TB.pinToBottomDock();
+        document.body.classList.remove('m-inv-actions-inline');
+        document.body.classList.add('m-inv-full-toolbar');
+        var vis = {
+            save: true, post: true, delete: true, edit: true,
+            print: true, pdf: true, archive: true
+        };
+        if (!cfg.canPost) delete vis.post;
+        if (!cfg.canDelete) delete vis.delete;
+        if (!cfg.canEdit) delete vis.edit;
+        if (!cfg.canArchive) {
+            delete vis.archive;
+        }
+        TB.show(vis, {
+            formId: 'm-invoice-form',
+            disabled: {
+                post: true, delete: true, edit: true,
+                print: true, pdf: true
+            }
+        });
+    })();
 </script>
 <?php
 $discJsV = is_file(app_path('assets/js/inv-invoice-discount.js'))

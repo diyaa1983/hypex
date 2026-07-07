@@ -33,7 +33,7 @@ $mobileRoutes = require app_path('config/routes_mobile.php');
 $activeRouteKey = (string) ($activeRoute ?? '');
 $routeMeta = $mobileRoutes[$activeRouteKey] ?? [];
 $pageTileKind = (string) ($routeMeta['tile_kind'] ?? '');
-$pageBodyClass = 'm-body';
+$pageBodyClass = 'm-body m-app-ui';
 if ($pageTileKind === 'list') {
     $pageBodyClass .= ' m-page-list';
 } elseif ($pageTileKind === 'doc') {
@@ -79,22 +79,12 @@ if (!$showBottomDock) {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#0572ce">
-    <script>
-    (function () {
-      var immersive = false;
-      try {
-        if (window.matchMedia) {
-          if (window.matchMedia('(display-mode: fullscreen)').matches) immersive = true;
-          if (window.matchMedia('(display-mode: standalone)').matches) immersive = true;
-        }
-        if (navigator.standalone === true) immersive = true;
-      } catch (e) { /* ignore */ }
-      if (!immersive && window.matchMedia && window.matchMedia('(max-width: 519px)').matches) {
-        immersive = true;
-      }
-      if (immersive) document.documentElement.classList.add('m-immersive');
-    })();
-    </script>
+<?php
+$browserHintVHead = is_file(app_path('assets/mobile/app-browser-hint.js'))
+    ? (string) filemtime(app_path('assets/mobile/app-browser-hint.js'))
+    : '';
+?>
+    <script src="<?= esc(app_url('assets/mobile/app-browser-hint.js')) ?><?= $browserHintVHead !== '' ? '?v=' . esc($browserHintVHead) : '' ?>"></script>
     <title><?= esc(trim($pageTitle) !== '' ? $pageTitle . ' — هاتف' : 'تطبيق الهاتف') ?></title>
     <?php render_app_favicon_links($settingsRow); ?>
     <?php render_mobile_pwa_head($settingsRow); ?>
@@ -109,6 +99,12 @@ if (in_array($activeRouteKey, $invOra12Routes, true)) {
     ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/mobile/invoice-ora12.css')) ?><?= $invOra12V !== '' ? '?v=' . esc($invOra12V) : '' ?>">
 <?php } ?>
+<?php
+$appNativeV = is_file(app_path('assets/mobile/app-native.css'))
+    ? (string) filemtime(app_path('assets/mobile/app-native.css'))
+    : '';
+?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/mobile/app-native.css')) ?><?= $appNativeV !== '' ? '?v=' . esc($appNativeV) : '' ?>">
     <script>
         window.AppMobile = {
             baseUrl: <?= json_encode(app_url(''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
@@ -167,6 +163,15 @@ $toolbarRoutesJsV = is_file(app_path('assets/mobile/mobile-toolbar-routes.js'))
             </div>
         </div>
         <div class="m-header-side m-header-side--end">
+            <?php
+            $homeUrl = mobile_url('r=m_home');
+            $isHome = ($activeRoute ?? '') === 'm_home';
+            ?>
+            <a class="m-header-home<?= $isHome ? ' is-active' : '' ?>" href="<?= esc($homeUrl) ?>"
+                title="الرئيسية" aria-label="الرئيسية"<?= $isHome ? ' aria-current="page"' : '' ?>>
+                <span class="m-header-home__ico" aria-hidden="true"><?= mobile_icon_svg('home') ?></span>
+                <span class="m-header-home__lbl">رئيسية</span>
+            </a>
             <a class="m-header-logout" href="<?= esc(app_url('m/logout.php')) ?>" title="تسجيل خروج">خروج</a>
         </div>
     </div>
@@ -211,22 +216,6 @@ $pdfExportV = is_file(app_path('assets/mobile/pdf-export.js'))
 <script src="<?= esc(app_url('assets/mobile/pdf-filename.js')) ?><?= $pdfFnV !== '' ? '?v=' . esc($pdfFnV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/mobile/pdf-export.js')) ?><?= $pdfExportV !== '' ? '?v=' . esc($pdfExportV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/mobile/app.js')) ?><?= $jsV !== '' ? '?v=' . esc($jsV) : '' ?>" defer></script>
-<?php
-$browserHintV = is_file(app_path('assets/mobile/app-browser-hint.js'))
-    ? (string) filemtime(app_path('assets/mobile/app-browser-hint.js'))
-    : '';
-?>
-<script src="<?= esc(app_url('assets/mobile/app-browser-hint.js')) ?><?= $browserHintV !== '' ? '?v=' . esc($browserHintV) : '' ?>"></script>
-<script>
-(function () {
-  try {
-    if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
-      document.documentElement.classList.add('cap-native-app');
-      document.documentElement.classList.add('m-immersive');
-    }
-  } catch (e) { /* ignore */ }
-})();
-</script>
 <?php if (app_gps_enabled()): ?>
 <?php
 $mobileGpsRoutes = [

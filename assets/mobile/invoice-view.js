@@ -481,7 +481,6 @@
     if (cfg.canDelete && canChange) vis.delete = true;
     if (cfg.canPost && !inv.is_posted) vis.post = true;
     if (cfg.canSendEinvoice && inv.is_posted && !inv.einv_sent) vis.einvoice = true;
-    if (cfg.canArchive && canChange) vis.camera = true;
     if (cfg.canArchive && cfg.invoiceId > 0) vis.archive = true;
     var cols = 0;
     Object.keys(vis).forEach(function (k) {
@@ -533,13 +532,14 @@
   cfg.listUrl = cfg.listUrl || mobileListFallback();
 
   function bootViewActionBar() {
-    var mounted = false;
-    if (TB.mountInto && document.getElementById('m-inv-fixed-actions')) {
-      mounted = TB.mountInto('m-inv-fixed-actions');
-    }
-    if (!mounted && TB.pinToBottomDock) {
+    if (TB.pinToBottomDock) {
       TB.pinToBottomDock();
-    } else if (!mounted && TB.ensureVisible) {
+    }
+    document.body.classList.add('m-inv-full-toolbar');
+    document.body.classList.remove('m-inv-actions-inline');
+    if (TB.refresh) {
+      TB.refresh();
+    } else if (TB.ensureVisible) {
       TB.ensureVisible();
     }
   }
