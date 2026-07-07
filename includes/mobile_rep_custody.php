@@ -355,3 +355,47 @@ function mobile_rep_custody_post_transfer(
         'gl_warning' => $post['gl_warning'],
     ];
 }
+
+function mobile_can_archive_warehouse_move(): bool
+{
+    if (!is_logged_in()) {
+        return false;
+    }
+    if (user_can_action('action_archive_warehouse_move')) {
+        return true;
+    }
+    if (!mobile_is_context()) {
+        return user_can('warehouse_moves');
+    }
+
+    return user_can('m_rep_load') || user_can('m_rep_return') || user_can('warehouse_moves');
+}
+
+/** رفع صورة/مرفق إلى أرشيف حركة المستودع من طلب الحفظ على الموبايل. */
+function mobile_wh_move_archive_upload_photo_from_request(PDO $pdo, int $moveId, array $file): ?string
+{
+    if ($moveId < 1) {
+        return 'معرّف الحركة غير صالح.';
+    }
+    $err = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($err === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($err !== UPLOAD_ERR_OK) {
+        return 'تعذر رفع الملف إلى السيرفر (رمز ' . $err . ').';
+    }
+
+    require_once app_path('includes/fin_voucher_archive.php');
+    if (!mobile_can_archive_warehouse_move() && !user_can_action('action_archive_warehouse_move')) {
+        return 'لا تملك صلاحية رفع مرفقات الأرشيف.';
+    }
+
+    try {
+        $userId = (int) (current_user()['id'] ?? 0);
+        fin_voucher_archive_upload($pdo, 'warehouse_move', $moveId, $file, $userId > 0 ? $userId : 0);
+
+        return null;
+    } catch (Throwable $e) {
+        return $e->getMessage() !== '' ? $e->getMessage() : 'تعذر حفظ المرفق على السيرفر.';
+    }
+}

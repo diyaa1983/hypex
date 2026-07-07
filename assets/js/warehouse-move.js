@@ -56,6 +56,23 @@
   var hintEl = document.getElementById('wh-move-hint');
   var warehouseNotice = document.getElementById('wh-move-warehouse-notice');
 
+  function warehouseMoveArchiveState(id) {
+    id = parseInt(String(id), 10) || 0;
+    if (id < 1) {
+      return { allowed: false, reason: 'not_saved' };
+    }
+    if (moveIsPosted) {
+      return { allowed: true, readOnly: true, reason: '' };
+    }
+    return { allowed: true, readOnly: false, reason: '' };
+  }
+
+  function syncArchiveToolbar() {
+    if (global.FinVoucherArchive && global.FinVoucherArchive.syncToolbar) {
+      global.FinVoucherArchive.syncToolbar();
+    }
+  }
+
   function alertMsg(msg, opts) {
     if (global.AppDialog && AppDialog.alert) {
       AppDialog.alert(msg, opts || { type: 'warning' });
@@ -233,6 +250,7 @@
     syncToolbarPost();
     syncToolbarUnpost();
     syncToolbarDelete();
+    syncArchiveToolbar();
     updateMoveNoPostedStyle();
     var postedBadge = document.getElementById('wh-move-posted-badge');
     if (postedBadge) {
@@ -1276,6 +1294,26 @@
   function bootMovePage() {
     form.classList.toggle('wh-move-form-is-saved', currentMoveId > 0);
     updateMoveNoPostedStyle();
+    if (global.FinVoucherArchive && form) {
+      global.FinVoucherArchive.init({
+        apiUrl: form.getAttribute('data-archive-api') || '',
+        csrf: (form.querySelector('input[name="_csrf"]') || {}).value || '',
+        kind: form.getAttribute('data-archive-kind') || 'warehouse_move',
+        title: 'حركة مستودع',
+        canArchive: form.getAttribute('data-can-archive') === '1',
+        getVoucherId: function () {
+          return getCurrentMoveId();
+        },
+        getVoucherLabel: function () {
+          return {
+            no: moveNoInp ? moveNoInp.value : '',
+            date: moveDateInp ? moveDateInp.value : '',
+          };
+        },
+        companyName: form.getAttribute('data-company-name') || '',
+        isArchiveAllowed: warehouseMoveArchiveState,
+      });
+    }
     if (currentMoveId > 0) {
       if (moveNoInp) moveNoInp.dataset.loadedNo = moveNoInp.value;
       fetchMoveResponse({ id: currentMoveId }).then(function (data) {

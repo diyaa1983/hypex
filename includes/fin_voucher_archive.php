@@ -15,6 +15,7 @@ function fin_voucher_archive_kinds(): array
         'sales_delivery',
         'sales_return',
         'purchase_return',
+        'warehouse_move',
     ];
 }
 
@@ -29,6 +30,7 @@ function fin_voucher_archive_kind_label(string $kind): string
         'sales_delivery' => 'سندات التسليم',
         'sales_return' => 'مرتجعات المبيعات',
         'purchase_return' => 'مرتجعات المشتريات',
+        'warehouse_move' => 'حركات المستودع',
         default => $kind,
     };
 }
@@ -44,6 +46,7 @@ function fin_voucher_archive_folder_segment(string $kind): string
         'sales_delivery' => 'sales_delivery',
         'sales_return' => 'sales_returns',
         'purchase_return' => 'purchase_returns',
+        'warehouse_move' => 'warehouse_moves',
         default => 'other',
     };
 }
@@ -59,6 +62,7 @@ function fin_voucher_archive_permission(string $kind): string
         'sales_delivery' => 'action_archive_sales_delivery',
         'sales_return' => 'action_archive_sales_return',
         'purchase_return' => 'action_archive_purchase_return',
+        'warehouse_move' => 'action_archive_warehouse_move',
         default => '',
     };
 }
@@ -74,6 +78,7 @@ function fin_voucher_archive_screen_route(string $kind): string
         'sales_delivery' => 'sales_delivery',
         'sales_return' => 'sales_returns',
         'purchase_return' => 'purchase_returns',
+        'warehouse_move' => 'warehouse_moves',
         default => '',
     };
 }
@@ -120,7 +125,7 @@ function fin_voucher_archive_ensure_schema(PDO $pdo): void
         $pdo->exec(
             "ALTER TABLE fin_voucher_document MODIFY voucher_kind ENUM(
                 'receipt','payment','journal',
-                'sales_invoice','purchase_invoice','sales_delivery','sales_return','purchase_return'
+                'sales_invoice','purchase_invoice','sales_delivery','sales_return','purchase_return','warehouse_move'
             ) NOT NULL"
         );
     } catch (Throwable $e) {
@@ -238,6 +243,13 @@ function fin_voucher_archive_assert_access(string $kind): void
         }
     }
 
+    if ($kind === 'warehouse_move') {
+        require_once app_path('includes/mobile_rep_custody.php');
+        if (mobile_can_archive_warehouse_move()) {
+            return;
+        }
+    }
+
     $perm = fin_voucher_archive_permission($kind);
     if ($perm === '' || !user_can_action($perm)) {
         throw new RuntimeException('لا تملك صلاحية أرشيف المستندات لهذا السند.');
@@ -321,6 +333,15 @@ function fin_voucher_archive_voucher_flags(PDO $pdo, string $kind, int $id): arr
 
             return fin_voucher_archive_doc_status_flags($pdo, 'pur_return', $id, 'pur_return_is_posted');
         })(),
+        'warehouse_move' => (static function () use ($pdo, $id): array {
+            require_once app_path('includes/inv_wh_move_schema.php');
+
+            return fin_voucher_archive_doc_status_flags($pdo, 'inv_wh_move', $id, static function (PDO $pdo, int $moveId): bool {
+                $move = inv_wh_move_by_id($pdo, $moveId);
+
+                return $move !== null && (string) ($move['status'] ?? '') === 'posted';
+            });
+        })(),
         default => throw new RuntimeException('نوع السند غير مدعوم.'),
     };
 }
@@ -399,6 +420,7 @@ function fin_voucher_archive_resolve_voucher(PDO $pdo, string $kind, int $id): a
         'sales_delivery' => ['sal_delivery', 'delivery_no', 'سند التسليم'],
         'sales_return' => ['sal_return', 'return_no', 'مرتجع المبيعات'],
         'purchase_return' => ['pur_return', 'return_no', 'مرتجع الشراء'],
+        'warehouse_move' => ['inv_wh_move', 'move_no', 'حركة المستودع'],
         default => null,
     };
     if ($docQuery === null) {

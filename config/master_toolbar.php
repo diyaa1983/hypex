@@ -203,6 +203,7 @@ return [
                 'sales_delivery',
                 'sales_returns',
                 'purchase_returns',
+                'warehouse_moves',
             ],
             'permission_by_screen' => [
                 'journal_voucher' => 'action_archive_journal_voucher',
@@ -213,6 +214,7 @@ return [
                 'sales_delivery' => 'action_archive_sales_delivery',
                 'sales_returns' => 'action_archive_sales_return',
                 'purchase_returns' => 'action_archive_purchase_return',
+                'warehouse_moves' => 'action_archive_warehouse_move',
             ],
         ],
         [

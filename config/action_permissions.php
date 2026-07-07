@@ -338,6 +338,11 @@ return [
                     'name_ar' => 'أرشيف مرفقات مرتجع شراء',
                     'inherit_from' => ['purchase_returns', 'purchase_returns_list'],
                 ],
+                [
+                    'code' => 'action_archive_warehouse_move',
+                    'name_ar' => 'أرشيف مرفقات حركة مستودع',
+                    'inherit_from' => ['warehouse_moves'],
+                ],
             ],
         ],
     ],

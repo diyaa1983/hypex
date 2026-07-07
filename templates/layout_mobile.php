@@ -58,7 +58,7 @@ if ($activeRouteKey === 'm_receipt') {
 } elseif ($activeRouteKey === 'm_sales_returns_list') {
     $pageBodyClass .= ' m-page-return-list';
 } elseif ($activeRouteKey === 'm_rep_load' || $activeRouteKey === 'm_rep_return') {
-    $pageBodyClass .= ' m-page-rep-custody';
+    $pageBodyClass .= ' m-page-rep-custody m-ora12-invoice-ui';
 } elseif ($activeRouteKey === 'm_rep_stock') {
     $pageBodyClass .= ' m-page-rep-stock';
 }
@@ -91,7 +91,7 @@ $browserHintVHead = is_file(app_path('assets/mobile/app-browser-hint.js'))
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/ui-dialog.css')) ?><?= $uiDlgCssV !== '' ? '?v=' . esc($uiDlgCssV) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/mobile/app.css')) ?><?= $cssV !== '' ? '?v=' . esc($cssV) : '' ?>">
 <?php
-$invOra12Routes = ['m_sales_invoices', 'm_sales_invoice_list', 'm_sales_invoice_view', 'm_sales_invoice_gps', 'm_user_gps_locations', 'm_party_statement'];
+$invOra12Routes = ['m_sales_invoices', 'm_sales_invoice_list', 'm_sales_invoice_view', 'm_sales_invoice_gps', 'm_user_gps_locations', 'm_party_statement', 'm_rep_load', 'm_rep_return'];
 if (in_array($activeRouteKey, $invOra12Routes, true)) {
     $invOra12V = is_file(app_path('assets/mobile/invoice-ora12.css'))
         ? (string) filemtime(app_path('assets/mobile/invoice-ora12.css'))

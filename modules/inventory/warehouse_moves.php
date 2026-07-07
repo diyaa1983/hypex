@@ -205,6 +205,14 @@ $apiDelete = app_url('api/warehouse_move_delete.php');
 $canPost = user_can_action('action_post_warehouse_move');
 $canUnpost = user_can_action('action_unpost_warehouse_move');
 $canDelete = user_can_action('action_delete_warehouse_move');
+require_once app_path('includes/fin_voucher_archive.php');
+fin_voucher_archive_ensure_schema($pdo);
+$canArchiveMove = user_can_action('action_archive_warehouse_move');
+$archiveApiUrl = app_url('api/fin_voucher_archive.php');
+$archiveCssPath = app_path('assets/css/fin-voucher-archive.css');
+$archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archiveCssPath) ? '?v=' . (string) filemtime($archiveCssPath) : '');
+$archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
+$archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 require_once app_path('includes/document_header.php');
 require_once app_path('includes/sales_oracle12_ui.php');
 $docPrintCss = document_print_stylesheet_url('assets/css/document-header.css');
@@ -228,6 +236,7 @@ item_picker_enqueue_assets();
 ?>
 <link rel="stylesheet" href="<?= esc($reportPrintCss) ?>">
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+<link rel="stylesheet" href="<?= esc($archiveCssUrl) ?>">
 
 <div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main sales-inv-bold warehouse-move-page master-page report-sales-page"
      data-exit-guard="custom"
@@ -278,7 +287,11 @@ item_picker_enqueue_assets();
           data-qty-dp="<?= (int) $qtyDp ?>"
           data-initial-type="<?= esc($movementTypeCode) ?>"
           data-initial-id="<?= (int) $moveId ?>"
-          data-new-url="<?= esc($listUrl . nav_hub_query_for_redirect()) ?>">
+          data-new-url="<?= esc($listUrl . nav_hub_query_for_redirect()) ?>"
+          data-can-archive="<?= $canArchiveMove ? '1' : '0' ?>"
+          data-archive-api="<?= esc($archiveApiUrl) ?>"
+          data-archive-kind="warehouse_move"
+          data-company-name="<?= esc((string) ($docBrandPrint['company_name_ar'] ?? '')) ?>">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="_action" id="wh-move-action" value="save">
         <input type="hidden" name="move_id" id="wh-move-id" value="<?= $moveId > 0 ? (string) $moveId : '' ?>">
@@ -464,5 +477,6 @@ window.__WH_MOVE_TYPES__ = <?= json_encode(array_map(static function (array $t):
 }, $movementTypes), JSON_UNESCAPED_UNICODE) ?: '[]' ?>;
 </script>
 <script src="<?= esc($jsItemDisplayUrl) ?>" defer></script>
+<script src="<?= esc($archiveJsUrl) ?>" defer></script>
 <script src="<?= esc($jsUrl) ?>" defer
         data-can-post="<?= $canPost ? '1' : '0' ?>"></script>

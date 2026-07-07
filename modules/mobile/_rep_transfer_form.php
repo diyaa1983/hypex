@@ -25,6 +25,8 @@ $saveApi = app_url('api/mobile_rep_transfer.php');
 $printApi = app_url('api/mobile_rep_transfer_print.php');
 $pdfApi = app_url('api/mobile_rep_transfer_pdf.php');
 $stockUrl = mobile_url('r=m_rep_stock');
+$canArchiveMove = mobile_can_archive_warehouse_move();
+$archiveApiUrl = app_absolute_url('api/fin_voucher_archive.php');
 $jsV = is_file(app_path('assets/mobile/rep-transfer.js'))
     ? (string) filemtime(app_path('assets/mobile/rep-transfer.js'))
     : '';
@@ -185,7 +187,27 @@ window.MRepTransferConfig = {
     decimalPlaces: <?= (int) company_decimal_places($pdo) ?>,
     positiveStockOnly: <?= $repTransferDirection === 'return' ? 'true' : 'false' ?>,
     previewMoveNo: <?= json_encode($previewMoveNo, JSON_UNESCAPED_UNICODE) ?>,
-    todayDate: <?= json_encode($today, JSON_UNESCAPED_UNICODE) ?>
+    todayDate: <?= json_encode($today, JSON_UNESCAPED_UNICODE) ?>,
+    canArchive: <?= $canArchiveMove ? 'true' : 'false' ?>,
+    archiveApi: <?= json_encode($archiveApiUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
 };
 </script>
+<?php if ($canArchiveMove): ?>
+<script>
+(function () {
+    var TB = window.MobileToolbar;
+    var cfg = window.MRepTransferConfig;
+    if (!TB || !TB.show || !cfg) return;
+    if (TB.pinToBottomDock) TB.pinToBottomDock();
+    document.body.classList.add('m-has-action-dock');
+    TB.show({ archive: true }, { title: '<?= esc($repTransferTitle) ?>' });
+})();
+</script>
+<?php
+$photoArchJsV = is_file(app_path('assets/mobile/invoice-photo-archive.js'))
+    ? (string) filemtime(app_path('assets/mobile/invoice-photo-archive.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/mobile/invoice-photo-archive.js')) ?><?= $photoArchJsV !== '' ? '?v=' . esc($photoArchJsV) : '' ?>"></script>
+<?php endif; ?>
 <script src="<?= esc(app_url('assets/mobile/rep-transfer.js')) ?><?= $jsV !== '' ? '?v=' . esc($jsV) : '' ?>" defer></script>

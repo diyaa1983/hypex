@@ -5,6 +5,27 @@
   var form = document.getElementById('m-rep-form');
   if (!form || !cfg.saveApi) return;
 
+  var TB = window.MobileToolbar || {};
+  var photoArchive = null;
+  if (cfg.canArchive && window.MobileInvoicePhotoArchive) {
+    photoArchive = MobileInvoicePhotoArchive.create({
+      apiUrl: cfg.archiveApi,
+      csrf: cfg.csrf,
+      kind: 'warehouse_move',
+      getInvoiceId: function () {
+        if (lastPostedMoveId > 0) return lastPostedMoveId;
+        return parseInt(moveIdEl && moveIdEl.value ? moveIdEl.value : '0', 10) || 0;
+      },
+      getInvoiceLabel: function () {
+        return (moveNoEl && moveNoEl.value) ? String(moveNoEl.value) : '';
+      },
+      isLocked: function () {
+        return lastPostedMoveId > 0;
+      },
+    });
+    photoArchive.bindToolbar(TB);
+  }
+
   var statusEl = document.getElementById('m-rep-status');
   var itemGrid = document.getElementById('m-rep-item-grid');
   var itemEmpty = document.getElementById('m-rep-item-empty');
@@ -472,6 +493,7 @@
     if (pdfBannerMsg) {
       pdfBannerMsg.textContent = on ? (message || 'تم الترحيل — حمّل PDF لإرسال قائمة المواد.') : '';
     }
+    if (photoArchive) photoArchive.refreshMeta();
   }
 
   function loadItems() {
@@ -526,7 +548,32 @@
     fd.append('move_id', String(moveId || 0));
     fd.append('move_date', (document.getElementById('m-rep-date') || {}).value || '');
     fd.append('lines_json', JSON.stringify(collectPayload()));
+    if (photoArchive && photoArchive.takePendingFile) {
+      var pendingPhoto = photoArchive.takePendingFile();
+      if (pendingPhoto && pendingPhoto.file) {
+        fd.append('archive_photo', pendingPhoto.file, pendingPhoto.name);
+      }
+    }
     return fd;
+  }
+
+  function handleArchiveAfterSave(data) {
+    if (!data || !data.ok) return Promise.resolve();
+    var invId = parseInt(data.move_id, 10) || 0;
+    if (photoArchive) photoArchive.refreshMeta();
+    if (data.archive_error && window.AppDialog && AppDialog.error) {
+      AppDialog.error(data.archive_error);
+      return Promise.resolve();
+    }
+    if (data.archive_uploaded && photoArchive && photoArchive.showBriefSuccess) {
+      return photoArchive.showBriefSuccess('تم حفظ المرفق في الأرشيف', 1000);
+    }
+    if (invId > 0 && photoArchive && photoArchive.hasPending && photoArchive.hasPending()) {
+      return photoArchive.flushPending(invId, { silent: true }).then(function () {
+        if (photoArchive) photoArchive.refreshMeta();
+      });
+    }
+    return Promise.resolve();
   }
 
   function resetAfterPost(nextNo) {
@@ -593,12 +640,18 @@
         if (data.move_no && moveNoEl) moveNoEl.value = fmtMoveNo(data.move_no);
         if (isPostedResponse(data, action)) {
           var postedId = parseInt(data.move_id, 10) || 0;
-          showPostSuccess(data.message || 'تم الترحيل بنجاح.', postedId, data.next_move_no);
-          closeCartForce();
+          handleArchiveAfterSave(data).then(function () {
+            showPostSuccess(data.message || 'تم الترحيل بنجاح.', postedId, data.next_move_no);
+            closeCartForce();
+          });
         } else if (data.action === 'saved') {
-          showStatus(data.message || 'تم الحفظ.', 'success');
+          handleArchiveAfterSave(data).then(function () {
+            showStatus(data.message || 'تم الحفظ.', 'success');
+          });
         } else {
-          showStatus(data.message || 'تم بنجاح.', 'success');
+          handleArchiveAfterSave(data).then(function () {
+            showStatus(data.message || 'تم بنجاح.', 'success');
+          });
         }
       })
       .catch(function () {
