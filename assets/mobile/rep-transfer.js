@@ -34,6 +34,7 @@
   var cartClear = document.getElementById('m-rep-cart-clear');
   var saveBtn = document.getElementById('m-rep-btn-save');
   var postBtn = document.getElementById('m-rep-btn-post');
+  var deleteBtn = document.getElementById('m-rep-btn-delete');
   var cartPostedMsg = document.getElementById('m-rep-cart-posted-msg');
   var cartFooterNormal = document.getElementById('m-rep-cart-footer-normal');
   var pdfBtn = document.getElementById('m-rep-btn-pdf');
@@ -542,6 +543,7 @@
         renderItemGrid(itemSearch ? itemSearch.value : '');
         hideStatus();
         if (photoArchive) photoArchive.refreshMeta();
+        updateDeleteButtonState();
         openCart();
       })
       .catch(function () {
@@ -560,11 +562,76 @@
     return payloadLines;
   }
 
+  function updateDeleteButtonState() {
+    if (!deleteBtn) return;
+    var show = !!(cfg.canDelete && cfg.deleteApi && moveId > 0 && lastPostedMoveId < 1);
+    deleteBtn.hidden = !show;
+    deleteBtn.disabled = busy || lastPostedMoveId > 0;
+  }
+
   function setBusy(on) {
     busy = on;
     if (saveBtn) saveBtn.disabled = on || lastPostedMoveId > 0;
     if (postBtn) postBtn.disabled = on || lastPostedMoveId > 0;
     updatePdfButtonState();
+    updateDeleteButtonState();
+  }
+
+  function confirmDelete(msg) {
+    if (window.AppDialog && AppDialog.confirm) {
+      return AppDialog.confirm(msg, {
+        title: 'تأكيد الحذف',
+        okText: 'نعم، احذف',
+        cancelText: 'إلغاء',
+        danger: true,
+      }).then(function (ok) {
+        return !!ok;
+      });
+    }
+    return Promise.resolve(window.confirm(msg));
+  }
+
+  function runDelete() {
+    if (!cfg.canDelete || !cfg.deleteApi || moveId < 1 || busy || lastPostedMoveId > 0) return;
+    confirmDelete('حذف العهدة؟ لا يمكن التراجع.').then(function (ok) {
+      if (!ok) return;
+      setBusy(true);
+      showStatus('جاري الحذف...', 'success');
+      var fd = new FormData();
+      fd.append('_csrf', cfg.csrf || '');
+      fd.append('move_id', String(moveId));
+      fd.append('direction', cfg.direction || 'load');
+      fetch(cfg.deleteApi, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          setBusy(false);
+          if (!data || !data.ok) {
+            showStatus((data && data.message) || 'تعذر حذف العهدة.', 'error');
+            return;
+          }
+          if (window.AppDialog && AppDialog.success) {
+            AppDialog.success((data && data.message) || 'تم حذف العهدة.');
+          }
+          var listUrl = cfg.listUrl || '';
+          if (listUrl) {
+            window.location.href = listUrl;
+            return;
+          }
+          resetAfterPost(cfg.previewMoveNo || '1');
+          hideStatus();
+        })
+        .catch(function () {
+          setBusy(false);
+          showStatus('تعذر الاتصال بالخادم.', 'error');
+        });
+    });
   }
 
   function buildFormData(action) {
@@ -613,6 +680,7 @@
     if (moveNoEl) moveNoEl.value = fmtMoveNo(nextNo || cfg.previewMoveNo || '1');
     var dateEl = document.getElementById('m-rep-date');
     if (dateEl && cfg.todayDate) dateEl.value = cfg.todayDate;
+    updateDeleteButtonState();
   }
 
   function finishPostedCart(nextNo) {
@@ -658,6 +726,7 @@
             if (moveIdEl) moveIdEl.value = String(moveId);
           }
           if (data.move_no && moveNoEl) moveNoEl.value = fmtMoveNo(data.move_no);
+          updateDeleteButtonState();
           return;
         }
         if (data.move_id) {
@@ -665,6 +734,7 @@
           if (moveIdEl) moveIdEl.value = String(moveId);
         }
         if (data.move_no && moveNoEl) moveNoEl.value = fmtMoveNo(data.move_no);
+        updateDeleteButtonState();
         if (isPostedResponse(data, action)) {
           var postedId = parseInt(data.move_id, 10) || 0;
           handleArchiveAfterSave(data).then(function () {
@@ -750,6 +820,7 @@
 
   if (saveBtn) saveBtn.addEventListener('click', function () { submitAction('save'); });
   if (postBtn) postBtn.addEventListener('click', function () { submitAction('post'); });
+  if (deleteBtn) deleteBtn.addEventListener('click', runDelete);
   if (pdfBtn) pdfBtn.addEventListener('click', handlePdfClick);
   if (pdfViewClose) pdfViewClose.addEventListener('click', closePdfView);
   if (pdfViewDone) {
@@ -809,5 +880,6 @@
   }).then(function () {
     renderCart();
     updatePdfButtonState();
+    updateDeleteButtonState();
   });
 })();

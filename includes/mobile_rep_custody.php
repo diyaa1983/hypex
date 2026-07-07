@@ -409,6 +409,73 @@ function mobile_can_access_rep_custody_list(): bool
     return user_can('m_rep_custody_list') || user_can('m_rep_load');
 }
 
+/** حذف عهدة غير مرحّلة من تطبيق الهاتف. */
+function mobile_can_delete_rep_custody(?string $direction = null): bool
+{
+    if (!is_logged_in()) {
+        return false;
+    }
+    if (user_can_action('action_delete_warehouse_move')) {
+        return true;
+    }
+    if (!mobile_is_context()) {
+        return false;
+    }
+    if ($direction === 'return') {
+        return user_can('m_rep_return');
+    }
+    if ($direction === 'load') {
+        return user_can('m_rep_load');
+    }
+
+    return user_can('m_rep_load') || user_can('m_rep_return');
+}
+
+/**
+ * @return array{ok:bool, error:?string, message:?string}
+ */
+function mobile_rep_custody_delete_move(
+    PDO $pdo,
+    array $ctx,
+    string $direction,
+    int $moveId,
+    int $userId
+): array {
+    $out = ['ok' => false, 'error' => null, 'message' => null];
+
+    if ($moveId < 1 || !in_array($direction, ['load', 'return'], true)) {
+        $out['error'] = 'معرّف العهدة غير صالح.';
+        $out['message'] = $out['error'];
+
+        return $out;
+    }
+
+    if (!mobile_rep_custody_move_belongs_to_rep($pdo, $ctx, $direction, $moveId, $userId)) {
+        $out['error'] = 'العهدة غير موجودة أو لا تخصك.';
+        $out['message'] = $out['error'];
+
+        return $out;
+    }
+
+    $move = inv_wh_move_by_id($pdo, $moveId);
+    if ($move === null) {
+        $out['error'] = 'العهدة غير موجودة.';
+        $out['message'] = $out['error'];
+
+        return $out;
+    }
+    if ((string) ($move['status'] ?? '') === 'posted') {
+        $out['error'] = 'لا يمكن حذف عهدة مرحّلة.';
+        $out['message'] = $out['error'];
+
+        return $out;
+    }
+
+    require_once app_path('includes/inv_wh_move_delete.php');
+
+    return inv_wh_move_delete_by_id($pdo, $moveId);
+}
+
 /**
  * @return list<array<string, mixed>>
  */

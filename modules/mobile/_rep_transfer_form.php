@@ -28,6 +28,8 @@ $pdfApi = app_url('api/mobile_rep_transfer_pdf.php');
 $stockUrl = mobile_url('r=m_rep_stock');
 $custodyListUrl = mobile_url('r=m_rep_custody_list');
 $editMoveId = (int) ($_GET['id'] ?? 0);
+$deleteApi = app_url('api/mobile_rep_transfer_delete.php');
+$canDeleteCustody = mobile_can_delete_rep_custody($repTransferDirection);
 $canArchiveMove = mobile_can_archive_warehouse_move();
 $archiveApiUrl = app_absolute_url('api/fin_voucher_archive.php');
 $jsV = is_file(app_path('assets/mobile/rep-transfer.js'))
@@ -175,6 +177,9 @@ $toLabel = $repTransferDirection === 'return'
                 <?php endif; ?>
                 <button type="button" class="m-btn m-btn--secondary m-rep-cart-footer-btn" id="m-rep-btn-save">حفظ</button>
                 <button type="button" class="m-btn m-btn--primary m-rep-cart-footer-btn" id="m-rep-btn-post">ترحيل</button>
+                <?php if ($canDeleteCustody): ?>
+                <button type="button" class="m-btn m-btn--danger m-rep-cart-footer-btn" id="m-rep-btn-delete" hidden>حذف</button>
+                <?php endif; ?>
                 <button type="button" class="m-btn m-btn--pdf m-rep-cart-footer-btn" id="m-rep-btn-pdf" disabled title="ترحيل ثم PDF">PDF</button>
             </div>
             <button type="button" class="m-btn m-btn--ghost m-rep-cart-footer-done" id="m-rep-cart-done" hidden>سند جديد</button>
@@ -201,6 +206,9 @@ window.MRepTransferConfig = {
     saveApi: <?= json_encode($saveApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     viewApi: <?= json_encode($viewApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     editMoveId: <?= (int) $editMoveId ?>,
+    deleteApi: <?= json_encode($deleteApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+    canDelete: <?= $canDeleteCustody ? 'true' : 'false' ?>,
+    listUrl: <?= json_encode($custodyListUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     printApi: <?= json_encode($printApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     pdfApi: <?= json_encode($pdfApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     csrf: <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>,

@@ -55,6 +55,7 @@
       editBtn: TB.btn ? TB.btn('edit') : null,
       printBtn: TB.btn ? TB.btn('print') : null,
       pdfBtn: TB.btn ? TB.btn('pdf') : null,
+      deleteBtn: TB.btn ? TB.btn('delete') : null,
       onEdit: function (item) {
         window.location.href = editLink(item.id);
       },
@@ -63,6 +64,9 @@
       },
       onPdf: function (item) {
         runPdf(item);
+      },
+      onDelete: function (item) {
+        runDelete(item);
       },
     });
 
@@ -138,6 +142,47 @@
     window.open(pdfUrl, '_blank', 'noopener');
   }
 
+  function runDelete(item) {
+    if (!cfg.canDelete || !cfg.deleteApi || !bar) return;
+    bar.mobileConfirm('حذف العهدة؟ لا يمكن التراجع.').then(function (ok) {
+      if (!ok) return;
+      var btn = TB.btn ? TB.btn('delete') : null;
+      if (btn) btn.disabled = true;
+      var fd = new FormData();
+      fd.append('_csrf', cfg.csrf);
+      fd.append('move_id', String(item.id));
+      fd.append('direction', 'load');
+      fetch(cfg.deleteApi, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (btn) btn.disabled = false;
+          if (!data || !data.ok) {
+            if (window.AppDialog && AppDialog.error) {
+              AppDialog.error((data && data.message) || 'تعذر حذف العهدة.');
+            }
+            return;
+          }
+          delete printCache[item.id];
+          if (window.AppDialog && AppDialog.success) {
+            AppDialog.success((data && data.message) || 'تم حذف العهدة.');
+          }
+          bar.select(null);
+          load();
+        })
+        .catch(function () {
+          if (btn) btn.disabled = false;
+          if (window.AppDialog && AppDialog.error) AppDialog.error('تعذر الاتصال بالخادم.');
+        });
+    });
+  }
+
   function buildTileItem(mv) {
     return {
       id: mv.id,
@@ -145,6 +190,7 @@
       title: (mv.move_no || '') + ' — ' + (mv.rep_name || mv.direction_label || 'تحميل عهدة'),
       subtitle: mv.rep_name || mv.direction_label || '',
       canEdit: !!(cfg.canEdit && !mv.is_posted),
+      canDelete: !!(cfg.canDelete && !mv.is_posted),
       raw: mv,
     };
   }

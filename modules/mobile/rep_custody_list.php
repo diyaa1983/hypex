@@ -15,6 +15,8 @@ $printApi = app_url('api/mobile_rep_transfer_print.php');
 $pdfApi = app_url('api/mobile_rep_transfer_pdf.php');
 $newUrl = mobile_url('r=m_rep_load');
 $editUrl = mobile_url('r=m_rep_load');
+$deleteApi = app_url('api/mobile_rep_transfer_delete.php');
+$canDelete = mobile_can_delete_rep_custody('load');
 $canArchive = mobile_can_archive_warehouse_move();
 $archiveApiUrl = app_absolute_url('api/fin_voucher_archive.php');
 $listJsV = is_file(app_path('assets/mobile/rep-custody-list.js'))
@@ -64,6 +66,8 @@ window.MRepCustodyList = {
     newUrl: <?= json_encode($newUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     editUrl: <?= json_encode($editUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
     canEdit: true,
+    deleteApi: <?= json_encode($deleteApi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
+    canDelete: <?= $canDelete ? 'true' : 'false' ?>,
     csrf: <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>,
     canArchive: <?= $canArchive ? 'true' : 'false' ?>,
     archiveApi: <?= json_encode($archiveApiUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
