@@ -339,7 +339,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
     </section>
     <?php endif; ?>
 
-    <?php if ($sections === [] && $highlights === [] && $sensitiveAccounts === [] && $liabilities === []): ?>
+    <?php if ($sections === [] && $highlights === [] && $sensitiveAccounts === [] && $liabilities === [] && $checkAlerts === [] && $recentSales === []): ?>
     <section class="dashboard-ora-panel">
         <h2 class="dashboard-ora-panel__title">بدء الاستخدام</h2>
         <div class="dashboard-ora-panel__body">

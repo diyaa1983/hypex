@@ -483,7 +483,7 @@ function dashboard_collect_sensitive_accounts(PDO $pdo, string $dateFrom, string
     if ($checksHint !== '') {
         $checksOpts['hint_extra'] = $checksHint;
     }
-    if ((int) ($checkSummary['total'] ?? 0) > 0 && (user_can('cash_receipt') || user_can('cash_receipts_list'))) {
+    if ((int) ($checkSummary['total'] ?? 0) > 0 && dashboard_widget_can('dashboard_panel_checks')) {
         $checksOpts['click_filter'] = 'all';
     }
     $checksFund = dashboard_sensitive_account_metric($pdo, 'checks_fund', $dateFrom, $dateTo, $checksOpts);
@@ -536,6 +536,7 @@ function dashboard_collect(PDO $pdo): array
 {
     require_once app_path('includes/company_settings.php');
     require_once app_path('includes/date_defaults.php');
+    require_once app_path('includes/dashboard_permissions.php');
     $settings = company_settings($pdo);
     $user = current_user();
     $monthStart = date('Y-m-01');
@@ -546,7 +547,7 @@ function dashboard_collect(PDO $pdo): array
     $sections = [];
     $checkAlerts = [];
     $checkSummary = ['total' => 0, 'overdue' => 0, 'today' => 0, 'soon' => 0, 'total_amount' => 0.0];
-    if (user_can('cash_receipt') || user_can('cash_receipts_list')) {
+    if (dashboard_widget_can('dashboard_panel_checks')) {
         require_once app_path('includes/fin_voucher_checks.php');
         $checkAlerts = fin_voucher_checks_pending_collection($pdo, $today);
         $checkSummary['total_amount'] = fin_voucher_checks_fund_gl_balance($pdo);
@@ -563,15 +564,31 @@ function dashboard_collect(PDO $pdo): array
         }
     }
 
-    if (user_can('sales_invoices') || user_can('sales_invoices_list')) {
+    if (dashboard_widget_can('dashboard_kpi_sales')) {
+        require_once app_path('includes/sal_period_sales.php');
         $salesTotal = dashboard_sum($pdo, 'sal_invoice', 'total', "status = 'confirmed'");
         $salesMonth = dashboard_sum($pdo, 'sal_invoice', 'total', "status = 'confirmed' AND invoice_date >= '{$monthStart}'");
+        $netSalesTotal = sal_period_net_sales_total($pdo, app_default_date_from(), $today);
+        $netSalesMonth = sal_period_net_sales_total($pdo, $monthStart, $today);
         $highlights[] = dashboard_metric('إجمالي المبيعات', $salesTotal, 'money', null, 'primary');
         $highlights[] = dashboard_metric('مبيعات هذا الشهر', $salesMonth, 'money', null, 'success');
-
+        $highlights[] = dashboard_metric(
+            'صافي المبيعات',
+            $netSalesTotal,
+            'money',
+            'من ' . format_date_dmY(app_default_date_from()) . ' — فواتير مرحّلة − مرتجعات',
+            'primary'
+        );
+        $highlights[] = dashboard_metric(
+            'صافي مبيعات الشهر',
+            $netSalesMonth,
+            'money',
+            'فواتير مرحّلة − مرتجعات',
+            'success'
+        );
     }
 
-    if (user_can('purchase_invoices') || user_can('purchase_invoices_list')) {
+    if (dashboard_widget_can('dashboard_kpi_purchases')) {
         $purTotal = dashboard_sum($pdo, 'pur_invoice', 'total', "status = 'confirmed'");
         if (count($highlights) < 6) {
             $highlights[] = dashboard_metric('إجمالي المشتريات', $purTotal, 'money', null, 'primary');
@@ -579,7 +596,7 @@ function dashboard_collect(PDO $pdo): array
 
     }
 
-    if (user_can('cash_receipt') || user_can('cash_payment')) {
+    if (dashboard_widget_can('dashboard_kpi_cashflow')) {
         $receipts = dashboard_sum($pdo, 'fin_voucher', 'amount', "voucher_type = 'receipt'");
         $payments = dashboard_sum($pdo, 'fin_voucher', 'amount', "voucher_type = 'payment'");
 
@@ -587,7 +604,7 @@ function dashboard_collect(PDO $pdo): array
         $highlights[] = dashboard_metric('إجمالي الصرفيات', $payments, 'money', null, 'warn');
     }
 
-    if (dashboard_table_exists($pdo, 'crm_customer_ledger')) {
+    if (dashboard_widget_can('dashboard_kpi_receivables') && dashboard_table_exists($pdo, 'crm_customer_ledger')) {
         try {
             $row = $pdo->query(
                 'SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS bal FROM crm_customer_ledger'
@@ -604,7 +621,7 @@ function dashboard_collect(PDO $pdo): array
             // ignore
         }
     }
-    if (dashboard_table_exists($pdo, 'crm_supplier_ledger')) {
+    if (dashboard_widget_can('dashboard_kpi_payables') && dashboard_table_exists($pdo, 'crm_supplier_ledger')) {
         try {
             $row = $pdo->query(
                 'SELECT COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) AS bal FROM crm_supplier_ledger'
@@ -624,7 +641,7 @@ function dashboard_collect(PDO $pdo): array
 
     /** @var list<array{no:string, date:string, party:string, total:string, url:string}> $recentSales */
     $recentSales = [];
-    if (dashboard_table_exists($pdo, 'sal_invoice') && user_can('sales_invoices')) {
+    if (dashboard_table_exists($pdo, 'sal_invoice') && dashboard_widget_can('dashboard_panel_recent_sales')) {
         try {
             $st = $pdo->query(
                 "SELECT i.id, i.invoice_no, i.invoice_date, i.total, c.name_ar
@@ -647,14 +664,24 @@ function dashboard_collect(PDO $pdo): array
         }
     }
 
-    $liabilities = dashboard_collect_liabilities($pdo, $vatDateFrom, $today);
-    $sensitiveAccounts = dashboard_collect_sensitive_accounts($pdo, $vatDateFrom, $today, $checkSummary);
+    $liabilities = [];
+    $sensitiveAccounts = [];
+    if (dashboard_widget_can('dashboard_panel_liabilities')) {
+        $liabilities = dashboard_collect_liabilities($pdo, $vatDateFrom, $today);
+    }
+    if (dashboard_widget_can('dashboard_panel_treasury')) {
+        $sensitiveAccounts = dashboard_collect_sensitive_accounts($pdo, $vatDateFrom, $today, $checkSummary);
+    }
 
     require_once app_path('includes/dashboard_accounts.php');
     if (dashboard_accounts_ensure_schema($pdo)) {
         $panels = dashboard_accounts_collect_panels($pdo, $vatDateFrom, $today, $checkSummary);
-        $sensitiveAccounts = $panels['treasury'];
-        $liabilities = $panels['liabilities'];
+        if (dashboard_widget_can('dashboard_panel_treasury')) {
+            $sensitiveAccounts = $panels['treasury'];
+        }
+        if (dashboard_widget_can('dashboard_panel_liabilities')) {
+            $liabilities = $panels['liabilities'];
+        }
     }
 
     return [
@@ -667,7 +694,7 @@ function dashboard_collect(PDO $pdo): array
                 'Wednesday' => 'الأربعاء', 'Thursday' => 'الخميس', 'Friday' => 'الجمعة', 'Saturday' => 'السبت',
             ][date('l')] ?? '',
         ],
-        'highlights' => array_slice($highlights, 0, 8),
+        'highlights' => array_slice($highlights, 0, 10),
         'sensitive_accounts' => $sensitiveAccounts,
         'liabilities' => $liabilities,
         'sections' => $sections,

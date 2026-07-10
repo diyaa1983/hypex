@@ -275,7 +275,8 @@ function dashboard_accounts_collect_panels(PDO $pdo, string $dateFrom, string $d
         ];
 
         if ($accountId === $checksFundId && (int) ($checkSummary['total'] ?? 0) > 0) {
-            if (user_can('cash_receipt') || user_can('cash_receipts_list')) {
+            require_once app_path('includes/dashboard_permissions.php');
+            if (dashboard_widget_can('dashboard_panel_checks')) {
                 $opts['click_filter'] = 'all';
             }
         }

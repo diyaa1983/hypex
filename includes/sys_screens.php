@@ -8,6 +8,10 @@ declare(strict_types=1);
  */
 function sys_screen_type_for_code(string $code): string
 {
+    if (str_starts_with($code, 'dashboard_kpi_') || str_starts_with($code, 'dashboard_panel_')) {
+        return 'dashboard';
+    }
+
     return str_starts_with($code, 'report_') ? 'report' : 'screen';
 }
 

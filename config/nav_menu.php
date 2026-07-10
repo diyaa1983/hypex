@@ -19,6 +19,21 @@ return [
                         ['r' => 'dashboard', 'label' => 'لوحة التحكم', 'icon' => '⌂'],
                     ],
                 ],
+                [
+                    'id' => 'dashboard_widgets',
+                    'title' => 'مؤشرات الشاشة الرئيسية',
+                    'items' => [
+                        ['code' => 'dashboard_kpi_sales', 'label' => 'مؤشرات المبيعات (إجمالي + الشهر + صافي)', 'icon' => '📈'],
+                        ['code' => 'dashboard_kpi_purchases', 'label' => 'مؤشر المشتريات', 'icon' => '🛒'],
+                        ['code' => 'dashboard_kpi_cashflow', 'label' => 'مؤشرات المقبوضات والصرفيات', 'icon' => '💵'],
+                        ['code' => 'dashboard_kpi_receivables', 'label' => 'مؤشر ذمم العملاء', 'icon' => '👤'],
+                        ['code' => 'dashboard_kpi_payables', 'label' => 'مؤشر ذمم الموردين', 'icon' => '🏭'],
+                        ['code' => 'dashboard_panel_treasury', 'label' => 'لوحة الصندوق والحسابات', 'icon' => '🏦'],
+                        ['code' => 'dashboard_panel_liabilities', 'label' => 'لوحة المستحقات', 'icon' => '📋'],
+                        ['code' => 'dashboard_panel_checks', 'label' => 'إشعارات الشيكات قيد التحصيل', 'icon' => '📝'],
+                        ['code' => 'dashboard_panel_recent_sales', 'label' => 'آخر فواتير المبيعات', 'icon' => '🧾'],
+                    ],
+                ],
             ],
         ],
         [

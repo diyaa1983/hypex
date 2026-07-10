@@ -6,6 +6,7 @@ require_once app_path('includes/sys_action_permissions.php');
 require_once app_path('includes/sql_migration.php');
 $pdoPerm = db();
 sql_migration_run_file_once($pdoPerm, 'database/migrations/208_mobile_rep_custody.sql');
+sql_migration_run_file_once($pdoPerm, 'database/migrations/216_dashboard_widget_permissions.sql');
 require_once app_path('includes/warehouse_access.php');
 wh_access_ensure_schema($pdoPerm);
 $syncedScreens = sys_sync_screens_from_routes($pdoPerm);
@@ -283,6 +284,9 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
                 return 'إجراء';
             }
             $type = (string) ($screenTypeByCode[$permCode] ?? '');
+            if ($type === 'dashboard' || str_starts_with($permCode, 'dashboard_kpi_') || str_starts_with($permCode, 'dashboard_panel_')) {
+                return 'مؤشر';
+            }
             if ($type === 'report' || str_starts_with($permCode, 'report_')) {
                 return 'تقرير';
             }

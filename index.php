@@ -149,6 +149,7 @@ $appBootMigrations = [
     'database/migrations/211_report_hr_att_punch_movements.sql',
     'database/migrations/212_hr_attendance_sync_screens.sql',
     'database/migrations/215_report_sales_invoice_discount.sql',
+    'database/migrations/216_dashboard_widget_permissions.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 
