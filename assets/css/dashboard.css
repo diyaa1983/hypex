@@ -166,9 +166,9 @@ body:has(.dashboard-ora) .main-content {
 
 .dashboard-ora-panel__title {
   margin: 0;
-  padding: 0.42rem 0.7rem;
-  font-size: 0.8rem;
-  font-weight: 700;
+  padding: 0.48rem 0.7rem;
+  font-size: 0.875rem;
+  font-weight: 800;
   color: #fff;
   background: var(--ora12-title);
   border-bottom: 1px solid var(--ora12-blue-dark);
@@ -177,10 +177,10 @@ body:has(.dashboard-ora) .main-content {
 
 .dashboard-ora-panel__sub {
   margin: 0;
-  padding: 0.32rem 0.7rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--ora12-muted);
+  padding: 0.38rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #3d3d3d;
   background: var(--ora12-blue-light);
   border-bottom: 1px solid var(--ora12-border);
 }
@@ -205,23 +205,23 @@ body:has(.dashboard-ora) .main-content {
 /* شبكة المؤشرات */
 .dashboard-ora-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: 0.4rem;
-  align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
+  gap: 0.55rem;
+  align-items: stretch;
 }
 
 .dashboard-ora-kpi {
   display: block;
   width: 100%;
-  padding: 0.5rem 0.55rem 0.5rem 0.65rem;
+  padding: 0.55rem 0.65rem 0.5rem 0.7rem;
   background: var(--ora12-surface);
   border: 1px solid var(--ora12-border);
-  border-inline-start: 3px solid var(--ora12-blue);
+  border-inline-start: 4px solid var(--ora12-blue);
   text-decoration: none;
   color: inherit;
   box-sizing: border-box;
-  min-height: 4.1rem;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  min-height: 4.75rem;
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.07);
   transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   font-family: inherit;
   font-size: inherit;
@@ -261,41 +261,44 @@ button.dashboard-ora-kpi {
 
 .dashboard-ora-kpi-label {
   display: block;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--ora12-muted);
-  margin-bottom: 0.22rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin-bottom: 0.28rem;
   line-height: 1.35;
 }
 
 .dashboard-ora-kpi-value {
   display: block;
-  font-size: 1.08rem;
-  font-weight: 700;
-  color: var(--ora12-text);
+  font-size: 1.22rem;
+  font-weight: 800;
+  color: #0d0d0d;
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
+  line-height: 1.15;
   letter-spacing: -0.01em;
+  direction: ltr;
+  text-align: start;
+  unicode-bidi: plaintext;
 }
 
 .dashboard-ora-kpi-hint {
   display: block;
-  margin-top: 0.22rem;
-  font-size: 0.66rem;
+  margin-top: 0.28rem;
+  font-size: 0.6875rem;
   font-weight: 600;
-  color: var(--ora12-muted);
+  color: #4a4a4a;
   line-height: 1.35;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 /* مربعات موحّدة + تفاصيل عند المرور */
 .dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--uniform,
 .dashboard-ora-kpi-grid--liabilities .dashboard-ora-kpi--uniform {
   position: relative;
-  height: 4.35rem;
-  min-height: 4.35rem;
+  min-height: 4.9rem;
+  height: auto;
   overflow: visible;
   z-index: 1;
 }
@@ -487,13 +490,13 @@ button.dashboard-ora-kpi {
 .dashboard-ora-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.78rem;
+  font-size: 0.875rem;
   background: var(--ora12-surface);
 }
 
 .dashboard-ora-table th,
 .dashboard-ora-table td {
-  padding: 0.32rem 0.5rem;
+  padding: 0.45rem 0.6rem;
   text-align: right;
   border: 1px solid var(--ora12-border);
   vertical-align: middle;
@@ -502,10 +505,20 @@ button.dashboard-ora-kpi {
 .dashboard-ora-table th {
   background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
   color: var(--ora12-text);
-  font-weight: 700;
-  font-size: 0.73rem;
+  font-weight: 800;
+  font-size: 0.8125rem;
   white-space: nowrap;
   border-bottom: 2px solid var(--ora12-border);
+}
+
+.dashboard-ora-table tbody td {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.dashboard-ora-table tbody td:last-child {
+  font-weight: 800;
+  font-size: 0.9375rem;
 }
 
 .dashboard-ora-table tbody tr:nth-child(even) {
