@@ -34,7 +34,7 @@ $kpiToneClass = static function (string $tone): string {
         default => '',
     };
 };
-$renderAccountKpi = static function (array $item) use ($kpiToneClass): void {
+$renderKpi = static function (array $item, bool $uniform = false) use ($kpiToneClass): void {
     $itemUrl = trim((string) ($item['url'] ?? ''));
     $tone = $kpiToneClass((string) ($item['tone'] ?? ''));
     $itemClick = !empty($item['click_filter'])
@@ -48,7 +48,11 @@ $renderAccountKpi = static function (array $item) use ($kpiToneClass): void {
         ]];
     }
     $hasTip = is_array($details) && $details !== [];
-    $classes = 'dashboard-ora-kpi dashboard-ora-kpi--uniform' . $tone . $itemClick;
+    $classes = 'dashboard-ora-kpi'
+        . ($uniform ? ' dashboard-ora-kpi--uniform' : '')
+        . ($hasTip ? ' dashboard-ora-kpi--has-tip' : '')
+        . $tone
+        . $itemClick;
 
     if ($itemClick !== '') {
         ?>
@@ -64,7 +68,7 @@ $renderAccountKpi = static function (array $item) use ($kpiToneClass): void {
         <?php
     } else {
         ?>
-        <article class="<?= $classes ?>">
+        <article class="<?= $classes ?>"<?= $hasTip ? ' tabindex="0"' : '' ?>>
         <?php
     }
     ?>
@@ -138,25 +142,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
         <div class="dashboard-ora-panel__body">
             <div class="dashboard-ora-kpi-grid">
                 <?php foreach ($highlights as $kpi): ?>
-                <?php
-                $kpiClick = !empty($kpi['click_filter'])
-                    ? ' dashboard-ora-kpi--clickable dashboard-kpi--clickable js-check-alert-open'
-                    : '';
-                $tag = $kpiClick !== '' ? 'button' : 'article';
-                ?>
-                <<?= $tag ?> class="dashboard-ora-kpi<?= $kpiToneClass((string) ($kpi['tone'] ?? '')) ?><?= $kpiClick ?>"
-                    <?php if ($kpiClick !== ''): ?>
-                    type="button"
-                    data-filter="<?= esc((string) $kpi['click_filter']) ?>"
-                    data-title="<?= esc((string) ($kpi['label'] ?? 'شيكات قيد التحصيل')) ?>"
-                    title="اضغط لعرض التفاصيل"
-                    <?php endif; ?>>
-                    <span class="dashboard-ora-kpi-label"><?= esc($kpi['label']) ?></span>
-                    <span class="dashboard-ora-kpi-value"><?= esc($kpi['value']) ?></span>
-                    <?php if (!empty($kpi['hint'])): ?>
-                    <span class="dashboard-ora-kpi-hint"><?= esc($kpi['hint']) ?></span>
-                    <?php endif; ?>
-                </<?= $tag ?>>
+                <?php $renderKpi($kpi); ?>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -170,7 +156,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
         <div class="dashboard-ora-panel__body">
             <div class="dashboard-ora-kpi-grid dashboard-ora-kpi-grid--treasury">
                 <?php foreach ($sensitiveAccounts as $item): ?>
-                <?php $renderAccountKpi($item); ?>
+                <?php $renderKpi($item, true); ?>
                 <?php endforeach; ?>
             </div>
         </div>
@@ -184,7 +170,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
         <div class="dashboard-ora-panel__body">
             <div class="dashboard-ora-kpi-grid dashboard-ora-kpi-grid--liabilities">
                 <?php foreach ($liabilities as $item): ?>
-                <?php $renderAccountKpi($item); ?>
+                <?php $renderKpi($item, true); ?>
                 <?php endforeach; ?>
             </div>
         </div>
