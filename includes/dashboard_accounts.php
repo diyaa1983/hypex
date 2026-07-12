@@ -364,7 +364,13 @@ function dashboard_account_metric_by_id(
     }
 
     $detailLabel = $name !== '' ? $name : ($code !== '' ? $code : $label);
-    $m['details'] = dashboard_gl_account_details($pdo, $accountId, $displayBal, $dateFrom, $dateTo, $isLiability);
+    $m['details'] = [[
+        'label' => $detailLabel,
+        'code' => $code,
+        'value' => format_money($displayBal),
+        'tone' => $tone,
+        'url' => $url,
+    ]];
 
     return $m;
 }

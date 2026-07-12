@@ -107,196 +107,6 @@ function dashboard_metric(string $label, int|float|string $value, string $format
     return $m;
 }
 
-/** @return array{label:string, value:string, tone?:string, code?:string, url?:string} */
-function dashboard_detail_row(
-    string $label,
-    int|float|string $value,
-    string $format = 'money',
-    string $tone = '',
-    string $code = '',
-    string $url = ''
-): array {
-    if ($format === 'money') {
-        $display = format_money($value);
-    } elseif ($format === 'int') {
-        $display = number_format((int) $value);
-    } else {
-        $display = (string) $value;
-    }
-
-    $row = ['label' => $label, 'value' => $display];
-    if ($tone !== '') {
-        $row['tone'] = $tone;
-    }
-    if ($code !== '') {
-        $row['code'] = $code;
-    }
-    if ($url !== '') {
-        $row['url'] = $url;
-    }
-
-    return $row;
-}
-
-/**
- * @return list<array<string, mixed>>
- */
-function dashboard_gl_account_details(
-    PDO $pdo,
-    int $accountId,
-    float $displayBalance,
-    string $dateFrom,
-    string $dateTo,
-    bool $isLiability = false
-): array {
-    require_once app_path('includes/acc_report.php');
-
-    $code = '';
-    $name = '';
-    try {
-        $st = $pdo->prepare('SELECT code, name_ar FROM acc_account WHERE id = ? LIMIT 1');
-        $st->execute([$accountId]);
-        $acc = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-        $code = trim((string) ($acc['code'] ?? ''));
-        $name = trim((string) ($acc['name_ar'] ?? ''));
-    } catch (Throwable $e) {
-        // ignore
-    }
-
-    $sums = acc_report_account_sums($pdo, $accountId);
-    $debit = (float) ($sums['sum_debit'] ?? 0);
-    $credit = (float) ($sums['sum_credit'] ?? 0);
-    $url = dashboard_sensitive_account_url($pdo, $accountId, $dateFrom, $dateTo);
-    $tone = $isLiability
-        ? ($displayBalance > 0.0005 ? 'warn' : 'success')
-        : ($displayBalance < -0.0005 ? 'warn' : 'primary');
-
-    $details = [
-        dashboard_detail_row(
-            $name !== '' ? $name : 'رصيد الحساب',
-            $displayBalance,
-            'money',
-            $tone,
-            $code,
-            $url
-        ),
-        dashboard_detail_row('إجمالي مدين (تراكمي)', $debit),
-        dashboard_detail_row('إجمالي دائن (تراكمي)', $credit),
-        dashboard_detail_row('مصدر الرصيد', 'قيود مرحّلة — الدفتر العام', 'text'),
-    ];
-
-    return $details;
-}
-
-/** @return list<array<string, mixed>> */
-function dashboard_net_sales_details(PDO $pdo, string $from, string $to): array
-{
-    require_once app_path('includes/sal_period_sales.php');
-
-    $invoices = sal_period_sum_posted_invoices($pdo, $from, $to, 0, 0, 'total');
-    $returns = sal_period_sum_posted_returns($pdo, $from, $to, 0, 0, 'total');
-    $net = round(max(0.0, $invoices - $returns), 6);
-
-    return [
-        dashboard_detail_row('فواتير مبيعات مرحّلة', $invoices),
-        dashboard_detail_row('مرتجعات مبيعات مرحّلة', $returns, 'money', 'warn'),
-        dashboard_detail_row('صافي المبيعات', $net),
-        dashboard_detail_row(
-            'الفترة',
-            format_date_dmY($from) . ' — ' . format_date_dmY($to),
-            'text'
-        ),
-    ];
-}
-
-/** @return list<array<string, mixed>> */
-function dashboard_confirmed_sales_details(PDO $pdo, string $whereSql): array
-{
-    if (!dashboard_table_exists($pdo, 'sal_invoice')) {
-        return [];
-    }
-
-    try {
-        $st = $pdo->query(
-            "SELECT COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS amt
-             FROM sal_invoice WHERE status = 'confirmed' AND ({$whereSql})"
-        );
-        $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {
-        return [];
-    }
-
-    return [
-        dashboard_detail_row('عدد الفواتير المؤكدة', (int) ($row['cnt'] ?? 0), 'int'),
-        dashboard_detail_row('مجموع إجمالي الفواتير', (float) ($row['amt'] ?? 0)),
-        dashboard_detail_row('معيار الحساب', 'فواتير مؤكدة (غير ملغاة)', 'text'),
-    ];
-}
-
-/** @return list<array<string, mixed>> */
-function dashboard_voucher_type_details(PDO $pdo, string $voucherType, string $labelAr): array
-{
-    if (!dashboard_table_exists($pdo, 'fin_voucher')) {
-        return [];
-    }
-
-    $type = str_replace("'", "''", $voucherType);
-    try {
-        $st = $pdo->query(
-            "SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS amt
-             FROM fin_voucher WHERE voucher_type = '{$type}'"
-        );
-        $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {
-        return [];
-    }
-
-    return [
-        dashboard_detail_row('عدد السندات', (int) ($row['cnt'] ?? 0), 'int'),
-        dashboard_detail_row('مجموع المبالغ', (float) ($row['amt'] ?? 0)),
-        dashboard_detail_row('نوع السند', $labelAr, 'text'),
-    ];
-}
-
-/** @return list<array<string, mixed>> */
-function dashboard_party_ledger_details(PDO $pdo, string $table, string $partyLabel): array
-{
-    if (!dashboard_table_exists($pdo, $table)) {
-        return [];
-    }
-
-    $tbl = '`' . str_replace('`', '``', $table) . '`';
-    try {
-        $row = $pdo->query(
-            "SELECT COALESCE(SUM(debit), 0) AS sum_debit, COALESCE(SUM(credit), 0) AS sum_credit
-             FROM {$tbl}"
-        )->fetch(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {
-        return [];
-    }
-
-    $debit = (float) ($row['sum_debit'] ?? 0);
-    $credit = (float) ($row['sum_credit'] ?? 0);
-    $balance = round($debit - $credit, 6);
-
-    return [
-        dashboard_detail_row('مجموع المدين', $debit),
-        dashboard_detail_row('مجموع الدائن', $credit),
-        dashboard_detail_row('الرصيد (مدين − دائن)', $balance, 'money', $balance < -0.0005 ? 'warn' : 'primary'),
-        dashboard_detail_row('المصدر', 'دفتر ' . $partyLabel, 'text'),
-    ];
-}
-
-/** @param list<array<string, mixed>> $details */
-function dashboard_metric_with_details(array $metric, array $details): array
-{
-    if ($details !== []) {
-        $metric['details'] = $details;
-    }
-
-    return $metric;
-}
-
 /**
  * مربع واحد يجمع أرصدة كل حسابات البنوك في الشجرة.
  *
@@ -411,10 +221,7 @@ function dashboard_collect_bank_balances_metric(PDO $pdo, string $dateFrom, stri
         'value' => format_money($total),
         'hint' => $hint,
         'tone' => $tone,
-        'details' => array_merge(
-            [dashboard_detail_row('إجمالي أرصدة البنوك', $total, 'money', $tone)],
-            $details
-        ),
+        'details' => $details,
     ];
 }
 
@@ -455,11 +262,9 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
     $items = [];
     require_once app_path('includes/hr_social_security_payroll.php');
     require_once app_path('includes/hr_income_tax.php');
-    $settings = acc_gl_load_settings($pdo);
 
     $payrollBal = dashboard_posting_rule_liability_balance($pdo, 'salaries_payable');
     if ($payrollBal !== null) {
-        $accountId = (int) ($settings['salaries_payable']['account_id'] ?? 0);
         $m = dashboard_metric(
             'مستحقات الرواتب',
             max(0, $payrollBal),
@@ -468,18 +273,11 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
             $payrollBal > 0.0005 ? 'warn' : 'success'
         );
         $m['url'] = app_url('index.php?r=hr_payroll_posting');
-        if ($accountId > 0) {
-            $m = dashboard_metric_with_details(
-                $m,
-                dashboard_gl_account_details($pdo, $accountId, max(0, $payrollBal), $dateFrom, $dateTo, true)
-            );
-        }
         $items[] = $m;
     }
 
     $ssBal = dashboard_posting_rule_liability_balance($pdo, HR_SS_PAYABLE_RULE_CODE);
     if ($ssBal !== null) {
-        $accountId = (int) ($settings[HR_SS_PAYABLE_RULE_CODE]['account_id'] ?? 0);
         $m = dashboard_metric(
             'مستحقات الضمان الاجتماعي',
             max(0, $ssBal),
@@ -488,18 +286,11 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
             $ssBal > 0.0005 ? 'warn' : 'success'
         );
         $m['url'] = app_url('index.php?r=hr_payroll_ss_report');
-        if ($accountId > 0) {
-            $m = dashboard_metric_with_details(
-                $m,
-                dashboard_gl_account_details($pdo, $accountId, max(0, $ssBal), $dateFrom, $dateTo, true)
-            );
-        }
         $items[] = $m;
     }
 
     $taxBal = dashboard_posting_rule_liability_balance($pdo, HR_INCOME_TAX_RULE_CODE);
     if ($taxBal !== null) {
-        $accountId = (int) ($settings[HR_INCOME_TAX_RULE_CODE]['account_id'] ?? 0);
         $m = dashboard_metric(
             'مستحقات الضريبة',
             max(0, $taxBal),
@@ -508,12 +299,6 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
             $taxBal > 0.0005 ? 'warn' : 'success'
         );
         $m['url'] = app_url('index.php?r=hr_income_tax_settings');
-        if ($accountId > 0) {
-            $m = dashboard_metric_with_details(
-                $m,
-                dashboard_gl_account_details($pdo, $accountId, max(0, $taxBal), $dateFrom, $dateTo, true)
-            );
-        }
         $items[] = $m;
     }
 
@@ -522,7 +307,6 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
     $vat = acc_report_vat_jordan_summary($pdo, $dateFrom, $dateTo);
     if ((int) ($vat['trust_account_id'] ?? 0) > 0) {
         $closing = (float) ($vat['gl_closing_balance'] ?? 0);
-        $trustId = (int) ($vat['trust_account_id'] ?? 0);
         $periodHint = 'من ' . format_date_dmY($dateFrom) . ' إلى ' . format_date_dmY($dateTo);
         $m = dashboard_metric(
             ACC_VAT_TRUST_REPORT_TITLE,
@@ -536,12 +320,6 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
             . '&date_from=' . rawurlencode(format_date_dmY($dateFrom))
             . '&date_to=' . rawurlencode(format_date_dmY($dateTo))
         );
-        $vatDetails = dashboard_gl_account_details($pdo, $trustId, $closing, $dateFrom, $dateTo, true);
-        $vatDetails[] = dashboard_detail_row(
-            'صافي ضريبة الفترة',
-            (float) ($vat['net_payable'] ?? 0)
-        );
-        $m = dashboard_metric_with_details($m, $vatDetails);
         $items[] = $m;
     }
 
@@ -657,7 +435,13 @@ function dashboard_sensitive_account_metric(
     }
 
     $detailLabel = $name !== '' ? $name : ($code !== '' ? $code : $label);
-    $m['details'] = dashboard_gl_account_details($pdo, $accountId, $displayBal, $dateFrom, $dateTo, $isLiability);
+    $m['details'] = [[
+        'label' => $detailLabel,
+        'code' => $code,
+        'value' => format_money($displayBal),
+        'tone' => $tone,
+        'url' => $url,
+    ]];
 
     return $m;
 }
@@ -786,60 +570,28 @@ function dashboard_collect(PDO $pdo): array
         $salesMonth = dashboard_sum($pdo, 'sal_invoice', 'total', "status = 'confirmed' AND invoice_date >= '{$monthStart}'");
         $netSalesTotal = sal_period_net_sales_total($pdo, app_default_date_from(), $today);
         $netSalesMonth = sal_period_net_sales_total($pdo, $monthStart, $today);
-        $highlights[] = dashboard_metric_with_details(
-            dashboard_metric('إجمالي المبيعات', $salesTotal, 'money', null, 'primary'),
-            dashboard_confirmed_sales_details($pdo, '1=1')
+        $highlights[] = dashboard_metric('إجمالي المبيعات', $salesTotal, 'money', null, 'primary');
+        $highlights[] = dashboard_metric('مبيعات هذا الشهر', $salesMonth, 'money', null, 'success');
+        $highlights[] = dashboard_metric(
+            'صافي المبيعات',
+            $netSalesTotal,
+            'money',
+            'من ' . format_date_dmY(app_default_date_from()) . ' — فواتير مرحّلة − مرتجعات',
+            'primary'
         );
-        $highlights[] = dashboard_metric_with_details(
-            dashboard_metric('مبيعات هذا الشهر', $salesMonth, 'money', null, 'success'),
-            dashboard_confirmed_sales_details($pdo, "invoice_date >= '{$monthStart}'")
-        );
-        $highlights[] = dashboard_metric_with_details(
-            dashboard_metric(
-                'صافي المبيعات',
-                $netSalesTotal,
-                'money',
-                'من ' . format_date_dmY(app_default_date_from()) . ' — فواتير مرحّلة − مرتجعات',
-                'primary'
-            ),
-            dashboard_net_sales_details($pdo, app_default_date_from(), $today)
-        );
-        $highlights[] = dashboard_metric_with_details(
-            dashboard_metric(
-                'صافي مبيعات الشهر',
-                $netSalesMonth,
-                'money',
-                'فواتير مرحّلة − مرتجعات',
-                'success'
-            ),
-            dashboard_net_sales_details($pdo, $monthStart, $today)
+        $highlights[] = dashboard_metric(
+            'صافي مبيعات الشهر',
+            $netSalesMonth,
+            'money',
+            'فواتير مرحّلة − مرتجعات',
+            'success'
         );
     }
 
     if (dashboard_widget_can('dashboard_kpi_purchases')) {
         $purTotal = dashboard_sum($pdo, 'pur_invoice', 'total', "status = 'confirmed'");
         if (count($highlights) < 6) {
-            $purDetails = [];
-            if (dashboard_table_exists($pdo, 'pur_invoice')) {
-                try {
-                    $st = $pdo->query(
-                        "SELECT COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS amt
-                         FROM pur_invoice WHERE status = 'confirmed'"
-                    );
-                    $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-                    $purDetails = [
-                        dashboard_detail_row('عدد فواتير الشراء المؤكدة', (int) ($row['cnt'] ?? 0), 'int'),
-                        dashboard_detail_row('مجموع إجمالي الفواتير', (float) ($row['amt'] ?? 0)),
-                        dashboard_detail_row('معيار الحساب', 'فواتير شراء مؤكدة', 'text'),
-                    ];
-                } catch (Throwable $e) {
-                    // ignore
-                }
-            }
-            $highlights[] = dashboard_metric_with_details(
-                dashboard_metric('إجمالي المشتريات', $purTotal, 'money', null, 'primary'),
-                $purDetails
-            );
+            $highlights[] = dashboard_metric('إجمالي المشتريات', $purTotal, 'money', null, 'primary');
         }
 
     }
@@ -848,14 +600,8 @@ function dashboard_collect(PDO $pdo): array
         $receipts = dashboard_sum($pdo, 'fin_voucher', 'amount', "voucher_type = 'receipt'");
         $payments = dashboard_sum($pdo, 'fin_voucher', 'amount', "voucher_type = 'payment'");
 
-        $highlights[] = dashboard_metric_with_details(
-            dashboard_metric('إجمالي المقبوضات', $receipts, 'money', null, 'success'),
-            dashboard_voucher_type_details($pdo, 'receipt', 'سند قبض')
-        );
-        $highlights[] = dashboard_metric_with_details(
-            dashboard_metric('إجمالي الصرفيات', $payments, 'money', null, 'warn'),
-            dashboard_voucher_type_details($pdo, 'payment', 'سند صرف')
-        );
+        $highlights[] = dashboard_metric('إجمالي المقبوضات', $receipts, 'money', null, 'success');
+        $highlights[] = dashboard_metric('إجمالي الصرفيات', $payments, 'money', null, 'warn');
     }
 
     if (dashboard_widget_can('dashboard_kpi_receivables') && dashboard_table_exists($pdo, 'crm_customer_ledger')) {
@@ -864,15 +610,12 @@ function dashboard_collect(PDO $pdo): array
                 'SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS bal FROM crm_customer_ledger'
             )->fetch(PDO::FETCH_ASSOC);
             $custBal = (float) ($row['bal'] ?? 0);
-            $highlights[] = dashboard_metric_with_details(
-                dashboard_metric(
-                    'ذمم العملاء',
-                    $custBal,
-                    'money',
-                    'موجب = ذمة على العملاء',
-                    $custBal >= 0 ? 'primary' : 'warn'
-                ),
-                dashboard_party_ledger_details($pdo, 'crm_customer_ledger', 'عملاء')
+            $highlights[] = dashboard_metric(
+                'ذمم العملاء',
+                $custBal,
+                'money',
+                'موجب = ذمة على العملاء',
+                $custBal >= 0 ? 'primary' : 'warn'
             );
         } catch (Throwable $e) {
             // ignore
@@ -884,24 +627,12 @@ function dashboard_collect(PDO $pdo): array
                 'SELECT COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) AS bal FROM crm_supplier_ledger'
             )->fetch(PDO::FETCH_ASSOC);
             $supBal = (float) ($row['bal'] ?? 0);
-            $supDetails = dashboard_party_ledger_details($pdo, 'crm_supplier_ledger', 'موردين');
-            if ($supDetails !== []) {
-                $supDetails[2] = dashboard_detail_row(
-                    'الرصيد (دائن − مدين)',
-                    $supBal,
-                    'money',
-                    $supBal >= 0 ? 'warn' : 'success'
-                );
-            }
-            $highlights[] = dashboard_metric_with_details(
-                dashboard_metric(
-                    'ذمم الموردين (صافي)',
-                    $supBal,
-                    'money',
-                    'موجب = ذمة على الشركة للموردين',
-                    $supBal >= 0 ? 'warn' : 'success'
-                ),
-                $supDetails
+            $highlights[] = dashboard_metric(
+                'ذمم الموردين (صافي)',
+                $supBal,
+                'money',
+                'موجب = ذمة على الشركة للموردين',
+                $supBal >= 0 ? 'warn' : 'success'
             );
         } catch (Throwable $e) {
             // ignore

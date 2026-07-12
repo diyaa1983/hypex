@@ -694,6 +694,34 @@ function nav_show_header_home_button(string $activeRoute): bool
 }
 
 /** زر إغلاق/رجوع في ترويسة التطبيق — الزاوية اليسرى (مثل ERPNext). */
+function nav_back_button_info(string $activeRoute = ''): array
+{
+    if ($activeRoute === '') {
+        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
+    }
+
+    $ledgerBack = nav_item_stock_ledger_back_link();
+    if ($ledgerBack !== null) {
+        return [
+            'url' => (string) ($ledgerBack['url'] ?? nav_close_url($activeRoute)),
+            'hint' => 'العودة إلى ' . (string) ($ledgerBack['label'] ?? ''),
+        ];
+    }
+
+    $back = nav_back_link($activeRoute);
+    if ($back !== null && trim((string) ($back['url'] ?? '')) !== '') {
+        return [
+            'url' => (string) $back['url'],
+            'hint' => 'رجوع للصفحة السابقة',
+        ];
+    }
+
+    return [
+        'url' => nav_close_url($activeRoute),
+        'hint' => 'رجوع',
+    ];
+}
+
 function render_app_header_back_button(?string $activeRoute = null): void
 {
     if ($activeRoute === null) {
@@ -708,14 +736,14 @@ function render_app_header_back_button(?string $activeRoute = null): void
 
     require_once app_path('includes/app_window_manager.php');
     $activeRoute = app_mdi_resolve_route($activeRoute);
-    $info = nav_screen_close_info($activeRoute);
+    $info = nav_back_button_info($activeRoute);
     $url = (string) ($info['url'] ?? nav_close_url($activeRoute));
-    $hint = (string) ($info['hint'] ?? 'إغلاق والعودة');
+    $hint = (string) ($info['hint'] ?? 'رجوع');
     if (app_mdi_is_embed_request()) {
         $url = app_mdi_embed_url($url);
     }
 
-    echo '<a class="app-titlebar__btn app-titlebar__back-btn ora12-title-bar__close" href="' . esc($url) . '"';
+    echo '<a class="app-titlebar__btn app-titlebar__back-btn" href="' . esc($url) . '"';
     echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '"><span class="app-titlebar__btn-icon" aria-hidden="true">←</span></a>';
 }
 
@@ -957,7 +985,7 @@ function nav_hub_query_for_redirect(): string
     return $q;
 }
 
-/** بيانات زر × إغلاق الشاشة (رابط + تلميح). */
+/** بيانات زر × إغلاق الشاشة (رابط + تلميح) — الخروج الكامل للقائمة وليس الرجوع الداخلي. */
 function nav_screen_close_info(string $activeRoute = ''): array
 {
     if ($activeRoute === '') {
@@ -965,32 +993,30 @@ function nav_screen_close_info(string $activeRoute = ''): array
     }
 
     $ledgerBack = nav_item_stock_ledger_back_link();
-    $navBack = nav_back_link($activeRoute);
-
     if ($ledgerBack !== null) {
         return [
-            'url' => (string) ($ledgerBack['url'] ?? nav_close_url($activeRoute)),
+            'url' => (string) ($ledgerBack['url'] ?? nav_exit_url($activeRoute)),
             'hint' => 'العودة إلى ' . (string) ($ledgerBack['label'] ?? ''),
-        ];
-    }
-
-    if ($navBack !== null) {
-        return [
-            'url' => (string) ($navBack['url'] ?? nav_close_url($activeRoute)),
-            'hint' => 'إغلاق والعودة للصفحة السابقة',
         ];
     }
 
     $hint = 'إغلاق والعودة';
     if ($activeRoute !== 'menu_hub' && $activeRoute !== 'dashboard') {
-        $hub = nav_resolve_active_hub($activeRoute);
-        if ($hub !== null) {
+        $stored = trim((string) ($_SESSION['nav_return_url'] ?? ''));
+        if ($stored !== '' && nav_is_safe_back_url($stored)) {
             $hint = 'إغلاق والعودة لقائمة الشاشات';
+        } else {
+            $hub = nav_resolve_active_hub($activeRoute);
+            if ($hub !== null) {
+                $hint = 'إغلاق والعودة لقائمة الشاشات';
+            } else {
+                $hint = 'إغلاق والعودة للوحة التحكم';
+            }
         }
     }
 
     return [
-        'url' => nav_close_url($activeRoute),
+        'url' => nav_exit_url($activeRoute),
         'hint' => $hint,
     ];
 }
@@ -1010,12 +1036,34 @@ function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl 
         $hint = $overrideHint ?? 'إغلاق والعودة';
     } else {
         $info = nav_screen_close_info($activeRoute);
-        $url = (string) ($info['url'] ?? '');
+        $url = (string) ($info['url'] ?? nav_exit_url($activeRoute));
         $hint = (string) ($info['hint'] ?? 'إغلاق والعودة');
     }
     if (app_mdi_is_embed_request()) {
         $url = app_mdi_embed_url($url);
     }
-    echo '<a class="ora12-title-bar__close" href="' . esc($url) . '"';
+    echo '<a class="ora12-title-bar__close app-screen-exit-btn" href="' . esc($url) . '"';
+    echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">×</a>';
+}
+
+/** زر × ثابت — يسار الشاشة — للشاشات التي لا تعرض شريط عنوان Oracle. */
+function nav_render_floating_screen_exit(string $activeRoute = ''): void
+{
+    if ($activeRoute === '') {
+        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
+    }
+    if (in_array($activeRoute, ['dashboard', 'menu_hub', 'login', 'logout', 'favorites_empty'], true)) {
+        return;
+    }
+
+    $info = nav_screen_close_info($activeRoute);
+    $url = (string) ($info['url'] ?? nav_exit_url($activeRoute));
+    $hint = (string) ($info['hint'] ?? 'إغلاق والعودة');
+    require_once app_path('includes/app_window_manager.php');
+    if (app_mdi_is_embed_request()) {
+        $url = app_mdi_embed_url($url);
+    }
+
+    echo '<a class="app-floating-exit-btn ora12-title-bar__close no-print" href="' . esc($url) . '"';
     echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">×</a>';
 }

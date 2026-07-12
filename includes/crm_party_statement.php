@@ -161,6 +161,13 @@ function crm_party_statement_format_description(
 
         return $base;
     }
+    if ($txn === 'purchase_invoice') {
+        if ($isCredit) {
+            return 'فاتورة شراء ذمم';
+        }
+
+        return 'فاتورة شراء نقدي';
+    }
     if (in_array($txn, ['cash_receipt', 'receipt_voucher'], true)) {
         if ($isCheck) {
             return 'دفعة - شيك';
@@ -296,7 +303,7 @@ function crm_party_statement_balance_to_columns(string $partyType, float $balanc
  * مدين/دائن العرض في كشف الحساب حسب نوع الحركة (قواعد المحاسبة):
  * عميل: فاتورة بيع → مدين | مرتجع بيع → دائن | قبض/صرف → دائن
  * مورد: فاتورة شراء → دائن | مردود شراء → مدين | قبض/صرف → مدين
- * الحركات النقدية (مدين=دائن) لا تُعرض — لا أثر على الذمة.
+ * الحركات النقدية (مدين=دائن) تُعرض للفواتير والمرتجعات فقط — بلا أثر على الذمة.
  *
  * @return array{debit:float,credit:float,skip:bool}
  */
@@ -311,9 +318,9 @@ function crm_party_statement_row_display_amounts(
     $pay = strtolower(trim($paymentType));
     $txn = strtolower(trim($txnType));
 
-    // فاتورة بيع/مرتجع نقدي: مسجّلة مدين=دائن في الدفتر — تُعرض في الكشف دون تغيير الرصيد
+    // فاتورة/مرتجع نقدي: مسجّلة مدين=دائن في الدفتر — تُعرض في الكشف دون تغيير الرصيد
     if ($pay === 'cash' && abs($debit - $credit) < $eps && ($debit > $eps || $credit > $eps)) {
-        if (in_array($txn, ['sale_invoice', 'sale_return'], true)) {
+        if (in_array($txn, ['sale_invoice', 'sale_return', 'purchase_invoice', 'purchase_return'], true)) {
             return ['debit' => $debit, 'credit' => $credit, 'skip' => false];
         }
 

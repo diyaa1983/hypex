@@ -225,7 +225,7 @@
         if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
             return;
         }
-        if (anchor.closest('.ora12-title-bar__close, .hr-ora-title-bar__close, .nav-exit-btn')) {
+        if (anchor.closest('.ora12-title-bar__close, .hr-ora-title-bar__close, .nav-exit-btn, .app-floating-exit-btn, .app-screen-exit-btn')) {
             return;
         }
         if (!pageHasAnyUnsaved()) {
@@ -624,11 +624,11 @@
             return;
         }
 
-        var closeLink = e.target.closest('.ora12-title-bar__close, .hr-ora-title-bar__close');
+        var closeLink = e.target.closest('.ora12-title-bar__close, .hr-ora-title-bar__close, .app-floating-exit-btn, .app-screen-exit-btn');
         if (!closeLink) {
             return;
         }
-        var href = closeLink.getAttribute('href') || resolveCloseUrl('');
+        var href = closeLink.getAttribute('href') || resolveExitUrl();
         if (!href) {
             return;
         }

@@ -419,11 +419,16 @@ body.app-body--wco .app-titlebar__title--wco {
   pointer-events: none;
 }
 
-/* زر الإغلاق في الترويسة — إخفاء النسخة داخل الشريط الأزرق */
-body:not(.app-body--embed) .dashboard-ora-screen-title > .ora12-title-bar__close:not(.app-header-back),
-body:not(.app-body--embed) .app-screen-title-bar > .ora12-title-bar__close,
-body:not(.app-body--embed) .dashboard-ora-screen-title .ora12-title-bar__controls {
-  display: none !important;
+/* زر × — يسار الشاشة (RTL: inset-inline-end) */
+
+.dashboard-ora-screen-title > .ora12-title-bar__close,
+.dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+.report-ora12-screen-title > .ora12-title-bar__close,
+.report-ora12-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+.app-screen-title-bar > .ora12-title-bar__close {
+  order: -1;
+  margin-inline-end: auto;
+  margin-inline-start: 0;
 }
 
 .app-shell-body {

@@ -190,13 +190,11 @@ body:has(.dashboard-ora) .main-content {
   background: var(--ora12-surface);
 }
 
-.dashboard-ora-panel:has(.dashboard-ora-kpi--uniform),
-.dashboard-ora-panel:has(.dashboard-ora-kpi--has-tip) {
+.dashboard-ora-panel:has(.dashboard-ora-kpi--uniform) {
   overflow: visible;
 }
 
-.dashboard-ora-panel:has(.dashboard-ora-kpi--uniform) .dashboard-ora-panel__body,
-.dashboard-ora-panel:has(.dashboard-ora-kpi--has-tip) .dashboard-ora-panel__body {
+.dashboard-ora-panel:has(.dashboard-ora-kpi--uniform) .dashboard-ora-panel__body {
   overflow: visible;
 }
 
@@ -295,31 +293,16 @@ button.dashboard-ora-kpi {
   text-overflow: unset;
 }
 
-/* تفاصيل عند المرور */
-.dashboard-ora-kpi--has-tip,
+/* مربعات موحّدة + تفاصيل عند المرور */
 .dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--uniform,
 .dashboard-ora-kpi-grid--liabilities .dashboard-ora-kpi--uniform {
   position: relative;
+  min-height: 4.9rem;
+  height: auto;
   overflow: visible;
   z-index: 1;
 }
 
-article.dashboard-ora-kpi--has-tip {
-  cursor: help;
-}
-
-a.dashboard-ora-kpi--has-tip {
-  cursor: pointer;
-}
-
-.dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--uniform,
-.dashboard-ora-kpi-grid--liabilities .dashboard-ora-kpi--uniform {
-  min-height: 4.9rem;
-  height: auto;
-}
-
-.dashboard-ora-kpi--has-tip:hover,
-.dashboard-ora-kpi--has-tip:focus-within,
 .dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--uniform:hover,
 .dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--uniform:focus-within,
 .dashboard-ora-kpi-grid--liabilities .dashboard-ora-kpi--uniform:hover,
@@ -354,8 +337,6 @@ a.dashboard-ora-kpi--has-tip {
   height: 0.4rem;
 }
 
-.dashboard-ora-kpi--has-tip:hover .dashboard-ora-kpi-tip,
-.dashboard-ora-kpi--has-tip:focus-within .dashboard-ora-kpi-tip,
 .dashboard-ora-kpi--uniform:hover .dashboard-ora-kpi-tip,
 .dashboard-ora-kpi--uniform:focus-within .dashboard-ora-kpi-tip {
   opacity: 1;
