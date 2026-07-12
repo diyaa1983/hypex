@@ -62,7 +62,7 @@ return [
                         ],
                         [
                             'id' => 'reports',
-                            'title' => 'التقارير',
+                            'title' => 'تقارير سند التسليم',
                             'items' => [
                                 ['r' => 'report_sales_delivery', 'label' => 'تقرير سندات البضاعة', 'icon' => '📦'],
                             ],
@@ -84,7 +84,7 @@ return [
                         ],
                         [
                             'id' => 'reports',
-                            'title' => 'التقارير',
+                            'title' => 'تقارير مرتجعات المبيعات',
                             'items' => [
                                 ['r' => 'report_sales_returns', 'label' => 'تقرير المرتجعات', 'icon' => '↩️'],
                                 ['r' => 'report_sales_returns_totals', 'label' => 'إجمالي المرتجعات', 'icon' => '∑'],
@@ -94,7 +94,7 @@ return [
                 ],
                 [
                     'id' => 'reports',
-                    'title' => 'التقارير',
+                    'title' => 'تقارير المبيعات',
                     'items' => [
                         ['r' => 'report_sales', 'label' => 'تقرير المبيعات الشهري حسب العميل', 'icon' => '📈'],
                         ['r' => 'report_sales_between_dates', 'label' => 'تقرير المبيعات بين تاريخين', 'icon' => '📆'],
@@ -118,7 +118,7 @@ return [
                 ],
                 [
                     'id' => 'reports',
-                    'title' => 'التقارير',
+                    'title' => 'تقارير العملاء',
                     'items' => [
                         ['r' => 'report_customers', 'label' => 'تقرير العملاء', 'icon' => '👥'],
                     ],
@@ -138,7 +138,7 @@ return [
                 ],
                 [
                     'id' => 'reports',
-                    'title' => 'التقارير',
+                    'title' => 'تقارير المندوبين',
                     'items' => [
                         ['r' => 'report_sales_by_rep', 'label' => 'تقرير المبيعات حسب المندوب', 'icon' => '📊'],
                     ],
@@ -269,7 +269,7 @@ return [
                 ],
                 [
                     'id' => 'reports',
-                    'title' => 'التقارير',
+                    'title' => 'تقارير المحاسبة',
                     'items' => [
                         ['r' => 'report_vouchers', 'label' => 'تقرير سندات القبض / الصرف', 'icon' => '📒'],
                         ['r' => 'report_cancelled_vouchers', 'label' => 'قائمة السندات الملغاة', 'icon' => '🚫'],
