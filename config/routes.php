@@ -257,6 +257,12 @@ return [
         'title' => 'إغلاق الأشهر المحاسبية',
         'hide_screen_title' => true,
     ],
+    'acc_year_close' => [
+        'file' => 'modules/accounting/year_close.php',
+        'permission' => 'acc_year_close',
+        'title' => 'إقفال السنة المالية',
+        'hide_screen_title' => true,
+    ],
     'inventory_align_warehouse' => [
         'file' => 'modules/accounting/inventory_align_warehouse.php',
         'permission' => 'inventory_align_warehouse',

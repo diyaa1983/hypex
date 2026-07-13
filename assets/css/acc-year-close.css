@@ -1,0 +1,223 @@
+/* إقفال السنة المالية — Oracle 12c */
+
+.acc-year-close-ora .dashboard-ora-toolbar {
+  flex-wrap: wrap;
+}
+
+.acc-year-close-ora .acc-year-close-year-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  margin-inline-start: auto;
+}
+
+.acc-year-close-ora .acc-year-close-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.acc-year-close-ora .acc-year-close-field-label + .input-compact {
+  min-width: 5.5rem;
+  min-height: 1.6rem;
+  font-size: 0.72rem;
+}
+
+.acc-year-close-ora .acc-year-close-intro p {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--ora12-text);
+}
+
+.acc-year-close-ora .acc-year-close-intro p:last-child {
+  margin-bottom: 0;
+}
+
+.acc-year-close-ora .acc-year-close-intro-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.acc-year-close-ora .dashboard-ora-btn--primary {
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border-color: #024d8f;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+}
+
+.acc-year-close-ora .dashboard-ora-btn--primary:hover {
+  color: #fff;
+  background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+  border-color: #024d8f;
+}
+
+.acc-year-close-ora .dashboard-ora-btn--reopen {
+  color: #6b4f00;
+  border-color: #e0a800;
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.acc-year-close-ora .dashboard-ora-btn--reopen:hover {
+  background: linear-gradient(180deg, #fff 0%, #fde68a 100%);
+  border-color: #d48806;
+}
+
+.acc-year-close-ora .acc-year-close-table thead th,
+.acc-year-close-ora .acc-year-close-table tbody td,
+.acc-year-close-ora .acc-year-close-preview-table thead th,
+.acc-year-close-ora .acc-year-close-preview-table tbody td {
+  font-weight: 700;
+}
+
+.acc-year-close-ora .acc-year-close-table tr.is-closed td {
+  color: #b45309;
+}
+
+.acc-year-close-ora .acc-year-close-table tr.is-open td {
+  color: #15803d;
+}
+
+.acc-year-close-ora .acc-year-close-table tr.is-legacy td {
+  color: var(--ora12-muted);
+}
+
+.acc-year-close-ora .acc-year-close-table tr.is-selected td {
+  background: #eff6ff;
+}
+
+.acc-year-close-ora .acc-year-close-table tr.is-current-year td {
+  background: #f0fdf4;
+}
+
+.acc-year-close-ora .acc-year-close-col-actions {
+  width: 118px;
+  text-align: center;
+}
+
+.acc-year-close-ora .acc-year-close-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.acc-year-close-ora .acc-year-close-inline-form {
+  display: inline;
+  margin: 0;
+}
+
+.acc-year-close-ora .acc-year-close-muted {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ora12-muted);
+}
+
+.acc-year-close-ora .acc-year-close-tag {
+  display: inline-block;
+  margin-inline-start: 0.25rem;
+  padding: 0.1rem 0.42rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
+  background: #f3f5f7;
+  color: var(--ora12-muted);
+}
+
+.acc-year-close-ora .acc-year-close-tag--current {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.acc-year-close-ora .acc-year-close-tag--closed {
+  background: #ffedd5;
+  border-color: #fdba74;
+  color: #c2410c;
+}
+
+.acc-year-close-ora .acc-year-close-tag--open {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.acc-year-close-ora .acc-year-close-tag--legacy {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #6b7280;
+}
+
+.acc-year-close-ora .acc-year-close-panel--error .dashboard-ora-panel__title {
+  background: linear-gradient(180deg, #e85d4c 0%, #c74634 48%, #9e2b2b 100%);
+  border-bottom-color: #9e2b2b;
+}
+
+.acc-year-close-ora .acc-year-close-panel--warn .dashboard-ora-panel__title {
+  background: linear-gradient(180deg, #e8a317 0%, #d48806 48%, #a16207 100%);
+  border-bottom-color: #a16207;
+}
+
+.acc-year-close-ora .acc-year-close-msg-list {
+  margin: 0;
+  padding-inline-start: 1.2rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.acc-year-close-ora .acc-year-close-preview-table .col-money {
+  text-align: left;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.acc-year-close-ora .acc-year-close-preview-table code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ora12-link);
+  background: transparent;
+  padding: 0;
+}
+
+.acc-year-close-ora .alert {
+  margin: 0;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 2px;
+  border: 1px solid;
+}
+
+.acc-year-close-ora .alert-success {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.acc-year-close-ora .alert-error {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+@media (max-width: 720px) {
+  .acc-year-close-ora .acc-year-close-year-form {
+    margin-inline-start: 0;
+    width: 100%;
+  }
+
+  .acc-year-close-ora .acc-year-close-col-actions {
+    width: auto;
+  }
+}

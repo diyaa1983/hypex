@@ -5,7 +5,7 @@ declare(strict_types=1);
  * ضبط شجرة حسابات شركة صغيرة + ربط الترحيل التلقائي (قابل للتعديل لاحقاً من الشاشة).
  * يُشغَّل تلقائياً عند ترقية الإصدار، أو يدوياً من «ربط الحسابات».
  */
-const ACC_COA_BOOTSTRAP_VERSION = 8;
+const ACC_COA_BOOTSTRAP_VERSION = 9;
 
 require_once app_path('includes/acc_account_tree.php');
 require_once app_path('includes/acc_gl.php');
@@ -2064,6 +2064,7 @@ function acc_coa_bootstrap_account_specs(): array
         ['code' => '23', 'name_ar' => 'رواتب مستحقة', 'parent_code' => '2', 'account_type' => 'liability', 'is_leaf' => true, 'sort_order' => 30],
         ['code' => '2007', 'name_ar' => 'ضريبة دخل مستحقة', 'parent_code' => '2', 'account_type' => 'liability', 'is_leaf' => true, 'sort_order' => 27],
         ['code' => '31', 'name_ar' => 'رأس المال', 'parent_code' => '3', 'account_type' => 'equity', 'is_leaf' => true, 'sort_order' => 10],
+        ['code' => '32', 'name_ar' => 'أرباح محتجزة', 'parent_code' => '3', 'account_type' => 'equity', 'is_leaf' => true, 'sort_order' => 20],
         ['code' => '41', 'name_ar' => 'إيرادات المبيعات', 'parent_code' => '4', 'account_type' => 'revenue', 'is_leaf' => true, 'sort_order' => 10],
         ['code' => '42', 'name_ar' => 'مردودات المبيعات', 'parent_code' => '4', 'account_type' => 'revenue', 'is_leaf' => true, 'sort_order' => 20],
         ['code' => '51', 'name_ar' => 'مشتريات وتوريدات', 'parent_code' => '5', 'account_type' => 'expense', 'is_leaf' => true, 'sort_order' => 10],
@@ -2300,6 +2301,14 @@ function acc_coa_bootstrap_run(PDO $pdo, bool $forceRemap = false): array
             'account_type' => 'liability',
             'sort_order' => 27,
             'role_keywords' => ['ضريبة', 'دخل', 'مستحق'],
+        ]),
+        'retained_earnings' => $resolve([
+            'code' => '32',
+            'name_ar' => 'أرباح محتجزة',
+            'parent_code' => '3',
+            'account_type' => 'equity',
+            'sort_order' => 20,
+            'role_keywords' => ['أرباح', 'محتجز'],
         ]),
     ];
 
@@ -2611,6 +2620,7 @@ function acc_coa_bootstrap_ensure_posting_rules(PDO $pdo): void
         ['hr_employee_advance_payable', 'سلف موظفين مستحقة الصرف', 'دائن عند اعتماد السلفة — مدين عند صرف النقد من المحاسبة', 89],
         ['hr_income_tax', 'ضريبة دخل مستحقة', 'دائن عند ترحيل الرواتب — اقتطاع ضريبة الدخل من الموظف', 88],
         ['purchase_returns', 'مردودات المشتريات', 'دائن عند مردود شراء (إن وُجد حساب مخصص)', 56],
+        ['retained_earnings', 'أرباح محتجزة', 'دائن عند إقفال السنة المالية — صافي الربح المحوّل من الإيرادات والمصروفات', 12],
     ];
     $st = $pdo->prepare(
         'INSERT IGNORE INTO acc_posting_setting (rule_code, label_ar, hint_ar, sort_order) VALUES (?,?,?,?)'

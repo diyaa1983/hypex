@@ -120,6 +120,13 @@ function acc_period_date_lock_error(PDO $pdo, string $dateIso): ?string
     }
     $year = (int) date('Y', $ts);
     $month = (int) date('n', $ts);
+
+    require_once app_path('includes/acc_year_close.php');
+    $fiscalErr = acc_fiscal_year_date_lock_error($pdo, $dateIso);
+    if ($fiscalErr !== null) {
+        return $fiscalErr;
+    }
+
     if (!acc_period_month_is_locked($pdo, $year, $month)) {
         return null;
     }
@@ -143,7 +150,10 @@ function acc_period_save_year_locks(PDO $pdo, int $year, array $locks, ?int $use
         throw new RuntimeException('السنة غير صالحة.');
     }
 
-    $pdo->beginTransaction();
+    $ownTransaction = !$pdo->inTransaction();
+    if ($ownTransaction) {
+        $pdo->beginTransaction();
+    }
     try {
         $st = $pdo->prepare(
             'INSERT INTO acc_accounting_period (period_year, period_month, is_locked, updated_by, updated_at)
@@ -154,9 +164,11 @@ function acc_period_save_year_locks(PDO $pdo, int $year, array $locks, ?int $use
             $locked = !empty($locks[$m]) ? 1 : 0;
             $st->execute([$year, $m, $locked, $userId]);
         }
-        $pdo->commit();
+        if ($ownTransaction) {
+            $pdo->commit();
+        }
     } catch (Throwable $e) {
-        if ($pdo->inTransaction()) {
+        if ($ownTransaction && $pdo->inTransaction()) {
             $pdo->rollBack();
         }
         throw $e;

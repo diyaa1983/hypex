@@ -265,6 +265,7 @@ return [
                         ['r' => 'fin_outgoing_checks', 'label' => 'سجل الشيكات الصادرة', 'icon' => '📤'],
                         ['r' => 'report_general_ledger', 'label' => 'دفتر الأستاذ العام', 'icon' => '📖'],
                         ['r' => 'acc_period_close', 'label' => 'إغلاق الأشهر المحاسبية', 'icon' => '🔒'],
+                        ['r' => 'acc_year_close', 'label' => 'إقفال السنة المالية', 'icon' => '📅'],
                     ],
                 ],
                 [
