@@ -266,9 +266,6 @@ if ($action === 'add' || $action === 'edit' || $action === 'view') {
                 <?php if ($checkUndo !== null): ?>
                     <button type="button" class="dashboard-ora-btn dashboard-ora-btn--danger" id="journal-check-undo-btn"><?= esc($checkUndo['label']) ?></button>
                 <?php endif; ?>
-                <?php if ($readOnly): ?>
-                    <button type="button" class="dashboard-ora-btn" id="journal-entry-print-btn">طباعة</button>
-                <?php endif; ?>
             </div>
 
             <?php if ($flash): ?>
