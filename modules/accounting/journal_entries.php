@@ -376,9 +376,7 @@ $listFrom = acc_journal_list_from_sql();
 $sql = 'SELECT e.id, e.entry_no, e.entry_date, e.created_at, e.description_ar, e.status,
                e.created_by, e.updated_by,
                u_creator.full_name_ar AS created_by_name,
-               u_updater.full_name_ar AS updated_by_name,
-               COALESCE(SUM(l.debit), 0) AS total_debit,
-               COALESCE(SUM(l.credit), 0) AS total_credit
+               u_updater.full_name_ar AS updated_by_name
         ' . $listFrom . '
         WHERE 1=1' . $searchClause['where'] . $dateClause['where'];
 $params = array_merge($searchClause['params'], $dateClause['params']);
@@ -490,15 +488,13 @@ $screenExitUrl = journal_entries_screen_exit_url($activeRoute ?? 'journal_entrie
                             <th><?= acc_journal_list_sort_th_html('تاريخ القيد', 'entry_date', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
                             <th><?= acc_journal_list_sort_th_html('تاريخ الإنشاء', 'created_at', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
                             <th><?= acc_journal_list_sort_th_html('البيان', 'description_ar', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
-                            <th><?= acc_journal_list_sort_th_html('مدين', 'total_debit', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
-                            <th><?= acc_journal_list_sort_th_html('دائن', 'total_credit', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
                             <th><?= acc_journal_list_sort_th_html('الحالة', 'status', 'journal_entries', $listPagerQuery, $sortColumn, $sortDir) ?></th>
                             <th>إجراءات</th>
                         </tr>
                         </thead>
                         <tbody>
                         <?php if (!$rows): ?>
-                            <tr><td colspan="8" class="dashboard-ora-empty">لا توجد قيود بعد.</td></tr>
+                            <tr><td colspan="6" class="dashboard-ora-empty">لا توجد قيود بعد.</td></tr>
                         <?php endif; ?>
                         <?php foreach ($rows as $e):
                             $st = (string) ($e['status'] ?? 'draft');
@@ -525,8 +521,6 @@ $screenExitUrl = journal_entries_screen_exit_url($activeRoute ?? 'journal_entrie
                                 <td><?= esc(format_date_dmY((string) $e['entry_date'])) ?></td>
                                 <td><?= esc($createdDisplay) ?></td>
                                 <td><?= esc((string) ($e['description_ar'] ?? '')) ?></td>
-                                <td class="col-money"><?= esc(format_money((float) $e['total_debit'])) ?></td>
-                                <td class="col-money"><?= esc(format_money((float) $e['total_credit'])) ?></td>
                                 <td><span class="je-ora-status je-ora-status--<?= esc($st) ?>"><?= esc(acc_journal_status_label($st)) ?></span></td>
                                 <td>
                                     <div class="row-actions">

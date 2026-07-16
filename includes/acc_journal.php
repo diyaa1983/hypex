@@ -1045,7 +1045,7 @@ function acc_journal_list_from_sql(): string
 /** @return list<string> */
 function acc_journal_list_sort_columns(): array
 {
-    return ['entry_no', 'entry_date', 'created_at', 'description_ar', 'total_debit', 'total_credit', 'status'];
+    return ['entry_no', 'entry_date', 'created_at', 'description_ar', 'status'];
 }
 
 function acc_journal_list_normalize_sort(string $sort): string
@@ -1068,8 +1068,6 @@ function acc_journal_list_order_clause(string $sort, string $dir): string
         'entry_date' => 'e.entry_date',
         'created_at' => 'e.created_at',
         'description_ar' => 'e.description_ar',
-        'total_debit' => 'total_debit',
-        'total_credit' => 'total_credit',
         'status' => 'e.status',
     ];
 
