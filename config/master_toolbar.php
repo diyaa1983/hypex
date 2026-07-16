@@ -390,7 +390,6 @@ return [
                 'hr_employee_overtime',
                 'hr_overtime_settings',
                 'hr_payroll_posting',
-                'journal_entries',
                 'journal_voucher',
                 'sales_invoice_gps',
                 'user_gps_locations',
