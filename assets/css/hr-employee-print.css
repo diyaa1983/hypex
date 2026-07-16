@@ -21,6 +21,11 @@
         box-shadow: none;
         margin: 0;
         max-width: none;
+        padding: 0;
+    }
+
+    .hr-emp-print-section {
+        break-inside: avoid;
     }
 }
 
@@ -28,71 +33,133 @@
     margin: 0;
     padding: 1rem;
     font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     color: #111;
     background: #f1f5f9;
 }
 
 .hr-emp-print-doc {
-    max-width: 760px;
+    max-width: 800px;
     margin: 0 auto;
     background: #fff;
     border: 1px solid #cbd5e1;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-    padding: 1.2rem 1.4rem 1.4rem;
+    padding: 1rem 1.15rem 1.2rem;
 }
 
-.hr-emp-print-section + .hr-emp-print-section,
-.hr-emp-print-notes {
-    margin-top: 0.85rem;
+.hr-emp-print-section {
+    margin-top: 0.75rem;
 }
 
-.hr-emp-print-section h3,
-.hr-emp-print-notes h3 {
-    margin: 0 0 0.4rem;
-    font-size: 0.95rem;
+.hr-emp-print-section:first-of-type {
+    margin-top: 0.35rem;
+}
+
+.hr-emp-print-section--group {
+    padding: 0.35rem 0.45rem 0.55rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+}
+
+.hr-emp-print-group-title {
+    margin: 0 0 0.45rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.hr-emp-print-subsection {
+    margin-top: 0.55rem;
+}
+
+.hr-emp-print-subsection:first-of-type {
+    margin-top: 0;
+}
+
+.hr-emp-print-subsection h3 {
+    margin: 0 0 0.3rem;
+    padding: 0.22rem 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #334155;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-bottom: none;
+}
+
+.hr-emp-print-section h3 {
+    margin: 0 0 0.35rem;
+    padding: 0.28rem 0.45rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0f172a;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e1;
+    border-bottom: none;
 }
 
 .hr-emp-print-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
 }
 
 .hr-emp-print-table th,
 .hr-emp-print-table td {
     border: 1px solid #cbd5e1;
-    padding: 0.35rem 0.5rem;
+    padding: 0.32rem 0.45rem;
     text-align: right;
-    vertical-align: middle;
+    vertical-align: top;
+    line-height: 1.4;
+    word-break: break-word;
 }
 
 .hr-emp-print-table th {
-    width: 18%;
+    width: 16%;
     background: #f8fafc;
     font-weight: 700;
+    font-size: 0.78rem;
+    color: #334155;
+    white-space: nowrap;
+}
+
+.hr-emp-print-table td {
+    width: 34%;
+    font-size: 0.82rem;
+    color: #0f172a;
+}
+
+.hr-emp-print-row:nth-child(even) td {
+    background: #fcfdfe;
+}
+
+.hr-emp-print-row--full td {
+    width: auto;
+}
+
+.hr-emp-print-notes {
+    margin-top: 0.75rem;
 }
 
 .hr-emp-print-notes p {
     margin: 0;
-    padding: 0.55rem 0.65rem;
+    padding: 0.45rem 0.55rem;
     border: 1px solid #cbd5e1;
-    background: #f8fafc;
-    min-height: 2.4rem;
+    border-top: none;
+    background: #fff;
+    min-height: 0;
     white-space: pre-wrap;
+    font-size: 0.82rem;
+    line-height: 1.45;
 }
 
 .hr-emp-print-foot {
-    margin-top: 1rem;
-    padding-top: 0.55rem;
+    margin-top: 0.85rem;
+    padding-top: 0.45rem;
     border-top: 1px dashed #94a3b8;
     text-align: center;
     color: #64748b;
-    font-size: 0.82rem;
-}
-
-.hr-emp-print-foot-sep {
-    margin-inline: 0.35rem;
-    color: #94a3b8;
+    font-size: 0.78rem;
 }
 
 .hr-emp-print-actions {

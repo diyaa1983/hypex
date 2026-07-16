@@ -33,7 +33,7 @@ function report_ora12_route_enabled(string $route): bool
     if (str_starts_with($route, 'report_')) {
         return true;
     }
-    if (in_array($route, ['hr_payroll_ss_report', 'item_stock_movements'], true)) {
+    if (in_array($route, ['hr_payroll_ss_report', 'hr_payroll_income_tax_report', 'hr_payroll_bank_transfer_report', 'item_stock_movements'], true)) {
         return true;
     }
 

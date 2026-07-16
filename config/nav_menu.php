@@ -25,7 +25,7 @@ return [
                     'items' => [
                         ['code' => 'dashboard_kpi_sales', 'label' => 'مؤشرات المبيعات (إجمالي + الشهر + صافي)', 'icon' => '📈'],
                         ['code' => 'dashboard_kpi_purchases', 'label' => 'مؤشر المشتريات', 'icon' => '🛒'],
-                        ['code' => 'dashboard_kpi_cashflow', 'label' => 'مؤشرات المقبوضات والصرفيات', 'icon' => '💵'],
+                        ['code' => 'dashboard_kpi_cashflow', 'label' => 'مؤشرات المقبوضات', 'icon' => '💵'],
                         ['code' => 'dashboard_kpi_receivables', 'label' => 'مؤشر ذمم العملاء', 'icon' => '👤'],
                         ['code' => 'dashboard_kpi_payables', 'label' => 'مؤشر ذمم الموردين', 'icon' => '🏭'],
                         ['code' => 'dashboard_panel_treasury', 'label' => 'لوحة الصندوق والحسابات', 'icon' => '🏦'],
@@ -260,6 +260,7 @@ return [
                     'title' => 'المحاسبة',
                     'items' => [
                         ['r' => 'chart_of_accounts', 'label' => 'شجرة الحسابات', 'icon' => '🌳'],
+                        ['r' => 'acc_opening_balance', 'label' => 'الأرصدة الافتتاحية', 'icon' => '📥'],
                         ['r' => 'journal_entries', 'label' => 'القيود المحاسبية', 'icon' => '⚖'],
                         ['r' => 'fin_checks', 'label' => 'الشيكات الواردة', 'icon' => '📝'],
                         ['r' => 'fin_outgoing_checks', 'label' => 'سجل الشيكات الصادرة', 'icon' => '📤'],
@@ -395,6 +396,7 @@ return [
                             'title' => 'تقارير الإجازات',
                             'items' => [
                                 ['r' => 'report_hr_employee_leaves', 'label' => 'تقرير الإجازات بين تاريخين', 'icon' => '📊'],
+                                ['r' => 'report_hr_employee_leave_balances', 'label' => 'أرصدة الإجازات لجميع الموظفين', 'icon' => '📋'],
                             ],
                         ],
                     ],
@@ -420,6 +422,8 @@ return [
                                 ['r' => 'hr_payroll_month_report', 'label' => 'تقرير قيود الرواتب حسب الشهر', 'icon' => '🖨'],
                                 ['r' => 'hr_payroll_dept_report', 'label' => 'كشف الرواتب للأقسام', 'icon' => '📑'],
                                 ['r' => 'hr_payroll_ss_report', 'label' => 'كشف الضمان الاجتماعي', 'icon' => '🛡️'],
+                                ['r' => 'hr_payroll_income_tax_report', 'label' => 'كشف ضريبة الدخل', 'icon' => '🧮'],
+                                ['r' => 'hr_payroll_bank_transfer_report', 'label' => 'كشف تحويل الرواتب للبنوك', 'icon' => '🏦'],
                                 ['r' => 'hr_payroll_slip_report', 'label' => 'قسيمة الراتب', 'icon' => '🧾'],
                                 ['r' => 'report_hr_employee_advances', 'label' => 'تقرير سلف الموظفين', 'icon' => '💳'],
                             ],

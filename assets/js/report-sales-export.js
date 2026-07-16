@@ -47,6 +47,8 @@
     report_vat_net_payable: true,
     report_balance_sheet: true,
     hr_payroll_ss_report: true,
+    hr_payroll_income_tax_report: true,
+    hr_payroll_bank_transfer_report: true,
     report_tax_ar3: true,
     report_hr_employees: true,
   };
@@ -384,6 +386,7 @@
         '.report-sales-table{font-size:7.5pt!important;table-layout:fixed!important;width:100%!important;}' +
         '.report-sales-table th,.report-sales-table td{font-size:7.5pt!important;padding:2px 3px!important;line-height:1.15!important;}' +
         '.report-sales-table col.col-seq,.report-sales-table .col-seq{width:4mm!important;max-width:4mm!important;padding:2px 1px!important;text-align:center!important;}' +
+        '.report-sales-table col.col-date,.report-sales-table .col-date{width:16mm!important;min-width:16mm!important;max-width:16mm!important;white-space:nowrap!important;direction:ltr!important;unicode-bidi:embed!important;overflow:hidden!important;text-overflow:clip!important;}' +
         getSalesCustomerNamePrintCss() +
         '.report-sales-table col.col-inv-no{width:11%!important;}' +
         '.report-sales-table col.col-money{width:11%!important;}' +
@@ -1016,6 +1019,24 @@
       );
     }
 
+    function isHrEmployeesReport() {
+      return (page.getAttribute('data-report-route') || '') === 'report_hr_employees';
+    }
+
+    function getHrEmployeesPrintCss() {
+      return (
+        '.report-hr-employees-table{table-layout:fixed!important;width:100%!important;}' +
+        '.report-hr-employees-table col.col-seq,.report-hr-employees-table .col-seq{width:8mm!important;max-width:8mm!important;padding:2px 1px!important;text-align:center!important;white-space:nowrap!important;}' +
+        '.report-hr-employees-table col.col-inv-no,.report-hr-employees-table .col-inv-no{width:10mm!important;max-width:10mm!important;padding:2px 1px!important;text-align:center!important;white-space:nowrap!important;}' +
+        '.report-hr-employees-table thead th.col-seq,.report-hr-employees-table thead th.col-inv-no{white-space:normal!important;line-height:1.15!important;font-size:7pt!important;}' +
+        '.report-hr-employees-table .col-inv-no code{font-family:inherit!important;font-size:inherit!important;font-weight:700!important;background:none!important;border:0!important;padding:0!important;}' +
+        '.report-hr-employees-table .col-customer-name{text-align:start!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}' +
+        '.report-hr-employees-table col.col-date,.report-hr-employees-table .col-date{width:22mm!important;white-space:nowrap!important;}' +
+        '.report-hr-employees-table col.col-qty,.report-hr-employees-table .col-qty{width:20mm!important;white-space:nowrap!important;}' +
+        '.report-hr-employees-table col.col-status,.report-hr-employees-table .col-status{width:22mm!important;white-space:nowrap!important;}'
+      );
+    }
+
     function getPartyStatementPrintCss() {
       return (
         '.party-stmt-page .report-sales-print-area{font-size:8pt!important;}' +
@@ -1148,6 +1169,60 @@
         routeKey === 'report_tax_declaration' ||
         routeKey === 'report_vat_net_payable'
       );
+    }
+
+    function isHrPayrollIncomeTaxReport() {
+      var routeKey = page.getAttribute('data-report-route') || '';
+      return routeKey === 'hr_payroll_income_tax_report';
+    }
+
+    function getHrPayrollIncomeTaxPrintCss() {
+      return (
+        '@page{size:A4 portrait;margin:8mm 10mm 14mm 10mm;}' +
+        '.hr-pr-it-rpt-table{font-size:7pt!important;table-layout:fixed!important;width:100%!important;}' +
+        '.hr-pr-it-rpt-table th,.hr-pr-it-rpt-table td{padding:2px 3px!important;line-height:1.15!important;}' +
+        '.hr-pr-it-rpt-table col.col-seq{width:5mm!important;}' +
+        '.hr-pr-it-rpt-table col.col-emp-code{width:11mm!important;}' +
+        '.hr-pr-it-rpt-table col.col-emp-name{width:30%!important;}' +
+        '.hr-pr-it-rpt-table .col-seq{width:5mm!important;max-width:5mm!important;padding:1px!important;text-align:center!important;}' +
+        '.hr-pr-it-rpt-table .col-emp-code{width:11mm!important;max-width:11mm!important;padding:1px 2px!important;text-align:center!important;font-weight:800!important;color:#1e3a8a!important;background:#f8fafc!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.hr-pr-it-rpt-table thead th.col-emp-code{background:#dbeafe!important;color:#1e3a8a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.hr-pr-it-rpt-table .col-emp-name,.hr-pr-it-rpt-table .hr-pr-it-rpt-emp-name{white-space:nowrap!important;overflow:hidden!important;word-break:keep-all!important;text-overflow:clip!important;}' +
+        '.hr-pr-it-rpt-table .col-emp-code,.hr-pr-it-rpt-table .col-national-id,.hr-pr-it-rpt-table .col-marital,.hr-pr-it-rpt-table .col-count,.hr-pr-it-rpt-table td.col-money{white-space:nowrap!important;}'
+      );
+    }
+
+    function fitHrPayrollIncomeTaxReportNames(doc) {
+      doc = doc || document;
+      var cells = doc.querySelectorAll('.hr-pr-it-rpt-table .col-emp-name');
+      if (!cells.length) return;
+      cells.forEach(function (td) {
+        var el = td.querySelector('.hr-pr-it-rpt-emp-name');
+        if (!el) {
+          el = doc.createElement('span');
+          el.className = 'hr-pr-it-rpt-emp-name';
+          el.textContent = (td.textContent || '').trim();
+          td.textContent = '';
+          td.appendChild(el);
+        }
+        td.style.whiteSpace = 'nowrap';
+        td.style.overflow = 'hidden';
+        el.style.display = 'inline-block';
+        el.style.whiteSpace = 'nowrap';
+        el.style.wordBreak = 'keep-all';
+        el.style.maxWidth = '100%';
+        el.style.verticalAlign = 'middle';
+        var pt = 8;
+        el.style.fontSize = pt + 'pt';
+        var guard = 0;
+        var cellW = td.clientWidth || td.offsetWidth;
+        if (cellW < 8) return;
+        while (el.scrollWidth > cellW && pt > 6 && guard < 40) {
+          pt -= 0.15;
+          el.style.fontSize = pt + 'pt';
+          guard += 1;
+        }
+      });
     }
 
     function getHrTaxAr3PrintCss() {
@@ -1297,6 +1372,7 @@
       var receivablesAgingPrintCss = getReceivablesAgingPrintCss();
       var customersPageCss =
         routeKey === 'report_customers' ? getCustomersPageCss() : '';
+      var hrEmployeesPrintCss = isHrEmployeesReport() ? getHrEmployeesPrintCss() : '';
       var partyStatementPrintCss = isPartyStatementReport()
         ? getPartyStatementPrintCss()
         : '';
@@ -1346,6 +1422,7 @@
       var itemStockPrint = isItemStockLedgerReport();
       var incomingChecksPrint = isVoucherChecksReport();
       var trialBalancePrint = isTrialBalanceReportRoute(routeKey);
+      var incomeTaxPrint = isHrPayrollIncomeTaxReport();
       var vatNetPrint = isVatNetPayableReport(routeKey);
       var bodyMarginTop = trialBalancePrint ? '0' : '6mm';
       var bodyMarginSides = summaryPrint ? '5mm' : itemStockPrint ? '5mm' : agingPrint ? '5mm' : trialBalancePrint ? '0' : '12mm';
@@ -1365,6 +1442,7 @@
         receivablesSummaryCss +
         receivablesAgingPrintCss +
         customersPageCss +
+        hrEmployeesPrintCss +
         partyStatementPrintCss +
         accSummaryPrintCss +
         hrTaxAr3PrintCss +
@@ -1440,6 +1518,7 @@
         reportSalesByItemCss +
         reportDeliveryCss +
         reportSalesReturnsCss +
+        (incomeTaxPrint ? getHrPayrollIncomeTaxPrintCss() : '') +
         getPdfCaptureSafetyCss(pdfOrientation)
       );
     }
@@ -1682,8 +1761,12 @@
         prefix = 'incoming-checks-detail';
       } else if (routeKey === 'report_outgoing_checks') {
         prefix = 'outgoing-checks';
-      } else if (routeKey === 'hr_payroll_ss_report') {
-        prefix = 'ss-report';
+      } else if (routeKey === 'hr_payroll_ss_report' || routeKey === 'hr_payroll_income_tax_report' || routeKey === 'hr_payroll_bank_transfer_report') {
+        prefix = routeKey === 'hr_payroll_income_tax_report'
+            ? 'income-tax-report'
+            : routeKey === 'hr_payroll_bank_transfer_report'
+              ? 'bank-transfer-report'
+              : 'ss-report';
       } else if (routeKey === 'report_tax_ar3') {
         prefix = 'tax-ar3';
       } else if (routeKey === 'report_receivables_aging') {
@@ -1728,11 +1811,12 @@
       var purchasesFit = isPurchasesAllSuppliersReport();
       var itemStockFit = isItemStockLedgerReport();
       var incomingChecksFit = isVoucherChecksReport();
-      var needsFit = summaryFit || salesFit || deliveryFit || salesItemFit || purchasesFit || itemStockFit || incomingChecksFit;
+      var incomeTaxFit = isHrPayrollIncomeTaxReport();
+      var needsFit = summaryFit || salesFit || deliveryFit || salesItemFit || purchasesFit || itemStockFit || incomingChecksFit || incomeTaxFit;
       var frameLayoutW = frame.style.width;
       var frameLayoutH = frame.style.height;
       if (needsFit) {
-        frame.style.width = '210mm';
+        frame.style.width = itemStockFit ? '297mm' : '210mm';
         frame.style.height = '1px';
       }
       win.document.open();
@@ -1773,6 +1857,12 @@
               fitIncomingChecksReportCells(win.document);
             }, 0);
           }
+          if (incomeTaxFit) {
+            fitHrPayrollIncomeTaxReportNames(win.document);
+            setTimeout(function () {
+              fitHrPayrollIncomeTaxReportNames(win.document);
+            }, 0);
+          }
           win.focus();
           win.print();
         } catch (e) {}
@@ -1786,8 +1876,8 @@
         var routeKey = page.getAttribute('data-report-route') || '';
         if (routeKey === 'report_general_ledger' || routeKey === 'report_account_statement') {
           alertMsg('اختر حساباً وحدّد الفترة ثم اضغط «عرض».');
-        } else if (routeKey === 'hr_payroll_ss_report') {
-          alertMsg('اختر السنة والشهر المرحّل ثم اضغط «عرض الكشف».');
+        } else if (routeKey === 'hr_payroll_ss_report' || routeKey === 'hr_payroll_income_tax_report' || routeKey === 'hr_payroll_bank_transfer_report') {
+          alertMsg('اختر السنة' + (routeKey === 'hr_payroll_income_tax_report' ? ' ونوع الكشف' : '') + ' والشهر المرحّل ثم اضغط «عرض الكشف».');
         } else if (routeKey === 'report_tax_ar3') {
           alertMsg('اختر السنة الضريبية والموظف ثم اضغط «عرض الشهادة».');
         } else if (routeKey === 'report_purchases') {
@@ -1906,8 +1996,8 @@
       if (routeKey === 'report_general_ledger' || routeKey === 'report_account_statement') {
         return 'اختر حساباً وحدّد الفترة ثم اضغط «عرض».';
       }
-      if (routeKey === 'hr_payroll_ss_report') {
-        return 'اختر السنة والشهر المرحّل ثم اضغط «عرض الكشف».';
+      if (routeKey === 'hr_payroll_ss_report' || routeKey === 'hr_payroll_income_tax_report' || routeKey === 'hr_payroll_bank_transfer_report') {
+        return 'اختر السنة' + (routeKey === 'hr_payroll_income_tax_report' ? ' ونوع الكشف' : '') + ' والشهر المرحّل ثم اضغط «عرض الكشف».';
       }
       if (routeKey === 'report_tax_ar3') {
         return 'اختر السنة الضريبية والموظف ثم اضغط «عرض الشهادة».';
@@ -2257,6 +2347,9 @@
         if (isVoucherChecksReport()) {
           fitIncomingChecksReportCells(host);
         }
+        if (isHrPayrollIncomeTaxReport()) {
+          fitHrPayrollIncomeTaxReportNames(host);
+        }
         if (done) done();
       }
 
@@ -2291,8 +2384,8 @@
         var routeKey = page.getAttribute('data-report-route') || '';
         if (routeKey === 'report_general_ledger' || routeKey === 'report_account_statement') {
           alertMsg('اختر حساباً وحدّد الفترة ثم اضغط «عرض».');
-        } else if (routeKey === 'hr_payroll_ss_report') {
-          alertMsg('اختر السنة والشهر المرحّل ثم اضغط «عرض الكشف».');
+        } else if (routeKey === 'hr_payroll_ss_report' || routeKey === 'hr_payroll_income_tax_report' || routeKey === 'hr_payroll_bank_transfer_report') {
+          alertMsg('اختر السنة' + (routeKey === 'hr_payroll_income_tax_report' ? ' ونوع الكشف' : '') + ' والشهر المرحّل ثم اضغط «عرض الكشف».');
         } else if (routeKey === 'report_tax_ar3') {
           alertMsg('اختر السنة الضريبية والموظف ثم اضغط «عرض الشهادة».');
         } else if (routeKey === 'report_purchases') {

@@ -66,6 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $nameFamily = trim((string) ($_POST['name_family'] ?? ''));
             $name = hr_employee_build_full_name($nameFirst, $nameFather, $nameGrandfather, $nameFamily);
             $nid = trim((string) ($_POST['national_id'] ?? ''));
+            $birthDate = trim((string) ($_POST['birth_date'] ?? ''));
+            $birthDateVal = $birthDate !== '' ? $birthDate : null;
             $gender = trim((string) ($_POST['gender'] ?? ''));
             if ($gender !== '' && !in_array($gender, ['male', 'female'], true)) {
                 $gender = '';
@@ -183,7 +185,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($id > 0) {
                 $st = $pdo->prepare(
                     'UPDATE hr_employee SET emp_code = ?, name_ar = ?, name_first = ?, name_father = ?, name_grandfather = ?, name_family = ?,
-                     national_id = ?, gender = ?, is_married = ?, nationality_id = ?,
+                     national_id = ?, birth_date = ?, gender = ?, is_married = ?, nationality_id = ?,
                      phone = ?, email = ?, address_ar = ?, address_city = ?, address_district = ?,
                      job_title = ?, job_title_id = ?, department = ?, department_id = ?,
                      hire_date = ?, resignation_date = ?, base_salary = ?, social_security_no = ?,
@@ -191,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 $st->execute([
                     $code, $name, $nameFirst, $nameFather, $nameGrandfather, $nameFamily,
-                    $nid !== '' ? $nid : null, $gender !== '' ? $gender : null, $isMarried,
+                    $nid !== '' ? $nid : null, $birthDateVal, $gender !== '' ? $gender : null, $isMarried,
                     $nationalityId > 0 ? $nationalityId : null,
                     $phone !== '' ? $phone : null, $email !== '' ? $email : null,
                     $addressAr !== '' ? $addressAr : null,
@@ -213,15 +215,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $st = $pdo->prepare(
                     'INSERT INTO hr_employee (emp_code, name_ar, name_first, name_father, name_grandfather, name_family,
-                     national_id, gender, is_married, nationality_id, phone, email,
+                     national_id, birth_date, gender, is_married, nationality_id, phone, email,
                      address_ar, address_city, address_district,
                      job_title, job_title_id, department, department_id, hire_date, resignation_date, base_salary,
                      social_security_no, subject_to_social_security, subject_to_income_tax, notes, is_active)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
                 );
                 $st->execute([
                     $code, $name, $nameFirst, $nameFather, $nameGrandfather, $nameFamily,
-                    $nid !== '' ? $nid : null, $gender !== '' ? $gender : null, $isMarried,
+                    $nid !== '' ? $nid : null, $birthDateVal, $gender !== '' ? $gender : null, $isMarried,
                     $nationalityId > 0 ? $nationalityId : null,
                     $phone !== '' ? $phone : null, $email !== '' ? $email : null,
                     $addressAr !== '' ? $addressAr : null,
@@ -275,7 +277,7 @@ $flash = flash_get();
 
 $row = [
     'id' => 0, 'emp_code' => '', 'name_ar' => '', 'name_first' => '', 'name_father' => '', 'name_grandfather' => '', 'name_family' => '',
-    'national_id' => '', 'gender' => '', 'is_married' => 0, 'nationality_id' => 0,
+    'national_id' => '', 'birth_date' => '', 'gender' => '', 'is_married' => 0, 'nationality_id' => 0,
     'phone' => '', 'email' => '',
     'address_ar' => '', 'address_city' => '', 'address_district' => '',
     'job_title' => '', 'job_title_id' => 0, 'department' => '', 'department_id' => 0,
@@ -655,12 +657,17 @@ $attZkSelected = $attZkCurrent ? (int) ($attZkCurrent['zk_user_id'] ?? 0) : 0;
                                         </label>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="hr-emp-grid hr-emp-grid--identity">
-                                <label class="field hr-emp-field">
-                                    <span class="field-label">الرقم الوطني</span>
-                                    <input class="input" name="national_id" value="<?= esc((string) ($row['national_id'] ?? '')) ?>" dir="ltr" autocomplete="off">
-                                </label>
+                                <div class="hr-emp-id-birth-group">
+                                    <label class="field hr-emp-field">
+                                        <span class="field-label">الرقم الوطني</span>
+                                        <input class="input" name="national_id" value="<?= esc((string) ($row['national_id'] ?? '')) ?>" dir="ltr" autocomplete="off">
+                                    </label>
+                                    <label class="field hr-emp-field">
+                                        <span class="field-label">تاريخ الميلاد</span>
+                                        <input class="input" name="birth_date" type="date"
+                                               value="<?= esc((string) ($row['birth_date'] ?? '')) ?>" dir="ltr" autocomplete="off">
+                                    </label>
+                                </div>
                             </div>
                         </div>
                         <div class="hr-emp-ora-stack-pane" id="hr-emp-pane-contact"

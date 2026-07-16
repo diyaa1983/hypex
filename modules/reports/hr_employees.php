@@ -75,6 +75,16 @@ if ($showResult) {
 
             <div class="report-sales-table-wrap">
                 <table class="report-sales-table report-hr-employees-table">
+                    <colgroup>
+                        <col class="col-seq">
+                        <col class="col-inv-no">
+                        <col class="col-customer-name">
+                        <col class="col-date">
+                        <col class="col-qty">
+                        <?php if ($status === 'all'): ?>
+                            <col class="col-status">
+                        <?php endif; ?>
+                    </colgroup>
                     <thead>
                     <tr>
                         <th class="col-seq">تسلسل</th>

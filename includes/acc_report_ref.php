@@ -18,6 +18,7 @@ function acc_report_ref_type_labels(): array
         'fin_check_return' => 'إرجاع شيك',
         'fin_check_endorse' => 'تجيير شيك',
         'year_close' => 'إقفال سنة مالية',
+        'opening_balance' => 'رصيد افتتاحي',
     ];
 }
 

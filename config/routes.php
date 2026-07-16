@@ -263,6 +263,12 @@ return [
         'title' => 'إقفال السنة المالية',
         'hide_screen_title' => true,
     ],
+    'acc_opening_balance' => [
+        'file' => 'modules/accounting/opening_balance.php',
+        'permission' => 'acc_opening_balance',
+        'title' => 'الأرصدة الافتتاحية',
+        'hide_screen_title' => true,
+    ],
     'inventory_align_warehouse' => [
         'file' => 'modules/accounting/inventory_align_warehouse.php',
         'permission' => 'inventory_align_warehouse',
@@ -456,6 +462,11 @@ return [
         'file' => 'modules/reports/hr_employee_leaves.php',
         'permission' => 'report_hr_employee_leaves',
         'title' => 'تقرير الإجازات بين تاريخين',
+    ],
+    'report_hr_employee_leave_balances' => [
+        'file' => 'modules/reports/hr_employee_leave_balances.php',
+        'permission' => 'report_hr_employee_leave_balances',
+        'title' => 'تقرير أرصدة الإجازات لجميع الموظفين',
     ],
     'report_hr_employee_departures' => [
         'file' => 'modules/reports/hr_employee_departures.php',
@@ -671,6 +682,13 @@ return [
         'file' => 'modules/hr/employee_print.php',
         'permission' => 'hr_employees',
         'title' => 'طباعة بطاقة موظف',
+        'standalone' => true,
+    ],
+    'hr_employee_leave_balance_print' => [
+        'file' => 'modules/hr/employee_leave_balance_print.php',
+        'permission' => 'report_hr_employee_leave_balances',
+        'title' => 'طباعة رصيد إجازات موظف',
+        'standalone' => true,
     ],
     'hr_departments' => [
         'file' => 'modules/hr/departments.php',
@@ -802,6 +820,18 @@ return [
         'file' => 'modules/hr/payroll_ss_report.php',
         'permission' => 'hr_salaries',
         'title' => 'كشف الضمان الاجتماعي',
+        'hide_screen_title' => true,
+    ],
+    'hr_payroll_income_tax_report' => [
+        'file' => 'modules/hr/payroll_income_tax_report.php',
+        'permission' => 'hr_salaries',
+        'title' => 'كشف ضريبة الدخل',
+        'hide_screen_title' => true,
+    ],
+    'hr_payroll_bank_transfer_report' => [
+        'file' => 'modules/hr/payroll_bank_transfer_report.php',
+        'permission' => 'hr_salaries',
+        'title' => 'كشف تحويل الرواتب للبنوك',
         'hide_screen_title' => true,
     ],
     'hr_payroll_slip_report' => [

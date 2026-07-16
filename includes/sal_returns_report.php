@@ -8,6 +8,7 @@ require_once app_path('includes/sal_return_schema.php');
  *
  * @return list<array{
  *   return_no: string,
+ *   return_date: string,
  *   source_invoice_no: string,
  *   customer_name: string,
  *   return_inclusive: float,
@@ -32,6 +33,7 @@ function sal_report_sales_returns(PDO $pdo, int $customerId, string $from, strin
 
     $st = $pdo->prepare(
         "SELECT COALESCE(NULLIF(TRIM(r.return_no), ''), '') AS return_no,
+                r.return_date AS return_date,
                 COALESCE(NULLIF(TRIM(i.invoice_no), ''), '') AS source_invoice_no,
                 c.name_ar AS customer_name,
                 r.subtotal AS return_exclusive,
@@ -56,6 +58,7 @@ function sal_report_sales_returns(PDO $pdo, int $customerId, string $from, strin
         }
         $rows[] = [
             'return_no' => (string) ($row['return_no'] ?? ''),
+            'return_date' => (string) ($row['return_date'] ?? ''),
             'source_invoice_no' => (string) ($row['source_invoice_no'] ?? ''),
             'customer_name' => (string) ($row['customer_name'] ?? ''),
             'return_inclusive' => $inclusive,

@@ -87,7 +87,7 @@
   white-space: nowrap;
 }
 
-.hr-ld-rpt-table tbody tr:nth-child(even) {
+.hr-ld-rpt-table tbody tr:nth-child(even):not(.hr-ld-rpt-row--dept-total) {
   background: #f8fafc;
 }
 
@@ -171,6 +171,397 @@
   }
 
   .hr-ld-rpt-dept-section {
-    break-inside: avoid;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+}
+
+/* تقرير أرصدة الإجازات لجميع الموظفين */
+.hr-leave-bal-rpt-page .report-sales-result,
+.hr-leave-bal-rpt-page .report-sales-print-area,
+.hr-leave-bal-rpt-page .hr-ld-rpt-doc {
+  border: none !important;
+  box-shadow: none !important;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.hr-leave-bal-rpt-dept-section {
+  margin-bottom: 0;
+}
+
+.hr-leave-bal-rpt-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.hr-leave-bal-rpt-table col.col-seq {
+  width: 4%;
+}
+
+.hr-leave-bal-rpt-table col.hr-ld-rpt-col-emp-code {
+  width: 10%;
+}
+
+.hr-leave-bal-rpt-table col.hr-ld-rpt-col-emp-name {
+  width: 31%;
+}
+
+.hr-leave-bal-rpt-table col.hr-leave-bal-rpt-col-type {
+  width: 12%;
+}
+
+.hr-leave-bal-rpt-table col.hr-leave-bal-rpt-col-num {
+  width: 8.6%;
+}
+
+.hr-leave-bal-rpt-table .hr-leave-bal-rpt-col-emp-code {
+  text-align: center;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #1e3a8a;
+  background: #f8fafc;
+  white-space: nowrap;
+}
+
+.hr-leave-bal-rpt-table thead th.hr-leave-bal-rpt-col-emp-code {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.hr-leave-bal-rpt-table .hr-ld-rpt-col-emp-name {
+  white-space: nowrap;
+}
+
+.hr-leave-bal-rpt-table .hr-leave-bal-rpt-col-type {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.hr-leave-bal-rpt-table .hr-leave-bal-rpt-col-num {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.hr-leave-bal-rpt-table thead th.hr-leave-bal-rpt-col-num {
+  white-space: normal;
+  line-height: 1.2;
+  font-size: 0.82em;
+}
+
+.hr-leave-bal-rpt-table .hr-leave-bal-rpt-col-remaining {
+  font-weight: 700;
+  background: #f0fdf4;
+}
+
+.hr-leave-bal-rpt-table .center {
+  text-align: center;
+}
+
+.hr-leave-bal-rpt-table--emp {
+  margin-top: 0;
+}
+
+.hr-leave-bal-rpt-table tbody tr:last-child td {
+  border-bottom: 2px solid #64748b;
+}
+
+.hr-leave-bal-rpt-table tfoot td {
+  background: #eef2f7;
+  font-weight: 800;
+  border-top: 2px solid #64748b;
+}
+
+.hr-leave-bal-rpt-dept-section .hr-ld-rpt-table-wrap {
+  margin-bottom: 0.35rem;
+}
+
+.hr-leave-bal-rpt-table th,
+.hr-leave-bal-rpt-table td {
+  border-color: #94a3b8;
+}
+
+.hr-leave-bal-rpt-row--total td {
+  background: #eef2f7;
+  font-weight: 800;
+}
+
+.hr-leave-bal-rpt-total-label {
+  text-align: right;
+  color: #1e3a8a;
+}
+
+.hr-leave-bal-print-body {
+  margin: 0;
+  padding: 1rem;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  color: #111;
+  background: #f1f5f9;
+}
+
+.hr-leave-bal-print-doc {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  padding: 1rem 1.15rem 1.2rem;
+}
+
+.hr-leave-bal-print-foot {
+  margin-top: 0.85rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed #94a3b8;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.hr-leave-bal-print-actions {
+  max-width: 900px;
+  margin: 1rem auto 0;
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.hr-leave-bal-print-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.hr-leave-bal-print-actions .btn-primary {
+  background: #0ea5e9;
+  color: #fff;
+  border-color: #0284c7;
+}
+
+.hr-leave-bal-print-actions .btn-secondary {
+  background: #fff;
+  color: #111827;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm 16mm 10mm;
+    @bottom-center {
+      content: "صفحة " counter(page) " من " counter(pages);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9pt;
+      font-weight: 700;
+      color: #0f172a;
+    }
+  }
+
+  .hr-leave-bal-rpt-page .report-sales-print-area,
+  .hr-leave-bal-rpt-page .hr-ld-rpt-doc {
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+
+  body:has(.hr-leave-bal-rpt-page).has-doc-watermark::after {
+    z-index: 0 !important;
+  }
+
+  body:has(.hr-leave-bal-rpt-page) .doc-print-user-footer {
+    display: none !important;
+  }
+
+  body:has(.hr-leave-bal-rpt-page) .app-shell-body,
+  body:has(.hr-leave-bal-rpt-page) .main-wrap,
+  body:has(.hr-leave-bal-rpt-page) .main-content,
+  body:has(.hr-leave-bal-rpt-page) .dashboard-ora.report-ora12-screen,
+  body:has(.hr-leave-bal-rpt-page) .dashboard-ora-workspace,
+  body:has(.hr-leave-bal-rpt-page) .report-ora12-workspace,
+  body:has(.hr-leave-bal-rpt-page) .card {
+    overflow: visible !important;
+    max-width: none !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  html:has(.hr-leave-bal-rpt-page),
+  body:has(.hr-leave-bal-rpt-page) {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .hr-leave-bal-rpt-page.card,
+  .hr-leave-bal-rpt-page.report-sales-page {
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .hr-leave-bal-rpt-page .report-sales-print-area,
+  .hr-leave-bal-rpt-page .hr-ld-rpt-doc {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+  }
+
+  .hr-ld-rpt-kpis {
+    display: none !important;
+  }
+
+  .hr-ld-rpt-dept-section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .hr-leave-bal-rpt-dept-section {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    overflow: visible !important;
+    margin-bottom: 0 !important;
+  }
+
+  .hr-leave-bal-rpt-page[data-print-mode="all-depts"] .hr-leave-bal-rpt-dept-section--print-page {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .hr-leave-bal-rpt-page[data-print-mode="all-depts"] .hr-leave-bal-rpt-dept-section--print-page + .hr-leave-bal-rpt-dept-section--print-page {
+    break-before: page !important;
+    page-break-before: always !important;
+    margin-top: 0 !important;
+  }
+
+  .hr-leave-bal-rpt-page:not([data-print-mode="all-depts"]) .hr-leave-bal-rpt-dept-section + .hr-leave-bal-rpt-dept-section {
+    margin-top: 3mm !important;
+  }
+
+  .hr-ld-rpt-table-wrap {
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .hr-leave-bal-rpt-table {
+    font-size: 8pt !important;
+    width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  .hr-leave-bal-rpt-table col.hr-ld-rpt-col-emp-name {
+    width: 31% !important;
+  }
+
+  .hr-leave-bal-rpt-table col.hr-ld-rpt-col-emp-code {
+    width: 10% !important;
+  }
+
+  .hr-leave-bal-rpt-table col.hr-leave-bal-rpt-col-type {
+    width: 11% !important;
+  }
+
+  .hr-leave-bal-rpt-table col.hr-leave-bal-rpt-col-num {
+    width: 8.6% !important;
+  }
+
+  .hr-leave-bal-rpt-table .hr-ld-rpt-col-emp-name {
+    white-space: nowrap !important;
+  }
+
+  .hr-leave-bal-rpt-table .hr-leave-bal-rpt-col-emp-code {
+    text-align: center !important;
+    font-weight: 800 !important;
+    font-variant-numeric: tabular-nums !important;
+    color: #1e3a8a !important;
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .hr-leave-bal-rpt-table thead th.hr-leave-bal-rpt-col-emp-code {
+    background: #dbeafe !important;
+    color: #1e3a8a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .hr-leave-bal-rpt-table tbody tr {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    background: transparent !important;
+  }
+
+  .hr-leave-bal-rpt-table tbody tr:nth-child(even) {
+    background: transparent !important;
+  }
+
+  .hr-leave-bal-rpt-table thead {
+    display: table-header-group;
+  }
+
+  .hr-leave-bal-rpt-table th,
+  .hr-leave-bal-rpt-table td {
+    border: 1px solid #64748b !important;
+    border-bottom: 1px solid #64748b !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .hr-leave-bal-rpt-table tbody tr:last-child td {
+    border-bottom: 2px solid #475569 !important;
+  }
+
+  .hr-leave-bal-rpt-dept-section .hr-ld-rpt-table-wrap {
+    margin-bottom: 2mm !important;
+    padding-bottom: 0 !important;
+  }
+
+  .hr-leave-bal-rpt-table .hr-leave-bal-rpt-col-remaining {
+    background: #f0fdf4 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .hr-leave-bal-rpt-table th,
+  .hr-leave-bal-rpt-table td {
+    padding: 0.25rem 0.3rem;
+  }
+
+  .hr-leave-bal-print-body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .hr-leave-bal-print-doc {
+    border: none;
+    box-shadow: none;
+    margin: 0;
+    max-width: none;
+    padding: 0;
   }
 }

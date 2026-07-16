@@ -224,6 +224,18 @@ function hr_employee_ensure_link_columns(PDO $pdo): void
             // ignored
         }
     }
+    if (!isset($cols['birth_date'])) {
+        try {
+            require_once app_path('includes/sql_migration.php');
+            sql_migration_run_file($pdo, 'database/migrations/219_hr_employee_birth_date.sql');
+        } catch (Throwable $e) {
+            try {
+                $pdo->exec('ALTER TABLE hr_employee ADD COLUMN birth_date DATE NULL AFTER national_id');
+            } catch (Throwable $e2) {
+                // ignored
+            }
+        }
+    }
     hr_employee_ensure_name_part_columns($pdo);
 }
 

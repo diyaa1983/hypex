@@ -162,6 +162,7 @@ $customerIdValue = $customerId >= 0 ? (string) $customerId : '';
                     <colgroup>
                         <col class="col-seq">
                         <col class="col-inv-no">
+                        <col class="col-date">
                         <col class="col-inv-no">
                         <col class="col-customer">
                         <col class="col-money">
@@ -171,6 +172,7 @@ $customerIdValue = $customerId >= 0 ? (string) $customerId : '';
                     <tr>
                         <th class="col-seq">تسلسل</th>
                         <th class="col-inv-no">رقم المرتجع</th>
+                        <th class="col-date">تاريخ المرتجع</th>
                         <th class="col-inv-no">رقم الفاتورة المرجع منها</th>
                         <th class="col-customer">اسم العميل</th>
                         <th class="col-money">قيمة الإرجاع شامل</th>
@@ -180,7 +182,7 @@ $customerIdValue = $customerId >= 0 ? (string) $customerId : '';
                     <tbody>
                     <?php if (!$rows): ?>
                         <tr>
-                            <td colspan="6" class="muted" style="text-align:center;padding:1.25rem;">
+                            <td colspan="7" class="muted" style="text-align:center;padding:1.25rem;">
                                 لا توجد مرتجعات مطابقة في الفترة المحددة.
                             </td>
                         </tr>
@@ -193,6 +195,7 @@ $customerIdValue = $customerId >= 0 ? (string) $customerId : '';
                         <tr>
                             <td class="col-seq"><?= $seq ?></td>
                             <td class="col-inv-no"><?= esc((string) $r['return_no']) ?></td>
+                            <td class="col-date" dir="ltr"><?= esc(format_date_dmY((string) ($r['return_date'] ?? ''))) ?></td>
                             <td class="col-inv-no"><?= esc((string) $r['source_invoice_no']) ?></td>
                             <td class="col-customer"><span class="report-sales-party-name"><?= esc((string) $r['customer_name']) ?></span></td>
                             <td class="col-money"><?= esc(format_money((float) $r['return_inclusive'])) ?></td>
@@ -203,7 +206,7 @@ $customerIdValue = $customerId >= 0 ? (string) $customerId : '';
                     <?php if ($rows): ?>
                     <tfoot>
                     <tr>
-                        <td colspan="4">الإجمالي</td>
+                        <td colspan="5">الإجمالي</td>
                         <td class="col-money"><?= esc(format_money($sumInclusive)) ?></td>
                         <td class="col-money"><?= esc(format_money($sumExclusive)) ?></td>
                     </tr>

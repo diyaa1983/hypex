@@ -190,19 +190,19 @@
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-meta-item label,
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .field-label {
-    font-size: 0.88rem;
+    font-size: 0.68rem;
     font-weight: 700;
     color: var(--ora12-muted);
-    margin-bottom: 0.15rem;
+    margin-bottom: 0.1rem;
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .input,
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap select.input,
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap textarea.input {
-    min-height: 2rem;
-    padding: 0.2rem 0.45rem;
+    min-height: 1.55rem;
+    padding: 0.12rem 0.38rem;
     font-family: inherit;
-    font-size: 0.95rem;
+    font-size: 0.78rem;
     color: var(--ora12-text);
     background: #fff;
     border: 1px solid var(--ora12-border);
@@ -372,12 +372,12 @@
     border: 1px solid var(--ora12-border);
     border-top: none;
     background: #fff;
-    padding: 0.5rem 0.55rem 0.6rem;
+    padding: 0.4rem 0.45rem 0.5rem;
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-lov {
-    min-height: 2rem;
-    max-height: 2rem;
+    min-height: 1.55rem;
+    max-height: 1.55rem;
     border: 1px solid var(--ora12-border);
     border-radius: 2px;
     background: #fff;
@@ -396,12 +396,12 @@
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-toggle {
-    min-height: 2rem;
-    padding: 0.22rem 0.45rem;
+    min-height: 1.55rem;
+    padding: 0.12rem 0.35rem;
     border: 1px solid var(--ora12-border);
     border-radius: 2px;
     background: #fff;
-    font-size: 0.95rem;
+    font-size: 0.72rem;
     font-weight: 600;
 }
 
@@ -439,7 +439,7 @@
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-lov-field {
-    font-size: 0.95rem;
+    font-size: 0.78rem;
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-ora-stack-tab.is-behind {
@@ -455,11 +455,68 @@
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-status-item .input.hr-emp-status-control,
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-status-item .hr-emp-toggle {
-    min-height: 2rem;
-    height: 2rem;
+    min-height: 1.55rem;
+    height: 1.55rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--emp-status .field-label {
+    margin-bottom: 0;
+    font-size: 0.68rem;
 }
 
 .dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap textarea.input {
-    min-height: 4.5rem;
-    line-height: 1.5;
+    min-height: 3.5rem;
+    line-height: 1.45;
+}
+
+/* ── تبويب الهوية — سطر واحد (تمرير أفقي عند الحاجة) ── */
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap #hr-emp-pane-identity {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid.hr-emp-grid--identity-head {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 0.28rem 0.4rem;
+    margin-bottom: 0;
+    width: max-content;
+    min-width: 100%;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--identity-head .hr-emp-name-parts,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-id-birth-group {
+    display: contents;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--identity-head .hr-emp-field,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--identity-head .hr-emp-marital-field {
+    flex: 0 0 8.25rem;
+    width: 8.25rem;
+    max-width: 8.25rem;
+    min-width: 8.25rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--identity-head .hr-emp-marital-field {
+    flex: 0 0 10.5rem;
+    width: 10.5rem;
+    max-width: 10.5rem;
+    min-width: 10.5rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-marital-options {
+    gap: 0.25rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--job,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--contact,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--address,
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--ss {
+    gap: 0.3rem 0.45rem;
+}
+
+.dashboard-ora.hr-emp-ora12-screen.hr-emp-wrap .hr-emp-grid--emp-status {
+    gap: 0.28rem 0.4rem;
 }

@@ -2856,3 +2856,122 @@
     display: none !important;
   }
 }
+
+/* تقرير الموظفين — عمودا التسلسل ورقم الموظف بعرض الأرقام */
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-seq,
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-seq {
+  width: 2.4rem;
+  max-width: 2.4rem;
+  padding-inline: 0.12rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-inv-no,
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-inv-no {
+  width: 3rem;
+  max-width: 3rem;
+  padding-inline: 0.15rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table thead th.col-seq,
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table thead th.col-inv-no {
+  white-space: normal;
+  line-height: 1.15;
+  font-size: 0.7rem;
+  word-break: keep-all;
+}
+
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-inv-no code {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-customer-name {
+  white-space: nowrap;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-date,
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-date {
+  width: 6.5rem;
+  white-space: nowrap;
+}
+
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-qty,
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-qty {
+  width: 5.5rem;
+  white-space: nowrap;
+}
+
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-status,
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-status {
+  width: 6.5rem;
+  white-space: nowrap;
+}
+
+@media print {
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table {
+    table-layout: fixed !important;
+    width: 100% !important;
+  }
+
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-seq,
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-seq {
+    width: 8mm !important;
+    max-width: 8mm !important;
+    padding-inline: 1px !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-inv-no,
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-inv-no {
+    width: 10mm !important;
+    max-width: 10mm !important;
+    padding-inline: 1px !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table thead th.col-seq,
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table thead th.col-inv-no {
+    white-space: normal !important;
+    line-height: 1.15 !important;
+    font-size: 7pt !important;
+  }
+
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-customer-name {
+    white-space: nowrap !important;
+    text-align: start !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-date,
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-date {
+    width: 22mm !important;
+    white-space: nowrap !important;
+  }
+
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-qty,
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-qty {
+    width: 20mm !important;
+    white-space: nowrap !important;
+  }
+
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-status,
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-status {
+    width: 22mm !important;
+    white-space: nowrap !important;
+  }
+}
+

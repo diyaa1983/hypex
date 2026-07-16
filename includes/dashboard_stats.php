@@ -598,10 +598,7 @@ function dashboard_collect(PDO $pdo): array
 
     if (dashboard_widget_can('dashboard_kpi_cashflow')) {
         $receipts = dashboard_sum($pdo, 'fin_voucher', 'amount', "voucher_type = 'receipt'");
-        $payments = dashboard_sum($pdo, 'fin_voucher', 'amount', "voucher_type = 'payment'");
-
         $highlights[] = dashboard_metric('إجمالي المقبوضات', $receipts, 'money', null, 'success');
-        $highlights[] = dashboard_metric('إجمالي الصرفيات', $payments, 'money', null, 'warn');
     }
 
     if (dashboard_widget_can('dashboard_kpi_receivables') && dashboard_table_exists($pdo, 'crm_customer_ledger')) {

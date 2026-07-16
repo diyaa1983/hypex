@@ -183,16 +183,42 @@
 }
 
 .hr-emp-grid--identity-head {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-bottom: 0.65rem;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 0.28rem 0.4rem;
+    margin-bottom: 0.45rem;
+    width: max-content;
+    min-width: 100%;
+}
+
+#hr-emp-pane-identity {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .hr-emp-name-parts {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.65rem 0.85rem;
-    margin-bottom: 0.15rem;
+    display: contents;
+}
+
+.hr-emp-id-birth-group {
+    display: contents;
+}
+
+.hr-emp-grid--identity-head .hr-emp-field,
+.hr-emp-grid--identity-head .hr-emp-marital-field {
+    flex: 0 0 8.25rem;
+    width: 8.25rem;
+    max-width: 8.25rem;
+    min-width: 8.25rem;
+}
+
+.hr-emp-grid--identity-head .hr-emp-marital-field {
+    flex: 0 0 10.5rem;
+    width: 10.5rem;
+    max-width: 10.5rem;
+    min-width: 10.5rem;
 }
 
 .hr-emp-name-parts .input {
@@ -320,47 +346,76 @@
     display: none !important;
 }
 
-.hr-emp-grid--emp-status {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1fr);
-    align-items: start;
+/* سطر واحد — التسمية بجانب الحقل، بعرض القسم كاملاً */
+.hr-emp-block--ss .dashboard-ora-panel__body {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
-.hr-emp-status-item {
+.hr-emp-grid--emp-status {
     display: flex;
-    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem 0.55rem;
+    width: 100%;
+    min-width: 42rem;
+}
+
+.hr-emp-status-item.hr-emp-field,
+.hr-emp-grid--emp-status > .hr-emp-status-item.hr-emp-field,
+.hr-emp-grid--emp-status > .hr-emp-status-item {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1 1 0;
     min-width: 0;
+    width: auto;
+    max-width: none;
 }
 
 .hr-emp-grid--emp-status .field-label {
-    min-height: 1.15rem;
-    margin-bottom: 0.28rem;
+    flex: 0 0 auto;
+    min-height: 0;
+    margin-bottom: 0 !important;
+    white-space: nowrap;
+    line-height: 1.2;
 }
 
 .hr-emp-status-control {
     display: flex;
     align-items: center;
-    min-height: 2.35rem;
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 1.55rem;
+    width: auto;
     box-sizing: border-box;
 }
 
 .hr-emp-status-item .input.hr-emp-status-control {
-    height: 2.35rem;
-    min-height: 2.35rem;
-    padding-top: 0.35rem;
-    padding-bottom: 0.35rem;
+    flex: 1 1 auto;
+    width: 100%;
+    height: 1.55rem;
+    min-height: 1.55rem;
+    padding-top: 0.12rem;
+    padding-bottom: 0.12rem;
 }
 
 .hr-emp-status-item .hr-emp-toggle {
+    flex: 1 1 auto;
     width: 100%;
-    height: 2.35rem;
-    min-height: 2.35rem;
+    height: 1.55rem;
+    min-height: 1.55rem;
     box-sizing: border-box;
     margin: 0;
+    white-space: nowrap;
 }
 
 .hr-emp-status-warn {
-    margin-top: 0.2rem;
+    flex: 1 0 100%;
+    margin-top: 0.15rem;
 }
 
 .hr-emp-status-hint {
@@ -380,6 +435,11 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+}
+
+.hr-emp-grid--emp-status > .hr-emp-status-item.hr-emp-field {
+    flex-direction: row;
+    align-items: center;
 }
 
 .hr-emp-field--status {
@@ -675,15 +735,7 @@
     .hr-emp-grid,
     .hr-emp-grid--identity,
     .hr-emp-grid--identity-head {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .hr-emp-grid--emp-status {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .hr-emp-name-parts {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.28rem 0.35rem;
     }
 
     .hr-emp-field--name {
@@ -838,15 +890,18 @@ body.hr-ora-ui .hr-emp-ora-screen .hr-emp-block--ss {
 
 body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page .field-label,
 body.hr-ora-ui .hr-emp-ora-screen .field-label {
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 700;
     color: var(--ora12-muted, #5c5c5c);
+    margin-bottom: 0.1rem;
 }
 
 body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page .input,
 body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page select.input,
 body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page textarea.input {
-    min-height: 1.65rem;
+    min-height: 1.55rem;
+    padding: 0.12rem 0.38rem;
+    font-size: 0.78rem;
     border-radius: 2px;
     border-color: var(--ora12-border);
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -868,17 +923,17 @@ body.hr-ora-ui .hr-emp-ora-screen .hr-emp-grid-page .input[readonly] {
 
 body.hr-ora-ui .hr-emp-ora-screen .hr-emp-status-item .input.hr-emp-status-control,
 body.hr-ora-ui .hr-emp-ora-screen .hr-emp-status-item .hr-emp-toggle {
-    min-height: 1.65rem;
-    height: 1.65rem;
+    min-height: 1.55rem;
+    height: 1.55rem;
 }
 
 body.hr-ora-ui .hr-emp-ora-screen .hr-emp-toggle {
-    min-height: 1.65rem;
-    padding: 0.22rem 0.45rem;
+    min-height: 1.55rem;
+    padding: 0.12rem 0.35rem;
     border: 1px solid var(--ora12-border);
     border-radius: 2px;
     background: #fff;
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     font-weight: 600;
     color: var(--ora12-text, #161513);
 }

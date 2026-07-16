@@ -36,6 +36,98 @@ if (!$emp) {
     return;
 }
 
+/**
+ * @param mixed $value
+ */
+function hr_emp_print_has_value($value): bool
+{
+    if ($value === null) {
+        return false;
+    }
+    if (is_numeric($value)) {
+        return true;
+    }
+
+    return trim((string) $value) !== '';
+}
+
+/**
+ * @param mixed $value
+ */
+function hr_emp_print_format_value($value, string $dir = ''): string
+{
+    if (!hr_emp_print_has_value($value)) {
+        return '';
+    }
+    $dirAttr = $dir !== '' ? ' dir="' . esc($dir) . '"' : '';
+
+    return '<td' . $dirAttr . '>' . esc((string) $value) . '</td>';
+}
+
+/**
+ * @param list<array{label:string, value:mixed, dir?:string, full?:bool}> $fields
+ */
+function hr_emp_print_render_section(string $title, array $fields, bool $asSubsection = false): void
+{
+    $rows = [];
+    $pending = [];
+
+    foreach ($fields as $field) {
+        if (!hr_emp_print_has_value($field['value'] ?? '')) {
+            continue;
+        }
+        if (!empty($field['full'])) {
+            if ($pending !== []) {
+                $rows[] = ['pairs' => $pending];
+                $pending = [];
+            }
+            $rows[] = ['full' => $field];
+            continue;
+        }
+        $pending[] = $field;
+        if (count($pending) === 2) {
+            $rows[] = ['pairs' => $pending];
+            $pending = [];
+        }
+    }
+    if ($pending !== []) {
+        $rows[] = ['pairs' => $pending];
+    }
+    if ($rows === []) {
+        return;
+    }
+
+    if (!$asSubsection) {
+        echo '<section class="hr-emp-print-section">';
+    } else {
+        echo '<div class="hr-emp-print-subsection">';
+    }
+    echo '<h3>' . esc($title) . '</h3>';
+    echo '<table class="hr-emp-print-table"><tbody>';
+    foreach ($rows as $row) {
+        if (isset($row['full'])) {
+            $f = $row['full'];
+            echo '<tr class="hr-emp-print-row hr-emp-print-row--full">';
+            echo '<th>' . esc($f['label']) . '</th>';
+            $dirAttr = !empty($f['dir']) ? ' dir="' . esc((string) $f['dir']) . '"' : '';
+            echo '<td colspan="3"' . $dirAttr . '>' . esc((string) $f['value']) . '</td></tr>';
+            continue;
+        }
+        $pairs = $row['pairs'];
+        echo '<tr class="hr-emp-print-row">';
+        foreach ($pairs as $pair) {
+            echo '<th>' . esc($pair['label']) . '</th>';
+            echo hr_emp_print_format_value($pair['value'], $pair['dir'] ?? '');
+        }
+        if (count($pairs) === 1) {
+            echo '<td colspan="2"></td>';
+        }
+        echo '</tr>';
+    }
+    echo '</tbody></table>';
+    echo $asSubsection ? '</div>' : '</section>';
+}
+
 $cssPath = app_path('assets/css/hr-employee-print.css');
 $cssUrl = app_url('assets/css/hr-employee-print.css');
 if (is_file($cssPath)) {
@@ -44,9 +136,21 @@ if (is_file($cssPath)) {
 $docHeaderCssUrl = document_print_stylesheet_url('assets/css/document-header.css');
 
 $genderMap = ['male' => 'ذكر', 'female' => 'أنثى'];
-$genderLabel = $genderMap[(string) ($emp['gender'] ?? '')] ?? '—';
+$genderKey = (string) ($emp['gender'] ?? '');
+$genderLabel = $genderMap[$genderKey] ?? '';
 $maritalLabel = (int) ($emp['is_married'] ?? 0) === 1 ? 'متزوج' : 'أعزب';
-$hireDate = trim((string) ($emp['hire_date'] ?? ''));
+
+$nameParts = hr_employee_name_parts_from_row($emp);
+$name = trim((string) ($emp['name_ar'] ?? ''));
+if ($name === '') {
+    $name = hr_employee_build_full_name(
+        $nameParts['first'],
+        $nameParts['father'],
+        $nameParts['grandfather'],
+        $nameParts['family']
+    );
+}
+
 $resignDate = trim((string) ($emp['resignation_date'] ?? ''));
 $isResigned = $resignDate !== '' || (int) ($emp['is_resigned_posted'] ?? 0) === 1;
 $statusLabel = (int) ($emp['is_active'] ?? 1) === 1 ? 'نشِط' : 'غير نشِط';
@@ -57,16 +161,15 @@ if ($isResigned && (int) ($emp['is_resigned_posted'] ?? 0) === 1) {
     $statusLabel .= ' (مرحّل)';
 }
 
-$name = trim((string) ($emp['name_ar'] ?? ''));
-if ($name === '') {
-    $name = '—';
-}
-
-$hireDateLabel = $hireDate !== '' ? format_date_dmY($hireDate) : '—';
-$resignDateLabel = $resignDate !== '' ? format_date_dmY($resignDate) : '—';
+$hireDate = trim((string) ($emp['hire_date'] ?? ''));
+$birthDate = trim((string) ($emp['birth_date'] ?? ''));
+$jobLabel = trim((string) ($emp['job_name'] ?? $emp['job_title'] ?? ''));
+$deptLabel = trim((string) ($emp['dept_name'] ?? $emp['department'] ?? ''));
+$nationalityLabel = trim((string) ($emp['nationality_name'] ?? ''));
+$notes = trim((string) ($emp['notes'] ?? ''));
 
 $printedAt = date('Y-m-d H:i');
-$reportTitle = 'بيانات الموظف الأساسية';
+$reportTitle = 'بيانات الموظف';
 $empNav = hr_employee_browse_nav($pdo, $employeeId);
 $prevPrintUrl = (int) ($empNav['prev'] ?? 0) > 0
     ? app_url('index.php?r=hr_employee_print&id=' . (int) $empNav['prev'])
@@ -80,7 +183,7 @@ $nextPrintUrl = (int) ($empNav['next'] ?? 0) > 0
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= esc($reportTitle) ?> — <?= esc($name) ?></title>
+    <title><?= esc($reportTitle) ?> — <?= esc($name !== '' ? $name : ('#' . $employeeId)) ?></title>
     <link rel="stylesheet" href="<?= esc($docHeaderCssUrl) ?>">
     <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 </head>
@@ -88,83 +191,58 @@ $nextPrintUrl = (int) ($empNav['next'] ?? 0) > 0
 <main class="hr-emp-print-doc">
     <?= document_print_header_html($reportTitle, $pdo) ?>
 
-    <section class="hr-emp-print-section">
-        <h3>معلومات الموظف</h3>
-        <table class="hr-emp-print-table">
-            <tr>
-                <th>رقم الموظف</th>
-                <td dir="ltr"><?= esc((string) ($emp['emp_code'] ?? '—')) ?></td>
-                <th>اسم الموظف</th>
-                <td><?= esc($name) ?></td>
-            </tr>
-            <tr>
-                <th>المسمى الوظيفي</th>
-                <td><?= esc((string) ($emp['job_name'] ?? $emp['job_title'] ?? '—')) ?></td>
-                <th>القسم</th>
-                <td><?= esc((string) ($emp['dept_name'] ?? $emp['department'] ?? '—')) ?></td>
-            </tr>
-            <tr>
-                <th>تاريخ التعيين</th>
-                <td dir="ltr"><?= esc($hireDateLabel) ?></td>
-                <?php if ($isResigned): ?>
-                    <th>تاريخ الاستقالة</th>
-                    <td dir="ltr"><?= esc($resignDateLabel) ?></td>
-                <?php else: ?>
-                    <td colspan="2"></td>
-                <?php endif; ?>
-            </tr>
-            <tr>
-                <th>الحالة</th>
-                <td><?= esc($statusLabel) ?></td>
-                <th>الراتب الأساسي</th>
-                <td dir="ltr"><?= esc(number_format((float) ($emp['base_salary'] ?? 0), 2)) ?></td>
-            </tr>
-            <tr>
-                <th>الرقم الوطني</th>
-                <td dir="ltr"><?= esc((string) ($emp['national_id'] ?? '—')) ?></td>
-                <th>الجنس</th>
-                <td><?= esc($genderLabel) ?></td>
-            </tr>
-            <tr>
-                <th>الحالة الاجتماعية</th>
-                <td><?= esc($maritalLabel) ?></td>
-                <th>الجنسية</th>
-                <td><?= esc((string) ($emp['nationality_name'] ?? '—')) ?></td>
-            </tr>
-            <tr>
-                <th>الهاتف</th>
-                <td dir="ltr"><?= esc((string) ($emp['phone'] ?? '—')) ?></td>
-                <th>البريد الإلكتروني</th>
-                <td dir="ltr"><?= esc((string) ($emp['email'] ?? '—')) ?></td>
-            </tr>
-            <tr>
-                <th>المدينة</th>
-                <td><?= esc((string) ($emp['address_city'] ?? '—')) ?></td>
-                <th>الحي / المنطقة</th>
-                <td><?= esc((string) ($emp['address_district'] ?? '—')) ?></td>
-            </tr>
-            <tr>
-                <th>العنوان التفصيلي</th>
-                <td colspan="3"><?= esc((string) ($emp['address_ar'] ?? '—')) ?></td>
-            </tr>
-            <tr>
-                <th>رقم الضمان</th>
-                <td dir="ltr"><?= esc((string) ($emp['social_security_no'] ?? '—')) ?></td>
-                <th>خاضع للضمان</th>
-                <td><?= (int) ($emp['subject_to_social_security'] ?? 0) === 1 ? 'نعم' : 'لا' ?></td>
-            </tr>
-            <tr>
-                <th>خاضع لضريبة الدخل</th>
-                <td><?= (int) ($emp['subject_to_income_tax'] ?? 0) === 1 ? 'نعم' : 'لا' ?></td>
-                <th>معرّف الموظف</th>
-                <td dir="ltr"><?= (int) ($emp['id'] ?? 0) ?></td>
-            </tr>
-        </table>
-    </section>
+    <?php
+    echo '<section class="hr-emp-print-section hr-emp-print-section--group">';
+    echo '<h2 class="hr-emp-print-group-title">البيانات الشخصية</h2>';
+
+    hr_emp_print_render_section('الهوية', [
+        ['label' => 'رقم الموظف', 'value' => $emp['emp_code'] ?? '', 'dir' => 'ltr'],
+        ['label' => 'اسم الموظف', 'value' => $name],
+        ['label' => 'الرقم الوطني', 'value' => $emp['national_id'] ?? '', 'dir' => 'ltr'],
+        ['label' => 'تاريخ الميلاد', 'value' => $birthDate !== '' ? format_date_dmY($birthDate) : '', 'dir' => 'ltr'],
+        ['label' => 'الجنس', 'value' => $genderLabel],
+        ['label' => 'الجنسية', 'value' => $nationalityLabel],
+        ['label' => 'الحالة الاجتماعية', 'value' => $maritalLabel],
+    ], true);
+
+    hr_emp_print_render_section('معلومات الاتصال', [
+        ['label' => 'الهاتف', 'value' => $emp['phone'] ?? '', 'dir' => 'ltr'],
+        ['label' => 'البريد الإلكتروني', 'value' => $emp['email'] ?? '', 'dir' => 'ltr'],
+    ], true);
+
+    hr_emp_print_render_section('عنوان الموظف', [
+        ['label' => 'المدينة', 'value' => $emp['address_city'] ?? ''],
+        ['label' => 'الحي / المنطقة', 'value' => $emp['address_district'] ?? ''],
+        ['label' => 'العنوان التفصيلي', 'value' => $emp['address_ar'] ?? '', 'full' => true],
+    ], true);
+
+    echo '</section>';
+
+    hr_emp_print_render_section('البيانات الوظيفية', [
+        ['label' => 'المسمى الوظيفي', 'value' => $jobLabel],
+        ['label' => 'القسم', 'value' => $deptLabel],
+        ['label' => 'تاريخ التعيين', 'value' => $hireDate !== '' ? format_date_dmY($hireDate) : '', 'dir' => 'ltr'],
+        ['label' => 'تاريخ الاستقالة', 'value' => $resignDate !== '' ? format_date_dmY($resignDate) : '', 'dir' => 'ltr'],
+        ['label' => 'الحالة', 'value' => $statusLabel],
+        ['label' => 'الراتب الأساسي', 'value' => number_format((float) ($emp['base_salary'] ?? 0), 2), 'dir' => 'ltr'],
+    ]);
+
+    hr_emp_print_render_section('الاستقالة والضمان وضريبة الدخل', [
+        ['label' => 'رقم الضمان', 'value' => $emp['social_security_no'] ?? '', 'dir' => 'ltr'],
+        ['label' => 'خاضع للضمان', 'value' => (int) ($emp['subject_to_social_security'] ?? 0) === 1 ? 'نعم' : 'لا'],
+        ['label' => 'خاضع لضريبة الدخل', 'value' => (int) ($emp['subject_to_income_tax'] ?? 0) === 1 ? 'نعم' : 'لا'],
+        ['label' => 'معرّف الموظف', 'value' => (string) (int) ($emp['id'] ?? 0), 'dir' => 'ltr'],
+    ]);
+    ?>
+
+    <?php if ($notes !== ''): ?>
+        <section class="hr-emp-print-section hr-emp-print-notes">
+            <h3>ملاحظات</h3>
+            <p><?= esc($notes) ?></p>
+        </section>
+    <?php endif; ?>
 
     <footer class="hr-emp-print-foot">
-        <span>الملاحظات: <?= esc(trim((string) ($emp['notes'] ?? '')) !== '' ? (string) $emp['notes'] : '—') ?></span>
-        <span class="hr-emp-print-foot-sep">|</span>
         <span>تاريخ الطباعة: <strong dir="ltr"><?= esc($printedAt) ?></strong></span>
     </footer>
 </main>

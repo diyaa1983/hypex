@@ -1,0 +1,317 @@
+/* الأرصدة الافتتاحية — Oracle 12c */
+
+.acc-opening-balance-ora.dashboard-ora .dashboard-ora-screen-title__meta {
+  font-size: 0.7rem;
+}
+
+.acc-opening-balance-ora .acc-opening-balance-flash {
+  margin: 0;
+}
+
+.acc-opening-balance-ora .dashboard-ora-btn--unpost {
+  color: #fff;
+  background: linear-gradient(180deg, #e07a2e 0%, #c74634 55%, #a33020 100%);
+  border-color: #8b2a1c;
+}
+
+.acc-opening-balance-ora .dashboard-ora-btn--unpost:hover {
+  color: #fff;
+  background: linear-gradient(180deg, #ec8a3e 0%, #d45644 55%, #b33a28 100%);
+  border-color: #8b2a1c;
+}
+
+.acc-opening-balance-ora .dashboard-ora-toolbar {
+  flex-wrap: wrap;
+}
+
+.acc-opening-balance-ora .dashboard-ora-toolbar .dashboard-ora-btn--save,
+.acc-opening-balance-ora .dashboard-ora-toolbar .dashboard-ora-btn--primary {
+  color: #fff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border-color: #024d8f;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+}
+
+.acc-opening-balance-ora .dashboard-ora-toolbar .dashboard-ora-btn--save:hover,
+.acc-opening-balance-ora .dashboard-ora-toolbar .dashboard-ora-btn--primary:hover {
+  color: #fff;
+  background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+  border-color: #024d8f;
+}
+
+.acc-opening-balance-ora .acc-opening-year-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  margin-inline-start: auto;
+}
+
+.acc-opening-balance-ora .acc-opening-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.acc-opening-balance-ora .acc-opening-year-form .input-compact {
+  min-width: 5.5rem;
+  min-height: 1.6rem;
+  font-size: 0.72rem;
+}
+
+.acc-opening-balance-ora .acc-opening-toolbar-hint {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.acc-opening-balance-ora .acc-opening-intro p {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--ora12-text);
+}
+
+.acc-opening-balance-ora .acc-opening-intro p:last-child {
+  margin-bottom: 0;
+}
+
+.acc-opening-balance-ora .acc-opening-intro-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.acc-opening-balance-ora .acc-opening-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  font-size: 0.78rem;
+}
+
+.acc-opening-balance-ora .acc-opening-status a {
+  color: var(--ora12-link);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.acc-opening-balance-ora .acc-opening-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.45rem 0.75rem;
+  margin: 0;
+}
+
+.acc-opening-balance-ora .acc-opening-filters .field {
+  margin: 0;
+  min-width: 0;
+}
+
+.acc-opening-balance-ora .acc-opening-filters .field-label {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.acc-opening-balance-ora .acc-opening-filters .input {
+  min-height: 1.65rem;
+  padding: 0.2rem 0.45rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--ora12-text);
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.acc-opening-balance-ora .acc-opening-filters .input:focus {
+  outline: none;
+  border-color: #0572ce;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.acc-opening-balance-ora .acc-opening-search-field {
+  flex: 1 1 240px;
+}
+
+.acc-opening-balance-ora .acc-opening-table-wrap {
+  max-height: min(58vh, 640px);
+  overflow: auto;
+}
+
+.acc-opening-balance-ora .acc-opening-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.acc-opening-balance-ora .acc-opening-table thead th,
+.acc-opening-balance-ora .acc-opening-table tbody td,
+.acc-opening-balance-ora .acc-opening-table tfoot td {
+  font-weight: 700;
+}
+
+.acc-opening-balance-ora .acc-opening-table tbody tr.has-value td {
+  background: #f0fdf4;
+}
+
+.acc-opening-balance-ora .acc-opening-table tbody tr.is-hidden {
+  display: none;
+}
+
+.acc-opening-balance-ora .acc-opening-table code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ora12-link);
+  background: transparent;
+  padding: 0;
+}
+
+.acc-opening-balance-ora .acc-opening-table .col-money {
+  text-align: left;
+  direction: ltr;
+  width: 122px;
+  white-space: nowrap;
+}
+
+.acc-opening-balance-ora .acc-opening-amount {
+  width: 100%;
+  min-width: 5.75rem;
+  min-height: 1.65rem;
+  padding: 0.2rem 0.45rem;
+  text-align: end;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ora12-text);
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.acc-opening-balance-ora .acc-opening-amount:focus {
+  outline: none;
+  border-color: #0572ce;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.acc-opening-balance-ora .acc-opening-tag {
+  display: inline-block;
+  padding: 0.1rem 0.42rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
+  background: #f3f5f7;
+  color: var(--ora12-muted);
+}
+
+.acc-opening-balance-ora .acc-opening-tag--asset {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.acc-opening-balance-ora .acc-opening-tag--liability {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.acc-opening-balance-ora .acc-opening-tag--equity {
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+  color: #7e22ce;
+}
+
+.acc-opening-balance-ora .acc-opening-tag--revenue {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.acc-opening-balance-ora .acc-opening-tag--expense {
+  background: #ffedd5;
+  border-color: #fdba74;
+  color: #c2410c;
+}
+
+.acc-opening-balance-ora .acc-opening-totals-row td,
+.acc-opening-balance-ora .acc-opening-diff-row td {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: #f3f5f7;
+  border-top: 2px solid var(--ora12-border);
+  font-weight: 800;
+}
+
+.acc-opening-balance-ora #acc-opening-diff.is-balanced,
+.acc-opening-balance-ora #acc-opening-diff-inline.is-balanced {
+  color: #15803d;
+}
+
+.acc-opening-balance-ora #acc-opening-diff.is-unbalanced,
+.acc-opening-balance-ora #acc-opening-diff-inline.is-unbalanced {
+  color: #c74634;
+}
+
+.acc-opening-balance-ora .acc-opening-panel--warn .dashboard-ora-panel__title {
+  background: linear-gradient(180deg, #e8a317 0%, #d48806 48%, #a16207 100%);
+  border-bottom-color: #a16207;
+}
+
+.acc-opening-balance-ora .acc-opening-panel--status .dashboard-ora-panel__title {
+  background: linear-gradient(180deg, #22a06b 0%, #1f845a 48%, #186844 100%);
+  border-bottom-color: #186844;
+}
+
+.acc-opening-balance-ora .acc-opening-msg-list {
+  margin: 0;
+  padding-inline-start: 1.2rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.acc-opening-balance-ora .alert {
+  margin: 0;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 2px;
+  border: 1px solid;
+}
+
+.acc-opening-balance-ora .alert-success {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.acc-opening-balance-ora .alert-error {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+@media (max-width: 720px) {
+  .acc-opening-balance-ora .acc-opening-year-form {
+    margin-inline-start: 0;
+    width: 100%;
+  }
+
+  .acc-opening-balance-ora .acc-opening-table .col-money {
+    width: auto;
+  }
+}
