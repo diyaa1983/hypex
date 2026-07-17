@@ -58,6 +58,9 @@ try {
     }
     $pdo->commit();
 
+    require_once app_path('includes/header_check_notifications.php');
+    header_check_notifications_invalidate_cache();
+
     $row = einvoice_return_status_row($pdo, $returnId) ?: [];
 
     echo json_encode([

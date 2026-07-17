@@ -67,6 +67,9 @@ if ($linkDeliveryId > 0 && count($ids) === 1) {
 try {
     $result = sal_invoice_post_by_ids($pdo, $ids);
 
+    require_once app_path('includes/header_check_notifications.php');
+    header_check_notifications_invalidate_cache();
+
     $gpsPayload = sal_invoice_gps_parse_request();
     $postUserId = (int) (current_user()['id'] ?? 0);
     $gpsSaved = 0;

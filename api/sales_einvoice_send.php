@@ -54,6 +54,9 @@ try {
     }
     $pdo->commit();
 
+    require_once app_path('includes/header_check_notifications.php');
+    header_check_notifications_invalidate_cache();
+
     require_once app_path('includes/sal_invoice_load.php');
     $row = sal_invoice_fetch_by_id($pdo, $invoiceId) ?: [];
 

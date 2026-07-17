@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * تنبيهات الترويسة (جرس): شيكات + سندات تسليم بلا فاتورة + مستندات غير مرحّلة.
+ * تنبيهات الترويسة (جرس): شيكات + سندات تسليم بلا فاتورة + مستندات غير مرحّلة + فوترة غير مرسلة.
  *
  * @return array{
  *   enabled:bool,
@@ -10,7 +10,8 @@ declare(strict_types=1);
  *   alert_checks:list<array<string,mixed>>,
  *   delivery_alerts:list<array<string,mixed>>,
  *   unposted_alerts:list<array<string,mixed>>,
- *   summary:array{total:int,overdue:int,today:int,soon:int,alert_count:int,delivery_count:int,unposted_count:int},
+ *   einvoice_alerts:list<array<string,mixed>>,
+ *   summary:array{total:int,overdue:int,today:int,soon:int,alert_count:int,delivery_count:int,unposted_count:int,einvoice_count:int},
  *   soon_days:int
  * }
  */
@@ -33,6 +34,7 @@ function header_check_notifications_collect(PDO $pdo): array
         'alert_checks' => [],
         'delivery_alerts' => [],
         'unposted_alerts' => [],
+        'einvoice_alerts' => [],
         'summary' => [
             'total' => 0,
             'overdue' => 0,
@@ -41,6 +43,7 @@ function header_check_notifications_collect(PDO $pdo): array
             'alert_count' => 0,
             'delivery_count' => 0,
             'unposted_count' => 0,
+            'einvoice_count' => 0,
         ],
         'soon_days' => 7,
     ];
@@ -50,8 +53,10 @@ function header_check_notifications_collect(PDO $pdo): array
     $canDelivery = sal_delivery_notifications_user_can_see();
     require_once app_path('includes/header_unposted_notifications.php');
     $canUnposted = header_unposted_notifications_user_can_see();
+    require_once app_path('includes/sal_einvoice_notifications.php');
+    $canEinvoice = sal_einvoice_notifications_user_can_see();
 
-    if (!$canChecks && !$canDelivery && !$canUnposted) {
+    if (!$canChecks && !$canDelivery && !$canUnposted && !$canEinvoice) {
         $_SESSION['_header_check_notify'] = ['at' => time(), 'data' => $empty];
 
         return $empty;
@@ -61,6 +66,7 @@ function header_check_notifications_collect(PDO $pdo): array
     $alertChecks = [];
     $deliveryAlerts = [];
     $unpostedAlerts = [];
+    $einvoiceAlerts = [];
     $summary = [
         'total' => 0,
         'overdue' => 0,
@@ -69,6 +75,7 @@ function header_check_notifications_collect(PDO $pdo): array
         'alert_count' => 0,
         'delivery_count' => 0,
         'unposted_count' => 0,
+        'einvoice_count' => 0,
     ];
     $soonDays = 7;
 
@@ -105,9 +112,15 @@ function header_check_notifications_collect(PDO $pdo): array
         $summary['unposted_count'] = header_unposted_notifications_count($pdo);
     }
 
+    if ($canEinvoice) {
+        $einvoiceAlerts = sal_einvoice_unsent_alerts_collect($pdo);
+        $summary['einvoice_count'] = sal_einvoice_unsent_count($pdo);
+    }
+
     $summary['alert_count'] = count($alertChecks)
         + $summary['delivery_count']
-        + $summary['unposted_count'];
+        + $summary['unposted_count']
+        + $summary['einvoice_count'];
 
     $data = [
         'enabled' => true,
@@ -115,6 +128,7 @@ function header_check_notifications_collect(PDO $pdo): array
         'alert_checks' => $alertChecks,
         'delivery_alerts' => $deliveryAlerts,
         'unposted_alerts' => $unpostedAlerts,
+        'einvoice_alerts' => $einvoiceAlerts,
         'summary' => $summary,
         'soon_days' => $soonDays,
     ];
@@ -138,8 +152,12 @@ function header_check_notifications_user_can_see(): bool
         return true;
     }
     require_once app_path('includes/header_unposted_notifications.php');
+    if (header_unposted_notifications_user_can_see()) {
+        return true;
+    }
+    require_once app_path('includes/sal_einvoice_notifications.php');
 
-    return header_unposted_notifications_user_can_see();
+    return sal_einvoice_notifications_user_can_see();
 }
 
 function render_header_check_notifications(array $data): void
@@ -153,7 +171,9 @@ function render_header_check_notifications(array $data): void
     $alertChecks = $data['alert_checks'] ?? [];
     $deliveryAlerts = $data['delivery_alerts'] ?? [];
     $unpostedAlerts = $data['unposted_alerts'] ?? [];
+    $einvoiceAlerts = $data['einvoice_alerts'] ?? [];
     $unpostedCount = (int) ($summary['unposted_count'] ?? 0);
+    $einvoiceCount = (int) ($summary['einvoice_count'] ?? 0);
     $checksJson = json_encode($data['checks'] ?? [], JSON_UNESCAPED_UNICODE);
     if ($checksJson === false) {
         $checksJson = '[]';
@@ -165,7 +185,10 @@ function render_header_check_notifications(array $data): void
     $hasChecks = $alertChecks !== [];
     $hasDeliveries = $deliveryAlerts !== [];
     $hasUnposted = $unpostedAlerts !== [];
+    $hasEinvoice = $einvoiceAlerts !== [];
     $salesInvoicesListUrl = app_url('index.php?r=sales_invoices_list&filter=unposted');
+    $salesDocumentsListUrl = app_url('index.php?r=sales_documents_list');
+    $salesReturnsDocumentsListUrl = app_url('index.php?r=sales_returns_documents_list');
     $purchaseInvoicesListUrl = app_url('index.php?r=purchase_invoices_list&filter=unposted');
     $cashReceiptsListUrl = app_url('index.php?r=cash_receipts_list&filter=unposted');
     $cashPaymentsListUrl = app_url('index.php?r=cash_payments_list&filter=unposted');
@@ -194,7 +217,7 @@ function render_header_check_notifications(array $data): void
                 <span class="app-check-bell-panel-count"><?= (int) $alertCount ?> تنبيه</span>
                 <?php endif; ?>
             </header>
-            <?php if (!$hasChecks && !$hasDeliveries && !$hasUnposted): ?>
+            <?php if (!$hasChecks && !$hasDeliveries && !$hasUnposted && !$hasEinvoice): ?>
             <p class="app-check-bell-panel-empty">لا توجد تنبيهات حالياً.</p>
             <?php else: ?>
             <?php if ($hasUnposted): ?>
@@ -229,6 +252,46 @@ function render_header_check_notifications(array $data): void
             </ul>
             <?php if ($unpostedCount > count($unpostedAlerts)): ?>
             <p class="app-check-bell-panel-more muted">و<?= $unpostedCount - count($unpostedAlerts) ?> مستنداً إضافياً…</p>
+            <?php endif; ?>
+            <?php endif; ?>
+            <?php if ($hasEinvoice): ?>
+            <p class="app-check-bell-section-title">لم تُرسل للفوترة<?= $einvoiceCount > 0 ? ' (' . $einvoiceCount . ')' : '' ?></p>
+            <ul class="app-check-bell-list">
+                <?php foreach ($einvoiceAlerts as $doc): ?>
+                <li>
+                    <a class="app-check-bell-item app-check-bell-item--link"
+                       href="<?= esc((string) ($doc['url'] ?? '#')) ?>">
+                        <span class="dashboard-check-status dashboard-check-status--einvoice">
+                            <?= esc((string) ($doc['urgency_label'] ?? 'لم تُرسل للفوترة')) ?>
+                        </span>
+                        <span class="app-check-bell-item-main">
+                            <span class="app-check-bell-item-no"><?= esc((string) (($doc['doc_no'] ?? '') !== '' ? $doc['doc_no'] : '—')) ?></span>
+                            <span class="app-check-bell-item-party">
+                                <?= esc((string) ($doc['type_label'] ?? '')) ?>
+                                <?php if (trim((string) ($doc['party_name'] ?? '')) !== ''): ?>
+                                · <?= esc((string) $doc['party_name']) ?>
+                                <?php endif; ?>
+                            </span>
+                        </span>
+                        <span class="app-check-bell-item-meta">
+                            <?php
+                            $docDate = trim((string) ($doc['doc_date'] ?? ''));
+                            echo $docDate !== '' ? esc(format_date_dmY($docDate)) : '—';
+                            $docAmount = (float) ($doc['amount'] ?? 0);
+                            if ($docAmount > 0.000001) {
+                                echo ' · ' . esc(format_money($docAmount));
+                            }
+                            if (trim((string) ($doc['ref_invoice_no'] ?? '')) !== '') {
+                                echo ' · فاتورة ' . esc((string) $doc['ref_invoice_no']);
+                            }
+                            ?>
+                        </span>
+                    </a>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+            <?php if ($einvoiceCount > count($einvoiceAlerts)): ?>
+            <p class="app-check-bell-panel-more muted">و<?= $einvoiceCount - count($einvoiceAlerts) ?> مستنداً إضافياً…</p>
             <?php endif; ?>
             <?php endif; ?>
             <?php if ($hasDeliveries): ?>
@@ -314,6 +377,14 @@ function render_header_check_notifications(array $data): void
                 <?php endif; ?>
                 <?php if (user_can('cash_payment') || user_can('cash_payments_list')): ?>
                 <a class="btn btn-ghost btn-sm" href="<?= esc($cashPaymentsListUrl) ?>">سندات صرف</a>
+                <?php endif; ?>
+                <?php endif; ?>
+                <?php if ($einvoiceCount > 0): ?>
+                <?php if (user_can('sales_invoices') || user_can('sales_documents_list')): ?>
+                <a class="btn btn-ghost btn-sm" href="<?= esc($salesDocumentsListUrl) ?>">فواتير بيع</a>
+                <?php endif; ?>
+                <?php if (user_can('sales_returns') || user_can('sales_returns_documents_list')): ?>
+                <a class="btn btn-ghost btn-sm" href="<?= esc($salesReturnsDocumentsListUrl) ?>">مرتجعات</a>
                 <?php endif; ?>
                 <?php endif; ?>
                 <a class="btn btn-primary btn-sm" href="<?= esc($dashboardUrl) ?>">لوحة التحكم</a>

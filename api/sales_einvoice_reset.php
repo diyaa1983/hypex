@@ -87,6 +87,9 @@ try {
 
     $pdo->commit();
 
+    require_once app_path('includes/header_check_notifications.php');
+    header_check_notifications_invalidate_cache();
+
     $msg = $wasSent
         ? 'تم فك إرسال الفاتورة للفوترة.'
         : 'لم تكن الفاتورة مُرسَلة للفوترة.';

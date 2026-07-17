@@ -53,6 +53,9 @@ if ($ids === []) {
 try {
     $result = sal_return_post_by_ids($pdo, $ids);
 
+    require_once app_path('includes/header_check_notifications.php');
+    header_check_notifications_invalidate_cache();
+
     $counts = crm_ledger_count_unposted($pdo);
     $posted = (int) $result['posted'];
     $skipped = (int) $result['skipped'];
