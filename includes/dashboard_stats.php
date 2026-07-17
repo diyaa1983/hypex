@@ -522,6 +522,86 @@ function dashboard_collect_sensitive_accounts(PDO $pdo, string $dateFrom, string
 }
 
 /**
+ * عدد الشيكات ضمن نافذة تنبيه البريد (أيام قبل الاستحقاق + اختياري يوم الاستحقاق).
+ *
+ * @param list<array<string, mixed>> $checks
+ * @return array{alert:int, overdue:int, today:int, soon:int, amount:float}
+ */
+function dashboard_count_checks_in_alert_window(array $checks, int $daysBefore, bool $onDueDay = true): array
+{
+    $daysBefore = max(1, min(60, $daysBefore));
+    $out = [
+        'alert' => 0,
+        'overdue' => 0,
+        'today' => 0,
+        'soon' => 0,
+        'amount' => 0.0,
+    ];
+    foreach ($checks as $chk) {
+        if (!array_key_exists('days_until_due', $chk) || $chk['days_until_due'] === null || $chk['days_until_due'] === '') {
+            continue;
+        }
+        $days = (int) $chk['days_until_due'];
+        $amt = (float) ($chk['amount'] ?? 0);
+        if ($days < 0) {
+            $out['overdue']++;
+            $out['alert']++;
+            $out['amount'] += $amt;
+        } elseif ($days === 0 && $onDueDay) {
+            $out['today']++;
+            $out['alert']++;
+            $out['amount'] += $amt;
+        } elseif ($days > 0 && $days <= $daysBefore) {
+            $out['soon']++;
+            $out['alert']++;
+            $out['amount'] += $amt;
+        }
+    }
+    $out['amount'] = round($out['amount'], 6);
+
+    return $out;
+}
+
+/**
+ * تلخيص حالات استحقاق الشيكات للوحة التحكم.
+ *
+ * @param list<array<string, mixed>> $checks
+ * @return array{total:int, overdue:int, today:int, soon:int, due:int, amount_due:float}
+ */
+function dashboard_summarize_check_alerts(array $checks): array
+{
+    $summary = [
+        'total' => 0,
+        'overdue' => 0,
+        'today' => 0,
+        'soon' => 0,
+        'due' => 0,
+        'amount_due' => 0.0,
+    ];
+    foreach ($checks as $chk) {
+        $summary['total']++;
+        $u = (string) ($chk['urgency'] ?? '');
+        $amt = (float) ($chk['amount'] ?? 0);
+        if ($u === 'overdue') {
+            $summary['overdue']++;
+            $summary['due']++;
+            $summary['amount_due'] += $amt;
+        } elseif ($u === 'today') {
+            $summary['today']++;
+            $summary['due']++;
+            $summary['amount_due'] += $amt;
+        } elseif ($u === 'soon') {
+            $summary['soon']++;
+            $summary['due']++;
+            $summary['amount_due'] += $amt;
+        }
+    }
+    $summary['amount_due'] = round($summary['amount_due'], 6);
+
+    return $summary;
+}
+
+/**
  * @return array{
  *   hero: array<string, string>,
  *   highlights: list<array{label:string, value:string, hint?:string, tone?:string}>,
@@ -529,7 +609,9 @@ function dashboard_collect_sensitive_accounts(PDO $pdo, string $dateFrom, string
  *   sensitive_accounts: list<array{label:string, value:string, hint?:string, tone?:string, url?:string, click_filter?:string}>,
  *   liabilities: list<array{label:string, value:string, hint?:string, tone?:string, url?:string}>,
  *   check_alerts: list<array<string, mixed>>,
- *   check_alerts_summary: array{total:int, overdue:int, today:int, soon:int, total_amount:float}
+ *   check_alerts_summary: array{total:int, overdue:int, today:int, soon:int, due:int, amount_due:float, total_amount:float},
+ *   check_out_alerts: list<array<string, mixed>>,
+ *   check_out_alerts_summary: array{total:int, overdue:int, today:int, soon:int, due:int, amount_due:float}
  * }
  */
 function dashboard_collect(PDO $pdo): array
@@ -546,22 +628,40 @@ function dashboard_collect(PDO $pdo): array
     $highlights = [];
     $sections = [];
     $checkAlerts = [];
-    $checkSummary = ['total' => 0, 'overdue' => 0, 'today' => 0, 'soon' => 0, 'total_amount' => 0.0];
+    $checkOutAlerts = [];
+    $checkSummary = [
+        'total' => 0,
+        'overdue' => 0,
+        'today' => 0,
+        'soon' => 0,
+        'due' => 0,
+        'amount_due' => 0.0,
+        'total_amount' => 0.0,
+    ];
+    $checkOutSummary = [
+        'total' => 0,
+        'overdue' => 0,
+        'today' => 0,
+        'soon' => 0,
+        'due' => 0,
+        'amount_due' => 0.0,
+    ];
     if (dashboard_widget_can('dashboard_panel_checks')) {
         require_once app_path('includes/fin_voucher_checks.php');
         $checkAlerts = fin_voucher_checks_pending_collection($pdo, $today);
-        $checkSummary['total_amount'] = fin_voucher_checks_fund_gl_balance($pdo);
-        foreach ($checkAlerts as $chk) {
-            $checkSummary['total']++;
-            $u = (string) ($chk['urgency'] ?? '');
-            if ($u === 'overdue') {
-                $checkSummary['overdue']++;
-            } elseif ($u === 'today') {
-                $checkSummary['today']++;
-            } elseif ($u === 'soon') {
-                $checkSummary['soon']++;
-            }
+        foreach ($checkAlerts as &$inChk) {
+            $inChk['direction'] = 'in';
         }
+        unset($inChk);
+        $checkSummary = dashboard_summarize_check_alerts($checkAlerts);
+        $checkSummary['total_amount'] = fin_voucher_checks_fund_gl_balance($pdo);
+
+        $checkOutAlerts = fin_voucher_checks_pending_disbursement($pdo, $today);
+        foreach ($checkOutAlerts as &$outChk) {
+            $outChk['direction'] = 'out';
+        }
+        unset($outChk);
+        $checkOutSummary = dashboard_summarize_check_alerts($checkOutAlerts);
     }
 
     if (dashboard_widget_can('dashboard_kpi_sales')) {
@@ -636,6 +736,66 @@ function dashboard_collect(PDO $pdo): array
         }
     }
 
+    if (dashboard_widget_can('dashboard_panel_checks')) {
+        require_once app_path('includes/fin_check_due_email.php');
+        require_once app_path('includes/fin_out_check_due_email.php');
+        $inEmailCfg = fin_check_due_email_settings($pdo);
+        $outEmailCfg = fin_out_check_due_email_settings($pdo);
+        $inWindow = dashboard_count_checks_in_alert_window(
+            $checkAlerts,
+            (int) ($inEmailCfg['days_before'] ?? 5),
+            !empty($inEmailCfg['on_due_day'])
+        );
+        $outWindow = dashboard_count_checks_in_alert_window(
+            $checkOutAlerts,
+            (int) ($outEmailCfg['days_before'] ?? 5),
+            !empty($outEmailCfg['on_due_day'])
+        );
+        $inDays = max(1, min(60, (int) ($inEmailCfg['days_before'] ?? 5)));
+        $outDays = max(1, min(60, (int) ($outEmailCfg['days_before'] ?? 5)));
+
+        $inHint = sprintf(
+            'متأخر: %d · اليوم: %d · خلال %d أيام: %d',
+            (int) $inWindow['overdue'],
+            (int) $inWindow['today'],
+            $inDays,
+            (int) $inWindow['soon']
+        );
+        $outHint = sprintf(
+            'متأخر: %d · اليوم: %d · خلال %d أيام: %d',
+            (int) $outWindow['overdue'],
+            (int) $outWindow['today'],
+            $outDays,
+            (int) $outWindow['soon']
+        );
+
+        $inMetric = dashboard_metric(
+            'شيكات واردة قيد الاستحقاق',
+            (int) $inWindow['alert'],
+            'int',
+            $inHint,
+            ((int) $inWindow['alert'] > 0) ? 'danger' : 'primary'
+        );
+        $inMetric['click_filter'] = 'due';
+        $inMetric['direction'] = 'in';
+        $inMetric['alert_days'] = $inDays;
+        $inMetric['url'] = app_url('index.php?r=fin_checks&status=pending');
+        $highlights[] = $inMetric;
+
+        $outMetric = dashboard_metric(
+            'شيكات صادرة قيد الاستحقاق',
+            (int) $outWindow['alert'],
+            'int',
+            $outHint,
+            ((int) $outWindow['alert'] > 0) ? 'danger' : 'success'
+        );
+        $outMetric['click_filter'] = 'due';
+        $outMetric['direction'] = 'out';
+        $outMetric['alert_days'] = $outDays;
+        $outMetric['url'] = app_url('index.php?r=fin_outgoing_checks');
+        $highlights[] = $outMetric;
+    }
+
     /** @var list<array{no:string, date:string, party:string, total:string, url:string}> $recentSales */
     $recentSales = [];
     if (dashboard_table_exists($pdo, 'sal_invoice') && dashboard_widget_can('dashboard_panel_recent_sales')) {
@@ -691,12 +851,14 @@ function dashboard_collect(PDO $pdo): array
                 'Wednesday' => 'الأربعاء', 'Thursday' => 'الخميس', 'Friday' => 'الجمعة', 'Saturday' => 'السبت',
             ][date('l')] ?? '',
         ],
-        'highlights' => array_slice($highlights, 0, 10),
+        'highlights' => array_slice($highlights, 0, 12),
         'sensitive_accounts' => $sensitiveAccounts,
         'liabilities' => $liabilities,
         'sections' => $sections,
         'recent_sales' => $recentSales,
         'check_alerts' => $checkAlerts,
         'check_alerts_summary' => $checkSummary,
+        'check_out_alerts' => $checkOutAlerts,
+        'check_out_alerts_summary' => $checkOutSummary,
     ];
 }

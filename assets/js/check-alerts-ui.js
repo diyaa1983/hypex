@@ -18,11 +18,29 @@
     }
 
     var apiReceipt = modal.getAttribute('data-api-receipt') || '';
+    var apiPayment = modal.getAttribute('data-api-payment') || '';
     var backdrop = modal.querySelector('.dashboard-check-modal-backdrop');
     var closeBtn = modal.querySelector('.js-check-modal-close');
     var titleEl = modal.querySelector('.dashboard-check-modal-title');
     var bodyEl = modal.querySelector('.dashboard-check-modal-body');
     var footEl = modal.querySelector('.dashboard-check-modal-foot');
+    var activeDirection = '';
+
+    function isOutgoing(c) {
+      return c && String(c.direction || '') === 'out';
+    }
+
+    function partyColLabel(c) {
+      return isOutgoing(c) ? 'المستفيد' : 'العميل';
+    }
+
+    function voucherColLabel(c) {
+      return isOutgoing(c) ? 'سند الصرف' : 'سند القبض';
+    }
+
+    function voucherOpenLabel(c) {
+      return isOutgoing(c) ? 'فتح سند الصرف' : 'فتح سند القبض';
+    }
 
     function esc(s) {
       var d = document.createElement('div');
@@ -55,11 +73,31 @@
       return null;
     }
 
-    function filterChecks(filter) {
-      if (!filter || filter === 'all') {
-        return checks.slice();
+    function filterChecks(filter, direction, alertDays) {
+      var rows = checks.slice();
+      if (direction === 'in' || direction === 'out') {
+        rows = rows.filter(function (c) {
+          return String(c.direction || 'in') === direction;
+        });
       }
-      return checks.filter(function (c) {
+      if (!filter || filter === 'all') {
+        return rows;
+      }
+      if (filter === 'due') {
+        var maxDays = parseInt(String(alertDays == null ? '7' : alertDays), 10);
+        if (!isFinite(maxDays) || maxDays < 1) maxDays = 7;
+        return rows.filter(function (c) {
+          if (c.days_until_due === null || c.days_until_due === undefined || c.days_until_due === '') {
+            return false;
+          }
+          var d = parseInt(c.days_until_due, 10);
+          if (!isFinite(d)) return false;
+          if (d < 0) return true;
+          if (d === 0) return true;
+          return d > 0 && d <= maxDays;
+        });
+      }
+      return rows.filter(function (c) {
         return (c.urgency || '') === filter;
       });
     }
@@ -81,10 +119,15 @@
     }
 
     function renderDetailRows(rows) {
+      var sample = rows[0] || {};
       var html =
         '<table class="dashboard-check-detail-table"><thead><tr>' +
-        '<th>الحالة</th><th>رقم الشيك</th><th>البنك</th><th>العميل</th>' +
-        '<th>سند القبض</th><th>تاريخ الاستحقاق</th><th>المبلغ</th>' +
+        '<th>الحالة</th><th>رقم الشيك</th><th>البنك</th><th>' +
+        esc(partyColLabel(sample)) +
+        '</th>' +
+        '<th>' +
+        esc(voucherColLabel(sample)) +
+        '</th><th>تاريخ الاستحقاق</th><th>المبلغ</th>' +
         '</tr></thead><tbody>';
       rows.forEach(function (c) {
         var due = c.due_date ? fmtDate(c.due_date) : '—';
@@ -121,8 +164,9 @@
       return html;
     }
 
-    function showList(filter, title) {
-      var rows = filterChecks(filter);
+    function showList(filter, title, direction, alertDays) {
+      activeDirection = direction || '';
+      var rows = filterChecks(filter, activeDirection, alertDays);
       if (titleEl) {
         titleEl.textContent = title;
       }
@@ -235,10 +279,14 @@
         '<div><dt>تاريخ الاستحقاق</dt><dd>' +
         esc(due) +
         '</dd></div>' +
-        '<div><dt>العميل</dt><dd>' +
-        esc(v.customer_name || c.party_name || '—') +
+        '<div><dt>' +
+        esc(partyColLabel(c)) +
+        '</dt><dd>' +
+        esc(v.party_name || v.customer_name || v.supplier_name || c.party_name || '—') +
         '</dd></div>' +
-        '<div><dt>سند القبض</dt><dd>' +
+        '<div><dt>' +
+        esc(voucherColLabel(c)) +
+        '</dt><dd>' +
         esc(c.voucher_no || '') +
         ' — ' +
         esc(vDate) +
@@ -275,7 +323,7 @@
       }
       if (footEl && c.url) {
         footEl.innerHTML =
-          '<a class="btn btn-primary btn-sm" href="' + esc(c.url) + '">فتح سند القبض</a>';
+          '<a class="btn btn-primary btn-sm" href="' + esc(c.url) + '">' + esc(voucherOpenLabel(c)) + '</a>';
       }
       openModal();
 
@@ -287,11 +335,12 @@
 
       render({ amount: c.voucher_amount, checks: [] });
 
-      if (!apiReceipt || !(c.voucher_id > 0)) {
+      var apiUrl = isOutgoing(c) ? apiPayment : apiReceipt;
+      if (!apiUrl || !(c.voucher_id > 0)) {
         return;
       }
 
-      fetch(apiReceipt + '?id=' + encodeURIComponent(String(c.voucher_id)), {
+      fetch(apiUrl + '?id=' + encodeURIComponent(String(c.voucher_id)), {
         credentials: 'same-origin',
       })
         .then(function (r) {
@@ -332,6 +381,8 @@
           render({
             amount: v.amount,
             customer_name: v.customer_name,
+            supplier_name: v.supplier_name,
+            party_name: v.party_name || v.supplier_name || v.customer_name || v.employee_name,
             sales_rep_name: v.sales_rep_name,
             notes: v.notes,
             checks: mappedChecks,
@@ -372,13 +423,18 @@
           e.preventDefault();
           var filter = el.getAttribute('data-filter') || 'all';
           var title = el.getAttribute('data-title') || 'تفاصيل الشيكات';
+          var direction = el.getAttribute('data-direction') || '';
+          var alertDays = el.getAttribute('data-alert-days') || '7';
           if (global.AppHeaderCheckNotify && AppHeaderCheckNotify.closePanel) {
             AppHeaderCheckNotify.closePanel();
           }
-          if (filter === 'all' && checks.length === 1) {
+          var filtered = filterChecks(filter, direction, alertDays);
+          if (filter === 'all' && !direction && checks.length === 1) {
             showSingle(parseInt(checks[0].check_id, 10));
+          } else if (filtered.length === 1) {
+            showSingle(parseInt(filtered[0].check_id, 10));
           } else {
-            showList(filter, title);
+            showList(filter, title, direction, alertDays);
           }
         });
         el.addEventListener('keydown', function (e) {

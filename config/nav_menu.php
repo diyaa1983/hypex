@@ -30,7 +30,7 @@ return [
                         ['code' => 'dashboard_kpi_payables', 'label' => 'مؤشر ذمم الموردين', 'icon' => '🏭'],
                         ['code' => 'dashboard_panel_treasury', 'label' => 'لوحة الصندوق والحسابات', 'icon' => '🏦'],
                         ['code' => 'dashboard_panel_liabilities', 'label' => 'لوحة المستحقات', 'icon' => '📋'],
-                        ['code' => 'dashboard_panel_checks', 'label' => 'إشعارات الشيكات قيد التحصيل', 'icon' => '📝'],
+                        ['code' => 'dashboard_panel_checks', 'label' => 'مؤشرات الشيكات الواردة والصادرة', 'icon' => '📝'],
                         ['code' => 'dashboard_panel_recent_sales', 'label' => 'آخر فواتير المبيعات', 'icon' => '🧾'],
                     ],
                 ],

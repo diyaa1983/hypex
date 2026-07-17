@@ -202,6 +202,66 @@ body:has(.dashboard-ora) .main-content {
   padding: 0;
 }
 
+.dashboard-ora-kpi-grid--checks-due {
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.dashboard-ora-kpi--checks-due {
+  min-height: 8.25rem;
+  padding: 0.75rem 0.85rem 0.7rem;
+  box-shadow: 0 2px 8px rgba(22, 21, 19, 0.08);
+}
+
+.dashboard-ora-kpi-eyebrow {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 0.15rem;
+  letter-spacing: 0.01em;
+}
+
+.dashboard-ora-kpi-value--lg {
+  font-size: 1.85rem;
+  margin: 0.15rem 0 0.35rem;
+}
+
+.dashboard-ora-kpi-amount {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  direction: ltr;
+  text-align: start;
+}
+
+.dashboard-ora-checks-due-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.dashboard-ora-subtitle {
+  margin: 0.85rem 0.85rem 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.dashboard-ora-panel--checks-due {
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 2px 10px rgba(5, 114, 206, 0.06);
+}
+
+@media (max-width: 720px) {
+  .dashboard-ora-kpi-grid--checks-due {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* شبكة المؤشرات */
 .dashboard-ora-kpi-grid {
   display: grid;
@@ -257,6 +317,26 @@ button.dashboard-ora-kpi {
 
 .dashboard-ora-kpi--warn {
   border-inline-start-color: var(--ora12-warn);
+}
+
+.dashboard-ora-kpi--danger {
+  border-inline-start-color: #b91c1c;
+  background: #fee2e2;
+  border-color: #fecaca;
+  box-shadow: 0 1px 4px rgba(185, 28, 28, 0.18);
+}
+
+.dashboard-ora-kpi--danger .dashboard-ora-kpi-label,
+.dashboard-ora-kpi--danger .dashboard-ora-kpi-value,
+.dashboard-ora-kpi--danger .dashboard-ora-kpi-hint {
+  color: #7f1d1d;
+}
+
+.dashboard-ora-kpi--danger:hover,
+.dashboard-ora-kpi--danger:focus-visible {
+  background: #fecaca;
+  border-color: #f87171;
+  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.22);
 }
 
 .dashboard-ora-kpi-label {

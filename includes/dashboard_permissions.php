@@ -16,7 +16,7 @@ function dashboard_widgets_catalog(): array
         ['code' => 'dashboard_kpi_payables', 'label' => 'مؤشر ذمم الموردين'],
         ['code' => 'dashboard_panel_treasury', 'label' => 'لوحة الصندوق والحسابات'],
         ['code' => 'dashboard_panel_liabilities', 'label' => 'لوحة المستحقات'],
-        ['code' => 'dashboard_panel_checks', 'label' => 'إشعارات الشيكات قيد التحصيل'],
+        ['code' => 'dashboard_panel_checks', 'label' => 'مؤشرات الشيكات الواردة والصادرة'],
         ['code' => 'dashboard_panel_recent_sales', 'label' => 'آخر فواتير المبيعات'],
     ];
 }

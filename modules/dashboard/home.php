@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once app_path('includes/dashboard_stats.php');
+require_once app_path('includes/dashboard_permissions.php');
 
 $pdo = db();
 $dash = dashboard_collect($pdo);
@@ -20,17 +21,29 @@ $liabilities = $dash['liabilities'] ?? [];
 $sections = $dash['sections'];
 $recentSales = $dash['recent_sales'];
 $checkAlerts = $dash['check_alerts'] ?? [];
-$checkSummary = $dash['check_alerts_summary'] ?? ['total' => 0, 'overdue' => 0, 'today' => 0, 'soon' => 0, 'total_amount' => 0.0];
-$checksJson = json_encode($checkAlerts, JSON_UNESCAPED_UNICODE);
+$checkSummary = $dash['check_alerts_summary'] ?? [
+    'total' => 0, 'overdue' => 0, 'today' => 0, 'soon' => 0, 'due' => 0, 'amount_due' => 0.0, 'total_amount' => 0.0,
+];
+$checkOutAlerts = $dash['check_out_alerts'] ?? [];
+$checkOutSummary = $dash['check_out_alerts_summary'] ?? [
+    'total' => 0, 'overdue' => 0, 'today' => 0, 'soon' => 0, 'due' => 0, 'amount_due' => 0.0,
+];
+$showCheckKpis = dashboard_widget_can('dashboard_panel_checks');
+$allCheckAlerts = array_merge($checkAlerts, $checkOutAlerts);
+$checksJson = json_encode($allCheckAlerts, JSON_UNESCAPED_UNICODE);
 if ($checksJson === false) {
     $checksJson = '[]';
 }
 $apiReceiptUrl = app_url('api/fin_receipt_view.php');
+$apiPaymentUrl = app_url('api/fin_payment_view.php');
+$finChecksUrl = app_url('index.php?r=fin_checks&status=pending');
+$finOutgoingUrl = app_url('index.php?r=fin_outgoing_checks');
 $kpiToneClass = static function (string $tone): string {
     return match ($tone) {
         'primary' => ' dashboard-ora-kpi--primary',
         'success' => ' dashboard-ora-kpi--success',
         'warn' => ' dashboard-ora-kpi--warn',
+        'danger' => ' dashboard-ora-kpi--danger',
         default => '',
     };
 };
@@ -142,14 +155,19 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
                 $kpiClick = !empty($kpi['click_filter'])
                     ? ' dashboard-ora-kpi--clickable dashboard-kpi--clickable js-check-alert-open'
                     : '';
-                $tag = $kpiClick !== '' ? 'button' : 'article';
+                $kpiUrl = trim((string) ($kpi['url'] ?? ''));
+                $tag = $kpiClick !== '' ? 'button' : ($kpiUrl !== '' ? 'a' : 'article');
                 ?>
                 <<?= $tag ?> class="dashboard-ora-kpi<?= $kpiToneClass((string) ($kpi['tone'] ?? '')) ?><?= $kpiClick ?>"
                     <?php if ($kpiClick !== ''): ?>
                     type="button"
                     data-filter="<?= esc((string) $kpi['click_filter']) ?>"
-                    data-title="<?= esc((string) ($kpi['label'] ?? 'شيكات قيد التحصيل')) ?>"
+                    data-direction="<?= esc((string) ($kpi['direction'] ?? '')) ?>"
+                    data-alert-days="<?= (int) ($kpi['alert_days'] ?? 7) ?>"
+                    data-title="<?= esc((string) ($kpi['label'] ?? 'شيكات قيد الاستحقاق')) ?>"
                     title="اضغط لعرض التفاصيل"
+                    <?php elseif ($kpiUrl !== ''): ?>
+                    href="<?= esc($kpiUrl) ?>"
                     <?php endif; ?>>
                     <span class="dashboard-ora-kpi-label"><?= esc($kpi['label']) ?></span>
                     <span class="dashboard-ora-kpi-value"><?= esc($kpi['value']) ?></span>
@@ -191,34 +209,45 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
     </section>
     <?php endif; ?>
 
-    <?php if ($checkAlerts !== []): ?>
-    <section class="dashboard-ora-panel" aria-label="إشعارات الشيكات قيد التحصيل">
-        <h2 class="dashboard-ora-panel__title">إشعارات الشيكات قيد التحصيل</h2>
-        <p class="dashboard-ora-panel__sub">شيكات قبض مُرحّلة على صندوق الشيكات — مرتبة حسب الاستحقاق</p>
-        <div class="dashboard-ora-toolbar">
-            <?php if ((int) ($checkSummary['overdue'] ?? 0) > 0): ?>
-            <button type="button" class="dashboard-ora-btn dashboard-ora-btn--overdue js-check-alert-open"
-                    data-filter="overdue" data-title="شيكات متأخرة">
-                متأخر: <?= (int) $checkSummary['overdue'] ?>
-            </button>
-            <?php endif; ?>
-            <?php if ((int) ($checkSummary['today'] ?? 0) > 0): ?>
-            <button type="button" class="dashboard-ora-btn dashboard-ora-btn--today js-check-alert-open"
-                    data-filter="today" data-title="شيكات مستحقة اليوم">
-                اليوم: <?= (int) $checkSummary['today'] ?>
-            </button>
-            <?php endif; ?>
-            <?php if ((int) ($checkSummary['soon'] ?? 0) > 0): ?>
-            <button type="button" class="dashboard-ora-btn dashboard-ora-btn--soon js-check-alert-open"
-                    data-filter="soon" data-title="شيكات قريبة الاستحقاق">
-                خلال 7 أيام: <?= (int) $checkSummary['soon'] ?>
-            </button>
-            <?php endif; ?>
-            <button type="button" class="dashboard-ora-btn js-check-alert-open"
-                    data-filter="all" data-title="كل الشيكات قيد التحصيل">
-                رصيد الصندوق: <?= format_money((float) ($checkSummary['total_amount'] ?? 0)) ?>
-            </button>
-        </div>
+    <?php
+    require_once app_path('includes/fin_check_due_email.php');
+    require_once app_path('includes/fin_out_check_due_email.php');
+    $inEmailCfgUi = fin_check_due_email_settings($pdo);
+    $outEmailCfgUi = fin_out_check_due_email_settings($pdo);
+    $inAlertDaysUi = max(1, min(60, (int) ($inEmailCfgUi['days_before'] ?? 5)));
+    $outAlertDaysUi = max(1, min(60, (int) ($outEmailCfgUi['days_before'] ?? 5)));
+    $inOnDueUi = !empty($inEmailCfgUi['on_due_day']);
+    $outOnDueUi = !empty($outEmailCfgUi['on_due_day']);
+    $checkInAlertWindow = static function (array $c, int $daysBefore, bool $onDueDay): bool {
+        if (!array_key_exists('days_until_due', $c) || $c['days_until_due'] === null || $c['days_until_due'] === '') {
+            return false;
+        }
+        $d = (int) $c['days_until_due'];
+        if ($d < 0) {
+            return true;
+        }
+        if ($d === 0) {
+            return $onDueDay;
+        }
+
+        return $d > 0 && $d <= $daysBefore;
+    };
+    $inDueRows = array_values(array_filter(
+        $checkAlerts,
+        static fn (array $c) use ($checkInAlertWindow, $inAlertDaysUi, $inOnDueUi): bool => $checkInAlertWindow($c, $inAlertDaysUi, $inOnDueUi)
+    ));
+    $outDueRows = array_values(array_filter(
+        $checkOutAlerts,
+        static fn (array $c) use ($checkInAlertWindow, $outAlertDaysUi, $outOnDueUi): bool => $checkInAlertWindow($c, $outAlertDaysUi, $outOnDueUi)
+    ));
+    ?>
+    <?php if ($inDueRows !== [] || $outDueRows !== []): ?>
+    <section class="dashboard-ora-panel" aria-label="تفاصيل الشيكات قيد الاستحقاق">
+        <h2 class="dashboard-ora-panel__title">تفاصيل الشيكات قيد الاستحقاق</h2>
+        <p class="dashboard-ora-panel__sub">قائمة مختصرة للشيكات المتأخرة والمستحقة قريباً — اضغط الصف للتفاصيل</p>
+
+        <?php if ($inDueRows !== []): ?>
+        <h3 class="dashboard-ora-subtitle">واردة</h3>
         <div class="dashboard-ora-panel__body dashboard-ora-panel__body--flush">
             <div class="dashboard-ora-table-wrap">
                 <table class="dashboard-ora-table">
@@ -234,7 +263,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($checkAlerts as $chk): ?>
+                        <?php foreach ($inDueRows as $chk): ?>
                         <?php
                         $urgency = (string) ($chk['urgency'] ?? 'pending');
                         $rowClass = 'dashboard-ora-row--' . esc($urgency);
@@ -242,6 +271,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
                         <tr class="dashboard-ora-row-click dashboard-check-row-click js-check-alert-open <?= $rowClass ?>"
                             role="button" tabindex="0"
                             data-check-id="<?= (int) ($chk['check_id'] ?? 0) ?>"
+                            data-direction="in"
                             title="اضغط لعرض تفاصيل الشيك">
                             <td>
                                 <span class="dashboard-ora-status dashboard-ora-status--<?= esc($urgency) ?>">
@@ -271,10 +301,69 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
                 </table>
             </div>
         </div>
+        <?php endif; ?>
+
+        <?php if ($outDueRows !== []): ?>
+        <h3 class="dashboard-ora-subtitle">صادرة</h3>
+        <div class="dashboard-ora-panel__body dashboard-ora-panel__body--flush">
+            <div class="dashboard-ora-table-wrap">
+                <table class="dashboard-ora-table">
+                    <thead>
+                        <tr>
+                            <th>الحالة</th>
+                            <th>رقم الشيك</th>
+                            <th>البنك</th>
+                            <th>المستفيد</th>
+                            <th>سند الصرف</th>
+                            <th>تاريخ الاستحقاق</th>
+                            <th>المبلغ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($outDueRows as $chk): ?>
+                        <?php
+                        $urgency = (string) ($chk['urgency'] ?? 'pending');
+                        $rowClass = 'dashboard-ora-row--' . esc($urgency);
+                        ?>
+                        <tr class="dashboard-ora-row-click dashboard-check-row-click js-check-alert-open <?= $rowClass ?>"
+                            role="button" tabindex="0"
+                            data-check-id="<?= (int) ($chk['check_id'] ?? 0) ?>"
+                            data-direction="out"
+                            title="اضغط لعرض تفاصيل الشيك">
+                            <td>
+                                <span class="dashboard-ora-status dashboard-ora-status--<?= esc($urgency) ?>">
+                                    <?= esc((string) ($chk['urgency_label'] ?? '')) ?>
+                                </span>
+                            </td>
+                            <td><?= esc((string) ($chk['check_no'] !== '' ? $chk['check_no'] : '—')) ?></td>
+                            <td><?= esc((string) ($chk['bank_name'] !== '' ? $chk['bank_name'] : '—')) ?></td>
+                            <td><?= esc((string) ($chk['party_name'] !== '' ? $chk['party_name'] : '—')) ?></td>
+                            <td>
+                                <?php if (!empty($chk['url'])): ?>
+                                <a href="<?= esc((string) $chk['url']) ?>" onclick="event.stopPropagation()"><?= esc((string) $chk['voucher_no']) ?></a>
+                                <?php else: ?>
+                                <?= esc((string) $chk['voucher_no']) ?>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php
+                                $dueDisp = (string) ($chk['due_date'] ?? '');
+                                echo $dueDisp !== '' ? esc(format_date_dmY($dueDisp)) : '—';
+                                ?>
+                            </td>
+                            <td dir="ltr" style="text-align:end"><?= esc(format_money((float) ($chk['amount'] ?? 0))) ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <p class="dashboard-ora-foot">
-            <a href="<?= esc(app_url('index.php?r=cash_receipt')) ?>">فتح سند قبض</a>
+            <a href="<?= esc($finChecksUrl) ?>">الشيكات الواردة</a>
             &nbsp;|&nbsp;
-            <a href="<?= esc(app_url('index.php?r=cash_receipts_list')) ?>">ترحيل سندات القبض</a>
+            <a href="<?= esc($finOutgoingUrl) ?>">الشيكات الصادرة</a>
         </p>
     </section>
     <?php endif; ?>
@@ -339,7 +428,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
     </section>
     <?php endif; ?>
 
-    <?php if ($sections === [] && $highlights === [] && $sensitiveAccounts === [] && $liabilities === [] && $checkAlerts === [] && $recentSales === []): ?>
+    <?php if ($sections === [] && $highlights === [] && $sensitiveAccounts === [] && $liabilities === [] && !$showCheckKpis && $recentSales === []): ?>
     <section class="dashboard-ora-panel">
         <h2 class="dashboard-ora-panel__title">بدء الاستخدام</h2>
         <div class="dashboard-ora-panel__body">
@@ -354,10 +443,11 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
     </div><!-- .dashboard-ora-workspace -->
 </div>
 
-<?php if ($checkAlerts !== []): ?>
+<?php if ($showCheckKpis): ?>
 <script type="application/json" id="dashboard-checks-json"><?= $checksJson ?></script>
 <div id="dashboard-check-modal" class="dashboard-check-modal" hidden
-     data-api-receipt="<?= esc($apiReceiptUrl) ?>">
+     data-api-receipt="<?= esc($apiReceiptUrl) ?>"
+     data-api-payment="<?= esc($apiPaymentUrl) ?>">
     <div class="dashboard-check-modal-backdrop" aria-hidden="true"></div>
     <div class="dashboard-check-modal-panel" role="dialog" aria-modal="true" aria-labelledby="dashboard-check-modal-title">
         <header class="dashboard-check-modal-header">
