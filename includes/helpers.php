@@ -61,6 +61,24 @@ function format_money(float|string $n, ?int $decimals = null): string
     return format_amount($n, $decimals, true);
 }
 
+/**
+ * تحويل نص مبلغ من الحقول (يدعم فواصل الآلاف مثل 2,000.00) إلى float.
+ */
+function parse_amount_input(mixed $raw): float
+{
+    $s = trim((string) ($raw ?? ''));
+    if ($s === '') {
+        return 0.0;
+    }
+    // مسافات / فواصل آلاف (لاتينية وعربية) — الفاصلة العشرية تبقى نقطة حسب تنسيق النظام en-US
+    $s = str_replace(["\xc2\xa0", ' ', "'", '٬', ','], '', $s);
+    if ($s === '' || !is_numeric($s)) {
+        return 0.0;
+    }
+
+    return (float) $s;
+}
+
 /** تاريخ ISO (Y-m-d) → عرض يوم-شهر-سنة (d-m-Y). */
 function format_date_dmY(string $isoDate): string
 {

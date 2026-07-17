@@ -56,6 +56,18 @@
     return x.toFixed(2);
   }
 
+  /** للمبالغ داخل حقول الإدخال — بدون فواصل آلاف حتى لا يفسدها PHP عند الحفظ. */
+  function fmtMoneyInput(n) {
+    if (global.AppFormat && AppFormat.formatFixedDecimalPlain) {
+      return AppFormat.formatFixedDecimalPlain(n);
+    }
+    var x = Number(n);
+    if (!isFinite(x)) return '0.00';
+    var d =
+      global.AppFormat && typeof AppFormat.decimals === 'function' ? AppFormat.decimals() : 2;
+    return x.toFixed(d);
+  }
+
   function escapeHtml(s) {
     var d = document.createElement('div');
     d.textContent = s == null ? '' : String(s);
@@ -1286,11 +1298,9 @@
       var allowedGroups = allowedCashGroupsForPayMethod(payMethod);
       if (allowedGroups.indexOf(accountGroup) < 0) {
         var groupMsg =
-          payMethod === 'bank'
+          payMethod === 'bank' || payMethod === 'check'
             ? 'اختر حساب بنك يُخصم منه المبلغ.'
-            : payMethod === 'check'
-              ? 'اختر حساب بنك أو صندوق الشيكات.'
-              : 'اختر حساباً من الصناديق النقدية فقط.';
+            : 'اختر حساباً من الصناديق النقدية فقط.';
         if (global.AppDialog) AppDialog.alert(groupMsg, { type: 'warning' });
         else alert(groupMsg);
         cashSel.focus();
@@ -1425,13 +1435,19 @@
   /** عند الشيك: قيمة الشيك هي المبلغ المحفوظ في الحقل amount */
   function syncAmountForSubmit() {
     var amountEl = document.getElementById('py_amount');
-    if (!amountEl) return;
+    var chkAmt = document.getElementById('py_check_amount');
     if (getPayMethod() === 'check') {
-      var chkAmt = document.getElementById('py_check_amount');
       var val = parseNum(chkAmt ? chkAmt.value : 0);
       if (val > 0) {
-        amountEl.value = String(val);
+        var plain = fmtMoneyInput(val);
+        if (chkAmt) chkAmt.value = plain;
+        if (amountEl) amountEl.value = plain;
       }
+      return;
+    }
+    if (amountEl) {
+      var cashVal = parseNum(amountEl.value);
+      if (cashVal > 0) amountEl.value = fmtMoneyInput(cashVal);
     }
   }
 
@@ -1619,10 +1635,10 @@
       var amt = v.amount > 0 ? v.amount : 0;
       var chkVal = v.check_amount > 0 ? v.check_amount : 0;
       if (payMethod === 'check') {
-        if (chkAmt) chkAmt.value = (chkVal > 0 ? chkVal : amt) > 0 ? fmtMoney(chkVal > 0 ? chkVal : amt) : '';
+        if (chkAmt) chkAmt.value = (chkVal > 0 ? chkVal : amt) > 0 ? fmtMoneyInput(chkVal > 0 ? chkVal : amt) : '';
         if (amountEl) amountEl.value = '';
       } else {
-        if (amountEl) amountEl.value = amt > 0 ? fmtMoney(amt) : '';
+        if (amountEl) amountEl.value = amt > 0 ? fmtMoneyInput(amt) : '';
         if (chkAmt) chkAmt.value = '';
         lastChecksManageData = [];
       }
@@ -2605,7 +2621,7 @@
       }
       var amountEl = document.getElementById('py_amount');
       if (amountEl && parseNum(bootstrap.amount) > 0) {
-        amountEl.value = fmtMoney(parseNum(bootstrap.amount));
+        amountEl.value = fmtMoneyInput(parseNum(bootstrap.amount));
       }
       var hrAdv = document.getElementById('py_hr_advance_id');
       if (hrAdv && advanceId > 0) {

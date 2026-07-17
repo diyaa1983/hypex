@@ -376,6 +376,7 @@
     invoiceUnitPriceInclInputStep: invoiceUnitPriceInclInputStep,
     formatDateDmY: formatDateDmY,
     parseDateToIso: parseDateToIso,
+    formatFixedDecimalPlain: formatFixedDecimalPlain,
     inputStep: function () {
       return inputStepForDecimals(decimals());
     },

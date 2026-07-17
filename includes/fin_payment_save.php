@@ -52,8 +52,8 @@ function handle_fin_payment_save(): void
     $offsetAccountId = (int) ($_POST['offset_account_id'] ?? 0);
     $hrAdvanceId = (int) ($_POST['hr_advance_id'] ?? 0);
     $payMethod = fin_voucher_normalize_pay_method(trim((string) ($_POST['pay_method'] ?? 'cash')));
-    $amount = (float) ($_POST['amount'] ?? 0);
-    $checkAmount = (float) ($_POST['check_amount'] ?? 0);
+    $amount = parse_amount_input($_POST['amount'] ?? 0);
+    $checkAmount = parse_amount_input($_POST['check_amount'] ?? 0);
     $effectiveAmount = $amount;
     if ($payMethod === 'check' && $checkAmount > 0) {
         $effectiveAmount = $checkAmount;
