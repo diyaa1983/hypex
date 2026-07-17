@@ -46,14 +46,21 @@ if ($ids === []) {
 }
 
 try {
+    // تهيئة الجداول قبل المعاملة — MySQL يُنهي المعاملة تلقائياً عند DDL
+    fin_voucher_prepare_payment_post_schemas($pdo);
+
     $pdo->beginTransaction();
     $result = fin_voucher_post_payments_by_ids($pdo, $ids);
     if (!empty($result['errors'])) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         echo json_encode(['ok' => false, 'message' => implode("\n", $result['errors'])], JSON_UNESCAPED_UNICODE);
         exit;
     }
-    $pdo->commit();
+    if ($pdo->inTransaction()) {
+        $pdo->commit();
+    }
 
     $counts = fin_voucher_count_unposted($pdo, 'payment');
     $posted = (int) $result['posted'];
@@ -82,5 +89,9 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    echo json_encode(['ok' => false, 'message' => $e->getMessage() ?: 'تعذر الترحيل.'], JSON_UNESCAPED_UNICODE);
+    $msg = trim($e->getMessage());
+    if ($msg === '' || stripos($msg, 'no active transaction') !== false) {
+        $msg = 'تعذر الترحيل.';
+    }
+    echo json_encode(['ok' => false, 'message' => $msg], JSON_UNESCAPED_UNICODE);
 }

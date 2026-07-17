@@ -6,6 +6,23 @@ require_once app_path('includes/crm_customer_ledger.php');
 require_once app_path('includes/crm_supplier_ledger.php');
 
 /**
+ * تهيئة الجداول/الأعمدة اللازمة لترحيل سند الصرف — يجب استدعاؤها قبل beginTransaction.
+ */
+function fin_voucher_prepare_payment_post_schemas(PDO $pdo): void
+{
+    crm_supplier_ledger_ensure_schema($pdo);
+    crm_ledger_ensure_schema($pdo);
+    require_once app_path('includes/acc_gl.php');
+    acc_gl_ensure_schema($pdo);
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_ensure_schema($pdo);
+    if (fin_voucher_has_column($pdo, 'hr_advance_id')) {
+        require_once app_path('includes/hr_employee_advance.php');
+        hr_employee_advance_ensure_schema($pdo);
+    }
+}
+
+/**
  * @return array{ok:bool, skipped:bool, error:?string}
  */
 function fin_voucher_post_payment_ledger_by_id(PDO $pdo, int $voucherId): array
@@ -115,9 +132,6 @@ function fin_voucher_post_payments_by_ids(PDO $pdo, array $voucherIds): array
             $out['skipped']++;
             continue;
         }
-        crm_supplier_ledger_ensure_schema($pdo);
-        require_once app_path('includes/crm_customer_ledger.php');
-        crm_ledger_ensure_schema($pdo);
         $ledger = fin_voucher_post_payment_ledger_by_id($pdo, $id);
         if ($ledger['skipped']) {
             $out['skipped']++;

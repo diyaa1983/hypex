@@ -48,14 +48,26 @@ if ($ids === []) {
 }
 
 try {
+    // تهيئة الجداول قبل المعاملة — MySQL يُنهي المعاملة تلقائياً عند DDL
+    require_once app_path('includes/crm_customer_ledger.php');
+    crm_ledger_ensure_schema($pdo);
+    require_once app_path('includes/acc_gl.php');
+    acc_gl_ensure_schema($pdo);
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_ensure_schema($pdo);
+
     $pdo->beginTransaction();
     $result = fin_voucher_post_receipts_by_ids($pdo, $ids);
     if (!empty($result['errors'])) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         echo json_encode(['ok' => false, 'message' => implode("\n", $result['errors'])], JSON_UNESCAPED_UNICODE);
         exit;
     }
-    $pdo->commit();
+    if ($pdo->inTransaction()) {
+        $pdo->commit();
+    }
 
     $counts = fin_voucher_count_unposted($pdo, 'receipt');
     $posted = (int) $result['posted'];
@@ -84,5 +96,9 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    echo json_encode(['ok' => false, 'message' => $e->getMessage() ?: 'تعذر الترحيل.'], JSON_UNESCAPED_UNICODE);
+    $msg = trim($e->getMessage());
+    if ($msg === '' || stripos($msg, 'no active transaction') !== false) {
+        $msg = 'تعذر الترحيل.';
+    }
+    echo json_encode(['ok' => false, 'message' => $msg], JSON_UNESCAPED_UNICODE);
 }
