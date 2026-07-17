@@ -648,4 +648,3 @@ function fin_payment_save_apply_employee_hr_links(
     fin_payment_save_apply_hr_salary_id($pdo, $voucherId, 0);
 }
 
-

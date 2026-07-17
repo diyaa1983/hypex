@@ -105,9 +105,31 @@
   }
 
   function allowedCashGroupsForPayMethod(method) {
-    if (method === 'check') return ['checks'];
+    if (method === 'check') return ['bank'];
     if (method === 'bank') return ['bank'];
     return ['cash'];
+  }
+
+  function syncBankNameFromCashAccount() {
+    var inp = document.getElementById('py_bank_name');
+    var sel = document.getElementById('py_cash_account_id');
+    if (!inp) return;
+    if (getPayMethod() !== 'check') {
+      return;
+    }
+    if (!sel || !sel.value || sel.selectedIndex < 0) {
+      inp.value = '';
+      return;
+    }
+    var opt = sel.options[sel.selectedIndex];
+    var label = opt ? String(opt.textContent || '').trim() : '';
+    // من "1001003001 — البنك العربي" نأخذ الاسم بعد الشرطة
+    var name = label;
+    var sep = label.indexOf('—');
+    if (sep < 0) sep = label.indexOf('-');
+    if (sep >= 0) name = label.slice(sep + 1).trim();
+    inp.value = name;
+    syncCheckDisbursementNotes();
   }
 
   function filterCashAccountOptions() {
@@ -115,25 +137,59 @@
     if (!sel || sel.options.length < 1) return;
     var allowed = allowedCashGroupsForPayMethod(getPayMethod());
     var selectedStillVisible = false;
+    var current = String(sel.value || '');
     for (var i = 0; i < sel.options.length; i++) {
       var opt = sel.options[i];
       if (!opt.value) continue;
       var group = opt.getAttribute('data-group') || '';
       var show = allowed.indexOf(group) >= 0;
-      opt.hidden = !show;
-      opt.disabled = !show;
-      if (show && opt.value === sel.value) selectedStillVisible = true;
+      if (show) {
+        opt.disabled = false;
+        opt.hidden = false;
+        opt.removeAttribute('disabled');
+        opt.removeAttribute('hidden');
+      } else {
+        opt.disabled = true;
+        opt.hidden = true;
+        opt.setAttribute('disabled', 'disabled');
+        opt.setAttribute('hidden', 'hidden');
+      }
+      if (show && opt.value === current) selectedStillVisible = true;
     }
-    if (!selectedStillVisible) suggestCashAccountForPayMethod();
+    // إخفاء مجموعات optgroup الفارغة (optgroup لا يدعم .options في كل المتصفحات)
+    var groups = sel.querySelectorAll('optgroup');
+    for (var g = 0; g < groups.length; g++) {
+      var og = groups[g];
+      var anyVisible = false;
+      var childOpts = og.querySelectorAll('option');
+      for (var j = 0; j < childOpts.length; j++) {
+        if (!childOpts[j].disabled && !childOpts[j].hidden) {
+          anyVisible = true;
+          break;
+        }
+      }
+      og.hidden = !anyVisible;
+      og.disabled = !anyVisible;
+      if (!anyVisible) {
+        og.setAttribute('hidden', 'hidden');
+        og.setAttribute('disabled', 'disabled');
+      } else {
+        og.removeAttribute('hidden');
+        og.removeAttribute('disabled');
+      }
+    }
+    if (!selectedStillVisible) {
+      suggestCashAccountForPayMethod();
+    }
   }
 
   function updateCashAccountLabel() {
     var label = document.getElementById('py_cash_account_label');
     if (!label) return;
     var method = getPayMethod();
-    if (method === 'bank') label.textContent = 'البنك *';
-    else if (method === 'check') label.textContent = 'يُخصم من — صندوق الشيكات *';
-    else label.textContent = 'يُخصم من — صندوق *';
+    if (method === 'bank') label.textContent = 'يُخصم من — البنوك *';
+    else if (method === 'check') label.textContent = 'يُخصم من — البنوك *';
+    else label.textContent = 'يُخصم من — الصناديق *';
   }
 
   function syncPayMethodUi() {
@@ -154,7 +210,7 @@
       cashWrap.style.display = isCheck ? 'none' : '';
     }
 
-    ['py_check_fields', 'py_check_no_wrap', 'py_bank_wrap'].forEach(function (id) {
+    ['py_check_fields', 'py_check_no_wrap', 'py_check_due_wrap'].forEach(function (id) {
       var el = document.getElementById(id);
       if (!el) return;
       el.hidden = !isCheck;
@@ -178,6 +234,71 @@
     filterCashAccountOptions();
     updateCashAccountLabel();
     syncEmployeeAmountLock();
+    syncBankNameFromCashAccount();
+    syncCheckDisbursementNotes();
+  }
+
+  /** آخر نص تلقائي لكتابة الصرف (شيك) — لا نستبدل تعديلات المستخدم اليدوية. */
+  var lastAutoCheckNotes = '';
+
+  function buildCheckDisbursementNotes() {
+    var party = String(getPartyLabel() || '').trim();
+    var chkNoEl = document.getElementById('py_check_no');
+    var bankEl = document.getElementById('py_bank_name');
+    var dueEl = document.getElementById('py_check_due');
+    var dateEl = document.getElementById('py_date');
+    var checkNo = chkNoEl ? String(chkNoEl.value || '').trim() : '';
+    var bankName = bankEl ? String(bankEl.value || '').trim() : '';
+    var dateStr = '';
+    var dueRaw = dueEl ? String(dueEl.value || '').trim() : '';
+    if (dueRaw !== '') {
+      dateStr = fmtDate(dueRaw);
+      if (dateStr === '—' || dateStr === '') dateStr = dueRaw;
+    } else if (dateEl && dateEl.value) {
+      dateStr = fmtDate(dateEl.value);
+      if (dateStr === '—' || dateStr === '') dateStr = String(dateEl.value).trim();
+    }
+
+    var head = party !== '' ? 'دفعة لـ' + party : 'دفعة';
+    var parts = [];
+    if (checkNo !== '') parts.push('شيك رقم ' + checkNo);
+    else parts.push('شيك');
+    if (bankName !== '') parts.push('من البنك ' + bankName);
+    if (dateStr !== '') parts.push('بتاريخ ' + dateStr);
+
+    return head + ' ( ' + parts.join(' ') + ' )';
+  }
+
+  function syncCheckDisbursementNotesLabel(isCheck) {
+    var label = form.querySelector('label[for="py_notes"]');
+    var notes = document.getElementById('py_notes');
+    if (label) label.textContent = isCheck ? 'كتابة الصرف' : 'ملاحظات';
+    if (notes) {
+      notes.setAttribute('placeholder', isCheck ? 'يُعبَّأ تلقائياً من بيانات الشيك' : 'اختياري');
+    }
+  }
+
+  function syncCheckDisbursementNotes() {
+    var notes = document.getElementById('py_notes');
+    if (!notes || voucherIsPosted || voucherIsCancelled) return;
+
+    var isCheck = getPayMethod() === 'check';
+    syncCheckDisbursementNotesLabel(isCheck);
+
+    if (!isCheck) {
+      if (lastAutoCheckNotes !== '' && String(notes.value).trim() === lastAutoCheckNotes) {
+        notes.value = '';
+      }
+      lastAutoCheckNotes = '';
+      return;
+    }
+
+    var autoText = buildCheckDisbursementNotes();
+    var current = String(notes.value).trim();
+    if (current === '' || current === lastAutoCheckNotes) {
+      notes.value = autoText;
+      lastAutoCheckNotes = autoText;
+    }
   }
 
   function suggestCashAccountForPayMethod() {
@@ -189,14 +310,14 @@
     var defaultChecks = parseInt(form.getAttribute('data-default-checks-id') || '0', 10);
     var preferredIds =
       method === 'check'
-        ? [defaultChecks]
+        ? [defaultBank]
         : method === 'bank'
           ? [defaultBank]
           : [defaultCash];
     var preferredGroups = allowedCashGroupsForPayMethod(method);
     var preferredCodes =
       method === 'check'
-        ? ['113', '1001001002', '1001002002']
+        ? ['112', '1001003001', '1001003004']
         : method === 'bank'
           ? ['112', '1001003001', '1001003004']
           : ['111', '1001002001'];
@@ -805,7 +926,7 @@
     }
 
     var fields = form.querySelectorAll(
-      '#py_date, #py_customer, #py_supplier, #py_employee, #py_account_target, #py_cash_account_id, #py_amount, #py_check_amount, #py_check_no, #py_bank_name, #py_notes, #py_pay_cash, #py_pay_bank, #py_pay_check, input[name="party_type_ui"], #py_employee_open, #py_account_target_open'
+      '#py_date, #py_customer, #py_supplier, #py_employee, #py_account_target, #py_cash_account_id, #py_amount, #py_check_amount, #py_check_no, #py_check_due, #py_notes, #py_pay_cash, #py_pay_bank, #py_pay_check, input[name="party_type_ui"], #py_employee_open, #py_account_target_open'
     );
     fields.forEach(function (el) {
       if (!el) return;
@@ -1168,8 +1289,8 @@
           payMethod === 'bank'
             ? 'اختر حساب بنك يُخصم منه المبلغ.'
             : payMethod === 'check'
-              ? 'اختر حساب صندوق الشيكات.'
-              : 'اختر حساباً من الصناديق.';
+              ? 'اختر حساب بنك أو صندوق الشيكات.'
+              : 'اختر حساباً من الصناديق النقدية فقط.';
         if (global.AppDialog) AppDialog.alert(groupMsg, { type: 'warning' });
         else alert(groupMsg);
         cashSel.focus();
@@ -1511,9 +1632,32 @@
 
       var bank = document.getElementById('py_bank_name');
       if (bank) bank.value = v.bank_name || '';
+      if (!bank || !String(bank.value || '').trim()) {
+        syncBankNameFromCashAccount();
+      }
+
+      var dueEl = document.getElementById('py_check_due');
+      if (dueEl) {
+        var dueVal = '';
+        if (v.check_due_date_dmy) dueVal = String(v.check_due_date_dmy);
+        else if (v.check_due_date) dueVal = fmtDate(v.check_due_date) || '';
+        else if (Array.isArray(v.checks) && v.checks[0]) {
+          dueVal = v.checks[0].due_date_dmy || fmtDate(v.checks[0].due_date || '') || '';
+        }
+        dueEl.value = dueVal;
+      }
 
       var notes = document.getElementById('py_notes');
       if (notes) notes.value = v.notes || '';
+      lastAutoCheckNotes = '';
+      if (getPayMethod() === 'check' && notes) {
+        var loadedNotes = String(notes.value).trim();
+        var autoNotes = buildCheckDisbursementNotes();
+        if (loadedNotes === '' || loadedNotes === autoNotes) {
+          notes.value = autoNotes;
+          lastAutoCheckNotes = autoNotes;
+        }
+      }
 
       var cashAcc = document.getElementById('py_cash_account_id');
       if (cashAcc && v.cash_account_id > 0) cashAcc.value = String(v.cash_account_id);
@@ -1987,8 +2131,12 @@
       var bank = document.getElementById('py_bank_name');
       if (bank) bank.value = '';
 
+      var dueEl = document.getElementById('py_check_due');
+      if (dueEl) dueEl.value = '';
+
       var notes = document.getElementById('py_notes');
       if (notes) notes.value = '';
+      lastAutoCheckNotes = '';
 
       syncPayMethodUi();
       refreshVoucherEditState();
@@ -2097,12 +2245,16 @@
     if (getPayMethod() === 'check') {
       var chkNo = document.getElementById('py_check_no');
       var bank = document.getElementById('py_bank_name');
+      var dueEl = document.getElementById('py_check_due');
       checkRows =
         '<tr><td style="padding:0.4rem;border:1px solid #cbd5e1;"><strong>رقم الشيك</strong></td><td style="padding:0.4rem;border:1px solid #cbd5e1;">' +
         escapeHtml(chkNo ? chkNo.value : '—') +
         '</td></tr>' +
         '<tr><td style="padding:0.4rem;border:1px solid #cbd5e1;"><strong>البنك</strong></td><td style="padding:0.4rem;border:1px solid #cbd5e1;">' +
-        escapeHtml(bank ? bank.value : '—') +
+        escapeHtml(bank && bank.value ? bank.value : '—') +
+        '</td></tr>' +
+        '<tr><td style="padding:0.4rem;border:1px solid #cbd5e1;"><strong>تاريخ صرف الشيك</strong></td><td style="padding:0.4rem;border:1px solid #cbd5e1;">' +
+        escapeHtml(dueEl && dueEl.value ? fmtDate(dueEl.value) || dueEl.value : '—') +
         '</td></tr>';
     }
 
@@ -2384,6 +2536,32 @@
     });
   }
 
+  ['py_check_no', 'py_check_due', 'py_date'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', syncCheckDisbursementNotes);
+    el.addEventListener('change', syncCheckDisbursementNotes);
+  });
+  var cashAccSel = document.getElementById('py_cash_account_id');
+  if (cashAccSel) {
+    cashAccSel.addEventListener('change', function () {
+      syncBankNameFromCashAccount();
+    });
+  }
+  form.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t) return;
+    if (
+      t.name === 'party_type_ui' ||
+      t.id === 'py_customer' ||
+      t.id === 'py_supplier' ||
+      t.id === 'py_employee' ||
+      t.id === 'py_account_target'
+    ) {
+      syncCheckDisbursementNotes();
+    }
+  });
+
   form.addEventListener('click', function (e) {
     var undoBtn = e.target.closest('.fin-py-check-undo');
     if (!undoBtn) return;
@@ -2486,6 +2664,7 @@
         onSelect: function (c) {
           applyCustomerRep(c ? c.sales_rep_name : '');
           markFormDirty();
+          syncCheckDisbursementNotes();
         },
       });
     }
@@ -2500,6 +2679,7 @@
         },
         onSelect: function () {
           markFormDirty();
+          syncCheckDisbursementNotes();
         },
       });
     }
@@ -2514,6 +2694,7 @@
         },
         onSelect: function () {
           markFormDirty();
+          syncCheckDisbursementNotes();
         },
       });
     }
@@ -2526,6 +2707,7 @@
         placeholder: 'اضغط لاختيار حساب (خصوم / مصروف)',
         onSelect: function () {
           syncOffsetAccountField();
+          syncCheckDisbursementNotes();
           markFormDirty();
         },
       });

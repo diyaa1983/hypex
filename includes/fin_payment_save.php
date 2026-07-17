@@ -62,6 +62,7 @@ function handle_fin_payment_save(): void
     }
     $checkNo = trim((string) ($_POST['check_no'] ?? ''));
     $bankName = trim((string) ($_POST['bank_name'] ?? ''));
+    $checkDueDate = parse_date_to_iso(trim((string) ($_POST['check_due_date'] ?? ''))) ?? '';
     $notes = trim((string) ($_POST['notes'] ?? ''));
     $cashAccountId = (int) ($_POST['cash_account_id'] ?? 0);
     if ($cashAccountId < 1) {
@@ -106,8 +107,8 @@ function handle_fin_payment_save(): void
         }
     } elseif ($err === '' && $payMethod === 'check') {
         $checkGroup = fin_voucher_cash_account_group($cashAccounts, $cashAccountId);
-        if ($checkGroup !== null && $checkGroup !== 'checks') {
-            $err = 'عند الدفع بشيك اختر حساب صندوق الشيكات.';
+        if ($checkGroup !== null && $checkGroup !== 'bank') {
+            $err = 'عند الدفع بشيك اختر حساباً من البنوك.';
         }
         if ($checkAmount <= 0 && $amount <= 0) {
             $err = 'أدخل قيمة الشيك.';
@@ -160,6 +161,16 @@ function handle_fin_payment_save(): void
             null,
             $offsetAccountId
         );
+        if ($payMethod === 'check') {
+            fin_payment_sync_outgoing_check_row(
+                $pdo,
+                $savedId,
+                $checkNo,
+                $bankName,
+                $amount,
+                $checkDueDate
+            );
+        }
         fin_payment_save_apply_employee_hr_links(
             $pdo,
             $savedId,
@@ -196,4 +207,73 @@ function handle_fin_payment_save(): void
         flash_set('error', $msg);
         redirect(app_url('index.php?r=cash_payment' . ($id > 0 ? '&id=' . $id : '')));
     }
+}
+
+/**
+ * يزامن صف الشيك الواحد لسند الصرف (رقم/بنك/مبلغ/تاريخ الصرف) دون مسح رقم التسجيل.
+ */
+function fin_payment_sync_outgoing_check_row(
+    PDO $pdo,
+    int $voucherId,
+    string $checkNo,
+    string $bankName,
+    float $amount,
+    string $dueDateIso
+): void {
+    if ($voucherId < 1 || $amount <= 0.000001) {
+        return;
+    }
+
+    require_once app_path('includes/fin_voucher_checks.php');
+    require_once app_path('includes/fin_outgoing_check_register.php');
+    if (!fin_voucher_checks_ensure_table($pdo)) {
+        return;
+    }
+
+    $checkNo = trim($checkNo);
+    $bankName = trim($bankName);
+    $dueDateIso = trim($dueDateIso);
+    if ($dueDateIso !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dueDateIso)) {
+        $dueDateIso = '';
+    }
+
+    $st = $pdo->prepare(
+        'SELECT id FROM fin_voucher_check
+         WHERE voucher_id = ?
+         ORDER BY sort_order ASC, id ASC
+         LIMIT 1'
+    );
+    $st->execute([$voucherId]);
+    $checkId = (int) $st->fetchColumn();
+
+    if ($checkId > 0) {
+        $pdo->prepare(
+            'UPDATE fin_voucher_check
+             SET check_no = ?, bank_name = ?, check_amount = ?, due_date = ?
+             WHERE id = ?'
+        )->execute([
+            $checkNo !== '' ? $checkNo : null,
+            $bankName !== '' ? $bankName : null,
+            round($amount, 6),
+            $dueDateIso !== '' ? $dueDateIso : null,
+            $checkId,
+        ]);
+    } else {
+        $pdo->prepare(
+            'INSERT INTO fin_voucher_check
+                (voucher_id, sort_order, check_no, bank_name, check_amount, due_date, notes, lifecycle_status)
+             VALUES (?,?,?,?,?,?,?,?)'
+        )->execute([
+            $voucherId,
+            1,
+            $checkNo !== '' ? $checkNo : null,
+            $bankName !== '' ? $bankName : null,
+            round($amount, 6),
+            $dueDateIso !== '' ? $dueDateIso : null,
+            null,
+            'pending',
+        ]);
+    }
+
+    fin_outgoing_check_register_sync_voucher($pdo, $voucherId);
 }

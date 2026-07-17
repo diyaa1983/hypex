@@ -157,6 +157,7 @@ if ((string) ($row['pay_method'] ?? '') === 'check') {
         $checksTotal += (float) ($chk['check_amount'] ?? 0);
     }
 }
+$firstCheck = $checks[0] ?? [];
 
 echo json_encode([
 
@@ -181,6 +182,10 @@ echo json_encode([
         'check_no' => (string) ($row['check_no'] ?? ''),
 
         'bank_name' => (string) ($row['bank_name'] ?? ''),
+
+        'check_due_date' => (string) ($firstCheck['due_date'] ?? ''),
+
+        'check_due_date_dmy' => (string) ($firstCheck['due_date_dmy'] ?? ''),
 
         'notes' => (string) ($row['description'] ?? ''),
 

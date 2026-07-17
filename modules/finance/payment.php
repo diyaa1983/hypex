@@ -288,7 +288,7 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
                 <strong>عميل:</strong> رد مبلغ للعميل —
                 <strong>موظف:</strong> صرف للموظف (مثل المورد والعميل) —
                 <strong>حساب آخر:</strong> صرف على حساب خصوم أو مصروف من الشجرة —
-                <strong>يُخصم من:</strong> نقداً من الصناديق — بنك من حسابات البنوك — شيك من صندوق الشيكات.
+                <strong>يُخصم من:</strong> نقداً من الصناديق — بنك وشيك من حسابات البنوك.
             </p>
         </header>
             </div>
@@ -312,7 +312,7 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
                 </div>
                 <div class="sales-inv-meta-row fin-py-cash-account-row no-print">
                     <div class="sales-inv-meta-item fin-py-meta-cash-account">
-                        <label for="py_cash_account_id" id="py_cash_account_label">يُخصم من — صندوق *</label>
+                        <label for="py_cash_account_id" id="py_cash_account_label">يُخصم من — الصناديق *</label>
                         <select class="input input-compact" name="cash_account_id" id="py_cash_account_id" required>
                             <?php
                             $cashGroup = '';
@@ -356,9 +356,10 @@ account_picker_json_script($otherOffsetAccounts, 'fin-py-offset-accounts-json');
                         <label for="py_check_no">رقم الشيك</label>
                         <input class="input input-compact" type="text" name="check_no" id="py_check_no" dir="ltr">
                     </div>
-                    <div class="sales-inv-meta-item fin-py-field-check" id="py_bank_wrap" hidden>
-                        <label for="py_bank_name">البنك</label>
-                        <input class="input input-compact" type="text" name="bank_name" id="py_bank_name">
+                    <input type="hidden" name="bank_name" id="py_bank_name" value="">
+                    <div class="sales-inv-meta-item fin-py-field-check" id="py_check_due_wrap" hidden>
+                        <label for="py_check_due">تاريخ صرف الشيك</label>
+                        <input class="input input-compact js-date-dmy" type="text" name="check_due_date" id="py_check_due" dir="ltr" placeholder="يوم-شهر-سنة" autocomplete="off">
                     </div>
                 </div>
                 <div class="fin-py-check-manage no-print" id="py_check_manage_wrap" hidden></div>
