@@ -1853,7 +1853,9 @@
       !ret || ret.einv_tracking_required === undefined || ret.einv_tracking_required === null
         ? true
         : !!ret.einv_tracking_required;
-    originalInvoiceEinvSent = !!(ret && (ret.invoice_einv_sent || ret.invoice_einv_qr));
+    originalInvoiceEinvSent = !!(
+      ret && (ret.invoice_einv_sent || ret.invoice_einv_qr || ret.invoice_einv_legacy)
+    );
     originalInvoiceEinvNum = ret && ret.invoice_einv_num ? String(ret.invoice_einv_num) : '';
     try {
       console.log('[einvoice-return] loadReturn flags', {

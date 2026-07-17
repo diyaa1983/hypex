@@ -38,8 +38,12 @@ function sal_return_fetch_header(PDO $pdo, int $id): ?array
 
     if (is_array($row)) {
         $row['einv_sent'] = !empty($row['einv_qr']);
-        $row['invoice_einv_sent'] = !empty($row['invoice_einv_qr'] ?? '');
         require_once app_path('includes/sal_einvoice_tracking.php');
+        $invoiceDate = (string) ($row['invoice_date'] ?? '');
+        $invoiceSentHere = !empty($row['invoice_einv_qr'] ?? '');
+        // فاتورة قبل نطاق المتابعة = مُرسلة سابقاً (نظام قديم) حتى بدون einv_qr هنا.
+        $row['invoice_einv_legacy'] = sal_einvoice_invoice_is_legacy_pre_tracking($invoiceDate);
+        $row['invoice_einv_sent'] = $invoiceSentHere || !empty($row['invoice_einv_legacy']);
         $row['einv_tracking_required'] = sal_einvoice_doc_date_requires_tracking((string) ($row['return_date'] ?? ''));
     }
 

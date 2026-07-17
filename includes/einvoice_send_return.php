@@ -307,9 +307,10 @@ function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '')
         return $out;
     }
 
-    // الشرط الأساسي: لا يمكن إرسال إرجاع للفوترة إلا إذا أُرسلت الفاتورة الأصلية أولاً.
+    // الشرط الأساسي: الفاتورة الأصلية مُرسلة هنا، أو قبل نطاق المتابعة (أُرسلت عبر النظام السابق).
     $invoiceId = (int) $retRow['invoice_id'];
-    if (!einvoice_sale_is_sent($pdo, $invoiceId)) {
+    require_once app_path('includes/sal_einvoice_tracking.php');
+    if (!sal_einvoice_invoice_allows_return_send($pdo, $invoiceId)) {
         $out['error'] = 'لا يمكن إرسال الإرجاع للفوترة قبل إرسال الفاتورة الأصلية لها.';
 
         return $out;

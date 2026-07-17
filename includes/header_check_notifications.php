@@ -18,7 +18,7 @@ declare(strict_types=1);
 function header_check_notifications_collect(PDO $pdo): array
 {
     $cacheTtl = 180;
-    $cached = $_SESSION['_header_check_notify'] ?? null;
+    $cached = $_SESSION['_header_check_notify_v2'] ?? null;
     if (
         is_array($cached)
         && isset($cached['at'], $cached['data'])
@@ -57,7 +57,7 @@ function header_check_notifications_collect(PDO $pdo): array
     $canEinvoice = sal_einvoice_notifications_user_can_see();
 
     if (!$canChecks && !$canDelivery && !$canUnposted && !$canEinvoice) {
-        $_SESSION['_header_check_notify'] = ['at' => time(), 'data' => $empty];
+        $_SESSION['_header_check_notify_v2'] = ['at' => time(), 'data' => $empty];
 
         return $empty;
     }
@@ -132,14 +132,14 @@ function header_check_notifications_collect(PDO $pdo): array
         'summary' => $summary,
         'soon_days' => $soonDays,
     ];
-    $_SESSION['_header_check_notify'] = ['at' => time(), 'data' => $data];
+    $_SESSION['_header_check_notify_v2'] = ['at' => time(), 'data' => $data];
 
     return $data;
 }
 
 function header_check_notifications_invalidate_cache(): void
 {
-    unset($_SESSION['_header_check_notify']);
+    unset($_SESSION['_header_check_notify_v2']);
 }
 
 function header_check_notifications_user_can_see(): bool

@@ -121,7 +121,7 @@ function sal_einvoice_unsent_return_alerts(PDO $pdo, int $limit = SAL_EINVOICE_N
 
     $posted = sal_return_sql_is_posted_expr('r');
     $sent = sal_documents_list_einv_sent_expr_return($pdo, 'r');
-    $invSent = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');
+    $invEligible = sal_einvoice_sql_invoice_eligible_for_return_send($pdo, 'i');
     $tracking = sal_einvoice_sql_return_requires_tracking('r');
     $limit = max(1, min(50, $limit));
 
@@ -134,7 +134,7 @@ function sal_einvoice_unsent_return_alerts(PDO $pdo, int $limit = SAL_EINVOICE_N
               AND ({$tracking})
               AND ({$posted})
               AND NOT ({$sent})
-              AND ({$invSent})
+              AND ({$invEligible})
             ORDER BY r.return_date ASC, r.id ASC
             LIMIT {$limit}";
     $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -216,7 +216,7 @@ function sal_einvoice_unsent_return_count(PDO $pdo): int
 
     $posted = sal_return_sql_is_posted_expr('r');
     $sent = sal_documents_list_einv_sent_expr_return($pdo, 'r');
-    $invSent = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');
+    $invEligible = sal_einvoice_sql_invoice_eligible_for_return_send($pdo, 'i');
     $tracking = sal_einvoice_sql_return_requires_tracking('r');
     $sql = "SELECT COUNT(*)
             FROM sal_return r
@@ -225,7 +225,7 @@ function sal_einvoice_unsent_return_count(PDO $pdo): int
               AND ({$tracking})
               AND ({$posted})
               AND NOT ({$sent})
-              AND ({$invSent})";
+              AND ({$invEligible})";
 
     return (int) $pdo->query($sql)->fetchColumn();
 }
