@@ -122,6 +122,9 @@ function inv_invoice_validate_save_lines(array $lines, bool $allowEmpty): ?strin
         if ($iid < 1) {
             return 'تأكد من اختيار مادة لكل سطر.';
         }
+        if ($qty <= 0.000001 && $qtyExtra <= 0.000001) {
+            return 'عند كمية صفر يجب إدخال كمية إضافية لكل مادة في الفاتورة.';
+        }
         if (inv_invoice_line_stock_qty_sum($qty, $qtyExtra) <= 0) {
             return 'أدخل كمية لكل مادة في الفاتورة.';
         }

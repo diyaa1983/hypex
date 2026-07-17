@@ -254,6 +254,19 @@ function crm_ledger_post_sale_invoice_by_id(PDO $pdo, int $invoiceId): array
 
     $total = (float) ($row['total'] ?? 0);
     if ($total <= 0) {
+        require_once app_path('includes/inv_invoice_line_qty.php');
+        inv_invoice_line_ensure_qty_extra($pdo);
+        $stockSt = $pdo->prepare(
+            'SELECT 1 FROM sal_invoice_line il WHERE il.invoice_id = ? AND '
+            . inv_invoice_line_sql_stock_positive('il') . ' LIMIT 1'
+        );
+        $stockSt->execute([$invoiceId]);
+        if ($stockSt->fetch()) {
+            $out['ok'] = true;
+            $out['skipped'] = true;
+
+            return $out;
+        }
         $out['error'] = 'إجمالي الفاتورة صفر — أدخل الكمية وسعر الوحدة لكل بند ثم احفظ الفاتورة قبل الترحيل.';
 
         return $out;

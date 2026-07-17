@@ -868,7 +868,7 @@
   ];
 
   var ROW_QTY_LOCK_SELECTORS =
-    '.js-qty-extra, .js-price, .js-price-incl, .js-discount, .js-line-sub, .js-tax, input.js-line-gross';
+    '.js-price, .js-price-incl, .js-discount, .js-line-sub, .js-tax, input.js-line-gross';
 
   function formatAmountValue(n, rawStr) {
     if (global.AppFormat && AppFormat.formatInvoiceDecimalInput) {
@@ -1217,6 +1217,7 @@
   function isAmountFieldEnterCommit(el) {
     return (
       el.classList.contains('js-qty') ||
+      el.classList.contains('js-qty-extra') ||
       el.classList.contains('js-price') ||
       el.classList.contains('js-price-incl') ||
       el.classList.contains('js-discount') ||
@@ -1303,7 +1304,7 @@
     if (!tr || !global.AppDialog) return;
     var name = tr.dataset.nameAr || 'المادة';
     AppDialog.alert(
-      'أدخل الكمية قبل ' + (actionLabel || 'المتابعة') + '.\n\nالمادة: ' + name,
+      'أدخل الكمية أو الكمية الإضافية قبل ' + (actionLabel || 'المتابعة') + '.\n\nالمادة: ' + name,
       { type: 'warning', title: 'الكمية مطلوبة' }
     );
   }
@@ -1340,10 +1341,10 @@
       current.classList.contains('js-qty-extra') ||
       current.classList.contains('js-barcode-inp')
     ) {
-      focusRowQtyField(tr);
-      return true;
+      return false;
     }
-    return false;
+    focusRowQtyField(tr);
+    return true;
   }
 
   function focusFieldEl(el) {
@@ -1826,14 +1827,32 @@
     return el ? parseNum(el.textContent) : 0;
   }
 
+  function invoiceHasBonusStockLines() {
+    var has = false;
+    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
+      if (!getRowItemId(tr)) return;
+      if (rowStockQty(tr) > 0) has = true;
+    });
+    return has;
+  }
+
   function validateInvoiceBeforePost() {
     recalcAllItemRows();
     recalcFooter();
     syncJson();
-    if (invoiceGrandTotalFromFooter() <= 0) {
+    var qtyCheck = validateInvoiceLineQuantities();
+    if (!qtyCheck.ok) {
+      AppDialog.alert(qtyCheck.msg, { type: 'warning' });
+      if (qtyCheck.tr) {
+        var focusEl = qtyCheck.tr.querySelector('.js-qty-extra') || qtyCheck.tr.querySelector('.js-qty');
+        if (focusEl) focusEl.focus();
+      }
+      return false;
+    }
+    if (invoiceGrandTotalFromFooter() <= 0 && !invoiceHasBonusStockLines()) {
       AppDialog.alert(
-        'لا يمكن الترحيل لأن إجمالي الفاتورة صفر.\n\n' +
-          'تأكد من إدخال الكمية وسعر الوحدة لكل بند. إذا سحبت سند تسليم قد يكون السعر فارغاً — أدخل السعر ثم احفظ الفاتورة ثم رحّلها.',
+        'لا يمكن الترحيل لأن إجمالي الفاتورة صفر ولا توجد كمية إضافية على البنود.\n\n' +
+          'عند كمية صفر أدخل كمية إضافية (هدايا/عينات) ثم احفظ الفاتورة ثم رحّلها.',
         { type: 'warning', title: 'إجمالي غير صالح' }
       );
       return false;
@@ -1990,11 +2009,19 @@
       }
     }
     var qtyEl = tr.querySelector('.js-qty');
+    var qtyExtraEl = tr.querySelector('.js-qty-extra');
     if (qtyEl) {
       qtyEl.classList.toggle('is-qty-required', needsQty);
       qtyEl.removeAttribute('readonly');
       qtyEl.removeAttribute('tabindex');
       qtyEl.classList.remove('is-item-pick-locked');
+    }
+    if (qtyExtraEl) {
+      qtyExtraEl.classList.toggle('is-qty-required', needsQty);
+      qtyExtraEl.removeAttribute('readonly');
+      qtyExtraEl.removeAttribute('tabindex');
+      qtyExtraEl.classList.remove('is-qty-required-locked', 'is-item-pick-locked');
+      if (qtyExtraEl.tagName === 'SELECT') qtyExtraEl.disabled = false;
     }
   }
 
@@ -2075,9 +2102,17 @@
 
   function validateInvoiceLineQuantities() {
     var firstBad = null;
+    var needsExtra = false;
     tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
       if (!getRowItemId(tr)) return;
-      if (rowStockQty(tr) <= 0 && !firstBad) firstBad = tr;
+      var qty = parseNum(tr.querySelector('.js-qty') ? tr.querySelector('.js-qty').value : 0);
+      var qtyExtra = parseNum(
+        tr.querySelector('.js-qty-extra') ? tr.querySelector('.js-qty-extra').value : 0
+      );
+      if (qty <= 0 && qtyExtra <= 0 && !firstBad) {
+        firstBad = tr;
+        needsExtra = qty <= 0;
+      }
     });
     if (!firstBad) {
       return { ok: true };
@@ -2085,7 +2120,9 @@
     var name = firstBad.dataset.nameAr || 'مادة بدون اسم';
     return {
       ok: false,
-      msg: 'أدخل كمية لكل مادة في الفاتورة.\n\nالمادة: ' + name,
+      msg: needsExtra
+        ? 'عند كمية صفر يجب إدخال كمية إضافية.\n\nالمادة: ' + name
+        : 'أدخل كمية لكل مادة في الفاتورة.\n\nالمادة: ' + name,
       tr: firstBad,
     };
   }
@@ -2757,7 +2794,14 @@
     }
 
     if (rowNeedsQtyInput(tr)) {
-      focusRowQtyField(tr);
+      var qtyExtraEl = tr.querySelector('.js-qty-extra');
+      if (current && current.classList.contains('js-qty-extra') && qtyExtraEl) {
+        focusFieldEl(qtyExtraEl);
+      } else if (current && current.classList.contains('js-qty') && qtyExtraEl) {
+        focusFieldEl(qtyExtraEl);
+      } else {
+        focusRowQtyField(tr);
+      }
       return;
     }
 

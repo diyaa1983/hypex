@@ -68,6 +68,9 @@ function einvoice_load_sale_payload(PDO $pdo, int $invoiceId): ?array
     if (einvoice_column_exists($pdo, 'sal_invoice_line', 'discount_amount')) {
         $cols .= ', COALESCE(il.discount_amount, 0) AS discount_amount';
     }
+    if (einvoice_column_exists($pdo, 'sal_invoice_line', 'qty_extra')) {
+        $cols .= ', COALESCE(il.qty_extra, 0) AS qty_extra';
+    }
     if ($hasLineTax) {
         $cols .= ', il.tax_rate_percent, il.tax_amount, il.line_gross';
     }
@@ -81,7 +84,11 @@ function einvoice_load_sale_payload(PDO $pdo, int $invoiceId): ?array
     $totalDisc = 0.0;
     foreach ($lnSt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
         $qty = (float) $row['qty'];
+        $qtyExtra = (float) ($row['qty_extra'] ?? 0);
         $unitPrice = (float) ($row['unit_price'] ?? 0);
+        // كمية الفوترة: الكمية الإضافية عند كمية صفر (هدايا/عينات بإجمالي صفر).
+        $einvoiceQty = $qty > 0.000001 ? $qty : $qtyExtra;
+        $isBonusStockLine = $qty <= 0.000001 && $qtyExtra > 0.000001;
         $lineGross = (float) ($row['line_gross'] ?? $row['line_total'] ?? 0);
         $taxAmt = (float) ($row['tax_amount'] ?? 0);
         $lineTotal = (float) ($row['line_total'] ?? ($lineGross - $taxAmt));   // base بعد الخصم قبل الضريبة
@@ -93,17 +100,26 @@ function einvoice_load_sale_payload(PDO $pdo, int $invoiceId): ?array
         // في معادلة: TaxExclusive = sum(LineExtension) - AllowanceTotal.
         $discountFromCols = (float) ($row['discount_amount'] ?? 0);
         $discountFromPct = isset($row['discount_pct']) ? round(($qty * $unitPrice) * ((float) $row['discount_pct'] / 100), 3) : 0.0;
-        if ($discountFromCols > 0.0001) {
+        if ($isBonusStockLine) {
+            $itemDiscount = 0.0;
+            $lineTotal = 0.0;
+            $lineGross = 0.0;
+            $taxAmt = 0.0;
+            $unitPriceForEinv = 0.0;
+        } elseif ($discountFromCols > 0.0001) {
             $itemDiscount = $discountFromCols;
+            $unitPriceForEinv = $unitPrice;
         } elseif ($discountFromPct > 0.0001) {
             $itemDiscount = $discountFromPct;
+            $unitPriceForEinv = $unitPrice;
         } else {
             $itemDiscount = 0.0;
+            $unitPriceForEinv = $unitPrice;
         }
         $totalDisc += $itemDiscount;
         $lines[] = (object) [
-            'quantity' => $qty,
-            'unit_price' => $unitPrice,                 // السعر الأصلي قبل الخصم وقبل الضريبة
+            'quantity' => $einvoiceQty,
+            'unit_price' => $unitPriceForEinv,
             'line_total' => $lineTotal,                 // LineExtensionAmount (بعد الخصم، قبل الضريبة)
             'line_gross' => $lineGross,                 // RoundingAmount (بعد الخصم + الضريبة)
             'subtotal' => $lineGross,                   // للتوافق مع الكود القديم

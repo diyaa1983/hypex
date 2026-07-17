@@ -67,14 +67,63 @@ function sal_invoice_stock_is_posted(PDO $pdo, int $invoiceId): bool
     return (bool) $st->fetch();
 }
 
+/** هل الفاتورة تحتاج قيدًا على حساب العميل (إجمالي أكبر من صفر). */
+function sal_invoice_financial_ledger_required(PDO $pdo, int $invoiceId): bool
+{
+    if ($invoiceId < 1) {
+        return true;
+    }
+    $st = $pdo->prepare('SELECT total FROM sal_invoice WHERE id = ? LIMIT 1');
+    $st->execute([$invoiceId]);
+    $total = $st->fetchColumn();
+
+    return $total !== false && (float) $total > 0.000001;
+}
+
+/** هل توجد بنود بكمية مستودعية (كمية + كمية إضافية). */
+function sal_invoice_has_stock_lines(PDO $pdo, int $invoiceId): bool
+{
+    if ($invoiceId < 1) {
+        return false;
+    }
+    inv_invoice_line_ensure_qty_extra($pdo);
+    $st = $pdo->prepare(
+        'SELECT 1 FROM sal_invoice_line il WHERE il.invoice_id = ? AND '
+        . inv_invoice_line_sql_stock_positive('il') . ' LIMIT 1'
+    );
+    $st->execute([$invoiceId]);
+
+    return (bool) $st->fetch();
+}
+
+/** فاتورة مرحّلة ماليًا (قيد عميل أو فاتورة هدايا بإجمالي صفر). */
+function sal_invoice_financial_is_posted(PDO $pdo, int $invoiceId): bool
+{
+    if ($invoiceId < 1) {
+        return false;
+    }
+    if (crm_ledger_sale_invoice_is_posted($pdo, $invoiceId)) {
+        return true;
+    }
+
+    return !sal_invoice_financial_ledger_required($pdo, $invoiceId)
+        && sal_invoice_has_stock_lines($pdo, $invoiceId);
+}
+
 /** تعبير SQL: الفاتورة مرحّلة ماليًا ومستودعيًا بالكامل. */
 function sal_invoice_sql_is_posted_expr(string $invoiceAlias = 'i'): string
 {
     $i = $invoiceAlias;
+    $ledgerRequired = "COALESCE({$i}.total, 0) > 0.000001";
     $ledger = "EXISTS (
         SELECT 1 FROM crm_customer_ledger l
         WHERE l.txn_type = 'sale_invoice' AND l.ref_id = {$i}.id
     )";
+    $hasStockLines = 'EXISTS (
+        SELECT 1 FROM sal_invoice_line il_stock
+        WHERE il_stock.invoice_id = ' . $i . '.id AND ' . inv_invoice_line_sql_stock_positive('il_stock') . '
+    )';
+    $financialPosted = "( ({$ledgerRequired} AND {$ledger}) OR (NOT {$ledgerRequired} AND {$hasStockLines}) )";
     $stockPos = inv_invoice_line_sql_stock_positive('il');
     $stockNeeded = "({$i}.warehouse_id IS NOT NULL AND EXISTS (
         SELECT 1 FROM sal_invoice_line il
@@ -86,7 +135,7 @@ function sal_invoice_sql_is_posted_expr(string $invoiceAlias = 'i'): string
         WHERE m.ref_type = 'sale_invoice' AND m.ref_id = {$i}.id
     )";
 
-    return "({$ledger} AND (NOT {$stockNeeded} OR {$stockDone}))";
+    return "({$financialPosted} AND (NOT {$stockNeeded} OR {$stockDone}))";
 }
 
 /** فاتورة مرحّلة ماليًا ومستودعيًا (إن لزم). */
@@ -96,14 +145,14 @@ function sal_invoice_is_posted(PDO $pdo, int $invoiceId): bool
         return false;
     }
 
-    return crm_ledger_sale_invoice_is_posted($pdo, $invoiceId)
+    return sal_invoice_financial_is_posted($pdo, $invoiceId)
         && sal_invoice_stock_is_posted($pdo, $invoiceId);
 }
 
 /** هل اكتمل الترحيل التشغيلي (مخزون إن لزم + حساب العميل) بغضّ النظر عن القيد المحاسبي. */
 function sal_invoice_operational_post_complete(PDO $pdo, int $invoiceId): bool
 {
-    if ($invoiceId < 1 || !crm_ledger_sale_invoice_is_posted($pdo, $invoiceId)) {
+    if ($invoiceId < 1 || !sal_invoice_financial_is_posted($pdo, $invoiceId)) {
         return false;
     }
     if (!sal_invoice_stock_posting_required($pdo, $invoiceId)) {
@@ -233,7 +282,7 @@ function sal_invoice_post_by_id(PDO $pdo, int $invoiceId): array
     $lockDecimals = sal_invoice_amount_decimals($pdo, $invoiceId);
     sal_invoice_persist_normalized($pdo, $invoiceId, $lockDecimals);
 
-    $financialPosted = crm_ledger_sale_invoice_is_posted($pdo, $invoiceId);
+    $financialPosted = sal_invoice_financial_is_posted($pdo, $invoiceId);
     $stockPosted = sal_invoice_stock_is_posted($pdo, $invoiceId);
 
     if ($financialPosted && $stockPosted) {

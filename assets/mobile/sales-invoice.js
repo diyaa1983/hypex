@@ -1368,7 +1368,18 @@
       var i;
       for (i = 0; i < lines.length; i++) {
         var ln = lines[i];
-        var stock = Math.max(0, parseNum(ln.qty)) + Math.max(0, parseNum(ln.qty_extra));
+        var qty = Math.max(0, parseNum(ln.qty));
+        var qtyExtra = Math.max(0, parseNum(ln.qty_extra));
+        var stock = qty + qtyExtra;
+        if (qty <= 0 && qtyExtra <= 0) {
+          if (window.AppDialog && AppDialog.alert) {
+            AppDialog.alert(
+              'عند كمية صفر يجب إدخال كمية إضافية للمادة: ' + ln.item_name,
+              { type: 'warning' }
+            );
+          }
+          return;
+        }
         if (stock <= 0) {
           if (window.AppDialog && AppDialog.alert) {
             AppDialog.alert('أدخل كمية أو كمية إضافية للمادة: ' + ln.item_name, { type: 'warning' });
@@ -1376,11 +1387,12 @@
           return;
         }
         var unitPrice = parseNum(ln.unit_price);
+        var isBonusLine = qty <= 0 && qtyExtra > 0;
         if (unitPrice <= 0 && ln.default_unit_price > 0) {
           unitPrice = parseNum(ln.default_unit_price);
           ln.unit_price = unitPrice;
         }
-        if (unitPrice <= 0) {
+        if (unitPrice <= 0 && !isBonusLine) {
           if (window.AppDialog && AppDialog.alert) {
             AppDialog.alert('أدخل السعر للمادة: ' + ln.item_name, { type: 'warning' });
           }
