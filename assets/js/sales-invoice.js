@@ -3875,7 +3875,7 @@
       tooltip = 'يجب ترحيل الفاتورة قبل إرسالها للفوترة.';
     } else if (!invoiceEinvTrackingRequired) {
       disable = true;
-      tooltip = 'فاتورة قبل تاريخ متابعة الفوترة في النظام (14-05-2026).';
+      tooltip = 'فاتورة قبل تاريخ متابعة الفوترة في النظام (01-06-2026).';
     }
     if (disable) {
       btn.disabled = true;

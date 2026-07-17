@@ -1622,7 +1622,7 @@
       tooltip = 'يجب ترحيل المرتجع قبل إرساله للفوترة.';
     } else if (!returnEinvTrackingRequired) {
       disable = true;
-      tooltip = 'مرتجع قبل تاريخ متابعة الفوترة في النظام (14-05-2026).';
+      tooltip = 'مرتجع قبل تاريخ متابعة الفوترة في النظام (01-06-2026).';
     }
     if (disable) {
       btn.disabled = true;

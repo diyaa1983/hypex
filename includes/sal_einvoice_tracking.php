@@ -7,7 +7,7 @@ declare(strict_types=1);
  */
 function sal_einvoice_tracking_cutoff_iso(): string
 {
-    return '2026-05-14';
+    return '2026-06-01';
 }
 
 /** هل يُطبَّق تتبّع الفوترة على مستند بهذا التاريخ؟ */
