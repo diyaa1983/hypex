@@ -6,6 +6,7 @@ require_once app_path('includes/company_currency.php');
 require_once app_path('includes/company_smtp.php');
 require_once app_path('includes/company_whatsapp.php');
 require_once app_path('includes/fin_check_due_email.php');
+require_once app_path('includes/fin_out_check_due_email.php');
 require_once app_path('includes/login_recaptcha.php');
 require_once app_path('includes/fin_voucher_archive.php');
 
@@ -17,6 +18,7 @@ company_settings_ensure_currency_column($pdo);
 company_smtp_ensure_schema($pdo);
 company_whatsapp_ensure_schema($pdo);
 fin_check_due_email_ensure_settings_columns($pdo);
+fin_out_check_due_email_ensure_settings_columns($pdo);
 login_recaptcha_ensure_schema($pdo);
 fin_voucher_archive_ensure_schema($pdo);
 
@@ -77,6 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checkEmailOnDueDay = !empty($_POST['check_email_on_due_day']);
         $checkEmailRecipients = trim((string) ($_POST['check_email_recipients'] ?? ''));
 
+        $outCheckEmailEnabled = !empty($_POST['out_check_email_enabled']);
+        $outCheckEmailDaysBefore = max(1, min(60, (int) ($_POST['out_check_email_days_before'] ?? 5)));
+        $outCheckEmailOnDueDay = !empty($_POST['out_check_email_on_due_day']);
+        $outCheckEmailRecipients = trim((string) ($_POST['out_check_email_recipients'] ?? ''));
+
         $loginRecaptchaEnabled = !empty($_POST['login_recaptcha_enabled']);
         $loginRecaptchaSiteKey = trim((string) ($_POST['login_recaptcha_site_key'] ?? ''));
         $loginRecaptchaSecretInput = (string) ($_POST['login_recaptcha_secret_key'] ?? '');
@@ -136,6 +143,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $checkEmailHasRecipient = fin_check_due_email_parse_recipients($checkEmailRecipients) !== []
             || ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL));
+        $outCheckEmailHasRecipient = fin_check_due_email_parse_recipients($outCheckEmailRecipients) !== []
+            || ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL));
         $smtpReadyForChecks = company_smtp_is_configured($pdo)
             || ($smtpHost !== '' && ($smtpFromEmail !== '' || ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL))));
 
@@ -158,10 +167,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = 'عدد الأسطر بالصفحة يجب أن يكون 10 أو 15 أو 20.';
             $msgType = 'error';
         } elseif ($checkEmailEnabled && !$checkEmailHasRecipient) {
-            $msg = 'فعّلت تنبيهات الشيكات: أدخل بريداً واحداً على الأقل في قائمة المستلمين، أو بريداً صالحاً في حقل «البريد» الرئيسي.';
+            $msg = 'فعّلت تنبيهات الشيكات الواردة: أدخل بريداً واحداً على الأقل في قائمة المستلمين، أو بريداً صالحاً في حقل «البريد» الرئيسي.';
             $msgType = 'error';
         } elseif ($checkEmailEnabled && !$smtpReadyForChecks) {
-            $msg = 'فعّلت تنبيهات الشيكات: أكمل إعدادات SMTP (الخادم والبريد المرسل) أولاً.';
+            $msg = 'فعّلت تنبيهات الشيكات الواردة: أكمل إعدادات SMTP (الخادم والبريد المرسل) أولاً.';
+            $msgType = 'error';
+        } elseif ($outCheckEmailEnabled && !$outCheckEmailHasRecipient) {
+            $msg = 'فعّلت تنبيهات الشيكات الصادرة: أدخل بريداً واحداً على الأقل في قائمة المستلمين، أو بريداً صالحاً في حقل «البريد» الرئيسي.';
+            $msgType = 'error';
+        } elseif ($outCheckEmailEnabled && !$smtpReadyForChecks) {
+            $msg = 'فعّلت تنبيهات الشيكات الصادرة: أكمل إعدادات SMTP (الخادم والبريد المرسل) أولاً.';
             $msgType = 'error';
         } elseif ($loginRecaptchaEnabled && $loginRecaptchaSiteKey === '') {
             $msg = 'reCAPTCHA: أدخل Site Key من Google.';
@@ -241,6 +256,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             wa_bridge_url = ?, wa_bridge_token = ?,
                             check_email_enabled = ?, check_email_days_before = ?, check_email_on_due_day = ?,
                             check_email_recipients = ?,
+                            out_check_email_enabled = ?, out_check_email_days_before = ?, out_check_email_on_due_day = ?,
+                            out_check_email_recipients = ?,
                             login_recaptcha_enabled = ?, login_recaptcha_site_key = ?, login_recaptcha_secret_key = ?
                             WHERE id = 1'
                         );
@@ -275,6 +292,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $checkEmailDaysBefore,
                             $checkEmailOnDueDay ? 1 : 0,
                             $checkEmailRecipients !== '' ? $checkEmailRecipients : null,
+                            $outCheckEmailEnabled ? 1 : 0,
+                            $outCheckEmailDaysBefore,
+                            $outCheckEmailOnDueDay ? 1 : 0,
+                            $outCheckEmailRecipients !== '' ? $outCheckEmailRecipients : null,
                             $loginRecaptchaEnabled ? 1 : 0,
                             $loginRecaptchaSiteKey !== '' ? $loginRecaptchaSiteKey : null,
                             $loginRecaptchaSecret !== '' ? $loginRecaptchaSecret : null,
@@ -614,18 +635,26 @@ $archiveServerLabel = sys_backup_server_label();
         }
         $checkEmailDueDay = (int) ($row['check_email_on_due_day'] ?? 1) === 1;
         $checkEmailRcptRaw = (string) ($row['check_email_recipients'] ?? '');
+
+        $outCheckEmailOn = (int) ($row['out_check_email_enabled'] ?? 0) === 1;
+        $outCheckEmailDays = (int) ($row['out_check_email_days_before'] ?? 5);
+        if ($outCheckEmailDays < 1 || $outCheckEmailDays > 60) {
+            $outCheckEmailDays = 5;
+        }
+        $outCheckEmailDueDay = (int) ($row['out_check_email_on_due_day'] ?? 1) === 1;
+        $outCheckEmailRcptRaw = (string) ($row['out_check_email_recipients'] ?? '');
         ?>
     <div class="settings-ora-panel">
-        <h2 class="settings-ora-panel-head">تنبيهات استحقاق الشيكات (بريد تلقائي)</h2>
+        <h2 class="settings-ora-panel-head">تنبيهات استحقاق الشيكات الواردة (بريد تلقائي)</h2>
         <div class="settings-ora-panel-body">
             <p class="field-hint" style="margin:0 0 0.55rem;">
-                يُرسل بريد <strong>مرة واحدة يومياً</strong> لكل شيك في صندوق الشيكات: من اليوم X قبل الاستحقاق
+                يُرسل بريد <strong>مرة واحدة يومياً</strong> لكل شيك وارد في صندوق الشيكات: من اليوم X قبل الاستحقاق
                 حتى يوم قبل الموعد (X رسائل)، ويمكن إضافة تنبيه يوم الاستحقاق نفسه.
                 مثال: 5 أيام قبل = إرسال عندما يتبقى 5، 4، 3، 2، 1 يوم (5 مرات) ثم اختياري يوم الاستحقاق.
             </p>
             <label class="field field-check field--full">
                 <input type="checkbox" name="check_email_enabled" value="1" <?= $checkEmailOn ? 'checked' : '' ?>>
-                <span class="field-label">تفعيل التنبيهات التلقائية للشيكات</span>
+                <span class="field-label">تفعيل التنبيهات التلقائية للشيكات الواردة</span>
             </label>
             <div class="form-row" style="margin-top:0.75rem;">
                 <label class="field">
@@ -643,6 +672,40 @@ $archiveServerLabel = sys_backup_server_label();
                 <span class="field-label">بريد المستلمين (سطر لكل عنوان)</span>
                 <textarea class="input" name="check_email_recipients" rows="4" dir="ltr"
                           placeholder="finance@company.com&#10;manager@company.com"><?= esc($checkEmailRcptRaw) ?></textarea>
+                <span class="field-hint">
+                    يمكن إضافة عدة عناوين (فاصلة أو سطر جديد). إن تُرك فارغاً يُستخدم حقل «البريد» الرئيسي أعلاه.
+                </span>
+            </label>
+        </div>
+    </div>
+
+    <div class="settings-ora-panel">
+        <h2 class="settings-ora-panel-head">تنبيهات استحقاق الشيكات الصادرة (بريد تلقائي)</h2>
+        <div class="settings-ora-panel-body">
+            <p class="field-hint" style="margin:0 0 0.55rem;">
+                يُرسل بريد <strong>مرة واحدة يومياً</strong> لكل شيك صادر (سند صرف مرحّل، حالة قيد): من اليوم X قبل تاريخ الصرف
+                حتى يوم قبل الموعد، ويمكن إضافة تنبيه يوم الاستحقاق نفسه.
+            </p>
+            <label class="field field-check field--full">
+                <input type="checkbox" name="out_check_email_enabled" value="1" <?= $outCheckEmailOn ? 'checked' : '' ?>>
+                <span class="field-label">تفعيل التنبيهات التلقائية للشيكات الصادرة</span>
+            </label>
+            <div class="form-row" style="margin-top:0.75rem;">
+                <label class="field">
+                    <span class="field-label">عدد الأيام قبل الاستحقاق (تنبيه يومي)</span>
+                    <input class="input" name="out_check_email_days_before" type="number" min="1" max="60"
+                           value="<?= esc((string) $outCheckEmailDays) ?>">
+                    <span class="field-hint">من 1 إلى 60 — بريد واحد في كل يوم ضمن هذه الفترة.</span>
+                </label>
+                <label class="field field-check">
+                    <input type="checkbox" name="out_check_email_on_due_day" value="1" <?= $outCheckEmailDueDay ? 'checked' : '' ?>>
+                    <span class="field-label">إرسال تنبيه يوم الاستحقاق أيضاً</span>
+                </label>
+            </div>
+            <label class="field field--full">
+                <span class="field-label">بريد المستلمين (سطر لكل عنوان)</span>
+                <textarea class="input" name="out_check_email_recipients" rows="4" dir="ltr"
+                          placeholder="finance@company.com&#10;manager@company.com"><?= esc($outCheckEmailRcptRaw) ?></textarea>
                 <span class="field-hint">
                     يمكن إضافة عدة عناوين (فاصلة أو سطر جديد). إن تُرك فارغاً يُستخدم حقل «البريد» الرئيسي أعلاه.
                 </span>

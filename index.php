@@ -26,6 +26,7 @@ $appBootMigrations = [
     'database/migrations/077_report_supplier_payables.sql',
     'database/migrations/078_fin_check_due_email_notify.sql',
     'database/migrations/079_check_email_settings.sql',
+    'database/migrations/200_out_check_email_settings.sql',
     'database/migrations/071_inventory_align_warehouse_screen.sql',
     'database/migrations/069_vat_report_split_routes.sql',
     'database/migrations/046_report_warehouse_items.sql',

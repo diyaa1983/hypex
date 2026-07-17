@@ -424,6 +424,133 @@ function fin_voucher_checks_pending_collection(PDO $pdo, ?string $today = null):
     return fin_voucher_checks_apply_collection_fifo($out, $collected);
 }
 
+/**
+ * شرط: سند صرف مُرحّل محاسبياً (قيد تلقائي cash_payment) أو عمود is_posted.
+ */
+function fin_voucher_checks_payment_posted_sql(PDO $pdo, string $voucherAlias = 'v'): string
+{
+    require_once app_path('includes/acc_gl.php');
+    if (acc_gl_journal_has_ref_columns($pdo)) {
+        return "EXISTS (
+            SELECT 1 FROM acc_journal_entry e
+            WHERE e.ref_type = 'cash_payment' AND e.ref_id = {$voucherAlias}.id AND e.status = 'posted'
+        )";
+    }
+
+    return fin_voucher_has_column($pdo, 'is_posted')
+        ? "{$voucherAlias}.is_posted = 1"
+        : '1=1';
+}
+
+/**
+ * شيكات صادرة (سندات صرف) قيد ولم تُصرَف بعد — لتنبيهات الاستحقاق بالبريد.
+ *
+ * @return list<array{
+ *   check_id:int,
+ *   check_no:string,
+ *   bank_name:string,
+ *   amount:float,
+ *   due_date:string,
+ *   days_until_due:?int,
+ *   urgency:string,
+ *   urgency_label:string,
+ *   voucher_id:int,
+ *   voucher_no:string,
+ *   voucher_date:string,
+ *   party_name:string,
+ *   notes:string,
+ *   url:string
+ * }>
+ */
+function fin_voucher_checks_pending_disbursement(PDO $pdo, ?string $today = null): array
+{
+    if (!fin_voucher_checks_ensure_table($pdo)) {
+        return [];
+    }
+    require_once app_path('includes/fin_voucher_schema.php');
+    if (!fin_voucher_has_table($pdo)) {
+        return [];
+    }
+
+    $today = $today ?? date('Y-m-d');
+    $postedExpr = fin_voucher_checks_payment_posted_sql($pdo, 'v');
+    $payFilter = fin_voucher_has_column($pdo, 'pay_method') ? " AND v.pay_method = 'check' " : '';
+    $pendingOnly = fin_voucher_checks_sql_pending_only($pdo, 'c', 'v');
+
+    $sql =
+        "SELECT c.id AS check_id, c.check_no, c.bank_name, c.check_amount, c.due_date, c.notes,
+                v.id AS voucher_id, v.voucher_no, v.voucher_date, v.amount AS voucher_amount,
+                COALESCE(cust.name_ar, sup.name_ar, emp.name_ar, acc_party.name_ar, '') AS party_name
+         FROM fin_voucher_check c
+         INNER JOIN fin_voucher v ON v.id = c.voucher_id AND v.voucher_type = 'payment'
+         LEFT JOIN crm_customer cust ON v.party_type = 'customer' AND cust.id = v.party_id
+         LEFT JOIN crm_supplier sup ON v.party_type = 'supplier' AND sup.id = v.party_id
+         LEFT JOIN hr_employee emp ON v.party_type = 'employee' AND emp.id = v.party_id
+         LEFT JOIN acc_account acc_party ON v.party_type = 'account' AND acc_party.id = v.party_id
+         WHERE {$postedExpr}
+           AND c.check_amount > 0.000001
+           {$payFilter}
+           {$pendingOnly}
+         ORDER BY c.due_date ASC, v.voucher_date ASC, c.id ASC";
+
+    try {
+        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($rows as $row) {
+        $due = trim((string) ($row['due_date'] ?? ''));
+        $daysUntil = null;
+        $urgency = 'pending';
+        $urgencyLabel = 'قيد الصرف';
+        if ($due !== '') {
+            try {
+                $dueDt = new DateTimeImmutable($due);
+                $todayDt = new DateTimeImmutable($today);
+                $daysUntil = (int) $todayDt->diff($dueDt)->format('%r%a');
+                if ($daysUntil < 0) {
+                    $urgency = 'overdue';
+                    $urgencyLabel = 'متأخر';
+                } elseif ($daysUntil === 0) {
+                    $urgency = 'today';
+                    $urgencyLabel = 'مستحق اليوم';
+                } elseif ($daysUntil <= 7) {
+                    $urgency = 'soon';
+                    $urgencyLabel = 'قريب الاستحقاق';
+                }
+            } catch (Throwable $e) {
+                // ignore
+            }
+        } else {
+            $urgency = 'nodate';
+            $urgencyLabel = 'بدون تاريخ صرف';
+        }
+
+        $vid = (int) ($row['voucher_id'] ?? 0);
+        $out[] = [
+            'check_id' => (int) ($row['check_id'] ?? 0),
+            'check_no' => trim((string) ($row['check_no'] ?? '')),
+            'bank_name' => trim((string) ($row['bank_name'] ?? '')),
+            'amount' => (float) ($row['check_amount'] ?? 0),
+            'due_date' => $due,
+            'days_until_due' => $daysUntil,
+            'urgency' => $urgency,
+            'urgency_label' => $urgencyLabel,
+            'voucher_id' => $vid,
+            'voucher_no' => (string) ($row['voucher_no'] ?? ''),
+            'voucher_date' => (string) ($row['voucher_date'] ?? ''),
+            'party_name' => (string) ($row['party_name'] ?? ''),
+            'notes' => (string) ($row['notes'] ?? ''),
+            'voucher_amount' => (float) ($row['voucher_amount'] ?? 0),
+            'url' => $vid > 0 ? app_url('index.php?r=cash_payment&id=' . $vid) : '',
+        ];
+    }
+
+    return $out;
+}
+
 function fin_voucher_checks_from_post(array $post): array
 {
     $raw = $post['checks'] ?? null;

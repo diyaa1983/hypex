@@ -1,36 +1,22 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * تنبيهات بريد لاستحقاق الشيكات الصادرة (سندات الصرف).
+ * يعيد استخدام سجل fin_check_due_email_log مع notify_type مسبوق بـ out_ (مثل out_d5).
+ */
+
 require_once app_path('includes/company_smtp.php');
 require_once app_path('includes/fin_voucher_checks.php');
+require_once app_path('includes/fin_check_due_email.php');
 
-function fin_check_due_email_ensure_schema(PDO $pdo): bool
-{
-    try {
-        $pdo->query('SELECT id FROM fin_check_due_email_log LIMIT 1');
-    } catch (Throwable $e) {
-        require_once app_path('includes/sql_migration.php');
-        sql_migration_run_file($pdo, 'database/migrations/078_fin_check_due_email_notify.sql');
-    }
-
-    fin_check_due_email_ensure_settings_columns($pdo);
-
-    try {
-        $pdo->query('SELECT id FROM fin_check_due_email_log LIMIT 1');
-
-        return true;
-    } catch (Throwable $e) {
-        return false;
-    }
-}
-
-function fin_check_due_email_ensure_settings_columns(PDO $pdo): void
+function fin_out_check_due_email_ensure_settings_columns(PDO $pdo): void
 {
     $cols = [
-        'check_email_enabled' => 'TINYINT(1) NOT NULL DEFAULT 0',
-        'check_email_days_before' => 'SMALLINT UNSIGNED NOT NULL DEFAULT 5',
-        'check_email_on_due_day' => 'TINYINT(1) NOT NULL DEFAULT 1',
-        'check_email_recipients' => 'TEXT NULL',
+        'out_check_email_enabled' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'out_check_email_days_before' => 'SMALLINT UNSIGNED NOT NULL DEFAULT 5',
+        'out_check_email_on_due_day' => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'out_check_email_recipients' => 'TEXT NULL',
     ];
     foreach ($cols as $name => $def) {
         try {
@@ -56,9 +42,9 @@ function fin_check_due_email_ensure_settings_columns(PDO $pdo): void
  *   recipients:list<string>
  * }
  */
-function fin_check_due_email_settings(PDO $pdo): array
+function fin_out_check_due_email_settings(PDO $pdo): array
 {
-    fin_check_due_email_ensure_settings_columns($pdo);
+    fin_out_check_due_email_ensure_settings_columns($pdo);
     $defaults = [
         'enabled' => false,
         'days_before' => 5,
@@ -67,15 +53,15 @@ function fin_check_due_email_settings(PDO $pdo): array
     ];
     try {
         $row = $pdo->query(
-            'SELECT check_email_enabled, check_email_days_before, check_email_on_due_day,
-                    check_email_recipients, email
+            'SELECT out_check_email_enabled, out_check_email_days_before, out_check_email_on_due_day,
+                    out_check_email_recipients, email
              FROM sys_company_settings WHERE id = 1 LIMIT 1'
         )->fetch(PDO::FETCH_ASSOC) ?: [];
-        $defaults['enabled'] = (int) ($row['check_email_enabled'] ?? 0) === 1;
-        $days = (int) ($row['check_email_days_before'] ?? 5);
+        $defaults['enabled'] = (int) ($row['out_check_email_enabled'] ?? 0) === 1;
+        $days = (int) ($row['out_check_email_days_before'] ?? 5);
         $defaults['days_before'] = max(1, min(60, $days));
-        $defaults['on_due_day'] = (int) ($row['check_email_on_due_day'] ?? 1) === 1;
-        $parsed = fin_check_due_email_parse_recipients((string) ($row['check_email_recipients'] ?? ''));
+        $defaults['on_due_day'] = (int) ($row['out_check_email_on_due_day'] ?? 1) === 1;
+        $parsed = fin_check_due_email_parse_recipients((string) ($row['out_check_email_recipients'] ?? ''));
         if ($parsed === []) {
             $main = trim((string) ($row['email'] ?? ''));
             if ($main !== '' && filter_var($main, FILTER_VALIDATE_EMAIL)) {
@@ -90,48 +76,22 @@ function fin_check_due_email_settings(PDO $pdo): array
     return $defaults;
 }
 
-/**
- * @return list<string>
- */
-function fin_check_due_email_parse_recipients(string $raw): array
+function fin_out_check_due_email_notify_type(int $daysBeforeDue): string
 {
-    $raw = str_replace(["\r\n", "\r", ";"], "\n", $raw);
-    $parts = preg_split('/[\n,]+/', $raw) ?: [];
-    $out = [];
-    $seen = [];
-    foreach ($parts as $p) {
-        $email = trim((string) $p);
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            continue;
-        }
-        $key = strtolower($email);
-        if (isset($seen[$key])) {
-            continue;
-        }
-        $seen[$key] = true;
-        $out[] = $email;
-    }
-
-    return $out;
-}
-
-/** notify_type: d0 = يوم الاستحقاق، d5 = قبل 5 أيام، إلخ */
-function fin_check_due_email_notify_type(int $daysBeforeDue): string
-{
-    return 'd' . max(0, $daysBeforeDue);
+    return 'out_d' . max(0, $daysBeforeDue);
 }
 
 /**
  * @param list<array{check_id:int, due_date:string}> $items
  * @return array<int, true>
  */
-function fin_check_due_email_already_sent_map(PDO $pdo, array $items, int $daysBeforeDue): array
+function fin_out_check_due_email_already_sent_map(PDO $pdo, array $items, int $daysBeforeDue): array
 {
     if ($items === [] || !fin_check_due_email_ensure_schema($pdo)) {
         return [];
     }
 
-    $notifyType = fin_check_due_email_notify_type($daysBeforeDue);
+    $notifyType = fin_out_check_due_email_notify_type($daysBeforeDue);
     $pairs = [];
     foreach ($items as $item) {
         $cid = (int) ($item['check_id'] ?? 0);
@@ -172,26 +132,14 @@ function fin_check_due_email_already_sent_map(PDO $pdo, array $items, int $daysB
     return $sent;
 }
 
-function fin_check_due_email_days_until(string $todayIso, string $dueIso): ?int
-{
-    try {
-        $todayDt = new DateTimeImmutable($todayIso);
-        $dueDt = new DateTimeImmutable($dueIso);
-
-        return (int) $todayDt->diff($dueDt)->format('%r%a');
-    } catch (Throwable $e) {
-        return null;
-    }
-}
-
-function fin_check_due_email_subject(int $daysBeforeDue, string $companyName): string
+function fin_out_check_due_email_subject(int $daysBeforeDue, string $companyName): string
 {
     if ($daysBeforeDue === 0) {
-        $subject = 'تنبيه: شيكات مستحقة اليوم';
+        $subject = 'تنبيه: شيكات صادرة مستحقة اليوم';
     } elseif ($daysBeforeDue === 1) {
-        $subject = 'تنبيه: شيكات — يتبقى يوم واحد على الاستحقاق';
+        $subject = 'تنبيه: شيكات صادرة — يتبقى يوم واحد على الاستحقاق';
     } else {
-        $subject = 'تنبيه: شيكات — يتبقى ' . $daysBeforeDue . ' أيام على الاستحقاق';
+        $subject = 'تنبيه: شيكات صادرة — يتبقى ' . $daysBeforeDue . ' أيام على الاستحقاق';
     }
     if ($companyName !== '') {
         $subject .= ' — ' . $companyName;
@@ -203,7 +151,7 @@ function fin_check_due_email_subject(int $daysBeforeDue, string $companyName): s
 /**
  * @param list<array<string, mixed>> $checks
  */
-function fin_check_due_email_build_html(PDO $pdo, array $checks, int $daysBeforeDue): string
+function fin_out_check_due_email_build_html(PDO $pdo, array $checks, int $daysBeforeDue): string
 {
     $company = '';
     try {
@@ -228,12 +176,12 @@ function fin_check_due_email_build_html(PDO $pdo, array $checks, int $daysBefore
     }
 
     if ($daysBeforeDue === 0) {
-        $intro = 'هذا تنبيه تلقائي: الشيكات التالية <strong>مستحقة اليوم</strong> في صندوق الشيكات.';
+        $intro = 'هذا تنبيه تلقائي: الشيكات الصادرة التالية <strong>مستحقة اليوم</strong> (سندات الصرف).';
     } elseif ($daysBeforeDue === 1) {
-        $intro = 'هذا تنبيه تلقائي: يتبقى <strong>يوم واحد</strong> على استحقاق الشيكات التالية في صندوق الشيكات.';
+        $intro = 'هذا تنبيه تلقائي: يتبقى <strong>يوم واحد</strong> على استحقاق الشيكات الصادرة التالية.';
     } else {
         $intro = 'هذا تنبيه تلقائي: يتبقى <strong>' . $daysBeforeDue
-            . ' أيام</strong> على استحقاق الشيكات التالية في صندوق الشيكات.';
+            . ' أيام</strong> على استحقاق الشيكات الصادرة التالية.';
     }
 
     $title = $company !== '' ? $company : 'النظام';
@@ -245,14 +193,14 @@ function fin_check_due_email_build_html(PDO $pdo, array $checks, int $daysBefore
         . '<thead><tr style="background:#f1f5f9;">'
         . '<th style="padding:8px;border:1px solid #e2e8f0;">رقم الشيك</th>'
         . '<th style="padding:8px;border:1px solid #e2e8f0;">البنك</th>'
-        . '<th style="padding:8px;border:1px solid #e2e8f0;">العميل</th>'
-        . '<th style="padding:8px;border:1px solid #e2e8f0;">سند القبض</th>'
+        . '<th style="padding:8px;border:1px solid #e2e8f0;">المستفيد</th>'
+        . '<th style="padding:8px;border:1px solid #e2e8f0;">سند الصرف</th>'
         . '<th style="padding:8px;border:1px solid #e2e8f0;">تاريخ الاستحقاق</th>'
         . '<th style="padding:8px;border:1px solid #e2e8f0;">المبلغ</th>'
         . '</tr></thead><tbody>' . $rowsHtml . '</tbody></table>'
         . '<p style="margin:16px 0 0;color:#64748b;font-size:12px;">'
         . 'تم الإرسال تلقائياً من ' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8')
-        . ' · <a href="' . htmlspecialchars(app_url('index.php?r=dashboard'), ENT_QUOTES, 'UTF-8') . '">لوحة التحكم</a>'
+        . ' · <a href="' . htmlspecialchars(app_url('index.php?r=fin_outgoing_checks'), ENT_QUOTES, 'UTF-8') . '">سجل الشيكات الصادرة</a>'
         . '</p></div>';
 }
 
@@ -263,7 +211,7 @@ function fin_check_due_email_build_html(PDO $pdo, array $checks, int $daysBefore
  *   company:string
  * }|null
  */
-function fin_check_due_email_prepare_buckets(PDO $pdo, ?string $today = null): ?array
+function fin_out_check_due_email_prepare_buckets(PDO $pdo, ?string $today = null): ?array
 {
     $today = $today ?? date('Y-m-d');
     $todayIso = parse_date_to_iso($today) ?? $today;
@@ -271,8 +219,9 @@ function fin_check_due_email_prepare_buckets(PDO $pdo, ?string $today = null): ?
     if (!fin_check_due_email_ensure_schema($pdo)) {
         return null;
     }
+    fin_out_check_due_email_ensure_settings_columns($pdo);
 
-    $cfg = fin_check_due_email_settings($pdo);
+    $cfg = fin_out_check_due_email_settings($pdo);
     if (!$cfg['enabled'] || $cfg['recipients'] === [] || !company_smtp_is_configured($pdo)) {
         return null;
     }
@@ -285,7 +234,7 @@ function fin_check_due_email_prepare_buckets(PDO $pdo, ?string $today = null): ?
         // ignore
     }
 
-    $allPending = fin_voucher_checks_pending_collection($pdo, $todayIso);
+    $allPending = fin_voucher_checks_pending_disbursement($pdo, $todayIso);
     /** @var array<int, list<array<string, mixed>>> $buckets */
     $buckets = [];
 
@@ -327,10 +276,9 @@ function fin_check_due_email_prepare_buckets(PDO $pdo, ?string $today = null): ?
     ];
 }
 
-/** هل يوجد شيكات تحتاج تنبيه بريد ولم يُرسل لها بعد؟ */
-function fin_check_due_email_has_pending(PDO $pdo, ?string $today = null): bool
+function fin_out_check_due_email_has_pending(PDO $pdo, ?string $today = null): bool
 {
-    $prep = fin_check_due_email_prepare_buckets($pdo, $today);
+    $prep = fin_out_check_due_email_prepare_buckets($pdo, $today);
     if ($prep === null) {
         return false;
     }
@@ -343,7 +291,7 @@ function fin_check_due_email_has_pending(PDO $pdo, ?string $today = null): bool
                 'due_date' => (string) ($chk['due_date'] ?? ''),
             ];
         }
-        $already = fin_check_due_email_already_sent_map($pdo, $items, (int) $daysBefore);
+        $already = fin_out_check_due_email_already_sent_map($pdo, $items, (int) $daysBefore);
         foreach ($checks as $chk) {
             $cid = (int) ($chk['check_id'] ?? 0);
             if ($cid > 0 && !isset($already[$cid])) {
@@ -356,19 +304,18 @@ function fin_check_due_email_has_pending(PDO $pdo, ?string $today = null): bool
 }
 
 /**
- * إرسال تنبيهات الشيكات حسب الإعدادات (يومياً قبل الاستحقاق + اختياري يوم الاستحقاق).
- *
  * @return array{ok:bool, sent:int, emails:int, skipped?:bool, reason?:string, error?:string}
  */
-function fin_check_due_email_run(PDO $pdo, ?string $today = null): array
+function fin_out_check_due_email_run(PDO $pdo, ?string $today = null): array
 {
     if (!fin_check_due_email_ensure_schema($pdo)) {
         return ['ok' => false, 'sent' => 0, 'emails' => 0, 'error' => 'جدول سجل التنبيهات غير متوفر.'];
     }
+    fin_out_check_due_email_ensure_settings_columns($pdo);
 
-    $prep = fin_check_due_email_prepare_buckets($pdo, $today);
+    $prep = fin_out_check_due_email_prepare_buckets($pdo, $today);
     if ($prep === null) {
-        $cfg = fin_check_due_email_settings($pdo);
+        $cfg = fin_out_check_due_email_settings($pdo);
         if (!$cfg['enabled']) {
             return ['ok' => true, 'sent' => 0, 'emails' => 0, 'skipped' => true, 'reason' => 'disabled'];
         }
@@ -402,50 +349,55 @@ function fin_check_due_email_run(PDO $pdo, ?string $today = null): array
                 'due_date' => (string) ($chk['due_date'] ?? ''),
             ];
         }
-        $already = fin_check_due_email_already_sent_map($pdo, $items, (int) $daysBefore);
+        $already = fin_out_check_due_email_already_sent_map($pdo, $items, (int) $daysBefore);
         $toSend = [];
         foreach ($checks as $chk) {
             $cid = (int) ($chk['check_id'] ?? 0);
-            if ($cid > 0 && !isset($already[$cid])) {
-                $toSend[] = $chk;
+            if ($cid < 1 || isset($already[$cid])) {
+                continue;
             }
+            $toSend[] = $chk;
         }
         if ($toSend === []) {
             continue;
         }
 
-        $subject = fin_check_due_email_subject((int) $daysBefore, $company);
-        $bodyHtml = fin_check_due_email_build_html($pdo, $toSend, (int) $daysBefore);
-        $notifyType = fin_check_due_email_notify_type((int) $daysBefore);
-        $batchOk = true;
+        $subject = fin_out_check_due_email_subject((int) $daysBefore, $company);
+        $bodyHtml = fin_out_check_due_email_build_html($pdo, $toSend, (int) $daysBefore);
+        $notifyType = fin_out_check_due_email_notify_type((int) $daysBefore);
 
+        $bucketOk = true;
         foreach ($recipients as $to) {
             $result = company_smtp_send($to, $subject, $bodyHtml);
-            if (!($result['ok'] ?? false)) {
-                $batchOk = false;
-                $lastError = (string) ($result['error'] ?? 'تعذر إرسال البريد.');
-                break;
+            if (!empty($result['ok'])) {
+                $totalEmails++;
+            } else {
+                $bucketOk = false;
+                $lastError = (string) ($result['error'] ?? $result['message'] ?? 'تعذر الإرسال');
             }
-            $totalEmails++;
         }
 
-        if (!$batchOk) {
-            return [
-                'ok' => false,
-                'sent' => $totalChecks,
-                'emails' => $totalEmails,
-                'error' => $lastError ?? 'تعذر إرسال البريد.',
-            ];
+        if (!$bucketOk) {
+            continue;
         }
 
         foreach ($toSend as $chk) {
             $cid = (int) ($chk['check_id'] ?? 0);
-            $dueIso = parse_date_to_iso((string) ($chk['due_date'] ?? '')) ?? (string) ($chk['due_date'] ?? '');
-            if ($cid > 0 && $dueIso !== '') {
-                $ins->execute([$cid, $dueIso, $notifyType]);
+            $due = parse_date_to_iso((string) ($chk['due_date'] ?? '')) ?? (string) ($chk['due_date'] ?? '');
+            if ($cid < 1 || $due === '') {
+                continue;
+            }
+            try {
+                $ins->execute([$cid, $due, $notifyType]);
                 $totalChecks++;
+            } catch (Throwable $e) {
+                // ignore duplicate
             }
         }
+    }
+
+    if ($totalChecks === 0 && $lastError !== null) {
+        return ['ok' => false, 'sent' => 0, 'emails' => $totalEmails, 'error' => $lastError];
     }
 
     if ($totalChecks === 0) {
@@ -455,76 +407,27 @@ function fin_check_due_email_run(PDO $pdo, ?string $today = null): array
     return ['ok' => true, 'sent' => $totalChecks, 'emails' => $totalEmails];
 }
 
-/** فترة الانتظار بين محاولات الإرسال (ثوانٍ) عند وجود شيكات معلّقة. */
-function fin_check_due_email_scheduled_interval_seconds(bool $hasPending): int
-{
-    if (!$hasPending) {
-        return 86400;
-    }
-    if (empty($_SESSION['fin_check_due_email_boot'])) {
-        return 0;
-    }
-
-    return 120;
-}
-
-/**
- * @return array{ok:bool, sent:int, emails?:int, skipped?:bool, reason?:string, error?:string}
- */
-function fin_check_due_email_run_scheduled(PDO $pdo, bool $force = false): array
+function fin_out_check_due_email_run_scheduled(PDO $pdo, bool $force = false): array
 {
     require_once app_path('includes/acc_coa_bootstrap.php');
 
-    if (!$force && !fin_check_due_email_has_pending($pdo)) {
+    if (!$force && !fin_out_check_due_email_has_pending($pdo)) {
         return ['ok' => true, 'sent' => 0, 'skipped' => true, 'reason' => 'nothing_pending'];
     }
 
     if (!$force) {
         $interval = fin_check_due_email_scheduled_interval_seconds(true);
         if ($interval > 0) {
-            $last = acc_coa_meta_get($pdo, 'check_due_email_last_ts');
+            $last = acc_coa_meta_get($pdo, 'out_check_due_email_last_ts');
             if ($last !== null && $last !== '' && (time() - (int) $last) < $interval) {
                 return ['ok' => true, 'sent' => 0, 'skipped' => true, 'reason' => 'throttled'];
             }
         }
     }
 
-    $out = fin_check_due_email_run($pdo);
-    acc_coa_meta_set($pdo, 'check_due_email_last_ts', (string) time());
-    $_SESSION['fin_check_due_email_boot'] = 1;
+    $out = fin_out_check_due_email_run($pdo);
+    acc_coa_meta_set($pdo, 'out_check_due_email_last_ts', (string) time());
+    $_SESSION['fin_out_check_due_email_boot'] = 1;
 
     return $out;
-}
-
-/** تشغيل الإرسال بعد عرض الصفحة حتى لا يتأخر فتح النظام. */
-function fin_check_due_email_register_background_runner(): void
-{
-    static $registered = false;
-    if ($registered) {
-        return;
-    }
-    $registered = true;
-
-    register_shutdown_function(static function (): void {
-        if (function_exists('fastcgi_finish_request')) {
-            @fastcgi_finish_request();
-        } else {
-            while (ob_get_level() > 0) {
-                @ob_end_flush();
-            }
-            @flush();
-        }
-
-        try {
-            fin_check_due_email_run_scheduled(db());
-        } catch (Throwable $e) {
-            // لا يوقف التطبيق
-        }
-        try {
-            require_once app_path('includes/fin_out_check_due_email.php');
-            fin_out_check_due_email_run_scheduled(db());
-        } catch (Throwable $e) {
-            // لا يوقف التطبيق
-        }
-    });
 }
