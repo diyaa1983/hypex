@@ -239,7 +239,8 @@ function fin_voucher_checks_sql_pending_only(PDO $pdo, string $checkAlias = 'c',
     require_once app_path('includes/fin_voucher_schema.php');
     $parts = [];
     if (fin_voucher_checks_has_lifecycle($pdo)) {
-        $parts[] = "{$checkAlias}.lifecycle_status = 'pending'";
+        // NULL يُعامل كقيد (شيكات قُبلت قبل/بدون تعبئة الحالة)
+        $parts[] = "({$checkAlias}.lifecycle_status = 'pending' OR {$checkAlias}.lifecycle_status IS NULL OR {$checkAlias}.lifecycle_status = '')";
     }
     if (fin_voucher_has_column($pdo, 'is_cancelled')) {
         $parts[] = "({$voucherAlias}.is_cancelled = 0 OR {$voucherAlias}.is_cancelled IS NULL)";
@@ -425,21 +426,27 @@ function fin_voucher_checks_pending_collection(PDO $pdo, ?string $today = null):
 }
 
 /**
- * شرط: سند صرف مُرحّل محاسبياً (قيد تلقائي cash_payment) أو عمود is_posted.
+ * شرط: سند صرف مُرحّل (عمود is_posted أو قيد محاسبي cash_payment).
  */
 function fin_voucher_checks_payment_posted_sql(PDO $pdo, string $voucherAlias = 'v'): string
 {
     require_once app_path('includes/acc_gl.php');
+    $parts = [];
+    if (fin_voucher_has_column($pdo, 'is_posted')) {
+        $parts[] = "{$voucherAlias}.is_posted = 1";
+    }
     if (acc_gl_journal_has_ref_columns($pdo)) {
-        return "EXISTS (
+        $parts[] = "EXISTS (
             SELECT 1 FROM acc_journal_entry e
             WHERE e.ref_type = 'cash_payment' AND e.ref_id = {$voucherAlias}.id AND e.status = 'posted'
         )";
     }
 
-    return fin_voucher_has_column($pdo, 'is_posted')
-        ? "{$voucherAlias}.is_posted = 1"
-        : '1=1';
+    if ($parts === []) {
+        return '1=1';
+    }
+
+    return '(' . implode(' OR ', $parts) . ')';
 }
 
 /**
@@ -477,18 +484,48 @@ function fin_voucher_checks_pending_disbursement(PDO $pdo, ?string $today = null
     $payFilter = fin_voucher_has_column($pdo, 'pay_method') ? " AND v.pay_method = 'check' " : '';
     $pendingOnly = fin_voucher_checks_sql_pending_only($pdo, 'c', 'v');
 
+    $hasHr = false;
+    $hasAcc = false;
+    try {
+        $pdo->query('SELECT id FROM hr_employee LIMIT 1');
+        $hasHr = true;
+    } catch (Throwable $e) {
+        $hasHr = false;
+    }
+    try {
+        $pdo->query('SELECT id FROM acc_account LIMIT 1');
+        $hasAcc = true;
+    } catch (Throwable $e) {
+        $hasAcc = false;
+    }
+
+    $partyJoins = "
+         LEFT JOIN crm_customer cust ON v.party_type = 'customer' AND cust.id = v.party_id
+         LEFT JOIN crm_supplier sup ON v.party_type = 'supplier' AND sup.id = v.party_id";
+    $partyCoalesce = "COALESCE(cust.name_ar, sup.name_ar, '')";
+    if ($hasHr) {
+        $partyJoins .= "
+         LEFT JOIN hr_employee emp ON v.party_type = 'employee' AND emp.id = v.party_id";
+        $partyCoalesce = "COALESCE(cust.name_ar, sup.name_ar, emp.name_ar, '')";
+    }
+    if ($hasAcc) {
+        $partyJoins .= "
+         LEFT JOIN acc_account acc_party ON v.party_type = 'account' AND acc_party.id = v.party_id";
+        $partyCoalesce = $hasHr
+            ? "COALESCE(cust.name_ar, sup.name_ar, emp.name_ar, acc_party.name_ar, '')"
+            : "COALESCE(cust.name_ar, sup.name_ar, acc_party.name_ar, '')";
+    }
+
     $sql =
         "SELECT c.id AS check_id, c.check_no, c.bank_name, c.check_amount, c.due_date, c.notes,
                 v.id AS voucher_id, v.voucher_no, v.voucher_date, v.amount AS voucher_amount,
-                COALESCE(cust.name_ar, sup.name_ar, emp.name_ar, acc_party.name_ar, '') AS party_name
+                {$partyCoalesce} AS party_name
          FROM fin_voucher_check c
          INNER JOIN fin_voucher v ON v.id = c.voucher_id AND v.voucher_type = 'payment'
-         LEFT JOIN crm_customer cust ON v.party_type = 'customer' AND cust.id = v.party_id
-         LEFT JOIN crm_supplier sup ON v.party_type = 'supplier' AND sup.id = v.party_id
-         LEFT JOIN hr_employee emp ON v.party_type = 'employee' AND emp.id = v.party_id
-         LEFT JOIN acc_account acc_party ON v.party_type = 'account' AND acc_party.id = v.party_id
+         {$partyJoins}
          WHERE {$postedExpr}
            AND c.check_amount > 0.000001
+           AND c.due_date IS NOT NULL AND c.due_date <> ''
            {$payFilter}
            {$pendingOnly}
          ORDER BY c.due_date ASC, v.voucher_date ASC, c.id ASC";

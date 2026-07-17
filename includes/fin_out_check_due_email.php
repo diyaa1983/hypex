@@ -407,6 +407,18 @@ function fin_out_check_due_email_run(PDO $pdo, ?string $today = null): array
     return ['ok' => true, 'sent' => $totalChecks, 'emails' => $totalEmails];
 }
 
+function fin_out_check_due_email_scheduled_interval_seconds(bool $hasPending): int
+{
+    if (!$hasPending) {
+        return 86400;
+    }
+    if (empty($_SESSION['fin_out_check_due_email_boot'])) {
+        return 0;
+    }
+
+    return 120;
+}
+
 function fin_out_check_due_email_run_scheduled(PDO $pdo, bool $force = false): array
 {
     require_once app_path('includes/acc_coa_bootstrap.php');
@@ -416,7 +428,7 @@ function fin_out_check_due_email_run_scheduled(PDO $pdo, bool $force = false): a
     }
 
     if (!$force) {
-        $interval = fin_check_due_email_scheduled_interval_seconds(true);
+        $interval = fin_out_check_due_email_scheduled_interval_seconds(true);
         if ($interval > 0) {
             $last = acc_coa_meta_get($pdo, 'out_check_due_email_last_ts');
             if ($last !== null && $last !== '' && (time() - (int) $last) < $interval) {

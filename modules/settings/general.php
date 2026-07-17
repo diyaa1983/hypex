@@ -683,8 +683,9 @@ $archiveServerLabel = sys_backup_server_label();
         <h2 class="settings-ora-panel-head">تنبيهات استحقاق الشيكات الصادرة (بريد تلقائي)</h2>
         <div class="settings-ora-panel-body">
             <p class="field-hint" style="margin:0 0 0.55rem;">
-                يُرسل بريد <strong>مرة واحدة يومياً</strong> لكل شيك صادر (سند صرف مرحّل، حالة قيد): من اليوم X قبل تاريخ الصرف
-                حتى يوم قبل الموعد، ويمكن إضافة تنبيه يوم الاستحقاق نفسه.
+                خاص بشيكات <strong>سندات الصرف</strong> المرحّلة (حالة قيد) فقط — مستقل عن تنبيهات الشيكات الواردة أعلاه.
+                يُرسل بريد <strong>مرة واحدة يومياً</strong> لكل شيك صادر ضمن النافذة قبل تاريخ الصرف، ويمكن إضافة تنبيه يوم الاستحقاق.
+                مثال: 7 أيام قبل تاريخ 23-07 تعني إرسالاً يومياً من 16-07 حتى 22-07 (ثم اختياري يوم 23).
             </p>
             <label class="field field-check field--full">
                 <input type="checkbox" name="out_check_email_enabled" value="1" <?= $outCheckEmailOn ? 'checked' : '' ?>>

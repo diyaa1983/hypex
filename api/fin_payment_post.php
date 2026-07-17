@@ -62,6 +62,16 @@ try {
         $pdo->commit();
     }
 
+    // محاولة فورية لبريد الشيكات الصادرة ضمن نافذة التنبيه
+    if ((int) ($result['posted'] ?? 0) > 0) {
+        try {
+            require_once app_path('includes/fin_out_check_due_email.php');
+            fin_out_check_due_email_run($pdo);
+        } catch (Throwable $e) {
+            // لا يفشل الترحيل بسبب البريد
+        }
+    }
+
     $counts = fin_voucher_count_unposted($pdo, 'payment');
     $posted = (int) $result['posted'];
     $skipped = (int) $result['skipped'];
