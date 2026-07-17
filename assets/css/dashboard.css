@@ -772,10 +772,11 @@ body.dashboard-check-modal-open {
   max-height: min(88vh, 900px);
   display: flex;
   flex-direction: column;
-  background: var(--ora12-surface);
-  border: 1px solid var(--ora12-border);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  background: transparent;
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  box-shadow: none;
   font-family: Arial, Helvetica, sans-serif;
+  color: #dc2626;
 }
 
 .dashboard-check-modal-header {
@@ -784,8 +785,8 @@ body.dashboard-check-modal-open {
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.35rem 0.5rem 0.35rem 0.7rem;
-  background: var(--ora12-title);
-  border-bottom: 1px solid var(--ora12-blue-dark);
+  background: transparent;
+  border-bottom: 1px solid rgba(220, 38, 38, 0.35);
 }
 
 .dashboard-check-modal-title {
@@ -793,7 +794,7 @@ body.dashboard-check-modal-open {
   flex: 1;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #fff;
+  color: #dc2626;
 }
 
 .dashboard-check-modal-close {
@@ -804,10 +805,10 @@ body.dashboard-check-modal-open {
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(220, 38, 38, 0.45);
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: transparent;
+  color: #dc2626;
   font-size: 1rem;
   font-weight: 700;
   line-height: 1;
@@ -815,20 +816,21 @@ body.dashboard-check-modal-open {
 }
 
 .dashboard-check-modal-close:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(220, 38, 38, 0.12);
 }
 
 .dashboard-check-modal-body {
   padding: 0.65rem;
   overflow: auto;
   flex: 1;
-  background: #fff;
+  background: transparent;
+  color: #dc2626;
 }
 
 .dashboard-check-modal-foot {
   padding: 0.45rem 0.65rem;
-  border-top: 1px solid var(--ora12-border);
-  background: #f3f5f7;
+  border-top: 1px solid rgba(220, 38, 38, 0.35);
+  background: transparent;
   display: flex;
   justify-content: flex-end;
   gap: 0.35rem;
@@ -849,7 +851,7 @@ body.dashboard-check-modal-open {
 
 .dashboard-check-detail-days {
   font-size: 0.78rem;
-  color: var(--ora12-muted);
+  color: #dc2626;
   font-weight: 600;
 }
 
@@ -869,7 +871,7 @@ body.dashboard-check-modal-open {
 .dashboard-check-detail-dl dt {
   margin: 0;
   font-size: 0.72rem;
-  color: var(--ora12-muted);
+  color: #dc2626;
   font-weight: 700;
 }
 
@@ -877,34 +879,40 @@ body.dashboard-check-modal-open {
   margin: 0;
   font-size: 0.82rem;
   font-weight: 600;
+  color: #dc2626;
 }
 
 .dashboard-check-detail-subtitle {
   margin: 0.35rem 0 0.25rem;
   font-size: 0.8rem;
   font-weight: 700;
+  color: #dc2626;
 }
 
 .dashboard-check-detail-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.78rem;
+  color: #dc2626;
+  background: transparent;
 }
 
 .dashboard-check-detail-table th,
 .dashboard-check-detail-table td {
   padding: 0.28rem 0.4rem;
   text-align: right;
-  border: 1px solid var(--ora12-border);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  background: transparent;
+  color: #dc2626;
 }
 
 .dashboard-check-detail-table th {
-  background: #f0f4f8;
+  background: transparent;
   font-weight: 700;
 }
 
 .dashboard-check-detail-row--active {
-  background: var(--ora12-hover);
+  background: rgba(220, 38, 38, 0.08);
 }
 
 .dashboard-check-detail-row.js-check-detail-pick {
@@ -912,7 +920,7 @@ body.dashboard-check-modal-open {
 }
 
 .dashboard-check-detail-row.js-check-detail-pick:hover {
-  background: var(--ora12-hover);
+  background: rgba(220, 38, 38, 0.12);
 }
 
 /* توافق JS */
