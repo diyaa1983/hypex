@@ -234,11 +234,15 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
     };
     $inDueRows = array_values(array_filter(
         $checkAlerts,
-        static fn (array $c) use ($checkInAlertWindow, $inAlertDaysUi, $inOnDueUi): bool => $checkInAlertWindow($c, $inAlertDaysUi, $inOnDueUi)
+        static function (array $c) use ($checkInAlertWindow, $inAlertDaysUi, $inOnDueUi): bool {
+            return $checkInAlertWindow($c, $inAlertDaysUi, $inOnDueUi);
+        }
     ));
     $outDueRows = array_values(array_filter(
         $checkOutAlerts,
-        static fn (array $c) use ($checkInAlertWindow, $outAlertDaysUi, $outOnDueUi): bool => $checkInAlertWindow($c, $outAlertDaysUi, $outOnDueUi)
+        static function (array $c) use ($checkInAlertWindow, $outAlertDaysUi, $outOnDueUi): bool {
+            return $checkInAlertWindow($c, $outAlertDaysUi, $outOnDueUi);
+        }
     ));
     ?>
     <?php if ($inDueRows !== [] || $outDueRows !== []): ?>
