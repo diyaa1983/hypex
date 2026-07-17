@@ -158,6 +158,9 @@ function sal_invoice_enrich_row(PDO $pdo, array $row, string $browseFilter = 'al
         $row['einv_sent'] = false;
     }
 
+    require_once app_path('includes/sal_einvoice_tracking.php');
+    $row['einv_tracking_required'] = sal_einvoice_doc_date_requires_tracking((string) ($row['invoice_date'] ?? ''));
+
     if (!empty($row['sales_rep_id']) && empty($row['sales_rep_name'])) {
         try {
             $rn = $pdo->prepare('SELECT name_ar FROM crm_sales_rep WHERE id = ? LIMIT 1');

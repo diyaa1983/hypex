@@ -39,6 +39,8 @@ function sal_return_fetch_header(PDO $pdo, int $id): ?array
     if (is_array($row)) {
         $row['einv_sent'] = !empty($row['einv_qr']);
         $row['invoice_einv_sent'] = !empty($row['invoice_einv_qr'] ?? '');
+        require_once app_path('includes/sal_einvoice_tracking.php');
+        $row['einv_tracking_required'] = sal_einvoice_doc_date_requires_tracking((string) ($row['return_date'] ?? ''));
     }
 
     return is_array($row) ? $row : null;

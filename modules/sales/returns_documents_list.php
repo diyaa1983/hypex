@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once app_path('includes/sal_documents_list.php');
+require_once app_path('includes/sal_einvoice_tracking.php');
 require_once app_path('includes/list_pagination.php');
 require_once app_path('includes/sales_oracle12_ui.php');
 require_once app_path('includes/nav_helpers.php');
@@ -88,6 +89,7 @@ $flash = flash_get();
                     $docId = (int) ($row['doc_id'] ?? 0);
                     $posted = !empty($row['is_posted']);
                     $einvSent = !empty($row['einv_sent']);
+                    $einvTracking = sal_einvoice_doc_date_requires_tracking((string) ($row['doc_date'] ?? ''));
                     $openUrl = sal_documents_list_return_open_url($docId);
                     $refNo = trim((string) ($row['ref_invoice_no'] ?? ''));
                     ?>
@@ -116,7 +118,9 @@ $flash = flash_get();
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if ($einvSent): ?>
+                            <?php if (!$einvTracking): ?>
+                                <span class="muted">—</span>
+                            <?php elseif ($einvSent): ?>
                                 <span class="badge badge-einv-sent">مرسلة</span>
                             <?php else: ?>
                                 <span class="badge badge-off">غير مرسلة</span>

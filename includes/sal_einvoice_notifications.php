@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once app_path('includes/sal_documents_list.php');
+require_once app_path('includes/sal_einvoice_tracking.php');
 require_once app_path('includes/dashboard_stats.php');
 
 const SAL_EINVOICE_NOTIFY_PER_KIND = 8;
@@ -56,6 +57,7 @@ function sal_einvoice_unsent_invoice_alerts(PDO $pdo, int $limit = SAL_EINVOICE_
     require_once app_path('includes/sal_invoice_post.php');
     $posted = sal_invoice_sql_is_posted_expr('i');
     $sent = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');
+    $tracking = sal_einvoice_sql_invoice_requires_tracking('i');
     $limit = max(1, min(50, $limit));
 
     $sql = "SELECT i.id, i.invoice_no AS doc_no, i.invoice_date AS doc_date, i.total AS amount,
@@ -63,6 +65,7 @@ function sal_einvoice_unsent_invoice_alerts(PDO $pdo, int $limit = SAL_EINVOICE_
             FROM sal_invoice i
             INNER JOIN crm_customer c ON c.id = i.customer_id
             WHERE i.status = 'confirmed'
+              AND ({$tracking})
               AND ({$posted})
               AND NOT ({$sent})
             ORDER BY i.invoice_date ASC, i.id ASC
@@ -119,6 +122,7 @@ function sal_einvoice_unsent_return_alerts(PDO $pdo, int $limit = SAL_EINVOICE_N
     $posted = sal_return_sql_is_posted_expr('r');
     $sent = sal_documents_list_einv_sent_expr_return($pdo, 'r');
     $invSent = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');
+    $tracking = sal_einvoice_sql_return_requires_tracking('r');
     $limit = max(1, min(50, $limit));
 
     $sql = "SELECT r.id, r.return_no AS doc_no, r.return_date AS doc_date, r.total AS amount,
@@ -127,6 +131,7 @@ function sal_einvoice_unsent_return_alerts(PDO $pdo, int $limit = SAL_EINVOICE_N
             INNER JOIN crm_customer c ON c.id = r.customer_id
             INNER JOIN sal_invoice i ON i.id = r.invoice_id
             WHERE r.status <> 'cancelled'
+              AND ({$tracking})
               AND ({$posted})
               AND NOT ({$sent})
               AND ({$invSent})
@@ -176,9 +181,11 @@ function sal_einvoice_unsent_invoice_count(PDO $pdo): int
     require_once app_path('includes/sal_invoice_post.php');
     $posted = sal_invoice_sql_is_posted_expr('i');
     $sent = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');
+    $tracking = sal_einvoice_sql_invoice_requires_tracking('i');
     $sql = "SELECT COUNT(*)
             FROM sal_invoice i
             WHERE i.status = 'confirmed'
+              AND ({$tracking})
               AND ({$posted})
               AND NOT ({$sent})";
 
@@ -210,10 +217,12 @@ function sal_einvoice_unsent_return_count(PDO $pdo): int
     $posted = sal_return_sql_is_posted_expr('r');
     $sent = sal_documents_list_einv_sent_expr_return($pdo, 'r');
     $invSent = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');
+    $tracking = sal_einvoice_sql_return_requires_tracking('r');
     $sql = "SELECT COUNT(*)
             FROM sal_return r
             INNER JOIN sal_invoice i ON i.id = r.invoice_id
             WHERE r.status <> 'cancelled'
+              AND ({$tracking})
               AND ({$posted})
               AND NOT ({$sent})
               AND ({$invSent})";

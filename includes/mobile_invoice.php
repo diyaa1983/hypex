@@ -104,6 +104,12 @@ function mobile_invoice_enrich_display(PDO $pdo, array $invoice): array
         }
     }
     $invoice['payment_label'] = (($invoice['payment_type'] ?? '') === 'credit') ? 'ذمة' : 'نقدي';
+    require_once app_path('includes/sal_einvoice_tracking.php');
+    if (!array_key_exists('einv_tracking_required', $invoice)) {
+        $invoice['einv_tracking_required'] = sal_einvoice_doc_date_requires_tracking(
+            (string) ($invoice['invoice_date'] ?? '')
+        );
+    }
 
     return $invoice;
 }

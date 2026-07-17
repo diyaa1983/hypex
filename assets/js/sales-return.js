@@ -62,6 +62,7 @@
   var returnEinvQr = '';
   var returnEinvQrDataUrl = '';
   var returnEinvSent = false;
+  var returnEinvTrackingRequired = true;
   var returnEinvNum = '';
   var originalInvoiceEinvSent = false;
   var originalInvoiceEinvNum = '';
@@ -1559,7 +1560,11 @@
       }
     }
     if (einvEl) {
-      if (returnEinvSent) {
+      if (!returnEinvTrackingRequired) {
+        einvEl.hidden = false;
+        einvEl.textContent = 'قبل نطاق الفوترة';
+        einvEl.className = 'sales-inv-posted-badge badge badge-off';
+      } else if (returnEinvSent) {
         einvEl.hidden = false;
         einvEl.textContent = 'مُرسَل للفوترة' + (returnEinvNum ? ' (' + returnEinvNum + ')' : '');
       } else {
@@ -1594,7 +1599,7 @@
 
   function updateReasonReturnVisibility() {
     if (!retReasonReturnWrap) return;
-    var show = originalInvoiceEinvSent && !returnEinvSent;
+    var show = returnEinvTrackingRequired && originalInvoiceEinvSent && !returnEinvSent;
     retReasonReturnWrap.hidden = !show;
   }
 
@@ -1615,6 +1620,9 @@
     } else if (!returnIsPosted) {
       disable = true;
       tooltip = 'يجب ترحيل المرتجع قبل إرساله للفوترة.';
+    } else if (!returnEinvTrackingRequired) {
+      disable = true;
+      tooltip = 'مرتجع قبل تاريخ متابعة الفوترة في النظام (14-05-2026).';
     }
     if (disable) {
       btn.disabled = true;
@@ -1841,6 +1849,10 @@
     returnEinvQrDataUrl = '';
     returnEinvSent = !!(ret && (ret.einv_sent || ret.einv_qr));
     returnEinvNum = ret && ret.einv_num ? String(ret.einv_num) : '';
+    returnEinvTrackingRequired =
+      !ret || ret.einv_tracking_required === undefined || ret.einv_tracking_required === null
+        ? true
+        : !!ret.einv_tracking_required;
     originalInvoiceEinvSent = !!(ret && (ret.invoice_einv_sent || ret.invoice_einv_qr));
     originalInvoiceEinvNum = ret && ret.invoice_einv_num ? String(ret.invoice_einv_num) : '';
     try {

@@ -480,7 +480,7 @@
     if (cfg.canEdit && canChange) vis.edit = true;
     if (cfg.canDelete && canChange) vis.delete = true;
     if (cfg.canPost && !inv.is_posted) vis.post = true;
-    if (cfg.canSendEinvoice && inv.is_posted && !inv.einv_sent) vis.einvoice = true;
+    if (cfg.canSendEinvoice && inv.is_posted && !inv.einv_sent && inv.einv_tracking_required !== false) vis.einvoice = true;
     if (cfg.canArchive && cfg.invoiceId > 0) vis.archive = true;
     var cols = 0;
     Object.keys(vis).forEach(function (k) {

@@ -46,6 +46,7 @@
   var invoiceIsPosted = false;
   var invoiceIsCancelled = false;
   var invoiceEinvQr = '';
+  var invoiceEinvTrackingRequired = true;
   var invoiceEinvStatus = '';
   var invoiceEinvNum = '';
   var einvQrDataUrl = '';
@@ -3872,6 +3873,9 @@
     } else if (!invoiceIsPosted) {
       disable = true;
       tooltip = 'يجب ترحيل الفاتورة قبل إرسالها للفوترة.';
+    } else if (!invoiceEinvTrackingRequired) {
+      disable = true;
+      tooltip = 'فاتورة قبل تاريخ متابعة الفوترة في النظام (14-05-2026).';
     }
     if (disable) {
       btn.disabled = true;
@@ -3911,6 +3915,11 @@
       return;
     }
     el.hidden = false;
+    if (!invoiceEinvTrackingRequired) {
+      el.textContent = 'قبل نطاق الفوترة';
+      el.className = 'sales-inv-posted-badge badge badge-off';
+      return;
+    }
     if (invoiceEinvQr) {
       el.textContent = 'مُرسلة للفوترة';
       el.className = 'sales-inv-posted-badge badge badge-einv-sent';
@@ -3945,6 +3954,10 @@
     invoiceEinvQr = (inv && inv.einv_qr) ? String(inv.einv_qr) : '';
     invoiceEinvStatus = (inv && inv.einv_status) ? String(inv.einv_status) : '';
     invoiceEinvNum = (inv && inv.einv_num) ? String(inv.einv_num) : '';
+    invoiceEinvTrackingRequired =
+      !inv || inv.einv_tracking_required === undefined || inv.einv_tracking_required === null
+        ? true
+        : !!inv.einv_tracking_required;
     einvQrDataUrl = '';
     if (invoiceEinvQr) {
       refreshEinvQrDataUrl(updateEinvoiceBadge);
