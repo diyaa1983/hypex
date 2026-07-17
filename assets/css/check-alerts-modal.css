@@ -31,11 +31,10 @@ body.app-check-modal-open {
   max-height: min(88vh, 900px);
   display: flex;
   flex-direction: column;
-  background: transparent;
+  background: #fff;
   border-radius: 14px;
-  box-shadow: none;
-  border: 1px solid rgba(220, 38, 38, 0.35);
-  color: #dc2626;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+  border: 1px solid var(--border, #e2e8f0);
 }
 
 .dashboard-check-modal-header {
@@ -44,21 +43,19 @@ body.app-check-modal-open {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.85rem 1rem;
-  background: transparent;
-  border-bottom: 1px solid rgba(220, 38, 38, 0.35);
+  border-bottom: 1px solid var(--border, #e2e8f0);
 }
 
 .dashboard-check-modal-title {
   margin: 0;
   font-size: 1.05rem;
   font-weight: 700;
-  color: #dc2626;
 }
 
 .dashboard-check-modal-close {
-  border: 1px solid rgba(220, 38, 38, 0.45);
-  background: transparent;
-  color: #dc2626;
+  border: none;
+  background: #f1f5f9;
+  color: #334155;
   width: 2rem;
   height: 2rem;
   border-radius: 8px;
@@ -68,21 +65,18 @@ body.app-check-modal-open {
 }
 
 .dashboard-check-modal-close:hover {
-  background: rgba(220, 38, 38, 0.12);
+  background: #e2e8f0;
 }
 
 .dashboard-check-modal-body {
   padding: 1rem;
   overflow: auto;
   flex: 1;
-  background: transparent;
-  color: #dc2626;
 }
 
 .dashboard-check-modal-foot {
   padding: 0.75rem 1rem;
-  border-top: 1px solid rgba(220, 38, 38, 0.35);
-  background: transparent;
+  border-top: 1px solid var(--border, #e2e8f0);
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
@@ -104,7 +98,7 @@ body.app-check-modal-open {
 
 .dashboard-check-detail-days {
   font-size: 0.85rem;
-  color: #dc2626;
+  color: var(--muted, #64748b);
 }
 
 .dashboard-check-detail-dl {
@@ -123,42 +117,36 @@ body.app-check-modal-open {
 .dashboard-check-detail-dl dt {
   margin: 0;
   font-size: 0.75rem;
-  color: #dc2626;
+  color: var(--muted, #64748b);
   font-weight: 600;
 }
 
 .dashboard-check-detail-dl dd {
   margin: 0;
   font-size: 0.9rem;
-  color: #dc2626;
 }
 
 .dashboard-check-detail-subtitle {
   margin: 0.5rem 0 0.35rem;
   font-size: 0.9rem;
   font-weight: 700;
-  color: #dc2626;
 }
 
 .dashboard-check-detail-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.82rem;
-  color: #dc2626;
-  background: transparent;
 }
 
 .dashboard-check-detail-table th,
 .dashboard-check-detail-table td {
   padding: 0.45rem 0.5rem;
   text-align: right;
-  border-bottom: 1px solid rgba(220, 38, 38, 0.35);
-  background: transparent;
-  color: #dc2626;
+  border-bottom: 1px solid var(--border, #e2e8f0);
 }
 
 .dashboard-check-detail-row--active {
-  background: rgba(220, 38, 38, 0.08);
+  background: #eef2ff;
 }
 
 .dashboard-check-detail-row.js-check-detail-pick {
@@ -166,7 +154,7 @@ body.app-check-modal-open {
 }
 
 .dashboard-check-detail-row.js-check-detail-pick:hover {
-  background: rgba(220, 38, 38, 0.12);
+  background: #f8fafc;
 }
 
 .dashboard-check-status {
@@ -176,18 +164,27 @@ body.app-check-modal-open {
   font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
-  background: transparent;
-  border: 1px solid rgba(220, 38, 38, 0.45);
-  color: #dc2626;
 }
 
-.dashboard-check-status--overdue,
-.dashboard-check-status--today,
-.dashboard-check-status--soon,
+.dashboard-check-status--overdue {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.dashboard-check-status--today {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.dashboard-check-status--soon {
+  background: #fffbeb;
+  color: #a16207;
+}
+
 .dashboard-check-status--pending,
 .dashboard-check-status--nodate {
-  background: transparent;
-  color: #dc2626;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 @media (max-width: 560px) {
