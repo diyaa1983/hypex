@@ -93,6 +93,12 @@ function einvoice_load_sale_payload(PDO $pdo, int $invoiceId): ?array
         $taxAmt = (float) ($row['tax_amount'] ?? 0);
         $lineTotal = (float) ($row['line_total'] ?? ($lineGross - $taxAmt));   // base بعد الخصم قبل الضريبة
         $rate = (float) ($row['tax_rate_percent'] ?? 0);
+        // بند مجاني: كمية > 0 وسعر/إجمالي ≈ 0 (يظهر في الشاشة كهدية بسعر صفر).
+        $isFreeZeroPriceLine = !$isBonusStockLine
+            && $einvoiceQty > 0.000001
+            && abs($unitPrice) <= 0.000001
+            && abs($lineTotal) <= 0.0001
+            && abs($lineGross) <= 0.0001;
         $taxId = $rate <= 0.0001 ? 1 : 2;
         // خصم السطر: نُفضّل الحقول الصريحة (discount_amount أو discount_pct)
         // ولا نستنتج الخصم من الفرق بين qty*unit_price و line_total لأن هذا الفرق
@@ -100,12 +106,18 @@ function einvoice_load_sale_payload(PDO $pdo, int $invoiceId): ?array
         // في معادلة: TaxExclusive = sum(LineExtension) - AllowanceTotal.
         $discountFromCols = (float) ($row['discount_amount'] ?? 0);
         $discountFromPct = isset($row['discount_pct']) ? round(($qty * $unitPrice) * ((float) $row['discount_pct'] / 100), 3) : 0.0;
-        if ($isBonusStockLine) {
-            $itemDiscount = 0.0;
+        if ($isBonusStockLine || $isFreeZeroPriceLine) {
+            // JoFotara ترفض:
+            //   - unitPrice فارغ/صفر → "Unit price is missing"
+            //   - نسبة ضريبة عامة على سطر بلا قيمة → "General tax percentage must be zero"
+            // الحل: سعر رمزي + خصم كامل = LineExtension 0، مع ضريبة 0% (Z).
             $lineTotal = 0.0;
             $lineGross = 0.0;
             $taxAmt = 0.0;
-            $unitPriceForEinv = 0.0;
+            $rate = 0.0;
+            $taxId = 1;
+            $unitPriceForEinv = 1.0;
+            $itemDiscount = round($einvoiceQty * $unitPriceForEinv, 3);
         } elseif ($discountFromCols > 0.0001) {
             $itemDiscount = $discountFromCols;
             $unitPriceForEinv = $unitPrice;
@@ -130,6 +142,7 @@ function einvoice_load_sale_payload(PDO $pdo, int $invoiceId): ?array
             'tax_rate' => $rate,
             'tax_rate_id' => $taxId,
             'real_unit_price' => $qty > 0 ? $lineTotal / $qty : 0,
+            'is_free_line' => $isBonusStockLine || $isFreeZeroPriceLine,
         ];
     }
 
@@ -235,14 +248,22 @@ function einvoice_ubl_totals_sales(object $inv, array $items): string
         $qty = round((float) ($line->quantity ?? 0), 3);
         $unitPrice = round((float) ($line->unit_price ?? 0), $dp);
         $lineDiscount = round((float) ($line->item_discount ?? 0), $dp);
+        $rate = (float) ($line->tax_rate ?? 0);
+        if ($qty > 0.000001 && $unitPrice <= 0.000001) {
+            $unitPrice = 1.0;
+            $lineDiscount = round($qty * $unitPrice, $dp);
+            $rate = 0.0;
+        }
         $lineExt = round($qty * $unitPrice - $lineDiscount, $dp);
         if ($lineExt < 0) {
             $lineExt = 0.0;
         }
+        if ($lineExt <= 0.0001) {
+            $rate = 0.0;
+        }
         // lineTax مُعاد حسابه من lineExt كي يَتطابق مع توقّع JoFotara بدقة:
         //   lineTax = round(lineExt * rate / 100, dp)
         // بدلاً من قراءة item_tax المخزَّن (قد يَختلف بسبب rounding مختلف).
-        $rate = (float) ($line->tax_rate ?? 0);
         $lineTax = $rate > 0 ? round($lineExt * $rate / 100, $dp) : 0.0;
 
         $taxExclusive = round($taxExclusive + $lineExt, $dp);
@@ -316,6 +337,15 @@ function einvoice_ubl_lines_sales(array $items, int $dp = 3): string
         $qty = round(abs((float) $line->quantity), 3);
         $unitPrice = round(abs((float) ($line->unit_price ?? 0)), $dp);
         $lineDiscount = round(abs((float) ($line->item_discount ?? 0)), $dp);
+        $rate = (float) ($line->tax_rate ?? 0);
+
+        // شبكة أمان لبنود الهدايا/السعر صفر إن وصلت للـ XML بدون تطبيع في الحمولة.
+        if ($qty > 0.000001 && $unitPrice <= 0.000001) {
+            $unitPrice = 1.0;
+            $lineDiscount = round($qty * $unitPrice, $dp);
+            $rate = 0.0;
+        }
+
         // LineExtensionAmount يجب أن يطابق ما يحسبه JoFotara:
         //   LineExtensionAmount = qty * unit_price - line_discount
         // ولا نأخذها من line_total المخزن لتفادي فروق التقريب بين القيم المخزنة والمُرسلة.
@@ -323,7 +353,10 @@ function einvoice_ubl_lines_sales(array $items, int $dp = 3): string
         if ($lineExt < 0) {
             $lineExt = 0.0;
         }
-        $rate = (float) ($line->tax_rate ?? 0);
+        // سطر بلا قيمة خاضعة → نسبة الضريبة العامة يجب أن تكون صفراً.
+        if ($lineExt <= 0.0001) {
+            $rate = 0.0;
+        }
         // lineTax مُعاد حسابه من lineExt كي تَتطابق invariants JoFotara:
         //   lineTax (XML) == round(lineExt * rate / 100, dp)
         // ومجموع line tax = TaxAmount (header) بدون فروقات.
