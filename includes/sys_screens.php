@@ -8,10 +8,6 @@ declare(strict_types=1);
  */
 function sys_screen_type_for_code(string $code): string
 {
-    if (str_starts_with($code, 'dashboard_kpi_') || str_starts_with($code, 'dashboard_panel_')) {
-        return 'dashboard';
-    }
-
     return str_starts_with($code, 'report_') ? 'report' : 'screen';
 }
 
@@ -196,6 +192,87 @@ function sys_screen_code_for_route(string $routeKey): string
     }
 
     return $routeKey;
+}
+
+/**
+ * يضمن وجود كل أكواد صلاحيات القائمة الجانبية في sys_screen
+ * (بما فيها مؤشرات اللوحة dashboard_* المعرفة بـ code مباشرة).
+ *
+ * @param array<string, mixed> $navMenu
+ */
+function sys_ensure_nav_menu_screen_codes(PDO $pdo, array $navMenu): int
+{
+    $needed = [];
+    $walk = null;
+    $walk = static function (array $nodes) use (&$walk, &$needed): void {
+        foreach ($nodes as $node) {
+            if (!is_array($node)) {
+                continue;
+            }
+            if (!empty($node['subgroups']) && is_array($node['subgroups'])) {
+                $walk($node['subgroups']);
+            }
+            foreach ((array) ($node['items'] ?? []) as $it) {
+                if (!is_array($it)) {
+                    continue;
+                }
+                $code = trim((string) ($it['code'] ?? ''));
+                $label = trim((string) ($it['label'] ?? ''));
+                if ($code === '') {
+                    $route = trim((string) ($it['r'] ?? ''));
+                    if ($route === '') {
+                        continue;
+                    }
+                    $code = sys_screen_code_for_route($route);
+                    if ($label === '') {
+                        $label = $route;
+                    }
+                }
+                if ($code === '') {
+                    continue;
+                }
+                if (!isset($needed[$code]) || ($label !== '' && $needed[$code] === $code)) {
+                    $needed[$code] = $label !== '' ? $label : $code;
+                }
+            }
+        }
+    };
+    foreach ((array) ($navMenu['domains'] ?? []) as $domain) {
+        if (!is_array($domain)) {
+            continue;
+        }
+        $walk((array) ($domain['subgroups'] ?? []));
+    }
+
+    if ($needed === []) {
+        return 0;
+    }
+
+    $added = 0;
+    $find = $pdo->prepare('SELECT id FROM sys_screen WHERE code = ? LIMIT 1');
+    $ins = $pdo->prepare(
+        'INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, ?, ?)'
+    );
+    $grant = $pdo->prepare(
+        'INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+         SELECT g.id, ?, 1 FROM sys_group g WHERE g.code = ?'
+    );
+    $maxOrder = (int) $pdo->query('SELECT IFNULL(MAX(sort_order), 0) FROM sys_screen')->fetchColumn();
+    foreach ($needed as $code => $label) {
+        $find->execute([$code]);
+        if ($find->fetch()) {
+            continue;
+        }
+        $maxOrder += 10;
+        $ins->execute([$code, $label, sys_screen_type_for_code($code), $maxOrder]);
+        $screenId = (int) $pdo->lastInsertId();
+        if ($screenId > 0) {
+            $grant->execute([$screenId, 'ADMINS']);
+            $added++;
+        }
+    }
+
+    return $added;
 }
 
 /** لوحة التحكم مسموحة لكل مجموعة حتى لا يعلق المستخدم عند الدخول على صفحة بلا صلاحيات. */

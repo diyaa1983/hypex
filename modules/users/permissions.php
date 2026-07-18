@@ -23,6 +23,9 @@ $actionCatalog = action_permissions_catalog();
 
 require_once app_path('includes/mobile_auth.php');
 
+$navMenu = require app_path('config/nav_menu.php');
+$syncedNavCodes = sys_ensure_nav_menu_screen_codes($pdoPerm, $navMenu);
+$syncedScreens += $syncedNavCodes;
 $groups = db()->query('SELECT id, code, name_ar FROM sys_group ORDER BY id')->fetchAll();
 if (!$groups) {
     echo '<div class="card"><p class="muted">لا توجد مجموعات.</p></div>';
@@ -42,8 +45,6 @@ if (!in_array($groupId, $validIds, true)) {
 }
 
 $screens = db()->query('SELECT id, code, name_ar, screen_type FROM sys_screen ORDER BY sort_order, id')->fetchAll();
-
-$navMenu = require app_path('config/nav_menu.php');
 
 $idByCode = [];
 $screenTypeByCode = [];
@@ -254,58 +255,105 @@ $actionsForScreenCodes = static function (array $screenCodes) use ($flatActions,
 $permPanels = [];
 $shownPermCodes = [];
 
-foreach ($navMenu['domains'] as $block) {
-    $blockDomainId = (string) ($block['id'] ?? '');
-    if ($isMobilePermissionsGroup && $blockDomainId !== 'mobile') {
-        continue;
+$appendPanelItemsFromNav = static function (array $navItems) use (
+    &$shownPermCodes,
+    $idByCode,
+    $nameByCode,
+    $isMobilePermissionsGroup,
+    $permIsMobileCode,
+    $permKindForCode,
+    $actionsForScreenCodes
+): array {
+    $items = [];
+    $screenCodesInPanel = [];
+    foreach ($navItems as $it) {
+        if (!is_array($it)) {
+            continue;
+        }
+        $permCode = trim((string) ($it['code'] ?? ''));
+        if ($permCode === '') {
+            $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
+        }
+        if ($permCode === '' || !isset($idByCode[$permCode]) || isset($shownPermCodes[$permCode])) {
+            continue;
+        }
+        if ($isMobilePermissionsGroup && !$permIsMobileCode($permCode)) {
+            continue;
+        }
+        $kind = $permKindForCode($permCode);
+        $items[] = [
+            'code' => $permCode,
+            'label' => trim((string) ($it['label'] ?? $nameByCode[$permCode] ?? $permCode)),
+            'kind' => $kind,
+        ];
+        $screenCodesInPanel[] = $permCode;
+        $shownPermCodes[$permCode] = true;
     }
-    foreach ((array) ($block['subgroups'] ?? []) as $sg) {
-        $sgId = (string) ($sg['id'] ?? '');
-        $panelId = $blockDomainId . '__' . $sgId;
-        $items = [];
-        $screenCodesInPanel = [];
-        foreach ((array) ($sg['items'] ?? []) as $it) {
-            $permCode = trim((string) ($it['code'] ?? ''));
-            if ($permCode === '') {
-                $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
-            }
-            if ($permCode === '' || !isset($idByCode[$permCode]) || isset($shownPermCodes[$permCode])) {
+    if (!$isMobilePermissionsGroup) {
+        foreach ($actionsForScreenCodes($screenCodesInPanel) as $actionRow) {
+            $ac = (string) $actionRow['code'];
+            if ($ac === '' || isset($shownPermCodes[$ac])) {
                 continue;
             }
-            if ($isMobilePermissionsGroup && !$permIsMobileCode($permCode)) {
-                continue;
-            }
-            $kind = $permKindForCode($permCode);
-            $items[] = [
-                'code' => $permCode,
-                'label' => trim((string) ($it['label'] ?? $nameByCode[$permCode] ?? $permCode)),
-                'kind' => $kind,
-            ];
-            $screenCodesInPanel[] = $permCode;
-            $shownPermCodes[$permCode] = true;
+            $items[] = $actionRow;
+            $shownPermCodes[$ac] = true;
         }
-        if (!$isMobilePermissionsGroup) {
-            foreach ($actionsForScreenCodes($screenCodesInPanel) as $actionRow) {
-                $ac = (string) $actionRow['code'];
-                if ($ac === '' || isset($shownPermCodes[$ac])) {
-                    continue;
-                }
-                $items[] = $actionRow;
-                $shownPermCodes[$ac] = true;
-            }
+    }
+
+    return $items;
+};
+
+$walkNavSubgroups = null;
+$walkNavSubgroups = static function (
+    array $subgroups,
+    string $domainId,
+    string $domainTitle,
+    string $idPrefix
+) use (
+    &$walkNavSubgroups,
+    &$permPanels,
+    $appendPanelItemsFromNav
+): void {
+    foreach ($subgroups as $sg) {
+        if (!is_array($sg)) {
+            continue;
         }
+        $sgId = trim((string) ($sg['id'] ?? ''));
+        if ($sgId === '') {
+            $sgId = 'sg' . (string) count($permPanels);
+        }
+        $panelId = $idPrefix . '__' . $sgId;
+        $nested = (array) ($sg['subgroups'] ?? []);
+        if ($nested !== []) {
+            $walkNavSubgroups($nested, $domainId, $domainTitle, $panelId);
+            continue;
+        }
+        $items = $appendPanelItemsFromNav((array) ($sg['items'] ?? []));
         if ($items === []) {
             continue;
         }
         $permPanels[] = [
             'id' => $panelId,
-            'domain_id' => $blockDomainId,
-            'domain_title' => (string) ($block['title'] ?? $blockDomainId),
+            'domain_id' => $domainId,
+            'domain_title' => $domainTitle,
             'title' => (string) ($sg['title'] ?? $sgId),
             'kind' => 'menu',
             'items' => $items,
         ];
     }
+};
+
+foreach ($navMenu['domains'] as $block) {
+    $blockDomainId = (string) ($block['id'] ?? '');
+    if ($isMobilePermissionsGroup && $blockDomainId !== 'mobile') {
+        continue;
+    }
+    $walkNavSubgroups(
+        (array) ($block['subgroups'] ?? []),
+        $blockDomainId,
+        (string) ($block['title'] ?? $blockDomainId),
+        $blockDomainId
+    );
 }
 
 if (!$isMobilePermissionsGroup) {
@@ -339,11 +387,28 @@ if (!$isMobilePermissionsGroup) {
     }
 }
 
+/** مسارات سطح المكتب التي تشارك صلاحية أب — لا تُعرض كصفوف إضافية مضلّلة. */
+$aliasRouteCodes = [];
+$desktopRoutes = require app_path('config/routes.php');
+foreach ($desktopRoutes as $routeKey => $meta) {
+    if (!is_array($meta)) {
+        continue;
+    }
+    $routeKey = (string) $routeKey;
+    $perm = trim((string) ($meta['permission'] ?? $routeKey));
+    if ($perm !== '' && $perm !== $routeKey) {
+        $aliasRouteCodes[$routeKey] = $perm;
+    }
+}
+
 $leftoverReports = [];
 $leftoverScreens = [];
 foreach ($screens as $screenRow) {
     $code = (string) ($screenRow['code'] ?? '');
     if ($code === '' || isset($shownPermCodes[$code])) {
+        continue;
+    }
+    if (isset($aliasRouteCodes[$code])) {
         continue;
     }
     if ($isMobilePermissionsGroup && !$permIsMobileCode($code)) {
@@ -437,15 +502,31 @@ foreach ($flatActions as $actionItem) {
         $missingPermCodes[] = (string) $actionItem['code'];
     }
 }
-foreach ($navMenu['domains'] as $block) {
-    foreach ((array) ($block['subgroups'] ?? []) as $sg) {
-        foreach ((array) ($sg['items'] ?? []) as $it) {
-            $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
+$collectNavMissing = null;
+$collectNavMissing = static function (array $nodes) use (&$collectNavMissing, &$missingPermCodes, $idByCode): void {
+    foreach ($nodes as $node) {
+        if (!is_array($node)) {
+            continue;
+        }
+        if (!empty($node['subgroups']) && is_array($node['subgroups'])) {
+            $collectNavMissing($node['subgroups']);
+        }
+        foreach ((array) ($node['items'] ?? []) as $it) {
+            if (!is_array($it)) {
+                continue;
+            }
+            $permCode = trim((string) ($it['code'] ?? ''));
+            if ($permCode === '') {
+                $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
+            }
             if ($permCode !== '' && !isset($idByCode[$permCode])) {
                 $missingPermCodes[] = $permCode;
             }
         }
     }
+};
+foreach ($navMenu['domains'] as $block) {
+    $collectNavMissing((array) ($block['subgroups'] ?? []));
 }
 $missingPermCodes = array_values(array_unique(array_filter($missingPermCodes)));
 
