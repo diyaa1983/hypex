@@ -6,9 +6,10 @@ require_once app_path('includes/inv_invoice_line_qty.php');
 /**
  * بنود فاتورة بيع القابلة للإرجاع (كمية أو كمية إضافية متبقية > 0).
  *
+ * @param int $excludeReturnId عند تعديل مرتجع موجود: استثناء كمياته من «المُرجع» حتى تظهر في المتبقي
  * @return list<array<string, mixed>>
  */
-function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId): array
+function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId, int $excludeReturnId = 0): array
 {
     if ($invoiceId < 1) {
         return [];
@@ -32,6 +33,7 @@ function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId): array
     $barcodeCol = $hasBarcode ? 'i.barcode' : 'i.sku AS barcode';
     $extraSoldCol = $hasExtraInv ? 'COALESCE(il.qty_extra, 0)' : '0';
     $extraRetCol = $hasExtraRet ? 'COALESCE(SUM(rl.qty_extra), 0)' : '0';
+    $excludeSql = $excludeReturnId > 0 ? ' AND (r.id IS NULL OR r.id <> ?)' : '';
 
     $sql = "SELECT il.id AS invoice_line_id, il.item_id, il.line_desc, il.qty AS qty_sold,
                    {$extraSoldCol} AS qty_extra_sold,
@@ -43,12 +45,16 @@ function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId): array
             INNER JOIN inv_item i ON i.id = il.item_id
             LEFT JOIN sal_return_line rl ON rl.invoice_line_id = il.id
             LEFT JOIN sal_return r ON r.id = rl.return_id AND r.status <> 'cancelled'
-            WHERE il.invoice_id = ?
+            WHERE il.invoice_id = ?{$excludeSql}
             GROUP BY il.id
             ORDER BY il.id ASC";
 
     $st = $pdo->prepare($sql);
-    $st->execute([$invoiceId]);
+    $params = [$invoiceId];
+    if ($excludeReturnId > 0) {
+        $params[] = $excludeReturnId;
+    }
+    $st->execute($params);
 
     $lines = [];
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {

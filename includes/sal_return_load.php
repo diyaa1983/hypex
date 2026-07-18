@@ -88,6 +88,7 @@ function sal_return_load_lines(PDO $pdo, int $returnId): array
                    rl.tax_rate_percent, rl.line_subtotal, rl.tax_amount, rl.line_gross,
                    il.qty AS qty_sold,
                    COALESCE(il.qty_extra, 0) AS qty_extra_sold,
+                   il.line_total,
                    {$barcodeCol}, it.name_ar, il.line_desc
             FROM sal_return_line rl
             INNER JOIN sal_invoice_line il ON il.id = rl.invoice_line_id

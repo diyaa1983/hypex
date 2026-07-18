@@ -27,6 +27,7 @@ if (($_GET['ajax'] ?? '') === 'lines' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     header('Content-Type: application/json; charset=utf-8');
     $invoiceId = (int) ($_GET['invoice_id'] ?? 0);
     $customerId = (int) ($_GET['customer_id'] ?? 0);
+    $excludeReturnId = (int) ($_GET['exclude_return_id'] ?? 0);
     if ($invoiceId < 1) {
         echo json_encode(['ok' => false, 'error' => 'invoice_required'], JSON_UNESCAPED_UNICODE);
         exit;
@@ -53,7 +54,7 @@ if (($_GET['ajax'] ?? '') === 'lines' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         );
         exit;
     }
-    $lines = sal_return_fetch_invoice_lines($pdo, $invoiceId);
+    $lines = sal_return_fetch_invoice_lines($pdo, $invoiceId, $excludeReturnId);
     echo json_encode([
         'ok' => true,
         'invoice_no' => (string) $inv['invoice_no'],
@@ -226,7 +227,7 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="_action" value="save_return">
         <input type="hidden" name="lines_json" id="sales-ret-lines-json" value="[]">
-        <input type="hidden" id="ret_record_id" value="">
+        <input type="hidden" name="return_id" id="ret_record_id" value="">
 
         <section class="dashboard-ora-panel no-print">
             <h2 class="dashboard-ora-panel__title">بيانات المرتجع</h2>
@@ -461,18 +462,58 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
       var opt = selectEl.options[selectEl.selectedIndex];
       posted = opt.getAttribute('data-posted') === '1';
     }
-    if (iid && !posted) {
+    if (!iid) {
+      if (w.SalesRetLoadCatalog) {
+        w.SalesRetLoadCatalog([]);
+      } else if (w.SalesRetPopulateInvoiceLines) {
+        w.SalesRetPopulateInvoiceLines([]);
+      }
+      try {
+        document.dispatchEvent(
+          new CustomEvent('sales-ret-invoice-picked', { detail: { invoiceId: '', lines: [], fetched: true } })
+        );
+      } catch (e) {}
+      return;
+    }
+    if (!posted) {
       var hint = document.getElementById('sales-ret-hint');
       if (hint) {
         hint.textContent =
           'لا يمكن إرجاع إلا فواتير مرحّلة. اختر فاتورة من القائمة أو رحّل الفاتورة من «ترحيل فواتير المبيعات».';
       }
-      lines = [];
-    } else if (iid && !lines.length) {
-      var hint0 = document.getElementById('sales-ret-hint');
-      if (hint0) {
-        hint0.textContent = 'لا توجد مواد متبقية للإرجاع في هذه الفاتورة.';
+      if (w.SalesRetLoadCatalog) {
+        w.SalesRetLoadCatalog([]);
+      } else if (w.SalesRetPopulateInvoiceLines) {
+        w.SalesRetPopulateInvoiceLines([]);
       }
+      try {
+        document.dispatchEvent(
+          new CustomEvent('sales-ret-invoice-picked', {
+            detail: { invoiceId: iid, lines: [], fetched: true },
+          })
+        );
+      } catch (e) {}
+      return;
+    }
+    // مواد الفاتورة قد لا تكون مضمّنة في الصفحة — جلبها من الخادم عند الحاجة
+    if (!lines.length) {
+      var hintLoad = document.getElementById('sales-ret-hint');
+      if (hintLoad) {
+        hintLoad.textContent = 'جاري تحميل مواد الفاتورة…';
+      }
+      if (typeof w.SalesRetFetchCatalog === 'function') {
+        w.SalesRetFetchCatalog(iid);
+      } else if (w.SalesRetLoadCatalog) {
+        w.SalesRetLoadCatalog([]);
+      }
+      try {
+        document.dispatchEvent(
+          new CustomEvent('sales-ret-invoice-picked', {
+            detail: { invoiceId: iid, lines: [], fetched: false },
+          })
+        );
+      } catch (e) {}
+      return;
     }
     if (w.SalesRetLoadCatalog) {
       w.SalesRetLoadCatalog(lines);
@@ -482,7 +523,11 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
       w._salesRetPendingCatalog = lines;
     }
     try {
-      document.dispatchEvent(new CustomEvent('sales-ret-invoice-picked', { detail: { invoiceId: iid, lines: lines } }));
+      document.dispatchEvent(
+        new CustomEvent('sales-ret-invoice-picked', {
+          detail: { invoiceId: iid, lines: lines, fetched: true },
+        })
+      );
     } catch (e) {}
   };
 

@@ -245,6 +245,12 @@
     if (pickAll) pickAll.disabled = isSavedMode;
   }
 
+  /** قفل مصدر المرتجع (عميل/فاتورة) مع الإبقاء على تعديل المواد لمرتجع غير مرحّل. */
+  function setSourceLocked(on) {
+    if (customerOpenBtn) customerOpenBtn.disabled = !!on || isSavedMode;
+    if (invoiceSel) invoiceSel.disabled = !!on || isSavedMode;
+  }
+
   function updateNavButtons(prevId, nextId) {
     if (window.DocumentNoNav) {
       DocumentNoNav.updateButtons('ret_no_prev', 'ret_no_next', prevId, nextId, {
@@ -1395,6 +1401,11 @@
       if (!isFinite(qtyExtraNum) || qtyExtraNum < 0) qtyExtraNum = 0;
       var qtyExtraSoldNum = parseFloat(line.qty_extra_sold);
       if (!isFinite(qtyExtraSoldNum)) qtyExtraSoldNum = 0;
+      var lineTotalSold = parseFloat(line.line_total);
+      if (!isFinite(lineTotalSold)) {
+        // تقدير من سعر الوحدة × الكمية المباعة إن لم يُرجع line_total
+        lineTotalSold = unitPriceNum * qtySoldNum;
+      }
       var tr = createInvoiceLineRow(
         {
           invoice_line_id: line.invoice_line_id,
@@ -1408,10 +1419,28 @@
           barcode: line.barcode,
           qty_sold: qtySoldNum,
           qty_extra_sold: qtyExtraSoldNum,
+          line_total: lineTotalSold,
         },
         { picked: true, qty: qtyNum, qtyExtra: qtyExtraNum }
       );
-      if (tr) tbody.appendChild(tr);
+      if (tr) {
+        // استخدم مبالغ السطر المحفوظة إن وُجدت (أدق من إعادة الحساب عند نقص بيانات الفاتورة)
+        var savedSub = parseFloat(line.line_subtotal);
+        var savedTax = parseFloat(line.tax_amount);
+        var savedGross = parseFloat(line.line_gross);
+        if (isFinite(savedSub) || isFinite(savedTax) || isFinite(savedGross)) {
+          var sub = isFinite(savedSub) ? savedSub : 0;
+          var tax = isFinite(savedTax) ? savedTax : 0;
+          var gross = isFinite(savedGross) ? savedGross : roundMoney(sub + tax);
+          tr.querySelector('.js-line-sub').textContent = fmt(sub);
+          tr.querySelector('.js-tax-amt').textContent = fmt(tax);
+          tr.querySelector('.js-line-gross').textContent = fmt(gross);
+          tr.setAttribute('data-line-sub', String(sub));
+          tr.setAttribute('data-line-tax', String(tax));
+          tr.setAttribute('data-line-gross', String(gross));
+        }
+        tbody.appendChild(tr);
+      }
     });
     if (ret.subtotal != null && sumSub) sumSub.textContent = fmt(ret.subtotal);
     if (ret.tax_amount != null && sumTax) sumTax.textContent = fmt(ret.tax_amount);
@@ -1427,6 +1456,123 @@
     } else {
       setHint('مرتجع محفوظ — لم يُكتمل الترحيل. استخدم «ترحيل» لإتمام الأثر المالي والمستودعي.');
     }
+  }
+
+  /**
+   * تحميل مواد الفاتورة لمرتجع غير مرحّل مع تحديد الأسطر المحفوظة مسبقاً.
+   * يتيح إضافة مواد أخرى من نفس الفاتورة.
+   */
+  function applyEditableReturnCatalog(ret, catalogLines) {
+    var pickedByLine = {};
+    (ret.lines || []).forEach(function (line) {
+      var lid = parseInt(line.invoice_line_id, 10) || 0;
+      if (lid < 1) return;
+      pickedByLine[lid] = {
+        qty: line.qty,
+        qtyExtra: line.qty_extra,
+        line_subtotal: line.line_subtotal,
+        tax_amount: line.tax_amount,
+        line_gross: line.line_gross,
+      };
+    });
+    availableLines = catalogLines || [];
+    if (tbody) tbody.innerHTML = '';
+    availableLines.forEach(function (line) {
+      var lid = parseInt(line.invoice_line_id, 10) || 0;
+      var picked = pickedByLine[lid];
+      var tr = createInvoiceLineRow(line, {
+        picked: !!picked,
+        qty: picked ? picked.qty : null,
+        qtyExtra: picked ? picked.qtyExtra : null,
+      });
+      if (tr && picked) {
+        var savedSub = parseFloat(picked.line_subtotal);
+        var savedTax = parseFloat(picked.tax_amount);
+        var savedGross = parseFloat(picked.line_gross);
+        if (isFinite(savedSub) || isFinite(savedTax) || isFinite(savedGross)) {
+          var sub = isFinite(savedSub) ? savedSub : 0;
+          var tax = isFinite(savedTax) ? savedTax : 0;
+          var gross = isFinite(savedGross) ? savedGross : roundMoney(sub + tax);
+          tr.querySelector('.js-line-sub').textContent = fmt(sub);
+          tr.querySelector('.js-tax-amt').textContent = fmt(tax);
+          tr.querySelector('.js-line-gross').textContent = fmt(gross);
+          tr.setAttribute('data-line-sub', String(sub));
+          tr.setAttribute('data-line-tax', String(tax));
+          tr.setAttribute('data-line-gross', String(gross));
+        }
+      }
+      if (tr) tbody.appendChild(tr);
+    });
+    // أسطر محفوظة لم تعد في الكتالوج (نادر) — أظهرها مقروءة
+    (ret.lines || []).forEach(function (line) {
+      var lid = parseInt(line.invoice_line_id, 10) || 0;
+      if (lid < 1 || lineUsed(lid)) return;
+      var qtyNum = parseFloat(line.qty) || 0;
+      var qtyExtraNum = parseFloat(line.qty_extra) || 0;
+      var tr = createInvoiceLineRow(
+        {
+          invoice_line_id: line.invoice_line_id,
+          item_id: line.item_id,
+          qty_remaining: qtyNum,
+          qty_extra_remaining: qtyExtraNum,
+          unit_price: line.unit_price,
+          tax_rate_percent: line.tax_rate_percent,
+          name_ar: line.name_ar,
+          line_desc: line.line_desc,
+          barcode: line.barcode,
+          qty_sold: line.qty_sold,
+          qty_extra_sold: line.qty_extra_sold,
+          line_total: line.line_total,
+        },
+        { picked: true, qty: qtyNum, qtyExtra: qtyExtraNum }
+      );
+      if (tr) tbody.appendChild(tr);
+    });
+    setSavedMode(false);
+    setSourceLocked(true);
+    renumberRows();
+    recalcFooter();
+    syncJson();
+    updatePickAllState();
+    setHint(
+      'مرتجع غير مرحّل — يمكنك تحديد ☑ مواد إضافية من الفاتورة أو تعديل الكميات ثم الحفظ، أو استخدم «ترحيل».'
+    );
+  }
+
+  function loadEditableReturnLines(ret) {
+    var invoiceId = ret.invoice_id;
+    var customerId = ret.customer_id;
+    var returnId = parseInt(ret.id, 10) || 0;
+    if (!invoiceId) {
+      applySavedReturnLines(ret);
+      return;
+    }
+    setHint('جاري تحميل مواد الفاتورة للتعديل…');
+    var params = {
+      invoice_id: invoiceId,
+      customer_id: customerId || '',
+    };
+    if (returnId > 0) {
+      params.exclude_return_id = returnId;
+    }
+    fetch(buildApiUrl(apiLines, params), { credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('http');
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          applySavedReturnLines(ret);
+          return;
+        }
+        if (typeof window.SalesRetSetLinesForInvoice === 'function') {
+          window.SalesRetSetLinesForInvoice(invoiceId, data.lines || []);
+        }
+        applyEditableReturnCatalog(ret, data.lines || []);
+      })
+      .catch(function () {
+        applySavedReturnLines(ret);
+      });
   }
 
   function getEmbeddedLines(invoiceId) {
@@ -1482,6 +1628,12 @@
   };
   window.SalesRetPopulateInvoiceLines = window.SalesRetLoadCatalog;
 
+  window.SalesRetFetchCatalog = function (invoiceId) {
+    if (isSavedMode) return;
+    var cid = customerSel ? customerSel.value : '';
+    loadCatalogLines(invoiceId, cid);
+  };
+
   function loadCatalogLines(invoiceId, customerId) {
     if (!invoiceId) {
       availableLines = [];
@@ -1493,13 +1645,14 @@
       populateInvoiceLines(embedded);
       return;
     }
-    if (embedded !== null && embedded.length === 0) {
-      populateInvoiceLines([]);
-      return;
-    }
+    // لا تعتمد على مصفوفة فارغة مضمّنة — قد تكون الفاتورة محمّلة عبر AJAX بلا بنود
     if (tbody) tbody.innerHTML = '';
     setHint('جاري تحميل مواد الفاتورة…');
-    fetch(buildApiUrl(apiLines, { invoice_id: invoiceId, customer_id: customerId }), {
+    var params = { invoice_id: invoiceId, customer_id: customerId || '' };
+    if (currentReturnId > 0 && !returnIsPosted) {
+      params.exclude_return_id = currentReturnId;
+    }
+    fetch(buildApiUrl(apiLines, params), {
       credentials: 'same-origin',
     })
       .then(function (r) {
@@ -1519,6 +1672,9 @@
             AppDialog.alert(data.message, { type: 'warning' });
           }
           return;
+        }
+        if (typeof window.SalesRetSetLinesForInvoice === 'function') {
+          window.SalesRetSetLinesForInvoice(invoiceId, data.lines || []);
         }
         populateInvoiceLines(data.lines || []);
       })
@@ -1885,7 +2041,7 @@
       keepLines: true,
       onReady: function () {
         if (!invoiceSel || !ret.invoice_id) {
-          applySavedReturnLines(ret);
+          finishPopulateReturnLines(ret);
           return;
         }
         if (!invoiceSel.value) {
@@ -1898,9 +2054,20 @@
           invoiceSel.appendChild(o);
           invoiceSel.disabled = true;
         }
-        applySavedReturnLines(ret);
+        finishPopulateReturnLines(ret);
       },
     });
+  }
+
+  function finishPopulateReturnLines(ret) {
+    var posted =
+      ret.is_posted === 1 || ret.is_posted === true || ret.is_posted === '1';
+    var einvSent = !!(ret && (ret.einv_sent || ret.einv_qr));
+    if (ledgerView || posted || einvSent) {
+      applySavedReturnLines(ret);
+      return;
+    }
+    loadEditableReturnLines(ret);
   }
 
   function fetchReturnResponse(opts) {
@@ -2030,6 +2197,9 @@
     if (!lines.length) {
       AppDialog.alert('حدّد مادة واحدة على الأقل (☑) وأدخل كمية إرجاع أو كمية إضافية.', { type: 'warning' });
       return;
+    }
+    if (recordIdInp && currentReturnId > 0) {
+      recordIdInp.value = String(currentReturnId);
     }
     form.submit();
   }
@@ -2175,6 +2345,8 @@
 
   document.addEventListener('sales-ret-invoice-picked', function (e) {
     if (isSavedMode || !e.detail) return;
+    // عند fetched:false يتم الجلب عبر SalesRetFetchCatalog — لا تفرّغ الجدول هنا
+    if (e.detail.fetched === false) return;
     populateInvoiceLines(e.detail.lines || []);
   });
 
