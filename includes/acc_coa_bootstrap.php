@@ -2610,8 +2610,16 @@ function acc_coa_ensure_checks_fund_account(PDO $pdo): array
 
 function acc_coa_bootstrap_ensure_posting_rules(PDO $pdo): void
 {
+    require_once app_path('includes/sql_migration.php');
+    try {
+        sql_migration_run_file($pdo, 'database/migrations/218_acc_outgoing_deferred_checks.sql');
+    } catch (Throwable $e) {
+        // ignore
+    }
+
     $extra = [
         ['checks_fund', 'صندوق الشيكات', 'يُستخدم لاستلام الشيكات قبل إيداعها بالبنك (سندات قبض الشيكات)', 13],
+        ['outgoing_deferred_checks', 'الشيكات الآجلة (صادرة)', 'سند صرف بشيك: دائن عند ترحيل السند. عند صرف الشيك يُمدَّن ويُخصم البنك', 14],
         ['salaries_expense', 'رواتب وأجور (مصروف — داخلي)', 'لا يُستخدم في ترحيل الرواتب', 82],
         ['salaries_payable', 'رواتب مستحقة', 'دائن عند ترحيل الرواتب — صافي للموظفين (بعد اقتطاع حصة الموظف من الضمان)', 83],
         ['hr_social_insurance_payable', 'ضمان اجتماعي مستحق', 'دائن — حصة الموظف + حصة الشركة (يُسدّد للضمان من الصندوق)', 84],
@@ -2641,8 +2649,9 @@ function acc_coa_bootstrap_ensure_posting_rules(PDO $pdo): void
         'ar_customers' => 'فواتير بيع آجلة، سندات قبض، مردودات وإشعارات للعملاء',
         'ap_suppliers' => 'فواتير شراء آجلة، سندات صرف للموردين',
         'cash' => 'مبيعات/مشتريات نقدية وسندات نقدية',
-        'bank' => 'سندات بالشيك أو على البنك',
+        'bank' => 'سندات بالتحويل البنكي — شيكات الصرف الصادرة تستخدم «الشيكات الآجلة» حتى الصرف',
         'checks_fund' => 'سند قبض شيك — يُسجَّل مدين في صندوق الشيكات حتى الإيداع في البنك',
+        'outgoing_deferred_checks' => 'سند صرف بشيك: دائن عند ترحيل السند (بدل البنك). عند صرف الشيك من سجل الشيكات الصادرة يُمدَّن هذا الحساب ويُخصم البنك',
         'sales_revenue' => 'دائن عند ترحيل فاتورة البيع',
         'purchases' => 'مدين عند شراء مباشر بدون مخزون؛ عند ربط المخزون تُسجّل المشتريات في حساب المخزون وليس مصروفاً',
         'inventory' => 'مدين عند شراء بضاعة للمخزون (مُفضّل للتجارة)',
@@ -2651,5 +2660,110 @@ function acc_coa_bootstrap_ensure_posting_rules(PDO $pdo): void
     $stH = $pdo->prepare('UPDATE acc_posting_setting SET hint_ar = ? WHERE rule_code = ?');
     foreach ($hints as $code => $hint) {
         $stH->execute([$hint, $code]);
+    }
+}
+
+/**
+ * يضمن وجود حساب «الشيكات الآجلة» الصادرة وربطه في acc_posting_setting.
+ *
+ * @return array{created:bool, account_id:int, message:string}
+ */
+function acc_coa_ensure_outgoing_deferred_checks_account(PDO $pdo): array
+{
+    $out = ['created' => false, 'account_id' => 0, 'message' => ''];
+    if (!acc_journal_has_tables($pdo)) {
+        $out['message'] = 'دليل الحسابات غير مهيأ.';
+
+        return $out;
+    }
+
+    acc_coa_bootstrap_ensure_posting_rules($pdo);
+
+    try {
+        $mapped = 0;
+        try {
+            $stMap = $pdo->prepare(
+                "SELECT account_id FROM acc_posting_setting WHERE rule_code = 'outgoing_deferred_checks' LIMIT 1"
+            );
+            $stMap->execute();
+            $mapped = (int) $stMap->fetchColumn();
+        } catch (Throwable $e) {
+            $mapped = 0;
+        }
+        if ($mapped > 0) {
+            $st = $pdo->prepare(
+                'SELECT id FROM acc_account WHERE id = ? AND is_active = 1 AND is_leaf = 1 LIMIT 1'
+            );
+            $st->execute([$mapped]);
+            if ((int) $st->fetchColumn() > 0) {
+                $out['account_id'] = $mapped;
+
+                return $out;
+            }
+        }
+
+        $st = $pdo->query(
+            "SELECT id FROM acc_account
+             WHERE is_active = 1 AND is_leaf = 1
+               AND (name_ar LIKE '%الشيكات الآجلة%' OR name_ar LIKE '%شيكات آجلة%'
+                    OR name_ar LIKE '%أوراق دفع%')
+             ORDER BY (name_ar LIKE '%آجلة%') DESC, LENGTH(code) DESC, id ASC
+             LIMIT 1"
+        );
+        $existingId = $st ? (int) $st->fetchColumn() : 0;
+        if ($existingId > 0) {
+            $out['account_id'] = $existingId;
+            $pdo->prepare('UPDATE acc_posting_setting SET account_id = ? WHERE rule_code = ?')
+                ->execute([$existingId, 'outgoing_deferred_checks']);
+
+            return $out;
+        }
+
+        $parentId = null;
+        $stAp = $pdo->query(
+            "SELECT a.parent_id
+             FROM acc_posting_setting ps
+             INNER JOIN acc_account a ON a.id = ps.account_id
+             WHERE ps.rule_code = 'ap_suppliers' AND ps.account_id IS NOT NULL
+             LIMIT 1"
+        );
+        $parentId = $stAp ? (int) $stAp->fetchColumn() : 0;
+        if ($parentId < 1) {
+            $stP = $pdo->query(
+                "SELECT id FROM acc_account
+                 WHERE is_active = 1 AND is_leaf = 0
+                   AND (code = '2' OR name_ar LIKE '%الالتزامات%' OR name_ar LIKE '%المطلوبات%')
+                 ORDER BY LENGTH(code) ASC, id ASC LIMIT 1"
+            );
+            $parentId = $stP ? (int) $stP->fetchColumn() : 0;
+        }
+        if ($parentId < 1) {
+            $out['message'] = 'لم يُعثر على مجموعة الالتزامات. أضف حساب «الشيكات الآجلة» يدوياً واربطه من شاشة ربط الحسابات.';
+
+            return $out;
+        }
+
+        if ((int) (acc_account_get($pdo, $parentId)['is_leaf'] ?? 0) === 1) {
+            $pdo->prepare('UPDATE acc_account SET is_leaf = 0 WHERE id = ?')->execute([$parentId]);
+        }
+
+        $code = acc_coa_unique_code($pdo, $parentId, '2008');
+        $pdo->prepare(
+            'INSERT INTO acc_account (code, name_ar, parent_id, account_type, is_leaf, is_active, sort_order)
+             VALUES (?,?,?,?,1,1,?)'
+        )->execute([$code, 'الشيكات الآجلة', $parentId, 'liability', 20]);
+        $out['account_id'] = (int) $pdo->lastInsertId();
+        $out['created'] = $out['account_id'] > 0;
+        if ($out['created']) {
+            $pdo->prepare('UPDATE acc_posting_setting SET account_id = ? WHERE rule_code = ?')
+                ->execute([$out['account_id'], 'outgoing_deferred_checks']);
+            $out['message'] = 'تم إنشاء حساب «الشيكات الآجلة» (' . $code . ') وربطه.';
+        }
+
+        return $out;
+    } catch (Throwable $e) {
+        $out['message'] = 'تعذر إنشاء حساب الشيكات الآجلة تلقائياً. أضفه يدوياً واربطه من شاشة ربط الحسابات.';
+
+        return $out;
     }
 }

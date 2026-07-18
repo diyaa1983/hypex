@@ -31,10 +31,6 @@ function fin_voucher_post_payment_ledger_by_id(PDO $pdo, int $voucherId): array
     if (!$row) {
         return ['ok' => false, 'skipped' => false, 'error' => 'سند الصرف غير موجود.'];
     }
-    // شيك صادر: أثر كشف العميل/المورد عند صرف الشيك فقط.
-    if ((string) ($row['pay_method'] ?? '') === 'check') {
-        return ['ok' => true, 'skipped' => true, 'error' => null];
-    }
     $partyType = (string) ($row['party_type'] ?? '');
     if ($partyType === 'supplier') {
         return crm_supplier_ledger_post_cash_payment_by_id($pdo, $voucherId);
@@ -109,7 +105,8 @@ function fin_voucher_post_receipts_by_ids(PDO $pdo, array $voucherIds): array
 }
 
 /**
- * ترحيل سند صرف — قيد على حساب العميل أو المورد (لا أثر قبل الترحيل).
+ * ترحيل سند صرف — قيد على حساب الطرف.
+ * للشيك: الطرف + الشيكات الآجلة (البنك عند صرف الشيك فقط).
  *
  * @param list<int> $voucherIds
  * @return array{posted:int, skipped:int, errors:list<string>}
@@ -136,21 +133,6 @@ function fin_voucher_post_payments_by_ids(PDO $pdo, array $voucherIds): array
             $out['skipped']++;
             continue;
         }
-
-        // شيك صادر — لأي طرف (مورد/عميل/موظف/حساب): ترحيل السند فقط.
-        // لا كشف ولا قيد ولا سلفة/راتب إلا عند «صرف» من سجل الشيكات الصادرة.
-        $isCheckPayment = (string) ($row['pay_method'] ?? '') === 'check';
-        if ($isCheckPayment) {
-            if (fin_voucher_has_column($pdo, 'is_posted')) {
-                $pdo->prepare('UPDATE fin_voucher SET is_posted = 1, posted_at = NOW() WHERE id = ?')
-                    ->execute([$id]);
-            }
-            $out['posted']++;
-            require_once app_path('includes/sys_audit_log.php');
-            sys_audit_log_fin_voucher($pdo, 'post', $id, 'payment');
-            continue;
-        }
-
         $ledger = fin_voucher_post_payment_ledger_by_id($pdo, $id);
         if ($ledger['skipped']) {
             if (fin_voucher_has_column($pdo, 'is_posted')) {

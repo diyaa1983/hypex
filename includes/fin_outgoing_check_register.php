@@ -251,6 +251,7 @@ function fin_outgoing_check_register_fetch(PDO $pdo, array $filters, ?string $to
         "SELECT c.id AS check_id, c.register_no, c.check_no, c.bank_name, c.check_amount, c.due_date, c.notes,
                 c.lifecycle_status, c.action_date, c.action_account_id, c.action_journal_id,
                 v.id AS voucher_id, v.voucher_no, v.voucher_date, v.party_id, v.party_type,
+                v.cash_account_id,
                 ({$postedExpr}) AS is_posted,
                 COALESCE(cust.name_ar, sup.name_ar, emp.name_ar, acc_party.name_ar, '—') AS party_name,
                 COALESCE(acc_act.name_ar, '') AS action_account_name
@@ -339,6 +340,7 @@ function fin_outgoing_check_register_fetch(PDO $pdo, array $filters, ?string $to
             'party_type' => $partyType,
             'party_type_label' => fin_outgoing_check_register_party_type_label($partyType),
             'party_name' => (string) ($row['party_name'] ?? '—'),
+            'cash_account_id' => (int) ($row['cash_account_id'] ?? 0),
             'is_posted' => $isPosted,
             'posted_label' => fin_outgoing_check_register_posted_label($isPosted),
             'lifecycle_status' => $lifecycle,

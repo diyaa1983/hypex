@@ -15,8 +15,12 @@
   var clearForm = document.getElementById('fin-oc-clear-modal-form');
   var clearCheckId = document.getElementById('fin-oc-clear-check-id');
   var clearActionDate = document.getElementById('fin-oc-clear-action-date');
+  var clearAccount = document.getElementById('fin-oc-clear-account-id');
   var clearErr = document.getElementById('fin-oc-clear-modal-error');
   var clearSubmit = document.getElementById('fin-oc-clear-modal-submit');
+  var defaultClearAccountId = clearAccount
+    ? String(clearAccount.getAttribute('data-default-account-id') || clearAccount.value || '')
+    : '';
   var sumNo = document.getElementById('fin-oc-sum-no');
   var sumAmount = document.getElementById('fin-oc-sum-amount');
   var sumParty = document.getElementById('fin-oc-sum-party');
@@ -89,6 +93,23 @@
     if (sumDue) sumDue.textContent = val('data-due-date');
   }
 
+  function selectClearAccount(preferredId) {
+    if (!clearAccount) return;
+    var want = String(preferredId || '').trim();
+    if (want && want !== '0') {
+      var opt = clearAccount.querySelector('option[value="' + want.replace(/"/g, '') + '"]');
+      if (opt) {
+        clearAccount.value = want;
+        return;
+      }
+    }
+    if (defaultClearAccountId) {
+      clearAccount.value = defaultClearAccountId;
+      return;
+    }
+    clearAccount.value = '';
+  }
+
   function openClearModal(btn) {
     if (!clearModal || !btn) return;
     var checkId = btn.getAttribute('data-check-id');
@@ -99,6 +120,7 @@
       clearActionDate.value = todayDmY();
       clearActionDate.dispatchEvent(new Event('blur', { bubbles: true }));
     }
+    selectClearAccount(btn.getAttribute('data-cash-account-id') || '');
     if (clearErr) {
       clearErr.textContent = '';
       clearErr.style.display = 'none';

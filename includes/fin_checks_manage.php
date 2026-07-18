@@ -631,6 +631,7 @@ function fin_checks_manage_row_data_attrs(array $row): array
         'data-voucher-date' => $vd !== '' ? format_date_dmY($vd) : '—',
         'data-due-date' => $dd !== '' ? format_date_dmY($dd) : '—',
         'data-direction' => (string) ($row['direction'] ?? ''),
+        'data-cash-account-id' => (string) (int) ($row['cash_account_id'] ?? 0),
     ];
 }
 
@@ -2013,6 +2014,7 @@ function fin_checks_manage_clear(PDO $pdo, int $checkId, int $accountId, string 
     }
 
     require_once app_path('includes/acc_gl.php');
+    require_once app_path('includes/fin_voucher.php');
     if ($accountId < 1 || !acc_gl_is_valid_leaf_account($pdo, $accountId)) {
         throw new RuntimeException('اختر حساب بنك أو صندوق صالحاً.');
     }
@@ -2043,20 +2045,61 @@ function fin_checks_manage_clear(PDO $pdo, int $checkId, int $accountId, string 
             ]
         );
     } else {
-        // شيك صادر: الأثر المحاسبي (بنك + الجهة) عند الصرف فقط.
+        // شيك صادر: من الشيكات الآجلة → البنك عند الصرف.
         $voucherId = (int) ($check['voucher_id'] ?? 0);
-        if ($voucherId > 0 && acc_gl_ref_exists($pdo, 'cash_payment', $voucherId)) {
-            // سندات قديمة رُحّل عليها قيد البنك مسبقاً — تسجيل الحالة فقط.
+        $deferredId = acc_gl_outgoing_deferred_checks_account_id($pdo);
+        if ($deferredId < 1) {
+            throw new RuntimeException('اربط حساب «الشيكات الآجلة (صادرة)» من شاشة ربط الحسابات.');
+        }
+
+        // سندات مرحّلة سابقاً بلا قيد: أنشئ قيد الطرف + الشيكات الآجلة أولاً.
+        if ($voucherId > 0 && !acc_gl_ref_exists($pdo, 'cash_payment', $voucherId)) {
+            require_once app_path('includes/fin_voucher_post.php');
+            $ledger = fin_voucher_post_payment_ledger_by_id($pdo, $voucherId);
+            if (!$ledger['ok'] && empty($ledger['skipped'])) {
+                throw new RuntimeException((string) ($ledger['error'] ?? 'تعذر ترحيل كشف الجهة.'));
+            }
+            $gl = acc_gl_post_cash_payment($pdo, $voucherId);
+            if (!$gl['ok'] && empty($gl['skipped'])) {
+                throw new RuntimeException((string) ($gl['error'] ?? 'تعذر ترحيل قيد الشيكات الآجلة.'));
+            }
+            $row = fin_voucher_load($pdo, $voucherId, 'payment');
+            if ($row) {
+                if (fin_voucher_has_column($pdo, 'hr_advance_id')) {
+                    require_once app_path('includes/hr_employee_advance.php');
+                    $advId = (int) ($row['hr_advance_id'] ?? 0);
+                    if ($advId > 0) {
+                        hr_employee_advance_mark_disbursed($pdo, $advId, $voucherId);
+                    }
+                }
+                if (fin_voucher_has_column($pdo, 'hr_salary_id')) {
+                    require_once app_path('includes/hr_salary.php');
+                    $salId = (int) ($row['hr_salary_id'] ?? 0);
+                    if ($salId > 0) {
+                        hr_salary_mark_disbursed($pdo, $salId, $voucherId);
+                    }
+                }
+            }
+        }
+
+        if (
+            $voucherId > 0
+            && acc_gl_ref_exists($pdo, 'cash_payment', $voucherId)
+            && !acc_gl_cash_payment_credits_outgoing_deferred($pdo, $voucherId)
+        ) {
+            // سندات قديمة رُحّل عليها البنك مباشرة — تسجيل الحالة فقط.
             $journalId = 0;
         } else {
-            $journalId = fin_checks_manage_post_outgoing_clear_accounting(
+            $journalId = fin_checks_manage_post_gl(
                 $pdo,
-                $check,
-                $accountId,
+                'fin_check_clear',
+                $checkId,
                 $actionIso,
                 $desc,
-                $partyMemo,
-                $amount
+                [
+                    ['account_id' => $deferredId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
+                    ['account_id' => $accountId, 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
+                ]
             );
         }
     }
@@ -2080,133 +2123,8 @@ function fin_checks_manage_clear(PDO $pdo, int $checkId, int $accountId, string 
         'ok' => true,
         'journal_id' => $journalId,
         'message' => 'تم الترحيل — صرف'
-            . ($journalId > 0 ? ' (قيد محاسبي على البنك والجهة)' : ''),
+            . ($journalId > 0 ? ' (من الشيكات الآجلة إلى البنك)' : ''),
     ];
-}
-
-/**
- * قيد صرف شيك صادر + كشف الجهة (عميل/مورد) + سلفة/راتب إن وُجدت.
- */
-function fin_checks_manage_post_outgoing_clear_accounting(
-    PDO $pdo,
-    array $check,
-    int $bankAccountId,
-    string $actionIso,
-    string $desc,
-    string $partyMemo,
-    float $amount
-): int {
-    require_once app_path('includes/acc_gl.php');
-    require_once app_path('includes/fin_voucher.php');
-    require_once app_path('includes/fin_voucher_post.php');
-
-    $voucherId = (int) ($check['voucher_id'] ?? 0);
-    $partyType = (string) ($check['party_type'] ?? '');
-    $partyId = (int) ($check['party_id'] ?? 0);
-    $checkId = (int) ($check['id'] ?? 0);
-
-    if ($bankAccountId < 1 || !acc_gl_is_valid_leaf_account($pdo, $bankAccountId)) {
-        throw new RuntimeException('اختر حساب بنك أو صندوق صالحاً.');
-    }
-
-    $row = $voucherId > 0 ? fin_voucher_load($pdo, $voucherId, 'payment') : null;
-    if ($row === null) {
-        $row = [
-            'party_type' => $partyType,
-            'party_id' => $partyId,
-            'cash_account_id' => $bankAccountId,
-            'pay_method' => 'check',
-            'hr_advance_id' => 0,
-            'hr_salary_id' => 0,
-            'offset_account_id' => 0,
-        ];
-    }
-
-    // كشف العميل/المورد عند الصرف (إن لم يكن مُرحّلاً مسبقاً).
-    if ($voucherId > 0 && in_array($partyType, ['supplier', 'customer'], true)) {
-        require_once app_path('includes/crm_supplier_ledger.php');
-        require_once app_path('includes/crm_customer_ledger.php');
-        if ($partyType === 'supplier') {
-            $ledger = crm_supplier_ledger_post_cash_payment_by_id($pdo, $voucherId, true);
-        } else {
-            $ledger = crm_ledger_post_cash_payment_by_id($pdo, $voucherId, true);
-        }
-        if (!$ledger['ok'] && empty($ledger['skipped'])) {
-            throw new RuntimeException((string) ($ledger['error'] ?? 'تعذر ترحيل كشف الجهة.'));
-        }
-    }
-
-    $lines = [];
-    if ($partyType === 'supplier') {
-        $lines[] = [
-            'rule' => 'ap_suppliers',
-            'debit' => $amount,
-            'credit' => 0,
-            'memo' => $partyMemo,
-            'party_type' => 'supplier',
-            'party_id' => $partyId,
-        ];
-    } elseif ($partyType === 'customer') {
-        // مطابق لـ acc_gl_post_cash_payment: دائن على الذمم عند الصرف للعميل.
-        $lines[] = [
-            'rule' => 'ar_customers',
-            'debit' => 0,
-            'credit' => $amount,
-            'memo' => $partyMemo,
-            'party_type' => 'customer',
-            'party_id' => $partyId,
-        ];
-    } elseif ($partyType === 'employee') {
-        $empLine = acc_gl_payment_employee_debit_line($pdo, $row, $amount, $partyMemo);
-        $lines[] = $empLine;
-    } elseif ($partyType === 'account') {
-        $offsetId = (int) ($row['offset_account_id'] ?? 0);
-        if ($offsetId < 1) {
-            throw new RuntimeException('حساب الصرف المُدين غير محدد في سند الصرف.');
-        }
-        $lines[] = [
-            'account_id' => $offsetId,
-            'debit' => $amount,
-            'credit' => 0,
-            'memo' => $partyMemo,
-        ];
-    } else {
-        $lines[] = ['rule' => 'misc_expense', 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo];
-    }
-    $lines[] = [
-        'account_id' => $bankAccountId,
-        'debit' => 0,
-        'credit' => $amount,
-        'memo' => $partyMemo,
-    ];
-
-    $journalId = fin_checks_manage_post_gl_with_parties(
-        $pdo,
-        'fin_check_clear',
-        $checkId,
-        $actionIso,
-        $desc,
-        $lines
-    );
-
-    if ($voucherId > 0) {
-        if (fin_voucher_has_column($pdo, 'hr_advance_id')) {
-            require_once app_path('includes/hr_employee_advance.php');
-            $advId = (int) ($row['hr_advance_id'] ?? 0);
-            if ($advId > 0) {
-                hr_employee_advance_mark_disbursed($pdo, $advId, $voucherId);
-            }
-        }
-        if (fin_voucher_has_column($pdo, 'hr_salary_id')) {
-            require_once app_path('includes/hr_salary.php');
-            $salId = (int) ($row['hr_salary_id'] ?? 0);
-            if ($salId > 0) {
-                hr_salary_mark_disbursed($pdo, $salId, $voucherId);
-            }
-        }
-    }
-
-    return $journalId;
 }
 
 /**
@@ -2259,31 +2177,52 @@ function fin_checks_manage_return(PDO $pdo, int $checkId, string $reason, string
         fin_checks_manage_post_party_return($pdo, $check, $actionIso, $reason);
     } else {
         $voucherId = (int) ($check['voucher_id'] ?? 0);
-        // شيكات قديمة: القيد على البنك كان عند ترحيل السند — عكس عند الإرجاع.
-        // الشيكات الجديدة: لا أثر محاسبي قبل الصرف — إرجاع الحالة فقط.
         if ($voucherId > 0 && acc_gl_ref_exists($pdo, 'cash_payment', $voucherId)) {
-            $bankAccountId = (int) ($check['cash_account_id'] ?? 0);
-            if ($bankAccountId < 1 || !acc_gl_is_valid_leaf_account($pdo, $bankAccountId)) {
-                $bankAccountId = acc_gl_bank_account_id($pdo);
-            }
-            if ($bankAccountId < 1) {
-                throw new RuntimeException('حساب البنك/الصندوق غير محدد في سند الصرف.');
-            }
-            if ($partyType === 'supplier') {
-                $lines = [
-                    ['account_id' => $bankAccountId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
-                    ['rule' => 'ap_suppliers', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
-                ];
-            } elseif ($partyType === 'customer') {
-                $lines = [
-                    ['account_id' => $bankAccountId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
-                    ['rule' => 'ar_customers', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
-                ];
+            $deferredId = acc_gl_outgoing_deferred_checks_account_id($pdo);
+            $usesDeferred = acc_gl_cash_payment_credits_outgoing_deferred($pdo, $voucherId);
+            if ($usesDeferred && $deferredId > 0) {
+                // عكس قيد الترحيل: مدين الشيكات الآجلة / دائن الطرف.
+                if ($partyType === 'supplier') {
+                    $lines = [
+                        ['account_id' => $deferredId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
+                        ['rule' => 'ap_suppliers', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
+                    ];
+                } elseif ($partyType === 'customer') {
+                    $lines = [
+                        ['account_id' => $deferredId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
+                        ['rule' => 'ar_customers', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
+                    ];
+                } else {
+                    $lines = [
+                        ['account_id' => $deferredId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
+                        ['rule' => 'misc_expense', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
+                    ];
+                }
             } else {
-                $lines = [
-                    ['account_id' => $bankAccountId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
-                    ['rule' => 'misc_expense', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
-                ];
+                // سندات قديمة: القيد كان على البنك.
+                $bankAccountId = (int) ($check['cash_account_id'] ?? 0);
+                if ($bankAccountId < 1 || !acc_gl_is_valid_leaf_account($pdo, $bankAccountId)) {
+                    $bankAccountId = acc_gl_bank_account_id($pdo);
+                }
+                if ($bankAccountId < 1) {
+                    throw new RuntimeException('حساب البنك/الصندوق غير محدد في سند الصرف.');
+                }
+                if ($partyType === 'supplier') {
+                    $lines = [
+                        ['account_id' => $bankAccountId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
+                        ['rule' => 'ap_suppliers', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
+                    ];
+                } elseif ($partyType === 'customer') {
+                    $lines = [
+                        ['account_id' => $bankAccountId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
+                        ['rule' => 'ar_customers', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
+                    ];
+                } else {
+                    $lines = [
+                        ['account_id' => $bankAccountId, 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo],
+                        ['rule' => 'misc_expense', 'debit' => 0, 'credit' => $amount, 'memo' => $partyMemo],
+                    ];
+                }
             }
             $journalId = fin_checks_manage_post_gl($pdo, 'fin_check_return', $checkId, $actionIso, $desc, $lines);
             fin_checks_manage_post_party_return($pdo, $check, $actionIso, $reason);

@@ -525,7 +525,7 @@ function fin_voucher_checks_pending_disbursement(PDO $pdo, ?string $today = null
          {$partyJoins}
          WHERE {$postedExpr}
            AND c.check_amount > 0.000001
-           AND c.due_date IS NOT NULL AND c.due_date <> ''
+           AND c.due_date IS NOT NULL
            {$payFilter}
            {$pendingOnly}
          ORDER BY c.due_date ASC, v.voucher_date ASC, c.id ASC";

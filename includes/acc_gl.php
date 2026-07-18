@@ -97,6 +97,9 @@ function acc_gl_ensure_schema(PDO $pdo): bool
         hr_ss_ensure_posting_rule($pdo);
         require_once app_path('includes/hr_payroll_gl.php');
         hr_payroll_gl_ensure_posting_rules($pdo);
+        require_once app_path('includes/acc_coa_bootstrap.php');
+        acc_coa_bootstrap_ensure_posting_rules($pdo);
+        acc_coa_ensure_outgoing_deferred_checks_account($pdo);
     }
 
     $done = acc_gl_has_posting_table($pdo) && acc_gl_journal_has_ref_columns($pdo);
@@ -632,6 +635,59 @@ function acc_gl_checks_fund_account_id(PDO $pdo): int
 }
 
 /**
+ * حساب «الشيكات الآجلة» الصادرة — دائن عند ترحيل سند صرف شيك، ومدين عند الصرف من البنك.
+ */
+function acc_gl_outgoing_deferred_checks_account_id(PDO $pdo): int
+{
+    $settings = acc_gl_load_settings($pdo);
+    $mapped = (int) ($settings['outgoing_deferred_checks']['account_id'] ?? 0);
+    if ($mapped > 0 && acc_gl_is_valid_leaf_account($pdo, $mapped)) {
+        return $mapped;
+    }
+
+    require_once app_path('includes/acc_coa_bootstrap.php');
+    $ensured = acc_coa_ensure_outgoing_deferred_checks_account($pdo);
+    $accId = (int) ($ensured['account_id'] ?? 0);
+    if ($accId > 0) {
+        try {
+            $st = $pdo->prepare('UPDATE acc_posting_setting SET account_id = ? WHERE rule_code = ?');
+            $st->execute([$accId, 'outgoing_deferred_checks']);
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+
+    return $accId;
+}
+
+/** هل قيد سند الصرف دائن على حساب الشيكات الآجلة (التدفق الجديد)؟ */
+function acc_gl_cash_payment_credits_outgoing_deferred(PDO $pdo, int $voucherId): bool
+{
+    if ($voucherId < 1 || !acc_gl_journal_has_ref_columns($pdo)) {
+        return false;
+    }
+    $deferredId = acc_gl_outgoing_deferred_checks_account_id($pdo);
+    if ($deferredId < 1) {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare(
+            "SELECT 1
+             FROM acc_journal_entry e
+             INNER JOIN acc_journal_line l ON l.journal_id = e.id
+             WHERE e.ref_type = 'cash_payment' AND e.ref_id = ? AND e.status = 'posted'
+               AND l.account_id = ? AND l.credit > 0.000001
+             LIMIT 1"
+        );
+        $st->execute([$voucherId, $deferredId]);
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
  * يعيد معرّف حساب «الصندوق» المعتمد من إعدادات الترحيل (acc_posting_setting.rule_code='cash').
  * وفي حال غيابه يبحث عن حساب بالكود 111 ثم يحاول الاستدلال باسم «صندوق/نقد».
  */
@@ -1149,11 +1205,7 @@ function acc_gl_post_cash_payment(PDO $pdo, int $voucherId): array
         if ($amount <= 0) {
             return;
         }
-        // شيك صادر: لا قيد محاسبي عند ترحيل السند — القيد عند «صرف» من سجل الشيكات الصادرة.
         $payMethod = (string) ($row['pay_method'] ?? 'cash');
-        if ($payMethod === 'check') {
-            return;
-        }
         $party = (string) ($row['party_type'] ?? '');
         $partyName = acc_gl_party_name($pdo, $party, (int) ($row['party_id'] ?? 0));
         $partyMemo = '';
@@ -1164,7 +1216,24 @@ function acc_gl_post_cash_payment(PDO $pdo, int $voucherId): array
         if ($advCtx !== null && ($advCtx['memo'] ?? '') !== '') {
             $partyMemo = (string) $advCtx['memo'];
         }
-        $lines = [acc_gl_cash_line_for_voucher($pdo, $row, 0.0, $amount, $partyMemo)];
+
+        // شيك صادر: مدين الطرف / دائن الشيكات الآجلة — البنك عند «صرف» فقط.
+        if ($payMethod === 'check') {
+            $deferredId = acc_gl_outgoing_deferred_checks_account_id($pdo);
+            if ($deferredId < 1 || !acc_gl_is_valid_leaf_account($pdo, $deferredId)) {
+                throw new RuntimeException('اربط حساب «الشيكات الآجلة (صادرة)» من شاشة ربط الحسابات.');
+            }
+            $creditLine = [
+                'account_id' => $deferredId,
+                'debit' => 0.0,
+                'credit' => $amount,
+                'memo' => $partyMemo,
+            ];
+        } else {
+            $creditLine = acc_gl_cash_line_for_voucher($pdo, $row, 0.0, $amount, $partyMemo);
+        }
+
+        $lines = [$creditLine];
         if ($party === 'supplier') {
             array_unshift($lines, ['rule' => 'ap_suppliers', 'debit' => $amount, 'credit' => 0, 'memo' => $partyMemo]);
         } elseif ($party === 'customer') {

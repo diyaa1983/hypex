@@ -95,8 +95,8 @@ sales_inv_oracle12_enqueue_assets();
 
     <p class="sales-ora-info muted">
         يُسجَّل كل شيك صادر تلقائياً عند حفظ <strong>سند صرف</strong> بطريقة دفع «شيك».
-        ترحيل السند لا يؤثر على <strong>البنك</strong> ولا على حساب الطرف
-        (مورد / عميل / موظف / حساب) — الأثر المحاسبي فقط عند الضغط على <strong>صرف</strong> من هذه الشاشة.
+        عند <strong>ترحيل</strong> السند يتأثر حساب الطرف (مورد/عميل/موظف/حساب) ويُضاف للشيكات الآجلة — دون خصم البنك.
+        عند الضغط على <strong>صرف</strong> هنا يُنقل القيد من الشيكات الآجلة ويُخصم من البنك المختار.
     </p>
 
     <div class="sales-ora-panel card">
@@ -336,8 +336,9 @@ sales_inv_oracle12_enqueue_assets();
                            value="<?= esc($todayDisplay) ?>" placeholder="يوم-شهر-سنة" dir="ltr" required autocomplete="off">
                 </label>
                 <label class="field">
-                    <span class="field-label">الصرف من حساب (بنك / صندوق) *</span>
-                    <select class="input input-compact" name="account_id" id="fin-oc-clear-account-id" required>
+                    <span class="field-label">خصم من حساب البنك / الصندوق *</span>
+                    <select class="input input-compact" name="account_id" id="fin-oc-clear-account-id"
+                            data-default-account-id="<?= (int) $defaultDepositAccountId ?>" required>
                         <option value="">— اختر الحساب —</option>
                         <?php
                         $lastGroup = '';

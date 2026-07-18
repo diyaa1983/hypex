@@ -29,6 +29,11 @@ if (!verify_csrf($csrf)) {
 $pdo = db();
 fin_voucher_ensure_schema_full($pdo);
 fin_checks_manage_ensure_schema($pdo);
+// تهيئة الربط المحاسبي قبل المعاملة — MySQL يُنهي المعاملة تلقائياً عند أي DDL
+require_once app_path('includes/acc_gl.php');
+require_once app_path('includes/fin_voucher_post.php');
+acc_gl_ensure_schema($pdo);
+fin_voucher_prepare_payment_post_schemas($pdo);
 
 $action = trim((string) ($_POST['action'] ?? ''));
 $checkId = (int) ($_POST['check_id'] ?? 0);
@@ -77,7 +82,9 @@ try {
     } else {
         throw new RuntimeException('إجراء غير معروف.');
     }
-    $pdo->commit();
+    if ($pdo->inTransaction()) {
+        $pdo->commit();
+    }
     require_once app_path('includes/header_check_notifications.php');
     header_check_notifications_invalidate_cache();
     flash_set('success', (string) ($result['message'] ?? 'تم الترحيل.'));
