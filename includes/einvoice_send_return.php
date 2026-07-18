@@ -96,11 +96,20 @@ function einvoice_save_sale_invoice_uuid(PDO $pdo, int $invoiceId, string $uuid)
     }
 }
 
-/** حفظ رقم الفاتورة كما في JoFotara (مثل EIN00013) لاستخدامه في المرتجعات. */
+/** هل الرقم يبدو كـ EINV_NUM من JoFotara (مثل EIN00013) وليس رقم النظام؟ */
+function einvoice_looks_like_einv_num(string $value): bool
+{
+    return (bool) preg_match('/^EIN/i', trim($value));
+}
+
+/**
+ * حفظ EINV_NUM فقط (مثل EIN00013). لا تحفظ رقم النظام هنا —
+ * رقم النظام يُستخدم في BillingReference.cbc:ID.
+ */
 function einvoice_save_sale_invoice_einv_num(PDO $pdo, int $invoiceId, string $einvNum): void
 {
     $einvNum = trim($einvNum);
-    if ($invoiceId < 1 || $einvNum === '') {
+    if ($invoiceId < 1 || $einvNum === '' || !einvoice_looks_like_einv_num($einvNum)) {
         return;
     }
     if (!einvoice_column_exists($pdo, 'sal_invoice', 'einv_num')) {
@@ -112,6 +121,46 @@ function einvoice_save_sale_invoice_einv_num(PDO $pdo, int $invoiceId, string $e
     } catch (Throwable $e) {
         //
     }
+}
+
+/** هل خطأ JoFotara يخص تطابق رقم/UUID الفاتورة الأصلية؟ */
+function einvoice_is_billing_reference_link_error(string $err): bool
+{
+    return stripos($err, 'originalInvoiceUUID') !== false
+        || stripos($err, 'Original invoice UUID') !== false
+        || stripos($err, 'correct UUID and invoice number') !== false
+        || stripos($err, 'invoice-persist') !== false;
+}
+
+/**
+ * مرشّحو BillingReference.cbc:ID بالترتيب:
+ * 1) رقم النظام (ما يُرسل عادة في cbc:ID الأصلي)
+ * 2) أي رقم مُمرَّر من المستخدم
+ * 3) EINV_NUM المخزَّن (محاولة أخيرة فقط)
+ *
+ * @return list<string>
+ */
+function einvoice_billing_reference_id_candidates(
+    string $systemInvoiceNo,
+    string $overrideNo,
+    string $storedEinvNum
+): array {
+    $out = [];
+    $seen = [];
+    foreach ([$systemInvoiceNo, $overrideNo, $storedEinvNum] as $cand) {
+        $cand = trim($cand);
+        if ($cand === '') {
+            continue;
+        }
+        $key = strtolower($cand);
+        if (isset($seen[$key])) {
+            continue;
+        }
+        $seen[$key] = true;
+        $out[] = $cand;
+    }
+
+    return $out;
 }
 
 /**
@@ -348,6 +397,9 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
         $origTotal = einvoice_compute_invoice_xml_total($pdo, $origInvId, $retDecimals);
     }
 
+    // BillingReference.cbc:ID = رقم الفاتورة كما أُرسل في XML الأصلي (cbc:ID)،
+    // عادةً رقم النظام (مثل 013-2026) — وليس EINV_NUM (مثل EIN00013).
+    $sysInvoiceNo = trim((string) ($ret['orig_invoice_no'] ?? ''));
     $invObj = (object) [
         'reference_no' => (string) $ret['return_no'],
         'uuid' => (string) ($ret['invoice_uuid'] ?? ''),
@@ -361,10 +413,8 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
         'amount_decimals' => $retDecimals,
         // علامات إشعار دائن:
         'is_credit_note' => true,
-        'original_invoice_no' => trim((string) (
-            (!empty($ret['orig_einv_num']) ? $ret['orig_einv_num'] : '')
-            ?: ($ret['orig_invoice_no'] ?? '')
-        )),
+        'original_invoice_no' => $sysInvoiceNo,
+        'original_einv_num' => trim((string) ($ret['orig_einv_num'] ?? '')),
         'original_invoice_uuid' => einvoice_resolve_sale_invoice_uuid($pdo, $origInvId),
         'original_full_amount' => $origTotal,
         'return_reason' => (string) ($ret['reason_return'] ?? ($ret['notes'] ?? '')),
@@ -479,13 +529,20 @@ function einvoice_send_sale_return(
     }
     $payload['inv']->original_invoice_uuid = $origUuid;
     $origNoOverride = trim($originalInvoiceNo);
+    // احفظ EIN فقط كمرجع عرض؛ رقم النظام يبقى المرشّح الأول للربط.
     if ($origNoOverride !== '') {
-        $payload['inv']->original_invoice_no = $origNoOverride;
         einvoice_save_sale_invoice_einv_num($pdo, $invoiceId, $origNoOverride);
     }
-    if (trim((string) ($payload['inv']->original_invoice_no ?? '')) === '') {
+
+    $sysNo = trim((string) ($payload['inv']->original_invoice_no ?? ''));
+    $storedEinv = trim((string) ($payload['inv']->original_einv_num ?? ''));
+    if ($storedEinv === '' && einvoice_looks_like_einv_num($origNoOverride)) {
+        $storedEinv = $origNoOverride;
+    }
+    $idCandidates = einvoice_billing_reference_id_candidates($sysNo, $origNoOverride, $storedEinv);
+    if ($idCandidates === []) {
         $out['need_original_invoice_no'] = true;
-        $out['error'] = 'رقم الفاتورة الأصلية مطلوب كما هو مسجّل في JoFotara.';
+        $out['error'] = 'رقم الفاتورة الأصلية مطلوب للربط مع JoFotara.';
 
         return $out;
     }
@@ -513,63 +570,84 @@ function einvoice_send_sale_return(
     $taxesType = (int) ($settings['taxes_type'] ?? 2);
 
     set_time_limit(300);
-    $xml = einvoice_generate_ubl_invoice($payload['inv'], $payload['lines'], $payload['customer'], $payload['biller'], $code, $taxesType);
 
-    // حفظ نسخة من XML للتشخيص.
-    try {
-        $logDir = app_path('logs');
-        if (!is_dir($logDir)) {
-            @mkdir($logDir, 0775, true);
-        }
-        $logFile = $logDir . DIRECTORY_SEPARATOR . 'einvoice-return-last-' . $returnId . '.xml';
-        @file_put_contents($logFile, $xml);
-    } catch (Throwable $e) {
-        // ignore
+    $triedNos = [];
+    $lastErr = '';
+    $lastHttp = null;
+    $lastResponse = null;
+    $logDir = app_path('logs');
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0775, true);
     }
 
-    $encoded = base64_encode($xml);
-    $result = einvoice_send_request_to_api($pdo, ['invoice' => $encoded], $returnId, 'sal_return');
+    foreach ($idCandidates as $candidateNo) {
+        $payload['inv']->original_invoice_no = $candidateNo;
+        $triedNos[] = $candidateNo;
+        $xml = einvoice_generate_ubl_invoice(
+            $payload['inv'],
+            $payload['lines'],
+            $payload['customer'],
+            $payload['biller'],
+            $code,
+            $taxesType
+        );
 
-    if (is_array($result) && isset($result['error'])) {
-        $err = (string) $result['error'];
-        $out['error'] = $err;
-        $out['http_code'] = isset($result['http_code']) ? (int) $result['http_code'] : null;
-        $out['response'] = $result['response'] ?? null;
-        if (
-            stripos($err, 'originalInvoiceUUID') !== false
-            || stripos($err, 'Original invoice UUID') !== false
-            || stripos($err, 'correct UUID and invoice number') !== false
-            || stripos($err, 'invoice-persist') !== false
-        ) {
-            $sentNo = (string) ($payload['inv']->original_invoice_no ?? '');
-            $sentUuid = (string) ($payload['inv']->original_invoice_uuid ?? '');
-            $sentAmt = einvoice_format_decimal((float) ($payload['inv']->original_full_amount ?? 0));
-            $out['need_original_uuid'] = true;
-            $out['need_original_invoice_no'] = true;
-            $out['error'] =
-                'JoFotara رفضت الربط. تأكد من القيم كما في المنصة بالضبط:'
-                . "\n• رقم الفاتورة الإلكترونية (مثال EIN00013) — أُرسل: " . $sentNo
-                . "\n• معرف الفاتورة UUID — أُرسل: " . $sentUuid
-                . "\n• قيمة الفاتورة الأصلية — أُرسل: " . $sentAmt
-                . "\nرقم النظام الداخلي " . (string) ($payload['raw']['orig_invoice_no'] ?? '') . ' لا يُستخدم في الربط.';
+        try {
+            @file_put_contents(
+                $logDir . DIRECTORY_SEPARATOR . 'einvoice-return-last-' . $returnId . '.xml',
+                $xml
+            );
+        } catch (Throwable $e) {
+            // ignore
         }
 
-        return $out;
+        $result = einvoice_send_request_to_api($pdo, ['invoice' => base64_encode($xml)], $returnId, 'sal_return');
+
+        if (!(is_array($result) && isset($result['error']))) {
+            if (!einvoice_return_is_sent($pdo, $returnId)) {
+                $out['error'] = 'لم يُستلم رمز QR من نظام الفوترة. راجع einv_results.';
+
+                return $out;
+            }
+            einvoice_save_sale_invoice_uuid($pdo, $invoiceId, $origUuid);
+            if (einvoice_looks_like_einv_num($candidateNo)) {
+                einvoice_save_sale_invoice_einv_num($pdo, $invoiceId, $candidateNo);
+            }
+            $out['ok'] = true;
+            $row = einvoice_return_status_row($pdo, $returnId);
+            $out['message'] = 'تم إرسال الإرجاع لنظام الفوترة بنجاح.'
+                . ($row && !empty($row['einv_num']) ? ' رقم الإرجاع في الفوترة: ' . $row['einv_num'] : '')
+                . ' (ربط برقم: ' . $candidateNo . ')';
+
+            return $out;
+        }
+
+        $lastErr = (string) $result['error'];
+        $lastHttp = isset($result['http_code']) ? (int) $result['http_code'] : null;
+        $lastResponse = $result['response'] ?? null;
+        // أعد المحاولة برقم بديل فقط عند رفض الربط؛ غير ذلك أوقف فوراً.
+        if (!einvoice_is_billing_reference_link_error($lastErr)) {
+            break;
+        }
     }
 
-    if (!einvoice_return_is_sent($pdo, $returnId)) {
-        $out['error'] = 'لم يُستلم رمز QR من نظام الفوترة. راجع einv_results.';
-
-        return $out;
+    $out['error'] = $lastErr !== '' ? $lastErr : 'تعذر إرسال الإرجاع للفوترة.';
+    $out['http_code'] = $lastHttp;
+    $out['response'] = $lastResponse;
+    if (einvoice_is_billing_reference_link_error($lastErr)) {
+        $sentUuid = (string) ($payload['inv']->original_invoice_uuid ?? '');
+        $sentAmt = einvoice_format_decimal((float) ($payload['inv']->original_full_amount ?? 0));
+        $out['need_original_uuid'] = true;
+        $out['need_original_invoice_no'] = true;
+        $out['error'] =
+            'JoFotara رفضت الربط. الرقم في BillingReference يجب أن يطابق cbc:ID الأصلي '
+            . '(عادة رقم النظام مثل ' . ($sysNo !== '' ? $sysNo : '013-2026')
+            . ') مع نفس UUID وإجمالي الفاتورة — وليس بالضرورة رقم EIN.'
+            . "\n• أرقام جُرّبت: " . implode(' ، ', $triedNos)
+            . "\n• UUID: " . $sentUuid
+            . "\n• قيمة الفاتورة الأصلية: " . $sentAmt
+            . "\nتأكد أيضاً أن Client-Id في الإعدادات هو نفس حساب النظام الذي أرسل الفاتورة الأصلية.";
     }
-
-    // ثبّت UUID على الفاتورة إن لم يكن موجوداً (مفيد للفواتير القديمة).
-    einvoice_save_sale_invoice_uuid($pdo, $invoiceId, $origUuid);
-
-    $out['ok'] = true;
-    $row = einvoice_return_status_row($pdo, $returnId);
-    $out['message'] = 'تم إرسال الإرجاع لنظام الفوترة بنجاح.'
-        . ($row && !empty($row['einv_num']) ? ' رقم الإرجاع في الفوترة: ' . $row['einv_num'] : '');
 
     return $out;
 }

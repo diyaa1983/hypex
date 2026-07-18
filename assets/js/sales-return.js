@@ -2612,13 +2612,9 @@
     );
   }
 
-  /** رقم JoFotara عادةً يبدأ بـ EIN — رقم النظام مثل 013-2026 لا يصلح للربط. */
-  function looksLikeJofotaraInvoiceNo(no) {
+  /** رقم النظام (مثل 013-2026) هو المرشّح الصحيح لـ BillingReference — EIN اختياري كبديل. */
+  function looksLikeInvoiceRefNo(no) {
     var s = String(no || '').trim();
-    if (!s) return false;
-    if (/^EIN/i.test(s)) return true;
-    // ليس نمط رقم النظام الداخلي NNN-YYYY
-    if (/^\d{1,6}-\d{4}$/.test(s)) return false;
     return s.length >= 3;
   }
 
@@ -2629,72 +2625,28 @@
       AppDialog.error('السبب قصير جداً، يجب 3 أحرف على الأقل.');
       return;
     }
-    var isLegacy = !!(lastLoadedReturn && lastLoadedReturn.invoice_einv_legacy);
+    var sysNo =
+      (lastLoadedReturn && lastLoadedReturn.invoice_no
+        ? String(lastLoadedReturn.invoice_no).trim()
+        : '') ||
+      String(originalInvoiceNoForEinvoice || '').trim();
     var needUuid = needsOriginalInvoiceUuid || !looksLikeUuid(originalInvoiceUuid);
-    var needNo =
-      isLegacy ||
-      !looksLikeJofotaraInvoiceNo(originalInvoiceNoForEinvoice);
-    if (needUuid || needNo) {
-      promptOriginalInvoiceRefs(reason, retId, needUuid);
+    if (needUuid) {
+      promptOriginalInvoiceUuid(reason, retId, sysNo);
       return;
     }
-    confirmAndSubmitReturnEinvoice(reason, retId, originalInvoiceUuid, originalInvoiceNoForEinvoice);
+    confirmAndSubmitReturnEinvoice(reason, retId, originalInvoiceUuid, sysNo);
   }
 
-  function promptOriginalInvoiceRefs(reason, retId, askUuid) {
-    var sysNo =
-      lastLoadedReturn && lastLoadedReturn.invoice_no
-        ? String(lastLoadedReturn.invoice_no)
-        : '';
-    var invNoDefault = looksLikeJofotaraInvoiceNo(originalInvoiceNoForEinvoice)
-      ? originalInvoiceNoForEinvoice
-      : '';
+  function promptOriginalInvoiceUuid(reason, retId, sysNo) {
     var uuidDefault = originalInvoiceUuid || '';
-
-    function askNo(uuidVal) {
-      var msgNo =
-        'أدخل رقم الفاتورة الإلكترونية من JoFotara (مثل EIN00013)' +
-        (sysNo ? ' — لا تستخدم رقم النظام ' + sysNo : '') +
-        '.';
-      var afterNo = function (noVal) {
-        if (noVal === undefined || noVal === null) return;
-        noVal = String(noVal).trim();
-        if (noVal.length < 1) {
-          AppDialog.error('رقم الفاتورة الإلكترونية مطلوب (مثال: EIN00013).');
-          return;
-        }
-        if (/^\d{1,6}-\d{4}$/.test(noVal)) {
-          AppDialog.error(
-            'هذا رقم النظام الداخلي وليس رقم JoFotara. أدخل الرقم الإلكتروني مثل EIN00013.'
-          );
-          return;
-        }
-        originalInvoiceNoForEinvoice = noVal;
-        confirmAndSubmitReturnEinvoice(reason, retId, uuidVal, noVal);
-      };
-      if (!window.AppDialog || typeof AppDialog.prompt !== 'function') {
-        afterNo(window.prompt(msgNo, invNoDefault || 'EIN'));
-        return;
-      }
-      AppDialog.prompt(msgNo, {
-        title: 'رقم الفاتورة في JoFotara',
-        placeholder: 'EIN00013',
-        value: invNoDefault,
-        okText: 'متابعة',
-      })
-        .then(afterNo)
-        .catch(function () {
-          AppDialog.error('تعذر فتح نافذة إدخال رقم الفاتورة.');
-        });
-    }
-
-    if (!askUuid && looksLikeUuid(uuidDefault)) {
-      askNo(uuidDefault);
-      return;
-    }
-
     var msg =
-      'أدخل معرف الفاتورة (UUID) من JoFotara.\nمثال: 86d0818a-3509-4641-8e92-10aa1865f11a';
+      'أدخل معرف الفاتورة (UUID) من JoFotara للفاتورة الأصلية' +
+      (sysNo ? ' ' + sysNo : '') +
+      '.\nمثال: 86d0818a-3509-4641-8e92-10aa1865f11a\n\n' +
+      'ملاحظة: رقم الربط سيكون رقم النظام' +
+      (sysNo ? ' (' + sysNo + ')' : '') +
+      ' وليس رقم EIN.';
     var afterPrompt = function (uuid) {
       if (uuid === undefined || uuid === null) return;
       uuid = String(uuid).trim();
@@ -2704,7 +2656,8 @@
       }
       originalInvoiceUuid = uuid;
       needsOriginalInvoiceUuid = false;
-      askNo(uuid);
+      originalInvoiceNoForEinvoice = sysNo || originalInvoiceNoForEinvoice;
+      confirmAndSubmitReturnEinvoice(reason, retId, uuid, originalInvoiceNoForEinvoice);
     };
     if (!window.AppDialog || typeof AppDialog.prompt !== 'function') {
       afterPrompt(window.prompt(msg, uuidDefault));
@@ -2720,6 +2673,19 @@
       .catch(function () {
         AppDialog.error('تعذر فتح نافذة إدخال UUID.');
       });
+  }
+
+  /** توافق مع الاستدعاءات القديمة عند فشل الربط — يطلب UUID فقط ثم يعيد الإرسال برقم النظام. */
+  function promptOriginalInvoiceRefs(reason, retId, askUuid) {
+    var sysNo =
+      lastLoadedReturn && lastLoadedReturn.invoice_no
+        ? String(lastLoadedReturn.invoice_no).trim()
+        : String(originalInvoiceNoForEinvoice || '').trim();
+    if (askUuid || !looksLikeUuid(originalInvoiceUuid)) {
+      promptOriginalInvoiceUuid(reason, retId, sysNo);
+      return;
+    }
+    confirmAndSubmitReturnEinvoice(reason, retId, originalInvoiceUuid, sysNo);
   }
 
   function confirmAndSubmitReturnEinvoice(reason, retId, uuid, invoiceNo) {
