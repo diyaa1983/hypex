@@ -6,6 +6,97 @@ require_once app_path('includes/einvoice_ubl.php');
 require_once app_path('includes/einvoice_schema.php');
 
 /**
+ * استخراج UUID الفاتورة من XML الموقَّع المُسَجَّل (إن وُجد).
+ */
+function einvoice_extract_uuid_from_signed(PDO $pdo, int $invoiceId): string
+{
+    if ($invoiceId < 1 || !einvoice_column_exists($pdo, 'sal_invoice', 'einv_signed_invoice')) {
+        return '';
+    }
+    try {
+        $st = $pdo->prepare('SELECT einv_signed_invoice FROM sal_invoice WHERE id = ? LIMIT 1');
+        $st->execute([$invoiceId]);
+        $signed = (string) ($st->fetchColumn() ?: '');
+    } catch (Throwable $e) {
+        return '';
+    }
+    if ($signed === '') {
+        return '';
+    }
+    if (!str_contains($signed, '<')) {
+        $decoded = base64_decode($signed, true);
+        if ($decoded !== false && str_contains($decoded, '<')) {
+            $signed = $decoded;
+        }
+    }
+    // أول UUID بصيغة قياسية في المستند = UUID الفاتورة (وليس ICV الرقمي).
+    if (preg_match('/<cbc:UUID>\s*([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\s*<\/cbc:UUID>/', $signed, $m)) {
+        return strtolower($m[1]);
+    }
+
+    return '';
+}
+
+/**
+ * تحديد UUID الفاتورة الأصلية لإشعار الدائن.
+ * الترتيب: قيمة مُمرَّرة → invoice_uuid → einv_inv_uuid → XML موقَّع.
+ */
+function einvoice_resolve_sale_invoice_uuid(PDO $pdo, int $invoiceId, string $override = ''): string
+{
+    $override = trim($override);
+    if ($override !== '' && einvoice_looks_like_uuid($override)) {
+        return strtolower($override);
+    }
+    if ($invoiceId < 1) {
+        return '';
+    }
+    $cols = ['invoice_uuid'];
+    if (einvoice_column_exists($pdo, 'sal_invoice', 'einv_inv_uuid')) {
+        $cols[] = 'einv_inv_uuid';
+    }
+    try {
+        $st = $pdo->prepare('SELECT ' . implode(', ', $cols) . ' FROM sal_invoice WHERE id = ? LIMIT 1');
+        $st->execute([$invoiceId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        $row = [];
+    }
+    foreach (['invoice_uuid', 'einv_inv_uuid'] as $col) {
+        $v = trim((string) ($row[$col] ?? ''));
+        if ($v !== '' && einvoice_looks_like_uuid($v)) {
+            return strtolower($v);
+        }
+    }
+
+    return einvoice_extract_uuid_from_signed($pdo, $invoiceId);
+}
+
+function einvoice_looks_like_uuid(string $value): bool
+{
+    return (bool) preg_match(
+        '/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/',
+        trim($value)
+    );
+}
+
+function einvoice_save_sale_invoice_uuid(PDO $pdo, int $invoiceId, string $uuid): void
+{
+    $uuid = strtolower(trim($uuid));
+    if ($invoiceId < 1 || !einvoice_looks_like_uuid($uuid)) {
+        return;
+    }
+    if (!einvoice_column_exists($pdo, 'sal_invoice', 'invoice_uuid')) {
+        return;
+    }
+    try {
+        $pdo->prepare('UPDATE sal_invoice SET invoice_uuid = ? WHERE id = ? AND (invoice_uuid IS NULL OR invoice_uuid = \'\')')
+            ->execute([$uuid, $invoiceId]);
+    } catch (Throwable $e) {
+        //
+    }
+}
+
+/**
  * استخراج TaxInclusiveAmount من XML الموقَّع المُسَجَّل (للفواتير المُرسَلة سابقاً).
  * نَستخدمه كأدق مصدر لقيمة الفاتورة الأصلية المُسَجَّلة في JoFotara.
  */
@@ -251,7 +342,7 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
         // علامات إشعار دائن:
         'is_credit_note' => true,
         'original_invoice_no' => (string) ($ret['orig_invoice_no'] ?? ''),
-        'original_invoice_uuid' => (string) ($ret['orig_invoice_uuid'] ?? ''),
+        'original_invoice_uuid' => einvoice_resolve_sale_invoice_uuid($pdo, $origInvId),
         'original_full_amount' => $origTotal,
         'return_reason' => (string) ($ret['reason_return'] ?? ($ret['notes'] ?? '')),
     ];
@@ -262,9 +353,10 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
 /**
  * إرسال إشعار دائن (إرجاع) للفوترة الإلكترونية.
  *
- * @return array{ok:bool, skipped:bool, error:?string, message:?string, http_code:?int, response:mixed}
+ * @param string $originalInvoiceUuid UUID الفاتورة الأصلية (إلزامي إن لم يكن مخزّناً — شائع للفواتير قبل نطاق المتابعة)
+ * @return array{ok:bool, skipped:bool, error:?string, message:?string, http_code:?int, response:mixed, need_original_uuid?:bool}
  */
-function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = ''): array
+function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '', string $originalInvoiceUuid = ''): array
 {
     $out = [
         'ok' => false,
@@ -273,6 +365,7 @@ function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '')
         'message' => null,
         'http_code' => null,
         'response' => null,
+        'need_original_uuid' => false,
     ];
     einvoice_ensure_schema($pdo);
 
@@ -333,12 +426,28 @@ function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '')
         }
     }
 
+    // UUID الفاتورة الأصلية — مطلوب من JoFotara في BillingReference.
+    $origUuid = einvoice_resolve_sale_invoice_uuid($pdo, $invoiceId, $originalInvoiceUuid);
+    if ($origUuid === '') {
+        $out['need_original_uuid'] = true;
+        $out['error'] =
+            'UUID الفاتورة الأصلية مطلوب لإرسال المرتجع (originalInvoiceUUID). '
+            . 'الفاتورة أُرسلت غالباً من النظام السابق وليس لها UUID هنا. '
+            . 'انسخ UUID من منصة JoFotara أو من XML/QR الفاتورة الأصلية ثم أعد الإرسال.';
+
+        return $out;
+    }
+    if (trim($originalInvoiceUuid) !== '') {
+        einvoice_save_sale_invoice_uuid($pdo, $invoiceId, $origUuid);
+    }
+
     $payload = einvoice_load_sale_return_payload($pdo, $returnId);
     if ($payload === null) {
         $out['error'] = 'تعذر تحميل بيانات المرتجع.';
 
         return $out;
     }
+    $payload['inv']->original_invoice_uuid = $origUuid;
 
     // التحقق من وجود سبب (إلزامي على JoFotara).
     if (trim((string) ($payload['inv']->return_reason ?? '')) === '') {
@@ -381,9 +490,17 @@ function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '')
     $result = einvoice_send_request_to_api($pdo, ['invoice' => $encoded], $returnId, 'sal_return');
 
     if (is_array($result) && isset($result['error'])) {
-        $out['error'] = (string) $result['error'];
+        $err = (string) $result['error'];
+        $out['error'] = $err;
         $out['http_code'] = isset($result['http_code']) ? (int) $result['http_code'] : null;
         $out['response'] = $result['response'] ?? null;
+        if (stripos($err, 'originalInvoiceUUID') !== false || stripos($err, 'Original invoice UUID') !== false) {
+            $out['need_original_uuid'] = true;
+            $out['error'] =
+                'UUID الفاتورة الأصلية مرفوض أو ناقص من JoFotara. '
+                . 'تأكد من إدخال نفس UUID الظاهر في منصة الفوترة للفاتورة ' .
+                (string) ($payload['inv']->original_invoice_no ?? '') . '.';
+        }
 
         return $out;
     }
@@ -393,6 +510,9 @@ function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '')
 
         return $out;
     }
+
+    // ثبّت UUID على الفاتورة إن لم يكن موجوداً (مفيد للفواتير القديمة).
+    einvoice_save_sale_invoice_uuid($pdo, $invoiceId, $origUuid);
 
     $out['ok'] = true;
     $row = einvoice_return_status_row($pdo, $returnId);

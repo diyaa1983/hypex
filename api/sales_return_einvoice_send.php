@@ -28,6 +28,7 @@ if (!verify_csrf($csrf)) {
 
 $returnId = (int) ($_POST['return_id'] ?? 0);
 $reason = trim((string) ($_POST['reason'] ?? ''));
+$originalInvoiceUuid = trim((string) ($_POST['original_invoice_uuid'] ?? ''));
 if ($returnId < 1) {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'لم يُحدَّد مرتجع.'], JSON_UNESCAPED_UNICODE);
@@ -45,12 +46,13 @@ einvoice_ensure_schema($pdo);
 
 try {
     $pdo->beginTransaction();
-    $result = einvoice_send_sale_return($pdo, $returnId, $reason);
+    $result = einvoice_send_sale_return($pdo, $returnId, $reason, $originalInvoiceUuid);
     if ($result['error'] !== null) {
         $pdo->commit(); // نحفظ einv_results للتشخيص رغم الفشل
         echo json_encode([
             'ok' => false,
             'error' => $result['error'],
+            'need_original_uuid' => !empty($result['need_original_uuid']),
             'http_code' => $result['http_code'] ?? null,
             'response' => $result['response'] ?? null,
         ], JSON_UNESCAPED_UNICODE);
