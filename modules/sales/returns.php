@@ -182,6 +182,7 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
           data-archive-kind="sales_return"
           data-return-delete-url="<?= esc($apiDeleteReturn) ?>"
           data-return-einvoice-url="<?= esc($apiEinvoiceReturn) ?>"
+          data-return-einvoice-mark-manual-url="<?= esc(app_url('api/sales_return_einvoice_mark_manual.php')) ?>"
           data-send-email-url="<?= esc($apiSendEmail) ?>"
           data-list-url="<?= esc($listReturnsUrl) ?>"
           data-new-url="<?= esc($newReturnUrl) ?>"

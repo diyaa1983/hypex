@@ -23,17 +23,11 @@ function sal_return_fetch_header(PDO $pdo, int $id): ?array
     // einv_qr للفاتورة الأصلية كي نعرف هل أُرسلت للفوترة.
     $hasInvoiceEinvQr = einvoice_column_exists($pdo, 'sal_invoice', 'einv_qr');
     $invQrSelect = $hasInvoiceEinvQr ? ', i.einv_qr AS invoice_einv_qr, i.einv_num AS invoice_einv_num' : '';
-    $hasInvoiceUuid = einvoice_column_exists($pdo, 'sal_invoice', 'invoice_uuid');
-    $invUuidSelect = $hasInvoiceUuid ? ', i.invoice_uuid AS original_invoice_uuid' : '';
-    $hasEinvInvUuid = einvoice_column_exists($pdo, 'sal_invoice', 'einv_inv_uuid');
-    $invEinvUuidSelect = $hasEinvInvUuid ? ', i.einv_inv_uuid AS original_einv_inv_uuid' : '';
-    $hasEinvNum = einvoice_column_exists($pdo, 'sal_invoice', 'einv_num');
-    $invEinvNumSelect = $hasEinvNum ? ', i.einv_num AS original_einv_num' : '';
 
     $st = $pdo->prepare(
         'SELECT r.id, r.return_no, r.return_date, r.customer_id, r.invoice_id, r.warehouse_id,
                 r.subtotal, r.tax_amount, r.total, r.status, r.notes' . $einvCols . ',
-                c.name_ar AS customer_name, i.invoice_no, i.invoice_date' . $invQrSelect . $invUuidSelect . $invEinvUuidSelect . $invEinvNumSelect . '
+                c.name_ar AS customer_name, i.invoice_no, i.invoice_date' . $invQrSelect . '
          FROM sal_return r
          INNER JOIN crm_customer c ON c.id = r.customer_id
          INNER JOIN sal_invoice i ON i.id = r.invoice_id
@@ -51,15 +45,6 @@ function sal_return_fetch_header(PDO $pdo, int $id): ?array
         $row['invoice_einv_legacy'] = sal_einvoice_invoice_is_legacy_pre_tracking($invoiceDate);
         $row['invoice_einv_sent'] = $invoiceSentHere || !empty($row['invoice_einv_legacy']);
         $row['einv_tracking_required'] = sal_einvoice_doc_date_requires_tracking((string) ($row['return_date'] ?? ''));
-        require_once app_path('includes/einvoice_send_return.php');
-        $resolvedUuid = einvoice_resolve_sale_invoice_uuid($pdo, (int) ($row['invoice_id'] ?? 0));
-        $row['original_invoice_uuid'] = $resolvedUuid;
-        $row['needs_original_uuid'] = $resolvedUuid === '';
-        $einvNum = trim((string) ($row['original_einv_num'] ?? $row['invoice_einv_num'] ?? ''));
-        $row['original_invoice_no_for_einvoice'] = $einvNum !== ''
-            ? $einvNum
-            : trim((string) ($row['invoice_no'] ?? ''));
-        $row['original_system_invoice_no'] = trim((string) ($row['invoice_no'] ?? ''));
     }
 
     return is_array($row) ? $row : null;
