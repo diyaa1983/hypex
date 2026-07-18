@@ -477,7 +477,7 @@ function crm_supplier_ledger_unpost_cash_payment(PDO $pdo, int $voucherId): void
 /**
  * @return array{ok:bool, skipped:bool, error:?string}
  */
-function crm_supplier_ledger_post_cash_payment_by_id(PDO $pdo, int $voucherId): array
+function crm_supplier_ledger_post_cash_payment_by_id(PDO $pdo, int $voucherId, bool $allowCheckClear = false): array
 {
     $out = ['ok' => false, 'skipped' => false, 'error' => null];
     if ($voucherId < 1) {
@@ -503,8 +503,16 @@ function crm_supplier_ledger_post_cash_payment_by_id(PDO $pdo, int $voucherId): 
 
         return $out;
     }
+    $payMethod = (string) ($row['pay_method'] ?? 'cash');
+    // شيك صادر: كشف المورد عند صرف الشيك فقط (من سجل الشيكات الصادرة).
+    if ($payMethod === 'check' && !$allowCheckClear) {
+        $out['ok'] = true;
+        $out['skipped'] = true;
+
+        return $out;
+    }
     $amount = (float) ($row['amount'] ?? 0);
-    if ($amount <= 0 && (string) ($row['pay_method'] ?? '') === 'check') {
+    if ($amount <= 0 && $payMethod === 'check') {
         $amount = (float) ($row['check_amount'] ?? 0);
     }
     if ($amount <= 0) {
@@ -513,7 +521,6 @@ function crm_supplier_ledger_post_cash_payment_by_id(PDO $pdo, int $voucherId): 
         return $out;
     }
     $memo = trim((string) ($row['description'] ?? ''));
-    $payMethod = (string) ($row['pay_method'] ?? 'cash');
     if ($payMethod === 'check') {
         $parts = [];
         $chk = trim((string) ($row['check_no'] ?? ''));

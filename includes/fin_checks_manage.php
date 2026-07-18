@@ -2127,9 +2127,9 @@ function fin_checks_manage_post_outgoing_clear_accounting(
         require_once app_path('includes/crm_supplier_ledger.php');
         require_once app_path('includes/crm_customer_ledger.php');
         if ($partyType === 'supplier') {
-            $ledger = crm_supplier_ledger_post_cash_payment_by_id($pdo, $voucherId);
+            $ledger = crm_supplier_ledger_post_cash_payment_by_id($pdo, $voucherId, true);
         } else {
-            $ledger = crm_ledger_post_cash_payment_by_id($pdo, $voucherId);
+            $ledger = crm_ledger_post_cash_payment_by_id($pdo, $voucherId, true);
         }
         if (!$ledger['ok'] && empty($ledger['skipped'])) {
             throw new RuntimeException((string) ($ledger['error'] ?? 'تعذر ترحيل كشف الجهة.'));

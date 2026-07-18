@@ -323,6 +323,10 @@ function pur_report_payables_period_payments(PDO $pdo, int $supplierId, string $
 
     require_once app_path('includes/fin_voucher_schema.php');
     $postedOnly = fin_voucher_has_column($pdo, 'is_posted') ? ' AND v.is_posted = 1' : '';
+    // شيكات صادرة: لا تُحسب قبل الصرف (تظهر عبر كشف المورد عند الصرف).
+    $checkExclude = fin_voucher_has_column($pdo, 'pay_method')
+        ? " AND NOT (v.pay_method = 'check')"
+        : '';
     $ledgerExclude = crm_supplier_ledger_has_table($pdo)
         ? " AND NOT EXISTS (
             SELECT 1 FROM crm_supplier_ledger l
@@ -338,7 +342,7 @@ function pur_report_payables_period_payments(PDO $pdo, int $supplierId, string $
          WHERE v.party_type = 'supplier'
            AND v.party_id = ?
            AND v.voucher_type = 'payment'
-           AND v.voucher_date >= ? AND v.voucher_date <= ?{$postedOnly}{$ledgerExclude}"
+           AND v.voucher_date >= ? AND v.voucher_date <= ?{$postedOnly}{$checkExclude}{$ledgerExclude}"
     );
     $stV->execute([$supplierId, $from, $to]);
 

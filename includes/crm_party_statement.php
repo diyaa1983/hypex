@@ -414,9 +414,34 @@ function crm_party_statement_voucher_balance_before(
     }
 
     $pt = $partyType === 'supplier' ? 'supplier' : 'customer';
+    require_once app_path('includes/fin_voucher_schema.php');
+
+    $postedOnly = fin_voucher_has_column($pdo, 'is_posted') ? ' AND v.is_posted = 1' : '';
+    $checkExclude = fin_voucher_has_column($pdo, 'pay_method')
+        ? " AND NOT (v.pay_method = 'check' AND v.voucher_type = 'payment')"
+        : '';
+
+    $ledgerExclude = '';
+    if ($partyType === 'customer' && crm_ledger_has_table($pdo)) {
+        $ledgerExclude = " AND NOT EXISTS (
+            SELECT 1 FROM crm_customer_ledger l
+            WHERE l.customer_id = v.party_id
+              AND l.txn_type IN ('cash_receipt','receipt_voucher','cash_payment','payment_voucher')
+              AND l.ref_id = v.id
+        )";
+    } elseif ($partyType === 'supplier' && crm_supplier_ledger_has_table($pdo)) {
+        $ledgerExclude = " AND NOT EXISTS (
+            SELECT 1 FROM crm_supplier_ledger l
+            WHERE l.supplier_id = v.party_id
+              AND l.txn_type = 'cash_payment'
+              AND l.ref_id = v.id
+        )";
+    }
+
     $st = $pdo->prepare(
-        "SELECT voucher_type, amount FROM fin_voucher
-         WHERE party_type = ? AND party_id = ? AND voucher_date < ?"
+        "SELECT v.voucher_type, v.amount FROM fin_voucher v
+         WHERE v.party_type = ? AND v.party_id = ? AND v.voucher_date < ?
+         {$postedOnly}{$checkExclude}{$ledgerExclude}"
     );
     $st->execute([$pt, $partyId, $beforeDate]);
     $bal = 0.0;
@@ -522,9 +547,15 @@ function crm_party_statement_fetch_vouchers(
         $postedOnly = ' AND v.is_posted = 1';
     }
 
+    // سندات صرف الشيك: لا أثر على كشف أي طرف قبل صرف الشيك (تظهر عبر الدفتر/القيد عند الصرف).
+    $checkExclude = '';
+    if (fin_voucher_has_column($pdo, 'pay_method')) {
+        $checkExclude = " AND NOT (v.pay_method = 'check' AND v.voucher_type = 'payment')";
+    }
+
     $sql = "SELECT v.id, v.voucher_type, v.voucher_no, v.voucher_date, v.amount, v.description{$checkCol}
             FROM fin_voucher v
-            WHERE v.party_type = ? AND v.party_id = ?{$postedOnly}{$ledgerExclude}";
+            WHERE v.party_type = ? AND v.party_id = ?{$postedOnly}{$checkExclude}{$ledgerExclude}";
     $params = [$pt, $partyId];
     if ($from !== null && $from !== '') {
         $sql .= ' AND voucher_date >= ?';

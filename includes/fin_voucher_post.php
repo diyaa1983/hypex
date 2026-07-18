@@ -136,21 +136,26 @@ function fin_voucher_post_payments_by_ids(PDO $pdo, array $voucherIds): array
             $out['skipped']++;
             continue;
         }
-        $ledger = fin_voucher_post_payment_ledger_by_id($pdo, $id);
+
+        // شيك صادر — لأي طرف (مورد/عميل/موظف/حساب): ترحيل السند فقط.
+        // لا كشف ولا قيد ولا سلفة/راتب إلا عند «صرف» من سجل الشيكات الصادرة.
         $isCheckPayment = (string) ($row['pay_method'] ?? '') === 'check';
+        if ($isCheckPayment) {
+            if (fin_voucher_has_column($pdo, 'is_posted')) {
+                $pdo->prepare('UPDATE fin_voucher SET is_posted = 1, posted_at = NOW() WHERE id = ?')
+                    ->execute([$id]);
+            }
+            $out['posted']++;
+            require_once app_path('includes/sys_audit_log.php');
+            sys_audit_log_fin_voucher($pdo, 'post', $id, 'payment');
+            continue;
+        }
+
+        $ledger = fin_voucher_post_payment_ledger_by_id($pdo, $id);
         if ($ledger['skipped']) {
-            // شيك: ترحيل السند فقط بدون كشف/قيد — الأثر عند صرف الشيك.
-            if ($isCheckPayment || fin_voucher_has_column($pdo, 'is_posted')) {
-                if (fin_voucher_has_column($pdo, 'is_posted')) {
-                    $pdo->prepare('UPDATE fin_voucher SET is_posted = 1, posted_at = NOW() WHERE id = ?')
-                        ->execute([$id]);
-                }
-                if ($isCheckPayment) {
-                    $out['posted']++;
-                    require_once app_path('includes/sys_audit_log.php');
-                    sys_audit_log_fin_voucher($pdo, 'post', $id, 'payment');
-                    continue;
-                }
+            if (fin_voucher_has_column($pdo, 'is_posted')) {
+                $pdo->prepare('UPDATE fin_voucher SET is_posted = 1, posted_at = NOW() WHERE id = ?')
+                    ->execute([$id]);
                 $out['skipped']++;
                 continue;
             }
@@ -171,21 +176,18 @@ function fin_voucher_post_payments_by_ids(PDO $pdo, array $voucherIds): array
             $pdo->prepare('UPDATE fin_voucher SET is_posted = 1, posted_at = NOW() WHERE id = ?')
                 ->execute([$id]);
         }
-        // سلفة/راتب: للشيك تُعلَّم عند صرف الشيك وليس عند ترحيل السند.
-        if (!$isCheckPayment) {
-            require_once app_path('includes/hr_employee_advance.php');
-            if (fin_voucher_has_column($pdo, 'hr_advance_id')) {
-                $advId = (int) ($row['hr_advance_id'] ?? 0);
-                if ($advId > 0) {
-                    hr_employee_advance_mark_disbursed($pdo, $advId, $id);
-                }
+        require_once app_path('includes/hr_employee_advance.php');
+        if (fin_voucher_has_column($pdo, 'hr_advance_id')) {
+            $advId = (int) ($row['hr_advance_id'] ?? 0);
+            if ($advId > 0) {
+                hr_employee_advance_mark_disbursed($pdo, $advId, $id);
             }
-            if (fin_voucher_has_column($pdo, 'hr_salary_id')) {
-                require_once app_path('includes/hr_salary.php');
-                $salId = (int) ($row['hr_salary_id'] ?? 0);
-                if ($salId > 0) {
-                    hr_salary_mark_disbursed($pdo, $salId, $id);
-                }
+        }
+        if (fin_voucher_has_column($pdo, 'hr_salary_id')) {
+            require_once app_path('includes/hr_salary.php');
+            $salId = (int) ($row['hr_salary_id'] ?? 0);
+            if ($salId > 0) {
+                hr_salary_mark_disbursed($pdo, $salId, $id);
             }
         }
         $out['posted']++;

@@ -76,8 +76,20 @@ try {
     $posted = (int) $result['posted'];
     $skipped = (int) $result['skipped'];
 
+    $checkOnly = false;
+    if (count($ids) === 1) {
+        require_once app_path('includes/fin_voucher.php');
+        $one = fin_voucher_load($pdo, $ids[0], 'payment');
+        $checkOnly = $one && (string) ($one['pay_method'] ?? '') === 'check';
+    }
+
     if ($posted === 0 && $skipped > 0) {
         $msg = 'السند/السندات مرحّلة مسبقًا.';
+    } elseif ($posted > 0 && $checkOnly) {
+        $msg = 'تم ترحيل سند الصرف (شيك). حساب الطرف والبنك لا يتأثران إلا عند صرف الشيك من سجل الشيكات الصادرة.';
+        if ($skipped > 0) {
+            $msg .= ' (' . $skipped . ' كانت مرحّلة مسبقًا)';
+        }
     } elseif ($posted > 0) {
         $msg = 'تم ترحيل ' . $posted . ' سند صرف (قيد محاسبي + كشف حساب الطرف).';
         if ($skipped > 0) {
