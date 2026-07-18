@@ -2612,6 +2612,16 @@
     );
   }
 
+  /** رقم JoFotara عادةً يبدأ بـ EIN — رقم النظام مثل 013-2026 لا يصلح للربط. */
+  function looksLikeJofotaraInvoiceNo(no) {
+    var s = String(no || '').trim();
+    if (!s) return false;
+    if (/^EIN/i.test(s)) return true;
+    // ليس نمط رقم النظام الداخلي NNN-YYYY
+    if (/^\d{1,6}-\d{4}$/.test(s)) return false;
+    return s.length >= 3;
+  }
+
   function handleReturnReason(reason, retId) {
     if (reason === undefined || reason === null) return;
     reason = String(reason).trim();
@@ -2619,46 +2629,56 @@
       AppDialog.error('السبب قصير جداً، يجب 3 أحرف على الأقل.');
       return;
     }
+    var isLegacy = !!(lastLoadedReturn && lastLoadedReturn.invoice_einv_legacy);
     var needUuid = needsOriginalInvoiceUuid || !looksLikeUuid(originalInvoiceUuid);
-    if (needUuid) {
-      promptOriginalInvoiceRefs(reason, retId, true);
+    var needNo =
+      isLegacy ||
+      !looksLikeJofotaraInvoiceNo(originalInvoiceNoForEinvoice);
+    if (needUuid || needNo) {
+      promptOriginalInvoiceRefs(reason, retId, needUuid);
       return;
     }
     confirmAndSubmitReturnEinvoice(reason, retId, originalInvoiceUuid, originalInvoiceNoForEinvoice);
   }
 
   function promptOriginalInvoiceRefs(reason, retId, askUuid) {
-    var invNoDefault =
-      originalInvoiceNoForEinvoice ||
-      (lastLoadedReturn && lastLoadedReturn.invoice_no ? String(lastLoadedReturn.invoice_no) : '');
+    var sysNo =
+      lastLoadedReturn && lastLoadedReturn.invoice_no
+        ? String(lastLoadedReturn.invoice_no)
+        : '';
+    var invNoDefault = looksLikeJofotaraInvoiceNo(originalInvoiceNoForEinvoice)
+      ? originalInvoiceNoForEinvoice
+      : '';
     var uuidDefault = originalInvoiceUuid || '';
 
     function askNo(uuidVal) {
-      var sysNo =
-        lastLoadedReturn && lastLoadedReturn.invoice_no
-          ? String(lastLoadedReturn.invoice_no)
-          : '';
       var msgNo =
-        'أدخل رقم الفاتورة كما يظهر في منصة JoFotara' +
-        (sysNo ? ' (قد يختلف عن رقم النظام ' + sysNo + ')' : '') +
+        'أدخل رقم الفاتورة الإلكترونية من JoFotara (مثل EIN00013)' +
+        (sysNo ? ' — لا تستخدم رقم النظام ' + sysNo : '') +
         '.';
       var afterNo = function (noVal) {
         if (noVal === undefined || noVal === null) return;
         noVal = String(noVal).trim();
         if (noVal.length < 1) {
-          AppDialog.error('رقم الفاتورة مطلوب.');
+          AppDialog.error('رقم الفاتورة الإلكترونية مطلوب (مثال: EIN00013).');
+          return;
+        }
+        if (/^\d{1,6}-\d{4}$/.test(noVal)) {
+          AppDialog.error(
+            'هذا رقم النظام الداخلي وليس رقم JoFotara. أدخل الرقم الإلكتروني مثل EIN00013.'
+          );
           return;
         }
         originalInvoiceNoForEinvoice = noVal;
         confirmAndSubmitReturnEinvoice(reason, retId, uuidVal, noVal);
       };
       if (!window.AppDialog || typeof AppDialog.prompt !== 'function') {
-        afterNo(window.prompt(msgNo, invNoDefault));
+        afterNo(window.prompt(msgNo, invNoDefault || 'EIN'));
         return;
       }
       AppDialog.prompt(msgNo, {
         title: 'رقم الفاتورة في JoFotara',
-        placeholder: invNoDefault || 'رقم الفاتورة',
+        placeholder: 'EIN00013',
         value: invNoDefault,
         okText: 'متابعة',
       })
@@ -2674,7 +2694,7 @@
     }
 
     var msg =
-      'أدخل UUID الفاتورة الأصلية من JoFotara.\nمثال: 86d0818a-3509-4641-8e92-10aa1865f11a';
+      'أدخل معرف الفاتورة (UUID) من JoFotara.\nمثال: 86d0818a-3509-4641-8e92-10aa1865f11a';
     var afterPrompt = function (uuid) {
       if (uuid === undefined || uuid === null) return;
       uuid = String(uuid).trim();

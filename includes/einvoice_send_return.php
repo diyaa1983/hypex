@@ -332,8 +332,8 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
     // ترتيب اختيار قيمة DocumentDescription للفاتورة الأصلية:
     //   1) einv_total_amount المخزَّن وقت الإرسال (الأدق — نفس ما تَستلمه JoFotara)
     //   2) استخراج TaxInclusive من einv_signed_invoice (للفواتير المُرسَلة سابقاً)
-    //   3) حساب TaxInclusiveAmount بنفس صيغة XML الحالية من البنود
-    //   4) sal_invoice.total كملاذ أخير
+    //   3) sal_invoice.total — أدق للفواتير القديمة قبل نطاق المتابعة (كما في منصة JoFotara)
+    //   4) حساب TaxInclusiveAmount بنفس صيغة XML الحالية من البنود
     $origTotal = 0.0;
     if (isset($ret['orig_invoice_einv_total']) && (float) $ret['orig_invoice_einv_total'] > 0.0001) {
         $origTotal = (float) $ret['orig_invoice_einv_total'];
@@ -342,10 +342,10 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
         $origTotal = einvoice_extract_taxinclusive_from_signed($pdo, $origInvId);
     }
     if ($origTotal <= 0.0001) {
-        $origTotal = einvoice_compute_invoice_xml_total($pdo, $origInvId, $retDecimals);
+        $origTotal = (float) ($ret['orig_invoice_total'] ?? 0);
     }
     if ($origTotal <= 0.0001) {
-        $origTotal = (float) ($ret['orig_invoice_total'] ?? 0);
+        $origTotal = einvoice_compute_invoice_xml_total($pdo, $origInvId, $retDecimals);
     }
 
     $invObj = (object) [
@@ -541,13 +541,17 @@ function einvoice_send_sale_return(
             || stripos($err, 'correct UUID and invoice number') !== false
             || stripos($err, 'invoice-persist') !== false
         ) {
+            $sentNo = (string) ($payload['inv']->original_invoice_no ?? '');
+            $sentUuid = (string) ($payload['inv']->original_invoice_uuid ?? '');
+            $sentAmt = einvoice_format_decimal((float) ($payload['inv']->original_full_amount ?? 0));
             $out['need_original_uuid'] = true;
             $out['need_original_invoice_no'] = true;
             $out['error'] =
-                'JoFotara رفضت الربط بين UUID ورقم الفاتورة. '
-                . 'يجب أن يكونا نفس القيم المسجّلة عند إرسال فاتورة البيع الأصلية على المنصة '
-                . '(رقم النظام الحالي: ' . (string) ($payload['raw']['orig_invoice_no'] ?? '') . '). '
-                . 'افتح الفاتورة في JoFotara وانسخ الرقم وUUID الظاهرين هناك.';
+                'JoFotara رفضت الربط. تأكد من القيم كما في المنصة بالضبط:'
+                . "\n• رقم الفاتورة الإلكترونية (مثال EIN00013) — أُرسل: " . $sentNo
+                . "\n• معرف الفاتورة UUID — أُرسل: " . $sentUuid
+                . "\n• قيمة الفاتورة الأصلية — أُرسل: " . $sentAmt
+                . "\nرقم النظام الداخلي " . (string) ($payload['raw']['orig_invoice_no'] ?? '') . ' لا يُستخدم في الربط.';
         }
 
         return $out;
