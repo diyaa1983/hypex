@@ -27,11 +27,13 @@ function sal_return_fetch_header(PDO $pdo, int $id): ?array
     $invUuidSelect = $hasInvoiceUuid ? ', i.invoice_uuid AS original_invoice_uuid' : '';
     $hasEinvInvUuid = einvoice_column_exists($pdo, 'sal_invoice', 'einv_inv_uuid');
     $invEinvUuidSelect = $hasEinvInvUuid ? ', i.einv_inv_uuid AS original_einv_inv_uuid' : '';
+    $hasEinvNum = einvoice_column_exists($pdo, 'sal_invoice', 'einv_num');
+    $invEinvNumSelect = $hasEinvNum ? ', i.einv_num AS original_einv_num' : '';
 
     $st = $pdo->prepare(
         'SELECT r.id, r.return_no, r.return_date, r.customer_id, r.invoice_id, r.warehouse_id,
                 r.subtotal, r.tax_amount, r.total, r.status, r.notes' . $einvCols . ',
-                c.name_ar AS customer_name, i.invoice_no, i.invoice_date' . $invQrSelect . $invUuidSelect . $invEinvUuidSelect . '
+                c.name_ar AS customer_name, i.invoice_no, i.invoice_date' . $invQrSelect . $invUuidSelect . $invEinvUuidSelect . $invEinvNumSelect . '
          FROM sal_return r
          INNER JOIN crm_customer c ON c.id = r.customer_id
          INNER JOIN sal_invoice i ON i.id = r.invoice_id
@@ -53,6 +55,10 @@ function sal_return_fetch_header(PDO $pdo, int $id): ?array
         $resolvedUuid = einvoice_resolve_sale_invoice_uuid($pdo, (int) ($row['invoice_id'] ?? 0));
         $row['original_invoice_uuid'] = $resolvedUuid;
         $row['needs_original_uuid'] = $resolvedUuid === '';
+        $einvNum = trim((string) ($row['original_einv_num'] ?? ''));
+        $row['original_invoice_no_for_einvoice'] = $einvNum !== ''
+            ? $einvNum
+            : trim((string) ($row['invoice_no'] ?? ''));
     }
 
     return is_array($row) ? $row : null;

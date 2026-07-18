@@ -96,6 +96,24 @@ function einvoice_save_sale_invoice_uuid(PDO $pdo, int $invoiceId, string $uuid)
     }
 }
 
+/** حفظ رقم الفاتورة كما في JoFotara (مثل EIN00013) لاستخدامه في المرتجعات. */
+function einvoice_save_sale_invoice_einv_num(PDO $pdo, int $invoiceId, string $einvNum): void
+{
+    $einvNum = trim($einvNum);
+    if ($invoiceId < 1 || $einvNum === '') {
+        return;
+    }
+    if (!einvoice_column_exists($pdo, 'sal_invoice', 'einv_num')) {
+        return;
+    }
+    try {
+        $pdo->prepare('UPDATE sal_invoice SET einv_num = ? WHERE id = ? AND (einv_num IS NULL OR einv_num = \'\')')
+            ->execute([$einvNum, $invoiceId]);
+    } catch (Throwable $e) {
+        //
+    }
+}
+
 /**
  * استخراج TaxInclusiveAmount من XML الموقَّع المُسَجَّل (للفواتير المُرسَلة سابقاً).
  * نَستخدمه كأدق مصدر لقيمة الفاتورة الأصلية المُسَجَّلة في JoFotara.
@@ -225,10 +243,12 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
     // بحيث يَتطابق مع القيمة الفعلية المُسَجَّلة للفاتورة الأصلية في JoFotara.
     $hasEinvTotal = einvoice_column_exists($pdo, 'sal_invoice', 'einv_total_amount');
     $einvTotalCol = $hasEinvTotal ? ', i.einv_total_amount AS orig_invoice_einv_total' : '';
+    $hasEinvNum = einvoice_column_exists($pdo, 'sal_invoice', 'einv_num');
+    $einvNumCol = $hasEinvNum ? ', i.einv_num AS orig_einv_num' : '';
     $st = $pdo->prepare(
         'SELECT r.*, c.name_ar AS customer_name, c.tax_number AS customer_vat,
                 i.invoice_no AS orig_invoice_no, i.invoice_uuid AS orig_invoice_uuid,
-                i.total AS orig_invoice_total, i.payment_type AS orig_payment_type' . $einvTotalCol . '
+                i.total AS orig_invoice_total, i.payment_type AS orig_payment_type' . $einvTotalCol . $einvNumCol . '
          FROM sal_return r
          INNER JOIN crm_customer c ON c.id = r.customer_id
          INNER JOIN sal_invoice  i ON i.id = r.invoice_id
@@ -341,7 +361,10 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
         'amount_decimals' => $retDecimals,
         // علامات إشعار دائن:
         'is_credit_note' => true,
-        'original_invoice_no' => (string) ($ret['orig_invoice_no'] ?? ''),
+        'original_invoice_no' => trim((string) (
+            (!empty($ret['orig_einv_num']) ? $ret['orig_einv_num'] : '')
+            ?: ($ret['orig_invoice_no'] ?? '')
+        )),
         'original_invoice_uuid' => einvoice_resolve_sale_invoice_uuid($pdo, $origInvId),
         'original_full_amount' => $origTotal,
         'return_reason' => (string) ($ret['reason_return'] ?? ($ret['notes'] ?? '')),
@@ -354,10 +377,16 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
  * إرسال إشعار دائن (إرجاع) للفوترة الإلكترونية.
  *
  * @param string $originalInvoiceUuid UUID الفاتورة الأصلية (إلزامي إن لم يكن مخزّناً — شائع للفواتير قبل نطاق المتابعة)
- * @return array{ok:bool, skipped:bool, error:?string, message:?string, http_code:?int, response:mixed, need_original_uuid?:bool}
+ * @param string $originalInvoiceNo رقم الفاتورة كما سُجّل في JoFotara (إن اختلف عن رقم النظام)
+ * @return array{ok:bool, skipped:bool, error:?string, message:?string, http_code:?int, response:mixed, need_original_uuid?:bool, need_original_invoice_no?:bool}
  */
-function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '', string $originalInvoiceUuid = ''): array
-{
+function einvoice_send_sale_return(
+    PDO $pdo,
+    int $returnId,
+    string $reason = '',
+    string $originalInvoiceUuid = '',
+    string $originalInvoiceNo = ''
+): array {
     $out = [
         'ok' => false,
         'skipped' => false,
@@ -366,6 +395,7 @@ function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '',
         'http_code' => null,
         'response' => null,
         'need_original_uuid' => false,
+        'need_original_invoice_no' => false,
     ];
     einvoice_ensure_schema($pdo);
 
@@ -448,6 +478,17 @@ function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '',
         return $out;
     }
     $payload['inv']->original_invoice_uuid = $origUuid;
+    $origNoOverride = trim($originalInvoiceNo);
+    if ($origNoOverride !== '') {
+        $payload['inv']->original_invoice_no = $origNoOverride;
+        einvoice_save_sale_invoice_einv_num($pdo, $invoiceId, $origNoOverride);
+    }
+    if (trim((string) ($payload['inv']->original_invoice_no ?? '')) === '') {
+        $out['need_original_invoice_no'] = true;
+        $out['error'] = 'رقم الفاتورة الأصلية مطلوب كما هو مسجّل في JoFotara.';
+
+        return $out;
+    }
 
     // التحقق من وجود سبب (إلزامي على JoFotara).
     if (trim((string) ($payload['inv']->return_reason ?? '')) === '') {
@@ -494,12 +535,19 @@ function einvoice_send_sale_return(PDO $pdo, int $returnId, string $reason = '',
         $out['error'] = $err;
         $out['http_code'] = isset($result['http_code']) ? (int) $result['http_code'] : null;
         $out['response'] = $result['response'] ?? null;
-        if (stripos($err, 'originalInvoiceUUID') !== false || stripos($err, 'Original invoice UUID') !== false) {
+        if (
+            stripos($err, 'originalInvoiceUUID') !== false
+            || stripos($err, 'Original invoice UUID') !== false
+            || stripos($err, 'correct UUID and invoice number') !== false
+            || stripos($err, 'invoice-persist') !== false
+        ) {
             $out['need_original_uuid'] = true;
+            $out['need_original_invoice_no'] = true;
             $out['error'] =
-                'UUID الفاتورة الأصلية مرفوض أو ناقص من JoFotara. '
-                . 'تأكد من إدخال نفس UUID الظاهر في منصة الفوترة للفاتورة ' .
-                (string) ($payload['inv']->original_invoice_no ?? '') . '.';
+                'JoFotara رفضت الربط بين UUID ورقم الفاتورة. '
+                . 'يجب أن يكونا نفس القيم المسجّلة عند إرسال فاتورة البيع الأصلية على المنصة '
+                . '(رقم النظام الحالي: ' . (string) ($payload['raw']['orig_invoice_no'] ?? '') . '). '
+                . 'افتح الفاتورة في JoFotara وانسخ الرقم وUUID الظاهرين هناك.';
         }
 
         return $out;

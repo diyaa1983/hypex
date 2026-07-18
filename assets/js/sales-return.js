@@ -67,6 +67,7 @@
   var originalInvoiceEinvSent = false;
   var originalInvoiceEinvNum = '';
   var originalInvoiceUuid = '';
+  var originalInvoiceNoForEinvoice = '';
   var needsOriginalInvoiceUuid = false;
   var recordIdInp = document.getElementById('ret_record_id');
   var tbody = document.getElementById('sales-ret-lines-body');
@@ -2047,6 +2048,12 @@
     );
     originalInvoiceEinvNum = ret && ret.invoice_einv_num ? String(ret.invoice_einv_num) : '';
     originalInvoiceUuid = ret && ret.original_invoice_uuid ? String(ret.original_invoice_uuid).trim() : '';
+    originalInvoiceNoForEinvoice =
+      ret && ret.original_invoice_no_for_einvoice
+        ? String(ret.original_invoice_no_for_einvoice).trim()
+        : ret && ret.invoice_no
+          ? String(ret.invoice_no).trim()
+          : '';
     needsOriginalInvoiceUuid = !!(ret && ret.needs_original_uuid) || originalInvoiceUuid === '';
     try {
       console.log('[einvoice-return] loadReturn flags', {
@@ -2282,6 +2289,7 @@
     originalInvoiceEinvSent = false;
     originalInvoiceEinvNum = '';
     originalInvoiceUuid = '';
+    originalInvoiceNoForEinvoice = '';
     needsOriginalInvoiceUuid = false;
     setCustomerId(0, true);
     resetInvoiceSelect('— اختر العميل أولًا —');
@@ -2613,50 +2621,93 @@
     }
     var needUuid = needsOriginalInvoiceUuid || !looksLikeUuid(originalInvoiceUuid);
     if (needUuid) {
-      promptOriginalInvoiceUuid(reason, retId);
+      promptOriginalInvoiceRefs(reason, retId, true);
       return;
     }
-    confirmAndSubmitReturnEinvoice(reason, retId, originalInvoiceUuid);
+    confirmAndSubmitReturnEinvoice(reason, retId, originalInvoiceUuid, originalInvoiceNoForEinvoice);
   }
 
-  function promptOriginalInvoiceUuid(reason, retId) {
-    var invNo =
-      lastLoadedReturn && lastLoadedReturn.invoice_no
-        ? String(lastLoadedReturn.invoice_no)
-        : '';
+  function promptOriginalInvoiceRefs(reason, retId, askUuid) {
+    var invNoDefault =
+      originalInvoiceNoForEinvoice ||
+      (lastLoadedReturn && lastLoadedReturn.invoice_no ? String(lastLoadedReturn.invoice_no) : '');
+    var uuidDefault = originalInvoiceUuid || '';
+
+    function askNo(uuidVal) {
+      var sysNo =
+        lastLoadedReturn && lastLoadedReturn.invoice_no
+          ? String(lastLoadedReturn.invoice_no)
+          : '';
+      var msgNo =
+        'أدخل رقم الفاتورة كما يظهر في منصة JoFotara' +
+        (sysNo ? ' (قد يختلف عن رقم النظام ' + sysNo + ')' : '') +
+        '.';
+      var afterNo = function (noVal) {
+        if (noVal === undefined || noVal === null) return;
+        noVal = String(noVal).trim();
+        if (noVal.length < 1) {
+          AppDialog.error('رقم الفاتورة مطلوب.');
+          return;
+        }
+        originalInvoiceNoForEinvoice = noVal;
+        confirmAndSubmitReturnEinvoice(reason, retId, uuidVal, noVal);
+      };
+      if (!window.AppDialog || typeof AppDialog.prompt !== 'function') {
+        afterNo(window.prompt(msgNo, invNoDefault));
+        return;
+      }
+      AppDialog.prompt(msgNo, {
+        title: 'رقم الفاتورة في JoFotara',
+        placeholder: invNoDefault || 'رقم الفاتورة',
+        value: invNoDefault,
+        okText: 'متابعة',
+      })
+        .then(afterNo)
+        .catch(function () {
+          AppDialog.error('تعذر فتح نافذة إدخال رقم الفاتورة.');
+        });
+    }
+
+    if (!askUuid && looksLikeUuid(uuidDefault)) {
+      askNo(uuidDefault);
+      return;
+    }
+
     var msg =
-      'أدخل UUID الفاتورة الأصلية' +
-      (invNo ? ' (' + invNo + ')' : '') +
-      '.\nمطلوب من JoFotara — انسخه من منصة الفوترة أو من XML/QR الفاتورة المُرسلة سابقاً.';
-    var promptOpts = {
-      title: 'UUID الفاتورة الأصلية',
-      placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-      value: originalInvoiceUuid || '',
-      okText: 'متابعة',
-    };
+      'أدخل UUID الفاتورة الأصلية من JoFotara.\nمثال: 86d0818a-3509-4641-8e92-10aa1865f11a';
     var afterPrompt = function (uuid) {
       if (uuid === undefined || uuid === null) return;
       uuid = String(uuid).trim();
       if (!looksLikeUuid(uuid)) {
-        AppDialog.error('صيغة UUID غير صحيحة. مثال: 550e8400-e29b-41d4-a716-446655440000');
+        AppDialog.error('صيغة UUID غير صحيحة.');
         return;
       }
       originalInvoiceUuid = uuid;
       needsOriginalInvoiceUuid = false;
-      confirmAndSubmitReturnEinvoice(reason, retId, uuid);
+      askNo(uuid);
     };
     if (!window.AppDialog || typeof AppDialog.prompt !== 'function') {
-      afterPrompt(window.prompt(msg, originalInvoiceUuid || ''));
+      afterPrompt(window.prompt(msg, uuidDefault));
       return;
     }
-    AppDialog.prompt(msg, promptOpts).then(afterPrompt).catch(function () {
-      AppDialog.error('تعذر فتح نافذة إدخال UUID.');
-    });
+    AppDialog.prompt(msg, {
+      title: 'UUID الفاتورة الأصلية',
+      placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+      value: uuidDefault,
+      okText: 'متابعة',
+    })
+      .then(afterPrompt)
+      .catch(function () {
+        AppDialog.error('تعذر فتح نافذة إدخال UUID.');
+      });
   }
 
-  function confirmAndSubmitReturnEinvoice(reason, retId, uuid) {
+  function confirmAndSubmitReturnEinvoice(reason, retId, uuid, invoiceNo) {
     AppDialog.confirm(
-      'هل تريد إكمال إرسال الإرجاع لنظام الفوترة الإلكترونية؟\n\nسبب الإرجاع: ' + reason,
+      'هل تريد إكمال إرسال الإرجاع لنظام الفوترة الإلكترونية؟\n\nسبب الإرجاع: ' +
+        reason +
+        (uuid ? '\nUUID: ' + uuid : '') +
+        (invoiceNo ? '\nرقم الفاتورة: ' + invoiceNo : ''),
       {
         title: 'تأكيد الإرجاع للفوترة',
         okText: 'نعم، إكمال الإرجاع',
@@ -2665,11 +2716,11 @@
       }
     ).then(function (ok) {
       if (!ok) return;
-      submitReturnEinvoice(reason, retId, uuid || '');
+      submitReturnEinvoice(reason, retId, uuid || '', invoiceNo || '');
     });
   }
 
-  function submitReturnEinvoice(reason, retId, originalUuid) {
+  function submitReturnEinvoice(reason, retId, originalUuid, originalNo) {
     var apiUrl = form.getAttribute('data-return-einvoice-url') || '';
     if (!apiUrl) {
       AppDialog.error('رابط API غير مهيأ.');
@@ -2683,8 +2734,11 @@
     if (originalUuid) {
       fd.append('original_invoice_uuid', String(originalUuid).trim());
     }
+    if (originalNo) {
+      fd.append('original_invoice_no', String(originalNo).trim());
+    }
     if (window.AppBusy) AppBusy.show('جاري إرسال المرتجع للفوترة...');
-    try { console.log('[einvoice-return] sending', { apiUrl: apiUrl, return_id: retId }); } catch (_e) {}
+    try { console.log('[einvoice-return] sending', { apiUrl: apiUrl, return_id: retId, originalNo: originalNo }); } catch (_e) {}
     fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
       .then(function (r) { return r.json().then(function (j) { return { status: r.status, data: j }; }); })
       .then(function (res) {
@@ -2694,10 +2748,10 @@
           var msg = data.error || 'تعذر إرسال الإرجاع للفوترة.';
           if (data.http_code) msg += ' (HTTP ' + data.http_code + ')';
           try { if (data.response) console.warn('JoFotara return response:', data.response); } catch (_e) {}
-          if (data.need_original_uuid) {
-            needsOriginalInvoiceUuid = true;
+          if (data.need_original_uuid || data.need_original_invoice_no) {
+            needsOriginalInvoiceUuid = !!data.need_original_uuid;
             AppDialog.error(msg).then(function () {
-              promptOriginalInvoiceUuid(reason, retId);
+              promptOriginalInvoiceRefs(reason, retId, !!data.need_original_uuid);
             });
             return;
           }
