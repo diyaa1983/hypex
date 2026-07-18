@@ -67,6 +67,11 @@
     true
   );
 
+  window.addEventListener('DOMContentLoaded', hideProgress);
   window.addEventListener('pageshow', hideProgress);
   window.addEventListener('load', hideProgress);
+  // إن بقي الشريط عالقاً بعد فتح الصفحة (موارد بطيئة)، أخفه بعد مهلة قصيرة
+  window.addEventListener('DOMContentLoaded', function () {
+    setTimeout(hideProgress, 1200);
+  });
 })();

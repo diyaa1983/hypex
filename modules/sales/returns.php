@@ -72,45 +72,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'save
 $flash = flash_get();
 $customers = $pdo->query('SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar')->fetchAll();
 
-/** فواتير مؤكدة مجمّعة حسب العميل — تُحمَّل مع الصفحة دون انتظار AJAX */
+/**
+ * لا نحمّل فواتير/بنود كل العملاء مع الصفحة (كان يبطّئ الفتح ويُبقي شريط التحميل).
+ * تُجلب عبر AJAX عند اختيار العميل/الفاتورة.
+ */
 $invoicesByCustomer = [];
 $linesByInvoice = [];
-require_once app_path('includes/sal_invoice_post.php');
-require_once app_path('includes/sal_return_invoice_lines.php');
-$invRows = $pdo->query(
-    "SELECT i.id, i.invoice_no, i.invoice_date, i.total, i.customer_id
-     FROM sal_invoice i
-     WHERE i.status = 'confirmed'
-     ORDER BY i.invoice_date DESC, i.id DESC
-     LIMIT 500"
-)->fetchAll(PDO::FETCH_ASSOC) ?: [];
-foreach ($invRows as $row) {
-    $cid = (int) ($row['customer_id'] ?? 0);
-    $iid = (int) ($row['id'] ?? 0);
-    if ($cid < 1 || $iid < 1) {
-        continue;
-    }
-    if (!sal_invoice_is_posted($pdo, $iid)) {
-        continue;
-    }
-    $returnLines = sal_return_fetch_invoice_lines($pdo, $iid);
-    if ($returnLines === []) {
-        continue;
-    }
-    unset($row['customer_id']);
-    $row['invoice_date'] = format_date_dmY((string) ($row['invoice_date'] ?? ''));
-    $row['is_posted'] = 1;
-    $invoicesByCustomer[$cid][] = $row;
-    $linesByInvoice[$iid] = $returnLines;
-}
-$invoicesByCustomerJson = json_encode($invoicesByCustomer, JSON_UNESCAPED_UNICODE);
-if ($invoicesByCustomerJson === false) {
-    $invoicesByCustomerJson = '{}';
-}
-$linesByInvoiceJson = json_encode($linesByInvoice, JSON_UNESCAPED_UNICODE);
-if ($linesByInvoiceJson === false) {
-    $linesByInvoiceJson = '{}';
-}
+$invoicesByCustomerJson = '{}';
+$linesByInvoiceJson = '{}';
 
 $dp = company_decimal_places($pdo);
 $today = date('Y-m-d');
@@ -443,11 +412,16 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
       var h = document.getElementById('ret_customer');
       custId = h && h.value ? String(h.value) : '';
     }
-    fillInvoices(custId);
-    var invSel = document.getElementById('ret_invoice');
-    if (invSel) {
-      invSel.value = '';
-      w.SalesRetPickInvoice(invSel);
+    // الجلب عبر AJAX من sales-return.js (لا نعتمد على بيانات مضمّنة ثقيلة)
+    if (typeof w.SalesRetLoadInvoices === 'function') {
+      w.SalesRetLoadInvoices(custId);
+    } else {
+      fillInvoices(custId);
+      var invSel = document.getElementById('ret_invoice');
+      if (invSel) {
+        invSel.value = '';
+        w.SalesRetPickInvoice(invSel);
+      }
     }
     try {
       document.dispatchEvent(new CustomEvent('sales-ret-customer-picked', { detail: { customerId: custId } }));
@@ -463,14 +437,14 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
       posted = opt.getAttribute('data-posted') === '1';
     }
     if (!iid) {
-      if (w.SalesRetLoadCatalog) {
+      if (typeof w.SalesRetClearCatalog === 'function') {
+        w.SalesRetClearCatalog();
+      } else if (w.SalesRetLoadCatalog) {
         w.SalesRetLoadCatalog([]);
-      } else if (w.SalesRetPopulateInvoiceLines) {
-        w.SalesRetPopulateInvoiceLines([]);
       }
       try {
         document.dispatchEvent(
-          new CustomEvent('sales-ret-invoice-picked', { detail: { invoiceId: '', lines: [], fetched: true } })
+          new CustomEvent('sales-ret-invoice-picked', { detail: { invoiceId: '', lines: [], fetched: true, cleared: true } })
         );
       } catch (e) {}
       return;
@@ -481,10 +455,10 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
         hint.textContent =
           'لا يمكن إرجاع إلا فواتير مرحّلة. اختر فاتورة من القائمة أو رحّل الفاتورة من «ترحيل فواتير المبيعات».';
       }
-      if (w.SalesRetLoadCatalog) {
+      if (typeof w.SalesRetClearCatalog === 'function') {
+        w.SalesRetClearCatalog('لا يمكن إرجاع إلا فواتير مرحّلة.');
+      } else if (w.SalesRetLoadCatalog) {
         w.SalesRetLoadCatalog([]);
-      } else if (w.SalesRetPopulateInvoiceLines) {
-        w.SalesRetPopulateInvoiceLines([]);
       }
       try {
         document.dispatchEvent(
@@ -495,7 +469,7 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
       } catch (e) {}
       return;
     }
-    // مواد الفاتورة قد لا تكون مضمّنة في الصفحة — جلبها من الخادم عند الحاجة
+    // مواد الفاتورة تُجلب من الخادم عند غيابها من الذاكرة
     if (!lines.length) {
       var hintLoad = document.getElementById('sales-ret-hint');
       if (hintLoad) {

@@ -70,6 +70,7 @@
   var tbody = document.getElementById('sales-ret-lines-body');
   var linesJson = document.getElementById('sales-ret-lines-json');
   var hint = document.getElementById('sales-ret-hint');
+  var defaultHintHtml = hint ? hint.innerHTML : '';
   var lineTpl = document.getElementById('sales-ret-line-template');
   var picker = document.getElementById('sales-ret-picker');
   var pickerSearch = document.getElementById('sales-ret-picker-search');
@@ -1283,32 +1284,38 @@
 
     var embedded = getEmbeddedInvoices(customerId);
     if (embedded && !options.forceFetch && embedded.length > 0) {
-      if (!options.keepLines && typeof window.SalesRetPickCustomer === 'function' && customerSel) {
-        window.SalesRetPickCustomer(customerSel);
-        if (selectedInvoiceId) {
-          invoiceSel.value = String(selectedInvoiceId);
+      invoiceSel.innerHTML = '';
+      var phEmb0 = document.createElement('option');
+      phEmb0.value = '';
+      phEmb0.textContent = '— اختر فاتورة —';
+      invoiceSel.appendChild(phEmb0);
+      embedded.forEach(function (inv) {
+        var o = document.createElement('option');
+        o.value = String(inv.id);
+        var posted = inv.is_posted === 1 || inv.is_posted === true || inv.is_posted === '1';
+        o.textContent =
+          (inv.invoice_no || '#' + inv.id) +
+          ' — ' +
+          fmtDate(inv.invoice_date || '') +
+          ' (' +
+          fmt(inv.total) +
+          ')';
+        o.dataset.posted = posted ? '1' : '0';
+        if (selectedInvoiceId && String(inv.id) === String(selectedInvoiceId)) {
+          o.selected = true;
         }
-      } else if (options.keepLines && invoiceSel) {
-        var listEmb = embedded;
-        invoiceSel.innerHTML = '';
-        var phEmb = document.createElement('option');
-        phEmb.value = '';
-        phEmb.textContent = '— اختر فاتورة —';
-        invoiceSel.appendChild(phEmb);
-        listEmb.forEach(function (inv) {
-          var o = document.createElement('option');
-          o.value = String(inv.id);
-          o.textContent =
-            (inv.invoice_no || '#' + inv.id) + ' — ' + fmtDate(inv.invoice_date || '');
-          if (selectedInvoiceId && String(inv.id) === String(selectedInvoiceId)) {
-            o.selected = true;
-          }
-          invoiceSel.appendChild(o);
-        });
+        invoiceSel.appendChild(o);
+      });
+      if (options.keepLines) {
         invoiceSel.disabled = true;
+      } else {
+        invoiceSel.disabled = false;
+        invoiceSel.removeAttribute('disabled');
       }
       if (selectedInvoiceId && invoiceSel.value && !options.skipCatalog) {
         loadCatalogLines(invoiceSel.value, customerId);
+      } else if (!options.skipCatalog) {
+        setHint('اختر فاتورة البيع ثم حدّد ☑ المواد المراد إرجاعها.');
       }
       if (options.onReady) options.onReady({ ok: true, invoices: embedded });
       return Promise.resolve({ ok: true, invoices: embedded });
@@ -1374,15 +1381,39 @@
     if (!cid) {
       resetInvoiceSelect('— اختر العميل أولًا —');
       clearLines();
+      if (hint && defaultHintHtml) {
+        hint.innerHTML = defaultHintHtml;
+      }
       return;
     }
     clearLines();
-    if (typeof window.SalesRetPickCustomer === 'function') {
-      window.SalesRetPickCustomer(customerSel);
-      return;
-    }
     loadInvoices(cid);
   }
+
+  window.SalesRetLoadInvoices = function (customerId) {
+    if (isSavedMode) return;
+    var cid = customerId != null ? String(customerId) : '';
+    if (!cid) {
+      resetInvoiceSelect('— اختر العميل أولًا —');
+      clearLines();
+      return;
+    }
+    loadInvoices(cid, null, { forceFetch: true });
+  };
+
+  window.SalesRetClearCatalog = function (hintMsg) {
+    if (isSavedMode) return;
+    availableLines = [];
+    if (tbody) tbody.innerHTML = '';
+    recalcFooter();
+    syncJson();
+    updatePickAllState();
+    if (hintMsg) {
+      setHint(hintMsg);
+    } else if (hint && defaultHintHtml) {
+      hint.innerHTML = defaultHintHtml;
+    }
+  };
 
   function applySavedReturnLines(ret) {
     clearLines();
@@ -2204,8 +2235,6 @@
     form.submit();
   }
 
-  var defaultHintHtml = hint ? hint.innerHTML : '';
-
   function updateReturnHistory() {
     if (!window.history || !window.history.replaceState) return;
     var base = newReturnUrl || window.location.pathname + '?r=sales_returns';
@@ -2346,7 +2375,7 @@
   document.addEventListener('sales-ret-invoice-picked', function (e) {
     if (isSavedMode || !e.detail) return;
     // عند fetched:false يتم الجلب عبر SalesRetFetchCatalog — لا تفرّغ الجدول هنا
-    if (e.detail.fetched === false) return;
+    if (e.detail.fetched === false || e.detail.cleared) return;
     populateInvoiceLines(e.detail.lines || []);
   });
 
