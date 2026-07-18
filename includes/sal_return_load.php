@@ -55,8 +55,11 @@ function sal_return_fetch_header(PDO $pdo, int $id): ?array
         $resolvedUuid = einvoice_resolve_sale_invoice_uuid($pdo, (int) ($row['invoice_id'] ?? 0));
         $row['original_invoice_uuid'] = $resolvedUuid;
         $row['needs_original_uuid'] = $resolvedUuid === '';
-        // للربط: رقم النظام كما في cbc:ID الأصلي (ليس EINV_NUM).
-        $row['original_invoice_no_for_einvoice'] = trim((string) ($row['invoice_no'] ?? ''));
+        $einvNum = trim((string) ($row['original_einv_num'] ?? $row['invoice_einv_num'] ?? ''));
+        $row['original_invoice_no_for_einvoice'] = $einvNum !== ''
+            ? $einvNum
+            : trim((string) ($row['invoice_no'] ?? ''));
+        $row['original_system_invoice_no'] = trim((string) ($row['invoice_no'] ?? ''));
     }
 
     return is_array($row) ? $row : null;

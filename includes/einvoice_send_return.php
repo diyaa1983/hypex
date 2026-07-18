@@ -103,8 +103,7 @@ function einvoice_looks_like_einv_num(string $value): bool
 }
 
 /**
- * حفظ EINV_NUM فقط (مثل EIN00013). لا تحفظ رقم النظام هنا —
- * رقم النظام يُستخدم في BillingReference.cbc:ID.
+ * حفظ EINV_NUM (مثل EIN00013) للفاتورة — يُحدَّث عند إدخال المستخدم.
  */
 function einvoice_save_sale_invoice_einv_num(PDO $pdo, int $invoiceId, string $einvNum): void
 {
@@ -116,7 +115,7 @@ function einvoice_save_sale_invoice_einv_num(PDO $pdo, int $invoiceId, string $e
         return;
     }
     try {
-        $pdo->prepare('UPDATE sal_invoice SET einv_num = ? WHERE id = ? AND (einv_num IS NULL OR einv_num = \'\')')
+        $pdo->prepare('UPDATE sal_invoice SET einv_num = ? WHERE id = ?')
             ->execute([$einvNum, $invoiceId]);
     } catch (Throwable $e) {
         //
@@ -134,9 +133,8 @@ function einvoice_is_billing_reference_link_error(string $err): bool
 
 /**
  * مرشّحو BillingReference.cbc:ID بالترتيب:
- * 1) رقم النظام (ما يُرسل عادة في cbc:ID الأصلي)
- * 2) أي رقم مُمرَّر من المستخدم
- * 3) EINV_NUM المخزَّن (محاولة أخيرة فقط)
+ * 1) رقم JoFotara المُمرَّر/المخزَّن (مثل EIN00013) إن وُجد
+ * 2) رقم النظام (مثل 013-2026)
  *
  * @return list<string>
  */
@@ -147,11 +145,25 @@ function einvoice_billing_reference_id_candidates(
 ): array {
     $out = [];
     $seen = [];
-    foreach ([$systemInvoiceNo, $overrideNo, $storedEinvNum] as $cand) {
+    // EIN أولاً إن أكّد المستخدم أنه رقم الفوترة الأصلي.
+    $ordered = [];
+    foreach ([$overrideNo, $storedEinvNum, $systemInvoiceNo] as $cand) {
         $cand = trim($cand);
         if ($cand === '') {
             continue;
         }
+        if (einvoice_looks_like_einv_num($cand)) {
+            $ordered[] = $cand;
+        }
+    }
+    foreach ([$overrideNo, $systemInvoiceNo, $storedEinvNum] as $cand) {
+        $cand = trim($cand);
+        if ($cand === '' || einvoice_looks_like_einv_num($cand)) {
+            continue;
+        }
+        $ordered[] = $cand;
+    }
+    foreach ($ordered as $cand) {
         $key = strtolower($cand);
         if (isset($seen[$key])) {
             continue;
@@ -640,13 +652,11 @@ function einvoice_send_sale_return(
         $out['need_original_uuid'] = true;
         $out['need_original_invoice_no'] = true;
         $out['error'] =
-            'JoFotara رفضت الربط. الرقم في BillingReference يجب أن يطابق cbc:ID الأصلي '
-            . '(عادة رقم النظام مثل ' . ($sysNo !== '' ? $sysNo : '013-2026')
-            . ') مع نفس UUID وإجمالي الفاتورة — وليس بالضرورة رقم EIN.'
+            'JoFotara رفضت الربط. يجب أن يتطابق رقم الفاتورة + UUID + الإجمالي مع الفاتورة الأصلية في نفس حساب API.'
             . "\n• أرقام جُرّبت: " . implode(' ، ', $triedNos)
             . "\n• UUID: " . $sentUuid
             . "\n• قيمة الفاتورة الأصلية: " . $sentAmt
-            . "\nتأكد أيضاً أن Client-Id في الإعدادات هو نفس حساب النظام الذي أرسل الفاتورة الأصلية.";
+            . "\nإن كان رقم الفوترة EIN00013 فتأكد أنه ضمن الأرقام المُجرَّبة، وأن Client-Id مطابق لحساب الإرسال الأصلي.";
     }
 
     return $out;
