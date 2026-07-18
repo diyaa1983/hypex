@@ -30,6 +30,7 @@ $returnId = (int) ($_POST['return_id'] ?? 0);
 $reason = trim((string) ($_POST['reason'] ?? ''));
 $originalInvoiceUuid = trim((string) ($_POST['original_invoice_uuid'] ?? ''));
 $originalInvoiceNo = trim((string) ($_POST['original_invoice_no'] ?? ''));
+$originalFullAmount = trim((string) ($_POST['original_full_amount'] ?? ''));
 if ($returnId < 1) {
     http_response_code(400);
     echo json_encode(['ok' => false, 'error' => 'لم يُحدَّد مرتجع.'], JSON_UNESCAPED_UNICODE);
@@ -47,7 +48,14 @@ einvoice_ensure_schema($pdo);
 
 try {
     $pdo->beginTransaction();
-    $result = einvoice_send_sale_return($pdo, $returnId, $reason, $originalInvoiceUuid, $originalInvoiceNo);
+    $result = einvoice_send_sale_return(
+        $pdo,
+        $returnId,
+        $reason,
+        $originalInvoiceUuid,
+        $originalInvoiceNo,
+        $originalFullAmount
+    );
     if ($result['error'] !== null) {
         $pdo->commit(); // نحفظ einv_results للتشخيص رغم الفشل
         echo json_encode([

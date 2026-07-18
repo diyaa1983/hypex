@@ -396,28 +396,33 @@ function einvoice_generate_ubl_invoice(object $inv, array $items, object $custom
     $xml = '<?xml version="1.0" encoding="UTF-8"?>';
     $xml .= '<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">';
     $xml .= '<cbc:UBLVersionID>2.1</cbc:UBLVersionID>';
+    // ProfileID كما في نظام Galaxy السابق — مطلوب لبعض عمليات التحقق في JoFotara.
+    $xml .= '<cbc:ProfileID>reporting:1.0</cbc:ProfileID>';
     $xml .= '<cbc:ID>' . htmlspecialchars((string) $inv->reference_no, ENT_XML1) . '</cbc:ID>';
     $xml .= '<cbc:UUID>' . htmlspecialchars((string) $uuid, ENT_XML1) . '</cbc:UUID>';
     $issueDate = date('Y-m-d', strtotime((string) $inv->date) ?: time());
     $xml .= '<cbc:IssueDate>' . $issueDate . '</cbc:IssueDate>';
     $xml .= '<cbc:InvoiceTypeCode name="' . htmlspecialchars($invoiceCode, ENT_XML1) . '">' . $invoiceTypeCode . '</cbc:InvoiceTypeCode>';
     $invoiceNote = trim((string) ($inv->note ?? ''));
-    if ($invoiceNote !== '') {
+    // Galaxy يرسل Note دائماً (حتى لو فارغاً) في إشعارات الدائن.
+    if ($isCreditNote || $invoiceNote !== '') {
         $xml .= '<cbc:Note>' . htmlspecialchars($invoiceNote, ENT_XML1) . '</cbc:Note>';
     }
     $xml .= '<cbc:DocumentCurrencyCode>JOD</cbc:DocumentCurrencyCode>';
     $xml .= '<cbc:TaxCurrencyCode>JOD</cbc:TaxCurrencyCode>';
     if ($isCreditNote) {
         // BillingReference يربط إشعار الدائن بالفاتورة الأصلية في نظام الفوترة.
-        // نَستخدم نَفس عدد الخانات العشرية المُستخدمة في XML (مَأخوذة من amount_decimals)
-        // ليَتطابق DocumentDescription مع TaxInclusiveAmount المُسَجَّل في JoFotara بدقة.
+        // DocumentDescription يجب أن يطابق قيمة الفاتورة الأصلية كما سُجّلت (غالباً بدون خانات زائدة).
         $origNo = (string) ($inv->original_invoice_no ?? '');
         $origUuid = (string) ($inv->original_invoice_uuid ?? '');
-        $origFull = (float) ($inv->original_full_amount ?? 0);
+        $origFullRaw = (string) ($inv->original_full_amount_raw ?? '');
+        if ($origFullRaw === '') {
+            $origFullRaw = einvoice_format_decimal((float) ($inv->original_full_amount ?? 0));
+        }
         $xml .= '<cac:BillingReference><cac:InvoiceDocumentReference>'
             . '<cbc:ID>' . htmlspecialchars($origNo, ENT_XML1) . '</cbc:ID>'
             . '<cbc:UUID>' . htmlspecialchars($origUuid, ENT_XML1) . '</cbc:UUID>'
-            . '<cbc:DocumentDescription>' . einvoice_format_decimal($origFull) . '</cbc:DocumentDescription>'
+            . '<cbc:DocumentDescription>' . htmlspecialchars($origFullRaw, ENT_XML1) . '</cbc:DocumentDescription>'
             . '</cac:InvoiceDocumentReference></cac:BillingReference>';
     }
     $xml .= '<cac:AdditionalDocumentReference><cbc:ID>ICV</cbc:ID><cbc:UUID>' . htmlspecialchars($icv, ENT_XML1) . '</cbc:UUID></cac:AdditionalDocumentReference>';

@@ -89,7 +89,7 @@ function einvoice_save_sale_invoice_uuid(PDO $pdo, int $invoiceId, string $uuid)
         return;
     }
     try {
-        $pdo->prepare('UPDATE sal_invoice SET invoice_uuid = ? WHERE id = ? AND (invoice_uuid IS NULL OR invoice_uuid = \'\')')
+        $pdo->prepare('UPDATE sal_invoice SET invoice_uuid = ? WHERE id = ?')
             ->execute([$uuid, $invoiceId]);
     } catch (Throwable $e) {
         //
@@ -145,7 +145,6 @@ function einvoice_billing_reference_id_candidates(
 ): array {
     $out = [];
     $seen = [];
-    // EIN أولاً إن أكّد المستخدم أنه رقم الفوترة الأصلي.
     $ordered = [];
     foreach ([$overrideNo, $storedEinvNum, $systemInvoiceNo] as $cand) {
         $cand = trim($cand);
@@ -170,6 +169,43 @@ function einvoice_billing_reference_id_candidates(
         }
         $seen[$key] = true;
         $out[] = $cand;
+    }
+
+    return $out;
+}
+
+/**
+ * صيغ DocumentDescription المحتملة — Galaxy كان يرسل الرقم بدون إجبار 3 خانات.
+ *
+ * @return list<string>
+ */
+function einvoice_billing_reference_amount_candidates(float $amount, string $override = ''): array
+{
+    $out = [];
+    $seen = [];
+    $add = static function (string $s) use (&$out, &$seen): void {
+        $s = trim(str_replace(',', '', $s));
+        if ($s === '' || isset($seen[$s])) {
+            return;
+        }
+        $seen[$s] = true;
+        $out[] = $s;
+    };
+
+    $override = trim(str_replace(',', '', $override));
+    if ($override !== '') {
+        $add($override);
+    }
+    if ($amount > 0) {
+        // صيغة Galaxy الشائعة للأرقام الصحيحة: "1750"
+        if (abs($amount - round($amount)) < 0.0000001) {
+            $add((string) (int) round($amount));
+        }
+        $add(einvoice_format_decimal($amount, 3));
+        $add(rtrim(rtrim(einvoice_format_decimal($amount, 9), '0'), '.') ?: '0');
+        $add(einvoice_format_decimal($amount, 9));
+        $add(einvoice_format_decimal($amount, 2));
+        $add(einvoice_format_decimal($amount, 5));
     }
 
     return $out;
@@ -440,6 +476,7 @@ function einvoice_load_sale_return_payload(PDO $pdo, int $returnId): ?array
  *
  * @param string $originalInvoiceUuid UUID الفاتورة الأصلية (إلزامي إن لم يكن مخزّناً — شائع للفواتير قبل نطاق المتابعة)
  * @param string $originalInvoiceNo رقم الفاتورة كما سُجّل في JoFotara (إن اختلف عن رقم النظام)
+ * @param string $originalFullAmountOverride قيمة الفاتورة الأصلية كما في المنصة (اختياري)
  * @return array{ok:bool, skipped:bool, error:?string, message:?string, http_code:?int, response:mixed, need_original_uuid?:bool, need_original_invoice_no?:bool}
  */
 function einvoice_send_sale_return(
@@ -447,7 +484,8 @@ function einvoice_send_sale_return(
     int $returnId,
     string $reason = '',
     string $originalInvoiceUuid = '',
-    string $originalInvoiceNo = ''
+    string $originalInvoiceNo = '',
+    string $originalFullAmountOverride = ''
 ): array {
     $out = [
         'ok' => false,
@@ -579,11 +617,16 @@ function einvoice_send_sale_return(
     }
 
     $code = einvoice_resolve_type_code($settings, (string) ($payload['raw']['orig_payment_type'] ?? 'cash'));
+    $altCode = einvoice_resolve_type_code($settings, ((string) ($payload['raw']['orig_payment_type'] ?? 'cash')) === 'credit' ? 'cash' : 'credit');
+    $typeCodes = array_values(array_unique([$code, $altCode]));
     $taxesType = (int) ($settings['taxes_type'] ?? 2);
+
+    $baseAmount = (float) ($payload['inv']->original_full_amount ?? 0);
+    $amountCandidates = einvoice_billing_reference_amount_candidates($baseAmount, $originalFullAmountOverride);
 
     set_time_limit(300);
 
-    $triedNos = [];
+    $triedCombos = [];
     $lastErr = '';
     $lastHttp = null;
     $lastResponse = null;
@@ -593,53 +636,70 @@ function einvoice_send_sale_return(
     }
 
     foreach ($idCandidates as $candidateNo) {
-        $payload['inv']->original_invoice_no = $candidateNo;
-        $triedNos[] = $candidateNo;
-        $xml = einvoice_generate_ubl_invoice(
-            $payload['inv'],
-            $payload['lines'],
-            $payload['customer'],
-            $payload['biller'],
-            $code,
-            $taxesType
-        );
+        foreach ($amountCandidates as $amountRaw) {
+            foreach ($typeCodes as $tryCode) {
+                $payload['inv']->original_invoice_no = $candidateNo;
+                $payload['inv']->original_full_amount = (float) $amountRaw;
+                $payload['inv']->original_full_amount_raw = $amountRaw;
+                $combo = $candidateNo . ' @ ' . $amountRaw . ' / ' . $tryCode;
+                $triedCombos[] = $combo;
 
-        try {
-            @file_put_contents(
-                $logDir . DIRECTORY_SEPARATOR . 'einvoice-return-last-' . $returnId . '.xml',
-                $xml
-            );
-        } catch (Throwable $e) {
-            // ignore
-        }
+                $xml = einvoice_generate_ubl_invoice(
+                    $payload['inv'],
+                    $payload['lines'],
+                    $payload['customer'],
+                    $payload['biller'],
+                    $tryCode,
+                    $taxesType
+                );
 
-        $result = einvoice_send_request_to_api($pdo, ['invoice' => base64_encode($xml)], $returnId, 'sal_return');
+                try {
+                    @file_put_contents(
+                        $logDir . DIRECTORY_SEPARATOR . 'einvoice-return-last-' . $returnId . '.xml',
+                        $xml
+                    );
+                } catch (Throwable $e) {
+                    // ignore
+                }
 
-        if (!(is_array($result) && isset($result['error']))) {
-            if (!einvoice_return_is_sent($pdo, $returnId)) {
-                $out['error'] = 'لم يُستلم رمز QR من نظام الفوترة. راجع einv_results.';
+                $result = einvoice_send_request_to_api(
+                    $pdo,
+                    ['invoice' => base64_encode($xml)],
+                    $returnId,
+                    'sal_return'
+                );
 
-                return $out;
+                if (!(is_array($result) && isset($result['error']))) {
+                    if (!einvoice_return_is_sent($pdo, $returnId)) {
+                        $out['error'] = 'لم يُستلم رمز QR من نظام الفوترة. راجع einv_results.';
+
+                        return $out;
+                    }
+                    einvoice_save_sale_invoice_uuid($pdo, $invoiceId, $origUuid);
+                    if (einvoice_looks_like_einv_num($candidateNo)) {
+                        einvoice_save_sale_invoice_einv_num($pdo, $invoiceId, $candidateNo);
+                    }
+                    $out['ok'] = true;
+                    $row = einvoice_return_status_row($pdo, $returnId);
+                    $out['message'] = 'تم إرسال الإرجاع لنظام الفوترة بنجاح.'
+                        . ($row && !empty($row['einv_num']) ? ' رقم الإرجاع في الفوترة: ' . $row['einv_num'] : '')
+                        . ' (ربط: ' . $combo . ')';
+
+                    return $out;
+                }
+
+                $lastErr = (string) $result['error'];
+                $lastHttp = isset($result['http_code']) ? (int) $result['http_code'] : null;
+                $lastResponse = $result['response'] ?? null;
+                if (!einvoice_is_billing_reference_link_error($lastErr)) {
+                    // خطأ غير مرتبط بالربط — أوقف كل المحاولات.
+                    $out['error'] = $lastErr;
+                    $out['http_code'] = $lastHttp;
+                    $out['response'] = $lastResponse;
+
+                    return $out;
+                }
             }
-            einvoice_save_sale_invoice_uuid($pdo, $invoiceId, $origUuid);
-            if (einvoice_looks_like_einv_num($candidateNo)) {
-                einvoice_save_sale_invoice_einv_num($pdo, $invoiceId, $candidateNo);
-            }
-            $out['ok'] = true;
-            $row = einvoice_return_status_row($pdo, $returnId);
-            $out['message'] = 'تم إرسال الإرجاع لنظام الفوترة بنجاح.'
-                . ($row && !empty($row['einv_num']) ? ' رقم الإرجاع في الفوترة: ' . $row['einv_num'] : '')
-                . ' (ربط برقم: ' . $candidateNo . ')';
-
-            return $out;
-        }
-
-        $lastErr = (string) $result['error'];
-        $lastHttp = isset($result['http_code']) ? (int) $result['http_code'] : null;
-        $lastResponse = $result['response'] ?? null;
-        // أعد المحاولة برقم بديل فقط عند رفض الربط؛ غير ذلك أوقف فوراً.
-        if (!einvoice_is_billing_reference_link_error($lastErr)) {
-            break;
         }
     }
 
@@ -648,15 +708,15 @@ function einvoice_send_sale_return(
     $out['response'] = $lastResponse;
     if (einvoice_is_billing_reference_link_error($lastErr)) {
         $sentUuid = (string) ($payload['inv']->original_invoice_uuid ?? '');
-        $sentAmt = einvoice_format_decimal((float) ($payload['inv']->original_full_amount ?? 0));
         $out['need_original_uuid'] = true;
         $out['need_original_invoice_no'] = true;
         $out['error'] =
-            'JoFotara رفضت الربط. يجب أن يتطابق رقم الفاتورة + UUID + الإجمالي مع الفاتورة الأصلية في نفس حساب API.'
-            . "\n• أرقام جُرّبت: " . implode(' ، ', $triedNos)
+            'JoFotara رفضت الربط رغم تجربة عدة صيغ.'
             . "\n• UUID: " . $sentUuid
-            . "\n• قيمة الفاتورة الأصلية: " . $sentAmt
-            . "\nإن كان رقم الفوترة EIN00013 فتأكد أنه ضمن الأرقام المُجرَّبة، وأن Client-Id مطابق لحساب الإرسال الأصلي.";
+            . "\n• محاولات: " . implode(' | ', array_slice($triedCombos, 0, 12))
+            . (count($triedCombos) > 12 ? ' …' : '')
+            . "\nافتح الفاتورة EIN00013 في منصة JoFotara وانسخ حرفياً: الرقم + UUID + قيمة الفاتورة."
+            . "\nإن استمر الرفض فغالباً الفاتورة أُرسلت بحساب API مختلف عن Client-Id الحالي.";
     }
 
     return $out;
