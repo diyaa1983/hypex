@@ -179,7 +179,20 @@ $appHeaderUiJsV = is_file(app_path('assets/js/app-header-ui.js'))
     </script>
     <script src="<?= esc(app_url('assets/js/app-busy.js')) ?><?= $appBusyJsV !== '' ? '?v=' . esc($appBusyJsV) : '' ?>" defer></script>
 </head>
-<body class="app-body<?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
+<?php
+require_once app_path('includes/sys_favorites.php');
+$favRouteAllowed = sys_favorites_route_allowed($activeRoute);
+$favIsFavorite = false;
+if ($favRouteAllowed) {
+    try {
+        $favUid = (int) ($user['id'] ?? 0);
+        $favIsFavorite = $favUid > 0 && sys_favorites_is_favorite(db(), $favUid, $activeRoute);
+    } catch (Throwable $e) {
+        $favIsFavorite = false;
+    }
+}
+?>
+<body class="app-body<?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?> data-active-route="<?= esc($activeRoute) ?>" data-csrf="<?= esc(csrf_token()) ?>" data-fav-api="<?= esc(app_url('api/favorite_toggle.php')) ?>" data-fav-allowed="<?= $favRouteAllowed ? '1' : '0' ?>" data-is-favorite="<?= $favIsFavorite ? '1' : '0' ?>">
 <?php render_app_titlebar($tabPageTitle, (string) $routeTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? '')); ?>
 <div class="app-shell<?= $layoutFocus ? ' app-shell--focus' : '' ?>">
 <?php if ($layoutFocus): ?>
@@ -276,13 +289,11 @@ app_busy_render_overlay();
 })();
 </script>
 <script src="<?= esc(app_url('assets/js/app-format.js')) ?><?= $appFormatJsV !== '' ? '?v=' . esc($appFormatJsV) : '' ?>" defer></script>
-<?php if (!$layoutFocus): ?>
 <?php
 $favJsPath = app_path('assets/js/favorites.js');
 $favJsV = is_file($favJsPath) ? (string) filemtime($favJsPath) : '';
 ?>
 <script src="<?= esc(app_url('assets/js/favorites.js')) ?><?= $favJsV !== '' ? '?v=' . esc($favJsV) : '' ?>" defer></script>
-<?php endif; ?>
 <?php
 $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
     ? (string) filemtime(app_path('assets/js/app-decimal-sync.js'))

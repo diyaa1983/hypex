@@ -10,23 +10,24 @@ if (is_file($cssPath)) {
 }
 echo '<link rel="stylesheet" href="' . esc($cssUrl) . '">' . "\n";
 ?>
-<div class="dashboard-ora nav-hub-ora">
+<div class="dashboard-ora nav-hub-ora nav-hub-ora--favorites">
     <header class="dashboard-ora-screen-title" role="banner">
         <h1 class="dashboard-ora-screen-title__text">المفضلة</h1>
-        <span class="dashboard-ora-screen-title__meta">لا توجد عناصر بعد</span>
+        <span class="dashboard-ora-screen-title__meta">لا توجد اختصارات بعد</span>
         <?php nav_render_screen_close('favorites_empty'); ?>
     </header>
-    <div class="dashboard-ora-workspace">
-        <section class="dashboard-ora-panel">
-            <h2 class="dashboard-ora-panel__title">كيف تضيف إلى المفضلة؟</h2>
-            <div class="dashboard-ora-panel__body nav-hub-ora-help">
-                <ol>
-                    <li>افتح الشاشة أو التقرير الذي تريد تفضيله من القائمة الجانبية.</li>
-                    <li>سيظهر زر صغير على شكل <strong class="nav-hub-ora-star">نجمة ☆</strong> بجانب عنوان الشاشة في الأعلى.</li>
-                    <li>اضغط النجمة فتتحول إلى <strong class="nav-hub-ora-star">★</strong> برتقالية، ويُضاف اختصار الشاشة هنا تلقائياً.</li>
-                    <li>لإزالة الشاشة من المفضلة، افتحها واضغط النجمة مرة أخرى.</li>
-                </ol>
-                <p class="muted">ملاحظة: زر النجمة لا يظهر في «لوحة التحكم» ولا في صفحات المجلدات — فقط داخل الشاشات والتقارير الفعلية.</p>
+    <div class="dashboard-ora-workspace nav-fav-workspace">
+        <section class="nav-fav-gallery" aria-label="المفضلة فارغة">
+            <div class="nav-fav-gallery__stage">
+                <div class="nav-fav-empty-card">
+                    <div class="nav-fav-empty-card__icon" aria-hidden="true">☆</div>
+                    <h2 class="nav-fav-empty-card__title">أضف شاشاتك المفضلة</h2>
+                    <ol class="nav-fav-empty-card__steps">
+                        <li>افتح أي شاشة أو تقرير من القائمة.</li>
+                        <li>اضغط نجمة <strong>☆</strong> بجانب عنوان الشاشة.</li>
+                        <li>ستظهر هنا كمربع اختصار سريع في الوسط.</li>
+                    </ol>
+                </div>
             </div>
         </section>
     </div>

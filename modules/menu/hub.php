@@ -210,17 +210,19 @@ foreach ($domain['subgroups'] as $sg) {
 
 $hubPageTitle = $domainId === 'favorites' ? $domainTitle : $subTitle;
 $hubPageSub = $domainId === 'favorites'
-    ? 'الشاشات والتقارير التي أضفتها بالنجمة ★'
+    ? 'اختصاراتك السريعة — اضغط أي مربع لفتح الشاشة'
     : ($nestedSubId !== '' ? (string) ($subgroup['title'] ?? $domainTitle) : $domainTitle);
 
+$isFavoritesHub = $domainId === 'favorites';
+
 ?>
-<div class="dashboard-ora nav-hub-ora">
+<div class="dashboard-ora nav-hub-ora<?= $isFavoritesHub ? ' nav-hub-ora--favorites' : '' ?>">
     <header class="dashboard-ora-screen-title" role="banner">
         <h1 class="dashboard-ora-screen-title__text"><?= esc($hubPageTitle) ?></h1>
         <span class="dashboard-ora-screen-title__meta"><?= esc($hubPageSub) ?></span>
         <?php nav_render_screen_close($activeRoute ?? 'menu_hub'); ?>
     </header>
-    <div class="dashboard-ora-workspace">
+    <div class="dashboard-ora-workspace<?= $isFavoritesHub ? ' nav-fav-workspace' : '' ?>">
         <?php if ($prevFolderLink !== null || ($domainId !== 'favorites' && ($visibleFolderCount > 1 || $nestedSubId !== ''))): ?>
         <nav class="nav-hub-ora-breadcrumb" aria-label="تنقل المجلدات">
             <?php if ($prevFolderLink !== null): ?>
@@ -233,6 +235,35 @@ $hubPageSub = $domainId === 'favorites'
         </nav>
         <?php endif; ?>
 
+        <?php if ($isFavoritesHub): ?>
+        <section class="nav-fav-gallery" aria-label="المفضلة">
+            <div class="nav-fav-gallery__stage">
+                <p class="nav-fav-gallery__eyebrow">المفضلة</p>
+                <div class="nav-fav-gallery__grid" role="list">
+                    <?php foreach ($items as $idx => $it): ?>
+                        <?php
+                        $r = (string) $it['r'];
+                        $url = nav_screen_url($r, $domainId, $subId, $nestedSubId);
+                        $icon = (string) ($it['icon'] ?? '★');
+                        $label = (string) ($it['label'] ?? $r);
+                        $delay = min(12, (int) $idx) * 45;
+                        ?>
+                        <a class="nav-fav-tile"
+                           role="listitem"
+                           href="<?= esc(app_mdi_hub_nav_url($url, true)) ?>"
+                           style="--fav-delay: <?= (int) $delay ?>ms"
+                           title="<?= esc($label) ?>"
+                           <?= (app_mdi_is_embed_request() || app_mdi_is_park_menu_embed()) ? ' target="_parent"' : '' ?>>
+                            <span class="nav-fav-tile__face">
+                                <span class="nav-fav-tile__icon" aria-hidden="true"><?= esc($icon) ?></span>
+                            </span>
+                            <span class="nav-fav-tile__label"><?= esc($label) ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </section>
+        <?php else: ?>
         <section class="dashboard-ora-panel" aria-label="شاشات <?= esc($hubPageTitle) ?>">
             <h2 class="dashboard-ora-panel__title">الشاشات والتقارير</h2>
             <p class="dashboard-ora-panel__sub"><?= (int) count($items) ?> عنصر متاح</p>
@@ -253,5 +284,6 @@ $hubPageSub = $domainId === 'favorites'
                 </div>
             </div>
         </section>
+        <?php endif; ?>
     </div>
 </div>

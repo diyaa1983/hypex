@@ -93,7 +93,7 @@ function sys_favorites_toggle(PDO $pdo, int $userId, string $screenCode): array
     if (!sys_favorites_ensure_schema($pdo)) {
         return ['ok' => false, 'favorited' => false, 'message' => 'تعذر تهيئة جدول المفضلات.'];
     }
-    $blocked = ['dashboard', 'menu_hub', 'favorites_empty'];
+    $blocked = sys_favorites_blocked_routes();
     if (in_array($screenCode, $blocked, true)) {
         return ['ok' => false, 'favorited' => false, 'message' => 'لا يمكن تفضيل هذه الشاشة.'];
     }
@@ -126,6 +126,69 @@ function sys_favorites_toggle(PDO $pdo, int $userId, string $screenCode): array
     } catch (Throwable $e) {
         return ['ok' => false, 'favorited' => false, 'message' => 'تعذر حفظ المفضلة.'];
     }
+}
+
+/** مسارات لا يُسمح بإضافتها للمفضلة. */
+function sys_favorites_blocked_routes(): array
+{
+    return ['dashboard', 'menu_hub', 'favorites_empty', 'login', 'logout'];
+}
+
+function sys_favorites_route_allowed(string $screenCode): bool
+{
+    $screenCode = trim($screenCode);
+    if ($screenCode === '' || in_array($screenCode, sys_favorites_blocked_routes(), true)) {
+        return false;
+    }
+    if (!is_logged_in()) {
+        return false;
+    }
+    $routes = require app_path('config/routes.php');
+    if (!isset($routes[$screenCode])) {
+        return false;
+    }
+    $perm = (string) ($routes[$screenCode]['permission'] ?? $screenCode);
+
+    return $perm === '' || user_can($perm);
+}
+
+/**
+ * زر إضافة/إزالة المفضلة لشريط العنوان.
+ *
+ * @param array{class?:string, icon_size?:int} $opts
+ */
+function sys_favorites_render_toggle_button(string $screenCode, array $opts = []): void
+{
+    $screenCode = trim($screenCode);
+    if ($screenCode === '' || !sys_favorites_route_allowed($screenCode)) {
+        return;
+    }
+    $isFav = false;
+    try {
+        $userId = (int) (current_user()['id'] ?? 0);
+        $isFav = $userId > 0 && sys_favorites_is_favorite(db(), $userId, $screenCode);
+    } catch (Throwable $e) {
+        $isFav = false;
+    }
+    $extraClass = trim((string) ($opts['class'] ?? ''));
+    $iconSize = max(16, min(28, (int) ($opts['icon_size'] ?? 20)));
+    $favTitle = $isFav ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة';
+    $class = 'app-screen-fav-btn no-print' . ($isFav ? ' is-active' : '');
+    if ($extraClass !== '') {
+        $class .= ' ' . $extraClass;
+    }
+    echo '<button type="button" class="' . esc($class) . '"';
+    echo ' data-favorite-toggle';
+    echo ' data-screen-code="' . esc($screenCode) . '"';
+    echo ' data-csrf="' . esc(csrf_token()) . '"';
+    echo ' data-api-url="' . esc(app_url('api/favorite_toggle.php')) . '"';
+    echo ' aria-pressed="' . ($isFav ? 'true' : 'false') . '"';
+    echo ' aria-label="' . esc($favTitle) . '" title="' . esc($favTitle) . '">';
+    echo '<svg class="app-screen-fav-icon" viewBox="0 0 24 24" width="' . $iconSize . '" height="' . $iconSize . '" aria-hidden="true">';
+    echo '<path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"';
+    echo ' fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>';
+    echo '</svg>';
+    echo '</button>';
 }
 
 /**

@@ -849,6 +849,7 @@ function render_app_favicon_links(?array $settingsRow = null): void
 function render_app_screen_title(string $pageTitle, string $activeRoute = ''): void
 {
     require_once app_path('includes/app_window_manager.php');
+    require_once app_path('includes/sys_favorites.php');
     $activeRoute = app_mdi_resolve_route($activeRoute);
     $pageTitle = trim($pageTitle);
     if ($pageTitle === '' || $activeRoute === 'menu_hub' || $activeRoute === 'dashboard') {
@@ -856,28 +857,7 @@ function render_app_screen_title(string $pageTitle, string $activeRoute = ''): v
     }
     echo '<header class="app-screen-title-bar">';
     echo '<h1 class="app-screen-title">' . esc($pageTitle) . '</h1>';
-    if ($activeRoute !== '' && $activeRoute !== 'dashboard' && $activeRoute !== 'favorites_empty' && is_logged_in()) {
-        require_once app_path('includes/sys_favorites.php');
-        try {
-            $userId = (int) (current_user()['id'] ?? 0);
-            $isFav = $userId > 0 && sys_favorites_is_favorite(db(), $userId, $activeRoute);
-        } catch (Throwable $e) {
-            $isFav = false;
-        }
-        $favTitle = $isFav ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة';
-        echo '<button type="button" class="app-screen-fav-btn no-print' . ($isFav ? ' is-active' : '') . '"';
-        echo ' data-favorite-toggle';
-        echo ' data-screen-code="' . esc($activeRoute) . '"';
-        echo ' data-csrf="' . esc(csrf_token()) . '"';
-        echo ' data-api-url="' . esc(app_url('api/favorite_toggle.php')) . '"';
-        echo ' aria-pressed="' . ($isFav ? 'true' : 'false') . '"';
-        echo ' aria-label="' . esc($favTitle) . '" title="' . esc($favTitle) . '">';
-        echo '<svg class="app-screen-fav-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">';
-        echo '<path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"';
-        echo ' fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>';
-        echo '</svg>';
-        echo '</button>';
-    }
+    sys_favorites_render_toggle_button($activeRoute, ['icon_size' => 22]);
     nav_render_screen_close($activeRoute);
     echo '</header>';
 }

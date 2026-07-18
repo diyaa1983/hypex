@@ -60,29 +60,11 @@ function report_ora12_enqueue_assets(): void
 
 function report_ora12_render_fav_button(string $activeRoute): void
 {
-    if ($activeRoute === '' || $activeRoute === 'dashboard' || $activeRoute === 'favorites_empty' || !is_logged_in()) {
-        return;
-    }
     require_once app_path('includes/sys_favorites.php');
-    try {
-        $userId = (int) (current_user()['id'] ?? 0);
-        $isFav = $userId > 0 && sys_favorites_is_favorite(db(), $userId, $activeRoute);
-    } catch (Throwable $e) {
-        $isFav = false;
-    }
-    $favTitle = $isFav ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة';
-    echo '<button type="button" class="app-screen-fav-btn report-ora12-fav-btn no-print' . ($isFav ? ' is-active' : '') . '"';
-    echo ' data-favorite-toggle';
-    echo ' data-screen-code="' . esc($activeRoute) . '"';
-    echo ' data-csrf="' . esc(csrf_token()) . '"';
-    echo ' data-api-url="' . esc(app_url('api/favorite_toggle.php')) . '"';
-    echo ' aria-pressed="' . ($isFav ? 'true' : 'false') . '"';
-    echo ' aria-label="' . esc($favTitle) . '" title="' . esc($favTitle) . '">';
-    echo '<svg class="app-screen-fav-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">';
-    echo '<path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"';
-    echo ' fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>';
-    echo '</svg>';
-    echo '</button>';
+    sys_favorites_render_toggle_button($activeRoute, [
+        'class' => 'report-ora12-fav-btn',
+        'icon_size' => 20,
+    ]);
 }
 
 function report_ora12_render_title_bar(string $title, string $activeRoute): void

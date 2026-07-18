@@ -23,10 +23,18 @@ function hr_ora_ui_link_tags(): void
 function hr_ora_render_title_bar(string $title, string $activeRoute = ''): void
 {
     require_once app_path('includes/app_window_manager.php');
+    require_once app_path('includes/sys_favorites.php');
+    if ($activeRoute === '') {
+        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? ($_GET['r'] ?? ''));
+    }
     $activeRoute = app_mdi_resolve_route($activeRoute);
 
     echo '<header class="dashboard-ora-screen-title ora12-title-bar" role="banner">';
     echo '<h1 class="dashboard-ora-screen-title__text">' . esc($title) . '</h1>';
+    sys_favorites_render_toggle_button($activeRoute, [
+        'class' => 'app-screen-fav-btn--on-blue',
+        'icon_size' => 20,
+    ]);
     nav_render_screen_close($activeRoute);
     echo '</header>';
 }

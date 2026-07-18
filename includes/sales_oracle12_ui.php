@@ -47,12 +47,20 @@ function sales_inv_oracle12_enqueue_assets(): void
 function sales_ora12_render_title_bar(string $title, string $meta = '', string $activeRoute = ''): void
 {
     require_once app_path('includes/app_window_manager.php');
+    require_once app_path('includes/sys_favorites.php');
+    if ($activeRoute === '') {
+        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? ($_GET['r'] ?? ''));
+    }
     $activeRoute = app_mdi_resolve_route($activeRoute);
     echo '<header class="dashboard-ora-screen-title" role="banner">';
     echo '<h1 class="dashboard-ora-screen-title__text">' . esc($title) . '</h1>';
     if ($meta !== '') {
         echo '<span class="dashboard-ora-screen-title__meta">' . esc($meta) . '</span>';
     }
+    sys_favorites_render_toggle_button($activeRoute, [
+        'class' => 'app-screen-fav-btn--on-blue',
+        'icon_size' => 20,
+    ]);
     nav_render_screen_close($activeRoute);
     echo '</header>';
 }

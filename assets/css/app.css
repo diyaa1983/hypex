@@ -1567,6 +1567,29 @@ body.app-body--wco .app-titlebar__title--wco {
   transform: scale(0.92);
 }
 
+/* نجمة المفضلة على الشريط الأزرق Oracle */
+.dashboard-ora-screen-title .app-screen-fav-btn,
+.app-screen-fav-btn--on-blue {
+  color: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+}
+
+.dashboard-ora-screen-title .app-screen-fav-btn:hover,
+.app-screen-fav-btn--on-blue:hover {
+  color: #fbbf24;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dashboard-ora-screen-title .app-screen-fav-btn.is-active,
+.app-screen-fav-btn--on-blue.is-active {
+  color: #fbbf24;
+}
+
+.dashboard-ora-screen-title .app-screen-fav-btn.is-active:hover,
+.app-screen-fav-btn--on-blue.is-active:hover {
+  color: #f59e0b;
+}
+
 .app-screen-fav-icon {
   display: block;
 }
