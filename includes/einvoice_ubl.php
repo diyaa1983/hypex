@@ -102,56 +102,38 @@ function einvoice_load_sale_payload(PDO $pdo, int $invoiceId): ?array
             continue;
         }
         $taxId = $rate <= 0.0001 ? 1 : 2;
-        // خصم السطر: نُفضّل الحقول الصريحة (discount_amount أو discount_pct)
-        // ولا نستنتج الخصم من الفرق بين qty*unit_price و line_total لأن هذا الفرق
-        // قد يكون مجرد تقريب رقمي (≤ 0.005) وليس خصمًا فعليًا، مما يُربك JoFotara
-        // في معادلة: TaxExclusive = sum(LineExtension) - AllowanceTotal.
+        // خصم السطر الصريح فقط (لا نَختلق خصماً للتقريب — السعر الصافي = line_total/qty).
         $discountFromCols = (float) ($row['discount_amount'] ?? 0);
         $discountFromPct = isset($row['discount_pct']) ? round(($qty * $unitPrice) * ((float) $row['discount_pct'] / 100), 3) : 0.0;
         if ($discountFromCols > 0.0001) {
             $itemDiscount = $discountFromCols;
-            $unitPriceForEinv = $unitPrice;
         } elseif ($discountFromPct > 0.0001) {
             $itemDiscount = $discountFromPct;
-            $unitPriceForEinv = $unitPrice;
         } else {
             $itemDiscount = 0.0;
-            $unitPriceForEinv = $unitPrice;
         }
-        // ضبط التقريب: JoFotara تحسب LineExtension = qty*PriceAmount - discount بدقة 3 خانات.
-        // نَجعل الخصم يمتص فرق التقريب كي يطابق line_total المخزَّن (مثل 257.143).
-        $dpLine = 3;
-        $unitPriceForEinv = round($unitPriceForEinv, $dpLine);
-        $targetExt = round($lineTotal, $dpLine);
-        $rawExt = round($einvoiceQty * $unitPriceForEinv - $itemDiscount, $dpLine);
-        if (abs($rawExt - $targetExt) > 0.0001) {
-            $itemDiscount = round($einvoiceQty * $unitPriceForEinv - $targetExt, $dpLine);
-            if ($itemDiscount < 0) {
-                $itemDiscount = 0.0;
-                if ($einvoiceQty > 0.000001) {
-                    $unitPriceForEinv = round($targetExt / $einvoiceQty, $dpLine);
-                    $itemDiscount = round($einvoiceQty * $unitPriceForEinv - $targetExt, $dpLine);
-                    if ($itemDiscount < 0) {
-                        $itemDiscount = 0.0;
-                    }
-                }
-            }
-            $lineTotal = $targetExt;
+        // المبلغ الخاضع (LineExtension) من قاعدة البيانات؛ السعر للفوترة = صافي بعد الخصم.
+        $lineExt = round($lineTotal, 3);
+        if ($lineExt <= 0.0001) {
+            continue;
         }
+        $netUnitPrice = $einvoiceQty > 0.000001 ? ($lineExt / $einvoiceQty) : 0.0;
+        $lineTax = $rate > 0 ? round($lineExt * $rate / 100, 3) : 0.0;
+        $lineGrossOut = round($lineExt + $lineTax, 3);
         $totalDisc += $itemDiscount;
         $lines[] = (object) [
             'quantity' => $einvoiceQty,
-            'unit_price' => $unitPriceForEinv,
-            'line_total' => $lineTotal,                 // LineExtensionAmount (بعد الخصم، قبل الضريبة)
-            'line_gross' => $lineGross,                 // RoundingAmount (بعد الخصم + الضريبة)
-            'subtotal' => $lineGross,                   // للتوافق مع الكود القديم
-            'item_tax' => $taxAmt,
-            'item_discount' => $itemDiscount,
+            'unit_price' => $netUnitPrice,              // PriceAmount = صافي (مثل Galaxy)
+            'line_total' => $lineExt,                   // LineExtensionAmount
+            'line_gross' => $lineGrossOut,              // RoundingAmount
+            'subtotal' => $lineGrossOut,
+            'item_tax' => $lineTax,
+            'item_discount' => 0.0,                     // الخصم مَدموج في السعر الصافي — لا Allowance تحت Price
             'product_name' => (string) ($row['product_name'] ?? $row['line_desc'] ?? ''),
             'tax' => einvoice_format_decimal($rate, 2) . '%',
             'tax_rate' => $rate,
             'tax_rate_id' => $taxId,
-            'real_unit_price' => $qty > 0 ? $lineTotal / $qty : 0,
+            'real_unit_price' => $netUnitPrice,
         ];
     }
 
@@ -229,49 +211,31 @@ function einvoice_ubl_seller_party(object $biller): string
 
 /**
  * يولّد قسم الإجماليات بنفس بنية JoFotara/UBL2.1 المطلوبة:
- * - AllowanceCharge (اختياري على مستوى الفاتورة عند وجود خصم كلي)
- * - TaxTotal بدون TaxSubtotal على مستوى الفاتورة
- * - LegalMonetaryTotal بدون LineExtensionAmount
+ * - TaxTotal مع TaxSubtotal لكل نسبة
+ * - LegalMonetaryTotal متوافق مع مجموع LineExtension من البنود
  * @param list<object> $items
  */
 function einvoice_ubl_totals_sales(object $inv, array $items): string
 {
-    // المجاميع تُحسب من البنود بنفس الصيغة المستخدمة في XML السطور لضمان تطابق JoFotara.
-    // JoFotara تتحقق من invariants صارمة:
-    //   - TaxAmount(header) == Sum(line.TaxAmount)
-    //   - TaxExclusiveAmount == Sum(line.LineExtensionAmount) - AllowanceTotal
-    //   - line.TaxAmount == round(line.LineExtensionAmount * rate / 100, dp)
-    //   - TaxAmount(TaxSubtotal) ≈ round(TaxableAmount * Percent / 100, dp)  ← الأهم
-    // لذا لا نُجبر القيم لتطابق DB (يَكسر الـ invariants)، بل نُحسب lineTax من lineExt مباشرة.
-    //
-    // ملاحظة مُهمَّة: نُثَبِّت دقة 3 خانات في XML بَغض النظر عن amount_decimals
-    // (الدينار الأردني يَستخدم 3 خانات داخلياً، و JoFotara تَرفض dp=2 لأنه يَكسر
-    //  invariant generalInvoiceCalculations مَع نِسَب ضريبة مثل 5%).
+    // نَحسب من البنود: LineExtension = line_total، والضريبة = round(ext * rate / 100, 3)
+    // والسعر الصافي مَدموج مسبقاً (بدون Allowance على مستوى الفاتورة).
     $dp = 3;
     $taxExclusive = 0.0;
     $taxAmount = 0.0;
-    // تجميع الـ TaxSubtotals حسب نسبة الضريبة (تَحتاج JoFotara TaxSubtotal لكل rate في رأس الفاتورة).
     $taxByRate = [];
 
     foreach ($items as $line) {
         $qty = round((float) ($line->quantity ?? 0), 3);
-        $unitPrice = round((float) ($line->unit_price ?? 0), $dp);
-        $lineDiscount = round((float) ($line->item_discount ?? 0), $dp);
+        $lineExt = round((float) ($line->line_total ?? 0), $dp);
+        if ($lineExt <= 0.0001 && $qty > 0.000001) {
+            // احتياطي: إن وُجد سعر صافي فقط.
+            $unitPrice = (float) ($line->unit_price ?? 0);
+            $lineExt = round($qty * $unitPrice, $dp);
+        }
+        if ($qty <= 0.000001 || $lineExt <= 0.0001) {
+            continue;
+        }
         $rate = (float) ($line->tax_rate ?? 0);
-        // بنود بلا سعر/قيمة لا تُرسل أصلاً من الحمولة؛ تجاهل أي بقايا هنا.
-        if ($qty <= 0.000001 || $unitPrice <= 0.000001) {
-            continue;
-        }
-        $lineExt = round($qty * $unitPrice - $lineDiscount, $dp);
-        if ($lineExt < 0) {
-            $lineExt = 0.0;
-        }
-        if ($lineExt <= 0.0001) {
-            continue;
-        }
-        // lineTax مُعاد حسابه من lineExt كي يَتطابق مع توقّع JoFotara بدقة:
-        //   lineTax = round(lineExt * rate / 100, dp)
-        // بدلاً من قراءة item_tax المخزَّن (قد يَختلف بسبب rounding مختلف).
         $lineTax = $rate > 0 ? round($lineExt * $rate / 100, $dp) : 0.0;
 
         $taxExclusive = round($taxExclusive + $lineExt, $dp);
@@ -287,15 +251,8 @@ function einvoice_ubl_totals_sales(object $inv, array $items): string
 
     $taxInclusive = round($taxExclusive + $taxAmount, $dp);
     $payable = $taxInclusive;
-
-    // ملاحظة هامّة: لا نُولّد AllowanceCharge ولا AllowanceTotalAmount > 0 على مستوى الفاتورة،
-    // لأن خصومات السطور (item_discount) مَطروحة بالفعل داخل LineExtensionAmount لكل سطر.
-    // وضع AllowanceTotalAmount > 0 سيَكسر الـ invariant:
-    //   TaxExclusiveAmount = Sum(line.LineExtensionAmount) - AllowanceTotal
-    //   ⇒ JoFotara تَرفض بـ "Error in general tax amount calculation".
     $sumLineExt = $taxExclusive;
 
-    // TaxTotal على مستوى الفاتورة مع TaxSubtotal لكل نسبة ضريبة.
     $xml = '<cac:TaxTotal>'
         . '<cbc:TaxAmount currencyID="JOD">' . einvoice_format_decimal($taxAmount) . '</cbc:TaxAmount>';
     foreach ($taxByRate as $bucket) {
@@ -328,49 +285,30 @@ function einvoice_ubl_totals_sales(object $inv, array $items): string
 
 /**
  * يولّد سطور الفاتورة بنفس بنية JoFotara/UBL2.1.
- * نقرّب جميع المبالغ بدقة الفاتورة (amount_decimals) لضمان توافق مجموع XML
- * مع ما يَعرضه النظام (لا تظهر قيم مثل 216.014 على الفوترة بينما النظام يَعرض 216).
+ * السعر = صافي بعد الخصم (LineExtension/qty) كما في نظام Galaxy — بدون Allowance تحت Price
+ * حتى يَتحقق: qty * PriceAmount ≈ LineExtensionAmount.
+ *
  * @param list<object> $items
  */
 function einvoice_ubl_lines_sales(array $items, int $dp = 3): string
 {
-    // نُثَبِّت دقة 3 خانات في XML بَغض النظر عما يُمَرَّر، لأن JoFotara تَستخدم 3 خانات
-    // للدينار الأردني داخلياً، وَأي تَقليل لـ dp (مثل 2) يَكسر invariant:
-    //   TaxAmount(TaxSubtotal) = round(TaxableAmount * Percent / 100, dp)
-    // ويُسَبِّب خَطَأ "Error in general tax amount calculation".
     $dp = 3;
     $xml = '';
     $i = 1;
     foreach ($items as $line) {
         $qty = round(abs((float) $line->quantity), 3);
-        $unitPrice = round(abs((float) ($line->unit_price ?? 0)), $dp);
-        $lineDiscount = round(abs((float) ($line->item_discount ?? 0)), $dp);
+        $lineExt = round(abs((float) ($line->line_total ?? 0)), $dp);
         $rate = (float) ($line->tax_rate ?? 0);
 
-        // بنود الهدايا/السعر صفر تُستبعد من XML الفوترة.
-        if ($qty <= 0.000001 || $unitPrice <= 0.000001) {
+        if ($qty <= 0.000001 || $lineExt <= 0.0001) {
             continue;
         }
 
-        // LineExtensionAmount يجب أن يطابق ما يحسبه JoFotara:
-        //   LineExtensionAmount = qty * unit_price - line_discount
-        // ولا نأخذها من line_total المخزن لتفادي فروق التقريب بين القيم المخزنة والمُرسلة.
-        $lineExt = round($qty * $unitPrice - $lineDiscount, $dp);
-        if ($lineExt < 0) {
-            $lineExt = 0.0;
-        }
-        if ($lineExt <= 0.0001) {
-            continue;
-        }
-        // lineTax مُعاد حسابه من lineExt كي تَتطابق invariants JoFotara:
-        //   lineTax (XML) == round(lineExt * rate / 100, dp)
-        // ومجموع line tax = TaxAmount (header) بدون فروقات.
+        // سعر صافي بعد الخصم — دقة أعلى قليلاً كي qty*price يطابق LineExtension.
+        $netUnitPrice = $qty > 0 ? ($lineExt / $qty) : 0.0;
         $lineTax = $rate > 0 ? round($lineExt * $rate / 100, $dp) : 0.0;
         $lineGross = round($lineExt + $lineTax, $dp);
 
-        // تحديد فئة الضريبة:
-        // S = قياسي 16% أو نسبة موجبة
-        // Z = معفى (0%) — في الكود القديم tax_rate_id=1 = صفر
         $taxId = ($lineTax <= 0.0001 || $rate <= 0.0001) ? 'Z' : 'S';
         $ratePercent = $rate > 0 ? $rate : 0.0;
 
@@ -387,6 +325,7 @@ function einvoice_ubl_lines_sales(array $items, int $dp = 3): string
             . '<cbc:TaxAmount currencyID="JOD">' . einvoice_format_decimal($lineTax) . '</cbc:TaxAmount>'
             . '<cbc:RoundingAmount currencyID="JOD">' . einvoice_format_decimal($lineGross) . '</cbc:RoundingAmount>'
             . '<cac:TaxSubtotal>'
+            . '<cbc:TaxableAmount currencyID="JOD">' . einvoice_format_decimal($lineExt) . '</cbc:TaxableAmount>'
             . '<cbc:TaxAmount currencyID="JOD">' . einvoice_format_decimal($lineTax) . '</cbc:TaxAmount>'
             . '<cac:TaxCategory>'
             . '<cbc:ID schemeAgencyID="6" schemeID="UN/ECE 5305">' . $taxId . '</cbc:ID>'
@@ -397,12 +336,7 @@ function einvoice_ubl_lines_sales(array $items, int $dp = 3): string
             . '</cac:TaxTotal>'
             . '<cac:Item><cbc:Name>' . htmlspecialchars((string) $line->product_name, ENT_XML1) . '</cbc:Name></cac:Item>'
             . '<cac:Price>'
-            . '<cbc:PriceAmount currencyID="JOD">' . einvoice_format_decimal($unitPrice) . '</cbc:PriceAmount>'
-            . '<cac:AllowanceCharge>'
-            . '<cbc:ChargeIndicator>false</cbc:ChargeIndicator>'
-            . '<cbc:AllowanceChargeReason>DISCOUNT</cbc:AllowanceChargeReason>'
-            . '<cbc:Amount currencyID="JOD">' . einvoice_format_decimal($lineDiscount) . '</cbc:Amount>'
-            . '</cac:AllowanceCharge>'
+            . '<cbc:PriceAmount currencyID="JOD">' . einvoice_format_decimal($netUnitPrice, 9) . '</cbc:PriceAmount>'
             . '</cac:Price>'
             . '</cac:InvoiceLine>';
         $i++;
