@@ -7,12 +7,13 @@ require_once app_path('includes/crm_customer_ledger.php');
 
 /**
  * حذف مرتجع **بلا أثر مالي أو مستودعي مسجّل** فقط: السجل يُحذف فيُعاد احتساب الكميات المتاحة للإرجاع.
+ * يُعاد رقم المرتجع إلى مجمع الأرقام لاستخدامه في مرتجع جديد (نفس أسلوب فواتير البيع).
  *
- * @return array{ok:bool, error:?string, return_no:?string}
+ * @return array{ok:bool, error:?string, return_no:?string, return_date:?string}
  */
 function sal_return_can_delete(PDO $pdo, int $returnId): array
 {
-    $out = ['ok' => false, 'error' => null, 'return_no' => null];
+    $out = ['ok' => false, 'error' => null, 'return_no' => null, 'return_date' => null];
 
     if ($returnId < 1) {
         $out['error'] = 'معرّف المرتجع غير صالح.';
@@ -26,7 +27,7 @@ function sal_return_can_delete(PDO $pdo, int $returnId): array
         return $out;
     }
 
-    $st = $pdo->prepare('SELECT return_no, status FROM sal_return WHERE id = ? LIMIT 1');
+    $st = $pdo->prepare('SELECT return_no, return_date, status FROM sal_return WHERE id = ? LIMIT 1');
     $st->execute([$returnId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
@@ -36,6 +37,7 @@ function sal_return_can_delete(PDO $pdo, int $returnId): array
     }
 
     $out['return_no'] = (string) ($row['return_no'] ?? '');
+    $out['return_date'] = (string) ($row['return_date'] ?? '');
 
     if ((string) ($row['status'] ?? '') === 'cancelled') {
         $out['error'] = 'لا يمكن حذف مرتجع ملغى.';
@@ -63,14 +65,17 @@ function sal_return_can_delete(PDO $pdo, int $returnId): array
 }
 
 /**
- * @return array{ok:bool, error:?string}
+ * @return array{ok:bool, error:?string, message:?string, return_no:?string}
  */
 function sal_return_delete_by_id(PDO $pdo, int $returnId): array
 {
     $check = sal_return_can_delete($pdo, $returnId);
     if (!$check['ok']) {
-        return ['ok' => false, 'error' => $check['error']];
+        return ['ok' => false, 'error' => $check['error'], 'message' => null, 'return_no' => $check['return_no']];
     }
+
+    $returnNo = (string) ($check['return_no'] ?? '');
+    $returnDate = (string) ($check['return_date'] ?? '');
 
     require_once app_path('includes/inv_stock.php');
 
@@ -83,6 +88,8 @@ function sal_return_delete_by_id(PDO $pdo, int $returnId): array
             return [
                 'ok' => false,
                 'error' => 'يوجد أثر مالي أو مستودعي لهذا المرتجع — لا يمكن الحذف.',
+                'message' => null,
+                'return_no' => $returnNo,
             ];
         }
 
@@ -104,10 +111,21 @@ function sal_return_delete_by_id(PDO $pdo, int $returnId): array
             $pdo->rollBack();
         }
 
-        return ['ok' => false, 'error' => 'تعذر حذف المرتجع.'];
+        return ['ok' => false, 'error' => 'تعذر حذف المرتجع.', 'message' => null, 'return_no' => $returnNo];
     }
 
-    return ['ok' => true, 'error' => null];
+    if ($returnNo !== '' && $returnDate !== '') {
+        sal_return_release_no_to_pool($pdo, $returnNo, $returnDate);
+    }
+
+    $label = $returnNo !== '' ? $returnNo : ('#' . $returnId);
+
+    return [
+        'ok' => true,
+        'error' => null,
+        'return_no' => $returnNo,
+        'message' => 'تم حذف المرتجع ' . $label . '. الرقم متاح لإعادة استخدامه في مرتجع جديد.',
+    ];
 }
 
 /**

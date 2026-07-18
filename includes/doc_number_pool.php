@@ -39,6 +39,11 @@ function doc_number_pool_key_sal_invoice(): string
     return 'sal_invoice';
 }
 
+function doc_number_pool_key_sal_return(): string
+{
+    return 'sal_return';
+}
+
 function doc_number_pool_key_pur_invoice(): string
 {
     return 'pur_invoice';

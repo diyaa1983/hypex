@@ -170,11 +170,19 @@ function sal_return_apply_prefix_migration(PDO $pdo): void
  *
  * عند حِساب أعلى تسلسل سنوي، نَدعم الأرقام القديمة بدون بادئة
  * أو ببادئة SR، لضمان الاستمرار بدون تَكرار.
+ * الأرقام المحذوفة تُعاد عبر مجمع الأرقام (نفس أسلوب فواتير البيع).
  */
 function sal_return_generate_next_no(PDO $pdo, string $returnDate): string
 {
-    $year = (int) date('Y', strtotime($returnDate));
+    $ts = strtotime($returnDate);
+    $year = $ts !== false ? (int) date('Y', $ts) : (int) date('Y');
     $suffix = '-' . $year;
+
+    require_once app_path('includes/doc_number_pool.php');
+    $pooled = doc_number_pool_take($pdo, doc_number_pool_key_sal_return(), $year, 1);
+    if ($pooled !== []) {
+        return (string) $pooled[0];
+    }
 
     $st = $pdo->prepare('SELECT return_no FROM sal_return WHERE return_no LIKE ? FOR UPDATE');
     $st->execute(['%' . $suffix]);
@@ -191,4 +199,10 @@ function sal_return_generate_next_no(PDO $pdo, string $returnDate): string
     $next = $maxSeq + 1;
 
     return 'SR' . str_pad((string) $next, 3, '0', STR_PAD_LEFT) . $suffix;
+}
+
+function sal_return_release_no_to_pool(PDO $pdo, string $returnNo, string $returnDate): void
+{
+    require_once app_path('includes/doc_number_pool.php');
+    doc_number_pool_release($pdo, doc_number_pool_key_sal_return(), $returnNo, $returnDate);
 }
