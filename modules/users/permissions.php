@@ -31,6 +31,7 @@ if (!$groups) {
 
 $permPageUrl = static function (int $gid = 0): string {
     $url = app_url('index.php?r=permissions');
+
     return $gid > 0 ? $url . '&group_id=' . $gid : $url;
 };
 
@@ -43,27 +44,15 @@ if (!in_array($groupId, $validIds, true)) {
 $screens = db()->query('SELECT id, code, name_ar, screen_type FROM sys_screen ORDER BY sort_order, id')->fetchAll();
 
 $navMenu = require app_path('config/nav_menu.php');
-$permDomainFilters = [];
-foreach ((array) ($navMenu['domains'] ?? []) as $domainBlock) {
-    $domainId = trim((string) ($domainBlock['id'] ?? ''));
-    if ($domainId === '') {
-        continue;
-    }
-    $permDomainFilters[] = [
-        'id' => $domainId,
-        'title' => (string) ($domainBlock['title'] ?? $domainId),
-    ];
-}
-$permDomainFilters[] = ['id' => 'actions', 'title' => 'صلاحيات الإجراءات'];
-$permDomainFilters[] = ['id' => 'warehouses', 'title' => 'صلاحيات المستودعات'];
-$permDomainFilters[] = ['id' => 'extras', 'title' => 'شاشات وتقارير إضافية'];
 
 $idByCode = [];
 $screenTypeByCode = [];
+$nameByCode = [];
 foreach ($screens as $sc) {
     $code = (string) $sc['code'];
     $idByCode[$code] = (int) $sc['id'];
     $screenTypeByCode[$code] = (string) ($sc['screen_type'] ?? 'screen');
+    $nameByCode[$code] = (string) ($sc['name_ar'] ?? $code);
 }
 
 $reloadAllowed = static function (int $gid) {
@@ -73,6 +62,7 @@ $reloadAllowed = static function (int $gid) {
     foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $sid) {
         $allowed[(int) $sid] = true;
     }
+
     return $allowed;
 };
 
@@ -190,6 +180,275 @@ foreach ($groups as $g) {
     }
 }
 
+$permKindForCode = static function (string $permCode) use ($screenTypeByCode, $actionCatalog): string {
+    foreach ($actionCatalog['groups'] as $actionGroup) {
+        foreach ((array) ($actionGroup['items'] ?? []) as $actionItem) {
+            if ((string) ($actionItem['code'] ?? '') === $permCode) {
+                return 'action';
+            }
+        }
+    }
+    if (str_starts_with($permCode, 'action_') || $permCode === 'sales_send_einvoice') {
+        return 'action';
+    }
+    $type = (string) ($screenTypeByCode[$permCode] ?? '');
+    if ($type === 'dashboard' || str_starts_with($permCode, 'dashboard_kpi_') || str_starts_with($permCode, 'dashboard_panel_')) {
+        return 'dashboard';
+    }
+    if ($type === 'report' || str_starts_with($permCode, 'report_')) {
+        return 'report';
+    }
+
+    return 'screen';
+};
+
+$permTypeLabelAr = static function (string $kind): string {
+    return match ($kind) {
+        'action' => 'إجراء',
+        'report' => 'تقرير',
+        'dashboard' => 'مؤشر',
+        default => 'شاشة',
+    };
+};
+
+/** @var list<array{code:string,name_ar:string,inherit_from:list<string>}> $flatActions */
+$flatActions = action_permissions_flat();
+
+$actionsForScreenCodes = static function (array $screenCodes) use ($flatActions, $idByCode): array {
+    $set = [];
+    foreach ($screenCodes as $c) {
+        $c = trim((string) $c);
+        if ($c !== '') {
+            $set[$c] = true;
+        }
+    }
+    $out = [];
+    foreach ($flatActions as $actionItem) {
+        $code = (string) ($actionItem['code'] ?? '');
+        if ($code === '' || !isset($idByCode[$code])) {
+            continue;
+        }
+        $inherit = (array) ($actionItem['inherit_from'] ?? []);
+        $primary = null;
+        foreach ($inherit as $parent) {
+            $parent = trim((string) $parent);
+            if ($parent !== '' && isset($idByCode[$parent])) {
+                $primary = $parent;
+                break;
+            }
+        }
+        if ($primary === null || !isset($set[$primary])) {
+            continue;
+        }
+        $out[] = [
+            'code' => $code,
+            'label' => (string) ($actionItem['name_ar'] ?? $code),
+            'kind' => 'action',
+        ];
+    }
+
+    return $out;
+};
+
+/** @var list<array{id:string,domain_id:string,domain_title:string,title:string,kind:string,items:list<array{code:string,label:string,kind:string}>}> $permPanels */
+$permPanels = [];
+$shownPermCodes = [];
+
+foreach ($navMenu['domains'] as $block) {
+    $blockDomainId = (string) ($block['id'] ?? '');
+    if ($isMobilePermissionsGroup && $blockDomainId !== 'mobile') {
+        continue;
+    }
+    foreach ((array) ($block['subgroups'] ?? []) as $sg) {
+        $sgId = (string) ($sg['id'] ?? '');
+        $panelId = $blockDomainId . '__' . $sgId;
+        $items = [];
+        $screenCodesInPanel = [];
+        foreach ((array) ($sg['items'] ?? []) as $it) {
+            $permCode = trim((string) ($it['code'] ?? ''));
+            if ($permCode === '') {
+                $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
+            }
+            if ($permCode === '' || !isset($idByCode[$permCode]) || isset($shownPermCodes[$permCode])) {
+                continue;
+            }
+            if ($isMobilePermissionsGroup && !$permIsMobileCode($permCode)) {
+                continue;
+            }
+            $kind = $permKindForCode($permCode);
+            $items[] = [
+                'code' => $permCode,
+                'label' => trim((string) ($it['label'] ?? $nameByCode[$permCode] ?? $permCode)),
+                'kind' => $kind,
+            ];
+            $screenCodesInPanel[] = $permCode;
+            $shownPermCodes[$permCode] = true;
+        }
+        if (!$isMobilePermissionsGroup) {
+            foreach ($actionsForScreenCodes($screenCodesInPanel) as $actionRow) {
+                $ac = (string) $actionRow['code'];
+                if ($ac === '' || isset($shownPermCodes[$ac])) {
+                    continue;
+                }
+                $items[] = $actionRow;
+                $shownPermCodes[$ac] = true;
+            }
+        }
+        if ($items === []) {
+            continue;
+        }
+        $permPanels[] = [
+            'id' => $panelId,
+            'domain_id' => $blockDomainId,
+            'domain_title' => (string) ($block['title'] ?? $blockDomainId),
+            'title' => (string) ($sg['title'] ?? $sgId),
+            'kind' => 'menu',
+            'items' => $items,
+        ];
+    }
+}
+
+if (!$isMobilePermissionsGroup) {
+    foreach ($actionCatalog['groups'] as $actionGroup) {
+        $title = (string) ($actionGroup['title'] ?? 'الإجراءات');
+        $panelId = 'actions__' . md5($title);
+        $items = [];
+        foreach ((array) ($actionGroup['items'] ?? []) as $actionItem) {
+            $code = (string) ($actionItem['code'] ?? '');
+            if ($code === '' || !isset($idByCode[$code]) || isset($shownPermCodes[$code])) {
+                continue;
+            }
+            $items[] = [
+                'code' => $code,
+                'label' => (string) ($actionItem['name_ar'] ?? $code),
+                'kind' => 'action',
+            ];
+            $shownPermCodes[$code] = true;
+        }
+        if ($items === []) {
+            continue;
+        }
+        $permPanels[] = [
+            'id' => $panelId,
+            'domain_id' => 'actions',
+            'domain_title' => 'صلاحيات الإجراءات',
+            'title' => $title,
+            'kind' => 'actions',
+            'items' => $items,
+        ];
+    }
+}
+
+$leftoverReports = [];
+$leftoverScreens = [];
+foreach ($screens as $screenRow) {
+    $code = (string) ($screenRow['code'] ?? '');
+    if ($code === '' || isset($shownPermCodes[$code])) {
+        continue;
+    }
+    if ($isMobilePermissionsGroup && !$permIsMobileCode($code)) {
+        continue;
+    }
+    if (!isset($idByCode[$code])) {
+        continue;
+    }
+    if ((string) ($screenRow['screen_type'] ?? '') === 'report' || str_starts_with($code, 'report_')) {
+        $leftoverReports[] = $screenRow;
+    } else {
+        $leftoverScreens[] = $screenRow;
+    }
+}
+
+if ($leftoverReports !== []) {
+    $items = [];
+    foreach ($leftoverReports as $screenRow) {
+        $code = (string) ($screenRow['code'] ?? '');
+        $items[] = [
+            'code' => $code,
+            'label' => (string) ($screenRow['name_ar'] ?? $code),
+            'kind' => 'report',
+        ];
+    }
+    $permPanels[] = [
+        'id' => 'extras__reports',
+        'domain_id' => 'extras',
+        'domain_title' => 'شاشات وتقارير إضافية',
+        'title' => 'تقارير إضافية',
+        'kind' => 'extras',
+        'items' => $items,
+    ];
+}
+if ($leftoverScreens !== []) {
+    $items = [];
+    foreach ($leftoverScreens as $screenRow) {
+        $code = (string) ($screenRow['code'] ?? '');
+        $items[] = [
+            'code' => $code,
+            'label' => (string) ($screenRow['name_ar'] ?? $code),
+            'kind' => $permKindForCode($code),
+        ];
+    }
+    $permPanels[] = [
+        'id' => 'extras__screens',
+        'domain_id' => 'extras',
+        'domain_title' => 'شاشات وتقارير إضافية',
+        'title' => 'شاشات إضافية',
+        'kind' => 'extras',
+        'items' => $items,
+    ];
+}
+
+if ($allWarehouses !== []) {
+    $permPanels[] = [
+        'id' => 'warehouses__access',
+        'domain_id' => 'warehouses',
+        'domain_title' => 'صلاحيات المستودعات',
+        'title' => 'المستودعات',
+        'kind' => 'warehouses',
+        'items' => [],
+    ];
+}
+
+/** @var array<string, list<array{id:string,title:string,count:int}>> $treeByDomain */
+$treeByDomain = [];
+foreach ($permPanels as $panel) {
+    $dom = (string) $panel['domain_id'];
+    if (!isset($treeByDomain[$dom])) {
+        $treeByDomain[$dom] = [
+            'title' => (string) $panel['domain_title'],
+            'nodes' => [],
+        ];
+    }
+    $count = $panel['kind'] === 'warehouses'
+        ? count($allWarehouses)
+        : count($panel['items']);
+    $treeByDomain[$dom]['nodes'][] = [
+        'id' => (string) $panel['id'],
+        'title' => (string) $panel['title'],
+        'count' => $count,
+    ];
+}
+
+$firstPanelId = (string) ($permPanels[0]['id'] ?? '');
+
+$missingPermCodes = [];
+foreach ($flatActions as $actionItem) {
+    if (!isset($idByCode[(string) $actionItem['code']])) {
+        $missingPermCodes[] = (string) $actionItem['code'];
+    }
+}
+foreach ($navMenu['domains'] as $block) {
+    foreach ((array) ($block['subgroups'] ?? []) as $sg) {
+        foreach ((array) ($sg['items'] ?? []) as $it) {
+            $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
+            if ($permCode !== '' && !isset($idByCode[$permCode])) {
+                $missingPermCodes[] = $permCode;
+            }
+        }
+    }
+}
+$missingPermCodes = array_values(array_unique(array_filter($missingPermCodes)));
+
 $permCssPath = app_path('assets/css/permissions-oracle12.css');
 $permCssUrl = app_url('assets/css/permissions-oracle12.css')
     . (is_file($permCssPath) ? '?v=' . (string) filemtime($permCssPath) : '');
@@ -199,7 +458,7 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
 
 <div class="dashboard-ora sales-ora12-screen perm-ora12-page" data-exit-guard-root>
     <header class="dashboard-ora-screen-title no-print" role="banner">
-        <h1 class="dashboard-ora-screen-title__text">صلاحيات الشاشات والتقارير</h1>
+        <h1 class="dashboard-ora-screen-title__text">صلاحيات القوائم والشاشات</h1>
         <?php if ($selectedGroupLabel !== ''): ?>
             <span class="dashboard-ora-screen-title__meta"><?= esc($selectedGroupLabel) ?></span>
         <?php endif; ?>
@@ -218,400 +477,195 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
         <div class="alert alert-<?= $messageType === 'success' ? 'success' : 'error' ?> perm-ora12-flash no-print"><?= esc($message) ?></div>
     <?php endif; ?>
 
-    <section class="dashboard-ora-panel perm-ora12-filters no-print">
-        <h2 class="dashboard-ora-panel__title">اختيار المجموعة والفلاتر</h2>
-        <p class="dashboard-ora-panel__sub">عدّل الصلاحيات ثم اضغط <strong>حفظ</strong> في الشريط العلوي.</p>
-        <?php if ($isMobilePermissionsGroup): ?>
-        <p class="dashboard-ora-panel__sub perm-mobile-group-note">
-            مجموعة <strong>هاتف (MOBILE)</strong>: شاشات التطبيق و<strong>صلاحيات المستودعات</strong>
-            (حدّد أي مستودع يراه المندوب في الفواتير والعهدة — اترك المستودع الرئيسي بدون ✓ لإخفائه).
-        </p>
-        <?php endif; ?>
+    <?php if ($missingPermCodes !== []): ?>
+        <div class="alert alert-error perm-missing-codes no-print">
+            أكواد غير مسجّلة في قاعدة البيانات:
+            <code><?= esc(implode(', ', $missingPermCodes)) ?></code>
+        </div>
+    <?php endif; ?>
+
+    <section class="dashboard-ora-panel perm-ora12-group-bar no-print">
         <div class="dashboard-ora-panel__body">
             <form method="get" action="<?= esc(app_url('index.php')) ?>" class="form-row" id="permissions-group-form">
                 <input type="hidden" name="r" value="permissions">
                 <label class="field">
-                    <span class="field-label">اختر المجموعة</span>
+                    <span class="field-label">المجموعة</span>
                     <select class="input" name="group_id" id="permissions-group-select">
                         <?php foreach ($groups as $g): ?>
                             <option value="<?= (int) $g['id'] ?>" <?= $groupId === (int) $g['id'] ? 'selected' : '' ?>>
-                                <?= esc((string) $g['name_ar']) ?> (<?= esc((string) $g['code']) ?>)
+                                (<?= esc((string) $g['code']) ?>) <?= esc((string) $g['name_ar']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </label>
             </form>
-
-            <div class="form-row perm-filter-row" style="margin-top:0.55rem;">
-                <label class="field">
-                    <span class="field-label">عرض حسب القسم</span>
-                    <select class="input" id="perm-domain-select">
-                        <option value="">كل الأقسام</option>
-                        <?php foreach ($permDomainFilters as $dom): ?>
-                            <option value="<?= esc((string) $dom['id']) ?>"><?= esc((string) $dom['title']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </label>
-                <label class="field">
-                    <span class="field-label">عرض حسب القائمة</span>
-                    <select class="input" id="perm-subgroup-select" disabled>
-                        <option value="">كل القوائم</option>
-                    </select>
-                </label>
-                <label class="field">
-                    <span class="field-label">بحث عن شاشة / تقرير / صلاحية</span>
-                    <input class="input" type="search" id="perm-search-input"
-                           placeholder="اكتب الاسم أو كود الصلاحية..."
-                           autocomplete="off" spellcheck="false">
-                </label>
-            </div>
-            <div id="perm-global-empty" class="alert alert-error perm-global-empty no-print" hidden style="margin:0.55rem 0 0;">
-                لا توجد نتائج مطابقة للفلاتر أو البحث الحالي.
-            </div>
+            <?php if ($isMobilePermissionsGroup): ?>
+                <p class="perm-mobile-group-note">
+                    مجموعة <strong>هاتف (MOBILE)</strong>: شاشات التطبيق وصلاحيات المستودعات فقط.
+                </p>
+            <?php endif; ?>
         </div>
     </section>
 
     <form method="post" class="perm-ora12-form" id="permissions-form"
           action="<?= esc($permPageUrl($groupId)) ?>"
-          data-mobile-only-group="<?= $isMobilePermissionsGroup ? '1' : '0' ?>">
+          data-mobile-only-group="<?= $isMobilePermissionsGroup ? '1' : '0' ?>"
+          data-initial-panel="<?= esc($firstPanelId) ?>">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
         <input type="hidden" name="group_id" value="<?= (int) $groupId ?>">
 
-        <?php
-        $shownPermCodes = [];
-        $permTypeLabel = static function (string $permCode) use ($screenTypeByCode): string {
-            if (str_starts_with($permCode, 'action_')) {
-                return 'إجراء';
-            }
-            $type = (string) ($screenTypeByCode[$permCode] ?? '');
-            if ($type === 'dashboard' || str_starts_with($permCode, 'dashboard_kpi_') || str_starts_with($permCode, 'dashboard_panel_')) {
-                return 'مؤشر';
-            }
-            if ($type === 'report' || str_starts_with($permCode, 'report_')) {
-                return 'تقرير';
-            }
+        <div class="perm-split">
+            <aside class="perm-tree-pane dashboard-ora-panel" aria-label="القوائم">
+                <h2 class="dashboard-ora-panel__title">القوائم</h2>
+                <div class="dashboard-ora-panel__body perm-tree-body">
+                    <div class="perm-tree-search-row">
+                        <input class="input" type="search" id="perm-tree-search"
+                               placeholder="بحث في القوائم..." autocomplete="off" spellcheck="false">
+                        <button type="button" class="btn btn-secondary btn-sm" id="perm-tree-search-btn">بحث</button>
+                    </div>
+                    <nav class="perm-tree" id="perm-tree">
+                        <?php foreach ($treeByDomain as $domId => $domData): ?>
+                            <div class="perm-tree-domain" data-tree-domain="<?= esc((string) $domId) ?>">
+                                <div class="perm-tree-domain-title"><?= esc((string) $domData['title']) ?></div>
+                                <ul class="perm-tree-list">
+                                    <?php foreach ($domData['nodes'] as $node): ?>
+                                        <li>
+                                            <button type="button"
+                                                    class="perm-tree-node<?= $firstPanelId === (string) $node['id'] ? ' is-active' : '' ?>"
+                                                    data-panel-id="<?= esc((string) $node['id']) ?>">
+                                                <span class="perm-tree-node-label"><?= esc((string) $node['title']) ?></span>
+                                                <span class="perm-tree-node-count">(<?= (int) $node['count'] ?>)</span>
+                                            </button>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                        <?php endforeach; ?>
+                    </nav>
+                </div>
+            </aside>
 
-            return 'شاشة';
-        };
-        $renderPermTableRows = static function (
-            array $items,
-            array $allowed,
-            array $idByCode,
-            callable $permTypeLabel,
-            bool $markShown = true
-        ) use (&$shownPermCodes, $isMobilePermissionsGroup, $permIsMobileCode): void {
-            $printed = 0;
-            foreach ($items as $it) {
-                $permCode = trim((string) ($it['code'] ?? ''));
-                if ($permCode === '') {
-                    $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
-                }
-                if ($permCode === '' || !isset($idByCode[$permCode])) {
-                    continue;
-                }
-                if ($isMobilePermissionsGroup && !$permIsMobileCode($permCode)) {
-                    continue;
-                }
-                if ($markShown && isset($shownPermCodes[$permCode])) {
-                    continue;
-                }
-                if ($markShown) {
-                    $shownPermCodes[$permCode] = true;
-                }
+            <section class="perm-detail-pane dashboard-ora-panel" aria-label="الشاشات والتقارير">
+                <h2 class="dashboard-ora-panel__title" id="perm-detail-title">الشاشات / التقارير</h2>
+                <div class="dashboard-ora-panel__body">
+                    <div class="perm-detail-toolbar">
+                        <input class="input" type="search" id="perm-screen-search"
+                               placeholder="بحث في الشاشات..." autocomplete="off" spellcheck="false">
+                        <div class="perm-type-filters" role="radiogroup" aria-label="النوع">
+                            <span class="perm-type-filters-label">النوع:</span>
+                            <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="all" checked> الكل</label>
+                            <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="screen"> شاشة</label>
+                            <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="report"> تقرير</label>
+                            <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="action"> إجراء</label>
+                        </div>
+                        <div class="perm-bulk-actions">
+                            <button type="button" class="btn btn-secondary btn-sm" id="perm-select-all">تحديد الكل</button>
+                            <button type="button" class="btn btn-secondary btn-sm" id="perm-clear-all">إلغاء الكل</button>
+                        </div>
+                    </div>
 
-                $sid = (int) $idByCode[$permCode];
-                $label = trim((string) ($it['label'] ?? $it['name_ar'] ?? ''));
-                if ($label === '') {
-                    $label = $permCode;
-                }
-                $printed++;
-                ?>
-                <tr class="perm-row-entry">
-                    <td style="width:4.5rem;text-align:center;">
-                        <input type="checkbox" name="screens[]" value="<?= $sid ?>" <?= isset($allowed[$sid]) ? 'checked' : '' ?>>
-                    </td>
-                    <td><?= esc($label) ?></td>
-                    <td><code><?= esc($permCode) ?></code></td>
-                    <td style="width:6.5rem;"><?= esc((string) $permTypeLabel($permCode)) ?></td>
-                </tr>
-                <?php
-            }
-            if ($printed === 0): ?>
-                <tr class="perm-row-empty-static">
-                    <td colspan="4" class="muted" style="text-align:center;">لا توجد عناصر في هذا القسم.</td>
-                </tr>
-            <?php endif;
-        };
-
-        $renderWarehousePermTable = static function () use ($allWarehouses, $whGrants): void {
-            if ($allWarehouses === []) {
-                return;
-            }
-            ?>
-            <p class="perm-domain-note">
-                حدّد المستودعات المسموحة. <strong>عرض</strong> = يرى الرصيد.
-                <strong>صرف</strong> = يبيع ويصرف (فواتير الموبايل).
-                إذا لم تُحدَّد أي مستودع يبقى الوصول لكل المستودعات.
-            </p>
-            <div class="table-wrap perm-table-wrap">
-                <table class="data-table perm-table">
-                    <thead>
-                    <tr>
-                        <th>المستودع</th>
-                        <th style="width:5rem;text-align:center;">عرض</th>
-                        <th style="width:5rem;text-align:center;">صرف</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($allWarehouses as $whRow): ?>
+                    <?php foreach ($permPanels as $idx => $panel): ?>
                         <?php
-                        $whId = (int) ($whRow['id'] ?? 0);
-                        if ($whId < 1) {
-                            continue;
-                        }
-                        $whGrant = $whGrants[$whId] ?? ['view' => false, 'issue' => false];
+                        $panelId = (string) $panel['id'];
+                        $isFirst = $panelId === $firstPanelId;
+                        $isWh = ($panel['kind'] ?? '') === 'warehouses';
                         ?>
-                        <tr class="perm-row-entry">
-                            <td>
-                                <?= esc((string) ($whRow['name_ar'] ?? '')) ?>
-                                <code><?= esc((string) ($whRow['code'] ?? '')) ?></code>
-                            </td>
-                            <td style="text-align:center;">
-                                <input type="checkbox" name="wh_view[<?= $whId ?>]" value="1"
-                                    <?= !empty($whGrant['view']) ? 'checked' : '' ?>>
-                            </td>
-                            <td style="text-align:center;">
-                                <input type="checkbox" name="wh_issue[<?= $whId ?>]" value="1"
-                                    <?= !empty($whGrant['issue']) ? 'checked' : '' ?>>
-                            </td>
-                        </tr>
+                        <div class="perm-panel<?= $isFirst ? ' is-active' : '' ?>"
+                             data-panel-id="<?= esc($panelId) ?>"
+                             data-panel-title="<?= esc((string) $panel['title']) ?>"
+                             <?= $isFirst ? '' : 'hidden' ?>>
+                            <?php if ($isWh): ?>
+                                <p class="perm-domain-note">
+                                    حدّد المستودعات المسموحة. <strong>عرض</strong> = يرى الرصيد.
+                                    <strong>صرف</strong> = يبيع ويصرف. إن لم يُحدَّد أي مستودع يبقى الوصول للكل.
+                                </p>
+                                <div class="table-wrap perm-table-wrap">
+                                    <table class="data-table perm-table perm-table--warehouses">
+                                        <thead>
+                                        <tr>
+                                            <th>المستودع</th>
+                                            <th style="width:5rem;text-align:center;">عرض</th>
+                                            <th style="width:5rem;text-align:center;">صرف</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <?php foreach ($allWarehouses as $whRow): ?>
+                                            <?php
+                                            $whId = (int) ($whRow['id'] ?? 0);
+                                            if ($whId < 1) {
+                                                continue;
+                                            }
+                                            $whGrant = $whGrants[$whId] ?? ['view' => false, 'issue' => false];
+                                            ?>
+                                            <tr class="perm-row-entry" data-perm-kind="screen">
+                                                <td>
+                                                    <?= esc((string) ($whRow['name_ar'] ?? '')) ?>
+                                                    <code><?= esc((string) ($whRow['code'] ?? '')) ?></code>
+                                                </td>
+                                                <td style="text-align:center;">
+                                                    <input type="checkbox" name="wh_view[<?= $whId ?>]" value="1"
+                                                        <?= !empty($whGrant['view']) ? 'checked' : '' ?>>
+                                                </td>
+                                                <td style="text-align:center;">
+                                                    <input type="checkbox" name="wh_issue[<?= $whId ?>]" value="1"
+                                                        <?= !empty($whGrant['issue']) ? 'checked' : '' ?>>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <div class="table-wrap perm-table-wrap">
+                                    <table class="data-table perm-table">
+                                        <thead>
+                                        <tr>
+                                            <th style="width:5.5rem;">النوع</th>
+                                            <th style="width:14rem;">الكود</th>
+                                            <th>الاسم</th>
+                                            <th style="width:4.5rem;text-align:center;">تفعيل</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <?php if ($panel['items'] === []): ?>
+                                            <tr class="perm-row-empty-static">
+                                                <td colspan="4" class="muted" style="text-align:center;">لا توجد عناصر في هذا القسم.</td>
+                                            </tr>
+                                        <?php else: ?>
+                                            <?php foreach ($panel['items'] as $it): ?>
+                                                <?php
+                                                $permCode = (string) ($it['code'] ?? '');
+                                                $sid = (int) ($idByCode[$permCode] ?? 0);
+                                                if ($sid < 1) {
+                                                    continue;
+                                                }
+                                                $kind = (string) ($it['kind'] ?? 'screen');
+                                                $filterKind = $kind === 'dashboard' ? 'screen' : $kind;
+                                                ?>
+                                                <tr class="perm-row-entry" data-perm-kind="<?= esc($filterKind) ?>">
+                                                    <td><?= esc($permTypeLabelAr($kind)) ?></td>
+                                                    <td><code><?= esc($permCode) ?></code></td>
+                                                    <td><?= esc((string) ($it['label'] ?? $permCode)) ?></td>
+                                                    <td style="text-align:center;">
+                                                        <input type="checkbox" name="screens[]" value="<?= $sid ?>"
+                                                            <?= isset($allowed[$sid]) ? 'checked' : '' ?>>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                     <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <?php
-        };
-        ?>
 
-        <?php foreach ($navMenu['domains'] as $block): ?>
-            <?php
-            $blockDomainId = (string) ($block['id'] ?? '');
-            if ($isMobilePermissionsGroup && $blockDomainId !== 'mobile') {
-                continue;
-            }
-            ?>
-            <div class="perm-domain-block" data-perm-domain-id="<?= esc($blockDomainId) ?>">
-                <h3 class="perm-domain-h"><?= esc((string) $block['title']) ?></h3>
-                <div class="perm-domain-body">
-                <?php if ($blockDomainId === 'mobile' && $isMobilePermissionsGroup && $allWarehouses !== []): ?>
-                    <details class="perm-subfold" open
-                             data-perm-subgroup-id="mobile_warehouses"
-                             data-perm-subgroup-title="صلاحيات المستودعات">
-                        <summary class="perm-subfold-sum">صلاحيات المستودعات</summary>
-                        <?php $renderWarehousePermTable(); ?>
-                    </details>
-                <?php endif; ?>
-                <?php foreach ($block['subgroups'] as $sg): ?>
-                    <details class="perm-subfold" open
-                             data-perm-subgroup-id="<?= esc((string) ($sg['id'] ?? '')) ?>"
-                             data-perm-subgroup-title="<?= esc((string) ($sg['title'] ?? '')) ?>">
-                        <summary class="perm-subfold-sum"><?= esc((string) $sg['title']) ?></summary>
-                        <div class="table-wrap perm-table-wrap">
-                            <table class="data-table perm-table">
-                                <thead>
-                                <tr>
-                                    <th style="width:4.5rem;text-align:center;">تفعيل</th>
-                                    <th>الصلاحية</th>
-                                    <th>الكود</th>
-                                    <th style="width:6.5rem;">النوع</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <?php
-                                $sgItems = [];
-                                foreach ((array) ($sg['items'] ?? []) as $it) {
-                                    $sgItems[] = [
-                                        'r' => (string) ($it['r'] ?? ''),
-                                        'label' => (string) ($it['label'] ?? ''),
-                                    ];
-                                }
-                                $renderPermTableRows($sgItems, $allowed, $idByCode, $permTypeLabel, true);
-                                ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </details>
-                <?php endforeach; ?>
+                    <div id="perm-global-empty" class="alert alert-error perm-global-empty no-print" hidden>
+                        لا توجد نتائج مطابقة للفلاتر أو البحث الحالي.
+                    </div>
                 </div>
-            </div>
-        <?php endforeach; ?>
-
-        <?php
-        $missingPermCodes = [];
-        foreach ($actionCatalog['groups'] as $actionGroup) {
-            foreach ($actionGroup['items'] as $actionItem) {
-                if (!isset($idByCode[(string) $actionItem['code']])) {
-                    $missingPermCodes[] = (string) $actionItem['code'];
-                }
-            }
-        }
-        foreach ($navMenu['domains'] as $block) {
-            foreach ($block['subgroups'] as $sg) {
-                foreach ($sg['items'] as $it) {
-                    $permCode = sys_screen_code_for_route((string) ($it['r'] ?? ''));
-                    if ($permCode !== '' && !isset($idByCode[$permCode])) {
-                        $missingPermCodes[] = $permCode;
-                    }
-                }
-            }
-        }
-        $missingPermCodes = array_values(array_unique(array_filter($missingPermCodes)));
-        ?>
-        <?php if ($missingPermCodes !== []): ?>
-            <div class="alert alert-error perm-missing-codes no-print">
-                أكواد غير مسجّلة في قاعدة البيانات (حدّث الصفحة أو راجع المزامنة):
-                <code><?= esc(implode(', ', $missingPermCodes)) ?></code>
-            </div>
-        <?php endif; ?>
-
-        <?php if (!$isMobilePermissionsGroup): ?>
-        <?php foreach ($actionCatalog['groups'] as $actionGroup): ?>
-            <div class="perm-domain-block"
-                 data-perm-domain-id="actions"
-                 data-perm-subgroup-id="<?= esc('action_' . md5((string) ($actionGroup['title'] ?? 'actions'))) ?>"
-                 data-perm-subgroup-title="<?= esc((string) ($actionGroup['title'] ?? 'الإجراءات')) ?>">
-                <h3 class="perm-domain-h">صلاحيات الإجراءات — <?= esc((string) $actionGroup['title']) ?></h3>
-                <p class="perm-domain-note">
-                    أزرار الشريط العلوي وواجهات API المرتبطة (مستقلة عن فتح الشاشة نفسها).
-                </p>
-                <div class="table-wrap perm-table-wrap">
-                    <table class="data-table perm-table">
-                        <thead>
-                        <tr>
-                            <th style="width:4.5rem;text-align:center;">تفعيل</th>
-                            <th>الصلاحية</th>
-                            <th>الكود</th>
-                            <th style="width:6.5rem;">النوع</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <?php
-                        $actionItems = [];
-                        foreach ((array) ($actionGroup['items'] ?? []) as $actionItem) {
-                            $actionItems[] = [
-                                'code' => (string) ($actionItem['code'] ?? ''),
-                                'label' => (string) ($actionItem['name_ar'] ?? ''),
-                            ];
-                        }
-                        $renderPermTableRows($actionItems, $allowed, $idByCode, $permTypeLabel, true);
-                        ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        <?php endforeach; ?>
-        <?php endif; ?>
-
-        <?php
-        $leftoverReports = [];
-        $leftoverScreens = [];
-        foreach ($screens as $screenRow) {
-            $code = (string) ($screenRow['code'] ?? '');
-            if ($code === '' || isset($shownPermCodes[$code])) {
-                continue;
-            }
-            if ($isMobilePermissionsGroup && !$permIsMobileCode($code)) {
-                continue;
-            }
-            $sid = (int) ($screenRow['id'] ?? 0);
-            if ($sid < 1 || !isset($idByCode[$code])) {
-                continue;
-            }
-            if ((string) ($screenRow['screen_type'] ?? '') === 'report' || str_starts_with($code, 'report_')) {
-                $leftoverReports[] = $screenRow;
-            } else {
-                $leftoverScreens[] = $screenRow;
-            }
-        }
-        ?>
-        <?php if ($leftoverReports !== [] || $leftoverScreens !== []): ?>
-            <div class="perm-domain-block" data-perm-domain-id="extras">
-                <h3 class="perm-domain-h">باقي الشاشات والتقارير (غير موجودة في القائمة)</h3>
-                <p class="perm-domain-note">
-                    هذا القسم يعرض كل الصلاحيات المسجلة في النظام لضمان عدم فقدان أي شاشة أو تقرير.
-                </p>
-                <div class="perm-domain-body">
-
-                <?php if ($leftoverReports !== []): ?>
-                    <details class="perm-subfold" open data-perm-subgroup-id="extra_reports" data-perm-subgroup-title="تقارير إضافية">
-                        <summary class="perm-subfold-sum">تقارير إضافية</summary>
-                        <div class="table-wrap perm-table-wrap">
-                            <table class="data-table perm-table">
-                                <thead>
-                                <tr>
-                                    <th style="width:4.5rem;text-align:center;">تفعيل</th>
-                                    <th>الصلاحية</th>
-                                    <th>الكود</th>
-                                    <th style="width:6.5rem;">النوع</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <?php
-                                $leftoverReportItems = [];
-                                foreach ($leftoverReports as $screenRow) {
-                                    $leftoverReportItems[] = [
-                                        'code' => (string) ($screenRow['code'] ?? ''),
-                                        'label' => (string) ($screenRow['name_ar'] ?? ''),
-                                    ];
-                                }
-                                $renderPermTableRows($leftoverReportItems, $allowed, $idByCode, $permTypeLabel, false);
-                                ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </details>
-                <?php endif; ?>
-
-                <?php if ($leftoverScreens !== []): ?>
-                    <details class="perm-subfold" open data-perm-subgroup-id="extra_screens" data-perm-subgroup-title="شاشات إضافية">
-                        <summary class="perm-subfold-sum">شاشات إضافية</summary>
-                        <div class="table-wrap perm-table-wrap">
-                            <table class="data-table perm-table">
-                                <thead>
-                                <tr>
-                                    <th style="width:4.5rem;text-align:center;">تفعيل</th>
-                                    <th>الصلاحية</th>
-                                    <th>الكود</th>
-                                    <th style="width:6.5rem;">النوع</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <?php
-                                $leftoverScreenItems = [];
-                                foreach ($leftoverScreens as $screenRow) {
-                                    $leftoverScreenItems[] = [
-                                        'code' => (string) ($screenRow['code'] ?? ''),
-                                        'label' => (string) ($screenRow['name_ar'] ?? ''),
-                                    ];
-                                }
-                                $renderPermTableRows($leftoverScreenItems, $allowed, $idByCode, $permTypeLabel, false);
-                                ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </details>
-                <?php endif; ?>
-                </div>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($allWarehouses !== [] && !$isMobilePermissionsGroup): ?>
-            <div class="perm-domain-block" data-perm-domain-id="warehouses">
-                <h3 class="perm-domain-h">صلاحيات المستودعات</h3>
-                <?php $renderWarehousePermTable(); ?>
-            </div>
-        <?php endif; ?>
-
+            </section>
+        </div>
     </form>
     </div>
 </div>

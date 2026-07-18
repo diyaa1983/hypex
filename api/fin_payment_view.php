@@ -153,9 +153,14 @@ if ((string) ($row['pay_method'] ?? '') === 'check') {
     $isPosted = (bool) ($row['is_posted'] ?? false);
     fin_checks_manage_ensure_schema($pdo);
     $checks = fin_checks_manage_checks_for_voucher_view($pdo, (int) $row['id'], $isPosted);
-    foreach ($checks as $chk) {
+    $canUndoOutgoingCheck = user_can_action('action_undo_outgoing_check');
+    foreach ($checks as &$chk) {
         $checksTotal += (float) ($chk['check_amount'] ?? 0);
+        if (!$canUndoOutgoingCheck) {
+            $chk['can_undo'] = false;
+        }
     }
+    unset($chk);
 }
 $firstCheck = $checks[0] ?? [];
 

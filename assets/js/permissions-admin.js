@@ -4,10 +4,14 @@
   var form = document.getElementById('permissions-form');
   var groupSelect = document.getElementById('permissions-group-select');
   var groupForm = document.getElementById('permissions-group-form');
-  var domainSelect = document.getElementById('perm-domain-select');
-  var subgroupSelect = document.getElementById('perm-subgroup-select');
-  var searchInput = document.getElementById('perm-search-input');
+  var tree = document.getElementById('perm-tree');
+  var treeSearch = document.getElementById('perm-tree-search');
+  var treeSearchBtn = document.getElementById('perm-tree-search-btn');
+  var screenSearch = document.getElementById('perm-screen-search');
+  var detailTitle = document.getElementById('perm-detail-title');
   var globalEmpty = document.getElementById('perm-global-empty');
+  var selectAllBtn = document.getElementById('perm-select-all');
+  var clearAllBtn = document.getElementById('perm-clear-all');
 
   if (groupSelect && groupForm) {
     groupSelect.addEventListener('change', function () {
@@ -27,216 +31,136 @@
     });
   }
 
-  if (form && domainSelect && subgroupSelect) {
-    var domainBlocks = Array.prototype.slice.call(
-      form.querySelectorAll('.perm-domain-block[data-perm-domain-id]')
-    );
+  if (!form) return;
 
-    if (form.getAttribute('data-mobile-only-group') === '1') {
-      domainSelect.value = 'mobile';
-      domainSelect.disabled = true;
-    }
+  var panels = Array.prototype.slice.call(form.querySelectorAll('.perm-panel[data-panel-id]'));
+  var treeNodes = tree
+    ? Array.prototype.slice.call(tree.querySelectorAll('.perm-tree-node[data-panel-id]'))
+    : [];
 
-    function normalizeSearchText(value) {
-      return String(value || '').toLowerCase().trim();
-    }
-
-    function clearSubgroupOptions() {
-      subgroupSelect.innerHTML = '';
-      var baseOption = document.createElement('option');
-      baseOption.value = '';
-      baseOption.textContent = 'كل القوائم';
-      subgroupSelect.appendChild(baseOption);
-    }
-
-    function collectDomainSubgroups(domainId) {
-      var map = {};
-      domainBlocks.forEach(function (block) {
-        if ((block.getAttribute('data-perm-domain-id') || '') !== domainId) return;
-
-        var details = block.querySelectorAll('.perm-subfold[data-perm-subgroup-id]');
-        if (details.length > 0) {
-          Array.prototype.forEach.call(details, function (fold) {
-            var sid = fold.getAttribute('data-perm-subgroup-id') || '';
-            if (!sid) return;
-            if (map[sid]) return;
-            map[sid] = fold.getAttribute('data-perm-subgroup-title') || sid;
-          });
-          return;
-        }
-
-        var blockSubId = block.getAttribute('data-perm-subgroup-id') || '';
-        if (blockSubId) {
-          map[blockSubId] = block.getAttribute('data-perm-subgroup-title') || blockSubId;
-        }
-      });
-
-      return Object.keys(map).map(function (sid) {
-        return { id: sid, title: map[sid] };
-      });
-    }
-
-    function tableMatchesSearch(table, searchTerm) {
-      var tbody = table ? table.tBodies && table.tBodies[0] : null;
-      if (!tbody) return false;
-
-      var entryRows = Array.prototype.slice.call(tbody.querySelectorAll('tr.perm-row-entry'));
-      var staticEmpty = tbody.querySelector('tr.perm-row-empty-static');
-      var dynamicEmpty = tbody.querySelector('tr.perm-row-empty-search');
-      var visibleCount = 0;
-
-      entryRows.forEach(function (row) {
-        var hit = !searchTerm || normalizeSearchText(row.textContent).indexOf(searchTerm) !== -1;
-        row.hidden = !hit;
-        if (hit) visibleCount += 1;
-      });
-
-      if (staticEmpty) {
-        staticEmpty.hidden = searchTerm !== '' || visibleCount > 0;
-      }
-
-      if (!dynamicEmpty) {
-        dynamicEmpty = document.createElement('tr');
-        dynamicEmpty.className = 'perm-row-empty-search';
-        dynamicEmpty.hidden = true;
-        dynamicEmpty.innerHTML =
-          '<td colspan="4" class="muted" style="text-align:center;">لا توجد نتائج مطابقة للبحث.</td>';
-        tbody.appendChild(dynamicEmpty);
-      }
-
-      var shouldShowSearchEmpty = searchTerm !== '' && entryRows.length > 0 && visibleCount === 0;
-      dynamicEmpty.hidden = !shouldShowSearchEmpty;
-
-      if (entryRows.length > 0) {
-        return visibleCount > 0;
-      }
-      if (staticEmpty && !staticEmpty.hidden) {
-        return true;
-      }
-      return false;
-    }
-
-    function rebuildSubgroupOptions() {
-      var domainId = domainSelect.value || '';
-      var previousValue = subgroupSelect.value || '';
-      clearSubgroupOptions();
-
-      if (!domainId) {
-        subgroupSelect.value = '';
-        subgroupSelect.disabled = true;
-        return;
-      }
-
-      var items = collectDomainSubgroups(domainId);
-      items.forEach(function (item) {
-        var opt = document.createElement('option');
-        opt.value = item.id;
-        opt.textContent = item.title;
-        subgroupSelect.appendChild(opt);
-      });
-      subgroupSelect.disabled = items.length === 0;
-
-      if (previousValue && items.some(function (it) { return it.id === previousValue; })) {
-        subgroupSelect.value = previousValue;
-      } else {
-        subgroupSelect.value = '';
-      }
-    }
-
-    function applyFilters() {
-      var domainId = domainSelect.value || '';
-      var subgroupId = subgroupSelect.value || '';
-      var searchTerm = normalizeSearchText(searchInput ? searchInput.value : '');
-      var visibleBlocksCount = 0;
-
-      domainBlocks.forEach(function (block) {
-        var blockDomain = block.getAttribute('data-perm-domain-id') || '';
-        var domainPass = !domainId || blockDomain === domainId;
-        var showBlock = domainPass;
-        var subFolds = block.querySelectorAll('.perm-subfold[data-perm-subgroup-id]');
-
-        if (subFolds.length > 0) {
-          var hasVisibleFold = false;
-          Array.prototype.forEach.call(subFolds, function (fold) {
-            var foldSubId = fold.getAttribute('data-perm-subgroup-id') || '';
-            var subgroupPass = !subgroupId || foldSubId === subgroupId;
-            var tables = fold.querySelectorAll('table.perm-table');
-            var tablePass = false;
-
-            Array.prototype.forEach.call(tables, function (tbl) {
-              if (tableMatchesSearch(tbl, searchTerm)) {
-                tablePass = true;
-              }
-            });
-
-            var showFold = domainPass && subgroupPass && tablePass;
-            fold.hidden = !showFold;
-            if (showFold) hasVisibleFold = true;
-          });
-          showBlock = hasVisibleFold;
-        } else {
-          var blockSub = block.getAttribute('data-perm-subgroup-id') || '';
-          var subgroupPass = !subgroupId || blockSub === subgroupId;
-          var blockTables = block.querySelectorAll('table.perm-table');
-          var blockTablePass = false;
-
-          Array.prototype.forEach.call(blockTables, function (tbl) {
-            if (tableMatchesSearch(tbl, searchTerm)) {
-              blockTablePass = true;
-            }
-          });
-
-          showBlock = domainPass && subgroupPass && blockTablePass;
-        }
-
-        if (!domainPass) {
-          Array.prototype.forEach.call(subFolds, function (fold) {
-            fold.hidden = false;
-          });
-          if (searchTerm === '') {
-            var resetTables = block.querySelectorAll('table.perm-table');
-            Array.prototype.forEach.call(resetTables, function (tbl) {
-              tableMatchesSearch(tbl, '');
-            });
-          } else {
-            var hideTables = block.querySelectorAll('table.perm-table');
-            Array.prototype.forEach.call(hideTables, function (tbl) {
-              tableMatchesSearch(tbl, searchTerm);
-            });
-          }
-        }
-
-        block.hidden = !showBlock;
-        if (showBlock) {
-          visibleBlocksCount += 1;
-        }
-      });
-
-      if (globalEmpty) {
-        globalEmpty.hidden = visibleBlocksCount > 0;
-      }
-    }
-
-    domainSelect.addEventListener('change', function () {
-      rebuildSubgroupOptions();
-      applyFilters();
-    });
-
-    subgroupSelect.addEventListener('change', function () {
-      applyFilters();
-    });
-
-    if (searchInput) {
-      searchInput.addEventListener('input', function () {
-        applyFilters();
-      });
-    }
-
-    rebuildSubgroupOptions();
-    applyFilters();
+  function normalizeSearchText(value) {
+    return String(value || '')
+      .toLowerCase()
+      .trim();
   }
 
-  if (!form) return;
+  function currentTypeFilter() {
+    var checked = form.querySelector('input[name="perm_type_filter"]:checked');
+    return checked ? String(checked.value || 'all') : 'all';
+  }
+
+  function activePanel() {
+    return form.querySelector('.perm-panel.is-active[data-panel-id]');
+  }
+
+  function setActivePanel(panelId) {
+    if (!panelId) return;
+    panels.forEach(function (panel) {
+      var match = (panel.getAttribute('data-panel-id') || '') === panelId;
+      panel.classList.toggle('is-active', match);
+      panel.hidden = !match;
+    });
+    treeNodes.forEach(function (node) {
+      node.classList.toggle('is-active', (node.getAttribute('data-panel-id') || '') === panelId);
+    });
+    var panel = activePanel();
+    if (detailTitle && panel) {
+      var title = panel.getAttribute('data-panel-title') || 'الشاشات / التقارير';
+      detailTitle.textContent = 'الشاشات / التقارير — ' + title;
+    }
+    applyRowFilters();
+  }
+
+  function applyTreeSearch() {
+    if (!tree) return;
+    var term = normalizeSearchText(treeSearch ? treeSearch.value : '');
+    var domains = tree.querySelectorAll('.perm-tree-domain');
+    Array.prototype.forEach.call(domains, function (domain) {
+      var nodes = domain.querySelectorAll('.perm-tree-node');
+      var visible = 0;
+      Array.prototype.forEach.call(nodes, function (node) {
+        var hit = !term || normalizeSearchText(node.textContent).indexOf(term) !== -1;
+        node.hidden = !hit;
+        if (hit) visible += 1;
+      });
+      domain.hidden = visible === 0;
+    });
+  }
+
+  function applyRowFilters() {
+    var panel = activePanel();
+    if (!panel) {
+      if (globalEmpty) globalEmpty.hidden = true;
+      return;
+    }
+    var term = normalizeSearchText(screenSearch ? screenSearch.value : '');
+    var typeFilter = currentTypeFilter();
+    var rows = panel.querySelectorAll('tr.perm-row-entry');
+    var visible = 0;
+    Array.prototype.forEach.call(rows, function (row) {
+      var kind = row.getAttribute('data-perm-kind') || 'screen';
+      var typePass = typeFilter === 'all' || kind === typeFilter;
+      var textPass = !term || normalizeSearchText(row.textContent).indexOf(term) !== -1;
+      var show = typePass && textPass;
+      row.hidden = !show;
+      if (show) visible += 1;
+    });
+    if (globalEmpty) {
+      globalEmpty.hidden = visible > 0 || rows.length === 0;
+    }
+  }
+
+  function visibleCheckboxes(panel) {
+    if (!panel) return [];
+    return Array.prototype.slice
+      .call(panel.querySelectorAll('tr.perm-row-entry:not([hidden]) input[type="checkbox"]'))
+      .filter(function (el) {
+        return !el.disabled;
+      });
+  }
+
+  treeNodes.forEach(function (node) {
+    node.addEventListener('click', function () {
+      setActivePanel(node.getAttribute('data-panel-id') || '');
+    });
+  });
+
+  if (treeSearch) {
+    treeSearch.addEventListener('input', applyTreeSearch);
+  }
+  if (treeSearchBtn) {
+    treeSearchBtn.addEventListener('click', applyTreeSearch);
+  }
+  if (screenSearch) {
+    screenSearch.addEventListener('input', applyRowFilters);
+  }
+
+  Array.prototype.forEach.call(form.querySelectorAll('input[name="perm_type_filter"]'), function (radio) {
+    radio.addEventListener('change', applyRowFilters);
+  });
+
+  if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', function () {
+      visibleCheckboxes(activePanel()).forEach(function (cb) {
+        cb.checked = true;
+      });
+    });
+  }
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', function () {
+      visibleCheckboxes(activePanel()).forEach(function (cb) {
+        cb.checked = false;
+      });
+    });
+  }
+
+  var initial = form.getAttribute('data-initial-panel') || '';
+  if (initial) {
+    setActivePanel(initial);
+  } else {
+    applyRowFilters();
+  }
+  applyTreeSearch();
 
   document.addEventListener('master-toolbar', function (e) {
     if (!e.detail || e.detail.action !== 'save') return;

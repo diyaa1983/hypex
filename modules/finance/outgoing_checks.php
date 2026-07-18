@@ -25,6 +25,7 @@ if ($bankId > 0) {
 $csrf = csrf_token();
 $apiUrl = app_url('api/fin_check_action.php');
 $todayDisplay = format_date_dmY(date('Y-m-d'));
+$canUndoOutgoingCheck = user_can_action('action_undo_outgoing_check');
 
 $rows = [];
 $err = '';
@@ -262,7 +263,7 @@ sales_inv_oracle12_enqueue_assets();
                                 <?php if (!empty($r['can_clear'])): ?>
                                     <button type="button" class="btn btn-sm fin-chk-act-btn fin-chk-act-btn--clear"
                                             data-check-action="clear"<?= $attrHtml ?>>صرف</button>
-                                <?php elseif (!empty($r['can_undo'])): ?>
+                                <?php elseif (!empty($r['can_undo']) && $canUndoOutgoingCheck): ?>
                                     <button type="button" class="btn btn-sm btn-secondary fin-chk-act-btn"
                                             data-check-action="undo"
                                             data-check-id="<?= (int) ($r['check_id'] ?? 0) ?>"

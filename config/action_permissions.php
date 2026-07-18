@@ -103,6 +103,11 @@ return [
                     'name_ar' => 'فك ترحيل إجازة موظف',
                     'inherit_from' => ['hr_employee_leaves'],
                 ],
+                [
+                    'code' => 'action_undo_outgoing_check',
+                    'name_ar' => 'إلغاء صرف شيك صادر',
+                    'inherit_from' => ['fin_outgoing_checks', 'cash_payment'],
+                ],
             ],
         ],
         [

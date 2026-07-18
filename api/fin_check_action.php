@@ -73,6 +73,9 @@ try {
         $reason = trim((string) ($_POST['return_reason'] ?? ''));
         $result = fin_checks_manage_return($pdo, $checkId, $reason, $actionDate);
     } elseif ($action === 'undo') {
+        if ($voucherType === 'payment' && !user_can_action('action_undo_outgoing_check')) {
+            throw new RuntimeException('لا صلاحية لإلغاء صرف الشيك الصادر.');
+        }
         $result = fin_checks_manage_undo($pdo, $checkId);
     } elseif ($action === 'endorse') {
         $partyType = trim((string) ($_POST['party_type'] ?? ''));
