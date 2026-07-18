@@ -8,6 +8,29 @@ require_once app_path('includes/crm_supplier_ledger.php');
 require_once app_path('includes/acc_gl.php');
 
 /**
+ * هل يوجد شيك مرتبط بالسند بحالة غير «قيد»؟
+ */
+function fin_voucher_has_non_pending_check(PDO $pdo, int $voucherId): bool
+{
+    if ($voucherId < 1 || !fin_voucher_has_table($pdo)) {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare(
+            "SELECT 1 FROM fin_voucher_check
+             WHERE voucher_id = ?
+               AND COALESCE(lifecycle_status, 'pending') <> 'pending'
+             LIMIT 1"
+        );
+        $st->execute([$voucherId]);
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
  * @return array{ok:bool, error:?string, message:?string}
  */
 function fin_voucher_unpost_payment_by_id(PDO $pdo, int $voucherId): array
@@ -112,6 +135,15 @@ function fin_voucher_unpost_by_id(PDO $pdo, int $voucherId, string $type): array
     $row = fin_voucher_load($pdo, $voucherId, $type);
     if (!$row) {
         $out['error'] = $type === 'receipt' ? 'سند القبض غير موجود.' : 'سند الصرف غير موجود.';
+
+        return $out;
+    }
+
+    // لا يُلغى ترحيل السند إن صُرف/أُرجع/جُيّر شيك مرتبط — ألغِ إجراء الشيك أولاً.
+    if (fin_voucher_has_non_pending_check($pdo, $voucherId)) {
+        $out['error'] = $type === 'receipt'
+            ? 'ألغِ صرف/إرجاع/تجيير الشيك أولاً من شاشة الشيكات الواردة.'
+            : 'ألغِ صرف/إرجاع الشيك أولاً من شاشة الشيكات الصادرة.';
 
         return $out;
     }

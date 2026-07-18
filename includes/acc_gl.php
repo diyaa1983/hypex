@@ -1149,6 +1149,11 @@ function acc_gl_post_cash_payment(PDO $pdo, int $voucherId): array
         if ($amount <= 0) {
             return;
         }
+        // شيك صادر: لا قيد محاسبي عند ترحيل السند — القيد عند «صرف» من سجل الشيكات الصادرة.
+        $payMethod = (string) ($row['pay_method'] ?? 'cash');
+        if ($payMethod === 'check') {
+            return;
+        }
         $party = (string) ($row['party_type'] ?? '');
         $partyName = acc_gl_party_name($pdo, $party, (int) ($row['party_id'] ?? 0));
         $partyMemo = '';

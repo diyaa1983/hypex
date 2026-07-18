@@ -6,8 +6,23 @@
 
   var printApi = page.getAttribute('data-print-check-api') || '';
   var printCssUrl = page.getAttribute('data-print-check-css') || '';
+  var apiUrl = page.getAttribute('data-api-url') || '';
+  var csrf = page.getAttribute('data-csrf') || '';
   var activeCheckHtml = '';
   var activeCheckTitle = 'شيك صادر';
+
+  var clearModal = document.getElementById('fin-oc-clear-modal');
+  var clearForm = document.getElementById('fin-oc-clear-modal-form');
+  var clearCheckId = document.getElementById('fin-oc-clear-check-id');
+  var clearActionDate = document.getElementById('fin-oc-clear-action-date');
+  var clearErr = document.getElementById('fin-oc-clear-modal-error');
+  var clearSubmit = document.getElementById('fin-oc-clear-modal-submit');
+  var sumNo = document.getElementById('fin-oc-sum-no');
+  var sumAmount = document.getElementById('fin-oc-sum-amount');
+  var sumParty = document.getElementById('fin-oc-sum-party');
+  var sumVoucher = document.getElementById('fin-oc-sum-voucher');
+  var sumVdate = document.getElementById('fin-oc-sum-vdate');
+  var sumDue = document.getElementById('fin-oc-sum-due');
 
   function alertMsg(msg, type) {
     if (window.AppDialog && AppDialog.alert) {
@@ -15,6 +30,182 @@
     } else {
       alert(msg);
     }
+  }
+
+  function dialogConfirm(msg, title) {
+    if (window.AppDialog && AppDialog.confirm) {
+      return AppDialog.confirm(msg, { title: title || 'تأكيد' });
+    }
+    return Promise.resolve(window.confirm(msg));
+  }
+
+  function dialogSuccess(msg) {
+    if (window.AppDialog && AppDialog.success) {
+      AppDialog.success(msg);
+      return;
+    }
+    window.alert(msg);
+  }
+
+  function dialogError(msg) {
+    if (window.AppDialog && AppDialog.error) {
+      AppDialog.error(msg);
+      return;
+    }
+    window.alert(msg);
+  }
+
+  function todayDmY() {
+    if (window.AppDatePicker && AppDatePicker.formatIsoToDmY) {
+      var d = new Date();
+      var iso =
+        d.getFullYear() +
+        '-' +
+        String(d.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(d.getDate()).padStart(2, '0');
+      return AppDatePicker.formatIsoToDmY(iso);
+    }
+    var now = new Date();
+    return (
+      String(now.getDate()).padStart(2, '0') +
+      '-' +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      now.getFullYear()
+    );
+  }
+
+  function setClearSummary(btn) {
+    if (!btn) return;
+    var val = function (key) {
+      return btn.getAttribute(key) || '—';
+    };
+    if (sumNo) sumNo.innerHTML = '<code>' + (val('data-check-no') || '—') + '</code>';
+    if (sumAmount) sumAmount.textContent = val('data-check-amount');
+    if (sumParty) sumParty.textContent = val('data-party-name');
+    if (sumVoucher) sumVoucher.innerHTML = '<code>' + val('data-voucher-no') + '</code>';
+    if (sumVdate) sumVdate.textContent = val('data-voucher-date');
+    if (sumDue) sumDue.textContent = val('data-due-date');
+  }
+
+  function openClearModal(btn) {
+    if (!clearModal || !btn) return;
+    var checkId = btn.getAttribute('data-check-id');
+    if (!checkId) return;
+    clearCheckId.value = String(checkId);
+    setClearSummary(btn);
+    if (clearActionDate) {
+      clearActionDate.value = todayDmY();
+      clearActionDate.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+    if (clearErr) {
+      clearErr.textContent = '';
+      clearErr.style.display = 'none';
+    }
+    clearModal.hidden = false;
+    clearModal.setAttribute('aria-hidden', 'false');
+    clearModal.dataset.checkLabel = btn.getAttribute('data-check-label') || '';
+  }
+
+  function closeClearModal() {
+    if (!clearModal) return;
+    clearModal.hidden = true;
+    clearModal.setAttribute('aria-hidden', 'true');
+  }
+
+  function postCheckAction(fd) {
+    return fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) {
+      return r.json();
+    });
+  }
+
+  function undoCheck(btn) {
+    var checkId = parseInt(btn.getAttribute('data-check-id') || '0', 10) || 0;
+    var undoLabel = btn.getAttribute('data-undo-label') || 'إلغاء الصرف';
+    if (checkId < 1 || !apiUrl) return;
+    dialogConfirm(undoLabel + ' وإعادة الشيك إلى «قيد»؟', undoLabel).then(function (ok) {
+      if (!ok) return;
+      var fd = new FormData();
+      fd.append('_csrf', csrf);
+      fd.append('action', 'undo');
+      fd.append('check_id', String(checkId));
+      postCheckAction(fd)
+        .then(function (data) {
+          if (data && data.ok) {
+            dialogSuccess((data && data.message) || 'تم الإلغاء.');
+            window.setTimeout(function () {
+              window.location.reload();
+            }, 400);
+            return;
+          }
+          dialogError((data && data.message) || 'تعذر إلغاء الصرف.');
+        })
+        .catch(function () {
+          dialogError('خطأ في الاتصال بالخادم.');
+        });
+    });
+  }
+
+  page.addEventListener('click', function (ev) {
+    var actBtn = ev.target && ev.target.closest ? ev.target.closest('[data-check-action]') : null;
+    if (actBtn) {
+      var action = actBtn.getAttribute('data-check-action');
+      if (action === 'undo') {
+        ev.preventDefault();
+        undoCheck(actBtn);
+        return;
+      }
+      if (action === 'clear') {
+        ev.preventDefault();
+        dialogConfirm('فتح شاشة ترحيل صرف هذا الشيك؟', 'صرف الشيك').then(function (ok) {
+          if (ok) openClearModal(actBtn);
+        });
+        return;
+      }
+    }
+  });
+
+  if (clearModal) {
+    clearModal.querySelectorAll('[data-fin-oc-clear-close]').forEach(function (el) {
+      el.addEventListener('click', closeClearModal);
+    });
+  }
+
+  if (clearForm) {
+    clearForm.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      if (!apiUrl) return;
+      var label = (clearModal && clearModal.dataset.checkLabel) || '';
+      dialogConfirm('تأكيد ترحيل صرف الشيك؟\n' + label, 'صرف الشيك').then(function (ok) {
+        if (!ok) return;
+        if (clearSubmit) clearSubmit.disabled = true;
+        if (clearErr) clearErr.style.display = 'none';
+        var fd = new FormData(clearForm);
+        fd.append('_csrf', csrf);
+        postCheckAction(fd)
+          .then(function (data) {
+            if (data && data.ok) {
+              closeClearModal();
+              dialogSuccess((data && data.message) || 'تم صرف الشيك.');
+              window.setTimeout(function () {
+                window.location.reload();
+              }, 400);
+              return;
+            }
+            if (clearErr) {
+              clearErr.textContent = (data && data.message) || 'تعذر صرف الشيك.';
+              clearErr.style.display = '';
+            }
+          })
+          .catch(function () {
+            dialogError('خطأ في الاتصال بالخادم.');
+          })
+          .finally(function () {
+            if (clearSubmit) clearSubmit.disabled = false;
+          });
+      });
+    });
   }
 
   function isCheckPreviewOpen() {
@@ -192,6 +383,9 @@
   document.addEventListener('keydown', function (ev) {
     if (ev.key === 'Escape' && isCheckPreviewOpen()) {
       closeCheckPreview();
+    }
+    if (ev.key === 'Escape' && clearModal && !clearModal.hidden) {
+      closeClearModal();
     }
   });
 })();

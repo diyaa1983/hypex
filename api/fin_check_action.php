@@ -7,7 +7,7 @@ require_once app_path('includes/fin_voucher_schema.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!is_logged_in() || !user_can('fin_checks')) {
+if (!is_logged_in() || !(user_can('fin_checks') || user_can('fin_outgoing_checks'))) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'forbidden'], JSON_UNESCAPED_UNICODE);
     exit;
@@ -39,8 +39,28 @@ if ($checkId < 1) {
     exit;
 }
 
+$canIncoming = user_can('fin_checks');
+$canOutgoing = user_can('fin_outgoing_checks');
+
 try {
     $pdo->beginTransaction();
+
+    $checkPreview = fin_checks_manage_load_check($pdo, $checkId);
+    if (!$checkPreview) {
+        throw new RuntimeException('الشيك غير موجود.');
+    }
+    $voucherType = (string) ($checkPreview['voucher_type'] ?? '');
+    if ($voucherType === 'payment' && !$canOutgoing && !$canIncoming) {
+        throw new RuntimeException('لا صلاحية على الشيكات الصادرة.');
+    }
+    if ($voucherType === 'receipt' && !$canIncoming) {
+        throw new RuntimeException('لا صلاحية على الشيكات الواردة.');
+    }
+    // من صلاحية الشيكات الصادرة فقط: صرف / إلغاء صرف فقط.
+    if (!$canIncoming && $canOutgoing && !in_array($action, ['clear', 'undo'], true)) {
+        throw new RuntimeException('الإجراء غير مسموح من صلاحية الشيكات الصادرة.');
+    }
+
     if ($action === 'clear') {
         $accountId = (int) ($_POST['account_id'] ?? 0);
         $result = fin_checks_manage_clear($pdo, $checkId, $accountId, $actionDate);

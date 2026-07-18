@@ -38,6 +38,8 @@ function fin_outgoing_check_register_ensure_schema(PDO $pdo): bool
     if (!fin_outgoing_check_register_has_column($pdo)) {
         return false;
     }
+    require_once app_path('includes/fin_checks_manage.php');
+    fin_checks_manage_ensure_schema($pdo);
     fin_outgoing_check_register_backfill($pdo);
 
     return true;
@@ -247,16 +249,18 @@ function fin_outgoing_check_register_fetch(PDO $pdo, array $filters, ?string $to
 
     $sql =
         "SELECT c.id AS check_id, c.register_no, c.check_no, c.bank_name, c.check_amount, c.due_date, c.notes,
-                c.lifecycle_status,
+                c.lifecycle_status, c.action_date, c.action_account_id, c.action_journal_id,
                 v.id AS voucher_id, v.voucher_no, v.voucher_date, v.party_id, v.party_type,
                 ({$postedExpr}) AS is_posted,
-                COALESCE(cust.name_ar, sup.name_ar, emp.name_ar, acc_party.name_ar, '—') AS party_name
+                COALESCE(cust.name_ar, sup.name_ar, emp.name_ar, acc_party.name_ar, '—') AS party_name,
+                COALESCE(acc_act.name_ar, '') AS action_account_name
          FROM fin_voucher_check c
          INNER JOIN fin_voucher v ON v.id = c.voucher_id AND v.voucher_type = 'payment'
          LEFT JOIN crm_customer cust ON v.party_type = 'customer' AND cust.id = v.party_id
          LEFT JOIN crm_supplier sup ON v.party_type = 'supplier' AND sup.id = v.party_id
          LEFT JOIN hr_employee emp ON v.party_type = 'employee' AND emp.id = v.party_id
          LEFT JOIN acc_account acc_party ON v.party_type = 'account' AND acc_party.id = v.party_id
+         LEFT JOIN acc_account acc_act ON acc_act.id = c.action_account_id
          WHERE c.check_amount > 0.000001
            AND c.register_no IS NOT NULL AND c.register_no <> ''";
 
@@ -317,6 +321,8 @@ function fin_outgoing_check_register_fetch(PDO $pdo, array $filters, ?string $to
         $partyType = (string) ($row['party_type'] ?? '');
         $lifecycle = (string) ($row['lifecycle_status'] ?? 'pending');
         $isPosted = (int) ($row['is_posted'] ?? 0) === 1;
+        $actionDate = trim((string) ($row['action_date'] ?? ''));
+        $actionAccountName = trim((string) ($row['action_account_name'] ?? ''));
 
         $out[] = [
             'check_id' => (int) ($row['check_id'] ?? 0),
@@ -342,6 +348,16 @@ function fin_outgoing_check_register_fetch(PDO $pdo, array $filters, ?string $to
                 'endorsed' => 'مُجيَّر',
                 default => 'قيد',
             },
+            'action_date' => $actionDate,
+            'action_account_name' => $actionAccountName,
+            'can_clear' => $isPosted && $lifecycle === 'pending',
+            'can_undo' => $isPosted && in_array($lifecycle, ['cleared', 'returned', 'endorsed'], true),
+            'undo_label' => match ($lifecycle) {
+                'returned' => 'إلغاء الإرجاع',
+                'endorsed' => 'إلغاء التجيير',
+                default => 'إلغاء الصرف',
+            },
+            'direction' => 'صادر',
             'voucher_url' => $vid > 0 ? app_url('index.php?r=cash_payment&id=' . $vid) : '',
         ];
     }

@@ -2011,16 +2011,19 @@
       return;
     }
     var csrfInput = form.querySelector('[name="_csrf"]');
+    var payMethodEl = form.querySelector('[name="pay_method"]');
+    var isCheckPay = payMethodEl && payMethodEl.value === 'check';
+    var confirmMsg = isCheckPay
+      ? 'ترحيل سند الصرف (شيك)؟\nلن يتأثر حساب البنك أو الجهة الآن — الأثر المحاسبي عند «صرف» من سجل الشيكات الصادرة.'
+      : 'ترحيل سند الصرف؟\nيُسجَّل القيد على الطرف وعلى الحساب: ' + (getCashAccountLabel() || '—') + '.';
     if (global.AppDialog) {
-      AppDialog.confirm(
-        'ترحيل سند الصرف؟\nيُسجَّل القيد على الطرف وعلى الحساب: ' + (getCashAccountLabel() || '—') + '.',
-        {
+      AppDialog.confirm(confirmMsg, {
         title: 'ترحيل السند',
       }).then(function (ok) {
         if (!ok) return;
         doPostVoucher(csrfInput);
       });
-    } else if (confirm('ترحيل سند الصرف؟')) {
+    } else if (confirm(confirmMsg)) {
       doPostVoucher(csrfInput);
     }
   }

@@ -2,16 +2,29 @@
 declare(strict_types=1);
 
 require_once app_path('includes/fin_outgoing_check_register.php');
+require_once app_path('includes/fin_checks_manage.php');
 require_once app_path('includes/sales_oracle12_ui.php');
 require_once app_path('includes/nav_helpers.php');
 require_once app_path('includes/document_header.php');
 
 $pdo = db();
 fin_outgoing_check_register_ensure_schema($pdo);
+fin_checks_manage_ensure_schema($pdo);
 
 $activeRoute = $activeRoute ?? 'fin_outgoing_checks';
 $flash = flash_get();
 $filters = fin_outgoing_check_register_parse_filters($_GET);
+
+$cashAccounts = fin_checks_manage_load_deposit_accounts($pdo);
+$defaultDepositAccountId = (int) ($cashAccounts[0]['id'] ?? 0);
+require_once app_path('includes/acc_gl.php');
+$bankId = acc_gl_bank_account_id($pdo);
+if ($bankId > 0) {
+    $defaultDepositAccountId = $bankId;
+}
+$csrf = csrf_token();
+$apiUrl = app_url('api/fin_check_action.php');
+$todayDisplay = format_date_dmY(date('Y-m-d'));
 
 $rows = [];
 $err = '';
@@ -61,7 +74,10 @@ sales_inv_oracle12_enqueue_assets();
 <link rel="stylesheet" href="<?= esc($printCheckCssUrl) ?>">
 
 <div class="dashboard-ora sales-ora12-screen sales-ora-list-page sales-inv-list-page fin-checks-page fin-outgoing-checks-page"
+     id="fin-outgoing-checks-screen"
      data-exit-url="<?= esc($exitUrl) ?>"
+     data-api-url="<?= esc($apiUrl) ?>"
+     data-csrf="<?= esc($csrf) ?>"
      data-print-check-api="<?= esc($printCheckApi) ?>"
      data-print-check-css="<?= esc($printCheckCssUrl) ?>">
     <?php sales_ora12_render_title_bar('سجل الشيكات الصادرة', '', $activeRoute); ?>
@@ -78,9 +94,8 @@ sales_inv_oracle12_enqueue_assets();
     <?php endif; ?>
 
     <p class="sales-ora-info muted">
-        يُسجَّل كل شيك صادر تلقائياً عند حفظ <strong>سند صرف</strong> بطريقة دفع «شيك»،
-        ويُمنح <strong>رقم تسلسلي</strong> من النظام (مثل 001-2026).
-        لإضافة شيك جديد: أنشئ سند صرف واختر طريقة الدفع «شيك».
+        يُسجَّل كل شيك صادر تلقائياً عند حفظ <strong>سند صرف</strong> بطريقة دفع «شيك».
+        ترحيل السند لا يؤثر على حساب البنك أو الجهة — الأثر المحاسبي عند الضغط على <strong>صرف</strong> من هذه الشاشة.
     </p>
 
     <div class="sales-ora-panel card">
@@ -175,19 +190,40 @@ sales_inv_oracle12_enqueue_assets();
                     <th>الاستحقاق</th>
                     <th>ترحيل السند</th>
                     <th>حالة الشيك</th>
+                    <th class="no-print">تنفيذ</th>
                     <th class="fin-outgoing-checks-col-print no-print">طباعة</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if ($rows === []): ?>
                     <tr>
-                        <td colspan="12" class="muted" style="text-align:center;padding:1.25rem;">
+                        <td colspan="13" class="muted" style="text-align:center;padding:1.25rem;">
                             لا توجد شيكات صادرة مطابقة.
                         </td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($rows as $r): ?>
-                        <tr>
+                        <?php
+                            $checkLabel = trim(
+                                (($r['check_no'] ?? '') !== '' ? (string) $r['check_no'] : ('#' . ($r['check_id'] ?? 0)))
+                                . ' — ' . format_money((float) ($r['check_amount'] ?? 0))
+                            );
+                            $rowAttrs = fin_checks_manage_row_data_attrs($r);
+                            $attrHtml = '';
+                            foreach ($rowAttrs as $k => $v) {
+                                $attrHtml .= ' ' . $k . '="' . esc($v) . '"';
+                            }
+                            $attrHtml .= ' data-check-label="' . esc($checkLabel) . '"';
+                            $lifecycle = (string) ($r['lifecycle_status'] ?? 'pending');
+                            $statusExtra = '';
+                            if ($lifecycle === 'cleared' && ($r['action_account_name'] ?? '') !== '') {
+                                $statusExtra = (string) $r['action_account_name'];
+                            }
+                            if ($lifecycle === 'cleared' && ($r['action_date'] ?? '') !== '') {
+                                $statusExtra = trim($statusExtra . ' · ' . format_date_dmY((string) $r['action_date']));
+                            }
+                        ?>
+                        <tr data-check-id="<?= (int) ($r['check_id'] ?? 0) ?>">
                             <td><code><?= esc((string) ($r['register_no'] ?? '')) ?></code></td>
                             <td class="fin-chk-col-no"><code><?= esc((string) (($r['check_no'] ?? '') !== '' ? $r['check_no'] : '—')) ?></code></td>
                             <td class="fin-chk-col-money"><?= esc(format_money((float) ($r['check_amount'] ?? 0))) ?></td>
@@ -215,7 +251,29 @@ sales_inv_oracle12_enqueue_assets();
                                     <?= esc((string) ($r['posted_label'] ?? '')) ?>
                                 </span>
                             </td>
-                            <td><?= esc((string) ($r['lifecycle_label'] ?? 'قيد')) ?></td>
+                            <td title="<?= esc($statusExtra) ?>">
+                                <?= esc((string) ($r['lifecycle_label'] ?? 'قيد')) ?>
+                                <?php if ($statusExtra !== ''): ?>
+                                    <br><small class="muted"><?= esc($statusExtra) ?></small>
+                                <?php endif; ?>
+                            </td>
+                            <td class="row-actions fin-chk-actions-cell no-print">
+                                <?php if (!empty($r['can_clear'])): ?>
+                                    <button type="button" class="btn btn-sm fin-chk-act-btn fin-chk-act-btn--clear"
+                                            data-check-action="clear"<?= $attrHtml ?>>صرف</button>
+                                <?php elseif (!empty($r['can_undo'])): ?>
+                                    <button type="button" class="btn btn-sm btn-secondary fin-chk-act-btn"
+                                            data-check-action="undo"
+                                            data-check-id="<?= (int) ($r['check_id'] ?? 0) ?>"
+                                            data-undo-label="<?= esc((string) ($r['undo_label'] ?? 'إلغاء الصرف')) ?>">
+                                        <?= esc((string) ($r['undo_label'] ?? 'إلغاء الصرف')) ?>
+                                    </button>
+                                <?php elseif (empty($r['is_posted'])): ?>
+                                    <span class="badge badge-warn">غير مرحّل</span>
+                                <?php else: ?>
+                                    <span class="muted">—</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="fin-outgoing-checks-col-print no-print">
                                 <button type="button"
                                         class="btn btn-secondary btn-sm fin-outgoing-check-print-one"
@@ -232,6 +290,85 @@ sales_inv_oracle12_enqueue_assets();
     </div>
 
     <?php sales_ora12_workspace_close(); ?>
+</div>
+
+<div id="fin-oc-clear-modal" class="fin-check-modal fin-check-modal--ora12 sales-ora12-screen" hidden aria-hidden="true">
+    <div class="fin-check-modal__backdrop" data-fin-oc-clear-close></div>
+    <div class="dashboard-ora-panel fin-check-modal__panel fin-check-modal__panel--ora" role="dialog" aria-modal="true">
+        <h2 class="dashboard-ora-panel__title" id="fin-oc-clear-modal-title">ترحيل صرف الشيك الصادر</h2>
+        <div class="dashboard-ora-panel__body">
+            <section class="dashboard-ora-panel fin-check-modal__summary-panel">
+                <h3 class="dashboard-ora-panel__title fin-check-modal__summary-title">بيانات الشيك</h3>
+                <div class="dashboard-ora-panel__body fin-check-modal__summary-body">
+                    <table class="data-table fin-check-modal__summary-table">
+                        <tbody>
+                        <tr>
+                            <th scope="row">رقم الشيك</th>
+                            <td id="fin-oc-sum-no"><code>—</code></td>
+                            <th scope="row">القيمة</th>
+                            <td id="fin-oc-sum-amount" class="fin-chk-col-money">—</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">الجهة</th>
+                            <td id="fin-oc-sum-party">—</td>
+                            <th scope="row">سند الصرف</th>
+                            <td id="fin-oc-sum-voucher"><code>—</code></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">تاريخ السند</th>
+                            <td id="fin-oc-sum-vdate">—</td>
+                            <th scope="row">الاستحقاق</th>
+                            <td id="fin-oc-sum-due">—</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div id="fin-oc-clear-modal-error" class="alert alert-error" style="display:none;margin:0.75rem 0;"></div>
+            <form id="fin-oc-clear-modal-form" class="form-grid fin-check-modal__form">
+                <input type="hidden" name="action" value="clear">
+                <input type="hidden" name="check_id" id="fin-oc-clear-check-id" value="">
+                <label class="field">
+                    <span class="field-label">تاريخ الصرف *</span>
+                    <input class="input input-compact js-date-dmy" type="text" name="action_date" id="fin-oc-clear-action-date"
+                           value="<?= esc($todayDisplay) ?>" placeholder="يوم-شهر-سنة" dir="ltr" required autocomplete="off">
+                </label>
+                <label class="field">
+                    <span class="field-label">الصرف من حساب (بنك / صندوق) *</span>
+                    <select class="input input-compact" name="account_id" id="fin-oc-clear-account-id" required>
+                        <option value="">— اختر الحساب —</option>
+                        <?php
+                        $lastGroup = '';
+                        foreach ($cashAccounts as $acc):
+                            $gk = (string) ($acc['group_key'] ?? 'liquid');
+                            $gl = (string) ($acc['group_label'] ?? 'النقدية والبنوك');
+                            if ($gk !== $lastGroup):
+                                if ($lastGroup !== '') {
+                                    echo '</optgroup>';
+                                }
+                                $lastGroup = $gk;
+                                echo '<optgroup label="' . esc($gl) . '">';
+                            endif;
+                            $sel = (int) ($acc['id'] ?? 0) === $defaultDepositAccountId ? ' selected' : '';
+                            ?>
+                            <option value="<?= (int) ($acc['id'] ?? 0) ?>"<?= $sel ?>>
+                                <?= esc((string) ($acc['code'] ?? '')) ?> — <?= esc((string) ($acc['name_ar'] ?? '')) ?>
+                            </option>
+                        <?php endforeach;
+                        if ($lastGroup !== '') {
+                            echo '</optgroup>';
+                        }
+                        ?>
+                    </select>
+                </label>
+                <div class="form-actions" style="margin-top:0.75rem;">
+                    <button type="submit" class="btn btn-primary" id="fin-oc-clear-modal-submit">ترحيل — صرف</button>
+                    <button type="button" class="btn btn-secondary" id="fin-oc-clear-modal-cancel" data-fin-oc-clear-close>إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <div id="fin-oc-print-overlay" class="sales-inv-print-overlay fin-oc-print-overlay no-print" hidden>
