@@ -11,6 +11,7 @@ function sys_audit_log_action_labels(): array
         'delete' => 'حذف',
         'post' => 'ترحيل',
         'unpost' => 'فك ترحيل',
+        'einvoice_reset' => 'فك إرسال الفوترة',
     ];
 }
 
