@@ -108,8 +108,6 @@ $archiveCssUrl = app_url('assets/css/fin-voucher-archive.css') . (is_file($archi
 $archiveJsPath = app_path('assets/js/fin-voucher-archive.js');
 $archiveJsUrl = app_url('assets/js/fin-voucher-archive.js') . (is_file($archiveJsPath) ? '?v=' . (string) filemtime($archiveJsPath) : '');
 $apiEinvoiceReturn = app_url('api/sales_return_einvoice_send.php');
-$apiEinvoiceResetReturn = app_url('api/sales_return_einvoice_reset.php');
-$canSendEinvoiceReturn = user_can_action('sales_send_einvoice');
 $apiSendEmail = app_url('api/document_send_email.php');
 $listReturnsUrl = app_url('index.php?r=sales_returns_list');
 $cssInvPath = app_path('assets/css/sales-invoice.css');
@@ -184,9 +182,7 @@ customer_picker_json_script($customers, 'sales-ret-customers-json');
           data-archive-kind="sales_return"
           data-return-delete-url="<?= esc($apiDeleteReturn) ?>"
           data-return-einvoice-url="<?= esc($apiEinvoiceReturn) ?>"
-          data-return-einvoice-reset-url="<?= esc($apiEinvoiceResetReturn) ?>"
           data-return-einvoice-mark-manual-url="<?= esc(app_url('api/sales_return_einvoice_mark_manual.php')) ?>"
-          data-can-send-einvoice="<?= $canSendEinvoiceReturn ? '1' : '0' ?>"
           data-send-email-url="<?= esc($apiSendEmail) ?>"
           data-list-url="<?= esc($listReturnsUrl) ?>"
           data-new-url="<?= esc($newReturnUrl) ?>"

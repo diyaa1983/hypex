@@ -14,8 +14,6 @@
   var returnPostUrl = form.getAttribute('data-return-post-url') || '';
   var returnUnpostUrl = form.getAttribute('data-return-unpost-url') || '';
   var canUnpostByPermission = form.getAttribute('data-can-unpost') === '1';
-  var returnEinvoiceResetUrl = form.getAttribute('data-return-einvoice-reset-url') || '';
-  var canSendEinvoice = form.getAttribute('data-can-send-einvoice') === '1';
   var returnDeleteUrl = form.getAttribute('data-return-delete-url') || '';
   var sendEmailUrl = form.getAttribute('data-send-email-url') || '';
   var listReturnsUrl = form.getAttribute('data-list-url') || '';
@@ -1776,30 +1774,13 @@
     unpostBtn.disabled = !canUnpost;
     unpostBtn.classList.toggle('is-inactive', !canUnpost);
     if (returnEinvSent) {
-      unpostBtn.title = 'لا يمكن فك ترحيل مرتجع أُرسل إلى نظام الفوترة. استخدم «فك إرسال الفوترة» أولاً.';
+      unpostBtn.title = 'لا يمكن فك ترحيل مرتجع أُرسل إلى نظام الفوترة.';
     } else if (canUnpost) {
       unpostBtn.title = 'فك ترحيل المرتجع (عكس القيود والمستودع وذمة العميل)';
     } else if (currentReturnId < 1) {
       unpostBtn.title = 'احفظ المرتجع أولاً.';
     } else {
       unpostBtn.title = 'المرتجع غير مرحّل.';
-    }
-    updateToolbarResetEinvoiceButton();
-  }
-
-  function updateToolbarResetEinvoiceButton() {
-    var btn = document.querySelector('#master-toolbar [data-master-action="reset_return_einvoice"]');
-    if (!btn) return;
-    var canReset = canSendEinvoice && currentReturnId > 0 && returnEinvSent;
-    btn.disabled = !canReset;
-    btn.classList.toggle('is-inactive', !canReset);
-    btn.hidden = !canSendEinvoice;
-    if (canReset) {
-      btn.title = 'مسح علامة إرسال المرتجع للفوترة لاستعادة فك الترحيل أو إعادة الإرسال';
-    } else if (!returnEinvSent) {
-      btn.title = 'المرتجع غير مُرسل للفوترة.';
-    } else {
-      btn.title = 'احفظ المرتجع أولاً.';
     }
   }
 
@@ -2548,9 +2529,6 @@
         try { console.error('send_return_einvoice failed:', err); } catch (_e) {}
         AppDialog.error('خطأ داخلي: ' + (err && err.message ? err.message : err));
       }
-    } else if (action === 'reset_return_einvoice') {
-      e.preventDefault();
-      resetReturnEinvoiceSend();
     } else if (action === 'exit') {
       e.preventDefault();
       var bar = document.getElementById('master-toolbar');
@@ -2671,69 +2649,6 @@
       .finally(function () {
         if (window.AppBusy) AppBusy.hide();
       });
-  }
-
-  function resetReturnEinvoiceSend() {
-    if (!canSendEinvoice) {
-      AppDialog.alert('ليس لديك صلاحية إدارة إرسال الفوترة.', { type: 'warning' });
-      return;
-    }
-    if (!returnEinvoiceResetUrl) {
-      AppDialog.alert('فك إرسال الفوترة غير متاح.', { type: 'warning' });
-      return;
-    }
-    if (currentReturnId < 1) {
-      AppDialog.alert('احفظ المرتجع أولاً.', { type: 'warning' });
-      return;
-    }
-    if (!returnEinvSent) {
-      AppDialog.alert('المرتجع غير مُرسل للفوترة.', { type: 'info' });
-      return;
-    }
-    var csrfInput = form.querySelector('[name="_csrf"]');
-    var msg =
-      '<p>سيتم مسح علامة إرسال هذا المرتجع لنظام الفوترة داخل النظام فقط.</p>' +
-      '<p>بعد ذلك يمكنك <strong>فك الترحيل</strong> أو <strong>إعادة الإرسال</strong>.</p>' +
-      '<p class="muted">ملاحظة: إن كان المرتجع مسجّلاً لدى جهة الفوترة الخارجية فقد تحتاج معالجة هناك أيضاً.</p>' +
-      '<p class="ui-dialog-question">متابعة؟</p>';
-    AppDialog.confirm(msg, {
-      title: 'فك إرسال الفوترة',
-      okText: 'فك الإرسال',
-      danger: true,
-      html: true,
-    }).then(function (ok) {
-      if (!ok) return;
-      var fd = new FormData();
-      fd.append('_csrf', csrfInput ? csrfInput.value : '');
-      fd.append('return_id', String(currentReturnId));
-      if (window.AppBusy) AppBusy.show('جاري فك إرسال الفوترة...');
-      fetch(returnEinvoiceResetUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          if (!data || !data.ok) {
-            AppDialog.error((data && data.error) || 'تعذر فك إرسال الفوترة.');
-            return;
-          }
-          returnEinvSent = false;
-          returnEinvQr = '';
-          returnEinvNum = '';
-          if (lastLoadedReturn) {
-            lastLoadedReturn.einv_sent = false;
-            lastLoadedReturn.einv_qr = '';
-            lastLoadedReturn.einv_num = '';
-          }
-          updatePostedBadge();
-          updateToolbarUnpostButton();
-          updateReturnEinvButtonState();
-          AppDialog.success(data.message || 'تم فك إرسال الفوترة.');
-        })
-        .catch(function () {
-          AppDialog.error('تعذر الاتصال بالخادم.');
-        })
-        .finally(function () {
-          if (window.AppBusy) AppBusy.hide();
-        });
-    });
   }
 
   var markedManualEinvoiceIds = {};

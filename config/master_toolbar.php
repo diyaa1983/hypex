@@ -494,14 +494,6 @@ return [
             'permission' => 'sales_send_einvoice',
         ],
         [
-            'action' => 'reset_return_einvoice',
-            'label' => 'فك إرسال الفوترة',
-            'variant' => 'secondary',
-            'title' => 'مسح علامة إرسال المرتجع للفوترة لاستعادة فك الترحيل أو إعادة الإرسال',
-            'screens' => ['sales_returns'],
-            'permission' => 'sales_send_einvoice',
-        ],
-        [
             'action' => 'delete',
             'label' => 'حذف',
             'variant' => 'danger',
