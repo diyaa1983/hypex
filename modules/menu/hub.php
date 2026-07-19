@@ -236,10 +236,32 @@ $isFavoritesHub = $domainId === 'favorites';
         <?php endif; ?>
 
         <?php if ($isFavoritesHub): ?>
-        <section class="nav-fav-gallery" aria-label="المفضلة">
+        <section class="nav-fav-gallery" aria-label="المفضلة" id="nav-fav-gallery">
             <div class="nav-fav-gallery__stage">
+                <div class="nav-fav-search" role="search">
+                    <label class="nav-fav-search__label" for="nav-fav-search-input">بحث في المفضلة</label>
+                    <div class="nav-fav-search__field">
+                        <span class="nav-fav-search__icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="7"></circle>
+                                <path d="M20 20l-3.5-3.5"></path>
+                            </svg>
+                        </span>
+                        <input
+                            type="search"
+                            id="nav-fav-search-input"
+                            class="nav-fav-search__input"
+                            placeholder="ابحث عن شاشة أو تقرير في المفضلة…"
+                            autocomplete="off"
+                            enterkeyhint="search"
+                            spellcheck="false"
+                        >
+                        <button type="button" class="nav-fav-search__clear" id="nav-fav-search-clear" hidden aria-label="مسح البحث">×</button>
+                    </div>
+                    <p class="nav-fav-search__hint" id="nav-fav-search-hint" hidden>لا توجد نتائج مطابقة</p>
+                </div>
                 <p class="nav-fav-gallery__eyebrow">المفضلة</p>
-                <div class="nav-fav-gallery__grid" role="list">
+                <div class="nav-fav-gallery__grid" role="list" id="nav-fav-grid">
                     <?php foreach ($items as $idx => $it): ?>
                         <?php
                         $r = (string) $it['r'];
@@ -253,6 +275,8 @@ $isFavoritesHub = $domainId === 'favorites';
                            href="<?= esc(app_mdi_hub_nav_url($url, true)) ?>"
                            style="--fav-delay: <?= (int) $delay ?>ms"
                            title="<?= esc($label) ?>"
+                           data-fav-label="<?= esc(mb_strtolower($label, 'UTF-8')) ?>"
+                           data-fav-route="<?= esc(mb_strtolower($r, 'UTF-8')) ?>"
                            <?= (app_mdi_is_embed_request() || app_mdi_is_park_menu_embed()) ? ' target="_parent"' : '' ?>>
                             <span class="nav-fav-tile__face">
                                 <span class="nav-fav-tile__icon" aria-hidden="true"><?= esc($icon) ?></span>
@@ -263,6 +287,11 @@ $isFavoritesHub = $domainId === 'favorites';
                 </div>
             </div>
         </section>
+        <?php
+        $favSearchJsPath = app_path('assets/js/nav-favorites-search.js');
+        $favSearchJsV = is_file($favSearchJsPath) ? (string) filemtime($favSearchJsPath) : '';
+        ?>
+        <script src="<?= esc(app_url('assets/js/nav-favorites-search.js')) ?><?= $favSearchJsV !== '' ? '?v=' . esc($favSearchJsV) : '' ?>" defer></script>
         <?php else: ?>
         <section class="dashboard-ora-panel" aria-label="شاشات <?= esc($hubPageTitle) ?>">
             <h2 class="dashboard-ora-panel__title">الشاشات والتقارير</h2>
