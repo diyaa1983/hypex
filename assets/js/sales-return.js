@@ -2044,6 +2044,15 @@
       ret && (ret.invoice_einv_sent || ret.invoice_einv_qr || ret.invoice_einv_legacy)
     );
     originalInvoiceEinvNum = ret && ret.invoice_einv_num ? String(ret.invoice_einv_num) : '';
+    // مرتجع SR011-2026 فقط: اعتبره مرسلاً يدوياً للفوترة مرة واحدة (بدون التأثير على غيره).
+    if (
+      !returnEinvSent &&
+      ret &&
+      String(ret.return_no || '').trim() === 'SR011-2026' &&
+      currentReturnId > 0
+    ) {
+      markReturnEinvoiceManualOnce(currentReturnId);
+    }
     try {
       console.log('[einvoice-return] loadReturn flags', {
         id: currentReturnId,
