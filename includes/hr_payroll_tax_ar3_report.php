@@ -54,14 +54,6 @@ function hr_payroll_tax_ar3_employees_for_year(PDO $pdo, int $year): array
     }
 }
 
-/**
- * @return array{first:string, father:string, grandfather:string, family:string}
- */
-function hr_payroll_tax_ar3_split_name(string $fullName): array
-{
-    return hr_employee_name_parts_split($fullName);
-}
-
 /** @return array{dinar:int, fils:int, display:string} */
 function hr_payroll_tax_ar3_split_amount(float $amount): array
 {
@@ -81,9 +73,6 @@ function hr_payroll_tax_ar3_split_amount(float $amount): array
 }
 
 /**
- * بيانات صاحب العمل (الشركة) من شاشة الإعدادات العامة فقط.
- * الحقول الفارغة تُترك فارغة — لا قيم افتراضية ولا بدائل من إعدادات أخرى.
- *
  * @return array{name:string, address:string, phone:string, tax_no:string}
  */
 function hr_payroll_tax_ar3_employer_info(PDO $pdo): array
@@ -91,6 +80,7 @@ function hr_payroll_tax_ar3_employer_info(PDO $pdo): array
     $name = '';
     $address = '';
     $phone = '';
+    $taxNo = '';
 
     try {
         $row = $pdo->query(
@@ -108,41 +98,74 @@ function hr_payroll_tax_ar3_employer_info(PDO $pdo): array
         // ignore
     }
 
+    try {
+        require_once app_path('includes/einvoice_settings.php');
+        $einv = einvoice_settings_get($pdo);
+        $taxNo = trim((string) ($einv['vat_no'] ?? ''));
+        if ($taxNo === '') {
+            $taxNo = trim((string) ($einv['gst_no'] ?? ''));
+        }
+        if ($name === '') {
+            $name = trim((string) ($einv['company_name'] ?? ''));
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+
     return [
         'name' => $name,
         'address' => $address,
         'phone' => $phone,
-        'tax_no' => '',
+        'tax_no' => $taxNo,
     ];
 }
 
-/** @return list<array{label:string, amount:float}> */
-function hr_payroll_tax_ar3_official_allowance_lines(float $baseTotal, float $allowTotal, float $otBonusTotal): array
+/** @return list<string> */
+function hr_payroll_tax_ar3_qp177_row_labels(): array
 {
     return [
-        ['label' => 'الراتب الأساسي', 'amount' => round($baseTotal, 3)],
-        ['label' => 'علاوة شخصية', 'amount' => round($allowTotal, 3)],
-        ['label' => 'علاوة فنية', 'amount' => 0.0],
-        ['label' => 'علاوة وحدة / إختصاص', 'amount' => 0.0],
-        ['label' => 'علاوة عائلية', 'amount' => 0.0],
-        ['label' => 'علاوة ضيافة', 'amount' => 0.0],
-        ['label' => 'علاوة تمثيل', 'amount' => 0.0],
-        ['label' => 'علاوة سفر', 'amount' => 0.0],
-        ['label' => 'العمل الإضافي والمكافآت والعمولات', 'amount' => round($otBonusTotal, 3)],
-        ['label' => 'بدل السكن والمأكل والمنامة', 'amount' => 0.0],
+        'الرواتب والأجور',
+        'الرواتب والأجور غير الشهرية',
+        'مكافآت أعضاء مجلس الإدارة',
+        'مكافأة نهاية الخدمة عن الخدمات ما قبل 2010/1/1',
+        'مكافأة نهاية الخدمة عن الخدمات من 2010/1/1 حتى 2014/12/31',
+        'مكافأة نهاية الخدمة عن الخدمات من 2015/1/1 حتى نهاية العمل',
+        'أي مبالغ أخرى',
+        'المساهمة الوطنية',
     ];
 }
 
-/** @return list<array{label:string, amount:float}> */
-function hr_payroll_tax_ar3_official_deduction_lines(float $incomeTax, float $socialSecurity): array
+/**
+ * @param list<float> $wageAmounts
+ * @param list<float> $taxAmounts
+ * @return list<array{label:string, wage:?array, tax:?array}>
+ */
+function hr_payroll_tax_ar3_qp177_financial_rows(array $wageAmounts, array $taxAmounts): array
 {
-    return [
-        ['label' => 'ضريبة الدخل', 'amount' => round($incomeTax, 3)],
-        ['label' => 'ضريبة الخدمات الإجتماعية', 'amount' => 0.0],
-        ['label' => 'ضمان إجتماعي', 'amount' => round($socialSecurity, 3)],
-        ['label' => 'عائدات تقاعدية', 'amount' => 0.0],
-        ['label' => 'صندوق توفير وإدخار', 'amount' => 0.0],
-    ];
+    $labels = hr_payroll_tax_ar3_qp177_row_labels();
+    $rows = [];
+    foreach ($labels as $i => $label) {
+        $wageRaw = (float) ($wageAmounts[$i] ?? 0);
+        $taxRaw = (float) ($taxAmounts[$i] ?? 0);
+        $rows[] = [
+            'label' => $label,
+            'wage' => $wageRaw > 0.0005 ? hr_payroll_tax_ar3_split_amount($wageRaw) : null,
+            'tax' => $taxRaw > 0.0005 ? hr_payroll_tax_ar3_split_amount($taxRaw) : null,
+        ];
+    }
+
+    return $rows;
+}
+
+/** @param list<float> $amounts */
+function hr_payroll_tax_ar3_sum_split(array $amounts): array
+{
+    $total = 0.0;
+    foreach ($amounts as $amount) {
+        $total += (float) $amount;
+    }
+
+    return hr_payroll_tax_ar3_split_amount(round($total, 3));
 }
 
 function hr_payroll_tax_ar3_work_days(string $workStart, string $workEnd): int
@@ -154,6 +177,28 @@ function hr_payroll_tax_ar3_work_days(string $workStart, string $workEnd): int
     }
 
     return (int) floor(($endTs - $startTs) / 86400) + 1;
+}
+
+function hr_payroll_tax_ar3_work_duration_label(int $monthsPaid, int $workDays): string
+{
+    if ($monthsPaid > 0) {
+        if ($monthsPaid === 1) {
+            return 'شهر واحد';
+        }
+        if ($monthsPaid === 2) {
+            return 'شهران';
+        }
+        if ($monthsPaid >= 3 && $monthsPaid <= 10) {
+            return $monthsPaid . ' أشهر';
+        }
+
+        return $monthsPaid . ' شهر';
+    }
+    if ($workDays > 0) {
+        return $workDays . ' يوم';
+    }
+
+    return '';
 }
 
 /**
@@ -200,57 +245,45 @@ function hr_payroll_tax_ar3_report_build(PDO $pdo, int $year, int $employeeId): 
         return null;
     }
 
-    $baseTotal = 0.0;
-    $allowTotal = 0.0;
-    $otBonusTotal = 0.0;
+    $monthlyWages = 0.0;
+    $nonMonthlyWages = 0.0;
     $totalTax = 0.0;
-    $totalSs = 0.0;
     $monthsPaid = count($salaries);
 
     foreach ($salaries as $sal) {
-        $baseTotal += (float) ($sal['base_salary'] ?? 0);
-        $allowTotal += (float) ($sal['allowances'] ?? 0);
-        $otBonusTotal += (float) ($sal['overtime'] ?? 0) + (float) ($sal['bonus'] ?? 0);
+        $monthlyWages += (float) ($sal['base_salary'] ?? 0) + (float) ($sal['allowances'] ?? 0);
+        $nonMonthlyWages += (float) ($sal['overtime'] ?? 0) + (float) ($sal['bonus'] ?? 0);
         $totalTax += (float) ($sal['income_tax'] ?? 0);
-        $totalSs += (float) ($sal['social_security_emp'] ?? 0);
     }
 
-    $baseTotal = round($baseTotal, 3);
-    $allowTotal = round($allowTotal, 3);
-    $otBonusTotal = round($otBonusTotal, 3);
+    $monthlyWages = round($monthlyWages, 3);
+    $nonMonthlyWages = round($nonMonthlyWages, 3);
     $totalTax = round($totalTax, 3);
-    $totalSs = round($totalSs, 3);
 
-    $allowanceLinesRaw = hr_payroll_tax_ar3_official_allowance_lines($baseTotal, $allowTotal, $otBonusTotal);
-    $deductionLinesRaw = hr_payroll_tax_ar3_official_deduction_lines($totalTax, $totalSs);
+    $wageAmounts = [
+        $monthlyWages,
+        $nonMonthlyWages,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ];
+    $taxAmounts = [
+        $totalTax,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    ];
 
-    $allowanceTotal = 0.0;
-    foreach ($allowanceLinesRaw as $ln) {
-        $allowanceTotal += (float) ($ln['amount'] ?? 0);
-    }
-    $allowanceTotal = round($allowanceTotal, 3);
-
-    $deductionTotal = 0.0;
-    foreach ($deductionLinesRaw as $ln) {
-        $deductionTotal += (float) ($ln['amount'] ?? 0);
-    }
-    $deductionTotal = round($deductionTotal, 3);
-
-    $allowanceLines = [];
-    foreach ($allowanceLinesRaw as $ln) {
-        $allowanceLines[] = [
-            'label' => (string) ($ln['label'] ?? ''),
-            'amount' => hr_payroll_tax_ar3_split_amount((float) ($ln['amount'] ?? 0)),
-        ];
-    }
-
-    $deductionLines = [];
-    foreach ($deductionLinesRaw as $ln) {
-        $deductionLines[] = [
-            'label' => (string) ($ln['label'] ?? ''),
-            'amount' => hr_payroll_tax_ar3_split_amount((float) ($ln['amount'] ?? 0)),
-        ];
-    }
+    $financialRows = hr_payroll_tax_ar3_qp177_financial_rows($wageAmounts, $taxAmounts);
+    $wageTotal = hr_payroll_tax_ar3_sum_split($wageAmounts);
+    $taxTotal = hr_payroll_tax_ar3_sum_split($taxAmounts);
 
     $yearStart = sprintf('%04d-01-01', $year);
     $yearEnd = sprintf('%04d-12-31', $year);
@@ -271,20 +304,22 @@ function hr_payroll_tax_ar3_report_build(PDO $pdo, int $year, int $employeeId): 
     }
 
     $addressParts = array_filter([
-        trim((string) ($emp['address_district'] ?? '')),
-        trim((string) ($emp['address_city'] ?? '')),
         trim((string) ($emp['address_ar'] ?? '')),
+        trim((string) ($emp['address_city'] ?? '')),
+        trim((string) ($emp['address_district'] ?? '')),
     ], static fn (string $v): bool => $v !== '');
 
     $nameParts = hr_employee_name_parts_from_row($emp);
     $employer = hr_payroll_tax_ar3_employer_info($pdo);
     $workDays = hr_payroll_tax_ar3_work_days($workStart, $workEnd);
+    $wageTotalRaw = round($monthlyWages + $nonMonthlyWages, 3);
 
     return [
         'year' => $year,
         'tax_period' => (string) $year,
         'months_paid' => $monthsPaid,
-        'work_duration' => $workDays > 0 ? ($workDays . ' يوم') : ($monthsPaid . ' شهر'),
+        'work_duration' => (string) $monthsPaid,
+        'work_duration_label' => hr_payroll_tax_ar3_work_duration_label($monthsPaid, $workDays),
         'work_days' => $workDays,
         'work_start' => $workStart,
         'work_start_dmy' => format_date_dmY($workStart),
@@ -299,26 +334,17 @@ function hr_payroll_tax_ar3_report_build(PDO $pdo, int $year, int $employeeId): 
             'name_parts' => $nameParts,
             'national_id' => trim((string) ($emp['national_id'] ?? '')),
             'tax_no' => '',
-            'file_no' => trim((string) ($emp['emp_code'] ?? '')),
             'po_box' => '',
             'postal_code' => '',
             'address' => implode(' — ', $addressParts),
-            'governorate' => trim((string) ($emp['address_district'] ?? '')),
-            'city' => trim((string) ($emp['address_city'] ?? '')),
-            'street' => trim((string) ($emp['address_ar'] ?? '')),
             'phone' => trim((string) ($emp['phone'] ?? '')),
             'subject_to_income_tax' => (int) ($emp['subject_to_income_tax'] ?? 1) === 1,
         ],
         'employer' => $employer,
-        'allowance_lines' => $allowanceLines,
-        'deduction_lines' => $deductionLines,
-        'allowance_total' => hr_payroll_tax_ar3_split_amount($allowanceTotal),
-        'deduction_total' => hr_payroll_tax_ar3_split_amount($deductionTotal),
-        'allowance_total_words' => arabic_tafqit_amount($allowanceTotal, $pdo),
-        'deduction_total_words' => arabic_tafqit_amount($deductionTotal, $pdo),
-        'allowance_total_raw' => $allowanceTotal,
-        'deduction_total_raw' => $deductionTotal,
-        'gross_raw' => $allowanceTotal,
-        'tax_raw' => $totalTax,
+        'financial_rows' => $financialRows,
+        'wage_total' => $wageTotal,
+        'tax_total' => $taxTotal,
+        'wage_total_raw' => $wageTotalRaw,
+        'tax_total_raw' => $totalTax,
     ];
 }

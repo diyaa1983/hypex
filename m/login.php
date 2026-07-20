@@ -62,11 +62,11 @@ $appNativeV = is_file(app_path('assets/mobile/app-native.css')) ? (string) filem
     <link rel="stylesheet" href="<?= esc(app_url('assets/mobile/app.css')) ?><?= $cssV !== '' ? '?v=' . esc($cssV) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/mobile/app-native.css')) ?><?= $appNativeV !== '' ? '?v=' . esc($appNativeV) : '' ?>">
 <?php
-$pwaIosCssV = is_file(app_path('assets/mobile/app-pwa-install-ios.css'))
-    ? (string) filemtime(app_path('assets/mobile/app-pwa-install-ios.css'))
+$pwaInstallCssV = is_file(app_path('assets/mobile/app-pwa-install.css'))
+    ? (string) filemtime(app_path('assets/mobile/app-pwa-install.css'))
     : '';
-if ($pwaIosCssV !== '') {
-    echo '<link rel="stylesheet" href="' . esc(app_url('assets/mobile/app-pwa-install-ios.css')) . '?v=' . esc($pwaIosCssV) . '">' . "\n";
+if ($pwaInstallCssV !== '') {
+    echo '<link rel="stylesheet" href="' . esc(app_url('assets/mobile/app-pwa-install.css')) . '?v=' . esc($pwaInstallCssV) . '">' . "\n";
 }
 ?>
 </head>
@@ -110,10 +110,10 @@ $browserHintV = is_file(app_path('assets/mobile/app-browser-hint.js'))
 ?>
 <script src="<?= esc(app_url('assets/mobile/app-browser-hint.js')) ?><?= $browserHintV !== '' ? '?v=' . esc($browserHintV) : '' ?>"></script>
 <?php
-$pwaIosJsV = is_file(app_path('assets/mobile/app-pwa-install-ios.js'))
-    ? (string) filemtime(app_path('assets/mobile/app-pwa-install-ios.js'))
+$pwaInstallJsV = is_file(app_path('assets/mobile/app-pwa-install.js'))
+    ? (string) filemtime(app_path('assets/mobile/app-pwa-install.js'))
     : '';
 ?>
-<script src="<?= esc(app_url('assets/mobile/app-pwa-install-ios.js')) ?><?= $pwaIosJsV !== '' ? '?v=' . esc($pwaIosJsV) : '' ?>"></script>
+<script src="<?= esc(app_url('assets/mobile/app-pwa-install.js')) ?><?= $pwaInstallJsV !== '' ? '?v=' . esc($pwaInstallJsV) : '' ?>"></script>
 </body>
 </html>

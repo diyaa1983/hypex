@@ -73,7 +73,7 @@ $renderAccountKpi = static function (array $item) use ($kpiToneClass): void {
         <?php
     } elseif ($itemUrl !== '') {
         ?>
-        <a class="<?= $classes ?>" href="<?= esc($itemUrl) ?>" title="عرض كشف الحساب">
+        <a class="<?= $classes ?>" href="<?= esc($itemUrl) ?>" title="<?= esc((string) ($item['link_title'] ?? 'عرض كشف الحساب')) ?>">
         <?php
     } else {
         ?>
@@ -151,6 +151,9 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
         <div class="dashboard-ora-panel__body">
             <div class="dashboard-ora-kpi-grid">
                 <?php foreach ($highlights as $kpi): ?>
+                <?php if (!empty($kpi['details']) && empty($kpi['click_filter'])): ?>
+                <?php $renderAccountKpi($kpi); ?>
+                <?php else: ?>
                 <?php
                 $kpiClick = !empty($kpi['click_filter'])
                     ? ' dashboard-ora-kpi--clickable dashboard-kpi--clickable js-check-alert-open'
@@ -168,6 +171,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
                     title="اضغط لعرض التفاصيل"
                     <?php elseif ($kpiUrl !== ''): ?>
                     href="<?= esc($kpiUrl) ?>"
+                    title="عرض التفاصيل"
                     <?php endif; ?>>
                     <span class="dashboard-ora-kpi-label"><?= esc($kpi['label']) ?></span>
                     <span class="dashboard-ora-kpi-value"><?= esc($kpi['value']) ?></span>
@@ -175,6 +179,7 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
                     <span class="dashboard-ora-kpi-hint"><?= esc($kpi['hint']) ?></span>
                     <?php endif; ?>
                 </<?= $tag ?>>
+                <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         </div>

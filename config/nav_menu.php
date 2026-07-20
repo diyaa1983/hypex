@@ -24,6 +24,7 @@ return [
                     'title' => 'مؤشرات الشاشة الرئيسية',
                     'items' => [
                         ['code' => 'dashboard_kpi_sales', 'label' => 'مؤشرات المبيعات (إجمالي + الشهر + صافي)', 'icon' => '📈'],
+                        ['code' => 'dashboard_kpi_journal_daily', 'label' => 'مؤشر القيود اليومية (مدخلة / مرحّلة)', 'icon' => '📒'],
                         ['code' => 'dashboard_kpi_purchases', 'label' => 'مؤشر المشتريات', 'icon' => '🛒'],
                         ['code' => 'dashboard_kpi_cashflow', 'label' => 'مؤشرات المقبوضات', 'icon' => '💵'],
                         ['code' => 'dashboard_kpi_receivables', 'label' => 'مؤشر ذمم العملاء', 'icon' => '👤'],

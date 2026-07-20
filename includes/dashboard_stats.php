@@ -108,6 +108,63 @@ function dashboard_metric(string $label, int|float|string $value, string $format
 }
 
 /**
+ * مربع مؤشر واحد: قيود يومية اليوم (مدخلة / مرحّلة) — يفتح شاشة القيود مفلترة على تاريخ اليوم.
+ *
+ * @return array{label:string, value:string, hint?:string, tone?:string, url?:string, details?:list<array{label:string, value:string}>}|null
+ */
+function dashboard_journal_daily_metric(PDO $pdo, string $today): ?array
+{
+    require_once app_path('includes/acc_journal.php');
+    if (!acc_journal_has_tables($pdo)) {
+        return null;
+    }
+
+    $manual = acc_journal_voucher_manual_sql();
+
+    try {
+        $stTotal = $pdo->prepare("SELECT COUNT(*) FROM acc_journal_entry WHERE entry_date = ? AND {$manual}");
+        $stTotal->execute([$today]);
+        $totalToday = (int) $stTotal->fetchColumn();
+
+        $stPosted = $pdo->prepare(
+            "SELECT COUNT(*) FROM acc_journal_entry WHERE entry_date = ? AND status = 'posted' AND {$manual}"
+        );
+        $stPosted->execute([$today]);
+        $postedToday = (int) $stPosted->fetchColumn();
+
+        $draftToday = max(0, $totalToday - $postedToday);
+        $todayDmY = format_date_dmY($today);
+        $journalUrl = app_url(
+            'index.php?r=journal_entries&manual=1&date_from='
+            . rawurlencode($todayDmY)
+            . '&date_to='
+            . rawurlencode($todayDmY)
+        );
+
+        $hintParts = [number_format($postedToday) . ' مرحّلة'];
+        if ($draftToday > 0) {
+            $hintParts[] = number_format($draftToday) . ' مسودة';
+        }
+
+        return [
+            'label' => 'قيود اليومية',
+            'value' => number_format($totalToday) . ' مدخلة',
+            'hint' => implode(' · ', $hintParts),
+            'tone' => $totalToday > 0 ? 'primary' : 'success',
+            'url' => $journalUrl,
+            'link_title' => 'عرض قيود اليوم',
+            'details' => [
+                ['label' => 'مدخلة اليوم', 'value' => number_format($totalToday)],
+                ['label' => 'مرحّلة', 'value' => number_format($postedToday)],
+                ['label' => 'مسودة', 'value' => number_format($draftToday)],
+            ],
+        ];
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/**
  * مربع واحد يجمع أرصدة كل حسابات البنوك في الشجرة.
  *
  * @return array{type:string, label:string, value:string, hint?:string, tone?:string, banks:list<array{label:string, code:string, value:string, url?:string, tone?:string}>}|null
@@ -794,6 +851,13 @@ function dashboard_collect(PDO $pdo): array
         $outMetric['alert_days'] = $outDays;
         $outMetric['url'] = app_url('index.php?r=fin_outgoing_checks');
         $highlights[] = $outMetric;
+    }
+
+    if (dashboard_widget_can('dashboard_kpi_journal_daily')) {
+        $journalMetric = dashboard_journal_daily_metric($pdo, $today);
+        if ($journalMetric !== null) {
+            $highlights[] = $journalMetric;
+        }
     }
 
     /** @var list<array{no:string, date:string, party:string, total:string, url:string}> $recentSales */

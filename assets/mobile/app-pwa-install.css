@@ -1,4 +1,5 @@
-/* تعليمات تثبيت PWA على iPhone (Safari) */
+/* تعليمات تثبيت PWA — iPhone و Android */
+.m-pwa-install-hint,
 .m-pwa-ios-hint {
   display: flex;
   align-items: flex-start;
@@ -12,6 +13,7 @@
   text-align: right;
 }
 
+.m-pwa-install-hint__icon,
 .m-pwa-ios-hint__icon {
   font-size: 1.35rem;
   line-height: 1;
@@ -19,11 +21,13 @@
   margin-top: 0.05rem;
 }
 
+.m-pwa-install-hint__body,
 .m-pwa-ios-hint__body {
   flex: 1;
   min-width: 0;
 }
 
+.m-pwa-install-hint__title,
 .m-pwa-ios-hint__title {
   margin: 0 0 0.35rem;
   font-size: 0.86rem;
@@ -31,6 +35,7 @@
   color: #045a9f;
 }
 
+.m-pwa-install-hint__sub,
 .m-pwa-ios-hint__sub {
   margin: 0.25rem 0 0;
   font-size: 0.78rem;
@@ -38,6 +43,7 @@
   color: #1a2330;
 }
 
+.m-pwa-install-hint__steps,
 .m-pwa-ios-hint__steps {
   margin: 0;
   padding: 0 1.1rem 0 0;
@@ -46,16 +52,37 @@
   color: #1a2330;
 }
 
+.m-pwa-install-hint__steps li + li,
 .m-pwa-ios-hint__steps li + li {
   margin-top: 0.25rem;
 }
 
+.m-pwa-install-hint__share,
 .m-pwa-ios-hint__share {
   display: inline-block;
   font-size: 0.95rem;
   vertical-align: middle;
 }
 
+.m-pwa-install-hint__install {
+  display: block;
+  width: 100%;
+  margin-top: 0.55rem;
+  padding: 0.65rem 0.85rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: linear-gradient(180deg, #1a8dea 0%, #0572ce 100%);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.m-pwa-install-hint__install:disabled {
+  opacity: 0.65;
+}
+
+.m-pwa-install-hint__close,
 .m-pwa-ios-hint__close {
   flex-shrink: 0;
   width: 1.65rem;
@@ -70,6 +97,7 @@
   padding: 0;
 }
 
+html.m-installed-app .m-pwa-install-hint,
 html.m-installed-app .m-pwa-ios-hint {
   display: none !important;
 }

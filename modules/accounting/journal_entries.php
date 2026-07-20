@@ -362,6 +362,7 @@ $q = trim((string) ($_GET['q'] ?? ''));
 $statusFilter = trim((string) ($_GET['status'] ?? ''));
 $dateFromRaw = trim((string) ($_GET['date_from'] ?? ''));
 $dateToRaw = trim((string) ($_GET['date_to'] ?? ''));
+$manualOnly = trim((string) ($_GET['manual'] ?? '')) === '1';
 $sortColumn = acc_journal_list_normalize_sort(trim((string) ($_GET['sort'] ?? 'created_at')));
 $sortDir = acc_journal_list_normalize_dir(trim((string) ($_GET['dir'] ?? 'desc')));
 $searchClause = acc_journal_list_search_clause($q);
@@ -381,6 +382,9 @@ if (in_array($statusFilter, ['draft', 'posted', 'cancelled'], true)) {
     $sql .= ' AND e.status = ?';
     $params[] = $statusFilter;
 }
+if ($manualOnly) {
+    $sql .= ' AND ' . acc_journal_voucher_manual_sql();
+}
 require_once app_path('includes/list_pagination.php');
 
 $countSql = 'SELECT COUNT(DISTINCT e.id) ' . $listFrom . ' WHERE 1=1' . $searchClause['where'] . $dateClause['where'];
@@ -388,6 +392,9 @@ $countParams = array_merge($searchClause['params'], $dateClause['params']);
 if (in_array($statusFilter, ['draft', 'posted', 'cancelled'], true)) {
     $countSql .= ' AND e.status = ?';
     $countParams[] = $statusFilter;
+}
+if ($manualOnly) {
+    $countSql .= ' AND ' . acc_journal_voucher_manual_sql();
 }
 $stCount = $pdo->prepare($countSql);
 $stCount->execute($countParams);
@@ -405,6 +412,9 @@ if ($dateFrom !== '') {
 }
 if ($dateTo !== '') {
     $listPagerQuery['date_to'] = format_date_dmY($dateTo);
+}
+if ($manualOnly) {
+    $listPagerQuery['manual'] = '1';
 }
 $listPagerQuery['sort'] = $sortColumn;
 $listPagerQuery['dir'] = $sortDir;
@@ -438,6 +448,9 @@ $screenExitUrl = journal_entries_screen_exit_url($activeRoute ?? 'journal_entrie
             <div class="dashboard-ora-panel__body">
                 <form method="get" action="<?= esc(app_url('index.php')) ?>" class="je-ora-filters">
                     <input type="hidden" name="r" value="journal_entries">
+                    <?php if ($manualOnly): ?>
+                    <input type="hidden" name="manual" value="1">
+                    <?php endif; ?>
                     <input type="hidden" name="sort" value="<?= esc($sortColumn) ?>">
                     <input type="hidden" name="dir" value="<?= esc($sortDir) ?>">
                     <label class="field je-ora-search-field">
@@ -466,7 +479,7 @@ $screenExitUrl = journal_entries_screen_exit_url($activeRoute ?? 'journal_entrie
                     </label>
                     <div class="je-ora-filter-actions">
                         <button type="submit" class="dashboard-ora-btn">تصفية</button>
-                        <?php if ($q !== '' || $statusFilter !== '' || $dateFromRaw !== '' || $dateToRaw !== ''): ?>
+                        <?php if ($q !== '' || $statusFilter !== '' || $dateFromRaw !== '' || $dateToRaw !== '' || $manualOnly): ?>
                             <a class="dashboard-ora-btn" href="<?= esc($listUrl) ?>">مسح</a>
                         <?php endif; ?>
                     </div>

@@ -10,6 +10,7 @@ function dashboard_widgets_catalog(): array
 {
     return [
         ['code' => 'dashboard_kpi_sales', 'label' => 'مؤشرات المبيعات (إجمالي + الشهر + صافي)'],
+        ['code' => 'dashboard_kpi_journal_daily', 'label' => 'مؤشر القيود اليومية (مدخلة / مرحّلة)'],
         ['code' => 'dashboard_kpi_purchases', 'label' => 'مؤشر المشتريات'],
         ['code' => 'dashboard_kpi_cashflow', 'label' => 'مؤشرات المقبوضات'],
         ['code' => 'dashboard_kpi_receivables', 'label' => 'مؤشر ذمم العملاء'],
