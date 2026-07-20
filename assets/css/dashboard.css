@@ -344,6 +344,11 @@ button.dashboard-ora-kpi {
   color: #94a3b8;
 }
 
+.dashboard-ora-kpi--danger .dashboard-ora-kpi-hint-amount {
+  color: #dc2626;
+  font-weight: 800;
+}
+
 a.dashboard-ora-kpi--danger {
   position: relative;
   padding-inline-end: 1.35rem;

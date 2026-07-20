@@ -784,7 +784,7 @@ function dashboard_collect(PDO $pdo): array
             );
             $recvMetric['url'] = app_url('index.php?r=sales_unpaid_invoices');
             if ($custBal > 0.0005) {
-                $recvMetric['hint'] = 'Invoices with outstanding balance · ' . format_money($custBal);
+                $recvMetric['hint_amount'] = format_money($custBal);
             }
             $highlights[] = $recvMetric;
         } catch (Throwable $e) {

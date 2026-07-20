@@ -175,8 +175,16 @@ $headerMeta = esc($hero['company']) . ' · ' . esc($hero['weekday']) . ' ' . esc
                     <?php endif; ?>>
                     <span class="dashboard-ora-kpi-label"><?= esc($kpi['label']) ?></span>
                     <span class="dashboard-ora-kpi-value"><?= esc($kpi['value']) ?></span>
-                    <?php if (!empty($kpi['hint'])): ?>
-                    <span class="dashboard-ora-kpi-hint"><?= esc($kpi['hint']) ?></span>
+                    <?php if (!empty($kpi['hint']) || !empty($kpi['hint_amount'])): ?>
+                    <span class="dashboard-ora-kpi-hint">
+                        <?php if (!empty($kpi['hint'])): ?>
+                            <?= esc((string) $kpi['hint']) ?>
+                        <?php endif; ?>
+                        <?php if (!empty($kpi['hint_amount'])): ?>
+                            <?php if (!empty($kpi['hint'])): ?> · <?php endif; ?>
+                            <span class="dashboard-ora-kpi-hint-amount" dir="ltr"><?= esc((string) $kpi['hint_amount']) ?></span>
+                        <?php endif; ?>
+                    </span>
                     <?php endif; ?>
                 </<?= $tag ?>>
                 <?php endif; ?>
