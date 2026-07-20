@@ -27,7 +27,7 @@ return [
                         ['code' => 'dashboard_kpi_journal_daily', 'label' => 'مؤشر القيود اليومية (مدخلة / مرحّلة)', 'icon' => '📒'],
                         ['code' => 'dashboard_kpi_purchases', 'label' => 'مؤشر المشتريات', 'icon' => '🛒'],
                         ['code' => 'dashboard_kpi_cashflow', 'label' => 'مؤشرات المقبوضات', 'icon' => '💵'],
-                        ['code' => 'dashboard_kpi_receivables', 'label' => 'مؤشر ذمم العملاء', 'icon' => '👤'],
+                        ['code' => 'dashboard_kpi_receivables', 'label' => 'فواتير البيع غير المسددة', 'icon' => '🔴'],
                         ['code' => 'dashboard_kpi_payables', 'label' => 'مؤشر ذمم الموردين', 'icon' => '🏭'],
                         ['code' => 'dashboard_panel_treasury', 'label' => 'لوحة الصندوق والحسابات', 'icon' => '🏦'],
                         ['code' => 'dashboard_panel_liabilities', 'label' => 'لوحة المستحقات', 'icon' => '📋'],
@@ -47,6 +47,7 @@ return [
                     'items' => [
                         ['r' => 'sales_invoices', 'label' => 'فاتورة مبيعات', 'icon' => '🧾'],
                         ['r' => 'sales_documents_list', 'label' => 'قائمة فواتير المبيعات', 'icon' => '📑'],
+                        ['r' => 'sales_unpaid_invoices', 'label' => 'فواتير البيع غير المسددة', 'icon' => '🔴'],
                         ['r' => 'sales_invoices_list', 'label' => 'ترحيل فواتير المبيعات', 'icon' => '📋'],
                     ],
                 ],

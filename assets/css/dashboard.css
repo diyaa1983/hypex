@@ -324,23 +324,48 @@ button.dashboard-ora-kpi {
 }
 
 .dashboard-ora-kpi--danger {
-  border-inline-start-color: #b91c1c;
-  background: #fee2e2;
-  border-color: #fecaca;
-  box-shadow: 0 1px 4px rgba(185, 28, 28, 0.18);
+  border-inline-start-width: 5px;
+  border-inline-start-color: #dc2626;
+  background: #fff;
+  border-color: #bfdbfe;
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.07);
 }
 
-.dashboard-ora-kpi--danger .dashboard-ora-kpi-label,
-.dashboard-ora-kpi--danger .dashboard-ora-kpi-value,
+.dashboard-ora-kpi--danger .dashboard-ora-kpi-label {
+  color: #1e293b;
+}
+
+.dashboard-ora-kpi--danger .dashboard-ora-kpi-value {
+  color: #dc2626;
+  font-size: 1.45rem;
+}
+
 .dashboard-ora-kpi--danger .dashboard-ora-kpi-hint {
-  color: #7f1d1d;
+  color: #94a3b8;
+}
+
+a.dashboard-ora-kpi--danger {
+  position: relative;
+  padding-inline-end: 1.35rem;
+  cursor: pointer;
+}
+
+a.dashboard-ora-kpi--danger::after {
+  content: '›';
+  position: absolute;
+  inset-inline-end: 0.55rem;
+  bottom: 0.45rem;
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: #93c5fd;
+  line-height: 1;
 }
 
 .dashboard-ora-kpi--danger:hover,
 .dashboard-ora-kpi--danger:focus-visible {
-  background: #fecaca;
-  border-color: #f87171;
-  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.22);
+  background: #fff;
+  border-color: #93c5fd;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.12);
 }
 
 .dashboard-ora-kpi-label {

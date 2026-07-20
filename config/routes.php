@@ -48,6 +48,12 @@ return [
         'title' => 'قائمة فواتير المبيعات',
         'hide_screen_title' => true,
     ],
+    'sales_unpaid_invoices' => [
+        'file' => 'modules/sales/unpaid_invoices.php',
+        'permission' => 'sales_unpaid_invoices',
+        'title' => 'فواتير البيع غير المسددة',
+        'hide_screen_title' => true,
+    ],
     'sales_invoice_gps' => [
         'file' => 'modules/sales/invoice_gps_list.php',
         'permission' => 'sales_invoice_gps',

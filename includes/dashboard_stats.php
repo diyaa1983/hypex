@@ -108,6 +108,16 @@ function dashboard_metric(string $label, int|float|string $value, string $format
 }
 
 /**
+ * عدد فواتير البيع التي ما زال عليها رصيد مستحق (بعد تطبيق التحصيلات FIFO على دفتر العميل).
+ */
+function dashboard_unpaid_sales_invoice_count(PDO $pdo): int
+{
+    require_once app_path('includes/sal_unpaid_invoices.php');
+
+    return sal_unpaid_invoices_count($pdo);
+}
+
+/**
  * مربع مؤشر واحد: قيود يومية اليوم (مدخلة / مرحّلة) — يفتح شاشة القيود مفلترة على تاريخ اليوم.
  *
  * @return array{label:string, value:string, hint?:string, tone?:string, url?:string, details?:list<array{label:string, value:string}>}|null
@@ -764,13 +774,19 @@ function dashboard_collect(PDO $pdo): array
                 'SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) AS bal FROM crm_customer_ledger'
             )->fetch(PDO::FETCH_ASSOC);
             $custBal = (float) ($row['bal'] ?? 0);
-            $highlights[] = dashboard_metric(
-                'ذمم العملاء',
-                $custBal,
-                'money',
-                'موجب = ذمة على العملاء',
-                $custBal >= 0 ? 'primary' : 'warn'
+            $unpaidCount = dashboard_unpaid_sales_invoice_count($pdo);
+            $recvMetric = dashboard_metric(
+                'فواتير البيع غير المسددة',
+                $unpaidCount,
+                'int',
+                'Invoices with outstanding balance',
+                $unpaidCount > 0 ? 'danger' : 'success'
             );
+            $recvMetric['url'] = app_url('index.php?r=sales_unpaid_invoices');
+            if ($custBal > 0.0005) {
+                $recvMetric['hint'] = 'Invoices with outstanding balance · ' . format_money($custBal);
+            }
+            $highlights[] = $recvMetric;
         } catch (Throwable $e) {
             // ignore
         }
