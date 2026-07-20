@@ -1,0 +1,75 @@
+/* تعليمات تثبيت PWA على iPhone (Safari) */
+.m-pwa-ios-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(5, 114, 206, 0.28);
+  background: linear-gradient(180deg, #f0f7ff 0%, #e8f2fb 100%);
+  box-shadow: 0 6px 18px rgba(5, 114, 206, 0.08);
+  text-align: right;
+}
+
+.m-pwa-ios-hint__icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+
+.m-pwa-ios-hint__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.m-pwa-ios-hint__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #045a9f;
+}
+
+.m-pwa-ios-hint__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #1a2330;
+}
+
+.m-pwa-ios-hint__steps {
+  margin: 0;
+  padding: 0 1.1rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #1a2330;
+}
+
+.m-pwa-ios-hint__steps li + li {
+  margin-top: 0.25rem;
+}
+
+.m-pwa-ios-hint__share {
+  display: inline-block;
+  font-size: 0.95rem;
+  vertical-align: middle;
+}
+
+.m-pwa-ios-hint__close {
+  flex-shrink: 0;
+  width: 1.65rem;
+  height: 1.65rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(5, 114, 206, 0.12);
+  color: #045a9f;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+html.m-installed-app .m-pwa-ios-hint {
+  display: none !important;
+}

@@ -22,12 +22,28 @@
 
   function openSetup() {
     var q = '?reconfigure=1';
+    // Capacitor يقدّم ملفات www المحلية على localhost داخل WebView
     var candidates = [
-      'http://localhost/index.html' + q,
       'https://localhost/index.html' + q,
+      'http://localhost/index.html' + q,
+      'capacitor://localhost/index.html' + q,
       '/index.html' + q,
     ];
-    window.location.href = candidates[0];
+    var target = candidates[0];
+    try {
+      var platform =
+        (window.Capacitor &&
+          window.Capacitor.getPlatform &&
+          window.Capacitor.getPlatform()) ||
+        (window.Capacitor && window.Capacitor.platform) ||
+        '';
+      if (String(platform).toLowerCase() === 'ios') {
+        target = candidates[2];
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    window.location.href = target;
   }
 
   var link = document.createElement('button');

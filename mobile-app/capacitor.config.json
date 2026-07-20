@@ -1,0 +1,38 @@
+{
+  "appId": "com.gppjo.biodev.mobile",
+  "appName": "النماء — هاتف",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "https://www.biodev.gppjo.com",
+      "https://*.gppjo.com",
+      "http://10.0.2.2",
+      "http://192.168.*.*",
+      "http://localhost",
+      "https://localhost"
+    ]
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#0572ce",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0572ce"
+    },
+    "Geolocation": {
+      "permissions": ["location"]
+    }
+  }
+}

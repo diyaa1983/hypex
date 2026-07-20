@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>إعداد تطبيق الهاتف</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="setup">
+    <div class="setup__card">
+      <div class="setup__mark" aria-hidden="true">📱</div>
+      <h1 class="setup__title">تطبيق الهاتف</h1>
+      <p class="setup__sub">أدخل عنوان السيرفر ثم اضغط اتصال</p>
+
+      <label class="field">
+        <span class="field__label">عنوان النظام</span>
+        <input
+          id="server-url"
+          class="field__input"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          spellcheck="false"
+          placeholder="https://www.biodev.gppjo.com"
+          dir="ltr"
+        >
+      </label>
+
+      <p id="status" class="status" hidden></p>
+
+      <div class="actions">
+        <button type="button" id="btn-connect" class="btn btn--primary">اتصال</button>
+        <button type="button" id="btn-test" class="btn btn--ghost">فحص الاتصال</button>
+      </div>
+
+      <p class="setup__hint">
+        مثال: <code dir="ltr">https://www.biodev.gppjo.com</code>
+        — يفتح تلقائياً صفحة دخول الموبايل <code dir="ltr">/m/login.php</code>
+      </p>
+    </div>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

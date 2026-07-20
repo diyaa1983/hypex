@@ -107,6 +107,14 @@ $appNativeV = is_file(app_path('assets/mobile/app-native.css'))
     : '';
 ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/mobile/app-native.css')) ?><?= $appNativeV !== '' ? '?v=' . esc($appNativeV) : '' ?>">
+<?php
+$pwaIosCssV = is_file(app_path('assets/mobile/app-pwa-install-ios.css'))
+    ? (string) filemtime(app_path('assets/mobile/app-pwa-install-ios.css'))
+    : '';
+if ($pwaIosCssV !== '') {
+    echo '    <link rel="stylesheet" href="' . esc(app_url('assets/mobile/app-pwa-install-ios.css')) . '?v=' . esc($pwaIosCssV) . '">' . "\n";
+}
+?>
     <script>
         window.AppMobile = {
             baseUrl: <?= json_encode(app_url(''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
@@ -273,5 +281,11 @@ $nativeGpsJsV = is_file($nativeGpsJsPath) ? (string) filemtime($nativeGpsJsPath)
 <?php else: ?>
 <script>window.APP_GPS_ENABLED = false;</script>
 <?php endif; ?>
+<?php
+$pwaIosJsV = is_file(app_path('assets/mobile/app-pwa-install-ios.js'))
+    ? (string) filemtime(app_path('assets/mobile/app-pwa-install-ios.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/mobile/app-pwa-install-ios.js')) ?><?= $pwaIosJsV !== '' ? '?v=' . esc($pwaIosJsV) : '' ?>"></script>
 </body>
 </html>
