@@ -349,6 +349,24 @@ button.dashboard-ora-kpi {
   font-weight: 800;
 }
 
+.dashboard-ora-kpi-grid--liabilities .dashboard-ora-kpi--danger,
+.dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--danger {
+  border-inline-start-width: 5px;
+  border-inline-start-color: #dc2626;
+  background: #fff;
+  border-color: #fecaca;
+}
+
+.dashboard-ora-kpi-grid--liabilities .dashboard-ora-kpi--danger .dashboard-ora-kpi-value,
+.dashboard-ora-kpi-grid--treasury .dashboard-ora-kpi--danger .dashboard-ora-kpi-value {
+  color: #dc2626;
+}
+
+.dashboard-ora-kpi--danger .dashboard-ora-kpi-tip-amt {
+  color: #dc2626;
+  font-weight: 800;
+}
+
 a.dashboard-ora-kpi--danger {
   position: relative;
   padding-inline-end: 1.35rem;
@@ -530,6 +548,11 @@ a.dashboard-ora-kpi--danger::after {
 
 .dashboard-ora-kpi-tip-row--warn .dashboard-ora-kpi-tip-amt {
   color: var(--ora12-warn);
+}
+
+.dashboard-ora-kpi-tip-row--danger .dashboard-ora-kpi-tip-amt {
+  color: #dc2626;
+  font-weight: 800;
 }
 
 /* شريط أدوات */

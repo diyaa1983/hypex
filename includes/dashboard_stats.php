@@ -337,7 +337,7 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
             max(0, $payrollBal),
             'money',
             'رصيد حساب الرواتب المستحقة — من الدفتر',
-            $payrollBal > 0.0005 ? 'warn' : 'success'
+            $payrollBal > 0.0005 ? 'danger' : 'success'
         );
         $m['url'] = app_url('index.php?r=hr_payroll_posting');
         $items[] = $m;
@@ -350,7 +350,7 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
             max(0, $ssBal),
             'money',
             'مجموع حصة الموظف والشركة — من الدفتر',
-            $ssBal > 0.0005 ? 'warn' : 'success'
+            $ssBal > 0.0005 ? 'danger' : 'success'
         );
         $m['url'] = app_url('index.php?r=hr_payroll_ss_report');
         $items[] = $m;
@@ -363,7 +363,7 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
             max(0, $taxBal),
             'money',
             'اقتطاع ضريبة الدخل من الرواتب — من الدفتر',
-            $taxBal > 0.0005 ? 'warn' : 'success'
+            $taxBal > 0.0005 ? 'danger' : 'success'
         );
         $m['url'] = app_url('index.php?r=hr_income_tax_settings');
         $items[] = $m;
@@ -380,7 +380,7 @@ function dashboard_collect_liabilities(PDO $pdo, string $dateFrom, string $dateT
             $closing,
             'money',
             $periodHint . ' — رصيد ختامي',
-            $closing < -0.0005 ? 'warn' : ($closing > 0.0005 ? 'success' : 'primary')
+            $closing < -0.0005 ? 'danger' : ($closing > 0.0005 ? 'success' : 'primary')
         );
         $m['url'] = app_url(
             'index.php?r=report_vat_net_payable'
@@ -483,7 +483,7 @@ function dashboard_sensitive_account_metric(
     $tone = (string) ($opts['tone'] ?? 'primary');
     if ($isLiability) {
         if ($displayBal > 0.0005) {
-            $tone = 'warn';
+            $tone = 'danger';
         } elseif ($displayBal <= 0.0005) {
             $tone = 'success';
         }
@@ -575,7 +575,7 @@ function dashboard_collect_sensitive_accounts(PDO $pdo, string $dateFrom, string
     foreach (
         [
             ['code' => 'ar_customers', 'label' => 'ذمم العملاء', 'tone' => 'primary'],
-            ['code' => 'ap_suppliers', 'label' => 'ذمم الموردين', 'tone' => 'warn', 'liability' => true],
+            ['code' => 'ap_suppliers', 'label' => 'ذمم الموردين', 'tone' => 'danger', 'liability' => true],
             ['code' => 'inventory', 'label' => 'المخزون', 'tone' => 'success'],
         ] as $rule
     ) {

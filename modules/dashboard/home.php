@@ -93,9 +93,10 @@ $renderAccountKpi = static function (array $item) use ($kpiToneClass): void {
                 <?php foreach ($details as $row): ?>
                 <?php
                 $rowUrl = trim((string) ($row['url'] ?? ''));
-                $rowWarn = ((string) ($row['tone'] ?? '')) === 'warn'
+                $rowTone = (string) ($row['tone'] ?? '');
+                $rowWarn = $rowTone === 'warn'
                     ? ' dashboard-ora-kpi-tip-row--warn'
-                    : '';
+                    : ($rowTone === 'danger' ? ' dashboard-ora-kpi-tip-row--danger' : '');
                 $rowCode = trim((string) ($row['code'] ?? ''));
                 ?>
                 <li class="dashboard-ora-kpi-tip-row<?= $rowWarn ?>">

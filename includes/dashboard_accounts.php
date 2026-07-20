@@ -271,7 +271,7 @@ function dashboard_accounts_collect_panels(PDO $pdo, string $dateFrom, string $d
         $opts = [
             'label' => $label,
             'liability' => $isLiability,
-            'tone' => $isLiability ? 'warn' : 'primary',
+            'tone' => $isLiability ? 'danger' : 'primary',
         ];
 
         if ($accountId === $checksFundId && (int) ($checkSummary['total'] ?? 0) > 0) {
@@ -345,7 +345,7 @@ function dashboard_account_metric_by_id(
     $tone = (string) ($opts['tone'] ?? 'primary');
     if ($isLiability) {
         if ($displayBal > 0.0005) {
-            $tone = 'warn';
+            $tone = 'danger';
         } elseif ($displayBal <= 0.0005) {
             $tone = 'success';
         }
