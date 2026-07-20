@@ -14,7 +14,7 @@ function dashboard_widgets_catalog(): array
         ['code' => 'dashboard_kpi_purchases', 'label' => 'مؤشر المشتريات'],
         ['code' => 'dashboard_kpi_cashflow', 'label' => 'مؤشرات المقبوضات'],
         ['code' => 'dashboard_kpi_receivables', 'label' => 'فواتير البيع غير المسددة'],
-        ['code' => 'dashboard_kpi_payables', 'label' => 'مؤشر ذمم الموردين'],
+        ['code' => 'dashboard_kpi_payables', 'label' => 'فواتير الشراء غير المدفوعة'],
         ['code' => 'dashboard_panel_treasury', 'label' => 'لوحة الصندوق والحسابات'],
         ['code' => 'dashboard_panel_liabilities', 'label' => 'لوحة المستحقات'],
         ['code' => 'dashboard_panel_checks', 'label' => 'مؤشرات الشيكات الواردة والصادرة'],

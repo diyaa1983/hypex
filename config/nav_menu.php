@@ -28,7 +28,7 @@ return [
                         ['code' => 'dashboard_kpi_purchases', 'label' => 'مؤشر المشتريات', 'icon' => '🛒'],
                         ['code' => 'dashboard_kpi_cashflow', 'label' => 'مؤشرات المقبوضات', 'icon' => '💵'],
                         ['code' => 'dashboard_kpi_receivables', 'label' => 'فواتير البيع غير المسددة', 'icon' => '🔴'],
-                        ['code' => 'dashboard_kpi_payables', 'label' => 'مؤشر ذمم الموردين', 'icon' => '🏭'],
+                        ['code' => 'dashboard_kpi_payables', 'label' => 'فواتير الشراء غير المدفوعة', 'icon' => '🔴'],
                         ['code' => 'dashboard_panel_treasury', 'label' => 'لوحة الصندوق والحسابات', 'icon' => '🏦'],
                         ['code' => 'dashboard_panel_liabilities', 'label' => 'لوحة المستحقات', 'icon' => '📋'],
                         ['code' => 'dashboard_panel_checks', 'label' => 'مؤشرات الشيكات الواردة والصادرة', 'icon' => '📝'],
@@ -175,6 +175,7 @@ return [
                     'items' => [
                         ['r' => 'purchase_invoices', 'label' => 'فاتورة شراء', 'icon' => '📥'],
                         ['r' => 'purchase_documents_list', 'label' => 'قائمة فواتير الشراء', 'icon' => '📑'],
+                        ['r' => 'purchase_unpaid_invoices', 'label' => 'فواتير الشراء غير المدفوعة', 'icon' => '🔴'],
                         ['r' => 'purchase_returns_documents_list', 'label' => 'قائمة مردودات المشتريات', 'icon' => '↩'],
                         ['r' => 'purchase_invoices_list', 'label' => 'ترحيل فواتير الشراء', 'icon' => '📋'],
                         ['r' => 'purchase_returns', 'label' => 'مردود مشتريات', 'icon' => '↩'],

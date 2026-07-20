@@ -96,6 +96,12 @@ return [
         'title' => 'قائمة فواتير الشراء',
         'hide_screen_title' => true,
     ],
+    'purchase_unpaid_invoices' => [
+        'file' => 'modules/purchases/unpaid_invoices.php',
+        'permission' => 'purchase_unpaid_invoices',
+        'title' => 'فواتير الشراء غير المدفوعة',
+        'hide_screen_title' => true,
+    ],
     'purchase_returns_documents_list' => [
         'file' => 'modules/purchases/returns_documents_list.php',
         'permission' => 'purchase_returns_documents_list',

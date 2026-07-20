@@ -153,6 +153,7 @@ $appBootMigrations = [
     'database/migrations/216_dashboard_widget_permissions.sql',
     'database/migrations/217_dashboard_journal_daily.sql',
     'database/migrations/218_sales_unpaid_invoices.sql',
+    'database/migrations/219_purchase_unpaid_invoices.sql',
     'database/migrations/220_report_hr_employee_leave_balances.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);

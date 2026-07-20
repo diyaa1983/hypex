@@ -797,13 +797,20 @@ function dashboard_collect(PDO $pdo): array
                 'SELECT COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) AS bal FROM crm_supplier_ledger'
             )->fetch(PDO::FETCH_ASSOC);
             $supBal = (float) ($row['bal'] ?? 0);
-            $highlights[] = dashboard_metric(
-                'ذمم الموردين (صافي)',
-                $supBal,
-                'money',
-                'موجب = ذمة على الشركة للموردين',
-                $supBal >= 0 ? 'warn' : 'success'
+            require_once app_path('includes/pur_unpaid_invoices.php');
+            $unpaidPurCount = pur_unpaid_invoices_count($pdo);
+            $payMetric = dashboard_metric(
+                'فواتير الشراء غير المدفوعة',
+                $unpaidPurCount,
+                'int',
+                'Invoices with outstanding balance',
+                $unpaidPurCount > 0 ? 'danger' : 'success'
             );
+            $payMetric['url'] = app_url('index.php?r=purchase_unpaid_invoices');
+            if ($supBal > 0.0005) {
+                $payMetric['hint_amount'] = format_money($supBal);
+            }
+            $highlights[] = $payMetric;
         } catch (Throwable $e) {
             // ignore
         }
