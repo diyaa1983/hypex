@@ -75,6 +75,55 @@ class ApiClient {
     return _handle(() => _dio.get(url(path), queryParameters: query));
   }
 
+  /// تنزيل ملف ثنائي مع كوكيز الجلسة (مثل PDF الفاتورة).
+  Future<List<int>> downloadBytes(
+    String path, {
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final res = await _dio.get<List<int>>(
+        url(path),
+        queryParameters: query,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Accept': 'application/pdf,*/*'},
+        ),
+      );
+      final code = res.statusCode ?? 0;
+      if (code >= 400) {
+        throw ApiException(
+          'تعذر تنزيل الملف (رمز $code).',
+          statusCode: code,
+        );
+      }
+      final bytes = res.data;
+      if (bytes == null || bytes.isEmpty) {
+        throw ApiException('الملف فارغ أو غير متاح.');
+      }
+      // بعض السيرفرات ترجع HTML عند الخطأ بدل PDF.
+      if (bytes.length > 15) {
+        final head = String.fromCharCodes(bytes.take(20));
+        if (head.contains('<!DOCTYPE') || head.contains('<html')) {
+          throw ApiException(
+            'تعذر تنزيل PDF — تحقق من صلاحية العرض أو رفع api/mobile_invoice_pdf.php.',
+            statusCode: code,
+          );
+        }
+      }
+      return bytes;
+    } on ApiException {
+      rethrow;
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.connectionError ||
+          e.error is SocketException) {
+        throw ApiException('تعذر الاتصال بالسيرفر. تحقق من الإنترنت والعنوان.');
+      }
+      throw ApiException('خطأ في تنزيل الملف: ${e.message ?? e.type.name}');
+    }
+  }
+
   /// طلب POST (نموذج form-urlencoded) يُرجع خريطة JSON.
   Future<Map<String, dynamic>> postForm(
     String path, {

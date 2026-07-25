@@ -6,6 +6,7 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../services/invoice_print_helper.dart';
 import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 
@@ -20,6 +21,7 @@ class InvoiceViewScreen extends StatefulWidget {
 class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
   bool _loading = true;
   bool _posting = false;
+  bool _printing = false;
   String? _error;
   Map<String, dynamic> _inv = {};
 
@@ -62,6 +64,19 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
     return [];
   }
 
+  Future<void> _openPdf() async {
+    setState(() => _printing = true);
+    try {
+      await InvoicePrintHelper.openPdf(
+        context,
+        invoiceId: widget.invoiceId,
+        invoiceNo: Fmt.str(_inv['invoice_no']),
+      );
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+  }
+
   Future<void> _post() async {
     final s = context.read<SessionController>();
     setState(() => _posting = true);
@@ -94,7 +109,21 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
   Widget build(BuildContext context) {
     final posted = _inv['is_posted'] == true;
     return Scaffold(
-      appBar: AppBar(title: const Text('عرض الفاتورة')),
+      appBar: AppBar(
+        title: const Text('عرض الفاتورة'),
+        actions: [
+          IconButton(
+            tooltip: 'طباعة',
+            onPressed: (_loading || _printing) ? null : _openPdf,
+            icon: const Icon(Icons.print_outlined),
+          ),
+          IconButton(
+            tooltip: 'PDF',
+            onPressed: (_loading || _printing) ? null : _openPdf,
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+          ),
+        ],
+      ),
       body: AsyncView(
         loading: _loading,
         error: _error,
@@ -113,8 +142,10 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
                     _row('العميل', Fmt.str(_inv['customer_name'])),
                     _row('طريقة الدفع', Fmt.str(_inv['payment_label'])),
                     const Divider(),
-                    _row('الإجمالي الفرعي', Fmt.money(Fmt.toDouble(_inv['subtotal']))),
-                    _row('الضريبة', Fmt.money(Fmt.toDouble(_inv['tax_amount']))),
+                    _row('الإجمالي الفرعي',
+                        Fmt.money(Fmt.toDouble(_inv['subtotal']))),
+                    _row('الضريبة',
+                        Fmt.money(Fmt.toDouble(_inv['tax_amount']))),
                     _row('الإجمالي', Fmt.money(Fmt.toDouble(_inv['total'])),
                         bold: true),
                     const SizedBox(height: 8),
@@ -128,6 +159,32 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _printing ? null : _openPdf,
+                    icon: _printing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.print_outlined),
+                    label: const Text('طباعة'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: _printing ? null : _openPdf,
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    label: const Text('تحويل PDF'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             const Padding(
@@ -169,12 +226,34 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
     final name = Fmt.str(l['item_name'] ?? l['name_ar'] ?? l['name']);
     final qty = Fmt.toDouble(l['qty'] ?? l['quantity']);
     final price = Fmt.toDouble(l['unit_price'] ?? l['price']);
-    final total = Fmt.toDouble(l['line_total'] ?? l['total']);
+    final disc = Fmt.toDouble(l['discount_amount']);
+    final tax = Fmt.toDouble(l['tax_amount']);
+    final taxPct = Fmt.toDouble(l['tax_rate_percent']);
+    final total = Fmt.toDouble(
+        l['line_gross'] ?? l['line_total'] ?? l['total'] ?? (qty * price));
+    final discInput = Fmt.str(l['line_discount_input']);
     return Card(
       child: ListTile(
         title: Text(name),
-        subtitle: Text('كمية: ${Fmt.money(qty)} × ${Fmt.money(price)}',
-            textDirection: TextDirection.ltr),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('كمية: ${Fmt.money(qty)} × ${Fmt.money(price)}',
+                textDirection: TextDirection.ltr),
+            if (disc > 0 || discInput.isNotEmpty)
+              Text(
+                'خصم: ${discInput.isNotEmpty ? discInput : Fmt.money(disc)}',
+                textDirection: TextDirection.ltr,
+                style: const TextStyle(fontSize: 12),
+              ),
+            Text(
+              'ضريبة ${Fmt.money(taxPct)}%: ${Fmt.money(tax)}',
+              textDirection: TextDirection.ltr,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        isThreeLine: true,
         trailing: Text(Fmt.money(total),
             textDirection: TextDirection.ltr,
             style: const TextStyle(fontWeight: FontWeight.bold)),
