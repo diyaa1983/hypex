@@ -218,6 +218,10 @@ function handle_sales_return_post(): void
         redirect(sales_return_post_redirect_url());
     }
 
+    // DDL يُنهي الـ transaction ضمنياً في MySQL — نهيّئ المخطط قبل البدء.
+    require_once app_path('includes/doc_number_pool.php');
+    doc_number_pool_ensure_table($pdo);
+
     try {
         $pdo->beginTransaction();
 

@@ -65,12 +65,16 @@ function handle_purchase_invoice_post(): void
     $whFinal = $whCount > 0 ? $warehouseId : null;
     $savedInvoiceNo = '';
 
+    // DDL يُنهي الـ transaction ضمنياً في MySQL — نهيّئ المخطط قبل البدء.
+    require_once app_path('includes/invoice_amount_decimals.php');
+    require_once app_path('includes/inv_invoice_discount.php');
+    require_once app_path('includes/doc_number_pool.php');
+    $amountDecimals = company_decimal_places($pdo);
+    doc_number_pool_ensure_table($pdo);
+
     try {
         $pdo->beginTransaction();
 
-        require_once app_path('includes/invoice_amount_decimals.php');
-        require_once app_path('includes/inv_invoice_discount.php');
-        $amountDecimals = company_decimal_places($pdo);
         $headerDiscount = trim((string) ($_POST['invoice_discount'] ?? ''));
         if ($headerDiscount !== '') {
             $lines = inv_invoice_apply_header_discount($lines, $headerDiscount, $amountDecimals);

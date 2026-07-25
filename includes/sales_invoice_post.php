@@ -100,12 +100,14 @@ function handle_sales_invoice_post(): void
     }
     $savedInvoiceNo = '';
 
+    require_once app_path('includes/invoice_amount_decimals.php');
+    require_once app_path('includes/inv_invoice_discount.php');
+    $amountDecimals = company_decimal_places($pdo);
+    sales_invoice_warm_schema_before_transaction($pdo);
+
     try {
         $pdo->beginTransaction();
 
-        require_once app_path('includes/invoice_amount_decimals.php');
-        require_once app_path('includes/inv_invoice_discount.php');
-        $amountDecimals = company_decimal_places($pdo);
         $headerDiscount = trim((string) ($_POST['invoice_discount'] ?? ''));
         if ($headerDiscount !== '') {
             $lines = inv_invoice_apply_header_discount($lines, $headerDiscount, $amountDecimals);
@@ -155,7 +157,7 @@ function handle_sales_invoice_post(): void
                 }
             }
             sal_invoice_set_delivery_id($pdo, $invoiceId, $deliveryId > 0 ? $deliveryId : null);
-            $pdo->commit();
+            sales_invoice_commit_safely($pdo, 'update');
             if (!$wantsJson) {
                 flash_set('success', 'تم تحديث الفاتورة (غير مرحّلة). يمكنك ترحيلها لاحقًا من زر «ترحيل».');
             }
@@ -186,7 +188,7 @@ function handle_sales_invoice_post(): void
             sal_invoice_set_invoice_discount_input($pdo, $invoiceId, $headerDiscount !== '' ? $headerDiscount : null);
             sal_invoice_set_delivery_id($pdo, $invoiceId, $deliveryId > 0 ? $deliveryId : null);
 
-            $pdo->commit();
+            sales_invoice_commit_safely($pdo, 'insert');
             if (!$wantsJson) {
                 flash_set('success', 'تم حفظ الفاتورة (بدون أثر مالي أو مستودعي). يمكنك ترحيلها لاحقًا من زر «ترحيل» أو من قائمة الفواتير.');
             }
@@ -208,8 +210,6 @@ function handle_sales_invoice_post(): void
             $msg .= ' جداول الفاتورة أو الجداول المرتبطة غير موجودة؛ حدّث الصفحة بعد تشغيل التطبيق أو استورد database/schema.sql.';
         } elseif (strpos($detail, 'foreign key') !== false || strpos($detail, 'Cannot add or update') !== false || strpos($detail, '1452') !== false) {
             $msg .= ' تحقق من أن العميل والمواد والمستودع موجودون ومفعّلون.';
-        } elseif (strpos($detail, 'no active transaction') !== false) {
-            $msg .= ' حدث خطأ أثناء الحفظ. أعد المحاولة.';
         } elseif ($detail !== '') {
             $msg .= ' (' . $detail . ')';
         }
@@ -274,6 +274,52 @@ function handle_sales_invoice_post(): void
         require_once app_path('includes/nav_helpers.php');
         redirect(app_url('index.php?r=sales_invoices&id=' . $invoiceId . nav_hub_query_for_redirect()));
     }
+}
+
+/**
+ * تهيئة الجداول/الأعمدة الناقصة قبل بدء الـ transaction.
+ * أوامر DDL (ALTER/CREATE) تُنهي الـ transaction ضمنياً في MySQL، فلو نُفّذت
+ * أثناء الحفظ يفشل commit برسالة "no active transaction".
+ */
+function sales_invoice_warm_schema_before_transaction(PDO $pdo): void
+{
+    $warmers = [
+        'delivery_link' => static function (PDO $pdo): void {
+            require_once app_path('includes/sal_delivery_invoice_link.php');
+            sal_delivery_invoice_link_ensure($pdo);
+        },
+        'number_pool' => static function (PDO $pdo): void {
+            require_once app_path('includes/doc_number_pool.php');
+            doc_number_pool_ensure_table($pdo);
+        },
+        'amount_decimals' => static function (PDO $pdo): void {
+            require_once app_path('includes/invoice_amount_decimals.php');
+            invoice_amount_decimals_ensure_schema($pdo);
+        },
+    ];
+
+    foreach ($warmers as $name => $warmer) {
+        try {
+            $warmer($pdo);
+        } catch (Throwable $e) {
+            error_log('sales_invoice_save_schema(' . $name . '): ' . $e->getMessage());
+        }
+    }
+}
+
+/**
+ * إتمام الـ transaction بأمان. إذا انتهى ضمنياً (بسبب DDL) فالبيانات مثبّتة
+ * فعلاً، فنُسجّل تنبيهاً بدل إفشال الحفظ على المستخدم.
+ */
+function sales_invoice_commit_safely(PDO $pdo, string $stage): void
+{
+    if ($pdo->inTransaction()) {
+        $pdo->commit();
+
+        return;
+    }
+
+    error_log('sales_invoice_save: transaction already closed before commit (' . $stage . ')');
 }
 
 function sales_invoice_post_redirect_route(): string
