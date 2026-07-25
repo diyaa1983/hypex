@@ -321,6 +321,7 @@ return [
                             'id' => 'employee_screens',
                             'title' => 'شاشات الموظفين',
                             'items' => [
+                                ['r' => 'hr_dashboard', 'label' => 'مؤشرات رئيسية', 'icon' => '📊'],
                                 ['r' => 'hr_employees', 'label' => 'بيانات الموظف الاساسية', 'icon' => '👤'],
                             ],
                         ],
@@ -330,6 +331,7 @@ return [
                             'items' => [
                                 ['r' => 'report_hr_employees', 'label' => 'تقرير الموظفين', 'icon' => '📋'],
                                 ['r' => 'report_hr_employees_by_department', 'label' => 'الموظفين حسب القسم', 'icon' => '🏛'],
+                                ['r' => 'report_hr_employees_by_nationality', 'label' => 'الموظفين حسب الجنسية', 'icon' => '🌍'],
                                 ['r' => 'report_hr_employees_resigned', 'label' => 'الموظفين المستقيلين', 'icon' => '📤'],
                             ],
                         ],

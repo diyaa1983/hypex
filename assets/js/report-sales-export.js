@@ -51,6 +51,9 @@
     hr_payroll_bank_transfer_report: true,
     report_tax_ar3: true,
     report_hr_employees: true,
+    report_hr_employees_by_department: true,
+    report_hr_employees_by_nationality: true,
+    report_hr_employees_resigned: true,
   };
 
   function isReportExportRoute() {
@@ -150,6 +153,8 @@
       if (!root || !root.querySelectorAll) return;
       root.querySelectorAll('.report-sales-table').forEach(function (tbl) {
         if (tbl.classList.contains('report-sales-grand-total-table')) return;
+        /* تقرير الموظفين: الإبقاء على tfoot داخل الجدول حتى لا يختل تخطيط الأعمدة في html2canvas */
+        if (tbl.classList.contains('report-hr-employees-table')) return;
         var tfoot = tbl.querySelector('tfoot');
         if (!tfoot) return;
         var wrap = tbl.closest('.report-sales-table-wrap');
@@ -1023,17 +1028,80 @@
       return (page.getAttribute('data-report-route') || '') === 'report_hr_employees';
     }
 
+    function isHrEmployeesByNationalityReport() {
+      return (page.getAttribute('data-report-route') || '') === 'report_hr_employees_by_nationality';
+    }
+
+    function getHrEmployeesByNationalityPrintCss() {
+      return (
+        '@page{size:A4 landscape;margin:8mm 10mm;}' +
+        '.hr-emp-nat-rpt-doc,.report-sales-print-area{direction:rtl!important;width:100%!important;}' +
+        '.hr-emp-nat-rpt-table{table-layout:auto!important;width:100%!important;border-collapse:collapse!important;font-size:8.5pt!important;}' +
+        '.hr-emp-nat-rpt-table th,.hr-emp-nat-rpt-table td{' +
+          'white-space:nowrap!important;overflow:visible!important;text-overflow:clip!important;' +
+          'word-break:keep-all!important;padding:3px 5px!important;vertical-align:middle!important;' +
+          'line-height:1.25!important;border:1px solid #94a3b8!important;' +
+        '}' +
+        '.hr-emp-nat-rpt-table .col-customer-name,.hr-emp-nat-rpt-table .hr-emp-nat-rpt-col-job{' +
+          'white-space:nowrap!important;text-align:start!important;word-break:keep-all!important;' +
+        '}' +
+        '.hr-emp-nat-rpt-table thead th{background:#1e5a96!important;color:#fff!important;font-weight:700!important;text-align:center!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.hr-emp-nat-rpt-nat-name{margin:0 0 0.4rem!important;padding:0.25rem 0.4rem!important;font-size:10pt!important;background:#eef2f7!important;border:1px solid #c5ced9!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.hr-emp-nat-rpt-block{margin:0 0 0.75rem!important;page-break-inside:avoid!important;}' +
+        '.hr-emp-nat-rpt-sum td{background:#f8fafc!important;font-weight:700!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.hr-emp-nat-rpt-grand{margin-top:0.75rem!important;}' +
+        '.hr-emp-nat-rpt-grand-table th,.hr-emp-nat-rpt-grand-table td{border:1px solid #333!important;padding:0.3rem 0.5rem!important;}'
+      );
+    }
+
     function getHrEmployeesPrintCss() {
       return (
-        '.report-hr-employees-table{table-layout:fixed!important;width:100%!important;}' +
-        '.report-hr-employees-table col.col-seq,.report-hr-employees-table .col-seq{width:8mm!important;max-width:8mm!important;padding:2px 1px!important;text-align:center!important;white-space:nowrap!important;}' +
-        '.report-hr-employees-table col.col-inv-no,.report-hr-employees-table .col-inv-no{width:10mm!important;max-width:10mm!important;padding:2px 1px!important;text-align:center!important;white-space:nowrap!important;}' +
-        '.report-hr-employees-table thead th.col-seq,.report-hr-employees-table thead th.col-inv-no{white-space:normal!important;line-height:1.15!important;font-size:7pt!important;}' +
+        '@page{size:A4 portrait;margin:10mm;}' +
+        'html,body{direction:rtl!important;margin:0!important;padding:0!important;}' +
+        'body,body *{font-family:Tahoma,"Segoe UI",Arial,sans-serif!important;letter-spacing:normal!important;}' +
+        '.report-hr-employees-print,.report-sales-print-area{' +
+          'direction:rtl!important;width:100%!important;max-width:190mm!important;' +
+          'overflow:visible!important;box-sizing:border-box!important;padding:0!important;margin:0!important;' +
+        '}' +
+        '.report-sales-table-wrap{overflow:visible!important;width:100%!important;max-width:100%!important;}' +
+        '.doc-print-header{margin:0 0 0.4rem!important;}' +
+        '.doc-print-header-brand{' +
+          'display:flex!important;flex-direction:row!important;direction:rtl!important;' +
+          'justify-content:space-between!important;align-items:center!important;width:100%!important;' +
+          'gap:0.5rem!important;flex-wrap:nowrap!important;' +
+        '}' +
+        '.doc-print-header-co{flex:1 1 auto!important;min-width:0!important;text-align:right!important;direction:rtl!important;font-size:12pt!important;font-weight:700!important;}' +
+        '.doc-print-header-logo{flex:0 0 auto!important;width:28mm!important;max-width:28mm!important;}' +
+        '.doc-print-header-logo img{max-width:28mm!important;max-height:18mm!important;width:auto!important;height:auto!important;display:block!important;}' +
+        '.doc-print-header-title{text-align:center!important;font-size:13pt!important;font-weight:700!important;margin:0.35rem 0 0!important;}' +
+        '.doc-print-meta{margin:0.25rem 0 0.45rem!important;font-size:10pt!important;font-weight:700!important;}' +
+        '.report-hr-employees-table{' +
+          'table-layout:fixed!important;width:100%!important;max-width:100%!important;' +
+          'border-collapse:collapse!important;font-size:9pt!important;direction:rtl!important;' +
+        '}' +
+        '.report-hr-employees-table th,.report-hr-employees-table td{' +
+          'padding:3px 4px!important;vertical-align:middle!important;border:1px solid #94a3b8!important;' +
+          'line-height:1.35!important;overflow:hidden!important;word-wrap:break-word!important;' +
+        '}' +
+        '.report-hr-employees-table thead th{' +
+          'background:#1e5a96!important;color:#fff!important;font-weight:700!important;' +
+          'text-align:center!important;font-size:8.5pt!important;' +
+          '-webkit-print-color-adjust:exact;print-color-adjust:exact;' +
+        '}' +
+        '.report-hr-employees-table tbody td{background:#fff!important;color:#0f172a!important;font-weight:400!important;}' +
+        '.report-hr-employees-table tbody tr:nth-child(even) td{background:#f8fafc!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+        '.report-hr-employees-table col.col-seq,.report-hr-employees-table th.col-seq,.report-hr-employees-table td.col-seq{width:8%!important;text-align:center!important;white-space:nowrap!important;}' +
+        '.report-hr-employees-table col.col-inv-no,.report-hr-employees-table th.col-inv-no,.report-hr-employees-table td.col-inv-no{width:10%!important;text-align:center!important;white-space:nowrap!important;}' +
         '.report-hr-employees-table .col-inv-no code{font-family:inherit!important;font-size:inherit!important;font-weight:700!important;background:none!important;border:0!important;padding:0!important;}' +
-        '.report-hr-employees-table .col-customer-name{text-align:start!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;}' +
-        '.report-hr-employees-table col.col-date,.report-hr-employees-table .col-date{width:22mm!important;white-space:nowrap!important;}' +
-        '.report-hr-employees-table col.col-qty,.report-hr-employees-table .col-qty{width:20mm!important;white-space:nowrap!important;}' +
-        '.report-hr-employees-table col.col-status,.report-hr-employees-table .col-status{width:22mm!important;white-space:nowrap!important;}'
+        '.report-hr-employees-table col.col-customer-name,.report-hr-employees-table th.col-customer-name,.report-hr-employees-table td.col-customer-name{width:30%!important;text-align:right!important;white-space:normal!important;}' +
+        '.report-hr-employees-table col.col-date,.report-hr-employees-table th.col-date,.report-hr-employees-table td.col-date{width:14%!important;text-align:center!important;white-space:nowrap!important;}' +
+        '.report-hr-employees-table col.col-qty,.report-hr-employees-table th.col-qty,.report-hr-employees-table td.col-qty{width:14%!important;text-align:center!important;white-space:nowrap!important;}' +
+        '.report-hr-employees-table col.col-status,.report-hr-employees-table th.col-status,.report-hr-employees-table td.col-status{width:24%!important;text-align:center!important;white-space:normal!important;}' +
+        '.report-hr-employees-table td.num{color:#0f172a!important;font-weight:700!important;}' +
+        '.report-hr-employees-total td,.report-hr-employees-table tfoot td{' +
+          'background:#e2e8f0!important;font-weight:700!important;color:#0f172a!important;' +
+          '-webkit-print-color-adjust:exact;print-color-adjust:exact;' +
+        '}'
       );
     }
 
@@ -1158,6 +1226,9 @@
       var width = Math.max(el.scrollWidth || 0, el.offsetWidth || 0, el.clientWidth || 0, 720);
       if (page && isVatNetPayableReport(page.getAttribute('data-report-route') || '') && isVatNetDetailView()) {
         width = Math.max(width, 1060);
+      }
+      if (page && isHrEmployeesReport()) {
+        width = 794;
       }
       var height = Math.max(el.scrollHeight || 0, el.offsetHeight || 0, el.clientHeight || 0, 600);
       return { element: el, width: width, height: height };
@@ -1365,6 +1436,9 @@
       var customersPageCss =
         routeKey === 'report_customers' ? getCustomersPageCss() : '';
       var hrEmployeesPrintCss = isHrEmployeesReport() ? getHrEmployeesPrintCss() : '';
+      var hrEmployeesByNatPrintCss = isHrEmployeesByNationalityReport()
+        ? getHrEmployeesByNationalityPrintCss()
+        : '';
       var partyStatementPrintCss = isPartyStatementReport()
         ? getPartyStatementPrintCss()
         : '';
@@ -1435,6 +1509,7 @@
         receivablesAgingPrintCss +
         customersPageCss +
         hrEmployeesPrintCss +
+        hrEmployeesByNatPrintCss +
         partyStatementPrintCss +
         accSummaryPrintCss +
         hrTaxAr3PrintCss +
@@ -1511,7 +1586,23 @@
         reportDeliveryCss +
         reportSalesReturnsCss +
         (incomeTaxPrint ? getHrPayrollIncomeTaxPrintCss() : '') +
-        getPdfCaptureSafetyCss(pdfOrientation)
+        getPdfCaptureSafetyCss(pdfOrientation) +
+        (isHrEmployeesReport() ? getHrEmployeesPdfOverrideCss() : '')
+      );
+    }
+
+    /** يتجاوز أنماط الترويسة العامة (row-reverse) التي تقصّ الشعار وعمود الحالة في تقرير الموظفين */
+    function getHrEmployeesPdfOverrideCss() {
+      return (
+        'html,body{margin:0!important;padding:8mm!important;box-sizing:border-box!important;width:100%!important;max-width:794px!important;overflow:visible!important;}' +
+        'body,body *{font-family:Tahoma,"Segoe UI",Arial,sans-serif!important;letter-spacing:normal!important;}' +
+        '.report-sales-print-area,.report-hr-employees-print{max-width:100%!important;width:100%!important;padding:0!important;margin:0!important;overflow:visible!important;}' +
+        '.doc-print-header-brand{display:flex!important;flex-direction:row!important;direction:rtl!important;justify-content:space-between!important;align-items:center!important;width:100%!important;gap:0.5rem!important;flex-wrap:nowrap!important;padding:0!important;}' +
+        '.doc-print-header-co{flex:1 1 auto!important;min-width:0!important;text-align:right!important;direction:rtl!important;unicode-bidi:normal!important;font-size:12pt!important;}' +
+        '.doc-print-header-logo{flex:0 0 90px!important;width:90px!important;min-width:90px!important;max-width:90px!important;overflow:visible!important;}' +
+        '.doc-print-header-logo img{max-width:90px!important;max-height:70px!important;width:auto!important;height:auto!important;display:block!important;}' +
+        '.report-hr-employees-table{width:100%!important;max-width:100%!important;table-layout:fixed!important;}' +
+        '.report-hr-employees-table col.col-status,.report-hr-employees-table th.col-status,.report-hr-employees-table td.col-status{width:24%!important;display:table-cell!important;visibility:visible!important;}'
       );
     }
 
@@ -1560,18 +1651,19 @@
       routeKey = routeKey || (page && page.getAttribute('data-report-route')) || '';
       if (!clonedDoc || !clonedDoc.body) return;
       var body = clonedDoc.body;
+      var isHrEmp = routeKey === 'report_hr_employees';
       body.style.margin = '0';
-      body.style.padding = '8mm 10mm 10mm 16mm';
+      body.style.padding = isHrEmp ? '8mm' : '8mm 10mm 10mm 16mm';
       body.style.boxSizing = 'border-box';
       body.style.overflow = 'visible';
-      body.style.width = '100%';
-      body.style.maxWidth = '100%';
+      body.style.width = isHrEmp ? '794px' : '100%';
+      body.style.maxWidth = isHrEmp ? '794px' : '100%';
 
       var brand = clonedDoc.querySelector('.doc-print-header-brand');
       if (brand) {
         brand.style.display = 'flex';
-        brand.style.flexDirection = 'row-reverse';
-        brand.style.direction = 'ltr';
+        brand.style.flexDirection = isHrEmp ? 'row' : 'row-reverse';
+        brand.style.direction = isHrEmp ? 'rtl' : 'ltr';
         brand.style.justifyContent = 'space-between';
         brand.style.alignItems = 'center';
         brand.style.width = '100%';
@@ -1590,12 +1682,14 @@
       }
 
       var logoBox = clonedDoc.querySelector('.doc-print-header-logo');
-      var logoMaxW =
-        window.DocumentHeader && window.DocumentHeader.logoMaxWidth
+      var logoMaxW = isHrEmp
+        ? 90
+        : window.DocumentHeader && window.DocumentHeader.logoMaxWidth
           ? window.DocumentHeader.logoMaxWidth
           : 130;
-      var logoMaxH =
-        window.DocumentHeader && window.DocumentHeader.logoMaxHeight
+      var logoMaxH = isHrEmp
+        ? 70
+        : window.DocumentHeader && window.DocumentHeader.logoMaxHeight
           ? window.DocumentHeader.logoMaxHeight
           : 130;
       if (logoBox) {
@@ -1657,13 +1751,45 @@
         });
       }
 
+      if (routeKey === 'report_hr_employees') {
+        clonedDoc.querySelectorAll('.report-sales-table-wrap').forEach(function (wrap) {
+          wrap.style.overflow = 'visible';
+          wrap.style.width = '100%';
+          wrap.style.maxWidth = '100%';
+        });
+        clonedDoc.querySelectorAll('.report-hr-employees-table').forEach(function (tbl) {
+          tbl.style.width = '100%';
+          tbl.style.maxWidth = '100%';
+          tbl.style.tableLayout = 'fixed';
+          tbl.style.direction = 'rtl';
+        });
+        clonedDoc.querySelectorAll('.report-hr-employees-table thead th').forEach(function (th) {
+          th.style.background = '#1e5a96';
+          th.style.color = '#ffffff';
+          th.style.visibility = 'visible';
+        });
+        clonedDoc.querySelectorAll(
+          '.report-hr-employees-table td.col-status, .report-hr-employees-table th.col-status'
+        ).forEach(function (cell) {
+          cell.style.display = 'table-cell';
+          cell.style.visibility = 'visible';
+          cell.style.opacity = '1';
+          cell.style.color = cell.tagName === 'TH' ? '#ffffff' : '#0f172a';
+        });
+        if (printArea) {
+          printArea.style.width = '100%';
+          printArea.style.maxWidth = '100%';
+          printArea.style.overflow = 'visible';
+        }
+      }
+
       var wm = clonedDoc.querySelector('.doc-print-watermark--overlay');
       if (wm) {
         wm.style.display = 'none';
       }
     }
 
-    function buildStandaloneHtml() {
+    function buildStandaloneHtml(pdfOrientation) {
       var title = page.getAttribute('data-report-title') || 'تقرير مبيعات';
       var routeKey = page.getAttribute('data-report-route') || '';
       var logoUrl = routeKey === 'inventory_stocktake' ? '' : getCompanyLogoUrl();
@@ -1671,14 +1797,23 @@
         window.DocumentHeader && window.DocumentHeader.bodyPrintAttrs
           ? window.DocumentHeader.bodyPrintAttrs(logoUrl, true)
           : '';
+      var orient =
+        pdfOrientation ||
+        (isLandscapePdfRoute(routeKey) ? 'landscape' : 'portrait');
+      var areaClass = 'report-sales-print-area';
+      if (isHrEmployeesReport()) {
+        areaClass += ' report-hr-employees-print';
+      }
       return (
         '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
         title +
         '</title><style>' +
-        getPrintStyles() +
+        getPrintStyles(orient) +
         '</style></head><body' +
         bodyAttrs +
-        '><div class="report-sales-print-area">' +
+        '><div class="' +
+        areaClass +
+        '">' +
         getPrintAreaHtml() +
         '</div></body></html>'
       );
@@ -1963,6 +2098,9 @@
     }
 
     function getPdfMargins(routeKey, orientation) {
+      if (routeKey === 'report_hr_employees') {
+        return [10, 10, 12, 10];
+      }
       if (routeKey === 'report_receivables_aging') {
         return orientation === 'landscape' ? [6, 5, 10, 5] : [6, 10, 10, 10];
       }
@@ -2209,7 +2347,7 @@
 
       var win = frame.contentWindow;
       win.document.open();
-      win.document.write(buildStandaloneHtml());
+      win.document.write(buildStandaloneHtml(pdfOrientation));
       win.document.close();
 
       function restoreFrame() {
@@ -2279,7 +2417,11 @@
         pdfOrientation = 'landscape';
       }
 
-      if (isTrialBalanceReportRoute(routeKey) || isVoucherChecksReport()) {
+      if (
+        isTrialBalanceReportRoute(routeKey) ||
+        isVoucherChecksReport() ||
+        isHrEmployeesReport()
+      ) {
         downloadPdfViaPrintFrame(fname, routeKey, pdfOrientation);
         return;
       }
@@ -2287,7 +2429,9 @@
       var host = getExportHost();
       var printWrapStart = isVatNetPayableReport(routeKey)
         ? '<div class="report-vat-net-page report-vat-net-pdf-root"><div class="report-sales-print-area" style="padding:4px;">'
-        : '<div class="report-sales-print-area" style="padding:4px;">';
+        : isHrEmployeesReport()
+          ? '<div class="report-sales-print-area report-hr-employees-print" style="padding:4px;">'
+          : '<div class="report-sales-print-area" style="padding:4px;">';
       var printWrapEnd = isVatNetPayableReport(routeKey) ? '</div></div>' : '</div>';
       host.innerHTML =
         '<style>' +

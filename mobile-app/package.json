@@ -10,7 +10,8 @@
     "open:android": "npx cap open android",
     "open:ios": "npx cap open ios",
     "build:android": "npx cap sync android",
-    "build:ios": "npx cap sync ios"
+    "build:ios": "npx cap sync ios",
+    "release:ios": "bash scripts/ios-release.sh"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.2",

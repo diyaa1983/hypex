@@ -6,6 +6,7 @@
     "androidScheme": "https",
     "allowNavigation": [
       "https://www.biodev.gppjo.com",
+      "https://biodev.gppjo.com",
       "https://*.gppjo.com",
       "http://10.0.2.2",
       "http://192.168.*.*",
@@ -16,7 +17,8 @@
   "ios": {
     "contentInset": "automatic",
     "allowsLinkPreview": false,
-    "scrollEnabled": true
+    "scrollEnabled": true,
+    "preferredContentMode": "mobile"
   },
   "android": {
     "allowMixedContent": false

@@ -445,6 +445,11 @@ return [
         'permission' => 'hr_employees',
         'title' => 'تقرير الموظفين حسب القسم',
     ],
+    'report_hr_employees_by_nationality' => [
+        'file' => 'modules/reports/hr_employees_by_nationality.php',
+        'permission' => 'hr_employees',
+        'title' => 'تقرير الموظفين حسب الجنسية',
+    ],
     'report_hr_employees_resigned' => [
         'file' => 'modules/reports/hr_employees_resigned.php',
         'permission' => 'hr_employees',
@@ -689,6 +694,11 @@ return [
         'permission' => 'hr_employees',
         'title' => 'بيانات الموظف الاساسية',
         'hide_screen_title' => true,
+    ],
+    'hr_dashboard' => [
+        'file' => 'modules/hr/hr_dashboard.php',
+        'permission' => 'hr_employees',
+        'title' => 'مؤشرات رئيسية — شؤون الموظفين',
     ],
     'hr_employee_print' => [
         'file' => 'modules/hr/employee_print.php',

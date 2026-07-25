@@ -95,6 +95,9 @@ if ($pwaInstallCssV !== '') {
             <button type="submit" class="m-btn m-btn--primary m-btn--block">دخول</button>
         </form>
         <p class="m-login-hint muted">يجب أن يكون المستخدم ضمن مجموعة <strong>هاتف</strong> في النظام.</p>
+        <p class="m-login-hint muted" style="margin-top:.75rem;">
+            <a href="<?= esc(app_url('m/privacy.php')) ?>">سياسة الخصوصية</a>
+        </p>
     </div>
 </div>
 <?php

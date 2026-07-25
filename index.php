@@ -155,6 +155,8 @@ $appBootMigrations = [
     'database/migrations/218_sales_unpaid_invoices.sql',
     'database/migrations/219_purchase_unpaid_invoices.sql',
     'database/migrations/220_report_hr_employee_leave_balances.sql',
+    'database/migrations/221_report_hr_employees_by_nationality.sql',
+    'database/migrations/222_hr_dashboard.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

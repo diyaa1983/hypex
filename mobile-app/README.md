@@ -4,7 +4,9 @@
 
 `https://www.biodev.gppjo.com/m/login.php`
 
-**ابدأ بـ iOS:** راجع [`README-IOS.md`](README-IOS.md) للخطوات التفصيلية على Mac.
+**نشر App Store:** راجع [`app-store/APP_STORE_CHECKLIST.md`](app-store/APP_STORE_CHECKLIST.md)  
+**iOS بالتفصيل:** [`README-IOS.md`](README-IOS.md)  
+**سياسة الخصوصية:** `https://www.biodev.gppjo.com/m/privacy.php`
 
 ---
 
@@ -14,11 +16,12 @@
 
 ```bash
 cd mobile-app
-npm install
-npx cap sync ios
-cd ios/App && pod install && cd ../..
+chmod +x scripts/ios-release.sh
+./scripts/ios-release.sh
 npx cap open ios
 ```
+
+ثم Archive → Upload → TestFlight → Submit for Review.
 
 ---
 
@@ -46,3 +49,4 @@ npx cap open android
 - الواجهة من السيرفر (online).
 - GPS: `@capacitor/geolocation` + `assets/js/geo.js`
 - بعد تعديل `www/`: `npx cap sync ios` أو `android`
+- Bundle ID: `com.gppjo.biodev.mobile`
