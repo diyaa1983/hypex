@@ -30,6 +30,18 @@
 	<string>يُستخدم موقعك لتسجيل موقع الفواتير وتتبّع المندوب أثناء العمل.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>يُستخدم موقعك لتسجيل موقع الفواتير وتتبّع المندوب أثناء العمل.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>يُستخدم موقعك في الخلفية لتتبّع تحرّكات المندوب أثناء ساعات العمل.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>location</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.pravera.flutter_foreground_task.refresh</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -44,4 +44,5 @@ class AppConfig {
   static const String invoiceGpsListPath = 'api/sales_invoice_gps_list.php';
   static const String userGpsListPath = 'api/user_gps_locations_list.php';
   static const String userLocationPingPath = 'api/user_location_ping.php';
+  static const String userGpsTrackerLivePath = 'api/user_gps_tracker_live.php';
 }

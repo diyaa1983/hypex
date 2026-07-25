@@ -9,7 +9,7 @@ import 'features/auth/login_screen.dart';
 import 'features/auth/server_setup_screen.dart';
 import 'features/gps/invoice_gps_screen.dart';
 import 'features/gps/user_gps_screen.dart';
-import 'features/home/home_screen.dart';
+import 'features/gps/user_gps_tracker_screen.dart';
 import 'features/invoices/invoice_form_screen.dart';
 import 'features/invoices/invoice_list_screen.dart';
 import 'features/invoices/invoice_view_screen.dart';
@@ -21,6 +21,8 @@ import 'features/rep/rep_stock_screen.dart';
 import 'features/rep/rep_transfer_screen.dart';
 import 'features/returns/return_form_screen.dart';
 import 'features/returns/return_list_screen.dart';
+import 'features/settings/settings_screen.dart';
+import 'features/shell/main_shell.dart';
 
 class NammaApp extends StatelessWidget {
   const NammaApp({super.key});
@@ -69,7 +71,8 @@ class NammaApp extends StatelessWidget {
           builder: (_, __) => const ServerSetupScreen(),
         ),
         GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-        GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+        GoRoute(path: '/home', builder: (_, __) => const MainShell()),
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
         GoRoute(
           path: '/invoices',
           builder: (_, __) => const InvoiceListScreen(),
@@ -120,6 +123,10 @@ class NammaApp extends StatelessWidget {
         GoRoute(
           path: '/gps/users',
           builder: (_, __) => const UserGpsScreen(),
+        ),
+        GoRoute(
+          path: '/gps/tracker',
+          builder: (_, __) => const UserGpsTrackerScreen(),
         ),
       ],
     );

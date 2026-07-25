@@ -4,11 +4,15 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/config.dart';
+import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/ui_kit.dart';
 
 class ReceiptListScreen extends StatefulWidget {
-  const ReceiptListScreen({super.key});
+  const ReceiptListScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<ReceiptListScreen> createState() => _ReceiptListScreenState();
@@ -18,6 +22,7 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _rows = [];
+  String _filter = 'all';
   final _search = TextEditingController();
 
   @override
@@ -40,8 +45,9 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
     try {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.receiptListPath,
-        query: {'filter': 'all', 'q': _search.text.trim()},
+        query: {'filter': _filter, 'q': _search.text.trim()},
       );
+      if (!mounted) return;
       setState(() {
         _rows = (res['receipts'] as List? ?? [])
             .whereType<Map>()
@@ -50,6 +56,7 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
         _loading = false;
       });
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.message;
         _loading = false;
@@ -57,32 +64,135 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
     }
   }
 
+  Future<void> _post(Map<String, dynamic> row) async {
+    final s = context.read<SessionController>();
+    try {
+      final res = await context.read<ApiClient>().postForm(
+        AppConfig.receiptPostPath,
+        fields: {'voucher_id': row['id']},
+        csrf: s.csrf,
+      );
+      if (!mounted) return;
+      showSnack(context, (res['message'] ?? 'تم الترحيل').toString());
+      await _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.message, error: true);
+    }
+  }
+
+  Future<void> _delete(Map<String, dynamic> row) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف السند'),
+        content: Text('سيتم حذف السند رقم ${row['voucher_no'] ?? ''} نهائياً.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              minimumSize: const Size(100, 42),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final s = context.read<SessionController>();
+    try {
+      final res = await context.read<ApiClient>().postForm(
+        AppConfig.receiptDeletePath,
+        fields: {'voucher_id': row['id']},
+        csrf: s.csrf,
+      );
+      if (!mounted) return;
+      showSnack(context, (res['message'] ?? 'تم الحذف').toString());
+      await _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.message, error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('سندات القبض')),
+      appBar: AppBar(
+        title: const Text('سندات القبض'),
+        automaticallyImplyLeading: !widget.embedded,
+        actions: [
+          IconButton(
+            tooltip: 'تحديث',
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/receipts/new').then((_) => _load()),
-        icon: const Icon(Icons.add),
+        icon: const Icon(Icons.add_rounded, size: 20),
         label: const Text('سند جديد'),
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: TextField(
-              controller: _search,
-              decoration: InputDecoration(
-                hintText: 'بحث برقم السند أو العميل...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.arrow_circle_left_outlined),
-                  onPressed: _load,
+          Container(
+            color: AppTheme.surface,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _search,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'بحث برقم السند أو العميل...',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    suffixIcon: _search.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            onPressed: () {
+                              _search.clear();
+                              _load();
+                            },
+                          ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => _load(),
                 ),
-              ),
-              onSubmitted: (_) => _load(),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 36,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: const {
+                      'all': 'الكل',
+                      'unposted': 'غير مرحّلة',
+                      'posted': 'مرحّلة',
+                    }.entries.map((e) {
+                      return Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: ChoiceChip(
+                          label: Text(e.value),
+                          selected: e.key == _filter,
+                          onSelected: (_) {
+                            setState(() => _filter = e.key);
+                            _load();
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
             ),
           ),
+          const Divider(height: 1),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -91,55 +201,144 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
                 error: _error,
                 onRetry: _load,
                 child: _rows.isEmpty
-                    ? ListView(children: const [
-                        SizedBox(height: 100),
-                        EmptyState(message: 'لا توجد سندات.'),
-                      ])
+                    ? ListView(
+                        children: [
+                          const SizedBox(height: 60),
+                          EmptyState(
+                            message: 'لا توجد سندات.',
+                            icon: Icons.account_balance_wallet_rounded,
+                            actionLabel: 'سند جديد',
+                            onAction: () => context
+                                .push('/receipts/new')
+                                .then((_) => _load()),
+                          ),
+                        ],
+                      )
                     : ListView.builder(
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 90),
                         itemCount: _rows.length,
-                        itemBuilder: (_, i) {
-                          final r = _rows[i];
-                          final posted = r['is_posted'] == true;
-                          return Card(
-                            child: ListTile(
-                              title: Text((r['customer_name'] ?? '—').toString(),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold)),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text('رقم: ${r['voucher_no'] ?? '—'}  •  ${r['voucher_date_dmy'] ?? ''}',
-                                      textDirection: TextDirection.ltr),
-                                  Text('${r['amount_fmt'] ?? '0'}  •  ${r['pay_label'] ?? ''}',
-                                      textDirection: TextDirection.ltr),
-                                ],
-                              ),
-                              trailing: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: (posted
-                                          ? AppTheme.success
-                                          : AppTheme.warn)
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(posted ? 'مرحّل' : 'غير مرحّل',
-                                    style: TextStyle(
-                                        color: posted
-                                            ? AppTheme.success
-                                            : AppTheme.warn,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          );
-                        },
+                        itemBuilder: (_, i) => _ReceiptCard(
+                          row: _rows[i],
+                          onPost: () => _post(_rows[i]),
+                          onDelete: () => _delete(_rows[i]),
+                        ),
                       ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptCard extends StatelessWidget {
+  const _ReceiptCard({
+    required this.row,
+    required this.onPost,
+    required this.onDelete,
+  });
+
+  final Map<String, dynamic> row;
+  final VoidCallback onPost;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final posted = row['is_posted'] == true;
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(12, 12, 6, 8),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              MiniIcon(
+                Icons.payments_rounded,
+                color: posted ? AppTheme.success : AppTheme.warn,
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (row['customer_name'] ?? '—').toString(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '#${row['voucher_no'] ?? '—'}  •  '
+                      '${row['voucher_date_dmy'] ?? ''}',
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSoft,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Text(
+                      (row['amount_fmt'] ?? '0').toString(),
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.success,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: StatusPill(
+                      text: posted ? 'مرحّل' : 'غير مرحّل',
+                      color: posted ? AppTheme.success : AppTheme.warn,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              if ((row['pay_label'] ?? '').toString().isNotEmpty)
+                Text(
+                  row['pay_label'].toString(),
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: AppTheme.textSoft,
+                  ),
+                ),
+              const Spacer(),
+              if (!posted)
+                IconButton(
+                  tooltip: 'ترحيل',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onPost,
+                  icon: const Icon(Icons.check_circle_outline_rounded, size: 19),
+                  color: AppTheme.success,
+                ),
+              if (!posted)
+                IconButton(
+                  tooltip: 'حذف',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                  color: AppTheme.danger,
+                ),
+            ],
           ),
         ],
       ),

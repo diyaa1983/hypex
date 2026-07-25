@@ -207,7 +207,140 @@ function sys_user_location_fill_location(PDO $pdo, int $userId, ?float $lat = nu
 
 function sys_user_location_may_view(PDO $pdo): bool
 {
-    return is_logged_in() && (user_can('user_gps_locations') || user_can('m_user_gps_locations'));
+    return is_logged_in() && (
+        user_can('user_gps_locations')
+        || user_can('m_user_gps_locations')
+        || user_can('user_gps_tracker')
+        || user_can('m_user_gps_tracker')
+    );
+}
+
+/** صلاحية شاشة تتبّع الخريطة الحية (ويندوز + هاتف). */
+function sys_user_location_may_track(): bool
+{
+    return is_logged_in() && (
+        user_can('user_gps_tracker')
+        || user_can('m_user_gps_tracker')
+        || user_can('user_gps_locations')
+        || user_can('m_user_gps_locations')
+    );
+}
+
+/**
+ * نقاط تتبّع حية للخريطة (مثل تتبّع السيارات).
+ * «متصل» = آخر تحديث خلال onlineMinutes ثانية.
+ *
+ * @return list<array<string, mixed>>
+ */
+function sys_user_location_tracker_rows(
+    PDO $pdo,
+    int $onlineMinutes = 15,
+    int $staleMinutes = 120,
+    string $search = '',
+    bool $includeStale = true
+): array {
+    sys_user_location_ensure_schema($pdo);
+
+    $onlineMinutes = max(1, min(120, $onlineMinutes));
+    $staleMinutes = max($onlineMinutes, min(24 * 60, $staleMinutes));
+    $search = trim($search);
+    $onlineSec = $onlineMinutes * 60;
+    $staleSec = $staleMinutes * 60;
+
+    $sql = 'SELECT ul.user_id, ul.latitude, ul.longitude, ul.gps_accuracy, ul.gps_source, ul.captured_at,
+                   u.username, u.full_name_ar
+            FROM sys_user_location ul
+            INNER JOIN sys_user u ON u.id = ul.user_id AND u.is_active = 1
+            WHERE ul.captured_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)';
+    $params = [$includeStale ? $staleSec : $onlineSec];
+
+    if ($search !== '') {
+        $sql .= ' AND (u.username LIKE ? OR u.full_name_ar LIKE ?)';
+        $like = '%' . $search . '%';
+        $params[] = $like;
+        $params[] = $like;
+    }
+
+    $sql .= ' ORDER BY ul.captured_at DESC LIMIT 500';
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $now = time();
+    $out = [];
+
+    foreach ($rows as $row) {
+        $lat = (float) ($row['latitude'] ?? 0);
+        $lng = (float) ($row['longitude'] ?? 0);
+        if (!sal_invoice_gps_coords_valid($lat, $lng)) {
+            continue;
+        }
+
+        $capturedAt = (string) ($row['captured_at'] ?? '');
+        $ts = $capturedAt !== '' ? strtotime($capturedAt) : false;
+        $ageSec = ($ts !== false) ? max(0, $now - $ts) : 999999;
+        $isOnline = $ageSec <= $onlineSec;
+        $isRecent = !$isOnline && $ageSec <= $staleSec;
+
+        if (!$includeStale && !$isOnline) {
+            continue;
+        }
+
+        $rawSrc = isset($row['gps_source']) ? trim((string) $row['gps_source']) : '';
+        $userLabel = sal_invoice_user_display_name(
+            (string) ($row['full_name_ar'] ?? ''),
+            (string) ($row['username'] ?? '')
+        );
+
+        $status = $isOnline ? 'online' : ($isRecent ? 'away' : 'offline');
+        $statusLabel = $isOnline ? 'متصل' : ($isRecent ? 'غير نشط' : 'غير متصل');
+
+        $out[] = [
+            'user_id' => (int) ($row['user_id'] ?? 0),
+            'user_label' => $userLabel,
+            'username' => (string) ($row['username'] ?? ''),
+            'latitude' => $lat,
+            'longitude' => $lng,
+            'gps_accuracy' => isset($row['gps_accuracy']) && $row['gps_accuracy'] !== null && $row['gps_accuracy'] !== ''
+                ? (float) $row['gps_accuracy']
+                : null,
+            'accuracy_label' => !empty($row['gps_accuracy'])
+                ? round((float) $row['gps_accuracy']) . ' م'
+                : '',
+            'gps_source' => $rawSrc !== '' ? $rawSrc : null,
+            'source_label' => sal_invoice_gps_source_label($rawSrc !== '' ? $rawSrc : null),
+            'captured_at' => $capturedAt,
+            'captured_at_dmy' => $ts !== false ? date('d-m-Y H:i', $ts) : '',
+            'age_sec' => $ageSec,
+            'age_label' => sys_user_location_age_label($ageSec),
+            'is_online' => $isOnline,
+            'status' => $status,
+            'status_label' => $statusLabel,
+            'map_url' => sal_invoice_gps_map_url($lat, $lng),
+        ];
+    }
+
+    return $out;
+}
+
+function sys_user_location_age_label(int $ageSec): string
+{
+    if ($ageSec < 60) {
+        return 'الآن';
+    }
+    if ($ageSec < 3600) {
+        $m = (int) floor($ageSec / 60);
+
+        return $m === 1 ? 'قبل دقيقة' : ('قبل ' . $m . ' دقيقة');
+    }
+    if ($ageSec < 86400) {
+        $h = (int) floor($ageSec / 3600);
+
+        return $h === 1 ? 'قبل ساعة' : ('قبل ' . $h . ' ساعة');
+    }
+    $d = (int) floor($ageSec / 86400);
+
+    return $d === 1 ? 'قبل يوم' : ('قبل ' . $d . ' يوم');
 }
 
 /**

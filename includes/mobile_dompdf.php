@@ -216,8 +216,21 @@ function mobile_dompdf_stream_pdf(string $html, string $downloadFilename): void
     require_once app_path('vendor/autoload.php');
 
     if (mobile_mpdf_available()) {
-        mobile_mpdf_stream_pdf($html, $downloadFilename);
+        try {
+            mobile_mpdf_stream_pdf($html, $downloadFilename);
+        } catch (Throwable $e) {
+            error_log('mobile_mpdf_stream_pdf failed: ' . $e->getMessage());
+            // تابع إلى Dompdf كاحتياطي.
+        }
     }
 
-    mobile_dompdf_stream_pdf_fallback($html, $downloadFilename);
+    try {
+        mobile_dompdf_stream_pdf_fallback($html, $downloadFilename);
+    } catch (Throwable $e) {
+        error_log('mobile_dompdf_stream_pdf_fallback failed: ' . $e->getMessage());
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'pdf_error';
+        exit;
+    }
 }

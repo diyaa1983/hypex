@@ -6,6 +6,7 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/ui_kit.dart';
 
 class RepStockScreen extends StatefulWidget {
   const RepStockScreen({super.key});
@@ -64,34 +65,65 @@ class _RepStockScreenState extends State<RepStockScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('رصيد العهدة')),
+      appBar: AppBar(
+        title: const Text('رصيد العهدة'),
+        actions: [
+          IconButton(
+            tooltip: 'تحديث',
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       body: Column(
         children: [
-          if (_repName.isNotEmpty || _whName.isNotEmpty)
-            Container(
-              width: double.infinity,
-              color: AppTheme.primary.withValues(alpha: 0.08),
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                '${_repName.isEmpty ? '' : 'المندوب: $_repName'}${_whName.isEmpty ? '' : '   •   المستودع: $_whName'}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: TextField(
-              controller: _search,
-              decoration: InputDecoration(
-                hintText: 'بحث عن مادة...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.arrow_circle_left_outlined),
-                  onPressed: _load,
+          Container(
+            color: AppTheme.surface,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Column(
+              children: [
+                if (_repName.isNotEmpty || _whName.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        const MiniIcon(
+                          Icons.person_rounded,
+                          color: AppTheme.teal,
+                          size: 32,
+                          iconSize: 17,
+                          radius: 10,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            [
+                              if (_repName.isNotEmpty) 'المندوب: $_repName',
+                              if (_whName.isNotEmpty) 'المستودع: $_whName',
+                            ].join('  •  '),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textSoft,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                TextField(
+                  controller: _search,
+                  textInputAction: TextInputAction.search,
+                  decoration: const InputDecoration(
+                    hintText: 'بحث عن مادة...',
+                    prefixIcon: Icon(Icons.search_rounded, size: 20),
+                  ),
+                  onSubmitted: (_) => _load(),
                 ),
-              ),
-              onSubmitted: (_) => _load(),
+              ],
             ),
           ),
+          const Divider(height: 1),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -100,29 +132,70 @@ class _RepStockScreenState extends State<RepStockScreen> {
                 error: _error,
                 onRetry: _load,
                 child: _items.isEmpty
-                    ? ListView(children: const [
-                        SizedBox(height: 100),
-                        EmptyState(message: 'لا توجد مواد في العهدة.'),
-                      ])
-                    : ListView.separated(
+                    ? ListView(
+                        children: const [
+                          SizedBox(height: 60),
+                          EmptyState(
+                            message: 'لا توجد مواد في العهدة.',
+                            icon: Icons.inventory_2_outlined,
+                          ),
+                        ],
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
                         itemCount: _items.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (_, i) {
                           final it = _items[i];
                           final qty = Fmt.toDouble(it['qty']);
-                          return ListTile(
-                            title: Text(Fmt.str(it['item_name'] ?? it['name'])),
-                            subtitle: Text(Fmt.str(it['item_sku'] ?? it['sku']),
-                                textDirection: TextDirection.ltr),
-                            trailing: Text(
-                              Fmt.money(qty),
-                              textDirection: TextDirection.ltr,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color:
-                                    qty > 0 ? AppTheme.success : AppTheme.danger,
-                              ),
+                          final sku = Fmt.str(it['item_sku'] ?? it['sku']);
+                          return AppCard(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                MiniIcon(
+                                  Icons.inventory_2_outlined,
+                                  color: qty > 0
+                                      ? AppTheme.teal
+                                      : AppTheme.textSoft,
+                                  size: 32,
+                                  iconSize: 17,
+                                  radius: 10,
+                                ),
+                                const SizedBox(width: 11),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        Fmt.str(it['item_name'] ?? it['name']),
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      if (sku.isNotEmpty) ...[
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          sku,
+                                          textDirection: TextDirection.ltr,
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: AppTheme.textSoft,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                StatusPill(
+                                  text: Fmt.money(qty),
+                                  color: qty > 0
+                                      ? AppTheme.success
+                                      : AppTheme.danger,
+                                  dense: false,
+                                ),
+                              ],
                             ),
                           );
                         },

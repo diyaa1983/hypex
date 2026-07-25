@@ -87,17 +87,34 @@ class ApiClient {
         options: Options(
           responseType: ResponseType.bytes,
           headers: {'Accept': 'application/pdf,*/*'},
+          // نقرأ جسم الرد حتى عند 4xx/5xx بدل رمي DioException الخام.
+          validateStatus: (code) => code != null && code < 600,
         ),
       );
       final code = res.statusCode ?? 0;
+      final bytes = res.data ?? <int>[];
       if (code >= 400) {
+        final body = bytes.isEmpty
+            ? ''
+            : String.fromCharCodes(bytes.take(200)).trim();
+        if (code == 403) {
+          throw ApiException('لا توجد صلاحية لتنزيل الملف.', statusCode: code);
+        }
+        if (code == 404) {
+          throw ApiException('الملف غير موجود على السيرفر.', statusCode: code);
+        }
+        if (body.contains('PDF library not installed') || body.contains('pdf_error')) {
+          throw ApiException(
+            'تعذر إنشاء PDF على السيرفر. تأكد من تثبيت مكتبات PDF (vendor) وصلاحية مجلد logs.',
+            statusCode: code,
+          );
+        }
         throw ApiException(
           'تعذر تنزيل الملف (رمز $code).',
           statusCode: code,
         );
       }
-      final bytes = res.data;
-      if (bytes == null || bytes.isEmpty) {
+      if (bytes.isEmpty) {
         throw ApiException('الملف فارغ أو غير متاح.');
       }
       // بعض السيرفرات ترجع HTML عند الخطأ بدل PDF.
@@ -105,7 +122,7 @@ class ApiClient {
         final head = String.fromCharCodes(bytes.take(20));
         if (head.contains('<!DOCTYPE') || head.contains('<html')) {
           throw ApiException(
-            'تعذر تنزيل PDF — تحقق من صلاحية العرض أو رفع api/mobile_invoice_pdf.php.',
+            'تعذر تنزيل PDF — السيرفر أعاد صفحة ويب بدل ملف PDF.',
             statusCode: code,
           );
         }
@@ -120,7 +137,11 @@ class ApiClient {
           e.error is SocketException) {
         throw ApiException('تعذر الاتصال بالسيرفر. تحقق من الإنترنت والعنوان.');
       }
-      throw ApiException('خطأ في تنزيل الملف: ${e.message ?? e.type.name}');
+      final code = e.response?.statusCode;
+      throw ApiException(
+        'تعذر تنزيل الملف${code != null ? ' (رمز $code)' : ''}.',
+        statusCode: code,
+      );
     }
   }
 

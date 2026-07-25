@@ -25,13 +25,27 @@ dependencies:
   intl: ^0.20.2
   url_launcher: ^6.3.1
   open_filex: ^4.7.0
+  flutter_foreground_task: ^10.0.0
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.3
   flutter_test:
     sdk: flutter
 
 flutter:
   uses-material-design: true
+  # ملفات assets/icon تُستخدم لتوليد أيقونة التطبيق فقط ولا تُحزَّم داخل التطبيق.
   assets:
     - assets/
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#0B63CE"
+  adaptive_icon_foreground: "assets/icon/app_icon_fg.png"
+  min_sdk_android: 23

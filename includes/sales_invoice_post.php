@@ -191,7 +191,36 @@ function handle_sales_invoice_post(): void
                 flash_set('success', 'تم حفظ الفاتورة (بدون أثر مالي أو مستودعي). يمكنك ترحيلها لاحقًا من زر «ترحيل» أو من قائمة الفواتير.');
             }
         }
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            try {
+                $pdo->rollBack();
+            } catch (Throwable $ignored) {
+                // تجاهل فشل التراجع حتى نُرجع رسالة JSON واضحة للواجهة.
+            }
+        }
+        $detail = $e->getMessage();
+        error_log('sales_invoice_save: ' . $detail . ' @ ' . $e->getFile() . ':' . $e->getLine());
+        $msg = 'تعذر الحفظ.';
+        if (strpos($detail, 'Unknown column') !== false) {
+            $msg = 'تعذر تحديث قاعدة البيانات تلقائيًا. نفّذ من phpMyAdmin: database/migrations/002_sales_invoice_enhancements.sql و 010_sales_rep_links.sql — ' . $detail;
+        } elseif (strpos($detail, "doesn't exist") !== false || strpos($detail, 'Unknown table') !== false || strpos($detail, 'Base table') !== false) {
+            $msg .= ' جداول الفاتورة أو الجداول المرتبطة غير موجودة؛ حدّث الصفحة بعد تشغيل التطبيق أو استورد database/schema.sql.';
+        } elseif (strpos($detail, 'foreign key') !== false || strpos($detail, 'Cannot add or update') !== false || strpos($detail, '1452') !== false) {
+            $msg .= ' تحقق من أن العميل والمواد والمستودع موجودون ومفعّلون.';
+        } elseif (strpos($detail, 'no active transaction') !== false) {
+            $msg .= ' حدث خطأ أثناء الحفظ. أعد المحاولة.';
+        } elseif ($detail !== '') {
+            $msg .= ' (' . $detail . ')';
+        }
+        if ($wantsJson) {
+            json_invoice_save_response(false, ['message' => $msg], 500);
+        }
+        flash_set('error', $msg);
+        redirect(sales_invoice_post_redirect_route());
+    }
 
+    try {
         if ($savedInvoiceNo === '') {
             $stNo = $pdo->prepare('SELECT invoice_no FROM sal_invoice WHERE id = ? LIMIT 1');
             $stNo->execute([$invoiceId]);
@@ -231,23 +260,19 @@ function handle_sales_invoice_post(): void
         require_once app_path('includes/nav_helpers.php');
         redirect(app_url('index.php?r=sales_invoices&id=' . $invoiceId . nav_hub_query_for_redirect()));
     } catch (Throwable $e) {
-        $pdo->rollBack();
-        $detail = $e->getMessage();
-        $msg = 'تعذر الحفظ.';
-        if (strpos($detail, 'Unknown column') !== false) {
-            $msg = 'تعذر تحديث قاعدة البيانات تلقائيًا. نفّذ من phpMyAdmin: database/migrations/002_sales_invoice_enhancements.sql و 010_sales_rep_links.sql — ' . $detail;
-        } elseif (strpos($detail, "doesn't exist") !== false || strpos($detail, 'Unknown table') !== false || strpos($detail, 'Base table') !== false) {
-            $msg .= ' جداول الفاتورة أو الجداول المرتبطة غير موجودة؛ حدّث الصفحة بعد تشغيل التطبيق أو استورد database/schema.sql.';
-        } elseif (strpos($detail, 'foreign key') !== false || strpos($detail, 'Cannot add or update') !== false || strpos($detail, '1452') !== false) {
-            $msg .= ' تحقق من أن العميل والمواد والمستودع موجودون ومفعّلون.';
-        } elseif ($detail !== '') {
-            $msg .= ' (' . $detail . ')';
-        }
+        // الحفظ الأساسي نجح — لا نُفشل الواجهة بسبب الأرشفة/التدقيق.
+        error_log('sales_invoice_save_after_commit: ' . $e->getMessage());
         if ($wantsJson) {
-            json_invoice_save_response(false, ['message' => $msg], 500);
+            json_invoice_save_response(true, [
+                'invoice_id' => $invoiceId,
+                'invoice_no' => $savedInvoiceNo,
+                'amount_decimals' => $amountDecimals ?? null,
+                'warning' => 'تم الحفظ مع تنبيه: ' . $e->getMessage(),
+            ]);
         }
-        flash_set('error', $msg);
-        redirect(sales_invoice_post_redirect_route());
+        flash_set('success', 'تم حفظ الفاتورة مع تنبيه: ' . $e->getMessage());
+        require_once app_path('includes/nav_helpers.php');
+        redirect(app_url('index.php?r=sales_invoices&id=' . $invoiceId . nav_hub_query_for_redirect()));
     }
 }
 

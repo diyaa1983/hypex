@@ -106,6 +106,22 @@ return [
 
     ],
 
+    'm_user_gps_tracker' => [
+
+        'file' => 'modules/mobile/user_gps_tracker.php',
+
+        'permission' => 'm_user_gps_tracker',
+
+        'title' => 'تتبّع المواقع الحية',
+
+        'icon' => 'map-pin',
+
+        'tile_kind' => 'list',
+
+        'home_tile' => true,
+
+    ],
+
     'm_party_statement' => [
 
         'file' => 'modules/mobile/party_statement.php',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -6,13 +7,120 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../services/location_tracking_service.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/ui_kit.dart';
+
+/// وصف شاشة داخل التطبيق: المسار + الأيقونة + اللون + القسم.
+class TileSpec {
+  const TileSpec(this.route, this.icon, this.color, this.group);
+
+  final String route;
+  final IconData icon;
+  final Color color;
+  final String group;
+}
+
+/// خريطة موحّدة لكل شاشات النظام (تُستخدم في الرئيسية والاختصارات).
+const Map<String, TileSpec> kTileSpecs = {
+  'm_sales_invoices': TileSpec(
+    '/invoices/new',
+    Icons.note_add_rounded,
+    AppTheme.primary,
+    'المبيعات',
+  ),
+  'm_sales_invoice_list': TileSpec(
+    '/invoices',
+    Icons.receipt_long_rounded,
+    AppTheme.primarySoft,
+    'المبيعات',
+  ),
+  'm_sales_returns': TileSpec(
+    '/returns/new',
+    Icons.keyboard_return_rounded,
+    AppTheme.rose,
+    'المبيعات',
+  ),
+  'm_sales_returns_list': TileSpec(
+    '/returns',
+    Icons.assignment_returned_rounded,
+    AppTheme.rose,
+    'المبيعات',
+  ),
+  'm_receipt': TileSpec(
+    '/receipts/new',
+    Icons.payments_rounded,
+    AppTheme.success,
+    'المالية',
+  ),
+  'm_receipt_list': TileSpec(
+    '/receipts',
+    Icons.account_balance_wallet_rounded,
+    AppTheme.success,
+    'المالية',
+  ),
+  'm_party_statement': TileSpec(
+    '/statement',
+    Icons.menu_book_rounded,
+    AppTheme.violet,
+    'المالية',
+  ),
+  'm_rep_load': TileSpec(
+    '/rep/load',
+    Icons.local_shipping_rounded,
+    AppTheme.amber,
+    'عهدة المندوب',
+  ),
+  'm_rep_return': TileSpec(
+    '/rep/return',
+    Icons.undo_rounded,
+    AppTheme.amber,
+    'عهدة المندوب',
+  ),
+  'm_rep_custody_list': TileSpec(
+    '/rep/custody',
+    Icons.fact_check_rounded,
+    AppTheme.teal,
+    'عهدة المندوب',
+  ),
+  'm_rep_stock': TileSpec(
+    '/rep/stock',
+    Icons.inventory_2_rounded,
+    AppTheme.teal,
+    'عهدة المندوب',
+  ),
+  'm_sales_invoice_gps': TileSpec(
+    '/gps/invoices',
+    Icons.pin_drop_rounded,
+    AppTheme.danger,
+    'المواقع',
+  ),
+  'm_user_gps_locations': TileSpec(
+    '/gps/users',
+    Icons.travel_explore_rounded,
+    AppTheme.danger,
+    'المواقع',
+  ),
+  'm_user_gps_tracker': TileSpec(
+    '/gps/tracker',
+    Icons.radar_rounded,
+    AppTheme.teal,
+    'المواقع',
+  ),
+};
+
+const List<String> _groupOrder = [
+  'المبيعات',
+  'المالية',
+  'عهدة المندوب',
+  'المواقع',
+];
 
 class _Tile {
-  _Tile(this.code, this.label, this.icon);
+  _Tile(this.code, this.label, this.spec);
   final String code;
   final String label;
-  final String icon;
+  final TileSpec spec;
 }
 
 class HomeScreen extends StatefulWidget {
@@ -27,41 +135,27 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _error;
   String _company = '';
   List<_Tile> _tiles = [];
-
-  /// ربط كود الشاشة بمسار داخل التطبيق.
-  static const Map<String, String> _routeMap = {
-    'm_sales_invoices': '/invoices/new',
-    'm_sales_invoice_list': '/invoices',
-    'm_sales_invoice_gps': '/gps/invoices',
-    'm_user_gps_locations': '/gps/users',
-    'm_party_statement': '/statement',
-    'm_receipt': '/receipts/new',
-    'm_receipt_list': '/receipts',
-    'm_sales_returns': '/returns/new',
-    'm_sales_returns_list': '/returns',
-    'm_rep_load': '/rep/load',
-    'm_rep_custody_list': '/rep/custody',
-    'm_rep_return': '/rep/return',
-    'm_rep_stock': '/rep/stock',
-  };
-
-  static const Map<String, IconData> _iconMap = {
-    'invoice': Icons.receipt_long,
-    'list': Icons.format_list_bulleted,
-    'ledger': Icons.menu_book,
-    'receipt': Icons.receipt,
-    'receipt-list': Icons.list_alt,
-    'return': Icons.assignment_return,
-    'return-list': Icons.assignment_returned,
-    'map-pin': Icons.location_on_outlined,
-    'load': Icons.download,
-    'stock': Icons.inventory_2_outlined,
-  };
+  bool _tracking = false;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _refreshTracking();
+    FlutterForegroundTask.addTaskDataCallback(_onTaskData);
+  }
+
+  @override
+  void dispose() {
+    FlutterForegroundTask.removeTaskDataCallback(_onTaskData);
+    super.dispose();
+  }
+
+  void _onTaskData(Object data) => _refreshTracking();
+
+  Future<void> _refreshTracking() async {
+    final on = await LocationTrackingService.isRunning;
+    if (mounted && on != _tracking) setState(() => _tracking = on);
   }
 
   Future<void> _load() async {
@@ -74,12 +168,14 @@ class _HomeScreenState extends State<HomeScreen> {
       final res = await api.getJson(AppConfig.homePath);
       final tiles = (res['tiles'] as List? ?? [])
           .whereType<Map>()
-          .map((t) => _Tile(
-                t['code'].toString(),
-                t['label'].toString(),
-                (t['icon'] ?? 'invoice').toString(),
-              ))
-          .where((t) => _routeMap.containsKey(t.code))
+          .where((t) => kTileSpecs.containsKey(t['code'].toString()))
+          .map(
+            (t) => _Tile(
+              t['code'].toString(),
+              t['label'].toString(),
+              kTileSpecs[t['code'].toString()]!,
+            ),
+          )
           .toList();
       setState(() {
         _company = (res['company_name'] ?? '').toString();
@@ -98,54 +194,246 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  List<_Tile> _group(String name) =>
+      _tiles.where((t) => t.spec.group == name).toList();
+
   @override
   Widget build(BuildContext context) {
     final s = context.watch<SessionController>();
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_company.isEmpty ? 'الرئيسية' : _company),
-        actions: [
-          IconButton(
-            tooltip: 'تسجيل الخروج',
-            icon: const Icon(Icons.logout),
-            onPressed: () => s.logout(),
+      body: Column(
+        children: [
+          _Header(
+            company: _company.isEmpty ? 'النماء' : _company,
+            user: s.userName ?? '',
+            tracking: _tracking,
+            onTrackingTap: () => context.push('/settings'),
+            onRefresh: _load,
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await _load();
+                await _refreshTracking();
+              },
+              child: AsyncView(
+                loading: _loading,
+                error: _error,
+                onRetry: _load,
+                child: _tiles.isEmpty
+                    ? ListView(
+                        children: const [
+                          SizedBox(height: 80),
+                          EmptyState(
+                            message: 'لا توجد شاشات متاحة لحسابك.',
+                            icon: Icons.lock_outline_rounded,
+                          ),
+                        ],
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(14, 6, 14, 24),
+                        children: [
+                          _QuickActions(tiles: _tiles),
+                          for (final g in _groupOrder)
+                            if (_group(g).isNotEmpty) ...[
+                              SectionTitle(g),
+                              _TileGrid(tiles: _group(g)),
+                            ],
+                        ],
+                      ),
+              ),
+            ),
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: AsyncView(
-          loading: _loading,
-          error: _error,
-          onRetry: _load,
-          child: _tiles.isEmpty
-              ? ListView(
-                  children: const [
-                    SizedBox(height: 120),
-                    EmptyState(message: 'لا توجد شاشات متاحة لحسابك.'),
-                  ],
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.all(14),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 1.05,
-                  ),
-                  itemCount: _tiles.length,
-                  itemBuilder: (context, i) {
-                    final t = _tiles[i];
-                    return _TileCard(
-                      label: t.label,
-                      icon: _iconMap[t.icon] ?? Icons.apps,
-                      onTap: () => context.push(_routeMap[t.code]!),
-                    );
-                  },
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.company,
+    required this.user,
+    required this.tracking,
+    required this.onTrackingTap,
+    required this.onRefresh,
+  });
+
+  final String company;
+  final String user;
+  final bool tracking;
+  final VoidCallback onTrackingTap;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return GradientHeader(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(13),
                 ),
-        ),
+                child: const Icon(
+                  Icons.storefront_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      company,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      user.isEmpty ? 'أهلاً بك' : 'أهلاً، $user',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'تحديث',
+                onPressed: onRefresh,
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTrackingTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: tracking
+                          ? const Color(0xFF4BE38A)
+                          : const Color(0xFFFFC46B),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      tracking
+                          ? 'تتبّع الموقع يعمل في الخلفية'
+                          : 'تتبّع الموقع متوقف — اضغط للتفعيل',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_left_rounded,
+                    color: Colors.white70,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions({required this.tiles});
+
+  final List<_Tile> tiles;
+
+  @override
+  Widget build(BuildContext context) {
+    const quickCodes = ['m_sales_invoices', 'm_receipt', 'm_sales_returns'];
+    final quick =
+        tiles.where((t) => quickCodes.contains(t.code)).toList();
+    if (quick.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionTitle('إجراء سريع', icon: Icons.bolt_rounded),
+        Row(
+          children: [
+            for (var i = 0; i < quick.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(
+                child: ActionChipButton(
+                  icon: quick[i].spec.icon,
+                  label: quick[i].label,
+                  color: quick[i].spec.color,
+                  onTap: () => context.push(quick[i].spec.route),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TileGrid extends StatelessWidget {
+  const _TileGrid({required this.tiles});
+
+  final List<_Tile> tiles;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 0.98,
+      ),
+      itemCount: tiles.length,
+      itemBuilder: (_, i) {
+        final t = tiles[i];
+        return _TileCard(
+          label: t.label,
+          icon: t.spec.icon,
+          color: t.spec.color,
+          onTap: () => context.push(t.spec.route),
+        );
+      },
     );
   }
 }
@@ -154,44 +442,48 @@ class _TileCard extends StatelessWidget {
   const _TileCard({
     required this.label,
     required this.icon,
+    required this.color,
     required this.onTap,
   });
 
   final String label;
   final IconData icon;
+  final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Material(
+      color: AppTheme.surface,
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.10),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 32, color: AppTheme.primary),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.border),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              MiniIcon(icon, color: color, size: 40, iconSize: 20, radius: 13),
+              const SizedBox(height: 9),
+              Text(
                 label,
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w600),
+                  fontSize: 11.5,
+                  height: 1.3,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textMain,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

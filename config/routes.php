@@ -168,6 +168,12 @@ return [
         'title' => 'مواقع المستخدمين (GPS)',
         'hide_screen_title' => true,
     ],
+    'user_gps_tracker' => [
+        'file' => 'modules/system/user_gps_tracker.php',
+        'permission' => 'user_gps_tracker',
+        'title' => 'تتبّع المواقع الحية',
+        'hide_screen_title' => true,
+    ],
     'users' => [
         'file' => 'modules/users/list.php',
         'permission' => 'users',

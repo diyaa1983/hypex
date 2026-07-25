@@ -5,6 +5,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/ui_kit.dart';
 
 class RepCustodyListScreen extends StatefulWidget {
   const RepCustodyListScreen({super.key});
@@ -52,7 +53,16 @@ class _RepCustodyListScreenState extends State<RepCustodyListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('قائمة العهدات')),
+      appBar: AppBar(
+        title: const Text('قائمة العهدات'),
+        actions: [
+          IconButton(
+            tooltip: 'تحديث',
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: AsyncView(
@@ -60,48 +70,64 @@ class _RepCustodyListScreenState extends State<RepCustodyListScreen> {
           error: _error,
           onRetry: _load,
           child: _rows.isEmpty
-              ? ListView(children: const [
-                  SizedBox(height: 100),
-                  EmptyState(message: 'لا توجد سندات عهدة.'),
-                ])
+              ? ListView(
+                  children: const [
+                    SizedBox(height: 60),
+                    EmptyState(
+                      message: 'لا توجد سندات عهدة.',
+                      icon: Icons.fact_check_outlined,
+                    ),
+                  ],
+                )
               : ListView.builder(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 20),
                   itemCount: _rows.length,
                   itemBuilder: (_, i) {
                     final r = _rows[i];
                     final posted = r['is_posted'] == true;
                     final isReturn =
                         (r['direction'] ?? '').toString() == 'return';
-                    return Card(
-                      child: ListTile(
-                        leading: Icon(
-                          isReturn ? Icons.upload : Icons.download,
-                          color: AppTheme.primary,
-                        ),
-                        title: Text(
-                          '${isReturn ? 'إرجاع' : 'تحميل'} - ${r['move_no_fmt'] ?? r['move_no'] ?? '—'}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          '${r['move_date_dmy'] ?? r['move_date'] ?? ''}  •  ${r['lines_count'] ?? r['items_count'] ?? ''} صنف',
-                          textDirection: TextDirection.ltr,
-                        ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: (posted ? AppTheme.success : AppTheme.warn)
-                                .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
+                    return AppCard(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          MiniIcon(
+                            isReturn
+                                ? Icons.undo_rounded
+                                : Icons.local_shipping_rounded,
+                            color: isReturn ? AppTheme.rose : AppTheme.amber,
                           ),
-                          child: Text(posted ? 'مرحّل' : 'مسودة',
-                              style: TextStyle(
-                                  color: posted
-                                      ? AppTheme.success
-                                      : AppTheme.warn,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold)),
-                        ),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${isReturn ? 'إرجاع' : 'تحميل'} '
+                                  '#${r['move_no_fmt'] ?? r['move_no'] ?? '—'}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '${r['move_date_dmy'] ?? r['move_date'] ?? ''}'
+                                  '  •  ${r['lines_count'] ?? r['items_count'] ?? 0} صنف',
+                                  textDirection: TextDirection.ltr,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textSoft,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          StatusPill(
+                            text: posted ? 'مرحّل' : 'مسودة',
+                            color: posted ? AppTheme.success : AppTheme.warn,
+                          ),
+                        ],
                       ),
                     );
                   },

@@ -9,9 +9,12 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
+import '../../core/theme.dart';
+import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/item_picker.dart';
 import '../../widgets/party_picker.dart';
+import '../../widgets/ui_kit.dart';
 
 class _TaxRate {
   _TaxRate({required this.id, required this.name, required this.rate});
@@ -29,7 +32,6 @@ class _Line {
     required this.unitPrice,
     required this.taxRateId,
     required this.taxRatePercent,
-    this.discountInput = '',
   });
 
   final int itemId;
@@ -39,7 +41,7 @@ class _Line {
   double unitPrice;
   int taxRateId;
   double taxRatePercent;
-  String discountInput;
+  String discountInput = '';
 
   double get lineBase => qty * unitPrice;
 
@@ -101,6 +103,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   Party? _customer;
   final List<_Line> _lines = [];
   final _headerDiscount = TextEditingController();
+  final _notes = TextEditingController();
 
   @override
   void initState() {
@@ -111,6 +114,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   @override
   void dispose() {
     _headerDiscount.dispose();
+    _notes.dispose();
     super.dispose();
   }
 
@@ -128,11 +132,13 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           .toList();
       final rates = (res['tax_rates'] as List? ?? [])
           .whereType<Map>()
-          .map((e) => _TaxRate(
-                id: Fmt.toInt(e['id']),
-                name: Fmt.str(e['name']),
-                rate: Fmt.toDouble(e['rate_percent']),
-              ))
+          .map(
+            (e) => _TaxRate(
+              id: Fmt.toInt(e['id']),
+              name: Fmt.str(e['name']),
+              rate: Fmt.toDouble(e['rate_percent']),
+            ),
+          )
           .toList();
       final defaultPct = Fmt.toDouble(res['default_tax_percent']);
       var defaultId = 0;
@@ -140,6 +146,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         final match = rates.where((r) => (r.rate - defaultPct).abs() < 0.001);
         defaultId = match.isNotEmpty ? match.first.id : rates.first.id;
       }
+      if (!mounted) return;
       setState(() {
         _warehouses = whs;
         _taxRates = rates;
@@ -154,6 +161,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         _loadingMeta = false;
       });
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() {
         _metaError = e.message;
         _loadingMeta = false;
@@ -181,7 +189,9 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     if (existing.isNotEmpty) {
       setState(() => existing.first.qty += 1);
     } else {
-      setState(() => _lines.add(_Line(
+      setState(
+        () => _lines.add(
+          _Line(
             itemId: it.id,
             name: it.name,
             qty: 1,
@@ -189,20 +199,61 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
             unitPrice: it.price,
             taxRateId: _defaultTaxRateId,
             taxRatePercent: _defaultTaxPercent,
-          )));
+          ),
+        ),
+      );
     }
   }
 
-  Future<void> _save() async {
+  Future<void> _clearLines() async {
+    if (_lines.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('مسح البنود'),
+        content: const Text('سيتم حذف جميع البنود من الفاتورة الحالية.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              minimumSize: const Size(100, 42),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('مسح'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) setState(_lines.clear);
+  }
+
+  /// يحفظ الفاتورة ويُرجع رقمها، أو 0 عند الفشل.
+  Future<int> _save({bool thenPost = false}) async {
     if (_customer == null) {
       showSnack(context, 'اختر العميل', error: true);
-      return;
+      return 0;
     }
     if (_lines.isEmpty) {
       showSnack(context, 'أضف بنداً واحداً على الأقل', error: true);
-      return;
+      return 0;
     }
+    final zeroPrice =
+        _lines.where((l) => l.unitPrice <= 0 && l.qty > 0).toList();
+    if (zeroPrice.isNotEmpty) {
+      showSnack(
+        context,
+        'أدخل سعر الوحدة للمادة: ${zeroPrice.first.name}',
+        error: true,
+      );
+      return 0;
+    }
+
     final s = context.read<SessionController>();
+    final api = context.read<ApiClient>();
     setState(() => _saving = true);
     try {
       final fields = <String, dynamic>{
@@ -215,25 +266,52 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         'lines_json': jsonEncode(_lines.map((l) => l.toJson()).toList()),
       };
       final headerDisc = _headerDiscount.text.trim();
-      if (headerDisc.isNotEmpty) {
-        fields['invoice_discount'] = headerDisc;
-      }
-      final res = await context.read<ApiClient>().postForm(
+      if (headerDisc.isNotEmpty) fields['invoice_discount'] = headerDisc;
+      final notes = _notes.text.trim();
+      if (notes.isNotEmpty) fields['notes'] = notes;
+
+      final res = await api.postForm(
         AppConfig.salesInvoiceSaveRoute,
         csrf: s.csrf,
         fields: fields,
       );
-      if (!mounted) return;
       final invId = Fmt.toInt(res['invoice_id']);
+      if (!mounted) return invId;
       showSnack(context, (res['message'] ?? 'تم حفظ الفاتورة').toString());
+
+      if (thenPost && invId > 0) {
+        final gps = await LocationService.tryGetPosition();
+        final postFields = <String, dynamic>{'invoice_id': invId};
+        if (gps != null) {
+          postFields['latitude'] = gps.latitude;
+          postFields['longitude'] = gps.longitude;
+          postFields['gps_accuracy'] = gps.accuracy;
+          postFields['gps_source'] = 'mobile';
+        }
+        try {
+          final p = await api.postForm(
+            AppConfig.salesInvoicePostPath,
+            fields: postFields,
+            csrf: s.csrf,
+          );
+          if (mounted) {
+            showSnack(context, (p['message'] ?? 'تم الترحيل').toString());
+          }
+        } on ApiException catch (e) {
+          if (mounted) showSnack(context, e.message, error: true);
+        }
+      }
+
+      if (!mounted) return invId;
       if (invId > 0) {
         context.pushReplacement('/invoices/$invId');
       } else {
         context.pop();
       }
+      return invId;
     } on ApiException catch (e) {
-      if (!mounted) return;
-      showSnack(context, e.message, error: true);
+      if (mounted) showSnack(context, e.message, error: true);
+      return 0;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -242,101 +320,176 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('فاتورة جديدة')),
+      appBar: AppBar(
+        title: const Text('فاتورة جديدة'),
+        actions: [
+          IconButton(
+            tooltip: 'إضافة مادة',
+            onPressed: _loadingMeta ? null : _addItem,
+            icon: const Icon(Icons.add_shopping_cart_rounded),
+          ),
+          IconButton(
+            tooltip: 'مسح البنود',
+            onPressed: _lines.isEmpty ? null : _clearLines,
+            icon: const Icon(Icons.delete_sweep_outlined),
+          ),
+        ],
+      ),
+      floatingActionButton: _loadingMeta
+          ? null
+          : FloatingActionButton(
+              onPressed: _addItem,
+              tooltip: 'إضافة مادة',
+              child: const Icon(Icons.add_rounded),
+            ),
       body: AsyncView(
         loading: _loadingMeta,
         error: _metaError,
         onRetry: _loadMeta,
+        skeleton: false,
         child: Column(
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 20),
                 children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        children: [
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.person_outline),
-                            title: Text(_customer?.name ?? 'اختر العميل'),
-                            trailing: const Icon(Icons.chevron_left),
-                            onTap: _pickCustomer,
+                  AppCard(
+                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 14),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: MiniIcon(
+                            Icons.person_rounded,
+                            color: _customer == null
+                                ? AppTheme.textSoft
+                                : AppTheme.primary,
                           ),
-                          const Divider(),
-                          DropdownButtonFormField<int>(
-                            value: _warehouseId == 0 ? null : _warehouseId,
-                            decoration:
-                                const InputDecoration(labelText: 'المستودع'),
-                            items: _warehouses
-                                .map((w) => DropdownMenuItem<int>(
-                                      value: Fmt.toInt(w['id']),
-                                      child: Text(Fmt.str(w['name'])),
-                                    ))
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _warehouseId = v ?? 0),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _headerDiscount,
-                            textDirection: TextDirection.ltr,
-                            decoration: const InputDecoration(
-                              labelText: 'خصم الفاتورة (اختياري)',
-                              hintText: 'مثل 10 أو 10%',
-                              prefixIcon: Icon(Icons.percent),
+                          title: Text(
+                            _customer?.name ?? 'اختر العميل',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: _customer == null
+                                  ? AppTheme.textSoft
+                                  : AppTheme.textMain,
                             ),
-                            onChanged: (_) => setState(() {}),
                           ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              const Text('نوع الدفع: '),
-                              const SizedBox(width: 8),
-                              ChoiceChip(
-                                label: const Text('ذمة'),
-                                selected: _paymentType == 'credit',
-                                onSelected: (_) =>
-                                    setState(() => _paymentType = 'credit'),
-                              ),
-                              const SizedBox(width: 8),
-                              ChoiceChip(
-                                label: const Text('نقدي'),
-                                selected: _paymentType == 'cash',
-                                onSelected: (_) =>
-                                    setState(() => _paymentType = 'cash'),
-                              ),
-                            ],
+                          subtitle: const Text('اضغط للبحث عن العميل'),
+                          trailing: const Icon(Icons.chevron_left_rounded),
+                          onTap: _pickCustomer,
+                        ),
+                        const Divider(height: 14),
+                        DropdownButtonFormField<int>(
+                          initialValue: _warehouseId == 0 ? null : _warehouseId,
+                          decoration: const InputDecoration(
+                            labelText: 'المستودع',
+                            prefixIcon: Icon(Icons.warehouse_outlined, size: 19),
                           ),
-                        ],
-                      ),
+                          items: _warehouses
+                              .map(
+                                (w) => DropdownMenuItem<int>(
+                                  value: Fmt.toInt(w['id']),
+                                  child: Text(Fmt.str(w['name'])),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) =>
+                              setState(() => _warehouseId = v ?? 0),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _headerDiscount,
+                                textDirection: TextDirection.ltr,
+                                decoration: const InputDecoration(
+                                  labelText: 'خصم الفاتورة',
+                                  hintText: '10 أو 10%',
+                                  prefixIcon: Icon(Icons.percent_rounded, size: 18),
+                                ),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextField(
+                                controller: _notes,
+                                decoration: const InputDecoration(
+                                  labelText: 'ملاحظات',
+                                  prefixIcon: Icon(Icons.notes_rounded, size: 18),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            const Text(
+                              'نوع الدفع',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.textSoft,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const Spacer(),
+                            ChoiceChip(
+                              label: const Text('ذمة'),
+                              avatar: Icon(
+                                Icons.schedule_rounded,
+                                size: 15,
+                                color: _paymentType == 'credit'
+                                    ? Colors.white
+                                    : AppTheme.textSoft,
+                              ),
+                              selected: _paymentType == 'credit',
+                              onSelected: (_) =>
+                                  setState(() => _paymentType = 'credit'),
+                            ),
+                            const SizedBox(width: 8),
+                            ChoiceChip(
+                              label: const Text('نقدي'),
+                              avatar: Icon(
+                                Icons.payments_rounded,
+                                size: 15,
+                                color: _paymentType == 'cash'
+                                    ? Colors.white
+                                    : AppTheme.textSoft,
+                              ),
+                              selected: _paymentType == 'cash',
+                              onSelected: (_) =>
+                                  setState(() => _paymentType = 'cash'),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  Row(
-                    children: [
-                      const Text('البنود',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16)),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: _addItem,
-                        icon: const Icon(Icons.add),
-                        label: const Text('إضافة مادة'),
-                      ),
-                    ],
+                  SectionTitle(
+                    'البنود',
+                    icon: Icons.list_alt_rounded,
+                    trailing: TextButton.icon(
+                      onPressed: _addItem,
+                      icon: const Icon(Icons.add_rounded, size: 17),
+                      label: const Text('إضافة مادة'),
+                    ),
                   ),
                   if (_lines.isEmpty)
                     const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: EmptyState(message: 'لم تُضف بنود بعد.'),
+                      padding: EdgeInsets.symmetric(vertical: 10),
+                      child: EmptyState(
+                        message: 'لم تُضف بنود بعد.',
+                        icon: Icons.shopping_cart_outlined,
+                      ),
                     )
                   else
                     ..._lines
                         .asMap()
                         .entries
                         .map((e) => _lineCard(e.key, e.value)),
+                  const SizedBox(height: 70),
                 ],
               ),
             ),
@@ -348,122 +501,168 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   }
 
   Widget _lineCard(int index, _Line l) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(l.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () => setState(() => _lines.removeAt(index)),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: _numField(
-                    label: 'كمية',
-                    value: l.qty,
-                    onChanged: (v) => setState(() => l.qty = v),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _numField(
-                    label: 'إضافية',
-                    value: l.qtyExtra,
-                    onChanged: (v) => setState(() => l.qtyExtra = v),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _numField(
-                    label: 'السعر',
-                    value: l.unitPrice,
-                    onChanged: (v) => setState(() => l.unitPrice = v),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    initialValue: l.discountInput,
-                    textDirection: TextDirection.ltr,
-                    decoration: const InputDecoration(
-                      labelText: 'خصم',
-                      hintText: '5 أو 5%',
-                      isDense: true,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                    ),
-                    onChanged: (v) => setState(() => l.discountInput = v),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    value: _taxRates.any((r) => r.id == l.taxRateId)
-                        ? l.taxRateId
-                        : (_taxRates.isNotEmpty ? _taxRates.first.id : null),
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'ضريبة',
-                      isDense: true,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                    ),
-                    items: (_taxRates.isEmpty
-                            ? [
-                                _TaxRate(
-                                    id: 0,
-                                    name: 'افتراضي',
-                                    rate: _defaultTaxPercent)
-                              ]
-                            : _taxRates)
-                        .map((r) => DropdownMenuItem<int>(
-                              value: r.id,
-                              child: Text('${Fmt.money(r.rate)}%'),
-                            ))
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      final rate = _taxRates
-                          .where((r) => r.id == v)
-                          .map((r) => r.rate)
-                          .firstOrNull;
-                      setState(() {
-                        l.taxRateId = v;
-                        l.taxRatePercent = rate ?? _defaultTaxPercent;
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8, left: 4),
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              MiniIcon(
+                Icons.inventory_2_outlined,
+                color: AppTheme.violet,
+                size: 32,
+                iconSize: 17,
+                radius: 10,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
                 child: Text(
-                  'صافي: ${Fmt.money(l.subtotal)}  •  ضريبة: ${Fmt.money(l.taxAmount)}  •  الإجمالي: ${Fmt.money(l.gross)}',
-                  textDirection: TextDirection.ltr,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                  l.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
                 ),
               ),
+              IconButton(
+                tooltip: 'حذف البند',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                color: AppTheme.danger,
+                onPressed: () => setState(() => _lines.removeAt(index)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: _numField(
+                  label: 'الكمية',
+                  value: l.qty,
+                  onChanged: (v) => setState(() => l.qty = v),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: _numField(
+                  label: 'إضافية',
+                  value: l.qtyExtra,
+                  onChanged: (v) => setState(() => l.qtyExtra = v),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 4,
+                child: _numField(
+                  label: 'السعر',
+                  value: l.unitPrice,
+                  onChanged: (v) => setState(() => l.unitPrice = v),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: l.discountInput,
+                  textDirection: TextDirection.ltr,
+                  decoration: const InputDecoration(
+                    labelText: 'الخصم',
+                    hintText: '5 أو 5%',
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  ),
+                  onChanged: (v) => setState(() => l.discountInput = v),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  initialValue: _taxRates.any((r) => r.id == l.taxRateId)
+                      ? l.taxRateId
+                      : (_taxRates.isNotEmpty ? _taxRates.first.id : null),
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'الضريبة',
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  ),
+                  items: (_taxRates.isEmpty
+                          ? [
+                              _TaxRate(
+                                id: 0,
+                                name: 'افتراضي',
+                                rate: _defaultTaxPercent,
+                              ),
+                            ]
+                          : _taxRates)
+                      .map(
+                        (r) => DropdownMenuItem<int>(
+                          value: r.id,
+                          child: Text('${Fmt.money(r.rate)}%'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    final rate = _taxRates
+                        .where((r) => r.id == v)
+                        .map((r) => r.rate)
+                        .firstOrNull;
+                    setState(() {
+                      l.taxRateId = v;
+                      l.taxRatePercent = rate ?? _defaultTaxPercent;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceAlt,
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
-        ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _tiny('صافي', Fmt.money(l.subtotal)),
+                _tiny('ضريبة', Fmt.money(l.taxAmount)),
+                _tiny('الإجمالي', Fmt.money(l.gross), strong: true),
+              ],
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _tiny(String label, String value, {bool strong = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10.5, color: AppTheme.textSoft),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          textDirection: TextDirection.ltr,
+          style: TextStyle(
+            fontSize: strong ? 13.5 : 12.5,
+            fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
+            color: strong ? AppTheme.primary : AppTheme.textMain,
+          ),
+        ),
+      ],
     );
   }
 
@@ -473,65 +672,108 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     required ValueChanged<double> onChanged,
   }) {
     return TextFormField(
-      initialValue: value == 0 ? '' : value.toString(),
+      initialValue: value == 0 ? '' : Fmt.trimNum(value),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
       decoration: InputDecoration(
         labelText: label,
-        isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 6,
+          vertical: 12,
+        ),
       ),
       onChanged: (v) => onChanged(double.tryParse(v.replaceAll(',', '')) ?? 0),
     );
   }
 
   Widget _totalBar() {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, -2)),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        border: const Border(top: BorderSide(color: AppTheme.border)),
+        boxShadow: AppTheme.softShadow,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
                 children: [
-                  Text('قبل الضريبة: ${Fmt.money(_subTotal)}',
-                      textDirection: TextDirection.ltr,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                  Text('الضريبة: ${Fmt.money(_taxTotal)}',
-                      textDirection: TextDirection.ltr,
-                      style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                  Text(Fmt.money(_grandTotal),
-                      textDirection: TextDirection.ltr,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'قبل الضريبة ${Fmt.money(_subTotal)}  •  '
+                          'ضريبة ${Fmt.money(_taxTotal)}',
+                          textDirection: TextDirection.ltr,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppTheme.textSoft,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          Fmt.money(_grandTotal),
+                          textDirection: TextDirection.ltr,
+                          style: const TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w900,
+                            color: AppTheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${_lines.length} بند',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSoft,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ],
               ),
-            ),
-            SizedBox(
-              width: 150,
-              child: FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.save_outlined),
-                label: const Text('حفظ'),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _saving ? null : () => _save(),
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save_outlined, size: 19),
+                      label: const Text('حفظ'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : () => _save(thenPost: true),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      icon: const Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 19,
+                      ),
+                      label: const Text('حفظ وترحيل'),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

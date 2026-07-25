@@ -60,6 +60,7 @@ return [
                 'hr_income_tax_settings',
                 'sales_invoice_gps',
                 'user_gps_locations',
+                'user_gps_tracker',
             ],
         ],
         [
@@ -394,6 +395,7 @@ return [
                 'journal_voucher',
                 'sales_invoice_gps',
                 'user_gps_locations',
+                'user_gps_tracker',
             ],
         ],
         [

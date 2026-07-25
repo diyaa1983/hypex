@@ -26,6 +26,12 @@ class Fmt {
 
   static String str(dynamic v) => v == null ? '' : v.toString();
 
+  /// رقم بدون أصفار زائدة — مناسب لحقول الإدخال.
+  static String trimNum(double v) {
+    if (v == v.roundToDouble()) return v.toInt().toString();
+    return v.toString();
+  }
+
   /// تاريخ ISO (Y-m-d) → d/m/Y للعرض.
   static String dmy(String? iso) {
     final v = (iso ?? '').trim();

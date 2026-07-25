@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/location_tracking_service.dart';
 import 'api_client.dart';
 import 'config.dart';
 
@@ -30,6 +31,7 @@ class SessionController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_kServer) ?? '';
     api.setBase(saved.isEmpty ? AppConfig.defaultServerBase : saved);
+    await LocationTrackingService.saveCredentials(base: api.base);
     if (saved.isNotEmpty) {
       try {
         await refreshMe();
@@ -47,6 +49,7 @@ class SessionController extends ChangeNotifier {
     api.setBase(raw);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kServer, api.base);
+    await LocationTrackingService.saveCredentials(base: api.base);
     notifyListeners();
   }
 
@@ -89,6 +92,12 @@ class SessionController extends ChangeNotifier {
       if (authenticated && remember) {
         await _secure.write(key: 'u', value: username);
         await _secure.write(key: 'p', value: password);
+        // خدمة التتبّع تعمل في isolate منفصل، فتحتاج نسخة من بيانات الاتصال.
+        await LocationTrackingService.saveCredentials(
+          base: api.base,
+          username: username,
+          password: password,
+        );
       }
       return authenticated;
     } on ApiException catch (e) {
@@ -106,6 +115,10 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    try {
+      await LocationTrackingService.stop();
+      await LocationTrackingService.clearCredentials();
+    } catch (_) {}
     try {
       await api.postForm(AppConfig.sessionPath, fields: {'action': 'logout'});
     } catch (_) {}

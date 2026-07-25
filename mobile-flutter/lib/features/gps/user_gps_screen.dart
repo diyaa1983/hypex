@@ -6,8 +6,11 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
+import '../../core/theme.dart';
 import '../../services/location_service.dart';
+import '../../services/location_tracking_service.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/ui_kit.dart';
 
 class UserGpsScreen extends StatefulWidget {
   const UserGpsScreen({super.key});
@@ -19,6 +22,7 @@ class UserGpsScreen extends StatefulWidget {
 class _UserGpsScreenState extends State<UserGpsScreen> {
   bool _loading = true;
   bool _sending = false;
+  bool _tracking = false;
   String? _error;
   List<Map<String, dynamic>> _rows = [];
   final _search = TextEditingController();
@@ -27,12 +31,18 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
   void initState() {
     super.initState();
     _load();
+    _refreshTracking();
   }
 
   @override
   void dispose() {
     _search.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshTracking() async {
+    final on = await LocationTrackingService.isRunning;
+    if (mounted) setState(() => _tracking = on);
   }
 
   Future<void> _load() async {
@@ -45,6 +55,7 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
         AppConfig.userGpsListPath,
         query: {'show': '1', 'q': _search.text.trim()},
       );
+      if (!mounted) return;
       setState(() {
         _rows = (res['rows'] as List? ?? [])
             .whereType<Map>()
@@ -53,6 +64,7 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
         _loading = false;
       });
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.message;
         _loading = false;
@@ -60,12 +72,29 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
     }
   }
 
+  Future<void> _toggleTracking(bool on) async {
+    String? msg;
+    if (on) {
+      msg = await LocationTrackingService.start();
+    } else {
+      await LocationTrackingService.stop();
+    }
+    if (!mounted) return;
+    if (msg != null) {
+      showSnack(context, msg, error: true);
+    } else {
+      showSnack(context, on ? 'تم تشغيل التتبّع.' : 'تم إيقاف التتبّع.');
+    }
+    await _refreshTracking();
+  }
+
   Future<void> _sendMyLocation() async {
+    final s = context.read<SessionController>();
+    final api = context.read<ApiClient>();
     setState(() => _sending = true);
     try {
       final pos = await LocationService.requirePosition();
-      final s = context.read<SessionController>();
-      final res = await context.read<ApiClient>().postForm(
+      final res = await api.postForm(
         AppConfig.userLocationPingPath,
         csrf: s.csrf,
         fields: {
@@ -99,7 +128,16 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('مواقع المستخدمين')),
+      appBar: AppBar(
+        title: const Text('مواقع المستخدمين'),
+        actions: [
+          IconButton(
+            tooltip: 'تحديث',
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _sending ? null : _sendMyLocation,
         icon: _sending
@@ -107,28 +145,64 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
-            : const Icon(Icons.my_location),
+            : const Icon(Icons.my_location_rounded, size: 20),
         label: const Text('إرسال موقعي'),
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: TextField(
-              controller: _search,
-              decoration: InputDecoration(
-                hintText: 'بحث باسم المستخدم...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.arrow_circle_left_outlined),
-                  onPressed: _load,
+          Container(
+            color: AppTheme.surface,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _search,
+                  textInputAction: TextInputAction.search,
+                  decoration: const InputDecoration(
+                    hintText: 'بحث باسم المستخدم...',
+                    prefixIcon: Icon(Icons.search_rounded, size: 20),
+                  ),
+                  onSubmitted: (_) => _load(),
                 ),
-              ),
-              onSubmitted: (_) => _load(),
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: (_tracking ? AppTheme.success : AppTheme.warn)
+                        .withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: SwitchListTile(
+                    dense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12),
+                    value: _tracking,
+                    onChanged: _toggleTracking,
+                    title: Text(
+                      _tracking
+                          ? 'التتبّع التلقائي يعمل'
+                          : 'التتبّع التلقائي متوقف',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'يرسل موقعك دورياً حتى مع إغلاق التطبيق',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppTheme.textSoft,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+          const Divider(height: 1),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _load,
@@ -137,42 +211,77 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
                 error: _error,
                 onRetry: _load,
                 child: _rows.isEmpty
-                    ? ListView(children: const [
-                        SizedBox(height: 100),
-                        EmptyState(
+                    ? ListView(
+                        children: const [
+                          SizedBox(height: 60),
+                          EmptyState(
                             message: 'لا توجد مواقع مسجّلة.',
-                            icon: Icons.location_off_outlined),
-                      ])
+                            icon: Icons.location_off_rounded,
+                          ),
+                        ],
+                      )
                     : ListView.builder(
-                        padding: const EdgeInsets.all(10),
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 90),
                         itemCount: _rows.length,
                         itemBuilder: (_, i) {
                           final r = _rows[i];
                           final lat = Fmt.toDouble(r['latitude'] ?? r['lat']);
                           final lng = Fmt.toDouble(r['longitude'] ?? r['lng']);
-                          return Card(
-                            child: ListTile(
-                              leading: const Icon(Icons.person_pin_circle,
-                                  color: Colors.blue),
-                              title: Text(
-                                  Fmt.str(r['user_name'] ??
-                                      r['full_name_ar'] ??
-                                      r['name']),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold)),
-                              subtitle: Text(
-                                Fmt.str(r['recorded_at_dmy'] ??
-                                    r['recorded_at'] ??
-                                    r['ping_time'] ??
-                                    ''),
-                                textDirection: TextDirection.ltr,
-                              ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.map_outlined),
-                                onPressed: (lat == 0 && lng == 0)
-                                    ? null
-                                    : () => _openMap(lat, lng),
-                              ),
+                          final hasLoc = lat != 0 || lng != 0;
+                          return AppCard(
+                            onTap: hasLoc ? () => _openMap(lat, lng) : null,
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                const MiniIcon(
+                                  Icons.person_pin_circle_rounded,
+                                  color: AppTheme.primary,
+                                ),
+                                const SizedBox(width: 11),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        Fmt.str(
+                                          r['user_name'] ??
+                                              r['full_name_ar'] ??
+                                              r['name'],
+                                        ),
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        Fmt.str(
+                                          r['recorded_at_dmy'] ??
+                                              r['recorded_at'] ??
+                                              r['ping_time'] ??
+                                              '',
+                                        ),
+                                        textDirection: TextDirection.ltr,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.textSoft,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'فتح الخريطة',
+                                  icon: const Icon(
+                                    Icons.map_outlined,
+                                    size: 20,
+                                  ),
+                                  color: AppTheme.teal,
+                                  onPressed:
+                                      hasLoc ? () => _openMap(lat, lng) : null,
+                                ),
+                              ],
                             ),
                           );
                         },

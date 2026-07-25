@@ -6,6 +6,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/ui_kit.dart';
 
 class ReturnListScreen extends StatefulWidget {
   const ReturnListScreen({super.key});
@@ -53,10 +54,19 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('مرتجعات المبيعات')),
+      appBar: AppBar(
+        title: const Text('مرتجعات المبيعات'),
+        actions: [
+          IconButton(
+            tooltip: 'تحديث',
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/returns/new').then((_) => _load()),
-        icon: const Icon(Icons.add),
+        icon: const Icon(Icons.add_rounded, size: 20),
         label: const Text('مرتجع جديد'),
       ),
       body: RefreshIndicator(
@@ -66,41 +76,80 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
           error: _error,
           onRetry: _load,
           child: _rows.isEmpty
-              ? ListView(children: const [
-                  SizedBox(height: 100),
-                  EmptyState(message: 'لا توجد مرتجعات.'),
-                ])
+              ? ListView(
+                  children: [
+                    const SizedBox(height: 60),
+                    EmptyState(
+                      message: 'لا توجد مرتجعات.',
+                      icon: Icons.assignment_returned_rounded,
+                      actionLabel: 'مرتجع جديد',
+                      onAction: () =>
+                          context.push('/returns/new').then((_) => _load()),
+                    ),
+                  ],
+                )
               : ListView.builder(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 90),
                   itemCount: _rows.length,
                   itemBuilder: (_, i) {
                     final r = _rows[i];
                     final posted = r['is_posted'] == true;
-                    return Card(
-                      child: ListTile(
-                        title: Text((r['customer_name'] ?? '—').toString(),
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                          'رقم: ${r['return_no'] ?? '—'}  •  ${r['return_date_dmy'] ?? r['return_date'] ?? ''}  •  ${r['total_fmt'] ?? r['total'] ?? ''}',
-                          textDirection: TextDirection.ltr,
-                        ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: (posted ? AppTheme.success : AppTheme.warn)
-                                .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
+                    return AppCard(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          MiniIcon(
+                            Icons.keyboard_return_rounded,
+                            color: posted ? AppTheme.success : AppTheme.warn,
                           ),
-                          child: Text(posted ? 'مرحّل' : 'غير مرحّل',
-                              style: TextStyle(
-                                  color: posted
-                                      ? AppTheme.success
-                                      : AppTheme.warn,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold)),
-                        ),
+                          const SizedBox(width: 11),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  (r['customer_name'] ?? '—').toString(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  '#${r['return_no'] ?? '—'}  •  '
+                                  '${r['return_date_dmy'] ?? r['return_date'] ?? ''}',
+                                  textDirection: TextDirection.ltr,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textSoft,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${r['total_fmt'] ?? r['total'] ?? '0'}',
+                                textDirection: TextDirection.ltr,
+                                style: const TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.rose,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              StatusPill(
+                                text: posted ? 'مرحّل' : 'غير مرحّل',
+                                color:
+                                    posted ? AppTheme.success : AppTheme.warn,
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     );
                   },

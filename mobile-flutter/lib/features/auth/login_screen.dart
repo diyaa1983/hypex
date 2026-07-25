@@ -59,76 +59,156 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final s = context.watch<SessionController>();
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.account_circle,
-                    size: 72, color: AppTheme.primary),
-                const SizedBox(height: 12),
-                const Text('تسجيل الدخول',
-                    style:
-                        TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _user,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'اسم المستخدم',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _pass,
-                  obscureText: _obscure,
-                  onSubmitted: (_) => _submit(),
-                  decoration: InputDecoration(
-                    labelText: 'كلمة المرور',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                          _obscure ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _remember,
-                      onChanged: (v) =>
-                          setState(() => _remember = v ?? true),
-                    ),
-                    const Text('تذكّرني'),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: s.busy ? null : _submit,
-                  child: s.busy
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text('دخول'),
-                ),
-                const SizedBox(height: 12),
-                TextButton.icon(
-                  onPressed: () => context.go('/server'),
-                  icon: const Icon(Icons.settings_outlined, size: 18),
-                  label: Text('تغيير عنوان السيرفر (${_short(s.api.base)})'),
-                ),
-              ],
+      backgroundColor: AppTheme.surface,
+      body: Stack(
+        children: [
+          Container(
+            height: MediaQuery.of(context).size.height * 0.42,
+            decoration: const BoxDecoration(
+              gradient: AppTheme.brandGradient,
+              borderRadius: BorderRadius.vertical(
+                bottom: Radius.circular(38),
+              ),
             ),
           ),
-        ),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(22, 40, 22, 24),
+              child: Column(
+                children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.storefront_rounded,
+                      size: 38,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'النماء',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'نظام المبيعات والمندوبين',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface,
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: AppTheme.softShadow,
+                      border: Border.all(color: AppTheme.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'تسجيل الدخول',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        TextField(
+                          controller: _user,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'اسم المستخدم',
+                            prefixIcon: Icon(Icons.person_outline, size: 20),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _pass,
+                          obscureText: _obscure,
+                          onSubmitted: (_) => _submit(),
+                          decoration: InputDecoration(
+                            labelText: 'كلمة المرور',
+                            prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                size: 20,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: _remember,
+                          onChanged: (v) => setState(() => _remember = v),
+                          title: const Text(
+                            'تذكّرني',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: const Text(
+                            'مطلوب لعمل تتبّع الموقع في الخلفية',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppTheme.textSoft,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        FilledButton(
+                          onPressed: s.busy ? null : _submit,
+                          child: s.busy
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('دخول'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextButton.icon(
+                    onPressed: () => context.go('/server'),
+                    icon: const Icon(Icons.dns_outlined, size: 17),
+                    label: Text(
+                      _short(s.api.base),
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
