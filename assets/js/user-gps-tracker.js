@@ -70,8 +70,8 @@
     this.tileUrl = root.getAttribute('data-tile-url') || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     this.attribution = root.getAttribute('data-attribution') || '&copy; OpenStreetMap';
     this.pollSec = parseInt(root.getAttribute('data-poll-sec') || '5', 10) || 5;
-    this.onlineSeconds = parseInt(root.getAttribute('data-online-seconds') || '1800', 10) || 1800;
-    this.staleSeconds = parseInt(root.getAttribute('data-stale-seconds') || '1800', 10) || 1800;
+    this.onlineSeconds = parseInt(root.getAttribute('data-online-seconds') || '900', 10) || 900;
+    this.staleSeconds = parseInt(root.getAttribute('data-stale-seconds') || '7200', 10) || 7200;
     if (!root.hasAttribute('data-online-seconds') && root.hasAttribute('data-online-minutes')) {
       this.onlineSeconds = (parseInt(root.getAttribute('data-online-minutes') || '1', 10) || 1) * 60;
     }
@@ -85,6 +85,8 @@
     this.layer = null;
     this.markersById = {};
     this.rows = [];
+    this.lastHint = '';
+    this.lastPings = [];
     this.activeId = null;
     this.timer = null;
     this.loading = false;
@@ -200,9 +202,11 @@
 
   Tracker.prototype.queryUrl = function () {
     var q = (this.els.search && this.els.search.value) || '';
-    // الافتراضي: لا نُظهر غير المتصلين (تتبّع لحظي فقط).
-    var includeStale =
-      this.els.includeStale && this.els.includeStale.checked ? '1' : '0';
+    // افتراضياً نظهر غير النشطين ضمن ساعتين (ما لم يُلغَ الخيار).
+    var includeStale = '1';
+    if (this.els.includeStale) {
+      includeStale = this.els.includeStale.checked ? '1' : '0';
+    }
     var u =
       this.api +
       (this.api.indexOf('?') >= 0 ? '&' : '?') +
@@ -241,6 +245,8 @@
           // لا نغيّر البلاط أثناء التشغيل
         }
         self.rows = Array.isArray(data.markers) ? data.markers : [];
+        self.lastHint = (data && data.hint) || '';
+        self.lastPings = Array.isArray(data.last_pings) ? data.last_pings : [];
         self.renderStats(data.counts || {});
         self.renderList();
         self.renderMarkers();
@@ -279,8 +285,27 @@
     var list = this.els.list;
     if (!list) return;
     if (!this.rows.length) {
+      var hint = this.lastHint
+        ? '<div class="ugt-hint">' + esc(this.lastHint) + '</div>'
+        : '';
+      var extra = '';
+      if (this.lastPings && this.lastPings.length) {
+        extra = '<div class="ugt-lastpings"><strong>آخر المواقع في قاعدة البيانات:</strong><ul>';
+        for (var j = 0; j < Math.min(5, this.lastPings.length); j++) {
+          var p = this.lastPings[j];
+          extra +=
+            '<li>' +
+            esc(p.user_label || '') +
+            ' — ' +
+            esc(p.age_label || '') +
+            '</li>';
+        }
+        extra += '</ul></div>';
+      }
       list.innerHTML =
-        '<div class="ugt-empty">لا يوجد أحد متصل الآن.<br>فعّل تتبّع الموقع على هواتف المندوبين.</div>';
+        '<div class="ugt-empty">لا يوجد أحد ضمن نافذة التتبّع الحالية.<br>فعّل تتبّع الموقع على هاتف المندوب واضغط «إرسال الآن».</div>' +
+        hint +
+        extra;
       return;
     }
     var html = '';

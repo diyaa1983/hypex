@@ -273,21 +273,21 @@ function sys_user_location_may_track(): bool
  */
 function sys_user_location_tracker_rows(
     PDO $pdo,
-    int $onlineMinutes = 1,
-    int $staleMinutes = 1,
+    int $onlineMinutes = 15,
+    int $staleMinutes = 120,
     string $search = '',
-    bool $includeStale = false,
+    bool $includeStale = true,
     ?int $onlineSeconds = null,
     ?int $staleSeconds = null
 ): array {
     sys_user_location_ensure_schema($pdo);
 
-    // نافذة «متصل الآن»: حتى 30 دقيقة — كافية لظهور المندوب حتى مع تأخر بعض النبضات.
+    // متصل: آخر 15 دقيقة افتراضياً — وعلى الخريطة حتى ساعتين (كما قبل التضييق).
     $onlineSec = $onlineSeconds !== null
-        ? max(60, min(60 * 60, $onlineSeconds))
-        : max(60, min(7200, max(1, min(120, $onlineMinutes)) * 60));
+        ? max(60, min(12 * 3600, $onlineSeconds))
+        : max(60, min(12 * 3600, max(1, min(24 * 60, $onlineMinutes)) * 60));
     $staleSec = $staleSeconds !== null
-        ? max($onlineSec, min(12 * 3600, $staleSeconds))
+        ? max($onlineSec, min(24 * 3600, $staleSeconds))
         : max($onlineSec, min(24 * 3600, max(1, min(24 * 60, $staleMinutes)) * 60));
     $search = trim($search);
 
@@ -361,6 +361,44 @@ function sys_user_location_tracker_rows(
             'status' => $status,
             'status_label' => $statusLabel,
             'map_url' => sal_invoice_gps_map_url($lat, $lng),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * آخر مواقع محفوظة (للتشخيص على شاشة التتبّع) — بدون فلتر زمني ضيق.
+ *
+ * @return list<array<string,mixed>>
+ */
+function sys_user_location_recent_snapshots(PDO $pdo, int $limit = 8): array
+{
+    sys_user_location_ensure_schema($pdo);
+    $limit = max(1, min(30, $limit));
+    $st = $pdo->query(
+        'SELECT ul.user_id, ul.captured_at, ul.gps_source, ul.latitude, ul.longitude,
+                u.username, u.full_name_ar,
+                TIMESTAMPDIFF(SECOND, ul.captured_at, NOW()) AS age_sec
+         FROM sys_user_location ul
+         INNER JOIN sys_user u ON u.id = ul.user_id AND u.is_active = 1
+         ORDER BY ul.captured_at DESC
+         LIMIT ' . $limit
+    );
+    $rows = $st ? ($st->fetchAll(PDO::FETCH_ASSOC) ?: []) : [];
+    $out = [];
+    foreach ($rows as $row) {
+        $age = (int) ($row['age_sec'] ?? 0);
+        $out[] = [
+            'user_id' => (int) ($row['user_id'] ?? 0),
+            'user_label' => sal_invoice_user_display_name(
+                (string) ($row['full_name_ar'] ?? ''),
+                (string) ($row['username'] ?? '')
+            ),
+            'captured_at' => (string) ($row['captured_at'] ?? ''),
+            'age_sec' => $age,
+            'age_label' => sys_user_location_age_label($age),
+            'gps_source' => (string) ($row['gps_source'] ?? ''),
         ];
     }
 

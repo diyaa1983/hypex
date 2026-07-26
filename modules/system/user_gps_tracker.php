@@ -36,8 +36,8 @@ $today = date('Y-m-d');
      data-tile-url="<?= esc($osm['tileUrl']) ?>"
      data-attribution="<?= esc($osm['attribution']) ?>"
      data-poll-sec="5"
-     data-online-seconds="1800"
-     data-stale-seconds="1800"
+     data-online-seconds="900"
+     data-stale-seconds="7200"
      data-mode="desktop">
     <div class="ugt-toolbar">
         <div class="ugt-toolbar__title">
@@ -59,11 +59,13 @@ $today = date('Y-m-d');
     <!-- عرض التتبّع الحي -->
     <div id="ugt-live-view">
         <div class="ugt-subbar">
-            <div class="ugt-toolbar__stats" id="ugt-stats">
+                <div class="ugt-toolbar__stats" id="ugt-stats">
                 <span class="ugt-chip ugt-chip--online"><b id="ugt-cnt-online">0</b> متصل الآن</span>
+                <span class="ugt-chip ugt-chip--away"><b id="ugt-cnt-away">0</b> غير نشط</span>
                 <span class="ugt-chip"><b id="ugt-cnt-total">0</b> على الخريطة</span>
             </div>
             <div class="ugt-subbar__actions">
+                <label class="ugt-check"><input type="checkbox" id="ugt-include-stale" checked> إظهار غير النشطين (ساعتان)</label>
                 <input type="search" id="ugt-search" class="ugt-search" placeholder="بحث بالاسم..." autocomplete="off">
                 <button type="button" class="btn btn-sm btn-primary" id="ugt-refresh">تحديث</button>
             </div>
@@ -78,7 +80,8 @@ $today = date('Y-m-d');
             <div class="ugt-map-wrap">
                 <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
                 <div class="ugt-legend">
-                    <span><i class="ugt-dot ugt-dot--online"></i> متصل الآن (آخر 30 دقيقة)</span>
+                    <span><i class="ugt-dot ugt-dot--online"></i> متصل (آخر 15 دقيقة)</span>
+                    <span><i class="ugt-dot ugt-dot--away"></i> غير نشط (آخر ساعتين)</span>
                 </div>
                 <div class="ugt-status" id="ugt-status">تحديث لحظي كل 5 ثوانٍ</div>
             </div>
