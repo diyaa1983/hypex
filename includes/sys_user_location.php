@@ -501,7 +501,7 @@ function sys_user_location_track_day(
     PDO $pdo,
     int $userId,
     string $dateIso,
-    int $gapBreakMinutes = 20,
+    int $gapBreakMinutes = 90,
     int $stopRadiusMeters = 70,
     int $stopMinMinutes = 5
 ): array {
@@ -574,7 +574,8 @@ function sys_user_location_track_day(
         return $empty;
     }
 
-    // مسافة إجمالية + تقسيم الخط عند الفجوات الزمنية الكبيرة.
+    // مسافة إجمالية + تقسيم عند فجوات كبيرة (للعرض المتقطع فقط).
+    // الفجوة الافتراضية أوسع حتى لا يختفي خط السير عند إرسال متباعد.
     $gapBreakSec = max(1, $gapBreakMinutes) * 60;
     $totalMeters = 0.0;
     $segments = [];
@@ -589,6 +590,8 @@ function sys_user_location_track_day(
             $cur['latitude'],
             $cur['longitude']
         );
+        // المسافة تُحسب دائماً بين النقاط المتتالية لخط السير اليومي.
+        $totalMeters += $d;
         if ($gap > $gapBreakSec) {
             if (count($current) >= 1) {
                 $segments[] = $current;
@@ -596,11 +599,20 @@ function sys_user_location_track_day(
             $current = [$i];
             continue;
         }
-        $totalMeters += $d;
         $current[] = $i;
     }
     if (count($current) >= 1) {
         $segments[] = $current;
+    }
+    // إن أصبحت كل المقاطع نقطة واحدة، نُرجع مقطعاً واحداً بكل النقاط لضمان الرسم.
+    $multiPointSegs = 0;
+    foreach ($segments as $seg) {
+        if (count($seg) >= 2) {
+            $multiPointSegs++;
+        }
+    }
+    if ($multiPointSegs === 0 && $n >= 2) {
+        $segments = [range(0, $n - 1)];
     }
 
     // كشف التوقفات (مكث ضمن نصف قطر صغير لمدة كافية).

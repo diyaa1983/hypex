@@ -197,18 +197,28 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   List<Polyline> _buildPolylines() {
     final lines = <Polyline>[];
-    for (final seg in _segments) {
-      final pts = <LatLng>[];
-      for (final idx in seg) {
-        if (idx >= 0 && idx < _points.length) pts.add(_points[idx].point);
-      }
-      if (pts.length >= 2) {
-        lines.add(Polyline(
-          points: pts,
-          strokeWidth: 4,
-          color: AppTheme.primary.withValues(alpha: 0.85),
-        ));
-      }
+    // خط متصل عبر كل النقاط — لا يعتمد على مقاطع قد تكون نقطة واحدة بسبب فجوات زمنية.
+    if (_points.length >= 2) {
+      lines.add(Polyline(
+        points: _points.map((p) => p.point).toList(),
+        strokeWidth: 5,
+        color: AppTheme.primary.withValues(alpha: 0.9),
+      ));
+    }
+    // فجوات كبيرة: خط متقطع بين نهاية مقطع وبداية التالي.
+    for (var i = 0; i < _segments.length - 1; i++) {
+      final seg = _segments[i];
+      final next = _segments[i + 1];
+      if (seg.isEmpty || next.isEmpty) continue;
+      final a = seg.last;
+      final b = next.first;
+      if (a < 0 || b < 0 || a >= _points.length || b >= _points.length) continue;
+      lines.add(Polyline(
+        points: [_points[a].point, _points[b].point],
+        strokeWidth: 4,
+        color: const Color(0xFF94A3B8),
+        pattern: StrokePattern.dashed(segments: const [8, 10]),
+      ));
     }
     return lines;
   }

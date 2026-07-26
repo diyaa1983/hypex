@@ -675,6 +675,16 @@
 .ugr-dot--stop { background: #f59e0b; }
 .ugr-dot--end { background: #dc2626; }
 
+.ugr-line {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: #1d4ed8;
+  vertical-align: middle;
+  margin-inline-end: 4px;
+}
+
 .ugr-status {
   position: absolute;
   z-index: 500;

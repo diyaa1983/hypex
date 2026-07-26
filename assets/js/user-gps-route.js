@@ -314,37 +314,62 @@
     var bounds = [];
     var i, j;
 
-    // خطوط المسار لكل مقطع
-    for (i = 0; i < segments.length; i++) {
-      var seg = segments[i];
-      var latlngs = [];
-      for (j = 0; j < seg.length; j++) {
-        var p = points[seg[j]];
-        if (!p) continue;
-        var ll = [p.latitude, p.longitude];
-        latlngs.push(ll);
-        bounds.push(ll);
+    // خط مسار متصل عبر كل النقاط بالترتيب الزمني (الأساس).
+    // سابقاً كنا نرسم من segments فقط؛ إن كانت الفجوة > 20 د أصبحت كل قطعة
+    // نقطة واحدة واختفى الخط رغم وجود البداية/النهاية.
+    if (points.length >= 2) {
+      var allLatLngs = [];
+      for (i = 0; i < points.length; i++) {
+        allLatLngs.push([points[i].latitude, points[i].longitude]);
+        bounds.push(allLatLngs[i]);
       }
-      if (latlngs.length >= 2) {
-        global.L.polyline(latlngs, {
-          color: '#2563eb',
-          weight: 4,
-          opacity: 0.85,
-          lineJoin: 'round',
-          lineCap: 'round',
-        }).addTo(this.layer);
+      global.L.polyline(allLatLngs, {
+        color: '#1d4ed8',
+        weight: 5,
+        opacity: 0.9,
+        lineJoin: 'round',
+        lineCap: 'round',
+      }).addTo(this.layer);
+
+      // تمييز الفجوات الزمنية الكبيرة بخط متقطع فوق المسار.
+      for (i = 0; i < segments.length; i++) {
+        var seg = segments[i];
+        if (!seg || !seg.length) continue;
+        var lastIdx = seg[seg.length - 1];
+        var nextSeg = segments[i + 1];
+        if (!nextSeg || !nextSeg.length) continue;
+        var nextIdx = nextSeg[0];
+        var a = points[lastIdx];
+        var b = points[nextIdx];
+        if (!a || !b) continue;
+        global.L.polyline(
+          [
+            [a.latitude, a.longitude],
+            [b.latitude, b.longitude],
+          ],
+          {
+            color: '#94a3b8',
+            weight: 4,
+            opacity: 0.95,
+            dashArray: '8 10',
+            lineJoin: 'round',
+            lineCap: 'round',
+          }
+        ).addTo(this.layer);
       }
+    } else {
+      bounds.push([points[0].latitude, points[0].longitude]);
     }
 
     // نقاط صغيرة على طول المسار (مع الوقت عند النقر)
     for (i = 0; i < points.length; i++) {
       var pt = points[i];
       var dot = global.L.circleMarker([pt.latitude, pt.longitude], {
-        radius: 3,
-        color: '#2563eb',
+        radius: 4,
+        color: '#1e40af',
         weight: 1,
         fillColor: '#60a5fa',
-        fillOpacity: 0.9,
+        fillOpacity: 0.95,
       });
       dot.bindPopup(
         '<div class="ugr-popup"><b>' +
