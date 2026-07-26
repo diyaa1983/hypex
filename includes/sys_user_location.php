@@ -4,7 +4,8 @@ declare(strict_types=1);
 require_once app_path('includes/sal_invoice_gps.php');
 
 const SYS_USER_LOCATION_MIN_INTERVAL_SEC = 600;
-const SYS_USER_LOCATION_MIN_INTERVAL_MOBILE_SEC = 120;
+/** الحد الأدنى بين إرسالين من الهاتف — قصير لتتبّع لحظي. */
+const SYS_USER_LOCATION_MIN_INTERVAL_MOBILE_SEC = 30;
 
 function sys_user_location_min_interval_sec(string $source, bool $nativeChannel = false): int
 {
@@ -265,24 +266,30 @@ function sys_user_location_may_track(): bool
 
 /**
  * نقاط تتبّع حية للخريطة (مثل تتبّع السيارات).
- * «متصل» = آخر تحديث خلال onlineMinutes ثانية.
+ * «متصل» = آخر تحديث خلال onlineSeconds.
+ * القيمة الافتراضية قصيرة لعرض اللحظة الحالية فقط (لا ساعات).
  *
  * @return list<array<string, mixed>>
  */
 function sys_user_location_tracker_rows(
     PDO $pdo,
-    int $onlineMinutes = 15,
-    int $staleMinutes = 120,
+    int $onlineMinutes = 1,
+    int $staleMinutes = 1,
     string $search = '',
-    bool $includeStale = true
+    bool $includeStale = false,
+    ?int $onlineSeconds = null,
+    ?int $staleSeconds = null
 ): array {
     sys_user_location_ensure_schema($pdo);
 
-    $onlineMinutes = max(1, min(120, $onlineMinutes));
-    $staleMinutes = max($onlineMinutes, min(24 * 60, $staleMinutes));
+    // ثوانٍ أدق من الدقائق — التتبّع الحي لحظي.
+    $onlineSec = $onlineSeconds !== null
+        ? max(15, min(600, $onlineSeconds))
+        : max(15, min(7200, max(1, min(120, $onlineMinutes)) * 60));
+    $staleSec = $staleSeconds !== null
+        ? max($onlineSec, min(3600, $staleSeconds))
+        : max($onlineSec, min(24 * 3600, max(1, min(24 * 60, $staleMinutes)) * 60));
     $search = trim($search);
-    $onlineSec = $onlineMinutes * 60;
-    $staleSec = $staleMinutes * 60;
 
     $sql = 'SELECT ul.user_id, ul.latitude, ul.longitude, ul.gps_accuracy, ul.gps_source, ul.captured_at,
                    u.username, u.full_name_ar
@@ -362,8 +369,11 @@ function sys_user_location_tracker_rows(
 
 function sys_user_location_age_label(int $ageSec): string
 {
-    if ($ageSec < 60) {
+    if ($ageSec < 15) {
         return 'الآن';
+    }
+    if ($ageSec < 60) {
+        return 'قبل ' . $ageSec . ' ث';
     }
     if ($ageSec < 3600) {
         $m = (int) floor($ageSec / 60);

@@ -71,12 +71,10 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   final _search = TextEditingController();
   Timer? _poll;
   bool _loading = true;
-  bool _includeStale = true;
   String? _error;
   String _tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   List<_Marker> _markers = [];
   int _online = 0;
-  int _away = 0;
   int? _selectedId;
   bool _fitOnce = true;
   bool _listOpen = false;
@@ -85,7 +83,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   void initState() {
     super.initState();
     _load();
-    _poll = Timer.periodic(const Duration(seconds: 30), (_) => _load(silent: true));
+    _poll = Timer.periodic(const Duration(seconds: 5), (_) => _load(silent: true));
   }
 
   @override
@@ -107,9 +105,9 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.userGpsTrackerLivePath,
         query: {
-          'online_minutes': 15,
-          'stale_minutes': 120,
-          'include_stale': _includeStale ? 1 : 0,
+          'online_seconds': 90,
+          'stale_seconds': 90,
+          'include_stale': 0,
           'q': _search.text.trim(),
         },
       );
@@ -128,8 +126,6 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         _markers = rows;
         _online = (counts['online'] as num?)?.toInt() ??
             rows.where((m) => m.online).length;
-        _away = (counts['away'] as num?)?.toInt() ??
-            rows.where((m) => m.status == 'away').length;
         _loading = false;
         _error = null;
       });
@@ -267,19 +263,13 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
               child: Row(
                 children: [
                   _StatChip(
-                    label: 'متصل',
+                    label: 'متصل الآن',
                     value: '$_online',
                     color: AppTheme.success,
                   ),
                   const SizedBox(width: 8),
                   _StatChip(
-                    label: 'غير نشط',
-                    value: '$_away',
-                    color: AppTheme.warn,
-                  ),
-                  const SizedBox(width: 8),
-                  _StatChip(
-                    label: 'إجمالي',
+                    label: 'على الخريطة',
                     value: '${_markers.length}',
                     color: AppTheme.primary,
                   ),
@@ -301,9 +291,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 child: const Row(
                   children: [
                     _LegendDot(AppTheme.success),
-                    Text(' متصل (15 د)  ', style: TextStyle(fontSize: 11.5)),
-                    _LegendDot(AppTheme.warn),
-                    Text(' غير نشط', style: TextStyle(fontSize: 11.5)),
+                    Text(' متصل الآن (آخر 90 ث)  ', style: TextStyle(fontSize: 11.5)),
                   ],
                 ),
               ),
@@ -325,17 +313,9 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
               Positioned.fill(
                 child: _DeviceDrawer(
                   markers: _markers,
-                  includeStale: _includeStale,
                   search: _search,
                   selectedId: _selectedId,
                   onClose: () => setState(() => _listOpen = false),
-                  onToggleStale: (v) {
-                    setState(() {
-                      _includeStale = v;
-                      _fitOnce = true;
-                    });
-                    _load();
-                  },
                   onSearch: () {
                     _fitOnce = true;
                     _load();
@@ -541,21 +521,17 @@ class _DetailCard extends StatelessWidget {
 class _DeviceDrawer extends StatelessWidget {
   const _DeviceDrawer({
     required this.markers,
-    required this.includeStale,
     required this.search,
     required this.selectedId,
     required this.onClose,
-    required this.onToggleStale,
     required this.onSearch,
     required this.onSelect,
   });
 
   final List<_Marker> markers;
-  final bool includeStale;
   final TextEditingController search;
   final int? selectedId;
   final VoidCallback onClose;
-  final ValueChanged<bool> onToggleStale;
   final VoidCallback onSearch;
   final ValueChanged<_Marker> onSelect;
 
@@ -574,7 +550,7 @@ class _DeviceDrawer extends StatelessWidget {
               children: [
                 ListTile(
                   title: const Text(
-                    'الأجهزة',
+                    'المتصلون الآن',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   trailing: IconButton(
@@ -582,14 +558,8 @@ class _DeviceDrawer extends StatelessWidget {
                     icon: const Icon(Icons.close_rounded),
                   ),
                 ),
-                SwitchListTile(
-                  dense: true,
-                  value: includeStale,
-                  onChanged: onToggleStale,
-                  title: const Text('إظهار غير النشطين'),
-                ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                   child: TextField(
                     controller: search,
                     textInputAction: TextInputAction.search,
@@ -605,7 +575,7 @@ class _DeviceDrawer extends StatelessWidget {
                   child: markers.isEmpty
                       ? const EmptyState(
                           message:
-                              'لا توجد أجهزة متصلة حالياً.\nفعّل تتبّع الموقع على هواتف المندوبين.',
+                              'لا يوجد أحد متصل الآن.\nفعّل تتبّع الموقع على هواتف المندوبين.',
                           icon: Icons.location_off_rounded,
                         )
                       : ListView.builder(

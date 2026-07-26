@@ -30,9 +30,9 @@ $today = date('Y-m-d');
      data-api="<?= esc($apiUrl) ?>"
      data-tile-url="<?= esc($osm['tileUrl']) ?>"
      data-attribution="<?= esc($osm['attribution']) ?>"
-     data-poll-sec="30"
-     data-online-minutes="15"
-     data-stale-minutes="120"
+     data-poll-sec="5"
+     data-online-seconds="90"
+     data-stale-seconds="90"
      data-mode="mobile">
     <div class="ugt-toolbar ugt-toolbar--mobile">
         <div class="ugt-toolbar__title">
@@ -53,13 +53,7 @@ $today = date('Y-m-d');
     <div id="ugt-live-view">
         <div class="ugt-body ugt-body--mobile">
             <aside class="ugt-sidebar ugt-sidebar--drawer" id="ugt-sidebar" hidden>
-                <div class="ugt-sidebar__head">
-                    الأجهزة
-                    <label class="ugt-toggle">
-                        <input type="checkbox" id="ugt-include-stale" checked>
-                        غير النشطين
-                    </label>
-                </div>
+                <div class="ugt-sidebar__head">المتصلون الآن</div>
                 <input type="search" id="ugt-search" class="ugt-search" placeholder="بحث..." autocomplete="off">
                 <div class="ugt-sidebar__list" id="ugt-list">
                     <div class="ugt-empty">جاري التحميل...</div>
@@ -68,8 +62,7 @@ $today = date('Y-m-d');
             <div class="ugt-map-wrap">
                 <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
                 <div class="ugt-legend ugt-legend--compact">
-                    <span><i class="ugt-dot ugt-dot--online"></i> متصل</span>
-                    <span><i class="ugt-dot ugt-dot--away"></i> غير نشط</span>
+                    <span><i class="ugt-dot ugt-dot--online"></i> متصل الآن</span>
                 </div>
                 <div class="ugt-status" id="ugt-status"></div>
             </div>

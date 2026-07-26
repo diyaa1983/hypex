@@ -2,13 +2,15 @@
 declare(strict_types=1);
 
 /**
- * تتبّع المواقع الحية — نقاط المستخدمين على الخريطة (تحديث دوري).
+ * تتبّع المواقع الحية — نقاط المستخدمين على الخريطة (تحديث لحظي).
  *
  * GET:
- *   online_minutes  (افتراضي 15) — يعتبر «متصل» خلال هذه المدة
- *   stale_minutes   (افتراضي 120) — يظهر آخر موقع حتى هذه المدة
- *   include_stale   0|1 (افتراضي 1)
+ *   online_seconds  (افتراضي 90) — يعتبر «متصل» خلال هذه الثواني
+ *   stale_seconds   (افتراضي 90) — يظهر فقط من حدّث موقعه خلال هذه المدة
+ *   include_stale   0|1 (افتراضي 0) — لا يُعرض المتوقفون افتراضياً
  *   q               بحث بالاسم
+ *
+ * توافق خلفي: online_minutes / stale_minutes ما زالا مقبولين.
  */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/sys_user_location.php');
@@ -31,26 +33,30 @@ try {
     $pdo = db();
     sys_user_location_ensure_schema($pdo);
 
-    $onlineMinutes = isset($_GET['online_minutes']) ? (int) $_GET['online_minutes'] : 15;
-    $staleMinutes = isset($_GET['stale_minutes']) ? (int) $_GET['stale_minutes'] : 120;
-    $includeStale = !isset($_GET['include_stale']) || (string) $_GET['include_stale'] !== '0';
+    $onlineSeconds = isset($_GET['online_seconds'])
+        ? (int) $_GET['online_seconds']
+        : (isset($_GET['online_minutes']) ? (int) $_GET['online_minutes'] * 60 : 90);
+    $staleSeconds = isset($_GET['stale_seconds'])
+        ? (int) $_GET['stale_seconds']
+        : (isset($_GET['stale_minutes']) ? (int) $_GET['stale_minutes'] * 60 : 90);
+    // افتراضياً: لا نُظهر غير المتصلين — التتبّع الحي فقط.
+    $includeStale = isset($_GET['include_stale']) && (string) $_GET['include_stale'] === '1';
     $q = trim((string) ($_GET['q'] ?? ''));
 
     $rows = sys_user_location_tracker_rows(
         $pdo,
-        $onlineMinutes,
-        $staleMinutes,
+        1,
+        1,
         $q,
-        $includeStale
+        $includeStale,
+        $onlineSeconds,
+        $staleSeconds
     );
 
     $online = 0;
-    $away = 0;
     foreach ($rows as $r) {
         if (!empty($r['is_online'])) {
             $online++;
-        } elseif (($r['status'] ?? '') === 'away') {
-            $away++;
         }
     }
 
@@ -59,13 +65,15 @@ try {
     echo json_encode([
         'ok' => true,
         'server_time' => date('c'),
-        'online_minutes' => max(1, min(120, $onlineMinutes)),
-        'stale_minutes' => max(1, min(24 * 60, $staleMinutes)),
+        'online_seconds' => max(15, min(600, $onlineSeconds)),
+        'stale_seconds' => max(15, min(3600, $staleSeconds)),
+        'online_minutes' => max(1, (int) ceil(max(15, min(600, $onlineSeconds)) / 60)),
+        'stale_minutes' => max(1, (int) ceil(max(15, min(3600, $staleSeconds)) / 60)),
         'counts' => [
             'total' => count($rows),
             'online' => $online,
-            'away' => $away,
-            'offline' => max(0, count($rows) - $online - $away),
+            'away' => 0,
+            'offline' => 0,
         ],
         'map' => [
             'tile_url' => $osm['tileUrl'],

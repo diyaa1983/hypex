@@ -57,8 +57,8 @@ class LocationTrackingService {
   LocationTrackingService._();
 
   static const int serviceId = 8801;
-  static const int defaultIntervalSec = 300;
-  static const int defaultMinDistance = 30;
+  static const int defaultIntervalSec = 60;
+  static const int defaultMinDistance = 15;
 
   static bool _initialized = false;
 

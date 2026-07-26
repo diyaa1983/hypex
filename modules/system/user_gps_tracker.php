@@ -35,16 +35,16 @@ $today = date('Y-m-d');
      data-api="<?= esc($apiUrl) ?>"
      data-tile-url="<?= esc($osm['tileUrl']) ?>"
      data-attribution="<?= esc($osm['attribution']) ?>"
-     data-poll-sec="30"
-     data-online-minutes="15"
-     data-stale-minutes="120"
+     data-poll-sec="5"
+     data-online-seconds="90"
+     data-stale-seconds="90"
      data-mode="desktop">
     <div class="ugt-toolbar">
         <div class="ugt-toolbar__title">
             <span class="ugt-toolbar__icon" aria-hidden="true">📡</span>
             <div>
                 <strong>تتبّع المواقع</strong>
-                <small>الأجهزة الحيّة وخط السير اليومي</small>
+                <small>الأجهزة الحيّة الآن وخط السير اليومي</small>
             </div>
         </div>
         <div class="ugt-modeswitch" role="tablist">
@@ -60,22 +60,17 @@ $today = date('Y-m-d');
     <div id="ugt-live-view">
         <div class="ugt-subbar">
             <div class="ugt-toolbar__stats" id="ugt-stats">
-                <span class="ugt-chip ugt-chip--online"><b id="ugt-cnt-online">0</b> متصل</span>
-                <span class="ugt-chip ugt-chip--away"><b id="ugt-cnt-away">0</b> غير نشط</span>
-                <span class="ugt-chip"><b id="ugt-cnt-total">0</b> إجمالي</span>
+                <span class="ugt-chip ugt-chip--online"><b id="ugt-cnt-online">0</b> متصل الآن</span>
+                <span class="ugt-chip"><b id="ugt-cnt-total">0</b> على الخريطة</span>
             </div>
             <div class="ugt-subbar__actions">
-                <label class="ugt-toggle">
-                    <input type="checkbox" id="ugt-include-stale" checked>
-                    إظهار غير النشطين
-                </label>
                 <input type="search" id="ugt-search" class="ugt-search" placeholder="بحث بالاسم..." autocomplete="off">
                 <button type="button" class="btn btn-sm btn-primary" id="ugt-refresh">تحديث</button>
             </div>
         </div>
         <div class="ugt-body">
             <aside class="ugt-sidebar" id="ugt-sidebar">
-                <div class="ugt-sidebar__head">الأجهزة</div>
+                <div class="ugt-sidebar__head">المتصلون الآن</div>
                 <div class="ugt-sidebar__list" id="ugt-list">
                     <div class="ugt-empty">جاري التحميل...</div>
                 </div>
@@ -83,10 +78,9 @@ $today = date('Y-m-d');
             <div class="ugt-map-wrap">
                 <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
                 <div class="ugt-legend">
-                    <span><i class="ugt-dot ugt-dot--online"></i> متصل (آخر <?= 15 ?> د)</span>
-                    <span><i class="ugt-dot ugt-dot--away"></i> غير نشط</span>
+                    <span><i class="ugt-dot ugt-dot--online"></i> متصل الآن (آخر 90 ثانية)</span>
                 </div>
-                <div class="ugt-status" id="ugt-status">تحديث تلقائي كل 30 ثانية</div>
+                <div class="ugt-status" id="ugt-status">تحديث لحظي كل 5 ثوانٍ</div>
             </div>
         </div>
     </div>

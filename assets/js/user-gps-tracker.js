@@ -69,9 +69,17 @@
     this.api = root.getAttribute('data-api') || '';
     this.tileUrl = root.getAttribute('data-tile-url') || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     this.attribution = root.getAttribute('data-attribution') || '&copy; OpenStreetMap';
-    this.pollSec = parseInt(root.getAttribute('data-poll-sec') || '30', 10) || 30;
-    this.onlineMinutes = parseInt(root.getAttribute('data-online-minutes') || '15', 10) || 15;
-    this.staleMinutes = parseInt(root.getAttribute('data-stale-minutes') || '120', 10) || 120;
+    this.pollSec = parseInt(root.getAttribute('data-poll-sec') || '5', 10) || 5;
+    this.onlineSeconds = parseInt(root.getAttribute('data-online-seconds') || '90', 10) || 90;
+    this.staleSeconds = parseInt(root.getAttribute('data-stale-seconds') || '90', 10) || 90;
+    if (!root.hasAttribute('data-online-seconds') && root.hasAttribute('data-online-minutes')) {
+      this.onlineSeconds = (parseInt(root.getAttribute('data-online-minutes') || '1', 10) || 1) * 60;
+    }
+    if (!root.hasAttribute('data-stale-seconds') && root.hasAttribute('data-stale-minutes')) {
+      this.staleSeconds = (parseInt(root.getAttribute('data-stale-minutes') || '1', 10) || 1) * 60;
+    }
+    this.onlineMinutes = Math.max(1, Math.ceil(this.onlineSeconds / 60));
+    this.staleMinutes = Math.max(1, Math.ceil(this.staleSeconds / 60));
     this.mode = root.getAttribute('data-mode') || 'desktop';
     this.map = null;
     this.layer = null;
@@ -183,7 +191,7 @@
     clearInterval(this.timer);
     this.timer = setInterval(function () {
       self.load(false);
-    }, Math.max(10, this.pollSec) * 1000);
+    }, Math.max(3, this.pollSec) * 1000);
   };
 
   Tracker.prototype.setStatus = function (text) {
@@ -192,15 +200,16 @@
 
   Tracker.prototype.queryUrl = function () {
     var q = (this.els.search && this.els.search.value) || '';
+    // الافتراضي: لا نُظهر غير المتصلين (تتبّع لحظي فقط).
     var includeStale =
-      !this.els.includeStale || this.els.includeStale.checked ? '1' : '0';
+      this.els.includeStale && this.els.includeStale.checked ? '1' : '0';
     var u =
       this.api +
       (this.api.indexOf('?') >= 0 ? '&' : '?') +
-      'online_minutes=' +
-      encodeURIComponent(this.onlineMinutes) +
-      '&stale_minutes=' +
-      encodeURIComponent(this.staleMinutes) +
+      'online_seconds=' +
+      encodeURIComponent(this.onlineSeconds) +
+      '&stale_seconds=' +
+      encodeURIComponent(this.staleSeconds) +
       '&include_stale=' +
       includeStale +
       '&q=' +
@@ -243,7 +252,9 @@
             hh +
             ':' +
             mm +
-            ' — تحديث تلقائي كل ' +
+            ':' +
+            String(now.getSeconds()).padStart(2, '0') +
+            ' — تحديث لحظي كل ' +
             self.pollSec +
             ' ث'
         );
@@ -260,7 +271,7 @@
     if (this.els.cntTotal) this.els.cntTotal.textContent = String(counts.total || 0);
     if (this.els.mobileSummary) {
       this.els.mobileSummary.textContent =
-        (counts.online || 0) + ' متصل · ' + (counts.total || 0) + ' جهاز';
+        (counts.online || 0) + ' متصل الآن';
     }
   };
 
@@ -269,7 +280,7 @@
     if (!list) return;
     if (!this.rows.length) {
       list.innerHTML =
-        '<div class="ugt-empty">لا توجد أجهزة متصلة حالياً.<br>فعّل تتبّع الموقع على هواتف المندوبين.</div>';
+        '<div class="ugt-empty">لا يوجد أحد متصل الآن.<br>فعّل تتبّع الموقع على هواتف المندوبين.</div>';
       return;
     }
     var html = '';
