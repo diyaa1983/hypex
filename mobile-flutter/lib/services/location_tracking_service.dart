@@ -58,7 +58,7 @@ class LocationTrackingService {
 
   static const int serviceId = 8801;
   static const int defaultIntervalSec = 30;
-  static const int defaultMinDistance = 15;
+  static const int defaultMinDistance = 0;
 
   static bool _initialized = false;
 
@@ -183,7 +183,29 @@ class LocationTrackingService {
     return null;
   }
 
-  /// تشغيل الخدمة؛ يُرجع رسالة خطأ عربية أو null عند النجاح.
+  static Future<void> setEnabledFlag(bool value) async {
+    await FlutterForegroundTask.saveData(key: TrackKeys.enabled, value: value);
+  }
+
+  static Future<void> saveLastStatus(
+    String text, {
+    double? lat,
+    double? lng,
+  }) async {
+    await FlutterForegroundTask.saveData(key: TrackKeys.lastStatus, value: text);
+    if (lat != null) {
+      await FlutterForegroundTask.saveData(key: TrackKeys.lastLat, value: lat);
+    }
+    if (lng != null) {
+      await FlutterForegroundTask.saveData(key: TrackKeys.lastLng, value: lng);
+    }
+    await FlutterForegroundTask.saveData(
+      key: TrackKeys.lastPingMs,
+      value: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  /// تشغيل الخدمة؛ يُرجع رسالة خطأ عربية أو null عند النجاح。
   static Future<String?> start() async {
     if (!_initialized) init();
     final permError = await requestPermissions();

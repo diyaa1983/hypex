@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../services/location_presence_service.dart';
 import '../../services/location_tracking_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/ui_kit.dart';
@@ -67,15 +68,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _toggle(bool on) async {
     setState(() => _busy = true);
     try {
+      final session = context.read<SessionController>();
       if (on) {
         final error = await LocationTrackingService.start();
         if (!mounted) return;
         if (error != null) {
           showSnack(context, error, error: true);
         } else {
+          await LocationPresenceService.start(
+            api: session.api,
+            csrf: session.csrf,
+          );
+          if (!mounted) return;
           showSnack(context, 'تم تشغيل خدمة تتبّع الموقع.');
         }
       } else {
+        await LocationPresenceService.stop();
         await LocationTrackingService.stop();
         if (!mounted) return;
         showSnack(context, 'تم إيقاف خدمة التتبّع.');
@@ -327,13 +335,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             icon: Icons.send_rounded,
                             label: 'إرسال الآن',
                             color: AppTheme.primary,
-                            onTap: running
-                                ? () {
-                                    LocationTrackingService
-                                        .requestImmediatePing();
-                                    showSnack(context, 'تم طلب إرسال الموقع.');
-                                  }
-                                : null,
+                            onTap: () async {
+                              LocationTrackingService.requestImmediatePing();
+                              final session = context.read<SessionController>();
+                              LocationPresenceService.bind(
+                                session.api,
+                                csrf: session.csrf,
+                              );
+                              final ok =
+                                  await LocationPresenceService.pingNow(
+                                force: true,
+                              );
+                              if (!context.mounted) return;
+                              showSnack(
+                                context,
+                                ok
+                                    ? (LocationPresenceService.lastMessage.isEmpty
+                                        ? 'تم إرسال الموقع.'
+                                        : LocationPresenceService.lastMessage)
+                                    : (LocationPresenceService.lastMessage.isEmpty
+                                        ? 'تعذّر الإرسال.'
+                                        : LocationPresenceService.lastMessage),
+                                error: !ok,
+                              );
+                              await _loadStatus();
+                            },
                           ),
                         ),
                         const SizedBox(width: 8),

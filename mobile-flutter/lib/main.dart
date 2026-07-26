@@ -7,6 +7,7 @@ import 'app.dart';
 import 'core/api_client.dart';
 import 'core/session.dart';
 import 'core/theme.dart';
+import 'services/location_presence_service.dart';
 import 'services/location_tracking_service.dart';
 
 Future<void> main() async {
@@ -30,6 +31,11 @@ Future<void> main() async {
   // إعادة تشغيل التتبّع تلقائياً إن كان مفعّلاً من قبل.
   if (session.authenticated) {
     await LocationTrackingService.resumeIfEnabled();
+    await LocationPresenceService.resumeIfNeeded(
+      api: api,
+      csrf: session.csrf,
+      authenticated: true,
+    );
   }
 
   runApp(

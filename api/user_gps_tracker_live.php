@@ -5,8 +5,8 @@ declare(strict_types=1);
  * تتبّع المواقع الحية — نقاط المستخدمين على الخريطة (تحديث لحظي).
  *
  * GET:
- *   online_seconds  (افتراضي 600 = 10 دقائق) — يعتبر «متصل» خلال هذه الثواني
- *   stale_seconds   (افتراضي 600) — يظهر فقط من حدّث موقعه خلال هذه المدة
+ *   online_seconds  (افتراضي 1800 = 30 دقيقة) — يعتبر «متصل» خلال هذه الثواني
+ *   stale_seconds   (افتراضي 1800) — يظهر فقط من حدّث موقعه خلال هذه المدة
  *   include_stale   0|1 (افتراضي 0) — لا يُعرض المتوقفون افتراضياً
  *   q               بحث بالاسم
  *
@@ -35,10 +35,10 @@ try {
 
     $onlineSeconds = isset($_GET['online_seconds'])
         ? (int) $_GET['online_seconds']
-        : (isset($_GET['online_minutes']) ? (int) $_GET['online_minutes'] * 60 : 600);
+        : (isset($_GET['online_minutes']) ? (int) $_GET['online_minutes'] * 60 : 1800);
     $staleSeconds = isset($_GET['stale_seconds'])
         ? (int) $_GET['stale_seconds']
-        : (isset($_GET['stale_minutes']) ? (int) $_GET['stale_minutes'] * 60 : 600);
+        : (isset($_GET['stale_minutes']) ? (int) $_GET['stale_minutes'] * 60 : 1800);
     // افتراضياً: لا نُظهر غير المتصلين — التتبّع الحي فقط.
     $includeStale = isset($_GET['include_stale']) && (string) $_GET['include_stale'] === '1';
     $q = trim((string) ($_GET['q'] ?? ''));

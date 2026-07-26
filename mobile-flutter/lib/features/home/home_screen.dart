@@ -136,6 +136,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String _company = '';
   List<_Tile> _tiles = [];
   bool _tracking = false;
+  String _trackingLabel = 'تتبّع الموقع متوقف — اضغط للتفعيل';
+  bool _trackingOk = false;
 
   @override
   void initState() {
@@ -155,7 +157,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _refreshTracking() async {
     final on = await LocationTrackingService.isRunning;
-    if (mounted && on != _tracking) setState(() => _tracking = on);
+    final st = await LocationTrackingService.status();
+    final recent = st.lastPing != null &&
+        DateTime.now().difference(st.lastPing!).inSeconds < 120;
+    final okText = st.lastStatus.contains('تم إرسال') ||
+        st.lastStatus.contains('تم تأكيد');
+    final label = !on
+        ? 'تتبّع الموقع متوقف — اضغط للتفعيل'
+        : (recent && okText)
+            ? 'تتبّع الموقع يعمل — آخر إرسال ${_fmtHm(st.lastPing)}'
+            : (st.lastStatus.isNotEmpty
+                ? 'التتبّع يعمل لكن: ${st.lastStatus}'
+                : 'تتبّع الموقع يعمل — بانتظار أول إرسال');
+    if (!mounted) return;
+    setState(() {
+      _tracking = on;
+      _trackingOk = on && recent && okText;
+      _trackingLabel = label;
+    });
+  }
+
+  String _fmtHm(DateTime? t) {
+    if (t == null) return '';
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   Future<void> _load() async {
@@ -207,6 +233,8 @@ class _HomeScreenState extends State<HomeScreen> {
             company: _company.isEmpty ? 'النماء' : _company,
             user: s.userName ?? '',
             tracking: _tracking,
+            trackingOk: _trackingOk,
+            trackingLabel: _trackingLabel,
             onTrackingTap: () => context.push('/settings'),
             onRefresh: _load,
           ),
@@ -255,6 +283,8 @@ class _Header extends StatelessWidget {
     required this.company,
     required this.user,
     required this.tracking,
+    required this.trackingOk,
+    required this.trackingLabel,
     required this.onTrackingTap,
     required this.onRefresh,
   });
@@ -262,6 +292,8 @@ class _Header extends StatelessWidget {
   final String company;
   final String user;
   final bool tracking;
+  final bool trackingOk;
+  final String trackingLabel;
   final VoidCallback onTrackingTap;
   final VoidCallback onRefresh;
 
@@ -338,18 +370,20 @@ class _Header extends StatelessWidget {
                     width: 9,
                     height: 9,
                     decoration: BoxDecoration(
-                      color: tracking
-                          ? const Color(0xFF4BE38A)
-                          : const Color(0xFFFFC46B),
+                      color: !tracking
+                          ? const Color(0xFFFFC46B)
+                          : (trackingOk
+                              ? const Color(0xFF4BE38A)
+                              : const Color(0xFFFF8A65)),
                       shape: BoxShape.circle,
                     ),
                   ),
                   const SizedBox(width: 9),
                   Expanded(
                     child: Text(
-                      tracking
-                          ? 'تتبّع الموقع يعمل في الخلفية'
-                          : 'تتبّع الموقع متوقف — اضغط للتفعيل',
+                      trackingLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12.5,

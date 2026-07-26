@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/location_presence_service.dart';
 import '../services/location_tracking_service.dart';
 import 'api_client.dart';
 import 'config.dart';
@@ -31,7 +32,7 @@ class SessionController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_kServer) ?? '';
     api.setBase(saved.isEmpty ? AppConfig.defaultServerBase : saved);
-    await LocationTrackingService.saveCredentials(base: api.base);
+    await _syncTrackingCredentials();
     if (saved.isNotEmpty) {
       try {
         await refreshMe();
@@ -39,8 +40,30 @@ class SessionController extends ChangeNotifier {
         authenticated = false;
       }
     }
+    LocationPresenceService.bind(api, csrf: csrf);
+    if (authenticated) {
+      await LocationPresenceService.resumeIfNeeded(
+        api: api,
+        csrf: csrf,
+        authenticated: true,
+      );
+    }
     booting = false;
     notifyListeners();
+  }
+
+  /// نسخ بيانات الدخول المحفوظة إلى خدمة الخلفية (isolate منفصل).
+  Future<void> _syncTrackingCredentials() async {
+    await LocationTrackingService.saveCredentials(base: api.base);
+    final u = await _secure.read(key: 'u');
+    final p = await _secure.read(key: 'p');
+    if (u != null && p != null && u.isNotEmpty && p.isNotEmpty) {
+      await LocationTrackingService.saveCredentials(
+        base: api.base,
+        username: u,
+        password: p,
+      );
+    }
   }
 
   bool get hasServer => api.base.isNotEmpty;
@@ -69,6 +92,7 @@ class SessionController extends ChangeNotifier {
       query: {'action': 'me'},
     );
     _apply(res);
+    LocationPresenceService.setCsrf(csrf);
   }
 
   Future<bool> login(
@@ -89,14 +113,23 @@ class SessionController extends ChangeNotifier {
         },
       );
       _apply(res);
-      if (authenticated && remember) {
-        await _secure.write(key: 'u', value: username);
-        await _secure.write(key: 'p', value: password);
-        // خدمة التتبّع تعمل في isolate منفصل، فتحتاج نسخة من بيانات الاتصال.
+      if (authenticated) {
+        // دائماً نمرّر بيانات الدخول لخدمة التتبّع — وإلا تعمل الخدمة شكلياً دون إرسال.
         await LocationTrackingService.saveCredentials(
           base: api.base,
           username: username,
           password: password,
+        );
+        if (remember) {
+          await _secure.write(key: 'u', value: username);
+          await _secure.write(key: 'p', value: password);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_kRemember, true);
+        }
+        await LocationPresenceService.resumeIfNeeded(
+          api: api,
+          csrf: csrf,
+          authenticated: true,
         );
       }
       return authenticated;
@@ -116,6 +149,7 @@ class SessionController extends ChangeNotifier {
 
   Future<void> logout() async {
     try {
+      await LocationPresenceService.stop();
       await LocationTrackingService.stop();
       await LocationTrackingService.clearCredentials();
     } catch (_) {}
@@ -146,5 +180,6 @@ class SessionController extends ChangeNotifier {
     if (perms is List) {
       permissions = perms.map((e) => e.toString()).toSet();
     }
+    LocationPresenceService.setCsrf(csrf);
   }
 }

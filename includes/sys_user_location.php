@@ -282,12 +282,12 @@ function sys_user_location_tracker_rows(
 ): array {
     sys_user_location_ensure_schema($pdo);
 
-    // نافذة «متصل الآن»: افتراضياً حتى 10 دقائق (لا ثوانٍ ضيقة تُخفي المندوب).
+    // نافذة «متصل الآن»: حتى 30 دقيقة — كافية لظهور المندوب حتى مع تأخر بعض النبضات.
     $onlineSec = $onlineSeconds !== null
-        ? max(30, min(30 * 60, $onlineSeconds))
-        : max(30, min(7200, max(1, min(120, $onlineMinutes)) * 60));
+        ? max(60, min(60 * 60, $onlineSeconds))
+        : max(60, min(7200, max(1, min(120, $onlineMinutes)) * 60));
     $staleSec = $staleSeconds !== null
-        ? max($onlineSec, min(2 * 3600, $staleSeconds))
+        ? max($onlineSec, min(12 * 3600, $staleSeconds))
         : max($onlineSec, min(24 * 3600, max(1, min(24 * 60, $staleMinutes)) * 60));
     $search = trim($search);
 

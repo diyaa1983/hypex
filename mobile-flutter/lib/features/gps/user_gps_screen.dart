@@ -8,6 +8,7 @@ import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../services/location_service.dart';
+import '../../services/location_presence_service.dart';
 import '../../services/location_tracking_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/ui_kit.dart';
@@ -74,9 +75,17 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
 
   Future<void> _toggleTracking(bool on) async {
     String? msg;
+    final session = context.read<SessionController>();
     if (on) {
       msg = await LocationTrackingService.start();
+      if (msg == null) {
+        await LocationPresenceService.start(
+          api: session.api,
+          csrf: session.csrf,
+        );
+      }
     } else {
+      await LocationPresenceService.stop();
       await LocationTrackingService.stop();
     }
     if (!mounted) return;
