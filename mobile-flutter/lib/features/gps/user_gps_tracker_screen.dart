@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -191,6 +192,11 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
       appBar: AppBar(
         title: const Text('تتبّع المواقع الحية'),
         actions: [
+          IconButton(
+            tooltip: 'المسار اليومي',
+            onPressed: () => context.push('/gps/route'),
+            icon: const Icon(Icons.route_rounded),
+          ),
           IconButton(
             tooltip: 'قائمة الأجهزة',
             onPressed: () => setState(() => _listOpen = !_listOpen),

@@ -18,12 +18,16 @@ $pdo = db();
 sys_user_location_ensure_schema($pdo);
 
 $apiUrl = app_url('api/user_gps_tracker_live.php');
+$trackApiUrl = app_url('api/user_gps_track_day.php');
 $cssPath = app_path('assets/css/user-gps-tracker.css');
 $jsPath = app_path('assets/js/user-gps-tracker.js');
+$routeJsPath = app_path('assets/js/user-gps-route.js');
 $cssV = is_file($cssPath) ? (string) filemtime($cssPath) : '';
 $jsV = is_file($jsPath) ? (string) filemtime($jsPath) : '';
+$routeJsV = is_file($routeJsPath) ? (string) filemtime($routeJsPath) : '';
 $osm = app_osm_js_config();
 $exitUrl = nav_exit_url('user_gps_tracker');
+$today = date('Y-m-d');
 ?>
 <link rel="stylesheet" href="<?= esc(app_url('assets/css/user-gps-tracker.css')) ?><?= $cssV !== '' ? '?v=' . esc($cssV) : '' ?>">
 
@@ -39,42 +43,94 @@ $exitUrl = nav_exit_url('user_gps_tracker');
         <div class="ugt-toolbar__title">
             <span class="ugt-toolbar__icon" aria-hidden="true">📡</span>
             <div>
-                <strong>تتبّع المواقع الحية</strong>
-                <small>الأجهزة التي يعمل عليها النظام حالياً</small>
+                <strong>تتبّع المواقع</strong>
+                <small>الأجهزة الحيّة وخط السير اليومي</small>
             </div>
         </div>
-        <div class="ugt-toolbar__stats" id="ugt-stats">
-            <span class="ugt-chip ugt-chip--online"><b id="ugt-cnt-online">0</b> متصل</span>
-            <span class="ugt-chip ugt-chip--away"><b id="ugt-cnt-away">0</b> غير نشط</span>
-            <span class="ugt-chip"><b id="ugt-cnt-total">0</b> إجمالي</span>
+        <div class="ugt-modeswitch" role="tablist">
+            <button type="button" class="ugt-modeswitch__btn is-active" id="ugt-mode-live">التتبّع الحي</button>
+            <button type="button" class="ugt-modeswitch__btn" id="ugt-mode-route">المسار اليومي</button>
         </div>
         <div class="ugt-toolbar__actions">
-            <label class="ugt-toggle">
-                <input type="checkbox" id="ugt-include-stale" checked>
-                إظهار غير النشطين
-            </label>
-            <input type="search" id="ugt-search" class="ugt-search" placeholder="بحث بالاسم..." autocomplete="off">
-            <button type="button" class="btn btn-sm btn-primary" id="ugt-refresh">تحديث</button>
             <a class="btn btn-sm btn-secondary" href="<?= esc($exitUrl) ?>">خروج</a>
         </div>
     </div>
 
-    <div class="ugt-body">
-        <aside class="ugt-sidebar" id="ugt-sidebar">
-            <div class="ugt-sidebar__head">الأجهزة</div>
-            <div class="ugt-sidebar__list" id="ugt-list">
-                <div class="ugt-empty">جاري التحميل...</div>
+    <!-- عرض التتبّع الحي -->
+    <div id="ugt-live-view">
+        <div class="ugt-subbar">
+            <div class="ugt-toolbar__stats" id="ugt-stats">
+                <span class="ugt-chip ugt-chip--online"><b id="ugt-cnt-online">0</b> متصل</span>
+                <span class="ugt-chip ugt-chip--away"><b id="ugt-cnt-away">0</b> غير نشط</span>
+                <span class="ugt-chip"><b id="ugt-cnt-total">0</b> إجمالي</span>
             </div>
-        </aside>
-        <div class="ugt-map-wrap">
-            <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
-            <div class="ugt-legend">
-                <span><i class="ugt-dot ugt-dot--online"></i> متصل (آخر <?= 15 ?> د)</span>
-                <span><i class="ugt-dot ugt-dot--away"></i> غير نشط</span>
+            <div class="ugt-subbar__actions">
+                <label class="ugt-toggle">
+                    <input type="checkbox" id="ugt-include-stale" checked>
+                    إظهار غير النشطين
+                </label>
+                <input type="search" id="ugt-search" class="ugt-search" placeholder="بحث بالاسم..." autocomplete="off">
+                <button type="button" class="btn btn-sm btn-primary" id="ugt-refresh">تحديث</button>
             </div>
-            <div class="ugt-status" id="ugt-status">تحديث تلقائي كل 30 ثانية</div>
+        </div>
+        <div class="ugt-body">
+            <aside class="ugt-sidebar" id="ugt-sidebar">
+                <div class="ugt-sidebar__head">الأجهزة</div>
+                <div class="ugt-sidebar__list" id="ugt-list">
+                    <div class="ugt-empty">جاري التحميل...</div>
+                </div>
+            </aside>
+            <div class="ugt-map-wrap">
+                <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
+                <div class="ugt-legend">
+                    <span><i class="ugt-dot ugt-dot--online"></i> متصل (آخر <?= 15 ?> د)</span>
+                    <span><i class="ugt-dot ugt-dot--away"></i> غير نشط</span>
+                </div>
+                <div class="ugt-status" id="ugt-status">تحديث تلقائي كل 30 ثانية</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- عرض المسار اليومي -->
+    <div id="ugt-route-view" hidden>
+        <div class="ugr-root" id="ugr-root"
+             data-track-api="<?= esc($trackApiUrl) ?>"
+             data-tile-url="<?= esc($osm['tileUrl']) ?>"
+             data-attribution="<?= esc($osm['attribution']) ?>"
+             data-today="<?= esc($today) ?>"
+             data-mode="desktop">
+            <div class="ugr-controls">
+                <label class="ugr-field">
+                    <span>المندوب</span>
+                    <select id="ugr-user" class="ugr-select"><option value="">— اختر —</option></select>
+                </label>
+                <label class="ugr-field">
+                    <span>التاريخ</span>
+                    <input type="date" id="ugr-date" class="ugr-date" value="<?= esc($today) ?>" max="<?= esc($today) ?>">
+                </label>
+                <button type="button" class="btn btn-sm btn-secondary" id="ugr-prev" title="اليوم السابق">‹</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="ugr-next" title="اليوم التالي">›</button>
+                <button type="button" class="btn btn-sm btn-primary" id="ugr-load">عرض المسار</button>
+            </div>
+            <div class="ugr-summary" id="ugr-summary"></div>
+            <div class="ugr-body">
+                <aside class="ugr-sidebar" id="ugr-stops">
+                    <div class="ugr-sidebar__head">التوقفات</div>
+                    <div class="ugr-empty">اختر مندوباً وتاريخاً ثم اضغط «عرض المسار».</div>
+                </aside>
+                <div class="ugr-map-wrap">
+                    <div id="ugr-map" class="ugr-map" role="application" aria-label="خريطة المسار"></div>
+                    <div class="ugr-legend">
+                        <span><i class="ugr-dot ugr-dot--start"></i> البداية</span>
+                        <span><i class="ugr-dot ugr-dot--stop"></i> توقف</span>
+                        <span><i class="ugr-dot ugr-dot--end"></i> النهاية</span>
+                    </div>
+                    <div class="ugr-status" id="ugr-status"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script src="<?= esc(app_url('assets/js/user-gps-tracker.js')) ?><?= $jsV !== '' ? '?v=' . esc($jsV) : '' ?>"></script>
+<script src="<?= esc(app_url('assets/js/user-gps-route.js')) ?><?= $routeJsV !== '' ? '?v=' . esc($routeJsV) : '' ?>"></script>

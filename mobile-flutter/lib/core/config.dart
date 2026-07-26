@@ -45,4 +45,5 @@ class AppConfig {
   static const String userGpsListPath = 'api/user_gps_locations_list.php';
   static const String userLocationPingPath = 'api/user_location_ping.php';
   static const String userGpsTrackerLivePath = 'api/user_gps_tracker_live.php';
+  static const String userGpsTrackDayPath = 'api/user_gps_track_day.php';
 }

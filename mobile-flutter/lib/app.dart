@@ -10,6 +10,7 @@ import 'features/auth/server_setup_screen.dart';
 import 'features/gps/invoice_gps_screen.dart';
 import 'features/gps/user_gps_screen.dart';
 import 'features/gps/user_gps_tracker_screen.dart';
+import 'features/gps/user_gps_route_screen.dart';
 import 'features/invoices/invoice_form_screen.dart';
 import 'features/invoices/invoice_list_screen.dart';
 import 'features/invoices/invoice_view_screen.dart';
@@ -127,6 +128,10 @@ class NammaApp extends StatelessWidget {
         GoRoute(
           path: '/gps/tracker',
           builder: (_, __) => const UserGpsTrackerScreen(),
+        ),
+        GoRoute(
+          path: '/gps/route',
+          builder: (_, __) => const UserGpsRouteScreen(),
         ),
       ],
     );

@@ -72,6 +72,43 @@ function sys_user_location_ensure_schema(PDO $pdo): void
         }
     }
 
+    sys_user_location_track_ensure_schema($pdo);
+
+    $done = true;
+}
+
+/** جدول تاريخ النقاط (خط السير اليومي). */
+function sys_user_location_track_ensure_schema(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+
+    if (!sal_invoice_column_exists($pdo, 'sys_user_location_track', 'user_id')) {
+        sal_invoice_run_migration_file($pdo, '223_user_gps_track_history.sql');
+        if (!sal_invoice_column_exists($pdo, 'sys_user_location_track', 'user_id')) {
+            try {
+                $pdo->exec(
+                    'CREATE TABLE IF NOT EXISTS sys_user_location_track (
+                        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                        user_id INT UNSIGNED NOT NULL,
+                        latitude DECIMAL(10, 7) NOT NULL,
+                        longitude DECIMAL(10, 7) NOT NULL,
+                        gps_accuracy DECIMAL(10, 2) NULL DEFAULT NULL,
+                        gps_source ENUM(\'mobile\', \'desktop\') NOT NULL DEFAULT \'mobile\',
+                        captured_at DATETIME NOT NULL,
+                        PRIMARY KEY (id),
+                        KEY idx_track_user_time (user_id, captured_at),
+                        CONSTRAINT fk_sys_user_track_user FOREIGN KEY (user_id) REFERENCES sys_user(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+                );
+            } catch (Throwable $e) {
+                error_log('sys_user_location_track_ensure_schema: ' . $e->getMessage());
+            }
+        }
+    }
+
     $done = true;
 }
 
@@ -344,6 +381,245 @@ function sys_user_location_age_label(int $ageSec): string
 }
 
 /**
+ * قائمة المستخدمين الذين لديهم مواقع/مسارات مسجّلة (لمنتقي المندوب في شاشة المسار).
+ *
+ * @return list<array{user_id:int, user_label:string, username:string}>
+ */
+function sys_user_location_track_users(PDO $pdo): array
+{
+    sys_user_location_ensure_schema($pdo);
+
+    try {
+        $sql = 'SELECT u.id AS user_id, u.username, u.full_name_ar
+                FROM sys_user u
+                WHERE u.is_active = 1
+                  AND (
+                    EXISTS (SELECT 1 FROM sys_user_location ul WHERE ul.user_id = u.id)
+                    OR EXISTS (SELECT 1 FROM sys_user_location_track t WHERE t.user_id = u.id)
+                  )
+                ORDER BY u.full_name_ar, u.username';
+        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('sys_user_location_track_users: ' . $e->getMessage());
+
+        return [];
+    }
+
+    $out = [];
+    foreach ($rows as $row) {
+        $out[] = [
+            'user_id' => (int) ($row['user_id'] ?? 0),
+            'user_label' => sal_invoice_user_display_name(
+                (string) ($row['full_name_ar'] ?? ''),
+                (string) ($row['username'] ?? '')
+            ),
+            'username' => (string) ($row['username'] ?? ''),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * صياغة مدة بالثواني إلى نص عربي مختصر (٥ د، ١ س ٢٠ د).
+ */
+function sys_user_location_duration_label(int $seconds): string
+{
+    $seconds = max(0, $seconds);
+    if ($seconds < 60) {
+        return $seconds . ' ث';
+    }
+    $minutes = (int) round($seconds / 60);
+    if ($minutes < 60) {
+        return $minutes . ' د';
+    }
+    $h = intdiv($minutes, 60);
+    $m = $minutes % 60;
+
+    return $m > 0 ? ($h . ' س ' . $m . ' د') : ($h . ' س');
+}
+
+/**
+ * خط سير مستخدم ليوم محدّد: النقاط مرتّبة زمنياً + المسافة + التوقفات.
+ *
+ * @return array{
+ *   points: list<array<string, mixed>>,
+ *   segments: list<list<int>>,
+ *   stops: list<array<string, mixed>>,
+ *   summary: array<string, mixed>
+ * }
+ */
+function sys_user_location_track_day(
+    PDO $pdo,
+    int $userId,
+    string $dateIso,
+    int $gapBreakMinutes = 20,
+    int $stopRadiusMeters = 70,
+    int $stopMinMinutes = 5
+): array {
+    sys_user_location_track_ensure_schema($pdo);
+
+    $empty = [
+        'points' => [],
+        'segments' => [],
+        'stops' => [],
+        'summary' => [
+            'points_count' => 0,
+            'distance_km' => 0.0,
+            'distance_label' => '0 كم',
+            'first_time' => '',
+            'last_time' => '',
+            'active_label' => '',
+            'stops_count' => 0,
+        ],
+    ];
+
+    $ts = strtotime($dateIso);
+    if ($userId < 1 || $ts === false) {
+        return $empty;
+    }
+    $date = date('Y-m-d', $ts);
+
+    $st = $pdo->prepare(
+        'SELECT latitude, longitude, gps_accuracy, gps_source, captured_at
+         FROM sys_user_location_track
+         WHERE user_id = ? AND DATE(captured_at) = ?
+         ORDER BY captured_at ASC, id ASC'
+    );
+    $st->execute([$userId, $date]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($rows === []) {
+        return $empty;
+    }
+
+    $points = [];
+    foreach ($rows as $row) {
+        $lat = (float) ($row['latitude'] ?? 0);
+        $lng = (float) ($row['longitude'] ?? 0);
+        if (!sal_invoice_gps_coords_valid($lat, $lng)) {
+            continue;
+        }
+        $capturedAt = (string) ($row['captured_at'] ?? '');
+        $pts = $capturedAt !== '' ? strtotime($capturedAt) : false;
+        if ($pts === false) {
+            continue;
+        }
+        $rawSrc = isset($row['gps_source']) ? trim((string) $row['gps_source']) : '';
+        $points[] = [
+            'latitude' => $lat,
+            'longitude' => $lng,
+            'gps_accuracy' => isset($row['gps_accuracy']) && $row['gps_accuracy'] !== null && $row['gps_accuracy'] !== ''
+                ? (float) $row['gps_accuracy']
+                : null,
+            'accuracy_label' => !empty($row['gps_accuracy']) ? round((float) $row['gps_accuracy']) . ' م' : '',
+            'gps_source' => $rawSrc !== '' ? $rawSrc : null,
+            'source_label' => sal_invoice_gps_source_label($rawSrc !== '' ? $rawSrc : null),
+            'captured_at' => $capturedAt,
+            'ts' => $pts,
+            'time' => date('H:i', $pts),
+            'time_full' => date('H:i:s', $pts),
+        ];
+    }
+
+    $n = count($points);
+    if ($n === 0) {
+        return $empty;
+    }
+
+    // مسافة إجمالية + تقسيم الخط عند الفجوات الزمنية الكبيرة.
+    $gapBreakSec = max(1, $gapBreakMinutes) * 60;
+    $totalMeters = 0.0;
+    $segments = [];
+    $current = [0];
+    for ($i = 1; $i < $n; $i++) {
+        $prev = $points[$i - 1];
+        $cur = $points[$i];
+        $gap = $cur['ts'] - $prev['ts'];
+        $d = sys_user_location_distance_meters(
+            $prev['latitude'],
+            $prev['longitude'],
+            $cur['latitude'],
+            $cur['longitude']
+        );
+        if ($gap > $gapBreakSec) {
+            if (count($current) >= 1) {
+                $segments[] = $current;
+            }
+            $current = [$i];
+            continue;
+        }
+        $totalMeters += $d;
+        $current[] = $i;
+    }
+    if (count($current) >= 1) {
+        $segments[] = $current;
+    }
+
+    // كشف التوقفات (مكث ضمن نصف قطر صغير لمدة كافية).
+    $stopMinSec = max(1, $stopMinMinutes) * 60;
+    $stops = [];
+    $i = 0;
+    while ($i < $n) {
+        $j = $i;
+        $anchor = $points[$i];
+        while (
+            $j + 1 < $n
+            && sys_user_location_distance_meters(
+                $anchor['latitude'],
+                $anchor['longitude'],
+                $points[$j + 1]['latitude'],
+                $points[$j + 1]['longitude']
+            ) <= $stopRadiusMeters
+        ) {
+            $j++;
+        }
+        $duration = $points[$j]['ts'] - $points[$i]['ts'];
+        if ($j > $i && $duration >= $stopMinSec) {
+            $sumLat = 0.0;
+            $sumLng = 0.0;
+            for ($k = $i; $k <= $j; $k++) {
+                $sumLat += $points[$k]['latitude'];
+                $sumLng += $points[$k]['longitude'];
+            }
+            $cnt = $j - $i + 1;
+            $stops[] = [
+                'latitude' => round($sumLat / $cnt, 7),
+                'longitude' => round($sumLng / $cnt, 7),
+                'arrive' => $points[$i]['time'],
+                'leave' => $points[$j]['time'],
+                'arrive_ts' => $points[$i]['ts'],
+                'duration_sec' => $duration,
+                'duration_label' => sys_user_location_duration_label($duration),
+                'points' => $cnt,
+            ];
+            $i = $j + 1;
+        } else {
+            $i++;
+        }
+    }
+
+    $km = $totalMeters / 1000.0;
+    $activeSec = $points[$n - 1]['ts'] - $points[0]['ts'];
+
+    return [
+        'points' => $points,
+        'segments' => $segments,
+        'stops' => $stops,
+        'summary' => [
+            'points_count' => $n,
+            'distance_km' => round($km, 2),
+            'distance_label' => $km >= 1
+                ? (number_format($km, 1) . ' كم')
+                : (round($totalMeters) . ' م'),
+            'first_time' => $points[0]['time'],
+            'last_time' => $points[$n - 1]['time'],
+            'active_label' => sys_user_location_duration_label($activeSec),
+            'stops_count' => count($stops),
+        ],
+    ];
+}
+
+/**
  * آخر موقع مسجّل للمستخدم إن كان حديثاً (للترحيل التلقائي عند فشل GPS اللحظي).
  *
  * @return array{latitude:float, longitude:float, gps_accuracy:?float, gps_source:string, captured_at:string}|null
@@ -530,7 +806,56 @@ function sys_user_location_save_ping(
         ]);
     }
 
+    // نقطة في تاريخ خط السير (لا تُفشل الـ ping إن تعذّر التسجيل).
+    sys_user_location_record_track_point($pdo, $userId, $lat, $lng, $accuracy, $source);
+
     return ['ok' => true, 'skipped' => false, 'error' => null];
+}
+
+/** يُدرج نقطة في تاريخ خط السير + تنظيف احتمالي للنقاط القديمة. */
+function sys_user_location_record_track_point(
+    PDO $pdo,
+    int $userId,
+    float $lat,
+    float $lng,
+    ?float $accuracy,
+    string $source
+): void {
+    try {
+        sys_user_location_track_ensure_schema($pdo);
+        $pdo->prepare(
+            'INSERT INTO sys_user_location_track (user_id, latitude, longitude, gps_accuracy, gps_source, captured_at)
+             VALUES (?, ?, ?, ?, ?, NOW())'
+        )->execute([
+            $userId,
+            round($lat, 7),
+            round($lng, 7),
+            $accuracy !== null && is_finite($accuracy) ? round($accuracy, 2) : null,
+            $source,
+        ]);
+    } catch (Throwable $e) {
+        error_log('sys_user_location_record_track_point: ' . $e->getMessage());
+
+        return;
+    }
+
+    // تنظيف احتمالي (~1%) للنقاط الأقدم من مدة الاحتفاظ.
+    if (mt_rand(1, 100) === 1) {
+        sys_user_location_track_cleanup($pdo);
+    }
+}
+
+/** يحذف نقاط خط السير الأقدم من مدة الاحتفاظ. */
+function sys_user_location_track_cleanup(PDO $pdo, int $retentionDays = 60): void
+{
+    $retentionDays = max(7, min(365, $retentionDays));
+    try {
+        $pdo->prepare(
+            'DELETE FROM sys_user_location_track WHERE captured_at < DATE_SUB(NOW(), INTERVAL ? DAY)'
+        )->execute([$retentionDays]);
+    } catch (Throwable $e) {
+        error_log('sys_user_location_track_cleanup: ' . $e->getMessage());
+    }
 }
 
 /**
