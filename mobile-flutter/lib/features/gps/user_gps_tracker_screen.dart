@@ -105,8 +105,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.userGpsTrackerLivePath,
         query: {
-          'online_seconds': 90,
-          'stale_seconds': 90,
+          'online_seconds': 120,
+          'stale_seconds': 120,
           'include_stale': 0,
           'q': _search.text.trim(),
         },
@@ -291,7 +291,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 child: const Row(
                   children: [
                     _LegendDot(AppTheme.success),
-                    Text(' متصل الآن (آخر 90 ث)  ', style: TextStyle(fontSize: 11.5)),
+                    Text(' متصل الآن (آخر دقيقتين)  ', style: TextStyle(fontSize: 11.5)),
                   ],
                 ),
               ),

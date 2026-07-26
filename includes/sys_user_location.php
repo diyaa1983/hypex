@@ -769,6 +769,10 @@ function sys_user_location_save_ping(
             $lng,
             $accuracy
         )) {
+            // نُبقي الإحداثيات الأدق، لكن نُحدّث الوقت حتى يبقى المستخدم «متصل الآن».
+            $pdo->prepare('UPDATE sys_user_location SET captured_at = NOW() WHERE user_id = ?')
+                ->execute([$userId]);
+
             return ['ok' => true, 'skipped' => true, 'error' => null];
         }
     }

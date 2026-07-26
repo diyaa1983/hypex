@@ -57,7 +57,7 @@ class LocationTrackingService {
   LocationTrackingService._();
 
   static const int serviceId = 8801;
-  static const int defaultIntervalSec = 60;
+  static const int defaultIntervalSec = 30;
   static const int defaultMinDistance = 15;
 
   static bool _initialized = false;
@@ -275,6 +275,9 @@ void startLocationTrackingTask() {
 }
 
 class _TrackingTaskHandler extends TaskHandler {
+  /// أقصى صمت مسموح به قبل إرسال نبضة حتى لو لم يتحرك الجهاز.
+  static const int _heartbeatMs = 30 * 1000;
+
   Dio? _dio;
   String _base = '';
   String _csrf = '';
@@ -283,6 +286,7 @@ class _TrackingTaskHandler extends TaskHandler {
   int _sent = 0;
   double? _lastLat;
   double? _lastLng;
+  int _lastSentMs = 0;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -294,6 +298,8 @@ class _TrackingTaskHandler extends TaskHandler {
         await FlutterForegroundTask.getData<double>(key: TrackKeys.lastLat);
     _lastLng =
         await FlutterForegroundTask.getData<double>(key: TrackKeys.lastLng);
+    _lastSentMs =
+        await FlutterForegroundTask.getData<int>(key: TrackKeys.lastPingMs) ?? 0;
 
     _dio = Dio(
       BaseOptions(
@@ -384,7 +390,11 @@ class _TrackingTaskHandler extends TaskHandler {
           pos.latitude,
           pos.longitude,
         );
-        if (moved < minDist) {
+        // نبضة إجبارية حتى لو لم يتحرك — وإلا اختفى الواقف من التتبّع الحي.
+        final silentMs = DateTime.now().millisecondsSinceEpoch - _lastSentMs;
+        final needHeartbeat =
+            _lastSentMs == 0 || silentMs >= _heartbeatMs;
+        if (moved < minDist && !needHeartbeat) {
           await _setStatus('لم يتغيّر الموقع (أقل من $minDist م).');
           return;
         }
@@ -402,6 +412,7 @@ class _TrackingTaskHandler extends TaskHandler {
       _lastLat = pos.latitude;
       _lastLng = pos.longitude;
       final now = DateTime.now();
+      _lastSentMs = now.millisecondsSinceEpoch;
       await FlutterForegroundTask.saveData(
         key: TrackKeys.sentCount,
         value: _sent,
