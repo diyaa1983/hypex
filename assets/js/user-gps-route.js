@@ -321,9 +321,9 @@
     var label = data.user_label ? data.user_label + ' · ' : '';
     var mode = !points.length
       ? ' — لا توجد بيانات'
-      : roadMatched
-        ? ' — خط السير الفعلي فقط'
-        : ' — نقاط تواجد بدون خط سير متصل';
+      : roadMatched || (segments && segments.some(function (s) { return s && s.length >= 2; }))
+        ? ' — خط السير مرسوم باللون الأزرق'
+        : ' — نقاط تواجد بدون حركة كافية لرسم خط';
     this.setStatus(label + (data.date_dmy || '') + mode);
 
     function chip(label, val) {
@@ -348,7 +348,7 @@
     presence = Array.isArray(presence) ? presence : [];
     roadMatched = !!roadMatched && roadPaths.length > 0;
 
-    // خطوط السير: كل مقطع حركة على حدة — لا نربط أماكن التواجد المنفصلة.
+    // خطوط السير بلون واضح وسميك — كل مقطع حركة على حدة.
     if (roadMatched) {
       for (i = 0; i < roadPaths.length; i++) {
         var path = roadPaths[i];
@@ -359,13 +359,50 @@
           latlngs.push(ll);
           bounds.push(ll);
         }
+        // طبقة خلفية فاتحة لإبراز الخط
         global.L.polyline(latlngs, {
-          color: '#1d4ed8',
-          weight: 5,
-          opacity: 0.92,
+          color: '#93c5fd',
+          weight: 12,
+          opacity: 0.55,
           lineJoin: 'round',
           lineCap: 'round',
         }).addTo(this.layer);
+        // الخط الأساسي بلون أزرق واضح
+        global.L.polyline(latlngs, {
+          color: '#1d4ed8',
+          weight: 6,
+          opacity: 1,
+          lineJoin: 'round',
+          lineCap: 'round',
+        }).addTo(this.layer);
+      }
+    } else if (points.length >= 2 && Array.isArray(segments) && segments.length) {
+      // احتياطي من المقاطع إن لم تصل road_paths
+      for (i = 0; i < segments.length; i++) {
+        var seg = segments[i];
+        if (!seg || seg.length < 2) continue;
+        var segLl = [];
+        for (j = 0; j < seg.length; j++) {
+          var pti = points[seg[j]];
+          if (!pti) continue;
+          segLl.push([pti.latitude, pti.longitude]);
+        }
+        if (segLl.length < 2) continue;
+        global.L.polyline(segLl, {
+          color: '#93c5fd',
+          weight: 12,
+          opacity: 0.55,
+          lineJoin: 'round',
+          lineCap: 'round',
+        }).addTo(this.layer);
+        global.L.polyline(segLl, {
+          color: '#1d4ed8',
+          weight: 6,
+          opacity: 1,
+          lineJoin: 'round',
+          lineCap: 'round',
+        }).addTo(this.layer);
+        for (j = 0; j < segLl.length; j++) bounds.push(segLl[j]);
       }
     }
 

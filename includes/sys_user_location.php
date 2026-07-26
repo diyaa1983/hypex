@@ -491,7 +491,7 @@ function sys_user_location_track_day(
     PDO $pdo,
     int $userId,
     string $dateIso,
-    int $gapBreakMinutes = 12,
+    int $gapBreakMinutes = 30,
     int $stopRadiusMeters = 70,
     int $stopMinMinutes = 5
 ): array {
@@ -571,9 +571,9 @@ function sys_user_location_track_day(
         return $empty;
     }
 
-    // مقاطع حركة متصلة فقط: فتح النظام من مكانين منفصلين زمنياً ليس سفراً بينهما.
+    // مقاطع حركة متصلة: نقطع الخط فقط عند قفزة غير منطقية أو صمت طويل مع انتقال بعيد.
     $gapBreakSec = max(60, $gapBreakMinutes * 60);
-    $maxSpeedMps = 120.0 / 3.6;
+    $maxSpeedMps = 150.0 / 3.6;
     $totalMeters = 0.0;
     $segments = [];
     $current = [0];
@@ -588,11 +588,11 @@ function sys_user_location_track_day(
             $cur['longitude']
         );
 
-        $tooLongGap = $gap > $gapBreakSec;
-        $impossibleSpeed = $gap > 0 && ($d / $gap) > $maxSpeedMps && $d > 80;
-        $sparseJump = $gap >= 5 * 60 && $d >= 250;
+        // قفزة مستحيلة السرعة، أو صمت طويل مع انتقال واضح (فتح من مكان آخر).
+        $impossibleSpeed = $gap > 0 && ($d / $gap) > $maxSpeedMps && $d > 120;
+        $remoteReopen = $gap > $gapBreakSec && $d > 120;
 
-        if ($tooLongGap || $impossibleSpeed || $sparseJump) {
+        if ($impossibleSpeed || $remoteReopen) {
             if ($current !== []) {
                 $segments[] = $current;
             }
@@ -660,7 +660,7 @@ function sys_user_location_track_day(
     require_once app_path('includes/app_osm.php');
     $presence = [];
     $roadPaths = [];
-    $minTravelMeters = 40.0;
+    $minTravelMeters = 15.0;
 
     foreach ($segments as $seg) {
         $segPoints = [];
@@ -678,7 +678,7 @@ function sys_user_location_track_day(
             );
         }
 
-        // لا حركة فعلية ⇒ تواجد فقط بدون رسم خط سير.
+        // نقطة واحدة أو مكث بلا انتقال يُذكر ⇒ تواجد بدون خط.
         if ($segCount < 2 || $segMeters < $minTravelMeters) {
             $p0 = $segPoints[0];
             $p1 = $segPoints[$segCount - 1];
@@ -695,27 +695,24 @@ function sys_user_location_track_day(
             continue;
         }
 
+        // الأساس: خط سير واضح من نقاط GPS الفعلية (يظهر دائماً).
+        $gpsPath = [];
+        foreach ($segPoints as $sp) {
+            $gpsPath[] = [
+                'latitude' => (float) $sp['latitude'],
+                'longitude' => (float) $sp['longitude'],
+            ];
+        }
+
+        // تحسين اختياري: لصق على الشوارع إن نجحت المطابقة.
+        $path = [];
         try {
             $path = app_osm_snap_route_to_roads($segPoints);
         } catch (Throwable $e) {
             error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
             $path = [];
         }
-        if (count($path) >= 2) {
-            $roadPaths[] = $path;
-        } else {
-            // احتياطي داخل مقطع الحركة فقط (لا نربط المقاطع المنفصلة).
-            $fallback = [];
-            foreach ($segPoints as $sp) {
-                $fallback[] = [
-                    'latitude' => (float) $sp['latitude'],
-                    'longitude' => (float) $sp['longitude'],
-                ];
-            }
-            if (count($fallback) >= 2) {
-                $roadPaths[] = $fallback;
-            }
-        }
+        $roadPaths[] = count($path) >= 2 ? $path : $gpsPath;
     }
 
     $roadMatched = $roadPaths !== [];

@@ -231,18 +231,23 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   List<Polyline> _buildPolylines() {
     final lines = <Polyline>[];
-    if (_roadMatched && _roadPaths.isNotEmpty) {
-      for (final path in _roadPaths) {
-        if (path.length < 2) continue;
-        lines.add(Polyline(
-          points: path,
-          strokeWidth: 5,
-          color: AppTheme.primary.withValues(alpha: 0.92),
-        ));
-      }
-      return lines;
+    void addPath(List<LatLng> path) {
+      if (path.length < 2) return;
+      lines.add(Polyline(
+        points: path,
+        strokeWidth: 12,
+        color: const Color(0xFF93C5FD).withValues(alpha: 0.55),
+      ));
+      lines.add(Polyline(
+        points: path,
+        strokeWidth: 6,
+        color: const Color(0xFF1D4ED8),
+      ));
     }
-    // لا نرسم خطاً يربط أماكن التواجد المنفصلة.
+
+    for (final path in _roadPaths) {
+      addPath(path);
+    }
     return lines;
   }
 
