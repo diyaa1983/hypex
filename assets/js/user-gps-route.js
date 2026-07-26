@@ -249,9 +249,7 @@
           chip('إلى', summary.last_time || '—') +
           chip('المدة', summary.active_label || '—') +
           chip('التوقفات', String(summary.stops_count || 0)) +
-          chip('النقاط', String(summary.points_count || 0)) +
-          chip('مقاطع السير', String(summary.travel_segments || roadPaths.length || 0)) +
-          chip('تواجد فقط', String(summary.presence_count || presence.length || 0));
+          chip('النقاط', String(summary.points_count || 0));
       }
     }
 
@@ -286,7 +284,7 @@
         }
       }
       if (presence.length) {
-        sh += '<div class="ugr-sidebar__head" style="margin-top:10px">تواجد بدون سير (' + presence.length + ')</div>';
+        sh += '<div class="ugr-sidebar__head" style="margin-top:10px">أماكن تواجد بدون حركة (' + presence.length + ')</div>';
         for (var p = 0; p < presence.length; p++) {
           var pr = presence[p];
           sh +=
@@ -300,7 +298,7 @@
             '<span class="ugr-stop__time">' +
             esc(pr.label || pr.time || '') +
             '</span>' +
-            '<span class="ugr-stop__dur">فتح النظام هنا دون خط سير</span>' +
+            '<span class="ugr-stop__dur">نقطة تواجد — بلا خط سير</span>' +
             '</span>' +
             '</button>';
         }
@@ -324,8 +322,8 @@
     var mode = !points.length
       ? ' — لا توجد بيانات'
       : roadMatched
-        ? ' — سير على الشوارع فقط (بدون ربط الأماكن المنفصلة)'
-        : ' — تواجد فقط بدون خط سير متصل';
+        ? ' — خط السير الفعلي فقط'
+        : ' — نقاط تواجد بدون خط سير متصل';
     this.setStatus(label + (data.date_dmy || '') + mode);
 
     function chip(label, val) {

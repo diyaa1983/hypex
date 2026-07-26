@@ -105,7 +105,10 @@ function app_osm_osrm_base_url(): string
 }
 
 /**
- * يحوّل سلسلة نقاط GPS إلى مسار يلتزم بالشوارع عبر OSRM.
+ * يحوّل سلسلة نقاط GPS إلى مسار يلتصق بالشوارع التي مُرّ بها فعلياً.
+ *
+ * مهم: نستخدم مطابقة الأثر (match) وليس توجيه المسار (route).
+ * route يخترع أقصر طريق بين نقطتين حتى لو لم يُسلك، وهذا غير مطلوب.
  *
  * @param list<array{latitude?:float|int|string, longitude?:float|int|string, lat?:float|int|string, lng?:float|int|string, lon?:float|int|string}> $points
  * @return list<array{latitude:float, longitude:float}>
@@ -113,6 +116,7 @@ function app_osm_osrm_base_url(): string
 function app_osm_snap_route_to_roads(array $points): array
 {
     $coords = [];
+    $timestamps = [];
     $prevLat = null;
     $prevLng = null;
     foreach ($points as $p) {
@@ -130,7 +134,6 @@ function app_osm_snap_route_to_roads(array $points): array
         if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
             continue;
         }
-        // تجاهل التكرار شبه التام لتقليل أخطاء OSRM.
         if ($prevLat !== null && $prevLng !== null) {
             $dLat = abs($lat - $prevLat);
             $dLng = abs($lng - $prevLng);
@@ -138,7 +141,13 @@ function app_osm_snap_route_to_roads(array $points): array
                 continue;
             }
         }
-        $coords[] = [$lng, $lat]; // OSRM: lon,lat
+        $coords[] = [$lng, $lat];
+        $ts = isset($p['ts']) ? (int) $p['ts'] : 0;
+        if ($ts < 1 && !empty($p['captured_at'])) {
+            $parsed = strtotime((string) $p['captured_at']);
+            $ts = $parsed !== false ? $parsed : 0;
+        }
+        $timestamps[] = $ts > 0 ? $ts : time();
         $prevLat = $lat;
         $prevLng = $lng;
     }
@@ -148,39 +157,41 @@ function app_osm_snap_route_to_roads(array $points): array
         return [];
     }
 
-    // OSRM العام يتحمّل عدداً محدوداً من النقاط — نجزّئ عند الحاجة.
     $chunkSize = 80;
     $path = [];
     for ($offset = 0; $offset < $n; $offset += $chunkSize - 1) {
         $slice = array_slice($coords, $offset, $chunkSize);
+        $sliceTs = array_slice($timestamps, $offset, $chunkSize);
         if (count($slice) < 2) {
             break;
         }
-        $part = app_osm_osrm_route_geometry($slice);
+
+        // مطابقة الأثر الفعلي فقط — لا نستخدم route لأنه يخترع طريقاً لم يُسلك.
+        $part = app_osm_osrm_match_geometry($slice, $sliceTs);
         if ($part === []) {
-            $part = app_osm_osrm_match_geometry($slice);
-        }
-        if ($part === []) {
-            // احتياطي: خط مستقيم بين نقاط هذه الشريحة فقط.
+            $part = [];
             foreach ($slice as $c) {
-                $path[] = ['latitude' => (float) $c[1], 'longitude' => (float) $c[0]];
-            }
-        } else {
-            if ($path !== [] && $part !== []) {
-                // إزالة تكرار نقطة الوصل بين الشرائح.
-                $last = $path[count($path) - 1];
-                $first = $part[0];
-                if (
-                    abs($last['latitude'] - $first['latitude']) < 0.00001
-                    && abs($last['longitude'] - $first['longitude']) < 0.00001
-                ) {
-                    array_shift($part);
-                }
-            }
-            foreach ($part as $pt) {
-                $path[] = $pt;
+                $part[] = [
+                    'latitude' => (float) $c[1],
+                    'longitude' => (float) $c[0],
+                ];
             }
         }
+
+        if ($path !== [] && $part !== []) {
+            $last = $path[count($path) - 1];
+            $first = $part[0];
+            if (
+                abs($last['latitude'] - $first['latitude']) < 0.00001
+                && abs($last['longitude'] - $first['longitude']) < 0.00001
+            ) {
+                array_shift($part);
+            }
+        }
+        foreach ($part as $pt) {
+            $path[] = $pt;
+        }
+
         if ($offset + $chunkSize >= $n) {
             break;
         }
@@ -218,15 +229,17 @@ function app_osm_osrm_route_geometry(array $lonLatPairs): array
 
 /**
  * @param list<array{0:float,1:float}> $lonLatPairs
+ * @param list<int>|null $timestamps Unix seconds aligned with $lonLatPairs
  * @return list<array{latitude:float, longitude:float}>
  */
-function app_osm_osrm_match_geometry(array $lonLatPairs): array
+function app_osm_osrm_match_geometry(array $lonLatPairs, ?array $timestamps = null): array
 {
     $coordStr = [];
     $radiuses = [];
     foreach ($lonLatPairs as $c) {
         $coordStr[] = sprintf('%.6F,%.6F', $c[0], $c[1]);
-        $radiuses[] = '50';
+        // نصف قطر صغير: نلتصق بالشارع القريب من نقطة GPS الفعلية فقط.
+        $radiuses[] = '35';
     }
     $url = app_osm_osrm_base_url()
         . '/match/v1/driving/'
@@ -234,12 +247,15 @@ function app_osm_osrm_match_geometry(array $lonLatPairs): array
         . '?overview=full&geometries=geojson&tidy=true&radiuses='
         . implode(';', $radiuses);
 
+    if (is_array($timestamps) && count($timestamps) === count($lonLatPairs) && count($timestamps) >= 2) {
+        $url .= '&timestamps=' . implode(';', array_map('intval', $timestamps));
+    }
+
     $data = app_osm_osrm_fetch_json($url);
     if (!is_array($data) || ($data['code'] ?? '') !== 'Ok') {
         return [];
     }
 
-    // قد يُرجع عدة matchings — ندمجها بالترتيب.
     $matchings = $data['matchings'] ?? [];
     if (!is_array($matchings) || $matchings === []) {
         return [];

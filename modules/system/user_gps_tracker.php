@@ -122,7 +122,7 @@ $today = date('Y-m-d');
                         <span><i class="ugr-dot ugr-dot--start"></i> البداية</span>
                         <span><i class="ugr-dot ugr-dot--stop"></i> توقف</span>
                         <span><i class="ugr-dot ugr-dot--end"></i> النهاية</span>
-                        <span><i class="ugr-dot" style="background:#7c3aed"></i> تواجد فقط</span>
+                        <span><i class="ugr-dot" style="background:#7c3aed"></i> تواجد بلا حركة</span>
                     </div>
                     <div class="ugr-status" id="ugr-status"></div>
                 </div>
