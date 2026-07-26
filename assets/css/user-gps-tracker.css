@@ -250,10 +250,7 @@
   background: #13a05c;
 }
 
-.ugt-item__avatar--away {
-  background: #e08700;
-}
-
+.ugt-item__avatar--away,
 .ugt-item__avatar--offline {
   background: #6b7a90;
 }
@@ -291,11 +288,7 @@
   color: #13a05c;
 }
 
-.ugt-item__badge--away {
-  background: rgba(224, 135, 0, 0.12);
-  color: #e08700;
-}
-
+.ugt-item__badge--away,
 .ugt-item__badge--offline {
   background: rgba(107, 122, 144, 0.12);
   color: #6b7a90;
@@ -401,10 +394,7 @@
   background: #13a05c;
 }
 
-.ugt-pin--away {
-  background: #e08700;
-}
-
+.ugt-pin--away,
 .ugt-pin--offline {
   background: #6b7a90;
 }

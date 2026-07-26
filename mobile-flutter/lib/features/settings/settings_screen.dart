@@ -21,11 +21,12 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _intervals = <int, String>{
+    5: 'كل 5 ثوانٍ',
+    15: 'كل 15 ثانية',
     30: 'كل 30 ثانية',
     60: 'كل دقيقة',
     120: 'كل دقيقتين',
     300: 'كل 5 دقائق',
-    600: 'كل 10 دقائق',
   };
 
   static const _distances = <int, String>{

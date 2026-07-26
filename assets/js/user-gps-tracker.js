@@ -70,8 +70,8 @@
     this.tileUrl = root.getAttribute('data-tile-url') || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     this.attribution = root.getAttribute('data-attribution') || '&copy; OpenStreetMap';
     this.pollSec = parseInt(root.getAttribute('data-poll-sec') || '5', 10) || 5;
-    this.onlineSeconds = parseInt(root.getAttribute('data-online-seconds') || '900', 10) || 900;
-    this.staleSeconds = parseInt(root.getAttribute('data-stale-seconds') || '7200', 10) || 7200;
+    this.onlineSeconds = parseInt(root.getAttribute('data-online-seconds') || '20', 10) || 20;
+    this.staleSeconds = parseInt(root.getAttribute('data-stale-seconds') || String(this.onlineSeconds), 10) || this.onlineSeconds;
     if (!root.hasAttribute('data-online-seconds') && root.hasAttribute('data-online-minutes')) {
       this.onlineSeconds = (parseInt(root.getAttribute('data-online-minutes') || '1', 10) || 1) * 60;
     }
@@ -202,8 +202,8 @@
 
   Tracker.prototype.queryUrl = function () {
     var q = (this.els.search && this.els.search.value) || '';
-    // افتراضياً نظهر غير النشطين ضمن ساعتين (ما لم يُلغَ الخيار).
-    var includeStale = '1';
+    // المتصلون فقط افتراضياً (نبضة خلال online_seconds).
+    var includeStale = '0';
     if (this.els.includeStale) {
       includeStale = this.els.includeStale.checked ? '1' : '0';
     }
@@ -273,11 +273,11 @@
 
   Tracker.prototype.renderStats = function (counts) {
     if (this.els.cntOnline) this.els.cntOnline.textContent = String(counts.online || 0);
-    if (this.els.cntAway) this.els.cntAway.textContent = String(counts.away || 0);
+    if (this.els.cntAway) this.els.cntAway.textContent = String(counts.offline || counts.away || 0);
     if (this.els.cntTotal) this.els.cntTotal.textContent = String(counts.total || 0);
     if (this.els.mobileSummary) {
       this.els.mobileSummary.textContent =
-        (counts.online || 0) + ' متصل الآن';
+        (counts.online || 0) + ' متصل';
     }
   };
 
@@ -303,7 +303,7 @@
         extra += '</ul></div>';
       }
       list.innerHTML =
-        '<div class="ugt-empty">لا يوجد أحد ضمن نافذة التتبّع الحالية.<br>فعّل تتبّع الموقع على هاتف المندوب واضغط «إرسال الآن».</div>' +
+        '<div class="ugt-empty">لا يوجد متصل الآن.<br>فعّل تتبّع الموقع على هاتف المندوب (كل 5 ثوانٍ).</div>' +
         hint +
         extra;
       return;
@@ -311,7 +311,7 @@
     var html = '';
     for (var i = 0; i < this.rows.length; i++) {
       var r = this.rows[i];
-      var status = r.status || (r.is_online ? 'online' : 'away');
+      var status = r.status || (r.is_online ? 'online' : 'offline');
       var active = this.activeId === r.user_id ? ' is-active' : '';
       html +=
         '<button type="button" class="ugt-item' +
@@ -329,14 +329,15 @@
         esc(r.user_label) +
         '</div>' +
         '<div class="ugt-item__meta">' +
-        esc(r.age_label || '') +
+        esc(r.status_label || (r.is_online ? 'متصل' : 'غير متصل')) +
+        (r.age_label ? ' · ' + esc(r.age_label) : '') +
         (r.source_label ? ' · ' + esc(r.source_label) : '') +
         '</div>' +
         '</div>' +
         '<span class="ugt-item__badge ugt-item__badge--' +
         esc(status) +
         '">' +
-        esc(r.status_label || '') +
+        esc(r.status_label || (r.is_online ? 'متصل' : 'غير متصل')) +
         '</span>' +
         '</button>';
     }
@@ -355,7 +356,7 @@
   };
 
   Tracker.prototype.markerIcon = function (row) {
-    var status = row.status || (row.is_online ? 'online' : 'away');
+    var status = row.status || (row.is_online ? 'online' : 'offline');
     var label = initials(row.user_label);
     var html =
       '<div class="ugt-pin ugt-pin--' +

@@ -5,9 +5,9 @@ declare(strict_types=1);
  * تتبّع المواقع الحية — نقاط المستخدمين على الخريطة (تحديث لحظي).
  *
  * GET:
- *   online_seconds  (افتراضي 900 = 15 دقيقة) — شارة «متصل»
- *   stale_seconds   (افتراضي 7200 = ساعتان) — يظهر على الخريطة
- *   include_stale   0|1 (افتراضي 1) — إظهار غير النشطين ضمن النافذة
+ *   online_seconds  (افتراضي 20) — شارة «متصل» إن وُجدت نبضة خلال هذه الثواني
+ *   stale_seconds   (افتراضي = online) — لا يُستخدم عند include_stale=0
+ *   include_stale   0|1 (افتراضي 0) — إظهار غير المتصلين ضمن النافذة
  *   q               بحث بالاسم
  *
  * توافق خلفي: online_minutes / stale_minutes ما زالا مقبولين.
@@ -35,21 +35,21 @@ try {
 
     $onlineSeconds = isset($_GET['online_seconds'])
         ? (int) $_GET['online_seconds']
-        : (isset($_GET['online_minutes']) ? (int) $_GET['online_minutes'] * 60 : 900);
+        : (isset($_GET['online_minutes']) ? (int) $_GET['online_minutes'] * 60 : 20);
     $staleSeconds = isset($_GET['stale_seconds'])
         ? (int) $_GET['stale_seconds']
-        : (isset($_GET['stale_minutes']) ? (int) $_GET['stale_minutes'] * 60 : 7200);
-    // افتراضياً نظهر من حدّث موقعه خلال ساعتين (مثل السلوك السابق قبل التضييق).
-    $includeStale = !isset($_GET['include_stale']) || (string) $_GET['include_stale'] === '1';
+        : (isset($_GET['stale_minutes']) ? (int) $_GET['stale_minutes'] * 60 : $onlineSeconds);
+    // افتراضياً: المتصلون فقط (نبضة خلال online_seconds).
+    $includeStale = isset($_GET['include_stale']) && (string) $_GET['include_stale'] === '1';
     $q = trim((string) ($_GET['q'] ?? ''));
 
-    $onlineSeconds = max(60, min(12 * 3600, $onlineSeconds));
+    $onlineSeconds = max(15, min(12 * 3600, $onlineSeconds));
     $staleSeconds = max($onlineSeconds, min(24 * 3600, $staleSeconds));
 
     $rows = sys_user_location_tracker_rows(
         $pdo,
-        15,
-        120,
+        1,
+        1,
         $q,
         $includeStale,
         $onlineSeconds,
@@ -57,12 +57,12 @@ try {
     );
 
     $online = 0;
-    $away = 0;
+    $offline = 0;
     foreach ($rows as $r) {
         if (!empty($r['is_online'])) {
             $online++;
         } else {
-            $away++;
+            $offline++;
         }
     }
 
@@ -70,13 +70,13 @@ try {
     $hint = '';
     if ($rows === [] && $lastPings !== []) {
         $top = $lastPings[0];
-        $hint = 'آخر موقع محفوظ: '
+        $hint = 'لا يوجد متصل الآن. آخر موقع محفوظ: '
             . (string) ($top['user_label'] ?? '')
             . ' — '
             . (string) ($top['age_label'] ?? '')
-            . '. التطبيق مفتوح لكن الموقع لا يُرسل إلى هذا السيرفر حالياً.';
+            . '.';
     } elseif ($rows === []) {
-        $hint = 'لا توجد مواقع محفوظة. تأكد أن تطبيق المندوب مضبوط على نفس عنوان هذا السيرفر، وأن إذن الموقع مفعّل، ثم اضغط «إرسال الآن» من الإعدادات.';
+        $hint = 'لا يوجد متصل الآن. تأكد أن تطبيق المندوب يرسل الموقع كل 5 ثوانٍ إلى نفس هذا السيرفر.';
     }
 
     $osm = app_osm_js_config();
@@ -92,8 +92,8 @@ try {
         'counts' => [
             'total' => count($rows),
             'online' => $online,
-            'away' => $away,
-            'offline' => 0,
+            'away' => $offline,
+            'offline' => $offline,
         ],
         'hint' => $hint,
         'last_pings' => $lastPings,

@@ -57,7 +57,7 @@ class LocationTrackingService {
   LocationTrackingService._();
 
   static const int serviceId = 8801;
-  static const int defaultIntervalSec = 30;
+  static const int defaultIntervalSec = 5;
   static const int defaultMinDistance = 0;
 
   static bool _initialized = false;
@@ -211,7 +211,15 @@ class LocationTrackingService {
     final permError = await requestPermissions();
     if (permError != null) return permError;
 
-    final seconds = await intervalSec;
+    // ترقية من الفاصل القديم (30ث) إلى اللحظي (5ث) إن بقي على الافتراضي السابق.
+    var seconds = await intervalSec;
+    if (seconds == 30) {
+      seconds = defaultIntervalSec;
+      await FlutterForegroundTask.saveData(
+        key: TrackKeys.intervalSec,
+        value: seconds,
+      );
+    }
     await FlutterForegroundTask.saveData(key: TrackKeys.enabled, value: true);
 
     final result = await (await isRunning
@@ -232,6 +240,12 @@ class LocationTrackingService {
       );
       return 'تعذّر تشغيل خدمة التتبّع: ${result.error}';
     }
+    await FlutterForegroundTask.updateService(
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.repeat(seconds * 1000),
+      ),
+      notificationText: 'يتم إرسال موقعك كل ${_humanInterval(seconds)}.',
+    );
     return null;
   }
 
@@ -298,7 +312,7 @@ void startLocationTrackingTask() {
 
 class _TrackingTaskHandler extends TaskHandler {
   /// أقصى صمت مسموح به قبل إرسال نبضة حتى لو لم يتحرك الجهاز.
-  static const int _heartbeatMs = 30 * 1000;
+  static const int _heartbeatMs = 5 * 1000;
 
   Dio? _dio;
   String _base = '';

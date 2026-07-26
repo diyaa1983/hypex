@@ -4,8 +4,8 @@ declare(strict_types=1);
 require_once app_path('includes/sal_invoice_gps.php');
 
 const SYS_USER_LOCATION_MIN_INTERVAL_SEC = 600;
-/** الحد الأدنى بين إرسالين من الهاتف — قصير لتتبّع لحظي. */
-const SYS_USER_LOCATION_MIN_INTERVAL_MOBILE_SEC = 15;
+/** الحد الأدنى بين إرسالين من الهاتف — 5 ثوانٍ لتتبّع لحظي. */
+const SYS_USER_LOCATION_MIN_INTERVAL_MOBILE_SEC = 5;
 
 function sys_user_location_min_interval_sec(string $source, bool $nativeChannel = false): int
 {
@@ -282,10 +282,10 @@ function sys_user_location_tracker_rows(
 ): array {
     sys_user_location_ensure_schema($pdo);
 
-    // متصل: آخر 15 دقيقة افتراضياً — وعلى الخريطة حتى ساعتين (كما قبل التضييق).
+    // متصل = نبضة حديثة جداً (افتراضي ~20 ثانية مع إرسال كل 5 ثوانٍ).
     $onlineSec = $onlineSeconds !== null
-        ? max(60, min(12 * 3600, $onlineSeconds))
-        : max(60, min(12 * 3600, max(1, min(24 * 60, $onlineMinutes)) * 60));
+        ? max(15, min(12 * 3600, $onlineSeconds))
+        : max(15, min(12 * 3600, max(1, min(24 * 60, $onlineMinutes)) * 60));
     $staleSec = $staleSeconds !== null
         ? max($onlineSec, min(24 * 3600, $staleSeconds))
         : max($onlineSec, min(24 * 3600, max(1, min(24 * 60, $staleMinutes)) * 60));
@@ -324,7 +324,6 @@ function sys_user_location_tracker_rows(
         $ts = $capturedAt !== '' ? strtotime($capturedAt) : false;
         $ageSec = ($ts !== false) ? max(0, $now - $ts) : 999999;
         $isOnline = $ageSec <= $onlineSec;
-        $isRecent = !$isOnline && $ageSec <= $staleSec;
 
         if (!$includeStale && !$isOnline) {
             continue;
@@ -336,8 +335,9 @@ function sys_user_location_tracker_rows(
             (string) ($row['username'] ?? '')
         );
 
-        $status = $isOnline ? 'online' : ($isRecent ? 'away' : 'offline');
-        $statusLabel = $isOnline ? 'متصل' : ($isRecent ? 'غير نشط' : 'غير متصل');
+        // حالتان فقط للواجهة: متصل / غير متصل.
+        $status = $isOnline ? 'online' : 'offline';
+        $statusLabel = $isOnline ? 'متصل' : 'غير متصل';
 
         $out[] = [
             'user_id' => (int) ($row['user_id'] ?? 0),

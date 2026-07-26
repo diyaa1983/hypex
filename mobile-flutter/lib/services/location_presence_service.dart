@@ -31,7 +31,7 @@ class LocationPresenceService {
     if (csrf.isNotEmpty) _csrf = csrf;
   }
 
-  /// تشغيل النبضات أثناء فتح التطبيق (كل 30 ثانية).
+  /// تشغيل النبضات أثناء فتح التطبيق (كل 5 ثوانٍ).
   static Future<void> start({
     required ApiClient api,
     required String csrf,
@@ -69,7 +69,7 @@ class LocationPresenceService {
 
   static void _armTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
       unawaited(pingNow());
     });
   }
