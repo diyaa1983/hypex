@@ -483,6 +483,7 @@ class _TrackingTaskHandler extends TaskHandler {
           'longitude': pos.longitude,
           'gps_accuracy': pos.accuracy,
           'gps_source': 'mobile',
+          'gps_channel': 'native_app',
         },
         options: Options(
           contentType: Headers.formUrlEncodedContentType,

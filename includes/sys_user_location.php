@@ -5,7 +5,7 @@ require_once app_path('includes/sal_invoice_gps.php');
 
 const SYS_USER_LOCATION_MIN_INTERVAL_SEC = 600;
 /** الحد الأدنى بين إرسالين من الهاتف — قصير لتتبّع لحظي. */
-const SYS_USER_LOCATION_MIN_INTERVAL_MOBILE_SEC = 30;
+const SYS_USER_LOCATION_MIN_INTERVAL_MOBILE_SEC = 15;
 
 function sys_user_location_min_interval_sec(string $source, bool $nativeChannel = false): int
 {
@@ -282,12 +282,12 @@ function sys_user_location_tracker_rows(
 ): array {
     sys_user_location_ensure_schema($pdo);
 
-    // ثوانٍ أدق من الدقائق — التتبّع الحي لحظي.
+    // نافذة «متصل الآن»: افتراضياً حتى 10 دقائق (لا ثوانٍ ضيقة تُخفي المندوب).
     $onlineSec = $onlineSeconds !== null
-        ? max(15, min(600, $onlineSeconds))
-        : max(15, min(7200, max(1, min(120, $onlineMinutes)) * 60));
+        ? max(30, min(30 * 60, $onlineSeconds))
+        : max(30, min(7200, max(1, min(120, $onlineMinutes)) * 60));
     $staleSec = $staleSeconds !== null
-        ? max($onlineSec, min(3600, $staleSeconds))
+        ? max($onlineSec, min(2 * 3600, $staleSeconds))
         : max($onlineSec, min(24 * 3600, max(1, min(24 * 60, $staleMinutes)) * 60));
     $search = trim($search);
 
@@ -754,6 +754,10 @@ function sys_user_location_save_ping(
         if ($prev !== false && $prev !== null && $prev !== '') {
             $prevTs = strtotime((string) $prev);
             if ($prevTs !== false && (time() - $prevTs) < $minInterval) {
+                // نبضة حضور: نُحدّث الوقت فقط حتى يبقى «متصل الآن» على الخريطة.
+                $pdo->prepare('UPDATE sys_user_location SET captured_at = NOW() WHERE user_id = ?')
+                    ->execute([$userId]);
+
                 return ['ok' => true, 'skipped' => true, 'error' => null];
             }
         }

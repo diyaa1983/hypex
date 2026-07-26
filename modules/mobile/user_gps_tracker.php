@@ -31,8 +31,8 @@ $today = date('Y-m-d');
      data-tile-url="<?= esc($osm['tileUrl']) ?>"
      data-attribution="<?= esc($osm['attribution']) ?>"
      data-poll-sec="5"
-     data-online-seconds="120"
-     data-stale-seconds="120"
+     data-online-seconds="600"
+     data-stale-seconds="600"
      data-mode="mobile">
     <div class="ugt-toolbar ugt-toolbar--mobile">
         <div class="ugt-toolbar__title">
