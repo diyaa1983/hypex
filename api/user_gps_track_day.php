@@ -58,7 +58,9 @@ try {
         'segments' => [],
         'stops' => [],
         'road_path' => [],
+        'road_paths' => [],
         'road_matched' => false,
+        'presence' => [],
         'summary' => null,
     ];
 
@@ -67,7 +69,9 @@ try {
         $response['points'] = $track['points'];
         $response['segments'] = $track['segments'];
         $response['stops'] = $track['stops'];
+        $response['presence'] = $track['presence'] ?? [];
         $response['road_path'] = $track['road_path'] ?? [];
+        $response['road_paths'] = $track['road_paths'] ?? [];
         $response['road_matched'] = !empty($track['road_matched']);
         $response['summary'] = $track['summary'];
 

@@ -118,10 +118,11 @@ $today = date('Y-m-d');
                 <div class="ugr-map-wrap">
                     <div id="ugr-map" class="ugr-map" role="application" aria-label="خريطة المسار"></div>
                     <div class="ugr-legend">
-                        <span><i class="ugr-line"></i> خط السير على الشوارع</span>
+                        <span><i class="ugr-line"></i> خط السير الفعلي</span>
                         <span><i class="ugr-dot ugr-dot--start"></i> البداية</span>
                         <span><i class="ugr-dot ugr-dot--stop"></i> توقف</span>
                         <span><i class="ugr-dot ugr-dot--end"></i> النهاية</span>
+                        <span><i class="ugr-dot" style="background:#7c3aed"></i> تواجد فقط</span>
                     </div>
                     <div class="ugr-status" id="ugr-status"></div>
                 </div>

@@ -487,21 +487,11 @@ function sys_user_location_duration_label(int $seconds): string
     return $m > 0 ? ($h . ' س ' . $m . ' د') : ($h . ' س');
 }
 
-/**
- * خط سير مستخدم ليوم محدّد: النقاط مرتّبة زمنياً + المسافة + التوقفات.
- *
- * @return array{
- *   points: list<array<string, mixed>>,
- *   segments: list<list<int>>,
- *   stops: list<array<string, mixed>>,
- *   summary: array<string, mixed>
- * }
- */
 function sys_user_location_track_day(
     PDO $pdo,
     int $userId,
     string $dateIso,
-    int $gapBreakMinutes = 90,
+    int $gapBreakMinutes = 12,
     int $stopRadiusMeters = 70,
     int $stopMinMinutes = 5
 ): array {
@@ -520,9 +510,13 @@ function sys_user_location_track_day(
             'active_label' => '',
             'stops_count' => 0,
             'road_matched' => false,
+            'travel_segments' => 0,
+            'presence_count' => 0,
         ],
         'road_path' => [],
+        'road_paths' => [],
         'road_matched' => false,
+        'presence' => [],
     ];
 
     $ts = strtotime($dateIso);
@@ -577,110 +571,165 @@ function sys_user_location_track_day(
         return $empty;
     }
 
-    // مسافة إجمالية + تقسيم عند فجوات كبيرة (للعرض المتقطع فقط).
-    // الفجوة الافتراضية أوسع حتى لا يختفي خط السير عند إرسال متباعد.
-    $gapBreakSec = max(1, $gapBreakMinutes) * 60;
+    // مقاطع حركة متصلة فقط: فتح النظام من مكانين منفصلين زمنياً ليس سفراً بينهما.
+    $gapBreakSec = max(60, $gapBreakMinutes * 60);
+    $maxSpeedMps = 120.0 / 3.6;
     $totalMeters = 0.0;
     $segments = [];
     $current = [0];
     for ($i = 1; $i < $n; $i++) {
         $prev = $points[$i - 1];
         $cur = $points[$i];
-        $gap = $cur['ts'] - $prev['ts'];
+        $gap = max(0, $cur['ts'] - $prev['ts']);
         $d = sys_user_location_distance_meters(
             $prev['latitude'],
             $prev['longitude'],
             $cur['latitude'],
             $cur['longitude']
         );
-        // المسافة تُحسب دائماً بين النقاط المتتالية لخط السير اليومي.
-        $totalMeters += $d;
-        if ($gap > $gapBreakSec) {
-            if (count($current) >= 1) {
+
+        $tooLongGap = $gap > $gapBreakSec;
+        $impossibleSpeed = $gap > 0 && ($d / $gap) > $maxSpeedMps && $d > 80;
+        $sparseJump = $gap >= 5 * 60 && $d >= 250;
+
+        if ($tooLongGap || $impossibleSpeed || $sparseJump) {
+            if ($current !== []) {
                 $segments[] = $current;
             }
             $current = [$i];
             continue;
         }
+
+        $totalMeters += $d;
         $current[] = $i;
     }
-    if (count($current) >= 1) {
+    if ($current !== []) {
         $segments[] = $current;
     }
-    // إن أصبحت كل المقاطع نقطة واحدة، نُرجع مقطعاً واحداً بكل النقاط لضمان الرسم.
-    $multiPointSegs = 0;
-    foreach ($segments as $seg) {
-        if (count($seg) >= 2) {
-            $multiPointSegs++;
-        }
-    }
-    if ($multiPointSegs === 0 && $n >= 2) {
-        $segments = [range(0, $n - 1)];
-    }
 
-    // كشف التوقفات (مكث ضمن نصف قطر صغير لمدة كافية).
     $stopMinSec = max(1, $stopMinMinutes) * 60;
     $stops = [];
-    $i = 0;
-    while ($i < $n) {
-        $j = $i;
-        $anchor = $points[$i];
-        while (
-            $j + 1 < $n
-            && sys_user_location_distance_meters(
-                $anchor['latitude'],
-                $anchor['longitude'],
-                $points[$j + 1]['latitude'],
-                $points[$j + 1]['longitude']
-            ) <= $stopRadiusMeters
-        ) {
-            $j++;
+    foreach ($segments as $seg) {
+        $segN = count($seg);
+        if ($segN < 2) {
+            continue;
         }
-        $duration = $points[$j]['ts'] - $points[$i]['ts'];
-        if ($j > $i && $duration >= $stopMinSec) {
-            $sumLat = 0.0;
-            $sumLng = 0.0;
-            for ($k = $i; $k <= $j; $k++) {
-                $sumLat += $points[$k]['latitude'];
-                $sumLng += $points[$k]['longitude'];
+        $si = 0;
+        while ($si < $segN) {
+            $sj = $si;
+            $anchor = $points[$seg[$si]];
+            while (
+                $sj + 1 < $segN
+                && sys_user_location_distance_meters(
+                    $anchor['latitude'],
+                    $anchor['longitude'],
+                    $points[$seg[$sj + 1]]['latitude'],
+                    $points[$seg[$sj + 1]]['longitude']
+                ) <= $stopRadiusMeters
+            ) {
+                $sj++;
             }
-            $cnt = $j - $i + 1;
-            $stops[] = [
-                'latitude' => round($sumLat / $cnt, 7),
-                'longitude' => round($sumLng / $cnt, 7),
-                'arrive' => $points[$i]['time'],
-                'leave' => $points[$j]['time'],
-                'arrive_ts' => $points[$i]['ts'],
-                'duration_sec' => $duration,
-                'duration_label' => sys_user_location_duration_label($duration),
-                'points' => $cnt,
-            ];
-            $i = $j + 1;
-        } else {
-            $i++;
+            $i0 = $seg[$si];
+            $i1 = $seg[$sj];
+            $duration = $points[$i1]['ts'] - $points[$i0]['ts'];
+            if ($sj > $si && $duration >= $stopMinSec) {
+                $sumLat = 0.0;
+                $sumLng = 0.0;
+                for ($k = $si; $k <= $sj; $k++) {
+                    $sumLat += $points[$seg[$k]]['latitude'];
+                    $sumLng += $points[$seg[$k]]['longitude'];
+                }
+                $cnt = $sj - $si + 1;
+                $stops[] = [
+                    'latitude' => round($sumLat / $cnt, 7),
+                    'longitude' => round($sumLng / $cnt, 7),
+                    'arrive' => $points[$i0]['time'],
+                    'leave' => $points[$i1]['time'],
+                    'arrive_ts' => $points[$i0]['ts'],
+                    'duration_sec' => $duration,
+                    'duration_label' => sys_user_location_duration_label($duration),
+                    'points' => $cnt,
+                ];
+                $si = $sj + 1;
+            } else {
+                $si++;
+            }
         }
     }
-
-    $km = $totalMeters / 1000.0;
-    $activeSec = $points[$n - 1]['ts'] - $points[0]['ts'];
 
     require_once app_path('includes/app_osm.php');
-    $roadPath = [];
-    $roadMatched = false;
-    try {
-        $roadPath = app_osm_snap_route_to_roads($points);
-        $roadMatched = count($roadPath) >= 2;
-    } catch (Throwable $e) {
-        error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
-        $roadPath = [];
-        $roadMatched = false;
+    $presence = [];
+    $roadPaths = [];
+    $minTravelMeters = 40.0;
+
+    foreach ($segments as $seg) {
+        $segPoints = [];
+        foreach ($seg as $idx) {
+            $segPoints[] = $points[$idx];
+        }
+        $segCount = count($segPoints);
+        $segMeters = 0.0;
+        for ($i = 1; $i < $segCount; $i++) {
+            $segMeters += sys_user_location_distance_meters(
+                $segPoints[$i - 1]['latitude'],
+                $segPoints[$i - 1]['longitude'],
+                $segPoints[$i]['latitude'],
+                $segPoints[$i]['longitude']
+            );
+        }
+
+        // لا حركة فعلية ⇒ تواجد فقط بدون رسم خط سير.
+        if ($segCount < 2 || $segMeters < $minTravelMeters) {
+            $p0 = $segPoints[0];
+            $p1 = $segPoints[$segCount - 1];
+            $presence[] = [
+                'latitude' => round((float) $p0['latitude'], 7),
+                'longitude' => round((float) $p0['longitude'], 7),
+                'time' => (string) $p0['time'],
+                'time_to' => (string) $p1['time'],
+                'points' => $segCount,
+                'label' => $segCount > 1
+                    ? ('تواجد ' . $p0['time'] . ' — ' . $p1['time'])
+                    : ('تواجد ' . $p0['time']),
+            ];
+            continue;
+        }
+
+        try {
+            $path = app_osm_snap_route_to_roads($segPoints);
+        } catch (Throwable $e) {
+            error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
+            $path = [];
+        }
+        if (count($path) >= 2) {
+            $roadPaths[] = $path;
+        } else {
+            // احتياطي داخل مقطع الحركة فقط (لا نربط المقاطع المنفصلة).
+            $fallback = [];
+            foreach ($segPoints as $sp) {
+                $fallback[] = [
+                    'latitude' => (float) $sp['latitude'],
+                    'longitude' => (float) $sp['longitude'],
+                ];
+            }
+            if (count($fallback) >= 2) {
+                $roadPaths[] = $fallback;
+            }
+        }
     }
+
+    $roadMatched = $roadPaths !== [];
+    $roadPathFlat = $roadMatched ? $roadPaths[0] : [];
+    $km = $totalMeters / 1000.0;
+    $activeSec = $points[$n - 1]['ts'] - $points[0]['ts'];
 
     return [
         'points' => $points,
         'segments' => $segments,
         'stops' => $stops,
-        'road_path' => $roadPath,
+        'presence' => $presence,
+        'road_path' => $roadPathFlat,
+        'road_paths' => $roadPaths,
         'road_matched' => $roadMatched,
         'summary' => [
             'points_count' => $n,
@@ -693,15 +742,13 @@ function sys_user_location_track_day(
             'active_label' => sys_user_location_duration_label($activeSec),
             'stops_count' => count($stops),
             'road_matched' => $roadMatched,
+            'travel_segments' => count($roadPaths),
+            'presence_count' => count($presence),
         ],
     ];
 }
 
-/**
- * آخر موقع مسجّل للمستخدم إن كان حديثاً (للترحيل التلقائي عند فشل GPS اللحظي).
- *
- * @return array{latitude:float, longitude:float, gps_accuracy:?float, gps_source:string, captured_at:string}|null
- */
+
 function sys_user_location_latest_for_user(PDO $pdo, int $userId, int $maxAgeSec = 3600): ?array
 {
     if ($userId < 1 || $maxAgeSec < 1) {

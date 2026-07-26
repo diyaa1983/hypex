@@ -728,6 +728,7 @@
 .ugr-pin--start { background: #16a34a; }
 .ugr-pin--stop { background: #f59e0b; }
 .ugr-pin--end { background: #dc2626; }
+.ugr-pin--presence { background: #7c3aed; }
 
 .ugr-popup {
   font-size: 13px;

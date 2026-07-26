@@ -229,8 +229,12 @@
     var points = Array.isArray(data.points) ? data.points : [];
     var segments = Array.isArray(data.segments) ? data.segments : [];
     var stops = Array.isArray(data.stops) ? data.stops : [];
-    var roadPath = Array.isArray(data.road_path) ? data.road_path : [];
-    var roadMatched = !!data.road_matched;
+    var presence = Array.isArray(data.presence) ? data.presence : [];
+    var roadPaths = Array.isArray(data.road_paths) ? data.road_paths : [];
+    if (!roadPaths.length && Array.isArray(data.road_path) && data.road_path.length >= 2) {
+      roadPaths = [data.road_path];
+    }
+    var roadMatched = !!data.road_matched && roadPaths.length > 0;
     var summary = data.summary || {};
 
     // الملخّص
@@ -246,7 +250,8 @@
           chip('المدة', summary.active_label || '—') +
           chip('التوقفات', String(summary.stops_count || 0)) +
           chip('النقاط', String(summary.points_count || 0)) +
-          chip('المسار', roadMatched ? 'على الشوارع' : 'خط مباشر');
+          chip('مقاطع السير', String(summary.travel_segments || roadPaths.length || 0)) +
+          chip('تواجد فقط', String(summary.presence_count || presence.length || 0));
       }
     }
 
@@ -280,6 +285,26 @@
             '</button>';
         }
       }
+      if (presence.length) {
+        sh += '<div class="ugr-sidebar__head" style="margin-top:10px">تواجد بدون سير (' + presence.length + ')</div>';
+        for (var p = 0; p < presence.length; p++) {
+          var pr = presence[p];
+          sh +=
+            '<button type="button" class="ugr-stop ugr-stop--presence" data-lat="' +
+            esc(pr.latitude) +
+            '" data-lng="' +
+            esc(pr.longitude) +
+            '">' +
+            '<span class="ugr-stop__num">•</span>' +
+            '<span class="ugr-stop__body">' +
+            '<span class="ugr-stop__time">' +
+            esc(pr.label || pr.time || '') +
+            '</span>' +
+            '<span class="ugr-stop__dur">فتح النظام هنا دون خط سير</span>' +
+            '</span>' +
+            '</button>';
+        }
+      }
       this.els.stops.innerHTML = sh;
       var self = this;
       this.els.stops.querySelectorAll('.ugr-stop').forEach(function (btn) {
@@ -293,14 +318,14 @@
       });
     }
 
-    this.drawMap(points, segments, stops, roadPath, roadMatched);
+    this.drawMap(points, segments, stops, roadPaths, presence, roadMatched);
 
     var label = data.user_label ? data.user_label + ' · ' : '';
-    var mode = points.length
-      ? roadMatched
-        ? ' — مسار على الشوارع'
-        : ' — مسار مباشر بين النقاط'
-      : ' — لا توجد بيانات';
+    var mode = !points.length
+      ? ' — لا توجد بيانات'
+      : roadMatched
+        ? ' — سير على الشوارع فقط (بدون ربط الأماكن المنفصلة)'
+        : ' — تواجد فقط بدون خط سير متصل';
     this.setStatus(label + (data.date_dmy || '') + mode);
 
     function chip(label, val) {
@@ -314,82 +339,42 @@
     }
   };
 
-  RouteView.prototype.drawMap = function (points, segments, stops, roadPath, roadMatched) {
+  RouteView.prototype.drawMap = function (points, segments, stops, roadPaths, presence, roadMatched) {
     if (!this.map || !this.layer) return;
     this.layer.clearLayers();
     if (!points.length) return;
 
     var bounds = [];
-    var i;
-    roadPath = Array.isArray(roadPath) ? roadPath : [];
-    roadMatched = !!roadMatched && roadPath.length >= 2;
+    var i, j;
+    roadPaths = Array.isArray(roadPaths) ? roadPaths : [];
+    presence = Array.isArray(presence) ? presence : [];
+    roadMatched = !!roadMatched && roadPaths.length > 0;
 
-    // خط السير: على الشوارع إن توفّر، وإلا خط مباشر بين نقاط GPS.
+    // خطوط السير: كل مقطع حركة على حدة — لا نربط أماكن التواجد المنفصلة.
     if (roadMatched) {
-      var roadLatLngs = [];
-      for (i = 0; i < roadPath.length; i++) {
-        var rp = roadPath[i];
-        var rll = [rp.latitude, rp.longitude];
-        roadLatLngs.push(rll);
-        bounds.push(rll);
+      for (i = 0; i < roadPaths.length; i++) {
+        var path = roadPaths[i];
+        if (!path || path.length < 2) continue;
+        var latlngs = [];
+        for (j = 0; j < path.length; j++) {
+          var ll = [path[j].latitude, path[j].longitude];
+          latlngs.push(ll);
+          bounds.push(ll);
+        }
+        global.L.polyline(latlngs, {
+          color: '#1d4ed8',
+          weight: 5,
+          opacity: 0.92,
+          lineJoin: 'round',
+          lineCap: 'round',
+        }).addTo(this.layer);
       }
-      global.L.polyline(roadLatLngs, {
-        color: '#1d4ed8',
-        weight: 5,
-        opacity: 0.92,
-        lineJoin: 'round',
-        lineCap: 'round',
-      }).addTo(this.layer);
-    } else if (points.length >= 2) {
-      var allLatLngs = [];
-      for (i = 0; i < points.length; i++) {
-        allLatLngs.push([points[i].latitude, points[i].longitude]);
-        bounds.push(allLatLngs[i]);
-      }
-      global.L.polyline(allLatLngs, {
-        color: '#1d4ed8',
-        weight: 5,
-        opacity: 0.9,
-        lineJoin: 'round',
-        lineCap: 'round',
-      }).addTo(this.layer);
-
-      // تمييز الفجوات الزمنية الكبيرة بخط متقطع فوق المسار المباشر فقط.
-      for (i = 0; i < segments.length; i++) {
-        var seg = segments[i];
-        if (!seg || !seg.length) continue;
-        var lastIdx = seg[seg.length - 1];
-        var nextSeg = segments[i + 1];
-        if (!nextSeg || !nextSeg.length) continue;
-        var nextIdx = nextSeg[0];
-        var a = points[lastIdx];
-        var b = points[nextIdx];
-        if (!a || !b) continue;
-        global.L.polyline(
-          [
-            [a.latitude, a.longitude],
-            [b.latitude, b.longitude],
-          ],
-          {
-            color: '#94a3b8',
-            weight: 4,
-            opacity: 0.95,
-            dashArray: '8 10',
-            lineJoin: 'round',
-            lineCap: 'round',
-          }
-        ).addTo(this.layer);
-      }
-    } else {
-      bounds.push([points[0].latitude, points[0].longitude]);
     }
 
-    // نقاط GPS الخام (ليست بالضرورة على الشارع)
+    // نقاط GPS الخام
     for (i = 0; i < points.length; i++) {
       var pt = points[i];
-      if (!roadMatched) {
-        bounds.push([pt.latitude, pt.longitude]);
-      }
+      bounds.push([pt.latitude, pt.longitude]);
       var dot = global.L.circleMarker([pt.latitude, pt.longitude], {
         radius: 4,
         color: '#1e40af',
@@ -406,6 +391,21 @@
           '</div>'
       );
       dot.addTo(this.layer);
+    }
+
+    // علامات التواجد المنفصل (فتح النظام دون سير)
+    for (i = 0; i < presence.length; i++) {
+      var pr = presence[i];
+      var pm = global.L.marker([pr.latitude, pr.longitude], {
+        icon: this.pinIcon('presence', 'ت'),
+      });
+      pm.bindPopup(
+        '<div class="ugr-popup"><b>تواجد</b><br>' +
+          esc(pr.label || pr.time || '') +
+          '<br><small>فتح النظام هنا دون تسجيل خط سير متصل</small></div>'
+      );
+      pm.addTo(this.layer);
+      bounds.push([pr.latitude, pr.longitude]);
     }
 
     // علامات التوقف مرقّمة
@@ -428,7 +428,7 @@
       sm.addTo(this.layer);
     }
 
-    // بداية / نهاية
+    // بداية / نهاية اليوم (أول وآخر نقطة GPS)
     var start = points[0];
     var end = points[points.length - 1];
     global.L.marker([start.latitude, start.longitude], { icon: this.pinIcon('start', 'ب') })

@@ -58,9 +58,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   DateTime _date = DateTime.now();
 
   List<_TrackPoint> _points = [];
-  List<List<int>> _segments = [];
   List<_Stop> _stops = [];
-  List<LatLng> _roadPath = [];
+  List<List<LatLng>> _roadPaths = [];
   bool _roadMatched = false;
   Map<String, dynamic> _summary = {};
   bool _trackLoading = false;
@@ -137,28 +136,42 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
           .whereType<Map>()
           .map((e) => _TrackPoint(e.cast<String, dynamic>()))
           .toList();
-      final segs = (res['segments'] as List? ?? [])
-          .whereType<List>()
-          .map((s) => s.whereType<num>().map((n) => n.toInt()).toList())
-          .toList();
       final stops = (res['stops'] as List? ?? [])
           .whereType<Map>()
           .map((e) => _Stop(e.cast<String, dynamic>()))
           .toList();
-      final road = <LatLng>[];
-      for (final p in (res['road_path'] as List? ?? [])) {
-        if (p is! Map) continue;
-        final lat = (p['latitude'] as num?)?.toDouble();
-        final lng = (p['longitude'] as num?)?.toDouble();
-        if (lat == null || lng == null) continue;
-        road.add(LatLng(lat, lng));
+      final roadPaths = <List<LatLng>>[];
+      final rawPaths = res['road_paths'];
+      if (rawPaths is List) {
+        for (final path in rawPaths) {
+          if (path is! List) continue;
+          final pts = <LatLng>[];
+          for (final p in path) {
+            if (p is! Map) continue;
+            final lat = (p['latitude'] as num?)?.toDouble();
+            final lng = (p['longitude'] as num?)?.toDouble();
+            if (lat == null || lng == null) continue;
+            pts.add(LatLng(lat, lng));
+          }
+          if (pts.length >= 2) roadPaths.add(pts);
+        }
       }
-      final matched = res['road_matched'] == true && road.length >= 2;
+      if (roadPaths.isEmpty) {
+        final road = <LatLng>[];
+        for (final p in (res['road_path'] as List? ?? [])) {
+          if (p is! Map) continue;
+          final lat = (p['latitude'] as num?)?.toDouble();
+          final lng = (p['longitude'] as num?)?.toDouble();
+          if (lat == null || lng == null) continue;
+          road.add(LatLng(lat, lng));
+        }
+        if (road.length >= 2) roadPaths.add(road);
+      }
+      final matched = res['road_matched'] == true && roadPaths.isNotEmpty;
       setState(() {
         _points = points;
-        _segments = segs;
         _stops = stops;
-        _roadPath = road;
+        _roadPaths = roadPaths;
         _roadMatched = matched;
         _summary = (res['summary'] as Map?)?.cast<String, dynamic>() ?? {};
         _trackLoading = false;
@@ -176,9 +189,14 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   }
 
   void _fit() {
-    final fitPts = _roadMatched && _roadPath.length >= 2
-        ? _roadPath
-        : _points.map((p) => p.point).toList();
+    final fitPts = <LatLng>[];
+    if (_roadMatched && _roadPaths.isNotEmpty) {
+      for (final path in _roadPaths) {
+        fitPts.addAll(path);
+      }
+    } else {
+      fitPts.addAll(_points.map((p) => p.point));
+    }
     if (fitPts.isEmpty) return;
     if (fitPts.length == 1) {
       _map.move(fitPts.first, 15);
@@ -213,36 +231,18 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   List<Polyline> _buildPolylines() {
     final lines = <Polyline>[];
-    if (_roadMatched && _roadPath.length >= 2) {
-      lines.add(Polyline(
-        points: _roadPath,
-        strokeWidth: 5,
-        color: AppTheme.primary.withValues(alpha: 0.92),
-      ));
+    if (_roadMatched && _roadPaths.isNotEmpty) {
+      for (final path in _roadPaths) {
+        if (path.length < 2) continue;
+        lines.add(Polyline(
+          points: path,
+          strokeWidth: 5,
+          color: AppTheme.primary.withValues(alpha: 0.92),
+        ));
+      }
       return lines;
     }
-    // احتياطي: خط مباشر بين نقاط GPS.
-    if (_points.length >= 2) {
-      lines.add(Polyline(
-        points: _points.map((p) => p.point).toList(),
-        strokeWidth: 5,
-        color: AppTheme.primary.withValues(alpha: 0.9),
-      ));
-    }
-    for (var i = 0; i < _segments.length - 1; i++) {
-      final seg = _segments[i];
-      final next = _segments[i + 1];
-      if (seg.isEmpty || next.isEmpty) continue;
-      final a = seg.last;
-      final b = next.first;
-      if (a < 0 || b < 0 || a >= _points.length || b >= _points.length) continue;
-      lines.add(Polyline(
-        points: [_points[a].point, _points[b].point],
-        strokeWidth: 4,
-        color: const Color(0xFF94A3B8),
-        pattern: StrokePattern.dashed(segments: const [8, 10]),
-      ));
-    }
+    // لا نرسم خطاً يربط أماكن التواجد المنفصلة.
     return lines;
   }
 
