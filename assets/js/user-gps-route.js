@@ -229,6 +229,8 @@
     var points = Array.isArray(data.points) ? data.points : [];
     var segments = Array.isArray(data.segments) ? data.segments : [];
     var stops = Array.isArray(data.stops) ? data.stops : [];
+    var roadPath = Array.isArray(data.road_path) ? data.road_path : [];
+    var roadMatched = !!data.road_matched;
     var summary = data.summary || {};
 
     // الملخّص
@@ -243,7 +245,8 @@
           chip('إلى', summary.last_time || '—') +
           chip('المدة', summary.active_label || '—') +
           chip('التوقفات', String(summary.stops_count || 0)) +
-          chip('النقاط', String(summary.points_count || 0));
+          chip('النقاط', String(summary.points_count || 0)) +
+          chip('المسار', roadMatched ? 'على الشوارع' : 'خط مباشر');
       }
     }
 
@@ -290,10 +293,15 @@
       });
     }
 
-    this.drawMap(points, segments, stops);
+    this.drawMap(points, segments, stops, roadPath, roadMatched);
 
     var label = data.user_label ? data.user_label + ' · ' : '';
-    this.setStatus(label + (data.date_dmy || '') + (points.length ? '' : ' — لا توجد بيانات'));
+    var mode = points.length
+      ? roadMatched
+        ? ' — مسار على الشوارع'
+        : ' — مسار مباشر بين النقاط'
+      : ' — لا توجد بيانات';
+    this.setStatus(label + (data.date_dmy || '') + mode);
 
     function chip(label, val) {
       return (
@@ -306,18 +314,33 @@
     }
   };
 
-  RouteView.prototype.drawMap = function (points, segments, stops) {
+  RouteView.prototype.drawMap = function (points, segments, stops, roadPath, roadMatched) {
     if (!this.map || !this.layer) return;
     this.layer.clearLayers();
     if (!points.length) return;
 
     var bounds = [];
-    var i, j;
+    var i;
+    roadPath = Array.isArray(roadPath) ? roadPath : [];
+    roadMatched = !!roadMatched && roadPath.length >= 2;
 
-    // خط مسار متصل عبر كل النقاط بالترتيب الزمني (الأساس).
-    // سابقاً كنا نرسم من segments فقط؛ إن كانت الفجوة > 20 د أصبحت كل قطعة
-    // نقطة واحدة واختفى الخط رغم وجود البداية/النهاية.
-    if (points.length >= 2) {
+    // خط السير: على الشوارع إن توفّر، وإلا خط مباشر بين نقاط GPS.
+    if (roadMatched) {
+      var roadLatLngs = [];
+      for (i = 0; i < roadPath.length; i++) {
+        var rp = roadPath[i];
+        var rll = [rp.latitude, rp.longitude];
+        roadLatLngs.push(rll);
+        bounds.push(rll);
+      }
+      global.L.polyline(roadLatLngs, {
+        color: '#1d4ed8',
+        weight: 5,
+        opacity: 0.92,
+        lineJoin: 'round',
+        lineCap: 'round',
+      }).addTo(this.layer);
+    } else if (points.length >= 2) {
       var allLatLngs = [];
       for (i = 0; i < points.length; i++) {
         allLatLngs.push([points[i].latitude, points[i].longitude]);
@@ -331,7 +354,7 @@
         lineCap: 'round',
       }).addTo(this.layer);
 
-      // تمييز الفجوات الزمنية الكبيرة بخط متقطع فوق المسار.
+      // تمييز الفجوات الزمنية الكبيرة بخط متقطع فوق المسار المباشر فقط.
       for (i = 0; i < segments.length; i++) {
         var seg = segments[i];
         if (!seg || !seg.length) continue;
@@ -361,9 +384,12 @@
       bounds.push([points[0].latitude, points[0].longitude]);
     }
 
-    // نقاط صغيرة على طول المسار (مع الوقت عند النقر)
+    // نقاط GPS الخام (ليست بالضرورة على الشارع)
     for (i = 0; i < points.length; i++) {
       var pt = points[i];
+      if (!roadMatched) {
+        bounds.push([pt.latitude, pt.longitude]);
+      }
       var dot = global.L.circleMarker([pt.latitude, pt.longitude], {
         radius: 4,
         color: '#1e40af',

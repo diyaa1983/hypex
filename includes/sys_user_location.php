@@ -519,7 +519,10 @@ function sys_user_location_track_day(
             'last_time' => '',
             'active_label' => '',
             'stops_count' => 0,
+            'road_matched' => false,
         ],
+        'road_path' => [],
+        'road_matched' => false,
     ];
 
     $ts = strtotime($dateIso);
@@ -661,10 +664,24 @@ function sys_user_location_track_day(
     $km = $totalMeters / 1000.0;
     $activeSec = $points[$n - 1]['ts'] - $points[0]['ts'];
 
+    require_once app_path('includes/app_osm.php');
+    $roadPath = [];
+    $roadMatched = false;
+    try {
+        $roadPath = app_osm_snap_route_to_roads($points);
+        $roadMatched = count($roadPath) >= 2;
+    } catch (Throwable $e) {
+        error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
+        $roadPath = [];
+        $roadMatched = false;
+    }
+
     return [
         'points' => $points,
         'segments' => $segments,
         'stops' => $stops,
+        'road_path' => $roadPath,
+        'road_matched' => $roadMatched,
         'summary' => [
             'points_count' => $n,
             'distance_km' => round($km, 2),
@@ -675,6 +692,7 @@ function sys_user_location_track_day(
             'last_time' => $points[$n - 1]['time'],
             'active_label' => sys_user_location_duration_label($activeSec),
             'stops_count' => count($stops),
+            'road_matched' => $roadMatched,
         ],
     ];
 }

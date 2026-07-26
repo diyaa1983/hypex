@@ -60,6 +60,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   List<_TrackPoint> _points = [];
   List<List<int>> _segments = [];
   List<_Stop> _stops = [];
+  List<LatLng> _roadPath = [];
+  bool _roadMatched = false;
   Map<String, dynamic> _summary = {};
   bool _trackLoading = false;
 
@@ -143,10 +145,21 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
           .whereType<Map>()
           .map((e) => _Stop(e.cast<String, dynamic>()))
           .toList();
+      final road = <LatLng>[];
+      for (final p in (res['road_path'] as List? ?? [])) {
+        if (p is! Map) continue;
+        final lat = (p['latitude'] as num?)?.toDouble();
+        final lng = (p['longitude'] as num?)?.toDouble();
+        if (lat == null || lng == null) continue;
+        road.add(LatLng(lat, lng));
+      }
+      final matched = res['road_matched'] == true && road.length >= 2;
       setState(() {
         _points = points;
         _segments = segs;
         _stops = stops;
+        _roadPath = road;
+        _roadMatched = matched;
         _summary = (res['summary'] as Map?)?.cast<String, dynamic>() ?? {};
         _trackLoading = false;
       });
@@ -163,12 +176,15 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   }
 
   void _fit() {
-    if (_points.isEmpty) return;
-    if (_points.length == 1) {
-      _map.move(_points.first.point, 15);
+    final fitPts = _roadMatched && _roadPath.length >= 2
+        ? _roadPath
+        : _points.map((p) => p.point).toList();
+    if (fitPts.isEmpty) return;
+    if (fitPts.length == 1) {
+      _map.move(fitPts.first, 15);
       return;
     }
-    final bounds = LatLngBounds.fromPoints(_points.map((p) => p.point).toList());
+    final bounds = LatLngBounds.fromPoints(fitPts);
     _map.fitCamera(
       CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
     );
@@ -197,7 +213,15 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   List<Polyline> _buildPolylines() {
     final lines = <Polyline>[];
-    // خط متصل عبر كل النقاط — لا يعتمد على مقاطع قد تكون نقطة واحدة بسبب فجوات زمنية.
+    if (_roadMatched && _roadPath.length >= 2) {
+      lines.add(Polyline(
+        points: _roadPath,
+        strokeWidth: 5,
+        color: AppTheme.primary.withValues(alpha: 0.92),
+      ));
+      return lines;
+    }
+    // احتياطي: خط مباشر بين نقاط GPS.
     if (_points.length >= 2) {
       lines.add(Polyline(
         points: _points.map((p) => p.point).toList(),
@@ -205,7 +229,6 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
         color: AppTheme.primary.withValues(alpha: 0.9),
       ));
     }
-    // فجوات كبيرة: خط متقطع بين نهاية مقطع وبداية التالي.
     for (var i = 0; i < _segments.length - 1; i++) {
       final seg = _segments[i];
       final next = _segments[i + 1];
