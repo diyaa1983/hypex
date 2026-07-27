@@ -11,6 +11,7 @@ declare(strict_types=1);
  */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
+require_once app_path('includes/mobile_device_session.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -47,7 +48,21 @@ $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $action = (string) ($_POST['action'] ?? $_GET['action'] ?? '');
 
 if ($method === 'GET' || $action === 'me') {
-    echo json_encode(mobile_session_payload(), JSON_UNESCAPED_UNICODE);
+    $extra = [];
+    if (is_logged_in() && mobile_is_context()) {
+        $uid = (int) (current_user()['id'] ?? 0);
+        $deviceId = mobile_device_session_id_from_request();
+        if ($uid > 0 && $deviceId !== '') {
+            $pdo = db();
+            $label = trim((string) ($_GET['device_label'] ?? ''));
+            mobile_device_session_touch($pdo, $uid, $deviceId, $label !== '' ? $label : null);
+            $warn = mobile_device_session_concurrent_warning($pdo, $uid, $deviceId);
+            if ($warn !== null) {
+                $extra['device_warning'] = $warn;
+            }
+        }
+    }
+    echo json_encode(mobile_session_payload($extra), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -90,4 +105,17 @@ if (!mobile_attempt_login($username, $password)) {
     exit;
 }
 
-echo json_encode(mobile_session_payload(), JSON_UNESCAPED_UNICODE);
+$extra = [];
+$uid = (int) (current_user()['id'] ?? 0);
+$deviceId = mobile_device_session_id_from_request();
+if ($uid > 0 && $deviceId !== '') {
+    $pdo = db();
+    $deviceLabel = trim((string) ($_POST['device_label'] ?? ''));
+    mobile_device_session_touch($pdo, $uid, $deviceId, $deviceLabel !== '' ? $deviceLabel : null);
+    $warn = mobile_device_session_concurrent_warning($pdo, $uid, $deviceId);
+    if ($warn !== null) {
+        $extra['device_warning'] = $warn;
+    }
+}
+
+echo json_encode(mobile_session_payload($extra), JSON_UNESCAPED_UNICODE);

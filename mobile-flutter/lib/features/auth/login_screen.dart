@@ -49,6 +49,11 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (!mounted) return;
     if (ok) {
+      final warn = s.deviceWarning;
+      if (warn != null && warn.isNotEmpty) {
+        showSnack(context, warn);
+        s.clearDeviceWarning();
+      }
       context.go('/home');
     } else {
       showSnack(context, s.lastError ?? 'تعذر تسجيل الدخول', error: true);

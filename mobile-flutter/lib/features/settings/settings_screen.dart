@@ -21,7 +21,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _intervals = <int, String>{
-    5: 'كل 5 ثوانٍ',
+    10: 'كل 10 ثوانٍ',
     15: 'كل 15 ثانية',
     30: 'كل 30 ثانية',
     60: 'كل دقيقة',

@@ -24,6 +24,8 @@ class TrackKeys {
   static const lastLng = 'trk_last_lng';
   static const sentCount = 'trk_sent_count';
   static const lastStatus = 'trk_last_status';
+  static const deviceId = 'trk_device_id';
+  static const deviceLabel = 'trk_device_label';
 }
 
 /// حالة مختصرة تُعرض في شاشة الإعدادات.
@@ -57,7 +59,7 @@ class LocationTrackingService {
   LocationTrackingService._();
 
   static const int serviceId = 8801;
-  static const int defaultIntervalSec = 5;
+  static const int defaultIntervalSec = 10;
   static const int defaultMinDistance = 0;
 
   static bool _initialized = false;
@@ -112,6 +114,11 @@ class LocationTrackingService {
         value: base64Encode(utf8.encode(password)),
       );
     }
+  }
+
+  static Future<void> saveDeviceId(String id, {String label = 'أندرويد'}) async {
+    await FlutterForegroundTask.saveData(key: TrackKeys.deviceId, value: id);
+    await FlutterForegroundTask.saveData(key: TrackKeys.deviceLabel, value: label);
   }
 
   static Future<void> clearCredentials() async {
@@ -211,9 +218,9 @@ class LocationTrackingService {
     final permError = await requestPermissions();
     if (permError != null) return permError;
 
-    // ترقية من الفاصل القديم (30ث) إلى اللحظي (5ث) إن بقي على الافتراضي السابق.
+    // ترقية من الفاصل القديم (5ث) إلى اللحظي (10ث) إن بقي على الافتراضي السابق.
     var seconds = await intervalSec;
-    if (seconds == 30) {
+    if (seconds == 5 || seconds == 30) {
       seconds = defaultIntervalSec;
       await FlutterForegroundTask.saveData(
         key: TrackKeys.intervalSec,
@@ -312,7 +319,7 @@ void startLocationTrackingTask() {
 
 class _TrackingTaskHandler extends TaskHandler {
   /// أقصى صمت مسموح به قبل إرسال نبضة حتى لو لم يتحرك الجهاز.
-  static const int _heartbeatMs = 5 * 1000;
+  static const int _heartbeatMs = 10 * 1000;
 
   Dio? _dio;
   String _base = '';
@@ -388,6 +395,8 @@ class _TrackingTaskHandler extends TaskHandler {
           'action': 'login',
           'username': utf8.decode(base64Decode(encUser)),
           'password': utf8.decode(base64Decode(encPass)),
+          'device_id': await FlutterForegroundTask.getData<String>(key: TrackKeys.deviceId) ?? '',
+          'device_label': await FlutterForegroundTask.getData<String>(key: TrackKeys.deviceLabel) ?? 'أندرويد',
         },
         options: Options(contentType: Headers.formUrlEncodedContentType),
       );
@@ -520,6 +529,8 @@ class _TrackingTaskHandler extends TaskHandler {
           'gps_accuracy': pos.accuracy,
           'gps_source': 'mobile',
           'gps_channel': 'native_app',
+          'device_id': await FlutterForegroundTask.getData<String>(key: TrackKeys.deviceId) ?? '',
+          'device_label': await FlutterForegroundTask.getData<String>(key: TrackKeys.deviceLabel) ?? 'أندرويد',
         },
         options: Options(
           contentType: Headers.formUrlEncodedContentType,

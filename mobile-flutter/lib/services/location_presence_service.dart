@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../core/api_client.dart';
 import '../core/config.dart';
+import '../core/device_identity.dart';
 import 'location_service.dart';
 import 'location_tracking_service.dart';
 
@@ -21,6 +23,14 @@ class LocationPresenceService {
   static bool _enabled = false;
   static DateTime? lastOkAt;
   static String lastMessage = '';
+  static void Function(String message)? onDeviceWarning;
+
+  static void _notifyDeviceWarning(dynamic raw) {
+    if (raw is! Map) return;
+    final msg = (raw['message'] ?? '').toString().trim();
+    if (msg.isEmpty) return;
+    onDeviceWarning?.call(msg);
+  }
 
   static void bind(ApiClient api, {String csrf = ''}) {
     _api = api;
@@ -31,7 +41,7 @@ class LocationPresenceService {
     if (csrf.isNotEmpty) _csrf = csrf;
   }
 
-  /// تشغيل النبضات أثناء فتح التطبيق (كل 5 ثوانٍ).
+  /// تشغيل النبضات أثناء فتح التطبيق (كل 10 ثوانٍ).
   static Future<void> start({
     required ApiClient api,
     required String csrf,
@@ -69,7 +79,7 @@ class LocationPresenceService {
 
   static void _armTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
       unawaited(pingNow());
     });
   }
@@ -93,6 +103,15 @@ class LocationPresenceService {
         return false;
       }
 
+      final deviceId = await DeviceIdentity.id();
+      String deviceLabel = 'هاتف';
+      if (!kIsWeb) {
+        try {
+          deviceLabel = Platform.isAndroid
+              ? 'أندرويد'
+              : (Platform.isIOS ? 'آيفون' : Platform.operatingSystem);
+        } catch (_) {}
+      }
       final res = await api.postForm(
         AppConfig.userLocationPingPath,
         csrf: _csrf.isNotEmpty ? _csrf : null,
@@ -102,10 +121,13 @@ class LocationPresenceService {
           'gps_accuracy': pos.accuracy.toString(),
           'gps_source': 'mobile',
           'gps_channel': 'native_app',
+          'device_id': deviceId,
+          'device_label': deviceLabel,
         },
       );
 
       if (res['ok'] == true) {
+        _notifyDeviceWarning(res['device_warning']);
         lastOkAt = DateTime.now();
         lastMessage = res['skipped'] == true
             ? 'تم تأكيد الحضور'

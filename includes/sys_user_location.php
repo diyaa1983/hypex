@@ -5,7 +5,7 @@ require_once app_path('includes/sal_invoice_gps.php');
 
 const SYS_USER_LOCATION_MIN_INTERVAL_SEC = 600;
 /** الحد الأدنى بين إرسالين من الهاتف — 5 ثوانٍ لتتبّع لحظي. */
-const SYS_USER_LOCATION_MIN_INTERVAL_MOBILE_SEC = 5;
+const SYS_USER_LOCATION_MIN_INTERVAL_MOBILE_SEC = 10;
 
 /** وقت محلي للتخزين في captured_at (يتوافق مع APP_TIMEZONE). */
 function sys_user_location_now_sql(): string

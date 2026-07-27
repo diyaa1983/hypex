@@ -26,6 +26,10 @@ Future<void> main() async {
 
   final api = await ApiClient.create();
   final session = SessionController(api);
+  LocationPresenceService.onDeviceWarning = (msg) {
+    session.deviceWarning = msg;
+    session.notifyListeners();
+  };
   await session.boot();
 
   // إعادة تشغيل التتبّع تلقائياً إن كان مفعّلاً من قبل.

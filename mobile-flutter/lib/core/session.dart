@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +8,7 @@ import '../services/location_presence_service.dart';
 import '../services/location_tracking_service.dart';
 import 'api_client.dart';
 import 'config.dart';
+import 'device_identity.dart';
 
 /// حالة الجلسة: عنوان السيرفر، الدخول، الصلاحيات، CSRF.
 class SessionController extends ChangeNotifier {
@@ -24,8 +27,34 @@ class SessionController extends ChangeNotifier {
   String csrf = '';
   Set<String> permissions = <String>{};
   String? lastError;
+  String? deviceWarning;
 
   bool can(String code) => permissions.contains(code);
+
+  void clearDeviceWarning() {
+    deviceWarning = null;
+    notifyListeners();
+  }
+
+  void _applyDeviceWarning(dynamic raw) {
+    if (raw is Map) {
+      final msg = (raw['message'] ?? '').toString().trim();
+      if (msg.isNotEmpty) {
+        deviceWarning = msg;
+      }
+    }
+  }
+
+  Future<Map<String, String>> _deviceFields() async {
+    final id = await DeviceIdentity.id();
+    String label = 'هاتف';
+    if (!kIsWeb) {
+      try {
+        label = Platform.isAndroid ? 'أندرويد' : (Platform.isIOS ? 'آيفون' : Platform.operatingSystem);
+      } catch (_) {}
+    }
+    return {'device_id': id, 'device_label': label};
+  }
 
   /// تحميل العنوان المحفوظ ومحاولة استرجاع الجلسة.
   Future<void> boot() async {
@@ -40,6 +69,11 @@ class SessionController extends ChangeNotifier {
         authenticated = false;
       }
     }
+    final device = await _deviceFields();
+    await LocationTrackingService.saveDeviceId(
+      device['device_id']!,
+      label: device['device_label']!,
+    );
     LocationPresenceService.bind(api, csrf: csrf);
     if (authenticated) {
       await LocationPresenceService.resumeIfNeeded(
@@ -87,9 +121,13 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> refreshMe() async {
+    final device = await _deviceFields();
     final res = await api.getJson(
       AppConfig.sessionPath,
-      query: {'action': 'me'},
+      query: {
+        'action': 'me',
+        ...device,
+      },
     );
     _apply(res);
     LocationPresenceService.setCsrf(csrf);
@@ -104,16 +142,22 @@ class SessionController extends ChangeNotifier {
     lastError = null;
     notifyListeners();
     try {
+      final device = await _deviceFields();
       final res = await api.postForm(
         AppConfig.sessionPath,
         fields: {
           'action': 'login',
           'username': username,
           'password': password,
+          ...device,
         },
       );
       _apply(res);
       if (authenticated) {
+        await LocationTrackingService.saveDeviceId(
+          device['device_id']!,
+          label: device['device_label']!,
+        );
         // دائماً نمرّر بيانات الدخول لخدمة التتبّع — وإلا تعمل الخدمة شكلياً دون إرسال.
         await LocationTrackingService.saveCredentials(
           base: api.base,
@@ -171,6 +215,7 @@ class SessionController extends ChangeNotifier {
   void _apply(Map<String, dynamic> res) {
     authenticated = res['authenticated'] == true;
     csrf = (res['csrf'] as String?) ?? csrf;
+    _applyDeviceWarning(res['device_warning']);
     final user = res['user'];
     if (user is Map) {
       userId = (user['id'] as num?)?.toInt() ?? 0;

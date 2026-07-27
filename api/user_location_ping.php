@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/sys_user_location.php');
 require_once app_path('includes/mobile_auth.php');
+require_once app_path('includes/mobile_device_session.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -61,10 +62,28 @@ try {
         exit;
     }
 
-    echo json_encode([
+    $payload = [
         'ok' => true,
         'skipped' => !empty($result['skipped']),
-    ], JSON_UNESCAPED_UNICODE);
+    ];
+    $deviceId = mobile_device_session_id_from_request();
+    if ($deviceId !== '') {
+        $deviceLabel = trim((string) ($_POST['device_label'] ?? ''));
+        mobile_device_session_touch(
+            $pdo,
+            $userId,
+            $deviceId,
+            $deviceLabel !== '' ? $deviceLabel : null,
+            $lat,
+            $lng
+        );
+        $warn = mobile_device_session_concurrent_warning($pdo, $userId, $deviceId);
+        if ($warn !== null) {
+            $payload['device_warning'] = $warn;
+        }
+    }
+
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     error_log('user_location_ping: ' . $e->getMessage());
     http_response_code(500);

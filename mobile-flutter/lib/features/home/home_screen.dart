@@ -138,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _tracking = false;
   String _trackingLabel = 'تتبّع الموقع متوقف — اضغط للتفعيل';
   bool _trackingOk = false;
+  bool _deviceWarnShown = false;
 
   @override
   void initState() {
@@ -145,6 +146,17 @@ class _HomeScreenState extends State<HomeScreen> {
     _load();
     _refreshTracking();
     FlutterForegroundTask.addTaskDataCallback(_onTaskData);
+  }
+
+  void _maybeShowDeviceWarning(SessionController session) {
+    final w = session.deviceWarning;
+    if (w == null || w.isEmpty || _deviceWarnShown) return;
+    _deviceWarnShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showSnack(context, w);
+      session.clearDeviceWarning();
+    });
   }
 
   @override
@@ -226,6 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<SessionController>();
+    _maybeShowDeviceWarning(s);
     return Scaffold(
       body: Column(
         children: [

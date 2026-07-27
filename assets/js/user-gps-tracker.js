@@ -303,7 +303,7 @@
         extra += '</ul></div>';
       }
       list.innerHTML =
-        '<div class="ugt-empty">لا يوجد متصل الآن.<br>فعّل تتبّع الموقع على هاتف المندوب (كل 5 ثوانٍ).</div>' +
+        '<div class="ugt-empty">لا يوجد متصل الآن.<br>فعّل تتبّع الموقع على هاتف المندوب (كل 10 ثوانٍ).</div>' +
         hint +
         extra;
       return;
