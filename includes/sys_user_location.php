@@ -647,7 +647,7 @@ function sys_user_location_track_clean_points(array $points): array
     foreach ($points as $pt) {
         $acc = $pt['gps_accuracy'] ?? null;
         // تجاهل النقاط ذات الدقة السيئة جداً (تسبب خطوطاً مزدوجة بجانب الشارع).
-        if ($acc !== null && (float) $acc > 80) {
+        if ($acc !== null && (float) $acc > 65) {
             continue;
         }
         $filtered[] = $pt;
@@ -683,7 +683,10 @@ function sys_user_location_track_clean_points(array $points): array
         );
         $gap = max(1, (int) ($cur['ts'] ?? 0) - (int) ($prev['ts'] ?? 0));
         // نتوء قصير: ابتعاد ثم عودة بسرعة غير منطقية.
-        if ($dPrev > 40 && $dNext > 40 && $dDirect < ($dPrev * 0.45) && $gap <= 45) {
+        if ($dPrev > 30 && $dNext > 30 && $dDirect < ($dPrev * 0.5) && $gap <= 90) {
+            continue;
+        }
+        if ($dDirect > 5 && ($dPrev + $dNext) > $dDirect * 2.1 && $dDirect < 100) {
             continue;
         }
         $clean[] = $cur;

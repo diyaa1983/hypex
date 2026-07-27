@@ -80,6 +80,9 @@ if (!defined('APP_LICENSE_SECRET')) {
  *
  * بلاطات الخريطة (MapTiler مثال):
  *   define('APP_OSM_TILE_URL', 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=YOUR_KEY');
+ *
+ * خرائط Google (موصى بها لوضوح أعلى — فعّل Maps JavaScript API في Google Cloud):
+ *   define('APP_GOOGLE_MAPS_API_KEY', 'YOUR_GOOGLE_MAPS_KEY');
  */
 // if (!defined('APP_OSM_CONTACT_EMAIL')) {
 //     define('APP_OSM_CONTACT_EMAIL', 'admin@yourdomain.com');
@@ -91,5 +94,8 @@ if (!defined('APP_LICENSE_SECRET')) {
 //     define('APP_OSM_NOMINATIM_API_KEY', '');
 // }
 // if (!defined('APP_OSM_TILE_URL')) {
-//     define('APP_OSM_TILE_URL', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+//     define('APP_OSM_TILE_URL', 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png');
+// }
+// if (!defined('APP_GOOGLE_MAPS_API_KEY')) {
+//     define('APP_GOOGLE_MAPS_API_KEY', '');
 // }

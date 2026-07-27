@@ -67,8 +67,12 @@
   function Tracker(root) {
     this.root = root;
     this.api = root.getAttribute('data-api') || '';
-    this.tileUrl = root.getAttribute('data-tile-url') || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    this.attribution = root.getAttribute('data-attribution') || '&copy; OpenStreetMap';
+    this.tileUrl = root.getAttribute('data-tile-url') || 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    this.attribution =
+      root.getAttribute('data-attribution') ||
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO';
+    this.mapProvider = root.getAttribute('data-map-provider') || 'carto';
+    this.googleKey = root.getAttribute('data-google-key') || '';
     this.pollSec = parseInt(root.getAttribute('data-poll-sec') || '5', 10) || 5;
     this.onlineSeconds = parseInt(root.getAttribute('data-online-seconds') || '60', 10) || 60;
     this.staleSeconds = parseInt(root.getAttribute('data-stale-seconds') || String(this.onlineSeconds), 10) || this.onlineSeconds;
@@ -140,9 +144,14 @@
       attributionControl: true,
     }).setView([31.9539, 35.9106], 8);
 
-    global.L.tileLayer(this.tileUrl, {
+    var tileUrl =
+      this.tileUrl && this.tileUrl.indexOf('{z}') >= 0
+        ? this.tileUrl
+        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    global.L.tileLayer(tileUrl, {
       attribution: this.attribution,
-      maxZoom: 19,
+      maxZoom: 20,
+      subdomains: 'abcd',
     }).addTo(this.map);
 
     this.layer = global.L.layerGroup().addTo(this.map);

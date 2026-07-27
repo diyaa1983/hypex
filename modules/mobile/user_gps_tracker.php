@@ -30,6 +30,8 @@ $today = date('Y-m-d');
      data-api="<?= esc($apiUrl) ?>"
      data-tile-url="<?= esc($osm['tileUrl']) ?>"
      data-attribution="<?= esc($osm['attribution']) ?>"
+     data-map-provider="<?= esc($osm['mapProvider'] ?? 'carto') ?>"
+     data-google-key="<?= esc($osm['googleMapsKey'] ?? '') ?>"
      data-poll-sec="5"
      data-online-seconds="60"
      data-stale-seconds="60"
@@ -78,9 +80,11 @@ $today = date('Y-m-d');
              data-track-api="<?= esc($trackApiUrl) ?>"
              data-tile-url="<?= esc($osm['tileUrl']) ?>"
              data-attribution="<?= esc($osm['attribution']) ?>"
+             data-map-provider="<?= esc($osm['mapProvider'] ?? 'carto') ?>"
+             data-google-key="<?= esc($osm['googleMapsKey'] ?? '') ?>"
              data-today="<?= esc($today) ?>"
              data-mode="mobile">
-            <div class="ugr-controls">
+            <div class="ugr-controls" id="ugr-controls">
                 <label class="ugr-field">
                     <span>المندوب</span>
                     <select id="ugr-user" class="ugr-select"><option value="">— اختر —</option></select>
@@ -103,9 +107,16 @@ $today = date('Y-m-d');
                         <span><i class="ugr-dot ugr-dot--end"></i> النهاية</span>
                     </div>
                     <div class="ugr-status" id="ugr-status"></div>
+                    <div class="ugr-map-fabs" id="ugr-map-fabs" hidden>
+                        <button type="button" class="ugr-fab" id="ugr-fab-filters" title="تغيير المندوب/التاريخ">☰</button>
+                        <button type="button" class="ugr-fab ugr-fab--primary" id="ugr-fab-stops" title="التوقفات">توقفات</button>
+                    </div>
                 </div>
                 <aside class="ugr-sidebar" id="ugr-stops">
-                    <div class="ugr-sidebar__head">التوقفات</div>
+                    <div class="ugr-sidebar__head">
+                        <span>التوقفات</span>
+                        <button type="button" class="ugr-sidebar__close" id="ugr-close-stops" hidden aria-label="إغلاق">✕</button>
+                    </div>
                     <div class="ugr-empty">اختر مندوباً وتاريخاً ثم اضغط «عرض».</div>
                 </aside>
             </div>

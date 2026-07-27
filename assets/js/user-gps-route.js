@@ -56,8 +56,12 @@
   function RouteView(root) {
     this.root = root;
     this.api = root.getAttribute('data-track-api') || '';
-    this.tileUrl = root.getAttribute('data-tile-url') || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    this.attribution = root.getAttribute('data-attribution') || '&copy; OpenStreetMap';
+    this.tileUrl = root.getAttribute('data-tile-url') || 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    this.attribution =
+      root.getAttribute('data-attribution') ||
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO';
+    this.mapProvider = root.getAttribute('data-map-provider') || 'carto';
+    this.googleKey = root.getAttribute('data-google-key') || '';
     this.today = root.getAttribute('data-today') || '';
     this.mode = root.getAttribute('data-mode') || 'desktop';
     this.map = null;
@@ -65,6 +69,7 @@
     this.usersLoaded = false;
     this.loading = false;
     this.built = false;
+    this.mapFocus = false;
 
     this.els = {
       user: root.querySelector('#ugr-user'),
@@ -76,6 +81,11 @@
       stops: root.querySelector('#ugr-stops'),
       map: root.querySelector('#ugr-map'),
       status: root.querySelector('#ugr-status'),
+      controls: root.querySelector('#ugr-controls') || root.querySelector('.ugr-controls'),
+      fabs: root.querySelector('#ugr-map-fabs'),
+      fabFilters: root.querySelector('#ugr-fab-filters'),
+      fabStops: root.querySelector('#ugr-fab-stops'),
+      closeStops: root.querySelector('#ugr-close-stops'),
     };
     this.bind();
   }
@@ -96,7 +106,6 @@
     }
     if (this.els.user) {
       this.els.user.addEventListener('change', loadSoon);
-      // iOS أحياناً لا يطلق change إلا بعد blur
       this.els.user.addEventListener('input', loadSoon);
     }
     if (this.els.date) {
@@ -123,6 +132,45 @@
         }
       });
     }
+    if (this.els.fabFilters) {
+      this.els.fabFilters.addEventListener('click', function () {
+        self.setMapFocus(false);
+        self.setStopsSheet(false);
+      });
+    }
+    if (this.els.fabStops) {
+      this.els.fabStops.addEventListener('click', function () {
+        self.setStopsSheet(true);
+      });
+    }
+    if (this.els.closeStops) {
+      this.els.closeStops.addEventListener('click', function () {
+        self.setStopsSheet(false);
+      });
+    }
+  };
+
+  RouteView.prototype.setMapFocus = function (on) {
+    if (this.mode !== 'mobile') return;
+    this.mapFocus = !!on;
+    this.root.classList.toggle('ugr-mapfocus', this.mapFocus);
+    var page = document.getElementById('ugt-root');
+    if (page) page.classList.toggle('ugt-route-mapfocus', this.mapFocus);
+    if (this.els.fabs) {
+      if (this.mapFocus) this.els.fabs.removeAttribute('hidden');
+      else this.els.fabs.setAttribute('hidden', 'hidden');
+    }
+    if (this.els.closeStops) {
+      if (this.mapFocus) this.els.closeStops.removeAttribute('hidden');
+      else this.els.closeStops.setAttribute('hidden', 'hidden');
+    }
+    this.invalidate();
+  };
+
+  RouteView.prototype.setStopsSheet = function (open) {
+    if (this.mode !== 'mobile') return;
+    this.root.classList.toggle('ugr-stops-open', !!open);
+    this.invalidate();
   };
 
   RouteView.prototype.activate = function () {
@@ -140,19 +188,92 @@
 
   RouteView.prototype.buildMap = function () {
     if (this.map || !this.els.map) return;
+    var self = this;
     this.map = global.L.map(this.els.map, {
       zoomControl: true,
       attributionControl: true,
     }).setView([31.9539, 35.9106], 8);
-    global.L.tileLayer(this.tileUrl, { attribution: this.attribution, maxZoom: 19 }).addTo(this.map);
+
+    this._attachBaseLayer().then(function () {
+      self.invalidate();
+    });
+
     this.lineLayer = global.L.layerGroup().addTo(this.map);
     this.markerLayer = global.L.layerGroup().addTo(this.map);
     this.layer = this.markerLayer;
-    var self = this;
     setTimeout(function () {
       if (self.map) self.map.invalidateSize();
     }, 150);
   };
+
+  RouteView.prototype._attachBaseLayer = function () {
+    var self = this;
+    if (this.mapProvider === 'google' && this.googleKey) {
+      return ensureGoogleMutant(this.googleKey)
+        .then(function () {
+          if (global.L.gridLayer && global.L.gridLayer.googleMutant) {
+            global.L.gridLayer
+              .googleMutant({
+                type: 'roadmap',
+                maxZoom: 21,
+              })
+              .addTo(self.map);
+            return;
+          }
+          self._attachCartoLayer();
+        })
+        .catch(function () {
+          self._attachCartoLayer();
+        });
+    }
+    this._attachCartoLayer();
+    return Promise.resolve();
+  };
+
+  RouteView.prototype._attachCartoLayer = function () {
+    var url =
+      this.tileUrl && this.tileUrl.indexOf('{z}') >= 0
+        ? this.tileUrl
+        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    global.L.tileLayer(url, {
+      attribution: this.attribution,
+      maxZoom: 20,
+      subdomains: 'abcd',
+    }).addTo(this.map);
+  };
+
+  function ensureGoogleMutant(apiKey) {
+    if (global.L && global.L.gridLayer && global.L.gridLayer.googleMutant && global.google && global.google.maps) {
+      return Promise.resolve();
+    }
+    if (global.__ugrGooglePromise) return global.__ugrGooglePromise;
+
+    global.__ugrGooglePromise = new Promise(function (resolve, reject) {
+      function loadMutant() {
+        var s = document.createElement('script');
+        s.src = 'https://unpkg.com/leaflet.gridlayer.googlemutant@0.14.1/dist/Leaflet.GoogleMutant.js';
+        s.onload = function () {
+          resolve();
+        };
+        s.onerror = reject;
+        document.head.appendChild(s);
+      }
+      if (global.google && global.google.maps) {
+        loadMutant();
+        return;
+      }
+      var g = document.createElement('script');
+      g.src =
+        'https://maps.googleapis.com/maps/api/js?key=' +
+        encodeURIComponent(apiKey) +
+        '&v=weekly&loading=async';
+      g.async = true;
+      g.onload = loadMutant;
+      g.onerror = reject;
+      document.head.appendChild(g);
+    });
+    return global.__ugrGooglePromise;
+  }
 
   RouteView.prototype.invalidate = function () {
     var self = this;
@@ -252,6 +373,10 @@
         }
         // اعرض البيانات فوراً (مهم على iPhone) ثم حاول الالتصاق بالشارع بالخلفية.
         self.render(data);
+        if (self.mode === 'mobile' && Array.isArray(data.points) && data.points.length) {
+          self.setStopsSheet(false);
+          self.setMapFocus(true);
+        }
         self.invalidate();
         self.snapInBackground(data, seq);
       })
@@ -366,7 +491,7 @@
   };
 
   /**
-   * طريقة Google-like: خذ نقاط GPS كمحطات → احسب المسار على شبكة الطرق بينها.
+   * طريقة أقرب لـ Google: نظّف النتوءات → match على الشارع → وإلا توجيه بمحطات متباعدة.
    */
   RouteView.prototype.osrmSnapPoints = function (points) {
     var self = this;
@@ -379,37 +504,92 @@
       if (isNaN(lat) || isNaN(lng)) continue;
       if (prevLat !== null) {
         var d = self._haversine(prevLat, prevLng, lat, lng);
-        if (d < 20) continue;
+        if (d < 25) continue;
       }
       coords.push([lng, lat]);
       prevLat = lat;
       prevLng = lng;
     }
+    coords = self._despikeCoords(coords);
     if (coords.length < 2) {
       return Promise.resolve([]);
     }
 
-    // محطات كل ~60م — توازن بين الدقة وعدد طلبات OSRM
+    // محطات كل ~120م — يقلل التشعّب إلى الشوارع الجانبية
     var waypoints = [coords[0]];
     var last = coords[0];
     for (var j = 1; j < coords.length - 1; j++) {
-      if (self._haversine(last[1], last[0], coords[j][1], coords[j][0]) >= 60) {
+      if (self._haversine(last[1], last[0], coords[j][1], coords[j][0]) >= 120) {
         waypoints.push(coords[j]);
         last = coords[j];
       }
     }
     waypoints.push(coords[coords.length - 1]);
 
-    // 1) توجيه على الشارع (الأهم لشكل Google Maps)
-    return self.osrmRouteWaypoints(waypoints).then(function (path) {
-      if (path.length >= 2) return path;
-      // 2) مطابقة الأثر
-      return self.osrmMatch(waypoints).then(function (matched) {
-        if (matched.length >= 2) return matched;
-        // 3) أزواج متتالية — أبطأ لكن موثوق
-        return self.osrmRoutePairs(waypoints);
+    return self.osrmMatch(waypoints).then(function (matched) {
+      if (matched.length >= 2) return self._removePathSpurs(matched);
+      return self.osrmRouteWaypoints(waypoints).then(function (path) {
+        if (path.length >= 2) return self._removePathSpurs(path);
+        return self.osrmRoutePairs(waypoints).then(function (pairs) {
+          return self._removePathSpurs(pairs);
+        });
       });
     });
+  };
+
+  RouteView.prototype._despikeCoords = function (coords) {
+    if (coords.length < 3) return coords;
+    var out = [coords[0]];
+    for (var i = 1; i < coords.length - 1; i++) {
+      var prev = out[out.length - 1];
+      var cur = coords[i];
+      var next = coords[i + 1];
+      var dPrev = this._haversine(prev[1], prev[0], cur[1], cur[0]);
+      var dNext = this._haversine(cur[1], cur[0], next[1], next[0]);
+      var dDirect = this._haversine(prev[1], prev[0], next[1], next[0]);
+      if (dPrev > 25 && dNext > 25 && dDirect < Math.max(35, (dPrev + dNext) * 0.42)) {
+        continue;
+      }
+      if (dDirect > 5 && dPrev + dNext > dDirect * 2.2 && dDirect < 90) {
+        continue;
+      }
+      out.push(cur);
+    }
+    out.push(coords[coords.length - 1]);
+    return out;
+  };
+
+  RouteView.prototype._removePathSpurs = function (path) {
+    if (!path || path.length < 6) return path || [];
+    var keep = [];
+    for (var i = 0; i < path.length; i++) keep[i] = true;
+    for (var a = 0; a < path.length - 4; a++) {
+      if (!keep[a]) continue;
+      var maxB = Math.min(path.length - 1, a + 35);
+      for (var b = a + 3; b <= maxB; b++) {
+        var d = this._haversine(path[a].latitude, path[a].longitude, path[b].latitude, path[b].longitude);
+        if (d > 28) continue;
+        var pathLen = 0;
+        for (var k = a; k < b; k++) {
+          pathLen += this._haversine(
+            path[k].latitude,
+            path[k].longitude,
+            path[k + 1].latitude,
+            path[k + 1].longitude
+          );
+        }
+        if (pathLen >= 80 && pathLen > d * 3) {
+          for (var x = a + 1; x < b; x++) keep[x] = false;
+          a = b - 1;
+          break;
+        }
+      }
+    }
+    var out = [];
+    for (var p = 0; p < path.length; p++) {
+      if (keep[p]) out.push(path[p]);
+    }
+    return out.length >= 2 ? out : path;
   };
 
   /** توجيه زوجاً زوجاً ثم لصق الأشكال على الشارع. */
@@ -595,6 +775,10 @@
   };
 
   RouteView.prototype.renderEmpty = function (msg) {
+    if (this.mode === 'mobile') {
+      this.setMapFocus(false);
+      this.setStopsSheet(false);
+    }
     if (this.els.summary) this.els.summary.innerHTML = '';
     if (this.els.stops) {
       this.els.stops.innerHTML =
@@ -972,21 +1156,25 @@
             view.loadTrack();
           }
         });
-      } else if (global.UserGpsTracker && global.UserGpsTracker.map) {
-        setTimeout(function () {
-          try {
-            global.UserGpsTracker.map.invalidateSize({ animate: false });
-          } catch (e2) {
-            /* ignore */
-          }
-        }, 80);
-        setTimeout(function () {
-          try {
-            global.UserGpsTracker.map.invalidateSize({ animate: false });
-          } catch (e3) {
-            /* ignore */
-          }
-        }, 350);
+      } else {
+        if (view.setMapFocus) view.setMapFocus(false);
+        if (view.setStopsSheet) view.setStopsSheet(false);
+        if (global.UserGpsTracker && global.UserGpsTracker.map) {
+          setTimeout(function () {
+            try {
+              global.UserGpsTracker.map.invalidateSize({ animate: false });
+            } catch (e2) {
+              /* ignore */
+            }
+          }, 80);
+          setTimeout(function () {
+            try {
+              global.UserGpsTracker.map.invalidateSize({ animate: false });
+            } catch (e3) {
+              /* ignore */
+            }
+          }, 350);
+        }
       }
     }
 

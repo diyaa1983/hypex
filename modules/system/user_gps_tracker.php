@@ -35,6 +35,8 @@ $today = date('Y-m-d');
      data-api="<?= esc($apiUrl) ?>"
      data-tile-url="<?= esc($osm['tileUrl']) ?>"
      data-attribution="<?= esc($osm['attribution']) ?>"
+     data-map-provider="<?= esc($osm['mapProvider'] ?? 'carto') ?>"
+     data-google-key="<?= esc($osm['googleMapsKey'] ?? '') ?>"
      data-poll-sec="5"
      data-online-seconds="60"
      data-stale-seconds="60"
@@ -92,6 +94,8 @@ $today = date('Y-m-d');
              data-track-api="<?= esc($trackApiUrl) ?>"
              data-tile-url="<?= esc($osm['tileUrl']) ?>"
              data-attribution="<?= esc($osm['attribution']) ?>"
+             data-map-provider="<?= esc($osm['mapProvider'] ?? 'carto') ?>"
+             data-google-key="<?= esc($osm['googleMapsKey'] ?? '') ?>"
              data-today="<?= esc($today) ?>"
              data-mode="desktop">
             <div class="ugr-controls">

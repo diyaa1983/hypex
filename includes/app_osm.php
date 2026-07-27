@@ -22,7 +22,29 @@ function app_osm_tile_url(): string
         return trim((string) APP_OSM_TILE_URL);
     }
 
-    return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    // أوضح من بلاطات OSM الخام (قريبة من مظهر Google Maps).
+    return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+}
+
+function app_osm_google_maps_api_key(): string
+{
+    return defined('APP_GOOGLE_MAPS_API_KEY') ? trim((string) APP_GOOGLE_MAPS_API_KEY) : '';
+}
+
+/** @return array{tileUrl:string, attribution:string, googleMapsKey:string, mapProvider:string} */
+function app_osm_js_config(): array
+{
+    $googleKey = app_osm_google_maps_api_key();
+    $provider = $googleKey !== '' ? 'google' : 'carto';
+
+    return [
+        'tileUrl' => app_osm_tile_url(),
+        'attribution' => $provider === 'google'
+            ? '&copy; Google'
+            : '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        'googleMapsKey' => $googleKey,
+        'mapProvider' => $provider,
+    ];
 }
 
 function app_osm_nominatim_reverse_url(float $lat, float $lng): string
@@ -82,15 +104,6 @@ function app_osm_nominatim_fetch(float $lat, float $lng): ?array
     return is_array($data) ? $data : null;
 }
 
-/** @return array{tileUrl:string, attribution:string} */
-function app_osm_js_config(): array
-{
-    return [
-        'tileUrl' => app_osm_tile_url(),
-        'attribution' => '&copy; OpenStreetMap',
-    ];
-}
-
 /**
  * عنوان خادم OSRM لمطابقة المسار مع الشوارع.
  * يمكن تجاوزه عبر APP_OSRM_BASE_URL (مثال: https://router.project-osrm.org).
@@ -108,8 +121,9 @@ function app_osm_osrm_base_url(): string
  * يحوّل سلسلة نقاط GPS إلى مسار يلتصق بالشوارع (مثل Google Maps).
  *
  * الترتيب:
- * 1) مطابقة الأثر OSRM match
- * 2) إن فشلت: توجيه متتابع عبر نقاط GPS كمحطات (route) ليلتصق بالشارع
+ * 1) تنظيف النتوءات الجانبية (تشعّب وهمي)
+ * 2) مطابقة الأثر OSRM match (لا تُجبر المرور بكل نقطة جانبية)
+ * 3) إن فشلت: توجيه بمحطات متباعدة (~120م)
  *
  * @param list<array{latitude?:float|int|string, longitude?:float|int|string, lat?:float|int|string, lng?:float|int|string, lon?:float|int|string, ts?:int, captured_at?:string, gps_accuracy?:float|int|null}> $points
  * @return list<array{latitude:float, longitude:float}>
@@ -136,9 +150,9 @@ function app_osm_snap_route_to_roads(array $points): array
         if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
             continue;
         }
-        // تخفيف الكثافة قبل الإرسال لـ OSRM (~12م) مع الإبقاء على شكل الحركة.
+        // تخفيف الكثافة (~25م) يقلل التشعّب إلى الشوارع الجانبية.
         if ($prevLat !== null && $prevLng !== null) {
-            if (app_osm_haversine_meters($prevLat, $prevLng, $lat, $lng) < 12.0) {
+            if (app_osm_haversine_meters($prevLat, $prevLng, $lat, $lng) < 25.0) {
                 continue;
             }
         }
@@ -152,29 +166,163 @@ function app_osm_snap_route_to_roads(array $points): array
         $acc = isset($p['gps_accuracy']) && is_numeric($p['gps_accuracy'])
             ? (float) $p['gps_accuracy']
             : 40.0;
-        $accuracies[] = max(20.0, min(75.0, $acc > 0 ? $acc : 40.0));
+        $accuracies[] = max(25.0, min(80.0, $acc > 0 ? $acc : 40.0));
         $prevLat = $lat;
         $prevLng = $lng;
     }
 
+    $coords = app_osm_despike_lonlat($coords);
     $n = count($coords);
     if ($n < 2) {
         return [];
     }
 
-    // توجيه عبر المحطات أولاً — يلتصق بمركز الشارع مثل Google Maps.
-    // المطابقة (match) احتياطية إن فشل التوجيه.
-    $routed = app_osm_osrm_route_through_waypoints($coords);
-    if (count($routed) >= 2) {
-        return $routed;
-    }
+    // بعد حذف النتوءات نستخدم دقة موحّدة (الطوابع لم تعد متوافقة فهرسياً).
+    $timestamps = array_fill(0, $n, 0);
+    $accuracies = array_fill(0, $n, 55.0);
 
+    // 1) match أولاً — لا يمرّ إجباراً بكل نتوء جانبي (سبب التشعّب).
     $matched = app_osm_osrm_match_geometry($coords, $timestamps, $accuracies);
     if (count($matched) >= 2) {
-        return $matched;
+        return app_osm_remove_path_spurs($matched);
+    }
+
+    // 2) توجيه بمحطات متباعدة (~120م) لتقليل الدخول للشوارع الجانبية.
+    $routed = app_osm_osrm_route_through_waypoints($coords);
+    if (count($routed) >= 2) {
+        return app_osm_remove_path_spurs($routed);
     }
 
     return [];
+}
+
+/**
+ * حذف نتوءات GPS القصيرة (A→جانب→عودة) التي تسبب تفرّعات وهمية على الخريطة.
+ *
+ * @param list<array{0:float,1:float}> $lonLatPairs
+ * @return list<array{0:float,1:float}>
+ */
+function app_osm_despike_lonlat(array $lonLatPairs): array
+{
+    $n = count($lonLatPairs);
+    if ($n < 3) {
+        return $lonLatPairs;
+    }
+
+    $out = [$lonLatPairs[0]];
+    for ($i = 1; $i < $n - 1; $i++) {
+        $prev = $out[count($out) - 1];
+        $cur = $lonLatPairs[$i];
+        $next = $lonLatPairs[$i + 1];
+        $dPrev = app_osm_haversine_meters($prev[1], $prev[0], $cur[1], $cur[0]);
+        $dNext = app_osm_haversine_meters($cur[1], $cur[0], $next[1], $next[0]);
+        $dDirect = app_osm_haversine_meters($prev[1], $prev[0], $next[1], $next[0]);
+        // نتوء جانبي: ابتعاد ثم عودة أقرب من المسار المباشر.
+        if ($dPrev > 25 && $dNext > 25 && $dDirect < max(35.0, ($dPrev + $dNext) * 0.42)) {
+            continue;
+        }
+        // نتوء حاد جداً بالنسبة للمسافة المباشرة.
+        if ($dDirect > 5 && ($dPrev + $dNext) > $dDirect * 2.2 && $dDirect < 90) {
+            continue;
+        }
+        $out[] = $cur;
+    }
+    $out[] = $lonLatPairs[$n - 1];
+
+    // تمريرة ثانية لحذف الذهاب والعودة خلال 2–4 نقاط.
+    $n2 = count($out);
+    if ($n2 < 4) {
+        return $out;
+    }
+    $keep = array_fill(0, $n2, true);
+    for ($i = 0; $i < $n2 - 3; $i++) {
+        if (!$keep[$i]) {
+            continue;
+        }
+        for ($j = $i + 2; $j <= min($i + 5, $n2 - 1); $j++) {
+            $d = app_osm_haversine_meters($out[$i][1], $out[$i][0], $out[$j][1], $out[$j][0]);
+            if ($d > 40) {
+                continue;
+            }
+            $pathLen = 0.0;
+            for ($k = $i; $k < $j; $k++) {
+                $pathLen += app_osm_haversine_meters($out[$k][1], $out[$k][0], $out[$k + 1][1], $out[$k + 1][0]);
+            }
+            if ($pathLen > 70 && $pathLen > $d * 2.5) {
+                for ($k = $i + 1; $k < $j; $k++) {
+                    $keep[$k] = false;
+                }
+                break;
+            }
+        }
+    }
+    $filtered = [];
+    for ($i = 0; $i < $n2; $i++) {
+        if ($keep[$i]) {
+            $filtered[] = $out[$i];
+        }
+    }
+
+    return $filtered !== [] ? $filtered : $out;
+}
+
+/**
+ * إزالة تفرّعات قصيرة من مسار ملتصق بالشارع (خروج وعودة لنفس النقطة تقريباً).
+ *
+ * @param list<array{latitude:float, longitude:float}> $path
+ * @return list<array{latitude:float, longitude:float}>
+ */
+function app_osm_remove_path_spurs(array $path): array
+{
+    $n = count($path);
+    if ($n < 6) {
+        return $path;
+    }
+
+    $keep = array_fill(0, $n, true);
+    for ($i = 0; $i < $n - 4; $i++) {
+        if (!$keep[$i]) {
+            continue;
+        }
+        $maxJ = min($n - 1, $i + 35);
+        for ($j = $i + 3; $j <= $maxJ; $j++) {
+            $d = app_osm_haversine_meters(
+                (float) $path[$i]['latitude'],
+                (float) $path[$i]['longitude'],
+                (float) $path[$j]['latitude'],
+                (float) $path[$j]['longitude']
+            );
+            if ($d > 28) {
+                continue;
+            }
+            $pathLen = 0.0;
+            for ($k = $i; $k < $j; $k++) {
+                $pathLen += app_osm_haversine_meters(
+                    (float) $path[$k]['latitude'],
+                    (float) $path[$k]['longitude'],
+                    (float) $path[$k + 1]['latitude'],
+                    (float) $path[$k + 1]['longitude']
+                );
+            }
+            // تفرع وهمي: مسار طويل يعود لنقطة قريبة.
+            if ($pathLen >= 80 && $pathLen > $d * 3.0) {
+                for ($k = $i + 1; $k < $j; $k++) {
+                    $keep[$k] = false;
+                }
+                $i = $j - 1;
+                break;
+            }
+        }
+    }
+
+    $out = [];
+    for ($i = 0; $i < $n; $i++) {
+        if ($keep[$i]) {
+            $out[] = $path[$i];
+        }
+    }
+
+    return count($out) >= 2 ? $out : $path;
 }
 
 function app_osm_haversine_meters(float $lat1, float $lng1, float $lat2, float $lng2): float
@@ -202,12 +350,12 @@ function app_osm_osrm_route_through_waypoints(array $lonLatPairs): array
         return [];
     }
 
-    // محطات كل ~45م تقريباً حتى لا يزدحم الطلب وتبقى الدقة عالية.
+    // محطات كل ~120م — التباعد الأكبر يمنع التشعّب إلى الشوارع الجانبية.
     $waypoints = [$lonLatPairs[0]];
     $last = $lonLatPairs[0];
     for ($i = 1; $i < $n - 1; $i++) {
         $c = $lonLatPairs[$i];
-        if (app_osm_haversine_meters($last[1], $last[0], $c[1], $c[0]) >= 45.0) {
+        if (app_osm_haversine_meters($last[1], $last[0], $c[1], $c[0]) >= 120.0) {
             $waypoints[] = $c;
             $last = $c;
         }
@@ -224,7 +372,6 @@ function app_osm_osrm_route_through_waypoints(array $lonLatPairs): array
         }
         $part = app_osm_osrm_route_geometry($slice);
         if ($part === []) {
-            // إن فشل مقطع طويل جرّب أزواج متتالية.
             $part = [];
             for ($i = 1; $i < count($slice); $i++) {
                 $leg = app_osm_osrm_route_geometry([$slice[$i - 1], $slice[$i]]);

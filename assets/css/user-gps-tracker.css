@@ -1010,6 +1010,104 @@ body.m-page-gps-tracker .m-header-company {
   order: 1;
   flex: 1 1 auto;
   min-height: 220px;
+  position: relative;
+}
+
+/* بعد اختيار المندوب: الخريطة ملء الشاشة */
+.ugr-root--mobile.ugr-mapfocus .ugr-controls,
+.ugr-root--mobile.ugr-mapfocus .ugr-summary {
+  display: none !important;
+}
+
+.ugr-root--mobile.ugr-mapfocus .ugr-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.ugr-root--mobile.ugr-mapfocus .ugr-map-wrap {
+  position: absolute;
+  inset: 0;
+  flex: none;
+  min-height: 0;
+  height: 100%;
+  z-index: 1;
+}
+
+.ugr-root--mobile.ugr-mapfocus .ugr-sidebar {
+  display: none;
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: min(42dvh, 340px);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 28px rgba(11, 37, 69, 0.22);
+  background: #fff;
+}
+
+.ugr-root--mobile.ugr-mapfocus.ugr-stops-open .ugr-sidebar {
+  display: flex;
+  flex-direction: column;
+}
+
+.ugr-map-fabs {
+  position: absolute;
+  z-index: 6;
+  top: 10px;
+  inset-inline-start: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ugr-map-fabs[hidden] {
+  display: none !important;
+}
+
+.ugr-fab {
+  border: 0;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 999px;
+  min-height: 40px;
+  min-width: 40px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+  cursor: pointer;
+}
+
+.ugr-fab--primary {
+  background: #0b63ce;
+  color: #fff;
+}
+
+.ugt-page--mobile.ugt-route-mapfocus .ugt-toolbar,
+.ugt-page--mobile.ugt-route-mapfocus .ugt-modeswitch {
+  display: none !important;
+}
+
+.ugr-sidebar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ugr-sidebar__close {
+  border: 0;
+  background: #eef2f8;
+  color: #475569;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 @media (max-width: 900px) {
