@@ -669,7 +669,7 @@ function sys_user_location_track_day(
     require_once app_path('includes/app_osm.php');
     $presence = [];
     $roadPaths = [];
-    $minTravelMeters = 15.0;
+    $minTravelMeters = 8.0;
 
     foreach ($segments as $seg) {
         $segPoints = [];
@@ -677,6 +677,10 @@ function sys_user_location_track_day(
             $segPoints[] = $points[$idx];
         }
         $segCount = count($segPoints);
+        if ($segCount < 1) {
+            continue;
+        }
+
         $segMeters = 0.0;
         for ($i = 1; $i < $segCount; $i++) {
             $segMeters += sys_user_location_distance_meters(
@@ -687,10 +691,11 @@ function sys_user_location_track_day(
             );
         }
 
-        // نقطة واحدة أو مكث بلا انتقال يُذكر ⇒ تواجد بدون خط.
+        $p0 = $segPoints[0];
+        $p1 = $segPoints[$segCount - 1];
+
+        // نقطة واحدة أو مكث بلا انتقال يُذكر ⇒ علامة تواجد (مع الإبقاء على خط قصير إن وُجدت نقطتان+).
         if ($segCount < 2 || $segMeters < $minTravelMeters) {
-            $p0 = $segPoints[0];
-            $p1 = $segPoints[$segCount - 1];
             $presence[] = [
                 'latitude' => round((float) $p0['latitude'], 7),
                 'longitude' => round((float) $p0['longitude'], 7),
@@ -701,10 +706,13 @@ function sys_user_location_track_day(
                     ? ('تواجد ' . $p0['time'] . ' — ' . $p1['time'])
                     : ('تواجد ' . $p0['time']),
             ];
+        }
+
+        if ($segCount < 2) {
             continue;
         }
 
-        // الأساس: خط سير واضح من نقاط GPS الفعلية (يظهر دائماً).
+        // دائماً: خط سير من نقاط GPS الفعلية (يظهر حتى لو كان قصيراً).
         $gpsPath = [];
         foreach ($segPoints as $sp) {
             $gpsPath[] = [
@@ -713,13 +721,14 @@ function sys_user_location_track_day(
             ];
         }
 
-        // تحسين اختياري: لصق على الشوارع إن نجحت المطابقة.
         $path = [];
-        try {
-            $path = app_osm_snap_route_to_roads($segPoints);
-        } catch (Throwable $e) {
-            error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
-            $path = [];
+        if ($segMeters >= $minTravelMeters) {
+            try {
+                $path = app_osm_snap_route_to_roads($segPoints);
+            } catch (Throwable $e) {
+                error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
+                $path = [];
+            }
         }
         $roadPaths[] = count($path) >= 2 ? $path : $gpsPath;
     }

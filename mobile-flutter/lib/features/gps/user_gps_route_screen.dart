@@ -60,7 +60,10 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   List<_TrackPoint> _points = [];
   List<_Stop> _stops = [];
   List<List<LatLng>> _roadPaths = [];
+  List<List<LatLng>> _segmentPaths = [];
+  List<_Stop> _presence = [];
   bool _roadMatched = false;
+  String _userLabel = '';
   Map<String, dynamic> _summary = {};
   bool _trackLoading = false;
 
@@ -140,6 +143,24 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
           .whereType<Map>()
           .map((e) => _Stop(e.cast<String, dynamic>()))
           .toList();
+      final presence = (res['presence'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => _Stop(e.cast<String, dynamic>()))
+          .toList();
+      final segmentPaths = <List<LatLng>>[];
+      final rawSegs = res['segments'];
+      if (rawSegs is List) {
+        for (final seg in rawSegs) {
+          if (seg is! List || seg.length < 2) continue;
+          final pts = <LatLng>[];
+          for (final idx in seg) {
+            final i = (idx as num?)?.toInt();
+            if (i == null || i < 0 || i >= points.length) continue;
+            pts.add(points[i].point);
+          }
+          if (pts.length >= 2) segmentPaths.add(pts);
+        }
+      }
       final roadPaths = <List<LatLng>>[];
       final rawPaths = res['road_paths'];
       if (rawPaths is List) {
@@ -167,12 +188,18 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
         }
         if (road.length >= 2) roadPaths.add(road);
       }
+      if (roadPaths.isEmpty && segmentPaths.isEmpty && points.length >= 2) {
+        segmentPaths.add(points.map((p) => p.point).toList());
+      }
       final matched = res['road_matched'] == true && roadPaths.isNotEmpty;
       setState(() {
         _points = points;
         _stops = stops;
+        _presence = presence;
+        _segmentPaths = segmentPaths;
         _roadPaths = roadPaths;
         _roadMatched = matched;
+        _userLabel = (res['user_label'] ?? '').toString();
         _summary = (res['summary'] as Map?)?.cast<String, dynamic>() ?? {};
         _trackLoading = false;
       });
@@ -190,11 +217,13 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   void _fit() {
     final fitPts = <LatLng>[];
-    if (_roadMatched && _roadPaths.isNotEmpty) {
-      for (final path in _roadPaths) {
-        fitPts.addAll(path);
-      }
-    } else {
+    for (final path in _roadPaths) {
+      fitPts.addAll(path);
+    }
+    for (final path in _segmentPaths) {
+      fitPts.addAll(path);
+    }
+    if (fitPts.isEmpty) {
       fitPts.addAll(_points.map((p) => p.point));
     }
     if (fitPts.isEmpty) return;
@@ -245,6 +274,9 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
       ));
     }
 
+    for (final path in _segmentPaths) {
+      addPath(path);
+    }
     for (final path in _roadPaths) {
       addPath(path);
     }
@@ -463,35 +495,116 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   List<Marker> _buildMarkers() {
     final markers = <Marker>[];
+    final name = _userLabel;
 
-    // توقفات مرقّمة
     for (var i = 0; i < _stops.length; i++) {
       final s = _stops[i];
       markers.add(Marker(
         point: s.point,
-        width: 34,
-        height: 34,
-        child: _NumberPin(number: '${i + 1}', color: AppTheme.warn),
+        width: 130,
+        height: 46,
+        child: _LabelPin(
+          title: 'توقف ${i + 1}',
+          name: name,
+          color: AppTheme.warn,
+        ),
       ));
     }
 
-    // بداية / نهاية
+    for (final p in _presence) {
+      markers.add(Marker(
+        point: p.point,
+        width: 130,
+        height: 46,
+        child: _LabelPin(
+          title: 'توقف',
+          name: name,
+          color: const Color(0xFF7C3AED),
+        ),
+      ));
+    }
+
     if (_points.isNotEmpty) {
       markers.add(Marker(
         point: _points.first.point,
-        width: 34,
-        height: 34,
-        child: const _NumberPin(number: 'ب', color: AppTheme.success),
+        width: 130,
+        height: 46,
+        child: _LabelPin(
+          title: 'البداية',
+          name: name,
+          color: AppTheme.success,
+        ),
       ));
       markers.add(Marker(
         point: _points.last.point,
-        width: 34,
-        height: 34,
-        child: const _NumberPin(number: 'ن', color: Color(0xFFDC2626)),
+        width: 130,
+        height: 46,
+        child: _LabelPin(
+          title: 'النهاية',
+          name: name,
+          color: const Color(0xFFDC2626),
+        ),
       ));
     }
 
     return markers;
+  }
+}
+
+class _LabelPin extends StatelessWidget {
+  const _LabelPin({
+    required this.title,
+    required this.name,
+    required this.color,
+  });
+
+  final String title;
+  final String name;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          if (name.isNotEmpty)
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -502,29 +615,7 @@ class _NumberPin extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.4),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Text(
-        number,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
+    return _LabelPin(title: number, name: '', color: color);
   }
 }
 

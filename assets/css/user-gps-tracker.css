@@ -715,6 +715,45 @@
   font-size: 12px;
 }
 
+.ugr-pin--label {
+  width: auto;
+  min-width: 72px;
+  max-width: 140px;
+  height: auto;
+  min-height: 36px;
+  border-radius: 10px;
+  transform: none;
+  padding: 4px 8px;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.ugr-pin__inner {
+  transform: none;
+  color: #fff;
+  text-align: center;
+  line-height: 1.2;
+  width: 100%;
+}
+
+.ugr-pin__inner strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ugr-pin__name {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 124px;
+  margin-top: 1px;
+}
+
 .ugr-pin--start { background: #16a34a; }
 .ugr-pin--stop { background: #f59e0b; }
 .ugr-pin--end { background: #dc2626; }

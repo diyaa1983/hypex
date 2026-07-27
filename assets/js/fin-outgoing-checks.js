@@ -248,7 +248,7 @@
     title = title || 'شيك صادر';
     var css = printCssUrl ? '<link rel="stylesheet" href="' + printCssUrl + '">' : '';
     var pageSize =
-      '<style>@page{size:17.8cm 8.9cm;margin:0.35cm;}html,body{margin:0;padding:0;}</style>';
+      '<style>@page{size:17.8cm 8.9cm;margin:0;}html,body{margin:0;padding:0;}</style>';
     return (
       '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8">' +
       '<title>' +
