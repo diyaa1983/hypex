@@ -18,6 +18,7 @@ $decl = acc_report_tax_declaration($pdo, $dateFrom, $dateTo);
 $vat = $decl['vat'] ?? [];
 $lines = $decl['lines'] ?? [];
 $counts = $decl['counts'] ?? [];
+$taxByDate = $decl['tax_by_date'] ?? [];
 
 $reportTitle = 'الإقرار الضريبي';
 
@@ -127,7 +128,13 @@ $vatDetailUrl = app_url(
                     $section = (string) ($line['section'] ?? '');
                     if ($section !== $currentSection):
                         $currentSection = $section;
-                        $sectionTitle = $section === 'sales' ? 'أولاً: المبيعات (ضريبة المخرجات)' : 'ثانياً: المشتريات (ضريبة المدخلات)';
+                        if ($section === 'sales') {
+                            $sectionTitle = 'أولاً: المبيعات (ضريبة المخرجات)';
+                        } elseif ($section === 'purchases') {
+                            $sectionTitle = 'ثانياً: المشتريات (ضريبة المدخلات)';
+                        } else {
+                            $sectionTitle = 'ثالثاً: التسوية والتوريد للضريبة';
+                        }
                         ?>
                         <tr class="tax-decl-section-row">
                             <td colspan="3"><strong><?= esc($sectionTitle) ?></strong></td>
@@ -141,16 +148,18 @@ $vatDetailUrl = app_url(
                     } elseif ($isDeduction) {
                         $rowClass .= ' tax-decl-row--deduction';
                     }
-                    $base = (float) ($line['taxable_base'] ?? 0);
+                    $base = $line['taxable_base'] ?? null;
                     $tax = (float) ($line['tax_amount'] ?? 0);
                     ?>
                     <tr class="<?= esc($rowClass) ?>">
                         <td class="col-desc"><?= esc((string) ($line['label'] ?? '')) ?></td>
                         <td class="col-money">
-                            <?php if ($isDeduction && abs($base) > 0.000001): ?>
-                                <span class="tax-decl-deduction">(<?= esc(format_money(abs($base))) ?>)</span>
+                            <?php if ($base === null): ?>
+                                —
+                            <?php elseif ($isDeduction && abs((float) $base) > 0.000001): ?>
+                                <span class="tax-decl-deduction">(<?= esc(format_money(abs((float) $base))) ?>)</span>
                             <?php else: ?>
-                                <?= esc(format_money($base)) ?>
+                                <?= esc(format_money((float) $base)) ?>
                             <?php endif; ?>
                         </td>
                         <td class="col-money">
@@ -173,6 +182,87 @@ $vatDetailUrl = app_url(
             </table>
         </div>
 
+        <?php if (is_array($taxByDate) && $taxByDate !== []): ?>
+        <h3 class="tax-decl-bydate-title">تفصيل الضريبة حسب التاريخ</h3>
+        <div class="report-sales-table-wrap">
+            <table class="data-table report-sales-table tax-decl-bydate-table">
+                <thead>
+                <tr>
+                    <th class="col-date">التاريخ</th>
+                    <th class="col-money">ضريبة المبيعات</th>
+                    <th class="col-money">مردود بيع</th>
+                    <th class="col-money">ضريبة المشتريات</th>
+                    <th class="col-money">مردود شراء</th>
+                    <th class="col-money">التوريد للضريبة</th>
+                    <th class="col-money">صافي اليوم</th>
+                </tr>
+                </thead>
+                <tbody>
+                <?php
+                $sumSales = 0.0;
+                $sumSaleRet = 0.0;
+                $sumPur = 0.0;
+                $sumPurRet = 0.0;
+                $sumRemit = 0.0;
+                $sumDay = 0.0;
+                foreach ($taxByDate as $day):
+                    $dSales = (float) ($day['sales_tax'] ?? 0);
+                    $dSaleRet = (float) ($day['sale_return_tax'] ?? 0);
+                    $dPur = (float) ($day['purchase_tax'] ?? 0);
+                    $dPurRet = (float) ($day['purchase_return_tax'] ?? 0);
+                    $dRemit = (float) ($day['remittance'] ?? 0);
+                    $dNet = (float) ($day['day_net'] ?? 0);
+                    $sumSales += $dSales;
+                    $sumSaleRet += $dSaleRet;
+                    $sumPur += $dPur;
+                    $sumPurRet += $dPurRet;
+                    $sumRemit += $dRemit;
+                    $sumDay += $dNet;
+                    ?>
+                    <tr>
+                        <td class="col-date" dir="ltr"><?= esc(format_date_dmY((string) ($day['entry_date'] ?? ''))) ?></td>
+                        <td class="col-money"><?= esc(format_money($dSales)) ?></td>
+                        <td class="col-money">
+                            <?php if (abs($dSaleRet) > 0.000001): ?>
+                                <span class="tax-decl-deduction">(<?= esc(format_money(abs($dSaleRet))) ?>)</span>
+                            <?php else: ?>
+                                <?= esc(format_money(0)) ?>
+                            <?php endif; ?>
+                        </td>
+                        <td class="col-money"><?= esc(format_money($dPur)) ?></td>
+                        <td class="col-money">
+                            <?php if (abs($dPurRet) > 0.000001): ?>
+                                <span class="tax-decl-deduction">(<?= esc(format_money(abs($dPurRet))) ?>)</span>
+                            <?php else: ?>
+                                <?= esc(format_money(0)) ?>
+                            <?php endif; ?>
+                        </td>
+                        <td class="col-money">
+                            <?php if (abs($dRemit) > 0.000001): ?>
+                                <span class="tax-decl-deduction">(<?= esc(format_money(abs($dRemit))) ?>)</span>
+                            <?php else: ?>
+                                <?= esc(format_money(0)) ?>
+                            <?php endif; ?>
+                        </td>
+                        <td class="col-money"><strong><?= esc(format_money($dNet)) ?></strong></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                <tr class="tax-decl-row--subtotal">
+                    <td class="col-date"><strong>الإجمالي</strong></td>
+                    <td class="col-money"><strong><?= esc(format_money($sumSales)) ?></strong></td>
+                    <td class="col-money"><strong><span class="tax-decl-deduction">(<?= esc(format_money(abs($sumSaleRet))) ?>)</span></strong></td>
+                    <td class="col-money"><strong><?= esc(format_money($sumPur)) ?></strong></td>
+                    <td class="col-money"><strong><span class="tax-decl-deduction">(<?= esc(format_money(abs($sumPurRet))) ?>)</span></strong></td>
+                    <td class="col-money"><strong><span class="tax-decl-deduction">(<?= esc(format_money(abs($sumRemit))) ?>)</span></strong></td>
+                    <td class="col-money"><strong><?= esc(format_money($sumDay)) ?></strong></td>
+                </tr>
+                </tfoot>
+            </table>
+        </div>
+        <?php endif; ?>
+
         <div class="tax-decl-counts muted no-print">
             <span>فواتير بيع: <?= (int) ($counts['sale_invoices'] ?? 0) ?></span>
             <span>·</span>
@@ -181,10 +271,15 @@ $vatDetailUrl = app_url(
             <span>فواتير شراء: <?= (int) ($counts['purchase_invoices'] ?? 0) ?></span>
             <span>·</span>
             <span>مردود شراء: <?= (int) ($counts['purchase_returns'] ?? 0) ?></span>
+            <?php if ((float) ($decl['remittance_tax'] ?? 0) >= 0.01): ?>
+            <span>·</span>
+            <span>توريدات الضريبة: <?= esc(format_money((float) $decl['remittance_tax'])) ?></span>
+            <?php endif; ?>
         </div>
 
         <p class="muted tax-decl-footnote">
-            تُحسب الضريبة من القيود المرحّلة على حسابي الضريبة. القيم (بدون ضريبة) من المستندات المرحّلة في نفس الفترة.
+            تُحسب الضريبة حسب تاريخ القيود المرحّلة ضمن الفترة المحددة.
+            صافي المبيعات/المشتريات من الفواتير فقط، ويُخصم بند «التوريد للضريبة» (المدفوعات على حساب أمانات الضريبة) منفصلاً.
         </p>
 
         <?php endif; ?>

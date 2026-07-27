@@ -32,6 +32,7 @@ function acc_tax_decl_sum_tax(array $rows): float
 
 /**
  * بيانات الإقرار الضريبي للفترة (ضريبة المبيعات والمشتريات — الأردن).
+ * الضريبة تُحسب حسب تاريخ القيود/المستندات، ويُخصم التوريد للضريبة منفصلاً.
  *
  * @return array<string, mixed>
  */
@@ -52,6 +53,20 @@ function acc_report_tax_declaration(PDO $pdo, string $dateFrom, string $dateTo):
     $netSalesBase = round($salesBase - $salesReturnBase, 6);
     $netPurBase = round($purBase - $purReturnBase, 6);
 
+    $salesTax = (float) ($vat['sales_tax'] ?? 0);
+    $saleReturnTax = (float) ($vat['sale_return_tax'] ?? 0);
+    $purTax = (float) ($vat['purchase_tax'] ?? 0);
+    $purReturnTax = (float) ($vat['purchase_return_tax'] ?? 0);
+    // صافي المخرجات/المدخلات من الفواتير فقط (بدون خلط توريد الضريبة).
+    $outputNet = round($salesTax - $saleReturnTax, 6);
+    $inputNet = round($purTax - $purReturnTax, 6);
+    $invoiceNet = round($outputNet - $inputNet, 6);
+
+    $remittance = (float) ($vat['remittance_tax'] ?? $vat['gl_other_debit'] ?? 0);
+    $otherCredit = (float) ($vat['gl_other_credit'] ?? 0);
+    // بعد خصم التوريد للضريبة خلال الفترة.
+    $netAfterRemittance = round($invoiceNet - $remittance + $otherCredit, 6);
+
     $company = company_settings($pdo);
     $einv = einvoice_settings_get($pdo);
     $taxRate = (float) ($company['tax_rate_percent'] ?? 16.0);
@@ -65,53 +80,76 @@ function acc_report_tax_declaration(PDO $pdo, string $dateFrom, string $dateTo):
     $gstNo = trim((string) ($einv['gst_no'] ?? ''));
     $taxId = $vatNo !== '' ? $vatNo : $gstNo;
 
-    $netPayable = (float) ($vat['net_payable'] ?? 0);
-    $isPayable = $netPayable >= 0;
+    $isPayable = $netAfterRemittance >= 0;
 
     $lines = [
         [
             'section' => 'sales',
             'label' => 'المبيعات الخاضعة للضريبة',
             'taxable_base' => $salesBase,
-            'tax_amount' => (float) ($vat['sales_tax'] ?? 0),
+            'tax_amount' => $salesTax,
             'is_deduction' => false,
         ],
         [
             'section' => 'sales',
             'label' => 'مردودات المبيعات',
             'taxable_base' => $salesReturnBase,
-            'tax_amount' => (float) ($vat['sale_return_tax'] ?? 0),
+            'tax_amount' => $saleReturnTax,
             'is_deduction' => true,
         ],
         [
             'section' => 'sales',
             'label' => 'صافي المبيعات الخاضعة للضريبة',
             'taxable_base' => $netSalesBase,
-            'tax_amount' => (float) ($vat['output_net'] ?? 0),
+            'tax_amount' => $outputNet,
             'is_subtotal' => true,
         ],
         [
             'section' => 'purchases',
             'label' => 'المشتريات الخاضعة للضريبة',
             'taxable_base' => $purBase,
-            'tax_amount' => (float) ($vat['purchase_tax'] ?? 0),
+            'tax_amount' => $purTax,
             'is_deduction' => false,
         ],
         [
             'section' => 'purchases',
             'label' => 'مردودات المشتريات',
             'taxable_base' => $purReturnBase,
-            'tax_amount' => (float) ($vat['purchase_return_tax'] ?? 0),
+            'tax_amount' => $purReturnTax,
             'is_deduction' => true,
         ],
         [
             'section' => 'purchases',
             'label' => 'صافي المشتريات الخاضعة للضريبة',
             'taxable_base' => $netPurBase,
-            'tax_amount' => (float) ($vat['input_net'] ?? 0),
+            'tax_amount' => $inputNet,
             'is_subtotal' => true,
         ],
+        [
+            'section' => 'settlement',
+            'label' => 'صافي ضريبة الفترة (مخرجات − مدخلات)',
+            'taxable_base' => null,
+            'tax_amount' => $invoiceNet,
+            'is_subtotal' => true,
+        ],
+        [
+            'section' => 'settlement',
+            'label' => 'التوريد للضريبة خلال الفترة',
+            'taxable_base' => null,
+            'tax_amount' => $remittance,
+            'is_deduction' => true,
+        ],
     ];
+
+    if (abs($otherCredit) >= 0.000001) {
+        $lines[] = [
+            'section' => 'settlement',
+            'label' => 'تسويات دائنة على حساب الضريبة',
+            'taxable_base' => null,
+            'tax_amount' => $otherCredit,
+            'is_deduction' => false,
+        ];
+    }
 
     return [
         'date_from' => $dateFrom,
@@ -124,13 +162,16 @@ function acc_report_tax_declaration(PDO $pdo, string $dateFrom, string $dateTo):
         'tax_rate_percent' => $taxRate,
         'lines' => $lines,
         'vat' => $vat,
+        'tax_by_date' => $vat['tax_by_date'] ?? [],
         'counts' => [
             'sale_invoices' => count($saleInv),
             'sale_returns' => count($saleRet),
             'purchase_invoices' => count($purInv),
             'purchase_returns' => count($purRet),
         ],
-        'net_payable' => round($netPayable, 6),
+        'invoice_net_payable' => $invoiceNet,
+        'remittance_tax' => $remittance,
+        'net_payable' => $netAfterRemittance,
         'is_payable' => $isPayable,
         'net_label' => $isPayable ? 'صافي الضريبة المستحقة للدفع' : 'صافي الضريبة المستردة',
         'doc_net_payable' => (float) ($vat['doc_net_payable'] ?? 0),

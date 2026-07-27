@@ -1149,6 +1149,9 @@
         '.tax-decl-deduction{color:#b45309;}' +
         '.tax-decl-net-row td{font-weight:800;background:#dbeafe!important;}' +
         '.tax-decl-counts{margin-top:0.65rem;font-size:9pt;color:#64748b;}' +
+        '.tax-decl-bydate-title{margin:0.85rem 0 0.4rem;font-size:11pt;font-weight:800;}' +
+        '.tax-decl-bydate-table .col-date{text-align:center;white-space:nowrap;}' +
+        '.tax-decl-bydate-table{font-size:8.5pt;}' +
         '.report-acc-total td{font-weight:800;background:#e2e8f0!important;}'
       );
     }

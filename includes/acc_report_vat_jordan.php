@@ -38,26 +38,14 @@ function acc_report_vat_by_ref_type(PDO $pdo, int $accountId, string $dateFrom, 
     return $out;
 }
 
-/** صافي ضريبة مخرجات (مبيعات − مردود بيع) من الدفتر. */
+/** صافي ضريبة مخرجات (مبيعات − مردود بيع) من الدفتر — بدون توريد/قيود يدوية. */
 function acc_report_vat_output_net(PDO $pdo, int $accountId, string $dateFrom, string $dateTo): float
 {
     $byRef = acc_report_vat_by_ref_type($pdo, $accountId, $dateFrom, $dateTo);
     $sales = (float) ($byRef['sale_invoice']['credit'] ?? 0);
     $returns = (float) ($byRef['sale_return']['debit'] ?? 0);
-    $otherCr = 0.0;
-    $otherDr = 0.0;
-    foreach ($byRef as $ref => $sums) {
-        if ($ref === 'sale_invoice' || $ref === 'sale_return') {
-            continue;
-        }
-        if (in_array($ref, ['purchase_invoice', 'purchase_return'], true)) {
-            continue;
-        }
-        $otherCr += (float) ($sums['credit'] ?? 0);
-        $otherDr += (float) ($sums['debit'] ?? 0);
-    }
 
-    return round($sales - $returns + $otherCr - $otherDr, 6);
+    return round($sales - $returns, 6);
 }
 
 /** معرّفات حسابي ضريبة المبيعات والمشتريات من الربط. */
@@ -128,26 +116,114 @@ function acc_report_vat_tb_period_detail(
     ];
 }
 
-/** صافي ضريبة مدخلات (مشتريات − مردود شراء) من الدفتر. */
+/** صافي ضريبة مدخلات (مشتريات − مردود شراء) من الدفتر — بدون توريد/قيود يدوية. */
 function acc_report_vat_input_net(PDO $pdo, int $accountId, string $dateFrom, string $dateTo): float
 {
     $byRef = acc_report_vat_by_ref_type($pdo, $accountId, $dateFrom, $dateTo);
     $purchases = (float) ($byRef['purchase_invoice']['debit'] ?? 0);
     $returns = (float) ($byRef['purchase_return']['credit'] ?? 0);
-    $otherDr = 0.0;
-    $otherCr = 0.0;
-    foreach ($byRef as $ref => $sums) {
-        if ($ref === 'purchase_invoice' || $ref === 'purchase_return') {
-            continue;
-        }
-        if (in_array($ref, ['sale_invoice', 'sale_return'], true)) {
-            continue;
-        }
-        $otherDr += (float) ($sums['debit'] ?? 0);
-        $otherCr += (float) ($sums['credit'] ?? 0);
+
+    return round($purchases - $returns, 6);
+}
+
+/**
+ * تفصيل الضريبة حسب تاريخ القيد (entry_date) ضمن الفترة.
+ *
+ * @return list<array{
+ *   entry_date: string,
+ *   sales_tax: float,
+ *   sale_return_tax: float,
+ *   purchase_tax: float,
+ *   purchase_return_tax: float,
+ *   remittance: float,
+ *   other_credit: float,
+ *   day_net: float
+ * }>
+ */
+function acc_report_vat_tax_by_date(PDO $pdo, int $accountId, string $dateFrom, string $dateTo): array
+{
+    if ($accountId < 1 || !acc_journal_has_tables($pdo)) {
+        return [];
     }
 
-    return round($purchases - $returns + $otherDr - $otherCr, 6);
+    $st = $pdo->prepare(
+        'SELECT e.entry_date,
+                e.ref_type,
+                COALESCE(SUM(l.debit), 0) AS sum_debit,
+                COALESCE(SUM(l.credit), 0) AS sum_credit
+         FROM acc_journal_line l
+         INNER JOIN acc_journal_entry e ON e.id = l.journal_id
+         WHERE l.account_id = ?
+           AND e.status = \'posted\'
+           AND e.entry_date >= ?
+           AND e.entry_date <= ?
+         GROUP BY e.entry_date, e.ref_type
+         ORDER BY e.entry_date ASC'
+    );
+    $st->execute([$accountId, $dateFrom, $dateTo]);
+
+    /** @var array<string, array{entry_date:string,sales_tax:float,sale_return_tax:float,purchase_tax:float,purchase_return_tax:float,remittance:float,other_credit:float,day_net:float}> $byDate */
+    $byDate = [];
+    $invoiceRefs = array_flip(acc_report_vat_invoice_ref_types());
+
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+        $d = (string) ($row['entry_date'] ?? '');
+        if ($d === '') {
+            continue;
+        }
+        if (!isset($byDate[$d])) {
+            $byDate[$d] = [
+                'entry_date' => $d,
+                'sales_tax' => 0.0,
+                'sale_return_tax' => 0.0,
+                'purchase_tax' => 0.0,
+                'purchase_return_tax' => 0.0,
+                'remittance' => 0.0,
+                'other_credit' => 0.0,
+                'day_net' => 0.0,
+            ];
+        }
+        $ref = (string) ($row['ref_type'] ?? '');
+        $dr = (float) ($row['sum_debit'] ?? 0);
+        $cr = (float) ($row['sum_credit'] ?? 0);
+
+        if ($ref === 'sale_invoice') {
+            $byDate[$d]['sales_tax'] += $cr;
+        } elseif ($ref === 'sale_return') {
+            $byDate[$d]['sale_return_tax'] += $dr;
+        } elseif ($ref === 'purchase_invoice') {
+            $byDate[$d]['purchase_tax'] += $dr;
+        } elseif ($ref === 'purchase_return') {
+            $byDate[$d]['purchase_return_tax'] += $cr;
+        } elseif (!isset($invoiceRefs[$ref])) {
+            // مدين على أمانات الضريبة = توريد/دفع للضريبة خلال الفترة.
+            $byDate[$d]['remittance'] += $dr;
+            $byDate[$d]['other_credit'] += $cr;
+        }
+    }
+
+    $out = [];
+    foreach ($byDate as $day) {
+        $day['sales_tax'] = round($day['sales_tax'], 6);
+        $day['sale_return_tax'] = round($day['sale_return_tax'], 6);
+        $day['purchase_tax'] = round($day['purchase_tax'], 6);
+        $day['purchase_return_tax'] = round($day['purchase_return_tax'], 6);
+        $day['remittance'] = round($day['remittance'], 6);
+        $day['other_credit'] = round($day['other_credit'], 6);
+        // صافي اليوم: مخرجات − مدخلات − توريد (+ أي دائن غير فواتير)
+        $day['day_net'] = round(
+            $day['sales_tax']
+            - $day['sale_return_tax']
+            - $day['purchase_tax']
+            + $day['purchase_return_tax']
+            - $day['remittance']
+            + $day['other_credit'],
+            6
+        );
+        $out[] = $day;
+    }
+
+    return $out;
 }
 
 /** @return list<string> */
@@ -365,7 +441,8 @@ function acc_report_vat_jordan_summary(PDO $pdo, string $dateFrom, string $dateT
         $glPeriodCredit = (float) ($periodSums['sum_credit'] ?? 0);
         $glClosingBalance = round($glOpeningBalance + (float) ($periodSums['balance'] ?? 0), 6);
         $glPeriodNet = round($glPeriodCredit - $glPeriodDebit, 6);
-        $netPayable = $glPeriodNet;
+        // صافي الإقرار للفترة = صافي فواتير الضريبة − التوريد (مدفوعات غير فواتير).
+        $netPayable = round($glInvoiceNet + $glOtherNet, 6);
 
         if ($unifiedAccount) {
             $outName = $trustName;
@@ -374,6 +451,10 @@ function acc_report_vat_jordan_summary(PDO $pdo, string $dateFrom, string $dateT
             $inCode = $trustCode;
         }
     }
+
+    $taxByDate = $trustId > 0
+        ? acc_report_vat_tax_by_date($pdo, $trustId, $dateFrom, $dateTo)
+        : [];
 
     return [
         'output_account_id' => $outId,
@@ -411,5 +492,8 @@ function acc_report_vat_jordan_summary(PDO $pdo, string $dateFrom, string $dateT
         'doc_net_payable' => $docNetPayable,
         'gl_doc_gap' => $glGap,
         'returns_need_repost' => $returnsNeedRepost,
+        'tax_by_date' => $taxByDate,
+        'invoice_net_payable' => round($glInvoiceNet, 6),
+        'remittance_tax' => round($glOtherDebit, 6),
     ];
 }

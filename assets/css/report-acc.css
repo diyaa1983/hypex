@@ -792,6 +792,23 @@
   font-size: 0.82rem;
 }
 
+.report-tax-declaration-page .tax-decl-bydate-title {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.report-tax-declaration-page .tax-decl-bydate-table {
+  font-size: 0.9rem;
+}
+
+.report-tax-declaration-page .tax-decl-bydate-table .col-date {
+  white-space: nowrap;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .report-tax-declaration-page .tax-decl-gap-warn {
   background: #fff8e6;
   border: 1px solid #e8d48a;
