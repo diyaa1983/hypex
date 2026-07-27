@@ -499,6 +499,7 @@ return [
                         ['r' => 'sales_invoice_gps', 'label' => 'مواقع فواتير البيع', 'icon' => '📍'],
                         ['r' => 'user_gps_locations', 'label' => 'مواقع المستخدمين', 'icon' => '🗺'],
                         ['r' => 'user_gps_tracker', 'label' => 'تتبّع المواقع الحية', 'icon' => '📡'],
+                        ['r' => 'gps_tracking_settings', 'label' => 'إعدادات تتبّع الهاتف', 'icon' => '⚙'],
                     ],
                 ],
             ],

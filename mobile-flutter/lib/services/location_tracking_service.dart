@@ -152,6 +152,14 @@ class LocationTrackingService {
     }
   }
 
+  static Future<void> applyServerConfig({
+    required int intervalSec,
+    required int minDistanceM,
+  }) async {
+    await setInterval(intervalSec);
+    await setMinDistance(minDistanceM);
+  }
+
   static Future<void> setMinDistance(int meters) => FlutterForegroundTask
       .saveData(key: TrackKeys.minDistance, value: meters)
       .then((_) {});

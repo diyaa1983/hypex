@@ -74,14 +74,19 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
   }
 
   Future<void> _toggleTracking(bool on) async {
-    String? msg;
     final session = context.read<SessionController>();
+    if (!session.gpsConfig.userCanDisable && !on) {
+      showSnack(context, 'إيقاف التتبّع يتم من إعدادات النظام فقط.', error: true);
+      return;
+    }
+    String? msg;
     if (on) {
       msg = await LocationTrackingService.start();
       if (msg == null) {
         await LocationPresenceService.start(
           api: session.api,
           csrf: session.csrf,
+          intervalSec: session.gpsConfig.intervalSec,
         );
       }
     } else {

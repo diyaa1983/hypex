@@ -21,6 +21,7 @@ class LocationPresenceService {
   static String _csrf = '';
   static bool _busy = false;
   static bool _enabled = false;
+  static int _intervalSec = LocationTrackingService.defaultIntervalSec;
   static DateTime? lastOkAt;
   static String lastMessage = '';
   static void Function(String message)? onSessionConflict;
@@ -38,9 +39,11 @@ class LocationPresenceService {
   static Future<void> start({
     required ApiClient api,
     required String csrf,
+    int intervalSec = LocationTrackingService.defaultIntervalSec,
   }) async {
     bind(api, csrf: csrf);
     _enabled = true;
+    _intervalSec = intervalSec;
     await LocationTrackingService.setEnabledFlag(true);
     _armTimer();
     await pingNow();
@@ -57,8 +60,10 @@ class LocationPresenceService {
     required ApiClient api,
     required String csrf,
     required bool authenticated,
+    int intervalSec = LocationTrackingService.defaultIntervalSec,
   }) async {
     bind(api, csrf: csrf);
+    _intervalSec = intervalSec;
     final on = await LocationTrackingService.isEnabled;
     _enabled = on;
     if (!authenticated || !on) {
@@ -72,7 +77,8 @@ class LocationPresenceService {
 
   static void _armTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+    final sec = _intervalSec.clamp(10, 300);
+    _timer = Timer.periodic(Duration(seconds: sec), (_) {
       unawaited(pingNow());
     });
   }

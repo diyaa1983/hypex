@@ -20,23 +20,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const _intervals = <int, String>{
-    10: 'كل 10 ثوانٍ',
-    15: 'كل 15 ثانية',
-    30: 'كل 30 ثانية',
-    60: 'كل دقيقة',
-    120: 'كل دقيقتين',
-    300: 'كل 5 دقائق',
-  };
-
-  static const _distances = <int, String>{
-    0: 'دائماً (بدون شرط)',
-    15: 'بعد 15 متر',
-    30: 'بعد 30 متر',
-    50: 'بعد 50 متر',
-    100: 'بعد 100 متر',
-  };
-
   TrackingStatus? _status;
   bool _busy = false;
   Timer? _refresh;
@@ -76,10 +59,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (error != null) {
           showSnack(context, error, error: true);
         } else {
-          await LocationPresenceService.start(
-            api: session.api,
-            csrf: session.csrf,
-          );
+        await LocationPresenceService.start(
+          api: session.api,
+          csrf: session.csrf,
+          intervalSec: session.gpsConfig.intervalSec,
+        );
           if (!mounted) return;
           showSnack(context, 'تم تشغيل خدمة تتبّع الموقع.');
         }
@@ -95,85 +79,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _pickInterval() async {
-    final current = _status?.intervalSec ?? LocationTrackingService.defaultIntervalSec;
-    final picked = await _pickOption(
-      title: 'مدة الإرسال',
-      options: _intervals,
-      current: current,
-    );
-    if (picked == null) return;
-    await LocationTrackingService.setInterval(picked);
-    await _loadStatus();
-  }
-
-  Future<void> _pickDistance() async {
-    final current = _status?.minDistance ?? LocationTrackingService.defaultMinDistance;
-    final picked = await _pickOption(
-      title: 'أقل مسافة للإرسال',
-      options: _distances,
-      current: current,
-    );
-    if (picked == null) return;
-    await LocationTrackingService.setMinDistance(picked);
-    await _loadStatus();
-  }
-
-  Future<int?> _pickOption({
-    required String title,
-    required Map<int, String> options,
-    required int current,
-  }) {
-    return showModalBottomSheet<int>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.border,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            ...options.entries.map(
-              (e) => ListTile(
-                leading: Icon(
-                  e.key == current
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: e.key == current ? AppTheme.primary : AppTheme.textSoft,
-                  size: 20,
-                ),
-                title: Text(e.value),
-                onTap: () => Navigator.pop(ctx, e.key),
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = context.watch<SessionController>();
     final st = _status;
     final running = st?.running ?? false;
+    final gps = s.gpsConfig;
+    final canToggle = gps.userCanDisable;
 
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
@@ -231,61 +143,82 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  SwitchListTile(
-                    value: running,
-                    onChanged: _busy ? null : _toggle,
-                    secondary: MiniIcon(
-                      running
-                          ? Icons.location_on_rounded
-                          : Icons.location_off_rounded,
-                      color: running ? AppTheme.success : AppTheme.textSoft,
-                    ),
-                    title: const Text(
-                      'خدمة التتبّع في الخلفية',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                  if (canToggle)
+                    SwitchListTile(
+                      value: running,
+                      onChanged: _busy ? null : _toggle,
+                      secondary: MiniIcon(
+                        running
+                            ? Icons.location_on_rounded
+                            : Icons.location_off_rounded,
+                        color: running ? AppTheme.success : AppTheme.textSoft,
+                      ),
+                      title: const Text(
+                        'خدمة التتبّع في الخلفية',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(
+                        running
+                            ? 'تعمل الآن وتستمر بعد إغلاق التطبيق'
+                            : 'متوقفة — لن يُرسل موقعك',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSoft,
+                        ),
+                      ),
+                    )
+                  else
+                    ListTile(
+                      leading: MiniIcon(
+                        running
+                            ? Icons.location_on_rounded
+                            : Icons.location_off_rounded,
+                        color: running ? AppTheme.success : AppTheme.textSoft,
+                      ),
+                      title: const Text(
+                        'تتبّع الموقع',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(
+                        gps.autoEnable
+                            ? (running
+                                ? 'مفعّل تلقائياً من النظام — يعمل في الخلفية'
+                                : 'مفعّل من النظام — بانتظار الأذونات أو GPS')
+                            : 'يُدار من إعدادات النظام على السيرفر',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSoft,
+                        ),
+                      ),
+                      trailing: StatusPill(
+                        text: running ? 'نشِط' : 'متوقف',
+                        color: running ? AppTheme.success : AppTheme.textSoft,
+                        dense: true,
                       ),
                     ),
-                    subtitle: Text(
-                      running
-                          ? 'تعمل الآن وتستمر بعد إغلاق التطبيق'
-                          : 'متوقفة — لن يُرسل موقعك',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textSoft,
-                      ),
-                    ),
-                  ),
                   const Divider(height: 1),
                   ListTile(
-                    enabled: !_busy,
                     leading: const MiniIcon(
                       Icons.timer_outlined,
                       color: AppTheme.violet,
                     ),
                     title: const Text('مدة الإرسال'),
-                    subtitle: Text(
-                      _intervals[st?.intervalSec] ??
-                          LocationTrackingService.humanInterval(
-                            st?.intervalSec ??
-                                LocationTrackingService.defaultIntervalSec,
-                          ),
-                    ),
-                    trailing: const Icon(Icons.chevron_left_rounded),
-                    onTap: _pickInterval,
+                    subtitle: Text(gps.intervalLabel),
                   ),
                   const Divider(height: 1),
                   ListTile(
-                    enabled: !_busy,
                     leading: const MiniIcon(
                       Icons.social_distance_rounded,
                       color: AppTheme.teal,
                     ),
                     title: const Text('أقل مسافة للإرسال'),
-                    subtitle: Text(_distances[st?.minDistance] ?? 'بعد 30 متر'),
-                    trailing: const Icon(Icons.chevron_left_rounded),
-                    onTap: _pickDistance,
+                    subtitle: Text(gps.distanceLabel),
                   ),
                 ],
               ),

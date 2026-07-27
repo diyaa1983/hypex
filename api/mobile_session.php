@@ -7,6 +7,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/mobile_device_session.php');
+require_once app_path('includes/mobile_gps_settings.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -31,6 +32,7 @@ function mobile_session_payload(array $extra = []): array
             'name' => (string) ($user['full_name_ar'] ?? $user['username'] ?? ''),
         ];
         $base['permissions'] = load_user_mobile_permissions($uid);
+        $base['gps_tracking'] = mobile_gps_settings_for_app();
     } else {
         $base['user'] = null;
         $base['permissions'] = [];

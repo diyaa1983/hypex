@@ -159,6 +159,7 @@ $appBootMigrations = [
     'database/migrations/222_hr_dashboard.sql',
     'database/migrations/163_user_gps_tracker_screens.sql',
     'database/migrations/223_user_gps_track_history.sql',
+    'database/migrations/226_gps_mobile_settings.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

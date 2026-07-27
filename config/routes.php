@@ -381,6 +381,12 @@ return [
         'title' => 'إعدادات الفوترة الإلكترونية',
         'hide_screen_title' => true,
     ],
+    'gps_tracking_settings' => [
+        'file' => 'modules/settings/gps_tracking.php',
+        'permission' => 'settings',
+        'title' => 'إعدادات تتبّع موقع الهاتف',
+        'hide_screen_title' => true,
+    ],
     'report_audit_log' => [
         'file' => 'modules/reports/audit_log.php',
         'permission' => 'report_audit_log',

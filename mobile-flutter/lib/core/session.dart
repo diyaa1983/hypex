@@ -9,6 +9,7 @@ import '../services/location_tracking_service.dart';
 import 'api_client.dart';
 import 'config.dart';
 import 'device_identity.dart';
+import 'gps_tracking_config.dart';
 
 /// حالة الجلسة: عنوان السيرفر، الدخول، الصلاحيات، CSRF.
 class SessionController extends ChangeNotifier {
@@ -27,6 +28,7 @@ class SessionController extends ChangeNotifier {
   String csrf = '';
   Set<String> permissions = <String>{};
   String? lastError;
+  GpsTrackingConfig gpsConfig = GpsTrackingConfig.defaults;
 
   bool can(String code) => permissions.contains(code);
 
@@ -62,11 +64,7 @@ class SessionController extends ChangeNotifier {
     }
     LocationPresenceService.bind(api, csrf: csrf);
     if (authenticated) {
-      await LocationPresenceService.resumeIfNeeded(
-        api: api,
-        csrf: csrf,
-        authenticated: true,
-      );
+      await _syncGpsTracking();
     }
     booting = false;
     notifyListeners();
@@ -126,6 +124,9 @@ class SessionController extends ChangeNotifier {
       }
     }
     LocationPresenceService.setCsrf(csrf);
+    if (authenticated) {
+      await _syncGpsTracking();
+    }
   }
 
   Future<bool> login(
@@ -166,11 +167,7 @@ class SessionController extends ChangeNotifier {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_kRemember, true);
         }
-        await LocationPresenceService.resumeIfNeeded(
-          api: api,
-          csrf: csrf,
-          authenticated: true,
-        );
+        await _syncGpsTracking();
       }
       return authenticated;
     } on ApiException catch (e) {
@@ -222,12 +219,51 @@ class SessionController extends ChangeNotifier {
     permissions = <String>{};
     userName = null;
     userId = 0;
+    gpsConfig = GpsTrackingConfig.defaults;
     notifyListeners();
+  }
+
+  Future<void> _syncGpsTracking() async {
+    if (!authenticated || !gpsConfig.enabled) {
+      await LocationPresenceService.stop();
+      await LocationTrackingService.stop();
+      return;
+    }
+
+    await LocationTrackingService.applyServerConfig(
+      intervalSec: gpsConfig.intervalSec,
+      minDistanceM: gpsConfig.minDistanceM,
+    );
+
+    if (gpsConfig.autoEnable) {
+      final err = await LocationTrackingService.start();
+      if (err == null) {
+        await LocationPresenceService.start(
+          api: api,
+          csrf: csrf,
+          intervalSec: gpsConfig.intervalSec,
+        );
+      }
+      return;
+    }
+
+    await LocationPresenceService.resumeIfNeeded(
+      api: api,
+      csrf: csrf,
+      authenticated: true,
+      intervalSec: gpsConfig.intervalSec,
+    );
   }
 
   void _apply(Map<String, dynamic> res) {
     authenticated = res['authenticated'] == true;
     csrf = (res['csrf'] as String?) ?? csrf;
+    final rawGps = res['gps_tracking'];
+    if (rawGps is Map) {
+      gpsConfig = GpsTrackingConfig.fromJson(
+        rawGps.map((k, v) => MapEntry(k.toString(), v)),
+      );
+    }
     final user = res['user'];
     if (user is Map) {
       userId = (user['id'] as num?)?.toInt() ?? 0;

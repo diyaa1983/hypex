@@ -31,16 +31,6 @@ Future<void> main() async {
   };
   await session.boot();
 
-  // إعادة تشغيل التتبّع تلقائياً إن كان مفعّلاً من قبل.
-  if (session.authenticated) {
-    await LocationTrackingService.resumeIfEnabled();
-    await LocationPresenceService.resumeIfNeeded(
-      api: api,
-      csrf: session.csrf,
-      authenticated: true,
-    );
-  }
-
   runApp(
     MultiProvider(
       providers: [
