@@ -103,6 +103,8 @@
       cntTotal: root.querySelector('#ugt-cnt-total'),
       mobileSummary: root.querySelector('#ugt-mobile-summary'),
       sidebar: root.querySelector('#ugt-sidebar'),
+      drawerBackdrop: root.querySelector('#ugt-drawer-backdrop'),
+      closeList: root.querySelector('#ugt-close-list'),
       toggleList: root.querySelector('#ugt-toggle-list'),
       map: root.querySelector('#ugt-map'),
     };
@@ -150,6 +152,35 @@
     setTimeout(function () {
       if (self.map) self.map.invalidateSize();
     }, 120);
+    if (this.mode === 'mobile') {
+      global.addEventListener('resize', function () {
+        if (self.map) self.map.invalidateSize();
+      });
+      global.addEventListener('orientationchange', function () {
+        setTimeout(function () {
+          if (self.map) self.map.invalidateSize();
+        }, 250);
+      });
+    }
+  };
+
+  Tracker.prototype.setDrawerOpen = function (open) {
+    if (!this.els.sidebar) return;
+    if (open) {
+      this.els.sidebar.removeAttribute('hidden');
+      if (this.els.drawerBackdrop) {
+        this.els.drawerBackdrop.removeAttribute('hidden');
+      }
+    } else {
+      this.els.sidebar.setAttribute('hidden', 'hidden');
+      if (this.els.drawerBackdrop) {
+        this.els.drawerBackdrop.setAttribute('hidden', 'hidden');
+      }
+    }
+    var self = this;
+    setTimeout(function () {
+      if (self.map) self.map.invalidateSize();
+    }, 80);
   };
 
   Tracker.prototype.bind = function () {
@@ -175,15 +206,17 @@
     }
     if (this.els.toggleList && this.els.sidebar) {
       this.els.toggleList.addEventListener('click', function () {
-        var hidden = self.els.sidebar.hasAttribute('hidden');
-        if (hidden) {
-          self.els.sidebar.removeAttribute('hidden');
-        } else {
-          self.els.sidebar.setAttribute('hidden', 'hidden');
-        }
-        setTimeout(function () {
-          if (self.map) self.map.invalidateSize();
-        }, 50);
+        self.setDrawerOpen(self.els.sidebar.hasAttribute('hidden'));
+      });
+    }
+    if (this.els.closeList) {
+      this.els.closeList.addEventListener('click', function () {
+        self.setDrawerOpen(false);
+      });
+    }
+    if (this.els.drawerBackdrop) {
+      this.els.drawerBackdrop.addEventListener('click', function () {
+        self.setDrawerOpen(false);
       });
     }
   };
@@ -289,7 +322,7 @@
         ? '<div class="ugt-hint">' + esc(this.lastHint) + '</div>'
         : '';
       var extra = '';
-      if (this.lastPings && this.lastPings.length) {
+      if (this.mode !== 'mobile' && this.lastPings && this.lastPings.length) {
         extra = '<div class="ugt-lastpings"><strong>آخر المواقع في قاعدة البيانات:</strong><ul>';
         for (var j = 0; j < Math.min(5, this.lastPings.length); j++) {
           var p = this.lastPings[j];
@@ -304,8 +337,11 @@
       }
       list.innerHTML =
         '<div class="ugt-empty">لا يوجد متصل الآن.<br>فعّل تتبّع الموقع على هاتف المندوب (كل 10 ثوانٍ).</div>' +
-        hint +
+        (this.mode === 'mobile' ? '' : hint) +
         extra;
+      if (this.mode === 'mobile' && hint) {
+        this.setStatus(this.lastHint);
+      }
       return;
     }
     var html = '';
@@ -349,7 +385,7 @@
         var id = parseInt(btn.getAttribute('data-id') || '0', 10);
         self.focusUser(id, true);
         if (self.mode === 'mobile' && self.els.sidebar) {
-          self.els.sidebar.setAttribute('hidden', 'hidden');
+          self.setDrawerOpen(false);
         }
       });
     });

@@ -63,6 +63,8 @@ if ($activeRouteKey === 'm_receipt') {
     $pageBodyClass .= ' m-page-rep-custody-list m-page-list m-ora12-invoice-ui m-page-invoice-list';
 } elseif ($activeRouteKey === 'm_rep_stock') {
     $pageBodyClass .= ' m-page-rep-stock';
+} elseif ($activeRouteKey === 'm_user_gps_tracker') {
+    $pageBodyClass .= ' m-page-gps-tracker m-no-tabbar';
 }
 
 $showBottomDock = $activeRouteKey !== 'm_home';
@@ -149,6 +151,8 @@ $toolbarRoutesJsV = is_file(app_path('assets/mobile/mobile-toolbar-routes.js'))
     } elseif ($activeRoute === 'm_sales_returns') {
         $backUrl = mobile_url('r=m_sales_returns_list');
     } elseif ($activeRoute === 'm_sales_returns_list') {
+        $backUrl = mobile_url('r=m_home');
+    } elseif ($activeRoute === 'm_user_gps_tracker') {
         $backUrl = mobile_url('r=m_home');
     } elseif ($activeRoute !== 'm_home') {
         $backUrl = mobile_url('r=m_home');

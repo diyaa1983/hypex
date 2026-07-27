@@ -50,10 +50,14 @@ $today = date('Y-m-d');
         <button type="button" class="ugt-modeswitch__btn" id="ugt-mode-route">المسار اليومي</button>
     </div>
 
-    <div id="ugt-live-view">
+    <div id="ugt-live-view" class="ugt-live-view">
         <div class="ugt-body ugt-body--mobile">
+            <div class="ugt-drawer-backdrop" id="ugt-drawer-backdrop" hidden aria-hidden="true"></div>
             <aside class="ugt-sidebar ugt-sidebar--drawer" id="ugt-sidebar" hidden>
-                <div class="ugt-sidebar__head">المتصلون الآن</div>
+                <div class="ugt-sidebar__head">
+                    <span>المتصلون الآن</span>
+                    <button type="button" class="ugt-sidebar__close" id="ugt-close-list" aria-label="إغلاق القائمة">✕</button>
+                </div>
                 <input type="search" id="ugt-search" class="ugt-search" placeholder="بحث..." autocomplete="off">
                 <div class="ugt-sidebar__list" id="ugt-list">
                     <div class="ugt-empty">جاري التحميل...</div>
