@@ -3,11 +3,6 @@ declare(strict_types=1);
 
 /**
  * جلسة تطبيق الهاتف الأصلي (Flutter) — غلاف JSON فوق جلسة الكوكيز الحالية.
- * ليس نظام توكن؛ يعتمد كوكي جلسة PHP القياسي (PHPSESSID).
- *
- *   GET  ?action=me      → حالة الجلسة + الصلاحيات + CSRF
- *   POST action=login    → تسجيل الدخول (username, password)
- *   POST action=logout   → إنهاء الجلسة
  */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
@@ -44,15 +39,43 @@ function mobile_session_payload(array $extra = []): array
     return array_merge($base, $extra);
 }
 
+/** @param array{message:string} $block */
+function mobile_session_device_conflict_response(array $block, bool $endSession = true): void
+{
+    if ($endSession) {
+        logout();
+    }
+    http_response_code(409);
+    echo json_encode([
+        'ok' => false,
+        'error' => 'device_in_use',
+        'message' => $block['message'],
+    ], JSON_UNESCAPED_UNICODE);
+}
+
 $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $action = (string) ($_POST['action'] ?? $_GET['action'] ?? '');
 
 if ($method === 'GET' || $action === 'me') {
-    $extra = [];
     if (is_logged_in() && mobile_is_context()) {
+        $missing = mobile_device_session_require_id();
+        if ($missing !== null) {
+            logout();
+            echo json_encode([
+                'ok' => true,
+                'authenticated' => false,
+                'csrf' => csrf_token(),
+                'user' => null,
+                'permissions' => [],
+                'session_end_reason' => 'device_id_required',
+                'message' => $missing['message'],
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         $uid = (int) (current_user()['id'] ?? 0);
         $deviceId = mobile_device_session_id_from_request();
-        if ($uid > 0 && $deviceId !== '') {
+        if ($uid > 0) {
             $pdo = db();
             $block = mobile_device_session_blocking_conflict($pdo, $uid, $deviceId);
             if ($block !== null) {
@@ -72,7 +95,7 @@ if ($method === 'GET' || $action === 'me') {
             mobile_device_session_touch($pdo, $uid, $deviceId, $label !== '' ? $label : null);
         }
     }
-    echo json_encode(mobile_session_payload($extra), JSON_UNESCAPED_UNICODE);
+    echo json_encode(mobile_session_payload(), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -93,7 +116,17 @@ if ($action === 'logout') {
     exit;
 }
 
-// login (الافتراضي لأي POST)
+$missing = mobile_device_session_require_id();
+if ($missing !== null) {
+    http_response_code(400);
+    echo json_encode([
+        'ok' => false,
+        'error' => $missing['error'],
+        'message' => $missing['message'],
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $username = trim((string) ($_POST['username'] ?? ''));
 $password = (string) ($_POST['password'] ?? '');
 
@@ -122,21 +155,20 @@ if (!mobile_attempt_login($username, $password)) {
 
 $uid = (int) (current_user()['id'] ?? 0);
 $deviceId = mobile_device_session_id_from_request();
-if ($uid > 0 && $deviceId !== '') {
-    $pdo = db();
+$pdo = db();
+$deviceLabel = trim((string) ($_POST['device_label'] ?? ''));
+if ($uid < 1 || !mobile_device_session_claim(
+    $pdo,
+    $uid,
+    $deviceId,
+    $deviceLabel !== '' ? $deviceLabel : null
+)) {
     $block = mobile_device_session_blocking_conflict($pdo, $uid, $deviceId);
-    if ($block !== null) {
-        logout();
-        http_response_code(409);
-        echo json_encode([
-            'ok' => false,
-            'error' => 'device_in_use',
-            'message' => $block['message'],
-        ], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-    $deviceLabel = trim((string) ($_POST['device_label'] ?? ''));
-    mobile_device_session_touch($pdo, $uid, $deviceId, $deviceLabel !== '' ? $deviceLabel : null);
+    logout();
+    mobile_session_device_conflict_response(
+        $block ?? ['message' => 'هذا الحساب مستخدم حالياً على جهاز آخر.']
+    );
+    exit;
 }
 
 echo json_encode(mobile_session_payload(), JSON_UNESCAPED_UNICODE);

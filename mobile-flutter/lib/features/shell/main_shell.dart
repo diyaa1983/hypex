@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -23,8 +25,40 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
+  Timer? _sessionTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _sessionTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      _verifySession();
+    });
+  }
+
+  @override
+  void dispose() {
+    _sessionTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _verifySession();
+    }
+  }
+
+  Future<void> _verifySession() async {
+    final session = context.read<SessionController>();
+    if (!session.authenticated) return;
+    try {
+      await session.refreshMe();
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {

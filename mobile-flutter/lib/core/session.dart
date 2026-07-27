@@ -46,6 +46,12 @@ class SessionController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_kServer) ?? '';
     api.setBase(saved.isEmpty ? AppConfig.defaultServerBase : saved);
+    final device = await _deviceFields();
+    api.setDevice(device['device_id']!, label: device['device_label']!);
+    await LocationTrackingService.saveDeviceId(
+      device['device_id']!,
+      label: device['device_label']!,
+    );
     await _syncTrackingCredentials();
     if (saved.isNotEmpty) {
       try {
@@ -54,11 +60,6 @@ class SessionController extends ChangeNotifier {
         authenticated = false;
       }
     }
-    final device = await _deviceFields();
-    await LocationTrackingService.saveDeviceId(
-      device['device_id']!,
-      label: device['device_label']!,
-    );
     LocationPresenceService.bind(api, csrf: csrf);
     if (authenticated) {
       await LocationPresenceService.resumeIfNeeded(
@@ -118,10 +119,10 @@ class SessionController extends ChangeNotifier {
     _apply(res);
     if (wasAuth && !authenticated) {
       final reason = res['session_end_reason'] as String?;
-      if (reason == 'device_in_use') {
+      if (reason == 'device_in_use' || reason == 'device_id_required') {
         lastError = (res['message'] as String?) ??
             'تم إنهاء الجلسة — الحساب مستخدم على جهاز آخر.';
-        await _clearLocalSession();
+        await _clearLocalSession(stopServices: true);
       }
     }
     LocationPresenceService.setCsrf(csrf);
@@ -137,6 +138,7 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
     try {
       final device = await _deviceFields();
+      api.setDevice(device['device_id']!, label: device['device_label']!);
       final res = await api.postForm(
         AppConfig.sessionPath,
         fields: {
@@ -186,24 +188,31 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    try {
-      await LocationPresenceService.stop();
-      await LocationTrackingService.stop();
-      await LocationTrackingService.clearCredentials();
-    } catch (_) {}
-    try {
-      await api.postForm(AppConfig.sessionPath, fields: {'action': 'logout'});
-    } catch (_) {}
-    await _clearLocalSession();
+    await _clearLocalSession(stopServices: true, callServer: true);
   }
 
   /// إنهاء الجلسة محلياً بعد رفض السيرفر (جهاز آخر نشط).
   Future<void> handleDeviceConflict(String message) async {
     lastError = message;
-    await _clearLocalSession();
+    await _clearLocalSession(stopServices: true, callServer: false);
   }
 
-  Future<void> _clearLocalSession() async {
+  Future<void> _clearLocalSession({
+    bool stopServices = false,
+    bool callServer = false,
+  }) async {
+    if (stopServices) {
+      try {
+        await LocationPresenceService.stop();
+        await LocationTrackingService.stop();
+        await LocationTrackingService.clearCredentials();
+      } catch (_) {}
+    }
+    if (callServer) {
+      try {
+        await api.postForm(AppConfig.sessionPath, fields: {'action': 'logout'});
+      } catch (_) {}
+    }
     await api.clearCookies();
     await _secure.delete(key: 'u');
     await _secure.delete(key: 'p');

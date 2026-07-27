@@ -541,12 +541,22 @@ class _TrackingTaskHandler extends TaskHandler {
           headers: {'X-CSRF-Token': _csrf},
         ),
       );
-      if (res.statusCode == 401 || res.statusCode == 403) {
+      final map = _asMap(res.data);
+      if (res.statusCode == 401 || res.statusCode == 403 || res.statusCode == 409) {
         _authenticated = false;
+        if (res.statusCode == 409) {
+          await _setStatus(
+            (map['message'] ?? 'الحساب مستخدم على جهاز آخر.').toString(),
+          );
+        }
         return false;
       }
-      final map = _asMap(res.data);
       if (map['ok'] == true) return true;
+      if (map['error'] == 'device_in_use') {
+        _authenticated = false;
+        await _setStatus((map['message'] ?? 'الحساب مستخدم على جهاز آخر.').toString());
+        return false;
+      }
       if (map['error'] == 'csrf' || map['error'] == 'unauthorized') {
         _authenticated = false;
         return false;

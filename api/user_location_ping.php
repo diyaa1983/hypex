@@ -44,6 +44,17 @@ if (
     exit;
 }
 
+$missing = mobile_device_session_require_id();
+if ($missing !== null) {
+    http_response_code(400);
+    echo json_encode([
+        'ok' => false,
+        'error' => $missing['error'],
+        'message' => $missing['message'],
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $lat = (float) $_POST['latitude'];
 $lng = (float) $_POST['longitude'];
 $accuracy = isset($_POST['gps_accuracy']) && is_numeric($_POST['gps_accuracy'])
@@ -56,17 +67,15 @@ $source = sal_invoice_gps_normalize_source(
 try {
     $pdo = db();
     $deviceId = mobile_device_session_id_from_request();
-    if ($deviceId !== '') {
-        $block = mobile_device_session_blocking_conflict($pdo, $userId, $deviceId);
-        if ($block !== null) {
-            http_response_code(409);
-            echo json_encode([
-                'ok' => false,
-                'error' => 'device_in_use',
-                'message' => $block['message'],
-            ], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
+    $block = mobile_device_session_blocking_conflict($pdo, $userId, $deviceId);
+    if ($block !== null) {
+        http_response_code(409);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'device_in_use',
+            'message' => $block['message'],
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 
     $result = sys_user_location_save_ping($pdo, $userId, (float) $lat, (float) $lng, $accuracy, $source);

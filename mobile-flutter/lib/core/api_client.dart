@@ -28,6 +28,8 @@ class ApiClient {
   final Dio _dio;
   final PersistCookieJar _cookieJar;
   String _base = '';
+  String _deviceId = '';
+  String _deviceLabel = 'هاتف';
 
   static Future<ApiClient> create() async {
     final dir = await getApplicationSupportDirectory();
@@ -47,6 +49,32 @@ class ApiClient {
     );
     dio.interceptors.add(CookieManager(jar));
     return ApiClient._(dio, jar);
+  }
+
+  void setDevice(String id, {String label = 'هاتف'}) {
+    _deviceId = id.trim();
+    _deviceLabel = label.trim().isEmpty ? 'هاتف' : label.trim();
+  }
+
+  Map<String, String> _deviceQuery() {
+    if (_deviceId.isEmpty) return const {};
+    return {'device_id': _deviceId, 'device_label': _deviceLabel};
+  }
+
+  Map<String, dynamic> _mergeDeviceFields(Map<String, dynamic>? fields) {
+    final merged = <String, dynamic>{..._deviceQuery(), ...?fields};
+    return merged;
+  }
+
+  Map<String, dynamic> _mergeDeviceQuery(Map<String, dynamic>? query) {
+    return {..._deviceQuery(), ...?query};
+  }
+
+  Map<String, String> _deviceHeaders({String? csrf}) {
+    return {
+      if (_deviceId.isNotEmpty) 'X-Device-Id': _deviceId,
+      if (csrf != null && csrf.isNotEmpty) 'X-CSRF-Token': csrf,
+    };
   }
 
   /// ضبط عنوان السيرفر (يُطبَّع بإزالة السلاش الأخير و/m أو login).
@@ -72,7 +100,13 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? query,
   }) async {
-    return _handle(() => _dio.get(url(path), queryParameters: query));
+    return _handle(
+      () => _dio.get(
+        url(path),
+        queryParameters: _mergeDeviceQuery(query),
+        options: Options(headers: _deviceHeaders()),
+      ),
+    );
   }
 
   /// تنزيل ملف ثنائي مع كوكيز الجلسة (مثل PDF الفاتورة).
@@ -151,7 +185,7 @@ class ApiClient {
     Map<String, dynamic>? fields,
     String? csrf,
   }) async {
-    final data = <String, dynamic>{...?fields};
+    final data = _mergeDeviceFields(fields);
     if (csrf != null && csrf.isNotEmpty) {
       data['_csrf'] = csrf;
     }
@@ -161,9 +195,7 @@ class ApiClient {
         data: data,
         options: Options(
           contentType: Headers.formUrlEncodedContentType,
-          headers: {
-            if (csrf != null && csrf.isNotEmpty) 'X-CSRF-Token': csrf,
-          },
+          headers: _deviceHeaders(csrf: csrf),
         ),
       ),
     );
