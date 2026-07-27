@@ -496,6 +496,88 @@ function sys_user_location_duration_label(int $seconds): string
     return $m > 0 ? ($h . ' س ' . $m . ' د') : ($h . ' س');
 }
 
+/**
+ * إزالة النقاط المتكررة/القريبة جداً من مسار الخريطة.
+ *
+ * @param list<array{latitude:float|int, longitude:float|int}> $path
+ * @return list<array{latitude:float, longitude:float}>
+ */
+function sys_user_location_track_dedupe_path(array $path, float $minMeters = 2.0): array
+{
+    $out = [];
+    $prevLat = null;
+    $prevLng = null;
+    foreach ($path as $pt) {
+        if (!is_array($pt)) {
+            continue;
+        }
+        $lat = (float) ($pt['latitude'] ?? 0);
+        $lng = (float) ($pt['longitude'] ?? 0);
+        if (!sal_invoice_gps_coords_valid($lat, $lng)) {
+            continue;
+        }
+        if (
+            $prevLat !== null
+            && sys_user_location_distance_meters($prevLat, $prevLng, $lat, $lng) < $minMeters
+        ) {
+            continue;
+        }
+        $out[] = ['latitude' => $lat, 'longitude' => $lng];
+        $prevLat = $lat;
+        $prevLng = $lng;
+    }
+
+    return $out;
+}
+
+/**
+ * خطوط جاهزة للرسم على الخريطة (مقطع أو أكثر).
+ *
+ * @param list<list<array{latitude:float, longitude:float}>> $roadPaths
+ * @param list<list<int>> $segments
+ * @param list<array<string,mixed>> $points
+ * @return list<list<array{latitude:float, longitude:float}>>
+ */
+function sys_user_location_track_lines(array $roadPaths, array $segments, array $points): array
+{
+    $lines = [];
+    foreach ($roadPaths as $path) {
+        if (!is_array($path)) {
+            continue;
+        }
+        $deduped = sys_user_location_track_dedupe_path($path);
+        if (count($deduped) >= 2) {
+            $lines[] = $deduped;
+        }
+    }
+    if ($lines !== []) {
+        return $lines;
+    }
+
+    foreach ($segments as $seg) {
+        if (!is_array($seg) || count($seg) < 2) {
+            continue;
+        }
+        $line = [];
+        foreach ($seg as $idx) {
+            $i = (int) $idx;
+            if (!isset($points[$i])) {
+                continue;
+            }
+            $line[] = [
+                'latitude' => (float) ($points[$i]['latitude'] ?? 0),
+                'longitude' => (float) ($points[$i]['longitude'] ?? 0),
+            ];
+        }
+        $deduped = sys_user_location_track_dedupe_path($line);
+        if (count($deduped) >= 2) {
+            $lines[] = $deduped;
+        }
+    }
+
+    return $lines;
+}
+
 function sys_user_location_track_day(
     PDO $pdo,
     int $userId,
@@ -525,6 +607,7 @@ function sys_user_location_track_day(
         'road_path' => [],
         'road_paths' => [],
         'road_matched' => false,
+        'track_lines' => [],
         'presence' => [],
     ];
 
@@ -598,8 +681,8 @@ function sys_user_location_track_day(
         );
 
         // قفزة مستحيلة السرعة، أو صمت طويل مع انتقال واضح (فتح من مكان آخر).
-        $impossibleSpeed = $gap > 0 && ($d / $gap) > $maxSpeedMps && $d > 120;
-        $remoteReopen = $gap > $gapBreakSec && $d > 120;
+        $impossibleSpeed = $gap > 0 && ($d / $gap) > $maxSpeedMps && $d > 350;
+        $remoteReopen = $gap > $gapBreakSec && $d > 250;
 
         if ($impossibleSpeed || $remoteReopen) {
             if ($current !== []) {
@@ -669,7 +752,7 @@ function sys_user_location_track_day(
     require_once app_path('includes/app_osm.php');
     $presence = [];
     $roadPaths = [];
-    $minTravelMeters = 8.0;
+    $minTravelMeters = 3.0;
 
     foreach ($segments as $seg) {
         $segPoints = [];
@@ -735,6 +818,7 @@ function sys_user_location_track_day(
 
     $roadMatched = $roadPaths !== [];
     $roadPathFlat = $roadMatched ? $roadPaths[0] : [];
+    $trackLines = sys_user_location_track_lines($roadPaths, $segments, $points);
     $km = $totalMeters / 1000.0;
     $activeSec = $points[$n - 1]['ts'] - $points[0]['ts'];
 
@@ -746,6 +830,7 @@ function sys_user_location_track_day(
         'road_path' => $roadPathFlat,
         'road_paths' => $roadPaths,
         'road_matched' => $roadMatched,
+        'track_lines' => $trackLines,
         'summary' => [
             'points_count' => $n,
             'distance_km' => round($km, 2),
@@ -757,7 +842,7 @@ function sys_user_location_track_day(
             'active_label' => sys_user_location_duration_label($activeSec),
             'stops_count' => count($stops),
             'road_matched' => $roadMatched,
-            'travel_segments' => count($roadPaths),
+            'travel_segments' => count($trackLines),
             'presence_count' => count($presence),
         ],
     ];

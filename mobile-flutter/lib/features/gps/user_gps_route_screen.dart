@@ -147,57 +147,34 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
           .whereType<Map>()
           .map((e) => _Stop(e.cast<String, dynamic>()))
           .toList();
+      final trackLines = _parseTrackLines(res['track_lines'], res['road_paths'], res['road_path']);
       final segmentPaths = <List<LatLng>>[];
-      final rawSegs = res['segments'];
-      if (rawSegs is List) {
-        for (final seg in rawSegs) {
-          if (seg is! List || seg.length < 2) continue;
-          final pts = <LatLng>[];
-          for (final idx in seg) {
-            final i = (idx as num?)?.toInt();
-            if (i == null || i < 0 || i >= points.length) continue;
-            pts.add(points[i].point);
+      if (trackLines.isEmpty) {
+        final rawSegs = res['segments'];
+        if (rawSegs is List) {
+          for (final seg in rawSegs) {
+            if (seg is! List || seg.length < 2) continue;
+            final pts = <LatLng>[];
+            for (final idx in seg) {
+              final i = (idx as num?)?.toInt();
+              if (i == null || i < 0 || i >= points.length) continue;
+              pts.add(points[i].point);
+            }
+            if (pts.length >= 2) segmentPaths.add(pts);
           }
-          if (pts.length >= 2) segmentPaths.add(pts);
         }
       }
-      final roadPaths = <List<LatLng>>[];
-      final rawPaths = res['road_paths'];
-      if (rawPaths is List) {
-        for (final path in rawPaths) {
-          if (path is! List) continue;
-          final pts = <LatLng>[];
-          for (final p in path) {
-            if (p is! Map) continue;
-            final lat = (p['latitude'] as num?)?.toDouble();
-            final lng = (p['longitude'] as num?)?.toDouble();
-            if (lat == null || lng == null) continue;
-            pts.add(LatLng(lat, lng));
-          }
-          if (pts.length >= 2) roadPaths.add(pts);
-        }
-      }
-      if (roadPaths.isEmpty) {
-        final road = <LatLng>[];
-        for (final p in (res['road_path'] as List? ?? [])) {
-          if (p is! Map) continue;
-          final lat = (p['latitude'] as num?)?.toDouble();
-          final lng = (p['longitude'] as num?)?.toDouble();
-          if (lat == null || lng == null) continue;
-          road.add(LatLng(lat, lng));
-        }
-        if (road.length >= 2) roadPaths.add(road);
-      }
-      if (roadPaths.isEmpty && segmentPaths.isEmpty && points.length >= 2) {
+      if (trackLines.isEmpty && segmentPaths.isEmpty && points.length >= 2) {
         segmentPaths.add(points.map((p) => p.point).toList());
       }
-      final matched = res['road_matched'] == true && roadPaths.isNotEmpty;
+      final matched = (res['road_matched'] == true && trackLines.isNotEmpty) ||
+          trackLines.isNotEmpty;
       setState(() {
         _points = points;
         _stops = stops;
         _presence = presence;
         _segmentPaths = segmentPaths;
-        _roadPaths = roadPaths;
+        _roadPaths = trackLines.isNotEmpty ? trackLines : segmentPaths;
         _roadMatched = matched;
         _userLabel = (res['user_label'] ?? '').toString();
         _summary = (res['summary'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -220,9 +197,6 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     for (final path in _roadPaths) {
       fitPts.addAll(path);
     }
-    for (final path in _segmentPaths) {
-      fitPts.addAll(path);
-    }
     if (fitPts.isEmpty) {
       fitPts.addAll(_points.map((p) => p.point));
     }
@@ -235,6 +209,34 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     _map.fitCamera(
       CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
     );
+  }
+
+  List<List<LatLng>> _parseTrackLines(
+    Object? rawTrackLines,
+    Object? rawRoadPaths,
+    Object? rawRoadPath,
+  ) {
+    final lines = <List<LatLng>>[];
+    void addPathList(Object? source) {
+      if (source is! List) return;
+      for (final path in source) {
+        if (path is! List) continue;
+        final pts = <LatLng>[];
+        for (final p in path) {
+          if (p is! Map) continue;
+          final lat = (p['latitude'] as num?)?.toDouble();
+          final lng = (p['longitude'] as num?)?.toDouble();
+          if (lat == null || lng == null) continue;
+          pts.add(LatLng(lat, lng));
+        }
+        if (pts.length >= 2) lines.add(pts);
+      }
+    }
+
+    addPathList(rawTrackLines);
+    if (lines.isEmpty) addPathList(rawRoadPaths);
+    if (lines.isEmpty) addPathList(rawRoadPath);
+    return lines;
   }
 
   Future<void> _pickDate() async {
@@ -264,19 +266,16 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
       if (path.length < 2) return;
       lines.add(Polyline(
         points: path,
-        strokeWidth: 12,
-        color: const Color(0xFF93C5FD).withValues(alpha: 0.55),
+        strokeWidth: 14,
+        color: const Color(0xFF93C5FD).withValues(alpha: 0.5),
       ));
       lines.add(Polyline(
         points: path,
-        strokeWidth: 6,
+        strokeWidth: 7,
         color: const Color(0xFF1D4ED8),
       ));
     }
 
-    for (final path in _segmentPaths) {
-      addPath(path);
-    }
     for (final path in _roadPaths) {
       addPath(path);
     }
@@ -495,55 +494,42 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   List<Marker> _buildMarkers() {
     final markers = <Marker>[];
-    final name = _userLabel;
 
     for (var i = 0; i < _stops.length; i++) {
       final s = _stops[i];
       markers.add(Marker(
         point: s.point,
-        width: 130,
-        height: 46,
-        child: _LabelPin(
-          title: 'توقف ${i + 1}',
-          name: name,
-          color: AppTheme.warn,
-        ),
+        width: 28,
+        height: 28,
+        alignment: Alignment.topCenter,
+        child: _GpsPin(label: '${i + 1}', color: AppTheme.warn),
       ));
     }
 
     for (final p in _presence) {
       markers.add(Marker(
         point: p.point,
-        width: 130,
-        height: 46,
-        child: _LabelPin(
-          title: 'توقف',
-          name: name,
-          color: const Color(0xFF7C3AED),
-        ),
+        width: 28,
+        height: 28,
+        alignment: Alignment.topCenter,
+        child: const _GpsPin(label: '•', color: Color(0xFF7C3AED)),
       ));
     }
 
     if (_points.isNotEmpty) {
       markers.add(Marker(
         point: _points.first.point,
-        width: 130,
-        height: 46,
-        child: _LabelPin(
-          title: 'البداية',
-          name: name,
-          color: AppTheme.success,
-        ),
+        width: 28,
+        height: 28,
+        alignment: Alignment.topCenter,
+        child: const _GpsPin(label: 'ب', color: AppTheme.success),
       ));
       markers.add(Marker(
         point: _points.last.point,
-        width: 130,
-        height: 46,
-        child: _LabelPin(
-          title: 'النهاية',
-          name: name,
-          color: const Color(0xFFDC2626),
-        ),
+        width: 28,
+        height: 28,
+        alignment: Alignment.topCenter,
+        child: const _GpsPin(label: 'ن', color: Color(0xFFDC2626)),
       ));
     }
 
@@ -551,71 +537,51 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   }
 }
 
-class _LabelPin extends StatelessWidget {
-  const _LabelPin({
-    required this.title,
-    required this.name,
-    required this.color,
-  });
+class _GpsPin extends StatelessWidget {
+  const _GpsPin({required this.label, required this.color});
 
-  final String title;
-  final String name;
+  final String label;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.4),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return Transform.rotate(
+      angle: -0.78539816339,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(14),
+            topRight: Radius.circular(14),
+            bottomRight: Radius.circular(14),
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
+          border: Border.all(color: Colors.white, width: 2),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.35),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
-          ),
-          if (name.isNotEmpty)
-            Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+          ],
+        ),
+        child: Transform.rotate(
+          angle: 0.78539816339,
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
                 color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
+                fontSize: label == '•' ? 14 : 11,
+                fontWeight: FontWeight.w900,
+                height: 1,
               ),
             ),
-        ],
+          ),
+        ),
       ),
     );
-  }
-}
-
-class _NumberPin extends StatelessWidget {
-  const _NumberPin({required this.number, required this.color});
-  final String number;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return _LabelPin(title: number, name: '', color: color);
   }
 }
 

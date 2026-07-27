@@ -137,7 +137,9 @@
       attributionControl: true,
     }).setView([31.9539, 35.9106], 8);
     global.L.tileLayer(this.tileUrl, { attribution: this.attribution, maxZoom: 19 }).addTo(this.map);
-    this.layer = global.L.layerGroup().addTo(this.map);
+    this.lineLayer = global.L.layerGroup().addTo(this.map);
+    this.markerLayer = global.L.layerGroup().addTo(this.map);
+    this.layer = this.markerLayer;
     var self = this;
     setTimeout(function () {
       if (self.map) self.map.invalidateSize();
@@ -222,6 +224,8 @@
       this.els.stops.innerHTML =
         '<div class="ugr-sidebar__head">التوقفات</div><div class="ugr-empty">' + esc(msg) + '</div>';
     }
+    if (this.lineLayer) this.lineLayer.clearLayers();
+    if (this.markerLayer) this.markerLayer.clearLayers();
     if (this.layer) this.layer.clearLayers();
   };
 
@@ -234,7 +238,11 @@
     if (!roadPaths.length && Array.isArray(data.road_path) && data.road_path.length >= 2) {
       roadPaths = [data.road_path];
     }
-    var roadMatched = !!data.road_matched && roadPaths.length > 0;
+    var trackLines = Array.isArray(data.track_lines) ? data.track_lines : [];
+    if (!trackLines.length && roadPaths.length) {
+      trackLines = roadPaths;
+    }
+    var roadMatched = !!data.road_matched && trackLines.length > 0;
     var summary = data.summary || {};
 
     // الملخّص
@@ -316,13 +324,13 @@
       });
     }
 
-    this.drawMap(points, segments, stops, roadPaths, presence, roadMatched, data.user_label || '');
+    this.drawMap(points, segments, stops, trackLines, presence, roadMatched, data.user_label || '');
 
     var label = data.user_label ? data.user_label + ' · ' : '';
     var mode = !points.length
       ? ' — لا توجد بيانات'
-      : roadMatched || (segments && segments.some(function (s) { return s && s.length >= 2; }))
-        ? ' — خط السير مرسوم باللون الأزرق'
+      : trackLines.length
+        ? ' — خط السير مرسوم (' + trackLines.length + ' مقطع)'
         : ' — نقاط تواجد بدون حركة كافية لرسم خط';
     this.setStatus(label + (data.date_dmy || '') + mode);
 
@@ -337,78 +345,91 @@
     }
   };
 
-  RouteView.prototype._addPolyline = function (latlngs) {
+  RouteView.prototype._pathLatLngs = function (path) {
+    var latlngs = [];
+    if (!path || !path.length) return latlngs;
+    for (var j = 0; j < path.length; j++) {
+      var pt = path[j];
+      var lat = pt.latitude != null ? pt.latitude : pt.lat;
+      var lng = pt.longitude != null ? pt.longitude : pt.lng;
+      if (lat == null || lng == null) continue;
+      lat = parseFloat(lat);
+      lng = parseFloat(lng);
+      if (isNaN(lat) || isNaN(lng)) continue;
+      latlngs.push([lat, lng]);
+    }
+    return latlngs;
+  };
+
+  RouteView.prototype._addPolyline = function (latlngs, layer) {
     if (!latlngs || latlngs.length < 2) return;
+    var target = layer || this.lineLayer;
+    if (!target) return;
     global.L.polyline(latlngs, {
       color: '#93c5fd',
-      weight: 12,
-      opacity: 0.55,
+      weight: 14,
+      opacity: 0.5,
       lineJoin: 'round',
       lineCap: 'round',
-    }).addTo(this.layer);
+    }).addTo(target);
     global.L.polyline(latlngs, {
       color: '#1d4ed8',
-      weight: 6,
+      weight: 7,
       opacity: 1,
       lineJoin: 'round',
       lineCap: 'round',
-    }).addTo(this.layer);
+    }).addTo(target);
   };
 
-  RouteView.prototype.drawMap = function (points, segments, stops, roadPaths, presence, roadMatched, userLabel) {
-    if (!this.map || !this.layer) return;
-    this.layer.clearLayers();
+  RouteView.prototype.drawMap = function (points, segments, stops, trackLines, presence, roadMatched, userLabel) {
+    if (!this.map || !this.lineLayer || !this.markerLayer) return;
+    this.lineLayer.clearLayers();
+    this.markerLayer.clearLayers();
     if (!points.length) return;
 
     var bounds = [];
     var i, j;
-    roadPaths = Array.isArray(roadPaths) ? roadPaths : [];
+    trackLines = Array.isArray(trackLines) ? trackLines : [];
     presence = Array.isArray(presence) ? presence : [];
     segments = Array.isArray(segments) ? segments : [];
     userLabel = String(userLabel || '').trim();
 
-    // 1) خط السير من مقاطع GPS دائماً (حتى لو وُجدت road_paths).
+    // خط السير — مصدر واحد (track_lines من السيرفر)
     var drewAny = false;
-    for (i = 0; i < segments.length; i++) {
-      var seg = segments[i];
-      if (!seg || seg.length < 2) continue;
-      var segLl = [];
-      for (j = 0; j < seg.length; j++) {
-        var pti = points[seg[j]];
-        if (!pti) continue;
-        var llSeg = [pti.latitude, pti.longitude];
-        segLl.push(llSeg);
-        bounds.push(llSeg);
-      }
-      if (segLl.length < 2) continue;
-      this._addPolyline(segLl);
-      drewAny = true;
-    }
-
-    // 2) طبقات مطابقة الشوارع إن وُجدت (فوق خط GPS).
-    for (i = 0; i < roadPaths.length; i++) {
-      var path = roadPaths[i];
-      if (!path || path.length < 2) continue;
-      var latlngs = [];
-      for (j = 0; j < path.length; j++) {
-        var ll = [path[j].latitude, path[j].longitude];
-        if (ll[0] == null || ll[1] == null) continue;
-        latlngs.push(ll);
-        bounds.push(ll);
-      }
+    for (i = 0; i < trackLines.length; i++) {
+      var latlngs = this._pathLatLngs(trackLines[i]);
       if (latlngs.length < 2) continue;
       this._addPolyline(latlngs);
+      for (j = 0; j < latlngs.length; j++) bounds.push(latlngs[j]);
       drewAny = true;
     }
 
-    // 3) احتياطي: خط متصل بكل النقاط إن لم يُرسم أي مقطع.
+    // احتياطي: مقاطع GPS
+    if (!drewAny) {
+      for (i = 0; i < segments.length; i++) {
+        var seg = segments[i];
+        if (!seg || seg.length < 2) continue;
+        var segLl = [];
+        for (j = 0; j < seg.length; j++) {
+          var pti = points[seg[j]];
+          if (!pti) continue;
+          segLl.push([pti.latitude, pti.longitude]);
+        }
+        if (segLl.length < 2) continue;
+        this._addPolyline(segLl);
+        for (j = 0; j < segLl.length; j++) bounds.push(segLl[j]);
+        drewAny = true;
+      }
+    }
+
+    // احتياطي أخير: كل النقاط
     if (!drewAny && points.length >= 2) {
       var allLl = [];
       for (i = 0; i < points.length; i++) {
         allLl.push([points[i].latitude, points[i].longitude]);
-        bounds.push(allLl[allLl.length - 1]);
       }
       this._addPolyline(allLl);
+      for (j = 0; j < allLl.length; j++) bounds.push(allLl[j]);
     }
 
     // نقاط GPS الخام
@@ -416,11 +437,11 @@
       var pt = points[i];
       bounds.push([pt.latitude, pt.longitude]);
       var dot = global.L.circleMarker([pt.latitude, pt.longitude], {
-        radius: 4,
+        radius: 3,
         color: '#1e40af',
         weight: 1,
         fillColor: '#60a5fa',
-        fillOpacity: 0.95,
+        fillOpacity: 0.85,
       });
       dot.bindPopup(
         '<div class="ugr-popup"><b>' +
@@ -431,14 +452,14 @@
           (pt.source_label ? '<br>' + esc(pt.source_label) : '') +
           '</div>'
       );
-      dot.addTo(this.layer);
+      dot.addTo(this.markerLayer);
     }
 
     // علامات التواجد
     for (i = 0; i < presence.length; i++) {
       var pr = presence[i];
       var pm = global.L.marker([pr.latitude, pr.longitude], {
-        icon: this.labelIcon('presence', 'توقف', userLabel),
+        icon: this.pinIcon('presence', '•'),
       });
       pm.bindPopup(
         '<div class="ugr-popup"><b>توقف / تواجد</b>' +
@@ -447,15 +468,15 @@
           esc(pr.label || pr.time || '') +
           '</div>'
       );
-      pm.addTo(this.layer);
+      pm.addTo(this.markerLayer);
       bounds.push([pr.latitude, pr.longitude]);
     }
 
-    // علامات التوقف مرقّمة
+    // علامات التوقف — رقم مختصر داخل دبوس GPS
     for (i = 0; i < stops.length; i++) {
       var s = stops[i];
       var sm = global.L.marker([s.latitude, s.longitude], {
-        icon: this.labelIcon('stop', 'توقف ' + (i + 1), userLabel),
+        icon: this.pinIcon('stop', String(i + 1)),
       });
       sm.bindPopup(
         '<div class="ugr-popup"><b>توقف ' +
@@ -470,14 +491,14 @@
           esc(s.duration_label) +
           '</div>'
       );
-      sm.addTo(this.layer);
+      sm.addTo(this.markerLayer);
     }
 
-    // بداية / نهاية
+    // بداية / نهاية — اختصار داخل دبوس GPS (التفاصيل في النافذة المنبثقة)
     var start = points[0];
     var end = points[points.length - 1];
     global.L.marker([start.latitude, start.longitude], {
-      icon: this.labelIcon('start', 'البداية', userLabel),
+      icon: this.pinIcon('start', 'ب'),
     })
       .bindPopup(
         '<div class="ugr-popup"><b>البداية</b>' +
@@ -486,9 +507,9 @@
           esc(start.time) +
           '</div>'
       )
-      .addTo(this.layer);
+      .addTo(this.markerLayer);
     global.L.marker([end.latitude, end.longitude], {
-      icon: this.labelIcon('end', 'النهاية', userLabel),
+      icon: this.pinIcon('end', 'ن'),
     })
       .bindPopup(
         '<div class="ugr-popup"><b>النهاية</b>' +
@@ -497,7 +518,7 @@
           esc(end.time) +
           '</div>'
       )
-      .addTo(this.layer);
+      .addTo(this.markerLayer);
 
     if (bounds.length) {
       try {
@@ -506,34 +527,24 @@
         /* ignore */
       }
     }
+    var self = this;
+    setTimeout(function () {
+      if (self.map) self.map.invalidateSize();
+    }, 120);
   };
 
-  RouteView.prototype.numberIcon = function (num, kind) {
-    return this.labelIcon(kind || 'stop', String(num), '');
-  };
-
-  RouteView.prototype.pinIcon = function (kind, label) {
-    return this.labelIcon(kind, label, '');
-  };
-
-  RouteView.prototype.labelIcon = function (kind, title, userLabel) {
-    var name = String(userLabel || '').trim();
-    var html =
-      '<div class="ugr-pin ugr-pin--label ugr-pin--' +
-      esc(kind) +
-      '">' +
-      '<div class="ugr-pin__inner">' +
-      '<strong>' +
-      esc(title) +
-      '</strong>' +
-      (name ? '<span class="ugr-pin__name">' + esc(name) + '</span>' : '') +
-      '</div></div>';
+  RouteView.prototype.pinIcon = function (kind, abbrev) {
     return global.L.divIcon({
       className: 'ugr-marker',
-      html: html,
-      iconSize: [120, 44],
-      iconAnchor: [60, 44],
-      popupAnchor: [0, -40],
+      html:
+        '<div class="ugr-pin ugr-pin--' +
+        esc(kind) +
+        '"><span>' +
+        esc(String(abbrev)) +
+        '</span></div>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 26],
+      popupAnchor: [0, -24],
     });
   };
 
