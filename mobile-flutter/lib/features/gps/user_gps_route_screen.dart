@@ -262,22 +262,14 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   List<Polyline> _buildPolylines() {
     final lines = <Polyline>[];
-    void addPath(List<LatLng> path) {
-      if (path.length < 2) return;
+    for (final path in _roadPaths) {
+      if (path.length < 2) continue;
+      // خط واحد نظيف — بدون طبقة ظل مزدوجة.
       lines.add(Polyline(
         points: path,
-        strokeWidth: 14,
-        color: const Color(0xFF93C5FD).withValues(alpha: 0.5),
-      ));
-      lines.add(Polyline(
-        points: path,
-        strokeWidth: 7,
+        strokeWidth: 5,
         color: const Color(0xFF1D4ED8),
       ));
-    }
-
-    for (final path in _roadPaths) {
-      addPath(path);
     }
     return lines;
   }

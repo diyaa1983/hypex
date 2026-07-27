@@ -386,19 +386,14 @@
     if (!latlngs || latlngs.length < 2) return;
     var target = layer || this.lineLayer;
     if (!target) return;
-    global.L.polyline(latlngs, {
-      color: '#93c5fd',
-      weight: 14,
-      opacity: 0.5,
-      lineJoin: 'round',
-      lineCap: 'round',
-    }).addTo(target);
+    // خط واحد فقط — الظل المزدوج كان يبدو كخطّين متوازيين بالخطأ.
     global.L.polyline(latlngs, {
       color: '#1d4ed8',
-      weight: 7,
-      opacity: 1,
+      weight: 5,
+      opacity: 0.92,
       lineJoin: 'round',
       lineCap: 'round',
+      smoothFactor: 1.4,
     }).addTo(target);
   };
 
@@ -453,16 +448,19 @@
       for (j = 0; j < allLl.length; j++) bounds.push(allLl[j]);
     }
 
-    // نقاط GPS الخام
-    for (i = 0; i < points.length; i++) {
+    // نقاط GPS الخام — عيّنة خفيفة فقط حتى لا تبدو كخط ثانٍ فوق المسار.
+    var step = points.length > 120 ? 6 : points.length > 60 ? 4 : points.length > 30 ? 3 : 2;
+    for (i = 0; i < points.length; i += step) {
+      // لا نكرر نقطة البداية/النهاية هنا — لها علامات خاصة.
+      if (i === 0 || i === points.length - 1) continue;
       var pt = points[i];
       bounds.push([pt.latitude, pt.longitude]);
       var dot = global.L.circleMarker([pt.latitude, pt.longitude], {
-        radius: 3,
+        radius: 2.5,
         color: '#1e40af',
         weight: 1,
-        fillColor: '#60a5fa',
-        fillOpacity: 0.85,
+        fillColor: '#93c5fd',
+        fillOpacity: 0.7,
       });
       dot.bindPopup(
         '<div class="ugr-popup"><b>' +
@@ -475,6 +473,10 @@
       );
       this._bindMarkerFocus(dot, pt.latitude, pt.longitude, 17);
       dot.addTo(this.markerLayer);
+    }
+    // تأكد أن الحدود تشمل كل النقاط حتى لو لم تُرسم كلها.
+    for (i = 0; i < points.length; i++) {
+      bounds.push([points[i].latitude, points[i].longitude]);
     }
 
     // علامات التواجد

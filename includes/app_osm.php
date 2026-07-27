@@ -238,8 +238,8 @@ function app_osm_osrm_match_geometry(array $lonLatPairs, ?array $timestamps = nu
     $radiuses = [];
     foreach ($lonLatPairs as $c) {
         $coordStr[] = sprintf('%.6F,%.6F', $c[0], $c[1]);
-        // نصف قطر صغير: نلتصق بالشارع القريب من نقطة GPS الفعلية فقط.
-        $radiuses[] = '35';
+        // نصف قطر معتدل: التصاق أدق بالشارع دون سحب المسار لطريق مجاور.
+        $radiuses[] = '25';
     }
     $url = app_osm_osrm_base_url()
         . '/match/v1/driving/'

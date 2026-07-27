@@ -510,7 +510,7 @@ function sys_user_location_duration_label(int $seconds): string
  * @param list<array{latitude:float|int, longitude:float|int}> $path
  * @return list<array{latitude:float, longitude:float}>
  */
-function sys_user_location_track_dedupe_path(array $path, float $minMeters = 2.0): array
+function sys_user_location_track_dedupe_path(array $path, float $minMeters = 8.0): array
 {
     $out = [];
     $prevLat = null;
@@ -528,6 +528,12 @@ function sys_user_location_track_dedupe_path(array $path, float $minMeters = 2.0
             $prevLat !== null
             && sys_user_location_distance_meters($prevLat, $prevLng, $lat, $lng) < $minMeters
         ) {
+            // احتفظ بآخر نقطة في نفس المكان تقريباً (أدق زمنياً) دون إطالة الخط.
+            if ($out !== []) {
+                $out[count($out) - 1] = ['latitude' => $lat, 'longitude' => $lng];
+            }
+            $prevLat = $lat;
+            $prevLng = $lng;
             continue;
         }
         $out[] = ['latitude' => $lat, 'longitude' => $lng];
@@ -539,7 +545,176 @@ function sys_user_location_track_dedupe_path(array $path, float $minMeters = 2.0
 }
 
 /**
- * خطوط جاهزة للرسم على الخريطة (مقطع أو أكثر).
+ * تبسيط مسار Douglas–Peucker لإزالة تعرّجات GPS دون فقدان شكل الطريق.
+ *
+ * @param list<array{latitude:float, longitude:float}> $path
+ * @return list<array{latitude:float, longitude:float}>
+ */
+function sys_user_location_track_simplify_path(array $path, float $toleranceMeters = 12.0): array
+{
+    $n = count($path);
+    if ($n < 3) {
+        return $path;
+    }
+
+    $keep = array_fill(0, $n, false);
+    $keep[0] = true;
+    $keep[$n - 1] = true;
+    $stack = [[0, $n - 1]];
+
+    while ($stack !== []) {
+        [$start, $end] = array_pop($stack);
+        if ($end <= $start + 1) {
+            continue;
+        }
+        $maxDist = -1.0;
+        $index = $start;
+        $a = $path[$start];
+        $b = $path[$end];
+        for ($i = $start + 1; $i < $end; $i++) {
+            $d = sys_user_location_point_to_segment_meters(
+                (float) $path[$i]['latitude'],
+                (float) $path[$i]['longitude'],
+                (float) $a['latitude'],
+                (float) $a['longitude'],
+                (float) $b['latitude'],
+                (float) $b['longitude']
+            );
+            if ($d > $maxDist) {
+                $maxDist = $d;
+                $index = $i;
+            }
+        }
+        if ($maxDist > $toleranceMeters) {
+            $keep[$index] = true;
+            $stack[] = [$start, $index];
+            $stack[] = [$index, $end];
+        }
+    }
+
+    $out = [];
+    for ($i = 0; $i < $n; $i++) {
+        if (!empty($keep[$i])) {
+            $out[] = $path[$i];
+        }
+    }
+
+    return $out;
+}
+
+/** المسافة العمودية لنقطة عن قطعة مستقيمة (بالمتر تقريباً). */
+function sys_user_location_point_to_segment_meters(
+    float $lat,
+    float $lng,
+    float $lat1,
+    float $lng1,
+    float $lat2,
+    float $lng2
+): float {
+    $x = deg2rad($lng);
+    $y = deg2rad($lat);
+    $x1 = deg2rad($lng1);
+    $y1 = deg2rad($lat1);
+    $x2 = deg2rad($lng2);
+    $y2 = deg2rad($lat2);
+    $dx = $x2 - $x1;
+    $dy = $y2 - $y1;
+    if (abs($dx) < 1e-12 && abs($dy) < 1e-12) {
+        return sys_user_location_distance_meters($lat, $lng, $lat1, $lng1);
+    }
+    $t = (($x - $x1) * $dx + ($y - $y1) * $dy) / ($dx * $dx + $dy * $dy);
+    $t = max(0.0, min(1.0, $t));
+    $projLat = rad2deg($y1 + $t * $dy);
+    $projLng = rad2deg($x1 + $t * $dx);
+
+    return sys_user_location_distance_meters($lat, $lng, $projLat, $projLng);
+}
+
+/**
+ * تنظيف نقاط GPS قبل الرسم: دقة ضعيفة، نتوءات، تذبذب حول نفس المكان.
+ *
+ * @param list<array<string,mixed>> $points
+ * @return list<array<string,mixed>>
+ */
+function sys_user_location_track_clean_points(array $points): array
+{
+    $n = count($points);
+    if ($n < 3) {
+        return $points;
+    }
+
+    $filtered = [];
+    foreach ($points as $pt) {
+        $acc = $pt['gps_accuracy'] ?? null;
+        // تجاهل النقاط ذات الدقة السيئة جداً (تسبب خطوطاً مزدوجة بجانب الشارع).
+        if ($acc !== null && (float) $acc > 80) {
+            continue;
+        }
+        $filtered[] = $pt;
+    }
+    if (count($filtered) < 2) {
+        $filtered = $points;
+    }
+
+    // إزالة نتوءات: A→B→C حيث B بعيدة عن مسار A–C ثم تعود.
+    $clean = [$filtered[0]];
+    $m = count($filtered);
+    for ($i = 1; $i < $m - 1; $i++) {
+        $prev = $clean[count($clean) - 1];
+        $cur = $filtered[$i];
+        $next = $filtered[$i + 1];
+        $dPrev = sys_user_location_distance_meters(
+            (float) $prev['latitude'],
+            (float) $prev['longitude'],
+            (float) $cur['latitude'],
+            (float) $cur['longitude']
+        );
+        $dNext = sys_user_location_distance_meters(
+            (float) $cur['latitude'],
+            (float) $cur['longitude'],
+            (float) $next['latitude'],
+            (float) $next['longitude']
+        );
+        $dDirect = sys_user_location_distance_meters(
+            (float) $prev['latitude'],
+            (float) $prev['longitude'],
+            (float) $next['latitude'],
+            (float) $next['longitude']
+        );
+        $gap = max(1, (int) ($cur['ts'] ?? 0) - (int) ($prev['ts'] ?? 0));
+        // نتوء قصير: ابتعاد ثم عودة بسرعة غير منطقية.
+        if ($dPrev > 40 && $dNext > 40 && $dDirect < ($dPrev * 0.45) && $gap <= 45) {
+            continue;
+        }
+        $clean[] = $cur;
+    }
+    $clean[] = $filtered[$m - 1];
+
+    return $clean;
+}
+
+/**
+ * تجهيز خط سير واحد نظيف للرسم.
+ *
+ * @param list<array{latitude:float|int, longitude:float|int}> $path
+ * @return list<array{latitude:float, longitude:float}>
+ */
+function sys_user_location_track_prepare_line(array $path): array
+{
+    $deduped = sys_user_location_track_dedupe_path($path, 8.0);
+    if (count($deduped) < 2) {
+        return [];
+    }
+    $simplified = sys_user_location_track_simplify_path($deduped, 10.0);
+    if (count($simplified) < 2) {
+        return $deduped;
+    }
+
+    return sys_user_location_track_dedupe_path($simplified, 5.0);
+}
+
+/**
+ * خطوط جاهزة للرسم على الخريطة (مقطع أو أكثر) — خط واحد لكل مقطع بلا تكرار.
  *
  * @param list<list<array{latitude:float, longitude:float}>> $roadPaths
  * @param list<list<int>> $segments
@@ -553,9 +728,9 @@ function sys_user_location_track_lines(array $roadPaths, array $segments, array 
         if (!is_array($path)) {
             continue;
         }
-        $deduped = sys_user_location_track_dedupe_path($path);
-        if (count($deduped) >= 2) {
-            $lines[] = $deduped;
+        $prepared = sys_user_location_track_prepare_line($path);
+        if (count($prepared) >= 2) {
+            $lines[] = $prepared;
         }
     }
     if ($lines !== []) {
@@ -577,9 +752,9 @@ function sys_user_location_track_lines(array $roadPaths, array $segments, array 
                 'longitude' => (float) ($points[$i]['longitude'] ?? 0),
             ];
         }
-        $deduped = sys_user_location_track_dedupe_path($line);
-        if (count($deduped) >= 2) {
-            $lines[] = $deduped;
+        $prepared = sys_user_location_track_prepare_line($line);
+        if (count($prepared) >= 2) {
+            $lines[] = $prepared;
         }
     }
 
@@ -677,9 +852,15 @@ function sys_user_location_track_day(
         return $empty;
     }
 
+    $points = sys_user_location_track_clean_points($points);
+    $n = count($points);
+    if ($n === 0) {
+        return $empty;
+    }
+
     // مقاطع حركة متصلة: نقطع الخط فقط عند قفزة غير منطقية أو صمت طويل مع انتقال بعيد.
     $gapBreakSec = max(60, $gapBreakMinutes * 60);
-    $maxSpeedMps = 150.0 / 3.6;
+    $maxSpeedMps = 120.0 / 3.6;
     $totalMeters = 0.0;
     $segments = [];
     $current = [0];
@@ -695,8 +876,8 @@ function sys_user_location_track_day(
         );
 
         // قفزة مستحيلة السرعة، أو صمت طويل مع انتقال واضح (فتح من مكان آخر).
-        $impossibleSpeed = $gap > 0 && ($d / $gap) > $maxSpeedMps && $d > 350;
-        $remoteReopen = $gap > $gapBreakSec && $d > 250;
+        $impossibleSpeed = $gap > 0 && ($d / $gap) > $maxSpeedMps && $d > 250;
+        $remoteReopen = $gap > $gapBreakSec && $d > 180;
 
         if ($impossibleSpeed || $remoteReopen) {
             if ($current !== []) {
@@ -809,7 +990,7 @@ function sys_user_location_track_day(
             continue;
         }
 
-        // دائماً: خط سير من نقاط GPS الفعلية (يظهر حتى لو كان قصيراً).
+        // دائماً: خط سير من نقاط GPS المنظّفة (يظهر حتى لو كان قصيراً).
         $gpsPath = [];
         foreach ($segPoints as $sp) {
             $gpsPath[] = [
@@ -817,17 +998,26 @@ function sys_user_location_track_day(
                 'longitude' => (float) $sp['longitude'],
             ];
         }
+        $gpsPath = sys_user_location_track_prepare_line($gpsPath);
 
         $path = [];
-        if ($segMeters >= $minTravelMeters) {
+        if ($segMeters >= $minTravelMeters && count($gpsPath) >= 2) {
             try {
                 $path = app_osm_snap_route_to_roads($segPoints);
+                if (count($path) >= 2) {
+                    $path = sys_user_location_track_prepare_line($path);
+                }
             } catch (Throwable $e) {
                 error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
                 $path = [];
             }
         }
-        $roadPaths[] = count($path) >= 2 ? $path : $gpsPath;
+        // مصدر واحد فقط لكل مقطع: شارع ملتصق أو GPS منظّف — لا نرسم الاثنين معاً.
+        if (count($path) >= 2) {
+            $roadPaths[] = $path;
+        } elseif (count($gpsPath) >= 2) {
+            $roadPaths[] = $gpsPath;
+        }
     }
 
     $roadMatched = $roadPaths !== [];
