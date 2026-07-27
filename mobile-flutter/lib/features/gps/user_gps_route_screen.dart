@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -147,7 +150,7 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
           .whereType<Map>()
           .map((e) => _Stop(e.cast<String, dynamic>()))
           .toList();
-      final trackLines = _parseTrackLines(res['track_lines'], res['road_paths'], res['road_path']);
+      var trackLines = _parseTrackLines(res['track_lines'], res['road_paths'], res['road_path']);
       final segmentPaths = <List<LatLng>>[];
       if (trackLines.isEmpty) {
         final rawSegs = res['segments'];
@@ -167,8 +170,37 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
       if (trackLines.isEmpty && segmentPaths.isEmpty && points.length >= 2) {
         segmentPaths.add(points.map((p) => p.point).toList());
       }
-      final matched = (res['road_matched'] == true && trackLines.isNotEmpty) ||
-          trackLines.isNotEmpty;
+
+      var matched = res['road_matched'] == true && trackLines.isNotEmpty;
+      // إن لم يلتصق السيرفر بالشارع: مطابقة OSRM من الجهاز (مثل Google Maps).
+      if (!matched && points.length >= 2) {
+        final jobs = <List<_TrackPoint>>[];
+        final rawSegs = res['segments'];
+        if (rawSegs is List && rawSegs.isNotEmpty) {
+          for (final seg in rawSegs) {
+            if (seg is! List || seg.length < 2) continue;
+            final pts = <_TrackPoint>[];
+            for (final idx in seg) {
+              final i = (idx as num?)?.toInt();
+              if (i == null || i < 0 || i >= points.length) continue;
+              pts.add(points[i]);
+            }
+            if (pts.length >= 2) jobs.add(pts);
+          }
+        }
+        if (jobs.isEmpty) jobs.add(points);
+        final snapped = <List<LatLng>>[];
+        for (final job in jobs) {
+          final path = await _osrmSnapPoints(job.map((p) => p.point).toList());
+          if (path.length >= 2) snapped.add(path);
+        }
+        if (snapped.isNotEmpty) {
+          trackLines = snapped;
+          matched = true;
+        }
+      }
+
+      if (!mounted) return;
       setState(() {
         _points = points;
         _stops = stops;
@@ -209,6 +241,147 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     _map.fitCamera(
       CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
     );
+  }
+
+  double _haversine(LatLng a, LatLng b) {
+    const r = 6371000.0;
+    final p1 = a.latitude * math.pi / 180;
+    final p2 = b.latitude * math.pi / 180;
+    final dp = (b.latitude - a.latitude) * math.pi / 180;
+    final dl = (b.longitude - a.longitude) * math.pi / 180;
+    final h = math.sin(dp / 2) * math.sin(dp / 2) +
+        math.cos(p1) * math.cos(p2) * math.sin(dl / 2) * math.sin(dl / 2);
+    return r * 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
+  }
+
+  Future<List<LatLng>> _osrmSnapPoints(List<LatLng> points) async {
+    if (points.length < 2) return const [];
+    final coords = <LatLng>[];
+    LatLng? prev;
+    for (final p in points) {
+      if (prev != null && _haversine(prev, p) < 15) continue;
+      coords.add(p);
+      prev = p;
+    }
+    if (coords.length < 2) return const [];
+
+    final waypoints = <LatLng>[coords.first];
+    var last = coords.first;
+    for (var i = 1; i < coords.length - 1; i++) {
+      if (_haversine(last, coords[i]) >= 45) {
+        waypoints.add(coords[i]);
+        last = coords[i];
+      }
+    }
+    waypoints.add(coords.last);
+
+    final matched = await _osrmMatch(waypoints);
+    if (matched.length >= 2) return matched;
+    return _osrmRouteWaypoints(waypoints);
+  }
+
+  Future<List<LatLng>> _osrmMatch(List<LatLng> waypoints) async {
+    if (waypoints.length < 2) return const [];
+    final out = <LatLng>[];
+    const size = 80;
+    for (var offset = 0; offset < waypoints.length; offset += size - 1) {
+      final end = math.min(offset + size, waypoints.length);
+      final slice = waypoints.sublist(offset, end);
+      if (slice.length < 2) break;
+      final part = await _osrmMatchOnce(slice);
+      _appendPath(out, part);
+      if (end >= waypoints.length) break;
+    }
+    return out;
+  }
+
+  Future<List<LatLng>> _osrmRouteWaypoints(List<LatLng> waypoints) async {
+    if (waypoints.length < 2) return const [];
+    final out = <LatLng>[];
+    const size = 40;
+    for (var offset = 0; offset < waypoints.length; offset += size - 1) {
+      final end = math.min(offset + size, waypoints.length);
+      final slice = waypoints.sublist(offset, end);
+      if (slice.length < 2) break;
+      final part = await _osrmRouteOnce(slice);
+      _appendPath(out, part);
+      if (end >= waypoints.length) break;
+    }
+    return out;
+  }
+
+  void _appendPath(List<LatLng> acc, List<LatLng> part) {
+    if (part.isEmpty) return;
+    var start = 0;
+    if (acc.isNotEmpty) {
+      final last = acc.last;
+      final first = part.first;
+      if ((last.latitude - first.latitude).abs() < 0.00002 &&
+          (last.longitude - first.longitude).abs() < 0.00002) {
+        start = 1;
+      }
+    }
+    acc.addAll(part.sublist(start));
+  }
+
+  Future<List<LatLng>> _osrmMatchOnce(List<LatLng> pts) async {
+    final coordStr = pts
+        .map((p) => '${p.longitude.toStringAsFixed(6)},${p.latitude.toStringAsFixed(6)}')
+        .join(';');
+    final url =
+        'https://router.project-osrm.org/match/v1/driving/$coordStr?overview=full&geometries=geojson&gaps=ignore';
+    return _osrmFetchCoords(url, matchings: true);
+  }
+
+  Future<List<LatLng>> _osrmRouteOnce(List<LatLng> pts) async {
+    final coordStr = pts
+        .map((p) => '${p.longitude.toStringAsFixed(6)},${p.latitude.toStringAsFixed(6)}')
+        .join(';');
+    final url =
+        'https://router.project-osrm.org/route/v1/driving/$coordStr?overview=full&geometries=geojson&continue_straight=true';
+    return _osrmFetchCoords(url, matchings: false);
+  }
+
+  Future<List<LatLng>> _osrmFetchCoords(String url, {required bool matchings}) async {
+    try {
+      final dio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 12),
+        receiveTimeout: const Duration(seconds: 25),
+        headers: {'Accept': 'application/json'},
+      ));
+      final res = await dio.get<Map<String, dynamic>>(url);
+      final data = res.data;
+      if (data == null || data['code'] != 'Ok') return const [];
+      final coords = <List<dynamic>>[];
+      if (matchings) {
+        final list = data['matchings'] as List? ?? [];
+        for (final m in list) {
+          if (m is! Map) continue;
+          final geom = m['geometry'];
+          if (geom is! Map) continue;
+          final c = geom['coordinates'];
+          if (c is List) coords.addAll(c.whereType<List>());
+        }
+      } else {
+        final routes = data['routes'] as List? ?? [];
+        if (routes.isEmpty || routes.first is! Map) return const [];
+        final geom = (routes.first as Map)['geometry'];
+        if (geom is! Map) return const [];
+        final c = geom['coordinates'];
+        if (c is List) coords.addAll(c.whereType<List>());
+      }
+      final out = <LatLng>[];
+      for (final c in coords) {
+        if (c.length < 2) continue;
+        final lng = (c[0] as num?)?.toDouble();
+        final lat = (c[1] as num?)?.toDouble();
+        if (lat == null || lng == null) continue;
+        out.add(LatLng(lat, lng));
+      }
+      return out;
+    } catch (_) {
+      return const [];
+    }
   }
 
   List<List<LatLng>> _parseTrackLines(

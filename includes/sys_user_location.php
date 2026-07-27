@@ -694,23 +694,26 @@ function sys_user_location_track_clean_points(array $points): array
 }
 
 /**
- * تجهيز خط سير واحد نظيف للرسم.
+ * تجهيز خط سير للرسم.
+ * المسارات الملتصقة بالشارع تُبسَّط بلطف حتى تبقى انحناءات الطريق.
  *
  * @param list<array{latitude:float|int, longitude:float|int}> $path
  * @return list<array{latitude:float, longitude:float}>
  */
-function sys_user_location_track_prepare_line(array $path): array
+function sys_user_location_track_prepare_line(array $path, bool $roadSnapped = false): array
 {
-    $deduped = sys_user_location_track_dedupe_path($path, 8.0);
+    $minDedupe = $roadSnapped ? 3.0 : 8.0;
+    $tolerance = $roadSnapped ? 2.5 : 10.0;
+    $deduped = sys_user_location_track_dedupe_path($path, $minDedupe);
     if (count($deduped) < 2) {
         return [];
     }
-    $simplified = sys_user_location_track_simplify_path($deduped, 10.0);
+    $simplified = sys_user_location_track_simplify_path($deduped, $tolerance);
     if (count($simplified) < 2) {
         return $deduped;
     }
 
-    return sys_user_location_track_dedupe_path($simplified, 5.0);
+    return sys_user_location_track_dedupe_path($simplified, $roadSnapped ? 2.0 : 5.0);
 }
 
 /**
@@ -728,7 +731,8 @@ function sys_user_location_track_lines(array $roadPaths, array $segments, array 
         if (!is_array($path)) {
             continue;
         }
-        $prepared = sys_user_location_track_prepare_line($path);
+        // المسارات قادمة جاهزة من snap/prepare — dedupe خفيف فقط.
+        $prepared = sys_user_location_track_dedupe_path($path, 2.0);
         if (count($prepared) >= 2) {
             $lines[] = $prepared;
         }
@@ -752,7 +756,7 @@ function sys_user_location_track_lines(array $roadPaths, array $segments, array 
                 'longitude' => (float) ($points[$i]['longitude'] ?? 0),
             ];
         }
-        $prepared = sys_user_location_track_prepare_line($line);
+        $prepared = sys_user_location_track_prepare_line($line, false);
         if (count($prepared) >= 2) {
             $lines[] = $prepared;
         }
@@ -947,6 +951,7 @@ function sys_user_location_track_day(
     require_once app_path('includes/app_osm.php');
     $presence = [];
     $roadPaths = [];
+    $anyRoadMatched = false;
     $minTravelMeters = 3.0;
 
     foreach ($segments as $seg) {
@@ -990,7 +995,6 @@ function sys_user_location_track_day(
             continue;
         }
 
-        // دائماً: خط سير من نقاط GPS المنظّفة (يظهر حتى لو كان قصيراً).
         $gpsPath = [];
         foreach ($segPoints as $sp) {
             $gpsPath[] = [
@@ -998,30 +1002,33 @@ function sys_user_location_track_day(
                 'longitude' => (float) $sp['longitude'],
             ];
         }
-        $gpsPath = sys_user_location_track_prepare_line($gpsPath);
+        $gpsPath = sys_user_location_track_prepare_line($gpsPath, false);
 
         $path = [];
-        if ($segMeters >= $minTravelMeters && count($gpsPath) >= 2) {
+        $snapped = false;
+        if ($segMeters >= $minTravelMeters && count($segPoints) >= 2) {
             try {
-                $path = app_osm_snap_route_to_roads($segPoints);
-                if (count($path) >= 2) {
-                    $path = sys_user_location_track_prepare_line($path);
+                $rawSnap = app_osm_snap_route_to_roads($segPoints);
+                if (count($rawSnap) >= 2) {
+                    $path = sys_user_location_track_prepare_line($rawSnap, true);
+                    $snapped = count($path) >= 2;
                 }
             } catch (Throwable $e) {
                 error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
                 $path = [];
             }
         }
-        // مصدر واحد فقط لكل مقطع: شارع ملتصق أو GPS منظّف — لا نرسم الاثنين معاً.
-        if (count($path) >= 2) {
+
+        if ($snapped) {
             $roadPaths[] = $path;
+            $anyRoadMatched = true;
         } elseif (count($gpsPath) >= 2) {
             $roadPaths[] = $gpsPath;
         }
     }
 
-    $roadMatched = $roadPaths !== [];
-    $roadPathFlat = $roadMatched ? $roadPaths[0] : [];
+    $roadMatched = $anyRoadMatched;
+    $roadPathFlat = $roadPaths !== [] ? $roadPaths[0] : [];
     $trackLines = sys_user_location_track_lines($roadPaths, $segments, $points);
     $km = $totalMeters / 1000.0;
     $activeSec = $points[$n - 1]['ts'] - $points[0]['ts'];

@@ -226,16 +226,267 @@
         return r.json();
       })
       .then(function (data) {
-        self.loading = false;
         if (!data || data.ok !== true) {
+          self.loading = false;
           self.setStatus((data && data.message) || 'تعذّر التحميل');
           return;
         }
-        self.render(data);
+        self.setStatus('جاري مطابقة المسار مع الشوارع...');
+        return self
+          .ensureRoadSnapped(data)
+          .then(function (snapped) {
+            self.loading = false;
+            self.render(snapped);
+          })
+          .catch(function () {
+            self.loading = false;
+            self.render(data);
+          });
       })
       .catch(function () {
         self.loading = false;
         self.setStatus('تعذّر الاتصال بالسيرفر');
+      });
+  };
+
+  /**
+   * إن لم يلتصق السيرفر بالشارع، ننفّذ OSRM من المتصفح (يعمل حتى لو PHP بلا OpenSSL).
+   */
+  RouteView.prototype.ensureRoadSnapped = function (data) {
+    var self = this;
+    if (!data || data.road_matched) {
+      return Promise.resolve(data);
+    }
+    var points = Array.isArray(data.points) ? data.points : [];
+    var segments = Array.isArray(data.segments) ? data.segments : [];
+    if (points.length < 2) {
+      return Promise.resolve(data);
+    }
+
+    var jobs = [];
+    if (segments.length) {
+      for (var s = 0; s < segments.length; s++) {
+        var seg = segments[s];
+        if (!seg || seg.length < 2) continue;
+        var pts = [];
+        for (var i = 0; i < seg.length; i++) {
+          var p = points[seg[i]];
+          if (p) pts.push(p);
+        }
+        if (pts.length >= 2) jobs.push(pts);
+      }
+    }
+    if (!jobs.length) {
+      jobs.push(points);
+    }
+
+    return Promise.all(
+      jobs.map(function (pts) {
+        return self.osrmSnapPoints(pts);
+      })
+    ).then(function (paths) {
+      var lines = [];
+      for (var i = 0; i < paths.length; i++) {
+        if (paths[i] && paths[i].length >= 2) lines.push(paths[i]);
+      }
+      if (!lines.length) {
+        return data;
+      }
+      data.track_lines = lines;
+      data.road_paths = lines;
+      data.road_path = lines[0];
+      data.road_matched = true;
+      if (data.summary) data.summary.road_matched = true;
+      return data;
+    });
+  };
+
+  RouteView.prototype.osrmSnapPoints = function (points) {
+    var self = this;
+    var coords = [];
+    var prevLat = null;
+    var prevLng = null;
+    for (var i = 0; i < points.length; i++) {
+      var lat = parseFloat(points[i].latitude);
+      var lng = parseFloat(points[i].longitude);
+      if (isNaN(lat) || isNaN(lng)) continue;
+      if (prevLat !== null) {
+        var d = self._haversine(prevLat, prevLng, lat, lng);
+        if (d < 15) continue;
+      }
+      coords.push([lng, lat]);
+      prevLat = lat;
+      prevLng = lng;
+    }
+    if (coords.length < 2) {
+      return Promise.resolve([]);
+    }
+
+    // محطات كل ~45م
+    var waypoints = [coords[0]];
+    var last = coords[0];
+    for (var j = 1; j < coords.length - 1; j++) {
+      if (self._haversine(last[1], last[0], coords[j][1], coords[j][0]) >= 45) {
+        waypoints.push(coords[j]);
+        last = coords[j];
+      }
+    }
+    waypoints.push(coords[coords.length - 1]);
+
+    return self
+      .osrmMatch(waypoints)
+      .then(function (path) {
+        if (path.length >= 2) return path;
+        return self.osrmRouteWaypoints(waypoints);
+      })
+      .catch(function () {
+        return self.osrmRouteWaypoints(waypoints);
+      });
+  };
+
+  RouteView.prototype._haversine = function (lat1, lng1, lat2, lng2) {
+    var R = 6371000;
+    var p1 = (lat1 * Math.PI) / 180;
+    var p2 = (lat2 * Math.PI) / 180;
+    var dp = ((lat2 - lat1) * Math.PI) / 180;
+    var dl = ((lng2 - lng1) * Math.PI) / 180;
+    var a =
+      Math.sin(dp / 2) * Math.sin(dp / 2) +
+      Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  RouteView.prototype.osrmMatch = function (lonLatPairs) {
+    var self = this;
+    if (lonLatPairs.length < 2) return Promise.resolve([]);
+
+    // تقسيم لأن الخادم العام يرفض طلبات طويلة جداً.
+    var chunks = [];
+    var size = 80;
+    for (var i = 0; i < lonLatPairs.length; i += size - 1) {
+      var slice = lonLatPairs.slice(i, i + size);
+      if (slice.length >= 2) chunks.push(slice);
+      if (i + size >= lonLatPairs.length) break;
+    }
+
+    var chain = Promise.resolve([]);
+    chunks.forEach(function (slice) {
+      chain = chain.then(function (acc) {
+        return self.osrmMatchOnce(slice).then(function (part) {
+          if (!part.length) return acc;
+          if (acc.length) {
+            var last = acc[acc.length - 1];
+            var first = part[0];
+            if (
+              Math.abs(last.latitude - first.latitude) < 0.00002 &&
+              Math.abs(last.longitude - first.longitude) < 0.00002
+            ) {
+              part = part.slice(1);
+            }
+          }
+          return acc.concat(part);
+        });
+      });
+    });
+    return chain;
+  };
+
+  RouteView.prototype.osrmMatchOnce = function (lonLatPairs) {
+    var coordStr = lonLatPairs
+      .map(function (c) {
+        return c[0].toFixed(6) + ',' + c[1].toFixed(6);
+      })
+      .join(';');
+    var url =
+      'https://router.project-osrm.org/match/v1/driving/' +
+      coordStr +
+      '?overview=full&geometries=geojson&gaps=ignore';
+    return fetch(url, { headers: { Accept: 'application/json' } })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || data.code !== 'Ok' || !data.matchings || !data.matchings.length) {
+          return [];
+        }
+        var out = [];
+        for (var i = 0; i < data.matchings.length; i++) {
+          var geom = data.matchings[i].geometry;
+          if (!geom || !geom.coordinates) continue;
+          for (var k = 0; k < geom.coordinates.length; k++) {
+            out.push({
+              latitude: geom.coordinates[k][1],
+              longitude: geom.coordinates[k][0],
+            });
+          }
+        }
+        return out;
+      })
+      .catch(function () {
+        return [];
+      });
+  };
+
+  RouteView.prototype.osrmRouteWaypoints = function (lonLatPairs) {
+    var self = this;
+    if (lonLatPairs.length < 2) return Promise.resolve([]);
+
+    var chunks = [];
+    var size = 40;
+    for (var i = 0; i < lonLatPairs.length; i += size - 1) {
+      var slice = lonLatPairs.slice(i, i + size);
+      if (slice.length >= 2) chunks.push(slice);
+      if (i + size >= lonLatPairs.length) break;
+    }
+
+    var chain = Promise.resolve([]);
+    chunks.forEach(function (slice) {
+      chain = chain.then(function (acc) {
+        return self.osrmRouteOnce(slice).then(function (part) {
+          if (!part.length) return acc;
+          if (acc.length) {
+            var last = acc[acc.length - 1];
+            var first = part[0];
+            if (
+              Math.abs(last.latitude - first.latitude) < 0.00002 &&
+              Math.abs(last.longitude - first.longitude) < 0.00002
+            ) {
+              part = part.slice(1);
+            }
+          }
+          return acc.concat(part);
+        });
+      });
+    });
+    return chain;
+  };
+
+  RouteView.prototype.osrmRouteOnce = function (lonLatPairs) {
+    var coordStr = lonLatPairs
+      .map(function (c) {
+        return c[0].toFixed(6) + ',' + c[1].toFixed(6);
+      })
+      .join(';');
+    var url =
+      'https://router.project-osrm.org/route/v1/driving/' +
+      coordStr +
+      '?overview=full&geometries=geojson&continue_straight=true';
+    return fetch(url, { headers: { Accept: 'application/json' } })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || data.code !== 'Ok' || !data.routes || !data.routes[0]) {
+          return [];
+        }
+        var coords = data.routes[0].geometry && data.routes[0].geometry.coordinates;
+        if (!coords || !coords.length) return [];
+        return coords.map(function (c) {
+          return { latitude: c[1], longitude: c[0] };
+        });
+      })
+      .catch(function () {
+        return [];
       });
   };
 
@@ -350,9 +601,11 @@
     var label = data.user_label ? data.user_label + ' · ' : '';
     var mode = !points.length
       ? ' — لا توجد بيانات'
-      : trackLines.length
-        ? ' — خط السير مرسوم (' + trackLines.length + ' مقطع)'
-        : ' — نقاط تواجد بدون حركة كافية لرسم خط';
+      : roadMatched
+        ? ' — خط السير ملتصق بالشارع (' + trackLines.length + ' مقطع)'
+        : trackLines.length
+          ? ' — خط السير من GPS (' + trackLines.length + ' مقطع)'
+          : ' — نقاط تواجد بدون حركة كافية لرسم خط';
     this.setStatus(label + (data.date_dmy || '') + mode);
 
     function chip(label, val) {

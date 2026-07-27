@@ -105,18 +105,20 @@ function app_osm_osrm_base_url(): string
 }
 
 /**
- * يحوّل سلسلة نقاط GPS إلى مسار يلتصق بالشوارع التي مُرّ بها فعلياً.
+ * يحوّل سلسلة نقاط GPS إلى مسار يلتصق بالشوارع (مثل Google Maps).
  *
- * مهم: نستخدم مطابقة الأثر (match) وليس توجيه المسار (route).
- * route يخترع أقصر طريق بين نقطتين حتى لو لم يُسلك، وهذا غير مطلوب.
+ * الترتيب:
+ * 1) مطابقة الأثر OSRM match
+ * 2) إن فشلت: توجيه متتابع عبر نقاط GPS كمحطات (route) ليلتصق بالشارع
  *
- * @param list<array{latitude?:float|int|string, longitude?:float|int|string, lat?:float|int|string, lng?:float|int|string, lon?:float|int|string}> $points
+ * @param list<array{latitude?:float|int|string, longitude?:float|int|string, lat?:float|int|string, lng?:float|int|string, lon?:float|int|string, ts?:int, captured_at?:string, gps_accuracy?:float|int|null}> $points
  * @return list<array{latitude:float, longitude:float}>
  */
 function app_osm_snap_route_to_roads(array $points): array
 {
     $coords = [];
     $timestamps = [];
+    $accuracies = [];
     $prevLat = null;
     $prevLng = null;
     foreach ($points as $p) {
@@ -134,10 +136,9 @@ function app_osm_snap_route_to_roads(array $points): array
         if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
             continue;
         }
+        // تخفيف الكثافة قبل الإرسال لـ OSRM (~12م) مع الإبقاء على شكل الحركة.
         if ($prevLat !== null && $prevLng !== null) {
-            $dLat = abs($lat - $prevLat);
-            $dLng = abs($lng - $prevLng);
-            if ($dLat < 0.00005 && $dLng < 0.00005) {
+            if (app_osm_haversine_meters($prevLat, $prevLng, $lat, $lng) < 12.0) {
                 continue;
             }
         }
@@ -147,7 +148,11 @@ function app_osm_snap_route_to_roads(array $points): array
             $parsed = strtotime((string) $p['captured_at']);
             $ts = $parsed !== false ? $parsed : 0;
         }
-        $timestamps[] = $ts > 0 ? $ts : time();
+        $timestamps[] = $ts > 0 ? $ts : 0;
+        $acc = isset($p['gps_accuracy']) && is_numeric($p['gps_accuracy'])
+            ? (float) $p['gps_accuracy']
+            : 40.0;
+        $accuracies[] = max(20.0, min(75.0, $acc > 0 ? $acc : 40.0));
         $prevLat = $lat;
         $prevLng = $lng;
     }
@@ -157,33 +162,98 @@ function app_osm_snap_route_to_roads(array $points): array
         return [];
     }
 
-    $chunkSize = 80;
+    // 1) مطابقة الأثر — الأفضل لشكل Google Maps.
+    $matched = app_osm_osrm_match_geometry($coords, $timestamps, $accuracies);
+    if (count($matched) >= 2) {
+        return $matched;
+    }
+
+    // 2) احتياطي: توجيه عبر نقاط GPS كمحطات بالترتيب — يلتصق بالشارع دائماً.
+    $routed = app_osm_osrm_route_through_waypoints($coords);
+    if (count($routed) >= 2) {
+        return $routed;
+    }
+
+    return [];
+}
+
+function app_osm_haversine_meters(float $lat1, float $lng1, float $lat2, float $lng2): float
+{
+    $r = 6371000.0;
+    $p1 = deg2rad($lat1);
+    $p2 = deg2rad($lat2);
+    $dp = deg2rad($lat2 - $lat1);
+    $dl = deg2rad($lng2 - $lng1);
+    $a = sin($dp / 2) ** 2 + cos($p1) * cos($p2) * sin($dl / 2) ** 2;
+
+    return $r * 2 * atan2(sqrt($a), sqrt(1 - $a));
+}
+
+/**
+ * توجيه OSRM عبر نقاط GPS كمحطات بالترتيب ثم لصق الأشكال.
+ *
+ * @param list<array{0:float,1:float}> $lonLatPairs
+ * @return list<array{latitude:float, longitude:float}>
+ */
+function app_osm_osrm_route_through_waypoints(array $lonLatPairs): array
+{
+    $n = count($lonLatPairs);
+    if ($n < 2) {
+        return [];
+    }
+
+    // محطات كل ~45م تقريباً حتى لا يزدحم الطلب وتبقى الدقة عالية.
+    $waypoints = [$lonLatPairs[0]];
+    $last = $lonLatPairs[0];
+    for ($i = 1; $i < $n - 1; $i++) {
+        $c = $lonLatPairs[$i];
+        if (app_osm_haversine_meters($last[1], $last[0], $c[1], $c[0]) >= 45.0) {
+            $waypoints[] = $c;
+            $last = $c;
+        }
+    }
+    $waypoints[] = $lonLatPairs[$n - 1];
+
+    $chunkSize = 40;
     $path = [];
-    for ($offset = 0; $offset < $n; $offset += $chunkSize - 1) {
-        $slice = array_slice($coords, $offset, $chunkSize);
-        $sliceTs = array_slice($timestamps, $offset, $chunkSize);
+    $wN = count($waypoints);
+    for ($offset = 0; $offset < $wN; $offset += $chunkSize - 1) {
+        $slice = array_slice($waypoints, $offset, $chunkSize);
         if (count($slice) < 2) {
             break;
         }
-
-        // مطابقة الأثر الفعلي فقط — لا نستخدم route لأنه يخترع طريقاً لم يُسلك.
-        $part = app_osm_osrm_match_geometry($slice, $sliceTs);
+        $part = app_osm_osrm_route_geometry($slice);
         if ($part === []) {
+            // إن فشل مقطع طويل جرّب أزواج متتالية.
             $part = [];
-            foreach ($slice as $c) {
-                $part[] = [
-                    'latitude' => (float) $c[1],
-                    'longitude' => (float) $c[0],
-                ];
+            for ($i = 1; $i < count($slice); $i++) {
+                $leg = app_osm_osrm_route_geometry([$slice[$i - 1], $slice[$i]]);
+                if ($leg === []) {
+                    $part[] = [
+                        'latitude' => (float) $slice[$i - 1][1],
+                        'longitude' => (float) $slice[$i - 1][0],
+                    ];
+                    $part[] = [
+                        'latitude' => (float) $slice[$i][1],
+                        'longitude' => (float) $slice[$i][0],
+                    ];
+                    continue;
+                }
+                if ($part !== [] && $leg !== []) {
+                    array_shift($leg);
+                }
+                foreach ($leg as $pt) {
+                    $part[] = $pt;
+                }
             }
         }
 
         if ($path !== [] && $part !== []) {
-            $last = $path[count($path) - 1];
-            $first = $part[0];
+            $lastPt = $path[count($path) - 1];
+            $firstPt = $part[0];
             if (
-                abs($last['latitude'] - $first['latitude']) < 0.00001
-                && abs($last['longitude'] - $first['longitude']) < 0.00001
+                abs($lastPt['latitude'] - $firstPt['latitude']) < 0.00002
+                && abs($lastPt['longitude'] - $firstPt['longitude']) < 0.00002
             ) {
                 array_shift($part);
             }
@@ -192,7 +262,7 @@ function app_osm_snap_route_to_roads(array $points): array
             $path[] = $pt;
         }
 
-        if ($offset + $chunkSize >= $n) {
+        if ($offset + $chunkSize >= $wN) {
             break;
         }
     }
@@ -206,6 +276,9 @@ function app_osm_snap_route_to_roads(array $points): array
  */
 function app_osm_osrm_route_geometry(array $lonLatPairs): array
 {
+    if (count($lonLatPairs) < 2) {
+        return [];
+    }
     $coordStr = [];
     foreach ($lonLatPairs as $c) {
         $coordStr[] = sprintf('%.6F,%.6F', $c[0], $c[1]);
@@ -230,48 +303,85 @@ function app_osm_osrm_route_geometry(array $lonLatPairs): array
 /**
  * @param list<array{0:float,1:float}> $lonLatPairs
  * @param list<int>|null $timestamps Unix seconds aligned with $lonLatPairs
+ * @param list<float>|null $accuracies meters per point
  * @return list<array{latitude:float, longitude:float}>
  */
-function app_osm_osrm_match_geometry(array $lonLatPairs, ?array $timestamps = null): array
-{
-    $coordStr = [];
-    $radiuses = [];
-    foreach ($lonLatPairs as $c) {
-        $coordStr[] = sprintf('%.6F,%.6F', $c[0], $c[1]);
-        // نصف قطر معتدل: التصاق أدق بالشارع دون سحب المسار لطريق مجاور.
-        $radiuses[] = '25';
-    }
-    $url = app_osm_osrm_base_url()
-        . '/match/v1/driving/'
-        . implode(';', $coordStr)
-        . '?overview=full&geometries=geojson&tidy=true&radiuses='
-        . implode(';', $radiuses);
-
-    if (is_array($timestamps) && count($timestamps) === count($lonLatPairs) && count($timestamps) >= 2) {
-        $url .= '&timestamps=' . implode(';', array_map('intval', $timestamps));
-    }
-
-    $data = app_osm_osrm_fetch_json($url);
-    if (!is_array($data) || ($data['code'] ?? '') !== 'Ok') {
+function app_osm_osrm_match_geometry(
+    array $lonLatPairs,
+    ?array $timestamps = null,
+    ?array $accuracies = null
+): array {
+    if (count($lonLatPairs) < 2) {
         return [];
     }
 
-    $matchings = $data['matchings'] ?? [];
-    if (!is_array($matchings) || $matchings === []) {
-        return [];
+    // جرّب بدون timestamps أولاً — الخادم العام غالباً يرفض صيغ radiuses/timestamps.
+    $attempts = [];
+    $attempts[] = ['timestamps' => false, 'radiuses' => false];
+    $attempts[] = ['timestamps' => false, 'radiuses' => true];
+    if (is_array($timestamps) && count($timestamps) === count($lonLatPairs)) {
+        $validTs = true;
+        foreach ($timestamps as $t) {
+            if ((int) $t < 1) {
+                $validTs = false;
+                break;
+            }
+        }
+        if ($validTs) {
+            $attempts[] = ['timestamps' => true, 'radiuses' => false];
+        }
     }
-    $out = [];
-    foreach ($matchings as $m) {
-        $coords = $m['geometry']['coordinates'] ?? null;
-        if (!is_array($coords)) {
+
+    foreach ($attempts as $opt) {
+        $coordStr = [];
+        foreach ($lonLatPairs as $c) {
+            $coordStr[] = sprintf('%.6F,%.6F', $c[0], $c[1]);
+        }
+        $url = app_osm_osrm_base_url()
+            . '/match/v1/driving/'
+            . implode(';', $coordStr)
+            . '?overview=full&geometries=geojson&gaps=ignore';
+
+        if (!empty($opt['radiuses'])) {
+            $radiuses = [];
+            foreach ($lonLatPairs as $i => $c) {
+                $r = is_array($accuracies) && isset($accuracies[$i])
+                    ? (float) $accuracies[$i]
+                    : 50.0;
+                $radiuses[] = (string) max(20, min(75, (int) round($r)));
+            }
+            $url .= '&radiuses=' . implode(';', $radiuses);
+        }
+
+        if (!empty($opt['timestamps']) && is_array($timestamps)) {
+            $url .= '&timestamps=' . implode(';', array_map('intval', $timestamps));
+        }
+
+        $data = app_osm_osrm_fetch_json($url);
+        if (!is_array($data) || ($data['code'] ?? '') !== 'Ok') {
             continue;
         }
-        foreach (app_osm_osrm_coords_to_latlng($coords) as $pt) {
-            $out[] = $pt;
+
+        $matchings = $data['matchings'] ?? [];
+        if (!is_array($matchings) || $matchings === []) {
+            continue;
+        }
+        $out = [];
+        foreach ($matchings as $m) {
+            $coords = $m['geometry']['coordinates'] ?? null;
+            if (!is_array($coords)) {
+                continue;
+            }
+            foreach (app_osm_osrm_coords_to_latlng($coords) as $pt) {
+                $out[] = $pt;
+            }
+        }
+        if (count($out) >= 2) {
+            return $out;
         }
     }
 
-    return $out;
+    return [];
 }
 
 /**
@@ -297,21 +407,50 @@ function app_osm_osrm_coords_to_latlng(array $coords): array
 /** @return array<string, mixed>|null */
 function app_osm_osrm_fetch_json(string $url): ?array
 {
-    $ctx = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'header' => 'User-Agent: ' . app_osm_contact() . "\r\nAccept: application/json\r\n",
-            'timeout' => 12,
-            'ignore_errors' => true,
-        ],
-        'ssl' => [
-            'verify_peer' => true,
-            'verify_peer_name' => true,
-        ],
-    ]);
+    $raw = null;
 
-    $raw = @file_get_contents($url, false, $ctx);
-    if ($raw === false || $raw === '') {
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        if ($ch !== false) {
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_CONNECTTIMEOUT => 8,
+                CURLOPT_TIMEOUT => 20,
+                CURLOPT_HTTPHEADER => [
+                    'Accept: application/json',
+                    'User-Agent: ' . app_osm_contact(),
+                ],
+            ]);
+            $body = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if (is_string($body) && $body !== '' && $code >= 200 && $code < 300) {
+                $raw = $body;
+            }
+        }
+    }
+
+    if ($raw === null) {
+        $ctx = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => 'User-Agent: ' . app_osm_contact() . "\r\nAccept: application/json\r\n",
+                'timeout' => 20,
+                'ignore_errors' => true,
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
+        $body = @file_get_contents($url, false, $ctx);
+        if (is_string($body) && $body !== '') {
+            $raw = $body;
+        }
+    }
+
+    if ($raw === null || $raw === '') {
         return null;
     }
     $data = json_decode($raw, true);
