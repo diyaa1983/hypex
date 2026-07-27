@@ -1006,7 +1006,13 @@ function sys_user_location_track_day(
 
         $path = [];
         $snapped = false;
-        if ($segMeters >= $minTravelMeters && count($segPoints) >= 2) {
+        // ميزانية زمنية قصيرة حتى لا يتأخر الرد على الموبايل/الآيفون.
+        $snapBudgetSec = 4.0;
+        if (!isset($snapStartedAt)) {
+            $snapStartedAt = microtime(true);
+        }
+        $canSnap = (microtime(true) - $snapStartedAt) < $snapBudgetSec;
+        if ($canSnap && $segMeters >= $minTravelMeters && count($segPoints) >= 2) {
             try {
                 $rawSnap = app_osm_snap_route_to_roads($segPoints);
                 if (count($rawSnap) >= 2) {
@@ -1023,6 +1029,7 @@ function sys_user_location_track_day(
             $roadPaths[] = $path;
             $anyRoadMatched = true;
         } elseif (count($gpsPath) >= 2) {
+            // GPS خام فقط كاحتياطي للعرض — الالتصاق بالشارع يتم من المتصفح إن فشل السيرفر.
             $roadPaths[] = $gpsPath;
         }
     }

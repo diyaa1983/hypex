@@ -14,13 +14,16 @@
   --ugt-mobile-chrome: calc(var(--m-header-h, 52px) + var(--m-action-dock-h, 48px) + var(--m-safe-b, 0px));
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - var(--ugt-mobile-chrome));
-  height: calc(100dvh - var(--ugt-mobile-chrome));
-  max-height: calc(100dvh - var(--ugt-mobile-chrome));
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  max-height: none;
   border-radius: 0;
   border: 0;
-  margin: -8px -10px 0;
+  margin: 0;
   overflow: hidden;
+  background: #eef2f8;
 }
 
 .ugt-live-view,
@@ -31,6 +34,9 @@
   flex-direction: column;
 }
 
+/* مهم على Safari/iPhone: display:flex يتجاوز خاصية hidden */
+.ugt-live-view[hidden],
+#ugt-live-view[hidden],
 #ugt-route-view[hidden] {
   display: none !important;
 }
@@ -927,26 +933,40 @@
   max-height: 34dvh;
 }
 
-/* صفحة التتبّع داخل تطبيق /m على الهاتف */
+/* صفحة التتبّع داخل تطبيق /m على الهاتف — ملء الشاشة خاصةً على iPhone */
 body.m-page-gps-tracker {
   --m-tab-h: 0px;
+  --m-action-dock-h: 0px;
   --m-header-h: 52px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  box-sizing: border-box;
+}
+
+body.m-page-gps-tracker #m-bottom-dock,
+body.m-page-gps-tracker .m-tabbar,
+body.m-page-gps-tracker .m-action-dock {
+  display: none !important;
+}
+
+body.m-page-gps-tracker .m-header {
+  flex: 0 0 auto;
 }
 
 body.m-page-gps-tracker .m-main {
-  padding: 0;
+  padding: 0 !important;
   overflow: hidden;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
+  width: 100%;
+  max-width: none;
   display: flex;
   flex-direction: column;
-}
-
-body.m-page-gps-tracker.m-has-action-dock {
-  display: flex;
-  flex-direction: column;
-  min-height: 100dvh;
-  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b, 0px));
 }
 
 body.m-page-gps-tracker .m-header-title {
@@ -955,6 +975,41 @@ body.m-page-gps-tracker .m-header-title {
 
 body.m-page-gps-tracker .m-header-company {
   display: none;
+}
+
+.ugr-root--mobile .ugr-controls {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  border-bottom: 1px solid #e3e8ef;
+}
+
+.ugr-root--mobile .ugr-field {
+  flex: 1 1 42%;
+  min-width: 0;
+}
+
+.ugr-root--mobile .ugr-summary {
+  flex: 0 0 auto;
+  max-height: 72px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ugr-root--mobile .ugr-sidebar {
+  flex: 0 0 auto;
+  max-height: min(28dvh, 220px);
+  order: 2;
+  border-inline-end: 0;
+  border-top: 1px solid #e3e8ef;
+}
+
+.ugr-root--mobile .ugr-map-wrap {
+  order: 1;
+  flex: 1 1 auto;
+  min-height: 220px;
 }
 
 @media (max-width: 900px) {

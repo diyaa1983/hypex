@@ -82,25 +82,32 @@
 
   RouteView.prototype.bind = function () {
     var self = this;
+    var loadSoon = function () {
+      clearTimeout(self._loadTimer);
+      self._loadTimer = setTimeout(function () {
+        self.loadTrack();
+      }, 120);
+    };
     if (this.els.load) {
       this.els.load.addEventListener('click', function () {
+        clearTimeout(self._loadTimer);
         self.loadTrack();
       });
     }
     if (this.els.user) {
-      this.els.user.addEventListener('change', function () {
-        self.loadTrack();
-      });
+      this.els.user.addEventListener('change', loadSoon);
+      // iOS أحياناً لا يطلق change إلا بعد blur
+      this.els.user.addEventListener('input', loadSoon);
     }
     if (this.els.date) {
-      this.els.date.addEventListener('change', function () {
-        self.loadTrack();
-      });
+      this.els.date.addEventListener('change', loadSoon);
+      this.els.date.addEventListener('input', loadSoon);
     }
     if (this.els.prev) {
       this.els.prev.addEventListener('click', function () {
         if (self.els.date) {
           self.els.date.value = shiftDate(self.els.date.value || self.today, -1);
+          clearTimeout(self._loadTimer);
           self.loadTrack();
         }
       });
@@ -111,6 +118,7 @@
           var nv = shiftDate(self.els.date.value || self.today, 1);
           if (self.today && nv > self.today) nv = self.today;
           self.els.date.value = nv;
+          clearTimeout(self._loadTimer);
           self.loadTrack();
         }
       });
@@ -148,9 +156,18 @@
 
   RouteView.prototype.invalidate = function () {
     var self = this;
-    setTimeout(function () {
-      if (self.map) self.map.invalidateSize();
-    }, 80);
+    function bump() {
+      if (!self.map) return;
+      try {
+        self.map.invalidateSize({ animate: false });
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    bump();
+    setTimeout(bump, 80);
+    setTimeout(bump, 280);
+    setTimeout(bump, 600);
   };
 
   RouteView.prototype.setStatus = function (t) {
@@ -209,7 +226,8 @@
       this.renderEmpty('اختر المندوب لعرض مساره.');
       return;
     }
-    if (this.loading) return;
+    this._loadSeq = (this._loadSeq || 0) + 1;
+    var seq = this._loadSeq;
     this.loading = true;
     this.setStatus('جاري التحميل...');
 
@@ -226,43 +244,70 @@
         return r.json();
       })
       .then(function (data) {
+        if (seq !== self._loadSeq) return;
+        self.loading = false;
         if (!data || data.ok !== true) {
-          self.loading = false;
           self.setStatus((data && data.message) || 'تعذّر التحميل');
           return;
         }
-        self.setStatus('جاري مطابقة المسار مع الشوارع...');
-        return self
-          .ensureRoadSnapped(data)
-          .then(function (snapped) {
-            self.loading = false;
-            self.render(snapped);
-          })
-          .catch(function () {
-            self.loading = false;
-            self.render(data);
-          });
+        // اعرض البيانات فوراً (مهم على iPhone) ثم حاول الالتصاق بالشارع بالخلفية.
+        self.render(data);
+        self.invalidate();
+        self.snapInBackground(data, seq);
       })
       .catch(function () {
+        if (seq !== self._loadSeq) return;
         self.loading = false;
         self.setStatus('تعذّر الاتصال بالسيرفر');
       });
   };
 
   /**
-   * إن لم يلتصق السيرفر بالشارع، ننفّذ OSRM من المتصفح (يعمل حتى لو PHP بلا OpenSSL).
+   * مطابقة الشارع دون حجب العرض — مع مهلة قصيرة حتى لا يتجمّد الآيفون.
+   */
+  RouteView.prototype.snapInBackground = function (data, seq) {
+    var self = this;
+    if (!data || (data.road_matched && self._looksRoadSnapped(data))) {
+      return;
+    }
+    if (!Array.isArray(data.points) || data.points.length < 2) {
+      return;
+    }
+
+    var timeoutMs = self.mode === 'mobile' ? 8000 : 20000;
+    var deadline = Date.now() + timeoutMs;
+    data._snapDeadline = deadline;
+
+    self
+      .ensureRoadSnapped(data)
+      .then(function (snapped) {
+        if (seq !== self._loadSeq) return;
+        if (snapped && snapped.road_matched) {
+          self.render(snapped);
+          self.invalidate();
+        }
+      })
+      .catch(function () {
+        /* الإبقاء على المسار المعروض */
+      });
+  };
+
+  /**
+   * لصق خط السير على الشوارع (مثل Google Maps) عبر OSRM.
+   * يُنفَّذ دائماً إن لم يؤكد السيرفر الالتصاق — حتى لو PHP بلا OpenSSL.
    */
   RouteView.prototype.ensureRoadSnapped = function (data) {
     var self = this;
-    if (!data || data.road_matched) {
+    if (!data || !Array.isArray(data.points) || data.points.length < 2) {
       return Promise.resolve(data);
     }
-    var points = Array.isArray(data.points) ? data.points : [];
-    var segments = Array.isArray(data.segments) ? data.segments : [];
-    if (points.length < 2) {
+    // إن أكد السيرفر مساراً كثيفاً ملتصقاً بالشارع نكتفي به.
+    if (data.road_matched && self._looksRoadSnapped(data)) {
       return Promise.resolve(data);
     }
 
+    var points = data.points;
+    var segments = Array.isArray(data.segments) ? data.segments : [];
     var jobs = [];
     if (segments.length) {
       for (var s = 0; s < segments.length; s++) {
@@ -280,15 +325,21 @@
       jobs.push(points);
     }
 
-    return Promise.all(
-      jobs.map(function (pts) {
-        return self.osrmSnapPoints(pts);
-      })
-    ).then(function (paths) {
-      var lines = [];
-      for (var i = 0; i < paths.length; i++) {
-        if (paths[i] && paths[i].length >= 2) lines.push(paths[i]);
-      }
+    // تسلسلي لتفادي حظر الخادم العام عند الطلبات المتوازية.
+    var lines = [];
+    var chain = Promise.resolve();
+    jobs.forEach(function (pts) {
+      chain = chain.then(function () {
+        if (data._snapDeadline && Date.now() > data._snapDeadline) {
+          return;
+        }
+        return self.osrmSnapPoints(pts).then(function (path) {
+          if (path && path.length >= 2) lines.push(path);
+        });
+      });
+    });
+
+    return chain.then(function () {
       if (!lines.length) {
         return data;
       }
@@ -301,6 +352,22 @@
     });
   };
 
+  /** مسار ملتصق بالشارع يكون كثيف النقاط مقارنةً بـ GPS الخام. */
+  RouteView.prototype._looksRoadSnapped = function (data) {
+    var lines = Array.isArray(data.track_lines) ? data.track_lines : [];
+    if (!lines.length) return false;
+    var n = 0;
+    for (var i = 0; i < lines.length; i++) {
+      n += Array.isArray(lines[i]) ? lines[i].length : 0;
+    }
+    var gpsN = Array.isArray(data.points) ? data.points.length : 0;
+    // الملتصق عادةً أكثر كثافة من نقاط GPS الخام.
+    return n >= Math.max(40, Math.floor(gpsN * 1.5));
+  };
+
+  /**
+   * طريقة Google-like: خذ نقاط GPS كمحطات → احسب المسار على شبكة الطرق بينها.
+   */
   RouteView.prototype.osrmSnapPoints = function (points) {
     var self = this;
     var coords = [];
@@ -312,7 +379,7 @@
       if (isNaN(lat) || isNaN(lng)) continue;
       if (prevLat !== null) {
         var d = self._haversine(prevLat, prevLng, lat, lng);
-        if (d < 15) continue;
+        if (d < 20) continue;
       }
       coords.push([lng, lat]);
       prevLat = lat;
@@ -322,26 +389,63 @@
       return Promise.resolve([]);
     }
 
-    // محطات كل ~45م
+    // محطات كل ~60م — توازن بين الدقة وعدد طلبات OSRM
     var waypoints = [coords[0]];
     var last = coords[0];
     for (var j = 1; j < coords.length - 1; j++) {
-      if (self._haversine(last[1], last[0], coords[j][1], coords[j][0]) >= 45) {
+      if (self._haversine(last[1], last[0], coords[j][1], coords[j][0]) >= 60) {
         waypoints.push(coords[j]);
         last = coords[j];
       }
     }
     waypoints.push(coords[coords.length - 1]);
 
-    return self
-      .osrmMatch(waypoints)
-      .then(function (path) {
-        if (path.length >= 2) return path;
-        return self.osrmRouteWaypoints(waypoints);
-      })
-      .catch(function () {
-        return self.osrmRouteWaypoints(waypoints);
+    // 1) توجيه على الشارع (الأهم لشكل Google Maps)
+    return self.osrmRouteWaypoints(waypoints).then(function (path) {
+      if (path.length >= 2) return path;
+      // 2) مطابقة الأثر
+      return self.osrmMatch(waypoints).then(function (matched) {
+        if (matched.length >= 2) return matched;
+        // 3) أزواج متتالية — أبطأ لكن موثوق
+        return self.osrmRoutePairs(waypoints);
       });
+    });
+  };
+
+  /** توجيه زوجاً زوجاً ثم لصق الأشكال على الشارع. */
+  RouteView.prototype.osrmRoutePairs = function (lonLatPairs) {
+    var self = this;
+    if (lonLatPairs.length < 2) return Promise.resolve([]);
+
+    var out = [];
+    var chain = Promise.resolve();
+    for (var i = 1; i < lonLatPairs.length; i++) {
+      (function (a, b) {
+        chain = chain.then(function () {
+          return self.osrmRouteOnce([a, b]).then(function (part) {
+            if (!part.length) {
+              out.push({ latitude: a[1], longitude: a[0] });
+              out.push({ latitude: b[1], longitude: b[0] });
+              return;
+            }
+            if (out.length) {
+              var last = out[out.length - 1];
+              var first = part[0];
+              if (
+                Math.abs(last.latitude - first.latitude) < 0.00002 &&
+                Math.abs(last.longitude - first.longitude) < 0.00002
+              ) {
+                part = part.slice(1);
+              }
+            }
+            out = out.concat(part);
+          });
+        });
+      })(lonLatPairs[i - 1], lonLatPairs[i]);
+    }
+    return chain.then(function () {
+      return out;
+    });
   };
 
   RouteView.prototype._haversine = function (lat1, lng1, lat2, lng2) {
@@ -806,15 +910,12 @@
 
     if (bounds.length) {
       try {
-        this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+        this.map.fitBounds(bounds, { padding: [36, 36], maxZoom: 16 });
       } catch (e) {
         /* ignore */
       }
     }
-    var self = this;
-    setTimeout(function () {
-      if (self.map) self.map.invalidateSize();
-    }, 120);
+    this.invalidate();
   };
 
   RouteView.prototype.pinIcon = function (kind, abbrev) {
@@ -864,13 +965,28 @@
         }
       }
       if (isRoute) {
+        // أولاً أظهر الحاوية ثم ابنِ الخريطة — ضروري لـ Leaflet على iPhone
         view.activate().then(function () {
           view.invalidate();
+          if (view.els.user && view.els.user.value) {
+            view.loadTrack();
+          }
         });
       } else if (global.UserGpsTracker && global.UserGpsTracker.map) {
         setTimeout(function () {
-          global.UserGpsTracker.map.invalidateSize();
+          try {
+            global.UserGpsTracker.map.invalidateSize({ animate: false });
+          } catch (e2) {
+            /* ignore */
+          }
         }, 80);
+        setTimeout(function () {
+          try {
+            global.UserGpsTracker.map.invalidateSize({ animate: false });
+          } catch (e3) {
+            /* ignore */
+          }
+        }, 350);
       }
     }
 

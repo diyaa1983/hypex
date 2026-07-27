@@ -67,8 +67,8 @@ if ($activeRouteKey === 'm_receipt') {
     $pageBodyClass .= ' m-page-gps-tracker m-no-tabbar';
 }
 
-$showBottomDock = $activeRouteKey !== 'm_home';
-$hideTabbarRoutes = ['m_sales_invoices', 'm_sales_invoice_view'];
+$showBottomDock = $activeRouteKey !== 'm_home' && $activeRouteKey !== 'm_user_gps_tracker';
+$hideTabbarRoutes = ['m_sales_invoices', 'm_sales_invoice_view', 'm_user_gps_tracker'];
 $showTabbar = $showBottomDock && !in_array($activeRouteKey, $hideTabbarRoutes, true);
 if (!$showBottomDock) {
     $pageBodyClass .= ' m-page-home';

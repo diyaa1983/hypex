@@ -147,20 +147,32 @@
 
     this.layer = global.L.layerGroup().addTo(this.map);
 
-    // إصلاح حجم الخريطة بعد الظهور في التخطيط
+    // إصلاح حجم الخريطة بعد الظهور في التخطيط (مهم جداً على iPhone)
     var self = this;
-    setTimeout(function () {
-      if (self.map) self.map.invalidateSize();
-    }, 120);
+    function bumpSize() {
+      if (self.map) {
+        try {
+          self.map.invalidateSize({ animate: false });
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    }
+    bumpSize();
+    setTimeout(bumpSize, 120);
+    setTimeout(bumpSize, 350);
+    setTimeout(bumpSize, 700);
     if (this.mode === 'mobile') {
-      global.addEventListener('resize', function () {
-        if (self.map) self.map.invalidateSize();
-      });
+      global.addEventListener('resize', bumpSize);
       global.addEventListener('orientationchange', function () {
-        setTimeout(function () {
-          if (self.map) self.map.invalidateSize();
-        }, 250);
+        setTimeout(bumpSize, 250);
       });
+      // بعد رسم الصفحة بالكامل (شريط العنوان / الـ dock)
+      if (global.requestAnimationFrame) {
+        global.requestAnimationFrame(function () {
+          global.requestAnimationFrame(bumpSize);
+        });
+      }
     }
   };
 

@@ -275,9 +275,26 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     }
     waypoints.add(coords.last);
 
-    final matched = await _osrmMatch(waypoints);
+    final matched = await _osrmRouteWaypoints(waypoints);
     if (matched.length >= 2) return matched;
-    return _osrmRouteWaypoints(waypoints);
+    final mapMatched = await _osrmMatch(waypoints);
+    if (mapMatched.length >= 2) return mapMatched;
+    return _osrmRoutePairs(waypoints);
+  }
+
+  Future<List<LatLng>> _osrmRoutePairs(List<LatLng> waypoints) async {
+    if (waypoints.length < 2) return const [];
+    final out = <LatLng>[];
+    for (var i = 1; i < waypoints.length; i++) {
+      final part = await _osrmRouteOnce([waypoints[i - 1], waypoints[i]]);
+      if (part.isEmpty) {
+        out.add(waypoints[i - 1]);
+        out.add(waypoints[i]);
+        continue;
+      }
+      _appendPath(out, part);
+    }
+    return out;
   }
 
   Future<List<LatLng>> _osrmMatch(List<LatLng> waypoints) async {

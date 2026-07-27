@@ -162,16 +162,16 @@ function app_osm_snap_route_to_roads(array $points): array
         return [];
     }
 
-    // 1) مطابقة الأثر — الأفضل لشكل Google Maps.
-    $matched = app_osm_osrm_match_geometry($coords, $timestamps, $accuracies);
-    if (count($matched) >= 2) {
-        return $matched;
-    }
-
-    // 2) احتياطي: توجيه عبر نقاط GPS كمحطات بالترتيب — يلتصق بالشارع دائماً.
+    // توجيه عبر المحطات أولاً — يلتصق بمركز الشارع مثل Google Maps.
+    // المطابقة (match) احتياطية إن فشل التوجيه.
     $routed = app_osm_osrm_route_through_waypoints($coords);
     if (count($routed) >= 2) {
         return $routed;
+    }
+
+    $matched = app_osm_osrm_match_geometry($coords, $timestamps, $accuracies);
+    if (count($matched) >= 2) {
+        return $matched;
     }
 
     return [];
@@ -407,7 +407,23 @@ function app_osm_osrm_coords_to_latlng(array $coords): array
 /** @return array<string, mixed>|null */
 function app_osm_osrm_fetch_json(string $url): ?array
 {
-    $raw = null;
+    $raw = app_osm_osrm_http_get($url);
+    if ($raw === null || $raw === '') {
+        return null;
+    }
+    $data = json_decode($raw, true);
+
+    return is_array($data) ? $data : null;
+}
+
+/**
+ * جلب HTTPS لـ OSRM — يدعم curl / file_get_contents / PowerShell (XAMPP بدون openssl).
+ */
+function app_osm_osrm_http_get(string $url): ?string
+{
+    if ($url === '' || !preg_match('#^https?://#i', $url)) {
+        return null;
+    }
 
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
@@ -416,7 +432,7 @@ function app_osm_osrm_fetch_json(string $url): ?array
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_CONNECTTIMEOUT => 8,
-                CURLOPT_TIMEOUT => 20,
+                CURLOPT_TIMEOUT => 25,
                 CURLOPT_HTTPHEADER => [
                     'Accept: application/json',
                     'User-Agent: ' . app_osm_contact(),
@@ -426,34 +442,87 @@ function app_osm_osrm_fetch_json(string $url): ?array
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
             if (is_string($body) && $body !== '' && $code >= 200 && $code < 300) {
-                $raw = $body;
+                return $body;
             }
         }
     }
 
-    if ($raw === null) {
-        $ctx = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => 'User-Agent: ' . app_osm_contact() . "\r\nAccept: application/json\r\n",
-                'timeout' => 20,
-                'ignore_errors' => true,
-            ],
-            'ssl' => [
-                'verify_peer' => true,
-                'verify_peer_name' => true,
-            ],
-        ]);
-        $body = @file_get_contents($url, false, $ctx);
-        if (is_string($body) && $body !== '') {
-            $raw = $body;
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'header' => 'User-Agent: ' . app_osm_contact() . "\r\nAccept: application/json\r\n",
+            'timeout' => 25,
+            'ignore_errors' => true,
+        ],
+        'ssl' => [
+            'verify_peer' => false,
+            'verify_peer_name' => false,
+        ],
+    ]);
+    $body = @file_get_contents($url, false, $ctx);
+    if (is_string($body) && $body !== '' && ($body[0] === '{' || $body[0] === '[')) {
+        return $body;
+    }
+
+    // XAMPP على Windows غالباً بلا openssl/curl — PowerShell يصل لـ HTTPS.
+    if (stripos(PHP_OS, 'WIN') === 0) {
+        $psBody = app_osm_osrm_http_get_powershell($url);
+        if (is_string($psBody) && $psBody !== '') {
+            return $psBody;
         }
     }
 
-    if ($raw === null || $raw === '') {
+    return null;
+}
+
+function app_osm_osrm_http_get_powershell(string $url): ?string
+{
+    $ps = getenv('SystemRoot');
+    $exe = (is_string($ps) && $ps !== '' ? $ps : 'C:\\Windows')
+        . '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+    if (!is_file($exe)) {
+        $exe = 'powershell.exe';
+    }
+
+    $script = '$ProgressPreference=\'SilentlyContinue\';'
+        . ' try {'
+        . ' $r=Invoke-WebRequest -Uri $env:OSRM_URL -UseBasicParsing -TimeoutSec 25;'
+        . ' [Console]::Out.Write($r.Content)'
+        . ' } catch { }';
+
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+    $env = array_merge($_ENV, [
+        'OSRM_URL' => $url,
+    ]);
+    // putenv for child process reliability on some PHP builds
+    putenv('OSRM_URL=' . $url);
+
+    $cmd = escapeshellarg($exe)
+        . ' -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command '
+        . escapeshellarg($script);
+
+    $proc = @proc_open($cmd, $descriptors, $pipes, null, null);
+    if (!is_resource($proc)) {
         return null;
     }
-    $data = json_decode($raw, true);
+    fclose($pipes[0]);
+    $out = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    stream_get_contents($pipes[2]);
+    fclose($pipes[2]);
+    proc_close($proc);
 
-    return is_array($data) ? $data : null;
+    if (!is_string($out) || $out === '') {
+        return null;
+    }
+    $out = trim($out);
+    if ($out === '' || ($out[0] !== '{' && $out[0] !== '[')) {
+        return null;
+    }
+
+    return $out;
 }
