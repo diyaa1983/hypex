@@ -35,7 +35,7 @@ try {
 
     $onlineSeconds = isset($_GET['online_seconds'])
         ? (int) $_GET['online_seconds']
-        : (isset($_GET['online_minutes']) ? (int) $_GET['online_minutes'] * 60 : 20);
+        : (isset($_GET['online_minutes']) ? (int) $_GET['online_minutes'] * 60 : 60);
     $staleSeconds = isset($_GET['stale_seconds'])
         ? (int) $_GET['stale_seconds']
         : (isset($_GET['stale_minutes']) ? (int) $_GET['stale_minutes'] * 60 : $onlineSeconds);
@@ -75,6 +75,11 @@ try {
             . ' — '
             . (string) ($top['age_label'] ?? '')
             . '.';
+        if (empty($top['coords_valid'])) {
+            $hint .= ' الإحداثيات غير صالحة للعرض على الخريطة.';
+        } elseif ((int) ($top['age_sec'] ?? 999999) > $onlineSeconds) {
+            $hint .= ' النبضة أقدم من نافذة الاتصال (' . $onlineSeconds . ' ثانية).';
+        }
     } elseif ($rows === []) {
         $hint = 'لا يوجد متصل الآن. تأكد أن تطبيق المندوب يرسل الموقع كل 5 ثوانٍ إلى نفس هذا السيرفر.';
     }

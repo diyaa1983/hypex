@@ -36,8 +36,8 @@ $today = date('Y-m-d');
      data-tile-url="<?= esc($osm['tileUrl']) ?>"
      data-attribution="<?= esc($osm['attribution']) ?>"
      data-poll-sec="5"
-     data-online-seconds="20"
-     data-stale-seconds="20"
+     data-online-seconds="60"
+     data-stale-seconds="60"
      data-mode="desktop">
     <div class="ugt-toolbar">
         <div class="ugt-toolbar__title">
@@ -78,7 +78,7 @@ $today = date('Y-m-d');
             <div class="ugt-map-wrap">
                 <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
                 <div class="ugt-legend">
-                    <span><i class="ugt-dot ugt-dot--online"></i> متصل (آخر 20 ثانية)</span>
+                    <span><i class="ugt-dot ugt-dot--online"></i> متصل (آخر 60 ثانية)</span>
                     <span><i class="ugt-dot ugt-dot--away"></i> غير متصل = لا يظهر على الخريطة</span>
                 </div>
                 <div class="ugt-status" id="ugt-status">تحديث كل 5 ثوانٍ</div>

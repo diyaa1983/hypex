@@ -282,7 +282,7 @@ function sys_user_location_tracker_rows(
 ): array {
     sys_user_location_ensure_schema($pdo);
 
-    // متصل = نبضة حديثة جداً (افتراضي ~20 ثانية مع إرسال كل 5 ثوانٍ).
+    // متصل = نبضة حديثة (افتراضي ~60 ثانية؛ هامش فوق إرسال كل 5–30 ث).
     $onlineSec = $onlineSeconds !== null
         ? max(15, min(12 * 3600, $onlineSeconds))
         : max(15, min(12 * 3600, max(1, min(24 * 60, $onlineMinutes)) * 60));
@@ -290,13 +290,16 @@ function sys_user_location_tracker_rows(
         ? max($onlineSec, min(24 * 3600, $staleSeconds))
         : max($onlineSec, min(24 * 3600, max(1, min(24 * 60, $staleMinutes)) * 60));
     $search = trim($search);
+    // الرقم يُحقن كعدد صحيح فقط — بعض إصدارات MySQL/PDO لا تربط INTERVAL ? بشكل موثوق.
+    $windowSec = (int) ($includeStale ? $staleSec : $onlineSec);
 
     $sql = 'SELECT ul.user_id, ul.latitude, ul.longitude, ul.gps_accuracy, ul.gps_source, ul.captured_at,
-                   u.username, u.full_name_ar
+                   u.username, u.full_name_ar,
+                   TIMESTAMPDIFF(SECOND, ul.captured_at, NOW()) AS age_sec
             FROM sys_user_location ul
             INNER JOIN sys_user u ON u.id = ul.user_id AND u.is_active = 1
-            WHERE ul.captured_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)';
-    $params = [$includeStale ? $staleSec : $onlineSec];
+            WHERE ul.captured_at >= DATE_SUB(NOW(), INTERVAL ' . $windowSec . ' SECOND)';
+    $params = [];
 
     if ($search !== '') {
         $sql .= ' AND (u.username LIKE ? OR u.full_name_ar LIKE ?)';
@@ -310,7 +313,6 @@ function sys_user_location_tracker_rows(
     $st = $pdo->prepare($sql);
     $st->execute($params);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $now = time();
     $out = [];
 
     foreach ($rows as $row) {
@@ -322,7 +324,9 @@ function sys_user_location_tracker_rows(
 
         $capturedAt = (string) ($row['captured_at'] ?? '');
         $ts = $capturedAt !== '' ? strtotime($capturedAt) : false;
-        $ageSec = ($ts !== false) ? max(0, $now - $ts) : 999999;
+        // عمر النبضة من MySQL فقط — لا نعتمد على PHP time()/strtotime (فرق المنطقة الزمنية
+        // كان يستبعد نقاطاً حديثة بينما التشخيص يقول «الآن»).
+        $ageSec = max(0, (int) ($row['age_sec'] ?? 0));
         $isOnline = $ageSec <= $onlineSec;
 
         if (!$includeStale && !$isOnline) {
@@ -389,6 +393,8 @@ function sys_user_location_recent_snapshots(PDO $pdo, int $limit = 8): array
     $out = [];
     foreach ($rows as $row) {
         $age = (int) ($row['age_sec'] ?? 0);
+        $lat = isset($row['latitude']) ? (float) $row['latitude'] : 0.0;
+        $lng = isset($row['longitude']) ? (float) $row['longitude'] : 0.0;
         $out[] = [
             'user_id' => (int) ($row['user_id'] ?? 0),
             'user_label' => sal_invoice_user_display_name(
@@ -399,6 +405,9 @@ function sys_user_location_recent_snapshots(PDO $pdo, int $limit = 8): array
             'age_sec' => $age,
             'age_label' => sys_user_location_age_label($age),
             'gps_source' => (string) ($row['gps_source'] ?? ''),
+            'latitude' => $lat,
+            'longitude' => $lng,
+            'coords_valid' => sal_invoice_gps_coords_valid($lat, $lng),
         ];
     }
 

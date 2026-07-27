@@ -103,8 +103,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.userGpsTrackerLivePath,
         query: {
-          'online_seconds': 20,
-          'stale_seconds': 20,
+          'online_seconds': 60,
+          'stale_seconds': 60,
           'include_stale': 0,
           'q': _search.text.trim(),
         },
@@ -289,7 +289,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 child: const Row(
                   children: [
                     _LegendDot(AppTheme.success),
-                    Text(' متصل = نبضة خلال 20 ثانية · تحديث كل 5 ثوانٍ  ', style: TextStyle(fontSize: 11.5)),
+                    Text(' متصل = نبضة خلال 60 ثانية · تحديث كل 5 ثوانٍ  ', style: TextStyle(fontSize: 11.5)),
                   ],
                 ),
               ),

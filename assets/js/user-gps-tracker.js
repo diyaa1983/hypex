@@ -70,7 +70,7 @@
     this.tileUrl = root.getAttribute('data-tile-url') || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     this.attribution = root.getAttribute('data-attribution') || '&copy; OpenStreetMap';
     this.pollSec = parseInt(root.getAttribute('data-poll-sec') || '5', 10) || 5;
-    this.onlineSeconds = parseInt(root.getAttribute('data-online-seconds') || '20', 10) || 20;
+    this.onlineSeconds = parseInt(root.getAttribute('data-online-seconds') || '60', 10) || 60;
     this.staleSeconds = parseInt(root.getAttribute('data-stale-seconds') || String(this.onlineSeconds), 10) || this.onlineSeconds;
     if (!root.hasAttribute('data-online-seconds') && root.hasAttribute('data-online-minutes')) {
       this.onlineSeconds = (parseInt(root.getAttribute('data-online-minutes') || '1', 10) || 1) * 60;
