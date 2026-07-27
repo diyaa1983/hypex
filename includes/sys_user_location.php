@@ -7,6 +7,14 @@ const SYS_USER_LOCATION_MIN_INTERVAL_SEC = 600;
 /** الحد الأدنى بين إرسالين من الهاتف — 5 ثوانٍ لتتبّع لحظي. */
 const SYS_USER_LOCATION_MIN_INTERVAL_MOBILE_SEC = 5;
 
+/** وقت محلي للتخزين في captured_at (يتوافق مع APP_TIMEZONE). */
+function sys_user_location_now_sql(): string
+{
+    app_apply_timezone();
+
+    return date('Y-m-d H:i:s');
+}
+
 function sys_user_location_min_interval_sec(string $source, bool $nativeChannel = false): int
 {
     if ($source === 'mobile' || $nativeChannel) {
@@ -618,7 +626,9 @@ function sys_user_location_track_day(
     $date = date('Y-m-d', $ts);
 
     $st = $pdo->prepare(
-        'SELECT latitude, longitude, gps_accuracy, gps_source, captured_at
+        'SELECT latitude, longitude, gps_accuracy, gps_source, captured_at,
+                DATE_FORMAT(captured_at, \'%H:%i\') AS time,
+                DATE_FORMAT(captured_at, \'%H:%i:%s\') AS time_full
          FROM sys_user_location_track
          WHERE user_id = ? AND DATE(captured_at) = ?
          ORDER BY captured_at ASC, id ASC'
@@ -653,8 +663,12 @@ function sys_user_location_track_day(
             'source_label' => sal_invoice_gps_source_label($rawSrc !== '' ? $rawSrc : null),
             'captured_at' => $capturedAt,
             'ts' => $pts,
-            'time' => date('H:i', $pts),
-            'time_full' => date('H:i:s', $pts),
+            'time' => trim((string) ($row['time'] ?? '')) !== ''
+                ? trim((string) $row['time'])
+                : app_format_time_hi($capturedAt),
+            'time_full' => trim((string) ($row['time_full'] ?? '')) !== ''
+                ? trim((string) $row['time_full'])
+                : app_format_time_his($capturedAt),
         ];
     }
 
@@ -970,8 +984,9 @@ function sys_user_location_save_ping(
             $prevTs = strtotime((string) $prev);
             if ($prevTs !== false && (time() - $prevTs) < $minInterval) {
                 // نبضة حضور: نُحدّث الوقت فقط حتى يبقى «متصل الآن» على الخريطة.
-                $pdo->prepare('UPDATE sys_user_location SET captured_at = NOW() WHERE user_id = ?')
-                    ->execute([$userId]);
+                $now = sys_user_location_now_sql();
+                $pdo->prepare('UPDATE sys_user_location SET captured_at = ? WHERE user_id = ?')
+                    ->execute([$now, $userId]);
 
                 return ['ok' => true, 'skipped' => true, 'error' => null];
             }
@@ -989,8 +1004,9 @@ function sys_user_location_save_ping(
             $accuracy
         )) {
             // نُبقي الإحداثيات الأدق، لكن نُحدّث الوقت حتى يبقى المستخدم «متصل الآن».
-            $pdo->prepare('UPDATE sys_user_location SET captured_at = NOW() WHERE user_id = ?')
-                ->execute([$userId]);
+            $now = sys_user_location_now_sql();
+            $pdo->prepare('UPDATE sys_user_location SET captured_at = ? WHERE user_id = ?')
+                ->execute([$now, $userId]);
 
             return ['ok' => true, 'skipped' => true, 'error' => null];
         }
@@ -1001,10 +1017,11 @@ function sys_user_location_save_ping(
 
     // لا جيوكود هنا — كان يُجمّد السيرفر عند كل جهاز على الشبكة (حتى 18 ثانية).
     // أسماء المنطقة/المعلم تُملأ لاحقاً عند فتح شاشة مواقع المستخدمين فقط.
+    $now = sys_user_location_now_sql();
     if ($hasPlace || $hasLandmark) {
         $pdo->prepare(
             'INSERT INTO sys_user_location (user_id, latitude, longitude, gps_accuracy, gps_source, gps_place, gps_landmark, captured_at)
-             VALUES (?, ?, ?, ?, ?, NULL, NULL, NOW())
+             VALUES (?, ?, ?, ?, ?, NULL, NULL, ?)
              ON DUPLICATE KEY UPDATE
                 latitude = VALUES(latitude),
                 longitude = VALUES(longitude),
@@ -1012,30 +1029,32 @@ function sys_user_location_save_ping(
                 gps_source = VALUES(gps_source),
                 gps_place = NULL,
                 gps_landmark = NULL,
-                captured_at = NOW()'
+                captured_at = VALUES(captured_at)'
         )->execute([
             $userId,
             round($lat, 7),
             round($lng, 7),
             $accuracy !== null && is_finite($accuracy) ? round($accuracy, 2) : null,
             $source,
+            $now,
         ]);
     } else {
         $pdo->prepare(
             'INSERT INTO sys_user_location (user_id, latitude, longitude, gps_accuracy, gps_source, captured_at)
-             VALUES (?, ?, ?, ?, ?, NOW())
+             VALUES (?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                 latitude = VALUES(latitude),
                 longitude = VALUES(longitude),
                 gps_accuracy = VALUES(gps_accuracy),
                 gps_source = VALUES(gps_source),
-                captured_at = NOW()'
+                captured_at = VALUES(captured_at)'
         )->execute([
             $userId,
             round($lat, 7),
             round($lng, 7),
             $accuracy !== null && is_finite($accuracy) ? round($accuracy, 2) : null,
             $source,
+            $now,
         ]);
     }
 
@@ -1056,15 +1075,17 @@ function sys_user_location_record_track_point(
 ): void {
     try {
         sys_user_location_track_ensure_schema($pdo);
+        $now = sys_user_location_now_sql();
         $pdo->prepare(
             'INSERT INTO sys_user_location_track (user_id, latitude, longitude, gps_accuracy, gps_source, captured_at)
-             VALUES (?, ?, ?, ?, ?, NOW())'
+             VALUES (?, ?, ?, ?, ?, ?)'
         )->execute([
             $userId,
             round($lat, 7),
             round($lng, 7),
             $accuracy !== null && is_finite($accuracy) ? round($accuracy, 2) : null,
             $source,
+            $now,
         ]);
     } catch (Throwable $e) {
         error_log('sys_user_location_record_track_point: ' . $e->getMessage());

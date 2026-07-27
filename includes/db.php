@@ -23,5 +23,8 @@ function db(): PDO
         PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
     ]);
 
+    require_once app_path('includes/date_defaults.php');
+    app_mysql_apply_timezone($pdo);
+
     return $pdo;
 }
