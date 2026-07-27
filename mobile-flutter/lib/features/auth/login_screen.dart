@@ -26,10 +26,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _prefill() async {
-    final creds = await context.read<SessionController>().savedCredentials();
+    final s = context.read<SessionController>();
+    final creds = await s.savedCredentials();
     if (!mounted) return;
     if (creds.u != null) _user.text = creds.u!;
     if (creds.p != null) _pass.text = creds.p!;
+    final err = s.lastError;
+    if (err != null && err.isNotEmpty) {
+      showSnack(context, err, error: true);
+    }
   }
 
   @override
@@ -49,11 +54,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (!mounted) return;
     if (ok) {
-      final warn = s.deviceWarning;
-      if (warn != null && warn.isNotEmpty) {
-        showSnack(context, warn);
-        s.clearDeviceWarning();
-      }
       context.go('/home');
     } else {
       showSnack(context, s.lastError ?? 'تعذر تسجيل الدخول', error: true);

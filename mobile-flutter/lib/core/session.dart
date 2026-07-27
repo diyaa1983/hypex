@@ -27,23 +27,8 @@ class SessionController extends ChangeNotifier {
   String csrf = '';
   Set<String> permissions = <String>{};
   String? lastError;
-  String? deviceWarning;
 
   bool can(String code) => permissions.contains(code);
-
-  void clearDeviceWarning() {
-    deviceWarning = null;
-    notifyListeners();
-  }
-
-  void _applyDeviceWarning(dynamic raw) {
-    if (raw is Map) {
-      final msg = (raw['message'] ?? '').toString().trim();
-      if (msg.isNotEmpty) {
-        deviceWarning = msg;
-      }
-    }
-  }
 
   Future<Map<String, String>> _deviceFields() async {
     final id = await DeviceIdentity.id();
@@ -121,6 +106,7 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> refreshMe() async {
+    final wasAuth = authenticated;
     final device = await _deviceFields();
     final res = await api.getJson(
       AppConfig.sessionPath,
@@ -130,6 +116,14 @@ class SessionController extends ChangeNotifier {
       },
     );
     _apply(res);
+    if (wasAuth && !authenticated) {
+      final reason = res['session_end_reason'] as String?;
+      if (reason == 'device_in_use') {
+        lastError = (res['message'] as String?) ??
+            'تم إنهاء الجلسة — الحساب مستخدم على جهاز آخر.';
+        await _clearLocalSession();
+      }
+    }
     LocationPresenceService.setCsrf(csrf);
   }
 
@@ -200,6 +194,16 @@ class SessionController extends ChangeNotifier {
     try {
       await api.postForm(AppConfig.sessionPath, fields: {'action': 'logout'});
     } catch (_) {}
+    await _clearLocalSession();
+  }
+
+  /// إنهاء الجلسة محلياً بعد رفض السيرفر (جهاز آخر نشط).
+  Future<void> handleDeviceConflict(String message) async {
+    lastError = message;
+    await _clearLocalSession();
+  }
+
+  Future<void> _clearLocalSession() async {
     await api.clearCookies();
     await _secure.delete(key: 'u');
     await _secure.delete(key: 'p');
@@ -215,7 +219,6 @@ class SessionController extends ChangeNotifier {
   void _apply(Map<String, dynamic> res) {
     authenticated = res['authenticated'] == true;
     csrf = (res['csrf'] as String?) ?? csrf;
-    _applyDeviceWarning(res['device_warning']);
     final user = res['user'];
     if (user is Map) {
       userId = (user['id'] as num?)?.toInt() ?? 0;

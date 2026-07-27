@@ -54,12 +54,22 @@ if ($method === 'GET' || $action === 'me') {
         $deviceId = mobile_device_session_id_from_request();
         if ($uid > 0 && $deviceId !== '') {
             $pdo = db();
+            $block = mobile_device_session_blocking_conflict($pdo, $uid, $deviceId);
+            if ($block !== null) {
+                logout();
+                echo json_encode([
+                    'ok' => true,
+                    'authenticated' => false,
+                    'csrf' => csrf_token(),
+                    'user' => null,
+                    'permissions' => [],
+                    'session_end_reason' => 'device_in_use',
+                    'message' => $block['message'],
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
             $label = trim((string) ($_GET['device_label'] ?? ''));
             mobile_device_session_touch($pdo, $uid, $deviceId, $label !== '' ? $label : null);
-            $warn = mobile_device_session_concurrent_warning($pdo, $uid, $deviceId);
-            if ($warn !== null) {
-                $extra['device_warning'] = $warn;
-            }
         }
     }
     echo json_encode(mobile_session_payload($extra), JSON_UNESCAPED_UNICODE);
@@ -73,6 +83,11 @@ if ($method !== 'POST') {
 }
 
 if ($action === 'logout') {
+    $uid = (int) (current_user()['id'] ?? 0);
+    $deviceId = mobile_device_session_id_from_request();
+    if ($uid > 0 && $deviceId !== '') {
+        mobile_device_session_release(db(), $uid, $deviceId);
+    }
     logout();
     echo json_encode(['ok' => true, 'authenticated' => false], JSON_UNESCAPED_UNICODE);
     exit;
@@ -105,17 +120,23 @@ if (!mobile_attempt_login($username, $password)) {
     exit;
 }
 
-$extra = [];
 $uid = (int) (current_user()['id'] ?? 0);
 $deviceId = mobile_device_session_id_from_request();
 if ($uid > 0 && $deviceId !== '') {
     $pdo = db();
+    $block = mobile_device_session_blocking_conflict($pdo, $uid, $deviceId);
+    if ($block !== null) {
+        logout();
+        http_response_code(409);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'device_in_use',
+            'message' => $block['message'],
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     $deviceLabel = trim((string) ($_POST['device_label'] ?? ''));
     mobile_device_session_touch($pdo, $uid, $deviceId, $deviceLabel !== '' ? $deviceLabel : null);
-    $warn = mobile_device_session_concurrent_warning($pdo, $uid, $deviceId);
-    if ($warn !== null) {
-        $extra['device_warning'] = $warn;
-    }
 }
 
-echo json_encode(mobile_session_payload($extra), JSON_UNESCAPED_UNICODE);
+echo json_encode(mobile_session_payload(), JSON_UNESCAPED_UNICODE);

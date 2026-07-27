@@ -5,7 +5,7 @@ require_once app_path('includes/date_defaults.php');
 require_once app_path('includes/sal_invoice_gps.php');
 
 /**
- * تتبّع الأجهزة النشطة لكل مستخدم (تطبيق الهاتف) — تنبيه عند فتح الحساب من أكثر من جهاز.
+ * تتبّع الأجهزة النشطة لكل مستخدم (تطبيق الهاتف) — منع الدخول من جهاز ثانٍ أثناء النشاط.
  */
 const MOBILE_DEVICE_ACTIVE_SECONDS = 120;
 
@@ -107,10 +107,28 @@ function mobile_device_session_touch(
     }
 }
 
+function mobile_device_session_release(PDO $pdo, int $userId, string $deviceId): void
+{
+    if ($userId < 1 || $deviceId === '') {
+        return;
+    }
+
+    mobile_device_session_ensure_schema($pdo);
+    try {
+        $pdo->prepare(
+            'DELETE FROM sys_user_device_presence WHERE user_id = ? AND device_id = ?'
+        )->execute([$userId, $deviceId]);
+    } catch (Throwable $e) {
+        error_log('mobile_device_session_release: ' . $e->getMessage());
+    }
+}
+
 /**
- * @return array{active:bool, other_count:int, message:string}|null
+ * جهاز آخر نشط لنفس المستخدم خلال نافذة النشاط.
+ *
+ * @return array{active:bool, other_count:int, message:string, device_label?:string}|null
  */
-function mobile_device_session_concurrent_warning(PDO $pdo, int $userId, string $deviceId): ?array
+function mobile_device_session_blocking_conflict(PDO $pdo, int $userId, string $deviceId): ?array
 {
     if ($userId < 1 || $deviceId === '') {
         return null;
@@ -139,20 +157,24 @@ function mobile_device_session_concurrent_warning(PDO $pdo, int $userId, string 
     $seen = trim((string) ($latest['last_seen_at'] ?? ''));
     $seenHi = $seen !== '' ? app_format_time_hi($seen) : '';
 
-    $msg = 'تنبيه: هذا الحساب مفتوح حالياً على جهاز آخر'
-        . ($count > 1 ? " ($count أجهزة)" : '')
-        . '. قد يؤثر ذلك على دقة تتبّع الموقع وخط السير.';
+    $msg = 'هذا الحساب مستخدم حالياً على جهاز آخر. أغلِق التطبيق على ذلك الجهاز أو انتظر دقيقتين ثم حاول مجدداً.';
     if ($label !== '') {
-        $msg .= ' آخر جهاز نشط: ' . $label;
+        $msg .= ' الجهاز النشط: ' . $label;
     }
     if ($seenHi !== '') {
         $msg .= ' (آخر نشاط ' . $seenHi . ')';
     }
-    $msg .= ' يُفضّل استخدام جهاز واحد فقط أثناء التتبّع.';
 
     return [
         'active' => true,
         'other_count' => $count,
         'message' => $msg,
+        'device_label' => $label !== '' ? $label : null,
     ];
+}
+
+/** @deprecated استخدم mobile_device_session_blocking_conflict */
+function mobile_device_session_concurrent_warning(PDO $pdo, int $userId, string $deviceId): ?array
+{
+    return mobile_device_session_blocking_conflict($pdo, $userId, $deviceId);
 }

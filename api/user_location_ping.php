@@ -55,6 +55,20 @@ $source = sal_invoice_gps_normalize_source(
 
 try {
     $pdo = db();
+    $deviceId = mobile_device_session_id_from_request();
+    if ($deviceId !== '') {
+        $block = mobile_device_session_blocking_conflict($pdo, $userId, $deviceId);
+        if ($block !== null) {
+            http_response_code(409);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'device_in_use',
+                'message' => $block['message'],
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+
     $result = sys_user_location_save_ping($pdo, $userId, (float) $lat, (float) $lng, $accuracy, $source);
     if (!$result['ok']) {
         http_response_code(400);
@@ -66,7 +80,6 @@ try {
         'ok' => true,
         'skipped' => !empty($result['skipped']),
     ];
-    $deviceId = mobile_device_session_id_from_request();
     if ($deviceId !== '') {
         $deviceLabel = trim((string) ($_POST['device_label'] ?? ''));
         mobile_device_session_touch(
@@ -77,10 +90,6 @@ try {
             $lat,
             $lng
         );
-        $warn = mobile_device_session_concurrent_warning($pdo, $userId, $deviceId);
-        if ($warn !== null) {
-            $payload['device_warning'] = $warn;
-        }
     }
 
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);

@@ -23,14 +23,7 @@ class LocationPresenceService {
   static bool _enabled = false;
   static DateTime? lastOkAt;
   static String lastMessage = '';
-  static void Function(String message)? onDeviceWarning;
-
-  static void _notifyDeviceWarning(dynamic raw) {
-    if (raw is! Map) return;
-    final msg = (raw['message'] ?? '').toString().trim();
-    if (msg.isEmpty) return;
-    onDeviceWarning?.call(msg);
-  }
+  static void Function(String message)? onSessionConflict;
 
   static void bind(ApiClient api, {String csrf = ''}) {
     _api = api;
@@ -127,7 +120,6 @@ class LocationPresenceService {
       );
 
       if (res['ok'] == true) {
-        _notifyDeviceWarning(res['device_warning']);
         lastOkAt = DateTime.now();
         lastMessage = res['skipped'] == true
             ? 'تم تأكيد الحضور'
@@ -152,6 +144,9 @@ class LocationPresenceService {
     } on ApiException catch (e) {
       lastMessage = e.message;
       await LocationTrackingService.saveLastStatus(lastMessage);
+      if (e.code == 'device_in_use') {
+        onSessionConflict?.call(e.message);
+      }
       if (kDebugMode) debugPrint('[presence] api error: ${e.message}');
       return false;
     } catch (e) {

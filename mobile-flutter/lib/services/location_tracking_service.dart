@@ -401,12 +401,16 @@ class _TrackingTaskHandler extends TaskHandler {
         options: Options(contentType: Headers.formUrlEncodedContentType),
       );
       final map = _asMap(res.data);
-      _authenticated = map['authenticated'] == true;
-      _csrf = (map['csrf'] ?? '').toString();
-      if (!_authenticated) {
-        await _setStatus('فشل تسجيل الدخول للخدمة.');
+      if (map['ok'] != true || map['authenticated'] != true) {
+        _authenticated = false;
+        final msg = (map['message'] ?? map['error'] ?? 'فشل تسجيل الدخول للخدمة.')
+            .toString();
+        await _setStatus(msg);
+        return false;
       }
-      return _authenticated;
+      _authenticated = true;
+      _csrf = (map['csrf'] ?? '').toString();
+      return true;
     } catch (e) {
       _authenticated = false;
       await _setStatus('تعذّر الاتصال بالسيرفر.');

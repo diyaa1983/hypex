@@ -26,9 +26,8 @@ Future<void> main() async {
 
   final api = await ApiClient.create();
   final session = SessionController(api);
-  LocationPresenceService.onDeviceWarning = (msg) {
-    session.deviceWarning = msg;
-    session.notifyListeners();
+  LocationPresenceService.onSessionConflict = (msg) {
+    session.handleDeviceConflict(msg);
   };
   await session.boot();
 
