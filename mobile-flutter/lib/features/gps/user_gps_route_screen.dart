@@ -290,7 +290,7 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
         stops: _stops,
         onSelect: (s) {
           Navigator.of(context).pop();
-          _map.move(s.point, 16);
+          _map.move(s.point, 17);
         },
       ),
     );
@@ -492,6 +492,11 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     );
   }
 
+  void _focusPoint(LatLng point, {double zoom = 17}) {
+    final targetZoom = _map.camera.zoom < zoom ? zoom : _map.camera.zoom;
+    _map.move(point, targetZoom);
+  }
+
   List<Marker> _buildMarkers() {
     final markers = <Marker>[];
 
@@ -502,7 +507,10 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
         width: 28,
         height: 28,
         alignment: Alignment.topCenter,
-        child: _GpsPin(label: '${i + 1}', color: AppTheme.warn),
+        child: GestureDetector(
+          onTap: () => _focusPoint(s.point),
+          child: _GpsPin(label: '${i + 1}', color: AppTheme.warn),
+        ),
       ));
     }
 
@@ -512,24 +520,35 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
         width: 28,
         height: 28,
         alignment: Alignment.topCenter,
-        child: const _GpsPin(label: '•', color: Color(0xFF7C3AED)),
+        child: GestureDetector(
+          onTap: () => _focusPoint(p.point),
+          child: const _GpsPin(label: '•', color: Color(0xFF7C3AED)),
+        ),
       ));
     }
 
     if (_points.isNotEmpty) {
+      final start = _points.first.point;
+      final end = _points.last.point;
       markers.add(Marker(
-        point: _points.first.point,
+        point: start,
         width: 28,
         height: 28,
         alignment: Alignment.topCenter,
-        child: const _GpsPin(label: 'ب', color: AppTheme.success),
+        child: GestureDetector(
+          onTap: () => _focusPoint(start),
+          child: const _GpsPin(label: 'ب', color: AppTheme.success),
+        ),
       ));
       markers.add(Marker(
-        point: _points.last.point,
+        point: end,
         width: 28,
         height: 28,
         alignment: Alignment.topCenter,
-        child: const _GpsPin(label: 'ن', color: Color(0xFFDC2626)),
+        child: GestureDetector(
+          onTap: () => _focusPoint(end),
+          child: const _GpsPin(label: 'ن', color: Color(0xFFDC2626)),
+        ),
       ));
     }
 

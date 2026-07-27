@@ -157,6 +157,27 @@
     if (this.els.status) this.els.status.textContent = t || '';
   };
 
+  /** تكبير تلقائي على موقع محدد لرؤية المنطقة بوضوح. */
+  RouteView.prototype.focusPoint = function (lat, lng, zoom) {
+    if (!this.map || isNaN(lat) || isNaN(lng)) return;
+    var z = zoom != null ? zoom : 17;
+    if (this.map.getZoom() < z) {
+      this.map.setView([lat, lng], z, { animate: true });
+      return;
+    }
+    this.map.setView([lat, lng], Math.max(this.map.getZoom(), z), { animate: true });
+  };
+
+  RouteView.prototype._bindMarkerFocus = function (marker, lat, lng, zoom) {
+    var self = this;
+    marker.on('click', function () {
+      self.focusPoint(lat, lng, zoom);
+      if (typeof marker.openPopup === 'function') {
+        marker.openPopup();
+      }
+    });
+  };
+
   RouteView.prototype.loadUsers = function () {
     var self = this;
     return fetch(this.api, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
@@ -318,7 +339,7 @@
           var lat = parseFloat(btn.getAttribute('data-lat'));
           var lng = parseFloat(btn.getAttribute('data-lng'));
           if (self.map && !isNaN(lat) && !isNaN(lng)) {
-            self.map.setView([lat, lng], Math.max(self.map.getZoom(), 16), { animate: true });
+            self.focusPoint(lat, lng, 17);
           }
         });
       });
@@ -452,6 +473,7 @@
           (pt.source_label ? '<br>' + esc(pt.source_label) : '') +
           '</div>'
       );
+      this._bindMarkerFocus(dot, pt.latitude, pt.longitude, 17);
       dot.addTo(this.markerLayer);
     }
 
@@ -468,6 +490,7 @@
           esc(pr.label || pr.time || '') +
           '</div>'
       );
+      this._bindMarkerFocus(pm, pr.latitude, pr.longitude, 17);
       pm.addTo(this.markerLayer);
       bounds.push([pr.latitude, pr.longitude]);
     }
@@ -491,15 +514,17 @@
           esc(s.duration_label) +
           '</div>'
       );
+      this._bindMarkerFocus(sm, s.latitude, s.longitude, 17);
       sm.addTo(this.markerLayer);
     }
 
     // بداية / نهاية — اختصار داخل دبوس GPS (التفاصيل في النافذة المنبثقة)
     var start = points[0];
     var end = points[points.length - 1];
-    global.L.marker([start.latitude, start.longitude], {
+    var startM = global.L.marker([start.latitude, start.longitude], {
       icon: this.pinIcon('start', 'ب'),
-    })
+    });
+    startM
       .bindPopup(
         '<div class="ugr-popup"><b>البداية</b>' +
           (userLabel ? '<br>' + esc(userLabel) : '') +
@@ -508,9 +533,12 @@
           '</div>'
       )
       .addTo(this.markerLayer);
-    global.L.marker([end.latitude, end.longitude], {
+    this._bindMarkerFocus(startM, start.latitude, start.longitude, 17);
+
+    var endM = global.L.marker([end.latitude, end.longitude], {
       icon: this.pinIcon('end', 'ن'),
-    })
+    });
+    endM
       .bindPopup(
         '<div class="ugr-popup"><b>النهاية</b>' +
           (userLabel ? '<br>' + esc(userLabel) : '') +
@@ -519,6 +547,7 @@
           '</div>'
       )
       .addTo(this.markerLayer);
+    this._bindMarkerFocus(endM, end.latitude, end.longitude, 17);
 
     if (bounds.length) {
       try {
