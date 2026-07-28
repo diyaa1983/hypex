@@ -97,7 +97,14 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
     if (msg != null) {
       showSnack(context, msg, error: true);
     } else {
-      showSnack(context, on ? 'تم تشغيل التتبّع.' : 'تم إيقاف التتبّع.');
+      final tip = on
+          ? await LocationTrackingService.backgroundPermissionTip()
+          : null;
+      if (!mounted) return;
+      showSnack(
+        context,
+        tip ?? (on ? 'تم تشغيل التتبّع.' : 'تم إيقاف التتبّع.'),
+      );
     }
     await _refreshTracking();
   }

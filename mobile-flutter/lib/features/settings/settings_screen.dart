@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +24,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   TrackingStatus? _status;
   bool _busy = false;
+  bool _iosNeedsAlways = false;
   Timer? _refresh;
 
   @override
@@ -46,7 +49,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadStatus() async {
     final s = await LocationTrackingService.status();
-    if (mounted) setState(() => _status = s);
+    bool needsAlways = false;
+    if (!kIsWeb && Platform.isIOS) {
+      needsAlways = !(await LocationTrackingService.hasAlwaysPermission);
+    }
+    if (mounted) {
+      setState(() {
+        _status = s;
+        _iosNeedsAlways = needsAlways;
+      });
+    }
   }
 
   Future<void> _toggle(bool on) async {
@@ -59,13 +71,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (error != null) {
           showSnack(context, error, error: true);
         } else {
-        await LocationPresenceService.start(
-          api: session.api,
-          csrf: session.csrf,
-          intervalSec: session.gpsConfig.intervalSec,
-        );
+          await LocationPresenceService.start(
+            api: session.api,
+            csrf: session.csrf,
+            intervalSec: session.gpsConfig.intervalSec,
+          );
           if (!mounted) return;
-          showSnack(context, 'تم تشغيل خدمة تتبّع الموقع.');
+          final tip = await LocationTrackingService.backgroundPermissionTip();
+          if (!mounted) return;
+          if (tip != null) {
+            showSnack(context, tip);
+          } else {
+            showSnack(context, 'تم تشغيل خدمة تتبّع الموقع.');
+          }
         }
       } else {
         await LocationPresenceService.stop();
@@ -162,7 +180,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       subtitle: Text(
                         running
-                            ? 'تعمل الآن وتستمر بعد إغلاق التطبيق'
+                            ? (!kIsWeb && Platform.isIOS
+                                ? (_iosNeedsAlways
+                                    ? 'تعمل — فعّل «دائماً» لاستمرار الخلفية'
+                                    : 'تعمل في الخلفية على الآيفون')
+                                : 'تعمل الآن وتستمر بعد إغلاق التطبيق')
                             : 'متوقفة — لن يُرسل موقعك',
                         style: const TextStyle(
                           fontSize: 12,
@@ -188,7 +210,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: Text(
                         gps.autoEnable
                             ? (running
-                                ? 'مفعّل تلقائياً من النظام — يعمل في الخلفية'
+                                ? (!kIsWeb && Platform.isIOS && _iosNeedsAlways
+                                    ? 'مفعّل — يحتاج إذن «دائماً» في إعدادات الآيفون'
+                                    : 'مفعّل تلقائياً من النظام — يعمل في الخلفية')
                                 : 'مفعّل من النظام — بانتظار الأذونات أو GPS')
                             : 'يُدار من إعدادات النظام على السيرفر',
                         style: const TextStyle(
@@ -202,6 +226,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         dense: true,
                       ),
                     ),
+                  if (!kIsWeb && Platform.isIOS && _iosNeedsAlways) ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const MiniIcon(
+                        Icons.iphone_rounded,
+                        color: AppTheme.warn,
+                      ),
+                      title: const Text('إذن الموقع على الآيفون'),
+                      subtitle: const Text(
+                        'اختر «دائماً» حتى يستمر التتبّع والتطبيق مغلق أو في الخلفية.',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textSoft),
+                      ),
+                      trailing: TextButton(
+                        onPressed: () => LocationTrackingService.openAppSettings(),
+                        child: const Text('الإعدادات'),
+                      ),
+                    ),
+                  ],
                   const Divider(height: 1),
                   ListTile(
                     leading: const MiniIcon(

@@ -8,6 +8,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../core/config.dart';
+import 'location_service.dart';
 
 /// مفاتيح التخزين المشتركة بين الواجهة و isolate الخدمة.
 class TrackKeys {
@@ -51,7 +52,8 @@ class TrackingStatus {
   final double? lastLng;
 }
 
-/// خدمة تتبّع الموقع التي تعمل في الخلفية (Foreground Service على أندرويد).
+/// خدمة تتبّع الموقع التي تعمل في الخلفية
+/// (Foreground Service على أندرويد + Background Location على الآيفون).
 ///
 /// تُخزَّن بيانات الاتصال عبر [FlutterForegroundTask.saveData] لأن الخدمة
 /// تعمل في isolate منفصل لا يشارك الذاكرة مع واجهة التطبيق.
@@ -76,8 +78,9 @@ class LocationTrackingService {
         onlyAlertOnce: true,
         showWhen: false,
       ),
+      // على الآيفون: إظهار إشعار خفيف يساعد على استمرار التتبّع في الخلفية.
       iosNotificationOptions: const IOSNotificationOptions(
-        showNotification: false,
+        showNotification: true,
         playSound: false,
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
@@ -96,6 +99,19 @@ class LocationTrackingService {
   }
 
   static Future<bool> get isRunning => FlutterForegroundTask.isRunningService;
+
+  /// هل الإذن يسمح بالتتبّع والتطبيق في الخلفية؟
+  static Future<bool> get hasAlwaysPermission async {
+    final perm = await Geolocator.checkPermission();
+    return perm == LocationPermission.always;
+  }
+
+  /// فتح إعدادات التطبيق لمنح «دائماً» على الآيفون.
+  static Future<bool> openAppSettings() => Geolocator.openAppSettings();
+
+  /// نص إرشادي للآيفون عند غياب إذن Always.
+  static const String iosAlwaysHint =
+      'لتثبيت التتبّع في الخلفية على الآيفون: الإعدادات ← النماء ← الموقع ← دائماً';
 
   /// حفظ بيانات الاتصال ليستخدمها isolate الخدمة في تسجيل الدخول والإرسال.
   static Future<void> saveCredentials({
@@ -164,7 +180,8 @@ class LocationTrackingService {
       .saveData(key: TrackKeys.minDistance, value: meters)
       .then((_) {});
 
-  /// طلب كل الأذونات اللازمة؛ يُرجع رسالة خطأ عربية أو null عند النجاح.
+  /// طلب كل الأذونات اللازمة؛ تُرجع null عند النجاح، أو رسالة خطأ تمنع التشغيل.
+  /// على الآيفون: يطلب أولاً «أثناء الاستخدام» ثم يرقّيه إلى «دائماً».
   static Future<String?> requestPermissions() async {
     final notif = await FlutterForegroundTask.checkNotificationPermission();
     if (notif != NotificationPermission.granted) {
@@ -183,19 +200,31 @@ class LocationTrackingService {
       return 'لم يُمنح إذن الوصول للموقع.';
     }
     if (perm == LocationPermission.deniedForever) {
-      return 'إذن الموقع مرفوض نهائياً. افتح إعدادات التطبيق وامنح إذن الموقع.';
+      return Platform.isIOS
+          ? 'إذن الموقع مرفوض. افتح إعدادات الآيفون ← النماء ← الموقع ← دائماً.'
+          : 'إذن الموقع مرفوض نهائياً. افتح إعدادات التطبيق وامنح إذن الموقع.';
+    }
+
+    // ترقية إلى "دائماً / طوال الوقت" لاستمرار التتبّع في الخلفية.
+    if (perm == LocationPermission.whileInUse) {
+      perm = await Geolocator.requestPermission();
     }
 
     if (Platform.isAndroid) {
-      // إذن "السماح طوال الوقت" ضروري لاستمرار التتبّع والتطبيق مغلق.
-      if (perm == LocationPermission.whileInUse) {
-        await Geolocator.requestPermission();
-      }
       if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
         await FlutterForegroundTask.requestIgnoreBatteryOptimization();
       }
     }
+
+    // على الآيفون: نسمح بالتشغيل حتى مع While In Use، مع تنبيه لاحق في start().
     return null;
+  }
+
+  /// بعد التشغيل: رسالة تنبيه إن كان إذن الخلفية ناقصاً (خصوصاً الآيفون).
+  static Future<String?> backgroundPermissionTip() async {
+    if (!Platform.isIOS) return null;
+    if (await hasAlwaysPermission) return null;
+    return iosAlwaysHint;
   }
 
   static Future<void> setEnabledFlag(bool value) async {
@@ -220,7 +249,8 @@ class LocationTrackingService {
     );
   }
 
-  /// تشغيل الخدمة؛ يُرجع رسالة خطأ عربية أو null عند النجاح。
+  /// تشغيل الخدمة؛ يُرجع رسالة خطأ عربية أو null عند النجاح.
+  /// إن نجح التشغيل مع نقص إذن Always على الآيفون، تُرجع نص إرشاد (ليس خطأً).
   static Future<String?> start() async {
     if (!_initialized) init();
     final permError = await requestPermissions();
@@ -516,9 +546,8 @@ class _TrackingTaskHandler extends TaskHandler {
         return null;
       }
       return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 25),
+        locationSettings: LocationService.trackingSettings(
+          timeLimit: const Duration(seconds: 25),
         ),
       );
     } catch (_) {

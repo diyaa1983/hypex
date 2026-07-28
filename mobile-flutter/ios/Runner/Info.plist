@@ -29,14 +29,15 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>يُستخدم موقعك لتسجيل موقع الفواتير وتتبّع المندوب أثناء العمل.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>يُستخدم موقعك لتسجيل موقع الفواتير وتتبّع المندوب أثناء العمل.</string>
+	<string>يحتاج التطبيق إذن «دائماً» لإرسال موقعك أثناء التتبّع حتى لو كان التطبيق في الخلفية أو الشاشة مغلقة.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>يُستخدم موقعك في الخلفية لتتبّع تحرّكات المندوب أثناء ساعات العمل.</string>
+	<string>يحتاج التطبيق إذن «دائماً» لإرسال موقعك أثناء التتبّع حتى لو كان التطبيق في الخلفية أو الشاشة مغلقة.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
 		<string>location</string>
 		<string>processing</string>
+		<string>remote-notification</string>
 	</array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
