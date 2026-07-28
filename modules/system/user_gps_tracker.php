@@ -22,9 +22,11 @@ $trackApiUrl = app_url('api/user_gps_track_day.php');
 $cssPath = app_path('assets/css/user-gps-tracker.css');
 $jsPath = app_path('assets/js/user-gps-tracker.js');
 $routeJsPath = app_path('assets/js/user-gps-route.js');
+$mapLayersPath = app_path('assets/js/leaflet-map-layers.js');
 $cssV = is_file($cssPath) ? (string) filemtime($cssPath) : '';
 $jsV = is_file($jsPath) ? (string) filemtime($jsPath) : '';
 $routeJsV = is_file($routeJsPath) ? (string) filemtime($routeJsPath) : '';
+$mapLayersV = is_file($mapLayersPath) ? (string) filemtime($mapLayersPath) : '';
 $osm = app_osm_js_config();
 $exitUrl = nav_exit_url('user_gps_tracker');
 $today = date('Y-m-d');
@@ -133,5 +135,9 @@ $today = date('Y-m-d');
     </div>
 </div>
 
+<script>
+window.AppOsmConfig = <?= json_encode($osm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+</script>
+<script src="<?= esc(app_url('assets/js/leaflet-map-layers.js')) ?><?= $mapLayersV !== '' ? '?v=' . esc($mapLayersV) : '' ?>"></script>
 <script src="<?= esc(app_url('assets/js/user-gps-tracker.js')) ?><?= $jsV !== '' ? '?v=' . esc($jsV) : '' ?>"></script>
 <script src="<?= esc(app_url('assets/js/user-gps-route.js')) ?><?= $routeJsV !== '' ? '?v=' . esc($routeJsV) : '' ?>"></script>

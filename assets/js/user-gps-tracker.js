@@ -118,7 +118,9 @@
     var self = this;
     return ensureLeaflet()
       .then(function () {
-        self.buildMap();
+        return self.buildMap();
+      })
+      .then(function () {
         self.bind();
         return self.load();
       })
@@ -137,52 +139,51 @@
 
   Tracker.prototype.buildMap = function () {
     var mapEl = this.els.map;
-    if (!mapEl || this.map) return;
+    if (!mapEl || this.map) return Promise.resolve();
 
+    var self = this;
     this.map = global.L.map(mapEl, {
       zoomControl: true,
       attributionControl: true,
     }).setView([31.9539, 35.9106], 8);
 
-    var tileUrl =
-      this.tileUrl && this.tileUrl.indexOf('{z}') >= 0
-        ? this.tileUrl
-        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-    global.L.tileLayer(tileUrl, {
-      attribution: this.attribution,
-      maxZoom: 20,
-      subdomains: 'abcd',
-    }).addTo(this.map);
-
     this.layer = global.L.layerGroup().addTo(this.map);
 
-    // إصلاح حجم الخريطة بعد الظهور في التخطيط (مهم جداً على iPhone)
-    var self = this;
-    function bumpSize() {
-      if (self.map) {
-        try {
-          self.map.invalidateSize({ animate: false });
-        } catch (e) {
-          /* ignore */
+    var attach = global.LeafletMapLayers && global.LeafletMapLayers.attach
+      ? global.LeafletMapLayers.attach(this.map, {
+          tileUrl: this.tileUrl,
+          attribution: this.attribution,
+          mapProvider: this.mapProvider,
+          googleKey: this.googleKey,
+        })
+      : Promise.resolve();
+
+    return attach.then(function () {
+      function bumpSize() {
+        if (self.map) {
+          try {
+            self.map.invalidateSize({ animate: false });
+          } catch (e) {
+            /* ignore */
+          }
         }
       }
-    }
-    bumpSize();
-    setTimeout(bumpSize, 120);
-    setTimeout(bumpSize, 350);
-    setTimeout(bumpSize, 700);
-    if (this.mode === 'mobile') {
-      global.addEventListener('resize', bumpSize);
-      global.addEventListener('orientationchange', function () {
-        setTimeout(bumpSize, 250);
-      });
-      // بعد رسم الصفحة بالكامل (شريط العنوان / الـ dock)
-      if (global.requestAnimationFrame) {
-        global.requestAnimationFrame(function () {
-          global.requestAnimationFrame(bumpSize);
+      bumpSize();
+      setTimeout(bumpSize, 120);
+      setTimeout(bumpSize, 350);
+      setTimeout(bumpSize, 700);
+      if (self.mode === 'mobile') {
+        global.addEventListener('resize', bumpSize);
+        global.addEventListener('orientationchange', function () {
+          setTimeout(bumpSize, 250);
         });
+        if (global.requestAnimationFrame) {
+          global.requestAnimationFrame(function () {
+            global.requestAnimationFrame(bumpSize);
+          });
+        }
       }
-    }
+    });
   };
 
   Tracker.prototype.setDrawerOpen = function (open) {

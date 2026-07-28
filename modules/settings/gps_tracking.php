@@ -8,6 +8,10 @@ require_once app_path('includes/nav_helpers.php');
 
 $pdo = db();
 $settings = mobile_gps_settings($pdo);
+$googleMapsKey = mobile_gps_settings_google_maps_key($pdo);
+if ($googleMapsKey === '' && defined('APP_GOOGLE_MAPS_API_KEY')) {
+    $googleMapsKey = trim((string) APP_GOOGLE_MAPS_API_KEY);
+}
 $exitUrl = nav_exit_url($activeRoute ?? 'gps_tracking_settings');
 $msg = '';
 $msgType = '';
@@ -26,8 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'interval_sec' => $_POST['gps_mobile_interval_sec'] ?? 10,
                 'min_distance_m' => $_POST['gps_mobile_min_distance_m'] ?? 0,
                 'user_can_disable' => $_POST['gps_mobile_user_can_disable'] ?? null,
+                'google_maps_api_key' => $_POST['gps_google_maps_api_key'] ?? '',
             ]);
             $settings = mobile_gps_settings($pdo);
+            $googleMapsKey = mobile_gps_settings_google_maps_key($pdo);
             $msg = 'تم حفظ إعدادات تتبّع موقع تطبيق الهاتف.';
             $msgType = 'success';
         } catch (Throwable $e) {
@@ -109,6 +115,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             افتراضياً: المستخدم العادي لا يرى زر الإيقاف — التتبّع إلزامي من النظام.
                         </div>
                     </label>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <hr class="my-2">
+                <h2 class="h6 mb-2">خرائط Google</h2>
+                <label class="form-label" for="gps_google_key">مفتاح Google Maps API</label>
+                <input type="password" class="form-control" id="gps_google_key" name="gps_google_maps_api_key"
+                    value="<?= esc($googleMapsKey) ?>" autocomplete="off"
+                    placeholder="AIzaSy...">
+                <div class="form-text">
+                    فعّل <strong>Maps JavaScript API</strong> في
+                    <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" rel="noopener">Google Cloud</a>
+                    ثم الصق المفتاح هنا. بدون مفتاح تُستخدم خريطة Carto الافتراضية.
+                    <?php if ($googleMapsKey !== ''): ?>
+                        <span class="text-success">✓ Google Maps مفعّل</span>
+                    <?php endif; ?>
                 </div>
             </div>
 

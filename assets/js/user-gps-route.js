@@ -208,23 +208,13 @@
 
   RouteView.prototype._attachBaseLayer = function () {
     var self = this;
-    if (this.mapProvider === 'google' && this.googleKey) {
-      return ensureGoogleMutant(this.googleKey)
-        .then(function () {
-          if (global.L.gridLayer && global.L.gridLayer.googleMutant) {
-            global.L.gridLayer
-              .googleMutant({
-                type: 'roadmap',
-                maxZoom: 21,
-              })
-              .addTo(self.map);
-            return;
-          }
-          self._attachCartoLayer();
-        })
-        .catch(function () {
-          self._attachCartoLayer();
-        });
+    if (global.LeafletMapLayers && global.LeafletMapLayers.attach) {
+      return global.LeafletMapLayers.attach(this.map, {
+        tileUrl: this.tileUrl,
+        attribution: this.attribution,
+        mapProvider: this.mapProvider,
+        googleKey: this.googleKey,
+      });
     }
     this._attachCartoLayer();
     return Promise.resolve();
@@ -241,39 +231,6 @@
       subdomains: 'abcd',
     }).addTo(this.map);
   };
-
-  function ensureGoogleMutant(apiKey) {
-    if (global.L && global.L.gridLayer && global.L.gridLayer.googleMutant && global.google && global.google.maps) {
-      return Promise.resolve();
-    }
-    if (global.__ugrGooglePromise) return global.__ugrGooglePromise;
-
-    global.__ugrGooglePromise = new Promise(function (resolve, reject) {
-      function loadMutant() {
-        var s = document.createElement('script');
-        s.src = 'https://unpkg.com/leaflet.gridlayer.googlemutant@0.14.1/dist/Leaflet.GoogleMutant.js';
-        s.onload = function () {
-          resolve();
-        };
-        s.onerror = reject;
-        document.head.appendChild(s);
-      }
-      if (global.google && global.google.maps) {
-        loadMutant();
-        return;
-      }
-      var g = document.createElement('script');
-      g.src =
-        'https://maps.googleapis.com/maps/api/js?key=' +
-        encodeURIComponent(apiKey) +
-        '&v=weekly&loading=async';
-      g.async = true;
-      g.onload = loadMutant;
-      g.onerror = reject;
-      document.head.appendChild(g);
-    });
-    return global.__ugrGooglePromise;
-  }
 
   RouteView.prototype.invalidate = function () {
     var self = this;

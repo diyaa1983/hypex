@@ -28,7 +28,34 @@ function app_osm_tile_url(): string
 
 function app_osm_google_maps_api_key(): string
 {
-    return defined('APP_GOOGLE_MAPS_API_KEY') ? trim((string) APP_GOOGLE_MAPS_API_KEY) : '';
+    if (defined('APP_GOOGLE_MAPS_API_KEY') && trim((string) APP_GOOGLE_MAPS_API_KEY) !== '') {
+        return trim((string) APP_GOOGLE_MAPS_API_KEY);
+    }
+
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    $cached = '';
+    try {
+        if (function_exists('db')) {
+            $pdo = db();
+            $pdo->query('SELECT gps_google_maps_api_key FROM sys_company_settings LIMIT 1');
+            $row = $pdo->query(
+                'SELECT gps_google_maps_api_key FROM sys_company_settings WHERE id = 1 LIMIT 1'
+            )->fetch(PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                $cached = trim((string) ($row['gps_google_maps_api_key'] ?? ''));
+            }
+        }
+    } catch (Throwable $e) {
+        if (strpos($e->getMessage(), 'Unknown column') === false) {
+            error_log('app_osm_google_maps_api_key: ' . $e->getMessage());
+        }
+    }
+
+    return $cached;
 }
 
 /** @return array{tileUrl:string, attribution:string, googleMapsKey:string, mapProvider:string} */
