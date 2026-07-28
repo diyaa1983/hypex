@@ -381,7 +381,17 @@ function handle_fin_private_out_check_post(): void
         }
 
         $savedId = fin_private_out_check_save($pdo, $_POST, $userId);
-        flash_set('success', $id > 0 ? 'تم تحديث الشيك.' : 'تم حفظ الشيك.');
+        $msg = $id > 0 ? 'تم تحديث الشيك.' : 'تم حفظ الشيك.';
+        try {
+            require_once app_path('includes/fin_out_check_due_email.php');
+            $emailRun = fin_out_check_due_email_run($pdo);
+            if (!empty($emailRun['ok']) && (int) ($emailRun['sent'] ?? 0) > 0) {
+                $msg .= ' تم إرسال تنبيه البريد.';
+            }
+        } catch (Throwable $e) {
+            // لا نمنع الحفظ عند فشل الإرسال الفوري.
+        }
+        flash_set('success', $msg);
         redirect(fin_private_out_check_redirect_url($savedId));
     } catch (Throwable $e) {
         $msg = $e->getMessage() !== '' ? $e->getMessage() : 'تعذر حفظ الشيك.';
