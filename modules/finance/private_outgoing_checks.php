@@ -74,23 +74,23 @@ sales_ora12_enqueue_assets();
     <?php sales_ora12_workspace_open(); ?>
 
     <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-ora-flash">
+        <div class="alert no-print alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-ora-flash">
             <?= esc($flash['message']) ?>
         </div>
     <?php endif; ?>
 
     <?php if ($err !== ''): ?>
-        <div class="alert alert-error sales-ora-flash"><?= esc($err) ?></div>
+        <div class="alert no-print alert-error sales-ora-flash"><?= esc($err) ?></div>
     <?php endif; ?>
 
-    <p class="sales-ora-info muted">
+    <p class="sales-ora-info muted fin-checks-intro">
         إدخال <strong>شيكات صادرة للتذكير فقط</strong> — لا تُنشئ سند صرف ولا قيوداً محاسبية ولا تؤثر على العميل أو المورد.
         تُرسل التنبيهات حسب إعدادات <strong>بريد الشيكات الصادرة</strong>
         (<?= $reminderCfg['enabled'] ? 'مفعّل' : 'غير مفعّل' ?>،
         قبل <?= (int) $reminderCfg['days_before'] ?> يوم<?= $reminderCfg['on_due_day'] ? ' + يوم الاستحقاق' : '' ?>).
     </p>
 
-    <div class="sales-ora-panel card fin-private-out-checks-toolbar no-print">
+    <div class="sales-ora-panel card fin-private-out-checks-toolbar fin-checks-toolbar no-print">
         <a class="dashboard-ora-btn dashboard-ora-btn--primary"
            href="<?= esc(app_url('index.php?r=fin_private_out_checks&new=1')) ?>">+ شيك جديد</a>
         <a class="dashboard-ora-btn" href="<?= esc(app_url('index.php?r=settings')) ?>">إعدادات التذكير</a>
@@ -149,15 +149,15 @@ sales_ora12_enqueue_assets();
     <?php endif; ?>
 
     <div class="sales-ora-panel card">
-        <form method="get" action="<?= esc(app_url('index.php')) ?>" class="sales-ora-search-form form-row fin-checks-filters">
+        <form method="get" action="<?= esc(app_url('index.php')) ?>" class="sales-ora-search-form form-row fin-checks-filters" id="fin-poc-filters-form">
             <input type="hidden" name="r" value="fin_private_out_checks">
             <label class="field">
                 <span class="field-label">الحالة</span>
-                <select class="input input-compact" name="status">
+                <select class="input input-compact" name="status" id="fin-poc-filter-status">
+                    <option value="all"<?= $filters['status'] === 'all' ? ' selected' : '' ?>>الكل</option>
                     <option value="pending"<?= $filters['status'] === 'pending' ? ' selected' : '' ?>>قيد التذكير</option>
                     <option value="done"<?= $filters['status'] === 'done' ? ' selected' : '' ?>>منجز</option>
                     <option value="cancelled"<?= $filters['status'] === 'cancelled' ? ' selected' : '' ?>>ملغى</option>
-                    <option value="all"<?= $filters['status'] === 'all' ? ' selected' : '' ?>>الكل</option>
                 </select>
             </label>
             <label class="field">
@@ -252,7 +252,7 @@ sales_ora12_enqueue_assets();
                                        href="<?= esc(app_url('index.php?r=fin_private_out_checks&id=' . $rid)) ?>">تعديل</a>
                                     <form method="post" class="fin-poc-inline-form"
                                           action="<?= esc(app_url('index.php?r=fin_private_out_checks')) ?>"
-                                          onsubmit="return confirm('إيقاف التذكير لهذا الشيك؟');">
+                                          data-confirm="إيقاف التذكير لهذا الشيك؟">
                                         <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
                                         <input type="hidden" name="_action" value="done">
                                         <input type="hidden" name="id" value="<?= $rid ?>">
@@ -260,7 +260,7 @@ sales_ora12_enqueue_assets();
                                     </form>
                                     <form method="post" class="fin-poc-inline-form"
                                           action="<?= esc(app_url('index.php?r=fin_private_out_checks')) ?>"
-                                          onsubmit="return confirm('حذف هذا الشيك؟');">
+                                          data-confirm="حذف هذا الشيك؟ لا يمكن التراجع.">
                                         <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
                                         <input type="hidden" name="_action" value="delete">
                                         <input type="hidden" name="id" value="<?= $rid ?>">
@@ -282,15 +282,15 @@ sales_ora12_enqueue_assets();
 </div>
 
 <style>
-.fin-private-out-checks-form-wrap { margin-bottom: 1rem; }
-.fin-private-out-checks-form-title { margin: 0 0 1rem; font-size: 1.05rem; }
-.fin-private-out-checks-form .field-span-2 { grid-column: span 2; }
-.fin-private-out-checks-form-actions { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
-.fin-poc-inline-form { display: inline; }
-.fin-poc-actions { white-space: nowrap; }
-.fin-poc-overdue td { background: #fef2f2; }
-.fin-poc-today td { background: #fffbeb; }
-.fin-poc-soon td { background: #f0fdf4; }
-.fin-private-out-checks-toolbar { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.fin-private-out-checks-page .fin-private-out-checks-form-wrap { margin-bottom: 1rem; }
+.fin-private-out-checks-page .fin-private-out-checks-form-title { margin: 0 0 1rem; font-size: 1.05rem; }
+.fin-private-out-checks-page .fin-private-out-checks-form .field-span-2 { grid-column: span 2; }
+.fin-private-out-checks-page .fin-private-out-checks-form-actions { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
+.fin-private-out-checks-page .fin-poc-inline-form { display: inline; }
+.fin-private-out-checks-page .fin-poc-actions { white-space: nowrap; }
+.fin-private-out-checks-page .fin-poc-overdue td { background: #fef2f2; }
+.fin-private-out-checks-page .fin-poc-today td { background: #fffbeb; }
+.fin-private-out-checks-page .fin-poc-soon td { background: #f0fdf4; }
+.fin-private-out-checks-page .fin-private-out-checks-toolbar { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 </style>
 <script src="<?= esc($jsUrl) ?>" defer></script>

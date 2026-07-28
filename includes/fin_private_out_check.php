@@ -97,10 +97,13 @@ function fin_private_out_check_allocate_entry_no(PDO $pdo): string
  */
 function fin_private_out_check_parse_filters(array $get): array
 {
+    $status = (string) ($get['status'] ?? 'all');
+    if (!in_array($status, ['pending', 'done', 'cancelled', 'all'], true)) {
+        $status = 'all';
+    }
+
     return [
-        'status' => in_array((string) ($get['status'] ?? 'pending'), ['pending', 'done', 'cancelled', 'all'], true)
-            ? (string) $get['status']
-            : 'pending',
+        'status' => $status,
         'check_no' => trim((string) ($get['check_no'] ?? '')),
         'beneficiary' => trim((string) ($get['beneficiary'] ?? '')),
         'from' => trim((string) ($get['from'] ?? '')),
@@ -240,7 +243,9 @@ function fin_private_out_check_pending_reminders(PDO $pdo, ?string $today = null
             'days_until_due' => $daysUntil,
             'urgency' => $urgency,
             'urgency_label' => $urgencyLabel,
+            'beneficiary' => trim((string) ($row['beneficiary'] ?? '')),
             'party_name' => trim((string) ($row['beneficiary'] ?? '')),
+            'entry_no' => trim((string) ($row['entry_no'] ?? '')),
             'voucher_no' => trim((string) ($row['entry_no'] ?? '')),
             'voucher_date' => '',
             'notes' => trim((string) ($row['notes'] ?? '')),
@@ -409,7 +414,7 @@ function handle_fin_private_out_check_post(): void
             $msg .= ' تعذر تشغيل مرسل التنبيه.';
         }
         flash_set('success', $msg);
-        redirect(fin_private_out_check_redirect_url($savedId));
+        redirect(fin_private_out_check_redirect_url());
     } catch (Throwable $e) {
         $msg = $e->getMessage() !== '' ? $e->getMessage() : 'تعذر حفظ الشيك.';
         flash_set('error', $msg);

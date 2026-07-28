@@ -82,6 +82,29 @@ function fin_out_check_due_email_notify_type(int $daysBeforeDue): string
     return 'out_d' . max(0, $daysBeforeDue);
 }
 
+function fin_out_check_email_beneficiary(array $chk): string
+{
+    foreach (['beneficiary', 'party_name'] as $key) {
+        $value = trim((string) ($chk[$key] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '—';
+}
+
+function fin_out_check_email_reference(array $chk): string
+{
+    if (!empty($chk['is_private'])) {
+        $ref = trim((string) ($chk['voucher_no'] ?? $chk['entry_no'] ?? ''));
+        return $ref !== '' ? $ref . ' (شيك خاص)' : 'شيك خاص';
+    }
+
+    $ref = trim((string) ($chk['voucher_no'] ?? ''));
+    return $ref !== '' ? $ref : '—';
+}
+
 /**
  * @param list<array{check_id:int, due_date:string, check_source?:string}> $items
  * @return array<int, true>
@@ -161,7 +184,7 @@ function fin_out_check_due_email_already_sent_map(PDO $pdo, array $items, int $d
     return $sent;
 }
 
-function fin_out_check_due_email_subject(int $daysBeforeDue, string $companyName): string
+function fin_out_check_due_email_subject(int $daysBeforeDue, string $companyName, array $checks = []): string
 {
     if ($daysBeforeDue === 0) {
         $subject = 'تنبيه: شيكات صادرة مستحقة اليوم';
@@ -169,6 +192,16 @@ function fin_out_check_due_email_subject(int $daysBeforeDue, string $companyName
         $subject = 'تنبيه: شيكات صادرة — يتبقى يوم واحد على الاستحقاق';
     } else {
         $subject = 'تنبيه: شيكات صادرة — يتبقى ' . $daysBeforeDue . ' أيام على الاستحقاق';
+    }
+    if (count($checks) === 1) {
+        $beneficiary = fin_out_check_email_beneficiary($checks[0]);
+        if ($beneficiary !== '—') {
+            $subject .= ' — المستفيد: ' . $beneficiary;
+        }
+        $checkNo = trim((string) ($checks[0]['check_no'] ?? ''));
+        if ($checkNo !== '') {
+            $subject .= ' — شيك ' . $checkNo;
+        }
     }
     if ($companyName !== '') {
         $subject .= ' — ' . $companyName;
@@ -191,20 +224,32 @@ function fin_out_check_due_email_build_html(PDO $pdo, array $checks, int $daysBe
     }
 
     $rowsHtml = '';
+    $summaryHtml = '';
     foreach ($checks as $chk) {
         $dueIso = trim((string) ($chk['due_date'] ?? ''));
         $dueDisplay = $dueIso !== '' ? format_date_dmY($dueIso) : '—';
+        $checkNo = trim((string) ($chk['check_no'] ?? ''));
+        $bankName = trim((string) ($chk['bank_name'] ?? ''));
+        $beneficiary = fin_out_check_email_beneficiary($chk);
+        $reference = fin_out_check_email_reference($chk);
+        $amount = format_money((float) ($chk['amount'] ?? 0));
+
+        $summaryHtml .= '<div style="margin:0 0 10px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;">'
+            . '<div><strong>شيك:</strong> ' . htmlspecialchars($checkNo !== '' ? $checkNo : '—', ENT_QUOTES, 'UTF-8') . '</div>'
+            . '<div><strong>المستفيد:</strong> ' . htmlspecialchars($beneficiary, ENT_QUOTES, 'UTF-8') . '</div>'
+            . '<div><strong>البنك:</strong> ' . htmlspecialchars($bankName !== '' ? $bankName : '—', ENT_QUOTES, 'UTF-8')
+            . ' · <strong>الاستحقاق:</strong> ' . htmlspecialchars($dueDisplay, ENT_QUOTES, 'UTF-8')
+            . ' · <strong>المبلغ:</strong> ' . htmlspecialchars($amount, ENT_QUOTES, 'UTF-8') . '</div>'
+            . '<div><strong>المرجع:</strong> ' . htmlspecialchars($reference, ENT_QUOTES, 'UTF-8') . '</div>'
+            . '</div>';
+
         $rowsHtml .= '<tr>'
-            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars((string) ($chk['check_no'] !== '' ? $chk['check_no'] : '—'), ENT_QUOTES, 'UTF-8') . '</td>'
-            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars((string) ($chk['bank_name'] !== '' ? $chk['bank_name'] : '—'), ENT_QUOTES, 'UTF-8') . '</td>'
-            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars((string) ($chk['party_name'] !== '' ? $chk['party_name'] : '—'), ENT_QUOTES, 'UTF-8') . '</td>'
-            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars(
-                !empty($chk['is_private']) ? 'شيك خاص' : (string) ($chk['voucher_no'] ?? ''),
-                ENT_QUOTES,
-                'UTF-8'
-            ) . '</td>'
+            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars($checkNo !== '' ? $checkNo : '—', ENT_QUOTES, 'UTF-8') . '</td>'
+            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars($bankName !== '' ? $bankName : '—', ENT_QUOTES, 'UTF-8') . '</td>'
+            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars($beneficiary, ENT_QUOTES, 'UTF-8') . '</td>'
+            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars($reference, ENT_QUOTES, 'UTF-8') . '</td>'
             . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars($dueDisplay, ENT_QUOTES, 'UTF-8') . '</td>'
-            . '<td style="padding:8px;border:1px solid #e2e8f0;text-align:left;">' . htmlspecialchars(format_money((float) ($chk['amount'] ?? 0)), ENT_QUOTES, 'UTF-8') . '</td>'
+            . '<td style="padding:8px;border:1px solid #e2e8f0;text-align:left;">' . htmlspecialchars($amount, ENT_QUOTES, 'UTF-8') . '</td>'
             . '</tr>';
     }
 
@@ -222,6 +267,7 @@ function fin_out_check_due_email_build_html(PDO $pdo, array $checks, int $daysBe
     return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;direction:rtl;color:#0f172a;">'
         . '<p style="margin:0 0 12px;">مرحباً،</p>'
         . '<p style="margin:0 0 16px;">' . $intro . ' العدد: <strong>' . count($checks) . '</strong>.</p>'
+        . $summaryHtml
         . '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
         . '<thead><tr style="background:#f1f5f9;">'
         . '<th style="padding:8px;border:1px solid #e2e8f0;">رقم الشيك</th>'
@@ -411,7 +457,7 @@ function fin_out_check_due_email_run(PDO $pdo, ?string $today = null): array
             continue;
         }
 
-        $subject = fin_out_check_due_email_subject((int) $daysBefore, $company);
+        $subject = fin_out_check_due_email_subject((int) $daysBefore, $company, $toSend);
         $bodyHtml = fin_out_check_due_email_build_html($pdo, $toSend, (int) $daysBefore);
         $notifyType = fin_out_check_due_email_notify_type((int) $daysBefore);
 
