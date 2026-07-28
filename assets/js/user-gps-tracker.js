@@ -93,9 +93,13 @@
     this.trailsById = {};
     /** @type {Object.<string, *>} */
     this.trailLinesById = {};
+    /** @type {Object.<string, {from:[number,number], to:[number,number], start:number, duration:number, follow:boolean}>} */
+    this.moveAnims = {};
+    this._animRaf = null;
     this.maxTrailPoints = 400;
     this.minTrailMoveMeters = 8;
     this.maxTrailJumpMeters = 800;
+    this.smoothMoveMs = Math.max(2500, (parseInt(root.getAttribute('data-poll-sec') || '5', 10) || 5) * 900);
     this.rows = [];
     this.lastHint = '';
     this.lastPings = [];
@@ -428,21 +432,27 @@
     });
   };
 
-  Tracker.prototype.markerIcon = function (row) {
+  Tracker.prototype.markerIcon = function (row, bearing) {
     var status = row.status || (row.is_online ? 'online' : 'offline');
     var label = initials(row.user_label);
+    var heading = bearing != null && isFinite(bearing) ? Math.round(bearing) : 0;
     var html =
+      '<div class="ugt-mover" style="--ugt-heading:' +
+      heading +
+      'deg">' +
+      '<div class="ugt-mover__arrow" aria-hidden="true"></div>' +
       '<div class="ugt-pin ugt-pin--' +
       esc(status) +
       '"><span>' +
       esc(label) +
-      '</span></div>';
+      '</span></div>' +
+      '</div>';
     return global.L.divIcon({
       className: 'ugt-marker',
       html: html,
-      iconSize: [34, 34],
-      iconAnchor: [17, 30],
-      popupAnchor: [0, -28],
+      iconSize: [40, 48],
+      iconAnchor: [20, 42],
+      popupAnchor: [0, -36],
     });
   };
 
@@ -483,6 +493,127 @@
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
       Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
     return 6371000 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  };
+
+  Tracker.prototype._bearingDeg = function (from, to) {
+    if (!from || !to) return 0;
+    var toRad = Math.PI / 180;
+    var lat1 = from[0] * toRad;
+    var lat2 = to[0] * toRad;
+    var dLng = (to[1] - from[1]) * toRad;
+    var y = Math.sin(dLng) * Math.cos(lat2);
+    var x =
+      Math.cos(lat1) * Math.sin(lat2) -
+      Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+    return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  };
+
+  Tracker.prototype._easeInOut = function (t) {
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  };
+
+  Tracker.prototype._lerp = function (a, b, t) {
+    return a + (b - a) * t;
+  };
+
+  Tracker.prototype._setMarkerHeading = function (marker, bearing) {
+    if (!marker) return;
+    var el = marker.getElement && marker.getElement();
+    if (!el) return;
+    var wrap = el.querySelector('.ugt-mover');
+    if (wrap) {
+      wrap.style.setProperty('--ugt-heading', String(Math.round(bearing)) + 'deg');
+      wrap.classList.add('is-moving');
+    }
+  };
+
+  Tracker.prototype._stopMarkerMovingClass = function (marker) {
+    if (!marker) return;
+    var el = marker.getElement && marker.getElement();
+    if (!el) return;
+    var wrap = el.querySelector('.ugt-mover');
+    if (wrap) wrap.classList.remove('is-moving');
+  };
+
+  Tracker.prototype.animateMarkerTo = function (userId, lat, lng, opts) {
+    opts = opts || {};
+    var key = this._trailKey(userId);
+    var marker = this.markersById[userId] || this.markersById[key];
+    if (!marker) return;
+
+    var to = [lat, lng];
+    var cur = marker.getLatLng();
+    var from = [cur.lat, cur.lng];
+    var dist = this._haversineMeters(from, to);
+
+    if (dist < 1.5) {
+      marker.setLatLng(to);
+      delete this.moveAnims[key];
+      this._stopMarkerMovingClass(marker);
+      return;
+    }
+
+    if (dist > this.maxTrailJumpMeters || opts.snap) {
+      marker.setLatLng(to);
+      delete this.moveAnims[key];
+      this._stopMarkerMovingClass(marker);
+      return;
+    }
+
+    this._setMarkerHeading(marker, this._bearingDeg(from, to));
+    this.moveAnims[key] = {
+      from: from,
+      to: to,
+      start: performance.now(),
+      duration: Math.min(this.smoothMoveMs, Math.max(1200, dist * 18)),
+      follow: this.activeId != null && String(this.activeId) === key,
+      userId: userId,
+    };
+    this._ensureAnimLoop();
+  };
+
+  Tracker.prototype._ensureAnimLoop = function () {
+    if (this._animRaf) return;
+    var self = this;
+    var tick = function (now) {
+      var keys = Object.keys(self.moveAnims);
+      if (!keys.length) {
+        self._animRaf = null;
+        return;
+      }
+      for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var anim = self.moveAnims[key];
+        var marker = self.markersById[anim.userId] || self.markersById[key];
+        if (!marker || !anim) {
+          delete self.moveAnims[key];
+          continue;
+        }
+        var t = (now - anim.start) / anim.duration;
+        if (t >= 1) {
+          marker.setLatLng(anim.to);
+          self.appendLiveTrailPoint(anim.userId, anim.to[0], anim.to[1]);
+          self._stopMarkerMovingClass(marker);
+          delete self.moveAnims[key];
+          if (anim.follow && self.map) {
+            self.map.panTo(anim.to, { animate: true, duration: 0.25 });
+          }
+          continue;
+        }
+        var e = self._easeInOut(Math.max(0, t));
+        var lat = self._lerp(anim.from[0], anim.to[0], e);
+        var lng = self._lerp(anim.from[1], anim.to[1], e);
+        marker.setLatLng([lat, lng]);
+        if (t > 0.15 && t < 0.95 && Math.floor(t * 20) % 2 === 0) {
+          self.appendLiveTrailPoint(anim.userId, lat, lng);
+        }
+        if (anim.follow && self.map && Math.floor(now / 80) !== Math.floor((now - 16) / 80)) {
+          self.map.panTo([lat, lng], { animate: false });
+        }
+      }
+      self._animRaf = global.requestAnimationFrame(tick);
+    };
+    this._animRaf = global.requestAnimationFrame(tick);
   };
 
   Tracker.prototype.appendLiveTrailPoint = function (userId, lat, lng) {
@@ -566,15 +697,17 @@
       keep[id] = true;
       var latlng = [r.latitude, r.longitude];
       bounds.push(latlng);
-      this.appendLiveTrailPoint(id, r.latitude, r.longitude);
       var existing = this.markersById[id];
       if (existing) {
-        existing.setLatLng(latlng);
-        existing.setIcon(this.markerIcon(r));
+        var cur = existing.getLatLng();
+        var bearing = this._bearingDeg([cur.lat, cur.lng], latlng);
+        existing.setIcon(this.markerIcon(r, bearing));
         existing.setPopupContent(this.popupHtml(r));
         existing._ugtRow = r;
+        this.animateMarkerTo(id, r.latitude, r.longitude);
       } else {
-        var m = global.L.marker(latlng, { icon: this.markerIcon(r) });
+        this.appendLiveTrailPoint(id, r.latitude, r.longitude);
+        var m = global.L.marker(latlng, { icon: this.markerIcon(r, 0) });
         m.bindPopup(this.popupHtml(r));
         m._ugtRow = r;
         m.addTo(this.layer);
@@ -590,6 +723,7 @@
 
     Object.keys(this.markersById).forEach(function (id) {
       if (!keep[id]) {
+        delete this.moveAnims[this._trailKey(id)];
         this.layer.removeLayer(this.markersById[id]);
         delete this.markersById[id];
       }
@@ -602,8 +736,6 @@
       } catch (e) {
         /* ignore */
       }
-    } else if (this.activeId && this.markersById[this.activeId]) {
-      // حافظ على التركيز إن وُجد
     }
   };
 
@@ -611,10 +743,14 @@
     this.activeId = userId;
     this.renderList();
     this.refreshTrailStyles();
+    var key = this._trailKey(userId);
+    if (this.moveAnims[key]) {
+      this.moveAnims[key].follow = true;
+    }
     var m = this.markersById[userId];
     if (!m) return;
     if (pan !== false) {
-      this.map.setView(m.getLatLng(), Math.max(this.map.getZoom(), 14), {
+      this.map.setView(m.getLatLng(), Math.max(this.map.getZoom(), 15), {
         animate: true,
       });
     }

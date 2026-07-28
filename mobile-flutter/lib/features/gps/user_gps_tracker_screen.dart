@@ -70,6 +70,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   final _map = MapController();
   final _search = TextEditingController();
   Timer? _poll;
+  Timer? _animTimer;
   bool _loading = true;
   String? _error;
   String _tileUrl = GpsMapTiles.esriUrl;
@@ -77,9 +78,12 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   double _mapZoom = 8;
   List<_Marker> _markers = [];
   final Map<int, List<LatLng>> _trails = {};
+  final Map<int, LatLng> _displayPos = {};
+  final Map<int, _MoveAnim> _anims = {};
   static const int _maxTrailPoints = 400;
   static const double _minTrailMoveMeters = 8;
   static const double _maxTrailJumpMeters = 800;
+  static const int _smoothMoveMs = 4500;
   int _online = 0;
   int? _selectedId;
   bool _fitOnce = true;
@@ -90,11 +94,13 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     super.initState();
     _load();
     _poll = Timer.periodic(const Duration(seconds: 5), (_) => _load(silent: true));
+    _animTimer = Timer.periodic(const Duration(milliseconds: 50), (_) => _tickAnims());
   }
 
   @override
   void dispose() {
     _poll?.cancel();
+    _animTimer?.cancel();
     _search.dispose();
     _map.dispose();
     super.dispose();
@@ -133,7 +139,11 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         _markers = rows;
         for (final m in rows) {
           _appendTrailPoint(m.userId, m.point);
+          _animateTo(m.userId, m.point);
         }
+        final alive = rows.map((m) => m.userId).toSet();
+        _displayPos.removeWhere((id, _) => !alive.contains(id));
+        _anims.removeWhere((id, _) => !alive.contains(id));
         _online = (counts['online'] as num?)?.toInt() ??
             rows.where((m) => m.online).length;
         _loading = false;
@@ -143,13 +153,6 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
       if (_fitOnce && rows.isNotEmpty) {
         _fitOnce = false;
         WidgetsBinding.instance.addPostFrameCallback((_) => _fitAll());
-      } else if (_selectedId != null) {
-        final sel = rows.where((m) => m.userId == _selectedId).toList();
-        if (sel.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _map.move(sel.first.point, _map.camera.zoom);
-          });
-        }
       }
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -208,6 +211,71 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     }
   }
 
+  void _animateTo(int userId, LatLng target) {
+    final from = _displayPos[userId] ?? target;
+    final dist = _haversineMeters(from, target);
+    if (dist < 1.5) {
+      _displayPos[userId] = target;
+      _anims.remove(userId);
+      return;
+    }
+    if (dist > _maxTrailJumpMeters || !_displayPos.containsKey(userId)) {
+      _displayPos[userId] = target;
+      _anims.remove(userId);
+      return;
+    }
+    final duration = Duration(
+      milliseconds: math.min(_smoothMoveMs, math.max(1200, (dist * 18).round())),
+    );
+    _anims[userId] = _MoveAnim(
+      from: from,
+      to: target,
+      start: DateTime.now(),
+      duration: duration,
+      follow: userId == _selectedId,
+    );
+  }
+
+  double _easeInOut(double t) {
+    return t < 0.5 ? 2 * t * t : 1 - math.pow(-2 * t + 2, 2) / 2;
+  }
+
+  void _tickAnims() {
+    if (_anims.isEmpty || !mounted) return;
+    final now = DateTime.now();
+    var changed = false;
+    final done = <int>[];
+    _anims.forEach((id, anim) {
+      final elapsed = now.difference(anim.start).inMilliseconds / anim.duration.inMilliseconds;
+      if (elapsed >= 1) {
+        _displayPos[id] = anim.to;
+        _appendTrailPoint(id, anim.to);
+        done.add(id);
+        changed = true;
+        if (anim.follow) {
+          _map.move(anim.to, _map.camera.zoom);
+        }
+        return;
+      }
+      final e = _easeInOut(elapsed.clamp(0.0, 1.0));
+      final lat = anim.from.latitude + (anim.to.latitude - anim.from.latitude) * e;
+      final lng = anim.from.longitude + (anim.to.longitude - anim.from.longitude) * e;
+      final pos = LatLng(lat, lng);
+      _displayPos[id] = pos;
+      if (elapsed > 0.15 && elapsed < 0.95) {
+        _appendTrailPoint(id, pos);
+      }
+      if (anim.follow) {
+        _map.move(pos, _map.camera.zoom);
+      }
+      changed = true;
+    });
+    for (final id in done) {
+      _anims.remove(id);
+    }
+    if (changed) setState(() {});
+  }
+
   void _clearTrails() {
     setState(() => _trails.clear());
     showSnack(context, 'تم مسح الخطوط الحيّة');
@@ -229,6 +297,22 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     return lines;
   }
 
+  LatLng _pointFor(_Marker m) => _displayPos[m.userId] ?? m.point;
+
+  double _headingFor(_Marker m) {
+    final anim = _anims[m.userId];
+    if (anim == null) return 0;
+    final from = anim.from;
+    final to = anim.to;
+    final lat1 = from.latitude * math.pi / 180;
+    final lat2 = to.latitude * math.pi / 180;
+    final dLng = (to.longitude - from.longitude) * math.pi / 180;
+    final y = math.sin(dLng) * math.cos(lat2);
+    final x = math.cos(lat1) * math.sin(lat2) -
+        math.sin(lat1) * math.cos(lat2) * math.cos(dLng);
+    return (math.atan2(y, x) * 180 / math.pi + 360) % 360;
+  }
+
   Future<void> _openExternal(_Marker m) async {
     final uri = Uri.tryParse(m.mapUrl);
     if (uri == null) return;
@@ -239,8 +323,12 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     setState(() {
       _selectedId = m.userId;
       _listOpen = false;
+      final anim = _anims[m.userId];
+      if (anim != null) {
+        _anims[m.userId] = anim.copyWith(follow: true);
+      }
     });
-    _map.move(m.point, 15);
+    _map.move(_pointFor(m), 15);
   }
 
   @override
@@ -315,9 +403,9 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                   markers: [
                     for (final m in _markers)
                       Marker(
-                        point: m.point,
-                        width: 44,
-                        height: 44,
+                        point: _pointFor(m),
+                        width: 48,
+                        height: 56,
                         alignment: Alignment.bottomCenter,
                         child: GestureDetector(
                           onTap: () => _select(m),
@@ -325,6 +413,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                             label: m.initials,
                             color: m.color,
                             selected: m.userId == _selectedId,
+                            heading: _headingFor(m),
+                            moving: _anims.containsKey(m.userId),
                           ),
                         ),
                       ),
@@ -370,7 +460,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                     _LegendDot(AppTheme.success),
                     Text(' متصل · ', style: TextStyle(fontSize: 11.5)),
                     _LegendLine(Color(0xFF2563EB)),
-                    Text(' خط حي أثناء السير · تحديث كل 5 ث  ', style: TextStyle(fontSize: 11.5)),
+                    Text(' خط حي · حركة سلسة مثل الخرائط  ', style: TextStyle(fontSize: 11.5)),
                   ],
                 ),
               ),
@@ -409,46 +499,94 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   }
 }
 
+class _MoveAnim {
+  const _MoveAnim({
+    required this.from,
+    required this.to,
+    required this.start,
+    required this.duration,
+    required this.follow,
+  });
+
+  final LatLng from;
+  final LatLng to;
+  final DateTime start;
+  final Duration duration;
+  final bool follow;
+
+  _MoveAnim copyWith({bool? follow}) => _MoveAnim(
+        from: from,
+        to: to,
+        start: start,
+        duration: duration,
+        follow: follow ?? this.follow,
+      );
+}
+
 class _MapPin extends StatelessWidget {
   const _MapPin({
     required this.label,
     required this.color,
     required this.selected,
+    this.heading = 0,
+    this.moving = false,
   });
 
   final String label;
   final Color color;
   final bool selected;
+  final double heading;
+  final bool moving;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedScale(
       scale: selected ? 1.15 : 1,
       duration: const Duration(milliseconds: 150),
-      child: Container(
-        width: 38,
-        height: 38,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2.5),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.35),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Transform.rotate(
+            angle: heading * math.pi / 180,
+            child: Icon(
+              Icons.navigation_rounded,
+              size: 16,
+              color: moving ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
             ),
-          ],
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
           ),
-        ),
+          const SizedBox(height: 2),
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2.5),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.35),
+                  blurRadius: moving ? 14 : 10,
+                  offset: const Offset(0, 3),
+                ),
+                if (moving)
+                  BoxShadow(
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  ),
+              ],
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

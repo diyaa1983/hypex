@@ -84,7 +84,7 @@ $today = date('Y-m-d');
                 <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
                 <div class="ugt-legend">
                     <span><i class="ugt-dot ugt-dot--online"></i> متصل (آخر 60 ثانية)</span>
-                    <span><i class="ugt-line"></i> خط حي أثناء السير</span>
+                    <span><i class="ugt-line"></i> خط حي + حركة سلسة</span>
                     <span><i class="ugt-dot ugt-dot--away"></i> غير متصل = لا يظهر على الخريطة</span>
                 </div>
                 <div class="ugt-status" id="ugt-status">تحديث كل 5 ثوانٍ</div>
