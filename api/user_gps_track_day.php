@@ -50,6 +50,7 @@ try {
         'map' => [
             'tile_url' => $osm['tileUrl'],
             'attribution' => $osm['attribution'],
+            'map_provider' => $osm['mapProvider'],
             'default_lat' => 31.9539,
             'default_lng' => 35.9106,
             'default_zoom' => 8,

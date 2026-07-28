@@ -6,7 +6,8 @@
       tileUrl:
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
       attribution: '&copy; Esri &mdash; OpenStreetMap contributors',
-      maxZoom: 19,
+      maxZoom: 20,
+      maxNativeZoom: 17,
     },
     carto: {
       tileUrl:
@@ -67,7 +68,7 @@
     return global.__leafletGooglePromise;
   }
 
-  function attachRaster(map, providerKey, tileUrl, attribution) {
+  function attachRaster(map, providerKey, tileUrl, attribution, extra) {
     var def = PROVIDERS[providerKey] || PROVIDERS.esri;
     var url =
       tileUrl && String(tileUrl).indexOf('{z}') >= 0
@@ -75,10 +76,22 @@
         : def.tileUrl;
     var opts = {
       attribution: attribution || def.attribution,
-      maxZoom: def.maxZoom || 19,
+      maxZoom: (extra && extra.maxZoom) || def.maxZoom || 20,
     };
+    if (def.maxNativeZoom) opts.maxNativeZoom = def.maxNativeZoom;
     if (def.subdomains) opts.subdomains = def.subdomains;
+    if (extra && extra.maxNativeZoom) opts.maxNativeZoom = extra.maxNativeZoom;
+    if (extra && extra.noAttribution) opts.attribution = '';
     global.L.tileLayer(url, opts).addTo(map);
+  }
+
+  /** Esri حتى z17 ثم Carto فقط (يمنع «Map data not yet available»). */
+  function attachEsriHybrid(map, tileUrl, attribution) {
+    attachRaster(map, 'carto', null, null, { noAttribution: true });
+    attachRaster(map, 'esri', tileUrl, attribution, {
+      maxNativeZoom: 17,
+      maxZoom: 17,
+    });
   }
 
   function attachGoogle(map) {
@@ -121,7 +134,7 @@
       return Promise.resolve('carto');
     }
 
-    attachRaster(map, 'esri', opts.tileUrl, opts.attribution);
+    attachEsriHybrid(map, opts.tileUrl, opts.attribution);
     return Promise.resolve('esri');
   }
 

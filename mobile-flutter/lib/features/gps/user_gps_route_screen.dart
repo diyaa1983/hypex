@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/theme.dart';
+import 'gps_map_tiles.dart';
 import '../../widgets/async_view.dart';
 
 class _TrackPoint {
@@ -54,8 +55,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   bool _loading = true;
   String? _error;
-  String _tileUrl =
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+  String _tileUrl = GpsMapTiles.esriUrl;
+  String _mapProvider = 'esri';
 
   List<_UserOption> _users = [];
   int? _userId;
@@ -115,6 +116,7 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
           .toList();
       setState(() {
         if (tile.isNotEmpty) _tileUrl = tile;
+        _mapProvider = (mapCfg['map_provider'] ?? 'esri').toString();
         _users = users;
         _loading = false;
       });
@@ -516,13 +518,10 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
                       initialCenter: LatLng(31.9539, 35.9106),
                       initialZoom: 8,
                       minZoom: 4,
-                      maxZoom: 18,
+                      maxZoom: 20,
                     ),
                     children: [
-                      TileLayer(
-                        urlTemplate: _tileUrl,
-                        userAgentPackageName: 'com.gppjo.biodev.mobile',
-                      ),
+                      ...GpsMapTiles.layers(mapProvider: _mapProvider, tileUrl: _tileUrl),
                       PolylineLayer(polylines: _buildPolylines()),
                       MarkerLayer(markers: _buildMarkers()),
                     ],

@@ -36,7 +36,8 @@ function app_osm_map_provider_defs(): array
         'esri' => [
             'tileUrl' => 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
             'attribution' => '&copy; Esri &mdash; OpenStreetMap contributors',
-            'maxZoom' => 19,
+            'maxZoom' => 20,
+            'maxNativeZoom' => 17,
         ],
         'carto' => [
             'tileUrl' => 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',

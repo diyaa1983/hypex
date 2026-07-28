@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label class="form-label" for="gps_map_provider">نوع الخريطة</label>
                 <select class="form-select" id="gps_map_provider" name="gps_map_provider" style="max-width: 420px;">
                     <option value="esri" <?= $mapProvider === 'esri' ? 'selected' : '' ?>>
-                        Esri Street — مجاني وأوضح (موصى به)
+                        Esri + Carto — مجاني وأوضح (موصى به، يدعم التكبير)
                     </option>
                     <option value="carto" <?= $mapProvider === 'carto' ? 'selected' : '' ?>>
                         Carto Voyager — مجاني

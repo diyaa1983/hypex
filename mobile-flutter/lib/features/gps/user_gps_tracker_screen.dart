@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/theme.dart';
+import 'gps_map_tiles.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -70,8 +71,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   Timer? _poll;
   bool _loading = true;
   String? _error;
-  String _tileUrl =
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+  String _tileUrl = GpsMapTiles.esriUrl;
+  String _mapProvider = 'esri';
   List<_Marker> _markers = [];
   int _online = 0;
   int? _selectedId;
@@ -122,6 +123,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
 
       setState(() {
         if (tile.isNotEmpty) _tileUrl = tile;
+        _mapProvider = (mapCfg['map_provider'] ?? 'esri').toString();
         _markers = rows;
         _online = (counts['online'] as num?)?.toInt() ??
             rows.where((m) => m.online).length;
@@ -225,14 +227,11 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 initialCenter: const LatLng(31.9539, 35.9106),
                 initialZoom: 8,
                 minZoom: 4,
-                maxZoom: 18,
+                maxZoom: 20,
                 onTap: (_, __) => setState(() => _selectedId = null),
               ),
               children: [
-                TileLayer(
-                  urlTemplate: _tileUrl,
-                  userAgentPackageName: 'com.gppjo.biodev.mobile',
-                ),
+                ...GpsMapTiles.layers(mapProvider: _mapProvider, tileUrl: _tileUrl),
                 MarkerLayer(
                   markers: [
                     for (final m in _markers)
