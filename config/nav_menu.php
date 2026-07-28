@@ -267,6 +267,7 @@ return [
                         ['r' => 'journal_entries', 'label' => 'القيود المحاسبية', 'icon' => '⚖'],
                         ['r' => 'fin_checks', 'label' => 'الشيكات الواردة', 'icon' => '📝'],
                         ['r' => 'fin_outgoing_checks', 'label' => 'سجل الشيكات الصادرة', 'icon' => '📤'],
+                        ['r' => 'fin_private_out_checks', 'label' => 'شيكات خاصة', 'icon' => '📋'],
                         ['r' => 'report_general_ledger', 'label' => 'دفتر الأستاذ العام', 'icon' => '📖'],
                         ['r' => 'acc_period_close', 'label' => 'إغلاق الأشهر المحاسبية', 'icon' => '🔒'],
                         ['r' => 'acc_year_close', 'label' => 'إقفال السنة المالية', 'icon' => '📅'],

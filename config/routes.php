@@ -246,6 +246,12 @@ return [
         'title' => 'سجل الشيكات الصادرة',
         'hide_screen_title' => true,
     ],
+    'fin_private_out_checks' => [
+        'file' => 'modules/finance/private_outgoing_checks.php',
+        'permission' => 'fin_private_out_checks',
+        'title' => 'شيكات خاصة',
+        'hide_screen_title' => true,
+    ],
     'fin_employee_advances' => [
         'file' => 'modules/finance/employee_advances.php',
         'permission' => 'fin_employee_advances',

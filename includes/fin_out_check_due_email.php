@@ -9,6 +9,7 @@ declare(strict_types=1);
 require_once app_path('includes/company_smtp.php');
 require_once app_path('includes/fin_voucher_checks.php');
 require_once app_path('includes/fin_check_due_email.php');
+require_once app_path('includes/fin_private_out_check.php');
 
 function fin_out_check_due_email_ensure_settings_columns(PDO $pdo): void
 {
@@ -82,7 +83,7 @@ function fin_out_check_due_email_notify_type(int $daysBeforeDue): string
 }
 
 /**
- * @param list<array{check_id:int, due_date:string}> $items
+ * @param list<array{check_id:int, due_date:string, check_source?:string}> $items
  * @return array<int, true>
  */
 function fin_out_check_due_email_already_sent_map(PDO $pdo, array $items, int $daysBeforeDue): array
@@ -91,15 +92,21 @@ function fin_out_check_due_email_already_sent_map(PDO $pdo, array $items, int $d
         return [];
     }
 
+    fin_private_out_check_ensure_email_log_source($pdo);
+
     $notifyType = fin_out_check_due_email_notify_type($daysBeforeDue);
     $pairs = [];
     foreach ($items as $item) {
         $cid = (int) ($item['check_id'] ?? 0);
         $due = parse_date_to_iso((string) ($item['due_date'] ?? '')) ?? (string) ($item['due_date'] ?? '');
+        $source = trim((string) ($item['check_source'] ?? FIN_VOUCHER_OUT_CHECK_EMAIL_SOURCE));
+        if ($source === '') {
+            $source = FIN_VOUCHER_OUT_CHECK_EMAIL_SOURCE;
+        }
         if ($cid < 1 || $due === '') {
             continue;
         }
-        $pairs[] = [$cid, $due];
+        $pairs[] = [$cid, $due, $source];
     }
 
     if ($pairs === []) {
@@ -110,22 +117,44 @@ function fin_out_check_due_email_already_sent_map(PDO $pdo, array $items, int $d
     foreach (array_chunk($pairs, 80) as $chunk) {
         $ors = [];
         $params = [$notifyType];
-        foreach ($chunk as [$cid, $due]) {
-            $ors[] = '(check_id = ? AND due_date = ?)';
+        foreach ($chunk as [$cid, $due, $source]) {
+            $ors[] = '(check_id = ? AND due_date = ? AND check_source = ?)';
             $params[] = $cid;
             $params[] = $due;
+            $params[] = $source;
         }
         try {
             $st = $pdo->prepare(
-                'SELECT check_id FROM fin_check_due_email_log
+                'SELECT check_id, check_source FROM fin_check_due_email_log
                  WHERE notify_type = ? AND (' . implode(' OR ', $ors) . ')'
             );
             $st->execute($params);
-            foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $cid) {
-                $sent[(int) $cid] = true;
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                $key = (string) ($row['check_source'] ?? FIN_VOUCHER_OUT_CHECK_EMAIL_SOURCE) . ':'
+                    . (int) ($row['check_id'] ?? 0);
+                $sent[$key] = true;
             }
         } catch (Throwable $e) {
-            // ignore
+            try {
+                $st = $pdo->prepare(
+                    'SELECT check_id FROM fin_check_due_email_log
+                     WHERE notify_type = ? AND (' . implode(' OR ', array_map(
+                         static fn () => '(check_id = ? AND due_date = ?)',
+                         $chunk
+                     )) . ')'
+                );
+                $legacyParams = [$notifyType];
+                foreach ($chunk as [$cid, $due]) {
+                    $legacyParams[] = $cid;
+                    $legacyParams[] = $due;
+                }
+                $st->execute($legacyParams);
+                foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $cid) {
+                    $sent[FIN_VOUCHER_OUT_CHECK_EMAIL_SOURCE . ':' . (int) $cid] = true;
+                }
+            } catch (Throwable $e2) {
+                // ignore
+            }
         }
     }
 
@@ -169,7 +198,11 @@ function fin_out_check_due_email_build_html(PDO $pdo, array $checks, int $daysBe
             . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars((string) ($chk['check_no'] !== '' ? $chk['check_no'] : '—'), ENT_QUOTES, 'UTF-8') . '</td>'
             . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars((string) ($chk['bank_name'] !== '' ? $chk['bank_name'] : '—'), ENT_QUOTES, 'UTF-8') . '</td>'
             . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars((string) ($chk['party_name'] !== '' ? $chk['party_name'] : '—'), ENT_QUOTES, 'UTF-8') . '</td>'
-            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars((string) ($chk['voucher_no'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
+            . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars(
+                !empty($chk['is_private']) ? 'شيك خاص' : (string) ($chk['voucher_no'] ?? ''),
+                ENT_QUOTES,
+                'UTF-8'
+            ) . '</td>'
             . '<td style="padding:8px;border:1px solid #e2e8f0;">' . htmlspecialchars($dueDisplay, ENT_QUOTES, 'UTF-8') . '</td>'
             . '<td style="padding:8px;border:1px solid #e2e8f0;text-align:left;">' . htmlspecialchars(format_money((float) ($chk['amount'] ?? 0)), ENT_QUOTES, 'UTF-8') . '</td>'
             . '</tr>';
@@ -194,13 +227,14 @@ function fin_out_check_due_email_build_html(PDO $pdo, array $checks, int $daysBe
         . '<th style="padding:8px;border:1px solid #e2e8f0;">رقم الشيك</th>'
         . '<th style="padding:8px;border:1px solid #e2e8f0;">البنك</th>'
         . '<th style="padding:8px;border:1px solid #e2e8f0;">المستفيد</th>'
-        . '<th style="padding:8px;border:1px solid #e2e8f0;">سند الصرف</th>'
+        . '<th style="padding:8px;border:1px solid #e2e8f0;">المرجع</th>'
         . '<th style="padding:8px;border:1px solid #e2e8f0;">تاريخ الاستحقاق</th>'
         . '<th style="padding:8px;border:1px solid #e2e8f0;">المبلغ</th>'
         . '</tr></thead><tbody>' . $rowsHtml . '</tbody></table>'
         . '<p style="margin:16px 0 0;color:#64748b;font-size:12px;">'
         . 'تم الإرسال تلقائياً من ' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8')
         . ' · <a href="' . htmlspecialchars(app_url('index.php?r=fin_outgoing_checks'), ENT_QUOTES, 'UTF-8') . '">سجل الشيكات الصادرة</a>'
+        . ' · <a href="' . htmlspecialchars(app_url('index.php?r=fin_private_out_checks'), ENT_QUOTES, 'UTF-8') . '">شيكات خاصة</a>'
         . '</p></div>';
 }
 
@@ -234,7 +268,10 @@ function fin_out_check_due_email_prepare_buckets(PDO $pdo, ?string $today = null
         // ignore
     }
 
-    $allPending = fin_voucher_checks_pending_disbursement($pdo, $todayIso);
+    $allPending = array_merge(
+        fin_voucher_checks_pending_disbursement($pdo, $todayIso),
+        fin_private_out_check_pending_reminders($pdo, $todayIso)
+    );
     /** @var array<int, list<array<string, mixed>>> $buckets */
     $buckets = [];
 
@@ -289,14 +326,18 @@ function fin_out_check_due_email_has_pending(PDO $pdo, ?string $today = null): b
             $items[] = [
                 'check_id' => (int) ($chk['check_id'] ?? 0),
                 'due_date' => (string) ($chk['due_date'] ?? ''),
+                'check_source' => (string) ($chk['check_source'] ?? FIN_VOUCHER_OUT_CHECK_EMAIL_SOURCE),
             ];
         }
         $already = fin_out_check_due_email_already_sent_map($pdo, $items, (int) $daysBefore);
         foreach ($checks as $chk) {
             $cid = (int) ($chk['check_id'] ?? 0);
-            if ($cid > 0 && !isset($already[$cid])) {
-                return true;
+            $source = (string) ($chk['check_source'] ?? FIN_VOUCHER_OUT_CHECK_EMAIL_SOURCE);
+            $key = $source . ':' . $cid;
+            if ($cid < 1 || isset($already[$key])) {
+                continue;
             }
+            return true;
         }
     }
 
@@ -337,7 +378,12 @@ function fin_out_check_due_email_run(PDO $pdo, ?string $today = null): array
     $totalChecks = 0;
     $totalEmails = 0;
     $lastError = null;
+    fin_private_out_check_ensure_email_log_source($pdo);
+
     $ins = $pdo->prepare(
+        'INSERT IGNORE INTO fin_check_due_email_log (check_id, check_source, due_date, notify_type) VALUES (?,?,?,?)'
+    );
+    $insLegacy = $pdo->prepare(
         'INSERT IGNORE INTO fin_check_due_email_log (check_id, due_date, notify_type) VALUES (?,?,?)'
     );
 
@@ -347,13 +393,16 @@ function fin_out_check_due_email_run(PDO $pdo, ?string $today = null): array
             $items[] = [
                 'check_id' => (int) ($chk['check_id'] ?? 0),
                 'due_date' => (string) ($chk['due_date'] ?? ''),
+                'check_source' => (string) ($chk['check_source'] ?? FIN_VOUCHER_OUT_CHECK_EMAIL_SOURCE),
             ];
         }
         $already = fin_out_check_due_email_already_sent_map($pdo, $items, (int) $daysBefore);
         $toSend = [];
         foreach ($checks as $chk) {
             $cid = (int) ($chk['check_id'] ?? 0);
-            if ($cid < 1 || isset($already[$cid])) {
+            $source = (string) ($chk['check_source'] ?? FIN_VOUCHER_OUT_CHECK_EMAIL_SOURCE);
+            $key = $source . ':' . $cid;
+            if ($cid < 1 || isset($already[$key])) {
                 continue;
             }
             $toSend[] = $chk;
@@ -384,14 +433,20 @@ function fin_out_check_due_email_run(PDO $pdo, ?string $today = null): array
         foreach ($toSend as $chk) {
             $cid = (int) ($chk['check_id'] ?? 0);
             $due = parse_date_to_iso((string) ($chk['due_date'] ?? '')) ?? (string) ($chk['due_date'] ?? '');
+            $source = (string) ($chk['check_source'] ?? FIN_VOUCHER_OUT_CHECK_EMAIL_SOURCE);
             if ($cid < 1 || $due === '') {
                 continue;
             }
             try {
-                $ins->execute([$cid, $due, $notifyType]);
+                $ins->execute([$cid, $source, $due, $notifyType]);
                 $totalChecks++;
             } catch (Throwable $e) {
-                // ignore duplicate
+                try {
+                    $insLegacy->execute([$cid, $due, $notifyType]);
+                    $totalChecks++;
+                } catch (Throwable $e2) {
+                    // ignore duplicate
+                }
             }
         }
     }
