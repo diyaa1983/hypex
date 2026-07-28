@@ -21,6 +21,8 @@ class _TrackPoint {
   String get time => (data['time'] ?? '').toString();
   String get timeFull => (data['time_full'] ?? data['time'] ?? '').toString();
   String get accuracyLabel => (data['accuracy_label'] ?? '').toString();
+  String get speedLabel => (data['speed_label'] ?? '').toString();
+  double? get speedKmh => (data['speed_kmh'] as num?)?.toDouble();
   LatLng get point => LatLng(lat, lng);
 }
 
@@ -468,6 +470,28 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     return lines;
   }
 
+  Color _speedColor(double? kmh) {
+    final s = kmh ?? 0;
+    if (s < 3) return const Color(0xFF94A3B8);
+    if (s < 40) return const Color(0xFF16A34A);
+    if (s < 80) return const Color(0xFFF59E0B);
+    return const Color(0xFFDC2626);
+  }
+
+  List<Polyline> _buildSpeedPolylines() {
+    final lines = <Polyline>[];
+    for (var i = 1; i < _points.length; i++) {
+      final prev = _points[i - 1];
+      final cur = _points[i];
+      lines.add(Polyline(
+        points: [prev.point, cur.point],
+        strokeWidth: 5,
+        color: _speedColor(cur.speedKmh),
+      ));
+    }
+    return lines;
+  }
+
   void _openStops() {
     showModalBottomSheet<void>(
       context: context,
@@ -488,6 +512,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     final first = (_summary['first_time'] ?? '—').toString();
     final last = (_summary['last_time'] ?? '—').toString();
     final active = (_summary['active_label'] ?? '—').toString();
+    final avgSpeed = (_summary['avg_speed_label'] ?? '—').toString();
+    final maxSpeed = (_summary['max_speed_label'] ?? '—').toString();
     final stopsCount = (_summary['stops_count'] as num?)?.toInt() ?? 0;
 
     return Scaffold(
@@ -509,7 +535,9 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
         child: Column(
           children: [
             _buildControls(),
-            if (_points.isNotEmpty) _buildSummary(distance, first, last, active, stopsCount),
+            if (_points.isNotEmpty)
+              _buildSummary(
+                  distance, first, last, active, avgSpeed, maxSpeed, stopsCount),
             Expanded(
               child: Stack(
                 children: [
@@ -533,7 +561,11 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
                         tileUrl: _tileUrl,
                         zoom: _mapZoom,
                       ),
-                      PolylineLayer(polylines: _buildPolylines()),
+                      PolylineLayer(
+                        polylines: _roadMatched
+                            ? _buildPolylines()
+                            : _buildSpeedPolylines(),
+                      ),
                       MarkerLayer(markers: _buildMarkers()),
                     ],
                   ),
@@ -643,8 +675,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     );
   }
 
-  Widget _buildSummary(
-      String distance, String first, String last, String active, int stops) {
+  Widget _buildSummary(String distance, String first, String last, String active,
+      String avgSpeed, String maxSpeed, int stops) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
@@ -657,6 +689,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
           _chip('من', first, AppTheme.teal),
           _chip('إلى', last, AppTheme.teal),
           _chip('المدة', active, AppTheme.success),
+          _chip('متوسط السرعة', avgSpeed, const Color(0xFF2563EB)),
+          _chip('أقصى سرعة', maxSpeed, const Color(0xFFDC2626)),
           _chip('التوقفات', '$stops', AppTheme.warn),
         ],
       ),

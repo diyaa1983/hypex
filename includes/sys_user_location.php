@@ -505,6 +505,116 @@ function sys_user_location_duration_label(int $seconds): string
 }
 
 /**
+ * سرعة تقريبية (كم/س) من مسافة وزمن بين نقطتين GPS.
+ */
+function sys_user_location_speed_kmh_from_segment(float $meters, int $seconds): ?float
+{
+    if ($seconds <= 0 || $meters < 0) {
+        return null;
+    }
+    $kmh = ($meters / (float) $seconds) * 3.6;
+    if ($kmh > 120.0) {
+        return null;
+    }
+
+    return round($kmh, 1);
+}
+
+function sys_user_location_speed_label(?float $kmh, bool $stopped = false): string
+{
+    if ($stopped) {
+        return 'متوقف';
+    }
+    if ($kmh === null) {
+        return '—';
+    }
+
+    return ($kmh >= 10 ? (string) (int) round($kmh) : number_format($kmh, 1)) . ' كم/س';
+}
+
+/**
+ * @param list<array<string, mixed>> $points
+ * @return list<array<string, mixed>>
+ */
+function sys_user_location_track_apply_speeds(array $points): array
+{
+    $n = count($points);
+    if ($n === 0) {
+        return $points;
+    }
+
+    $points[0]['speed_kmh'] = null;
+    $points[0]['speed_label'] = '—';
+
+    for ($i = 1; $i < $n; $i++) {
+        $prev = $points[$i - 1];
+        $cur = $points[$i];
+        $gap = max(0, (int) $cur['ts'] - (int) $prev['ts']);
+        $d = sys_user_location_distance_meters(
+            (float) $prev['latitude'],
+            (float) $prev['longitude'],
+            (float) $cur['latitude'],
+            (float) $cur['longitude']
+        );
+        $speed = sys_user_location_speed_kmh_from_segment($d, $gap);
+        $stopped = $d < 15.0 || ($speed !== null && $speed < 3.0);
+        $points[$i]['speed_kmh'] = $stopped ? 0.0 : $speed;
+        $points[$i]['speed_label'] = sys_user_location_speed_label($speed, $stopped);
+        $points[$i]['segment_meters'] = (int) round($d);
+    }
+
+    return $points;
+}
+
+/**
+ * @param list<array<string, mixed>> $points
+ * @return array{avg_kmh: ?float, max_kmh: ?float, avg_label: string, max_label: string}
+ */
+function sys_user_location_track_speed_summary(array $points): array
+{
+    $movingMeters = 0.0;
+    $movingSec = 0;
+    $maxKmh = null;
+
+    for ($i = 1, $n = count($points); $i < $n; $i++) {
+        $prev = $points[$i - 1];
+        $cur = $points[$i];
+        $gap = max(0, (int) $cur['ts'] - (int) $prev['ts']);
+        if ($gap <= 0) {
+            continue;
+        }
+        $d = sys_user_location_distance_meters(
+            (float) $prev['latitude'],
+            (float) $prev['longitude'],
+            (float) $cur['latitude'],
+            (float) $cur['longitude']
+        );
+        if ($d < 15.0) {
+            continue;
+        }
+        $kmh = ($d / (float) $gap) * 3.6;
+        if ($kmh > 120.0) {
+            continue;
+        }
+        $movingMeters += $d;
+        $movingSec += $gap;
+        if ($maxKmh === null || $kmh > $maxKmh) {
+            $maxKmh = $kmh;
+        }
+    }
+
+    $avgKmh = $movingSec > 0 ? round(($movingMeters / (float) $movingSec) * 3.6, 1) : null;
+    $maxRounded = $maxKmh !== null ? round($maxKmh, 1) : null;
+
+    return [
+        'avg_kmh' => $avgKmh,
+        'max_kmh' => $maxRounded,
+        'avg_label' => sys_user_location_speed_label($avgKmh),
+        'max_label' => sys_user_location_speed_label($maxRounded),
+    ];
+}
+
+/**
  * إزالة النقاط المتكررة/القريبة جداً من مسار الخريطة.
  *
  * @param list<array{latitude:float|int, longitude:float|int}> $path
@@ -793,6 +903,10 @@ function sys_user_location_track_day(
             'road_matched' => false,
             'travel_segments' => 0,
             'presence_count' => 0,
+            'avg_speed_kmh' => null,
+            'max_speed_kmh' => null,
+            'avg_speed_label' => '',
+            'max_speed_label' => '',
         ],
         'road_path' => [],
         'road_paths' => [],
@@ -864,6 +978,9 @@ function sys_user_location_track_day(
     if ($n === 0) {
         return $empty;
     }
+
+    $points = sys_user_location_track_apply_speeds($points);
+    $speedSummary = sys_user_location_track_speed_summary($points);
 
     // مقاطع حركة متصلة: نقطع الخط فقط عند قفزة غير منطقية أو صمت طويل مع انتقال بعيد.
     $gapBreakSec = max(60, $gapBreakMinutes * 60);
@@ -1065,6 +1182,10 @@ function sys_user_location_track_day(
             'road_matched' => $roadMatched,
             'travel_segments' => count($trackLines),
             'presence_count' => count($presence),
+            'avg_speed_kmh' => $speedSummary['avg_kmh'],
+            'max_speed_kmh' => $speedSummary['max_kmh'],
+            'avg_speed_label' => $speedSummary['avg_label'],
+            'max_speed_label' => $speedSummary['max_label'],
         ],
     ];
 }

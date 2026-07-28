@@ -123,6 +123,9 @@ $today = date('Y-m-d');
                     <div id="ugr-map" class="ugr-map" role="application" aria-label="خريطة المسار"></div>
                     <div class="ugr-legend">
                         <span><i class="ugr-line"></i> خط السير</span>
+                        <span><i class="ugr-speed ugr-speed--slow"></i> بطيء</span>
+                        <span><i class="ugr-speed ugr-speed--med"></i> متوسط</span>
+                        <span><i class="ugr-speed ugr-speed--fast"></i> سريع</span>
                         <span><i class="ugr-dot ugr-dot--start"></i> ب = البداية</span>
                         <span><i class="ugr-dot ugr-dot--stop"></i> 1،2 = توقف</span>
                         <span><i class="ugr-dot ugr-dot--end"></i> ن = النهاية</span>

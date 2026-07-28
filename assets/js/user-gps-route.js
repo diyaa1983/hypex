@@ -773,6 +773,8 @@
           chip('من', summary.first_time || '—') +
           chip('إلى', summary.last_time || '—') +
           chip('المدة', summary.active_label || '—') +
+          chip('متوسط السرعة', summary.avg_speed_label || '—') +
+          chip('أقصى سرعة', summary.max_speed_label || '—') +
           chip('التوقفات', String(summary.stops_count || 0)) +
           chip('النقاط', String(summary.points_count || 0));
       }
@@ -864,6 +866,41 @@
     }
   };
 
+  RouteView.prototype._speedColor = function (kmh) {
+    var s = parseFloat(kmh);
+    if (isNaN(s) || s < 3) return '#94a3b8';
+    if (s < 40) return '#16a34a';
+    if (s < 80) return '#f59e0b';
+    return '#dc2626';
+  };
+
+  RouteView.prototype._addSpeedSegments = function (points, segments) {
+    if (!this.lineLayer || !Array.isArray(segments) || !segments.length || !points.length) return;
+    var self = this;
+    for (var si = 0; si < segments.length; si++) {
+      var seg = segments[si];
+      if (!seg || seg.length < 2) continue;
+      for (var j = 1; j < seg.length; j++) {
+        var prev = points[seg[j - 1]];
+        var cur = points[seg[j]];
+        if (!prev || !cur) continue;
+        global.L.polyline(
+          [
+            [prev.latitude, prev.longitude],
+            [cur.latitude, cur.longitude],
+          ],
+          {
+            color: self._speedColor(cur.speed_kmh),
+            weight: 5,
+            opacity: 0.92,
+            lineJoin: 'round',
+            lineCap: 'round',
+          }
+        ).addTo(self.lineLayer);
+      }
+    }
+  };
+
   RouteView.prototype._pathLatLngs = function (path) {
     var latlngs = [];
     if (!path || !path.length) return latlngs;
@@ -918,32 +955,33 @@
       drewAny = true;
     }
 
-    // احتياطي: مقاطع GPS
+    // احتياطي: مقاطع GPS ملوّنة حسب السرعة
     if (!drewAny) {
+      this._addSpeedSegments(points, segments);
       for (i = 0; i < segments.length; i++) {
         var seg = segments[i];
         if (!seg || seg.length < 2) continue;
-        var segLl = [];
         for (j = 0; j < seg.length; j++) {
           var pti = points[seg[j]];
           if (!pti) continue;
-          segLl.push([pti.latitude, pti.longitude]);
+          bounds.push([pti.latitude, pti.longitude]);
         }
-        if (segLl.length < 2) continue;
-        this._addPolyline(segLl);
-        for (j = 0; j < segLl.length; j++) bounds.push(segLl[j]);
-        drewAny = true;
       }
+      drewAny = segments.length > 0;
     }
 
     // احتياطي أخير: كل النقاط
     if (!drewAny && points.length >= 2) {
-      var allLl = [];
+      this._addSpeedSegments(
+        points,
+        [Array.from({ length: points.length }, function (_, idx) {
+          return idx;
+        })]
+      );
       for (i = 0; i < points.length; i++) {
-        allLl.push([points[i].latitude, points[i].longitude]);
+        bounds.push([points[i].latitude, points[i].longitude]);
       }
-      this._addPolyline(allLl);
-      for (j = 0; j < allLl.length; j++) bounds.push(allLl[j]);
+      drewAny = true;
     }
 
     // نقاط GPS الخام — عيّنة خفيفة فقط حتى لا تبدو كخط ثانٍ فوق المسار.
@@ -965,6 +1003,7 @@
           esc(pt.time_full || pt.time) +
           '</b>' +
           (userLabel ? '<br>' + esc(userLabel) : '') +
+          (pt.speed_label ? '<br>السرعة: ' + esc(pt.speed_label) : '') +
           (pt.accuracy_label ? '<br>دقة: ' + esc(pt.accuracy_label) : '') +
           (pt.source_label ? '<br>' + esc(pt.source_label) : '') +
           '</div>'
@@ -1044,6 +1083,9 @@
           (userLabel ? '<br>' + esc(userLabel) : '') +
           '<br>' +
           esc(end.time) +
+          (end.speed_label && end.speed_label !== '—'
+            ? '<br>السرعة: ' + esc(end.speed_label)
+            : '') +
           '</div>'
       )
       .addTo(this.markerLayer);

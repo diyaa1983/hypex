@@ -849,6 +849,19 @@
   margin-inline-end: 4px;
 }
 
+.ugr-speed {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-inline-end: 4px;
+}
+
+.ugr-speed--slow { background: #16a34a; }
+.ugr-speed--med { background: #f59e0b; }
+.ugr-speed--fast { background: #dc2626; }
+
 .ugr-status {
   position: absolute;
   z-index: 500;
