@@ -599,7 +599,7 @@ function fin_voucher_checks_from_post(array $post): array
         if (!is_array($row)) {
             continue;
         }
-        $amount = (float) ($row['check_amount'] ?? 0);
+        $amount = parse_amount_input($row['check_amount'] ?? 0);
         if ($amount <= 0) {
             continue;
         }

@@ -58,8 +58,8 @@ function handle_fin_receipt_save(): void
     $voucherDate = parse_date_to_iso(trim((string) ($_POST['voucher_date'] ?? ''))) ?? '';
     $customerId = (int) ($_POST['customer_id'] ?? 0);
     $payMethod = fin_voucher_normalize_pay_method(trim((string) ($_POST['pay_method'] ?? 'cash')));
-    $amount = (float) ($_POST['amount'] ?? 0);
-    $checkAmount = (float) ($_POST['check_amount'] ?? 0);
+    $amount = parse_amount_input($_POST['amount'] ?? 0);
+    $checkAmount = parse_amount_input($_POST['check_amount'] ?? 0);
     $checkNo = trim((string) ($_POST['check_no'] ?? ''));
     $bankName = trim((string) ($_POST['bank_name'] ?? ''));
     $notes = trim((string) ($_POST['notes'] ?? ''));

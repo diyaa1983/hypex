@@ -968,6 +968,10 @@
   function syncAmountForSubmit() {
     var amountEl = document.getElementById('rc_amount');
     if (getPayMethod() === 'check') {
+      document.querySelectorAll('.fin-rc-check-amount').forEach(function (inp) {
+        var v = parseNum(inp.value);
+        if (v > 0) inp.value = String(v);
+      });
       var total = recalcChecksTotal();
       if (amountEl && total > 0) amountEl.value = String(total);
 
