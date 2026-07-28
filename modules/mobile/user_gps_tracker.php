@@ -44,6 +44,7 @@ $today = date('Y-m-d');
             <small id="ugt-mobile-summary">—</small>
         </div>
         <div class="ugt-toolbar__actions">
+            <button type="button" class="m-btn m-btn--ghost" id="ugt-clear-trails" title="مسح الخط الحي">⌫ خط</button>
             <button type="button" class="m-btn m-btn--ghost" id="ugt-toggle-list" title="قائمة الأجهزة">☰</button>
             <button type="button" class="m-btn m-btn--primary" id="ugt-refresh">⟳</button>
         </div>
@@ -70,7 +71,8 @@ $today = date('Y-m-d');
             <div class="ugt-map-wrap">
                 <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
                 <div class="ugt-legend ugt-legend--compact">
-                    <span><i class="ugt-dot ugt-dot--online"></i> متصل الآن</span>
+                    <span><i class="ugt-dot ugt-dot--online"></i> متصل</span>
+                    <span><i class="ugt-line"></i> خط حي</span>
                 </div>
                 <div class="ugt-status" id="ugt-status"></div>
             </div>

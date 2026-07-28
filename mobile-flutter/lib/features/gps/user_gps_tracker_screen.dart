@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -75,6 +76,10 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   String _mapProvider = 'esri';
   double _mapZoom = 8;
   List<_Marker> _markers = [];
+  final Map<int, List<LatLng>> _trails = {};
+  static const int _maxTrailPoints = 400;
+  static const double _minTrailMoveMeters = 8;
+  static const double _maxTrailJumpMeters = 800;
   int _online = 0;
   int? _selectedId;
   bool _fitOnce = true;
@@ -126,6 +131,9 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         if (tile.isNotEmpty) _tileUrl = tile;
         _mapProvider = (mapCfg['map_provider'] ?? 'esri').toString();
         _markers = rows;
+        for (final m in rows) {
+          _appendTrailPoint(m.userId, m.point);
+        }
         _online = (counts['online'] as num?)?.toInt() ??
             rows.where((m) => m.online).length;
         _loading = false;
@@ -167,6 +175,60 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     );
   }
 
+  double _haversineMeters(LatLng a, LatLng b) {
+    const r = 6371000.0;
+    final p1 = a.latitude * math.pi / 180;
+    final p2 = b.latitude * math.pi / 180;
+    final dp = (b.latitude - a.latitude) * math.pi / 180;
+    final dl = (b.longitude - a.longitude) * math.pi / 180;
+    final h = math.sin(dp / 2) * math.sin(dp / 2) +
+        math.cos(p1) * math.cos(p2) * math.sin(dl / 2) * math.sin(dl / 2);
+    return r * 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
+  }
+
+  void _appendTrailPoint(int userId, LatLng point) {
+    if (userId < 1) return;
+    final trail = _trails.putIfAbsent(userId, () => <LatLng>[]);
+    if (trail.isEmpty) {
+      trail.add(point);
+      return;
+    }
+    final last = trail.last;
+    final dist = _haversineMeters(last, point);
+    if (dist < _minTrailMoveMeters) return;
+    if (dist > _maxTrailJumpMeters) {
+      trail
+        ..clear()
+        ..add(point);
+      return;
+    }
+    trail.add(point);
+    if (trail.length > _maxTrailPoints) {
+      trail.removeRange(0, trail.length - _maxTrailPoints);
+    }
+  }
+
+  void _clearTrails() {
+    setState(() => _trails.clear());
+    showSnack(context, 'تم مسح الخطوط الحيّة');
+  }
+
+  List<Polyline> _buildLiveTrails() {
+    final lines = <Polyline>[];
+    _trails.forEach((userId, pts) {
+      if (pts.length < 2) return;
+      final selected = userId == _selectedId;
+      lines.add(Polyline(
+        points: List<LatLng>.from(pts),
+        strokeWidth: selected ? 5 : 4,
+        color: selected
+            ? const Color(0xFFDC2626)
+            : const Color(0xFF2563EB).withValues(alpha: 0.85),
+      ));
+    });
+    return lines;
+  }
+
   Future<void> _openExternal(_Marker m) async {
     final uri = Uri.tryParse(m.mapUrl);
     if (uri == null) return;
@@ -194,6 +256,11 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
             tooltip: 'المسار اليومي',
             onPressed: () => context.push('/gps/route'),
             icon: const Icon(Icons.route_rounded),
+          ),
+          IconButton(
+            tooltip: 'مسح الخط الحي',
+            onPressed: _trails.isEmpty ? null : _clearTrails,
+            icon: const Icon(Icons.clear_all_rounded),
           ),
           IconButton(
             tooltip: 'قائمة الأجهزة',
@@ -243,6 +310,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                   tileUrl: _tileUrl,
                   zoom: _mapZoom,
                 ),
+                PolylineLayer(polylines: _buildLiveTrails()),
                 MarkerLayer(
                   markers: [
                     for (final m in _markers)
@@ -300,7 +368,9 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 child: const Row(
                   children: [
                     _LegendDot(AppTheme.success),
-                    Text(' متصل = نبضة خلال 60 ثانية · تحديث كل 5 ثوانٍ  ', style: TextStyle(fontSize: 11.5)),
+                    Text(' متصل · ', style: TextStyle(fontSize: 11.5)),
+                    _LegendLine(Color(0xFF2563EB)),
+                    Text(' خط حي أثناء السير · تحديث كل 5 ث  ', style: TextStyle(fontSize: 11.5)),
                   ],
                 ),
               ),
@@ -437,6 +507,24 @@ class _LegendDot extends StatelessWidget {
       height: 9,
       margin: const EdgeInsets.only(left: 4),
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+}
+
+class _LegendLine extends StatelessWidget {
+  const _LegendLine(this.color);
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 16,
+      height: 3,
+      margin: const EdgeInsets.only(left: 4, right: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(2),
+      ),
     );
   }
 }

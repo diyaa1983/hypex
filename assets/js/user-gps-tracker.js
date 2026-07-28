@@ -87,7 +87,15 @@
     this.mode = root.getAttribute('data-mode') || 'desktop';
     this.map = null;
     this.layer = null;
+    this.trailLayer = null;
     this.markersById = {};
+    /** @type {Object.<string, Array.<[number, number]>>} */
+    this.trailsById = {};
+    /** @type {Object.<string, *>} */
+    this.trailLinesById = {};
+    this.maxTrailPoints = 400;
+    this.minTrailMoveMeters = 8;
+    this.maxTrailJumpMeters = 800;
     this.rows = [];
     this.lastHint = '';
     this.lastPings = [];
@@ -101,6 +109,7 @@
       search: root.querySelector('#ugt-search'),
       refresh: root.querySelector('#ugt-refresh'),
       includeStale: root.querySelector('#ugt-include-stale'),
+      clearTrails: root.querySelector('#ugt-clear-trails'),
       status: root.querySelector('#ugt-status'),
       cntOnline: root.querySelector('#ugt-cnt-online'),
       cntAway: root.querySelector('#ugt-cnt-away'),
@@ -147,6 +156,7 @@
       attributionControl: true,
     }).setView([31.9539, 35.9106], 8);
 
+    this.trailLayer = global.L.layerGroup().addTo(this.map);
     this.layer = global.L.layerGroup().addTo(this.map);
 
     var attach = global.LeafletMapLayers && global.LeafletMapLayers.attach
@@ -210,6 +220,11 @@
     if (this.els.refresh) {
       this.els.refresh.addEventListener('click', function () {
         self.load(true);
+      });
+    }
+    if (this.els.clearTrails) {
+      this.els.clearTrails.addEventListener('click', function () {
+        self.clearLiveTrails();
       });
     }
     if (this.els.search) {
@@ -451,6 +466,96 @@
     );
   };
 
+  Tracker.prototype._trailKey = function (userId) {
+    return String(userId);
+  };
+
+  Tracker.prototype._haversineMeters = function (a, b) {
+    if (!a || !b) return 0;
+    var lat1 = a[0];
+    var lng1 = a[1];
+    var lat2 = b[0];
+    var lng2 = b[1];
+    var toRad = Math.PI / 180;
+    var dLat = (lat2 - lat1) * toRad;
+    var dLng = (lng2 - lng1) * toRad;
+    var x =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 6371000 * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  };
+
+  Tracker.prototype.appendLiveTrailPoint = function (userId, lat, lng) {
+    if (!isFinite(lat) || !isFinite(lng)) return;
+    var key = this._trailKey(userId);
+    var point = [lat, lng];
+    var trail = this.trailsById[key];
+    if (!trail) {
+      this.trailsById[key] = [point];
+      this.syncTrailLine(userId);
+      return;
+    }
+    var last = trail[trail.length - 1];
+    var dist = this._haversineMeters(last, point);
+    if (dist < this.minTrailMoveMeters) return;
+    if (dist > this.maxTrailJumpMeters) {
+      // قفزة غير منطقية (GPS ضعيف / إعادة اتصال بعيد) — ابدأ مقطعاً جديداً من النقطة الحالية.
+      this.trailsById[key] = [point];
+      this.syncTrailLine(userId);
+      return;
+    }
+    trail.push(point);
+    if (trail.length > this.maxTrailPoints) {
+      trail.splice(0, trail.length - this.maxTrailPoints);
+    }
+    this.syncTrailLine(userId);
+  };
+
+  Tracker.prototype.syncTrailLine = function (userId) {
+    if (!this.trailLayer || !global.L) return;
+    var key = this._trailKey(userId);
+    var trail = this.trailsById[key] || [];
+    var existing = this.trailLinesById[key];
+    var isActive = this.activeId != null && String(this.activeId) === key;
+    var style = {
+      color: isActive ? '#dc2626' : '#2563eb',
+      weight: isActive ? 5 : 4,
+      opacity: isActive ? 0.95 : 0.78,
+      lineJoin: 'round',
+      lineCap: 'round',
+      smoothFactor: 1.2,
+    };
+    if (trail.length < 2) {
+      if (existing) {
+        this.trailLayer.removeLayer(existing);
+        delete this.trailLinesById[key];
+      }
+      return;
+    }
+    if (existing) {
+      existing.setLatLngs(trail);
+      existing.setStyle(style);
+    } else {
+      this.trailLinesById[key] = global.L.polyline(trail, style).addTo(this.trailLayer);
+    }
+  };
+
+  Tracker.prototype.refreshTrailStyles = function () {
+    var self = this;
+    Object.keys(this.trailsById).forEach(function (key) {
+      self.syncTrailLine(key);
+    });
+  };
+
+  Tracker.prototype.clearLiveTrails = function () {
+    this.trailsById = {};
+    if (this.trailLayer) {
+      this.trailLayer.clearLayers();
+    }
+    this.trailLinesById = {};
+    this.setStatus('تم مسح الخطوط الحيّة');
+  };
+
   Tracker.prototype.renderMarkers = function () {
     if (!this.map || !this.layer) return;
     var keep = {};
@@ -461,6 +566,7 @@
       keep[id] = true;
       var latlng = [r.latitude, r.longitude];
       bounds.push(latlng);
+      this.appendLiveTrailPoint(id, r.latitude, r.longitude);
       var existing = this.markersById[id];
       if (existing) {
         existing.setLatLng(latlng);
@@ -504,6 +610,7 @@
   Tracker.prototype.focusUser = function (userId, pan) {
     this.activeId = userId;
     this.renderList();
+    this.refreshTrailStyles();
     var m = this.markersById[userId];
     if (!m) return;
     if (pan !== false) {

@@ -454,6 +454,16 @@
   background: #e08700;
 }
 
+.ugt-line {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: #2563eb;
+  vertical-align: middle;
+  margin-inline-end: 5px;
+}
+
 .ugt-status {
   position: absolute;
   z-index: 400;
