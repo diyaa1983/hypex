@@ -73,6 +73,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   String? _error;
   String _tileUrl = GpsMapTiles.esriUrl;
   String _mapProvider = 'esri';
+  double _mapZoom = 8;
   List<_Marker> _markers = [];
   int _online = 0;
   int? _selectedId;
@@ -228,10 +229,20 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 initialZoom: 8,
                 minZoom: 4,
                 maxZoom: 20,
+                onMapEvent: (e) {
+                  final z = _map.camera.zoom;
+                  if ((z - _mapZoom).abs() > 0.01) {
+                    setState(() => _mapZoom = z);
+                  }
+                },
                 onTap: (_, __) => setState(() => _selectedId = null),
               ),
               children: [
-                ...GpsMapTiles.layers(mapProvider: _mapProvider, tileUrl: _tileUrl),
+                ...GpsMapTiles.layers(
+                  mapProvider: _mapProvider,
+                  tileUrl: _tileUrl,
+                  zoom: _mapZoom,
+                ),
                 MarkerLayer(
                   markers: [
                     for (final m in _markers)

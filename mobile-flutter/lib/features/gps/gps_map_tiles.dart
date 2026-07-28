@@ -10,9 +10,17 @@ class GpsMapTiles {
   static const esriUrl =
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
 
-  static List<Widget> layers({String? mapProvider, String? tileUrl}) {
+  static const esriVisibleMaxZoom = 14;
+
+  static List<Widget> layers({
+    String? mapProvider,
+    String? tileUrl,
+    double? zoom,
+  }) {
     final provider = (mapProvider ?? 'esri').toLowerCase();
     const pkg = 'com.gppjo.biodev.mobile';
+    final showEsri =
+        zoom == null || zoom <= esriVisibleMaxZoom;
 
     if (provider == 'carto') {
       return [
@@ -26,20 +34,25 @@ class GpsMapTiles {
     }
 
     if (provider == 'esri') {
-      return [
+      final layers = <Widget>[
         TileLayer(
           urlTemplate: cartoUrl,
           subdomains: const ['a', 'b', 'c', 'd'],
           maxZoom: 20,
           userAgentPackageName: pkg,
         ),
-        TileLayer(
-          urlTemplate: tileUrl ?? esriUrl,
-          maxNativeZoom: 17,
-          maxZoom: 17,
-          userAgentPackageName: pkg,
-        ),
       ];
+      if (showEsri) {
+        layers.add(
+          TileLayer(
+            urlTemplate: tileUrl ?? esriUrl,
+            maxNativeZoom: 17,
+            maxZoom: 17,
+            userAgentPackageName: pkg,
+          ),
+        );
+      }
+      return layers;
     }
 
     return [

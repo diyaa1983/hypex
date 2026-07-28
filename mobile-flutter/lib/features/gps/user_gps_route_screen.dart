@@ -57,6 +57,7 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   String? _error;
   String _tileUrl = GpsMapTiles.esriUrl;
   String _mapProvider = 'esri';
+  double _mapZoom = 8;
 
   List<_UserOption> _users = [];
   int? _userId;
@@ -514,14 +515,24 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
                 children: [
                   FlutterMap(
                     mapController: _map,
-                    options: const MapOptions(
+                    options: MapOptions(
                       initialCenter: LatLng(31.9539, 35.9106),
                       initialZoom: 8,
                       minZoom: 4,
                       maxZoom: 20,
+                      onMapEvent: (e) {
+                        final z = _map.camera.zoom;
+                        if ((z - _mapZoom).abs() > 0.01) {
+                          setState(() => _mapZoom = z);
+                        }
+                      },
                     ),
                     children: [
-                      ...GpsMapTiles.layers(mapProvider: _mapProvider, tileUrl: _tileUrl),
+                      ...GpsMapTiles.layers(
+                        mapProvider: _mapProvider,
+                        tileUrl: _tileUrl,
+                        zoom: _mapZoom,
+                      ),
                       PolylineLayer(polylines: _buildPolylines()),
                       MarkerLayer(markers: _buildMarkers()),
                     ],

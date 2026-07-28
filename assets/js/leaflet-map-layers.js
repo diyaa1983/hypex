@@ -85,13 +85,37 @@
     global.L.tileLayer(url, opts).addTo(map);
   }
 
-  /** Esri حتى z17 ثم Carto فقط (يمنع «Map data not yet available»). */
+  /** Carto دائماً + Esri للتكبير المنخفض فقط (يمنع بلاطات «Map data not yet available»). */
   function attachEsriHybrid(map, tileUrl, attribution) {
-    attachRaster(map, 'carto', null, null, { noAttribution: true });
-    attachRaster(map, 'esri', tileUrl, attribution, {
+    var carto = global.L.tileLayer(PROVIDERS.carto.tileUrl, {
+      attribution: PROVIDERS.carto.attribution,
+      maxZoom: 20,
+      subdomains: PROVIDERS.carto.subdomains,
+    });
+    var esriUrl =
+      tileUrl && String(tileUrl).indexOf('{z}') >= 0
+        ? tileUrl
+        : PROVIDERS.esri.tileUrl;
+    var esri = global.L.tileLayer(esriUrl, {
+      attribution: attribution || PROVIDERS.esri.attribution,
       maxNativeZoom: 17,
       maxZoom: 17,
     });
+    carto.addTo(map);
+
+    var esriCutoff = 14;
+
+    function syncEsriLayer() {
+      var z = map.getZoom();
+      if (z > esriCutoff) {
+        if (map.hasLayer(esri)) map.removeLayer(esri);
+      } else if (!map.hasLayer(esri)) {
+        esri.addTo(map);
+      }
+    }
+
+    map.on('zoomend', syncEsriLayer);
+    syncEsriLayer();
   }
 
   function attachGoogle(map) {
@@ -120,11 +144,11 @@
             attachGoogle(map);
             return 'google';
           }
-          attachRaster(map, 'esri', opts.tileUrl, opts.attribution);
+          attachEsriHybrid(map, opts.tileUrl, opts.attribution);
           return 'esri';
         })
         .catch(function () {
-          attachRaster(map, 'esri', opts.tileUrl, opts.attribution);
+          attachEsriHybrid(map, opts.tileUrl, opts.attribution);
           return 'esri';
         });
     }
