@@ -387,9 +387,26 @@ function handle_fin_private_out_check_post(): void
             $emailRun = fin_out_check_due_email_run($pdo);
             if (!empty($emailRun['ok']) && (int) ($emailRun['sent'] ?? 0) > 0) {
                 $msg .= ' تم إرسال تنبيه البريد.';
+            } else {
+                $reason = (string) ($emailRun['reason'] ?? '');
+                $reasonLabel = match ($reason) {
+                    'disabled' => 'تنبيه الشيكات الصادرة غير مفعّل من الإعدادات.',
+                    'no_recipients' => 'لا يوجد بريد مستلمين لتنبيه الشيكات الصادرة.',
+                    'smtp_not_configured' => 'إعداد SMTP غير مهيأ.',
+                    'no_checks_in_window' => 'الشيك خارج نافذة أيام التذكير.',
+                    'already_sent' => 'تم إرسال التنبيه لهذا الشيك مسبقاً.',
+                    default => '',
+                };
+                if ($reasonLabel !== '') {
+                    $msg .= ' لم يُرسل البريد: ' . $reasonLabel;
+                } elseif (!empty($emailRun['error'])) {
+                    $msg .= ' فشل إرسال البريد: ' . (string) $emailRun['error'];
+                } else {
+                    $msg .= ' لم يُرسل البريد حالياً.';
+                }
             }
         } catch (Throwable $e) {
-            // لا نمنع الحفظ عند فشل الإرسال الفوري.
+            $msg .= ' تعذر تشغيل مرسل التنبيه.';
         }
         flash_set('success', $msg);
         redirect(fin_private_out_check_redirect_url($savedId));
