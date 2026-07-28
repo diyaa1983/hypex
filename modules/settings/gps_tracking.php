@@ -9,6 +9,7 @@ require_once app_path('includes/nav_helpers.php');
 $pdo = db();
 $settings = mobile_gps_settings($pdo);
 $googleMapsKey = mobile_gps_settings_google_maps_key($pdo);
+$mapProvider = mobile_gps_settings_map_provider($pdo);
 if ($googleMapsKey === '' && defined('APP_GOOGLE_MAPS_API_KEY')) {
     $googleMapsKey = trim((string) APP_GOOGLE_MAPS_API_KEY);
 }
@@ -31,9 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'min_distance_m' => $_POST['gps_mobile_min_distance_m'] ?? 0,
                 'user_can_disable' => $_POST['gps_mobile_user_can_disable'] ?? null,
                 'google_maps_api_key' => $_POST['gps_google_maps_api_key'] ?? '',
+                'map_provider' => $_POST['gps_map_provider'] ?? 'esri',
             ]);
             $settings = mobile_gps_settings($pdo);
             $googleMapsKey = mobile_gps_settings_google_maps_key($pdo);
+            $mapProvider = mobile_gps_settings_map_provider($pdo);
             $msg = 'تم حفظ إعدادات تتبّع موقع تطبيق الهاتف.';
             $msgType = 'success';
         } catch (Throwable $e) {
@@ -120,18 +123,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="col-12">
                 <hr class="my-2">
-                <h2 class="h6 mb-2">خرائط Google</h2>
+                <h2 class="h6 mb-2">الخريطة</h2>
+                <label class="form-label" for="gps_map_provider">نوع الخريطة</label>
+                <select class="form-select" id="gps_map_provider" name="gps_map_provider" style="max-width: 420px;">
+                    <option value="esri" <?= $mapProvider === 'esri' ? 'selected' : '' ?>>
+                        Esri Street — مجاني وأوضح (موصى به)
+                    </option>
+                    <option value="carto" <?= $mapProvider === 'carto' ? 'selected' : '' ?>>
+                        Carto Voyager — مجاني
+                    </option>
+                    <option value="google" <?= $mapProvider === 'google' ? 'selected' : '' ?>>
+                        Google Maps — يحتاج مفتاح وفوترة
+                    </option>
+                </select>
+                <div class="form-text">
+                    الافتراضي <strong>Esri</strong>: مجاني 100% بدون بطاقة وبدون علامة «For development purposes only».
+                </div>
+            </div>
+
+            <div class="col-12">
+                <h2 class="h6 mb-2">خرائط Google (اختياري)</h2>
                 <label class="form-label" for="gps_google_key">مفتاح Google Maps API</label>
                 <input type="password" class="form-control" id="gps_google_key" name="gps_google_maps_api_key"
                     value="<?= esc($googleMapsKey) ?>" autocomplete="off"
                     placeholder="AIzaSy...">
                 <div class="form-text">
-                    فعّل <strong>Maps JavaScript API</strong> في
-                    <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" rel="noopener">Google Cloud</a>
-                    ثم الصق المفتاح هنا. بدون مفتاح تُستخدم خريطة Carto الافتراضية.
-                    <?php if ($googleMapsKey !== ''): ?>
-                        <span class="text-success">✓ Google Maps مفعّل</span>
-                    <?php endif; ?>
+                    مطلوب فقط إذا اخترت <strong>Google Maps</strong> أعلاه.
+                    بدون فوترة مكتملة تظهر خريطة باهتة بعلامة مائية.
                 </div>
             </div>
 

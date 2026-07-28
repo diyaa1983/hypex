@@ -29,6 +29,7 @@ function mobile_gps_settings_ensure_schema(PDO $pdo): void
         'gps_mobile_min_distance_m' => 'INT UNSIGNED NOT NULL DEFAULT 0',
         'gps_mobile_user_can_disable' => 'TINYINT(1) NOT NULL DEFAULT 0',
         'gps_google_maps_api_key' => "VARCHAR(255) NOT NULL DEFAULT ''",
+        'gps_map_provider' => "VARCHAR(16) NOT NULL DEFAULT 'esri'",
     ];
 
     foreach ($columns as $col => $def) {
@@ -156,6 +157,28 @@ function mobile_gps_settings_google_maps_key(PDO $pdo = null): string
     return '';
 }
 
+function mobile_gps_settings_map_provider(PDO $pdo = null): string
+{
+    $allowed = ['esri', 'carto', 'google'];
+    try {
+        $pdo = $pdo ?? db();
+        mobile_gps_settings_ensure_schema($pdo);
+        $row = $pdo->query(
+            'SELECT gps_map_provider FROM sys_company_settings WHERE id = 1 LIMIT 1'
+        )->fetch(PDO::FETCH_ASSOC);
+        if (is_array($row)) {
+            $p = strtolower(trim((string) ($row['gps_map_provider'] ?? '')));
+            if (in_array($p, $allowed, true)) {
+                return $p;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('mobile_gps_settings_map_provider: ' . $e->getMessage());
+    }
+
+    return 'esri';
+}
+
 function mobile_gps_settings_save(PDO $pdo, array $input): void
 {
     mobile_gps_settings_ensure_schema($pdo);
@@ -164,6 +187,10 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
     $distance = mobile_gps_settings_normalize_distance((int) ($input['min_distance_m'] ?? 0));
     $canDisable = !empty($input['user_can_disable']) ? 1 : 0;
     $googleKey = trim((string) ($input['google_maps_api_key'] ?? ''));
+    $provider = strtolower(trim((string) ($input['map_provider'] ?? 'esri')));
+    if (!in_array($provider, ['esri', 'carto', 'google'], true)) {
+        $provider = 'esri';
+    }
 
     $pdo->prepare(
         'UPDATE sys_company_settings SET
@@ -171,7 +198,8 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
             gps_mobile_interval_sec = ?,
             gps_mobile_min_distance_m = ?,
             gps_mobile_user_can_disable = ?,
-            gps_google_maps_api_key = ?
+            gps_google_maps_api_key = ?,
+            gps_map_provider = ?
          WHERE id = 1'
-    )->execute([$auto, $interval, $distance, $canDisable, $googleKey]);
+    )->execute([$auto, $interval, $distance, $canDisable, $googleKey, $provider]);
 }

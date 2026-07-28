@@ -22,8 +22,66 @@ function app_osm_tile_url(): string
         return trim((string) APP_OSM_TILE_URL);
     }
 
-    // أوضح من بلاطات OSM الخام (قريبة من مظهر Google Maps).
-    return 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    $provider = app_osm_map_provider();
+    $defs = app_osm_map_provider_defs();
+
+    return $defs[$provider]['tileUrl'] ?? $defs['esri']['tileUrl'];
+}
+
+/** @return array<string, array{tileUrl:string, attribution:string, maxZoom:int, subdomains?:string}> */
+function app_osm_map_provider_defs(): array
+{
+    return [
+        // مجاني — أوضح خيار بدون مفتاح أو فوترة (موصى به).
+        'esri' => [
+            'tileUrl' => 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+            'attribution' => '&copy; Esri &mdash; OpenStreetMap contributors',
+            'maxZoom' => 19,
+        ],
+        'carto' => [
+            'tileUrl' => 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+            'attribution' => '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+            'maxZoom' => 20,
+            'subdomains' => 'abcd',
+        ],
+    ];
+}
+
+function app_osm_map_provider(?PDO $pdo = null): string
+{
+    if (defined('APP_OSM_MAP_PROVIDER') && trim((string) APP_OSM_MAP_PROVIDER) !== '') {
+        $p = strtolower(trim((string) APP_OSM_MAP_PROVIDER));
+        if (in_array($p, ['esri', 'carto', 'google'], true)) {
+            return $p;
+        }
+    }
+
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    $cached = 'esri';
+    try {
+        if (function_exists('db')) {
+            $pdo = $pdo ?? db();
+            $row = $pdo->query(
+                'SELECT gps_map_provider FROM sys_company_settings WHERE id = 1 LIMIT 1'
+            )->fetch(PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                $p = strtolower(trim((string) ($row['gps_map_provider'] ?? '')));
+                if (in_array($p, ['esri', 'carto', 'google'], true)) {
+                    $cached = $p;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        if (strpos($e->getMessage(), 'Unknown column') === false) {
+            error_log('app_osm_map_provider: ' . $e->getMessage());
+        }
+    }
+
+    return $cached;
 }
 
 function app_osm_google_maps_api_key(): string
@@ -58,19 +116,32 @@ function app_osm_google_maps_api_key(): string
     return $cached;
 }
 
-/** @return array{tileUrl:string, attribution:string, googleMapsKey:string, mapProvider:string} */
+/** @return array{tileUrl:string, attribution:string, googleMapsKey:string, mapProvider:string, maxZoom:int} */
 function app_osm_js_config(): array
 {
     $googleKey = app_osm_google_maps_api_key();
-    $provider = $googleKey !== '' ? 'google' : 'carto';
+    $provider = app_osm_map_provider();
+    $defs = app_osm_map_provider_defs();
+
+    if ($provider === 'google' && $googleKey === '') {
+        $provider = 'esri';
+    }
+
+    $meta = $defs[$provider] ?? $defs['esri'];
+    if ($provider === 'google') {
+        $meta = [
+            'tileUrl' => app_osm_tile_url(),
+            'attribution' => '&copy; Google',
+            'maxZoom' => 21,
+        ];
+    }
 
     return [
-        'tileUrl' => app_osm_tile_url(),
-        'attribution' => $provider === 'google'
-            ? '&copy; Google'
-            : '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        'tileUrl' => $meta['tileUrl'],
+        'attribution' => $meta['attribution'],
         'googleMapsKey' => $googleKey,
         'mapProvider' => $provider,
+        'maxZoom' => (int) ($meta['maxZoom'] ?? 19),
     ];
 }
 

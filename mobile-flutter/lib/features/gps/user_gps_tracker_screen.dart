@@ -70,7 +70,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   Timer? _poll;
   bool _loading = true;
   String? _error;
-  String _tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  String _tileUrl =
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
   List<_Marker> _markers = [];
   int _online = 0;
   int? _selectedId;

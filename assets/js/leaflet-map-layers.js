@@ -1,10 +1,22 @@
 (function (global) {
   'use strict';
 
-  var DEFAULT_TILE =
-    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-  var DEFAULT_ATTR =
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO';
+  var PROVIDERS = {
+    esri: {
+      tileUrl:
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      attribution: '&copy; Esri &mdash; OpenStreetMap contributors',
+      maxZoom: 19,
+    },
+    carto: {
+      tileUrl:
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO',
+      maxZoom: 20,
+      subdomains: 'abcd',
+    },
+  };
 
   function loadScript(src) {
     return new Promise(function (resolve, reject) {
@@ -55,13 +67,18 @@
     return global.__leafletGooglePromise;
   }
 
-  function attachCarto(map, tileUrl, attribution) {
-    var url = tileUrl && String(tileUrl).indexOf('{z}') >= 0 ? tileUrl : DEFAULT_TILE;
-    global.L.tileLayer(url, {
-      attribution: attribution || DEFAULT_ATTR,
-      maxZoom: 20,
-      subdomains: 'abcd',
-    }).addTo(map);
+  function attachRaster(map, providerKey, tileUrl, attribution) {
+    var def = PROVIDERS[providerKey] || PROVIDERS.esri;
+    var url =
+      tileUrl && String(tileUrl).indexOf('{z}') >= 0
+        ? tileUrl
+        : def.tileUrl;
+    var opts = {
+      attribution: attribution || def.attribution,
+      maxZoom: def.maxZoom || 19,
+    };
+    if (def.subdomains) opts.subdomains = def.subdomains;
+    global.L.tileLayer(url, opts).addTo(map);
   }
 
   function attachGoogle(map) {
@@ -79,12 +96,9 @@
    */
   function attachBaseLayer(map, opts) {
     opts = opts || {};
-    var provider = opts.mapProvider || 'carto';
-    var googleKey = opts.googleKey || '';
     var cfg = global.AppOsmConfig || {};
-    if (!googleKey && cfg.googleMapsKey) googleKey = cfg.googleMapsKey;
-    if (!googleKey && cfg.google_maps_key) googleKey = cfg.google_maps_key;
-    if (provider !== 'google' && cfg.mapProvider === 'google') provider = 'google';
+    var provider = (opts.mapProvider || cfg.mapProvider || 'esri').toLowerCase();
+    var googleKey = opts.googleKey || cfg.googleMapsKey || cfg.google_maps_key || '';
 
     if (provider === 'google' && googleKey) {
       return ensureGoogle(googleKey)
@@ -93,17 +107,22 @@
             attachGoogle(map);
             return 'google';
           }
-          attachCarto(map, opts.tileUrl, opts.attribution);
-          return 'carto';
+          attachRaster(map, 'esri', opts.tileUrl, opts.attribution);
+          return 'esri';
         })
         .catch(function () {
-          attachCarto(map, opts.tileUrl, opts.attribution);
-          return 'carto';
+          attachRaster(map, 'esri', opts.tileUrl, opts.attribution);
+          return 'esri';
         });
     }
 
-    attachCarto(map, opts.tileUrl, opts.attribution);
-    return Promise.resolve('carto');
+    if (provider === 'carto') {
+      attachRaster(map, 'carto', opts.tileUrl, opts.attribution);
+      return Promise.resolve('carto');
+    }
+
+    attachRaster(map, 'esri', opts.tileUrl, opts.attribution);
+    return Promise.resolve('esri');
   }
 
   global.LeafletMapLayers = {

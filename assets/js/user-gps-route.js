@@ -60,7 +60,7 @@
     this.attribution =
       root.getAttribute('data-attribution') ||
       '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO';
-    this.mapProvider = root.getAttribute('data-map-provider') || 'carto';
+    this.mapProvider = root.getAttribute('data-map-provider') || 'esri';
     this.googleKey = root.getAttribute('data-google-key') || '';
     this.today = root.getAttribute('data-today') || '';
     this.mode = root.getAttribute('data-mode') || 'desktop';
