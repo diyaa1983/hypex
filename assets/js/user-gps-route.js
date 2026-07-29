@@ -349,14 +349,14 @@
    */
   RouteView.prototype.snapInBackground = function (data, seq) {
     var self = this;
-    if (!data || (data.road_matched && self._looksRoadSnapped(data))) {
+    if (!data || (data.road_matched && self._looksRoadSnapped(data) && self._hasFullDayCoverage(data))) {
       return;
     }
     if (!Array.isArray(data.points) || data.points.length < 2) {
       return;
     }
 
-    var timeoutMs = self.mode === 'mobile' ? 8000 : 20000;
+    var timeoutMs = self.mode === 'mobile' ? 15000 : 45000;
     var deadline = Date.now() + timeoutMs;
     data._snapDeadline = deadline;
 
@@ -383,8 +383,8 @@
     if (!data || !Array.isArray(data.points) || data.points.length < 2) {
       return Promise.resolve(data);
     }
-    // إن أكد السيرفر مساراً كثيفاً ملتصقاً بالشارع نكتفي به.
-    if (data.road_matched && self._looksRoadSnapped(data)) {
+    // إن أكد السيرفر مسارات متعددة تغطي اليوم نكتفي بها.
+    if (data.road_matched && self._looksRoadSnapped(data) && self._hasFullDayCoverage(data)) {
       return Promise.resolve(data);
     }
 
@@ -400,23 +400,34 @@
           var p = points[seg[i]];
           if (p) pts.push(p);
         }
-        if (pts.length >= 2) jobs.push(pts);
+        if (pts.length >= 2) {
+          // قسّم المقاطع الطويلة حتى لا يُبتَر آخر اليوم عند انتهاء المهلة.
+          var parts = self._splitPointsForSnap(pts, 280, 5400);
+          for (var pi = 0; pi < parts.length; pi++) {
+            if (parts[pi].length >= 2) jobs.push(parts[pi]);
+          }
+        }
       }
     }
     if (!jobs.length) {
-      jobs.push(points);
+      jobs = self._splitPointsForSnap(points, 280, 5400);
     }
 
-    // تسلسلي لتفادي حظر الخادم العام عند الطلبات المتوازية.
     var lines = [];
     var chain = Promise.resolve();
     jobs.forEach(function (pts) {
       chain = chain.then(function () {
+        var gpsFallback = self._pointsToLatLngPath(pts);
         if (data._snapDeadline && Date.now() > data._snapDeadline) {
+          if (gpsFallback.length >= 2) lines.push(gpsFallback);
           return;
         }
         return self.osrmSnapPoints(pts).then(function (path) {
-          if (path && path.length >= 2) lines.push(path);
+          if (path && path.length >= 2 && self._pathLen(path) >= self._pathLen(gpsFallback) * 0.55) {
+            lines.push(path);
+          } else if (gpsFallback.length >= 2) {
+            lines.push(gpsFallback);
+          }
         });
       });
     });
@@ -429,9 +440,85 @@
       data.road_paths = lines;
       data.road_path = lines[0];
       data.road_matched = true;
-      if (data.summary) data.summary.road_matched = true;
+      if (data.summary) {
+        data.summary.road_matched = true;
+        data.summary.travel_segments = lines.length;
+      }
       return data;
     });
+  };
+
+  RouteView.prototype._pointsToLatLngPath = function (pts) {
+    var out = [];
+    for (var i = 0; i < pts.length; i++) {
+      var lat = parseFloat(pts[i].latitude);
+      var lng = parseFloat(pts[i].longitude);
+      if (isNaN(lat) || isNaN(lng)) continue;
+      out.push({ latitude: lat, longitude: lng });
+    }
+    return out;
+  };
+
+  RouteView.prototype._pathLen = function (path) {
+    if (!path || path.length < 2) return 0;
+    var total = 0;
+    for (var i = 1; i < path.length; i++) {
+      var a = path[i - 1];
+      var b = path[i];
+      var alat = a.latitude != null ? a.latitude : a.lat;
+      var alng = a.longitude != null ? a.longitude : a.lng;
+      var blat = b.latitude != null ? b.latitude : b.lat;
+      var blng = b.longitude != null ? b.longitude : b.lng;
+      total += this._haversine(alat, alng, blat, blng);
+    }
+    return total;
+  };
+
+  RouteView.prototype._splitPointsForSnap = function (points, maxPoints, maxSpanSec) {
+    maxPoints = maxPoints || 280;
+    maxSpanSec = maxSpanSec || 5400;
+    var n = points.length;
+    if (n < 2) return n ? [points] : [];
+    var chunks = [];
+    var start = 0;
+    while (start < n) {
+      var end = start;
+      var t0 = parseInt(points[start].ts, 10) || 0;
+      if (!t0 && points[start].captured_at) {
+        t0 = Math.floor(new Date(points[start].captured_at).getTime() / 1000) || 0;
+      }
+      while (end + 1 < n) {
+        var next = end + 1;
+        var t1 = parseInt(points[next].ts, 10) || 0;
+        if (!t1 && points[next].captured_at) {
+          t1 = Math.floor(new Date(points[next].captured_at).getTime() / 1000) || 0;
+        }
+        var span = t0 > 0 && t1 > 0 ? t1 - t0 : 0;
+        var count = next - start + 1;
+        if (count > maxPoints || (span > maxSpanSec && maxSpanSec > 0)) break;
+        end = next;
+      }
+      if (end <= start && start + 1 < n) end = start + 1;
+      chunks.push(points.slice(start, end + 1));
+      if (end >= n - 1) break;
+      start = end;
+    }
+    return chunks;
+  };
+
+  RouteView.prototype._hasFullDayCoverage = function (data) {
+    var lines = Array.isArray(data.track_lines) ? data.track_lines : [];
+    if (lines.length >= 2) return true;
+    var pts = Array.isArray(data.points) ? data.points : [];
+    if (pts.length < 2) return true;
+    var first = pts[0];
+    var last = pts[pts.length - 1];
+    var linePts = 0;
+    for (var i = 0; i < lines.length; i++) {
+      linePts += Array.isArray(lines[i]) ? lines[i].length : 0;
+    }
+    // مقطع واحد قليل النقاط مقارنةً بيوم كامل ⇒ غير كافٍ.
+    return linePts >= Math.max(30, Math.floor(pts.length * 0.08));
   };
 
   /** مسار ملتصق بالشارع يكون كثيف النقاط مقارنةً بـ GPS الخام. */
@@ -776,7 +863,13 @@
           chip('متوسط السرعة', summary.avg_speed_label || '—') +
           chip('أقصى سرعة', summary.max_speed_label || '—') +
           chip('التوقفات', String(summary.stops_count || 0)) +
-          chip('النقاط', String(summary.points_count || 0));
+          chip('المقاطع', String(summary.travel_segments || 0)) +
+          chip('النقاط', String(summary.points_count || 0)) +
+          (summary.coverage_note
+            ? '<div class="ugr-chip ugr-chip--warn"><span class="ugr-chip__k">ملاحظة</span><span class="ugr-chip__v">' +
+              esc(summary.coverage_note) +
+              '</span></div>'
+            : '');
       }
     }
 

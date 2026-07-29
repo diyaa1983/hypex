@@ -756,8 +756,8 @@ function sys_user_location_track_clean_points(array $points): array
     $filtered = [];
     foreach ($points as $pt) {
         $acc = $pt['gps_accuracy'] ?? null;
-        // تجاهل النقاط ذات الدقة السيئة جداً (تسبب خطوطاً مزدوجة بجانب الشارع).
-        if ($acc !== null && (float) $acc > 65) {
+        // تجاهل النقاط ذات الدقة السيئة جداً فقط (كانت 65م فتُسقط جزءاً من اليوم).
+        if ($acc !== null && (float) $acc > 120) {
             continue;
         }
         $filtered[] = $pt;
@@ -827,6 +827,77 @@ function sys_user_location_track_prepare_line(array $path, bool $roadSnapped = f
     }
 
     return sys_user_location_track_dedupe_path($simplified, $roadSnapped ? 2.0 : 5.0);
+}
+
+/**
+ * تقسيم نقاط المسار إلى أجزاء (بعدد نقاط / مدة) لرسم كامل اليوم.
+ *
+ * @param list<array<string,mixed>> $points
+ * @return list<list<array<string,mixed>>>
+ */
+function sys_user_location_track_split_points(
+    array $points,
+    int $maxPoints = 350,
+    int $maxSpanSec = 5400
+): array {
+    $n = count($points);
+    if ($n < 2) {
+        return $n === 1 ? [$points] : [];
+    }
+    $maxPoints = max(40, $maxPoints);
+    $maxSpanSec = max(600, $maxSpanSec);
+    $chunks = [];
+    $start = 0;
+    while ($start < $n) {
+        $end = $start;
+        $t0 = (int) ($points[$start]['ts'] ?? 0);
+        while ($end + 1 < $n) {
+            $next = $end + 1;
+            $span = (int) ($points[$next]['ts'] ?? 0) - $t0;
+            $count = $next - $start + 1;
+            if ($count > $maxPoints || ($t0 > 0 && $span > $maxSpanSec)) {
+                break;
+            }
+            $end = $next;
+        }
+        if ($end <= $start && $start + 1 < $n) {
+            $end = $start + 1;
+        }
+        $chunks[] = array_slice($points, $start, $end - $start + 1);
+        if ($end >= $n - 1) {
+            break;
+        }
+        // تداخل نقطة واحدة حتى لا ينقطع الخط بين الأجزاء.
+        $start = $end;
+    }
+
+    return $chunks;
+}
+
+/**
+ * طول مسار تقريباً بالمتر.
+ *
+ * @param list<array{latitude?:float,longitude?:float,lat?:float,lng?:float}> $path
+ */
+function sys_user_location_path_length_meters(array $path): float
+{
+    $total = 0.0;
+    $prevLat = null;
+    $prevLng = null;
+    foreach ($path as $pt) {
+        if (!is_array($pt)) {
+            continue;
+        }
+        $lat = isset($pt['latitude']) ? (float) $pt['latitude'] : (float) ($pt['lat'] ?? 0);
+        $lng = isset($pt['longitude']) ? (float) $pt['longitude'] : (float) ($pt['lng'] ?? 0);
+        if ($prevLat !== null) {
+            $total += sys_user_location_distance_meters($prevLat, $prevLng, $lat, $lng);
+        }
+        $prevLat = $lat;
+        $prevLng = $lng;
+    }
+
+    return $total;
 }
 
 /**
@@ -907,6 +978,7 @@ function sys_user_location_track_day(
             'max_speed_kmh' => null,
             'avg_speed_label' => '',
             'max_speed_label' => '',
+            'coverage_note' => '',
         ],
         'road_path' => [],
         'road_paths' => [],
@@ -1073,6 +1145,9 @@ function sys_user_location_track_day(
     $roadPaths = [];
     $anyRoadMatched = false;
     $minTravelMeters = 3.0;
+    // ميزانية أطول حتى لا يُهمل آخر اليوم عند المسارات الطويلة.
+    $snapBudgetSec = 12.0;
+    $snapStartedAt = microtime(true);
 
     foreach ($segments as $seg) {
         $segPoints = [];
@@ -1111,54 +1186,91 @@ function sys_user_location_track_day(
             ];
         }
 
-        if ($segCount < 2) {
+        if ($segCount < 2 || $segMeters < $minTravelMeters) {
             continue;
         }
 
-        $gpsPath = [];
-        foreach ($segPoints as $sp) {
-            $gpsPath[] = [
-                'latitude' => (float) $sp['latitude'],
-                'longitude' => (float) $sp['longitude'],
-            ];
-        }
-        $gpsPath = sys_user_location_track_prepare_line($gpsPath, false);
-
-        $path = [];
-        $snapped = false;
-        // ميزانية زمنية قصيرة حتى لا يتأخر الرد على الموبايل/الآيفون.
-        $snapBudgetSec = 4.0;
-        if (!isset($snapStartedAt)) {
-            $snapStartedAt = microtime(true);
-        }
-        $canSnap = (microtime(true) - $snapStartedAt) < $snapBudgetSec;
-        if ($canSnap && $segMeters >= $minTravelMeters && count($segPoints) >= 2) {
-            try {
-                $rawSnap = app_osm_snap_route_to_roads($segPoints);
-                if (count($rawSnap) >= 2) {
-                    $path = sys_user_location_track_prepare_line($rawSnap, true);
-                    $snapped = count($path) >= 2;
-                }
-            } catch (Throwable $e) {
-                error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
-                $path = [];
+        // قسّم المقطع الطويل إلى أجزاء زمنية حتى يُرسم كامل اليوم ولا يُبتَر عند الالتصاق بالشارع.
+        $chunks = sys_user_location_track_split_points($segPoints, 350, 5400);
+        foreach ($chunks as $chunkPoints) {
+            if (count($chunkPoints) < 2) {
+                continue;
             }
-        }
+            $chunkMeters = 0.0;
+            for ($i = 1; $i < count($chunkPoints); $i++) {
+                $chunkMeters += sys_user_location_distance_meters(
+                    $chunkPoints[$i - 1]['latitude'],
+                    $chunkPoints[$i - 1]['longitude'],
+                    $chunkPoints[$i]['latitude'],
+                    $chunkPoints[$i]['longitude']
+                );
+            }
+            if ($chunkMeters < $minTravelMeters) {
+                continue;
+            }
 
-        if ($snapped) {
+            $gpsPath = [];
+            foreach ($chunkPoints as $sp) {
+                $gpsPath[] = [
+                    'latitude' => (float) $sp['latitude'],
+                    'longitude' => (float) $sp['longitude'],
+                ];
+            }
+            $gpsPath = sys_user_location_track_prepare_line($gpsPath, false);
+            if (count($gpsPath) < 2) {
+                continue;
+            }
+
+            $path = $gpsPath;
+            $snapped = false;
+            $canSnap = (microtime(true) - $snapStartedAt) < $snapBudgetSec;
+            if ($canSnap) {
+                try {
+                    $rawSnap = app_osm_snap_route_to_roads($chunkPoints);
+                    if (count($rawSnap) >= 2) {
+                        $preparedSnap = sys_user_location_track_prepare_line($rawSnap, true);
+                        // لا نستبدل بمسار ملتصق إن كان أقصر بكثير من GPS (يبتر آخر اليوم).
+                        if (
+                            count($preparedSnap) >= 2
+                            && sys_user_location_path_length_meters($preparedSnap)
+                                >= sys_user_location_path_length_meters($gpsPath) * 0.55
+                        ) {
+                            $path = $preparedSnap;
+                            $snapped = true;
+                        }
+                    }
+                } catch (Throwable $e) {
+                    error_log('sys_user_location_track_day road snap: ' . $e->getMessage());
+                }
+            }
+
             $roadPaths[] = $path;
-            $anyRoadMatched = true;
-        } elseif (count($gpsPath) >= 2) {
-            // GPS خام فقط كاحتياطي للعرض — الالتصاق بالشارع يتم من المتصفح إن فشل السيرفر.
-            $roadPaths[] = $gpsPath;
+            if ($snapped) {
+                $anyRoadMatched = true;
+            }
         }
     }
 
     $roadMatched = $anyRoadMatched;
     $roadPathFlat = $roadPaths !== [] ? $roadPaths[0] : [];
-    $trackLines = sys_user_location_track_lines($roadPaths, $segments, $points);
+    // خطوط الرسم = كل أجزاء اليوم (GPS أو ملتصق) — لا نكتفي بمقطع واحد.
+    $trackLines = [];
+    foreach ($roadPaths as $rp) {
+        if (is_array($rp) && count($rp) >= 2) {
+            $trackLines[] = sys_user_location_track_dedupe_path($rp, 2.0);
+        }
+    }
+    if ($trackLines === []) {
+        $trackLines = sys_user_location_track_lines([], $segments, $points);
+    }
     $km = $totalMeters / 1000.0;
     $activeSec = $points[$n - 1]['ts'] - $points[0]['ts'];
+    $coverageNote = '';
+    $firstHour = (int) date('G', (int) $points[0]['ts']);
+    if ($firstHour >= 10) {
+        $coverageNote = 'أول نقطة GPS مسجّلة الساعة ' . $points[0]['time']
+            . ' — لا توجد بيانات قبلها في هذا اليوم.';
+    }
 
     return [
         'points' => $points,
@@ -1186,6 +1298,7 @@ function sys_user_location_track_day(
             'max_speed_kmh' => $speedSummary['max_kmh'],
             'avg_speed_label' => $speedSummary['avg_label'],
             'max_speed_label' => $speedSummary['max_label'],
+            'coverage_note' => $coverageNote,
         ],
     ];
 }

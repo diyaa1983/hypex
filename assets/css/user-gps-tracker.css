@@ -755,6 +755,18 @@
   color: #6b7a90;
 }
 
+.ugr-chip--warn {
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  max-width: 100%;
+}
+
+.ugr-chip--warn .ugr-chip__v {
+  white-space: normal;
+  font-weight: 700;
+}
+
 .ugr-chip__k {
   color: #6b7a90;
 }

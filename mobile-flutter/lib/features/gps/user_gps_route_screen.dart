@@ -178,8 +178,10 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
       }
 
       var matched = res['road_matched'] == true && trackLines.isNotEmpty;
-      // إن لم يلتصق السيرفر بالشارع: مطابقة OSRM من الجهاز (مثل Google Maps).
-      if (!matched && points.length >= 2) {
+      // إن لم يلتصق السيرفر بالشارع جيداً: مطابقة OSRM بأجزاء لتغطية كامل اليوم.
+      final needClientSnap = !matched ||
+          trackLines.length < 2 && points.length > 400;
+      if (needClientSnap && points.length >= 2) {
         final jobs = <List<_TrackPoint>>[];
         final rawSegs = res['segments'];
         if (rawSegs is List && rawSegs.isNotEmpty) {
@@ -191,14 +193,24 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
               if (i == null || i < 0 || i >= points.length) continue;
               pts.add(points[i]);
             }
-            if (pts.length >= 2) jobs.add(pts);
+            if (pts.length >= 2) {
+              jobs.addAll(_splitTrackPoints(pts, 280, 5400));
+            }
           }
         }
-        if (jobs.isEmpty) jobs.add(points);
+        if (jobs.isEmpty) {
+          jobs.addAll(_splitTrackPoints(points, 280, 5400));
+        }
         final snapped = <List<LatLng>>[];
         for (final job in jobs) {
-          final path = await _osrmSnapPoints(job.map((p) => p.point).toList());
-          if (path.length >= 2) snapped.add(path);
+          final gpsPath = job.map((p) => p.point).toList();
+          final path = await _osrmSnapPoints(gpsPath);
+          if (path.length >= 2 &&
+              _pathLength(path) >= _pathLength(gpsPath) * 0.55) {
+            snapped.add(path);
+          } else if (gpsPath.length >= 2) {
+            snapped.add(gpsPath);
+          }
         }
         if (snapped.isNotEmpty) {
           trackLines = snapped;
@@ -258,6 +270,51 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     final h = math.sin(dp / 2) * math.sin(dp / 2) +
         math.cos(p1) * math.cos(p2) * math.sin(dl / 2) * math.sin(dl / 2);
     return r * 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h));
+  }
+
+  double _pathLength(List<LatLng> path) {
+    var total = 0.0;
+    for (var i = 1; i < path.length; i++) {
+      total += _haversine(path[i - 1], path[i]);
+    }
+    return total;
+  }
+
+  List<List<_TrackPoint>> _splitTrackPoints(
+    List<_TrackPoint> points,
+    int maxPoints,
+    int maxSpanSec,
+  ) {
+    if (points.length < 2) {
+      return points.isEmpty ? const [] : [points];
+    }
+    final chunks = <List<_TrackPoint>>[];
+    var start = 0;
+    while (start < points.length) {
+      var end = start;
+      final t0 = _pointTs(points[start]);
+      while (end + 1 < points.length) {
+        final next = end + 1;
+        final t1 = _pointTs(points[next]);
+        final span = (t0 > 0 && t1 > 0) ? t1 - t0 : 0;
+        final count = next - start + 1;
+        if (count > maxPoints || (maxSpanSec > 0 && span > maxSpanSec)) break;
+        end = next;
+      }
+      if (end <= start && start + 1 < points.length) end = start + 1;
+      chunks.add(points.sublist(start, end + 1));
+      if (end >= points.length - 1) break;
+      start = end;
+    }
+    return chunks;
+  }
+
+  int _pointTs(_TrackPoint p) {
+    final raw = p.data['ts'];
+    if (raw is num) return raw.toInt();
+    final captured = (p.data['captured_at'] ?? '').toString();
+    if (captured.isEmpty) return 0;
+    return DateTime.tryParse(captured)?.millisecondsSinceEpoch ~/ 1000 ?? 0;
   }
 
   Future<List<LatLng>> _osrmSnapPoints(List<LatLng> points) async {
@@ -514,6 +571,7 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     final active = (_summary['active_label'] ?? '—').toString();
     final avgSpeed = (_summary['avg_speed_label'] ?? '—').toString();
     final maxSpeed = (_summary['max_speed_label'] ?? '—').toString();
+    final coverageNote = (_summary['coverage_note'] ?? '').toString();
     final stopsCount = (_summary['stops_count'] as num?)?.toInt() ?? 0;
 
     return Scaffold(
@@ -537,7 +595,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
             _buildControls(),
             if (_points.isNotEmpty)
               _buildSummary(
-                  distance, first, last, active, avgSpeed, maxSpeed, stopsCount),
+                  distance, first, last, active, avgSpeed, maxSpeed, stopsCount,
+                  coverageNote),
             Expanded(
               child: Stack(
                 children: [
@@ -676,22 +735,38 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   }
 
   Widget _buildSummary(String distance, String first, String last, String active,
-      String avgSpeed, String maxSpeed, int stops) {
+      String avgSpeed, String maxSpeed, int stops, String coverageNote) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       color: Colors.white,
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _chip('المسافة', distance, AppTheme.primary),
-          _chip('من', first, AppTheme.teal),
-          _chip('إلى', last, AppTheme.teal),
-          _chip('المدة', active, AppTheme.success),
-          _chip('متوسط السرعة', avgSpeed, const Color(0xFF2563EB)),
-          _chip('أقصى سرعة', maxSpeed, const Color(0xFFDC2626)),
-          _chip('التوقفات', '$stops', AppTheme.warn),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _chip('المسافة', distance, AppTheme.primary),
+              _chip('من', first, AppTheme.teal),
+              _chip('إلى', last, AppTheme.teal),
+              _chip('المدة', active, AppTheme.success),
+              _chip('متوسط السرعة', avgSpeed, const Color(0xFF2563EB)),
+              _chip('أقصى سرعة', maxSpeed, const Color(0xFFDC2626)),
+              _chip('التوقفات', '$stops', AppTheme.warn),
+            ],
+          ),
+          if (coverageNote.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              coverageNote,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF9A3412),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ],
       ),
     );
