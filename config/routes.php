@@ -159,7 +159,7 @@ return [
     'suppliers' => [
         'file' => 'modules/master/suppliers.php',
         'permission' => 'suppliers',
-        'title' => 'الموردون',
+        'title' => 'الموردين',
         'hide_screen_title' => true,
     ],
     'user_gps_locations' => [
@@ -452,6 +452,11 @@ return [
         'file' => 'modules/reports/customers.php',
         'permission' => 'report_customers',
         'title' => 'تقرير العملاء',
+    ],
+    'report_suppliers' => [
+        'file' => 'modules/reports/suppliers.php',
+        'permission' => 'report_suppliers',
+        'title' => 'تقرير الموردين',
     ],
     'report_hr_employees' => [
         'file' => 'modules/reports/hr_employees.php',

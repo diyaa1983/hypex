@@ -1,0 +1,7 @@
+{
+  "appUrl": "http://localhost/manager/login.php",
+  "windowTitle": "النظام المحاسبي",
+  "minimizable": false,
+  "confirmOnClose": true,
+  "disableCloseButton": true
+}

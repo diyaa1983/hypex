@@ -94,5 +94,11 @@ try {
 </div>
 </div>
 <script src="<?= esc(app_url('assets/js/ui-dialog.js')) ?>"></script>
+<?php
+$appDesktopWinJsV = is_file(app_path('assets/js/app-desktop-window.js'))
+    ? (string) filemtime(app_path('assets/js/app-desktop-window.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/js/app-desktop-window.js')) ?><?= $appDesktopWinJsV !== '' ? '?v=' . esc($appDesktopWinJsV) : '' ?>"></script>
 </body>
 </html>

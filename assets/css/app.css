@@ -469,14 +469,29 @@ body.app-body--wco .app-titlebar__title--wco {
 /* وضع ملء الشاشة: بدون قائمة جانبية — شريط علوي (شعار + أزرار) فقط */
 .app-shell--focus {
   flex-direction: column;
-  min-height: calc(100vh - 33px);
-  height: calc(100vh - 33px);
-  max-height: calc(100vh - 33px);
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  /* املأ باقي النافذة تحت شريط العنوان دون قصّ المحتوى عند التصغير */
+  flex-grow: 1;
   overflow: hidden;
 }
 
 .app-body--focus {
   overflow: hidden;
+  overflow-x: hidden;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.app-body--focus .app-shell--focus {
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+  flex: 1 1 auto;
 }
 
 .app-topbar {
@@ -491,6 +506,10 @@ body.app-body--wco .app-titlebar__title--wco {
   z-index: 10;
   min-height: 3.35rem;
   height: auto;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .app-topbar-brand-wrap,
@@ -615,10 +634,51 @@ body.app-body--wco .app-titlebar__title--wco {
   flex: 1;
   min-height: 0;
   width: 100%;
-  max-width: none;
-  padding: 1rem 1.25rem 1.5rem;
+  max-width: 100%;
+  padding: 0.75rem 1rem 1rem;
   overflow-x: hidden;
   overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* شاشات الخرائط/التتبّع تملأ الارتفاع المتاح داخل وضع التركيز */
+.main-content--focus:has(.ugt-page) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.5rem 0.65rem 0.65rem;
+}
+
+.main-content--focus:has(.ugt-page) > .dashboard-ora,
+.main-content--focus:has(.ugt-page) > .report-ora12-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-content--focus:has(.ugt-page) .dashboard-ora-workspace,
+.main-content--focus:has(.ugt-page) .report-ora12-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-content--focus:has(.ugt-page) .dashboard-ora-screen-title,
+.main-content--focus:has(.ugt-page) .report-ora12-screen-title {
+  flex-shrink: 0;
+}
+
+@media (max-width: 960px) {
+  .main-content--focus:has(.ugt-page) .dashboard-ora-screen-title__text,
+  .main-content--focus:has(.ugt-page) .report-ora12-screen-title .dashboard-ora-screen-title__text {
+    font-size: 0.95rem;
+  }
 }
 
 /* لوحة التحكم: بطاقات المجالات بدل القائمة الجانبية */
@@ -2174,16 +2234,47 @@ table.data-table {
 @media (max-width: 960px) {
   .app-topbar {
     padding: 0.5rem 0.75rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+  }
+
+  .app-topbar-account,
+  .app-screen-head-account {
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .app-topbar-main,
+  .app-screen-head-main {
+    grid-column: 1;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .app-header-account {
+    width: 100%;
+    justify-content: space-between;
+    padding-inline-end: 0;
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--shell-border);
+    padding-bottom: 0.35rem;
   }
 
   .app-header-account__name {
-    max-width: 8rem;
+    max-width: none;
+    flex: 1;
   }
 
   .app-shell--focus {
     height: auto;
     max-height: none;
-    min-height: 100vh;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .main-content--focus {
+    padding: 0.55rem 0.55rem 0.75rem;
   }
 
   .app-shell { flex-direction: column-reverse; }

@@ -186,8 +186,8 @@
       setTimeout(bumpSize, 120);
       setTimeout(bumpSize, 350);
       setTimeout(bumpSize, 700);
+      global.addEventListener('resize', bumpSize);
       if (self.mode === 'mobile') {
-        global.addEventListener('resize', bumpSize);
         global.addEventListener('orientationchange', function () {
           setTimeout(bumpSize, 250);
         });

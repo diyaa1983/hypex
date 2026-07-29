@@ -204,6 +204,12 @@
     setTimeout(function () {
       if (self.map) self.map.invalidateSize();
     }, 150);
+    if (!this._resizeBound) {
+      this._resizeBound = true;
+      global.addEventListener('resize', function () {
+        self.invalidate();
+      });
+    }
   };
 
   RouteView.prototype._attachBaseLayer = function () {

@@ -1,0 +1,13 @@
+{
+  "name": "manager-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "غلاف ويندوز أصلي للنظام المحاسبي — التحكم بزر الإغلاق X",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^36.4.0"
+  }
+}

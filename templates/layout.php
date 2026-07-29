@@ -304,6 +304,12 @@ $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
 <script src="<?= esc(app_url('assets/js/document-no-nav.js')) ?><?= $docNoNavJsV !== '' ? '?v=' . esc($docNoNavJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/ui-dialog.js')) ?><?= $uiDlgJsV !== '' ? '?v=' . esc($uiDlgJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-header-ui.js')) ?><?= $appHeaderUiJsV !== '' ? '?v=' . esc($appHeaderUiJsV) : '' ?>" defer></script>
+<?php
+$appDesktopWinJsV = is_file(app_path('assets/js/app-desktop-window.js'))
+    ? (string) filemtime(app_path('assets/js/app-desktop-window.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/js/app-desktop-window.js')) ?><?= $appDesktopWinJsV !== '' ? '?v=' . esc($appDesktopWinJsV) : '' ?>" defer></script>
 <?php if ($activeRoute === 'system_backup'): ?>
 <?php
 $sysBackupJsV = is_file(app_path('assets/js/sys-backup.js'))

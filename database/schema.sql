@@ -578,6 +578,7 @@ INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES
 ('report_sales_returns_totals', 'إجمالي المرتجعات', 'report', 204),
 ('report_sales_qty_extra', 'تقرير الكميات الإضافية على الفواتير', 'report', 205),
 ('report_customers', 'تقرير العملاء', 'report', 206),
+('report_suppliers', 'تقرير الموردين', 'report', 207),
 ('report_purchases', 'تقرير المشتريات بين تاريخين حسب المورد', 'report', 210),
 ('item_stock_movements', 'كشف حركات مادة', 'screen', 215),
 ('report_warehouse_items', 'تقرير المواد', 'report', 221),
@@ -597,7 +598,7 @@ SELECT 2 AS group_id, id AS screen_id, 1 FROM sys_screen WHERE code IN (
   'purchase_returns','purchase_returns_list','customers','sales_reps','suppliers',
   'cash_receipt','cash_payment','debit_notes','credit_notes','chart_of_accounts',
   'warehouses','items','item_categories','item_units','journal_entries',
-  'report_sales','report_sales_by_rep','report_sales_by_item','report_sales_returns','report_sales_returns_totals','report_sales_qty_extra','report_customers','report_purchases','item_stock_movements','report_warehouse_items','report_trial_balance','report_journal','report_invoice_tax',
+  'report_sales','report_sales_by_rep','report_sales_by_item','report_sales_returns','report_sales_returns_totals','report_sales_qty_extra','report_customers','report_suppliers','report_purchases','item_stock_movements','report_warehouse_items','report_trial_balance','report_journal','report_invoice_tax',
   'report_party_statement','report_customer_statement','report_supplier_statement','settings'
 );
 

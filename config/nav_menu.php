@@ -128,6 +128,26 @@ return [
             ],
         ],
         [
+            'id' => 'suppliers',
+            'title' => 'الموردين',
+            'subgroups' => [
+                [
+                    'id' => 'operations',
+                    'title' => 'الموردين',
+                    'items' => [
+                        ['r' => 'suppliers', 'label' => 'الموردين', 'icon' => '🏭'],
+                    ],
+                ],
+                [
+                    'id' => 'reports',
+                    'title' => 'تقارير الموردين',
+                    'items' => [
+                        ['r' => 'report_suppliers', 'label' => 'تقرير الموردين', 'icon' => '🏭'],
+                    ],
+                ],
+            ],
+        ],
+        [
             'id' => 'sales_reps',
             'title' => 'المندوبين',
             'subgroups' => [
@@ -180,7 +200,6 @@ return [
                         ['r' => 'purchase_invoices_list', 'label' => 'ترحيل فواتير الشراء', 'icon' => '📋'],
                         ['r' => 'purchase_returns', 'label' => 'مردود مشتريات', 'icon' => '↩'],
                         ['r' => 'purchase_returns_list', 'label' => 'ترحيل مردودات المشتريات', 'icon' => '📋'],
-                        ['r' => 'suppliers', 'label' => 'الموردون', 'icon' => '🏭'],
                     ],
                 ],
                 [
