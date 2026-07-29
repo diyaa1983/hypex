@@ -75,10 +75,12 @@ body.app-body {
 
 .app-titlebar__row {
   direction: ltr;
+  position: relative;
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.35rem;
   height: 33px;
   min-height: 33px;
@@ -88,12 +90,18 @@ body.app-body {
 }
 
 .app-titlebar__title {
-  flex: 1 1 auto;
-  min-width: 0;
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-50%);
+  z-index: 0;
+  width: auto;
+  max-width: min(72%, calc(100% - 7.5rem));
   margin: 0;
-  padding: 0;
+  padding: 0 0.5rem;
   direction: rtl;
-  text-align: left;
+  text-align: center;
   unicode-bidi: plaintext;
   font-size: 0.8125rem;
   font-weight: 600;
@@ -102,10 +110,13 @@ body.app-body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  pointer-events: none;
   app-region: drag;
 }
 
 .app-titlebar__btn {
+  position: relative;
+  z-index: 1;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -227,7 +238,7 @@ body.app-body--wco .app-titlebar__title--wco {
     }
 
     body.app-body--wco .app-titlebar__title {
-      line-height: 1.2;
+      line-height: env(titlebar-area-height, 33px);
       align-self: center;
     }
   }
