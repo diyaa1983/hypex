@@ -37,6 +37,19 @@ $pdo = db();
 sal_invoice_ensure_schema($pdo);
 
 try {
+    require_once app_path('includes/doc_number_pool.php');
+    doc_number_pool_ensure_table($pdo);
+} catch (Throwable $e) {
+    error_log('sales_invoice_unpost warm pool: ' . $e->getMessage());
+}
+try {
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_ensure_schema($pdo);
+} catch (Throwable $e) {
+    error_log('sales_invoice_unpost warm audit: ' . $e->getMessage());
+}
+
+try {
     $pdo->beginTransaction();
 
     $res = sal_invoice_unpost_by_id($pdo, $invoiceId);
@@ -52,7 +65,9 @@ try {
         exit;
     }
 
-    $pdo->commit();
+    if ($pdo->inTransaction()) {
+        $pdo->commit();
+    }
 
     $msg = ($res['message'] ?? 'تم فك الترحيل.') . ' يمكنك الآن تعديل الفاتورة وإعادة ترحيلها.';
 
@@ -64,9 +79,18 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    $msg = $e->getMessage();
+    if (stripos($msg, 'no active transaction') !== false) {
+        error_log('sales_invoice_unpost no active transaction: ' . $msg);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'تعذر إتمام فك الترحيل. حدّث الصفحة وتحقق من حالة الفاتورة ثم أعد المحاولة.',
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     http_response_code(500);
     echo json_encode([
         'ok' => false,
-        'error' => 'تعذر فك الترحيل: ' . $e->getMessage(),
+        'error' => 'تعذر فك الترحيل: ' . $msg,
     ], JSON_UNESCAPED_UNICODE);
 }
