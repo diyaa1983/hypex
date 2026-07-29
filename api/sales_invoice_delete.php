@@ -37,6 +37,26 @@ $pdo = db();
 sal_invoice_ensure_schema($pdo);
 crm_ledger_ensure_schema($pdo);
 
+// تهيئة الجداول قبل beginTransaction — DDL في MySQL يُنهي المعاملة ضمنياً.
+try {
+    require_once app_path('includes/sal_delivery_invoice_link.php');
+    sal_delivery_invoice_link_ensure($pdo);
+} catch (Throwable $e) {
+    error_log('sales_invoice_delete warm delivery: ' . $e->getMessage());
+}
+try {
+    require_once app_path('includes/doc_number_pool.php');
+    doc_number_pool_ensure_table($pdo);
+} catch (Throwable $e) {
+    error_log('sales_invoice_delete warm pool: ' . $e->getMessage());
+}
+try {
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_ensure_schema($pdo);
+} catch (Throwable $e) {
+    error_log('sales_invoice_delete warm audit: ' . $e->getMessage());
+}
+
 $ids = [];
 if (isset($_POST['invoice_id'])) {
     $ids[] = (int) $_POST['invoice_id'];
@@ -68,10 +88,13 @@ try {
         }
     }
     $result = sal_invoice_delete_by_ids($pdo, $ids, $unpostFirst);
-    if ($result['deleted'] === 0) {
-        $pdo->rollBack();
-    } else {
-        $pdo->commit();
+
+    if ($pdo->inTransaction()) {
+        if ($result['deleted'] === 0) {
+            $pdo->rollBack();
+        } else {
+            $pdo->commit();
+        }
     }
 
     $counts = crm_ledger_count_unposted($pdo);
@@ -99,9 +122,19 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    $msg = $e->getMessage();
+    if (stripos($msg, 'no active transaction') !== false) {
+        // الحذف قد يكون ثُبّت بسبب DDL؛ لا نُظهر رسالة تقنية للمستخدم.
+        error_log('sales_invoice_delete no active transaction: ' . $msg);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'تعذر إتمام الحذف. حدّث الصفحة وتحقق من حالة الفاتورة ثم أعد المحاولة.',
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     http_response_code(500);
     echo json_encode([
         'ok' => false,
-        'error' => 'تعذر الحذف: ' . $e->getMessage(),
+        'error' => 'تعذر الحذف: ' . $msg,
     ], JSON_UNESCAPED_UNICODE);
 }

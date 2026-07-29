@@ -49,10 +49,12 @@ if ($ids === []) {
 try {
     $pdo->beginTransaction();
     $result = pur_invoice_delete_by_ids($pdo, $ids);
-    if ($result['deleted'] === 0) {
-        $pdo->rollBack();
-    } else {
-        $pdo->commit();
+    if ($pdo->inTransaction()) {
+        if ($result['deleted'] === 0) {
+            $pdo->rollBack();
+        } else {
+            $pdo->commit();
+        }
     }
 
     $deleted = (int) $result['deleted'];
@@ -77,6 +79,15 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    $msg = $e->getMessage();
+    if (stripos($msg, 'no active transaction') !== false) {
+        error_log('purchase_invoice_delete no active transaction: ' . $msg);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'تعذر إتمام الحذف. حدّث الصفحة وتحقق من حالة الفاتورة ثم أعد المحاولة.',
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'تعذر الحذف: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'error' => 'تعذر الحذف: ' . $msg], JSON_UNESCAPED_UNICODE);
 }
