@@ -1,0 +1,7 @@
+{
+  "appUrl": "https://manager.gppjo.com/login.php",
+  "windowTitle": "النظام المحاسبي",
+  "minimizable": false,
+  "confirmOnClose": true,
+  "disableCloseButton": false
+}
