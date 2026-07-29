@@ -3,5 +3,5 @@
   "windowTitle": "النظام المحاسبي",
   "minimizable": false,
   "confirmOnClose": true,
-  "disableCloseButton": true
+  "disableCloseButton": false
 }

@@ -1,13 +1,13 @@
 /**
- * تطبيق سطح المكتب (PWA): الإبقاء على وضع التكبير ومنع تصغير النافذة
- * الذي يكسر تخطيط الشاشات.
+ * تطبيق سطح المكتب: التكبير + تأكيد عند إغلاق النافذة بزر X.
  *
- * ملاحظة: أزرار ويندوز (─ □ X) جزء من نظام التشغيل ولا يمكن إخفاؤها أو تعطيلها
- * من تطبيق ويب/PWA. لإخفاء زر X يلزم غلاف ويندوز أصلي (WebView2/Electron).
- * تأكيد الخروج برسائل النظام يتم عبر تسجيل الخروج داخل التطبيق.
+ * ملاحظة: رسالة زر X من المتصفح (Leave app?) ولا يمكن تخصيصها من الويب.
+ * غلاف Electron يعرض تأكيداً عربياً من النافذة الأصلية.
  */
 (function (global) {
   'use strict';
+
+  var skipUnloadPrompt = false;
 
   function isDesktopInstalledApp() {
     try {
@@ -29,6 +29,14 @@
       (body.classList.contains('app-body--standalone') ||
         body.classList.contains('app-body--wco'))
     );
+  }
+
+  function isElectronShell() {
+    try {
+      return !!(global.navigator && /\bElectron\//i.test(global.navigator.userAgent));
+    } catch (e) {
+      return false;
+    }
   }
 
   function canControlWindow() {
@@ -71,6 +79,40 @@
     return ow < aw * 0.92 || oh < ah * 0.92;
   }
 
+  /**
+   * يسمح بالانتقال التالي دون تأكيد (تسجيل خروج / تحديث / انتقال فعلي).
+   * لا نُبقي العلم لأكثر من لحظة حتى لا يُلغى تأكيد زر X بعد نقرة عادية.
+   */
+  function allowNextUnload() {
+    skipUnloadPrompt = true;
+  }
+
+  function shouldPromptOnUnload() {
+    if (skipUnloadPrompt) {
+      skipUnloadPrompt = false;
+      return false;
+    }
+    // Electron يتولى التأكيد من الغلاف الأصلي.
+    if (isElectronShell()) {
+      return false;
+    }
+    return true;
+  }
+
+  function isLogoutLink(a, href) {
+    if (!a) {
+      return false;
+    }
+    if (
+      a.classList.contains('app-header-logout-btn') ||
+      a.classList.contains('sidebar-logout-btn') ||
+      a.classList.contains('m-header-logout')
+    ) {
+      return true;
+    }
+    return !!(href && href.indexOf('logout.php') >= 0);
+  }
+
   function confirmExit(message, options) {
     options = options || {};
     var msg = message || 'هل تريد الخروج من النظام؟';
@@ -87,6 +129,73 @@
     }
 
     return Promise.resolve(global.confirm(msg));
+  }
+
+  function markInternalNavigation() {
+    skipUnloadPrompt = true;
+    // يكفي لمرور beforeunload عند الانتقال الحقيقي، ويُصفَّر إن بقيت الصفحة (مثل MDI).
+    setTimeout(function () {
+      skipUnloadPrompt = false;
+    }, 150);
+  }
+
+  function bindCloseConfirm() {
+    global.addEventListener('beforeunload', function (e) {
+      if (!shouldPromptOnUnload()) {
+        return;
+      }
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    });
+
+    document.addEventListener(
+      'click',
+      function (e) {
+        var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+        if (!a) {
+          return;
+        }
+        var href = a.getAttribute('href');
+        if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
+          return;
+        }
+        if (a.hasAttribute('download') || a.getAttribute('target') === '_blank') {
+          return;
+        }
+        if (isLogoutLink(a, href)) {
+          return;
+        }
+        try {
+          var url = new URL(href, global.location.href);
+          if (url.origin === global.location.origin) {
+            markInternalNavigation();
+          }
+        } catch (err) {
+          /* ignore */
+        }
+      },
+      true
+    );
+
+    document.addEventListener(
+      'submit',
+      function () {
+        markInternalNavigation();
+      },
+      true
+    );
+
+    var refreshBtn = document.getElementById('app-titlebar-refresh');
+    if (refreshBtn) {
+      refreshBtn.addEventListener(
+        'click',
+        function () {
+          allowNextUnload();
+        },
+        true
+      );
+    }
   }
 
   function bindMaximizeGuards() {
@@ -118,17 +227,21 @@
   }
 
   function boot() {
-    if (!isDesktopInstalledApp()) {
-      return;
+    // تأكيد الإغلاق على كل صفحات النظام (ويب / PWA)، ما عدا Electron.
+    if (!isElectronShell()) {
+      bindCloseConfirm();
     }
-    bindMaximizeGuards();
+
+    if (isDesktopInstalledApp() || isElectronShell()) {
+      bindMaximizeGuards();
+    }
   }
 
   global.AppDesktopWindow = {
     maximize: maximizeWindow,
     isInstalled: isDesktopInstalledApp,
     confirmExit: confirmExit,
-    allowNextUnload: function () {},
+    allowNextUnload: allowNextUnload,
   };
 
   if (document.readyState === 'loading') {
