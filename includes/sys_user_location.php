@@ -741,7 +741,7 @@ function sys_user_location_point_to_segment_meters(
 }
 
 /**
- * تنظيف نقاط GPS قبل الرسم: دقة ضعيفة، نتوءات، تذبذب حول نفس المكان.
+ * تنظيف نقاط GPS قبل الرسم: دقة ضعيفة، نتوءات، وتذبذب حول نفس المكان أثناء التوقف.
  *
  * @param list<array<string,mixed>> $points
  * @return list<array<string,mixed>>
@@ -766,9 +766,15 @@ function sys_user_location_track_clean_points(array $points): array
         $filtered = $points;
     }
 
+    // دمج تذبذب GPS أثناء التوقف: مئات النبضات في دائرة ~50م تصبح نقطة وصول + مغادرة.
+    $filtered = sys_user_location_track_collapse_stationary($filtered, 50.0);
+
     // إزالة نتوءات: A→B→C حيث B بعيدة عن مسار A–C ثم تعود.
     $clean = [$filtered[0]];
     $m = count($filtered);
+    if ($m < 3) {
+        return $filtered;
+    }
     for ($i = 1; $i < $m - 1; $i++) {
         $prev = $clean[count($clean) - 1];
         $cur = $filtered[$i];
@@ -807,6 +813,64 @@ function sys_user_location_track_clean_points(array $points): array
 }
 
 /**
+ * طيّ نقاط التوقف المتقاربة (GPS drift) إلى وصول + مغادرة فقط.
+ *
+ * @param list<array<string,mixed>> $points
+ * @return list<array<string,mixed>>
+ */
+function sys_user_location_track_collapse_stationary(array $points, float $radiusMeters = 50.0): array
+{
+    $n = count($points);
+    if ($n < 3) {
+        return $points;
+    }
+
+    $out = [];
+    $anchor = $points[0];
+    $out[] = $anchor;
+    $lastInCluster = null;
+
+    for ($i = 1; $i < $n; $i++) {
+        $cur = $points[$i];
+        $d = sys_user_location_distance_meters(
+            (float) $anchor['latitude'],
+            (float) $anchor['longitude'],
+            (float) $cur['latitude'],
+            (float) $cur['longitude']
+        );
+        if ($d <= $radiusMeters) {
+            // ما زال في نفس المكان تقريباً — احتفظ بآخر زمن فقط دون رسم خطوط متعرجة.
+            $lastInCluster = $cur;
+            continue;
+        }
+
+        // غادر التجمّع: سجّل نقطة المغادرة ثم ابدأ تجمّعاً جديداً.
+        if ($lastInCluster !== null) {
+            $leaveTs = (int) ($lastInCluster['ts'] ?? 0);
+            $anchorTs = (int) ($anchor['ts'] ?? 0);
+            if ($leaveTs > $anchorTs) {
+                $out[] = $lastInCluster;
+            }
+        }
+        $out[] = $cur;
+        $anchor = $cur;
+        $lastInCluster = null;
+    }
+
+    if ($lastInCluster !== null) {
+        $leaveTs = (int) ($lastInCluster['ts'] ?? 0);
+        $anchorTs = (int) ($anchor['ts'] ?? 0);
+        $lastOut = $out[count($out) - 1];
+        $lastOutTs = (int) ($lastOut['ts'] ?? 0);
+        if ($leaveTs > $anchorTs && $leaveTs > $lastOutTs) {
+            $out[] = $lastInCluster;
+        }
+    }
+
+    return count($out) >= 2 ? $out : $points;
+}
+
+/**
  * تجهيز خط سير للرسم.
  * المسارات الملتصقة بالشارع تُبسَّط بلطف حتى تبقى انحناءات الطريق.
  *
@@ -815,8 +879,9 @@ function sys_user_location_track_clean_points(array $points): array
  */
 function sys_user_location_track_prepare_line(array $path, bool $roadSnapped = false): array
 {
-    $minDedupe = $roadSnapped ? 3.0 : 8.0;
-    $tolerance = $roadSnapped ? 2.5 : 10.0;
+    // أثناء التوقف يُفضَّل دمج أقوى حتى لا يظهر «سباغيتي» GPS.
+    $minDedupe = $roadSnapped ? 3.0 : 18.0;
+    $tolerance = $roadSnapped ? 2.5 : 14.0;
     $deduped = sys_user_location_track_dedupe_path($path, $minDedupe);
     if (count($deduped) < 2) {
         return [];
@@ -826,7 +891,7 @@ function sys_user_location_track_prepare_line(array $path, bool $roadSnapped = f
         return $deduped;
     }
 
-    return sys_user_location_track_dedupe_path($simplified, $roadSnapped ? 2.0 : 5.0);
+    return sys_user_location_track_dedupe_path($simplified, $roadSnapped ? 2.0 : 8.0);
 }
 
 /**

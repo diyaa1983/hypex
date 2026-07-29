@@ -1077,14 +1077,39 @@
       drewAny = true;
     }
 
-    // نقاط GPS الخام — عيّنة خفيفة فقط حتى لا تبدو كخط ثانٍ فوق المسار.
-    var step = points.length > 120 ? 6 : points.length > 60 ? 4 : points.length > 30 ? 3 : 2;
+    // نقاط GPS الخام — عيّنة خفيفة، وتخطّي التذبذب داخل التوقفات.
+    var stopZones = [];
+    for (i = 0; i < stops.length; i++) {
+      stopZones.push({
+        lat: parseFloat(stops[i].latitude),
+        lng: parseFloat(stops[i].longitude),
+        r: 55,
+      });
+    }
+    var step = points.length > 120 ? 8 : points.length > 60 ? 5 : points.length > 30 ? 3 : 2;
+    var lastDot = null;
     for (i = 0; i < points.length; i += step) {
-      // لا نكرر نقطة البداية/النهاية هنا — لها علامات خاصة.
       if (i === 0 || i === points.length - 1) continue;
       var pt = points[i];
-      bounds.push([pt.latitude, pt.longitude]);
-      var dot = global.L.circleMarker([pt.latitude, pt.longitude], {
+      var plat = parseFloat(pt.latitude);
+      var plng = parseFloat(pt.longitude);
+      // لا ترسم نقاط داخل دائرة التوقف — يكفي رقم التوقف.
+      var inStop = false;
+      for (j = 0; j < stopZones.length; j++) {
+        if (this._haversine(stopZones[j].lat, stopZones[j].lng, plat, plng) <= stopZones[j].r) {
+          inStop = true;
+          break;
+        }
+      }
+      if (inStop) continue;
+      // لا ترسم نقاط متقاربة جداً (اهتزاز GPS).
+      if (lastDot && this._haversine(lastDot[0], lastDot[1], plat, plng) < 35) continue;
+      // متوقف تقريباً حسب السرعة المحسوبة.
+      if (pt.speed_kmh != null && parseFloat(pt.speed_kmh) < 3) continue;
+
+      lastDot = [plat, plng];
+      bounds.push(lastDot);
+      var dot = global.L.circleMarker(lastDot, {
         radius: 2.5,
         color: '#1e40af',
         weight: 1,
@@ -1101,7 +1126,7 @@
           (pt.source_label ? '<br>' + esc(pt.source_label) : '') +
           '</div>'
       );
-      this._bindMarkerFocus(dot, pt.latitude, pt.longitude, 17);
+      this._bindMarkerFocus(dot, plat, plng, 17);
       dot.addTo(this.markerLayer);
     }
     // تأكد أن الحدود تشمل كل النقاط حتى لو لم تُرسم كلها.
