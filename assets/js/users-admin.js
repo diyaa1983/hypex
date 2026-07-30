@@ -7,12 +7,17 @@
   var listUrl = form.getAttribute('data-list-url') || '';
 
   function allowLeave() {
-    if (window.AppDesktopWindow && typeof window.AppDesktopWindow.markInternalNavigation === 'function') {
-      window.AppDesktopWindow.markInternalNavigation();
-    } else if (window.AppDesktopWindow && typeof window.AppDesktopWindow.allowNextUnload === 'function') {
-      window.AppDesktopWindow.allowNextUnload();
+    try {
+      window.__managerAllowUnload = true;
+      window.sessionStorage.setItem('__managerAllowUnloadAt', String(Date.now()));
+    } catch (e) {
+      /* ignore */
     }
-    window.__managerAllowUnload = true;
+    if (window.AppDesktopWindow && typeof window.AppDesktopWindow.allowNextUnload === 'function') {
+      window.AppDesktopWindow.allowNextUnload();
+    } else if (window.AppDesktopWindow && typeof window.AppDesktopWindow.markInternalNavigation === 'function') {
+      window.AppDesktopWindow.markInternalNavigation();
+    }
   }
 
   function goToUser(id) {
@@ -21,9 +26,14 @@
     window.location.href = listUrl + sep + 'id=' + encodeURIComponent(String(id));
   }
 
-  form.addEventListener('submit', function () {
-    allowLeave();
-  });
+  // مهم: يُنفَّذ قبل مغادرة الصفحة حتى على السيرفر البطيء.
+  form.addEventListener(
+    'submit',
+    function () {
+      allowLeave();
+    },
+    true
+  );
 
   document.querySelectorAll('.users-admin-row[data-href]').forEach(function (row) {
     row.addEventListener('click', function () {
@@ -47,6 +57,30 @@
     return !!form.querySelector('input[name="group_ids[]"]:checked');
   }
 
+  function submitUserForm() {
+    allowLeave();
+    if (!hasSelectedGroup()) {
+      if (window.AppDialog && AppDialog.alert) {
+        AppDialog.alert('اختر مجموعة واحدة على الأقل للمستخدم.', { type: 'warning' });
+      } else {
+        alert('اختر مجموعة واحدة على الأقل للمستخدم.');
+      }
+      return;
+    }
+
+    if (typeof form.reportValidity === 'function' && !form.reportValidity()) {
+      return;
+    }
+
+    // requestSubmit يطلق حدث submit؛ form.submit() لا يفعل ذلك في بعض المتصفحات.
+    allowLeave();
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.submit();
+    }
+  }
+
   document.addEventListener('master-toolbar', function (e) {
     if (!e.detail) return;
     var action = e.detail.action;
@@ -61,25 +95,7 @@
     if (action === 'save') {
       e.preventDefault();
       e.stopImmediatePropagation();
-
-      if (!hasSelectedGroup()) {
-        if (window.AppDialog && AppDialog.alert) {
-          AppDialog.alert('اختر مجموعة واحدة على الأقل للمستخدم.', { type: 'warning' });
-        } else {
-          alert('اختر مجموعة واحدة على الأقل للمستخدم.');
-        }
-        return;
-      }
-
-      if (typeof form.reportValidity === 'function' && !form.reportValidity()) {
-        return;
-      }
-
-      if (typeof form.requestSubmit === 'function') {
-        form.requestSubmit();
-      } else {
-        form.submit();
-      }
+      submitUserForm();
     }
   });
 })();

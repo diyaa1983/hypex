@@ -301,7 +301,8 @@ $formId = 'user-form';
 
     <div class="card users-admin-form-card">
         <h2 class="users-admin-heading"><?= $isNew ? 'مستخدم جديد' : 'بيانات المستخدم' ?></h2>
-        <form id="<?= esc($formId) ?>" method="post" class="users-admin-form" data-list-url="<?= esc($listUrl) ?>">
+        <form id="<?= esc($formId) ?>" method="post" class="users-admin-form" data-list-url="<?= esc($listUrl) ?>"
+              onsubmit="try{window.__managerAllowUnload=true;sessionStorage.setItem('__managerAllowUnloadAt',String(Date.now()));if(window.AppDesktopWindow&amp;&amp;AppDesktopWindow.allowNextUnload)AppDesktopWindow.allowNextUnload();}catch(e){}">
             <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
             <input type="hidden" name="_action" value="save">
             <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
@@ -407,4 +408,9 @@ $formId = 'user-form';
     </div>
 </div>
 
-<script src="<?= esc($usersJsUrl) ?>" defer></script>
+<?php
+$usersJsV = is_file(app_path('assets/js/users-admin.js'))
+    ? (string) filemtime(app_path('assets/js/users-admin.js'))
+    : '';
+?>
+<script src="<?= esc($usersJsUrl) ?><?= $usersJsV !== '' ? '?v=' . esc($usersJsV) : '' ?>" defer></script>

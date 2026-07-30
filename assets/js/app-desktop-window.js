@@ -10,6 +10,7 @@
   var skipUnloadPrompt = false;
   /** يزيد مع كل allow حتى لا تُصفِّر مهلة قديمة سماحاً أحدث. */
   var unloadAllowToken = 0;
+  var STORAGE_KEY = '__managerAllowUnloadAt';
 
   function isDesktopInstalledApp() {
     try {
@@ -99,8 +100,8 @@
 
   /**
    * يسمح بالانتقال التالي دون تأكيد (تسجيل خروج / تحديث / انتقال فعلي / حفظ فورم).
-   * يبقى السماح حتى unload حقيقي (pageshow للصفحة الجديدة) أو مهلة احتياطية طويلة،
-   * حتى لا تظهر Leave app? أثناء انتظار استجابة السيرفر بعد الحفظ.
+   * يُخزَّن أيضاً في sessionStorage لأن POST+redirect على السيرفر البطيء
+   * قد يُفقد علم الذاكرة بين طلبين، فيظهر Leave app? رغم أن الحفظ نجح.
    */
   function allowNextUnload() {
     skipUnloadPrompt = true;
@@ -108,6 +109,11 @@
     try {
       global.__managerAllowUnload = true;
     } catch (e) {
+      /* ignore */
+    }
+    try {
+      global.sessionStorage.setItem(STORAGE_KEY, String(Date.now()));
+    } catch (e2) {
       /* ignore */
     }
     return unloadAllowToken;
@@ -120,10 +126,32 @@
     } catch (e) {
       /* ignore */
     }
+    try {
+      global.sessionStorage.removeItem(STORAGE_KEY);
+    } catch (e2) {
+      /* ignore */
+    }
+  }
+
+  function hasStoredUnloadAllow() {
+    try {
+      var raw = global.sessionStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        return false;
+      }
+      var ts = parseInt(raw, 10);
+      if (!ts || isNaN(ts)) {
+        return false;
+      }
+      // نافذة واسعة تكفي لبطء السيرفر وسلسلة POST → 302 → GET
+      return Date.now() - ts < 120000;
+    } catch (e) {
+      return false;
+    }
   }
 
   function shouldPromptOnUnload() {
-    if (skipUnloadPrompt || global.__managerAllowUnload) {
+    if (skipUnloadPrompt || global.__managerAllowUnload || hasStoredUnloadAllow()) {
       // لا نُصفّر هنا: المتصفح قد يستدعي beforeunload أكثر من مرة لنفس الانتقال.
       return false;
     }
@@ -182,14 +210,7 @@
   }
 
   function markInternalNavigation() {
-    var token = allowNextUnload();
-    // إن لم يحدث unload (نقرة MDI ملغاة / رابط بلا انتقال)، أعد تأكيد الإغلاق بعد مهلة كافية لـ POST+redirect.
-    setTimeout(function () {
-      if (token !== unloadAllowToken) {
-        return;
-      }
-      clearUnloadAllow();
-    }, 15000);
+    allowNextUnload();
   }
 
   function bindCloseConfirm() {
@@ -202,9 +223,11 @@
       return '';
     });
 
-    // بعد تحميل الصفحة الجديدة امسح السماح حتى يعود تأكيد زر X للعمل.
+    // امسح السماح بعد استقرار الصفحة الجديدة (بعد سلسلة التحويل من السيرفر).
     global.addEventListener('pageshow', function () {
-      clearUnloadAllow();
+      setTimeout(function () {
+        clearUnloadAllow();
+      }, 1500);
     });
 
     document.addEventListener(
