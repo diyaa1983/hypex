@@ -6,7 +6,15 @@
 
   var listUrl = form.getAttribute('data-list-url') || '';
 
+  function allowLeave() {
+    if (window.AppDesktopWindow && typeof window.AppDesktopWindow.allowNextUnload === 'function') {
+      window.AppDesktopWindow.allowNextUnload();
+    }
+    window.__managerAllowUnload = true;
+  }
+
   function goToGroup(id) {
+    allowLeave();
     var sep = listUrl.indexOf('?') >= 0 ? '&' : '?';
     window.location.href = listUrl + sep + 'id=' + encodeURIComponent(String(id));
   }
@@ -14,13 +22,17 @@
   document.querySelectorAll('.users-admin-row[data-href]').forEach(function (row) {
     row.addEventListener('click', function () {
       var href = row.getAttribute('data-href');
-      if (href) window.location.href = href;
+      if (!href) return;
+      allowLeave();
+      window.location.href = href;
     });
     row.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         var href = row.getAttribute('data-href');
-        if (href) window.location.href = href;
+        if (!href) return;
+        allowLeave();
+        window.location.href = href;
       }
     });
   });

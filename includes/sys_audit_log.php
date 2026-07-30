@@ -315,16 +315,89 @@ function sys_audit_log_fetch(
     string $toIso,
     ?string $domainCode = null,
     ?string $screenCode = null,
-    ?int $userId = null
+    ?int $userId = null,
+    ?string $search = null,
+    ?int $limit = null,
+    ?int $offset = null
 ): array {
     if (!sys_audit_log_table_exists($pdo)) {
         return [];
     }
 
+    [$whereSql, $params] = sys_audit_log_filter_sql(
+        $fromIso,
+        $toIso,
+        $domainCode,
+        $screenCode,
+        $userId,
+        $search
+    );
+
     $sql = 'SELECT a.*, COALESCE(u.full_name_ar, u.username, \'—\') AS user_name
             FROM sys_audit_log a
             LEFT JOIN sys_user u ON u.id = a.user_id
-            WHERE DATE(a.logged_at) >= ? AND DATE(a.logged_at) <= ?';
+            WHERE ' . $whereSql . '
+            ORDER BY a.logged_at DESC, a.id DESC';
+
+    if ($limit !== null) {
+        $sql .= ' LIMIT ' . max(1, (int) $limit);
+        if ($offset !== null && $offset > 0) {
+            $sql .= ' OFFSET ' . max(0, (int) $offset);
+        }
+    } else {
+        $sql .= ' LIMIT 5000';
+    }
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+function sys_audit_log_count(
+    PDO $pdo,
+    string $fromIso,
+    string $toIso,
+    ?string $domainCode = null,
+    ?string $screenCode = null,
+    ?int $userId = null,
+    ?string $search = null
+): int {
+    if (!sys_audit_log_table_exists($pdo)) {
+        return 0;
+    }
+
+    [$whereSql, $params] = sys_audit_log_filter_sql(
+        $fromIso,
+        $toIso,
+        $domainCode,
+        $screenCode,
+        $userId,
+        $search
+    );
+
+    $sql = 'SELECT COUNT(*)
+            FROM sys_audit_log a
+            LEFT JOIN sys_user u ON u.id = a.user_id
+            WHERE ' . $whereSql;
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    return (int) $st->fetchColumn();
+}
+
+/**
+ * @return array{0:string,1:list<mixed>}
+ */
+function sys_audit_log_filter_sql(
+    string $fromIso,
+    string $toIso,
+    ?string $domainCode = null,
+    ?string $screenCode = null,
+    ?int $userId = null,
+    ?string $search = null
+): array {
+    $sql = 'DATE(a.logged_at) >= ? AND DATE(a.logged_at) <= ?';
     $params = [$fromIso, $toIso];
 
     if ($domainCode !== null && $domainCode !== '') {
@@ -340,12 +413,28 @@ function sys_audit_log_fetch(
         $params[] = $userId;
     }
 
-    $sql .= ' ORDER BY a.logged_at DESC, a.id DESC LIMIT 5000';
+    $q = trim((string) $search);
+    if ($q !== '') {
+        $like = '%' . $q . '%';
+        $sql .= ' AND (
+            a.entity_ref LIKE ?
+            OR a.screen_label_ar LIKE ?
+            OR a.action_label_ar LIKE ?
+            OR IFNULL(a.summary, \'\') LIKE ?
+            OR COALESCE(u.full_name_ar, u.username, \'\') LIKE ?
+            OR a.screen_code LIKE ?
+            OR a.action_code LIKE ?
+        )';
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+    }
 
-    $st = $pdo->prepare($sql);
-    $st->execute($params);
-
-    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    return [$sql, $params];
 }
 
 /** @return list<array{id:int, label:string}> */

@@ -163,10 +163,16 @@ function item_picker_single_field(array $opts): string
     }
     $html .= '<input type="hidden" ' . $attrStr . '>';
     $html .= '<div class="report-item-pick-row">';
-    $html .= '<button type="button" class="sales-inv-cust-open input" id="' . esc($openId) . '" title="اختيار المادة">';
+    $itemHotkey = array_key_exists('hotkey', $opts) ? trim((string) $opts['hotkey']) : 'F3';
+    $itemTitle = 'اختيار المادة' . ($itemHotkey !== '' ? ' (' . $itemHotkey . ')' : '');
+    $html .= '<button type="button" class="sales-inv-cust-open input" id="' . esc($openId) . '" data-item-picker-open title="' . esc($itemTitle) . '">';
     $html .= '<span id="' . esc($displayId) . '" class="sales-inv-cust-open-label' . ($isPlaceholder ? ' is-placeholder' : '') . '">';
     $html .= esc($labelText);
-    $html .= '</span><span class="sales-inv-cust-open-ico" aria-hidden="true">▾</span></button>';
+    $html .= '</span>';
+    if ($itemHotkey !== '') {
+        $html .= '<kbd class="sales-inv-field-hotkey" aria-hidden="true">' . esc($itemHotkey) . '</kbd>';
+    }
+    $html .= '<span class="sales-inv-cust-open-ico" aria-hidden="true">▾</span></button>';
     if ($allowAll) {
         $html .= '<button type="button" class="btn btn-secondary btn-sm report-item-all-btn" id="' . esc($allBtnId) . '" data-action="select-all-items">';
         $html .= esc($allLabel);

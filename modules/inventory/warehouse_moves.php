@@ -436,8 +436,9 @@ item_picker_enqueue_assets();
             <td class="wh-col-seq"><span class="js-seq"></span></td>
             <td class="wh-col-sku"><code class="js-sku"></code></td>
             <td class="wh-col-item">
-                <button type="button" class="sales-inv-item-pick js-pick-open" aria-label="اختيار مادة">
+                <button type="button" class="sales-inv-item-pick js-pick-open" title="اختيار المادة (F3)" aria-label="اختيار المادة (F3)">
                     <span class="js-name sales-inv-item-name is-placeholder"></span>
+                    <kbd class="sales-inv-field-hotkey" aria-hidden="true">F3</kbd>
                 </button>
             </td>
             <td class="wh-col-onhand"><span class="js-on-hand wh-on-hand-readonly">—</span></td>

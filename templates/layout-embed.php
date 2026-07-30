@@ -172,6 +172,12 @@ app_busy_render_overlay();
 <script src="<?= esc(app_url('assets/js/hr-ora-unsaved.js')) ?><?= $hrOraUnsavedJsV !== '' ? '?v=' . esc($hrOraUnsavedJsV) : '' ?>" defer></script>
 <?php endif; ?>
 <script src="<?= esc(app_url('assets/js/master-toolbar.js')) ?>" defer></script>
+<?php
+$docHotkeysJsV = is_file(app_path('assets/js/document-hotkeys.js'))
+    ? (string) filemtime(app_path('assets/js/document-hotkeys.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/js/document-hotkeys.js')) ?><?= $docHotkeysJsV !== '' ? '?v=' . esc($docHotkeysJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-list-keyboard.js')) ?><?= $listKeyboardJsV !== '' ? '?v=' . esc($listKeyboardJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app.js')) ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-date-picker.js')) ?><?= $datePickerJsV !== '' ? '?v=' . esc($datePickerJsV) : '' ?>" defer></script>

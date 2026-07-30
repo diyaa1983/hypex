@@ -1526,6 +1526,28 @@ body.app-body--wco .app-titlebar__title--wco {
   color: #fff;
 }
 
+/* اختصارات الحقول (F7 عملاء / F3 مواد) — عامة لكل الشاشات */
+.sales-inv-field-hotkey {
+  flex-shrink: 0;
+  display: inline-block;
+  margin: 0;
+  padding: 0.05rem 0.28rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #475569;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+}
+
+.sales-inv-item-hotkey {
+  align-self: center;
+  margin-inline-start: 0.15rem;
+}
+
 .master-toolbar .master-toolbar-btn.master-toolbar-btn--icon {
   width: 2rem;
   min-width: 2rem;

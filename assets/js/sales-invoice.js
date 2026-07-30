@@ -4939,42 +4939,25 @@
     if (e.key === 'Escape') {
       var overlay = document.getElementById('sales-inv-print-overlay');
       if (overlay && !overlay.hidden) closePrintPreview();
-      return;
-    }
-
-    if (e.ctrlKey || e.altKey || e.metaKey) return;
-    var dlg = document.querySelector(
-      '.ui-dialog:not([hidden]), .sales-inv-dlv-pick-modal:not([hidden]), #app-customer-picker-modal.is-open, .item-picker-modal.is-open'
-    );
-    var key = e.key;
-    var code = e.code;
-
-    if (key === 'F10' || code === 'F10') {
-      if (ledgerView || formSubmitting || invoiceIsPosted || invoiceEinvQr) return;
-      if (dlg) return;
-      e.preventDefault();
-      e.stopPropagation();
-      trySave();
-      return;
-    }
-
-    if (key === 'F7' || code === 'F7') {
-      if (ledgerView || invoiceIsPosted) return;
-      if (dlg) return;
-      e.preventDefault();
-      e.stopPropagation();
-      openCustomerPickerHotkey();
-      return;
-    }
-
-    if (key === 'F3' || code === 'F3') {
-      if (ledgerView || invoiceIsPosted) return;
-      if (dlg) return;
-      e.preventDefault();
-      e.stopPropagation();
-      openItemsPickerHotkey();
     }
   });
+
+  if (global.DocumentHotkeys && typeof global.DocumentHotkeys.register === 'function') {
+    global.DocumentHotkeys.register({
+      f10: function () {
+        if (ledgerView || formSubmitting || invoiceIsPosted || invoiceEinvQr) return;
+        trySave();
+      },
+      f7: function () {
+        if (ledgerView || invoiceIsPosted) return;
+        openCustomerPickerHotkey();
+      },
+      f3: function () {
+        if (ledgerView || invoiceIsPosted) return;
+        openItemsPickerHotkey();
+      },
+    });
+  }
 
   function bootInvoicePage() {
     if (global.FinVoucherArchive && form) {

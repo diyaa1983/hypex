@@ -111,6 +111,10 @@
         if (!href) {
             return;
         }
+        setAllowUnload(true);
+        if (global.AppDesktopWindow && typeof global.AppDesktopWindow.allowNextUnload === 'function') {
+            global.AppDesktopWindow.allowNextUnload();
+        }
         if (global.APP_EMBED && global.parent && global.parent !== global) {
             try {
                 global.top.location.href = href;

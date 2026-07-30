@@ -33,7 +33,8 @@ function inv_delivery_line_table_row_template(): void
         </td>
         <td class="sales-inv-item-cell sales-inv-col-item">
             <div class="sales-inv-item-lov is-empty">
-                <button type="button" class="sales-inv-item-lov-btn js-pick-open" title="اختيار المادة" aria-label="اختيار المادة"></button>
+                <button type="button" class="sales-inv-item-lov-btn js-pick-open" title="اختيار المادة (F3)" aria-label="اختيار المادة (F3)"></button>
+                <kbd class="sales-inv-field-hotkey sales-inv-item-hotkey" aria-hidden="true">F3</kbd>
                 <span class="js-name sales-inv-item-name is-placeholder"></span>
             </div>
         </td>

@@ -184,8 +184,9 @@ echo '<script type="application/json" id="fin-dn-suppliers-json">' . crm_supplie
     <tr class="fin-dn-line" data-line-id="">
         <td class="sales-inv-col-seq"><span class="js-seq"></span></td>
         <td class="sales-inv-item-cell sales-inv-col-item">
-            <button type="button" class="sales-inv-item-pick js-pick-open">
+            <button type="button" class="sales-inv-item-pick js-pick-open" title="اختيار المادة (F3)" aria-label="اختيار المادة (F3)">
                 <span class="js-name sales-inv-item-name is-placeholder">اختر مادة أو أدخل وصفاً</span>
+                <kbd class="sales-inv-field-hotkey" aria-hidden="true">F3</kbd>
             </button>
             <input type="text" class="input js-desc" placeholder="وصف إضافي" style="margin-top:0.35rem;width:100%;">
         </td>

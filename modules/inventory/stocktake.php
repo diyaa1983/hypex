@@ -231,7 +231,7 @@ item_picker_enqueue_assets();
                     </div>
                     <?php if (!$isPosted): ?>
                         <div class="stocktake-actions dashboard-ora-toolbar">
-                            <button type="button" class="dashboard-ora-btn" id="stocktake-pick-items">اختيار مواد</button>
+                            <button type="button" class="dashboard-ora-btn" id="stocktake-pick-items" title="اختيار مواد (F3)">اختيار مواد <kbd class="sales-inv-field-hotkey" aria-hidden="true">F3</kbd></button>
                         </div>
                     <?php endif; ?>
                 </div>

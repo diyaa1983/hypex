@@ -849,20 +849,26 @@
 }
 
 /* تقرير حركات التعديل */
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-filters {
+  margin-top: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table {
   table-layout: fixed;
+  width: 100%;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-seq {
-  width: 2.2rem;
+  width: 3rem;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-datetime {
-  width: 11%;
+  width: 12%;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-user {
-  width: 11%;
+  width: 12%;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-screen {
@@ -870,44 +876,62 @@
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-action {
-  width: 8%;
-}
-
-.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-ref {
-  width: 12%;
-}
-
-.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-docdate {
   width: 9%;
 }
 
-.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-summary {
-  width: auto;
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-ref {
+  width: 11%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-docdate {
+  width: 12%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table th,
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table td {
+  overflow: hidden;
+  vertical-align: middle;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-seq {
-  width: 2.2rem;
-  max-width: 2.2rem;
-  padding-inline: 0.15rem;
+  width: 3rem;
+  max-width: 3.25rem;
+  padding-inline: 0.2rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-datetime,
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-docdate {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-dt {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem;
+  max-width: 100%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-dt__date,
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-dt__time {
+  white-space: nowrap;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-user,
-.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-screen,
-.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-summary {
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-screen {
   text-align: start;
   white-space: normal;
   word-break: break-word;
-  overflow: visible;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-action {
   white-space: nowrap;
+  text-align: center;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-ref {
@@ -915,28 +939,174 @@
   white-space: nowrap;
 }
 
-.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-wrap {
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
   max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted #64748b;
 }
 
-.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-wrap code {
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-link:hover {
+  color: #1d4ed8;
+  border-bottom-color: #1d4ed8;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-link code {
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 7rem;
+  max-width: 9rem;
 }
 
-.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-link {
-  padding: 0 0.35rem;
-  font-size: 0.72rem;
-  flex-shrink: 0;
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-print-only {
+  display: none;
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-badge-delete {
   background: #fef2f2;
   color: #991b1b;
+}
+
+@media print {
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-link {
+    display: none !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-ref-print-only {
+    display: inline !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-sales-print-area {
+    font-size: 7.5pt !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .doc-print-header-logo img {
+    max-height: 72px !important;
+    max-width: 72px !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .doc-print-header-co {
+    font-size: 11pt !important;
+    line-height: 1.25 !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .doc-print-header-title {
+    font-size: 11pt !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .doc-print-meta,
+  .report-sales-page[data-report-route="report_audit_log"] .doc-print-meta td {
+    font-size: 8pt !important;
+    line-height: 1.35 !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 7pt !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table thead {
+    display: table-header-group;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table th,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table td {
+    font-size: 7pt !important;
+    font-weight: 700 !important;
+    padding: 2px 3px !important;
+    line-height: 1.2 !important;
+    overflow: hidden !important;
+    vertical-align: middle !important;
+    word-wrap: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table thead th {
+    white-space: normal !important;
+    font-size: 6.5pt !important;
+    line-height: 1.15 !important;
+    hyphens: auto;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-seq,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-seq {
+    width: 6mm !important;
+    min-width: 6mm !important;
+    max-width: 7mm !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-datetime,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-datetime {
+    width: 18mm !important;
+    min-width: 18mm !important;
+    max-width: 20mm !important;
+    white-space: normal !important;
+    text-align: center !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-dt {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 0 !important;
+    line-height: 1.15 !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-dt__date,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-dt__time {
+    display: block !important;
+    white-space: nowrap !important;
+    font-size: 6.5pt !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-user,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-user {
+    width: 22mm !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-screen,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-screen {
+    width: 28mm !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-action,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-action {
+    width: 14mm !important;
+    text-align: center !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-ref,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-ref {
+    width: 16mm !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-docdate,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-docdate {
+    width: 18mm !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .badge {
+    display: inline-block !important;
+    padding: 0 2px !important;
+    font-size: 6pt !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+    border: 1px solid #94a3b8 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table code {
+    font-size: 6.5pt !important;
+    font-weight: 700 !important;
+  }
 }
 
 @media print {

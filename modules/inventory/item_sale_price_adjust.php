@@ -231,8 +231,9 @@ $pageTitle = 'تعديل أسعار المواد';
             <td class="col-seq"><span class="js-seq"></span></td>
             <td class="col-inv-no"><code class="js-sku"></code></td>
             <td class="col-item">
-                <button type="button" class="sales-inv-item-pick js-pick-open" aria-label="اختيار مادة">
+                <button type="button" class="sales-inv-item-pick js-pick-open" title="اختيار المادة (F3)" aria-label="اختيار المادة (F3)">
                     <span class="js-name sales-inv-item-name is-placeholder">اضغط لاختيار المادة</span>
+                    <kbd class="sales-inv-field-hotkey" aria-hidden="true">F3</kbd>
                 </button>
             </td>
             <td class="col-money" dir="ltr"><span class="js-old-price">—</span></td>

@@ -213,7 +213,8 @@ function customer_picker_field(array $opts): string
     }
     $html .= '<input type="hidden" ' . $attrStr . '>';
     $btnTitle = 'اختيار العميل';
-    $hotkey = trim((string) ($opts['hotkey'] ?? ''));
+    /* F7 افتراضيًا على كل قوائم العملاء؛ عطّله بـ hotkey => '' */
+    $hotkey = array_key_exists('hotkey', $opts) ? trim((string) $opts['hotkey']) : 'F7';
     if ($hotkey !== '') {
         $btnTitle .= ' (' . $hotkey . ')';
     }

@@ -85,10 +85,15 @@
    */
   function allowNextUnload() {
     skipUnloadPrompt = true;
+    try {
+      global.__managerAllowUnload = true;
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   function shouldPromptOnUnload() {
-    if (skipUnloadPrompt) {
+    if (skipUnloadPrompt || global.__managerAllowUnload) {
       skipUnloadPrompt = false;
       return false;
     }
@@ -113,6 +118,21 @@
     return !!(href && href.indexOf('logout.php') >= 0);
   }
 
+  function isSameOriginHref(href) {
+    if (!href) {
+      return false;
+    }
+    if (href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
+      return false;
+    }
+    try {
+      var url = new URL(href, global.location.href);
+      return url.origin === global.location.origin;
+    } catch (err) {
+      return false;
+    }
+  }
+
   function confirmExit(message, options) {
     options = options || {};
     var msg = message || 'هل تريد الخروج من النظام؟';
@@ -132,11 +152,19 @@
   }
 
   function markInternalNavigation() {
-    skipUnloadPrompt = true;
+    allowNextUnload();
     // يكفي لمرور beforeunload عند الانتقال الحقيقي، ويُصفَّر إن بقيت الصفحة (مثل MDI).
     setTimeout(function () {
       skipUnloadPrompt = false;
-    }, 150);
+      try {
+        // أبقِ العلم إن انتقلت الصفحة؛ وإلا أعده بعد بقاء المستخدم.
+        if (!document.hidden) {
+          global.__managerAllowUnload = false;
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    }, 250);
   }
 
   function bindCloseConfirm() {
@@ -153,26 +181,31 @@
       'click',
       function (e) {
         var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
-        if (!a) {
-          return;
-        }
-        var href = a.getAttribute('href');
-        if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
-          return;
-        }
-        if (a.hasAttribute('download') || a.getAttribute('target') === '_blank') {
-          return;
-        }
-        if (isLogoutLink(a, href)) {
-          return;
-        }
-        try {
-          var url = new URL(href, global.location.href);
-          if (url.origin === global.location.origin) {
+        if (a) {
+          var href = a.getAttribute('href');
+          if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
+            return;
+          }
+          if (a.hasAttribute('download') || a.getAttribute('target') === '_blank') {
+            return;
+          }
+          if (isLogoutLink(a, href)) {
+            return;
+          }
+          if (isSameOriginHref(href)) {
             markInternalNavigation();
           }
-        } catch (err) {
-          /* ignore */
+          return;
+        }
+
+        /* صفوف القوائم (مستخدمين / مجموعات / موظفين…) تنتقل عبر data-href بدون <a> */
+        var row = e.target && e.target.closest ? e.target.closest('[data-href]') : null;
+        if (!row) {
+          return;
+        }
+        var dataHref = row.getAttribute('data-href');
+        if (isSameOriginHref(dataHref)) {
+          markInternalNavigation();
         }
       },
       true
@@ -242,6 +275,7 @@
     isInstalled: isDesktopInstalledApp,
     confirmExit: confirmExit,
     allowNextUnload: allowNextUnload,
+    markInternalNavigation: markInternalNavigation,
   };
 
   if (document.readyState === 'loading') {

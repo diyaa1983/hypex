@@ -24,6 +24,10 @@
       }
       url.searchParams.set('r', 'permissions');
       url.searchParams.set('group_id', groupSelect.value);
+      if (window.AppDesktopWindow && typeof window.AppDesktopWindow.allowNextUnload === 'function') {
+        window.AppDesktopWindow.allowNextUnload();
+      }
+      window.__managerAllowUnload = true;
       window.location.href = url.pathname + url.search;
     });
     groupForm.addEventListener('submit', function (e) {

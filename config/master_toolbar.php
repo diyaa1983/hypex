@@ -76,7 +76,6 @@ return [
             'variant' => 'primary',
             'title' => 'حفظ المستند الحالي (F10)',
             'shortcut' => 'F10',
-            'shortcut_screens' => ['sales_invoices'],
             'screens' => [
                 'sales_invoices',
                 'sales_delivery',
