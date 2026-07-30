@@ -33,12 +33,15 @@
     if (global.L && global.L.map) {
       return Promise.resolve();
     }
+    if (global.LeafletMapLayers && global.LeafletMapLayers.ensureLeaflet) {
+      return global.LeafletMapLayers.ensureLeaflet();
+    }
     if (leafletPromise) {
       return leafletPromise;
     }
-    leafletPromise = loadStyle('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css')
+    leafletPromise = loadStyle('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css')
       .then(function () {
-        return loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');
+        return loadScript('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js');
       })
       .then(function () {
         if (!global.L || !global.L.map) {

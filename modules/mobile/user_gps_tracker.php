@@ -138,11 +138,10 @@ $today = date('Y-m-d');
 <script>
 window.AppOsmConfig = <?= json_encode($osm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 </script>
+<script src="<?= esc(app_url('assets/js/leaflet-map-layers.js')) ?><?= $mapLayersV !== '' ? '?v=' . esc($mapLayersV) : '' ?>"></script>
 <?php if ($mapEngine === 'arcgis'): ?>
 <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
 <script src="<?= esc(app_url('assets/js/map-interop.js')) ?><?= $mapInteropV !== '' ? '?v=' . esc($mapInteropV) : '' ?>"></script>
-<?php else: ?>
-<script src="<?= esc(app_url('assets/js/leaflet-map-layers.js')) ?><?= $mapLayersV !== '' ? '?v=' . esc($mapLayersV) : '' ?>"></script>
 <?php endif; ?>
 <script src="<?= esc(app_url('assets/js/user-gps-tracker.js')) ?><?= $jsV !== '' ? '?v=' . esc($jsV) : '' ?>"></script>
 <script src="<?= esc(app_url('assets/js/user-gps-route.js')) ?><?= $routeJsV !== '' ? '?v=' . esc($routeJsV) : '' ?>"></script>

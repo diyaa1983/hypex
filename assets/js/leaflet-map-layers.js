@@ -37,6 +37,59 @@
     });
   }
 
+  function loadStyle(href) {
+    return new Promise(function (resolve, reject) {
+      var l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = href;
+      l.onload = resolve;
+      l.onerror = reject;
+      document.head.appendChild(l);
+    });
+  }
+
+  var LEAFLET_CSS = [
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+    'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css',
+  ];
+  var LEAFLET_JS = [
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+    'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
+  ];
+
+  function trySequential(urls, loader) {
+    var i = 0;
+    function next() {
+      if (i >= urls.length) {
+        return Promise.reject(new Error('leaflet_load_failed'));
+      }
+      return loader(urls[i]).catch(function () {
+        i += 1;
+        return next();
+      });
+    }
+    return next();
+  }
+
+  function ensureLeaflet() {
+    if (global.L && global.L.map) {
+      return Promise.resolve();
+    }
+    if (global.__leafletCorePromise) {
+      return global.__leafletCorePromise;
+    }
+    global.__leafletCorePromise = trySequential(LEAFLET_CSS, loadStyle)
+      .then(function () {
+        return trySequential(LEAFLET_JS, loadScript);
+      })
+      .then(function () {
+        if (!global.L || !global.L.map) {
+          throw new Error('leaflet_load_failed');
+        }
+      });
+    return global.__leafletCorePromise;
+  }
+
   function ensureGoogle(apiKey) {
     if (!apiKey) return Promise.reject(new Error('no_google_key'));
     if (
@@ -165,6 +218,11 @@
       return Promise.resolve('carto');
     }
 
+    if (provider === 'natgeo') {
+      attachRaster(map, 'natgeo', opts.tileUrl, opts.attribution);
+      return Promise.resolve('natgeo');
+    }
+
     attachEsriHybrid(map, opts.tileUrl, opts.attribution);
     return Promise.resolve('esri');
   }
@@ -172,5 +230,6 @@
   global.LeafletMapLayers = {
     attach: attachBaseLayer,
     ensureGoogle: ensureGoogle,
+    ensureLeaflet: ensureLeaflet,
   };
 })(window);

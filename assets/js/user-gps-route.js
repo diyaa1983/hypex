@@ -2,7 +2,12 @@
   'use strict';
 
   function ensureLeaflet() {
-    if (global.L && global.L.map) return Promise.resolve();
+    if (global.L && global.L.map) {
+      return Promise.resolve();
+    }
+    if (global.LeafletMapLayers && global.LeafletMapLayers.ensureLeaflet) {
+      return global.LeafletMapLayers.ensureLeaflet();
+    }
     function loadStyle(href) {
       return new Promise(function (resolve, reject) {
         var l = document.createElement('link');
@@ -24,12 +29,14 @@
       });
     }
     if (!global.__ugrLeafletPromise) {
-      global.__ugrLeafletPromise = loadStyle('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css')
+      global.__ugrLeafletPromise = loadStyle('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css')
         .then(function () {
-          return loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');
+          return loadScript('https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js');
         })
         .then(function () {
-          if (!global.L || !global.L.map) throw new Error('leaflet_load_failed');
+          if (!global.L || !global.L.map) {
+            throw new Error('leaflet_load_failed');
+          }
         });
     }
     return global.__ugrLeafletPromise;
@@ -178,11 +185,15 @@
     return ensureLeaflet()
       .then(function () {
         self.buildMap();
-        if (!self.usersLoaded) return self.loadUsers();
       })
       .catch(function (err) {
         self.setStatus('تعذّر تحميل الخريطة');
         console.error(err);
+      })
+      .then(function () {
+        if (!self.usersLoaded) {
+          return self.loadUsers();
+        }
       });
   };
 
@@ -1282,17 +1293,29 @@
       } else {
         if (view.setMapFocus) view.setMapFocus(false);
         if (view.setStopsSheet) view.setStopsSheet(false);
-        if (global.UserGpsTracker && global.UserGpsTracker.map) {
+        if (global.UserGpsTracker) {
           setTimeout(function () {
             try {
-              global.UserGpsTracker.map.invalidateSize({ animate: false });
+              if (global.UserGpsTracker.usesArcgis && global.UserGpsTracker.usesArcgis()) {
+                if (global.MapInterop && global.MapInterop.invalidateSize) {
+                  global.MapInterop.invalidateSize();
+                }
+              } else if (global.UserGpsTracker.map && global.UserGpsTracker.map.invalidateSize) {
+                global.UserGpsTracker.map.invalidateSize({ animate: false });
+              }
             } catch (e2) {
               /* ignore */
             }
           }, 80);
           setTimeout(function () {
             try {
-              global.UserGpsTracker.map.invalidateSize({ animate: false });
+              if (global.UserGpsTracker.usesArcgis && global.UserGpsTracker.usesArcgis()) {
+                if (global.MapInterop && global.MapInterop.invalidateSize) {
+                  global.MapInterop.invalidateSize();
+                }
+              } else if (global.UserGpsTracker.map && global.UserGpsTracker.map.invalidateSize) {
+                global.UserGpsTracker.map.invalidateSize({ animate: false });
+              }
             } catch (e3) {
               /* ignore */
             }
