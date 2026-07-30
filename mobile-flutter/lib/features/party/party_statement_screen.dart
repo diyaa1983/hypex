@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
+import '../../services/document_print_helper.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/party_picker.dart';
 
@@ -89,7 +90,29 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
         .map((e) => e.cast<String, dynamic>())
         .toList();
     return Scaffold(
-      appBar: AppBar(title: const Text('كشف حساب')),
+      appBar: AppBar(
+        title: const Text('كشف حساب'),
+        actions: [
+          if (_result != null && _party != null)
+            IconButton(
+              tooltip: 'طباعة PDF',
+              onPressed: _loading
+                  ? null
+                  : () => DocumentPrintHelper.printFromApi(
+                        context,
+                        apiPath: AppConfig.partyStatementPdfPath,
+                        query: {
+                          'party_type': _type,
+                          'party_id': _party!.id,
+                          'from': _iso(_from),
+                          'to': _iso(_to),
+                        },
+                        jobName: 'كشف_${_party!.name}',
+                      ),
+              icon: const Icon(Icons.print_outlined),
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Card(

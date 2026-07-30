@@ -93,7 +93,7 @@ const Map<String, TileSpec> kTileSpecs = {
     '/rep/stock',
     Icons.inventory_2_rounded,
     AppTheme.teal,
-    'عهدة المندوب',
+    'المخزون',
   ),
   'm_sales_invoice_gps': TileSpec(
     '/gps/invoices',

@@ -6,6 +6,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../services/document_print_helper.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -221,6 +222,17 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
                           row: _rows[i],
                           onPost: () => _post(_rows[i]),
                           onDelete: () => _delete(_rows[i]),
+                          onPrint: () {
+                            final id = int.tryParse('${_rows[i]['id']}') ?? 0;
+                            final no = (_rows[i]['voucher_no'] ?? id).toString();
+                            if (id < 1) return;
+                            DocumentPrintHelper.printFromApi(
+                              context,
+                              apiPath: AppConfig.receiptPdfPath,
+                              query: {'id': id},
+                              jobName: 'سند_$no',
+                            );
+                          },
                         ),
                       ),
               ),
@@ -237,11 +249,13 @@ class _ReceiptCard extends StatelessWidget {
     required this.row,
     required this.onPost,
     required this.onDelete,
+    required this.onPrint,
   });
 
   final Map<String, dynamic> row;
   final VoidCallback onPost;
   final VoidCallback onDelete;
+  final VoidCallback onPrint;
 
   @override
   Widget build(BuildContext context) {
@@ -322,6 +336,13 @@ class _ReceiptCard extends StatelessWidget {
                   ),
                 ),
               const Spacer(),
+              IconButton(
+                tooltip: 'طباعة / PDF',
+                visualDensity: VisualDensity.compact,
+                onPressed: onPrint,
+                icon: const Icon(Icons.print_outlined, size: 19),
+                color: AppTheme.primary,
+              ),
               if (!posted)
                 IconButton(
                   tooltip: 'ترحيل',

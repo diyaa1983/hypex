@@ -26,6 +26,7 @@ class AppConfig {
   static const String receiptViewPath = 'api/fin_receipt_view.php';
   static const String receiptPostPath = 'api/fin_receipt_post.php';
   static const String receiptDeletePath = 'api/fin_receipt_delete.php';
+  static const String receiptPdfPath = 'api/mobile_receipt_pdf.php';
   static const String receiptSaveRoute = 'm/index.php?r=m_receipt';
 
   static const String returnsListPath = 'api/mobile_returns_list.php';
@@ -35,11 +36,13 @@ class AppConfig {
   static const String returnSaveRoute = 'm/index.php?r=m_sales_returns';
 
   static const String partyStatementPath = 'api/mobile_party_statement.php';
+  static const String partyStatementPdfPath = 'api/mobile_party_statement_pdf.php';
   static const String partiesPath = 'api/mobile_parties.php';
   static const String customerSavePath = 'api/mobile_customer_save.php';
 
   static const String repItemsPath = 'api/mobile_rep_items.php';
   static const String repStockPath = 'api/mobile_rep_stock.php';
+  static const String repStockPdfPath = 'api/mobile_rep_stock_pdf.php';
   static const String repCustodyListPath = 'api/mobile_rep_custody_list.php';
   static const String repTransferPath = 'api/mobile_rep_transfer.php';
 

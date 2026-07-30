@@ -165,7 +165,10 @@ function mobile_rep_stock_print_document(PDO $pdo, array $ctx, string $search = 
     unset($row);
 
     $repName = trim((string) ($ctx['rep_name'] ?? ''));
-    $title = 'رصيد عهدة مندوب' . ($repName !== '' ? ' — ' . $repName : '');
+    $whName = trim((string) ($ctx['van_warehouse_name'] ?? ''));
+    $title = 'رصيد المستودع'
+        . ($whName !== '' ? ' — ' . $whName : '')
+        . ($repName !== '' ? ' — ' . $repName : '');
 
     $innerPdf = mobile_rep_stock_print_inner_html_mobile_pdf($pdo, $ctx, $lines, $search);
     $htmlPdf = mobile_invoice_print_full_html_mobile_pdf($pdo, $innerPdf);
@@ -185,7 +188,14 @@ function mobile_rep_stock_print_document(PDO $pdo, array $ctx, string $search = 
 
 function mobile_rep_stock_print_pdf_filename(array $ctx): string
 {
+    $wh = trim((string) ($ctx['van_warehouse_name'] ?? ''));
     $rep = trim((string) ($ctx['rep_name'] ?? ''));
+    if ($wh !== '') {
+        return 'رصيد مستودع - ' . $wh . '.pdf';
+    }
+    if ($rep !== '') {
+        return 'رصيد مستودع - ' . $rep . '.pdf';
+    }
 
-    return $rep !== '' ? 'رصيد عهدة - ' . $rep . '.pdf' : 'رصيد عهدة.pdf';
+    return 'رصيد مستودع.pdf';
 }

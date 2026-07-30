@@ -57,6 +57,11 @@
     var q = searchInput ? String(searchInput.value || '').trim() : '';
     var url = cfg.pdfApi + (cfg.pdfApi.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
     if (q) url += '&q=' + encodeURIComponent(q);
+    var wh = parseInt(cfg.warehouseId || 0, 10) || 0;
+    if (!wh && pdfBtn) {
+      wh = parseInt(pdfBtn.getAttribute('data-warehouse-id') || '0', 10) || 0;
+    }
+    if (wh > 0) url += '&warehouse_id=' + encodeURIComponent(String(wh));
     return url;
   }
 

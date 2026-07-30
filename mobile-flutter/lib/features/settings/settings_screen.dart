@@ -12,6 +12,7 @@ import '../../core/theme.dart';
 import '../../services/location_presence_service.dart';
 import '../../services/location_tracking_service.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/bluetooth_printer_settings_card.dart';
 import '../../widgets/ui_kit.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -204,6 +205,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+          const SectionTitle('الطباعة', icon: Icons.print_rounded),
+          const BluetoothPrinterSettingsCard(),
           const SectionTitle('فتح الإعدادات', icon: Icons.lock_rounded),
           AppCard(
             child: Column(
@@ -357,6 +360,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+
+            const SectionTitle('الطباعة', icon: Icons.print_rounded),
+            const BluetoothPrinterSettingsCard(),
 
             const SectionTitle('تتبّع الموقع', icon: Icons.my_location_rounded),
             AppCard(
