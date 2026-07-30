@@ -198,6 +198,7 @@
     };
   };
 
+  Tracker.prototype.usesArcgis = function () {
     return this.mapEngine === 'arcgis' && global.MapInterop;
   };
 
