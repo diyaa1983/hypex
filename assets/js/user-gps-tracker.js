@@ -144,9 +144,19 @@
       var wrap = mapEl && mapEl.parentElement;
       if (wrap && mapEl) {
         var rect = wrap.getBoundingClientRect();
-        if (rect.height > 80) {
-          mapEl.style.height = Math.floor(rect.height) + 'px';
-          mapEl.style.minHeight = Math.floor(rect.height) + 'px';
+        var h = Math.floor(rect.height);
+        if (h < 120 && self.mode === 'desktop') {
+          h = Math.max(320, window.innerHeight - 200);
+          wrap.style.minHeight = h + 'px';
+        }
+        if (h > 80) {
+          mapEl.style.height = h + 'px';
+          mapEl.style.minHeight = h + 'px';
+          var lc = mapEl.querySelector('.leaflet-container') || mapEl;
+          if (lc && lc !== mapEl) {
+            lc.style.height = h + 'px';
+            lc.style.minHeight = h + 'px';
+          }
         }
       }
       if (self.usesArcgis()) {

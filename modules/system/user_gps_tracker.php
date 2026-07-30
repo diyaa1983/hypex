@@ -69,7 +69,7 @@ $today = date('Y-m-d');
     </div>
 
     <!-- عرض التتبّع الحي -->
-    <div id="ugt-live-view">
+    <div id="ugt-live-view" class="ugt-live-view">
         <div class="ugt-subbar">
                 <div class="ugt-toolbar__stats" id="ugt-stats">
                 <span class="ugt-chip ugt-chip--online"><b id="ugt-cnt-online">0</b> متصل</span>

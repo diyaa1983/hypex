@@ -33,6 +33,7 @@
 }
 
 .ugt-live-view,
+#ugt-live-view,
 #ugt-route-view {
   flex: 1 1 auto;
   min-height: 0;
@@ -42,9 +43,15 @@
 }
 
 #ugt-live-view .ugt-body,
+.ugt-live-view .ugt-body,
 #ugt-route-view .ugr-root {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.ugt-toolbar,
+.ugt-subbar {
+  flex-shrink: 0;
 }
 
 /* مهم على Safari/iPhone: display:flex يتجاوز خاصية hidden */
@@ -183,6 +190,10 @@
   overflow: hidden;
 }
 
+.ugt-page:not(.ugt-page--mobile) .ugt-body {
+  min-height: calc(100dvh - 12.5rem);
+}
+
 .ugt-sidebar {
   grid-row: 1;
   grid-column: 1;
@@ -200,6 +211,16 @@
   align-self: stretch;
   background: #dce6f0;
   overflow: hidden;
+}
+
+/* سطح المكتب: ارتفاع صريح لضمان ملء Leaflet */
+.ugt-page:not(.ugt-page--mobile) .ugt-map-wrap {
+  min-height: calc(100dvh - 12.5rem);
+}
+
+.ugt-page:not(.ugt-page--mobile) #ugt-map,
+.ugt-page:not(.ugt-page--mobile) #ugt-map.leaflet-container {
+  min-height: calc(100dvh - 12.5rem) !important;
 }
 
 .ugt-map {
