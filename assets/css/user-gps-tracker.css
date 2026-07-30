@@ -32,10 +32,17 @@
 
 .ugt-live-view,
 #ugt-route-view {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+#ugt-live-view .ugt-body,
+#ugt-route-view .ugr-root {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* مهم على Safari/iPhone: display:flex يتجاوز خاصية hidden */
@@ -164,6 +171,8 @@
 .ugt-body {
   display: grid;
   grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   min-height: 0;
   flex: 1 1 auto;
   width: 100%;
@@ -391,22 +400,27 @@
   position: relative;
   min-height: 0;
   min-width: 0;
+  flex: 1 1 auto;
   height: 100%;
+  align-self: stretch;
   background: #dce6f0;
   overflow: hidden;
 }
 
 .ugt-map {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  min-height: 220px;
+  min-height: 0;
 }
 
 .ugt-map .esri-view,
 .ugt-map .esri-view-root,
-.ugt-map .esri-view-surface {
-  width: 100%;
-  height: 100%;
+.ugt-map .esri-view-surface,
+.ugt-map .esri-view-surface--inset-outline:focus::after {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .ugt-body--mobile .ugt-map-wrap {
@@ -514,7 +528,58 @@
   --ugt-heading: 0deg;
 }
 
+.ugt-mover__pulse {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.38);
+  transform: scale(0.35);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ugt-mover.is-moving .ugt-mover__pulse,
+.ugt-mover.is-live .ugt-mover__pulse {
+  animation: ugt-live-pulse 1.5s ease-out infinite;
+}
+
+.ugt-mover.is-moving .ugt-pin--online,
+.ugt-mover.is-live .ugt-pin--online {
+  animation: ugt-pin-glow 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes ugt-live-pulse {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+@keyframes ugt-pin-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(19, 160, 92, 0.55), 0 4px 10px rgba(0, 0, 0, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 0 10px rgba(19, 160, 92, 0), 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+
 .ugt-mover__arrow {
+  position: relative;
+  z-index: 2;
   width: 0;
   height: 0;
   border-left: 6px solid transparent;
@@ -538,6 +603,8 @@
 }
 
 .ugt-pin {
+  position: relative;
+  z-index: 2;
   width: 34px;
   height: 34px;
   border-radius: 50% 50% 50% 0;
@@ -600,13 +667,12 @@
   .ugt-body:not(.ugt-body--mobile) .ugt-map-wrap {
     order: 1;
     flex: 1 1 auto;
-    min-height: 42vh;
+    min-height: min(52vh, calc(100vh - 220px));
     height: auto;
   }
 
   .ugt-body:not(.ugt-body--mobile) .ugt-map {
-    min-height: 42vh;
-    height: 100%;
+    min-height: 0;
   }
 
   .ugt-sidebar:not(.ugt-sidebar--drawer) {

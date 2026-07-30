@@ -101,9 +101,10 @@
     this.moveAnims = {};
     this._animRaf = null;
     this.maxTrailPoints = 400;
-    this.minTrailMoveMeters = 8;
+    this.minTrailMoveMeters = 5;
     this.maxTrailJumpMeters = 800;
-    this.smoothMoveMs = Math.max(2500, (parseInt(root.getAttribute('data-poll-sec') || '5', 10) || 5) * 900);
+    this.smoothMoveMs = Math.max(900, (this.pollSec * 1000) * 0.92);
+    this.livePulseTimers = {};
     this.rows = [];
     this.lastHint = '';
     this.lastPings = [];
@@ -191,6 +192,16 @@
       setTimeout(bumpSize, 350);
       setTimeout(bumpSize, 700);
       global.addEventListener('resize', bumpSize);
+      if (typeof ResizeObserver !== 'undefined' && mapEl) {
+        try {
+          var ro = new ResizeObserver(function () {
+            bumpSize();
+          });
+          ro.observe(mapEl);
+        } catch (e2) {
+          /* ignore */
+        }
+      }
       if (self.mode === 'mobile') {
         global.addEventListener('orientationchange', function () {
           setTimeout(bumpSize, 250);
@@ -236,6 +247,16 @@
       setTimeout(bumpSize, 350);
       setTimeout(bumpSize, 700);
       global.addEventListener('resize', bumpSize);
+      if (typeof ResizeObserver !== 'undefined' && mapEl) {
+        try {
+          var ro = new ResizeObserver(function () {
+            bumpSize();
+          });
+          ro.observe(mapEl);
+        } catch (e1) {
+          /* ignore */
+        }
+      }
       if (self.mode === 'mobile') {
         global.addEventListener('orientationchange', function () {
           setTimeout(bumpSize, 250);
@@ -320,7 +341,7 @@
     clearInterval(this.timer);
     this.timer = setInterval(function () {
       self.load(false);
-    }, Math.max(3, this.pollSec) * 1000);
+    }, Math.max(2, this.pollSec) * 1000);
   };
 
   Tracker.prototype.setStatus = function (text) {
@@ -496,6 +517,7 @@
       '<div class="ugt-mover" style="--ugt-heading:' +
       heading +
       'deg">' +
+      '<span class="ugt-mover__pulse" aria-hidden="true"></span>' +
       '<div class="ugt-mover__arrow" aria-hidden="true"></div>' +
       '<div class="ugt-pin ugt-pin--' +
       esc(status) +
@@ -580,7 +602,28 @@
     if (wrap) {
       wrap.style.setProperty('--ugt-heading', String(Math.round(bearing)) + 'deg');
       wrap.classList.add('is-moving');
+      this._pulseMarker(marker);
     }
+  };
+
+  Tracker.prototype._pulseMarker = function (marker) {
+    if (!marker) return;
+    var el = marker.getElement && marker.getElement();
+    if (!el) return;
+    var wrap = el.querySelector('.ugt-mover');
+    if (!wrap) return;
+    wrap.classList.add('is-live');
+    var key = marker._ugtUserId != null ? String(marker._ugtUserId) : '';
+    if (this.livePulseTimers[key]) {
+      clearTimeout(this.livePulseTimers[key]);
+    }
+    var self = this;
+    this.livePulseTimers[key] = setTimeout(function () {
+      wrap.classList.remove('is-live');
+      if (!self.moveAnims[key]) {
+        wrap.classList.remove('is-moving');
+      }
+    }, 3500);
   };
 
   Tracker.prototype._stopMarkerMovingClass = function (marker) {
@@ -605,7 +648,7 @@
     if (dist < 1.5) {
       marker.setLatLng(to);
       delete this.moveAnims[key];
-      this._stopMarkerMovingClass(marker);
+      this._pulseMarker(marker);
       return;
     }
 
@@ -621,7 +664,7 @@
       from: from,
       to: to,
       start: performance.now(),
-      duration: Math.min(this.smoothMoveMs, Math.max(1200, dist * 18)),
+      duration: Math.min(this.smoothMoveMs, Math.max(650, dist * 10)),
       follow: this.activeId != null && String(this.activeId) === key,
       userId: userId,
     };
@@ -663,7 +706,7 @@
         if (t > 0.15 && t < 0.95 && Math.floor(t * 20) % 2 === 0) {
           self.appendLiveTrailPoint(anim.userId, lat, lng);
         }
-        if (anim.follow && self.map && Math.floor(now / 80) !== Math.floor((now - 16) / 80)) {
+        if (anim.follow && self.map && Math.floor(now / 60) !== Math.floor((now - 16) / 60)) {
           self.map.panTo([lat, lng], { animate: false });
         }
       }
@@ -805,6 +848,7 @@
         var m = global.L.marker(latlng, { icon: this.markerIcon(r, 0) });
         m.bindPopup(this.popupHtml(r));
         m._ugtRow = r;
+        m._ugtUserId = id;
         m.addTo(this.layer);
         this.markersById[id] = m;
         var self = this;

@@ -42,7 +42,7 @@ $today = date('Y-m-d');
      data-map-provider="<?= esc($osm['mapProvider'] ?? 'carto') ?>"
      data-map-engine="<?= esc($mapEngine) ?>"
      data-google-key="<?= esc($osm['googleMapsKey'] ?? '') ?>"
-     data-poll-sec="5"
+     data-poll-sec="3"
      data-online-seconds="60"
      data-stale-seconds="60"
      data-mode="mobile">

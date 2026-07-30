@@ -47,7 +47,7 @@ $today = date('Y-m-d');
      data-map-provider="<?= esc($osm['mapProvider'] ?? 'carto') ?>"
      data-map-engine="<?= esc($mapEngine) ?>"
      data-google-key="<?= esc($osm['googleMapsKey'] ?? '') ?>"
-     data-poll-sec="5"
+     data-poll-sec="3"
      data-online-seconds="60"
      data-stale-seconds="60"
      data-mode="desktop">
@@ -95,7 +95,7 @@ $today = date('Y-m-d');
                     <span><i class="ugt-line"></i> خط حي + حركة سلسة</span>
                     <span><i class="ugt-dot ugt-dot--away"></i> غير متصل = لا يظهر على الخريطة</span>
                 </div>
-                <div class="ugt-status" id="ugt-status">تحديث كل 5 ثوانٍ</div>
+                <div class="ugt-status" id="ugt-status">تحديث كل 3 ثوانٍ</div>
             </div>
         </div>
     </div>
