@@ -210,6 +210,7 @@ $showUnitPriceIncl = true;
                     'wrapper_class' => 'sales-inv-meta-item sales-inv-meta-customer',
                     'json_id' => 'sales-inv-customers-json',
                     'manual_bind' => true,
+                    'hotkey' => 'F7',
                 ]) ?>
                 <div class="sales-inv-meta-item sales-inv-meta-rep">
                     <label for="inv_sales_rep">المندوب</label>

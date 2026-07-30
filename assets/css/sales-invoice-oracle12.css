@@ -918,42 +918,59 @@ body:has(.sales-inv-main) .sales-inv-pick-dropdown.item-picker-modal .sales-inv-
 }
 
 body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__panel {
-  border: 1px solid var(--ora12-border);
-  border-radius: 0;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--ora12-border, #9aa5b5);
+  border-radius: 2px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
 }
 
 body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__head {
-  background: var(--ora12-title);
-  border-bottom: 1px solid var(--ora12-blue-dark);
-  padding: 0.45rem 0.6rem;
+  background: var(--ora12-title, #1e3a5f);
+  border-bottom: 1px solid var(--ora12-blue-dark, #152a47);
+  padding: 0.5rem 0.7rem;
 }
 
 body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__head h3 {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   font-weight: 700;
   color: #fff;
 }
 
 body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__close {
   color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 2px;
 }
 
 body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__close:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.24);
+}
+
+body:has(.sales-inv-main) .sales-inv-dlv-pick-modal__hint {
+  background: #eef3f9;
+  border-bottom: 1px solid var(--ora12-border, #c5cdd8);
+  color: #243447;
+  font-size: 0.78rem;
 }
 
 body:has(.sales-inv-main) .sales-inv-dlv-pick-item {
-  border: 1px solid var(--ora12-border);
+  border: 1px solid var(--ora12-border, #9aa5b5);
   border-radius: 2px;
   background: #fff;
+  box-shadow: none;
 }
 
-body:has(.sales-inv-main) .sales-inv-dlv-pick-item:hover {
-  background: var(--ora12-hover);
+body:has(.sales-inv-main) .sales-inv-dlv-pick-item:hover,
+body:has(.sales-inv-main) .sales-inv-dlv-pick-item:focus-visible {
+  background: var(--ora12-hover, #dceaf8);
   border-color: #0572ce;
+  box-shadow: inset 3px 0 0 #0572ce;
+}
+
+body:has(.sales-inv-main) .sales-inv-dlv-pick-item__badge {
+  border-radius: 2px;
+  background: var(--ora12-title, #1e3a5f);
 }
 
 body:has(.sales-inv-main) .sales-inv-pick-dropdown.item-picker-modal,

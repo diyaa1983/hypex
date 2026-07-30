@@ -34,6 +34,8 @@
   var initialInvoiceId = parseInt(form.getAttribute('data-initial-id') || '0', 10);
   var currentInvoiceId = 0;
   var linkedDeliveryId = 0;
+  /** سحب سند في هذه الجلسة ولم يُرحَّل بعد — عند الخروج بدون إكمال يُعاد السند للقائمة. */
+  var deliveryPullActive = false;
   var browseNavPrevId = 0;
   var browseNavNextId = 0;
   var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
@@ -487,16 +489,18 @@
     formSubmitting = false;
     clearFormDirty();
     clearPersistedDraft();
-    if (onProceed) {
-      setTimeout(onProceed, 0);
-    }
+    releaseDeliveryPullOnLeave(function () {
+      if (onProceed) {
+        setTimeout(onProceed, 0);
+      }
+    });
   }
 
   function confirmUnsavedChanges(onProceed, onCancel) {
     if (global.ScreenExitGuard && typeof global.ScreenExitGuard.confirmSaveDiscardLeave === 'function') {
       global.ScreenExitGuard.confirmSaveDiscardLeave({
         when: function () {
-          return formDirty && !invoiceIsPosted;
+          return (formDirty && !invoiceIsPosted) || needsReleaseDeliveryPull();
         },
         onSave: function (proceed) {
           trySave(proceed);
@@ -509,8 +513,12 @@
       });
       return;
     }
-    if (!formDirty || invoiceIsPosted) {
+    if ((!formDirty || invoiceIsPosted) && !needsReleaseDeliveryPull()) {
       if (onProceed) onProceed();
+      return;
+    }
+    if (needsReleaseDeliveryPull() && (!formDirty || invoiceIsPosted)) {
+      discardChangesAndProceed(onProceed);
       return;
     }
     if (onProceed) onProceed();
@@ -2146,11 +2154,13 @@
   }
 
   var pendingAfterSave = null;
+  var pendingDeliveryPullSave = false;
 
   function finishSaveFromJson(data, leaveAfterSave, onDone) {
     formSubmitting = false;
     clearPersistedDraft();
     clearFormDirty();
+    pendingDeliveryPullSave = false;
 
     var savedId = parseInt(data.invoice_id, 10) || 0;
     if (savedId > 0) {
@@ -2229,7 +2239,23 @@
             if (!data.ok) {
               formSubmitting = false;
               setSaveBusy(false);
+              if (pendingDeliveryPullSave) {
+                pendingDeliveryPullSave = false;
+                clearPendingDeliveryPull();
+              }
               var msg = data.message || 'تعذر حفظ الفاتورة.';
+              if (pendingAfterSave) {
+                pendingAfterSave = null;
+                if (global.AppDialog) {
+                  AppDialog.error(
+                    msg +
+                      '\n\nسند التسليم لم يُربط بالفاتورة وما زال متاحاً للسحب.'
+                  );
+                } else {
+                  alert(msg);
+                }
+                return;
+              }
               if (global.AppDialog) AppDialog.error(msg);
               else alert(msg);
               return;
@@ -3603,19 +3629,37 @@
     saveOpts = saveOpts || {};
     if (formSubmitting) return;
     if (invoiceEinvQr) {
+      if (pendingDeliveryPullSave) {
+        pendingDeliveryPullSave = false;
+        clearPendingDeliveryPull();
+      }
       AppDialog.alert('لا يمكن تعديل فاتورة أُرسلت إلى نظام الفوترة.', { type: 'warning' });
       return;
     }
     if (invoiceIsPosted) {
+      if (pendingDeliveryPullSave) {
+        pendingDeliveryPullSave = false;
+        clearPendingDeliveryPull();
+      }
       AppDialog.alert('لا يمكن تعديل فاتورة مرحّلة.', { type: 'warning' });
       return;
     }
-    if (!validateInvoiceBeforeSave({ allowEmptyLines: !!saveOpts.allowEmptyLines })) return;
+    if (!validateInvoiceBeforeSave({ allowEmptyLines: !!saveOpts.allowEmptyLines })) {
+      if (pendingDeliveryPullSave) {
+        pendingDeliveryPullSave = false;
+        clearPendingDeliveryPull();
+      }
+      return;
+    }
     pendingAfterSave = typeof onSuccess === 'function' ? onSuccess : null;
     try {
       submitInvoiceForm();
     } catch (err) {
       pendingAfterSave = null;
+      if (pendingDeliveryPullSave) {
+        pendingDeliveryPullSave = false;
+        clearPendingDeliveryPull();
+      }
       console.error('trySave', err);
       formSubmitting = false;
       setSaveBusy(false);
@@ -4004,6 +4048,161 @@
     });
   }
 
+  function postInvoiceQuietly(opts) {
+    opts = opts || {};
+    var onSuccess = typeof opts.onSuccess === 'function' ? opts.onSuccess : null;
+    var onError = typeof opts.onError === 'function' ? opts.onError : null;
+    if (!invoicePostUrl) {
+      if (onError) onError('الترحيل غير متاح.');
+      return;
+    }
+    if (currentInvoiceId < 1) {
+      if (onError) onError('احفظ الفاتورة أولًا قبل الترحيل.');
+      return;
+    }
+    if (invoiceIsPosted) {
+      if (onSuccess) onSuccess({ ok: true, already_posted: true });
+      return;
+    }
+    if (!validateInvoiceBeforePost()) {
+      if (onError) onError('تعذر التحقق من الفاتورة قبل الترحيل.');
+      return;
+    }
+
+    var csrfInput = form.querySelector('[name="_csrf"]');
+
+    function handlePostResult(res) {
+      var data = res && res.data;
+      if (!data) {
+        if (onError) onError('تعذر قراءة رد الخادم بعد الترحيل.');
+        return;
+      }
+      if (!data.ok) {
+        if (onError) onError(data.error || data.message || 'تعذر الترحيل.');
+        return;
+      }
+      invoiceIsPosted = true;
+      updatePostedBadge();
+      if (onSuccess) onSuccess(data);
+    }
+
+    function runPost(gps) {
+      var fd = new FormData();
+      fd.append('_csrf', csrfInput ? csrfInput.value : '');
+      fd.append('invoice_id', String(currentInvoiceId));
+      if (linkedDeliveryId > 0) {
+        fd.append('delivery_id', String(linkedDeliveryId));
+      }
+      if (window.AppGeo && AppGeo.appendToFormData && gps) {
+        AppGeo.appendToFormData(fd, gps, 'desktop');
+      }
+      if (window.AppBusy) AppBusy.show(opts.busyMessage || 'جاري ترحيل الفاتورة...');
+      fetch(invoicePostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(parsePostInvoiceJsonResponse)
+        .then(handlePostResult)
+        .catch(function () {
+          if (onError) onError('تعذر الاتصال بالخادم أثناء الترحيل.');
+        })
+        .finally(function () {
+          if (window.AppBusy) AppBusy.hide();
+        });
+    }
+
+    if (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost) {
+      AppGeo.withGpsForPost('desktop', function (gps) {
+        if (gps === undefined) {
+          if (onError) onError('تم إلغاء تحديد الموقع.');
+          return;
+        }
+        runPost(gps);
+      });
+      return;
+    }
+    runPost(null);
+  }
+
+  function clearPendingDeliveryPull() {
+    linkedDeliveryId = 0;
+    deliveryPullActive = false;
+    syncDeliveryLinkHint('');
+    var delField = document.getElementById('inv_delivery_id');
+    if (delField) delField.value = '';
+    refreshInvoiceEditState();
+  }
+
+  function needsReleaseDeliveryPull() {
+    return !!deliveryPullActive && !invoiceIsPosted && linkedDeliveryId > 0;
+  }
+
+  function releaseDeliveryPullOnLeave(done) {
+    if (!deliveryPullActive || invoiceIsPosted) {
+      deliveryPullActive = false;
+      if (typeof done === 'function') done();
+      return;
+    }
+    var invId = currentInvoiceId;
+    var shouldUnlink = invId > 0 && linkedDeliveryId > 0 && !!unlinkDeliveryUrl;
+    deliveryPullActive = false;
+    clearPendingDeliveryPull();
+    if (!shouldUnlink) {
+      if (typeof done === 'function') done();
+      return;
+    }
+    var csrfInput = form.querySelector('[name="_csrf"]');
+    var fd = new FormData();
+    fd.append('_csrf', csrfInput ? csrfInput.value : '');
+    fd.append('invoice_id', String(invId));
+    var finished = false;
+    function finish() {
+      if (finished) return;
+      finished = true;
+      if (typeof done === 'function') done();
+    }
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(unlinkDeliveryUrl, fd);
+        finish();
+        return;
+      }
+    } catch (e) {
+      /* fall through */
+    }
+    fetch(unlinkDeliveryUrl, {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      keepalive: true,
+    })
+      .catch(function () {})
+      .then(finish);
+    setTimeout(finish, 800);
+  }
+
+  function openCustomerPickerHotkey() {
+    if (ledgerView || invoiceIsPosted) return;
+    initCustomerPicker();
+    var openBtn = document.getElementById('inv_customer_open');
+    if (openBtn && !openBtn.disabled) {
+      openBtn.click();
+      return;
+    }
+    if (customerPickerApi && typeof customerPickerApi.open === 'function') {
+      customerPickerApi.open();
+    }
+  }
+
+  function openItemsPickerHotkey() {
+    if (ledgerView || invoiceIsPosted) return;
+    var entry = ensureEntryRow();
+    if (!entry) {
+      var rows = tbody ? tbody.querySelectorAll('tr[data-line-id]') : [];
+      entry = rows.length ? rows[rows.length - 1] : null;
+    }
+    if (entry) {
+      openPickerForRow(entry);
+    }
+  }
+
   function postCurrentInvoice() {
     if (postDialogBusy) return;
     if (!invoicePostUrl) {
@@ -4338,6 +4537,7 @@
     if (notes) notes.value = inv.notes || '';
 
     linkedDeliveryId = parseInt(inv.delivery_id, 10) || 0;
+    deliveryPullActive = false;
     syncDeliveryLinkHint(inv.delivery_no || '');
 
     var invDisc = document.getElementById('inv-invoice-discount');
@@ -4468,6 +4668,8 @@
   }
 
   function initNewInvoice(keepBrowseNav) {
+    releaseDeliveryPullOnLeave();
+    deliveryPullActive = false;
     if (window.DocumentNoNav) DocumentNoNav.clearSearch(docNoSearch);
     currentInvoiceId = 0;
     invoiceIsPosted = false;
@@ -4734,9 +4936,44 @@
     invHdrDisc.addEventListener('blur', applyHeaderDiscount);
   }
   document.addEventListener('keydown', function (e) {
-    if (e.key !== 'Escape') return;
-    var overlay = document.getElementById('sales-inv-print-overlay');
-    if (overlay && !overlay.hidden) closePrintPreview();
+    if (e.key === 'Escape') {
+      var overlay = document.getElementById('sales-inv-print-overlay');
+      if (overlay && !overlay.hidden) closePrintPreview();
+      return;
+    }
+
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    var dlg = document.querySelector(
+      '.ui-dialog:not([hidden]), .sales-inv-dlv-pick-modal:not([hidden]), #app-customer-picker-modal.is-open, .item-picker-modal.is-open'
+    );
+    var key = e.key;
+    var code = e.code;
+
+    if (key === 'F10' || code === 'F10') {
+      if (ledgerView || formSubmitting || invoiceIsPosted || invoiceEinvQr) return;
+      if (dlg) return;
+      e.preventDefault();
+      e.stopPropagation();
+      trySave();
+      return;
+    }
+
+    if (key === 'F7' || code === 'F7') {
+      if (ledgerView || invoiceIsPosted) return;
+      if (dlg) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openCustomerPickerHotkey();
+      return;
+    }
+
+    if (key === 'F3' || code === 'F3') {
+      if (ledgerView || invoiceIsPosted) return;
+      if (dlg) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openItemsPickerHotkey();
+    }
   });
 
   function bootInvoicePage() {
@@ -4856,6 +5093,7 @@
     if (!d) return;
     runWithoutDirtyMark(function () {
       linkedDeliveryId = parseInt(d.id, 10) || 0;
+      deliveryPullActive = linkedDeliveryId > 0;
       syncDeliveryLinkHint(d.delivery_no || '');
       setCustomerById(d.customer_id || 0, true);
       var wh = document.getElementById('inv_wh');
@@ -4942,23 +5180,52 @@
 
         applyDeliveryToInvoice(data);
 
-        function afterPullSaved() {
+        function afterPullPosted() {
+          deliveryPullActive = false;
           AppDialog.success(
             'تم سحب سند «' +
               dNo +
-              '» وحفظ الربط. سيختفي من قائمة السحب؛ ويختفي الإشعار بعد ترحيل الفاتورة.'
-          );
+              '» وحفظ الفاتورة وترحيلها. السند لم يعد متاحاً للسحب مرة أخرى.'
+          ).then(function () {
+            if (currentInvoiceId > 0) {
+              loadInvoiceById(currentInvoiceId);
+            }
+          });
+        }
+
+        function afterPullSavedThenPost() {
+          postInvoiceQuietly({
+            busyMessage: 'جاري ترحيل فاتورة السند...',
+            onSuccess: function () {
+              afterPullPosted();
+            },
+            onError: function (errMsg) {
+              AppDialog.alert(
+                'تم حفظ الفاتورة وربط سند «' +
+                  dNo +
+                  '».\nتعذر الترحيل التلقائي: ' +
+                  (errMsg || 'خطأ غير معروف') +
+                  '\n\nاضغط «ترحيل» يدوياً لإتمام العملية.',
+                { type: 'warning', title: 'تم الحفظ — بانتظار الترحيل' }
+              ).then(function () {
+                if (currentInvoiceId > 0) {
+                  loadInvoiceById(currentInvoiceId);
+                }
+              });
+            },
+          });
         }
 
         if (!validateInvoiceBeforeSave({ allowEmptyLines: false })) {
           AppDialog.alert(
-            'تم تعبئة بيانات السند. أكمل الحقول ثم اضغط «حفظ» لإتمام الربط.',
-            { type: 'info' }
+            'تم تعبئة بيانات السند لكن الحفظ التلقائي لم يكتمل (حقول ناقصة).\n\nأكمل البيانات ثم اضغط «حفظ» ثم «ترحيل».\nلن يُربط السند ويختفي من قائمة السحب إلا بعد نجاح الحفظ.',
+            { type: 'warning', title: 'أكمل الحفظ والترحيل' }
           );
           return;
         }
 
-        trySave(afterPullSaved);
+        pendingDeliveryPullSave = true;
+        trySave(afterPullSavedThenPost);
       })
       .catch(function () {
         AppDialog.error('تعذر الاتصال بالخادم.');
@@ -5006,12 +5273,37 @@
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'sales-inv-dlv-pick-item';
-            btn.textContent =
-              (row.delivery_no || '—') +
-              ' — ' +
-              (row.customer_name || '') +
-              ' — ' +
-              (row.delivery_date_dmy || '');
+            var no = String(row.delivery_no || '—');
+            var customer = String(row.customer_name || '—');
+            var date = String(row.delivery_date_dmy || '—');
+            btn.setAttribute('aria-label', 'سند ' + no + ' — ' + customer + ' — ' + date);
+
+            var badge = document.createElement('span');
+            badge.className = 'sales-inv-dlv-pick-item__badge';
+            badge.setAttribute('aria-hidden', 'true');
+            badge.textContent = 'سند';
+
+            var noEl = document.createElement('span');
+            noEl.className = 'sales-inv-dlv-pick-item__no';
+            noEl.textContent = no;
+
+            var meta = document.createElement('span');
+            meta.className = 'sales-inv-dlv-pick-item__meta';
+
+            var custEl = document.createElement('span');
+            custEl.className = 'sales-inv-dlv-pick-item__customer';
+            custEl.textContent = customer;
+
+            var dateEl = document.createElement('span');
+            dateEl.className = 'sales-inv-dlv-pick-item__date';
+            dateEl.textContent = date;
+
+            meta.appendChild(custEl);
+            meta.appendChild(dateEl);
+            btn.appendChild(badge);
+            btn.appendChild(noEl);
+            btn.appendChild(meta);
+
             btn.addEventListener('click', function () {
               var proceed = function () {
                 pickDeliveryById(parseInt(row.id, 10) || 0);
@@ -5085,10 +5377,17 @@
     e.returnValue = '';
   });
 
+  /* pagehide فقط — لا نفك الربط في beforeunload لأن المستخدم قد يلغي المغادرة */
+  window.addEventListener('pagehide', function () {
+    if (needsReleaseDeliveryPull()) {
+      releaseDeliveryPullOnLeave();
+    }
+  });
+
   function registerInvoiceExitGuard() {
     var api = {
       hasUnsaved: function () {
-        return formDirty && !invoiceIsPosted;
+        return (formDirty && !invoiceIsPosted) || needsReleaseDeliveryPull();
       },
       confirmLeave: confirmUnsavedChanges,
     };

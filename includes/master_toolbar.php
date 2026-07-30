@@ -124,6 +124,14 @@ function render_master_toolbar(?string $activeRoute = null): void
         if ($action === 'exit' && $ledgerBack !== null) {
             $title = 'العودة إلى ' . $ledgerBack['label'];
         }
+        $shortcut = '';
+        $shortcutRaw = trim((string) ($btn['shortcut'] ?? ''));
+        if ($shortcutRaw !== '') {
+            $shortcutScreens = $btn['shortcut_screens'] ?? null;
+            if (!is_array($shortcutScreens) || $shortcutScreens === [] || in_array($activeRoute, $shortcutScreens, true)) {
+                $shortcut = $shortcutRaw;
+            }
+        }
         $display = (string) ($btn['display'] ?? 'text');
         $iconOnly = $display === 'icon';
         $ariaLabel = $title !== '' ? $title : $label;
@@ -140,7 +148,10 @@ function render_master_toolbar(?string $activeRoute = null): void
             echo '<span class="master-toolbar-icon" aria-hidden="true">' . master_toolbar_exit_icon_svg() . '</span>';
             echo '<span class="sr-only">' . esc($label) . '</span>';
         } else {
-            echo esc($label);
+            echo '<span class="master-toolbar-btn__label">' . esc($label) . '</span>';
+            if ($shortcut !== '') {
+                echo '<kbd class="master-toolbar-shortcut" aria-hidden="true">' . esc($shortcut) . '</kbd>';
+            }
         }
         echo '</button>';
     }

@@ -212,8 +212,16 @@ function customer_picker_field(array $opts): string
         $html .= '<label for="' . esc($labelFor) . '">' . esc($label) . '</label>';
     }
     $html .= '<input type="hidden" ' . $attrStr . '>';
-    $html .= '<button type="button" class="' . esc($btnClass) . '" id="' . esc($openId) . '" title="اختيار العميل">';
+    $btnTitle = 'اختيار العميل';
+    $hotkey = trim((string) ($opts['hotkey'] ?? ''));
+    if ($hotkey !== '') {
+        $btnTitle .= ' (' . $hotkey . ')';
+    }
+    $html .= '<button type="button" class="' . esc($btnClass) . '" id="' . esc($openId) . '" title="' . esc($btnTitle) . '">';
     $html .= '<span id="' . esc($displayId) . '" class="sales-inv-cust-open-label is-placeholder">' . esc($placeholder) . '</span>';
+    if ($hotkey !== '') {
+        $html .= '<kbd class="sales-inv-field-hotkey" aria-hidden="true">' . esc($hotkey) . '</kbd>';
+    }
     $html .= '<span class="sales-inv-cust-open-ico" aria-hidden="true">▾</span>';
     $html .= '</button></div>';
 
