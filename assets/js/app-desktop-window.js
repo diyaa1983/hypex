@@ -8,6 +8,8 @@
   'use strict';
 
   var skipUnloadPrompt = false;
+  /** يزيد مع كل allow حتى لا تُصفِّر مهلة قديمة سماحاً أحدث. */
+  var unloadAllowToken = 0;
 
   function isDesktopInstalledApp() {
     try {
@@ -96,13 +98,25 @@
   }
 
   /**
-   * يسمح بالانتقال التالي دون تأكيد (تسجيل خروج / تحديث / انتقال فعلي).
-   * لا نُبقي العلم لأكثر من لحظة حتى لا يُلغى تأكيد زر X بعد نقرة عادية.
+   * يسمح بالانتقال التالي دون تأكيد (تسجيل خروج / تحديث / انتقال فعلي / حفظ فورم).
+   * يبقى السماح حتى unload حقيقي (pageshow للصفحة الجديدة) أو مهلة احتياطية طويلة،
+   * حتى لا تظهر Leave app? أثناء انتظار استجابة السيرفر بعد الحفظ.
    */
   function allowNextUnload() {
     skipUnloadPrompt = true;
+    unloadAllowToken += 1;
     try {
       global.__managerAllowUnload = true;
+    } catch (e) {
+      /* ignore */
+    }
+    return unloadAllowToken;
+  }
+
+  function clearUnloadAllow() {
+    skipUnloadPrompt = false;
+    try {
+      global.__managerAllowUnload = false;
     } catch (e) {
       /* ignore */
     }
@@ -110,7 +124,7 @@
 
   function shouldPromptOnUnload() {
     if (skipUnloadPrompt || global.__managerAllowUnload) {
-      skipUnloadPrompt = false;
+      // لا نُصفّر هنا: المتصفح قد يستدعي beforeunload أكثر من مرة لنفس الانتقال.
       return false;
     }
     // Electron يتولى التأكيد من الغلاف الأصلي.
@@ -168,19 +182,14 @@
   }
 
   function markInternalNavigation() {
-    allowNextUnload();
-    // يكفي لمرور beforeunload عند الانتقال الحقيقي، ويُصفَّر إن بقيت الصفحة (مثل MDI).
+    var token = allowNextUnload();
+    // إن لم يحدث unload (نقرة MDI ملغاة / رابط بلا انتقال)، أعد تأكيد الإغلاق بعد مهلة كافية لـ POST+redirect.
     setTimeout(function () {
-      skipUnloadPrompt = false;
-      try {
-        // أبقِ العلم إن انتقلت الصفحة؛ وإلا أعده بعد بقاء المستخدم.
-        if (!document.hidden) {
-          global.__managerAllowUnload = false;
-        }
-      } catch (e) {
-        /* ignore */
+      if (token !== unloadAllowToken) {
+        return;
       }
-    }, 250);
+      clearUnloadAllow();
+    }, 15000);
   }
 
   function bindCloseConfirm() {
@@ -191,6 +200,11 @@
       e.preventDefault();
       e.returnValue = '';
       return '';
+    });
+
+    // بعد تحميل الصفحة الجديدة امسح السماح حتى يعود تأكيد زر X للعمل.
+    global.addEventListener('pageshow', function () {
+      clearUnloadAllow();
     });
 
     document.addEventListener(

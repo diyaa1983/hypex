@@ -7,7 +7,9 @@
   var listUrl = form.getAttribute('data-list-url') || '';
 
   function allowLeave() {
-    if (window.AppDesktopWindow && typeof window.AppDesktopWindow.allowNextUnload === 'function') {
+    if (window.AppDesktopWindow && typeof window.AppDesktopWindow.markInternalNavigation === 'function') {
+      window.AppDesktopWindow.markInternalNavigation();
+    } else if (window.AppDesktopWindow && typeof window.AppDesktopWindow.allowNextUnload === 'function') {
       window.AppDesktopWindow.allowNextUnload();
     }
     window.__managerAllowUnload = true;
@@ -18,6 +20,10 @@
     var sep = listUrl.indexOf('?') >= 0 ? '&' : '?';
     window.location.href = listUrl + sep + 'id=' + encodeURIComponent(String(id));
   }
+
+  form.addEventListener('submit', function () {
+    allowLeave();
+  });
 
   document.querySelectorAll('.users-admin-row[data-href]').forEach(function (row) {
     row.addEventListener('click', function () {
