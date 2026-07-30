@@ -32,12 +32,21 @@ function app_osm_tile_url(): string
 function app_osm_map_provider_defs(): array
 {
     return [
-        // مجاني — أوضح خيار بدون مفتاح أو فوترة (موصى به).
+        // مجاني — أوضح خيار بدون مفتاح أو فوترة (موصى به للتتبّع).
         'esri' => [
             'tileUrl' => 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
             'attribution' => '&copy; Esri &mdash; OpenStreetMap contributors',
             'maxZoom' => 20,
             'maxNativeZoom' => 17,
+            'arcgisUrl' => 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer',
+        ],
+        // National Geographic — أسلوب خريطة مرجعي (أقل تفصيلاً عند التكبير).
+        'natgeo' => [
+            'tileUrl' => 'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}',
+            'attribution' => '&copy; National Geographic, Esri, Garmin, HERE',
+            'maxZoom' => 16,
+            'maxNativeZoom' => 16,
+            'arcgisUrl' => 'https://services.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer',
         ],
         'carto' => [
             'tileUrl' => 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
@@ -52,7 +61,7 @@ function app_osm_map_provider(?PDO $pdo = null): string
 {
     if (defined('APP_OSM_MAP_PROVIDER') && trim((string) APP_OSM_MAP_PROVIDER) !== '') {
         $p = strtolower(trim((string) APP_OSM_MAP_PROVIDER));
-        if (in_array($p, ['esri', 'carto', 'google'], true)) {
+        if (in_array($p, ['esri', 'natgeo', 'carto', 'google'], true)) {
             return $p;
         }
     }
@@ -71,7 +80,7 @@ function app_osm_map_provider(?PDO $pdo = null): string
             )->fetch(PDO::FETCH_ASSOC);
             if (is_array($row)) {
                 $p = strtolower(trim((string) ($row['gps_map_provider'] ?? '')));
-                if (in_array($p, ['esri', 'carto', 'google'], true)) {
+                if (in_array($p, ['esri', 'natgeo', 'carto', 'google'], true)) {
                     $cached = $p;
                 }
             }
@@ -145,6 +154,7 @@ function app_osm_js_config(): array
         'mapProvider' => $provider,
         'mapEngine' => $engine,
         'maxZoom' => (int) ($meta['maxZoom'] ?? 19),
+        'arcgisUrl' => (string) ($meta['arcgisUrl'] ?? $defs['esri']['arcgisUrl']),
     ];
 }
 

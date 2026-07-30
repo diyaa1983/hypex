@@ -8,8 +8,10 @@ window.MapInterop = (function () {
   var ESRI_VERSION = '4.29';
   var ARCGIS_CSS = 'https://js.arcgis.com/' + ESRI_VERSION + '/esri/themes/light/main.css';
   var ARCGIS_JS = 'https://js.arcgis.com/' + ESRI_VERSION + '/';
-  var TILE_URL =
+  var DEFAULT_TILE_URL =
     'https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer';
+  var NATGEO_TILE_URL =
+    'https://services.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer';
 
   var _Graphic;
   var _Point;
@@ -21,6 +23,7 @@ window.MapInterop = (function () {
   var graphicsLayer = null;
   var apiPromise = null;
   var initPromise = null;
+  var basemapUrl = DEFAULT_TILE_URL;
 
   var trailsById = {};
   var markerGraphicsById = {};
@@ -199,13 +202,30 @@ window.MapInterop = (function () {
   return {
     loadApi: loadApi,
 
-    initialize: function (containerElement, startLat, startLon) {
+    /**
+     * @param {HTMLElement} containerElement
+     * @param {number} startLat
+     * @param {number} startLon
+     * @param {{basemapUrl?:string, mapProvider?:string}} [options]
+     */
+    initialize: function (containerElement, startLat, startLon, options) {
       if (initPromise) {
         return initPromise;
       }
 
+      options = options || {};
+      var provider = String(options.mapProvider || '').toLowerCase();
+      if (options.basemapUrl) {
+        basemapUrl = options.basemapUrl;
+      } else if (provider === 'natgeo') {
+        basemapUrl = NATGEO_TILE_URL;
+      } else {
+        basemapUrl = DEFAULT_TILE_URL;
+      }
+
       var lat = isFinite(startLat) ? startLat : 31.9539;
       var lon = isFinite(startLon) ? startLon : 35.9106;
+      var startZoom = provider === 'natgeo' ? 12 : 14;
 
       initPromise = loadApi()
         .then(loadModules)
@@ -217,8 +237,8 @@ window.MapInterop = (function () {
           _SimpleLineSymbol = mods.SimpleLineSymbol;
 
           var tileLayer = new mods.TileLayer({
-            url: TILE_URL,
-            title: 'World Street Map',
+            url: basemapUrl,
+            title: provider === 'natgeo' ? 'NatGeo World Map' : 'World Street Map',
           });
 
           graphicsLayer = new mods.GraphicsLayer({ title: 'Fleet' });
@@ -228,7 +248,7 @@ window.MapInterop = (function () {
             container: containerElement,
             map: map,
             center: [lon, lat],
-            zoom: 14,
+            zoom: startZoom,
             ui: { components: ['zoom', 'compass'] },
           });
 

@@ -170,7 +170,14 @@
     var self = this;
     this.map = { engine: 'arcgis' };
 
-    return global.MapInterop.initialize(mapEl, 31.9539, 35.9106).then(function () {
+    return global.MapInterop.initialize(mapEl, 31.9539, 35.9106, {
+      mapProvider: self.mapProvider,
+      basemapUrl:
+        (global.AppOsmConfig && global.AppOsmConfig.arcgisUrl) ||
+        (self.mapProvider === 'natgeo'
+          ? 'https://services.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer'
+          : 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer'),
+    }).then(function () {
       function bumpSize() {
         if (global.MapInterop && global.MapInterop.invalidateSize) {
           global.MapInterop.invalidateSize();

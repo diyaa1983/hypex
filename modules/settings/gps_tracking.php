@@ -137,26 +137,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </option>
                 </select>
                 <div class="form-text">
-                    عند اختيار <strong>ArcGIS SDK</strong> تُستخدم خدمة World Street Map مباشرة.
+                    عند اختيار <strong>ArcGIS SDK</strong> تُستخدم طبقة Esri المختارة أدناه (World Street أو NatGeo).
                     للتراجع: اختر Leaflet واحفظ.
                 </div>
             </div>
 
             <div class="col-12">
-                <label class="form-label" for="gps_map_provider">نوع بلاط الخريطة (Leaflet فقط)</label>
+                <label class="form-label" for="gps_map_provider">نوع بلاط الخريطة</label>
                 <select class="form-select" id="gps_map_provider" name="gps_map_provider" style="max-width: 420px;">
                     <option value="esri" <?= $mapProvider === 'esri' ? 'selected' : '' ?>>
-                        Esri + Carto — مجاني (Esri للتصغير، Carto عند التكبير)
+                        Esri World Street Map — مجاني (موصى به للتتبّع)
+                    </option>
+                    <option value="natgeo" <?= $mapProvider === 'natgeo' ? 'selected' : '' ?>>
+                        National Geographic World Map — مجاني (أسلوب NatGeo، أقل تفصيلاً)
                     </option>
                     <option value="carto" <?= $mapProvider === 'carto' ? 'selected' : '' ?>>
-                        Carto Voyager — مجاني
+                        Carto Voyager — مجاني (Leaflet فقط)
                     </option>
                     <option value="google" <?= $mapProvider === 'google' ? 'selected' : '' ?>>
                         Google Maps — يحتاج مفتاح وفوترة
                     </option>
                 </select>
                 <div class="form-text">
-                    الافتراضي <strong>Esri</strong>: مجاني 100% بدون بطاقة وبدون علامة «For development purposes only».
+                    <strong>World Street</strong>: شوارع تفصيلية. <strong>NatGeo</strong>: خريطة مرجعية أجمل لكن بلا تفصيل شوارع عميق.
                 </div>
             </div>
 

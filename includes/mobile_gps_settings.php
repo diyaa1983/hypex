@@ -182,7 +182,7 @@ function mobile_gps_settings_map_engine(PDO $pdo = null): string
 
 function mobile_gps_settings_map_provider(PDO $pdo = null): string
 {
-    $allowed = ['esri', 'carto', 'google'];
+    $allowed = ['esri', 'natgeo', 'carto', 'google'];
     try {
         $pdo = $pdo ?? db();
         mobile_gps_settings_ensure_schema($pdo);
@@ -211,7 +211,7 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
     $canDisable = !empty($input['user_can_disable']) ? 1 : 0;
     $googleKey = trim((string) ($input['google_maps_api_key'] ?? ''));
     $provider = strtolower(trim((string) ($input['map_provider'] ?? 'esri')));
-    if (!in_array($provider, ['esri', 'carto', 'google'], true)) {
+    if (!in_array($provider, ['esri', 'natgeo', 'carto', 'google'], true)) {
         $provider = 'esri';
     }
     $engine = strtolower(trim((string) ($input['map_engine'] ?? 'leaflet')));

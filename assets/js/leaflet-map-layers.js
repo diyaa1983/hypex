@@ -9,6 +9,13 @@
       maxZoom: 20,
       maxNativeZoom: 17,
     },
+    natgeo: {
+      tileUrl:
+        'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}',
+      attribution: '&copy; National Geographic, Esri, Garmin, HERE',
+      maxZoom: 16,
+      maxNativeZoom: 16,
+    },
     carto: {
       tileUrl:
         'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
