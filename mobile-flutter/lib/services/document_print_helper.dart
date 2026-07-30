@@ -75,6 +75,15 @@ class DocumentPrintHelper {
         showSnack(context, 'ملف PDF فارغ.', error: true);
         return;
       }
+      final head = String.fromCharCodes(bytes.take(5));
+      if (!head.startsWith('%PDF')) {
+        showSnack(
+          context,
+          'تعذر إنشاء PDF على السيرفر (رد غير صالح).',
+          error: true,
+        );
+        return;
+      }
       await nav.push(
         MaterialPageRoute<void>(
           builder: (_) => PdfA4ViewerScreen(
