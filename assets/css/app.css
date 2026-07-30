@@ -671,6 +671,17 @@ body.app-body--wco .app-titlebar__title--wco {
   flex-direction: column;
   overflow: hidden;
   padding: 0.5rem 0.65rem 0.65rem;
+  min-height: 0;
+}
+
+.main-content--focus:has(.ugt-page) > .ugt-page,
+.main-content--focus:has(.ugt-page) > #ugt-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
 }
 
 .main-content--focus:has(.ugt-page) > .dashboard-ora,

@@ -3,8 +3,10 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
+  height: auto;
+  min-height: calc(100vh - 9.5rem);
   width: 100%;
   max-width: 100%;
   background: #f3f5f9;
@@ -173,11 +175,40 @@
   grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
+  align-content: stretch;
   min-height: 0;
   flex: 1 1 auto;
   width: 100%;
   max-width: 100%;
   overflow: hidden;
+}
+
+.ugt-sidebar {
+  grid-row: 1;
+  grid-column: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ugt-map-wrap {
+  grid-row: 1;
+  grid-column: 2;
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  align-self: stretch;
+  background: #dce6f0;
+  overflow: hidden;
+}
+
+.ugt-map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  z-index: 1;
 }
 
 .ugt-body--mobile {
@@ -187,6 +218,14 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  grid-template-columns: none;
+  grid-template-rows: none;
+}
+
+.ugt-body--mobile .ugt-sidebar,
+.ugt-body--mobile .ugt-map-wrap {
+  grid-row: auto;
+  grid-column: auto;
 }
 
 .ugt-drawer-backdrop {
@@ -396,31 +435,22 @@
   color: #6b7a90;
 }
 
-.ugt-map-wrap {
-  position: relative;
-  min-height: 0;
-  min-width: 0;
-  flex: 1 1 auto;
-  height: 100%;
-  align-self: stretch;
-  background: #dce6f0;
-  overflow: hidden;
-}
-
-.ugt-map {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
-
 .ugt-map .esri-view,
 .ugt-map .esri-view-root,
 .ugt-map .esri-view-surface,
 .ugt-map .esri-view-surface--inset-outline:focus::after {
   width: 100% !important;
   height: 100% !important;
+}
+
+.ugt-map .leaflet-container,
+#ugt-map.leaflet-container,
+#ugr-map.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 280px;
+  z-index: 1;
+  background: #dce6f0;
 }
 
 .ugt-body--mobile .ugt-map-wrap {
@@ -660,8 +690,15 @@
   .ugt-body:not(.ugt-body--mobile) {
     display: flex;
     flex-direction: column;
-    grid-template-columns: 1fr;
+    grid-template-columns: none;
+    grid-template-rows: none;
     min-height: 0;
+  }
+
+  .ugt-body:not(.ugt-body--mobile) .ugt-sidebar,
+  .ugt-body:not(.ugt-body--mobile) .ugt-map-wrap {
+    grid-row: auto;
+    grid-column: auto;
   }
 
   .ugt-body:not(.ugt-body--mobile) .ugt-map-wrap {
@@ -681,6 +718,7 @@
     border-inline-end: 0;
     border-top: 1px solid #e3e8ef;
     flex: 0 0 auto;
+    height: auto;
   }
 
   .ugt-lastpings {

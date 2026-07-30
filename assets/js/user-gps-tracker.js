@@ -137,6 +137,36 @@
     return this.mapEngine === 'arcgis' && global.MapInterop;
   };
 
+  Tracker.prototype.bumpMapLayout = function () {
+    var self = this;
+    function bump() {
+      var mapEl = self.els.map;
+      var wrap = mapEl && mapEl.parentElement;
+      if (wrap && mapEl) {
+        var rect = wrap.getBoundingClientRect();
+        if (rect.height > 80) {
+          mapEl.style.height = Math.floor(rect.height) + 'px';
+          mapEl.style.minHeight = Math.floor(rect.height) + 'px';
+        }
+      }
+      if (self.usesArcgis()) {
+        if (global.MapInterop && global.MapInterop.invalidateSize) {
+          global.MapInterop.invalidateSize();
+        }
+      } else if (self.map && self.map.invalidateSize) {
+        try {
+          self.map.invalidateSize({ animate: false });
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    }
+    bump();
+    [60, 180, 400, 800, 1400].forEach(function (ms) {
+      setTimeout(bump, ms);
+    });
+  };
+
   Tracker.prototype.init = function () {
     var self = this;
     var mapReady = this.usesArcgis()
@@ -150,10 +180,12 @@
     return mapReady
       .then(function () {
         self.bind();
+        self.bumpMapLayout();
         return self.load();
       })
       .then(function () {
         self.startPoll();
+        self.bumpMapLayout();
       })
       .catch(function (err) {
         self.setStatus('تعذّر تحميل الخريطة');
@@ -195,13 +227,14 @@
       if (typeof ResizeObserver !== 'undefined' && mapEl) {
         try {
           var ro = new ResizeObserver(function () {
-            bumpSize();
+            self.bumpMapLayout();
           });
-          ro.observe(mapEl);
+          ro.observe(mapEl.parentElement || mapEl);
         } catch (e2) {
           /* ignore */
         }
       }
+      self.bumpMapLayout();
       if (self.mode === 'mobile') {
         global.addEventListener('orientationchange', function () {
           setTimeout(bumpSize, 250);
@@ -251,12 +284,14 @@
         try {
           var ro = new ResizeObserver(function () {
             bumpSize();
+            self.bumpMapLayout();
           });
-          ro.observe(mapEl);
+          ro.observe(mapEl.parentElement || mapEl);
         } catch (e1) {
           /* ignore */
         }
       }
+      self.bumpMapLayout();
       if (self.mode === 'mobile') {
         global.addEventListener('orientationchange', function () {
           setTimeout(bumpSize, 250);
@@ -401,6 +436,7 @@
         self.renderStats(data.counts || {});
         self.renderList();
         self.renderMarkers();
+        self.bumpMapLayout();
         var now = new Date();
         var hh = String(now.getHours()).padStart(2, '0');
         var mm = String(now.getMinutes()).padStart(2, '0');
