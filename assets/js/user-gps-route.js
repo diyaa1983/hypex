@@ -185,29 +185,44 @@
     return ensureLeaflet()
       .then(function () {
         self.buildMap();
-      })
-      .catch(function (err) {
-        self.setStatus('تعذّر تحميل الخريطة');
-        console.error(err);
+        if (!self.map) {
+          throw new Error('map_build_failed');
+        }
+        self.invalidate();
       })
       .then(function () {
         if (!self.usersLoaded) {
           return self.loadUsers();
         }
+      })
+      .catch(function (err) {
+        self.setStatus('تعذّر تحميل الخريطة — تحقق من الإنترنت أو اختر Leaflet من الإعدادات');
+        console.error(err);
       });
   };
 
   RouteView.prototype.buildMap = function () {
-    if (this.map || !this.els.map) return;
+    if (!this.els.map) return;
+    if (this.map) {
+      this.invalidate();
+      return;
+    }
+    if (!global.L || !global.L.map) return;
+
     var self = this;
     this.map = global.L.map(this.els.map, {
       zoomControl: true,
       attributionControl: true,
     }).setView([31.9539, 35.9106], 8);
 
-    this._attachBaseLayer().then(function () {
-      self.invalidate();
-    });
+    this._attachBaseLayer()
+      .then(function () {
+        self.invalidate();
+      })
+      .catch(function () {
+        self._attachCartoLayer();
+        self.invalidate();
+      });
 
     this.lineLayer = global.L.layerGroup().addTo(this.map);
     this.markerLayer = global.L.layerGroup().addTo(this.map);
@@ -220,6 +235,16 @@
       global.addEventListener('resize', function () {
         self.invalidate();
       });
+      if (typeof ResizeObserver !== 'undefined' && this.els.map) {
+        try {
+          var ro = new ResizeObserver(function () {
+            self.invalidate();
+          });
+          ro.observe(this.els.map);
+        } catch (e) {
+          /* ignore */
+        }
+      }
     }
   };
 
@@ -315,6 +340,21 @@
 
   RouteView.prototype.loadTrack = function () {
     var self = this;
+    if (!this.map) {
+      return ensureLeaflet()
+        .then(function () {
+          self.buildMap();
+          if (!self.map) {
+            self.setStatus('تعذّر تحميل الخريطة');
+            return;
+          }
+          return self.loadTrack();
+        })
+        .catch(function (err) {
+          self.setStatus('تعذّر تحميل الخريطة');
+          console.error(err);
+        });
+    }
     var uid = this.els.user ? this.els.user.value : '';
     var date = this.els.date ? this.els.date.value : this.today;
     if (!uid) {
@@ -1234,6 +1274,13 @@
       }
     }
     this.invalidate();
+    var self = this;
+    setTimeout(function () {
+      self.invalidate();
+    }, 120);
+    setTimeout(function () {
+      self.invalidate();
+    }, 400);
   };
 
   RouteView.prototype.pinIcon = function (kind, abbrev) {
@@ -1286,8 +1333,13 @@
         // أولاً أظهر الحاوية ثم ابنِ الخريطة — ضروري لـ Leaflet على iPhone
         view.activate().then(function () {
           view.invalidate();
-          if (view.els.user && view.els.user.value) {
+          setTimeout(function () {
+            view.invalidate();
+          }, 200);
+          if (view.map && view.els.user && view.els.user.value) {
             view.loadTrack();
+          } else if (!view.map) {
+            view.setStatus('تعذّر تحميل الخريطة — جرّب Leaflet من إعدادات التتبّع');
           }
         });
       } else {

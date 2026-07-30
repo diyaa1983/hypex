@@ -24,11 +24,15 @@ $jsPath = app_path('assets/js/user-gps-tracker.js');
 $routeJsPath = app_path('assets/js/user-gps-route.js');
 $mapLayersPath = app_path('assets/js/leaflet-map-layers.js');
 $mapInteropPath = app_path('assets/js/map-interop.js');
+$leafletCssPath = app_path('assets/vendor/leaflet/leaflet.css');
+$leafletJsPath = app_path('assets/vendor/leaflet/leaflet.js');
 $cssV = is_file($cssPath) ? (string) filemtime($cssPath) : '';
 $jsV = is_file($jsPath) ? (string) filemtime($jsPath) : '';
 $routeJsV = is_file($routeJsPath) ? (string) filemtime($routeJsPath) : '';
 $mapLayersV = is_file($mapLayersPath) ? (string) filemtime($mapLayersPath) : '';
 $mapInteropV = is_file($mapInteropPath) ? (string) filemtime($mapInteropPath) : '';
+$leafletCssV = is_file($leafletCssPath) ? (string) filemtime($leafletCssPath) : '';
+$leafletJsV = is_file($leafletJsPath) ? (string) filemtime($leafletJsPath) : '';
 $osm = app_osm_js_config();
 $mapEngine = (string) ($osm['mapEngine'] ?? 'leaflet');
 $exitUrl = nav_exit_url('user_gps_tracker');
@@ -147,6 +151,12 @@ $today = date('Y-m-d');
 <script>
 window.AppOsmConfig = <?= json_encode($osm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 </script>
+<?php if (is_file($leafletCssPath)): ?>
+<link rel="stylesheet" href="<?= esc(app_url('assets/vendor/leaflet/leaflet.css')) ?><?= $leafletCssV !== '' ? '?v=' . esc($leafletCssV) : '' ?>">
+<?php endif; ?>
+<?php if (is_file($leafletJsPath)): ?>
+<script src="<?= esc(app_url('assets/vendor/leaflet/leaflet.js')) ?><?= $leafletJsV !== '' ? '?v=' . esc($leafletJsV) : '' ?>"></script>
+<?php endif; ?>
 <script src="<?= esc(app_url('assets/js/leaflet-map-layers.js')) ?><?= $mapLayersV !== '' ? '?v=' . esc($mapLayersV) : '' ?>"></script>
 <?php if ($mapEngine === 'arcgis'): ?>
 <link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">

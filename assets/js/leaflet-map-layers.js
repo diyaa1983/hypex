@@ -48,14 +48,34 @@
     });
   }
 
-  var LEAFLET_CSS = [
-    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  var LOCAL_LEAFLET_CSS = null;
+  var LOCAL_LEAFLET_JS = null;
+  try {
+    var scripts = document.getElementsByTagName('script');
+    for (var si = 0; si < scripts.length; si++) {
+      var src = scripts[si].src || '';
+      if (src.indexOf('leaflet-map-layers.js') >= 0) {
+        LOCAL_LEAFLET_JS = src.replace(/leaflet-map-layers\.js.*$/, '../vendor/leaflet/leaflet.js');
+        LOCAL_LEAFLET_CSS = src.replace(/leaflet-map-layers\.js.*$/, '../vendor/leaflet/leaflet.css');
+        break;
+      }
+    }
+  } catch (e) {
+    /* ignore */
+  }
+
+  var LEAFLET_CSS = [];
+  var LEAFLET_JS = [];
+  if (LOCAL_LEAFLET_CSS) LEAFLET_CSS.push(LOCAL_LEAFLET_CSS);
+  if (LOCAL_LEAFLET_JS) LEAFLET_JS.push(LOCAL_LEAFLET_JS);
+  LEAFLET_CSS.push(
     'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css',
-  ];
-  var LEAFLET_JS = [
-    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+  );
+  LEAFLET_JS.push(
     'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
-  ];
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+  );
 
   function trySequential(urls, loader) {
     var i = 0;
@@ -63,12 +83,52 @@
       if (i >= urls.length) {
         return Promise.reject(new Error('leaflet_load_failed'));
       }
-      return loader(urls[i]).catch(function () {
-        i += 1;
+      var url = urls[i];
+      i += 1;
+      return loader(url).catch(function () {
         return next();
       });
     }
     return next();
+  }
+
+  /** تحميل Leaflet بدون AMD حتى لا يخطفه ArcGIS/Dojo. */
+  function loadScriptNoAmd(src) {
+    return new Promise(function (resolve, reject) {
+      var savedDefine = global.define;
+      var hadAmd = typeof savedDefine === 'function' && savedDefine.amd;
+      if (hadAmd) {
+        try {
+          global.define = undefined;
+        } catch (e1) {
+          /* ignore */
+        }
+      }
+      var s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = function () {
+        if (hadAmd) {
+          try {
+            global.define = savedDefine;
+          } catch (e2) {
+            /* ignore */
+          }
+        }
+        resolve();
+      };
+      s.onerror = function () {
+        if (hadAmd) {
+          try {
+            global.define = savedDefine;
+          } catch (e3) {
+            /* ignore */
+          }
+        }
+        reject(new Error('script_load_failed'));
+      };
+      document.head.appendChild(s);
+    });
   }
 
   function ensureLeaflet() {
@@ -80,12 +140,16 @@
     }
     global.__leafletCorePromise = trySequential(LEAFLET_CSS, loadStyle)
       .then(function () {
-        return trySequential(LEAFLET_JS, loadScript);
+        return trySequential(LEAFLET_JS, loadScriptNoAmd);
       })
       .then(function () {
         if (!global.L || !global.L.map) {
           throw new Error('leaflet_load_failed');
         }
+      })
+      .catch(function (err) {
+        global.__leafletCorePromise = null;
+        throw err;
       });
     return global.__leafletCorePromise;
   }
