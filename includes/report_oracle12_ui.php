@@ -21,6 +21,7 @@ function report_ora12_master_routes(): array
         'system_backup',
         'tax_rates_settings',
         'einvoice_settings',
+        'gps_tracking_settings',
     ];
 }
 

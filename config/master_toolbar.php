@@ -89,6 +89,7 @@ return [
                 'dashboard_accounts_settings',
                 'tax_rates_settings',
                 'einvoice_settings',
+                'gps_tracking_settings',
                 'users',
                 'groups',
                 'permissions',
