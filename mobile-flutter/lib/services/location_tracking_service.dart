@@ -142,9 +142,12 @@ class LocationTrackingService {
     await FlutterForegroundTask.removeData(key: TrackKeys.pass);
   }
 
+  /// null = لم يُضبط بعد (أول تثبيت) → يُعامل كتفعيل تلقائي.
+  static Future<bool?> get enabledFlagOrNull async =>
+      FlutterForegroundTask.getData<bool>(key: TrackKeys.enabled);
+
   static Future<bool> get isEnabled async =>
-      (await FlutterForegroundTask.getData<bool>(key: TrackKeys.enabled)) ??
-      false;
+      (await enabledFlagOrNull) ?? true;
 
   static Future<int> get intervalSec async =>
       (await FlutterForegroundTask.getData<int>(key: TrackKeys.intervalSec)) ??

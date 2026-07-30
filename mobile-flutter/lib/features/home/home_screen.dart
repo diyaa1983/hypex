@@ -136,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _company = '';
   List<_Tile> _tiles = [];
   bool _tracking = false;
-  String _trackingLabel = 'تتبّع الموقع متوقف — اضغط للتفعيل';
+  String _trackingLabel = 'تتبّع الموقع متوقف';
   bool _trackingOk = false;
 
   @override
@@ -163,7 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final okText = st.lastStatus.contains('تم إرسال') ||
         st.lastStatus.contains('تم تأكيد');
     final label = !on
-        ? 'تتبّع الموقع متوقف — اضغط للتفعيل'
+        ? 'تتبّع الموقع متوقف'
         : (recent && okText)
             ? 'تتبّع الموقع يعمل — آخر إرسال ${_fmtHm(st.lastPing)}'
             : (st.lastStatus.isNotEmpty
@@ -235,7 +235,6 @@ class _HomeScreenState extends State<HomeScreen> {
             tracking: _tracking,
             trackingOk: _trackingOk,
             trackingLabel: _trackingLabel,
-            onTrackingTap: () => context.push('/settings'),
             onRefresh: _load,
           ),
           Expanded(
@@ -285,7 +284,6 @@ class _Header extends StatelessWidget {
     required this.tracking,
     required this.trackingOk,
     required this.trackingLabel,
-    required this.onTrackingTap,
     required this.onRefresh,
   });
 
@@ -294,7 +292,6 @@ class _Header extends StatelessWidget {
   final bool tracking;
   final bool trackingOk;
   final String trackingLabel;
-  final VoidCallback onTrackingTap;
   final VoidCallback onRefresh;
 
   @override
@@ -355,49 +352,46 @@ class _Header extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: onTrackingTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: !tracking
-                          ? const Color(0xFFFFC46B)
-                          : (trackingOk
-                              ? const Color(0xFF4BE38A)
-                              : const Color(0xFFFF8A65)),
-                      shape: BoxShape.circle,
+          // عرض حالة فقط — التعديل من الإعدادات بعد كلمة مرور المدير.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: !tracking
+                        ? const Color(0xFFFFC46B)
+                        : (trackingOk
+                            ? const Color(0xFF4BE38A)
+                            : const Color(0xFFFF8A65)),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    trackingLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      trackingLabel,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const Icon(
-                    Icons.chevron_left_rounded,
-                    color: Colors.white70,
-                    size: 20,
-                  ),
-                ],
-              ),
+                ),
+                Icon(
+                  Icons.lock_outline_rounded,
+                  color: Colors.white.withValues(alpha: 0.55),
+                  size: 18,
+                ),
+              ],
             ),
           ),
         ],

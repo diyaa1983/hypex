@@ -25,7 +25,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   TrackingStatus? _status;
   bool _busy = false;
   bool _iosNeedsAlways = false;
+  bool _verifying = false;
   Timer? _refresh;
+  final _adminUserCtrl = TextEditingController();
+  final _adminPassCtrl = TextEditingController();
+  String? _unlockError;
 
   @override
   void initState() {
@@ -36,12 +40,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       (_) => _loadStatus(),
     );
     FlutterForegroundTask.addTaskDataCallback(_onTaskData);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final s = context.read<SessionController>();
+      if ((_adminUserCtrl.text.isEmpty) &&
+          (s.userUsername?.isNotEmpty ?? false) &&
+          s.isSystemAdmin) {
+        _adminUserCtrl.text = s.userUsername!;
+      }
+    });
   }
 
   @override
   void dispose() {
     _refresh?.cancel();
     FlutterForegroundTask.removeTaskDataCallback(_onTaskData);
+    _adminUserCtrl.dispose();
+    _adminPassCtrl.dispose();
     super.dispose();
   }
 
@@ -61,10 +75,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _unlock() async {
+    final user = _adminUserCtrl.text.trim();
+    final pass = _adminPassCtrl.text;
+    if (user.isEmpty || pass.isEmpty) {
+      setState(() => _unlockError = 'أدخل اسم مستخدم المدير وكلمة المرور.');
+      return;
+    }
+    setState(() {
+      _verifying = true;
+      _unlockError = null;
+    });
+    final err =
+        await context.read<SessionController>().verifyAdminPassword(user, pass);
+    if (!mounted) return;
+    setState(() {
+      _verifying = false;
+      _unlockError = err;
+      if (err == null) {
+        _adminPassCtrl.clear();
+      }
+    });
+    if (err == null) {
+      showSnack(context, 'تم فتح الإعدادات بصلاحية المدير.');
+      await _loadStatus();
+    }
+  }
+
   Future<void> _toggle(bool on) async {
     setState(() => _busy = true);
     try {
       final session = context.read<SessionController>();
+      if (!session.settingsUnlocked) {
+        showSnack(context, 'يلزم فتح الإعدادات بكلمة مرور المدير أولاً.',
+            error: true);
+        return;
+      }
       if (on) {
         final error = await LocationTrackingService.start();
         if (!mounted) return;
@@ -100,13 +146,164 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<SessionController>();
+    if (!s.settingsUnlocked) {
+      return _buildLocked(s);
+    }
+    return _buildUnlocked(s);
+  }
+
+  Widget _buildLocked(SessionController s) {
     final st = _status;
     final running = st?.running ?? false;
-    final gps = s.gpsConfig;
-    final canToggle = gps.userCanDisable;
 
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
+      body: ListView(
+        padding: const EdgeInsets.all(14),
+        children: [
+          AppCard(
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    gradient: AppTheme.brandGradient,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.userName ?? 'مستخدم',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        running ? 'تتبّع الموقع يعمل' : 'تتبّع الموقع متوقف',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: running ? AppTheme.success : AppTheme.textSoft,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SectionTitle('فتح الإعدادات', icon: Icons.lock_rounded),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'تعديل تتبّع الموقع متاح لمدير النظام فقط. أدخل بيانات أي حساب ضمن مجموعة ADMINS.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSoft,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _adminUserCtrl,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'اسم مستخدم المدير',
+                    prefixIcon: Icon(Icons.admin_panel_settings_rounded),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _adminPassCtrl,
+                  obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _verifying ? null : _unlock(),
+                  decoration: const InputDecoration(
+                    labelText: 'كلمة مرور المدير',
+                    prefixIcon: Icon(Icons.password_rounded),
+                  ),
+                ),
+                if (_unlockError != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    _unlockError!,
+                    style: const TextStyle(
+                      color: AppTheme.danger,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: _verifying ? null : _unlock,
+                  icon: _verifying
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.lock_open_rounded),
+                  label: Text(_verifying ? 'جاري التحقق...' : 'فتح الإعدادات'),
+                ),
+              ],
+            ),
+          ),
+          const SectionTitle('عام', icon: Icons.tune_rounded),
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: ListTile(
+              leading: const MiniIcon(
+                Icons.logout_rounded,
+                color: AppTheme.danger,
+              ),
+              title: const Text(
+                'تسجيل الخروج',
+                style: TextStyle(color: AppTheme.danger),
+              ),
+              onTap: () => _confirmLogout(s),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnlocked(SessionController s) {
+    final st = _status;
+    final running = st?.running ?? false;
+    final gps = s.gpsConfig;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('الإعدادات'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              s.lockSettings();
+              showSnack(context, 'تم إغلاق الإعدادات.');
+            },
+            child: const Text('إغلاق القفل'),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _loadStatus,
         child: ListView(
@@ -152,6 +349,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
+                  const StatusPill(
+                    text: 'مدير',
+                    color: AppTheme.primary,
+                    dense: true,
+                  ),
                 ],
               ),
             ),
@@ -161,76 +363,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  if (canToggle)
-                    SwitchListTile(
-                      value: running,
-                      onChanged: _busy ? null : _toggle,
-                      secondary: MiniIcon(
-                        running
-                            ? Icons.location_on_rounded
-                            : Icons.location_off_rounded,
-                        color: running ? AppTheme.success : AppTheme.textSoft,
-                      ),
-                      title: const Text(
-                        'خدمة التتبّع في الخلفية',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      subtitle: Text(
-                        running
-                            ? (!kIsWeb && Platform.isIOS
-                                ? (_iosNeedsAlways
-                                    ? 'تعمل — فعّل «دائماً» لاستمرار الخلفية'
-                                    : 'تعمل في الخلفية على الآيفون')
-                                : 'تعمل الآن وتستمر بعد إغلاق التطبيق')
-                            : 'متوقفة — لن يُرسل موقعك',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSoft,
-                        ),
-                      ),
-                    )
-                  else
-                    ListTile(
-                      leading: MiniIcon(
-                        running
-                            ? Icons.location_on_rounded
-                            : Icons.location_off_rounded,
-                        color: running ? AppTheme.success : AppTheme.textSoft,
-                      ),
-                      title: const Text(
-                        'تتبّع الموقع',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      subtitle: Text(
-                        gps.autoEnable
-                            ? (running
-                                ? (!kIsWeb && Platform.isIOS && _iosNeedsAlways
-                                    ? 'مفعّل — يحتاج إذن «دائماً» في إعدادات الآيفون'
-                                    : 'مفعّل تلقائياً من النظام — يعمل في الخلفية')
-                                : 'مفعّل من النظام — بانتظار الأذونات أو GPS')
-                            : 'يُدار من إعدادات النظام على السيرفر',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSoft,
-                        ),
-                      ),
-                      trailing: StatusPill(
-                        text: running ? 'نشِط' : 'متوقف',
-                        color: running ? AppTheme.success : AppTheme.textSoft,
-                        dense: true,
+                  SwitchListTile(
+                    value: running,
+                    onChanged: _busy ? null : _toggle,
+                    secondary: MiniIcon(
+                      running
+                          ? Icons.location_on_rounded
+                          : Icons.location_off_rounded,
+                      color: running ? AppTheme.success : AppTheme.textSoft,
+                    ),
+                    title: const Text(
+                      'خدمة التتبّع في الخلفية',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
+                    subtitle: Text(
+                      running
+                          ? (!kIsWeb && Platform.isIOS
+                              ? (_iosNeedsAlways
+                                  ? 'تعمل — فعّل «دائماً» لاستمرار الخلفية'
+                                  : 'تعمل في الخلفية على الآيفون')
+                              : 'تعمل الآن وتستمر بعد إغلاق التطبيق')
+                          : 'متوقفة — لن يُرسل موقعك',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSoft,
+                      ),
+                    ),
+                  ),
                   if (!kIsWeb && Platform.isIOS && _iosNeedsAlways) ...[
                     const Divider(height: 1),
                     ListTile(
                       leading: const MiniIcon(
-                        Icons.iphone_rounded,
+                        Icons.phone_iphone_rounded,
                         color: AppTheme.warn,
                       ),
                       title: const Text('إذن الموقع على الآيفون'),
@@ -239,7 +406,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: TextStyle(fontSize: 12, color: AppTheme.textSoft),
                       ),
                       trailing: TextButton(
-                        onPressed: () => LocationTrackingService.openAppSettings(),
+                        onPressed: () =>
+                            LocationTrackingService.openAppSettings(),
                         child: const Text('الإعدادات'),
                       ),
                     ),
@@ -318,18 +486,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 session.api,
                                 csrf: session.csrf,
                               );
-                              final ok =
-                                  await LocationPresenceService.pingNow(
+                              final ok = await LocationPresenceService.pingNow(
                                 force: true,
                               );
                               if (!context.mounted) return;
                               showSnack(
                                 context,
                                 ok
-                                    ? (LocationPresenceService.lastMessage.isEmpty
+                                    ? (LocationPresenceService
+                                            .lastMessage.isEmpty
                                         ? 'تم إرسال الموقع.'
                                         : LocationPresenceService.lastMessage)
-                                    : (LocationPresenceService.lastMessage.isEmpty
+                                    : (LocationPresenceService
+                                            .lastMessage.isEmpty
                                         ? 'تعذّر الإرسال.'
                                         : LocationPresenceService.lastMessage),
                                 error: !ok,

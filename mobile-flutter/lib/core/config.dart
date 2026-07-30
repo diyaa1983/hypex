@@ -8,6 +8,7 @@ class AppConfig {
   /// المسارات على السيرفر.
   static const String sessionPath = 'api/mobile_session.php';
   static const String homePath = 'api/mobile_home.php';
+  static const String verifyAdminPath = 'api/mobile_verify_admin.php';
   static const String pingPath = 'm/ping.php';
 
   /// واجهات الشاشات (JSON) — نفس ما يستدعيه /m الحالي.

@@ -31,10 +31,12 @@ function mobile_session_payload(array $extra = []): array
             'username' => (string) ($user['username'] ?? ''),
             'name' => (string) ($user['full_name_ar'] ?? $user['username'] ?? ''),
         ];
+        $base['is_system_admin'] = user_is_system_admin($uid);
         $base['permissions'] = load_user_mobile_permissions($uid);
         $base['gps_tracking'] = mobile_gps_settings_for_app();
     } else {
         $base['user'] = null;
+        $base['is_system_admin'] = false;
         $base['permissions'] = [];
     }
 

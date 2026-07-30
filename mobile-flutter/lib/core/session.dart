@@ -23,14 +23,50 @@ class SessionController extends ChangeNotifier {
   bool booting = true;
   bool authenticated = false;
   bool busy = false;
+  bool isSystemAdmin = false;
   String? userName;
+  String? userUsername;
   int userId = 0;
   String csrf = '';
   Set<String> permissions = <String>{};
   String? lastError;
   GpsTrackingConfig gpsConfig = GpsTrackingConfig.defaults;
+  /// فتح إعدادات التتبّع بعد التحقق من كلمة مرور مدير النظام (جلسة التطبيق فقط).
+  bool settingsUnlocked = false;
 
   bool can(String code) => permissions.contains(code);
+
+  void lockSettings() {
+    if (!settingsUnlocked) return;
+    settingsUnlocked = false;
+    notifyListeners();
+  }
+
+  void unlockSettings() {
+    if (settingsUnlocked) return;
+    settingsUnlocked = true;
+    notifyListeners();
+  }
+
+  /// التحقق من بيانات أي مستخدم في مجموعة ADMINS دون تغيير جلسة المندوب.
+  Future<String?> verifyAdminPassword(String username, String password) async {
+    try {
+      final res = await api.postForm(
+        AppConfig.verifyAdminPath,
+        fields: {
+          'username': username.trim(),
+          'password': password,
+        },
+      );
+      if (res['ok'] == true) {
+        unlockSettings();
+        return null;
+      }
+      return (res['message'] as String?) ?? 'تعذّر التحقق من المدير.';
+    } on ApiException catch (e) {
+      return e.message;
+    }
+  }
 
   Future<Map<String, String>> _deviceFields() async {
     final id = await DeviceIdentity.id();
@@ -216,10 +252,13 @@ class SessionController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kRemember, false);
     authenticated = false;
+    isSystemAdmin = false;
     permissions = <String>{};
     userName = null;
+    userUsername = null;
     userId = 0;
     gpsConfig = GpsTrackingConfig.defaults;
+    settingsUnlocked = false;
     notifyListeners();
   }
 
@@ -235,7 +274,13 @@ class SessionController extends ChangeNotifier {
       minDistanceM: gpsConfig.minDistanceM,
     );
 
-    if (gpsConfig.autoEnable) {
+    // أول تثبيت / لم يُوقف المدير التتبّع صراحةً → تشغيل تلقائي.
+    final explicit = await LocationTrackingService.enabledFlagOrNull;
+    final shouldAutoStart = gpsConfig.autoEnable
+        ? explicit != false
+        : (explicit == true || explicit == null);
+
+    if (shouldAutoStart) {
       final err = await LocationTrackingService.start();
       if (err == null) {
         await LocationPresenceService.start(
@@ -258,6 +303,7 @@ class SessionController extends ChangeNotifier {
   void _apply(Map<String, dynamic> res) {
     authenticated = res['authenticated'] == true;
     csrf = (res['csrf'] as String?) ?? csrf;
+    isSystemAdmin = res['is_system_admin'] == true;
     final rawGps = res['gps_tracking'];
     if (rawGps is Map) {
       gpsConfig = GpsTrackingConfig.fromJson(
@@ -268,10 +314,16 @@ class SessionController extends ChangeNotifier {
     if (user is Map) {
       userId = (user['id'] as num?)?.toInt() ?? 0;
       userName = user['name'] as String?;
+      userUsername = user['username'] as String?;
+    } else {
+      userUsername = null;
     }
     final perms = res['permissions'];
     if (perms is List) {
       permissions = perms.map((e) => e.toString()).toSet();
+    }
+    if (!authenticated) {
+      settingsUnlocked = false;
     }
     LocationPresenceService.setCsrf(csrf);
   }
