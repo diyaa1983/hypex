@@ -5,37 +5,47 @@ import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
 import '../widgets/async_view.dart';
+import '../widgets/pdf_a4_viewer_screen.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
 
-/// طباعة / PDF موحدة لكل شاشات الأندرويد عبر الطابعة المحفوظة.
+/// طباعة Bluetooth ومعاينة PDF (A4) — مساران منفصلان.
 class DocumentPrintHelper {
   DocumentPrintHelper._();
 
-  /// تنزيل PDF من مسار API ثم طباعته على Bluetooth (أو حوار النظام).
+  /// طباعة مباشرة على طابعة Bluetooth المحفوظة فقط (بدون حوار النظام).
   static Future<void> printFromApi(
     BuildContext context, {
     required String apiPath,
     Map<String, dynamic>? query,
     required String jobName,
-    bool preferSystemDialog = false,
   }) async {
-    showSnack(context, 'جاري تجهيز الطباعة...');
-    final api = context.read<ApiClient>();
     final cfg = await BluetoothPrinterSettings.load();
-    final expectBt = !preferSystemDialog && cfg.isConfigured;
+    if (!cfg.isConfigured) {
+      if (!context.mounted) return;
+      showSnack(
+        context,
+        'اختر طابعة Bluetooth من الإعدادات أولاً.',
+        error: true,
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+    showSnack(context, 'جاري الطباعة على ${cfg.displayLabel}...');
+    final api = context.read<ApiClient>();
     try {
       final bytes = await api.downloadBytes(apiPath, query: query);
       if (!context.mounted) return;
       final err = await BluetoothPrintService.printPdfBytes(
         Uint8List.fromList(bytes),
         jobName: jobName,
-        preferSystemDialog: preferSystemDialog,
+        bluetoothOnly: true,
       );
       if (!context.mounted) return;
       if (err != null) {
         showSnack(context, err, error: true);
-      } else if (expectBt) {
+      } else {
         showSnack(context, 'تم إرسال المستند لطابعة Bluetooth.');
       }
     } on ApiException catch (e) {
@@ -44,6 +54,42 @@ class DocumentPrintHelper {
     } catch (e) {
       if (!context.mounted) return;
       showSnack(context, 'تعذر الطباعة: $e', error: true);
+    }
+  }
+
+  /// تنزيل PDF بحجم A4 وعرضه داخل التطبيق (مثل طباعة الويندوز).
+  static Future<void> openPdfFromApi(
+    BuildContext context, {
+    required String apiPath,
+    Map<String, dynamic>? query,
+    required String title,
+    String? fileName,
+  }) async {
+    showSnack(context, 'جاري تجهيز PDF (A4)...');
+    final api = context.read<ApiClient>();
+    final nav = Navigator.of(context);
+    try {
+      final bytes = await api.downloadBytes(apiPath, query: query);
+      if (!context.mounted) return;
+      if (bytes.isEmpty) {
+        showSnack(context, 'ملف PDF فارغ.', error: true);
+        return;
+      }
+      await nav.push(
+        MaterialPageRoute<void>(
+          builder: (_) => PdfA4ViewerScreen(
+            bytes: Uint8List.fromList(bytes),
+            title: title,
+            fileName: fileName ?? title,
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!context.mounted) return;
+      showSnack(context, e.message, error: true);
+    } catch (e) {
+      if (!context.mounted) return;
+      showSnack(context, 'تعذر فتح PDF: $e', error: true);
     }
   }
 }

@@ -26,7 +26,8 @@ class InvoiceViewScreen extends StatefulWidget {
 class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
   bool _loading = true;
   bool _posting = false;
-  bool _printing = false;
+  bool _printBusy = false;
+  bool _pdfBusy = false;
   bool _deleting = false;
   String? _error;
   Map<String, dynamic> _inv = {};
@@ -70,7 +71,8 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
   }
 
   Future<void> _openPdf() async {
-    setState(() => _printing = true);
+    if (_pdfBusy || _printBusy) return;
+    setState(() => _pdfBusy = true);
     try {
       await InvoicePrintHelper.openPdf(
         context,
@@ -78,7 +80,19 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
         invoiceNo: Fmt.str(_inv['invoice_no']),
       );
     } finally {
-      if (mounted) setState(() => _printing = false);
+      if (mounted) setState(() => _pdfBusy = false);
+    }
+  }
+
+  Future<void> _printBluetooth() async {
+    if (_printBusy || _pdfBusy) return;
+    setState(() => _printBusy = true);
+    try {
+      final inv = Map<String, dynamic>.from(_inv);
+      inv['id'] = widget.invoiceId;
+      await InvoicePrintHelper.printBluetooth(context, invoice: inv);
+    } finally {
+      if (mounted) setState(() => _printBusy = false);
     }
   }
 
@@ -199,6 +213,8 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
             icon: const Icon(Icons.more_vert_rounded),
             onSelected: (v) {
               switch (v) {
+                case 'print':
+                  _printBluetooth();
                 case 'pdf':
                   _openPdf();
                 case 'copy':
@@ -211,8 +227,12 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(
+                value: 'print',
+                child: _MenuRow(Icons.print_outlined, 'طباعة Bluetooth'),
+              ),
+              const PopupMenuItem(
                 value: 'pdf',
-                child: _MenuRow(Icons.picture_as_pdf_outlined, 'تحويل PDF'),
+                child: _MenuRow(Icons.picture_as_pdf_outlined, 'تحويل PDF (A4)'),
               ),
               const PopupMenuItem(
                 value: 'copy',
@@ -250,8 +270,8 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
                   child: ActionChipButton(
                     icon: Icons.print_outlined,
                     label: 'طباعة',
-                    busy: _printing,
-                    onTap: _openPdf,
+                    busy: _printBusy,
+                    onTap: _printBluetooth,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -260,7 +280,7 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
                     icon: Icons.picture_as_pdf_outlined,
                     label: 'PDF',
                     color: AppTheme.rose,
-                    busy: _printing,
+                    busy: _pdfBusy,
                     onTap: _openPdf,
                   ),
                 ),
@@ -328,9 +348,9 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
                     Expanded(
                       child: posted
                           ? OutlinedButton.icon(
-                              onPressed: _printing ? null : _openPdf,
+                              onPressed: _printBusy ? null : _printBluetooth,
                               icon: const Icon(Icons.print_outlined, size: 19),
-                              label: const Text('طباعة الفاتورة'),
+                              label: const Text('طباعة Bluetooth'),
                             )
                           : FilledButton.icon(
                               onPressed: _posting ? null : _post,

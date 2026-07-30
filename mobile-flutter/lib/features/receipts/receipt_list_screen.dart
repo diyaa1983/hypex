@@ -218,22 +218,35 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(14, 12, 14, 90),
                         itemCount: _rows.length,
-                        itemBuilder: (_, i) => _ReceiptCard(
-                          row: _rows[i],
-                          onPost: () => _post(_rows[i]),
-                          onDelete: () => _delete(_rows[i]),
-                          onPrint: () {
-                            final id = int.tryParse('${_rows[i]['id']}') ?? 0;
-                            final no = (_rows[i]['voucher_no'] ?? id).toString();
-                            if (id < 1) return;
-                            DocumentPrintHelper.printFromApi(
-                              context,
-                              apiPath: AppConfig.receiptPdfPath,
-                              query: {'id': id},
-                              jobName: 'سند_$no',
-                            );
-                          },
-                        ),
+                        itemBuilder: (_, i) {
+                          final row = _rows[i];
+                          final id = int.tryParse('${row['id']}') ?? 0;
+                          final no = (row['voucher_no'] ?? id).toString();
+                          return _ReceiptCard(
+                            row: row,
+                            onPost: () => _post(row),
+                            onDelete: () => _delete(row),
+                            onPrint: () {
+                              if (id < 1) return;
+                              DocumentPrintHelper.printFromApi(
+                                context,
+                                apiPath: AppConfig.receiptPdfPath,
+                                query: {'id': id},
+                                jobName: 'سند_$no',
+                              );
+                            },
+                            onPdf: () {
+                              if (id < 1) return;
+                              DocumentPrintHelper.openPdfFromApi(
+                                context,
+                                apiPath: AppConfig.receiptPdfPath,
+                                query: {'id': id},
+                                title: 'سند قبض $no',
+                                fileName: 'سند_$no.pdf',
+                              );
+                            },
+                          );
+                        },
                       ),
               ),
             ),
@@ -250,12 +263,14 @@ class _ReceiptCard extends StatelessWidget {
     required this.onPost,
     required this.onDelete,
     required this.onPrint,
+    required this.onPdf,
   });
 
   final Map<String, dynamic> row;
   final VoidCallback onPost;
   final VoidCallback onDelete;
   final VoidCallback onPrint;
+  final VoidCallback onPdf;
 
   @override
   Widget build(BuildContext context) {
@@ -337,7 +352,14 @@ class _ReceiptCard extends StatelessWidget {
                 ),
               const Spacer(),
               IconButton(
-                tooltip: 'طباعة / PDF',
+                tooltip: 'PDF (A4)',
+                visualDensity: VisualDensity.compact,
+                onPressed: onPdf,
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 19),
+                color: AppTheme.rose,
+              ),
+              IconButton(
+                tooltip: 'طباعة Bluetooth',
                 visualDensity: VisualDensity.compact,
                 onPressed: onPrint,
                 icon: const Icon(Icons.print_outlined, size: 19),

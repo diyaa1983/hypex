@@ -95,7 +95,25 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
         actions: [
           if (_result != null && _party != null)
             IconButton(
-              tooltip: 'طباعة PDF',
+              tooltip: 'PDF (A4)',
+              onPressed: _loading
+                  ? null
+                  : () => DocumentPrintHelper.openPdfFromApi(
+                        context,
+                        apiPath: AppConfig.partyStatementPdfPath,
+                        query: {
+                          'party_type': _type,
+                          'party_id': _party!.id,
+                          'from': _iso(_from),
+                          'to': _iso(_to),
+                        },
+                        title: 'كشف حساب',
+                        fileName: 'كشف_${_party!.name}.pdf',
+                      ),
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+            ),
+            IconButton(
+              tooltip: 'طباعة Bluetooth',
               onPressed: _loading
                   ? null
                   : () => DocumentPrintHelper.printFromApi(

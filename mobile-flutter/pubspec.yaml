@@ -33,6 +33,7 @@ dependencies:
   esc_pos_utils_plus: ^2.0.4
   image: ^4.9.1
   android_intent_plus: ^6.1.0
+  pdf: ^3.13.0
 
 dev_dependencies:
   flutter_lints: ^4.0.0
@@ -45,6 +46,7 @@ flutter:
   # ملفات assets/icon تُستخدم لتوليد أيقونة التطبيق فقط ولا تُحزَّم داخل التطبيق.
   assets:
     - assets/
+    - assets/fonts/
 
 flutter_launcher_icons:
   android: "ic_launcher"

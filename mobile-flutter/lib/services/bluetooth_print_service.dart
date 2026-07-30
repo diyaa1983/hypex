@@ -10,7 +10,7 @@ import 'package:printing/printing.dart';
 
 import 'bluetooth_printer_settings.dart';
 
-/// خدمة الطباعة عبر Bluetooth الحرارية + حوار طباعة النظام كبديل.
+/// خدمة الطباعة عبر Bluetooth الحرارية فقط.
 class BluetoothPrintService {
   BluetoothPrintService._();
 
@@ -57,34 +57,34 @@ class BluetoothPrintService {
     return PrintBluetoothThermal.connect(macPrinterAddress: mac.trim());
   }
 
-  /// طباعة ملف PDF على الطابعة المحفوظة (صور صفحات ESC/POS).
-  /// إن لم تُضبط طابعة، يُفتح حوار طباعة النظام.
+  /// طباعة PDF على طابعة Bluetooth المحفوظة.
+  /// [bluetoothOnly] يمنع الرجوع لحوار طباعة النظام (الافتراضي: true).
   static Future<String?> printPdfBytes(
     Uint8List pdfBytes, {
     required String jobName,
-    bool preferSystemDialog = false,
+    bool bluetoothOnly = true,
   }) async {
     if (pdfBytes.isEmpty) return 'ملف PDF فارغ.';
 
     final cfg = await BluetoothPrinterSettings.load();
-    if (!preferSystemDialog && cfg.isConfigured && !kIsWeb && Platform.isAndroid) {
-      try {
-        await _printPdfViaBluetooth(pdfBytes, cfg);
-        return null;
-      } catch (e) {
-        // إن فشلت الطابعة الحرارية نجرّب حوار النظام.
-        debugPrint('BT print failed: $e');
-      }
+    if (!cfg.isConfigured) {
+      return 'اختر طابعة Bluetooth من الإعدادات أولاً.';
+    }
+    if (kIsWeb || !Platform.isAndroid) {
+      return 'الطباعة عبر Bluetooth متاحة على أندرويد فقط.';
     }
 
     try {
-      await Printing.layoutPdf(
-        name: jobName,
-        onLayout: (_) async => pdfBytes,
-      );
+      await _printPdfViaBluetooth(pdfBytes, cfg);
       return null;
     } catch (e) {
-      return 'تعذر الطباعة: $e';
+      final msg = e.toString().replaceFirst('Bad state: ', '');
+      if (bluetoothOnly) {
+        return msg.startsWith('تعذر') || msg.startsWith('فشل')
+            ? msg
+            : 'تعذر الطباعة على Bluetooth: $msg';
+      }
+      return 'تعذر الطباعة على Bluetooth: $msg';
     }
   }
 
@@ -121,7 +121,9 @@ class BluetoothPrintService {
           interpolation: img.Interpolation.average,
         );
       }
-      chunks.addAll(generator.imageRaster(resized, imageFn: PosImageFn.bitImageRaster));
+      chunks.addAll(
+        generator.imageRaster(resized, imageFn: PosImageFn.bitImageRaster),
+      );
       chunks.addAll(generator.feed(2));
     }
 

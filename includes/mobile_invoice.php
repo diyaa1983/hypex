@@ -110,6 +110,21 @@ function mobile_invoice_enrich_display(PDO $pdo, array $invoice): array
             (string) ($invoice['invoice_date'] ?? '')
         );
     }
+    require_once app_path('includes/company_settings.php');
+    $co = company_settings($pdo);
+    $invoice['company_name'] = trim((string) ($co['company_name_ar'] ?? ''));
+    if ($invoice['company_name'] === '') {
+        $invoice['company_name'] = 'الشركة';
+    }
+    $qr = trim((string) ($invoice['einv_qr'] ?? ''));
+    if ($qr === '') {
+        $qr = trim((string) ($invoice['einv_inv_uuid'] ?? $invoice['invoice_uuid'] ?? ''));
+    }
+    if ($qr === '') {
+        $no = trim((string) ($invoice['invoice_no'] ?? ''));
+        $qr = $no !== '' ? ('INV:' . $no) : ('INV-ID:' . (int) ($invoice['id'] ?? 0));
+    }
+    $invoice['qr_payload'] = $qr;
 
     return $invoice;
 }

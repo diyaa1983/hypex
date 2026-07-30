@@ -345,9 +345,57 @@ function mobile_invoice_print_einv_qr_img_src(?string $qrSrc): ?string
     return 'https://api.qrserver.com/v1/create-qr-code/?size=' . EINV_PRINT_QR_SRC_PX . 'x' . EINV_PRINT_QR_SRC_PX . '&format=png&margin=4&ecc=H&data=' . rawurlencode($qrSrc);
 }
 
-function mobile_invoice_print_einv_qr_box(?string $qrSrc): string
+/**
+ * صورة QR كـ data URI مضمّنة (مطلوبة لـ mPDF/Dompdf حتى يظهر QR في PDF).
+ */
+function mobile_invoice_print_einv_qr_data_uri(?string $qrSrc): ?string
 {
     $src = mobile_invoice_print_einv_qr_img_src($qrSrc);
+    if ($src === null) {
+        return null;
+    }
+    if (str_starts_with($src, 'data:')) {
+        return $src;
+    }
+    if (str_starts_with($src, 'http://') || str_starts_with($src, 'https://')) {
+        $ctx = stream_context_create([
+            'http' => ['timeout' => 10, 'follow_location' => 1],
+            'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
+        ]);
+        $bin = @file_get_contents($src, false, $ctx);
+        if (is_string($bin) && $bin !== '') {
+            $mime = (str_starts_with($bin, "\xFF\xD8\xFF")) ? 'image/jpeg' : 'image/png';
+
+            return 'data:' . $mime . ';base64,' . base64_encode($bin);
+        }
+    }
+
+    return $src;
+}
+
+/** نص/حمولة QR للفاتورة — einv_qr أو بديل رقم الفاتورة. */
+function mobile_invoice_print_qr_payload(array $inv): string
+{
+    $qr = trim((string) ($inv['einv_qr'] ?? ''));
+    if ($qr !== '') {
+        return $qr;
+    }
+    $uuid = trim((string) ($inv['einv_inv_uuid'] ?? $inv['invoice_uuid'] ?? ''));
+    if ($uuid !== '') {
+        return $uuid;
+    }
+    $no = trim((string) ($inv['invoice_no'] ?? ''));
+    if ($no !== '') {
+        return 'INV:' . $no;
+    }
+    $id = (int) ($inv['id'] ?? 0);
+
+    return $id > 0 ? 'INV-ID:' . $id : '';
+}
+
+function mobile_invoice_print_einv_qr_box(?string $qrSrc): string
+{
+    $src = mobile_invoice_print_einv_qr_data_uri($qrSrc);
     if ($src === null) {
         return '';
     }
@@ -537,7 +585,7 @@ function mobile_invoice_print_inner_html(PDO $pdo, array $inv, bool $forPdf = fa
     }
 
     $metaBlock = $forPdf ? mobile_invoice_print_meta_pdf($inv) : mobile_invoice_print_meta_table($inv);
-    $einvBox = mobile_invoice_print_einv_qr_box((string) ($inv['einv_qr'] ?? ''));
+    $einvBox = mobile_invoice_print_einv_qr_box(mobile_invoice_print_qr_payload($inv));
     $headerBlock = mobile_invoice_print_header_block($metaBlock, $einvBox, $forPdf);
 
     $notes = trim((string) ($inv['notes'] ?? ''));

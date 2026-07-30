@@ -84,7 +84,29 @@ class _RepStockScreenState extends State<RepStockScreen> {
     }
   }
 
-  Future<void> _printPdf() async {
+  Future<void> _openPdf() async {
+    if (_warehouseId == null || _warehouseId! < 1) {
+      showSnack(context, 'اختر مستودعاً أولاً.', error: true);
+      return;
+    }
+    setState(() => _printing = true);
+    try {
+      await DocumentPrintHelper.openPdfFromApi(
+        context,
+        apiPath: AppConfig.repStockPdfPath,
+        query: {
+          'warehouse_id': _warehouseId,
+          'q': _search.text.trim(),
+        },
+        title: 'رصيد المستودع',
+        fileName: 'رصيد_${_whName.isEmpty ? _warehouseId : _whName}.pdf',
+      );
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+  }
+
+  Future<void> _printBluetooth() async {
     if (_warehouseId == null || _warehouseId! < 1) {
       showSnack(context, 'اختر مستودعاً أولاً.', error: true);
       return;
@@ -112,10 +134,17 @@ class _RepStockScreenState extends State<RepStockScreen> {
         title: const Text('رصيد المستودع'),
         actions: [
           IconButton(
-            tooltip: 'طباعة / PDF',
+            tooltip: 'PDF (A4)',
             onPressed: (_loading || _printing || _warehouseId == null)
                 ? null
-                : _printPdf,
+                : _openPdf,
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+          ),
+          IconButton(
+            tooltip: 'طباعة Bluetooth',
+            onPressed: (_loading || _printing || _warehouseId == null)
+                ? null
+                : _printBluetooth,
             icon: _printing
                 ? const SizedBox(
                     width: 18,

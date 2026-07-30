@@ -406,7 +406,7 @@ class _InvoiceCard extends StatelessWidget {
                 color: AppTheme.textSoft,
               ),
               IconButton(
-                tooltip: 'طباعة PDF',
+                tooltip: 'PDF (A4)',
                 visualDensity: VisualDensity.compact,
                 onPressed: onPdf,
                 icon: const Icon(Icons.picture_as_pdf_outlined, size: 19),

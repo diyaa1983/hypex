@@ -28,7 +28,8 @@ function mobile_invoice_print_mobile_pdf_css(?PDO $pdo = null): string
     $h = min(64, (int) DOCUMENT_HEADER_LOGO_MAX_HEIGHT);
     $w = min(100, (int) DOCUMENT_HEADER_LOGO_MAX_WIDTH);
 
-    $s = 'html,body{margin:0;padding:0;background:#fff;direction:rtl;}'
+    $s = '@page{size:A4 portrait;margin:12mm;}'
+        . 'html,body{margin:0;padding:0;background:#fff;direction:rtl;}'
         . '#pdf-export-root,#m-inv-pdf-preview{'
         . 'box-sizing:border-box;width:100%;max-width:100%;margin:0;padding:10px 12px 14px;'
         . 'font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.45;font-weight:800;'
@@ -187,7 +188,7 @@ function mobile_invoice_print_head_mobile_pdf(?PDO $pdo): string
 
 function mobile_invoice_print_einv_qr_mobile(?string $qrSrc): string
 {
-    $src = mobile_invoice_print_einv_qr_img_src($qrSrc);
+    $src = mobile_invoice_print_einv_qr_data_uri($qrSrc);
     if ($src === null) {
         return '';
     }
@@ -224,7 +225,7 @@ function mobile_invoice_print_inner_html_mobile_pdf(PDO $pdo, array $inv): strin
     $head = mobile_invoice_print_head_mobile_pdf($pdo);
 
     $metaBlock = mobile_invoice_print_meta_mobile_pdf($inv);
-    $einvBox = mobile_invoice_print_einv_qr_mobile((string) ($inv['einv_qr'] ?? ''));
+    $einvBox = mobile_invoice_print_einv_qr_mobile(mobile_invoice_print_qr_payload($inv));
     $headerBlock = mobile_invoice_print_header_block_mobile_pdf($metaBlock, $einvBox);
 
     $linesHtml = '';
