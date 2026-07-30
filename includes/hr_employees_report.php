@@ -53,24 +53,29 @@ function hr_employees_report_rows(PDO $pdo, string $status = 'all'): array
 {
     hr_employee_ensure_schema($pdo);
     hr_employee_ensure_link_columns($pdo);
+    hr_department_ensure_schema($pdo);
 
     $status = hr_employees_report_normalize_status($status);
 
-    $sql = 'SELECT id, emp_code, name_ar, hire_date, base_salary, allowances, is_active, resignation_date, is_resigned_posted
-            FROM hr_employee';
+    $sql = 'SELECT e.id, e.emp_code, e.name_ar, e.hire_date, e.base_salary, e.allowances,
+                   e.is_active, e.resignation_date, e.is_resigned_posted,
+                   COALESCE(d.name_ar, NULLIF(TRIM(e.department), \'\'), \'—\') AS department_name
+            FROM hr_employee e
+            LEFT JOIN hr_department d ON d.id = e.department_id';
     $params = [];
 
     if ($status === 'active') {
-        $sql .= ' WHERE is_active = 1
-                  AND COALESCE(is_resigned_posted, 0) = 0
-                  AND (resignation_date IS NULL OR TRIM(resignation_date) = \'\')';
+        $sql .= ' WHERE e.is_active = 1
+                  AND COALESCE(e.is_resigned_posted, 0) = 0
+                  AND (e.resignation_date IS NULL OR TRIM(e.resignation_date) = \'\')';
     } elseif ($status === 'resigned') {
-        $sql .= ' WHERE is_active = 0
-                  OR COALESCE(is_resigned_posted, 0) = 1
-                  OR (resignation_date IS NOT NULL AND TRIM(resignation_date) <> \'\')';
+        $sql .= ' WHERE e.is_active = 0
+                  OR COALESCE(e.is_resigned_posted, 0) = 1
+                  OR (e.resignation_date IS NOT NULL AND TRIM(e.resignation_date) <> \'\')';
     }
 
-    $sql .= ' ' . hr_employee_list_order_sql();
+    $sql .= ' ORDER BY CASE WHEN e.emp_code REGEXP \'^[0-9]+$\' THEN CAST(e.emp_code AS UNSIGNED) ELSE 999999999 END ASC,
+              e.emp_code ASC, e.id ASC';
 
     try {
         $st = $params === [] ? $pdo->query($sql) : $pdo->prepare($sql);
@@ -87,10 +92,15 @@ function hr_employees_report_rows(PDO $pdo, string $status = 'all'): array
     foreach ($rows as $row) {
         $seq++;
         $salary = (float) ($row['base_salary'] ?? 0) + (float) ($row['allowances'] ?? 0);
+        $dept = trim((string) ($row['department_name'] ?? ''));
+        if ($dept === '') {
+            $dept = '—';
+        }
         $out[] = [
             'seq' => $seq,
             'emp_code' => (string) ($row['emp_code'] ?? ''),
             'name_ar' => (string) ($row['name_ar'] ?? ''),
+            'department_name' => $dept,
             'hire_date' => format_date_dmY((string) ($row['hire_date'] ?? '')),
             'salary' => $salary,
             'status_label' => hr_employees_report_is_resigned($row) ? 'مستقيل' : 'على رأس العمل',

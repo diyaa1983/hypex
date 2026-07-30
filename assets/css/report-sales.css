@@ -3071,6 +3071,14 @@
   word-break: break-word;
 }
 
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-dept,
+.report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-dept {
+  width: 9rem;
+  white-space: normal;
+  text-align: start;
+  word-break: break-word;
+}
+
 .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-date,
 .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-date {
   width: 6.5rem;
@@ -3112,11 +3120,19 @@
   }
 
   .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-customer-name {
-    width: 36% !important;
+    width: 26% !important;
     white-space: normal !important;
     text-align: start !important;
     overflow: visible !important;
     text-overflow: clip !important;
+    word-break: break-word !important;
+  }
+
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table col.col-dept,
+  .report-sales-page[data-report-route="report_hr_employees"] .report-hr-employees-table .col-dept {
+    width: 14% !important;
+    white-space: normal !important;
+    text-align: start !important;
     word-break: break-word !important;
   }
 
