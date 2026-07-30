@@ -218,6 +218,11 @@
         '<span class="m-inv-strip-party">' +
         MDL.escapeHtml(inv.customer_name || '—') +
         '</span>' +
+        (inv.sales_rep_name
+          ? '<span class="m-inv-strip-meta muted">المندوب: ' +
+            MDL.escapeHtml(inv.sales_rep_name) +
+            '</span>'
+          : '') +
         '<span class="m-inv-strip-meta muted">' +
         MDL.escapeHtml(inv.invoice_date_dmy || inv.invoice_date || '') +
         (inv.payment_label ? ' · ' + MDL.escapeHtml(inv.payment_label) : '') +

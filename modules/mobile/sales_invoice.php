@@ -16,9 +16,8 @@ require_once app_path('includes/sal_invoice_schema.php');
 sal_invoice_ensure_schema($pdo);
 
 $flash = flash_get();
-$customers = $pdo->query(
-    'SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 500'
-)->fetchAll();
+require_once app_path('includes/crm_sales_rep_schema.php');
+$customers = crm_mobile_customers_for_picker($pdo, 500);
 require_once app_path('includes/warehouse_access.php');
 $warehouses = wh_access_list_warehouses($pdo, 'issue');
 $defaultWarehouseId = wh_access_default_issue_warehouse_id($pdo);

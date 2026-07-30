@@ -25,14 +25,11 @@ if (!$cashAccounts) {
 }
 
 crm_sales_rep_ensure_customer_invoice_links($pdo);
-$customers = $pdo->query(
-    'SELECT c.id, c.name_ar, c.sales_rep_id, r.name_ar AS sales_rep_name
-     FROM crm_customer c
-     LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id AND r.is_active = 1
-     WHERE c.is_active = 1
-     ORDER BY c.name_ar
-     LIMIT 800'
-)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$customers = crm_mobile_customers_for_picker($pdo, 800);
+foreach ($customers as &$cRow) {
+    $cRow['sales_rep_name'] = '';
+}
+unset($cRow);
 
 require_once app_path('includes/acc_gl.php');
 $cashBoxAccountId = acc_gl_cash_box_account_id($pdo);

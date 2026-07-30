@@ -164,6 +164,7 @@ $appBootMigrations = [
     'database/migrations/228_gps_map_provider.sql',
     'database/migrations/229_fin_private_out_checks.sql',
     'database/migrations/231_sys_user_open_session.sql',
+    'database/migrations/232_mobile_customer_add.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

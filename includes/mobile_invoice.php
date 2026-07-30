@@ -120,6 +120,7 @@ function mobile_invoice_list_rows(PDO $pdo, string $filter = 'all', string $sear
     sal_invoice_ensure_schema($pdo);
     crm_ledger_ensure_schema($pdo);
     require_once app_path('includes/sal_documents_list.php');
+    require_once app_path('includes/crm_sales_rep_schema.php');
     einvoice_ensure_schema($pdo);
 
     if (!in_array($filter, ['all', 'unposted', 'posted'], true)) {
@@ -133,21 +134,33 @@ function mobile_invoice_list_rows(PDO $pdo, string $filter = 'all', string $sear
 
     $sql = "SELECT i.id, i.invoice_no, i.invoice_date, i.total, i.subtotal, i.tax_amount,
                    i.payment_type, i.customer_id, c.name_ar AS customer_name, c.code AS customer_code,
+                   i.sales_rep_id, COALESCE(sr.name_ar, '') AS sales_rep_name,
                    ({$postedExpr}) AS is_posted,
                    ({$einvExpr}) AS einv_sent
             FROM sal_invoice i
             LEFT JOIN crm_customer c ON c.id = i.customer_id
+            LEFT JOIN crm_sales_rep sr ON sr.id = i.sales_rep_id
             WHERE i.status = 'confirmed'";
     $params = [];
+    $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
+    if ($scopedRepId !== null) {
+        [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
+        $sql .= ' AND (i.sales_rep_id = ? OR ' . $linkSql . ')';
+        $params[] = $scopedRepId;
+        $params = array_merge($params, $linkParams);
+    }
     if ($filter === 'unposted') {
         $sql .= " AND NOT ({$postedExpr})";
     } elseif ($filter === 'posted') {
         $sql .= " AND ({$postedExpr})";
     }
     if ($search !== '') {
-        $sql .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ?)';
+        $sql .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR sr.name_ar LIKE ?)';
         $like = '%' . $search . '%';
-        $params = [$like, $like, $like];
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
     }
     $sql .= ' ORDER BY i.id DESC LIMIT ' . (int) $limit;
 
@@ -161,6 +174,7 @@ function mobile_invoice_list_rows(PDO $pdo, string $filter = 'all', string $sear
         $row['payment_label'] = (($row['payment_type'] ?? '') === 'credit') ? 'ذمة' : 'نقدي';
         $row['invoice_date_dmy'] = format_date_dmY((string) ($row['invoice_date'] ?? ''));
         $row['total_fmt'] = format_amount((float) ($row['total'] ?? 0));
+        $row['sales_rep_name'] = trim((string) ($row['sales_rep_name'] ?? ''));
     }
     unset($row);
 

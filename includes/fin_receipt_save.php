@@ -98,12 +98,22 @@ function handle_fin_receipt_save(): void
         $err = $periodErr;
     } elseif ($customerId < 1) {
         $err = 'اختر العميل.';
-    } elseif ($payMethod === 'check') {
-        if ($checksTotal <= 0 && $checkAmount <= 0 && $amount <= 0) {
-            $err = 'أدخل قيمة شيك واحد على الأقل.';
+    } elseif (function_exists('mobile_is_context') && mobile_is_context()) {
+        require_once app_path('includes/crm_sales_rep_schema.php');
+        $userRepId = crm_sales_rep_id_for_user($pdo, (int) (current_user()['id'] ?? 0));
+        if ($userRepId !== null && !crm_customer_is_linked_to_sales_rep($pdo, $customerId, $userRepId)) {
+            $err = 'هذا العميل غير مربوط بمندوبك. اختر عميلاً من قائمتك فقط.';
         }
-    } elseif ($amount <= 0) {
-        $err = 'أدخل المبلغ.';
+    }
+
+    if ($err === '') {
+        if ($payMethod === 'check') {
+            if ($checksTotal <= 0 && $checkAmount <= 0 && $amount <= 0) {
+                $err = 'أدخل قيمة شيك واحد على الأقل.';
+            }
+        } elseif ($amount <= 0) {
+            $err = 'أدخل المبلغ.';
+        }
     }
 
     if ($err === '' && $payMethod === 'check') {

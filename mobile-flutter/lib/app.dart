@@ -7,6 +7,7 @@ import 'core/session.dart';
 import 'core/theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/server_setup_screen.dart';
+import 'features/customers/customer_add_screen.dart';
 import 'features/gps/invoice_gps_screen.dart';
 import 'features/gps/user_gps_screen.dart';
 import 'features/gps/user_gps_tracker_screen.dart';
@@ -81,6 +82,10 @@ class NammaApp extends StatelessWidget {
         GoRoute(
           path: '/invoices/new',
           builder: (_, __) => const InvoiceFormScreen(),
+        ),
+        GoRoute(
+          path: '/customers/new',
+          builder: (_, __) => const CustomerAddScreen(),
         ),
         GoRoute(
           path: '/invoices/:id',

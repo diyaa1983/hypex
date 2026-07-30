@@ -64,6 +64,20 @@ if (!$party) {
     exit;
 }
 
+if ($partyType === 'customer') {
+    require_once app_path('includes/crm_sales_rep_schema.php');
+    $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
+    if ($scopedRepId !== null && !crm_customer_is_linked_to_sales_rep($pdo, $partyId, $scopedRepId)) {
+        http_response_code(403);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'forbidden',
+            'message' => 'هذا العميل غير مربوط بمندوبك.',
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
 $partyName = (string) ($party['name_ar'] ?? '');
 $partyCode = (string) ($party['code'] ?? '');
 

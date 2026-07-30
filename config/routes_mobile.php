@@ -122,6 +122,16 @@ return [
 
     ],
 
+    'm_customer_add' => [
+        'file' => 'modules/mobile/customer_add.php',
+        'permission' => 'm_customer_add',
+        'title' => 'إضافة عميل',
+        'home_label' => 'إضافة عميل',
+        'icon' => 'person',
+        'tile_kind' => 'doc',
+        'home_tile' => true,
+    ],
+
     'm_party_statement' => [
 
         'file' => 'modules/mobile/party_statement.php',

@@ -2,11 +2,10 @@
 declare(strict_types=1);
 
 require_once app_path('includes/mobile_auth.php');
+require_once app_path('includes/crm_sales_rep_schema.php');
 
 $pdo = db();
-$customers = $pdo->query(
-    'SELECT id, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 800'
-)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$customers = crm_mobile_customers_for_picker($pdo, 800);
 $suppliers = $pdo->query(
     'SELECT id, name_ar FROM crm_supplier WHERE is_active = 1 ORDER BY name_ar LIMIT 800'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];

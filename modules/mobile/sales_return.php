@@ -15,9 +15,8 @@ $pdo = db();
 $schemaOk = sal_return_ensure_schema($pdo);
 
 $flash = flash_get();
-$customers = $pdo->query(
-    'SELECT id, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 800'
-)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+require_once app_path('includes/crm_sales_rep_schema.php');
+$customers = crm_mobile_customers_for_picker($pdo, 800);
 
 $dp = company_decimal_places($pdo);
 $today = date('Y-m-d');

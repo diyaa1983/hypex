@@ -9,14 +9,30 @@ sql_migration_run_file_once($pdoPerm, 'database/migrations/208_mobile_rep_custod
 sql_migration_run_file_once($pdoPerm, 'database/migrations/216_dashboard_widget_permissions.sql');
 require_once app_path('includes/warehouse_access.php');
 wh_access_ensure_schema($pdoPerm);
+sql_migration_run_file_once($pdoPerm, 'database/migrations/232_mobile_customer_add.sql');
 $syncedScreens = sys_sync_screens_from_routes($pdoPerm);
 $repScreenCount = (int) $pdoPerm->query(
     "SELECT COUNT(*) FROM sys_screen WHERE code IN ('m_rep_load', 'm_rep_return', 'm_rep_stock')"
 )->fetchColumn();
-if ($repScreenCount < 3) {
+$customerAddExists = (int) $pdoPerm->query(
+    "SELECT COUNT(*) FROM sys_screen WHERE code = 'm_customer_add'"
+)->fetchColumn();
+if ($repScreenCount < 3 || $customerAddExists < 1) {
     require_once app_path('includes/acc_coa_bootstrap.php');
     acc_coa_meta_set($pdoPerm, 'sys_sync_routes_mtime', '');
     $syncedScreens += sys_sync_screens_from_routes($pdoPerm);
+    // منح مجموعة الهاتف صلاحية إضافة عميل إن وُجدت الشاشة ولم تُمنح بعد
+    try {
+        $pdoPerm->exec(
+            "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+             SELECT g.id, s.id, 1
+             FROM sys_group g
+             CROSS JOIN sys_screen s
+             WHERE g.code = 'MOBILE' AND s.code = 'm_customer_add'"
+        );
+    } catch (Throwable $e) {
+        error_log('permissions grant m_customer_add: ' . $e->getMessage());
+    }
 }
 $syncedActions = sys_sync_action_permissions($pdoPerm);
 $actionCatalog = action_permissions_catalog();

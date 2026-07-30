@@ -35,6 +35,12 @@ const Map<String, TileSpec> kTileSpecs = {
     AppTheme.primarySoft,
     'المبيعات',
   ),
+  'm_customer_add': TileSpec(
+    '/customers/new',
+    Icons.person_add_alt_1_rounded,
+    AppTheme.primary,
+    'المبيعات',
+  ),
   'm_sales_returns': TileSpec(
     '/returns/new',
     Icons.keyboard_return_rounded,
@@ -260,7 +266,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     : ListView(
                         padding: const EdgeInsets.fromLTRB(14, 6, 14, 24),
                         children: [
-                          _QuickActions(tiles: _tiles),
                           for (final g in _groupOrder)
                             if (_group(g).isNotEmpty) ...[
                               SectionTitle(g),
@@ -396,42 +401,6 @@ class _Header extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _QuickActions extends StatelessWidget {
-  const _QuickActions({required this.tiles});
-
-  final List<_Tile> tiles;
-
-  @override
-  Widget build(BuildContext context) {
-    const quickCodes = ['m_sales_invoices', 'm_receipt', 'm_sales_returns'];
-    final quick =
-        tiles.where((t) => quickCodes.contains(t.code)).toList();
-    if (quick.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionTitle('إجراء سريع', icon: Icons.bolt_rounded),
-        Row(
-          children: [
-            for (var i = 0; i < quick.length; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              Expanded(
-                child: ActionChipButton(
-                  icon: quick[i].spec.icon,
-                  label: quick[i].label,
-                  color: quick[i].spec.color,
-                  onTap: () => context.push(quick[i].spec.route),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ],
     );
   }
 }

@@ -37,6 +37,7 @@ function mobile_icon_svg(string $key): string
         'load' => '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path ' . $stroke . ' d="M12 4v10"/><path ' . $stroke . ' d="M8 10l4 4 4-4"/><path ' . $stroke . ' d="M4 18h16"/></svg>',
         'stock' => '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path ' . $stroke . ' d="M4 8l8-4 8 4-8 4-8-4z"/><path ' . $stroke . ' d="M4 12l8 4 8-4"/><path ' . $stroke . ' d="M4 16l8 4 8-4"/></svg>',
         'bag' => '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path ' . $stroke . ' d="M8 7V5a4 4 0 0 1 8 0v2"/><path ' . $stroke . ' d="M5 7h14l-1.2 13H6.2L5 7z"/></svg>',
+        'person' => '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><circle cx="12" cy="8" r="3.5" ' . $stroke . '/><path ' . $stroke . ' d="M5 19c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>',
     ];
 
     return $icons[$key] ?? $icons['invoice'];

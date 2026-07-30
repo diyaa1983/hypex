@@ -184,12 +184,11 @@ $cssUrl = app_url('assets/css/settings-oracle12.css')
                                 <td><?= esc((string) ($r['login_at_hi'] ?? '—')) ?></td>
                                 <td><?= esc((string) ($r['last_seen_hi'] ?? '—')) ?></td>
                                 <td>
-                                    <form method="post" action="<?= esc($pageUrl) ?>" class="os-kill"
-                                          onsubmit="return confirm('إنهاء جلسة هذا المستخدم؟');">
+                                    <form method="post" action="<?= esc($pageUrl) ?>" class="os-kill-form">
                                         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                                         <input type="hidden" name="action" value="kill">
                                         <input type="hidden" name="session_id" value="<?= (int) ($r['id'] ?? 0) ?>">
-                                        <button type="submit" class="btn btn-sm btn-danger">إنهاء</button>
+                                        <button type="submit" class="btn btn-sm btn-danger os-kill-btn">إنهاء</button>
                                     </form>
                                 </td>
                             </tr>
@@ -203,3 +202,28 @@ $cssUrl = app_url('assets/css/settings-oracle12.css')
 
     <?php sales_ora12_workspace_close(); ?>
 </div>
+<script>
+(function () {
+  document.querySelectorAll('.os-kill-form').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var submitForm = function () { form.submit(); };
+      if (window.AppDialog && typeof AppDialog.confirm === 'function') {
+        AppDialog.confirm('إنهاء جلسة هذا المستخدم؟', {
+          title: 'إنهاء الجلسة',
+          okText: 'إنهاء',
+          cancelText: 'إلغاء',
+          type: 'warning',
+          danger: true,
+        }).then(function (ok) {
+          if (ok) submitForm();
+        });
+        return;
+      }
+      if (window.confirm('إنهاء جلسة هذا المستخدم؟')) {
+        submitForm();
+      }
+    });
+  });
+})();
+</script>

@@ -521,3 +521,167 @@ function crm_sales_rep_ensure_custody_warehouse(PDO $pdo, int $repId): ?int
 
     return $whId > 0 ? $whId : null;
 }
+
+/**
+ * مندوب المستخدم الحالي على الهاتف (null = لا تقييد بقائمة عملاء).
+ * يُقيَّد فقط إن كان للحساب مندوب مربوط.
+ */
+function crm_mobile_scoped_sales_rep_id(?PDO $pdo = null, ?int $userId = null): ?int
+{
+    $pdo = $pdo ?? db();
+    if ($userId === null) {
+        $userId = (int) (current_user()['id'] ?? 0);
+    }
+    if ($userId < 1) {
+        return null;
+    }
+
+    return crm_sales_rep_id_for_user($pdo, $userId);
+}
+
+function crm_customer_is_linked_to_sales_rep(PDO $pdo, int $customerId, int $salesRepId): bool
+{
+    if ($customerId < 1 || $salesRepId < 1) {
+        return false;
+    }
+    crm_sales_rep_ensure_customer_invoice_links($pdo);
+
+    if (crm_customer_sales_rep_has_table($pdo)) {
+        $st = $pdo->prepare(
+            'SELECT 1 FROM crm_customer_sales_rep
+             WHERE customer_id = ? AND sales_rep_id = ? LIMIT 1'
+        );
+        $st->execute([$customerId, $salesRepId]);
+        if ($st->fetchColumn()) {
+            return true;
+        }
+    }
+
+    if (crm_sales_rep_customer_has_link($pdo)) {
+        $st = $pdo->prepare(
+            'SELECT 1 FROM crm_customer WHERE id = ? AND sales_rep_id = ? LIMIT 1'
+        );
+        $st->execute([$customerId, $salesRepId]);
+        return (bool) $st->fetchColumn();
+    }
+
+    return false;
+}
+
+/**
+ * شرط SQL: العميل مربوط بالمندوب (alias جدول العميل مثل c).
+ * @return array{0:string,1:list<int>} [sqlFragment, params]
+ */
+function crm_customer_sql_linked_to_rep(PDO $pdo, string $customerAlias, int $salesRepId): array
+{
+    $alias = preg_replace('/[^a-zA-Z0-9_]/', '', $customerAlias) ?: 'c';
+    crm_sales_rep_ensure_customer_invoice_links($pdo);
+    $parts = [];
+    $params = [];
+
+    if (crm_customer_sales_rep_has_table($pdo)) {
+        $parts[] = "EXISTS (
+            SELECT 1 FROM crm_customer_sales_rep csr
+            WHERE csr.customer_id = {$alias}.id AND csr.sales_rep_id = ?
+        )";
+        $params[] = $salesRepId;
+    }
+    if (crm_sales_rep_customer_has_link($pdo)) {
+        $parts[] = "{$alias}.sales_rep_id = ?";
+        $params[] = $salesRepId;
+    }
+    if ($parts === []) {
+        return ['0', []];
+    }
+
+    return ['(' . implode(' OR ', $parts) . ')', $params];
+}
+
+function crm_customer_generate_code(PDO $pdo): string
+{
+    $maxId = (int) $pdo->query('SELECT IFNULL(MAX(id), 0) FROM crm_customer')->fetchColumn();
+    for ($attempt = 0; $attempt < 100; $attempt++) {
+        $code = 'C-' . str_pad((string) ($maxId + 1 + $attempt), 5, '0', STR_PAD_LEFT);
+        $chk = $pdo->prepare('SELECT id FROM crm_customer WHERE code = ? LIMIT 1');
+        $chk->execute([$code]);
+        if (!$chk->fetch()) {
+            return $code;
+        }
+    }
+
+    throw new RuntimeException('تعذر توليد رمز العميل.');
+}
+
+/**
+ * عملاء المندوب المربوط بالمستخدم (لقوائم الهاتف).
+ * @return list<array{id:int,code:string,name_ar:string}>
+ */
+function crm_mobile_customers_for_picker(PDO $pdo, int $limit = 800): array
+{
+    $limit = max(1, min(2000, $limit));
+    $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
+    $params = [];
+    $sql = 'SELECT c.id, c.code, c.name_ar FROM crm_customer c WHERE c.is_active = 1';
+    if ($scopedRepId !== null) {
+        [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
+        $sql .= ' AND ' . $linkSql;
+        $params = $linkParams;
+    }
+    $sql .= ' ORDER BY c.name_ar LIMIT ' . (int) $limit;
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+/**
+ * إضافة عميل من تطبيق الهاتف مربوط بالمندوب الحالي.
+ * @return array{ok:bool,message:string,customer?:array{id:int,code:string,name:string}}
+ */
+function crm_mobile_customer_create_for_user(
+    PDO $pdo,
+    int $userId,
+    string $nameAr,
+    string $phone = '',
+    string $addressAr = ''
+): array {
+    $nameAr = trim($nameAr);
+    $phone = trim($phone);
+    $addressAr = trim($addressAr);
+    if ($nameAr === '') {
+        return ['ok' => false, 'message' => 'اسم العميل مطلوب.'];
+    }
+
+    $repId = crm_sales_rep_id_for_user($pdo, $userId);
+    if ($repId === null) {
+        return ['ok' => false, 'message' => 'حسابك غير مربوط بمندوب مبيعات. راجع مدير النظام.'];
+    }
+
+    crm_sales_rep_ensure_customer_invoice_links($pdo);
+    $code = crm_customer_generate_code($pdo);
+    $st = $pdo->prepare(
+        'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active)
+         VALUES (?,?,?,?,?,?,?,1)'
+    );
+    $st->execute([
+        $code,
+        $nameAr,
+        $phone !== '' ? $phone : null,
+        null,
+        null,
+        $addressAr !== '' ? $addressAr : null,
+        $repId,
+    ]);
+    $newId = (int) $pdo->lastInsertId();
+    crm_customer_save_sales_reps($pdo, $newId, [$repId]);
+
+    return [
+        'ok' => true,
+        'message' => 'تم إضافة العميل وربطه بمندوبك.',
+        'customer' => [
+            'id' => $newId,
+            'code' => $code,
+            'name' => $nameAr,
+        ],
+    ];
+}

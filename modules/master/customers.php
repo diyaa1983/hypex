@@ -12,21 +12,6 @@ require_once app_path('includes/crm_party_delete.php');
 crm_sales_rep_ensure_customer_invoice_links($pdo);
 $salesReps = crm_sales_rep_load_active($pdo);
 
-function crm_customer_generate_code(PDO $pdo): string
-{
-    $maxId = (int) $pdo->query('SELECT IFNULL(MAX(id), 0) FROM crm_customer')->fetchColumn();
-    for ($attempt = 0; $attempt < 100; $attempt++) {
-        $code = 'C-' . str_pad((string) ($maxId + 1 + $attempt), 5, '0', STR_PAD_LEFT);
-        $chk = $pdo->prepare('SELECT id FROM crm_customer WHERE code = ? LIMIT 1');
-        $chk->execute([$code]);
-        if (!$chk->fetch()) {
-            return $code;
-        }
-    }
-
-    throw new RuntimeException('تعذر توليد رمز العميل.');
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
         flash_set('error', 'جلسة غير صالحة، أعد المحاولة.');

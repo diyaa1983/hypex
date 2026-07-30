@@ -50,7 +50,7 @@ $flash = flash_get();
             <label class="field" style="flex:1;min-width:220px;">
                 <span class="field-label">بحث</span>
                 <input class="input" type="search" name="q" value="<?= esc($search) ?>"
-                       placeholder="رقم فاتورة، عميل، كود عميل…" autocomplete="off">
+                       placeholder="رقم فاتورة، عميل، كود عميل، مندوب…" autocomplete="off">
             </label>
             <button type="submit" class="btn btn-primary btn-sm">بحث</button>
             <?php if ($search !== ''): ?>
@@ -68,6 +68,7 @@ $flash = flash_get();
                     <th>رقم الفاتورة</th>
                     <th>التاريخ</th>
                     <th>اسم العميل</th>
+                    <th>اسم المندوب</th>
                     <th class="col-money">الإجمالي (شامل)</th>
                     <th>الترحيل</th>
                     <th>الضريبة</th>
@@ -76,7 +77,7 @@ $flash = flash_get();
                 <tbody>
                 <?php if (!$rows): ?>
                     <tr>
-                        <td colspan="7" class="muted" style="text-align:center;padding:1.25rem;">
+                        <td colspan="8" class="muted" style="text-align:center;padding:1.25rem;">
                             لا توجد فواتير مطابقة.
                         </td>
                     </tr>
@@ -112,6 +113,7 @@ $flash = flash_get();
                         </td>
                         <td><?= esc(format_date_dmY((string) ($row['doc_date'] ?? ''))) ?></td>
                         <td><?= esc((string) ($row['customer_name'] ?? '')) ?></td>
+                        <td><?= esc(trim((string) ($row['sales_rep_name'] ?? '')) !== '' ? (string) $row['sales_rep_name'] : '—') ?></td>
                         <td class="col-money"><?= esc(format_amount((float) ($row['total'] ?? 0))) ?></td>
                         <td>
                             <?php if ($posted): ?>

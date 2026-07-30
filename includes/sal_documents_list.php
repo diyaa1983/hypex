@@ -55,27 +55,31 @@ function sal_invoices_list_query(PDO $pdo, string $search = ''): array
 
     $sql = "SELECT i.id AS doc_id, i.invoice_no AS doc_no, i.invoice_date AS doc_date,
             c.name_ar AS customer_name, i.total AS total,
+            i.sales_rep_id,
+            COALESCE(sr.name_ar, '') AS sales_rep_name,
             ({$invPosted}) AS is_posted, ({$invEinv}) AS einv_sent,
             ({$retSub['count']}) AS return_count,
             ({$retSub['nos']}) AS return_nos
         FROM sal_invoice i
         INNER JOIN crm_customer c ON c.id = i.customer_id
+        LEFT JOIN crm_sales_rep sr ON sr.id = i.sales_rep_id
         WHERE i.status = 'confirmed'";
 
     $params = [];
     if ($search !== '') {
         $like = '%' . $search . '%';
-        $sql .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ?)';
-        $params = [$like, $like, $like];
+        $sql .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR sr.name_ar LIKE ?)';
+        $params = [$like, $like, $like, $like];
     }
 
     $sql .= ' ORDER BY i.invoice_date DESC, i.id DESC';
     $countSql = 'SELECT COUNT(*) FROM sal_invoice i
         INNER JOIN crm_customer c ON c.id = i.customer_id
+        LEFT JOIN crm_sales_rep sr ON sr.id = i.sales_rep_id
         WHERE i.status = \'confirmed\'';
     $countParams = $params;
     if ($search !== '') {
-        $countSql .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ?)';
+        $countSql .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR sr.name_ar LIKE ?)';
     }
 
     return [

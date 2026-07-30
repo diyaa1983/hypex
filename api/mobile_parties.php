@@ -2,13 +2,14 @@
 declare(strict_types=1);
 
 /**
- * قائمة العملاء/الموردين لتطبيق الهاتف الأصلي (اختيار الطرف في كشف الحساب وسند القبض).
- * قراءة فقط، تعتمد جلسة الكوكيز الحالية ومجموعة MOBILE.
+ * قائمة العملاء/الموردين لتطبيق الهاتف.
+ * العملاء: إن كان المستخدم مربوطاً بمندوب → عملاؤه فقط.
  *
  *   GET ?type=customer|supplier&q=بحث
  */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
+require_once app_path('includes/crm_sales_rep_schema.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -25,17 +26,33 @@ $q = trim((string) ($_GET['q'] ?? ''));
 
 try {
     $pdo = db();
-    $table = $type === 'supplier' ? 'crm_supplier' : 'crm_customer';
-
-    $sql = "SELECT id, name_ar, code FROM {$table} WHERE is_active = 1";
+    $scopedRepId = $type === 'customer' ? crm_mobile_scoped_sales_rep_id($pdo) : null;
     $params = [];
-    if ($q !== '') {
-        $sql .= ' AND (name_ar LIKE ? OR code LIKE ?)';
-        $like = '%' . $q . '%';
-        $params[] = $like;
-        $params[] = $like;
+
+    if ($type === 'customer') {
+        $sql = 'SELECT c.id, c.name_ar, c.code FROM crm_customer c WHERE c.is_active = 1';
+        if ($scopedRepId !== null) {
+            [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
+            $sql .= ' AND ' . $linkSql;
+            $params = array_merge($params, $linkParams);
+        }
+        if ($q !== '') {
+            $sql .= ' AND (c.name_ar LIKE ? OR c.code LIKE ?)';
+            $like = '%' . $q . '%';
+            $params[] = $like;
+            $params[] = $like;
+        }
+        $sql .= ' ORDER BY c.name_ar LIMIT 800';
+    } else {
+        $sql = 'SELECT id, name_ar, code FROM crm_supplier WHERE is_active = 1';
+        if ($q !== '') {
+            $sql .= ' AND (name_ar LIKE ? OR code LIKE ?)';
+            $like = '%' . $q . '%';
+            $params[] = $like;
+            $params[] = $like;
+        }
+        $sql .= ' ORDER BY name_ar LIMIT 800';
     }
-    $sql .= ' ORDER BY name_ar LIMIT 800';
 
     $st = $pdo->prepare($sql);
     $st->execute($params);
@@ -52,6 +69,7 @@ try {
     echo json_encode([
         'ok' => true,
         'type' => $type,
+        'scoped_to_sales_rep' => $scopedRepId !== null,
         'parties' => $parties,
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {

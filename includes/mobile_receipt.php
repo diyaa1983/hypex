@@ -160,7 +160,9 @@ function mobile_receipt_list_rows(PDO $pdo, string $filter = 'all', string $sear
 
     $limit = max(1, min(200, $limit));
 
-    $list = fin_voucher_list_fetch($pdo, 'receipt', $filter, $search, $limit);
+    require_once app_path('includes/crm_sales_rep_schema.php');
+    $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
+    $list = fin_voucher_list_fetch($pdo, 'receipt', $filter, $search, $limit, $scopedRepId);
 
     $rows = $list['rows'] ?? [];
 

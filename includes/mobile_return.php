@@ -56,6 +56,14 @@ function mobile_return_list_rows(PDO $pdo, string $filter = 'all', string $searc
             WHERE r.status <> 'cancelled'";
     $params = [];
 
+    require_once app_path('includes/crm_sales_rep_schema.php');
+    $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
+    if ($scopedRepId !== null) {
+        [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
+        $sql .= ' AND ' . $linkSql;
+        $params = array_merge($params, $linkParams);
+    }
+
     if ($filter === 'unposted') {
         $sql .= " AND NOT ({$postedExpr})";
     } elseif ($filter === 'posted') {
@@ -65,7 +73,10 @@ function mobile_return_list_rows(PDO $pdo, string $filter = 'all', string $searc
     if ($search !== '') {
         $like = '%' . $search . '%';
         $sql .= ' AND (r.return_no LIKE ? OR i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ?)';
-        $params = [$like, $like, $like, $like];
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
     }
 
     $sql .= ' ORDER BY r.return_date DESC, r.id DESC LIMIT ' . (int) $limit;

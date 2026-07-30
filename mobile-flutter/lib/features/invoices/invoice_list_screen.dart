@@ -315,6 +315,19 @@ class _InvoiceCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
+                    if ((row['sales_rep_name'] ?? '').toString().trim().isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'المندوب: ${(row['sales_rep_name'] ?? '').toString().trim()}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSoft,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 4),
                     Row(
                       children: [

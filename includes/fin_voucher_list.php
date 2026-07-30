@@ -13,7 +13,8 @@ function fin_voucher_list_fetch(
     string $voucherType,
     string $filter,
     string $search,
-    int $apiLimit = 0
+    int $apiLimit = 0,
+    ?int $salesRepId = null
 ): array {
     if (!in_array($filter, ['all', 'unposted', 'posted'], true)) {
         $filter = 'all';
@@ -91,6 +92,13 @@ function fin_voucher_list_fetch(
         }
         $fromWhere .= ' AND (' . $searchParts . ')';
         $params = array_merge($params, $searchParams);
+    }
+
+    if ($salesRepId !== null && $salesRepId > 0 && $voucherType === 'receipt') {
+        require_once app_path('includes/crm_sales_rep_schema.php');
+        [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $salesRepId);
+        $fromWhere .= ' AND v.party_type = \'customer\' AND ' . $linkSql;
+        $params = array_merge($params, $linkParams);
     }
 
     $sql = "SELECT v.id, v.voucher_no, v.voucher_date, v.amount, v.party_type, v.party_id,

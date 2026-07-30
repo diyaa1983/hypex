@@ -36,6 +36,7 @@ class AppConfig {
 
   static const String partyStatementPath = 'api/mobile_party_statement.php';
   static const String partiesPath = 'api/mobile_parties.php';
+  static const String customerSavePath = 'api/mobile_customer_save.php';
 
   static const String repItemsPath = 'api/mobile_rep_items.php';
   static const String repStockPath = 'api/mobile_rep_stock.php';

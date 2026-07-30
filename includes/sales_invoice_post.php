@@ -89,6 +89,16 @@ function handle_sales_invoice_post(): void
         } else {
             $salesRepId = $repCheck['rep_id'];
         }
+        if ($err === '' && function_exists('mobile_is_context') && mobile_is_context()) {
+            $userRepId = crm_sales_rep_id_for_user($pdo, (int) (current_user()['id'] ?? 0));
+            if ($userRepId !== null) {
+                if (!crm_customer_is_linked_to_sales_rep($pdo, $customerId, $userRepId)) {
+                    $err = 'هذا العميل غير مربوط بمندوبك. اختر عميلاً من قائمتك فقط.';
+                } else {
+                    $salesRepId = $userRepId;
+                }
+            }
+        }
     }
 
     if ($err !== '') {
