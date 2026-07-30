@@ -94,6 +94,7 @@ $today = date('Y-m-d');
                     <span><i class="ugt-dot ugt-dot--online"></i> متصل (آخر 60 ثانية)</span>
                     <span><i class="ugt-line"></i> خط حي + حركة سلسة</span>
                     <span><i class="ugt-dot ugt-dot--away"></i> غير متصل = لا يظهر على الخريطة</span>
+                    <span>الرقم على الخريطة = نفس الرقم في القائمة</span>
                 </div>
                 <div class="ugt-status" id="ugt-status">تحديث كل 3 ثوانٍ</div>
             </div>

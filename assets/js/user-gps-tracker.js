@@ -51,12 +51,43 @@
     return leafletPromise;
   }
 
+  function arabicWordLead(word) {
+    var w = String(word || '').trim();
+    if (!w) return '';
+    if (w.length >= 2 && (w.charAt(0) === 'ا' || w.charAt(0) === 'أ' || w.charAt(0) === 'إ' || w.charAt(0) === 'آ') && w.charAt(1) === 'ل') {
+      w = w.slice(2);
+    }
+    return w.charAt(0) || '';
+  }
+
   function initials(name) {
     var s = String(name || '').trim();
     if (!s) return '?';
     var parts = s.split(/\s+/).filter(Boolean);
     if (parts.length === 1) return parts[0].slice(0, 2);
-    return (parts[0].charAt(0) + parts[1].charAt(0));
+    var a = arabicWordLead(parts[0]) || parts[0].charAt(0);
+    var b = arabicWordLead(parts[1]) || parts[1].charAt(0);
+    return a + b;
+  }
+
+  var USER_COLORS = [
+    '#13a05c',
+    '#2563eb',
+    '#d97706',
+    '#7c3aed',
+    '#db2777',
+    '#0891b2',
+    '#ca8a04',
+    '#dc2626',
+    '#059669',
+    '#4f46e5',
+    '#c2410c',
+    '#0d9488',
+  ];
+
+  function userMarkerColor(userId) {
+    var id = parseInt(userId, 10) || 0;
+    return USER_COLORS[Math.abs(id) % USER_COLORS.length];
   }
 
   function esc(s) {
@@ -113,6 +144,8 @@
     this.loading = false;
     this.fitOnce = true;
     this.arcgisFitOnce = true;
+    /** @type {Object.<number, {num:number, short:string, mapLabel:string, color:string}>} */
+    this.markerMeta = {};
 
     this.els = {
       list: root.querySelector('#ugt-list'),
@@ -133,7 +166,38 @@
     };
   }
 
-  Tracker.prototype.usesArcgis = function () {
+  Tracker.prototype.rebuildMarkerMeta = function () {
+    var rows = this.rows.slice().sort(function (a, b) {
+      return (parseInt(a.user_id, 10) || 0) - (parseInt(b.user_id, 10) || 0);
+    });
+    var meta = {};
+
+    rows.forEach(function (r, idx) {
+      var id = r.user_id;
+      var short = initials(r.user_label);
+      meta[id] = {
+        num: idx + 1,
+        short: short,
+        mapLabel: String(idx + 1),
+        color: userMarkerColor(id),
+      };
+    });
+
+    this.markerMeta = meta;
+  };
+
+  Tracker.prototype.getMarkerMeta = function (userId) {
+    if (this.markerMeta && this.markerMeta[userId]) {
+      return this.markerMeta[userId];
+    }
+    return {
+      num: '?',
+      short: '?',
+      mapLabel: '?',
+      color: '#13a05c',
+    };
+  };
+
     return this.mapEngine === 'arcgis' && global.MapInterop;
   };
 
@@ -479,6 +543,7 @@
   };
 
   Tracker.prototype.renderList = function () {
+    this.rebuildMarkerMeta();
     var list = this.els.list;
     if (!list) return;
     if (!this.rows.length) {
@@ -511,6 +576,7 @@
     var html = '';
     for (var i = 0; i < this.rows.length; i++) {
       var r = this.rows[i];
+      var meta = this.getMarkerMeta(r.user_id);
       var status = r.status || (r.is_online ? 'online' : 'offline');
       var active = this.activeId === r.user_id ? ' is-active' : '';
       html +=
@@ -521,11 +587,16 @@
         '">' +
         '<div class="ugt-item__avatar ugt-item__avatar--' +
         esc(status) +
+        '" style="background:' +
+        esc(meta.color) +
         '">' +
-        esc(initials(r.user_label)) +
+        esc(String(meta.num)) +
         '</div>' +
         '<div class="ugt-item__body">' +
         '<div class="ugt-item__name">' +
+        '<span class="ugt-item__num">' +
+        esc(String(meta.num)) +
+        '.</span> ' +
         esc(r.user_label) +
         '</div>' +
         '<div class="ugt-item__meta">' +
@@ -556,13 +627,16 @@
   };
 
   Tracker.prototype.markerIcon = function (row, bearing) {
+    var meta = this.getMarkerMeta(row.user_id);
     var status = row.status || (row.is_online ? 'online' : 'offline');
-    var label = initials(row.user_label);
+    var label = meta.mapLabel;
     var heading = bearing != null && isFinite(bearing) ? Math.round(bearing) : 0;
     var html =
       '<div class="ugt-mover" style="--ugt-heading:' +
       heading +
-      'deg">' +
+      'deg;--ugt-pin-color:' +
+      esc(meta.color) +
+      '">' +
       '<span class="ugt-mover__pulse" aria-hidden="true"></span>' +
       '<div class="ugt-mover__arrow" aria-hidden="true"></div>' +
       '<div class="ugt-pin ugt-pin--' +
@@ -836,13 +910,19 @@
 
   Tracker.prototype.rowsForArcgis = function () {
     var self = this;
+    if (!this.markerMeta || !Object.keys(this.markerMeta).length) {
+      this.rebuildMarkerMeta();
+    }
     return this.rows.map(function (r) {
+      var meta = self.getMarkerMeta(r.user_id);
       return {
         user_id: r.user_id,
         latitude: r.latitude,
         longitude: r.longitude,
         user_label: r.user_label,
         is_online: r.is_online || r.status === 'online',
+        marker_color: meta.color,
+        marker_label: meta.mapLabel,
         popup_html: self.popupHtml(r),
       };
     });
@@ -868,6 +948,9 @@
 
   Tracker.prototype.renderMarkers = function () {
     if (!this.map) return;
+    if (!this.markerMeta || !Object.keys(this.markerMeta).length) {
+      this.rebuildMarkerMeta();
+    }
     if (this.usesArcgis()) {
       this.renderArcgisMarkers();
       return;

@@ -81,6 +81,7 @@ $today = date('Y-m-d');
                 <div class="ugt-legend ugt-legend--compact">
                     <span><i class="ugt-dot ugt-dot--online"></i> متصل</span>
                     <span><i class="ugt-line"></i> خط حي</span>
+                    <span>الرقم = القائمة</span>
                 </div>
                 <div class="ugt-status" id="ugt-status"></div>
             </div>

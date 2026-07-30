@@ -113,7 +113,17 @@ window.MapInterop = (function () {
     });
   }
 
+  function hexToRgb(hex) {
+    var h = String(hex || '').replace('#', '');
+    if (h.length !== 6) return null;
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+
   function markerColor(attrs) {
+    if (attrs && attrs.marker_color) {
+      var rgb = hexToRgb(attrs.marker_color);
+      if (rgb) return rgb;
+    }
     if (attrs && attrs.is_active) {
       return [220, 38, 38];
     }
@@ -316,6 +326,8 @@ window.MapInterop = (function () {
           user_label: r.user_label || '',
           is_online: !!(r.is_online || r.status === 'online'),
           is_active: activeKey === key,
+          marker_color: r.marker_color || '',
+          marker_label: r.marker_label || '',
           popup_html: r.popup_html || '',
         };
 
