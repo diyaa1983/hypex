@@ -174,6 +174,12 @@ return [
         'title' => 'تتبّع المواقع الحية',
         'hide_screen_title' => true,
     ],
+    'open_sessions' => [
+        'file' => 'modules/system/open_sessions.php',
+        'permission' => 'open_sessions',
+        'title' => 'الجلسات المفتوحة',
+        'hide_screen_title' => true,
+    ],
     'users' => [
         'file' => 'modules/users/list.php',
         'permission' => 'users',

@@ -197,11 +197,23 @@ function attempt_login(string $username, string $password): bool
     unset($_SESSION['fin_check_due_email_boot']);
     unset($_SESSION['fin_out_check_due_email_boot']);
     session_regenerate_id(true);
+    try {
+        require_once app_path('includes/sys_user_open_session.php');
+        sys_user_open_session_register_windows($uid);
+    } catch (Throwable $e) {
+        error_log('attempt_login open_session: ' . $e->getMessage());
+    }
     return true;
 }
 
 function logout(): void
 {
+    try {
+        require_once app_path('includes/sys_user_open_session.php');
+        sys_user_open_session_close_current();
+    } catch (Throwable $e) {
+        error_log('logout open_session: ' . $e->getMessage());
+    }
     $_SESSION = [];
     if (ini_get('session.use_cookies')) {
         $p = session_get_cookie_params();

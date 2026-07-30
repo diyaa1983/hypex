@@ -92,6 +92,22 @@ function mobile_attempt_login(string $username, string $password): bool
     $_SESSION['app_context'] = 'mobile';
     $_SESSION['permissions'] = load_user_mobile_permissions($uid);
 
+    try {
+        require_once app_path('includes/sys_user_open_session.php');
+        $prev = (string) ($_SESSION['open_session_token'] ?? '');
+        if ($prev !== '') {
+            sys_user_open_session_close_token(db(), $prev);
+        }
+        $sid = session_id();
+        if ($sid !== '') {
+            sys_user_open_session_register(db(), $uid, 'mw:' . substr($sid, 0, 120), 'mobile', [
+                'client_label' => 'هاتف ويب',
+            ]);
+        }
+    } catch (Throwable $e) {
+        error_log('mobile_attempt_login open_session: ' . $e->getMessage());
+    }
+
     return true;
 }
 

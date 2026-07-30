@@ -99,6 +99,20 @@ try {
             $lat,
             $lng
         );
+        try {
+            require_once app_path('includes/sys_user_open_session.php');
+            $token = sys_user_open_session_mobile_token($deviceId);
+            if ($token !== '') {
+                $_SESSION['open_session_token'] = $token;
+                sys_user_open_session_touch($pdo, $token, [
+                    'client_label' => $deviceLabel !== '' ? $deviceLabel : null,
+                    'latitude' => $lat,
+                    'longitude' => $lng,
+                ]);
+            }
+        } catch (Throwable $e) {
+            error_log('user_location_ping open_session: ' . $e->getMessage());
+        }
     }
 
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);

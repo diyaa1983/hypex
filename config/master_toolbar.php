@@ -90,6 +90,7 @@ return [
                 'tax_rates_settings',
                 'einvoice_settings',
                 'gps_tracking_settings',
+                'open_sessions',
                 'users',
                 'groups',
                 'permissions',

@@ -22,6 +22,7 @@ function report_ora12_master_routes(): array
         'tax_rates_settings',
         'einvoice_settings',
         'gps_tracking_settings',
+        'open_sessions',
     ];
 }
 

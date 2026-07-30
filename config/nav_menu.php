@@ -504,6 +504,7 @@ return [
                         ['r' => 'users', 'label' => 'المستخدمون', 'icon' => '👥'],
                         ['r' => 'groups', 'label' => 'المجموعات', 'icon' => '📁'],
                         ['r' => 'permissions', 'label' => 'الصلاحيات', 'icon' => '🔐'],
+                        ['r' => 'open_sessions', 'label' => 'الجلسات المفتوحة', 'icon' => '🔌'],
                     ],
                 ],
                 [
@@ -520,6 +521,7 @@ return [
                         ['r' => 'user_gps_locations', 'label' => 'مواقع المستخدمين', 'icon' => '🗺'],
                         ['r' => 'user_gps_tracker', 'label' => 'تتبّع المواقع الحية', 'icon' => '📡'],
                         ['r' => 'gps_tracking_settings', 'label' => 'إعدادات تتبّع الهاتف', 'icon' => '⚙'],
+                        ['r' => 'open_sessions', 'label' => 'الجلسات المفتوحة', 'icon' => '🔌'],
                     ],
                 ],
             ],

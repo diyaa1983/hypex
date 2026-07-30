@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/mobile_device_session.php');
 require_once app_path('includes/mobile_gps_settings.php');
+require_once app_path('includes/sys_user_open_session.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -97,6 +98,13 @@ if ($method === 'GET' || $action === 'me') {
             }
             $label = trim((string) ($_GET['device_label'] ?? ''));
             mobile_device_session_touch($pdo, $uid, $deviceId, $label !== '' ? $label : null);
+            $token = sys_user_open_session_mobile_token($deviceId);
+            if ($token !== '') {
+                $_SESSION['open_session_token'] = $token;
+                sys_user_open_session_touch($pdo, $token, [
+                    'client_label' => $label !== '' ? $label : null,
+                ]);
+            }
         }
     }
     echo json_encode(mobile_session_payload(), JSON_UNESCAPED_UNICODE);
@@ -174,5 +182,15 @@ if ($uid < 1 || !mobile_device_session_claim(
     );
     exit;
 }
+
+$prevOpen = (string) ($_SESSION['open_session_token'] ?? '');
+if ($prevOpen !== '' && str_starts_with($prevOpen, 'mw:')) {
+    sys_user_open_session_close_token($pdo, $prevOpen);
+}
+sys_user_open_session_register_mobile(
+    $uid,
+    $deviceId,
+    $deviceLabel !== '' ? $deviceLabel : null
+);
 
 echo json_encode(mobile_session_payload(), JSON_UNESCAPED_UNICODE);

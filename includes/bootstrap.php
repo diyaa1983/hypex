@@ -98,4 +98,38 @@ app_apply_timezone();
 
 if (is_logged_in()) {
     refresh_session_permissions();
+    try {
+        require_once app_path('includes/sys_user_open_session.php');
+        if (sys_user_open_session_guard_current()) {
+            $wasMobile = (($_SESSION['app_context'] ?? '') === 'mobile');
+            $script = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+            $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+            $isApi = str_contains($script, '/api/') || str_contains($uri, '/api/');
+            logout();
+            if ($isApi) {
+                if (!headers_sent()) {
+                    header('Content-Type: application/json; charset=utf-8');
+                }
+                http_response_code(401);
+                echo json_encode([
+                    'ok' => false,
+                    'authenticated' => false,
+                    'error' => 'session_killed',
+                    'session_end_reason' => 'admin_killed',
+                    'message' => 'تم إنهاء جلستك من إدارة النظام.',
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            if (function_exists('flash_set')) {
+                flash_set('error', 'تم إنهاء جلستك من إدارة النظام.');
+            }
+            if ($wasMobile) {
+                require_once app_path('includes/mobile_auth.php');
+                redirect(mobile_login_url());
+            }
+            redirect(app_url('login.php'));
+        }
+    } catch (Throwable $e) {
+        error_log('bootstrap open_session guard: ' . $e->getMessage());
+    }
 }

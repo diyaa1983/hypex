@@ -314,7 +314,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     if (raw is num) return raw.toInt();
     final captured = (p.data['captured_at'] ?? '').toString();
     if (captured.isEmpty) return 0;
-    return DateTime.tryParse(captured)?.millisecondsSinceEpoch ~/ 1000 ?? 0;
+    final ms = DateTime.tryParse(captured)?.millisecondsSinceEpoch;
+    return ms == null ? 0 : ms ~/ 1000;
   }
 
   Future<List<LatLng>> _osrmSnapPoints(List<LatLng> points) async {
