@@ -57,12 +57,28 @@
       var h = global.screen.availHeight;
       var l = typeof global.screen.availLeft === 'number' ? global.screen.availLeft : 0;
       var t = typeof global.screen.availTop === 'number' ? global.screen.availTop : 0;
-      global.moveTo(l, t);
-      global.resizeTo(w, h);
+      // بعض بيئات PWA ترفض resize قبل اكتمال العرض — نحاول بهدوء
+      if (typeof global.moveTo === 'function') {
+        global.moveTo(l, t);
+      }
+      if (typeof global.resizeTo === 'function') {
+        global.resizeTo(w, h);
+      }
       return true;
     } catch (e) {
       return false;
     }
+  }
+
+  function scheduleMaximizeBurst() {
+    maximizeWindow();
+    [40, 120, 350, 800, 1600].forEach(function (ms) {
+      setTimeout(function () {
+        if (isMeaningfullyShrunk()) {
+          maximizeWindow();
+        }
+      }, ms);
+    });
   }
 
   function isMeaningfullyShrunk() {
@@ -232,30 +248,21 @@
   }
 
   function bindMaximizeGuards() {
-    maximizeWindow();
+    // Electron يكبّر من الغلاف الأصلي — إعادة resize هنا تسبب بطئاً ووميضاً
+    if (isElectronShell()) {
+      return;
+    }
 
-    var resizeTimer = null;
-    global.addEventListener('resize', function () {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
-        if (isMeaningfullyShrunk()) {
-          maximizeWindow();
-        }
-      }, 120);
+    scheduleMaximizeBurst();
+
+    global.addEventListener('load', function () {
+      scheduleMaximizeBurst();
     });
 
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') {
-        setTimeout(maximizeWindow, 80);
+      if (document.visibilityState === 'visible' && isMeaningfullyShrunk()) {
+        scheduleMaximizeBurst();
       }
-    });
-
-    global.addEventListener('focus', function () {
-      setTimeout(function () {
-        if (isMeaningfullyShrunk()) {
-          maximizeWindow();
-        }
-      }, 80);
     });
   }
 
@@ -267,6 +274,13 @@
 
     if (isDesktopInstalledApp() || isElectronShell()) {
       bindMaximizeGuards();
+    } else {
+      // محاولة مبكرة: بعض اختصارات Edge تبدأ بدون display-mode فوراً
+      setTimeout(function () {
+        if (isDesktopInstalledApp() && isMeaningfullyShrunk()) {
+          scheduleMaximizeBurst();
+        }
+      }, 300);
     }
   }
 

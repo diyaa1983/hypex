@@ -2,7 +2,7 @@
  * غلاف ويندوز أصلي (Electron) — يتحكّم بأزرار إطار النافذة نفسها
  * (تصغير / إغلاق X) وليس من صفحة الويب.
  */
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -14,6 +14,7 @@ function loadConfig() {
     minimizable: false,
     confirmOnClose: true,
     disableCloseButton: false,
+    startMaximized: true,
   };
   try {
     const raw = fs.readFileSync(configPath, 'utf8');
@@ -27,13 +28,41 @@ const config = loadConfig();
 let mainWindow = null;
 let allowQuit = false;
 
+function primaryWorkArea() {
+  try {
+    const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    return display.workArea;
+  } catch (e) {
+    return screen.getPrimaryDisplay().workArea;
+  }
+}
+
+function ensureMaximized() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  if (config.startMaximized === false) {
+    return;
+  }
+  try {
+    if (!mainWindow.isMaximized()) {
+      mainWindow.maximize();
+    }
+  } catch (e) {
+    /* ignore */
+  }
+}
+
 function createWindow() {
   const disableClose = !!config.disableCloseButton;
   const confirmClose = config.confirmOnClose !== false && !disableClose;
+  const work = primaryWorkArea();
 
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    x: work.x,
+    y: work.y,
+    width: Math.max(1024, work.width),
+    height: Math.max(700, work.height),
     minWidth: 1024,
     minHeight: 700,
     show: false,
@@ -48,16 +77,31 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
+      spellcheck: false,
     },
   });
 
-  mainWindow.maximize();
+  // املأ مساحة العمل ثم كبّر قبل أي عرض — يتجنّب نافذة صغيرة عند الفتح البطيء للسيرفر
+  try {
+    mainWindow.setBounds(work);
+  } catch (e) {
+    /* ignore */
+  }
+  ensureMaximized();
 
   mainWindow.once('ready-to-show', () => {
-    if (mainWindow) {
+    ensureMaximized();
+    if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
       mainWindow.focus();
     }
+    setTimeout(ensureMaximized, 40);
+    setTimeout(ensureMaximized, 250);
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    ensureMaximized();
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -83,9 +127,10 @@ function createWindow() {
 
   mainWindow.on('unmaximize', () => {
     // الإبقاء على وضع التكبير حتى لا ينكسر التخطيط
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.maximize();
+    if (config.startMaximized === false) {
+      return;
     }
+    setTimeout(ensureMaximized, 0);
   });
 
   mainWindow.on('close', (e) => {
@@ -134,7 +179,7 @@ function createWindow() {
   mainWindow.loadURL(config.appUrl).catch((err) => {
     dialog.showErrorBox(
       'تعذر فتح النظام',
-      'تأكد أن XAMPP/Apache يعمل وأن العنوان صحيح في config.json\n\n' +
+      'تأكد أن الخادم يعمل وأن العنوان صحيح في config.json\n\n' +
         config.appUrl +
         '\n\n' +
         String(err && err.message ? err.message : err)
