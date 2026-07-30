@@ -91,21 +91,27 @@ body.app-body {
 
 .app-titlebar__title {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   top: 0;
   bottom: 0;
-  transform: translateX(-50%);
   z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   width: auto;
-  max-width: min(72%, calc(100% - 7.5rem));
+  max-width: none;
   margin: 0;
-  padding: 0 0.5rem;
+  /* مساحة للأزرار يسارًا حتى لا يغطي النص الأيقونات */
+  padding: 0 0.75rem 0 5.75rem;
+  transform: none;
   direction: rtl;
   text-align: center;
   unicode-bidi: plaintext;
   font-size: 0.8125rem;
   font-weight: 600;
-  line-height: 33px;
+  line-height: 1.2;
   color: #fff;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -209,7 +215,7 @@ body.app-body--wco .app-titlebar__title--browser {
 }
 
 body.app-body--wco .app-titlebar__title--wco {
-  display: block;
+  display: flex;
 }
 
 @supports (height: env(titlebar-area-height)) {
@@ -238,8 +244,15 @@ body.app-body--wco .app-titlebar__title--wco {
     }
 
     body.app-body--wco .app-titlebar__title {
-      line-height: env(titlebar-area-height, 33px);
-      align-self: center;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.2;
+      padding: 0 0.5rem 0 5.75rem;
+      text-align: center;
+      transform: none;
     }
   }
 }
