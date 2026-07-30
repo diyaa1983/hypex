@@ -10,6 +10,7 @@ $pdo = db();
 $settings = mobile_gps_settings($pdo);
 $googleMapsKey = mobile_gps_settings_google_maps_key($pdo);
 $mapProvider = mobile_gps_settings_map_provider($pdo);
+$mapEngine = mobile_gps_settings_map_engine($pdo);
 if ($googleMapsKey === '' && defined('APP_GOOGLE_MAPS_API_KEY')) {
     $googleMapsKey = trim((string) APP_GOOGLE_MAPS_API_KEY);
 }
@@ -33,10 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'user_can_disable' => $_POST['gps_mobile_user_can_disable'] ?? null,
                 'google_maps_api_key' => $_POST['gps_google_maps_api_key'] ?? '',
                 'map_provider' => $_POST['gps_map_provider'] ?? 'esri',
+                'map_engine' => $_POST['gps_map_engine'] ?? 'leaflet',
             ]);
             $settings = mobile_gps_settings($pdo);
             $googleMapsKey = mobile_gps_settings_google_maps_key($pdo);
             $mapProvider = mobile_gps_settings_map_provider($pdo);
+            $mapEngine = mobile_gps_settings_map_engine($pdo);
             $msg = 'تم حفظ إعدادات تتبّع موقع تطبيق الهاتف.';
             $msgType = 'success';
         } catch (Throwable $e) {
@@ -124,7 +127,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="col-12">
                 <hr class="my-2">
                 <h2 class="h6 mb-2">الخريطة</h2>
-                <label class="form-label" for="gps_map_provider">نوع الخريطة</label>
+                <label class="form-label" for="gps_map_engine">محرك الخريطة (تتبّع المواقع)</label>
+                <select class="form-select" id="gps_map_engine" name="gps_map_engine" style="max-width: 420px;">
+                    <option value="leaflet" <?= $mapEngine === 'leaflet' ? 'selected' : '' ?>>
+                        Leaflet — الافتراضي (خفيف وسريع)
+                    </option>
+                    <option value="arcgis" <?= $mapEngine === 'arcgis' ? 'selected' : '' ?>>
+                        ArcGIS JavaScript SDK — تجريبي (مثل الكود المرسل)
+                    </option>
+                </select>
+                <div class="form-text">
+                    عند اختيار <strong>ArcGIS SDK</strong> تُستخدم خدمة World Street Map مباشرة.
+                    للتراجع: اختر Leaflet واحفظ.
+                </div>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label" for="gps_map_provider">نوع بلاط الخريطة (Leaflet فقط)</label>
                 <select class="form-select" id="gps_map_provider" name="gps_map_provider" style="max-width: 420px;">
                     <option value="esri" <?= $mapProvider === 'esri' ? 'selected' : '' ?>>
                         Esri + Carto — مجاني (Esri للتصغير، Carto عند التكبير)

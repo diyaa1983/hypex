@@ -117,11 +117,12 @@ function app_osm_google_maps_api_key(): string
     return $cached;
 }
 
-/** @return array{tileUrl:string, attribution:string, googleMapsKey:string, mapProvider:string, maxZoom:int} */
+/** @return array{tileUrl:string, attribution:string, googleMapsKey:string, mapProvider:string, mapEngine:string, maxZoom:int} */
 function app_osm_js_config(): array
 {
     $googleKey = app_osm_google_maps_api_key();
     $provider = app_osm_map_provider();
+    $engine = app_osm_map_engine();
     $defs = app_osm_map_provider_defs();
 
     if ($provider === 'google' && $googleKey === '') {
@@ -142,8 +143,40 @@ function app_osm_js_config(): array
         'attribution' => $meta['attribution'],
         'googleMapsKey' => $googleKey,
         'mapProvider' => $provider,
+        'mapEngine' => $engine,
         'maxZoom' => (int) ($meta['maxZoom'] ?? 19),
     ];
+}
+
+function app_osm_map_engine(?PDO $pdo = null): string
+{
+    if (defined('APP_GPS_MAP_ENGINE') && trim((string) APP_GPS_MAP_ENGINE) !== '') {
+        $p = strtolower(trim((string) APP_GPS_MAP_ENGINE));
+        if (in_array($p, ['leaflet', 'arcgis'], true)) {
+            return $p;
+        }
+    }
+
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    $cached = 'leaflet';
+    try {
+        if (function_exists('db')) {
+            if (!function_exists('mobile_gps_settings_map_engine')) {
+                require_once app_path('includes/mobile_gps_settings.php');
+            }
+            $cached = mobile_gps_settings_map_engine($pdo);
+        }
+    } catch (Throwable $e) {
+        if (strpos($e->getMessage(), 'Unknown column') === false) {
+            error_log('app_osm_map_engine: ' . $e->getMessage());
+        }
+    }
+
+    return $cached;
 }
 
 function app_osm_nominatim_reverse_url(float $lat, float $lng): string

@@ -402,6 +402,13 @@
   min-height: 220px;
 }
 
+.ugt-map .esri-view,
+.ugt-map .esri-view-root,
+.ugt-map .esri-view-surface {
+  width: 100%;
+  height: 100%;
+}
+
 .ugt-body--mobile .ugt-map-wrap {
   flex: 1;
   min-height: 0;

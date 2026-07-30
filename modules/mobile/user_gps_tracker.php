@@ -19,11 +19,14 @@ $cssPath = app_path('assets/css/user-gps-tracker.css');
 $jsPath = app_path('assets/js/user-gps-tracker.js');
 $routeJsPath = app_path('assets/js/user-gps-route.js');
 $mapLayersPath = app_path('assets/js/leaflet-map-layers.js');
+$mapInteropPath = app_path('assets/js/map-interop.js');
 $cssV = is_file($cssPath) ? (string) filemtime($cssPath) : '';
 $jsV = is_file($jsPath) ? (string) filemtime($jsPath) : '';
 $routeJsV = is_file($routeJsPath) ? (string) filemtime($routeJsPath) : '';
 $mapLayersV = is_file($mapLayersPath) ? (string) filemtime($mapLayersPath) : '';
+$mapInteropV = is_file($mapInteropPath) ? (string) filemtime($mapInteropPath) : '';
 $osm = app_osm_js_config();
+$mapEngine = (string) ($osm['mapEngine'] ?? 'leaflet');
 $today = date('Y-m-d');
 ?>
 <link rel="stylesheet" href="<?= esc(app_url('assets/css/user-gps-tracker.css')) ?><?= $cssV !== '' ? '?v=' . esc($cssV) : '' ?>">
@@ -33,6 +36,7 @@ $today = date('Y-m-d');
      data-tile-url="<?= esc($osm['tileUrl']) ?>"
      data-attribution="<?= esc($osm['attribution']) ?>"
      data-map-provider="<?= esc($osm['mapProvider'] ?? 'carto') ?>"
+     data-map-engine="<?= esc($mapEngine) ?>"
      data-google-key="<?= esc($osm['googleMapsKey'] ?? '') ?>"
      data-poll-sec="5"
      data-online-seconds="60"
@@ -134,6 +138,11 @@ $today = date('Y-m-d');
 <script>
 window.AppOsmConfig = <?= json_encode($osm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 </script>
+<?php if ($mapEngine === 'arcgis'): ?>
+<link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
+<script src="<?= esc(app_url('assets/js/map-interop.js')) ?><?= $mapInteropV !== '' ? '?v=' . esc($mapInteropV) : '' ?>"></script>
+<?php else: ?>
 <script src="<?= esc(app_url('assets/js/leaflet-map-layers.js')) ?><?= $mapLayersV !== '' ? '?v=' . esc($mapLayersV) : '' ?>"></script>
+<?php endif; ?>
 <script src="<?= esc(app_url('assets/js/user-gps-tracker.js')) ?><?= $jsV !== '' ? '?v=' . esc($jsV) : '' ?>"></script>
 <script src="<?= esc(app_url('assets/js/user-gps-route.js')) ?><?= $routeJsV !== '' ? '?v=' . esc($routeJsV) : '' ?>"></script>

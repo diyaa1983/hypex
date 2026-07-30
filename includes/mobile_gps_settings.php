@@ -30,6 +30,7 @@ function mobile_gps_settings_ensure_schema(PDO $pdo): void
         'gps_mobile_user_can_disable' => 'TINYINT(1) NOT NULL DEFAULT 0',
         'gps_google_maps_api_key' => "VARCHAR(255) NOT NULL DEFAULT ''",
         'gps_map_provider' => "VARCHAR(16) NOT NULL DEFAULT 'esri'",
+        'gps_map_engine' => "VARCHAR(16) NOT NULL DEFAULT 'leaflet'",
     ];
 
     foreach ($columns as $col => $def) {
@@ -157,6 +158,28 @@ function mobile_gps_settings_google_maps_key(PDO $pdo = null): string
     return '';
 }
 
+function mobile_gps_settings_map_engine(PDO $pdo = null): string
+{
+    $allowed = ['leaflet', 'arcgis'];
+    try {
+        $pdo = $pdo ?? db();
+        mobile_gps_settings_ensure_schema($pdo);
+        $row = $pdo->query(
+            'SELECT gps_map_engine FROM sys_company_settings WHERE id = 1 LIMIT 1'
+        )->fetch(PDO::FETCH_ASSOC);
+        if (is_array($row)) {
+            $p = strtolower(trim((string) ($row['gps_map_engine'] ?? '')));
+            if (in_array($p, $allowed, true)) {
+                return $p;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('mobile_gps_settings_map_engine: ' . $e->getMessage());
+    }
+
+    return 'leaflet';
+}
+
 function mobile_gps_settings_map_provider(PDO $pdo = null): string
 {
     $allowed = ['esri', 'carto', 'google'];
@@ -191,6 +214,10 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
     if (!in_array($provider, ['esri', 'carto', 'google'], true)) {
         $provider = 'esri';
     }
+    $engine = strtolower(trim((string) ($input['map_engine'] ?? 'leaflet')));
+    if (!in_array($engine, ['leaflet', 'arcgis'], true)) {
+        $engine = 'leaflet';
+    }
 
     $pdo->prepare(
         'UPDATE sys_company_settings SET
@@ -199,7 +226,8 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
             gps_mobile_min_distance_m = ?,
             gps_mobile_user_can_disable = ?,
             gps_google_maps_api_key = ?,
-            gps_map_provider = ?
+            gps_map_provider = ?,
+            gps_map_engine = ?
          WHERE id = 1'
-    )->execute([$auto, $interval, $distance, $canDisable, $googleKey, $provider]);
+    )->execute([$auto, $interval, $distance, $canDisable, $googleKey, $provider, $engine]);
 }

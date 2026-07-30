@@ -72,6 +72,7 @@
       root.getAttribute('data-attribution') ||
       '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO';
     this.mapProvider = root.getAttribute('data-map-provider') || 'esri';
+    this.mapEngine = (root.getAttribute('data-map-engine') || 'leaflet').toLowerCase();
     this.googleKey = root.getAttribute('data-google-key') || '';
     this.pollSec = parseInt(root.getAttribute('data-poll-sec') || '5', 10) || 5;
     this.onlineSeconds = parseInt(root.getAttribute('data-online-seconds') || '60', 10) || 60;
@@ -107,6 +108,7 @@
     this.timer = null;
     this.loading = false;
     this.fitOnce = true;
+    this.arcgisFitOnce = true;
 
     this.els = {
       list: root.querySelector('#ugt-list'),
@@ -127,12 +129,21 @@
     };
   }
 
+  Tracker.prototype.usesArcgis = function () {
+    return this.mapEngine === 'arcgis' && global.MapInterop;
+  };
+
   Tracker.prototype.init = function () {
     var self = this;
-    return ensureLeaflet()
-      .then(function () {
-        return self.buildMap();
-      })
+    var mapReady = this.usesArcgis()
+      ? (global.MapInterop.loadApi ? global.MapInterop.loadApi() : Promise.resolve()).then(function () {
+          return self.buildArcgisMap();
+        })
+      : ensureLeaflet().then(function () {
+          return self.buildMap();
+        });
+
+    return mapReady
       .then(function () {
         self.bind();
         return self.load();
@@ -148,6 +159,34 @@
         }
         console.error(err);
       });
+  };
+
+  Tracker.prototype.buildArcgisMap = function () {
+    var mapEl = this.els.map;
+    if (!mapEl || this.map) {
+      return Promise.resolve();
+    }
+
+    var self = this;
+    this.map = { engine: 'arcgis' };
+
+    return global.MapInterop.initialize(mapEl, 31.9539, 35.9106).then(function () {
+      function bumpSize() {
+        if (global.MapInterop && global.MapInterop.invalidateSize) {
+          global.MapInterop.invalidateSize();
+        }
+      }
+      bumpSize();
+      setTimeout(bumpSize, 120);
+      setTimeout(bumpSize, 350);
+      setTimeout(bumpSize, 700);
+      global.addEventListener('resize', bumpSize);
+      if (self.mode === 'mobile') {
+        global.addEventListener('orientationchange', function () {
+          setTimeout(bumpSize, 250);
+        });
+      }
+    });
   };
 
   Tracker.prototype.buildMap = function () {
@@ -215,7 +254,11 @@
     }
     var self = this;
     setTimeout(function () {
-      if (self.map) self.map.invalidateSize();
+      if (self.usesArcgis()) {
+        global.MapInterop.invalidateSize();
+      } else if (self.map) {
+        self.map.invalidateSize();
+      }
     }, 80);
   };
 
@@ -299,7 +342,10 @@
     var self = this;
     if (this.loading) return Promise.resolve();
     this.loading = true;
-    if (forceFit) this.fitOnce = true;
+    if (forceFit) {
+      this.fitOnce = true;
+      this.arcgisFitOnce = true;
+    }
     this.setStatus('جاري التحديث...');
 
     return fetch(this.queryUrl(), {
@@ -680,15 +726,54 @@
 
   Tracker.prototype.clearLiveTrails = function () {
     this.trailsById = {};
-    if (this.trailLayer) {
+    if (this.usesArcgis()) {
+      global.MapInterop.clearTrails();
+    } else if (this.trailLayer) {
       this.trailLayer.clearLayers();
     }
     this.trailLinesById = {};
     this.setStatus('تم مسح الخطوط الحيّة');
   };
 
+  Tracker.prototype.rowsForArcgis = function () {
+    var self = this;
+    return this.rows.map(function (r) {
+      return {
+        user_id: r.user_id,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        user_label: r.user_label,
+        is_online: r.is_online || r.status === 'online',
+        popup_html: self.popupHtml(r),
+      };
+    });
+  };
+
+  Tracker.prototype.renderArcgisMarkers = function () {
+    if (!this.map || !global.MapInterop) {
+      return;
+    }
+    var follow =
+      this.activeId != null &&
+      this.moveAnims[this._trailKey(this.activeId)] &&
+      this.moveAnims[this._trailKey(this.activeId)].follow;
+    global.MapInterop.updateFleet(this.rowsForArcgis(), {
+      activeId: this.activeId,
+      fitOnce: this.arcgisFitOnce,
+      followActive: !!follow,
+    });
+    if (this.arcgisFitOnce && this.rows.length) {
+      this.arcgisFitOnce = false;
+    }
+  };
+
   Tracker.prototype.renderMarkers = function () {
-    if (!this.map || !this.layer) return;
+    if (!this.map) return;
+    if (this.usesArcgis()) {
+      this.renderArcgisMarkers();
+      return;
+    }
+    if (!this.layer) return;
     var keep = {};
     var bounds = [];
     for (var i = 0; i < this.rows.length; i++) {
@@ -747,6 +832,27 @@
     if (this.moveAnims[key]) {
       this.moveAnims[key].follow = true;
     }
+
+    if (this.usesArcgis()) {
+      var row = null;
+      for (var i = 0; i < this.rows.length; i++) {
+        if (String(this.rows[i].user_id) === String(userId)) {
+          row = this.rows[i];
+          break;
+        }
+      }
+      if (row) {
+        global.MapInterop.updateFleet(this.rowsForArcgis(), {
+          activeId: userId,
+          followActive: pan !== false,
+        });
+        if (pan !== false) {
+          global.MapInterop.focusUser(userId, row.latitude, row.longitude, 15);
+        }
+      }
+      return;
+    }
+
     var m = this.markersById[userId];
     if (!m) return;
     if (pan !== false) {
