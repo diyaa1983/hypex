@@ -211,6 +211,7 @@ return [
         'file' => 'modules/mobile/rep_stock.php',
         'permission' => 'm_rep_stock',
         'title' => 'رصيد المستودع',
+        'home_label' => 'رصيد المستودع',
         'icon' => 'stock',
         'tile_kind' => 'list',
         'home_tile' => true,

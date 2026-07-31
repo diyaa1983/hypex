@@ -93,7 +93,7 @@ const Map<String, TileSpec> kTileSpecs = {
     '/rep/stock',
     Icons.inventory_2_rounded,
     AppTheme.teal,
-    'المخزون',
+    'رصيد المستودع',
   ),
   'm_sales_invoice_gps': TileSpec(
     '/gps/invoices',
@@ -119,6 +119,7 @@ const List<String> _groupOrder = [
   'المبيعات',
   'المالية',
   'عهدة المندوب',
+  'رصيد المستودع',
   'المواقع',
 ];
 

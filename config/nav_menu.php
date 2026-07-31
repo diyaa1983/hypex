@@ -545,7 +545,7 @@ return [
                         ['r' => 'm_user_gps_tracker', 'label' => 'تتبّع المواقع الحية', 'icon' => '📡'],
                         ['r' => 'm_rep_load', 'label' => 'تحميل عهدة', 'icon' => '📦'],
                         ['r' => 'm_rep_return', 'label' => 'إرجاع عهدة', 'icon' => '↩'],
-                        ['r' => 'm_rep_stock', 'label' => 'رصيد العهدة', 'icon' => '📊'],
+                        ['r' => 'm_rep_stock', 'label' => 'رصيد المستودع', 'icon' => '📊'],
                         ['r' => 'm_rep_custody_list', 'label' => 'قائمة عهدة المندوب', 'icon' => '📋'],
                     ],
                 ],
