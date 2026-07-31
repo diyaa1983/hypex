@@ -102,6 +102,9 @@ class InvoiceBluetoothReceipt {
     final customer = Fmt.str(inv['customer_name']).isEmpty
         ? '—'
         : Fmt.str(inv['customer_name']);
+    final paymentLabel = _paymentTypeLabel(
+      Fmt.str(inv['payment_type'] ?? inv['payment_label'] ?? inv['pay_type']),
+    );
     final qrPayload = Fmt.str(inv['qr_payload']).isNotEmpty
         ? Fmt.str(inv['qr_payload'])
         : (Fmt.str(inv['einv_qr']).isNotEmpty
@@ -163,6 +166,8 @@ class InvoiceBluetoothReceipt {
               _kv('رقم الفاتورة', invoiceNo.isEmpty ? '—' : invoiceNo, fontReg, fontBold, fsSm),
               _kv('التاريخ', date.isEmpty ? '—' : date, fontReg, fontBold, fsSm),
               _kv('العميل', customer, fontReg, fontBold, fsSm),
+              if (paymentLabel.isNotEmpty)
+                _kv('طريقة الدفع', paymentLabel, fontReg, fontBold, fsSm),
               pw.SizedBox(height: 6),
               pw.Center(
                 child: pw.BarcodeWidget(
@@ -223,6 +228,20 @@ class InvoiceBluetoothReceipt {
     return Uint8List.fromList(await doc.save());
   }
 
+  static String _paymentTypeLabel(String raw) {
+    final v = raw.trim().toLowerCase();
+    if (v.isEmpty) return '';
+    if (v == 'cash' || v == 'نقدي' || v.contains('نقد')) return 'نقدي';
+    if (v == 'credit' ||
+        v == 'ذمم' ||
+        v == 'آجل' ||
+        v.contains('ذمم') ||
+        v.contains('آجل')) {
+      return 'ذمم';
+    }
+    return raw.trim();
+  }
+
   static pw.Widget _itemsTable(
     List<Map<String, dynamic>> lines,
     pw.Font reg,
@@ -259,26 +278,42 @@ class InvoiceBluetoothReceipt {
       );
     }
 
-    // في اتجاه RTL: العنصر الأول يظهر يميناً.
-    // يمين → يسار: # | رقم | اسم | كمية | إضافي؟ | سعر | خصم؟
-    List<pw.Widget> headerCells() {
-      return [
-        cell('#', align: pw.TextAlign.center, style: headStyle),
-        cell('رقم', align: pw.TextAlign.center, style: headStyle),
-        cell('المادة', style: headStyle),
-        cell('كمية', align: pw.TextAlign.center, style: headStyle),
-        if (showExtra)
-          cell('إض.', align: pw.TextAlign.center, style: headStyle),
-        cell('سعر', align: pw.TextAlign.center, style: headStyle),
+    // الجدول LTR داخلياً → نعكس العناصر ليظهر يمين→يسار:
+    // يمين: # | المادة | كمية | إضافي؟ | سعر | خصم؟ :يسار
+    List<pw.Widget> rowCells({
+      required String seq,
+      required String name,
+      required String qty,
+      String? extra,
+      required String price,
+      String? disc,
+    }) {
+      final cells = <pw.Widget>[
         if (showDisc)
-          cell('خصم', align: pw.TextAlign.center, style: headStyle),
+          cell(disc ?? '—', align: pw.TextAlign.center, ltr: true),
+        cell(price, align: pw.TextAlign.center, ltr: true),
+        if (showExtra)
+          cell(extra ?? '—', align: pw.TextAlign.center, ltr: true),
+        cell(qty, align: pw.TextAlign.center, ltr: true),
+        cell(name, style: nameStyle),
+        cell(seq, align: pw.TextAlign.center, ltr: true),
       ];
+      return cells;
     }
 
     final rows = <pw.TableRow>[
       pw.TableRow(
         decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-        children: headerCells(),
+        children: [
+          if (showDisc)
+            cell('خصم', align: pw.TextAlign.center, style: headStyle),
+          cell('سعر', align: pw.TextAlign.center, style: headStyle),
+          if (showExtra)
+            cell('إض.', align: pw.TextAlign.center, style: headStyle),
+          cell('كمية', align: pw.TextAlign.center, style: headStyle),
+          cell('المادة', style: headStyle),
+          cell('#', align: pw.TextAlign.center, style: headStyle),
+        ],
       ),
     ];
 
@@ -287,9 +322,6 @@ class InvoiceBluetoothReceipt {
       seq++;
       final name = Fmt.str(
         ln['item_name'] ?? ln['name_ar'] ?? ln['name'] ?? ln['line_desc'],
-      );
-      final itemNo = Fmt.str(
-        ln['sku'] ?? ln['barcode'] ?? ln['item_code'] ?? ln['item_id'],
       );
       final qty = Fmt.toDouble(ln['qty']);
       final qtyExtra = Fmt.toDouble(ln['qty_extra']);
@@ -304,42 +336,31 @@ class InvoiceBluetoothReceipt {
 
       rows.add(
         pw.TableRow(
-          children: [
-            cell('$seq', align: pw.TextAlign.center, ltr: true),
-            cell(
-              itemNo.isEmpty ? '—' : itemNo,
-              align: pw.TextAlign.center,
-              ltr: true,
-            ),
-            cell(name.isEmpty ? 'مادة' : name, style: nameStyle),
-            cell(Fmt.money(qty), align: pw.TextAlign.center, ltr: true),
-            if (showExtra)
-              cell(
-                qtyExtra > 0 ? Fmt.money(qtyExtra) : '—',
-                align: pw.TextAlign.center,
-                ltr: true,
-              ),
-            cell(Fmt.money(price), align: pw.TextAlign.center, ltr: true),
-            if (showDisc)
-              cell(discLabel, align: pw.TextAlign.center, ltr: true),
-          ],
+          children: rowCells(
+            seq: '$seq',
+            name: name.isEmpty ? 'مادة' : name,
+            qty: Fmt.money(qty),
+            extra: qtyExtra > 0 ? Fmt.money(qtyExtra) : '—',
+            price: Fmt.money(price),
+            disc: discLabel,
+          ),
         ),
       );
     }
 
+    // عرض الأعمدة بنفس ترتيب العناصر (يسار→يمين = معكوس القراءة)
     final widths = <int, pw.TableColumnWidth>{};
     var i = 0;
-    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.55 : 0.5); // #
-    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 1.1 : 0.95); // رقم
-    widths[i++] = const pw.FlexColumnWidth(2.4); // اسم
-    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.9 : 0.85); // كمية
-    if (showExtra) {
-      widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.8 : 0.75); // إض
-    }
-    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.95 : 0.9); // سعر
     if (showDisc) {
-      widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.9 : 0.85); // خصم
+      widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.95 : 0.9); // خصم
     }
+    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 1.0 : 0.95); // سعر
+    if (showExtra) {
+      widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.85 : 0.8); // إض
+    }
+    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.95 : 0.9); // كمية
+    widths[i++] = const pw.FlexColumnWidth(3.0); // اسم
+    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.55 : 0.5); // #
 
     return pw.Table(
       border: pw.TableBorder.all(width: 0.35, color: PdfColors.grey700),

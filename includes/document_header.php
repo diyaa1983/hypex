@@ -189,12 +189,16 @@ function document_print_user_footer_css(): string
 {
     return '.doc-print-user-footer{display:none;}'
         . '@media print{'
-        . '.doc-print-user-footer{display:block!important;position:fixed;bottom:2mm;left:0;right:0;'
-        . 'margin:0;padding:0;z-index:10001;pointer-events:none;box-sizing:border-box;'
+        . '.doc-print-user-footer{display:block!important;position:static!important;clear:both;width:100%;'
+        . 'left:auto;right:auto;bottom:auto;margin:8mm 0 0;padding:0;z-index:auto;pointer-events:none;'
+        . 'box-sizing:border-box;page-break-inside:avoid;break-inside:avoid-page;'
         . '-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
         . '.doc-print-user-footer-line{display:block;width:100%;height:0;margin:0;border:0;border-top:1px solid #000;}'
         . '.doc-print-user-footer-text{display:block;margin:0;padding:2px 0 0 6mm;font-family:Arial,Helvetica,sans-serif;'
         . 'font-size:7pt;font-weight:400;line-height:1.3;color:#000;text-align:left;direction:rtl;}'
+        . 'body:has(.doc-print-user-footer--end)>.doc-print-user-footer:not(.doc-print-user-footer--end){display:none!important;}'
+        . '.doc-print-user-footer--end{display:block!important;position:static!important;clear:both;'
+        . 'margin-top:8mm;padding-top:2mm;page-break-inside:avoid;break-inside:avoid-page;}'
         . '}';
 }
 

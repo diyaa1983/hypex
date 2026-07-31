@@ -125,17 +125,25 @@
 }
 
 @media print {
+  /*
+   * ثابت سابقاً (fixed) فكان يغطي صفوف الجدول عند امتلاء الصفحة.
+   * الآن يتبع نهاية المحتوى فلا يتداخل مع التقارير/الطباعات.
+   */
   .doc-print-user-footer {
     display: block !important;
-    position: fixed;
-    bottom: 2mm;
-    left: 0;
-    right: 0;
-    margin: 0;
+    position: static !important;
+    clear: both;
+    width: 100%;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin: 8mm 0 0;
     padding: 0;
-    z-index: 10001;
+    z-index: auto;
     pointer-events: none;
     box-sizing: border-box;
+    page-break-inside: avoid;
+    break-inside: avoid-page;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -160,6 +168,21 @@
     color: #000;
     text-align: left;
     direction: rtl;
+  }
+
+  /* عند وجود تذييل داخل منطقة التقرير: أخفِ تذييل body العام */
+  body:has(.doc-print-user-footer--end) > .doc-print-user-footer:not(.doc-print-user-footer--end) {
+    display: none !important;
+  }
+
+  .doc-print-user-footer--end {
+    display: block !important;
+    position: static !important;
+    clear: both;
+    margin-top: 8mm;
+    padding-top: 2mm;
+    page-break-inside: avoid;
+    break-inside: avoid-page;
   }
 }
 

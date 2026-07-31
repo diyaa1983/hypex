@@ -186,10 +186,65 @@
     );
   }
 
+  function appendEndPrintUserFooter(container) {
+    if (!container || container.querySelector('.doc-print-user-footer--end')) {
+      return false;
+    }
+    var html = buildPrintUserFooter();
+    if (!html) return false;
+    var tmp = (container.ownerDocument || document).createElement('div');
+    tmp.innerHTML = html;
+    var footer = tmp.firstElementChild;
+    if (!footer) return false;
+    footer.classList.add('doc-print-user-footer--end');
+    container.appendChild(footer);
+    return true;
+  }
+
+  function hideBodyPrintUserFooters(doc) {
+    var bodyFooters = doc.body.children;
+    for (var j = 0; j < bodyFooters.length; j++) {
+      var el = bodyFooters[j];
+      if (
+        el &&
+        el.classList &&
+        el.classList.contains('doc-print-user-footer') &&
+        !el.classList.contains('doc-print-user-footer--end')
+      ) {
+        el.setAttribute('data-print-hidden', '1');
+        el.style.display = 'none';
+      }
+    }
+  }
+
   function ensurePrintUserFooter(doc) {
     doc = doc || (typeof document !== 'undefined' ? document : null);
     if (!doc || !doc.body) return;
-    if (doc.body.querySelector('.doc-print-user-footer--end')) return;
+
+    // ضع التذييل داخل منطقة الطباعة (بعد الجدول) حتى لا يغطي الصفوف.
+    var areas = doc.querySelectorAll('.report-sales-print-area');
+    if (!areas.length) {
+      areas = doc.querySelectorAll('[data-print-root]');
+    }
+    var placedInArea = false;
+    for (var i = 0; i < areas.length; i++) {
+      var area = areas[i];
+      if (!area || area.closest('.no-print')) continue;
+      // تجنّب الحاويات المتداخلة داخل منطقة طباعة أخرى
+      if (area.parentElement && area.parentElement.closest('.report-sales-print-area')) {
+        continue;
+      }
+      if ((area.textContent || '').trim().length < 8) continue;
+      if (appendEndPrintUserFooter(area)) {
+        placedInArea = true;
+      }
+    }
+
+    if (placedInArea || doc.body.querySelector('.doc-print-user-footer--end')) {
+      hideBodyPrintUserFooters(doc);
+      return;
+    }
+
     if (doc.body.querySelector('.doc-print-user-footer')) return;
     var html = buildPrintUserFooter();
     if (html) {
@@ -200,12 +255,16 @@
   var printUserFooterCss =
     '.doc-print-user-footer{display:none;}' +
     '@media print{' +
-    '.doc-print-user-footer{display:block!important;position:fixed;bottom:2mm;left:0;right:0;' +
-    'margin:0;padding:0;z-index:10001;pointer-events:none;box-sizing:border-box;' +
+    '.doc-print-user-footer{display:block!important;position:static!important;clear:both;width:100%;' +
+    'left:auto;right:auto;bottom:auto;margin:8mm 0 0;padding:0;z-index:auto;pointer-events:none;' +
+    'box-sizing:border-box;page-break-inside:avoid;break-inside:avoid-page;' +
     '-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
     '.doc-print-user-footer-line{display:block;width:100%;height:0;margin:0;border:0;border-top:1px solid #000;}' +
     '.doc-print-user-footer-text{display:block;margin:0;padding:2px 0 0 6mm;font-family:Arial,Helvetica,sans-serif;' +
     'font-size:7pt;font-weight:400;line-height:1.3;color:#000;text-align:left;direction:rtl;}' +
+    'body:has(.doc-print-user-footer--end)>.doc-print-user-footer:not(.doc-print-user-footer--end){display:none!important;}' +
+    '.doc-print-user-footer--end{display:block!important;position:static!important;clear:both;' +
+    'margin-top:8mm;padding-top:2mm;page-break-inside:avoid;break-inside:avoid-page;}' +
     '}';
 
   /**
