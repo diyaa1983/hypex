@@ -28,7 +28,6 @@ function einv_print_qr_css(): string
         . '.inv-print-qr-box{border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:' . $box . 'px;height:' . $box . 'px;box-sizing:border-box;text-align:center;}'
         . '.inv-print-qr-img{display:inline-block;width:' . $img . 'px;height:' . $img . 'px;vertical-align:middle;}'
         . '.inv-print-qr-placeholder{display:inline-block;width:' . $img . 'px;height:' . $img . 'px;background:#f1f5f9;border-radius:6px;vertical-align:middle;}'
-        . '.inv-print-qr-caption{font-size:0.62rem;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;}'
         . '@media print{.inv-print-qr-box{width:' . $box . 'px!important;height:' . $box . 'px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
         . '.inv-print-qr-img{width:' . $img . 'px!important;height:' . $img . 'px!important;max-width:none!important;max-height:none!important;}}';
 }
@@ -408,7 +407,6 @@ function mobile_invoice_print_einv_qr_box(?string $qrSrc): string
         . '<div class="inv-print-qr-box" style="border:2px solid #0f172a;border-radius:10px;padding:4px;background:#fff;width:' . $box . 'px;height:' . $box . 'px;box-sizing:border-box;text-align:center;line-height:0;display:block;">'
         . $imgTag
         . '</div>'
-        . '<div class="inv-print-qr-caption" style="font-size:9px;color:#64748b;margin-top:3px;font-weight:600;">Please Check In</div>'
         . '</div>';
 }
 

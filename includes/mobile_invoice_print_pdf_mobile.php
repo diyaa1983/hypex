@@ -198,8 +198,6 @@ function mobile_invoice_print_einv_qr_mobile(?string $qrSrc): string
     $wrap = 'margin:0 auto;border-collapse:collapse;border:none;background:transparent;';
     $qrBox = 'margin:0 auto;border-collapse:collapse;border:2px solid #0f172a;background:#fff;';
     $imgCell = 'padding:5px;text-align:center;vertical-align:middle;border:none;';
-    $capCell = 'padding:6px 0 0;text-align:center;vertical-align:top;border:none;';
-    $cap = 'font-size:8px;color:#64748b;font-weight:600;letter-spacing:0.2px;line-height:1.2;';
 
     return '<table class="m-inv-pdf-qr-block" cellpadding="0" cellspacing="0" style="' . $wrap . '">'
         . '<tr><td style="' . $imgCell . '">'
@@ -208,7 +206,6 @@ function mobile_invoice_print_einv_qr_mobile(?string $qrSrc): string
         . '<img src="' . esc($src) . '" alt="" width="' . $img . '" height="' . $img . '" style="width:' . $img . 'px;height:' . $img . 'px;display:block;margin:0 auto;">'
         . '</td></tr></table>'
         . '</td></tr>'
-        . '<tr><td style="' . $capCell . '"><span style="' . $cap . '">Please Check In</span></td></tr>'
         . '</table>';
 }
 

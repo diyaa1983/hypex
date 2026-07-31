@@ -259,15 +259,6 @@ $periodToDmY = format_date_dmY($dateTo);
                 <?php endforeach; ?>
             <?php endif; ?>
 
-            <?php if (($report['employees'] ?? []) !== []): ?>
-                <?php $printUserLabel = document_print_user_label(); ?>
-                <?php if ($printUserLabel !== ''): ?>
-                    <footer class="hr-att-rpt-static-footer doc-print-only" aria-hidden="true">
-                        <div class="hr-att-rpt-static-footer-line" aria-hidden="true"></div>
-                        <div class="hr-att-rpt-static-footer-text">طبع بواسطة: <?= esc($printUserLabel) ?></div>
-                    </footer>
-                <?php endif; ?>
-            <?php endif; ?>
         </div>
     <?php endif; ?>
     </div>

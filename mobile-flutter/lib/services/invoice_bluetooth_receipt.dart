@@ -181,13 +181,6 @@ class InvoiceBluetoothReceipt {
                   height: qrSize,
                 ),
               ),
-              pw.SizedBox(height: 3),
-              pw.Center(
-                child: pw.Text(
-                  'Please Check In',
-                  style: pw.TextStyle(font: fontReg, fontSize: 7),
-                ),
-              ),
               pw.SizedBox(height: 6),
               pw.Divider(thickness: 0.8),
               pw.Text(

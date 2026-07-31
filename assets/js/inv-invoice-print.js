@@ -370,7 +370,6 @@
       'px;height:' +
       EINV_QR_IMG_PX +
       'px;background:#f1f5f9;border-radius:6px;vertical-align:middle;}' +
-      '.inv-print-qr-caption{font-size:0.62rem;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;}' +
       '@media print{' +
       'body{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}' +
       '.inv-print-qr-box{width:' +
@@ -403,8 +402,6 @@
       'px;height:' +
       EINV_QR_IMG_PX +
       'px;display:inline-block;margin:0 auto;vertical-align:middle;';
-    var capStyle =
-      'font-size:9px;color:#94a3b8;margin-top:3px;letter-spacing:0.3px;font-weight:500;line-height:1.2;';
     return (
       '<div class="inv-print-qr-wrap" style="' +
       wrapStyle +
@@ -422,9 +419,6 @@
       imgStyle +
       '">' +
       '</div>' +
-      '<div class="inv-print-qr-caption" style="' +
-      capStyle +
-      '">Please Check In</div>' +
       '</div>'
     );
   }
