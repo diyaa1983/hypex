@@ -280,13 +280,7 @@ function mobile_device_session_touch(
         $label = substr($label, 0, 120);
     }
 
-    $lat = ($latitude !== null && sal_invoice_gps_coords_valid($latitude, $longitude ?? 0.0))
-        ? round($latitude, 7)
-        : null;
-    $lng = ($longitude !== null && sal_invoice_gps_coords_valid($latitude ?? 0.0, $longitude))
-        ? round($longitude, 7)
-        : null;
-
+    // تحديث القفل الحالي فقط — لا نُعيد الحجز من نبضة GPS بعد تسجيل الخروج.
     $upd = $pdo->prepare(
         'UPDATE sys_user_mobile_device_lock
          SET heartbeat_at = ?, device_label = COALESCE(?, device_label)
@@ -295,10 +289,6 @@ function mobile_device_session_touch(
     $upd->execute([$now, $label, $userId, $deviceId]);
 
     if ($upd->rowCount() === 0) {
-        if (!mobile_device_session_claim($pdo, $userId, $deviceId, $label, $latitude, $longitude)) {
-            return;
-        }
-
         return;
     }
 
@@ -315,22 +305,56 @@ function mobile_device_session_touch(
     }
 }
 
-function mobile_device_session_release(PDO $pdo, int $userId, string $deviceId): void
+/**
+ * تحرير القفل عند تسجيل الخروج.
+ * يُمسح قفل المستخدم بالكامل حتى يتمكن من الدخول فوراً من نفس الجهاز
+ * حتى لو تغيّر معرّف الجهاز محلياً أو فُقد في الطلب.
+ */
+function mobile_device_session_release(PDO $pdo, int $userId, string $deviceId = ''): void
 {
-    if ($userId < 1 || $deviceId === '') {
+    if ($userId < 1) {
         return;
     }
 
     mobile_device_session_ensure_schema($pdo);
     try {
         $pdo->prepare(
-            'DELETE FROM sys_user_mobile_device_lock WHERE user_id = ? AND device_id = ?'
-        )->execute([$userId, $deviceId]);
-        $pdo->prepare(
-            'DELETE FROM sys_user_device_presence WHERE user_id = ? AND device_id = ?'
-        )->execute([$userId, $deviceId]);
+            'DELETE FROM sys_user_mobile_device_lock WHERE user_id = ?'
+        )->execute([$userId]);
+
+        $deviceId = trim($deviceId);
+        if ($deviceId !== '') {
+            $pdo->prepare(
+                'DELETE FROM sys_user_device_presence WHERE user_id = ? AND device_id = ?'
+            )->execute([$userId, $deviceId]);
+        } else {
+            $pdo->prepare(
+                'DELETE FROM sys_user_device_presence WHERE user_id = ?'
+            )->execute([$userId]);
+        }
     } catch (Throwable $e) {
         error_log('mobile_device_session_release: ' . $e->getMessage());
+    }
+}
+
+/** تحرير أي قفل يحمله هذا الجهاز (عند انتهاء الجلسة قبل معرفة user_id). */
+function mobile_device_session_release_by_device(PDO $pdo, string $deviceId): void
+{
+    $deviceId = trim($deviceId);
+    if ($deviceId === '') {
+        return;
+    }
+
+    mobile_device_session_ensure_schema($pdo);
+    try {
+        $pdo->prepare(
+            'DELETE FROM sys_user_mobile_device_lock WHERE device_id = ?'
+        )->execute([$deviceId]);
+        $pdo->prepare(
+            'DELETE FROM sys_user_device_presence WHERE device_id = ?'
+        )->execute([$deviceId]);
+    } catch (Throwable $e) {
+        error_log('mobile_device_session_release_by_device: ' . $e->getMessage());
     }
 }
 

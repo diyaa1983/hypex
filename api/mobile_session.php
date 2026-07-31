@@ -120,8 +120,12 @@ if ($method !== 'POST') {
 if ($action === 'logout') {
     $uid = (int) (current_user()['id'] ?? 0);
     $deviceId = mobile_device_session_id_from_request();
-    if ($uid > 0 && $deviceId !== '') {
-        mobile_device_session_release(db(), $uid, $deviceId);
+    $pdo = db();
+    if ($uid > 0) {
+        // تحرير حساب المستخدم بالكامل حتى لا يُمنع من إعادة الدخول من نفس الجهاز.
+        mobile_device_session_release($pdo, $uid, $deviceId);
+    } elseif ($deviceId !== '') {
+        mobile_device_session_release_by_device($pdo, $deviceId);
     }
     logout();
     echo json_encode(['ok' => true, 'authenticated' => false], JSON_UNESCAPED_UNICODE);

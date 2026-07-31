@@ -243,7 +243,16 @@ class SessionController extends ChangeNotifier {
     }
     if (callServer) {
       try {
-        await api.postForm(AppConfig.sessionPath, fields: {'action': 'logout'});
+        // أعد ضبط معرّف الجهاز صراحةً قبل الخروج حتى يُحرَّر القفل على السيرفر.
+        final device = await _deviceFields();
+        api.setDevice(device['device_id']!, label: device['device_label']!);
+        await api.postForm(
+          AppConfig.sessionPath,
+          fields: {
+            'action': 'logout',
+            ...device,
+          },
+        );
       } catch (_) {}
     }
     await api.clearCookies();
