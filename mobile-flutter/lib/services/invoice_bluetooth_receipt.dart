@@ -117,7 +117,12 @@ class InvoiceBluetoothReceipt {
     }
 
     final subtotal = Fmt.toDouble(inv['subtotal']);
-    final discount = Fmt.toDouble(inv['discount_amount'] ?? inv['discount']);
+    var discount = Fmt.toDouble(inv['discount_amount'] ?? inv['discount']);
+    if (discount <= 0) {
+      for (final ln in lines) {
+        discount += Fmt.toDouble(ln['discount_amount'] ?? ln['discount']);
+      }
+    }
     final tax = Fmt.toDouble(inv['tax_amount']);
     final total = Fmt.toDouble(inv['total']);
     final fs = paperMm == 80 ? 9.0 : 8.0;
@@ -190,10 +195,17 @@ class InvoiceBluetoothReceipt {
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
               if (subtotal > 0)
-                _kv('الإجمالي الفرعي', Fmt.money(subtotal), fontReg, fontBold, fsSm),
+                _kv(
+                  'الإجمالي الفرعي',
+                  Fmt.money(subtotal),
+                  fontReg,
+                  fontBold,
+                  fsSm,
+                ),
               if (discount > 0)
                 _kv('الخصم', Fmt.money(discount), fontReg, fontBold, fsSm),
-              if (tax > 0) _kv('الضريبة', Fmt.money(tax), fontReg, fontBold, fsSm),
+              if (tax > 0)
+                _kv('الضريبة', Fmt.money(tax), fontReg, fontBold, fsSm),
               _kv('الإجمالي النهائي', Fmt.money(total), fontReg, fontBold, fs),
               pw.SizedBox(height: 8),
               pw.Center(
@@ -218,9 +230,17 @@ class InvoiceBluetoothReceipt {
     double fs,
     int paperMm,
   ) {
-    final headStyle = pw.TextStyle(font: bold, fontSize: fs - 0.5);
-    final cellStyle = pw.TextStyle(font: reg, fontSize: fs - 0.5);
-    final nameStyle = pw.TextStyle(font: bold, fontSize: fs - 0.5);
+    final headFs = paperMm == 80 ? fs - 0.5 : fs - 1.0;
+    final headStyle = pw.TextStyle(font: bold, fontSize: headFs);
+    final cellStyle = pw.TextStyle(font: reg, fontSize: headFs);
+    final nameStyle = pw.TextStyle(font: bold, fontSize: headFs);
+
+    final showExtra = lines.any((ln) => Fmt.toDouble(ln['qty_extra']) > 0);
+    final showDisc = lines.any((ln) {
+      final disc = Fmt.toDouble(ln['discount_amount'] ?? ln['discount']);
+      final discInput = Fmt.str(ln['line_discount_input']);
+      return disc > 0 || discInput.isNotEmpty;
+    });
 
     pw.Widget cell(
       String text, {
@@ -229,7 +249,7 @@ class InvoiceBluetoothReceipt {
       bool ltr = false,
     }) {
       return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 2),
         child: pw.Text(
           text,
           textAlign: align,
@@ -239,21 +259,38 @@ class InvoiceBluetoothReceipt {
       );
     }
 
+    // في اتجاه RTL: العنصر الأول يظهر يميناً.
+    // يمين → يسار: # | رقم | اسم | كمية | إضافي؟ | سعر | خصم؟
+    List<pw.Widget> headerCells() {
+      return [
+        cell('#', align: pw.TextAlign.center, style: headStyle),
+        cell('رقم', align: pw.TextAlign.center, style: headStyle),
+        cell('المادة', style: headStyle),
+        cell('كمية', align: pw.TextAlign.center, style: headStyle),
+        if (showExtra)
+          cell('إض.', align: pw.TextAlign.center, style: headStyle),
+        cell('سعر', align: pw.TextAlign.center, style: headStyle),
+        if (showDisc)
+          cell('خصم', align: pw.TextAlign.center, style: headStyle),
+      ];
+    }
+
     final rows = <pw.TableRow>[
       pw.TableRow(
         decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-        children: [
-          cell('المادة', style: headStyle),
-          cell('كمية', align: pw.TextAlign.center, style: headStyle),
-          cell('سعر', align: pw.TextAlign.center, style: headStyle),
-          cell('خصم', align: pw.TextAlign.center, style: headStyle),
-          cell('الإجمالي', align: pw.TextAlign.center, style: headStyle),
-        ],
+        children: headerCells(),
       ),
     ];
 
+    var seq = 0;
     for (final ln in lines) {
-      final name = Fmt.str(ln['item_name'] ?? ln['name_ar'] ?? ln['name']);
+      seq++;
+      final name = Fmt.str(
+        ln['item_name'] ?? ln['name_ar'] ?? ln['name'] ?? ln['line_desc'],
+      );
+      final itemNo = Fmt.str(
+        ln['sku'] ?? ln['barcode'] ?? ln['item_code'] ?? ln['item_id'],
+      );
       final qty = Fmt.toDouble(ln['qty']);
       final qtyExtra = Fmt.toDouble(ln['qty_extra']);
       final price = Fmt.toDouble(
@@ -264,46 +301,49 @@ class InvoiceBluetoothReceipt {
       final discLabel = discInput.isNotEmpty
           ? discInput
           : (disc > 0 ? Fmt.money(disc) : '—');
-      final qtyLabel = qtyExtra > 0
-          ? '${Fmt.money(qty)}+${Fmt.money(qtyExtra)}'
-          : Fmt.money(qty);
-      final lineTotal = Fmt.toDouble(
-        ln['line_gross'] ??
-            ln['line_total'] ??
-            ln['gross'] ??
-            ln['total'] ??
-            (qty * price - disc),
-      );
-      final nameCell = qtyExtra > 0
-          ? '${name.isEmpty ? 'مادة' : name}\n(+إض ${Fmt.money(qtyExtra)})'
-          : (name.isEmpty ? 'مادة' : name);
+
       rows.add(
         pw.TableRow(
           children: [
-            cell(nameCell, style: nameStyle),
-            cell(qtyLabel, align: pw.TextAlign.center, ltr: true),
-            cell(Fmt.money(price), align: pw.TextAlign.center, ltr: true),
-            cell(discLabel, align: pw.TextAlign.center, ltr: true),
+            cell('$seq', align: pw.TextAlign.center, ltr: true),
             cell(
-              Fmt.money(lineTotal),
+              itemNo.isEmpty ? '—' : itemNo,
               align: pw.TextAlign.center,
               ltr: true,
-              style: nameStyle,
             ),
+            cell(name.isEmpty ? 'مادة' : name, style: nameStyle),
+            cell(Fmt.money(qty), align: pw.TextAlign.center, ltr: true),
+            if (showExtra)
+              cell(
+                qtyExtra > 0 ? Fmt.money(qtyExtra) : '—',
+                align: pw.TextAlign.center,
+                ltr: true,
+              ),
+            cell(Fmt.money(price), align: pw.TextAlign.center, ltr: true),
+            if (showDisc)
+              cell(discLabel, align: pw.TextAlign.center, ltr: true),
           ],
         ),
       );
     }
 
+    final widths = <int, pw.TableColumnWidth>{};
+    var i = 0;
+    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.55 : 0.5); // #
+    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 1.1 : 0.95); // رقم
+    widths[i++] = const pw.FlexColumnWidth(2.4); // اسم
+    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.9 : 0.85); // كمية
+    if (showExtra) {
+      widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.8 : 0.75); // إض
+    }
+    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.95 : 0.9); // سعر
+    if (showDisc) {
+      widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.9 : 0.85); // خصم
+    }
+
     return pw.Table(
       border: pw.TableBorder.all(width: 0.35, color: PdfColors.grey700),
-      columnWidths: {
-        0: const pw.FlexColumnWidth(2.6),
-        1: pw.FlexColumnWidth(paperMm == 80 ? 1.15 : 1.05),
-        2: pw.FlexColumnWidth(paperMm == 80 ? 1.1 : 1.0),
-        3: pw.FlexColumnWidth(paperMm == 80 ? 1.0 : 0.9),
-        4: pw.FlexColumnWidth(paperMm == 80 ? 1.35 : 1.25),
-      },
+      columnWidths: widths,
       defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
       children: rows,
     );

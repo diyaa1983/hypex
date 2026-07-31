@@ -569,16 +569,91 @@
     });
   }
 
+  var toastHost = null;
+  var toastTimer = null;
+
+  function ensureToastHost() {
+    if (toastHost && document.body.contains(toastHost)) {
+      return toastHost;
+    }
+    toastHost = document.getElementById('ui-toast-host');
+    if (!toastHost) {
+      toastHost = document.createElement('div');
+      toastHost.id = 'ui-toast-host';
+      toastHost.className = 'ui-toast-host';
+      toastHost.setAttribute('aria-live', 'polite');
+      toastHost.setAttribute('aria-atomic', 'true');
+      document.body.appendChild(toastHost);
+    }
+    return toastHost;
+  }
+
+  /**
+   * إشعار خفيف لا يحجب الشاشة ولا يسرق التركيز ولا يفرض ضغط موافق.
+   * @returns {Promise<true>}
+   */
+  function toastDialog(message, options) {
+    options = options || {};
+    var type = options.type || 'success';
+    var duration = typeof options.duration === 'number' ? options.duration : 2800;
+    var theme = resolveTheme(options);
+    var host = ensureToastHost();
+    var el = document.createElement('div');
+    el.className =
+      'ui-toast ui-toast--' +
+      type +
+      (theme === 'oracle' ? ' ui-toast--oracle' : '');
+    el.setAttribute('role', 'status');
+
+    var icon = document.createElement('span');
+    icon.className = 'ui-toast-icon';
+    icon.textContent = ICONS[type] || ICONS.info;
+    var text = document.createElement('span');
+    text.className = 'ui-toast-text';
+    text.textContent = String(message || '');
+    el.appendChild(icon);
+    el.appendChild(text);
+    host.appendChild(el);
+
+    requestAnimationFrame(function () {
+      el.classList.add('is-visible');
+    });
+
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+      toastTimer = null;
+    }
+
+    var hideTimer = setTimeout(function () {
+      el.classList.remove('is-visible');
+      setTimeout(function () {
+        if (el.parentNode) {
+          el.parentNode.removeChild(el);
+        }
+      }, 220);
+    }, Math.max(1200, duration));
+
+    // لا نحتفظ بمؤقت عام إلا للتنظيف الاختياري
+    toastTimer = hideTimer;
+
+    return Promise.resolve(true);
+  }
+
   var AppDialog = {
     alert: alertDialog,
     confirm: confirmDialog,
     confirmSaveDiscard: confirmSaveDiscardDialog,
     prompt: promptDialog,
     formatActionMessage: formatActionMessage,
+    toast: toastDialog,
+    /** نجاح: إشعار خفيف افتراضياً — لا نافذة ولا تحديث مرتبط بزر موافق */
     success: function (message, options) {
       options = options || {};
       options.type = 'success';
-      return alertDialog(message, options);
+      if (options.modal === true) {
+        return alertDialog(message, options);
+      }
+      return toastDialog(message, options);
     },
     error: function (message, options) {
       options = options || {};
@@ -638,7 +713,12 @@
     if (!msg) return;
 
     el.classList.add('ui-dialog-consumed');
+    el.hidden = true;
     var theme = isOracleScreen() ? 'oracle' : '';
+    if (type === 'success') {
+      toastDialog(msg, { type: 'success', theme: theme });
+      return;
+    }
     alertDialog(msg, {
       type: type,
       title: resolveTitle(type, theme),

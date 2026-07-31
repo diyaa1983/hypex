@@ -3695,10 +3695,9 @@
             AppDialog.error(errMsg);
             return;
           }
-          AppDialog.success(data.message || 'تم حذف الفاتورة.').then(function () {
-            formSubmitting = false;
-            initNewInvoice(true);
-          });
+          AppDialog.success(data.message || 'تم حذف الفاتورة.');
+          formSubmitting = false;
+          initNewInvoice(true);
         })
         .catch(function () {
           AppDialog.error('تعذر الاتصال بالخادم.');
@@ -4251,11 +4250,7 @@
             var successMsg = AppDialog.formatActionMessage
               ? AppDialog.formatActionMessage(data, { fallback: 'تم الترحيل.' })
               : data.message || 'تم الترحيل.';
-            AppDialog.success(successMsg).then(function () {
-              if (currentInvoiceId > 0) {
-                loadInvoiceById(currentInvoiceId);
-              }
-            });
+            AppDialog.success(successMsg);
           })
           .catch(function () {
             refreshInvoiceAfterPostAttempt('تعذر الاتصال بالخادم. جارٍ التحقق من حالة الفاتورة…');
@@ -4292,11 +4287,7 @@
             var successMsg = AppDialog.formatActionMessage
               ? AppDialog.formatActionMessage(data, { fallback: 'تم الترحيل.' })
               : data.message || 'تم الترحيل.';
-            AppDialog.success(successMsg).then(function () {
-              if (currentInvoiceId > 0) {
-                loadInvoiceById(currentInvoiceId);
-              }
-            });
+            AppDialog.success(successMsg);
           })
           .catch(function () {
             refreshInvoiceAfterPostAttempt('تعذر الاتصال بالخادم. جارٍ التحقق من حالة الفاتورة…');
