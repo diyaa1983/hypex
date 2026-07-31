@@ -3364,6 +3364,10 @@
 
   function printHtmlInFrame(fullHtml) {
     var frame = getPrintFrame();
+    // حجم A4 حقيقي — الإطار 0×0 كان يسبب تقسيم الفاتورة على عدة صفحات
+    frame.style.width = '210mm';
+    frame.style.height = '297mm';
+    frame.style.visibility = 'hidden';
     var win = frame.contentWindow;
     win.document.open();
     win.document.write(fullHtml);

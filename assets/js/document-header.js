@@ -131,19 +131,20 @@
     'body.doc-print-standalone::after{display:none;}' +
     '.doc-print-watermark-root{position:relative;}' +
     '.doc-print-watermark--overlay{position:absolute;inset:0;z-index:1000;display:flex;align-items:center;' +
-    'justify-content:center;pointer-events:none;overflow:visible;min-height:100%;}' +
+    'justify-content:center;pointer-events:none;overflow:hidden;}' +
     '.doc-print-watermark--overlay img{width:min(72%,460px);max-width:460px;height:auto;' +
     'max-height:min(62vh,440px);object-fit:contain;opacity:var(--doc-watermark-opacity,' +
     WATERMARK_OPACITY +
-    ');filter:grayscale(0.12) contrast(0.92);}';
+    ');filter:grayscale(0.12) contrast(0.92);}' +
+    '.doc-print-watermark-root{min-height:0;height:auto;}';
 
   var watermarkPrintMediaCss =
     'body.has-doc-watermark::after{display:block!important;position:fixed!important;inset:0!important;' +
     'width:100%!important;height:100%!important;transform:none!important;z-index:9999;' +
     '-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
     'body.doc-print-standalone::after{display:block!important;}' +
-    '.doc-print-watermark--overlay{display:none!important;}' +
-    '.doc-print-watermark:not(.doc-print-watermark--overlay){display:none!important;}';
+    '.doc-print-watermark--overlay,.doc-print-watermark{display:none!important;visibility:hidden!important;}' +
+    '.doc-print-watermark-root{min-height:0!important;height:auto!important;}';
 
   function watermarkHtml(logoUrl) {
     if (!logoUrl) return '';

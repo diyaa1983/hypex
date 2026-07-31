@@ -245,7 +245,13 @@
 
   function tablePrintCss() {
     return (
-      'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#0f172a;margin:6mm 10mm 10mm;direction:rtl;}' +
+      '@page{size:A4;margin:10mm;}' +
+      'html,body{height:auto!important;min-height:0!important;}' +
+      'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#0f172a;margin:0;padding:0;direction:rtl;}' +
+      '.doc-print-watermark-root{position:relative;min-height:0!important;height:auto!important;}' +
+      '.doc-print-header{break-inside:avoid;page-break-inside:avoid;}' +
+      '.inv-print-header-row{break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid;}' +
+      '.sales-inv-print-tot,.doc-print-signature-block{break-inside:avoid;page-break-inside:avoid;}' +
       'table.inv-print-lines{border-collapse:collapse;width:100%;margin-top:0.5rem;font-size:10px;}' +
       'table.inv-print-lines th{background:#f1f5f9;padding:0.28rem 0.35rem;border:1px solid #94a3b8;font-size:10px;font-weight:400!important;color:#475569;}' +
       'table.inv-print-lines td{padding:0.28rem 0.35rem;border:1px solid #cbd5e1;text-align:center;font-size:10px;font-weight:700!important;color:#0f172a;}' +

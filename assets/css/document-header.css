@@ -207,8 +207,7 @@ body.doc-print-standalone::after {
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  overflow: visible;
-  min-height: 100%;
+  overflow: hidden;
 }
 
 .doc-print-watermark--overlay img {
@@ -253,11 +252,14 @@ body.doc-print-standalone::after {
     display: block !important;
   }
 
-  .doc-print-watermark--overlay {
+  .doc-print-watermark--overlay,
+  .doc-print-watermark {
     display: none !important;
+    visibility: hidden !important;
   }
 
-  .doc-print-watermark:not(.doc-print-watermark--overlay) {
-    display: none !important;
+  .doc-print-watermark-root {
+    min-height: 0 !important;
+    height: auto !important;
   }
 }
