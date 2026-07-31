@@ -245,20 +245,27 @@
 
   function tablePrintCss() {
     return (
-      '@page{size:A4;margin:10mm;}' +
-      'html,body{height:auto!important;min-height:0!important;}' +
-      'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#0f172a;margin:0;padding:0;direction:rtl;}' +
-      '.doc-print-watermark-root{position:relative;min-height:0!important;height:auto!important;}' +
-      '.doc-print-header{break-inside:avoid;page-break-inside:avoid;}' +
-      '.inv-print-header-row{break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid;}' +
-      '.sales-inv-print-tot,.doc-print-signature-block{break-inside:avoid;page-break-inside:avoid;}' +
-      'table.inv-print-lines{border-collapse:collapse;width:100%;margin-top:0.5rem;font-size:10px;}' +
-      'table.inv-print-lines th{background:#f1f5f9;padding:0.28rem 0.35rem;border:1px solid #94a3b8;font-size:10px;font-weight:400!important;color:#475569;}' +
-      'table.inv-print-lines td{padding:0.28rem 0.35rem;border:1px solid #cbd5e1;text-align:center;font-size:10px;font-weight:700!important;color:#0f172a;}' +
+      /* بدون size:A4 — إجبار A4 مع طابعة حرارية يصغّر الصفحة (زوم بعيد) */
+      '@page{margin:8mm;}' +
+      'html,body{width:100%!important;height:auto!important;min-height:0!important;}' +
+      'body{font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:700;color:#0f172a;' +
+      'margin:0;padding:0;direction:rtl;box-sizing:border-box;}' +
+      '*,*:before,*:after{box-sizing:border-box;}' +
+      '.doc-print-watermark-root{position:relative;width:100%!important;min-height:0!important;height:auto!important;}' +
+      '.doc-print-header{width:100%;break-inside:avoid;page-break-inside:avoid;}' +
+      '.doc-print-header-co{font-size:1.15rem!important;}' +
+      '.doc-print-header-title{font-size:1.15rem!important;}' +
+      '.doc-print-meta{font-size:13px!important;}' +
+      '.inv-print-header-row{width:100%!important;break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid;}' +
+      '.sales-inv-print-tot{font-size:13px!important;break-inside:avoid;page-break-inside:avoid;}' +
+      '.doc-print-signature-block{break-inside:avoid;page-break-inside:avoid;}' +
+      'table.inv-print-lines{border-collapse:collapse;width:100%!important;margin-top:0.5rem;font-size:12px;}' +
+      'table.inv-print-lines th{background:#f1f5f9;padding:0.32rem 0.4rem;border:1px solid #94a3b8;font-size:11px;font-weight:400!important;color:#475569;}' +
+      'table.inv-print-lines td{padding:0.32rem 0.4rem;border:1px solid #cbd5e1;text-align:center;font-size:12px;font-weight:700!important;color:#0f172a;}' +
       'table.inv-print-lines td.inv-print-cell-item{text-align:start;}' +
       'table.inv-print-lines .inv-print-cell-sku{font-family:Arial,Helvetica,sans-serif;}' +
       'table.inv-print-lines .inv-print-cell-disc{color:#b45309;}' +
-      'table.inv-print-lines .inv-print-cell-tax-pct{font-size:9px;}'
+      'table.inv-print-lines .inv-print-cell-tax-pct{font-size:11px;}'
     );
   }
 

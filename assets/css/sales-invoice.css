@@ -1758,13 +1758,14 @@ body.app-body--focus .sales-inv-print-overlay {
   padding-top: 0.45rem;
 }
 
-/* إطار الطباعة يجب أن يكون بحجم A4 — الحجم 0×0 كان يقسّم الفاتورة على صفحات متعددة */
+/* إطار الطباعة: عرض كافٍ للتخطيط — تجنّب 0×0 (تقسيم صفحات) وتجنّب ارتفاع A4 الكامل (زوم بعيد) */
 .sales-inv-print-frame {
   position: fixed;
   left: -10000px;
   top: 0;
-  width: 210mm;
-  height: 297mm;
+  width: 190mm;
+  height: auto;
+  min-height: 200px;
   border: 0;
   opacity: 0;
   visibility: hidden;

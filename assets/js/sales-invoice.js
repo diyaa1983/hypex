@@ -3315,7 +3315,8 @@
     '.inv-print-header-row td.inv-print-header-meta{width:auto;}' +
     '.sales-inv-print-tot{margin-top:0.75rem;text-align:left;max-width:280px;margin-right:0;margin-left:auto;}' +
     '.sales-inv-print-tot div{display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid #e2e8f0;font-weight:700;}' +
-    '.sales-inv-print-tot .g{font-weight:800;font-size:1.05rem;border-top:2px solid #334155;margin-top:0.35rem;padding-top:0.45rem;}'
+    '.sales-inv-print-tot .g{font-weight:800;font-size:1.05rem;border-top:2px solid #334155;margin-top:0.35rem;padding-top:0.45rem;}' +
+    '@media print{html,body{zoom:1;}}'
     );
   }
 
@@ -3364,9 +3365,10 @@
 
   function printHtmlInFrame(fullHtml) {
     var frame = getPrintFrame();
-    // حجم A4 حقيقي — الإطار 0×0 كان يسبب تقسيم الفاتورة على عدة صفحات
-    frame.style.width = '210mm';
-    frame.style.height = '297mm';
+    // عرض كافٍ للتخطيط دون إجبار ارتفاع A4 الكامل (كان يظهر الزوم بعيداً عند الطباعة)
+    frame.style.width = '190mm';
+    frame.style.height = 'auto';
+    frame.style.minHeight = '200px';
     frame.style.visibility = 'hidden';
     var win = frame.contentWindow;
     win.document.open();
