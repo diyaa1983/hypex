@@ -83,7 +83,10 @@ class _Line {
 }
 
 class InvoiceFormScreen extends StatefulWidget {
-  const InvoiceFormScreen({super.key});
+  const InvoiceFormScreen({super.key, this.invoiceId});
+
+  /// عند التمرير: تعديل فاتورة موجودة غير مرحّلة/غير مُرسلة للفوترة.
+  final int? invoiceId;
 
   @override
   State<InvoiceFormScreen> createState() => _InvoiceFormScreenState();
@@ -93,6 +96,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   bool _loadingMeta = true;
   bool _saving = false;
   String? _metaError;
+  int _editInvoiceId = 0;
+  String _invoiceDate = '';
 
   List<Map<String, dynamic>> _warehouses = [];
   List<_TaxRate> _taxRates = [];
@@ -105,9 +110,13 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   final _headerDiscount = TextEditingController();
   final _notes = TextEditingController();
 
+  bool get _isEdit => _editInvoiceId > 0;
+
   @override
   void initState() {
     super.initState();
+    _editInvoiceId = widget.invoiceId ?? 0;
+    _invoiceDate = Fmt.todayIso();
     _loadMeta();
   }
 
@@ -158,12 +167,114 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         if (_warehouseId == 0 && whs.isNotEmpty) {
           _warehouseId = Fmt.toInt(whs.first['id']);
         }
+      });
+      if (_isEdit) {
+        await _loadInvoiceForEdit();
+      } else if (mounted) {
+        setState(() => _loadingMeta = false);
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _metaError = e.message;
+        _loadingMeta = false;
+      });
+    }
+  }
+
+  Future<void> _loadInvoiceForEdit() async {
+    try {
+      final res = await context.read<ApiClient>().getJson(
+        AppConfig.salesInvoiceViewPath,
+        query: {'id': _editInvoiceId},
+      );
+      final inv = (res['invoice'] as Map?)?.cast<String, dynamic>() ?? {};
+      if (inv.isEmpty) {
+        throw ApiException('الفاتورة غير موجودة.');
+      }
+      if (inv['is_posted'] == true || inv['einv_sent'] == true) {
+        throw ApiException(
+          'لا يمكن تعديل فاتورة مرحّلة أو مُرسلة للفوترة.',
+        );
+      }
+
+      final cid = Fmt.toInt(inv['customer_id']);
+      final cname = Fmt.str(inv['customer_name']);
+      final linesRaw = inv['lines'] ?? inv['items'] ?? inv['rows'];
+      final loaded = <_Line>[];
+      if (linesRaw is List) {
+        for (final e in linesRaw) {
+          if (e is! Map) continue;
+          final m = e.cast<String, dynamic>();
+          final pct = Fmt.toDouble(m['tax_rate_percent']);
+          var rateId = _defaultTaxRateId;
+          final match = _taxRates.where((r) => (r.rate - pct).abs() < 0.001);
+          if (match.isNotEmpty) {
+            rateId = match.first.id;
+          } else if (_taxRates.isNotEmpty && pct > 0) {
+            // أقرب نسبة ضريبة متاحة.
+            rateId = _taxRates.reduce(
+              (a, b) => (a.rate - pct).abs() < (b.rate - pct).abs() ? a : b,
+            ).id;
+          }
+          final ratePct = _taxRates
+                  .where((r) => r.id == rateId)
+                  .map((r) => r.rate)
+                  .firstOrNull ??
+              pct;
+          loaded.add(
+            _Line(
+              itemId: Fmt.toInt(m['item_id']),
+              name: Fmt.str(
+                m['item_name'] ?? m['name_ar'] ?? m['name'] ?? m['line_desc'],
+              ),
+              qty: Fmt.toDouble(m['qty']),
+              qtyExtra: Fmt.toDouble(m['qty_extra']),
+              unitPrice: Fmt.toDouble(m['unit_price'] ?? m['price']),
+              taxRateId: rateId,
+              taxRatePercent: ratePct > 0 ? ratePct : _defaultTaxPercent,
+            )..discountInput = Fmt.str(m['line_discount_input']),
+          );
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _customer = cid > 0
+            ? Party(cid, cname, Fmt.str(inv['customer_code']))
+            : null;
+        _warehouseId = Fmt.toInt(inv['warehouse_id']);
+        if (_warehouseId == 0 && _warehouses.isNotEmpty) {
+          _warehouseId = Fmt.toInt(_warehouses.first['id']);
+        }
+        _paymentType = Fmt.str(inv['payment_type']).isEmpty
+            ? 'credit'
+            : Fmt.str(inv['payment_type']);
+        final d = Fmt.str(inv['invoice_date']);
+        _invoiceDate = d.isEmpty ? Fmt.todayIso() : d;
+        _headerDiscount.text = Fmt.str(
+          inv['invoice_discount'] ?? inv['discount_input'] ?? '',
+        );
+        if (_headerDiscount.text.isEmpty) {
+          final discAmt = Fmt.toDouble(inv['discount_amount']);
+          if (discAmt > 0) _headerDiscount.text = Fmt.trimNum(discAmt);
+        }
+        _notes.text = Fmt.str(inv['notes']);
+        _lines
+          ..clear()
+          ..addAll(loaded);
         _loadingMeta = false;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
         _metaError = e.message;
+        _loadingMeta = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _metaError = 'تعذر تحميل الفاتورة للتعديل.';
         _loadingMeta = false;
       });
     }
@@ -258,8 +369,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     try {
       final fields = <String, dynamic>{
         '_action': 'save_invoice',
-        'invoice_id': 0,
-        'invoice_date': Fmt.todayIso(),
+        'invoice_id': _editInvoiceId,
+        'invoice_date': _invoiceDate.isEmpty ? Fmt.todayIso() : _invoiceDate,
         'customer_id': _customer!.id,
         'warehouse_id': _warehouseId,
         'payment_type': _paymentType,
@@ -304,7 +415,11 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
       if (!mounted) return invId;
       if (invId > 0) {
-        context.pushReplacement('/invoices/$invId');
+        if (_isEdit) {
+          context.pop(true);
+        } else {
+          context.pushReplacement('/invoices/$invId');
+        }
       } else {
         context.pop();
       }
@@ -321,7 +436,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('فاتورة جديدة'),
+        title: Text(_isEdit ? 'تعديل الفاتورة' : 'فاتورة جديدة'),
         actions: [
           IconButton(
             tooltip: 'إضافة مادة',

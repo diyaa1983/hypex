@@ -27,7 +27,7 @@ class InvoiceBluetoothReceipt {
     }
 
     try {
-      final pdfBytes = await _buildThermalPdf(inv, paperMm: cfg.paperMm);
+      final pdfBytes = await buildThermalPdf(inv, paperMm: cfg.paperMm);
       final okConnect = await BluetoothPrintService.connect(cfg.mac);
       if (!okConnect) {
         return 'تعذر الاتصال بالطابعة «${cfg.displayLabel}». تأكد أنها مشغّلة ومقترنة.';
@@ -73,7 +73,8 @@ class InvoiceBluetoothReceipt {
     }
   }
 
-  static Future<Uint8List> _buildThermalPdf(
+  /// بناء إيصال حراري PDF بعرض 58 أو 80 مم للمعاينة أو الطباعة.
+  static Future<Uint8List> buildThermalPdf(
     Map<String, dynamic> inv, {
     required int paperMm,
   }) async {

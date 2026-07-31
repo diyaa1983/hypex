@@ -210,63 +210,44 @@ function sal_invoice_can_delete(PDO $pdo, int $invoiceId): array
 
 /** إزالة آثار ترحيل جزئي قبل حذف الفاتورة. */
 
-function sal_invoice_delete_cleanup_posting_artifacts(PDO $pdo, int $invoiceId): void
-
+/**
+ * إزالة آثار الترحيل (مخزون + ذمم).
+ * @param bool $clearDeliveryLink عند الحذف فقط — لا يُفك ربط سند التسليم عند فك الترحيل.
+ */
+function sal_invoice_delete_cleanup_posting_artifacts(PDO $pdo, int $invoiceId, bool $clearDeliveryLink = true): void
 {
-
     if ($invoiceId < 1) {
-
         return;
-
     }
-
-
 
     if (inv_stock_move_has_table($pdo)) {
-
         try {
-
             $pdo->prepare(
-
                 "DELETE FROM inv_stock_move WHERE ref_type = 'sale_invoice' AND ref_id = ?"
-
             )->execute([$invoiceId]);
-
         } catch (Throwable $e) {
-
             // ignore
-
         }
-
     }
-
-
 
     if (crm_ledger_has_table($pdo)) {
-
         try {
-
             $pdo->prepare(
-
                 "DELETE FROM crm_customer_ledger WHERE txn_type = 'sale_invoice' AND ref_id = ?"
-
             )->execute([$invoiceId]);
-
         } catch (Throwable $e) {
-
             // ignore
-
         }
-
     }
 
-    try {
-        require_once app_path('includes/sal_delivery_invoice_link.php');
-        sal_invoice_set_delivery_id($pdo, $invoiceId, null);
-    } catch (Throwable $e) {
-        // ignore
+    if ($clearDeliveryLink) {
+        try {
+            require_once app_path('includes/sal_delivery_invoice_link.php');
+            sal_invoice_set_delivery_id($pdo, $invoiceId, null);
+        } catch (Throwable $e) {
+            // ignore
+        }
     }
-
 }
 
 

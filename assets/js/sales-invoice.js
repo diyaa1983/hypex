@@ -4422,12 +4422,16 @@
       fd.append('_csrf', csrfInput ? csrfInput.value : '');
       fd.append('invoice_id', String(currentInvoiceId));
       fetch(invoiceUnpostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (data) {
-          if (!data || !data.ok) {
-            var errMsg = (data && (data.error || data.message)) || 'تعذر فك الترحيل.';
+        .then(parsePostInvoiceJsonResponse)
+        .then(function (res) {
+          var data = res.data;
+          if (!data) {
+            AppDialog.error('تعذر قراءة رد الخادم أثناء فك الترحيل.');
+            if (currentInvoiceId > 0) loadInvoiceById(currentInvoiceId);
+            return;
+          }
+          if (!data.ok) {
+            var errMsg = data.error || data.message || 'تعذر فك الترحيل.';
             AppDialog.error(errMsg);
             return;
           }
@@ -4443,7 +4447,8 @@
           }
         })
         .catch(function () {
-          AppDialog.error('تعذر الاتصال بالخادم.');
+          AppDialog.error('تعذر الاتصال بالخادم أثناء فك الترحيل.');
+          if (currentInvoiceId > 0) loadInvoiceById(currentInvoiceId);
         })
         .finally(function () {
           unpostInFlight = false;

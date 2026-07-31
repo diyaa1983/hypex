@@ -27,6 +27,8 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
   bool _loading = true;
   bool _posting = false;
   bool _printBusy = false;
+  bool _previewBusy = false;
+  bool _einvoiceBusy = false;
   bool _deleting = false;
   String? _error;
   Map<String, dynamic> _inv = {};
@@ -69,15 +71,89 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
     return [];
   }
 
+  bool get _posted => _inv['is_posted'] == true;
+  bool get _einvSent => _inv['einv_sent'] == true;
+  bool get _canEdit => !_posted && !_einvSent;
+  bool get _canSendEinvoice =>
+      _posted && !_einvSent && _inv['einv_tracking_required'] != false;
+
+  Map<String, dynamic> get _invoicePayload {
+    final inv = Map<String, dynamic>.from(_inv);
+    inv['id'] = widget.invoiceId;
+    return inv;
+  }
+
   Future<void> _printBluetooth() async {
     if (_printBusy) return;
     setState(() => _printBusy = true);
     try {
-      final inv = Map<String, dynamic>.from(_inv);
-      inv['id'] = widget.invoiceId;
-      await InvoicePrintHelper.printBluetooth(context, invoice: inv);
+      await InvoicePrintHelper.printBluetooth(
+        context,
+        invoice: _invoicePayload,
+      );
     } finally {
       if (mounted) setState(() => _printBusy = false);
+    }
+  }
+
+  Future<void> _openPreview() async {
+    if (_previewBusy) return;
+    setState(() => _previewBusy = true);
+    try {
+      await InvoicePrintHelper.openThermalPreview(
+        context,
+        invoice: _invoicePayload,
+      );
+    } finally {
+      if (mounted) setState(() => _previewBusy = false);
+    }
+  }
+
+  Future<void> _edit() async {
+    if (!_canEdit) return;
+    await context.push('/invoices/${widget.invoiceId}/edit');
+    if (mounted) await _load();
+  }
+
+  Future<void> _sendEinvoice() async {
+    if (!_canSendEinvoice || _einvoiceBusy) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إرسال للفوترة'),
+        content: Text(
+          'إرسال الفاتورة رقم ${Fmt.str(_inv['invoice_no'])} إلى نظام الفوترة؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('إرسال'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _einvoiceBusy = true);
+    final s = context.read<SessionController>();
+    try {
+      final res = await context.read<ApiClient>().postForm(
+        AppConfig.salesInvoiceEinvoiceSendPath,
+        fields: {'invoice_id': widget.invoiceId},
+        csrf: s.csrf,
+      );
+      if (!mounted) return;
+      showSnack(context, (res['message'] ?? 'تم الإرسال للفوترة').toString());
+      await _load();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _einvoiceBusy = false);
     }
   }
 
@@ -180,9 +256,8 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final posted = _inv['is_posted'] == true;
     final canDelete =
-        context.read<SessionController>().can('m_sales_invoices') && !posted;
+        context.read<SessionController>().can('m_sales_invoices') && _canEdit;
 
     return Scaffold(
       appBar: AppBar(
@@ -198,8 +273,6 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
             icon: const Icon(Icons.more_vert_rounded),
             onSelected: (v) {
               switch (v) {
-                case 'print':
-                  _printBluetooth();
                 case 'copy':
                   _copySummary();
                 case 'map':
@@ -209,10 +282,6 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'print',
-                child: _MenuRow(Icons.print_outlined, 'طباعة Bluetooth'),
-              ),
               const PopupMenuItem(
                 value: 'copy',
                 child: _MenuRow(Icons.copy_rounded, 'نسخ الملخّص'),
@@ -241,28 +310,22 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
           children: [
-            _SummaryCard(inv: _inv, posted: posted),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: ActionChipButton(
-                    icon: Icons.print_outlined,
-                    label: 'طباعة',
-                    busy: _printBusy,
-                    onTap: _printBluetooth,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ActionChipButton(
-                    icon: Icons.map_outlined,
-                    label: 'الموقع',
-                    color: AppTheme.teal,
-                    onTap: _openMap,
-                  ),
-                ),
-              ],
+            _SummaryCard(
+              inv: _inv,
+              posted: _posted,
+              einvSent: _einvSent,
+            ),
+            const SizedBox(height: 10),
+            _ActionGrid(
+              canEdit: _canEdit,
+              canSendEinvoice: _canSendEinvoice,
+              printBusy: _printBusy,
+              previewBusy: _previewBusy,
+              einvoiceBusy: _einvoiceBusy,
+              onPrint: _printBluetooth,
+              onPreview: _openPreview,
+              onEdit: _edit,
+              onEinvoice: _sendEinvoice,
             ),
             SectionTitle(
               'البنود',
@@ -315,11 +378,20 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
                       const SizedBox(width: 8),
                     ],
                     Expanded(
-                      child: posted
-                          ? OutlinedButton.icon(
+                      child: _posted
+                          ? FilledButton.icon(
                               onPressed: _printBusy ? null : _printBluetooth,
-                              icon: const Icon(Icons.print_outlined, size: 19),
-                              label: const Text('طباعة Bluetooth'),
+                              icon: _printBusy
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.print_outlined, size: 19),
+                              label: const Text('طباعة'),
                             )
                           : FilledButton.icon(
                               onPressed: _posting ? null : _post,
@@ -347,64 +419,91 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
   }
 
   Widget _lineCard(Map<String, dynamic> l) {
-    final name = Fmt.str(l['item_name'] ?? l['name_ar'] ?? l['name']);
+    final name = Fmt.str(l['item_name'] ?? l['name_ar'] ?? l['name'] ?? l['line_desc']);
     final qty = Fmt.toDouble(l['qty'] ?? l['quantity']);
+    final qtyExtra = Fmt.toDouble(l['qty_extra']);
     final price = Fmt.toDouble(l['unit_price'] ?? l['price']);
     final disc = Fmt.toDouble(l['discount_amount']);
     final tax = Fmt.toDouble(l['tax_amount']);
     final taxPct = Fmt.toDouble(l['tax_rate_percent']);
+    final net = Fmt.toDouble(
+      l['line_subtotal'] ?? (qty * price - disc),
+    );
     final total = Fmt.toDouble(
-      l['line_gross'] ?? l['line_total'] ?? l['total'] ?? (qty * price),
+      l['line_gross'] ?? l['line_total'] ?? l['total'] ?? (net + tax),
     );
     final discInput = Fmt.str(l['line_discount_input']);
 
     return AppCard(
-      padding: const EdgeInsets.all(12),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const MiniIcon(Icons.inventory_2_outlined, color: AppTheme.violet),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          Row(
+            children: [
+              const MiniIcon(
+                Icons.inventory_2_outlined,
+                color: AppTheme.violet,
+                size: 32,
+                iconSize: 17,
+                radius: 10,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
                   name,
                   style: const TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _chip('${Fmt.money(qty)} × ${Fmt.money(price)}'),
-                    if (disc > 0 || discInput.isNotEmpty)
-                      _chip(
-                        'خصم ${discInput.isNotEmpty ? discInput : Fmt.money(disc)}',
-                        color: AppTheme.rose,
-                      ),
-                    if (tax > 0 || taxPct > 0)
-                      _chip(
-                        'ضريبة ${Fmt.money(taxPct)}% = ${Fmt.money(tax)}',
-                        color: AppTheme.amber,
-                      ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(
-            Fmt.money(total),
-            textDirection: TextDirection.ltr,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 14.5,
-              color: AppTheme.primary,
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _fieldBox('الكمية', Fmt.money(qty))),
+              const SizedBox(width: 8),
+              Expanded(child: _fieldBox('إضافية', Fmt.money(qtyExtra))),
+              const SizedBox(width: 8),
+              Expanded(child: _fieldBox('السعر', Fmt.money(price))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _fieldBox(
+                  'الخصم',
+                  discInput.isNotEmpty
+                      ? discInput
+                      : (disc > 0 ? Fmt.money(disc) : '—'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _fieldBox(
+                  'الضريبة',
+                  taxPct > 0 ? '${Fmt.money(taxPct)}%' : '—',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceAlt,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _tiny('صافي', Fmt.money(net)),
+                _tiny('ضريبة', Fmt.money(tax)),
+                _tiny('الإجمالي', Fmt.money(total), strong: true),
+              ],
             ),
           ),
         ],
@@ -412,31 +511,148 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
     );
   }
 
-  Widget _chip(String text, {Color color = AppTheme.textSoft}) {
+  Widget _fieldBox(String label, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
+        color: AppTheme.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.border),
       ),
-      child: Text(
-        text,
-        textDirection: TextDirection.ltr,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: color,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10.5, color: AppTheme.textSoft),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tiny(String label, String value, {bool strong = false}) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10.5, color: AppTheme.textSoft),
         ),
-      ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          textDirection: TextDirection.ltr,
+          style: TextStyle(
+            fontSize: strong ? 13.5 : 12.5,
+            fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
+            color: strong ? AppTheme.primary : AppTheme.textMain,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionGrid extends StatelessWidget {
+  const _ActionGrid({
+    required this.canEdit,
+    required this.canSendEinvoice,
+    required this.printBusy,
+    required this.previewBusy,
+    required this.einvoiceBusy,
+    required this.onPrint,
+    required this.onPreview,
+    required this.onEdit,
+    required this.onEinvoice,
+  });
+
+  final bool canEdit;
+  final bool canSendEinvoice;
+  final bool printBusy;
+  final bool previewBusy;
+  final bool einvoiceBusy;
+  final VoidCallback onPrint;
+  final VoidCallback onPreview;
+  final VoidCallback onEdit;
+  final VoidCallback onEinvoice;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: ActionChipButton(
+                icon: Icons.print_outlined,
+                label: 'طباعة',
+                busy: printBusy,
+                onTap: onPrint,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ActionChipButton(
+                icon: Icons.receipt_long_outlined,
+                label: 'عرض',
+                color: AppTheme.teal,
+                busy: previewBusy,
+                onTap: onPreview,
+              ),
+            ),
+          ],
+        ),
+        if (canEdit || canSendEinvoice) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if (canEdit)
+                Expanded(
+                  child: ActionChipButton(
+                    icon: Icons.edit_outlined,
+                    label: 'تعديل',
+                    color: AppTheme.amber,
+                    onTap: onEdit,
+                  ),
+                ),
+              if (canEdit && canSendEinvoice) const SizedBox(width: 8),
+              if (canSendEinvoice)
+                Expanded(
+                  child: ActionChipButton(
+                    icon: Icons.send_outlined,
+                    label: 'إرسال للفوترة',
+                    color: AppTheme.violet,
+                    busy: einvoiceBusy,
+                    onTap: onEinvoice,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
 
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.inv, required this.posted});
+  const _SummaryCard({
+    required this.inv,
+    required this.posted,
+    required this.einvSent,
+  });
 
   final Map<String, dynamic> inv;
   final bool posted;
+  final bool einvSent;
 
   @override
   Widget build(BuildContext context) {
@@ -469,6 +685,14 @@ class _SummaryCard extends StatelessWidget {
               ),
             ],
           ),
+          if (einvSent) ...[
+            const SizedBox(height: 6),
+            StatusPill(
+              text: 'مُرسلة للفوترة',
+              color: Colors.white,
+              icon: Icons.verified_outlined,
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             'فاتورة #${Fmt.str(inv['invoice_no'])} • '

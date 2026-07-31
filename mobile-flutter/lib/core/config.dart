@@ -18,6 +18,7 @@ class AppConfig {
   static const String salesInvoiceDeletePath = 'api/sales_invoice_delete.php';
   static const String salesInvoicePrintPath = 'api/mobile_invoice_print.php';
   static const String salesInvoicePdfPath = 'api/mobile_invoice_pdf.php';
+  static const String salesInvoiceEinvoiceSendPath = 'api/sales_einvoice_send.php';
   static const String salesInvoiceSaveRoute = 'm/index.php?r=m_sales_invoices';
   static const String itemsSearchPath = 'api/items_search.php';
   static const String invoiceMetaPath = 'api/mobile_invoice_meta.php';

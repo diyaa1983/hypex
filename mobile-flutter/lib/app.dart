@@ -88,6 +88,12 @@ class NammaApp extends StatelessWidget {
           builder: (_, __) => const CustomerAddScreen(),
         ),
         GoRoute(
+          path: '/invoices/:id/edit',
+          builder: (_, s) => InvoiceFormScreen(
+            invoiceId: int.parse(s.pathParameters['id']!),
+          ),
+        ),
+        GoRoute(
           path: '/invoices/:id',
           builder: (_, s) =>
               InvoiceViewScreen(invoiceId: int.parse(s.pathParameters['id']!)),

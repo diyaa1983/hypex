@@ -5,32 +5,7 @@ require_once app_path('includes/sal_invoice_post.php');
 require_once app_path('includes/sal_invoice_delete.php');
 require_once app_path('includes/crm_customer_ledger.php');
 require_once app_path('includes/acc_gl.php');
-
-/** مسح إحداثيات الترحيل — تحديث مباشر دون تحميل وحدة الجيوكود الثقيلة. */
-function sal_invoice_gps_clear_on_unpost(PDO $pdo, int $invoiceId): void
-{
-    if ($invoiceId < 1) {
-        return;
-    }
-    try {
-        $pdo->prepare(
-            'UPDATE sal_invoice
-             SET post_latitude = NULL, post_longitude = NULL, post_gps_accuracy = NULL,
-                 post_gps_at = NULL, post_gps_source = NULL, post_gps_place = NULL, post_gps_landmark = NULL
-             WHERE id = ?'
-        )->execute([$invoiceId]);
-    } catch (Throwable $e) {
-        try {
-            $pdo->prepare(
-                'UPDATE sal_invoice
-                 SET post_latitude = NULL, post_longitude = NULL, post_gps_accuracy = NULL, post_gps_at = NULL
-                 WHERE id = ?'
-            )->execute([$invoiceId]);
-        } catch (Throwable $e2) {
-            error_log('sal_invoice_gps_clear_on_unpost: ' . $e2->getMessage());
-        }
-    }
-}
+require_once app_path('includes/sal_invoice_gps.php');
 
 /**
  * أخطاء تمنع الحذف أو إلغاء الترحيل (مردود، فوترة إلكترونية، …).
@@ -183,7 +158,8 @@ function sal_invoice_unpost_by_id(PDO $pdo, int $invoiceId): array
         return ['ok' => false, 'error' => $gl['error'] ?? 'تعذر إلغاء الترحيل المحاسبي.', 'message' => null];
     }
 
-    sal_invoice_delete_cleanup_posting_artifacts($pdo, $invoiceId);
+    // لا نفك ربط سند التسليم عند فك الترحيل — الربط يُزال عند الحذف فقط.
+    sal_invoice_delete_cleanup_posting_artifacts($pdo, $invoiceId, false);
     sal_invoice_gps_clear_on_unpost($pdo, $invoiceId);
 
     if (sal_invoice_is_fully_posted($pdo, $invoiceId)) {
