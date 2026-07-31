@@ -373,8 +373,6 @@
     z-index: 0 !important;
   }
 
-  /* التذييل الموحّد العام يظهر — لا نخفيه */
-
   body:has(.hr-leave-bal-rpt-page) .app-shell-body,
   body:has(.hr-leave-bal-rpt-page) .main-wrap,
   body:has(.hr-leave-bal-rpt-page) .main-content,

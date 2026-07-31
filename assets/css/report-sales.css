@@ -1111,7 +1111,7 @@
 
 @media print {
   @page {
-    margin: 8mm 10mm 10mm 10mm;
+    margin: 8mm 10mm 12mm 10mm;
   }
 
   .report-sales-page[data-report-route="report_sales"] .report-sales-print-area,
@@ -2483,12 +2483,12 @@
 
   @page report-customers {
     size: A4 landscape;
-    margin: 8mm 10mm 18mm 10mm;
+    margin: 8mm 10mm 12mm 10mm;
   }
 
   @page report-warehouse-items {
     size: A4 landscape;
-    margin: 8mm 10mm 18mm 10mm;
+    margin: 8mm 10mm 12mm 10mm;
   }
 
   .report-customers-print {

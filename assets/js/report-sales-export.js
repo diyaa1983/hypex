@@ -1453,11 +1453,9 @@
       var bodyMarginBottom =
         routeKey === 'report_receivables' && !summaryPrint
           ? '16mm'
-          : periodInvoicePrint
-            ? '18mm'
-            : trialBalancePrint
-              ? '0'
-              : '12mm';
+          : trialBalancePrint
+            ? '0'
+            : '12mm';
       return (
         docPrintWatermarkStyles() +
         hdr +
@@ -2057,9 +2055,6 @@
       }
       if (isVatNetPayableReport(routeKey)) {
         return orientation === 'landscape' ? [4, 4, 10, 4] : [8, 10, 14, 10];
-      }
-      if (isPeriodInvoiceReportRouteKey(routeKey)) {
-        return [6, 10, 16, 10];
       }
       return [6, 10, 10, 10];
     }
