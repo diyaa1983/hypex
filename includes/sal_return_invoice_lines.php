@@ -33,7 +33,13 @@ function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId, int $excludeRe
     $barcodeCol = $hasBarcode ? 'i.barcode' : 'i.sku AS barcode';
     $extraSoldCol = $hasExtraInv ? 'COALESCE(il.qty_extra, 0)' : '0';
     $extraRetCol = $hasExtraRet ? 'COALESCE(SUM(rl.qty_extra), 0)' : '0';
-    $excludeSql = $excludeReturnId > 0 ? ' AND (r.id IS NULL OR r.id <> ?)' : '';
+    // استثناء المرتجع الحالي من JOIN حتى يبقى المتبقي شاملاً كمياته عند التعديل.
+    $rlJoinExtra = $excludeReturnId > 0
+        ? ' AND NOT EXISTS (
+                SELECT 1 FROM sal_return rx
+                WHERE rx.id = rl.return_id AND rx.id = ? AND rx.status <> \'cancelled\'
+            )'
+        : '';
 
     $sql = "SELECT il.id AS invoice_line_id, il.item_id, il.line_desc, il.qty AS qty_sold,
                    {$extraSoldCol} AS qty_extra_sold,
@@ -43,17 +49,18 @@ function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId, int $excludeRe
                    {$barcodeCol}, i.name_ar
             FROM sal_invoice_line il
             INNER JOIN inv_item i ON i.id = il.item_id
-            LEFT JOIN sal_return_line rl ON rl.invoice_line_id = il.id
+            LEFT JOIN sal_return_line rl ON rl.invoice_line_id = il.id{$rlJoinExtra}
             LEFT JOIN sal_return r ON r.id = rl.return_id AND r.status <> 'cancelled'
-            WHERE il.invoice_id = ?{$excludeSql}
+            WHERE il.invoice_id = ?
             GROUP BY il.id
             ORDER BY il.id ASC";
 
     $st = $pdo->prepare($sql);
-    $params = [$invoiceId];
+    $params = [];
     if ($excludeReturnId > 0) {
         $params[] = $excludeReturnId;
     }
+    $params[] = $invoiceId;
     $st->execute($params);
 
     $lines = [];

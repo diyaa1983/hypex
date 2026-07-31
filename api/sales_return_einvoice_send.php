@@ -4,10 +4,13 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/einvoice_send_return.php');
 require_once app_path('includes/sal_return_schema.php');
+require_once app_path('includes/mobile_return.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!is_logged_in() || !user_can('sales_returns') || !user_can_action('sales_send_einvoice')) {
+$canDesktop = user_can('sales_returns') && user_can_action('sales_send_einvoice');
+$canMobile = user_can_mobile_sales_returns() && mobile_can_send_sales_return_einvoice();
+if (!is_logged_in() || (!$canDesktop && !$canMobile)) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'forbidden'], JSON_UNESCAPED_UNICODE);
     exit;

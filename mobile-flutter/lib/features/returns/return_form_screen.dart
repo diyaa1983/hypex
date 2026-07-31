@@ -41,7 +41,10 @@ class _RetLine {
 }
 
 class ReturnFormScreen extends StatefulWidget {
-  const ReturnFormScreen({super.key});
+  const ReturnFormScreen({super.key, this.returnId});
+
+  /// عند التمرير: تعديل مرتجع موجود غير مرحّل/غير مُرسل للفوترة.
+  final int? returnId;
 
   @override
   State<ReturnFormScreen> createState() => _ReturnFormScreenState();
@@ -52,16 +55,32 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
   List<Map<String, dynamic>> _invoices = [];
   int _invoiceId = 0;
   String _invoiceNo = '';
+  String _returnDate = '';
   List<_RetLine> _lines = [];
 
   bool _loadingInvoices = false;
   bool _loadingLines = false;
+  bool _loadingEdit = false;
   bool _saving = false;
   bool _scanning = false;
+  int _editReturnId = 0;
+  String? _loadError;
 
   final _barcodeCtrl = TextEditingController();
   final _barcodeFocus = FocusNode();
   final _nameFilterCtrl = TextEditingController();
+
+  bool get _isEdit => _editReturnId > 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _editReturnId = widget.returnId ?? 0;
+    _returnDate = Fmt.todayIso();
+    if (_isEdit) {
+      _loadForEdit();
+    }
+  }
 
   @override
   void dispose() {
@@ -72,6 +91,69 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
       l.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _loadForEdit() async {
+    setState(() {
+      _loadingEdit = true;
+      _loadError = null;
+    });
+    try {
+      final res = await context.read<ApiClient>().getJson(
+        AppConfig.returnViewPath,
+        query: {'id': _editReturnId},
+      );
+      final ret = (res['return'] as Map?)?.cast<String, dynamic>() ?? {};
+      if (ret.isEmpty) {
+        throw ApiException('المرتجع غير موجود.');
+      }
+      final posted = ret['is_posted'] == true ||
+          ret['is_posted'] == 1 ||
+          ret['is_posted'] == '1';
+      final einv = ret['einv_sent'] == true ||
+          ret['einv_sent'] == 1 ||
+          ret['einv_sent'] == '1';
+      if (posted || einv) {
+        throw ApiException(
+          'لا يمكن تعديل مرتجع مرحّل أو مُرسل للفوترة.',
+        );
+      }
+
+      final cid = Fmt.toInt(ret['customer_id']);
+      final cname = Fmt.str(ret['customer_name']);
+      final invId = Fmt.toInt(ret['invoice_id']);
+      final invNo = Fmt.str(ret['invoice_no']);
+      final date = Fmt.str(ret['return_date']);
+      final existingQtys = <int, double>{};
+      final rawLines = ret['lines'];
+      if (rawLines is List) {
+        for (final e in rawLines) {
+          if (e is! Map) continue;
+          final m = e.cast<String, dynamic>();
+          final lineId = Fmt.toInt(m['invoice_line_id']);
+          if (lineId > 0) {
+            existingQtys[lineId] = Fmt.toDouble(m['qty']);
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _customer = Party(cid, cname, '');
+        _invoiceId = invId;
+        _invoiceNo = invNo;
+        if (date.isNotEmpty) _returnDate = date;
+      });
+      await _loadLines(invId, prefill: existingQtys);
+      if (!mounted) return;
+      setState(() => _loadingEdit = false);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.message;
+        _loadingEdit = false;
+      });
+    }
   }
 
   List<_RetLine> get _visibleLines {
@@ -87,6 +169,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
   }
 
   Future<void> _pickCustomer() async {
+    if (_isEdit) return;
     final p = await pickParty(context, type: 'customer');
     if (p == null) return;
     for (final l in _lines) {
@@ -126,7 +209,10 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
     }
   }
 
-  Future<void> _loadLines(int invoiceId) async {
+  Future<void> _loadLines(
+    int invoiceId, {
+    Map<int, double> prefill = const {},
+  }) async {
     for (final l in _lines) {
       l.dispose();
     }
@@ -138,16 +224,23 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
       _nameFilterCtrl.clear();
     });
     try {
+      final query = <String, dynamic>{
+        'invoice_id': invoiceId,
+        'customer_id': _customer!.id,
+      };
+      if (_isEdit) {
+        query['exclude_return_id'] = _editReturnId;
+      }
       final res = await context.read<ApiClient>().getJson(
         AppConfig.returnLinesPath,
-        query: {'invoice_id': invoiceId, 'customer_id': _customer!.id},
+        query: query,
       );
       if (!mounted) return;
       setState(() {
         _invoiceNo = (res['invoice_no'] ?? '').toString();
         _lines = (res['lines'] as List? ?? []).whereType<Map>().map((e) {
           final m = e.cast<String, dynamic>();
-          return _RetLine(
+          final line = _RetLine(
             invoiceLineId: Fmt.toInt(m['invoice_line_id']),
             itemId: Fmt.toInt(m['item_id']),
             name: Fmt.str(m['item_name'] ?? m['name_ar'] ?? m['name']),
@@ -155,6 +248,12 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
             qtyRemaining: Fmt.toDouble(m['qty_remaining']),
             unitPrice: Fmt.toDouble(m['unit_price']),
           );
+          final q = prefill[line.invoiceLineId] ?? 0;
+          if (q > 0) {
+            line.qty = q > line.qtyRemaining ? line.qtyRemaining : q;
+            line.qtyCtrl.text = Fmt.trimNum(line.qty);
+          }
+          return line;
         }).toList();
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -331,10 +430,10 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
         csrf: s.csrf,
         fields: {
           '_action': 'save_return',
-          'return_id': 0,
+          'return_id': _editReturnId,
           'customer_id': _customer!.id,
           'invoice_id': _invoiceId,
-          'return_date': Fmt.todayIso(),
+          'return_date': _returnDate.isEmpty ? Fmt.todayIso() : _returnDate,
           'lines_json': jsonEncode(
             picked
                 .map(
@@ -350,7 +449,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
       );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم حفظ المرتجع').toString());
-      context.pop();
+      context.pop(true);
     } on ApiException catch (e) {
       if (!mounted) return;
       showSnack(context, e.message, error: true);
@@ -362,9 +461,18 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
   @override
   Widget build(BuildContext context) {
     final visible = _visibleLines;
-    return Scaffold(
-      appBar: AppBar(title: const Text('مرتجع جديد')),
-      body: Column(
+    Widget body;
+    if (_loadingEdit) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (_loadError != null) {
+      body = AsyncView(
+        loading: false,
+        error: _loadError,
+        onRetry: _loadForEdit,
+        child: const SizedBox.shrink(),
+      );
+    } else {
+      body = Column(
         children: [
           Expanded(
             child: ListView(
@@ -388,45 +496,52 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                             : AppTheme.textMain,
                       ),
                     ),
-                    trailing: const Icon(Icons.chevron_left_rounded),
-                    onTap: _pickCustomer,
+                    trailing: _isEdit
+                        ? null
+                        : const Icon(Icons.chevron_left_rounded),
+                    onTap: _isEdit ? null : _pickCustomer,
                   ),
                 ),
                 if (_customer != null) ...[
                   const SizedBox(height: 10),
                   AppCard(
                     padding: const EdgeInsets.all(12),
-                    child: _loadingInvoices
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(8),
-                              child: CircularProgressIndicator(),
-                            ),
+                    child: _isEdit
+                        ? Text(
+                            'فاتورة البيع: ${_invoiceNo.isEmpty ? _invoiceId : _invoiceNo}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           )
-                        : _invoices.isEmpty
-                            ? const Text('لا توجد فواتير قابلة للإرجاع.')
-                            : DropdownButtonFormField<int>(
-                                initialValue:
-                                    _invoiceId == 0 ? null : _invoiceId,
-                                isExpanded: true,
-                                decoration: const InputDecoration(
-                                  labelText: 'فاتورة البيع',
+                        : _loadingInvoices
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: CircularProgressIndicator(),
                                 ),
-                                items: _invoices
-                                    .map(
-                                      (inv) => DropdownMenuItem<int>(
-                                        value: Fmt.toInt(inv['id']),
-                                        child: Text(
-                                          'فاتورة ${inv['invoice_no']} - ${Fmt.dmy(Fmt.str(inv['invoice_date']))}',
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) {
-                                  if (v != null) _loadLines(v);
-                                },
-                              ),
+                              )
+                            : _invoices.isEmpty
+                                ? const Text('لا توجد فواتير قابلة للإرجاع.')
+                                : DropdownButtonFormField<int>(
+                                    initialValue:
+                                        _invoiceId == 0 ? null : _invoiceId,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'فاتورة البيع',
+                                    ),
+                                    items: _invoices
+                                        .map(
+                                          (inv) => DropdownMenuItem<int>(
+                                            value: Fmt.toInt(inv['id']),
+                                            child: Text(
+                                              'فاتورة ${inv['invoice_no']} - ${Fmt.dmy(Fmt.str(inv['invoice_date']))}',
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                    onChanged: (v) {
+                                      if (v != null) _loadLines(v);
+                                    },
+                                  ),
                   ),
                 ],
                 if (_loadingLines)
@@ -514,12 +629,19 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                         ),
                       )
                     : const Icon(Icons.save_outlined),
-                label: const Text('حفظ المرتجع'),
+                label: Text(_isEdit ? 'حفظ التعديلات' : 'حفظ المرتجع'),
               ),
             ),
           ),
         ],
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_isEdit ? 'تعديل مرتجع' : 'مرتجع جديد'),
       ),
+      body: body,
     );
   }
 

@@ -35,6 +35,8 @@ class AppConfig {
   static const String returnLinesPath = 'api/mobile_return_lines.php';
   static const String returnInvoicesPath = 'api/mobile_return_invoices.php';
   static const String returnPostPath = 'api/sales_return_post.php';
+  static const String returnDeletePath = 'api/sales_return_delete.php';
+  static const String returnEinvoiceSendPath = 'api/sales_return_einvoice_send.php';
   static const String returnSaveRoute = 'm/index.php?r=m_sales_returns';
 
   static const String partyStatementPath = 'api/mobile_party_statement.php';

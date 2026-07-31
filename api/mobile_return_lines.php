@@ -18,6 +18,7 @@ if (!is_logged_in() || !user_can_mobile_sales_returns()) {
 
 $invoiceId = (int) ($_GET['invoice_id'] ?? 0);
 $customerId = (int) ($_GET['customer_id'] ?? 0);
+$excludeReturnId = (int) ($_GET['exclude_return_id'] ?? 0);
 
 if ($invoiceId < 1) {
     echo json_encode(['ok' => false, 'message' => 'اختر فاتورة البيع.'], JSON_UNESCAPED_UNICODE);
@@ -49,7 +50,7 @@ if (!sal_invoice_is_posted($pdo, $invoiceId)) {
     exit;
 }
 
-$lines = sal_return_fetch_invoice_lines($pdo, $invoiceId);
+$lines = sal_return_fetch_invoice_lines($pdo, $invoiceId, $excludeReturnId);
 
 echo json_encode([
     'ok' => true,

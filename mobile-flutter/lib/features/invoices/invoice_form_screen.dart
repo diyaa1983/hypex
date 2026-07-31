@@ -110,12 +110,14 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   final _headerDiscount = TextEditingController();
   final _notes = TextEditingController();
 
-  /// شريط إدخال PDA: باركود → كمية → سعر → مادة تالية.
+  /// شريط إدخال PDA: باركود → كمية → إضافية → سعر → مادة تالية.
   final _barcodeCtrl = TextEditingController();
   final _entryQtyCtrl = TextEditingController(text: '1');
+  final _entryExtraCtrl = TextEditingController(text: '0');
   final _entryPriceCtrl = TextEditingController();
   final _barcodeFocus = FocusNode();
   final _entryQtyFocus = FocusNode();
+  final _entryExtraFocus = FocusNode();
   final _entryPriceFocus = FocusNode();
   PickedItem? _pendingItem;
   bool _lookupBusy = false;
@@ -136,9 +138,11 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     _notes.dispose();
     _barcodeCtrl.dispose();
     _entryQtyCtrl.dispose();
+    _entryExtraCtrl.dispose();
     _entryPriceCtrl.dispose();
     _barcodeFocus.dispose();
     _entryQtyFocus.dispose();
+    _entryExtraFocus.dispose();
     _entryPriceFocus.dispose();
     super.dispose();
   }
@@ -309,6 +313,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     _pendingItem = null;
     _barcodeCtrl.clear();
     _entryQtyCtrl.text = '1';
+    _entryExtraCtrl.text = '0';
     _entryPriceCtrl.clear();
     if (keepFocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -323,6 +328,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       _barcodeCtrl.text =
           it.barcode.isNotEmpty ? it.barcode : it.name;
       _entryQtyCtrl.text = '1';
+      _entryExtraCtrl.text = '0';
       _entryPriceCtrl.text =
           it.price > 0 ? Fmt.trimNum(it.price) : '';
     });
@@ -334,6 +340,14 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         extentOffset: _entryQtyCtrl.text.length,
       );
     });
+  }
+
+  void _focusSelect(TextEditingController ctrl, FocusNode node) {
+    node.requestFocus();
+    ctrl.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: ctrl.text.length,
+    );
   }
 
   Future<void> _lookupBarcode() async {
@@ -416,10 +430,12 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     }
     final qty =
         double.tryParse(_entryQtyCtrl.text.replaceAll(',', '')) ?? 0;
+    final qtyExtra =
+        double.tryParse(_entryExtraCtrl.text.replaceAll(',', '')) ?? 0;
     final price =
         double.tryParse(_entryPriceCtrl.text.replaceAll(',', '')) ?? 0;
-    if (qty <= 0) {
-      showSnack(context, 'أدخل كمية صحيحة.', error: true);
+    if (qty <= 0 && qtyExtra <= 0) {
+      showSnack(context, 'أدخل كمية أو كمية إضافية.', error: true);
       _entryQtyFocus.requestFocus();
       return;
     }
@@ -432,6 +448,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     setState(() {
       if (existing.isNotEmpty) {
         existing.first.qty += qty;
+        existing.first.qtyExtra += qtyExtra;
         existing.first.unitPrice = price;
       } else {
         _lines.add(
@@ -439,7 +456,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
             itemId: it.id,
             name: it.name,
             qty: qty,
-            qtyExtra: 0,
+            qtyExtra: qtyExtra,
             unitPrice: price,
             taxRateId: _defaultTaxRateId,
             taxRatePercent: _defaultTaxPercent,
@@ -794,16 +811,31 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                   labelText: 'الكمية',
                                   isDense: true,
                                 ),
-                                onSubmitted: (_) {
-                                  _entryPriceFocus.requestFocus();
-                                  _entryPriceCtrl.selection = TextSelection(
-                                    baseOffset: 0,
-                                    extentOffset: _entryPriceCtrl.text.length,
-                                  );
-                                },
+                                onSubmitted: (_) =>
+                                    _focusSelect(_entryExtraCtrl, _entryExtraFocus),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: TextField(
+                                controller: _entryExtraCtrl,
+                                focusNode: _entryExtraFocus,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                textDirection: TextDirection.ltr,
+                                textAlign: TextAlign.center,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'إضافية',
+                                  isDense: true,
+                                ),
+                                onSubmitted: (_) =>
+                                    _focusSelect(_entryPriceCtrl, _entryPriceFocus),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: TextField(
                                 controller: _entryPriceCtrl,
@@ -822,9 +854,13 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                                 onSubmitted: (_) => _commitPendingLine(),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             FilledButton(
                               onPressed: _commitPendingLine,
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(46, 46),
+                                padding: EdgeInsets.zero,
+                              ),
                               child: const Icon(Icons.add_rounded),
                             ),
                           ],

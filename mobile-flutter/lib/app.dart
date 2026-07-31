@@ -23,6 +23,7 @@ import 'features/rep/rep_stock_screen.dart';
 import 'features/rep/rep_transfer_screen.dart';
 import 'features/returns/return_form_screen.dart';
 import 'features/returns/return_list_screen.dart';
+import 'features/returns/return_view_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/shell/main_shell.dart';
 
@@ -110,6 +111,17 @@ class NammaApp extends StatelessWidget {
         GoRoute(
           path: '/returns/new',
           builder: (_, __) => const ReturnFormScreen(),
+        ),
+        GoRoute(
+          path: '/returns/:id/edit',
+          builder: (_, s) => ReturnFormScreen(
+            returnId: int.parse(s.pathParameters['id']!),
+          ),
+        ),
+        GoRoute(
+          path: '/returns/:id',
+          builder: (_, s) =>
+              ReturnViewScreen(returnId: int.parse(s.pathParameters['id']!)),
         ),
         GoRoute(
           path: '/statement',
