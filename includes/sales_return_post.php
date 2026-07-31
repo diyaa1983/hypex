@@ -46,20 +46,26 @@ function handle_sales_return_post(): void
     require_once app_path('includes/mobile_auth.php');
     require_once app_path('includes/mobile_return.php');
 
-    if (!user_can_mobile_sales_returns()) {
-        flash_set('error', 'ليس لديك صلاحية حفظ مرتجع المبيعات.');
+    $wantsJson = request_wants_json_invoice_save();
+    $fail = static function (string $msg, int $status = 400) use ($wantsJson): void {
+        if ($wantsJson) {
+            json_invoice_save_response(false, ['message' => $msg], $status);
+        }
+        flash_set('error', $msg);
         redirect(sales_return_post_redirect_url());
+    };
+
+    if (!user_can_mobile_sales_returns()) {
+        $fail('ليس لديك صلاحية حفظ مرتجع المبيعات.', 403);
     }
 
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
-        flash_set('error', 'انتهت صلاحية الجلسة.');
-        redirect(sales_return_post_redirect_url());
+        $fail('انتهت صلاحية الجلسة.', 403);
     }
 
     $pdo = db();
     if (!sal_return_ensure_schema($pdo)) {
-        flash_set('error', 'نفّذ ملف الترحيل: database/migrations/007_sal_return.sql');
-        redirect(sales_return_post_redirect_url());
+        $fail('نفّذ ملف الترحيل: database/migrations/007_sal_return.sql', 500);
     }
     require_once app_path('includes/acc_period_lock.php');
 
@@ -126,8 +132,26 @@ function handle_sales_return_post(): void
                 break;
             }
             $lineId = (int) ($ln['invoice_line_id'] ?? 0);
+            $itemId = (int) ($ln['item_id'] ?? 0);
             $qty = (float) ($ln['qty'] ?? 0);
             $qtyExtra = (float) ($ln['qty_extra'] ?? 0);
+            // تطبيق الهاتف قد يرسل item_id فقط — نحلّه إلى سطر الفاتورة.
+            if ($lineId < 1 && $itemId > 0 && $invoiceId > 0) {
+                try {
+                    $find = $pdo->prepare(
+                        'SELECT id FROM sal_invoice_line
+                         WHERE invoice_id = ? AND item_id = ?
+                         ORDER BY id ASC LIMIT 1'
+                    );
+                    $find->execute([$invoiceId, $itemId]);
+                    $lineId = (int) ($find->fetchColumn() ?: 0);
+                    if ($lineId > 0) {
+                        $ln['invoice_line_id'] = $lineId;
+                    }
+                } catch (Throwable $e) {
+                    $lineId = 0;
+                }
+            }
             if ($lineId < 1 || ($qty <= 0 && $qtyExtra <= 0)) {
                 continue;
             }
@@ -214,8 +238,7 @@ function handle_sales_return_post(): void
     }
 
     if ($err !== '') {
-        flash_set('error', $err);
-        redirect(sales_return_post_redirect_url());
+        $fail($err);
     }
 
     // DDL يُنهي الـ transaction ضمنياً في MySQL — نهيّئ المخطط قبل البدء.
@@ -326,6 +349,13 @@ function handle_sales_return_post(): void
         $msg = $isUpdate
             ? 'تم تحديث مرتجع المبيعات (غير مرحّل). رقم الإرجاع: ' . $returnNo
             : 'تم حفظ مرتجع المبيعات (غير مرحّل). رقم الإرجاع: ' . $returnNo;
+        if ($wantsJson) {
+            json_invoice_save_response(true, [
+                'message' => $msg,
+                'return_id' => $returnId,
+                'return_no' => $returnNo,
+            ]);
+        }
         flash_set('success', $msg);
         if (app_request_from_mobile_app()) {
             redirect(mobile_url('r=m_sales_returns&id=' . $returnId));
@@ -333,8 +363,9 @@ function handle_sales_return_post(): void
         require_once app_path('includes/nav_helpers.php');
         redirect(app_url('index.php?r=sales_returns&id=' . $returnId . nav_hub_query_for_redirect()));
     } catch (Throwable $e) {
-        $pdo->rollBack();
-        flash_set('error', 'تعذر حفظ مردود المبيعات.');
-        redirect(sales_return_post_redirect_url());
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $fail('تعذر حفظ مردود المبيعات.', 500);
     }
 }

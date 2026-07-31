@@ -4,9 +4,12 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
-import '../../services/document_print_helper.dart';
+import '../../core/theme.dart';
+import '../../services/party_statement_bluetooth_receipt.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/party_picker.dart';
+import '../../widgets/thermal_preview_screen.dart';
+import '../../widgets/ui_kit.dart';
 
 class PartyStatementScreen extends StatefulWidget {
   const PartyStatementScreen({super.key});
@@ -22,6 +25,8 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
   DateTime _to = DateTime.now();
 
   bool _loading = false;
+  bool _printBusy = false;
+  bool _previewBusy = false;
   String? _error;
   Map<String, dynamic>? _result;
 
@@ -68,11 +73,13 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
           'to': _iso(_to),
         },
       );
+      if (!mounted) return;
       setState(() {
         _result = res;
         _loading = false;
       });
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.message;
         _loading = false;
@@ -83,35 +90,81 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
   String _iso(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+  Map<String, dynamic> get _printPayload {
+    final data = Map<String, dynamic>.from(_result ?? const {});
+    data['party_type'] = _type;
+    if (_party != null) {
+      data['party_name'] = data['party_name'] ?? _party!.name;
+      data['party_code'] = data['party_code'] ?? _party!.code;
+      data['party_id'] = _party!.id;
+    }
+    return data;
+  }
+
+  Future<void> _printBluetooth() async {
+    if (_printBusy || _result == null) return;
+    setState(() => _printBusy = true);
+    showSnack(context, 'جاري الطباعة...');
+    try {
+      final err = await PartyStatementBluetoothReceipt.printStatement(
+        _printPayload,
+      );
+      if (!mounted) return;
+      if (err != null) {
+        showSnack(context, err, error: true);
+      } else {
+        showSnack(context, 'تم إرسال الكشف للطابعة.');
+      }
+    } finally {
+      if (mounted) setState(() => _printBusy = false);
+    }
+  }
+
+  Future<void> _openPreview() async {
+    if (_previewBusy || _result == null) return;
+    setState(() => _previewBusy = true);
+    try {
+      final payload = _printPayload;
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ThermalPreviewScreen(
+            title: 'عرض كشف الحساب',
+            buildPdf: (paperMm) =>
+                PartyStatementBluetoothReceipt.buildThermalPdf(
+              payload,
+              paperMm: paperMm,
+            ),
+            onPrint: (ctx) async {
+              showSnack(ctx, 'جاري الطباعة...');
+              final err =
+                  await PartyStatementBluetoothReceipt.printStatement(payload);
+              if (!ctx.mounted) return;
+              if (err != null) {
+                showSnack(ctx, err, error: true);
+              } else {
+                showSnack(ctx, 'تم إرسال الكشف للطابعة.');
+              }
+            },
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _previewBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final rows = (_result?['rows'] as List? ?? [])
         .whereType<Map>()
         .map((e) => e.cast<String, dynamic>())
         .toList();
+    final hasResult = _result != null && _party != null;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('كشف حساب'),
-        actions: [
-          if (_result != null && _party != null)
-            IconButton(
-              tooltip: 'طباعة Bluetooth',
-              onPressed: _loading
-                  ? null
-                  : () => DocumentPrintHelper.printFromApi(
-                        context,
-                        apiPath: AppConfig.partyStatementPdfPath,
-                        query: {
-                          'party_type': _type,
-                          'party_id': _party!.id,
-                          'from': _iso(_from),
-                          'to': _iso(_to),
-                        },
-                        jobName: 'كشف_${_party!.name}',
-                      ),
-              icon: const Icon(Icons.print_outlined),
-            ),
-        ],
       ),
       body: Column(
         children: [
@@ -129,6 +182,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                         onSelected: (_) => setState(() {
                           _type = 'customer';
                           _party = null;
+                          _result = null;
                         }),
                       ),
                       const SizedBox(width: 8),
@@ -138,6 +192,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                         onSelected: (_) => setState(() {
                           _type = 'supplier';
                           _party = null;
+                          _result = null;
                         }),
                       ),
                     ],
@@ -145,8 +200,10 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.badge_outlined),
-                    title: Text(_party?.name ??
-                        (_type == 'customer' ? 'اختر العميل' : 'اختر المورد')),
+                    title: Text(
+                      _party?.name ??
+                          (_type == 'customer' ? 'اختر العميل' : 'اختر المورد'),
+                    ),
                     trailing: const Icon(Icons.chevron_left),
                     onTap: _pick,
                   ),
@@ -175,6 +232,31 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                     icon: const Icon(Icons.search),
                     label: const Text('عرض الكشف'),
                   ),
+                  if (hasResult) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ActionChipButton(
+                            icon: Icons.print_outlined,
+                            label: 'طباعة',
+                            busy: _printBusy,
+                            onTap: _printBluetooth,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ActionChipButton(
+                            icon: Icons.receipt_long_outlined,
+                            label: 'عرض',
+                            color: AppTheme.teal,
+                            busy: _previewBusy,
+                            onTap: _openPreview,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -222,8 +304,11 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
           _stat('رصيد أول', Fmt.money(Fmt.toDouble(r['opening_balance']))),
           _stat('مدين', Fmt.money(Fmt.toDouble(r['total_debit']))),
           _stat('دائن', Fmt.money(Fmt.toDouble(r['total_credit']))),
-          _stat('الرصيد', Fmt.money(Fmt.toDouble(r['closing_balance'])),
-              bold: true),
+          _stat(
+            'الرصيد',
+            Fmt.money(Fmt.toDouble(r['closing_balance'])),
+            bold: true,
+          ),
         ],
       ),
     );
@@ -234,10 +319,13 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
       children: [
         Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
         const SizedBox(height: 2),
-        Text(value,
-            textDirection: TextDirection.ltr,
-            style: TextStyle(
-                fontWeight: bold ? FontWeight.bold : FontWeight.w600)),
+        Text(
+          value,
+          textDirection: TextDirection.ltr,
+          style: TextStyle(
+            fontWeight: bold ? FontWeight.bold : FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
@@ -261,10 +349,11 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
             textDirection: TextDirection.ltr,
             style: const TextStyle(fontSize: 12),
           ),
-          Text('الرصيد ${Fmt.money(balance)}',
-              textDirection: TextDirection.ltr,
-              style: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.bold)),
+          Text(
+            'الرصيد ${Fmt.money(balance)}',
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          ),
         ],
       ),
     );

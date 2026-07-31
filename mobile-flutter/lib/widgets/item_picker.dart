@@ -6,11 +6,12 @@ import '../core/config.dart';
 import '../core/format.dart';
 
 class PickedItem {
-  PickedItem(this.id, this.name, this.price, this.stock);
+  PickedItem(this.id, this.name, this.price, this.stock, {this.barcode = ''});
   final int id;
   final String name;
   final double price;
   final double stock;
+  final String barcode;
 }
 
 /// اختيار مادة عبر بحث (items_search) ضمن مستودع محدد.
@@ -154,6 +155,9 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
                                       name,
                                       price,
                                       stock,
+                                      barcode: Fmt.str(
+                                        it['barcode'] ?? it['sku'],
+                                      ),
                                     ),
                                   ),
                                 );

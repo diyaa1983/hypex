@@ -6,7 +6,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
-import '../../services/document_print_helper.dart';
+import '../../services/receipt_print_helper.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -221,18 +221,24 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
                         itemBuilder: (_, i) {
                           final row = _rows[i];
                           final id = int.tryParse('${row['id']}') ?? 0;
-                          final no = (row['voucher_no'] ?? id).toString();
                           return _ReceiptCard(
                             row: row,
                             onPost: () => _post(row),
                             onDelete: () => _delete(row),
+                            onPreview: () {
+                              if (id < 1) return;
+                              ReceiptPrintHelper.openThermalPreview(
+                                context,
+                                receiptId: id,
+                                fallback: row,
+                              );
+                            },
                             onPrint: () {
                               if (id < 1) return;
-                              DocumentPrintHelper.printFromApi(
+                              ReceiptPrintHelper.printBluetooth(
                                 context,
-                                apiPath: AppConfig.receiptPdfPath,
-                                query: {'id': id},
-                                jobName: 'سند_$no',
+                                receiptId: id,
+                                fallback: row,
                               );
                             },
                           );
@@ -252,12 +258,14 @@ class _ReceiptCard extends StatelessWidget {
     required this.row,
     required this.onPost,
     required this.onDelete,
+    required this.onPreview,
     required this.onPrint,
   });
 
   final Map<String, dynamic> row;
   final VoidCallback onPost;
   final VoidCallback onDelete;
+  final VoidCallback onPreview;
   final VoidCallback onPrint;
 
   @override
@@ -340,7 +348,14 @@ class _ReceiptCard extends StatelessWidget {
                 ),
               const Spacer(),
               IconButton(
-                tooltip: 'طباعة Bluetooth',
+                tooltip: 'عرض',
+                visualDensity: VisualDensity.compact,
+                onPressed: onPreview,
+                icon: const Icon(Icons.receipt_long_outlined, size: 19),
+                color: AppTheme.teal,
+              ),
+              IconButton(
+                tooltip: 'طباعة',
                 visualDensity: VisualDensity.compact,
                 onPressed: onPrint,
                 icon: const Icon(Icons.print_outlined, size: 19),

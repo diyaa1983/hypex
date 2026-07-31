@@ -110,6 +110,16 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   final _headerDiscount = TextEditingController();
   final _notes = TextEditingController();
 
+  /// شريط إدخال PDA: باركود → كمية → سعر → مادة تالية.
+  final _barcodeCtrl = TextEditingController();
+  final _entryQtyCtrl = TextEditingController(text: '1');
+  final _entryPriceCtrl = TextEditingController();
+  final _barcodeFocus = FocusNode();
+  final _entryQtyFocus = FocusNode();
+  final _entryPriceFocus = FocusNode();
+  PickedItem? _pendingItem;
+  bool _lookupBusy = false;
+
   bool get _isEdit => _editInvoiceId > 0;
 
   @override
@@ -124,6 +134,12 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   void dispose() {
     _headerDiscount.dispose();
     _notes.dispose();
+    _barcodeCtrl.dispose();
+    _entryQtyCtrl.dispose();
+    _entryPriceCtrl.dispose();
+    _barcodeFocus.dispose();
+    _entryQtyFocus.dispose();
+    _entryPriceFocus.dispose();
     super.dispose();
   }
 
@@ -289,6 +305,151 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     if (p != null) setState(() => _customer = p);
   }
 
+  void _resetEntryStrip({bool keepFocus = true}) {
+    _pendingItem = null;
+    _barcodeCtrl.clear();
+    _entryQtyCtrl.text = '1';
+    _entryPriceCtrl.clear();
+    if (keepFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _barcodeFocus.requestFocus();
+      });
+    }
+  }
+
+  void _setPendingItem(PickedItem it) {
+    setState(() {
+      _pendingItem = it;
+      _barcodeCtrl.text =
+          it.barcode.isNotEmpty ? it.barcode : it.name;
+      _entryQtyCtrl.text = '1';
+      _entryPriceCtrl.text =
+          it.price > 0 ? Fmt.trimNum(it.price) : '';
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _entryQtyFocus.requestFocus();
+      _entryQtyCtrl.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _entryQtyCtrl.text.length,
+      );
+    });
+  }
+
+  Future<void> _lookupBarcode() async {
+    if (_lookupBusy) return;
+    final code = _barcodeCtrl.text.trim();
+    if (code.isEmpty) return;
+    if (_warehouseId == 0) {
+      showSnack(context, 'اختر المستودع أولاً', error: true);
+      return;
+    }
+    setState(() => _lookupBusy = true);
+    final api = context.read<ApiClient>();
+    try {
+      final res = await api.getJson(
+        AppConfig.itemsSearchPath,
+        query: {
+          'warehouse_id': _warehouseId,
+          'code': code,
+        },
+      );
+      var items = (res['items'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      if (items.isEmpty) {
+        final soft = await api.getJson(
+          AppConfig.itemsSearchPath,
+          query: {
+            'warehouse_id': _warehouseId,
+            'q': code,
+          },
+        );
+        items = (soft['items'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+      }
+      if (!mounted) return;
+      if (items.isEmpty) {
+        showSnack(context, 'لم يُعثر على مادة بهذا الباركود.', error: true);
+        _barcodeCtrl.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _barcodeCtrl.text.length,
+        );
+        return;
+      }
+      Map<String, dynamic> row = items.first;
+      final lower = code.toLowerCase();
+      for (final it in items) {
+        final bc = Fmt.str(it['barcode'] ?? it['sku']).toLowerCase();
+        if (bc == lower) {
+          row = it;
+          break;
+        }
+      }
+      _setPendingItem(
+        PickedItem(
+          Fmt.toInt(row['id']),
+          Fmt.str(row['name_ar'] ?? row['name'] ?? row['sku']),
+          Fmt.toDouble(
+            row['default_sale'] ?? row['sale_price'] ?? row['unit_price'],
+          ),
+          Fmt.toDouble(row['stock_qty']),
+          barcode: Fmt.str(row['barcode'] ?? row['sku']),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _lookupBusy = false);
+    }
+  }
+
+  void _commitPendingLine() {
+    final it = _pendingItem;
+    if (it == null) {
+      showSnack(context, 'اختر مادة بالباركود أو البحث أولاً.', error: true);
+      _barcodeFocus.requestFocus();
+      return;
+    }
+    final qty =
+        double.tryParse(_entryQtyCtrl.text.replaceAll(',', '')) ?? 0;
+    final price =
+        double.tryParse(_entryPriceCtrl.text.replaceAll(',', '')) ?? 0;
+    if (qty <= 0) {
+      showSnack(context, 'أدخل كمية صحيحة.', error: true);
+      _entryQtyFocus.requestFocus();
+      return;
+    }
+    if (price <= 0) {
+      showSnack(context, 'أدخل سعر الوحدة.', error: true);
+      _entryPriceFocus.requestFocus();
+      return;
+    }
+    final existing = _lines.where((l) => l.itemId == it.id).toList();
+    setState(() {
+      if (existing.isNotEmpty) {
+        existing.first.qty += qty;
+        existing.first.unitPrice = price;
+      } else {
+        _lines.add(
+          _Line(
+            itemId: it.id,
+            name: it.name,
+            qty: qty,
+            qtyExtra: 0,
+            unitPrice: price,
+            taxRateId: _defaultTaxRateId,
+            taxRatePercent: _defaultTaxPercent,
+          ),
+        );
+      }
+    });
+    _resetEntryStrip();
+  }
+
   Future<void> _addItem() async {
     if (_warehouseId == 0) {
       showSnack(context, 'اختر المستودع أولاً', error: true);
@@ -296,24 +457,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     }
     final it = await pickItem(context, warehouseId: _warehouseId);
     if (it == null) return;
-    final existing = _lines.where((l) => l.itemId == it.id).toList();
-    if (existing.isNotEmpty) {
-      setState(() => existing.first.qty += 1);
-    } else {
-      setState(
-        () => _lines.add(
-          _Line(
-            itemId: it.id,
-            name: it.name,
-            qty: 1,
-            qtyExtra: 0,
-            unitPrice: it.price,
-            taxRateId: _defaultTaxRateId,
-            taxRatePercent: _defaultTaxPercent,
-          ),
-        ),
-      );
-    }
+    _setPendingItem(it);
   }
 
   Future<void> _clearLines() async {
@@ -587,10 +731,108 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                     icon: Icons.list_alt_rounded,
                     trailing: TextButton.icon(
                       onPressed: _addItem,
-                      icon: const Icon(Icons.add_rounded, size: 17),
-                      label: const Text('إضافة مادة'),
+                      icon: const Icon(Icons.search_rounded, size: 17),
+                      label: const Text('بحث بالاسم'),
                     ),
                   ),
+                  AppCard(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_pendingItem != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'المادة: ${_pendingItem!.name}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ),
+                        TextField(
+                          controller: _barcodeCtrl,
+                          focusNode: _barcodeFocus,
+                          textDirection: TextDirection.ltr,
+                          textInputAction: TextInputAction.done,
+                          enabled: !_lookupBusy,
+                          decoration: InputDecoration(
+                            labelText: 'باركود / رمز المادة',
+                            hintText: 'امسح بالماسح أو اكتب ثم Enter',
+                            prefixIcon: _lookupBusy
+                                ? const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(Icons.qr_code_scanner),
+                            isDense: true,
+                          ),
+                          onSubmitted: (_) => _lookupBarcode(),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _entryQtyCtrl,
+                                focusNode: _entryQtyFocus,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                textDirection: TextDirection.ltr,
+                                textAlign: TextAlign.center,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(
+                                  labelText: 'الكمية',
+                                  isDense: true,
+                                ),
+                                onSubmitted: (_) {
+                                  _entryPriceFocus.requestFocus();
+                                  _entryPriceCtrl.selection = TextSelection(
+                                    baseOffset: 0,
+                                    extentOffset: _entryPriceCtrl.text.length,
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                controller: _entryPriceCtrl,
+                                focusNode: _entryPriceFocus,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                                textDirection: TextDirection.ltr,
+                                textAlign: TextAlign.center,
+                                textInputAction: TextInputAction.done,
+                                decoration: const InputDecoration(
+                                  labelText: 'السعر',
+                                  isDense: true,
+                                ),
+                                onSubmitted: (_) => _commitPendingLine(),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton(
+                              onPressed: _commitPendingLine,
+                              child: const Icon(Icons.add_rounded),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   if (_lines.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 10),

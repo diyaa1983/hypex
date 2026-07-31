@@ -31,6 +31,7 @@ class AppConfig {
   static const String receiptSaveRoute = 'm/index.php?r=m_receipt';
 
   static const String returnsListPath = 'api/mobile_returns_list.php';
+  static const String returnViewPath = 'api/sales_return_view.php';
   static const String returnLinesPath = 'api/mobile_return_lines.php';
   static const String returnInvoicesPath = 'api/mobile_return_invoices.php';
   static const String returnPostPath = 'api/sales_return_post.php';

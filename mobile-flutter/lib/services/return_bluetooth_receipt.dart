@@ -13,11 +13,11 @@ import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
 
-/// إيصال فاتورة حراري (58/80 مم) — تصميم مختلف عن PDF A4.
-class InvoiceBluetoothReceipt {
-  InvoiceBluetoothReceipt._();
+/// إيصال مرتجع مبيعات حراري (58/80 مم).
+class ReturnBluetoothReceipt {
+  ReturnBluetoothReceipt._();
 
-  static Future<String?> printInvoice(Map<String, dynamic> inv) async {
+  static Future<String?> printReturn(Map<String, dynamic> data) async {
     final cfg = await BluetoothPrinterSettings.load();
     if (!cfg.isConfigured) {
       return 'اختر طابعة Bluetooth من الإعدادات أولاً.';
@@ -27,7 +27,7 @@ class InvoiceBluetoothReceipt {
     }
 
     try {
-      final pdfBytes = await buildThermalPdf(inv, paperMm: cfg.paperMm);
+      final pdfBytes = await buildThermalPdf(data, paperMm: cfg.paperMm);
       final okConnect = await BluetoothPrintService.connect(cfg.mac);
       if (!okConnect) {
         return 'تعذر الاتصال بالطابعة «${cfg.displayLabel}». تأكد أنها مشغّلة ومقترنة.';
@@ -69,13 +69,12 @@ class InvoiceBluetoothReceipt {
       final written = await PrintBluetoothThermal.writeBytes(chunks);
       return written ? null : 'فشل إرسال البيانات للطابعة.';
     } catch (e) {
-      return 'تعذر طباعة الإيصال: $e';
+      return 'تعذر طباعة المرتجع: $e';
     }
   }
 
-  /// بناء إيصال حراري PDF بعرض 58 أو 80 مم للمعاينة أو الطباعة.
   static Future<Uint8List> buildThermalPdf(
-    Map<String, dynamic> inv, {
+    Map<String, dynamic> data, {
     required int paperMm,
   }) async {
     final fontReg = pw.Font.ttf(
@@ -94,32 +93,35 @@ class InvoiceBluetoothReceipt {
       marginAll: paperMm == 80 ? 3 * PdfPageFormat.mm : 2 * PdfPageFormat.mm,
     );
 
-    final company = Fmt.str(inv['company_name']).isEmpty
+    final company = Fmt.str(data['company_name']).isEmpty
         ? 'الشركة'
-        : Fmt.str(inv['company_name']);
-    final invoiceNo = Fmt.str(inv['invoice_no']);
-    final date = Fmt.dmy(Fmt.str(inv['invoice_date'] ?? inv['invoice_date_dmy']));
-    final customer = Fmt.str(inv['customer_name']).isEmpty
+        : Fmt.str(data['company_name']);
+    final returnNo = Fmt.str(data['return_no']);
+    final date = Fmt.dmy(
+      Fmt.str(data['return_date_dmy'] ?? data['return_date']),
+    );
+    final customer = Fmt.str(data['customer_name']).isEmpty
         ? '—'
-        : Fmt.str(inv['customer_name']);
-    final qrPayload = Fmt.str(inv['qr_payload']).isNotEmpty
-        ? Fmt.str(inv['qr_payload'])
-        : (Fmt.str(inv['einv_qr']).isNotEmpty
-            ? Fmt.str(inv['einv_qr'])
-            : (invoiceNo.isNotEmpty ? 'INV:$invoiceNo' : 'INV'));
+        : Fmt.str(data['customer_name']);
+    final invoiceNo = Fmt.str(data['invoice_no']);
+    final qrPayload = Fmt.str(data['qr_payload']).isNotEmpty
+        ? Fmt.str(data['qr_payload'])
+        : (Fmt.str(data['einv_qr']).isNotEmpty
+            ? Fmt.str(data['einv_qr'])
+            : (returnNo.isNotEmpty ? 'RET:$returnNo' : 'RET'));
 
     final lines = <Map<String, dynamic>>[];
-    final raw = inv['lines'] ?? inv['items'] ?? inv['rows'];
+    final raw = data['lines'] ?? data['items'] ?? data['rows'];
     if (raw is List) {
       for (final e in raw) {
         if (e is Map) lines.add(e.cast<String, dynamic>());
       }
     }
 
-    final subtotal = Fmt.toDouble(inv['subtotal']);
-    final discount = Fmt.toDouble(inv['discount_amount'] ?? inv['discount']);
-    final tax = Fmt.toDouble(inv['tax_amount']);
-    final total = Fmt.toDouble(inv['total']);
+    final subtotal = Fmt.toDouble(data['subtotal']);
+    final tax = Fmt.toDouble(data['tax_amount']);
+    final total = Fmt.toDouble(data['total']);
+    final notes = Fmt.str(data['notes']);
     final fs = paperMm == 80 ? 9.0 : 8.0;
     final fsSm = paperMm == 80 ? 8.0 : 7.0;
     final qrSize = paperMm == 80 ? 72.0 : 58.0;
@@ -148,16 +150,30 @@ class InvoiceBluetoothReceipt {
               pw.SizedBox(height: 4),
               pw.Center(
                 child: pw.Text(
-                  'فاتورة مبيعات',
+                  'مرتجع مبيعات',
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(font: fontBold, fontSize: fs),
                 ),
               ),
               pw.SizedBox(height: 6),
               pw.Divider(thickness: 0.8),
-              _kv('رقم الفاتورة', invoiceNo.isEmpty ? '—' : invoiceNo, fontReg, fontBold, fsSm),
-              _kv('التاريخ', date.isEmpty ? '—' : date, fontReg, fontBold, fsSm),
+              _kv(
+                'رقم المرتجع',
+                returnNo.isEmpty ? '—' : returnNo,
+                fontReg,
+                fontBold,
+                fsSm,
+              ),
+              _kv(
+                'التاريخ',
+                date.isEmpty ? '—' : date,
+                fontReg,
+                fontBold,
+                fsSm,
+              ),
               _kv('العميل', customer, fontReg, fontBold, fsSm),
+              if (invoiceNo.isNotEmpty)
+                _kv('فاتورة البيع', invoiceNo, fontReg, fontBold, fsSm),
               pw.SizedBox(height: 6),
               pw.Center(
                 child: pw.BarcodeWidget(
@@ -169,13 +185,6 @@ class InvoiceBluetoothReceipt {
                       : qrPayload,
                   width: qrSize,
                   height: qrSize,
-                ),
-              ),
-              pw.SizedBox(height: 3),
-              pw.Center(
-                child: pw.Text(
-                  'Please Check In',
-                  style: pw.TextStyle(font: fontReg, fontSize: 7),
                 ),
               ),
               pw.SizedBox(height: 6),
@@ -190,11 +199,21 @@ class InvoiceBluetoothReceipt {
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
               if (subtotal > 0)
-                _kv('الإجمالي الفرعي', Fmt.money(subtotal), fontReg, fontBold, fsSm),
-              if (discount > 0)
-                _kv('الخصم', Fmt.money(discount), fontReg, fontBold, fsSm),
-              if (tax > 0) _kv('الضريبة', Fmt.money(tax), fontReg, fontBold, fsSm),
+                _kv(
+                  'الإجمالي الفرعي',
+                  Fmt.money(subtotal),
+                  fontReg,
+                  fontBold,
+                  fsSm,
+                ),
+              if (tax > 0)
+                _kv('الضريبة', Fmt.money(tax), fontReg, fontBold, fsSm),
               _kv('الإجمالي النهائي', Fmt.money(total), fontReg, fontBold, fs),
+              if (notes.isNotEmpty) ...[
+                pw.SizedBox(height: 4),
+                pw.Divider(thickness: 0.8),
+                _kv('ملاحظات', notes, fontReg, fontBold, fsSm),
+              ],
               pw.SizedBox(height: 8),
               pw.Center(
                 child: pw.Text(
@@ -252,8 +271,9 @@ class InvoiceBluetoothReceipt {
     ];
 
     for (final ln in lines) {
-      final name = Fmt.str(ln['item_name'] ?? ln['name_ar'] ?? ln['name']);
       final qty = Fmt.toDouble(ln['qty']);
+      if (qty <= 0) continue;
+      final name = Fmt.str(ln['item_name'] ?? ln['name_ar'] ?? ln['name']);
       final price = Fmt.toDouble(
         ln['unit_price'] ?? ln['price'] ?? ln['sale_price'],
       );
@@ -270,7 +290,12 @@ class InvoiceBluetoothReceipt {
             cell(name.isEmpty ? 'مادة' : name, style: nameStyle),
             cell(Fmt.money(qty), align: pw.TextAlign.center, ltr: true),
             cell(Fmt.money(price), align: pw.TextAlign.center, ltr: true),
-            cell(Fmt.money(lineTotal), align: pw.TextAlign.center, ltr: true, style: nameStyle),
+            cell(
+              Fmt.money(lineTotal),
+              align: pw.TextAlign.center,
+              ltr: true,
+              style: nameStyle,
+            ),
           ],
         ),
       );

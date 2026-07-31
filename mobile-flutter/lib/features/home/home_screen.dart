@@ -417,9 +417,9 @@ class _TileGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 0.98,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.92,
       ),
       itemCount: tiles.length,
       itemBuilder: (_, i) {
@@ -435,7 +435,8 @@ class _TileGrid extends StatelessWidget {
   }
 }
 
-class _TileCard extends StatelessWidget {
+/// كبسة قائمة رئيسية بشكل بارز ثلاثي الأبعاد مع تفاعل ضغط.
+class _TileCard extends StatefulWidget {
   const _TileCard({
     required this.label,
     required this.icon,
@@ -449,37 +450,151 @@ class _TileCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_TileCard> createState() => _TileCardState();
+}
+
+class _TileCardState extends State<_TileCard> {
+  bool _pressed = false;
+
+  void _setPressed(bool v) {
+    if (_pressed == v) return;
+    setState(() => _pressed = v);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppTheme.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.border),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              MiniIcon(icon, color: color, size: 40, iconSize: 20, radius: 13),
-              const SizedBox(height: 9),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  height: 1.3,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textMain,
-                ),
-              ),
+    final c = widget.color;
+    final radius = BorderRadius.circular(20);
+    final depth = _pressed ? 1.0 : 0.0;
+
+    return AnimatedScale(
+      scale: _pressed ? 0.96 : 1,
+      duration: const Duration(milliseconds: 110),
+      curve: Curves.easeOut,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOut,
+        transform: Matrix4.translationValues(0, depth * 2.5, 0),
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color.lerp(Colors.white, c, 0.06)!,
+              Color.lerp(const Color(0xFFF4F7FB), c, 0.14)!,
+              Color.lerp(const Color(0xFFE8EEF6), c, 0.22)!,
             ],
+            stops: const [0, 0.55, 1],
+          ),
+          border: Border.all(
+            color: Color.lerp(Colors.white, c, 0.28)!,
+            width: 1.2,
+          ),
+          boxShadow: _pressed
+              ? [
+                  BoxShadow(
+                    color: c.withValues(alpha: 0.18),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFF0B2545).withValues(alpha: 0.08),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: c.withValues(alpha: 0.28),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                    spreadRadius: -2,
+                  ),
+                  BoxShadow(
+                    color: const Color(0xFF0B2545).withValues(alpha: 0.14),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                  BoxShadow(
+                    color: Colors.white.withValues(alpha: 0.95),
+                    blurRadius: 1,
+                    offset: const Offset(0, -1),
+                  ),
+                ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: radius,
+            splashColor: c.withValues(alpha: 0.12),
+            highlightColor: c.withValues(alpha: 0.06),
+            onTap: widget.onTap,
+            onHighlightChanged: _setPressed,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(6, 12, 6, 10),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 110),
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(15),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color.lerp(c, Colors.white, 0.22)!,
+                          c,
+                          Color.lerp(c, Colors.black, 0.18)!,
+                        ],
+                        stops: const [0, 0.45, 1],
+                      ),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        width: 1.1,
+                      ),
+                      boxShadow: _pressed
+                          ? [
+                              BoxShadow(
+                                color: c.withValues(alpha: 0.28),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ]
+                          : [
+                              BoxShadow(
+                                color: c.withValues(alpha: 0.48),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              ),
+                              BoxShadow(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                blurRadius: 2,
+                                offset: const Offset(-1, -1),
+                              ),
+                            ],
+                    ),
+                    child: Icon(widget.icon, size: 22, color: Colors.white),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    widget.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.25,
+                      fontWeight: FontWeight.w800,
+                      color: Color.lerp(AppTheme.textMain, c, 0.18),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
