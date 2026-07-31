@@ -44,8 +44,6 @@ $docWatermarkLogoUrl = $hasDocWatermark ? document_print_watermark_logo_url() : 
 $activeRoute = (string) ($activeRoute ?? 'dashboard');
 $tabPageTitle = trim($pageTitle) !== '' ? $pageTitle : (string) ($routeTitle ?? '');
 $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? ''));
-$printUserLabel = document_print_user_label();
-
 $appCssV = is_file(app_path('assets/css/app.css')) ? (string) filemtime(app_path('assets/css/app.css')) : '';
 $uiDlgCssV = is_file(app_path('assets/css/ui-dialog.css')) ? (string) filemtime(app_path('assets/css/ui-dialog.css')) : '';
 $uiDlgJsV = is_file(app_path('assets/js/ui-dialog.js')) ? (string) filemtime(app_path('assets/js/ui-dialog.js')) : '';
@@ -145,7 +143,7 @@ $appBusyJsV = is_file(app_path('assets/js/app-busy.js'))
     </script>
     <script src="<?= esc(app_url('assets/js/app-busy.js')) ?><?= $appBusyJsV !== '' ? '?v=' . esc($appBusyJsV) : '' ?>" defer></script>
 </head>
-<body class="app-body app-body--embed app-body--focus<?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
+<body class="app-body app-body--embed app-body--focus<?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?>>
 <header class="app-embed-head no-print" role="banner">
     <?php app_mdi_render_embed_minimize_btn(); ?>
     <?php render_master_toolbar(); ?>
@@ -235,6 +233,5 @@ $docHotkeysJsV = is_file(app_path('assets/js/document-hotkeys.js'))
   );
 })();
 </script>
-<?= document_print_user_footer_html($printUserLabel) ?>
 </body>
 </html>

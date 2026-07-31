@@ -635,8 +635,7 @@ function mobile_invoice_print_full_html_pdf(PDO $pdo, string $innerPdf): string
 {
     return '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة</title>'
         . '<style>' . mobile_invoice_print_styles_pdf_iframe($pdo) . '</style></head><body>'
-        . '<div id="pdf-export-root">' . $innerPdf . '</div>'
-        . document_print_user_footer_html() . '</body></html>';
+        . '<div id="pdf-export-root">' . $innerPdf . '</div></body></html>';
 }
 
 /** مستند HTML كامل للإطار / PDF. */
@@ -648,8 +647,7 @@ function mobile_invoice_print_document(PDO $pdo, array $inv): array
     $logoUrl = document_print_watermark_logo_url($pdo);
     $bodyClass = $logoUrl !== null ? ' class="has-doc-watermark doc-print-standalone"' : '';
     $full = '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة</title>'
-        . '<style>' . $styles . '</style></head><body' . $bodyClass . '>' . $inner
-        . document_print_user_footer_html() . '</body></html>';
+        . '<style>' . $styles . '</style></head><body' . $bodyClass . '>' . $inner . '</body></html>';
     $htmlPdf = mobile_invoice_print_full_html_mobile_pdf($pdo, $innerPdf);
     $stylesPdf = mobile_invoice_print_mobile_pdf_css($pdo);
 

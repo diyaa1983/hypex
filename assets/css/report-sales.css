@@ -1111,12 +1111,7 @@
 
 @media print {
   @page {
-    margin: 8mm 10mm 18mm 10mm;
-  }
-
-  /* التذييل الموحّد العام يظهر في كل الصفحات — أخفِ النسخ داخل التقرير */
-  .report-sales-print-area .doc-print-user-footer--end {
-    display: none !important;
+    margin: 8mm 10mm 10mm 10mm;
   }
 
   .report-sales-page[data-report-route="report_sales"] .report-sales-print-area,

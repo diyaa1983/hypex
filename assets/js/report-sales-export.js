@@ -206,46 +206,6 @@
       );
     }
 
-    function appendStaticPrintUserFooter(container) {
-      if (!container || !window.DocumentHeader || !window.DocumentHeader.buildPrintUserFooter) {
-        return;
-      }
-      if (container.querySelector('.doc-print-user-footer--end')) {
-        return;
-      }
-      var tmp = document.createElement('div');
-      tmp.innerHTML = window.DocumentHeader.buildPrintUserFooter();
-      var footer = tmp.firstElementChild;
-      if (!footer) {
-        return;
-      }
-      footer.classList.add('doc-print-user-footer--end');
-      container.appendChild(footer);
-    }
-
-    function wrapPrintContentNoFixedFooter(html, logoUrl) {
-      var inner = html || '';
-      if (logoUrl && inner && window.DocumentHeader && window.DocumentHeader.watermarkHtml) {
-        inner =
-          '<div class="doc-print-watermark-root">' + window.DocumentHeader.watermarkHtml(logoUrl) + inner + '</div>';
-      }
-      return inner;
-    }
-
-    function getPeriodInvoicePrintFooterCss() {
-      return (
-        '.doc-print-user-footer:not(.doc-print-user-footer--end){display:none!important;visibility:hidden!important;' +
-        'height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;}' +
-        '.doc-print-user-footer--end{display:block!important;position:static!important;clear:both!important;' +
-        'margin-top:8mm!important;padding-top:2mm!important;page-break-inside:avoid!important;break-inside:avoid-page!important;}' +
-        '.doc-print-user-footer--end .doc-print-user-footer-line{display:block!important;width:100%!important;' +
-        'height:0!important;margin:0!important;border:0!important;border-top:1px solid #000!important;}' +
-        '.doc-print-user-footer--end .doc-print-user-footer-text{display:block!important;margin:0!important;' +
-        'padding:2px 0 0 6mm!important;font-family:Arial,Helvetica,sans-serif!important;font-size:7pt!important;' +
-        'font-weight:400!important;line-height:1.3!important;color:#000!important;text-align:left!important;direction:rtl!important;}'
-      );
-    }
-
     function isTrialBalanceReportRoute(routeKey) {
       return routeKey === 'report_trial_balance' || routeKey === 'report_trial_balance_detailed';
     }
@@ -266,14 +226,9 @@
         el.remove();
       });
       normalizeSalesReportGrandTotal(clone);
-      if (isPeriodInvoiceReportRouteKey(routeKey)) {
-        appendStaticPrintUserFooter(clone);
-      }
       var html = clone.innerHTML;
       var logoUrl = getCompanyLogoUrl();
-      if (isPeriodInvoiceReportRouteKey(routeKey)) {
-        html = wrapPrintContentNoFixedFooter(html, logoUrl);
-      } else if (window.DocumentHeader && window.DocumentHeader.wrapPrintContent) {
+      if (window.DocumentHeader && window.DocumentHeader.wrapPrintContent) {
         html = window.DocumentHeader.wrapPrintContent(html, logoUrl || '');
       }
       return html;
@@ -1572,11 +1527,10 @@
         '.report-sales-table-stack .report-sales-grand-total-wrap{margin-top:0!important;}' +
         '.report-sales-grand-total-wrap{break-inside:avoid;page-break-inside:avoid;}' +
         (periodInvoicePrint
-          ? '@page{size:A4 portrait;margin:6mm 10mm 14mm 10mm;}' +
+          ? '@page{size:A4 portrait;margin:6mm 10mm 10mm 10mm;}' +
             '.report-sales-table thead{display:table-header-group!important;}' +
             '.report-sales-table tbody tr{page-break-inside:auto!important;break-inside:auto!important;}' +
-            '.report-sales-grand-total-wrap,.report-sales-grand-total-table,.doc-print-user-footer--end{break-inside:avoid!important;page-break-inside:avoid!important;}' +
-            getPeriodInvoicePrintFooterCss()
+            '.report-sales-grand-total-wrap,.report-sales-grand-total-table{break-inside:avoid!important;page-break-inside:avoid!important;}'
           : '') +
         '.doc-print-header-co,.doc-print-header-title{font-family:Arial,Helvetica,sans-serif;font-weight:700;color:#0f172a;}' +
         '.doc-print-meta{margin:0.35rem 0 0.65rem;font-size:12px;}' +
@@ -1727,15 +1681,6 @@
       }
 
       normalizeSalesReportGrandTotal(clonedDoc.body);
-
-      if (isPeriodInvoiceReportRouteKey(routeKey)) {
-        clonedDoc.querySelectorAll('.doc-print-user-footer:not(.doc-print-user-footer--end)').forEach(function (el) {
-          el.remove();
-        });
-        if (printArea && !printArea.querySelector('.doc-print-user-footer--end')) {
-          appendStaticPrintUserFooter(printArea);
-        }
-      }
 
       if (isVatNetPayableReport(routeKey)) {
         clonedDoc.querySelectorAll('.report-acc-table').forEach(function (tbl) {
@@ -2178,7 +2123,7 @@
       if (isVatNetPayableReport(routeKey)) {
         pagebreak.avoid = ['.report-vat-net-detail-totals-wrap'];
       } else if (isPeriodInvoiceReportRouteKey(routeKey)) {
-        pagebreak.avoid = ['.report-sales-grand-total-wrap', '.report-sales-grand-total-table', '.doc-print-user-footer--end'];
+        pagebreak.avoid = ['.report-sales-grand-total-wrap', '.report-sales-grand-total-table'];
       }
       return {
         margin: getPdfMargins(routeKey, pdfOrientation),

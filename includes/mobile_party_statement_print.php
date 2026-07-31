@@ -311,8 +311,7 @@ function mobile_party_statement_print_full_html(PDO $pdo, string $inner, bool $f
     }
 
     return '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف حساب</title>'
-        . '<style>' . $styles . '</style></head><body class="' . $bodyClass . '">' . $inner
-        . document_print_user_footer_html() . '</body></html>';
+        . '<style>' . $styles . '</style></head><body class="' . $bodyClass . '">' . $inner . '</body></html>';
 }
 
 /**
