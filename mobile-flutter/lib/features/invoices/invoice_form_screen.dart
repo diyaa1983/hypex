@@ -926,64 +926,65 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
-                flex: 3,
                 child: _numField(
-                  label: 'الكمية',
+                  label: 'كمية',
                   value: l.qty,
                   onChanged: (v) => setState(() => l.qty = v),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 5),
               Expanded(
-                flex: 3,
                 child: _numField(
-                  label: 'إضافية',
+                  label: 'إض.',
                   value: l.qtyExtra,
                   onChanged: (v) => setState(() => l.qtyExtra = v),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 5),
               Expanded(
-                flex: 4,
                 child: _numField(
-                  label: 'السعر',
+                  label: 'سعر',
                   value: l.unitPrice,
                   onChanged: (v) => setState(() => l.unitPrice = v),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
+              const SizedBox(width: 5),
               Expanded(
                 child: TextFormField(
                   initialValue: l.discountInput,
                   textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12.5),
                   decoration: const InputDecoration(
-                    labelText: 'الخصم',
-                    hintText: '5 أو 5%',
+                    labelText: 'خصم',
+                    hintText: '5%',
+                    isDense: true,
                     contentPadding:
-                        EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   ),
                   onChanged: (v) => setState(() => l.discountInput = v),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 5),
               Expanded(
                 child: DropdownButtonFormField<int>(
                   initialValue: _taxRates.any((r) => r.id == l.taxRateId)
                       ? l.taxRateId
                       : (_taxRates.isNotEmpty ? _taxRates.first.id : null),
                   isExpanded: true,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textMain,
+                  ),
                   decoration: const InputDecoration(
-                    labelText: 'الضريبة',
+                    labelText: 'ضريبة',
+                    isDense: true,
                     contentPadding:
-                        EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   ),
                   items: (_taxRates.isEmpty
                           ? [
@@ -997,7 +998,10 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                       .map(
                         (r) => DropdownMenuItem<int>(
                           value: r.id,
-                          child: Text('${Fmt.money(r.rate)}%'),
+                          child: Text(
+                            '${Fmt.money(r.rate)}%',
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       )
                       .toList(),
@@ -1016,21 +1020,14 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceAlt,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _tiny('صافي', Fmt.money(l.subtotal)),
-                _tiny('ضريبة', Fmt.money(l.taxAmount)),
-                _tiny('الإجمالي', Fmt.money(l.gross), strong: true),
-              ],
-            ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _tiny('صافي', Fmt.money(l.subtotal)),
+              _tiny('ضريبة', Fmt.money(l.taxAmount)),
+              _tiny('الإجمالي', Fmt.money(l.gross), strong: true),
+            ],
           ),
         ],
       ),
@@ -1069,11 +1066,13 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
+      style: const TextStyle(fontSize: 12.5),
       decoration: InputDecoration(
         labelText: label,
+        isDense: true,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 6,
-          vertical: 12,
+          horizontal: 4,
+          vertical: 8,
         ),
       ),
       onChanged: (v) => onChanged(double.tryParse(v.replaceAll(',', '')) ?? 0),

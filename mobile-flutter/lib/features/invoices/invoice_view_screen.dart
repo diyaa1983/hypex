@@ -460,51 +460,40 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(child: _fieldBox('الكمية', Fmt.money(qty))),
-              const SizedBox(width: 8),
-              Expanded(child: _fieldBox('إضافية', Fmt.money(qtyExtra))),
-              const SizedBox(width: 8),
-              Expanded(child: _fieldBox('السعر', Fmt.money(price))),
-            ],
-          ),
           const SizedBox(height: 8),
           Row(
             children: [
+              Expanded(child: _fieldBox('كمية', Fmt.money(qty))),
+              const SizedBox(width: 5),
+              Expanded(child: _fieldBox('إض.', Fmt.money(qtyExtra))),
+              const SizedBox(width: 5),
+              Expanded(child: _fieldBox('سعر', Fmt.money(price))),
+              const SizedBox(width: 5),
               Expanded(
                 child: _fieldBox(
-                  'الخصم',
+                  'خصم',
                   discInput.isNotEmpty
                       ? discInput
                       : (disc > 0 ? Fmt.money(disc) : '—'),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 5),
               Expanded(
                 child: _fieldBox(
-                  'الضريبة',
+                  'ضريبة',
                   taxPct > 0 ? '${Fmt.money(taxPct)}%' : '—',
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceAlt,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _tiny('صافي', Fmt.money(net)),
-                _tiny('ضريبة', Fmt.money(tax)),
-                _tiny('الإجمالي', Fmt.money(total), strong: true),
-              ],
-            ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _tiny('صافي', Fmt.money(net)),
+              _tiny('ضريبة', Fmt.money(tax)),
+              _tiny('الإجمالي', Fmt.money(total), strong: true),
+            ],
           ),
         ],
       ),
@@ -513,25 +502,27 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
 
   Widget _fieldBox(String label, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
       decoration: BoxDecoration(
         color: AppTheme.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppTheme.border),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 10.5, color: AppTheme.textSoft),
+            style: const TextStyle(fontSize: 9.5, color: AppTheme.textSoft),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 2),
           Text(
             value,
             textDirection: TextDirection.ltr,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
           ),

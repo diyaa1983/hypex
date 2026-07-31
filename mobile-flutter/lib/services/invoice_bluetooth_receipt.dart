@@ -246,6 +246,7 @@ class InvoiceBluetoothReceipt {
           cell('المادة', style: headStyle),
           cell('كمية', align: pw.TextAlign.center, style: headStyle),
           cell('سعر', align: pw.TextAlign.center, style: headStyle),
+          cell('خصم', align: pw.TextAlign.center, style: headStyle),
           cell('الإجمالي', align: pw.TextAlign.center, style: headStyle),
         ],
       ),
@@ -254,23 +255,41 @@ class InvoiceBluetoothReceipt {
     for (final ln in lines) {
       final name = Fmt.str(ln['item_name'] ?? ln['name_ar'] ?? ln['name']);
       final qty = Fmt.toDouble(ln['qty']);
+      final qtyExtra = Fmt.toDouble(ln['qty_extra']);
       final price = Fmt.toDouble(
         ln['unit_price'] ?? ln['price'] ?? ln['sale_price'],
       );
+      final disc = Fmt.toDouble(ln['discount_amount'] ?? ln['discount']);
+      final discInput = Fmt.str(ln['line_discount_input']);
+      final discLabel = discInput.isNotEmpty
+          ? discInput
+          : (disc > 0 ? Fmt.money(disc) : '—');
+      final qtyLabel = qtyExtra > 0
+          ? '${Fmt.money(qty)}+${Fmt.money(qtyExtra)}'
+          : Fmt.money(qty);
       final lineTotal = Fmt.toDouble(
         ln['line_gross'] ??
             ln['line_total'] ??
             ln['gross'] ??
             ln['total'] ??
-            (qty * price),
+            (qty * price - disc),
       );
+      final nameCell = qtyExtra > 0
+          ? '${name.isEmpty ? 'مادة' : name}\n(+إض ${Fmt.money(qtyExtra)})'
+          : (name.isEmpty ? 'مادة' : name);
       rows.add(
         pw.TableRow(
           children: [
-            cell(name.isEmpty ? 'مادة' : name, style: nameStyle),
-            cell(Fmt.money(qty), align: pw.TextAlign.center, ltr: true),
+            cell(nameCell, style: nameStyle),
+            cell(qtyLabel, align: pw.TextAlign.center, ltr: true),
             cell(Fmt.money(price), align: pw.TextAlign.center, ltr: true),
-            cell(Fmt.money(lineTotal), align: pw.TextAlign.center, ltr: true, style: nameStyle),
+            cell(discLabel, align: pw.TextAlign.center, ltr: true),
+            cell(
+              Fmt.money(lineTotal),
+              align: pw.TextAlign.center,
+              ltr: true,
+              style: nameStyle,
+            ),
           ],
         ),
       );
@@ -279,10 +298,11 @@ class InvoiceBluetoothReceipt {
     return pw.Table(
       border: pw.TableBorder.all(width: 0.35, color: PdfColors.grey700),
       columnWidths: {
-        0: const pw.FlexColumnWidth(3.2),
-        1: pw.FlexColumnWidth(paperMm == 80 ? 1.1 : 1.0),
-        2: pw.FlexColumnWidth(paperMm == 80 ? 1.3 : 1.2),
-        3: pw.FlexColumnWidth(paperMm == 80 ? 1.5 : 1.4),
+        0: const pw.FlexColumnWidth(2.6),
+        1: pw.FlexColumnWidth(paperMm == 80 ? 1.15 : 1.05),
+        2: pw.FlexColumnWidth(paperMm == 80 ? 1.1 : 1.0),
+        3: pw.FlexColumnWidth(paperMm == 80 ? 1.0 : 0.9),
+        4: pw.FlexColumnWidth(paperMm == 80 ? 1.35 : 1.25),
       },
       defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
       children: rows,
