@@ -28,7 +28,7 @@ $listJsV = is_file(app_path('assets/mobile/rep-custody-list.js'))
 <div class="m-hub m-hub--list m-hub--rep-custody-list">
 <div class="m-hub-strip m-hub-strip--rep" aria-hidden="true">
     <span class="m-hub-strip-badge">قائمة</span>
-    <span class="m-hub-strip-hint">اختر عهدة ثم طباعة أو PDF أو أرشيف</span>
+    <span class="m-hub-strip-hint">اختر عهدة ثم طباعة أو أرشيف</span>
 </div>
 <button type="button" class="m-btn m-btn--primary m-btn--block m-hub-head-btn" id="m-rep-custody-list-new">+ تحميل عهدة جديدة</button>
 <section class="m-ora12-panel m-ora12-list-panel m-rep-custody-list-page">

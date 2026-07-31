@@ -67,8 +67,6 @@ $jsV = is_file(app_path('assets/mobile/rep-stock.js'))
     <a class="m-btn m-btn--ghost m-btn--sm" href="<?= esc($loadUrl) ?>">تحميل</a>
     <a class="m-btn m-btn--ghost m-btn--sm" href="<?= esc($returnUrl) ?>">إرجاع</a>
     <?php endif; ?>
-    <button type="button" class="m-btn m-btn--pdf m-btn--sm" id="m-rep-stock-pdf"
-            data-warehouse-id="<?= (int) $whId ?>">PDF</button>
 </div>
 
 <section class="m-card m-rep-stock-head">

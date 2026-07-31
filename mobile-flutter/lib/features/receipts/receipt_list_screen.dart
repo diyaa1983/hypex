@@ -235,16 +235,6 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
                                 jobName: 'سند_$no',
                               );
                             },
-                            onPdf: () {
-                              if (id < 1) return;
-                              DocumentPrintHelper.openPdfFromApi(
-                                context,
-                                apiPath: AppConfig.receiptPdfPath,
-                                query: {'id': id},
-                                title: 'سند قبض $no',
-                                fileName: 'سند_$no.pdf',
-                              );
-                            },
                           );
                         },
                       ),
@@ -263,14 +253,12 @@ class _ReceiptCard extends StatelessWidget {
     required this.onPost,
     required this.onDelete,
     required this.onPrint,
-    required this.onPdf,
   });
 
   final Map<String, dynamic> row;
   final VoidCallback onPost;
   final VoidCallback onDelete;
   final VoidCallback onPrint;
-  final VoidCallback onPdf;
 
   @override
   Widget build(BuildContext context) {
@@ -351,13 +339,6 @@ class _ReceiptCard extends StatelessWidget {
                   ),
                 ),
               const Spacer(),
-              IconButton(
-                tooltip: 'PDF (A4)',
-                visualDensity: VisualDensity.compact,
-                onPressed: onPdf,
-                icon: const Icon(Icons.picture_as_pdf_outlined, size: 19),
-                color: AppTheme.rose,
-              ),
               IconButton(
                 tooltip: 'طباعة Bluetooth',
                 visualDensity: VisualDensity.compact,

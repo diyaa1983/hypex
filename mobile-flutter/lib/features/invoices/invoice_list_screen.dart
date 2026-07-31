@@ -6,7 +6,6 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
-import '../../services/invoice_print_helper.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -220,11 +219,6 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                               .then((_) => _load()),
                           onPost: () => _post(_rows[i]),
                           onDelete: () => _delete(_rows[i]),
-                          onPdf: () => InvoicePrintHelper.openPdf(
-                            context,
-                            invoiceId: (_rows[i]['id'] as num).toInt(),
-                            invoiceNo: (_rows[i]['invoice_no'] ?? '').toString(),
-                          ),
                         ),
                       ),
               ),
@@ -276,7 +270,6 @@ class _InvoiceCard extends StatelessWidget {
     required this.onTap,
     required this.onPost,
     required this.onDelete,
-    required this.onPdf,
   });
 
   final Map<String, dynamic> row;
@@ -284,7 +277,6 @@ class _InvoiceCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onPost;
   final VoidCallback onDelete;
-  final VoidCallback onPdf;
 
   @override
   Widget build(BuildContext context) {
@@ -403,13 +395,6 @@ class _InvoiceCard extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
                 onPressed: onTap,
                 icon: const Icon(Icons.visibility_outlined, size: 19),
-                color: AppTheme.textSoft,
-              ),
-              IconButton(
-                tooltip: 'PDF (A4)',
-                visualDensity: VisualDensity.compact,
-                onPressed: onPdf,
-                icon: const Icon(Icons.picture_as_pdf_outlined, size: 19),
                 color: AppTheme.textSoft,
               ),
               if (!posted)

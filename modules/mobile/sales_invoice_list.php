@@ -19,7 +19,7 @@ $listJsV = is_file(app_path('assets/mobile/invoice-list.js'))
 <div class="m-hub m-hub--list m-hub--invoice-list">
 <div class="m-hub-strip m-hub-strip--invoice" aria-hidden="true">
     <span class="m-hub-strip-badge">قائمة</span>
-    <span class="m-hub-strip-hint">اختر فاتورة ثم طباعة أو PDF</span>
+    <span class="m-hub-strip-hint">اختر فاتورة ثم طباعة</span>
 </div>
 <button type="button" class="m-btn m-btn--primary m-btn--block m-hub-head-btn" id="m-inv-list-new">+ فاتورة جديدة</button>
 <section class="m-ora12-panel m-ora12-list-panel m-inv-list-page">

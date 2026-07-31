@@ -27,7 +27,6 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
   bool _loading = true;
   bool _posting = false;
   bool _printBusy = false;
-  bool _pdfBusy = false;
   bool _deleting = false;
   String? _error;
   Map<String, dynamic> _inv = {};
@@ -70,22 +69,8 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
     return [];
   }
 
-  Future<void> _openPdf() async {
-    if (_pdfBusy || _printBusy) return;
-    setState(() => _pdfBusy = true);
-    try {
-      await InvoicePrintHelper.openPdf(
-        context,
-        invoiceId: widget.invoiceId,
-        invoiceNo: Fmt.str(_inv['invoice_no']),
-      );
-    } finally {
-      if (mounted) setState(() => _pdfBusy = false);
-    }
-  }
-
   Future<void> _printBluetooth() async {
-    if (_printBusy || _pdfBusy) return;
+    if (_printBusy) return;
     setState(() => _printBusy = true);
     try {
       final inv = Map<String, dynamic>.from(_inv);
@@ -215,8 +200,6 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
               switch (v) {
                 case 'print':
                   _printBluetooth();
-                case 'pdf':
-                  _openPdf();
                 case 'copy':
                   _copySummary();
                 case 'map':
@@ -229,10 +212,6 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
               const PopupMenuItem(
                 value: 'print',
                 child: _MenuRow(Icons.print_outlined, 'طباعة Bluetooth'),
-              ),
-              const PopupMenuItem(
-                value: 'pdf',
-                child: _MenuRow(Icons.picture_as_pdf_outlined, 'تحويل PDF (A4)'),
               ),
               const PopupMenuItem(
                 value: 'copy',
@@ -272,16 +251,6 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
                     label: 'طباعة',
                     busy: _printBusy,
                     onTap: _printBluetooth,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ActionChipButton(
-                    icon: Icons.picture_as_pdf_outlined,
-                    label: 'PDF',
-                    color: AppTheme.rose,
-                    busy: _pdfBusy,
-                    onTap: _openPdf,
                   ),
                 ),
                 const SizedBox(width: 8),

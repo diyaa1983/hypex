@@ -111,6 +111,8 @@
     opts = opts || {};
     hideAll();
     Object.keys(visible || {}).forEach(function (key) {
+      // إخفاء زر PDF في كل الشاشات — الطباعة فقط.
+      if (key === 'pdf') return;
       var b = btn(key);
       if (b && visible[key]) b.hidden = false;
     });

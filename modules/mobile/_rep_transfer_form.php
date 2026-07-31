@@ -61,7 +61,6 @@ $toLabel = $repTransferDirection === 'return'
         <span class="m-rep-topbar-label">السلة</span>
         <span class="m-rep-bag-badge" id="m-rep-bag-count" hidden>0</span>
     </button>
-    <a class="m-rep-topbar-btn m-rep-topbar-btn--pdf" id="m-rep-topbar-pdf" href="#" target="_blank" rel="noopener" hidden>PDF</a>
     <a class="m-rep-topbar-btn m-rep-topbar-btn--stock" href="<?= esc($stockUrl) ?>">
         <span class="m-rep-topbar-ico" aria-hidden="true"><?= $stockIcon ?></span>
         <span class="m-rep-topbar-label">رصيد العهدة</span>
@@ -75,14 +74,6 @@ $toLabel = $repTransferDirection === 'return'
 </div>
 
 <div id="m-rep-status" class="m-alert" hidden role="status"></div>
-
-<div id="m-rep-pdf-banner" class="m-rep-pdf-banner" hidden role="status">
-    <p class="m-rep-pdf-banner-msg" id="m-rep-pdf-banner-msg"></p>
-    <div class="m-rep-pdf-banner-actions">
-        <a class="m-btn m-btn--primary m-btn--sm" id="m-rep-banner-pdf" href="#" target="_blank" rel="noopener">تحميل PDF</a>
-        <button type="button" class="m-btn m-btn--ghost m-btn--sm" id="m-rep-pdf-banner-done">سند جديد</button>
-    </div>
-</div>
 
 <form id="m-rep-form" class="m-rep-custody-form" novalidate onsubmit="return false;">
     <input type="hidden" id="m-rep-move-id" value="0">
@@ -180,7 +171,6 @@ $toLabel = $repTransferDirection === 'return'
                 <?php if ($canDeleteCustody): ?>
                 <button type="button" class="m-btn m-btn--danger m-rep-cart-footer-btn" id="m-rep-btn-delete" hidden>حذف</button>
                 <?php endif; ?>
-                <button type="button" class="m-btn m-btn--pdf m-rep-cart-footer-btn" id="m-rep-btn-pdf" disabled title="ترحيل ثم PDF">PDF</button>
             </div>
             <button type="button" class="m-btn m-btn--ghost m-rep-cart-footer-done" id="m-rep-cart-done" hidden>سند جديد</button>
         </footer>

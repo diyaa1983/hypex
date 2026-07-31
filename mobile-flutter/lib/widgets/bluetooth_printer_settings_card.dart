@@ -293,7 +293,7 @@ class _BluetoothPrinterSettingsCardState
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'تُستخدم هذه الطابعة لجميع شاشات الطباعة وPDF في التطبيق.',
+                  'تُستخدم هذه الطابعة لجميع شاشات الطباعة في التطبيق.',
                   style: TextStyle(fontSize: 11.5, color: AppTheme.textSoft, height: 1.35),
                 ),
               ],

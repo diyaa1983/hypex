@@ -17,7 +17,7 @@ $listJsV = is_file(app_path('assets/mobile/receipt-list.js'))
 <div class="m-hub m-hub--list m-hub--receipt-list">
 <div class="m-hub-strip m-hub-strip--receipt" aria-hidden="true">
     <span class="m-hub-strip-badge">قائمة</span>
-    <span class="m-hub-strip-hint">اختر سنداً ثم طباعة أو PDF</span>
+    <span class="m-hub-strip-hint">اختر سنداً ثم طباعة</span>
 </div>
 <section class="m-card m-card--hub-list m-rc-list-page">
     <div class="m-seg m-rc-list-filters" role="group" aria-label="تصفية">
