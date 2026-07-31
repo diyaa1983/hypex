@@ -1111,45 +1111,12 @@
 
 @media print {
   @page {
-    margin: 8mm 10mm 12mm 10mm;
+    margin: 8mm 10mm 18mm 10mm;
   }
 
-  body:has(.report-sales-page[data-report-route="report_sales_between_dates"]) > .doc-print-user-footer:not(.doc-print-user-footer--end),
-  body:has(.report-sales-page[data-report-route="report_sales"]) > .doc-print-user-footer:not(.doc-print-user-footer--end),
-  body:has(.report-sales-page[data-report-route="report_purchases"]) > .doc-print-user-footer:not(.doc-print-user-footer--end) {
-    display: none !important;
-  }
-
+  /* التذييل الموحّد العام يظهر في كل الصفحات — أخفِ النسخ داخل التقرير */
   .report-sales-print-area .doc-print-user-footer--end {
-    display: block !important;
-    position: static !important;
-    clear: both;
-    margin-top: 8mm;
-    padding-top: 2mm;
-    page-break-inside: avoid;
-    break-inside: avoid-page;
-  }
-
-  .report-sales-print-area .doc-print-user-footer--end .doc-print-user-footer-line {
-    display: block;
-    width: 100%;
-    height: 0;
-    margin: 0;
-    border: 0;
-    border-top: 1px solid #000;
-  }
-
-  .report-sales-print-area .doc-print-user-footer--end .doc-print-user-footer-text {
-    display: block;
-    margin: 0;
-    padding: 2px 0 0 6mm;
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 7pt;
-    font-weight: 400;
-    line-height: 1.3;
-    color: #000;
-    text-align: left;
-    direction: rtl;
+    display: none !important;
   }
 
   .report-sales-page[data-report-route="report_sales"] .report-sales-print-area,
@@ -2521,12 +2488,12 @@
 
   @page report-customers {
     size: A4 landscape;
-    margin: 8mm 10mm 12mm 10mm;
+    margin: 8mm 10mm 18mm 10mm;
   }
 
   @page report-warehouse-items {
     size: A4 landscape;
-    margin: 8mm 10mm 12mm 10mm;
+    margin: 8mm 10mm 18mm 10mm;
   }
 
   .report-customers-print {

@@ -264,9 +264,7 @@ body.hr-att-rpt-is-loading {
     margin: 8mm 7mm 10mm 7mm;
   }
 
-  body:has(.hr-att-rpt-page) .doc-print-user-footer {
-    display: none !important;
-  }
+  /* التذييل الموحّد العام يظهر — لا نخفيه */
 
   body:has(.hr-att-rpt-page) .app-shell-body,
   body:has(.hr-att-rpt-page) .main-wrap,

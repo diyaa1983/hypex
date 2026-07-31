@@ -174,46 +174,49 @@
     return v ? String(v).trim() : '';
   }
 
+  function formatPrintDateTime(d) {
+    d = d || new Date();
+    function pad(n) {
+      return n < 10 ? '0' + n : String(n);
+    }
+    return (
+      pad(d.getDate()) +
+      '/' +
+      pad(d.getMonth() + 1) +
+      '/' +
+      d.getFullYear() +
+      ' ' +
+      pad(d.getHours()) +
+      ':' +
+      pad(d.getMinutes())
+    );
+  }
+
   function buildPrintUserFooter(label) {
     var name = label != null ? String(label).trim() : getPrintUserLabel();
     if (!name) return '';
+    var when = formatPrintDateTime();
     return (
       '<footer class="doc-print-user-footer doc-print-only" aria-hidden="true">' +
       '<div class="doc-print-user-footer-line" aria-hidden="true"></div>' +
-      '<div class="doc-print-user-footer-text">طبع بواسطة: ' +
+      '<div class="doc-print-user-footer-row">' +
+      '<span class="doc-print-user-footer-text">طبع بواسطة: ' +
       escapeHtml(name) +
+      '</span>' +
+      '<span class="doc-print-user-footer-date" data-print-datetime>تاريخ الطباعة: ' +
+      escapeHtml(when) +
+      '</span>' +
       '</div></footer>'
     );
   }
 
-  function appendEndPrintUserFooter(container) {
-    if (!container || container.querySelector('.doc-print-user-footer--end')) {
-      return false;
-    }
-    var html = buildPrintUserFooter();
-    if (!html) return false;
-    var tmp = (container.ownerDocument || document).createElement('div');
-    tmp.innerHTML = html;
-    var footer = tmp.firstElementChild;
-    if (!footer) return false;
-    footer.classList.add('doc-print-user-footer--end');
-    container.appendChild(footer);
-    return true;
-  }
-
-  function hideBodyPrintUserFooters(doc) {
-    var bodyFooters = doc.body.children;
-    for (var j = 0; j < bodyFooters.length; j++) {
-      var el = bodyFooters[j];
-      if (
-        el &&
-        el.classList &&
-        el.classList.contains('doc-print-user-footer') &&
-        !el.classList.contains('doc-print-user-footer--end')
-      ) {
-        el.setAttribute('data-print-hidden', '1');
-        el.style.display = 'none';
-      }
+  function stampPrintDateTime(doc) {
+    doc = doc || document;
+    if (!doc) return;
+    var when = formatPrintDateTime();
+    var nodes = doc.querySelectorAll('[data-print-datetime]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = 'تاريخ الطباعة: ' + when;
     }
   }
 
@@ -221,50 +224,67 @@
     doc = doc || (typeof document !== 'undefined' ? document : null);
     if (!doc || !doc.body) return;
 
-    // ضع التذييل داخل منطقة الطباعة (بعد الجدول) حتى لا يغطي الصفوف.
-    var areas = doc.querySelectorAll('.report-sales-print-area');
-    if (!areas.length) {
-      areas = doc.querySelectorAll('[data-print-root]');
-    }
-    var placedInArea = false;
-    for (var i = 0; i < areas.length; i++) {
-      var area = areas[i];
-      if (!area || area.closest('.no-print')) continue;
-      // تجنّب الحاويات المتداخلة داخل منطقة طباعة أخرى
-      if (area.parentElement && area.parentElement.closest('.report-sales-print-area')) {
-        continue;
-      }
-      if ((area.textContent || '').trim().length < 8) continue;
-      if (appendEndPrintUserFooter(area)) {
-        placedInArea = true;
-      }
+    // أظهر التذييل الموحّد في body وأخفِ النسخ الثابتة داخل التقارير
+    var endNodes = doc.querySelectorAll('.doc-print-user-footer--end');
+    for (var i = 0; i < endNodes.length; i++) {
+      endNodes[i].style.display = 'none';
     }
 
-    if (placedInArea || doc.body.querySelector('.doc-print-user-footer--end')) {
-      hideBodyPrintUserFooters(doc);
-      return;
+    var existing = doc.body.querySelector(
+      ':scope > .doc-print-user-footer:not(.doc-print-user-footer--end), .doc-print-user-footer:not(.doc-print-user-footer--end)'
+    );
+    // فضّل تذييل body المباشر
+    var bodyFooter = null;
+    for (var c = 0; c < doc.body.children.length; c++) {
+      var child = doc.body.children[c];
+      if (
+        child.classList &&
+        child.classList.contains('doc-print-user-footer') &&
+        !child.classList.contains('doc-print-user-footer--end')
+      ) {
+        bodyFooter = child;
+        break;
+      }
     }
-
-    if (doc.body.querySelector('.doc-print-user-footer')) return;
-    var html = buildPrintUserFooter();
-    if (html) {
-      doc.body.insertAdjacentHTML('beforeend', html);
+    if (!bodyFooter) {
+      var html = buildPrintUserFooter();
+      if (html) {
+        doc.body.insertAdjacentHTML('beforeend', html);
+        bodyFooter = doc.body.querySelector(
+          ':scope > .doc-print-user-footer:not(.doc-print-user-footer--end)'
+        );
+      }
     }
+    if (bodyFooter) {
+      bodyFooter.style.display = '';
+      bodyFooter.removeAttribute('data-print-hidden');
+    } else if (existing) {
+      existing.style.display = '';
+      existing.removeAttribute('data-print-hidden');
+    }
+    stampPrintDateTime(doc);
   }
 
   var printUserFooterCss =
     '.doc-print-user-footer{display:none;}' +
     '@media print{' +
-    '.doc-print-user-footer{display:block!important;position:static!important;clear:both;width:100%;' +
-    'left:auto;right:auto;bottom:auto;margin:8mm 0 0;padding:0;z-index:auto;pointer-events:none;' +
-    'box-sizing:border-box;page-break-inside:avoid;break-inside:avoid-page;' +
+    '@page{margin-bottom:18mm;' +
+    '@bottom-left{content:"صفحة " counter(page) " من " counter(pages);' +
+    'font-family:Arial,Helvetica,sans-serif;font-size:7pt;font-weight:600;color:#000;}}' +
+    '.doc-print-user-footer{display:block!important;position:fixed!important;left:0;right:0;bottom:8mm;' +
+    'width:100%;margin:0;padding:0 6mm;z-index:10001;pointer-events:none;box-sizing:border-box;' +
     '-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
-    '.doc-print-user-footer-line{display:block;width:100%;height:0;margin:0;border:0;border-top:1px solid #000;}' +
-    '.doc-print-user-footer-text{display:block;margin:0;padding:2px 0 0 6mm;font-family:Arial,Helvetica,sans-serif;' +
-    'font-size:7pt;font-weight:400;line-height:1.3;color:#000;text-align:left;direction:rtl;}' +
-    'body:has(.doc-print-user-footer--end)>.doc-print-user-footer:not(.doc-print-user-footer--end){display:none!important;}' +
-    '.doc-print-user-footer--end{display:block!important;position:static!important;clear:both;' +
-    'margin-top:8mm;padding-top:2mm;page-break-inside:avoid;break-inside:avoid-page;}' +
+    '.doc-print-user-footer-line{display:block;width:100%;height:0;margin:0 0 2px;border:0;border-top:1px solid #000;}' +
+    '.doc-print-user-footer-row{display:flex;flex-direction:row-reverse;align-items:center;justify-content:space-between;' +
+    'gap:10px;width:100%;direction:rtl;font-family:Arial,Helvetica,sans-serif;font-size:7pt;font-weight:600;' +
+    'line-height:1.3;color:#000;}' +
+    '.doc-print-user-footer-text,.doc-print-user-footer-date{display:block;margin:0;padding:0;white-space:nowrap;}' +
+    '.doc-print-user-footer-text{text-align:right;flex:1 1 auto;}' +
+    '.doc-print-user-footer-date{text-align:left;flex:0 1 auto;direction:ltr;}' +
+    '.doc-print-user-footer--end{display:none!important;}' +
+    'body.doc-print-standalone .doc-print-user-footer--end,' +
+    'body:not(:has(.doc-print-user-footer:not(.doc-print-user-footer--end))) .doc-print-user-footer--end{' +
+    'display:block!important;position:static!important;clear:both;margin-top:8mm;padding:2mm 6mm 0;}' +
     '}';
 
   /**
@@ -352,6 +372,7 @@
   if (typeof window !== 'undefined') {
     window.addEventListener('beforeprint', function () {
       ensurePrintUserFooter(document);
+      stampPrintDateTime(document);
     });
   }
 })(typeof window !== 'undefined' ? window : this);

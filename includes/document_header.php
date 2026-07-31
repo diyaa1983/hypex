@@ -189,20 +189,27 @@ function document_print_user_footer_css(): string
 {
     return '.doc-print-user-footer{display:none;}'
         . '@media print{'
-        . '.doc-print-user-footer{display:block!important;position:static!important;clear:both;width:100%;'
-        . 'left:auto;right:auto;bottom:auto;margin:8mm 0 0;padding:0;z-index:auto;pointer-events:none;'
-        . 'box-sizing:border-box;page-break-inside:avoid;break-inside:avoid-page;'
+        . '@page{margin-bottom:18mm;'
+        . '@bottom-left{content:"صفحة " counter(page) " من " counter(pages);'
+        . 'font-family:Arial,Helvetica,sans-serif;font-size:7pt;font-weight:600;color:#000;}}'
+        . '.doc-print-user-footer{display:block!important;position:fixed!important;left:0;right:0;bottom:8mm;'
+        . 'width:100%;margin:0;padding:0 6mm;z-index:10001;pointer-events:none;box-sizing:border-box;'
         . '-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
-        . '.doc-print-user-footer-line{display:block;width:100%;height:0;margin:0;border:0;border-top:1px solid #000;}'
-        . '.doc-print-user-footer-text{display:block;margin:0;padding:2px 0 0 6mm;font-family:Arial,Helvetica,sans-serif;'
-        . 'font-size:7pt;font-weight:400;line-height:1.3;color:#000;text-align:left;direction:rtl;}'
-        . 'body:has(.doc-print-user-footer--end)>.doc-print-user-footer:not(.doc-print-user-footer--end){display:none!important;}'
-        . '.doc-print-user-footer--end{display:block!important;position:static!important;clear:both;'
-        . 'margin-top:8mm;padding-top:2mm;page-break-inside:avoid;break-inside:avoid-page;}'
+        . '.doc-print-user-footer-line{display:block;width:100%;height:0;margin:0 0 2px;border:0;border-top:1px solid #000;}'
+        . '.doc-print-user-footer-row{display:flex;flex-direction:row-reverse;align-items:center;justify-content:space-between;'
+        . 'gap:10px;width:100%;direction:rtl;font-family:Arial,Helvetica,sans-serif;font-size:7pt;font-weight:600;'
+        . 'line-height:1.3;color:#000;}'
+        . '.doc-print-user-footer-text,.doc-print-user-footer-date{display:block;margin:0;padding:0;white-space:nowrap;}'
+        . '.doc-print-user-footer-text{text-align:right;flex:1 1 auto;}'
+        . '.doc-print-user-footer-date{text-align:left;flex:0 1 auto;direction:ltr;}'
+        . '.doc-print-user-footer--end{display:none!important;}'
+        . 'body.doc-print-standalone .doc-print-user-footer--end,'
+        . 'body:not(:has(.doc-print-user-footer:not(.doc-print-user-footer--end))) .doc-print-user-footer--end{'
+        . 'display:block!important;position:static!important;clear:both;margin-top:8mm;padding:2mm 6mm 0;}'
         . '}';
 }
 
-/** HTML تذييل الطباعة — اسم المستخدم الذي قام بالطباعة. */
+/** HTML تذييل الطباعة الموحّد — طبع بواسطة + تاريخ الطباعة (رقم الصفحة عبر CSS). */
 function document_print_user_footer_html(?string $label = null): string
 {
     if ($label === null) {
@@ -213,9 +220,14 @@ function document_print_user_footer_html(?string $label = null): string
         return '';
     }
 
+    $printedAt = date('d/m/Y H:i');
+
     return '<footer class="doc-print-user-footer doc-print-only" aria-hidden="true">'
         . '<div class="doc-print-user-footer-line" aria-hidden="true"></div>'
-        . '<div class="doc-print-user-footer-text">طبع بواسطة: ' . esc($label) . '</div>'
+        . '<div class="doc-print-user-footer-row">'
+        . '<span class="doc-print-user-footer-text">طبع بواسطة: ' . esc($label) . '</span>'
+        . '<span class="doc-print-user-footer-date" data-print-datetime>تاريخ الطباعة: ' . esc($printedAt) . '</span>'
+        . '</div>'
         . '</footer>';
 }
 

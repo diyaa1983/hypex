@@ -373,9 +373,7 @@
     z-index: 0 !important;
   }
 
-  body:has(.hr-leave-bal-rpt-page) .doc-print-user-footer {
-    display: none !important;
-  }
+  /* التذييل الموحّد العام يظهر — لا نخفيه */
 
   body:has(.hr-leave-bal-rpt-page) .app-shell-body,
   body:has(.hr-leave-bal-rpt-page) .main-wrap,
