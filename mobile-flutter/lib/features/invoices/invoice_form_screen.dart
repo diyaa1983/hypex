@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -10,10 +11,15 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../services/invoice_print_helper.dart';
 import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/item_picker.dart';
 import '../../widgets/party_picker.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// نموذج البند
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _TaxRate {
   _TaxRate({required this.id, required this.name, required this.rate});
@@ -25,6 +31,7 @@ class _TaxRate {
 class _Line {
   _Line({
     required this.itemId,
+    required this.barcode,
     required this.name,
     required this.qty,
     required this.qtyExtra,
@@ -34,7 +41,8 @@ class _Line {
   });
 
   final int itemId;
-  final String name;
+  String barcode;
+  String name;
   double qty;
   double qtyExtra;
   double unitPrice;
@@ -81,10 +89,13 @@ class _Line {
       };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// الشاشة
+// ─────────────────────────────────────────────────────────────────────────────
+
 class InvoiceFormScreen extends StatefulWidget {
   const InvoiceFormScreen({super.key, this.invoiceId});
 
-  /// عند التمرير: تعديل فاتورة موجودة غير مرحّلة/غير مُرسلة للفوترة.
   final int? invoiceId;
 
   @override
@@ -92,59 +103,64 @@ class InvoiceFormScreen extends StatefulWidget {
 }
 
 class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
+  static const _blue = Color(0xFF0B63CE);
+  static const _blueDeep = Color(0xFF07396F);
+  static const _surface = Color(0xFFFFFFFF);
+  static const _bg = Color(0xFFF0F3F8);
+  static const _border = Color(0xFFE2E8F0);
+  static const _muted = Color(0xFF64748B);
+  static const _ink = Color(0xFF0F172A);
+
   bool _loadingMeta = true;
-  bool _saving = false;
+  bool _busy = false;
   String? _metaError;
-  int _editInvoiceId = 0;
+
+  int _invoiceId = 0;
+  String _invoiceNo = '';
   String _invoiceDate = '';
+  bool _isPosted = false;
+  bool _einvSent = false;
 
   List<Map<String, dynamic>> _warehouses = [];
   List<_TaxRate> _taxRates = [];
   int _warehouseId = 0;
+  int _defaultWarehouseId = 0;
   String _paymentType = 'credit';
   double _defaultTaxPercent = 5;
   int _defaultTaxRateId = 0;
   Party? _customer;
   final List<_Line> _lines = [];
-  final _headerDiscount = TextEditingController();
-  final _notes = TextEditingController();
 
-  /// شريط إدخال PDA: باركود → كمية → إضافية → سعر → مادة تالية.
   final _barcodeCtrl = TextEditingController();
-  final _entryQtyCtrl = TextEditingController(text: '1');
-  final _entryExtraCtrl = TextEditingController(text: '0');
-  final _entryPriceCtrl = TextEditingController();
   final _barcodeFocus = FocusNode();
-  final _entryQtyFocus = FocusNode();
-  final _entryExtraFocus = FocusNode();
-  final _entryPriceFocus = FocusNode();
-  PickedItem? _pendingItem;
   bool _lookupBusy = false;
 
-  bool get _isEdit => _editInvoiceId > 0;
+  bool get _isEdit => _invoiceId > 0;
+  bool get _canEdit => !_isPosted && !_einvSent;
+  bool get _canChangeWarehouse => _warehouses.length > 1 && _canEdit;
+  bool get _canSendEinvoice =>
+      _isPosted && !_einvSent;
+
+  double get _subTotal => _lines.fold(0.0, (s, l) => s + l.subtotal);
+  double get _taxTotal => _lines.fold(0.0, (s, l) => s + l.taxAmount);
+  double get _grandTotal => _lines.fold(0.0, (s, l) => s + l.gross);
 
   @override
   void initState() {
     super.initState();
-    _editInvoiceId = widget.invoiceId ?? 0;
+    _invoiceId = widget.invoiceId ?? 0;
     _invoiceDate = Fmt.todayIso();
     _loadMeta();
   }
 
   @override
   void dispose() {
-    _headerDiscount.dispose();
-    _notes.dispose();
     _barcodeCtrl.dispose();
-    _entryQtyCtrl.dispose();
-    _entryExtraCtrl.dispose();
-    _entryPriceCtrl.dispose();
     _barcodeFocus.dispose();
-    _entryQtyFocus.dispose();
-    _entryExtraFocus.dispose();
-    _entryPriceFocus.dispose();
     super.dispose();
   }
+
+  // ── تحميل ──────────────────────────────────────────────────────────────
 
   Future<void> _loadMeta() async {
     setState(() {
@@ -174,21 +190,22 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         final match = rates.where((r) => (r.rate - defaultPct).abs() < 0.001);
         defaultId = match.isNotEmpty ? match.first.id : rates.first.id;
       }
+      final defWh = Fmt.toInt(res['default_warehouse_id']);
       if (!mounted) return;
       setState(() {
         _warehouses = whs;
         _taxRates = rates;
-        _defaultTaxPercent = defaultPct > 0
-            ? defaultPct
-            : (rates.isNotEmpty ? rates.first.rate : 5);
+        _defaultTaxPercent =
+            defaultPct > 0 ? defaultPct : (rates.isNotEmpty ? rates.first.rate : 5);
         _defaultTaxRateId = defaultId;
-        _warehouseId = Fmt.toInt(res['default_warehouse_id']);
+        _defaultWarehouseId = defWh;
+        _warehouseId = defWh;
         if (_warehouseId == 0 && whs.isNotEmpty) {
           _warehouseId = Fmt.toInt(whs.first['id']);
         }
       });
-      if (_isEdit) {
-        await _loadInvoiceForEdit();
+      if (_invoiceId > 0) {
+        await _loadInvoice();
       } else if (mounted) {
         setState(() => _loadingMeta = false);
       }
@@ -198,23 +215,31 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         _metaError = e.message;
         _loadingMeta = false;
       });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _metaError = 'تعذر تحميل بيانات الفاتورة.';
+        _loadingMeta = false;
+      });
     }
   }
 
-  Future<void> _loadInvoiceForEdit() async {
+  Future<void> _loadInvoice() async {
     try {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.salesInvoiceViewPath,
-        query: {'id': _editInvoiceId},
+        query: {'id': _invoiceId},
       );
       final inv = (res['invoice'] as Map?)?.cast<String, dynamic>() ?? {};
-      if (inv.isEmpty) {
-        throw ApiException('الفاتورة غير موجودة.');
-      }
-      if (inv['is_posted'] == true || inv['einv_sent'] == true) {
-        throw ApiException(
-          'لا يمكن تعديل فاتورة مرحّلة أو مُرسلة للفوترة.',
-        );
+      if (inv.isEmpty) throw ApiException('الفاتورة غير موجودة.');
+
+      final posted = inv['is_posted'] == true;
+      final einv = inv['einv_sent'] == true;
+      if (widget.invoiceId != null && (posted || einv)) {
+        // مسار التعديل: لا نسمح بفتح المرحّلة هنا — نوجّه للعرض.
+        if (!mounted) return;
+        context.replace('/invoices/$_invoiceId');
+        return;
       }
 
       final cid = Fmt.toInt(inv['customer_id']);
@@ -231,10 +256,12 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           if (match.isNotEmpty) {
             rateId = match.first.id;
           } else if (_taxRates.isNotEmpty && pct > 0) {
-            // أقرب نسبة ضريبة متاحة.
-            rateId = _taxRates.reduce(
-              (a, b) => (a.rate - pct).abs() < (b.rate - pct).abs() ? a : b,
-            ).id;
+            rateId = _taxRates
+                .reduce(
+                  (a, b) =>
+                      (a.rate - pct).abs() < (b.rate - pct).abs() ? a : b,
+                )
+                .id;
           }
           final ratePct = _taxRates
                   .where((r) => r.id == rateId)
@@ -244,6 +271,9 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           loaded.add(
             _Line(
               itemId: Fmt.toInt(m['item_id']),
+              barcode: Fmt.str(
+                m['barcode'] ?? m['material_number'] ?? m['item_code'] ?? '',
+              ),
               name: Fmt.str(
                 m['item_name'] ?? m['name_ar'] ?? m['name'] ?? m['line_desc'],
               ),
@@ -259,6 +289,9 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
       if (!mounted) return;
       setState(() {
+        _invoiceNo = Fmt.str(inv['invoice_no']);
+        _isPosted = posted;
+        _einvSent = einv;
         _customer = cid > 0
             ? Party(cid, cname, Fmt.str(inv['customer_code']))
             : null;
@@ -271,14 +304,6 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
             : Fmt.str(inv['payment_type']);
         final d = Fmt.str(inv['invoice_date']);
         _invoiceDate = d.isEmpty ? Fmt.todayIso() : d;
-        _headerDiscount.text = Fmt.str(
-          inv['invoice_discount'] ?? inv['discount_input'] ?? '',
-        );
-        if (_headerDiscount.text.isEmpty) {
-          final discAmt = Fmt.toDouble(inv['discount_amount']);
-          if (discAmt > 0) _headerDiscount.text = Fmt.trimNum(discAmt);
-        }
-        _notes.text = Fmt.str(inv['notes']);
         _lines
           ..clear()
           ..addAll(loaded);
@@ -290,25 +315,25 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         _metaError = e.message;
         _loadingMeta = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _metaError = 'تعذر تحميل الفاتورة للتعديل.';
+        _metaError = 'تعذر تحميل الفاتورة.';
         _loadingMeta = false;
       });
     }
   }
 
-  double get _subTotal => _lines.fold(0.0, (s, l) => s + l.subtotal);
-  double get _taxTotal => _lines.fold(0.0, (s, l) => s + l.taxAmount);
-  double get _grandTotal => _lines.fold(0.0, (s, l) => s + l.gross);
+  // ── اختيار / باركود ────────────────────────────────────────────────────
 
   Future<void> _pickCustomer() async {
+    if (!_canEdit) return;
     final p = await pickParty(context, type: 'customer');
     if (p != null) setState(() => _customer = p);
   }
 
-  Future<void> _pickInvoiceDate() async {
+  Future<void> _pickDate() async {
+    if (!_canEdit) return;
     DateTime initial;
     try {
       initial = DateTime.parse(_invoiceDate);
@@ -328,55 +353,19 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     });
   }
 
-  String get _customerInitial {
-    final n = (_customer?.name ?? '').trim();
-    if (n.isEmpty) return '';
-    return String.fromCharCodes(n.runes.take(1));
-  }
-
-  void _resetEntryStrip({bool keepFocus = true}) {
-    _pendingItem = null;
-    _barcodeCtrl.clear();
-    _entryQtyCtrl.text = '1';
-    _entryExtraCtrl.text = '0';
-    _entryPriceCtrl.clear();
-    if (keepFocus) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _barcodeFocus.requestFocus();
-      });
+  Future<void> _addItemFromPicker() async {
+    if (!_canEdit) return;
+    if (_warehouseId == 0) {
+      showSnack(context, 'اختر المستودع أولاً', error: true);
+      return;
     }
-  }
-
-  void _setPendingItem(PickedItem it) {
-    setState(() {
-      _pendingItem = it;
-      _barcodeCtrl.text =
-          it.barcode.isNotEmpty ? it.barcode : it.name;
-      _entryQtyCtrl.text = '1';
-      _entryExtraCtrl.text = '0';
-      _entryPriceCtrl.text =
-          it.price > 0 ? Fmt.trimNum(it.price) : '';
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _entryQtyFocus.requestFocus();
-      _entryQtyCtrl.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _entryQtyCtrl.text.length,
-      );
-    });
-  }
-
-  void _focusSelect(TextEditingController ctrl, FocusNode node) {
-    node.requestFocus();
-    ctrl.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: ctrl.text.length,
-    );
+    final it = await pickItem(context, warehouseId: _warehouseId);
+    if (it == null) return;
+    _appendOrBumpLine(it, qty: 1, qtyExtra: 0, price: it.price > 0 ? it.price : 0);
   }
 
   Future<void> _lookupBarcode() async {
-    if (_lookupBusy) return;
+    if (!_canEdit || _lookupBusy) return;
     final code = _barcodeCtrl.text.trim();
     if (code.isEmpty) return;
     if (_warehouseId == 0) {
@@ -386,26 +375,20 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     setState(() => _lookupBusy = true);
     final api = context.read<ApiClient>();
     try {
-      final res = await api.getJson(
+      var res = await api.getJson(
         AppConfig.itemsSearchPath,
-        query: {
-          'warehouse_id': _warehouseId,
-          'code': code,
-        },
+        query: {'warehouse_id': _warehouseId, 'code': code},
       );
       var items = (res['items'] as List? ?? [])
           .whereType<Map>()
           .map((e) => e.cast<String, dynamic>())
           .toList();
       if (items.isEmpty) {
-        final soft = await api.getJson(
+        res = await api.getJson(
           AppConfig.itemsSearchPath,
-          query: {
-            'warehouse_id': _warehouseId,
-            'q': code,
-          },
+          query: {'warehouse_id': _warehouseId, 'q': code},
         );
-        items = (soft['items'] as List? ?? [])
+        items = (res['items'] as List? ?? [])
             .whereType<Map>()
             .map((e) => e.cast<String, dynamic>())
             .toList();
@@ -413,10 +396,6 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       if (!mounted) return;
       if (items.isEmpty) {
         showSnack(context, 'لم يُعثر على مادة بهذا الباركود.', error: true);
-        _barcodeCtrl.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: _barcodeCtrl.text.length,
-        );
         return;
       }
       Map<String, dynamic> row = items.first;
@@ -428,17 +407,25 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           break;
         }
       }
-      _setPendingItem(
+      final price = Fmt.toDouble(
+        row['default_sale'] ?? row['sale_price'] ?? row['unit_price'],
+      );
+      _appendOrBumpLine(
         PickedItem(
           Fmt.toInt(row['id']),
           Fmt.str(row['name_ar'] ?? row['name'] ?? row['sku']),
-          Fmt.toDouble(
-            row['default_sale'] ?? row['sale_price'] ?? row['unit_price'],
-          ),
+          price,
           Fmt.toDouble(row['stock_qty']),
           barcode: Fmt.str(row['barcode'] ?? row['sku']),
         ),
+        qty: 1,
+        qtyExtra: 0,
+        price: price > 0 ? price : 0,
       );
+      _barcodeCtrl.clear();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _barcodeFocus.requestFocus();
+      });
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
     } finally {
@@ -446,39 +433,23 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     }
   }
 
-  void _commitPendingLine() {
-    final it = _pendingItem;
-    if (it == null) {
-      showSnack(context, 'اختر مادة بالباركود أو البحث أولاً.', error: true);
-      _barcodeFocus.requestFocus();
-      return;
-    }
-    final qty =
-        double.tryParse(_entryQtyCtrl.text.replaceAll(',', '')) ?? 0;
-    final qtyExtra =
-        double.tryParse(_entryExtraCtrl.text.replaceAll(',', '')) ?? 0;
-    final price =
-        double.tryParse(_entryPriceCtrl.text.replaceAll(',', '')) ?? 0;
-    if (qty <= 0 && qtyExtra <= 0) {
-      showSnack(context, 'أدخل كمية أو كمية إضافية.', error: true);
-      _entryQtyFocus.requestFocus();
-      return;
-    }
-    if (price <= 0) {
-      showSnack(context, 'أدخل سعر الوحدة.', error: true);
-      _entryPriceFocus.requestFocus();
-      return;
-    }
+  void _appendOrBumpLine(
+    PickedItem it, {
+    required double qty,
+    required double qtyExtra,
+    required double price,
+  }) {
     final existing = _lines.where((l) => l.itemId == it.id).toList();
     setState(() {
       if (existing.isNotEmpty) {
         existing.first.qty += qty;
         existing.first.qtyExtra += qtyExtra;
-        existing.first.unitPrice = price;
+        if (price > 0) existing.first.unitPrice = price;
       } else {
         _lines.add(
           _Line(
             itemId: it.id,
+            barcode: it.barcode,
             name: it.name,
             qty: qty,
             qtyExtra: qtyExtra,
@@ -489,47 +460,15 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         );
       }
     });
-    _resetEntryStrip();
   }
 
-  Future<void> _addItem() async {
-    if (_warehouseId == 0) {
-      showSnack(context, 'اختر المستودع أولاً', error: true);
-      return;
+  // ── حفظ / ترحيل / فوترة / طباعة ─────────────────────────────────────────
+
+  Future<int> _save() async {
+    if (!_canEdit) {
+      showSnack(context, 'لا يمكن تعديل فاتورة مرحّلة أو مُرسلة.', error: true);
+      return 0;
     }
-    final it = await pickItem(context, warehouseId: _warehouseId);
-    if (it == null) return;
-    _setPendingItem(it);
-  }
-
-  Future<void> _clearLines() async {
-    if (_lines.isEmpty) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('مسح البنود'),
-        content: const Text('سيتم حذف جميع البنود من الفاتورة الحالية.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.danger,
-              minimumSize: const Size(100, 42),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('مسح'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) setState(_lines.clear);
-  }
-
-  /// يحفظ الفاتورة ويُرجع رقمها، أو 0 عند الفشل.
-  Future<int> _save({bool thenPost = false}) async {
     if (_customer == null) {
       showSnack(context, 'اختر العميل', error: true);
       return 0;
@@ -548,88 +487,212 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       );
       return 0;
     }
+    if (_warehouseId < 1) {
+      showSnack(context, 'اختر المستودع', error: true);
+      return 0;
+    }
 
     final s = context.read<SessionController>();
     final api = context.read<ApiClient>();
-    setState(() => _saving = true);
+    setState(() => _busy = true);
     try {
-      final fields = <String, dynamic>{
-        '_action': 'save_invoice',
-        'invoice_id': _editInvoiceId,
-        'invoice_date': _invoiceDate.isEmpty ? Fmt.todayIso() : _invoiceDate,
-        'customer_id': _customer!.id,
-        'warehouse_id': _warehouseId,
-        'payment_type': _paymentType,
-        'lines_json': jsonEncode(_lines.map((l) => l.toJson()).toList()),
-      };
-      final headerDisc = _headerDiscount.text.trim();
-      if (headerDisc.isNotEmpty) fields['invoice_discount'] = headerDisc;
-      final notes = _notes.text.trim();
-      if (notes.isNotEmpty) fields['notes'] = notes;
-
       final res = await api.postForm(
         AppConfig.salesInvoiceSaveRoute,
         csrf: s.csrf,
-        fields: fields,
+        fields: {
+          '_action': 'save_invoice',
+          'invoice_id': _invoiceId,
+          'invoice_date': _invoiceDate.isEmpty ? Fmt.todayIso() : _invoiceDate,
+          'customer_id': _customer!.id,
+          'warehouse_id': _warehouseId,
+          'payment_type': _paymentType,
+          'lines_json': jsonEncode(_lines.map((l) => l.toJson()).toList()),
+        },
       );
       final invId = Fmt.toInt(res['invoice_id']);
+      final invNo = Fmt.str(res['invoice_no']);
       if (!mounted) return invId;
-      showSnack(context, (res['message'] ?? 'تم حفظ الفاتورة').toString());
-
-      if (thenPost && invId > 0) {
-        final gps = await LocationService.tryGetPosition();
-        final postFields = <String, dynamic>{'invoice_id': invId};
-        if (gps != null) {
-          postFields['latitude'] = gps.latitude;
-          postFields['longitude'] = gps.longitude;
-          postFields['gps_accuracy'] = gps.accuracy;
-          postFields['gps_source'] = 'mobile';
-        }
-        try {
-          final p = await api.postForm(
-            AppConfig.salesInvoicePostPath,
-            fields: postFields,
-            csrf: s.csrf,
-          );
-          if (mounted) {
-            showSnack(context, (p['message'] ?? 'تم الترحيل').toString());
-          }
-        } on ApiException catch (e) {
-          if (mounted) showSnack(context, e.message, error: true);
-        }
-      }
-
-      if (!mounted) return invId;
-      if (invId > 0) {
-        if (_isEdit) {
-          context.pop(true);
-        } else {
-          context.pushReplacement('/invoices/$invId');
-        }
-      } else {
-        context.pop();
-      }
+      setState(() {
+        _invoiceId = invId;
+        if (invNo.isNotEmpty) _invoiceNo = invNo;
+      });
+      showSnack(context, (res['message'] ?? 'تم حفظ الفاتورة بنجاح.').toString());
       return invId;
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
       return 0;
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) setState(() => _busy = false);
     }
   }
+
+  Future<void> _post() async {
+    var id = _invoiceId;
+    if (id < 1 || _canEdit) {
+      id = await _save();
+      if (id < 1 || !mounted) return;
+    }
+    if (_isPosted) {
+      showSnack(context, 'الفاتورة مرحّلة مسبقاً.');
+      return;
+    }
+    final s = context.read<SessionController>();
+    final api = context.read<ApiClient>();
+    setState(() => _busy = true);
+    try {
+      final gps = await LocationService.tryGetPosition();
+      final fields = <String, dynamic>{'invoice_id': id};
+      if (gps != null) {
+        fields['latitude'] = gps.latitude;
+        fields['longitude'] = gps.longitude;
+        fields['gps_accuracy'] = gps.accuracy;
+        fields['gps_source'] = 'mobile';
+      }
+      final p = await api.postForm(
+        AppConfig.salesInvoicePostPath,
+        fields: fields,
+        csrf: s.csrf,
+      );
+      if (!mounted) return;
+      showSnack(context, (p['message'] ?? 'تم ترحيل الفاتورة.').toString());
+      setState(() => _isPosted = true);
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _view() async {
+    if (_invoiceId < 1) {
+      final id = await _save();
+      if (id < 1 || !mounted) return;
+    }
+    if (!mounted) return;
+    await context.push('/invoices/$_invoiceId');
+    if (mounted) await _loadInvoice();
+  }
+
+  Future<void> _print() async {
+    if (_invoiceId < 1) {
+      final id = await _save();
+      if (id < 1 || !mounted) return;
+    }
+    if (!mounted) return;
+    await InvoicePrintHelper.printBluetooth(
+      context,
+      invoice: {'id': _invoiceId, 'invoice_no': _invoiceNo},
+    );
+  }
+
+  Future<void> _sendEinvoice() async {
+    if (!_canSendEinvoice) {
+      if (!_isPosted) {
+        showSnack(context, 'يجب ترحيل الفاتورة قبل إرسالها للفوترة.', error: true);
+      } else {
+        showSnack(context, 'الفاتورة مُرسلة للفوترة مسبقاً.');
+      }
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('فوترة إلكترونية'),
+        content: const Text('إرسال الفاتورة للفوترة الإلكترونية؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('إرسال'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final s = context.read<SessionController>();
+    setState(() => _busy = true);
+    try {
+      final res = await context.read<ApiClient>().postForm(
+        AppConfig.salesInvoiceEinvoiceSendPath,
+        fields: {'invoice_id': _invoiceId},
+        csrf: s.csrf,
+      );
+      if (!mounted) return;
+      showSnack(context, (res['message'] ?? 'تم الإرسال للفوترة.').toString());
+      setState(() => _einvSent = true);
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _openEdit() async {
+    if (_invoiceId < 1) {
+      showSnack(context, 'احفظ الفاتورة أولاً.', error: true);
+      return;
+    }
+    if (!_canEdit) {
+      showSnack(context, 'لا يمكن تعديل فاتورة مرحّلة أو مُرسلة.', error: true);
+      return;
+    }
+    // نحن أصلاً في شاشة التعديل — أعد التحميل.
+    await _loadInvoice();
+    if (mounted) showSnack(context, 'جاهز للتعديل.');
+  }
+
+  // ── واجهة ──────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5F9),
+      backgroundColor: _bg,
       appBar: AppBar(
-        title: Text(_isEdit ? 'تعديل الفاتورة' : 'فاتورة جديدة'),
+        elevation: 0,
+        backgroundColor: _blue,
+        foregroundColor: Colors.white,
+        title: Column(
+          children: [
+            Text(
+              _isEdit ? 'فاتورة مبيعات' : 'فاتورة بيع جديدة',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+            if (_invoiceNo.isNotEmpty)
+              Text(
+                _invoiceNo,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
+        ),
         actions: [
-          if (_lines.isNotEmpty)
-            IconButton(
-              tooltip: 'مسح البنود',
-              onPressed: _clearLines,
-              icon: const Icon(Icons.delete_sweep_outlined),
+          if (_isPosted || _einvSent)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 12),
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _einvSent ? 'مُرسلة' : 'مرحّلة',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
             ),
         ],
       ),
@@ -642,19 +705,17 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
                 children: [
-                  _sheetCard(),
-                  const SizedBox(height: 14),
-                  _linesSectionHead(),
+                  _headerCard(),
+                  const SizedBox(height: 12),
+                  _scanBar(),
+                  const SizedBox(height: 12),
+                  _linesHeader(),
                   const SizedBox(height: 8),
-                  if (_lines.isEmpty)
-                    _emptyLines()
-                  else
-                    ..._lines.asMap().entries.map((e) => _lineCard(e.key, e.value)),
+                  if (_lines.isEmpty) _emptyLines() else ..._buildLineCards(),
                   const SizedBox(height: 12),
                   _totalsCard(),
-                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -665,209 +726,63 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     );
   }
 
-  Widget _sheetCard() {
+  Widget _headerCard() {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: _surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _border),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF0B2545).withValues(alpha: 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _pickCustomer,
-              borderRadius: BorderRadius.circular(14),
-              child: Ink(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE8EDF3)),
-                  gradient: const LinearGradient(
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                    colors: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: _customer == null
-                            ? const Color(0xFFE2E8F0)
-                            : const Color(0xFFE8F4FC),
-                        child: _customer == null
-                            ? const Icon(Icons.person_outline_rounded,
-                                color: Color(0xFF94A3B8), size: 22)
-                            : Text(
-                                _customerInitial,
-                                style: const TextStyle(
-                                  color: Color(0xFF0572CE),
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
-                                ),
-                              ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'العميل',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF64748B),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _customer?.name ?? 'اضغط لاختيار العميل',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: _customer == null
-                                    ? const Color(0xFF94A3B8)
-                                    : const Color(0xFF0F172A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.chevron_left_rounded,
-                          color: Color(0xFF94A3B8), size: 28),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 46,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: const LinearGradient(
-                  begin: Alignment.centerRight,
-                  end: Alignment.centerLeft,
-                  colors: [Color(0xFF1A8FE8), Color(0xFF0572CE), Color(0xFF024D8F)],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF0572CE).withValues(alpha: 0.28),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: _addItem,
-                  borderRadius: BorderRadius.circular(12),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_rounded, color: Colors.white, size: 22),
-                      SizedBox(width: 8),
-                      Text(
-                        'إضافة مواد',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          _pdaStrip(),
-          const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _metaField(
-                label: 'التاريخ',
-                child: InkWell(
-                  onTap: _pickInvoiceDate,
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    height: 42,
-                    alignment: Alignment.center,
-                    decoration: _metaBox(),
-                    child: Text(
-                      Fmt.dmy(_invoiceDate),
-                      textDirection: TextDirection.ltr,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
+              Expanded(
+                child: _fieldShell(
+                  label: 'رقم الفاتورة',
+                  child: _readonlyValue(
+                    _invoiceNo.isEmpty ? '—' : _invoiceNo,
+                    ltr: true,
                   ),
                 ),
-              )),
-              const SizedBox(width: 8),
-              Expanded(child: _metaField(
-                label: 'النوع',
-                child: Container(
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  decoration: _metaBox(),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _paymentType,
-                      isExpanded: true,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF0F172A),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'credit', child: Text('ذمة')),
-                        DropdownMenuItem(value: 'cash', child: Text('نقدي')),
-                      ],
-                      onChanged: (v) {
-                        if (v != null) setState(() => _paymentType = v);
-                      },
-                    ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _fieldShell(
+                  label: 'التاريخ',
+                  child: InkWell(
+                    onTap: _canEdit ? _pickDate : null,
+                    borderRadius: BorderRadius.circular(12),
+                    child: _readonlyValue(Fmt.dmy(_invoiceDate), ltr: true),
                   ),
                 ),
-              )),
-              const SizedBox(width: 8),
-              Expanded(child: _metaField(
-                label: 'المستودع',
-                child: Container(
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  decoration: _metaBox(),
-                  child: DropdownButtonHideUnderline(
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _fieldShell(
+            label: 'نوع الدفع',
+            child: _paymentSeg(),
+          ),
+          const SizedBox(height: 12),
+          _customerTile(),
+          const SizedBox(height: 12),
+          _fieldShell(
+            label: 'المستودع',
+            child: _canChangeWarehouse
+                ? DropdownButtonHideUnderline(
                     child: DropdownButton<int>(
                       value: _warehouseId == 0 ? null : _warehouseId,
-                      hint: const Text('—', style: TextStyle(fontSize: 13)),
                       isExpanded: true,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF0F172A),
-                      ),
+                      hint: const Text('اختر المستودع'),
                       items: _warehouses
                           .map(
                             (w) => DropdownMenuItem<int>(
@@ -879,264 +794,391 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                             ),
                           )
                           .toList(),
-                      onChanged: (v) => setState(() => _warehouseId = v ?? 0),
+                      onChanged: (v) =>
+                          setState(() => _warehouseId = v ?? 0),
                     ),
-                  ),
+                  )
+                : _readonlyValue(_warehouseName()),
+          ),
+          if (_defaultWarehouseId > 0 &&
+              _warehouseId == _defaultWarehouseId &&
+              _canChangeWarehouse)
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  'تم اختيار المستودع تلقائياً حسب المندوب',
+                  style: TextStyle(fontSize: 11, color: _muted),
                 ),
-              )),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'ملاحظات',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF64748B),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          TextField(
-            controller: _notes,
-            decoration: InputDecoration(
-              hintText: 'اختياري',
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              isDense: true,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _headerDiscount,
-            textDirection: TextDirection.ltr,
-            decoration: InputDecoration(
-              labelText: 'خصم الفاتورة',
-              hintText: '10 أو 10%',
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              isDense: true,
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
         ],
       ),
     );
   }
 
-  BoxDecoration _metaBox() {
-    return BoxDecoration(
-      color: const Color(0xFFF8FAFC),
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: const Color(0xFFE2E8F0)),
-    );
+  String _warehouseName() {
+    for (final w in _warehouses) {
+      if (Fmt.toInt(w['id']) == _warehouseId) return Fmt.str(w['name']);
+    }
+    return _warehouseId > 0 ? '#$_warehouseId' : '—';
   }
 
-  Widget _metaField({required String label, required Widget child}) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(height: 4),
-        child,
-      ],
-    );
-  }
-
-  Widget _pdaStrip() {
+  Widget _paymentSeg() {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_pendingItem != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'المادة: ',
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-              ),
-            ),
-          TextField(
-            controller: _barcodeCtrl,
-            focusNode: _barcodeFocus,
-            textDirection: TextDirection.ltr,
-            textInputAction: TextInputAction.done,
-            enabled: !_lookupBusy,
-            decoration: InputDecoration(
-              labelText: 'باركود / رمز',
-              hintText: 'امسح ثم Enter',
-              prefixIcon: _lookupBusy
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : const Icon(Icons.qr_code_scanner, size: 20),
-              isDense: true,
-              filled: true,
-              fillColor: Colors.white,
-            ),
-            onSubmitted: (_) => _lookupBarcode(),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _entryQtyCtrl,
-                  focusNode: _entryQtyFocus,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  textDirection: TextDirection.ltr,
-                  textAlign: TextAlign.center,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'كمية',
-                    isDense: true,
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
-                  onSubmitted: (_) =>
-                      _focusSelect(_entryExtraCtrl, _entryExtraFocus),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: TextField(
-                  controller: _entryExtraCtrl,
-                  focusNode: _entryExtraFocus,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  textDirection: TextDirection.ltr,
-                  textAlign: TextAlign.center,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'إض.',
-                    isDense: true,
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
-                  onSubmitted: (_) =>
-                      _focusSelect(_entryPriceCtrl, _entryPriceFocus),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: TextField(
-                  controller: _entryPriceCtrl,
-                  focusNode: _entryPriceFocus,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  textDirection: TextDirection.ltr,
-                  textAlign: TextAlign.center,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(
-                    labelText: 'سعر',
-                    isDense: true,
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
-                  onSubmitted: (_) => _commitPendingLine(),
-                ),
-              ),
-              const SizedBox(width: 6),
-              FilledButton(
-                onPressed: _commitPendingLine,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(44, 44),
-                  padding: EdgeInsets.zero,
-                  backgroundColor: const Color(0xFF0572CE),
-                ),
-                child: const Icon(Icons.add_rounded),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _linesSectionHead() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
         children: [
-          const Text(
-            'بنود الفاتورة',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F4FC),
-              borderRadius: BorderRadius.circular(999),
-            ),
+          _segBtn('ذمم', 'credit'),
+          _segBtn('نقدي', 'cash'),
+        ],
+      ),
+    );
+  }
+
+  Widget _segBtn(String label, String value) {
+    final sel = _paymentType == value;
+    return Expanded(
+      child: Material(
+        color: sel ? _blue : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: _canEdit ? () => setState(() => _paymentType = value) : null,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
             child: Text(
-              ' سطر',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0572CE),
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13.5,
+                color: sel ? Colors.white : _muted,
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _customerTile() {
+    final initial = (_customer?.name ?? '').trim();
+    final letter = initial.isEmpty
+        ? ''
+        : String.fromCharCodes(initial.runes.take(1));
+    return Material(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: _canEdit ? _pickCustomer : null,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _border),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: _customer == null
+                    ? const Color(0xFFE2E8F0)
+                    : const Color(0xFFE8F4FC),
+                child: _customer == null
+                    ? const Icon(Icons.person_outline_rounded,
+                        color: _muted, size: 20)
+                    : Text(
+                        letter,
+                        style: const TextStyle(
+                          color: _blue,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'اسم العميل',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _muted,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _customer?.name ?? 'اضغط لاختيار العميل',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: _customer == null ? _muted : _ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_canEdit)
+                const Icon(Icons.chevron_left_rounded, color: _muted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _scanBar() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _barcodeCtrl,
+              focusNode: _barcodeFocus,
+              enabled: _canEdit && !_lookupBusy,
+              textDirection: TextDirection.ltr,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                hintText: 'باركود / رقم المادة',
+                prefixIcon: _lookupBusy
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: _border),
+                ),
+              ),
+              onSubmitted: (_) => _lookupBarcode(),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _iconAction(
+            icon: Icons.add_rounded,
+            label: 'مادة',
+            onTap: _canEdit ? _addItemFromPicker : null,
+            filled: true,
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _linesHeader() {
+    return Row(
+      children: [
+        const Text(
+          'بنود الفاتورة',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w900,
+            color: _ink,
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE8F4FC),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '${_lines.length} سطر',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: _blue,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _emptyLines() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 22),
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFCBD5E1), style: BorderStyle.solid),
+        color: _surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
       ),
-      child: const Text(
-        'لا توجد بنود — اضغط «إضافة مواد»، اختر المادة، أدخل الكمية والسعر.',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 13,
-          height: 1.45,
-          color: Color(0xFF64748B),
-          fontWeight: FontWeight.w600,
-        ),
+      child: const Column(
+        children: [
+          Icon(Icons.inventory_2_outlined, size: 34, color: _muted),
+          SizedBox(height: 10),
+          Text(
+            'لا توجد مواد\nامسح باركوداً أو اضغط «مادة» للإضافة',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: _muted,
+              fontWeight: FontWeight.w600,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildLineCards() {
+    return [
+      for (var i = 0; i < _lines.length; i++) _lineCard(i, _lines[i]),
+    ];
+  }
+
+  Widget _lineCard(int index, _Line l) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 6, 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F4FC),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    '${index + 1}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: _blue,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13.5,
+                          color: _ink,
+                        ),
+                      ),
+                      if (l.barcode.isNotEmpty)
+                        Text(
+                          l.barcode,
+                          textDirection: TextDirection.ltr,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: _muted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Text(
+                  Fmt.money(l.gross),
+                  textDirection: TextDirection.ltr,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 14.5,
+                    color: _blueDeep,
+                  ),
+                ),
+                if (_canEdit)
+                  IconButton(
+                    tooltip: 'حذف',
+                    onPressed: () => setState(() => _lines.removeAt(index)),
+                    icon: const Icon(Icons.delete_outline_rounded, size: 19),
+                    color: AppTheme.danger,
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _numBox(
+                    'الكمية',
+                    l.qty,
+                    enabled: _canEdit,
+                    onChanged: (v) => setState(() => l.qty = v),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _numBox(
+                    'السعر',
+                    l.unitPrice,
+                    enabled: _canEdit,
+                    onChanged: (v) => setState(() => l.unitPrice = v),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _numBox(
+                    'إضافية',
+                    l.qtyExtra,
+                    enabled: _canEdit,
+                    onChanged: (v) => setState(() => l.qtyExtra = v),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _textBox(
+                    'الخصم',
+                    l.discountInput,
+                    enabled: _canEdit,
+                    hint: '5%',
+                    onChanged: (v) => setState(() => l.discountInput = v),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1145,31 +1187,25 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: _surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _border),
       ),
       child: Column(
         children: [
           _totalRow('قبل الضريبة', Fmt.money(_subTotal)),
           _totalRow('الضريبة', Fmt.money(_taxTotal)),
-          const SizedBox(height: 6),
-          Container(height: 2, color: const Color(0xFFE8F4FC)),
           const SizedBox(height: 8),
+          Container(height: 1.5, color: const Color(0xFFE8F4FC)),
+          const SizedBox(height: 10),
           Row(
             children: [
               const Text(
-                'الإجمالي',
+                'المجموع',
                 style: TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.w900,
+                  color: _ink,
                 ),
               ),
               const Spacer(),
@@ -1177,9 +1213,9 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                 Fmt.money(_grandTotal),
                 textDirection: TextDirection.ltr,
                 style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF024D8F),
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: _blueDeep,
                 ),
               ),
             ],
@@ -1191,25 +1227,20 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
   Widget _totalRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF475569),
-            ),
-          ),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 13.5, fontWeight: FontWeight.w600, color: _muted)),
           const Spacer(),
           Text(
             value,
             textDirection: TextDirection.ltr,
             style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF475569),
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: _ink,
             ),
           ),
         ],
@@ -1220,8 +1251,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   Widget _actionDock() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+        color: _surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF0F172A).withValues(alpha: 0.1),
@@ -1233,66 +1264,184 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _dockBtn(
+                  Icons.save_rounded,
+                  'حفظ',
+                  onTap: _busy || !_canEdit ? null : () => _save(),
+                  primary: true,
+                ),
+                _dockBtn(
+                  Icons.check_circle_outline_rounded,
+                  'ترحيل',
+                  onTap: _busy || _isPosted ? null : _post,
+                ),
+                _dockBtn(
+                  Icons.visibility_outlined,
+                  'عرض',
+                  onTap: _busy ? null : _view,
+                ),
+                _dockBtn(
+                  Icons.print_outlined,
+                  'طباعة',
+                  onTap: _busy ? null : _print,
+                ),
+                _dockBtn(
+                  Icons.send_outlined,
+                  'فوترة',
+                  onTap: _busy || !_canSendEinvoice ? null : _sendEinvoice,
+                ),
+                _dockBtn(
+                  Icons.edit_outlined,
+                  'تعديل',
+                  onTap: _busy || !_canEdit || _invoiceId < 1 ? null : _openEdit,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dockBtn(
+    IconData icon,
+    String label, {
+    VoidCallback? onTap,
+    bool primary = false,
+  }) {
+    final enabled = onTap != null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Material(
+        color: primary
+            ? (enabled ? _blue : _blue.withValues(alpha: 0.35))
+            : (enabled ? const Color(0xFFF8FAFC) : const Color(0xFFF1F5F9)),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: 72,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: primary
+                  ? null
+                  : Border.all(color: enabled ? _border : const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                if (_busy && primary)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                else
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: primary
+                        ? Colors.white
+                        : (enabled ? _ink : const Color(0xFF94A3B8)),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: primary
+                        ? Colors.white
+                        : (enabled ? _ink : const Color(0xFF94A3B8)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── عناصر مساعدة للواجهة ────────────────────────────────────────────────
+
+  Widget _fieldShell({required String label, required Widget child}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: _muted,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          constraints: const BoxConstraints(minHeight: 44),
+          alignment: Alignment.centerRight,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _border),
+          ),
+          child: child,
+        ),
+      ],
+    );
+  }
+
+  Widget _readonlyValue(String text, {bool ltr = false}) {
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Text(
+        text,
+        textDirection: ltr ? TextDirection.ltr : null,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: _ink,
+        ),
+      ),
+    );
+  }
+
+  Widget _iconAction({
+    required IconData icon,
+    required String label,
+    VoidCallback? onTap,
+    bool filled = false,
+  }) {
+    return Material(
+      color: filled ? _blue : const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
           child: Row(
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _saving ? null : () => _save(),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _saving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('حفظ', style: TextStyle(fontWeight: FontWeight.w700)),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    gradient: const LinearGradient(
-                      begin: Alignment.centerRight,
-                      end: Alignment.centerLeft,
-                      colors: [Color(0xFF1A8FE8), Color(0xFF0572CE), Color(0xFF024D8F)],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0572CE).withValues(alpha: 0.25),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _saving ? null : () => _save(thenPost: true),
-                      borderRadius: BorderRadius.circular(12),
-                      child: const SizedBox(
-                        height: 48,
-                        child: Center(
-                          child: Text(
-                            'حفظ وترحيل',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+              Icon(icon, size: 20, color: filled ? Colors.white : _blue),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: filled ? Colors.white : _blue,
                 ),
               ),
             ],
@@ -1302,227 +1451,62 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     );
   }
 
-
-
-  Widget _lineCard(int index, _Line l) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFF8FAFC), Colors.white],
-              ),
-              border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 26,
-                  height: 26,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F4FC),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${index + 1}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0572CE),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    l.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: Color(0xFF0F172A),
-                      height: 1.35,
-                    ),
-                  ),
-                ),
-                Text(
-                  Fmt.money(l.gross),
-                  textDirection: TextDirection.ltr,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF024D8F),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'حذف البند',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.delete_outline_rounded, size: 19),
-                  color: AppTheme.danger,
-                  onPressed: () => setState(() => _lines.removeAt(index)),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _numField(
-                        label: 'كمية',
-                        value: l.qty,
-                        onChanged: (v) => setState(() => l.qty = v),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: _numField(
-                        label: 'إض.',
-                        value: l.qtyExtra,
-                        onChanged: (v) => setState(() => l.qtyExtra = v),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: _numField(
-                        label: 'سعر',
-                        value: l.unitPrice,
-                        onChanged: (v) => setState(() => l.unitPrice = v),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: TextFormField(
-                        initialValue: l.discountInput,
-                        textDirection: TextDirection.ltr,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12.5),
-                        decoration: const InputDecoration(
-                          labelText: 'خصم',
-                          hintText: '5%',
-                          isDense: true,
-                          filled: true,
-                          fillColor: Color(0xFFF8FAFC),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                        ),
-                        onChanged: (v) => setState(() => l.discountInput = v),
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: DropdownButtonFormField<int>(
-                        initialValue: _taxRates.any((r) => r.id == l.taxRateId)
-                            ? l.taxRateId
-                            : (_taxRates.isNotEmpty ? _taxRates.first.id : null),
-                        isExpanded: true,
-                        style: const TextStyle(fontSize: 12, color: AppTheme.textMain),
-                        decoration: const InputDecoration(
-                          labelText: 'ضريبة',
-                          isDense: true,
-                          filled: true,
-                          fillColor: Color(0xFFF8FAFC),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                        ),
-                        items: (_taxRates.isEmpty
-                                ? [_TaxRate(id: 0, name: 'افتراضي', rate: _defaultTaxPercent)]
-                                : _taxRates)
-                            .map(
-                              (r) => DropdownMenuItem<int>(
-                                value: r.id,
-                                child: Text('${Fmt.money(r.rate)}%', overflow: TextOverflow.ellipsis),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) {
-                          if (v == null) return;
-                          final rate = _taxRates.where((r) => r.id == v).map((r) => r.rate).firstOrNull;
-                          setState(() {
-                            l.taxRateId = v;
-                            l.taxRatePercent = rate ?? _defaultTaxPercent;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _tiny('صافي', Fmt.money(l.subtotal)),
-                    _tiny('ضريبة', Fmt.money(l.taxAmount)),
-                    _tiny('الإجمالي', Fmt.money(l.gross), strong: true),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _tiny(String label, String value, {bool strong = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 10.5, color: AppTheme.textSoft)),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          textDirection: TextDirection.ltr,
-          style: TextStyle(
-            fontSize: strong ? 13.5 : 12.5,
-            fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
-            color: strong ? const Color(0xFF024D8F) : AppTheme.textMain,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _numField({
-    required String label,
-    required double value,
+  Widget _numBox(
+    String label,
+    double value, {
+    required bool enabled,
     required ValueChanged<double> onChanged,
   }) {
     return TextFormField(
+      key: ValueKey('$label-$value-${identityHashCode(onChanged)}'),
       initialValue: value == 0 ? '' : Fmt.trimNum(value),
+      enabled: enabled,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [
+        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+      ],
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
-      style: const TextStyle(fontSize: 12.5),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
       decoration: InputDecoration(
         labelText: label,
         isDense: true,
         filled: true,
         fillColor: const Color(0xFFF8FAFC),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       ),
-      onChanged: (v) => onChanged(double.tryParse(v.replaceAll(',', '')) ?? 0),
+      onChanged: (v) =>
+          onChanged(double.tryParse(v.replaceAll(',', '')) ?? 0),
     );
   }
 
+  Widget _textBox(
+    String label,
+    String value, {
+    required bool enabled,
+    required ValueChanged<String> onChanged,
+    String? hint,
+  }) {
+    return TextFormField(
+      key: ValueKey('$label-$value'),
+      initialValue: value,
+      enabled: enabled,
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        isDense: true,
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      onChanged: onChanged,
+    );
+  }
 }
 
 extension _FirstOrNull<E> on Iterable<E> {
