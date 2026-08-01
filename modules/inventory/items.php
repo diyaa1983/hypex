@@ -300,7 +300,11 @@ if ($action === 'add' || $action === 'edit') {
     }
     require_once app_path('includes/nav_helpers.php');
     $ledgerBack = nav_item_stock_ledger_back_link();
+    $itemsDefCssPath = app_path('assets/css/items-def.css');
+    $itemsDefCssUrl = app_url('assets/css/items-def.css') . (is_file($itemsDefCssPath) ? '?v=' . (string) filemtime($itemsDefCssPath) : '');
     ?>
+    <link rel="stylesheet" href="<?= esc($itemsDefCssUrl) ?>">
+    <div class="items-def-screen">
     <div class="toolbar">
         <h2 style="margin:0;font-size:1.05rem;"><?= esc($formTitle) ?></h2>
         <button class="btn btn-primary btn-sm" type="submit" form="item-def-form">حفظ</button>
@@ -588,6 +592,7 @@ if ($action === 'add' || $action === 'edit') {
             </div>
         </form>
     </div>
+    </div>
     <script>
     (function () {
       var form = document.getElementById('item-def-form');
@@ -761,16 +766,16 @@ if ($expirySchemaOk) {
                                 <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                                 <input type="hidden" name="_action" value="toggle">
                                 <input type="hidden" name="id" value="<?= $itemId ?>">
-                                <button class="btn btn-danger btn-sm" type="submit"><?= (int) $it['is_active'] ? 'تعطيل' : 'تفعيل' ?></button>
+                                <button class="btn btn-secondary btn-sm" type="submit"><?= (int) $it['is_active'] ? 'تعطيل' : 'تفعيل' ?></button>
                             </form>
                             <?php if ($blockedDelete): ?>
-                                <button class="btn btn-danger btn-sm" type="button" disabled title="<?= esc($blockTitle) ?>">حذف</button>
+                                <button class="btn btn-secondary btn-sm" type="button" disabled title="<?= esc($blockTitle) ?>">حذف</button>
                             <?php else: ?>
                                 <form method="post" action="<?= esc($listUrl) ?>" data-confirm="<?= esc($deleteConfirm) ?>">
                                     <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                                     <input type="hidden" name="_action" value="delete">
                                     <input type="hidden" name="id" value="<?= $itemId ?>">
-                                    <button class="btn btn-danger btn-sm" type="submit">حذف</button>
+                                    <button class="btn btn-secondary btn-sm" type="submit">حذف</button>
                                 </form>
                             <?php endif; ?>
                         </div>

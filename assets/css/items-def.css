@@ -1,0 +1,67 @@
+/* بطاقة تعريف/تعديل المادة — خط عريض وغامق */
+.items-def-screen {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.items-def-screen .toolbar h2 {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.items-def-screen .card,
+.items-def-screen .item-def-form,
+.items-def-screen .item-def-form label,
+.items-def-screen .item-def-form .field-label,
+.items-def-screen .item-def-form span,
+.items-def-screen .item-def-form strong,
+.items-def-screen .item-def-form th,
+.items-def-screen .item-def-form td,
+.items-def-screen .item-def-form .perm-item {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.items-def-screen .item-def-form .muted,
+.items-def-screen .item-def-form .muted a {
+  color: #1e293b;
+  font-weight: 700;
+  opacity: 1;
+}
+
+.items-def-screen .item-def-form a {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.items-def-screen .item-def-form .input,
+.items-def-screen .item-def-form select.input,
+.items-def-screen .item-def-form textarea.input {
+  color: #0f172a;
+  font-weight: 700;
+  border-color: #94a3b8;
+}
+
+.items-def-screen .item-def-form .input::placeholder {
+  color: #64748b;
+  font-weight: 600;
+  opacity: 1;
+}
+
+.items-def-screen .item-def-form .input[readonly] {
+  color: #0f172a;
+  font-weight: 700;
+  background: #f1f5f9;
+}
+
+.items-def-screen #item-issue-units-box,
+.items-def-screen #item-issue-units-box h3,
+.items-def-screen #item-issue-units-table th,
+.items-def-screen #item-issue-units-table td {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.items-def-screen .btn {
+  font-weight: 700;
+}
