@@ -104,9 +104,9 @@ function pur_order_enrich_row(PDO $pdo, array $row, string $browseFilter = 'all'
             $displayDecimals
         );
         company_round_invoice_line_array($ln, $pdo, $displayDecimals);
-        $ln['units'] = inv_item_units_for_item($pdo, (int) ($ln['item_id'] ?? 0));
     }
     unset($ln);
+    $lines = inv_item_units_attach_to_items($pdo, $lines, 'item_id');
 
     $row['lines'] = $lines;
     company_round_invoice_header_array($row, $pdo, $displayDecimals);

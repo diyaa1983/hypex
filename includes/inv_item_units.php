@@ -25,8 +25,13 @@ function inv_item_units_ensure_schema(PDO $pdo): bool
         }
     }
     if ($ok) {
-        inv_item_units_ensure_line_columns($pdo);
-        inv_item_units_backfill_from_items($pdo);
+        // مرة واحدة فقط لكل قاعدة (لا تكرار ALTER / backfill عند كل تنقّل)
+        require_once app_path('includes/acc_coa_bootstrap.php');
+        if (acc_coa_meta_get($pdo, 'inv_item_units_ready_v1') !== '1') {
+            inv_item_units_ensure_line_columns($pdo);
+            inv_item_units_backfill_from_items($pdo);
+            acc_coa_meta_set($pdo, 'inv_item_units_ready_v1', '1');
+        }
     }
 
     return $ok;
@@ -39,13 +44,14 @@ function inv_item_units_column_exists(PDO $pdo, string $table, string $column): 
     if (array_key_exists($key, $cache)) {
         return $cache[$key];
     }
+    $table = preg_replace('/[^a-zA-Z0-9_]/', '', $table) ?? '';
+    $column = preg_replace('/[^a-zA-Z0-9_]/', '', $column) ?? '';
+    if ($table === '' || $column === '') {
+        return $cache[$key] = false;
+    }
     try {
-        $st = $pdo->prepare(
-            'SELECT 1 FROM information_schema.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1'
-        );
-        $st->execute([$table, $column]);
-        $cache[$key] = (bool) $st->fetchColumn();
+        $pdo->query('SELECT `' . $column . '` FROM `' . $table . '` LIMIT 1');
+        $cache[$key] = true;
     } catch (Throwable $e) {
         $cache[$key] = false;
     }
@@ -55,10 +61,16 @@ function inv_item_units_column_exists(PDO $pdo, string $table, string $column): 
 
 function inv_item_units_ensure_line_columns(PDO $pdo): void
 {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
     $tables = ['sal_invoice_line', 'pur_invoice_line', 'sal_customer_order_line', 'pur_order_line'];
     foreach ($tables as $table) {
         try {
-            $pdo->query("SELECT id FROM {$table} LIMIT 1");
+            $pdo->query('SELECT id FROM `' . $table . '` LIMIT 1');
         } catch (Throwable $e) {
             continue;
         }
@@ -66,11 +78,8 @@ function inv_item_units_ensure_line_columns(PDO $pdo): void
         if (!inv_item_units_column_exists($pdo, $table, 'unit_id')) {
             $alters[] = 'ADD COLUMN unit_id INT UNSIGNED NULL';
         }
-        if (!inv_item_units_column_exists($pdo, $table, 'unit_name')) {
-            // sal_customer_order_line already has unit_name
-            if ($table !== 'sal_customer_order_line') {
-                $alters[] = 'ADD COLUMN unit_name VARCHAR(120) NULL';
-            }
+        if (!inv_item_units_column_exists($pdo, $table, 'unit_name') && $table !== 'sal_customer_order_line') {
+            $alters[] = 'ADD COLUMN unit_name VARCHAR(120) NULL';
         }
         if (!inv_item_units_column_exists($pdo, $table, 'unit_factor')) {
             $alters[] = 'ADD COLUMN unit_factor DECIMAL(18,6) NOT NULL DEFAULT 1';
@@ -80,7 +89,7 @@ function inv_item_units_ensure_line_columns(PDO $pdo): void
         }
         foreach ($alters as $sql) {
             try {
-                $pdo->exec("ALTER TABLE {$table} {$sql}");
+                $pdo->exec('ALTER TABLE `' . $table . '` ' . $sql);
             } catch (Throwable $e) {
                 // ignore race
             }
@@ -90,6 +99,12 @@ function inv_item_units_ensure_line_columns(PDO $pdo): void
 
 function inv_item_units_backfill_from_items(PDO $pdo): void
 {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
     try {
         $pdo->exec(
             "INSERT IGNORE INTO inv_item_unit (item_id, unit_id, factor_to_base, is_base, is_default_issue)
@@ -100,7 +115,6 @@ function inv_item_units_backfill_from_items(PDO $pdo): void
                    SELECT 1 FROM inv_item_unit u WHERE u.item_id = i.id AND u.is_base = 1
                )"
         );
-        // مواد بلا unit_id: إنشاء وحدة افتراضية إن وُجدت قطعة
         $pcsId = (int) $pdo->query(
             "SELECT id FROM inv_unit WHERE code = 'PCS' OR name_ar IN ('قطعة','حبة') ORDER BY id LIMIT 1"
         )->fetchColumn();
@@ -321,7 +335,7 @@ function inv_item_unit_resolve(PDO $pdo, int $itemId, ?int $unitId): ?array
  * @param list<array<string,mixed>> $items
  * @return list<array<string,mixed>>
  */
-function inv_item_units_attach_to_items(PDO $pdo, array $items): array
+function inv_item_units_attach_to_items(PDO $pdo, array $items, string $idKey = 'id'): array
 {
     if ($items === [] || !inv_item_units_ensure_schema($pdo)) {
         foreach ($items as &$it) {
@@ -342,7 +356,7 @@ function inv_item_units_attach_to_items(PDO $pdo, array $items): array
     }
     $ids = [];
     foreach ($items as $it) {
-        $id = (int) ($it['id'] ?? 0);
+        $id = (int) ($it[$idKey] ?? $it['item_id'] ?? $it['id'] ?? 0);
         if ($id > 0) {
             $ids[] = $id;
         }
@@ -377,7 +391,7 @@ function inv_item_units_attach_to_items(PDO $pdo, array $items): array
         }
     }
     foreach ($items as &$it) {
-        $iid = (int) ($it['id'] ?? 0);
+        $iid = (int) ($it[$idKey] ?? $it['item_id'] ?? $it['id'] ?? 0);
         if (!empty($map[$iid])) {
             $it['units'] = $map[$iid];
         } else {

@@ -7,13 +7,13 @@ function dashboard_table_exists(PDO $pdo, string $table): bool
     if (isset($cache[$table])) {
         return $cache[$table];
     }
+    $safe = preg_replace('/[^a-zA-Z0-9_]/', '', $table) ?? '';
+    if ($safe === '') {
+        return $cache[$table] = false;
+    }
     try {
-        $st = $pdo->prepare(
-            'SELECT 1 FROM information_schema.tables
-             WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1'
-        );
-        $st->execute([$table]);
-        $cache[$table] = (bool) $st->fetchColumn();
+        $pdo->query('SELECT 1 FROM `' . $safe . '` LIMIT 1');
+        $cache[$table] = true;
     } catch (Throwable $e) {
         $cache[$table] = false;
     }
@@ -28,13 +28,14 @@ function dashboard_column_exists(PDO $pdo, string $table, string $column): bool
     if (isset($cache[$key])) {
         return $cache[$key];
     }
+    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '', $table) ?? '';
+    $safeCol = preg_replace('/[^a-zA-Z0-9_]/', '', $column) ?? '';
+    if ($safeTable === '' || $safeCol === '') {
+        return $cache[$key] = false;
+    }
     try {
-        $st = $pdo->prepare(
-            'SELECT 1 FROM information_schema.columns
-             WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1'
-        );
-        $st->execute([$table, $column]);
-        $cache[$key] = (bool) $st->fetchColumn();
+        $pdo->query('SELECT `' . $safeCol . '` FROM `' . $safeTable . '` LIMIT 1');
+        $cache[$key] = true;
     } catch (Throwable $e) {
         $cache[$key] = false;
     }

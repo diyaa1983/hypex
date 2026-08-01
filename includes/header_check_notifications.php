@@ -116,17 +116,26 @@ function header_check_notifications_collect(PDO $pdo): array
 
     if ($canUnposted) {
         $unpostedAlerts = header_unposted_notifications_collect($pdo);
-        $summary['unposted_count'] = header_unposted_notifications_count($pdo);
+        $summary['unposted_count'] = count($unpostedAlerts);
+        if (count($unpostedAlerts) >= HEADER_UNPOSTED_PANEL_MAX) {
+            $summary['unposted_count'] = header_unposted_notifications_count($pdo);
+        }
     }
 
     if ($canEinvoice) {
         $einvoiceAlerts = sal_einvoice_unsent_alerts_collect($pdo);
-        $summary['einvoice_count'] = sal_einvoice_unsent_count($pdo);
+        $summary['einvoice_count'] = count($einvoiceAlerts);
+        if (count($einvoiceAlerts) >= 20) {
+            $summary['einvoice_count'] = sal_einvoice_unsent_count($pdo);
+        }
     }
 
     if ($canCustomerOrders) {
-        $summary['customer_order_count'] = sal_customer_order_pending_approve_count($pdo);
         $customerOrderAlerts = sal_customer_order_pending_approve_alerts($pdo, 20);
+        $summary['customer_order_count'] = count($customerOrderAlerts);
+        if (count($customerOrderAlerts) >= 20) {
+            $summary['customer_order_count'] = sal_customer_order_pending_approve_count($pdo);
+        }
     }
 
     $summary['alert_count'] = count($alertChecks)
