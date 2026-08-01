@@ -113,6 +113,7 @@ body.app-body .app-titlebar {
   min-width: 0;
   margin: 0;
   padding: 0;
+  display: block;
   direction: rtl;
   text-align: left;
   unicode-bidi: plaintext;
@@ -205,22 +206,6 @@ body.app-body .app-titlebar {
 .app-titlebar__btn-icon {
   display: block;
   line-height: 1;
-}
-
-.app-titlebar__title--wco {
-  display: none;
-}
-
-.app-titlebar__title--browser {
-  display: block;
-}
-
-body.app-body--wco .app-titlebar__title--browser {
-  display: none;
-}
-
-body.app-body--wco .app-titlebar__title--wco {
-  display: block;
 }
 
 /* PWA / WCO: شريط الاسم بعرض كامل ملتصق بأعلى النافذة — بدون فراغ علوي */
@@ -321,6 +306,9 @@ body.app-body--wco .app-titlebar__title--wco {
   justify-self: start;
   flex-shrink: 0;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .app-screen-head-title {
@@ -373,6 +361,17 @@ body.app-body--wco .app-titlebar__title--wco {
   margin-inline-start: auto;
 }
 
+.app-screen-head-main > .ora12-title-bar__close.app-screen-exit-btn,
+.app-topbar-main > .ora12-title-bar__close.app-screen-exit-btn,
+.app-screen-head-main > .app-screen-exit-btn,
+.app-topbar-main > .app-screen-exit-btn {
+  order: 0;
+  margin: 0 !important;
+  margin-inline-end: 0.35rem !important;
+  flex-shrink: 0;
+  z-index: 5;
+}
+
 .app-screen-head-main .app-check-bell-wrap,
 .app-topbar-main .app-check-bell-wrap {
   flex-shrink: 0;
@@ -391,6 +390,17 @@ body.app-body--wco .app-titlebar__title--wco {
 .app-screen-head-main .master-toolbar-inner,
 .app-topbar-main .master-toolbar-inner {
   justify-content: flex-start;
+}
+
+.app-screen-head-account > .ora12-title-bar__close.app-screen-exit-btn,
+.app-topbar-account > .ora12-title-bar__close.app-screen-exit-btn,
+.app-screen-head-account > .app-screen-exit-btn,
+.app-topbar-account > .app-screen-exit-btn {
+  order: 0;
+  margin: 0 !important;
+  margin-inline-end: 0.45rem !important;
+  flex-shrink: 0;
+  z-index: 5;
 }
 
 .app-header-account {

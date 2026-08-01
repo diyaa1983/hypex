@@ -516,6 +516,7 @@
     (raw || []).forEach(function (it) {
       var id = parseInt(it.id != null ? it.id : it.item_id, 10);
       if (!id) return;
+      var units = Array.isArray(it.units) ? it.units : [];
       var row = {
         id: id,
         name_ar: String(it.name_ar || it.name || ''),
@@ -523,6 +524,9 @@
         barcode: String(it.barcode || it.sku || ''),
         default_sale: it.default_sale != null ? it.default_sale : 0,
         default_cost: it.default_cost,
+        unit_id: it.unit_id != null ? it.unit_id : 0,
+        unit_name: it.unit_name != null ? String(it.unit_name) : '',
+        units: units,
       };
       list.push(row);
       byId[String(id)] = row;

@@ -9,9 +9,12 @@ inv_item_units_ensure_schema($pdo);
 $id = (int) ($_GET['id'] ?? 0);
 $order = $id ? sal_customer_order_fetch($pdo, $id) : null;
 $rows = sal_customer_order_list_fetch($pdo, '', null, (string) ($_GET['status'] ?? '') ?: null);
+$activeRoute = 'sales_customer_orders_approve';
 sales_ora12_enqueue_assets();
 ?>
-<div class="dashboard-ora sales-ora12-screen"><div class="sales-ora12-workspace">
+<div class="dashboard-ora sales-ora12-screen">
+<?php sales_ora12_render_title_bar('اعتماد طلبات الشراء', '', $activeRoute); ?>
+<?php sales_ora12_workspace_open(); ?>
 <div class="sales-ora-panel card"><h2>اعتماد طلبات الشراء</h2><div class="table-wrap"><table class="data-table"><thead><tr><th>الرقم</th><th>العميل</th><th>التاريخ</th><th>الحالة</th><th></th></tr></thead><tbody><?php foreach ($rows as $r): ?><tr><td><?= esc((string) $r['order_no']) ?></td><td><?= esc((string) $r['customer_name']) ?></td><td><?= esc(format_date_dmY((string) $r['order_date'])) ?></td><td><?= esc(sal_customer_order_status_label((string) $r['status'])) ?></td><td><a class="btn btn-sm" href="<?= esc(app_url('index.php?r=sales_customer_orders_approve&id=' . (int) $r['id'])) ?>">فتح</a></td></tr><?php endforeach; ?></tbody></table></div></div>
 <?php if ($order): ?>
 <div class="sales-ora-panel card">
@@ -120,4 +123,5 @@ sales_ora12_enqueue_assets();
 </script>
 </div>
 <?php endif; ?>
-</div></div>
+<?php sales_ora12_workspace_close(); ?>
+</div>

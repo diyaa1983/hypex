@@ -2430,13 +2430,21 @@
     var basePriceEl = tr.querySelector('.js-base-price');
     if (!sel) return;
     sel.innerHTML = '';
-    var list = Array.isArray(units) && units.length ? units : [{ unit_id: 0, name: '—', factor: 1, is_default: true, is_base: true }];
+    var list = Array.isArray(units) && units.length
+      ? units
+      : [{
+          unit_id: parseInt(tr.dataset.unitId, 10) || 0,
+          name: tr.dataset.unitName || 'قطعة',
+          factor: 1,
+          is_default: true,
+          is_base: true,
+        }];
     var pick = null;
     list.forEach(function (u) {
       var opt = document.createElement('option');
       var uid = parseInt(u.unit_id != null ? u.unit_id : u.id, 10) || 0;
       opt.value = String(uid);
-      opt.textContent = String(u.name || u.unit_name || '—');
+      opt.textContent = String(u.name || u.unit_name || 'قطعة');
       opt.setAttribute('data-factor', String(u.factor != null ? u.factor : u.factor_to_base != null ? u.factor_to_base : 1));
       sel.appendChild(opt);
       if (selectedUnitId && uid === selectedUnitId) pick = opt;
@@ -2445,7 +2453,7 @@
     });
     if (!pick && sel.options.length) pick = sel.options[0];
     if (pick) sel.value = pick.value;
-    sel.disabled = invoiceIsPosted || list.length <= 1 && !(list[0] && (list[0].unit_id || list[0].id));
+    sel.disabled = !!invoiceIsPosted || list.length < 2;
     if (list.length > 1) sel.disabled = !!invoiceIsPosted;
     var factor = parseNum(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].getAttribute('data-factor') : 1) || 1;
     if (factorEl) factorEl.value = String(factor);

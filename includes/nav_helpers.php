@@ -822,8 +822,7 @@ function render_app_titlebar(string $pageTitle, string $routeTitle, string $acti
     render_app_titlebar_refresh_button();
     render_app_titlebar_home_button($activeRoute);
     if ($fullTitle !== '') {
-        echo '<span class="app-titlebar__title app-titlebar__title--wco">' . esc($fullTitle) . '</span>';
-        echo '<span class="app-titlebar__title app-titlebar__title--browser">' . esc($fullTitle) . '</span>';
+        echo '<span class="app-titlebar__title">' . esc($fullTitle) . '</span>';
     }
     echo '</div>';
     echo '</header>';
@@ -881,8 +880,7 @@ function render_app_screen_title(string $pageTitle, string $activeRoute = ''): v
     require_once app_path('includes/app_window_manager.php');
     require_once app_path('includes/sys_favorites.php');
     $activeRoute = app_mdi_resolve_route($activeRoute);
-    $pageTitle = trim($pageTitle);
-    if ($pageTitle === '' || $activeRoute === 'menu_hub' || $activeRoute === 'dashboard') {
+    if ($activeRoute === 'menu_hub' || $activeRoute === 'dashboard') {
         return;
     }
     echo '<header class="app-screen-title-bar app-screen-title-bar--actions">';

@@ -153,6 +153,19 @@ function nav_show_exit_button(string $activeRoute): bool
     return !in_array($activeRoute, ['dashboard', 'menu_hub'], true);
 }
 
+/** زر × أحمر في ترويسة التطبيق — يظهر في كل الشاشات. */
+function render_header_screen_exit(?string $activeRoute = null): void
+{
+    if ($activeRoute === null) {
+        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
+    }
+    if (!nav_show_exit_button($activeRoute)) {
+        return;
+    }
+    require_once app_path('includes/nav_helpers.php');
+    nav_render_screen_close($activeRoute);
+}
+
 /** زر الخروج من الشاشة — بجانب «تسجيل خروج» وليس في شريط الأدوات. */
 function render_nav_exit_button(?string $activeRoute = null): void
 {
