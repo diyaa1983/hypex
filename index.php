@@ -167,6 +167,7 @@ $appBootMigrations = [
     'database/migrations/232_mobile_customer_add.sql',
     'database/migrations/235_sal_customer_order.sql',
     'database/migrations/236_report_customer_orders.sql',
+    'database/migrations/237_inv_item_units.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

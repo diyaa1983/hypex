@@ -13,6 +13,7 @@ function inv_invoice_line_table_head(bool $showUnitPriceIncl = false): void
         <th class="sales-inv-col-seq">تسلسل</th>
         <th class="sales-inv-col-sku">رقم المادة</th>
         <th class="sales-inv-col-item">اسم المادة</th>
+        <th class="sales-inv-col-unit">الوحدة</th>
         <th class="sales-inv-col-qty">الكمية</th>
         <th class="sales-inv-col-qty-extra" title="تُحسب في المخزون مع الكمية؛ المبلغ يعتمد على الكمية فقط">الكمية الإضافية</th>
         <th class="sales-inv-col-price" title="سعر الوحدة قبل الضريبة">الافرادي غ.ش</th>
@@ -49,6 +50,13 @@ function inv_invoice_line_table_row_template(array $taxRates, string $unitPriceS
                 <kbd class="sales-inv-field-hotkey sales-inv-item-hotkey" aria-hidden="true">F3</kbd>
                 <span class="js-name sales-inv-item-name is-placeholder"></span>
             </div>
+        </td>
+        <td class="sales-inv-col-unit">
+            <select class="input js-unit" title="وحدة الصرف حسب بطاقة المادة" disabled>
+                <option value="">—</option>
+            </select>
+            <input type="hidden" class="js-unit-factor" value="1">
+            <input type="hidden" class="js-base-price" value="">
         </td>
         <td class="sales-inv-col-qty"><input type="number" class="input input-num js-qty" min="0" step="1" inputmode="decimal" value="" placeholder=""></td>
         <td class="sales-inv-col-qty-extra"><input type="number" class="input input-num js-qty-extra" min="0" step="1" inputmode="decimal" value="" title="كمية إضافية تُحسب في المخزون فقط"></td>

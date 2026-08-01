@@ -99,6 +99,11 @@ function pur_invoice_enrich_row(PDO $pdo, array $row, string $browseFilter = 'al
     if ($hasLineTax) {
         $lineCols .= ', il.tax_rate_percent, il.tax_amount, il.line_gross';
     }
+    require_once app_path('includes/inv_item_units.php');
+    inv_item_units_ensure_schema($pdo);
+    if (inv_item_units_column_exists($pdo, 'pur_invoice_line', 'unit_id')) {
+        $lineCols .= ', il.unit_id, il.unit_name, COALESCE(il.unit_factor, 1) AS unit_factor, il.qty_base';
+    }
 
     $lineSt = $pdo->prepare(
         "SELECT {$lineCols}, i.name_ar, i.barcode, i.sku
@@ -127,6 +132,7 @@ function pur_invoice_enrich_row(PDO $pdo, array $row, string $browseFilter = 'al
             $displayDecimals
         );
         company_round_invoice_line_array($ln, $pdo, $displayDecimals);
+        $ln['units'] = inv_item_units_for_item($pdo, (int) ($ln['item_id'] ?? 0));
     }
     unset($ln);
 

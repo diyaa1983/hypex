@@ -142,6 +142,15 @@
     if (taxSel && taxSel.options[taxSel.selectedIndex]) {
       taxLab = taxSel.options[taxSel.selectedIndex].text;
     }
+    var unitSel = tr.querySelector('.js-unit');
+    var unitName = '';
+    if (unitSel && unitSel.options[unitSel.selectedIndex]) {
+      unitName = String(unitSel.options[unitSel.selectedIndex].text || '').trim();
+    }
+    var itemName = tr.dataset.nameAr || '';
+    if (unitName && unitName !== '—') {
+      itemName = itemName ? itemName + ' (' + unitName + ')' : unitName;
+    }
 
     var html = '<tr>';
     html +=
@@ -152,7 +161,7 @@
       escapeHtml(skuCode) +
       '</td>' +
       '<td class="inv-print-cell-item">' +
-      escapeHtml(tr.dataset.nameAr || '') +
+      escapeHtml(itemName) +
       '</td>' +
       '<td>' +
       escapeHtml((tr.querySelector('.js-qty') || { value: '' }).value) +

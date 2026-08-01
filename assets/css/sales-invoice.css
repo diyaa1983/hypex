@@ -654,7 +654,8 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
 .sales-inv-col-sku,
 .sales-inv-col-barcode { width: 9%; }
 .sales-inv-col-seq { width: 3.5%; }
-.sales-inv-col-item { width: 22%; min-width: 10rem; }
+.sales-inv-col-item { width: 20%; min-width: 9rem; }
+.sales-inv-col-unit { width: 7%; min-width: 5rem; }
 .sales-inv-col-qty { width: 6%; }
 .sales-inv-col-qty-extra { width: 6%; }
 .sales-inv-col-discount { width: 7%; min-width: 4.5rem; }

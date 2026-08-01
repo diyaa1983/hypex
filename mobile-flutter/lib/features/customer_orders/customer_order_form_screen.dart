@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -24,15 +25,27 @@ class CustomerOrderFormScreen extends StatefulWidget {
 }
 
 class _OrderLine {
-  _OrderLine(this.item);
+  _OrderLine(this.item) {
+    final d = item.defaultUnit;
+    unitId = d?.unitId ?? 0;
+    unitName = d?.name ?? '';
+    unitFactor = d?.factor ?? 1;
+  }
+
   final PickedItem item;
-  double qty = 1;
-  String unit = '';
+  int qty = 1;
+  int unitId = 0;
+  String unitName = '';
+  double unitFactor = 1;
+
   Map<String, dynamic> toJson() => {
         'item_id': item.id,
         'item_name': item.name,
-        'unit_name': unit,
+        'unit_id': unitId,
+        'unit_name': unitName,
+        'unit_factor': unitFactor,
         'qty': qty,
+        'qty_base': qty * unitFactor,
       };
 }
 
@@ -77,18 +90,47 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           in (order['lines'] as List? ?? order['items'] as List? ?? [])) {
         if (raw is! Map) continue;
         final m = raw.cast<String, dynamic>();
-        final item = PickedItem(Fmt.toInt(m['item_id'] ?? m['id']),
-            Fmt.str(m['item_name'] ?? m['name']), 0, 0);
-        loaded.add(_OrderLine(item)
-          ..qty = Fmt.toDouble(m['qty'])
-          ..unit = Fmt.str(m['unit_name'] ?? m['unit']));
+        final unitsRaw = m['units'];
+        final units = unitsRaw is List
+            ? unitsRaw
+                .whereType<Map>()
+                .map((e) => ItemUnitOpt.fromJson(e.cast<String, dynamic>()))
+                .toList()
+            : <ItemUnitOpt>[
+                if (Fmt.str(m['unit_name']).isNotEmpty)
+                  ItemUnitOpt(
+                    unitId: Fmt.toInt(m['unit_id']),
+                    name: Fmt.str(m['unit_name']),
+                    factor: Fmt.toDouble(m['unit_factor'] ?? 1),
+                    isDefault: true,
+                  ),
+              ];
+        final item = PickedItem(
+          Fmt.toInt(m['item_id'] ?? m['id']),
+          Fmt.str(m['item_name'] ?? m['name']),
+          0,
+          0,
+          units: units,
+        );
+        final line = _OrderLine(item)
+          ..qty = Fmt.toDouble(m['qty']).round().clamp(1, 999999999)
+          ..unitId = Fmt.toInt(m['unit_id'])
+          ..unitName = Fmt.str(m['unit_name'] ?? m['unit'])
+          ..unitFactor = Fmt.toDouble(m['unit_factor'] ?? 1);
+        if (line.unitName.isEmpty && item.defaultUnit != null) {
+          line.unitId = item.defaultUnit!.unitId;
+          line.unitName = item.defaultUnit!.name;
+          line.unitFactor = item.defaultUnit!.factor;
+        }
+        loaded.add(line);
       }
       setState(() {
         _warehouses = ws;
         _warehouseId =
             Fmt.toInt(order['warehouse_id'] ?? meta['default_warehouse_id']);
-        if (_warehouseId == 0 && ws.isNotEmpty)
+        if (_warehouseId == 0 && ws.isNotEmpty) {
           _warehouseId = Fmt.toInt(ws.first['id']);
+        }
         final cid = Fmt.toInt(order['customer_id']);
         _customer = cid == 0
             ? null
@@ -104,11 +146,12 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _loading = false;
       });
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     }
   }
 
@@ -176,15 +219,20 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'order_no': _orderNo,
         'customer_name': _customer?.name,
         'warehouse_name': _warehouses
-                .where((w) => Fmt.toInt(w['id']) == _warehouseId)
-                .map((w) => Fmt.str(w['name'] ?? w['name_ar']))
-                .firstOrNull ??
-            '',
+            .where((w) => Fmt.toInt(w['id']) == _warehouseId)
+            .map((w) => Fmt.str(w['name'] ?? w['name_ar']))
+            .cast<String>()
+            .followedBy(const [''])
+            .first,
         'lines': _lines
-            .map((l) =>
-                {'item_name': l.item.name, 'unit_name': l.unit, 'qty': l.qty})
+            .map((l) => {
+                  'item_name': l.item.name,
+                  'unit_name': l.unitName,
+                  'qty': l.qty
+                })
             .toList(),
       };
+
   Future<void> _view() async {
     if (_id == 0 && await _save() == 0) return;
     if (mounted) context.push('/customer-orders/$_id');
@@ -205,8 +253,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   onPrint: (ctx) async {
                     final err =
                         await CustomerOrderBluetoothReceipt.printOrder(data);
-                    if (ctx.mounted)
+                    if (ctx.mounted) {
                       showSnack(ctx, err ?? 'تمت الطباعة.', error: err != null);
+                    }
                   },
                 )));
   }
@@ -227,7 +276,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                         : 'الطلب $_orderNo',
                     child: Column(children: [
                       DropdownButtonFormField<int>(
-                          value: _warehouseId == 0 ? null : _warehouseId,
+                          initialValue: _warehouseId == 0 ? null : _warehouseId,
                           decoration:
                               const InputDecoration(labelText: 'المستودع'),
                           items: _warehouses
@@ -250,33 +299,79 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 const DocumentSectionDivider('بنود الطلب'),
                 for (var i = 0; i < _lines.length; i++)
                   AppCard(
-                      child: Row(children: [
-                    Expanded(child: Text(_lines[i].item.name)),
-                    SizedBox(
-                        width: 75,
-                        child: TextFormField(
-                            initialValue: _lines[i].unit,
-                            enabled: _editable,
+                      child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                            child: Text(_lines[i].item.name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700))),
+                        if (_editable)
+                          IconButton(
+                              onPressed: () =>
+                                  setState(() => _lines.removeAt(i)),
+                              icon: const Icon(Icons.delete_outline_rounded)),
+                      ]),
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        Expanded(
+                          flex: 3,
+                          child: DropdownButtonFormField<int>(
+                            initialValue: _lines[i].unitId == 0
+                                ? (_lines[i].item.units.isEmpty
+                                    ? null
+                                    : _lines[i].item.units.first.unitId)
+                                : _lines[i].unitId,
                             decoration:
                                 const InputDecoration(labelText: 'الوحدة'),
-                            onChanged: (v) => _lines[i].unit = v)),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                        width: 70,
-                        child: TextFormField(
-                            initialValue: Fmt.trimNum(_lines[i].qty),
-                            enabled: _editable,
-                            keyboardType: const TextInputType.numberWithOptions(
-                                decimal: true),
-                            decoration:
-                                const InputDecoration(labelText: 'الكمية'),
-                            onChanged: (v) =>
-                                _lines[i].qty = double.tryParse(v) ?? 0)),
-                    if (_editable)
-                      IconButton(
-                          onPressed: () => setState(() => _lines.removeAt(i)),
-                          icon: const Icon(Icons.delete_outline_rounded)),
-                  ])),
+                            items: [
+                              for (final u in _lines[i].item.units)
+                                DropdownMenuItem(
+                                    value: u.unitId, child: Text(u.name)),
+                              if (_lines[i].item.units.isEmpty &&
+                                  _lines[i].unitName.isNotEmpty)
+                                DropdownMenuItem(
+                                    value: _lines[i].unitId,
+                                    child: Text(_lines[i].unitName)),
+                            ],
+                            onChanged: !_editable
+                                ? null
+                                : (v) {
+                                    final u = _lines[i]
+                                        .item
+                                        .units
+                                        .where((x) => x.unitId == v)
+                                        .cast<ItemUnitOpt?>()
+                                        .followedBy([null]).first;
+                                    setState(() {
+                                      _lines[i].unitId = v ?? 0;
+                                      if (u != null) {
+                                        _lines[i].unitName = u.name;
+                                        _lines[i].unitFactor = u.factor;
+                                      }
+                                    });
+                                  },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                              initialValue: '${_lines[i].qty}',
+                              enabled: _editable,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly
+                              ],
+                              decoration:
+                                  const InputDecoration(labelText: 'الكمية'),
+                              onChanged: (v) => _lines[i].qty =
+                                  int.tryParse(v)?.clamp(1, 999999999) ?? 1),
+                        ),
+                      ]),
+                    ],
+                  )),
                 if (_editable)
                   OutlinedButton.icon(
                       onPressed: _addLine,
@@ -306,11 +401,4 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               ],
             )),
       );
-}
-
-extension _FirstOrNull<E> on Iterable<E> {
-  E? get firstOrNull {
-    final i = iterator;
-    return i.moveNext() ? i.current : null;
-  }
 }

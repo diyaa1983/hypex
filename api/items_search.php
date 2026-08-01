@@ -29,6 +29,10 @@ if (
         && !user_can('report_sales')
         && !user_can('report_purchases')
         && !user_can('report_inventory')
+        && !user_can('m_customer_orders')
+        && !user_can('sales_customer_orders')
+        && !user_can('sales_customer_orders_approve')
+        && !user_can('report_customer_orders')
     )
 ) {
     http_response_code(403);
@@ -43,6 +47,8 @@ $listAll = isset($_GET['list']) && (string) $_GET['list'] === '1';
 $pickerMode = isset($_GET['picker']) && (string) $_GET['picker'] === '1';
 
 $pdo = db();
+require_once dirname(__DIR__) . '/includes/inv_item_units.php';
+inv_item_units_ensure_schema($pdo);
 
 require_once dirname(__DIR__) . '/includes/warehouse_access.php';
 
@@ -81,6 +87,7 @@ if ($exactCode !== '') {
         }
     }
     unset($row);
+    $rows = inv_item_units_attach_to_items($pdo, $rows);
 
     echo json_encode([
         'ok' => true,
@@ -124,6 +131,7 @@ foreach ($rows as &$row) {
     }
 }
 unset($row);
+$rows = inv_item_units_attach_to_items($pdo, $rows);
 
 echo json_encode([
     'ok' => true,

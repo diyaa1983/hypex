@@ -419,8 +419,12 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
   }
 
   Widget _lineCard(Map<String, dynamic> l) {
-    final name =
+    final nameRaw =
         Fmt.str(l['item_name'] ?? l['name_ar'] ?? l['name'] ?? l['line_desc']);
+    final unitName = Fmt.str(l['unit_name']);
+    final name = unitName.isEmpty
+        ? nameRaw
+        : (nameRaw.isEmpty ? unitName : '$nameRaw ($unitName)');
     final qty = Fmt.toDouble(l['qty'] ?? l['quantity']);
     final qtyExtra = Fmt.toDouble(l['qty_extra']);
     final price = Fmt.toDouble(l['unit_price'] ?? l['price']);
@@ -470,6 +474,13 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
                 child: _fieldBox(
                   'إض.',
                   qtyExtra > 0 ? Fmt.money(qtyExtra) : '',
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: _fieldBox(
+                  'وحدة',
+                  unitName.isNotEmpty ? unitName : '—',
                 ),
               ),
               const SizedBox(width: 5),

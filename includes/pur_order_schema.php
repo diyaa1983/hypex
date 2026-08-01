@@ -122,11 +122,21 @@ function pur_order_replace_lines(PDO $pdo, int $orderId, array $lines, ?int $dec
 
     $pdo->prepare('DELETE FROM pur_order_line WHERE order_id = ?')->execute([$orderId]);
 
+    require_once app_path('includes/inv_item_units.php');
+    inv_item_units_ensure_schema($pdo);
+    $hasUnitCols = inv_item_units_column_exists($pdo, 'pur_order_line', 'unit_id');
+
     $st = $pdo->prepare(
-        'INSERT INTO pur_order_line
-         (order_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, discount_amount,
-          line_total, tax_rate_percent, tax_amount, line_gross, sort_order)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+        $hasUnitCols
+            ? 'INSERT INTO pur_order_line
+               (order_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, discount_amount,
+                line_total, tax_rate_percent, tax_amount, line_gross, sort_order,
+                unit_id, unit_name, unit_factor, qty_base)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+            : 'INSERT INTO pur_order_line
+               (order_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, discount_amount,
+                line_total, tax_rate_percent, tax_amount, line_gross, sort_order)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
     );
 
     $sort = 0;
@@ -138,12 +148,28 @@ function pur_order_replace_lines(PDO $pdo, int $orderId, array $lines, ?int $dec
         if ($itemId < 1 || inv_invoice_line_stock_qty_sum($qty, (float) ($ln['qty_extra'] ?? 0)) <= 0) {
             continue;
         }
-        $st->execute([
+        $unitId = isset($ln['unit_id']) ? (int) $ln['unit_id'] : 0;
+        $unitName = trim((string) ($ln['unit_name'] ?? ''));
+        $unitFactor = (float) ($ln['unit_factor'] ?? 0);
+        $resolved = inv_item_unit_resolve($pdo, $itemId, $unitId > 0 ? $unitId : null);
+        if ($resolved) {
+            $unitId = (int) $resolved['unit_id'];
+            $unitName = (string) $resolved['unit_name'];
+            $unitFactor = (float) $resolved['unit_factor'];
+        }
+        if ($unitFactor <= 0) {
+            $unitFactor = 1.0;
+        }
+        $qtyExtra = (float) ($ln['qty_extra'] ?? 0);
+        $qtyBase = array_key_exists('qty_base', $ln) && $ln['qty_base'] !== null && $ln['qty_base'] !== ''
+            ? (float) $ln['qty_base']
+            : (($qty + $qtyExtra) * $unitFactor);
+        $params = [
             $orderId,
             $itemId,
             ($ln['line_desc'] ?? '') !== '' ? (string) $ln['line_desc'] : null,
             $qty,
-            (float) ($ln['qty_extra'] ?? 0),
+            $qtyExtra,
             (float) ($ln['unit_price'] ?? 0),
             (float) ($ln['discount_pct'] ?? 0),
             (float) ($ln['discount_amount'] ?? 0),
@@ -152,7 +178,14 @@ function pur_order_replace_lines(PDO $pdo, int $orderId, array $lines, ?int $dec
             (float) ($ln['tax_amount'] ?? 0),
             (float) ($ln['line_gross'] ?? 0),
             $sort++,
-        ]);
+        ];
+        if ($hasUnitCols) {
+            $params[] = $unitId > 0 ? $unitId : null;
+            $params[] = $unitName !== '' ? $unitName : null;
+            $params[] = $unitFactor;
+            $params[] = $qtyBase;
+        }
+        $st->execute($params);
     }
 }
 

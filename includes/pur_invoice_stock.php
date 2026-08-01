@@ -57,12 +57,22 @@ function pur_invoice_stock_post(PDO $pdo, int $invoiceId): array
     }
 
     try {
+        require_once app_path('includes/inv_item_units.php');
+        $hasFactor = inv_item_units_column_exists($pdo, 'pur_invoice_line', 'unit_factor');
         $lines = $pdo->prepare(
-            'SELECT pl.item_id, pl.qty, COALESCE(pl.qty_extra, 0) AS qty_extra, i.name_ar, i.track_inventory
-             FROM pur_invoice_line pl
-             INNER JOIN inv_item i ON i.id = pl.item_id
-             WHERE pl.invoice_id = ? AND i.track_inventory = 1 AND ' . inv_invoice_line_sql_stock_positive('pl') . '
-             ORDER BY pl.id ASC'
+            $hasFactor
+                ? 'SELECT pl.item_id, pl.qty, COALESCE(pl.qty_extra, 0) AS qty_extra,
+                          COALESCE(pl.unit_factor, 1) AS unit_factor, COALESCE(pl.qty_base, 0) AS qty_base,
+                          i.name_ar, i.track_inventory
+                   FROM pur_invoice_line pl
+                   INNER JOIN inv_item i ON i.id = pl.item_id
+                   WHERE pl.invoice_id = ? AND i.track_inventory = 1 AND ' . inv_invoice_line_sql_stock_positive('pl') . '
+                   ORDER BY pl.id ASC'
+                : 'SELECT pl.item_id, pl.qty, COALESCE(pl.qty_extra, 0) AS qty_extra, i.name_ar, i.track_inventory
+                   FROM pur_invoice_line pl
+                   INNER JOIN inv_item i ON i.id = pl.item_id
+                   WHERE pl.invoice_id = ? AND i.track_inventory = 1 AND ' . inv_invoice_line_sql_stock_positive('pl') . '
+                   ORDER BY pl.id ASC'
         );
         $lines->execute([$invoiceId]);
         $rows = $lines->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -77,7 +87,12 @@ function pur_invoice_stock_post(PDO $pdo, int $invoiceId): array
 
     foreach ($rows as $row) {
         $itemId = (int) $row['item_id'];
-        $stockQty = inv_invoice_line_stock_qty_sum((float) $row['qty'], (float) ($row['qty_extra'] ?? 0));
+        $factor = max(0.0000001, (float) ($row['unit_factor'] ?? 1));
+        $qtyBase = (float) ($row['qty_base'] ?? 0);
+        if ($qtyBase <= 0) {
+            $qtyBase = inv_invoice_line_stock_qty_sum((float) $row['qty'], 0) * $factor;
+        }
+        $stockQty = $qtyBase + ((float) ($row['qty_extra'] ?? 0) * $factor);
         if ($itemId < 1 || $stockQty <= 0) {
             continue;
         }

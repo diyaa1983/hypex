@@ -373,6 +373,8 @@ function sal_invoice_insert_header(
 function sal_invoice_insert_line(PDO $pdo, int $invoiceId, array $ln, ?int $decimals = null): void
 {
     require_once app_path('includes/invoice_amount_decimals.php');
+    require_once app_path('includes/inv_item_units.php');
+    inv_item_units_ensure_schema($pdo);
     $dp = invoice_amount_decimals_clamp($decimals ?? company_decimal_places($pdo));
     $ln = invoice_normalize_line_array($ln, $dp);
 
@@ -384,20 +386,55 @@ function sal_invoice_insert_line(PDO $pdo, int $invoiceId, array $ln, ?int $deci
     $up = (float) $ln['unit_price'];
     $sub = (float) ($ln['line_subtotal'] ?? 0);
 
+    $unitId = isset($ln['unit_id']) ? (int) $ln['unit_id'] : 0;
+    $unitName = trim((string) ($ln['unit_name'] ?? ''));
+    $unitFactor = (float) ($ln['unit_factor'] ?? 0);
+    if ($unitFactor <= 0 || $unitId < 1 || $unitName === '') {
+        try {
+            $resolved = inv_item_unit_resolve($pdo, $itemId, $unitId > 0 ? $unitId : null);
+            if ($resolved) {
+                $unitId = (int) $resolved['unit_id'];
+                $unitName = (string) $resolved['unit_name'];
+                $unitFactor = (float) $resolved['unit_factor'];
+            }
+        } catch (Throwable $e) {
+            $unitFactor = $unitFactor > 0 ? $unitFactor : 1.0;
+        }
+    }
+    if ($unitFactor <= 0) {
+        $unitFactor = 1.0;
+    }
+    $qtyBase = array_key_exists('qty_base', $ln) && $ln['qty_base'] !== null && $ln['qty_base'] !== ''
+        ? (float) $ln['qty_base']
+        : inv_item_unit_to_base_qty($qty, $unitFactor);
+    $hasUnitCols = inv_item_units_column_exists($pdo, 'sal_invoice_line', 'unit_id');
+
     if ($hasTax) {
         $tr = (float) ($ln['tax_rate_percent'] ?? 0);
         $taxAmt = (float) ($ln['tax_amount'] ?? 0);
         $gross = (float) ($ln['line_gross'] ?? 0);
         $discPct = (float) ($ln['discount_pct'] ?? 0);
         $discAmt = (float) ($ln['discount_amount'] ?? 0);
-        $pdo->prepare(
-            'INSERT INTO sal_invoice_line (invoice_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, discount_amount, line_total, tax_rate_percent, tax_amount, line_gross)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
-        )->execute([
-            $invoiceId, $itemId, $nameAr !== '' ? $nameAr : null, $qty, $qtyExtra, $up,
-            round($discPct, 3), round($discAmt, $dp),
-            round($sub, $dp), round($tr, 3), round($taxAmt, $dp), round($gross, $dp),
-        ]);
+        if ($hasUnitCols) {
+            $pdo->prepare(
+                'INSERT INTO sal_invoice_line (invoice_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, discount_amount, line_total, tax_rate_percent, tax_amount, line_gross, unit_id, unit_name, unit_factor, qty_base)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+            )->execute([
+                $invoiceId, $itemId, $nameAr !== '' ? $nameAr : null, $qty, $qtyExtra, $up,
+                round($discPct, 3), round($discAmt, $dp),
+                round($sub, $dp), round($tr, 3), round($taxAmt, $dp), round($gross, $dp),
+                $unitId > 0 ? $unitId : null, $unitName !== '' ? $unitName : null, $unitFactor, $qtyBase,
+            ]);
+        } else {
+            $pdo->prepare(
+                'INSERT INTO sal_invoice_line (invoice_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, discount_amount, line_total, tax_rate_percent, tax_amount, line_gross)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+            )->execute([
+                $invoiceId, $itemId, $nameAr !== '' ? $nameAr : null, $qty, $qtyExtra, $up,
+                round($discPct, 3), round($discAmt, $dp),
+                round($sub, $dp), round($tr, 3), round($taxAmt, $dp), round($gross, $dp),
+            ]);
+        }
 
         return;
     }
@@ -406,12 +443,35 @@ function sal_invoice_insert_line(PDO $pdo, int $invoiceId, array $ln, ?int $deci
     $discAmt = (float) ($ln['discount_amount'] ?? 0);
     $hasDiscAmt = sal_invoice_column_exists($pdo, 'sal_invoice_line', 'discount_amount');
     if ($hasDiscAmt) {
+        if ($hasUnitCols) {
+            $pdo->prepare(
+                'INSERT INTO sal_invoice_line (invoice_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, discount_amount, line_total, unit_id, unit_name, unit_factor, qty_base)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+            )->execute([
+                $invoiceId, $itemId, $nameAr !== '' ? $nameAr : null, $qty, $qtyExtra, $up,
+                round($discPct, 3), round($discAmt, $dp), round($sub, $dp),
+                $unitId > 0 ? $unitId : null, $unitName !== '' ? $unitName : null, $unitFactor, $qtyBase,
+            ]);
+        } else {
+            $pdo->prepare(
+                'INSERT INTO sal_invoice_line (invoice_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, discount_amount, line_total)
+                 VALUES (?,?,?,?,?,?,?,?,?)'
+            )->execute([
+                $invoiceId, $itemId, $nameAr !== '' ? $nameAr : null, $qty, $qtyExtra, $up,
+                round($discPct, 3), round($discAmt, $dp), round($sub, $dp),
+            ]);
+        }
+
+        return;
+    }
+
+    if ($hasUnitCols) {
         $pdo->prepare(
-            'INSERT INTO sal_invoice_line (invoice_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, discount_amount, line_total)
-             VALUES (?,?,?,?,?,?,?,?,?)'
+            'INSERT INTO sal_invoice_line (invoice_id, item_id, line_desc, qty, qty_extra, unit_price, discount_pct, line_total, unit_id, unit_name, unit_factor, qty_base)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
         )->execute([
-            $invoiceId, $itemId, $nameAr !== '' ? $nameAr : null, $qty, $qtyExtra, $up,
-            round($discPct, 3), round($discAmt, $dp), round($sub, $dp),
+            $invoiceId, $itemId, $nameAr !== '' ? $nameAr : null, $qty, $qtyExtra, $up, round($discPct, 3), round($sub, $dp),
+            $unitId > 0 ? $unitId : null, $unitName !== '' ? $unitName : null, $unitFactor, $qtyBase,
         ]);
 
         return;

@@ -5,13 +5,55 @@ import '../core/api_client.dart';
 import '../core/config.dart';
 import '../core/format.dart';
 
+class ItemUnitOpt {
+  const ItemUnitOpt({
+    required this.unitId,
+    required this.name,
+    required this.factor,
+    this.isBase = false,
+    this.isDefault = false,
+  });
+
+  final int unitId;
+  final String name;
+  final double factor;
+  final bool isBase;
+  final bool isDefault;
+
+  factory ItemUnitOpt.fromJson(Map<String, dynamic> m) => ItemUnitOpt(
+        unitId: Fmt.toInt(m['unit_id'] ?? m['id']),
+        name: Fmt.str(m['name'] ?? m['unit_name']),
+        factor: Fmt.toDouble(m['factor'] ?? m['factor_to_base'] ?? 1),
+        isBase: m['is_base'] == true,
+        isDefault: m['is_default'] == true || m['is_default_issue'] == true,
+      );
+}
+
 class PickedItem {
-  PickedItem(this.id, this.name, this.price, this.stock, {this.barcode = ''});
+  PickedItem(
+    this.id,
+    this.name,
+    this.price,
+    this.stock, {
+    this.barcode = '',
+    this.units = const [],
+  });
   final int id;
   final String name;
   final double price;
   final double stock;
   final String barcode;
+  final List<ItemUnitOpt> units;
+
+  ItemUnitOpt? get defaultUnit {
+    for (final u in units) {
+      if (u.isDefault) return u;
+    }
+    for (final u in units) {
+      if (u.isBase) return u;
+    }
+    return units.isEmpty ? null : units.first;
+  }
 }
 
 /// اختيار مادة عبر بحث (items_search) ضمن مستودع محدد.
@@ -89,6 +131,15 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
         it['default_sale'] ?? it['sale_price'] ?? it['unit_price']);
   }
 
+  List<ItemUnitOpt> _units(Map<String, dynamic> it) {
+    final raw = it['units'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => ItemUnitOpt.fromJson(e.cast<String, dynamic>()))
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -159,6 +210,7 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
                                       barcode: Fmt.str(
                                         it['barcode'] ?? it['sku'],
                                       ),
+                                      units: _units(it),
                                     ),
                                   ),
                                 );

@@ -300,6 +300,10 @@ function mobile_invoice_print_line_row(
     $taxPct = (float) ($ln['tax_rate_percent'] ?? 0);
     $taxLab = rtrim(rtrim(number_format($taxPct, 2, '.', ''), '0'), '.') . '%';
     $name = (string) ($ln['name_ar'] ?? $ln['line_desc'] ?? '');
+    $unitName = trim((string) ($ln['unit_name'] ?? ''));
+    if ($unitName !== '') {
+        $name = $name === '' ? $unitName : ($name . ' (' . $unitName . ')');
+    }
     $sku = (string) ($ln['barcode'] ?? $ln['sku'] ?? '');
     $sub = (float) ($ln['line_subtotal'] ?? $ln['line_total'] ?? 0);
     $gross = (float) ($ln['line_gross'] ?? $sub);

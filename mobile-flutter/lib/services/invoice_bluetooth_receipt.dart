@@ -320,9 +320,13 @@ class InvoiceBluetoothReceipt {
     var seq = 0;
     for (final ln in lines) {
       seq++;
-      final name = Fmt.str(
+      final nameRaw = Fmt.str(
         ln['item_name'] ?? ln['name_ar'] ?? ln['name'] ?? ln['line_desc'],
       );
+      final unitName = Fmt.str(ln['unit_name']);
+      final name = unitName.isEmpty
+          ? nameRaw
+          : (nameRaw.isEmpty ? unitName : '$nameRaw ($unitName)');
       final qty = Fmt.toDouble(ln['qty']);
       final qtyExtra = Fmt.toDouble(ln['qty_extra']);
       final price = Fmt.toDouble(

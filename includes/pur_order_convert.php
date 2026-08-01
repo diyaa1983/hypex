@@ -44,11 +44,18 @@ function pur_order_convert_to_invoice(PDO $pdo, int $orderId): array
             continue;
         }
         $ratio = $ordered > 0 ? ($remaining / $ordered) : 1;
+        $unitFactor = max(0.0000001, (float) ($ln['unit_factor'] ?? 1));
+        $qtySel = (float) ($ln['qty'] ?? 0) * $ratio;
+        $qtyExtraSel = (float) ($ln['qty_extra'] ?? 0) * $ratio;
         $invoiceLines[] = [
             'item_id' => (int) ($ln['item_id'] ?? 0),
             'line_desc' => $ln['line_desc'] ?? null,
-            'qty' => (float) ($ln['qty'] ?? 0) * $ratio,
-            'qty_extra' => (float) ($ln['qty_extra'] ?? 0) * $ratio,
+            'qty' => $qtySel,
+            'qty_extra' => $qtyExtraSel,
+            'unit_id' => (int) ($ln['unit_id'] ?? 0),
+            'unit_name' => (string) ($ln['unit_name'] ?? ''),
+            'unit_factor' => $unitFactor,
+            'qty_base' => ($qtySel + $qtyExtraSel) * $unitFactor,
             'unit_price' => (float) ($ln['unit_price'] ?? 0),
             'discount_pct' => (float) ($ln['discount_pct'] ?? 0),
             'discount_amount' => (float) ($ln['discount_amount'] ?? 0) * $ratio,

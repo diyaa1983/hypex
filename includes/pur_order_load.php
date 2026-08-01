@@ -76,6 +76,11 @@ function pur_order_enrich_row(PDO $pdo, array $row, string $browseFilter = 'all'
                  COALESCE(ol.qty_invoiced, 0) AS qty_invoiced, ol.unit_price, ol.discount_pct,
                  COALESCE(ol.discount_amount, 0) AS discount_amount, ol.line_total,
                  ol.tax_rate_percent, ol.tax_amount, ol.line_gross';
+    require_once app_path('includes/inv_item_units.php');
+    inv_item_units_ensure_schema($pdo);
+    if (inv_item_units_column_exists($pdo, 'pur_order_line', 'unit_id')) {
+        $lineCols .= ', ol.unit_id, ol.unit_name, COALESCE(ol.unit_factor, 1) AS unit_factor, ol.qty_base';
+    }
 
     $lineSt = $pdo->prepare(
         "SELECT {$lineCols}, i.name_ar, i.barcode, i.sku
@@ -99,6 +104,7 @@ function pur_order_enrich_row(PDO $pdo, array $row, string $browseFilter = 'all'
             $displayDecimals
         );
         company_round_invoice_line_array($ln, $pdo, $displayDecimals);
+        $ln['units'] = inv_item_units_for_item($pdo, (int) ($ln['item_id'] ?? 0));
     }
     unset($ln);
 

@@ -6,10 +6,12 @@ $pdo = db();
 require_once app_path('includes/inv_item_barcode.php');
 require_once app_path('includes/inv_item_schema.php');
 require_once app_path('includes/inv_stock.php');
+require_once app_path('includes/inv_item_units.php');
 
 $extendedSchemaOk = inv_item_ensure_extended_schema($pdo);
 $barcodeSchemaOk = inv_item_ensure_barcode_schema($pdo);
 $expirySchemaOk = inv_item_ensure_expiry_schema($pdo);
+$itemUnitsOk = inv_item_units_ensure_schema($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
@@ -157,6 +159,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stExp = $pdo->prepare('UPDATE inv_item SET expiry_date = ?, notify_on_expiry = ? WHERE id = ?');
                     $stExp->execute([$expiryDate, $notifyExpiry, $savedId]);
                 }
+            }
+
+            $savedId = $id > 0 ? $id : (int) ($savedId ?? 0);
+            if ($savedId < 1) {
+                $savedId = (int) $pdo->lastInsertId();
+            }
+            if ($itemUnitsOk && $extendedSchemaOk && $savedId > 0 && $unitId > 0) {
+                $extraUnits = [];
+                $issueUnitIds = $_POST['issue_unit_id'] ?? [];
+                $issueFactors = $_POST['issue_factor'] ?? [];
+                $issueDefaults = $_POST['issue_default'] ?? [];
+                if (is_array($issueUnitIds)) {
+                    foreach ($issueUnitIds as $ix => $rawUid) {
+                        $uid = (int) $rawUid;
+                        if ($uid < 1 || $uid === $unitId) {
+                            continue;
+                        }
+                        $factor = (float) str_replace(',', '.', (string) ($issueFactors[$ix] ?? '0'));
+                        $extraUnits[] = [
+                            'unit_id' => $uid,
+                            'factor_to_base' => $factor,
+                            'is_default_issue' => isset($issueDefaults[$ix]) && (string) $issueDefaults[$ix] === '1',
+                        ];
+                    }
+                }
+                inv_item_units_save($pdo, $savedId, $unitId, $extraUnits);
             }
         } elseif ($act === 'toggle') {
             $id = (int) ($_POST['id'] ?? 0);
@@ -328,8 +356,8 @@ if ($action === 'add' || $action === 'edit') {
             </label>
 
             <label class="field">
-                <span class="field-label">الوحدة *</span>
-                <select class="input" name="unit_id" required>
+                <span class="field-label">الوحدة الأساسية *</span>
+                <select class="input" name="unit_id" id="item-base-unit-id" required>
                     <option value="">— اختر الوحدة —</option>
                     <?php foreach ($units as $u): ?>
                         <option value="<?= (int) $u['id'] ?>" <?= (int) ($row['unit_id'] ?? 0) === (int) $u['id'] ? 'selected' : '' ?>>
@@ -337,8 +365,112 @@ if ($action === 'add' || $action === 'edit') {
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <span class="muted" style="font-size:0.78rem;"><a href="<?= esc(app_url('index.php?r=item_units')) ?>">إدارة الوحدات</a></span>
+                <span class="muted" style="font-size:0.78rem;">مثل قطعة — السعر في البطاقة لهذه الوحدة. <a href="<?= esc(app_url('index.php?r=item_units')) ?>">إدارة الوحدات</a></span>
             </label>
+            <?php
+            $itemIssueUnits = [];
+            if ($itemUnitsOk && (int) ($row['id'] ?? 0) > 0) {
+                foreach (inv_item_units_for_item($pdo, (int) $row['id']) as $iu) {
+                    if (!empty($iu['is_base'])) {
+                        continue;
+                    }
+                    $itemIssueUnits[] = $iu;
+                }
+            }
+            ?>
+            <?php if ($itemUnitsOk): ?>
+            <div class="card" style="padding:0.75rem 1rem;margin:0.5rem 0 1rem;background:#f8fafc;" id="item-issue-units-box">
+                <strong style="display:block;margin-bottom:0.5rem;">وحدات الصرف (قطعة → كرتونة…)</strong>
+                <p class="muted" style="font-size:0.8rem;margin:0 0 0.75rem;">
+                    إن كانت الصرف = الأساسية (قطعة → قطعة) لا حاجة لإضافة صفوف.
+                    إن كانت قطعة → كرتونة أضف الكرتونة وحدد كم قطعة تعادل.
+                </p>
+                <div class="table-wrap">
+                    <table class="data-table" id="item-issue-units-table">
+                        <thead>
+                        <tr>
+                            <th>وحدة الصرف</th>
+                            <th>تعادل كم من الأساسية</th>
+                            <th>افتراضي بالفاتورة</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <?php if (!$itemIssueUnits): ?>
+                        <tr class="issue-unit-row">
+                            <td>
+                                <select class="input" name="issue_unit_id[]">
+                                    <option value="">— لا يوجد —</option>
+                                    <?php foreach ($units as $u): ?>
+                                        <option value="<?= (int) $u['id'] ?>"><?= esc((string) $u['name_ar']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                            <td><input class="input" type="number" name="issue_factor[]" min="2" step="1" value="" placeholder="مثال: 24" dir="ltr"></td>
+                            <td style="text-align:center;"><input type="checkbox" name="issue_default[0]" value="1"></td>
+                            <td></td>
+                        </tr>
+                        <?php else: ?>
+                        <?php foreach ($itemIssueUnits as $ix => $iu): ?>
+                        <tr class="issue-unit-row">
+                            <td>
+                                <select class="input" name="issue_unit_id[]">
+                                    <option value="">— لا يوجد —</option>
+                                    <?php foreach ($units as $u): ?>
+                                        <option value="<?= (int) $u['id'] ?>" <?= (int) $iu['unit_id'] === (int) $u['id'] ? 'selected' : '' ?>><?= esc((string) $u['name_ar']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </td>
+                            <td><input class="input" type="number" name="issue_factor[]" min="2" step="1" value="<?= esc((string) (float) $iu['factor']) ?>" dir="ltr"></td>
+                            <td style="text-align:center;"><input type="checkbox" name="issue_default[<?= (int) $ix ?>]" value="1" <?= !empty($iu['is_default']) ? 'checked' : '' ?>></td>
+                            <td><button type="button" class="btn btn-ghost btn-sm js-remove-issue-unit">حذف</button></td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" id="js-add-issue-unit" style="margin-top:0.5rem;">+ وحدة صرف</button>
+            </div>
+            <script>
+            (function () {
+              var tbody = document.querySelector('#item-issue-units-table tbody');
+              var addBtn = document.getElementById('js-add-issue-unit');
+              if (!tbody || !addBtn) return;
+              function reindexDefaults() {
+                tbody.querySelectorAll('.issue-unit-row').forEach(function (tr, i) {
+                  var cb = tr.querySelector('input[type="checkbox"]');
+                  if (cb) cb.name = 'issue_default[' + i + ']';
+                });
+              }
+              addBtn.addEventListener('click', function () {
+                var first = tbody.querySelector('.issue-unit-row');
+                if (!first) return;
+                var clone = first.cloneNode(true);
+                clone.querySelectorAll('select').forEach(function (s) { s.value = ''; });
+                clone.querySelectorAll('input[type="number"]').forEach(function (inp) { inp.value = ''; });
+                clone.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
+                tbody.appendChild(clone);
+                reindexDefaults();
+              });
+              tbody.addEventListener('click', function (e) {
+                var btn = e.target.closest('.js-remove-issue-unit');
+                if (!btn) return;
+                var rows = tbody.querySelectorAll('.issue-unit-row');
+                if (rows.length <= 1) {
+                  var tr = btn.closest('tr');
+                  tr.querySelectorAll('select').forEach(function (s) { s.value = ''; });
+                  tr.querySelectorAll('input[type="number"]').forEach(function (inp) { inp.value = ''; });
+                  tr.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
+                  return;
+                }
+                btn.closest('tr').remove();
+                reindexDefaults();
+              });
+            })();
+            </script>
+            <?php endif; ?>
+
             <?php else: ?>
             <label class="field">
                 <span class="field-label">الوحدة</span>

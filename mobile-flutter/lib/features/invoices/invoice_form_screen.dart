@@ -38,6 +38,11 @@ class _Line {
     required this.unitPrice,
     required this.taxRateId,
     required this.taxRatePercent,
+    this.unitId = 0,
+    this.unitName = '',
+    this.unitFactor = 1,
+    this.basePrice = 0,
+    this.units = const [],
   });
 
   final int itemId;
@@ -49,6 +54,11 @@ class _Line {
   int taxRateId;
   double taxRatePercent;
   String discountInput = '';
+  int unitId;
+  String unitName;
+  double unitFactor;
+  double basePrice;
+  List<ItemUnitOpt> units;
 
   double get lineBase => qty * unitPrice;
 
@@ -74,6 +84,10 @@ class _Line {
         'item_id': itemId,
         'qty': qty,
         'qty_extra': qtyExtra,
+        'unit_id': unitId,
+        'unit_name': unitName,
+        'unit_factor': unitFactor <= 0 ? 1 : unitFactor,
+        'qty_base': qty * (unitFactor <= 0 ? 1 : unitFactor),
         'unit_price': unitPrice,
         'line_discount_input': discountInput.trim(),
         'discount_amount': discountAmount,
@@ -278,6 +292,29 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
               unitPrice: Fmt.toDouble(m['unit_price'] ?? m['price']),
               taxRateId: rateId,
               taxRatePercent: ratePct > 0 ? ratePct : _defaultTaxPercent,
+              unitId: Fmt.toInt(m['unit_id']),
+              unitName: Fmt.str(m['unit_name']),
+              unitFactor: Fmt.toDouble(m['unit_factor'] ?? 1),
+              basePrice: () {
+                final up = Fmt.toDouble(m['unit_price'] ?? m['price']);
+                final f = Fmt.toDouble(m['unit_factor'] ?? 1);
+                return f > 0 ? up / f : up;
+              }(),
+              units: (m['units'] is List)
+                  ? (m['units'] as List)
+                      .whereType<Map>()
+                      .map((e) =>
+                          ItemUnitOpt.fromJson(e.cast<String, dynamic>()))
+                      .toList()
+                  : [
+                      if (Fmt.str(m['unit_name']).isNotEmpty)
+                        ItemUnitOpt(
+                          unitId: Fmt.toInt(m['unit_id']),
+                          name: Fmt.str(m['unit_name']),
+                          factor: Fmt.toDouble(m['unit_factor'] ?? 1),
+                          isDefault: true,
+                        ),
+                    ],
             )..discountInput = Fmt.str(m['line_discount_input']),
           );
         }
@@ -435,12 +472,15 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     required double qtyExtra,
     required double price,
   }) {
+    final d = it.defaultUnit;
+    final factor = d?.factor ?? 1;
+    final unitPrice = price * (factor <= 0 ? 1 : factor);
     final existing = _lines.where((l) => l.itemId == it.id).toList();
     setState(() {
       if (existing.isNotEmpty) {
         existing.first.qty += qty;
         existing.first.qtyExtra += qtyExtra;
-        if (price > 0) existing.first.unitPrice = price;
+        if (unitPrice > 0) existing.first.unitPrice = unitPrice;
       } else {
         _lines.add(
           _Line(
@@ -449,9 +489,14 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
             name: it.name,
             qty: qty,
             qtyExtra: qtyExtra,
-            unitPrice: price,
+            unitPrice: unitPrice,
             taxRateId: _defaultTaxRateId,
             taxRatePercent: _defaultTaxPercent,
+            unitId: d?.unitId ?? 0,
+            unitName: d?.name ?? '',
+            unitFactor: factor <= 0 ? 1 : factor,
+            basePrice: price,
+            units: it.units,
           ),
         );
       }
@@ -1131,6 +1176,43 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
             ),
           ),
           const Divider(height: 1),
+          if (l.units.isNotEmpty || l.unitName.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+              child: DropdownButtonFormField<int>(
+                initialValue: l.unitId == 0 && l.units.isNotEmpty
+                    ? l.units.first.unitId
+                    : (l.unitId == 0 ? null : l.unitId),
+                decoration: const InputDecoration(
+                  labelText: 'الوحدة',
+                  isDense: true,
+                ),
+                items: [
+                  for (final u in l.units)
+                    DropdownMenuItem(value: u.unitId, child: Text(u.name)),
+                  if (l.units.isEmpty && l.unitName.isNotEmpty)
+                    DropdownMenuItem(value: l.unitId, child: Text(l.unitName)),
+                ],
+                onChanged: !_canEdit
+                    ? null
+                    : (v) {
+                        final u = l.units
+                            .where((x) => x.unitId == v)
+                            .cast<ItemUnitOpt?>()
+                            .followedBy([null]).first;
+                        setState(() {
+                          l.unitId = v ?? 0;
+                          if (u != null) {
+                            l.unitName = u.name;
+                            l.unitFactor = u.factor;
+                            if (l.basePrice > 0) {
+                              l.unitPrice = l.basePrice * u.factor;
+                            }
+                          }
+                        });
+                      },
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: Row(
@@ -1149,7 +1231,12 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                     'السعر',
                     l.unitPrice,
                     enabled: _canEdit,
-                    onChanged: (v) => setState(() => l.unitPrice = v),
+                    onChanged: (v) => setState(() {
+                      l.unitPrice = v;
+                      if (l.unitFactor > 0) {
+                        l.basePrice = v / l.unitFactor;
+                      }
+                    }),
                   ),
                 ),
                 const SizedBox(width: 6),

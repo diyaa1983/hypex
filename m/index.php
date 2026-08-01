@@ -26,6 +26,7 @@ sql_migration_run_files_once($pdo, [
     'database/migrations/214_mobile_rep_custody_list.sql',
     'database/migrations/235_sal_customer_order.sql',
     'database/migrations/236_report_customer_orders.sql',
+    'database/migrations/237_inv_item_units.sql',
 ]);
 
 require_mobile_login();

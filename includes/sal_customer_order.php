@@ -143,12 +143,31 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
             $id = (int)$pdo->lastInsertId();
         }
         $pdo->prepare('DELETE FROM sal_customer_order_line WHERE order_id=?')->execute([$id]);
-        $ins = $pdo->prepare('INSERT INTO sal_customer_order_line (order_id,line_no,item_id,item_name,unit_id,unit_name,qty,notes) VALUES (?,?,?,?,?,?,?,?)');
+        require_once app_path('includes/inv_item_units.php');
+        inv_item_units_ensure_schema($pdo);
+        $hasFactor = inv_item_units_column_exists($pdo, 'sal_customer_order_line', 'unit_factor');
+        $ins = $hasFactor
+            ? $pdo->prepare('INSERT INTO sal_customer_order_line (order_id,line_no,item_id,item_name,unit_id,unit_name,unit_factor,qty,qty_base,notes) VALUES (?,?,?,?,?,?,?,?,?,?)')
+            : $pdo->prepare('INSERT INTO sal_customer_order_line (order_id,line_no,item_id,item_name,unit_id,unit_name,qty,notes) VALUES (?,?,?,?,?,?,?,?)');
         foreach ($valid as $i => $line) {
             $itemId=(int)$line['item_id']; $itemName=trim((string)($line['item_name'] ?? ''));
             if ($itemName === '') { $q=$pdo->prepare('SELECT name_ar FROM inv_item WHERE id=?');$q->execute([$itemId]);$itemName=(string)$q->fetchColumn(); }
             if ($itemName === '') throw new RuntimeException('صنف غير صالح.');
-            $ins->execute([$id,$i+1,$itemId,$itemName,(int)($line['unit_id']??0)?:null,trim((string)($line['unit_name']??''))?:null,(float)$line['qty'],trim((string)($line['notes']??''))?:null]);
+            $qty = (float) $line['qty'];
+            // كميات طلبات الشراء أعداد صحيحة
+            $qty = (float) (int) round($qty);
+            if ($qty < 1) throw new RuntimeException('الكمية يجب أن تكون عدداً صحيحاً موجباً.');
+            $unitId = (int) ($line['unit_id'] ?? 0);
+            $resolved = inv_item_unit_resolve($pdo, $itemId, $unitId > 0 ? $unitId : null);
+            $unitId = $resolved ? (int) $resolved['unit_id'] : ($unitId ?: null);
+            $unitName = $resolved ? (string) $resolved['unit_name'] : (trim((string)($line['unit_name']??'')) ?: null);
+            $factor = $resolved ? (float) $resolved['unit_factor'] : 1.0;
+            $qtyBase = inv_item_unit_to_base_qty($qty, $factor);
+            if ($hasFactor) {
+                $ins->execute([$id,$i+1,$itemId,$itemName,$unitId,$unitName,$factor,$qty,$qtyBase,trim((string)($line['notes']??''))?:null]);
+            } else {
+                $ins->execute([$id,$i+1,$itemId,$itemName,$unitId,$unitName,$qty,trim((string)($line['notes']??''))?:null]);
+            }
         }
         $pdo->commit(); return $id;
     } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
