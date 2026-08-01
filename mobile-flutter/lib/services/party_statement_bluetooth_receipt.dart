@@ -98,10 +98,11 @@ class PartyStatementBluetoothReceipt {
     final partyCode = Fmt.str(data['party_code']);
     final from = Fmt.dmy(Fmt.str(data['from_dmy'] ?? data['from']));
     final to = Fmt.dmy(Fmt.str(data['to_dmy'] ?? data['to']));
-    final opening = Fmt.toDouble(data['opening_balance']);
     final totalDebit = Fmt.toDouble(data['total_debit']);
     final totalCredit = Fmt.toDouble(data['total_credit']);
     final closing = Fmt.toDouble(data['closing_balance']);
+    final salesRep =
+        Fmt.str(data['sales_rep_name'] ?? data['sales_rep_names']);
 
     final rows = <Map<String, dynamic>>[];
     final raw = data['rows'];
@@ -140,6 +141,8 @@ class PartyStatementBluetoothReceipt {
               _kv('الاسم', partyName, fontReg, fontBold, fsSm),
               if (partyCode.isNotEmpty)
                 _kv('الرمز', partyCode, fontReg, fontBold, fsSm),
+              if (salesRep.isNotEmpty)
+                _kv('المندوب', salesRep, fontReg, fontBold, fsSm),
               _kv(
                 'الفترة',
                 '${from.isEmpty ? '—' : from} → ${to.isEmpty ? '—' : to}',
@@ -147,8 +150,6 @@ class PartyStatementBluetoothReceipt {
                 fontBold,
                 fsSm,
               ),
-              _kv('رصيد أول المدة', Fmt.money(opening), fontReg, fontBold,
-                  fsSm),
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
               _movementsTable(rows, fontReg, fontBold, fsSm, paperMm),

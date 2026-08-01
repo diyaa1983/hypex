@@ -23,6 +23,7 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
   String? _error;
   List<Map<String, dynamic>> _orders = [];
   final _search = TextEditingController();
+  String _status = ''; // '' | draft | approved
 
   @override
   void initState() {
@@ -42,10 +43,12 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
       _error = null;
     });
     try {
+      final query = <String, dynamic>{'q': _search.text.trim()};
+      if (_status.isNotEmpty) query['status'] = _status;
       final data = await context.read<ApiClient>().getJson(
-        AppConfig.customerOrderListPath,
-        query: {'q': _search.text.trim()},
-      );
+            AppConfig.customerOrderListPath,
+            query: query,
+          );
       if (!mounted) return;
       setState(() {
         _orders = (data['orders'] as List? ?? [])
@@ -55,13 +58,19 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
         _loading = false;
       });
     } on ApiException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.message;
           _loading = false;
         });
+      }
     }
   }
+
+  bool _isApproved(Map<String, dynamic> o) =>
+      o['approved'] == true ||
+      o['is_approved'] == true ||
+      Fmt.str(o['status']) == 'approved';
 
   @override
   Widget build(BuildContext context) => MobileScaffold(
@@ -72,7 +81,10 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
               icon: const Icon(Icons.refresh_rounded))
         ],
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => context.push('/customer-orders/new'),
+          onPressed: () async {
+            await context.push('/customer-orders/new');
+            if (mounted) _load();
+          },
           icon: const Icon(Icons.add_rounded),
           label: const Text('طلب جديد'),
         ),
@@ -98,6 +110,38 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
               onChanged: (_) => setState(() {}),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('الكل'),
+                  selected: _status == '',
+                  onSelected: (_) {
+                    setState(() => _status = '');
+                    _load();
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('مسودة'),
+                  selected: _status == 'draft',
+                  onSelected: (_) {
+                    setState(() => _status = 'draft');
+                    _load();
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('معتمد'),
+                  selected: _status == 'approved',
+                  onSelected: (_) {
+                    setState(() => _status = 'approved');
+                    _load();
+                  },
+                ),
+              ],
+            ),
+          ),
           Expanded(
               child: AsyncView(
             loading: _loading,
@@ -117,12 +161,15 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
                       itemCount: _orders.length,
                       itemBuilder: (_, i) {
                         final o = _orders[i];
-                        final approved = o['approved'] == true ||
-                            o['is_approved'] == true ||
-                            Fmt.str(o['status']) == 'approved';
+                        final approved = _isApproved(o);
+                        final lines = Fmt.toInt(o['line_count']);
+                        final qty = Fmt.toDouble(o['total_qty']);
                         return AppCard(
-                          onTap: () => context
-                              .push('/customer-orders/${Fmt.toInt(o['id'])}'),
+                          onTap: () async {
+                            await context.push(
+                                '/customer-orders/${Fmt.toInt(o['id'])}');
+                            if (mounted) _load();
+                          },
                           child: Row(children: [
                             MiniIcon(Icons.shopping_cart_checkout_rounded,
                                 color: approved
@@ -143,6 +190,18 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
                                       style: const TextStyle(
                                           color: AppTheme.textSoft,
                                           fontSize: 12)),
+                                  if (Fmt.str(o['sales_rep_name']).isNotEmpty)
+                                    Text(
+                                      'المندوب: ${Fmt.str(o['sales_rep_name'])}',
+                                      style: const TextStyle(
+                                          color: AppTheme.textSoft,
+                                          fontSize: 12),
+                                    ),
+                                  Text(
+                                    'بنود $lines  •  كمية ${Fmt.trimNum(qty)}',
+                                    style: const TextStyle(
+                                        color: AppTheme.textSoft, fontSize: 12),
+                                  ),
                                 ])),
                             StatusPill(
                                 text: approved ? 'معتمد' : 'مسودة',

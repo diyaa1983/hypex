@@ -217,7 +217,7 @@ function mobile_invoice_print_inner_html_mobile_pdf(PDO $pdo, array $inv): strin
     $layout = mobile_invoice_print_layout($inv);
     $showQtyExtra = $layout['show_qty_extra'];
     $showDiscount = $layout['show_discount'];
-    $colspan = 9 + ($showQtyExtra ? 1 : 0) + ($showDiscount ? 1 : 0);
+    $colspan = 12 + ($showQtyExtra ? 1 : 0) + ($showDiscount ? 1 : 0);
 
     $head = mobile_invoice_print_head_mobile_pdf($pdo);
 

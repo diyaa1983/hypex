@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * إضافة عميل من تطبيق الهاتف — مربوط تلقائياً بمندوب المستخدم.
+ * إضافة عميل من تطبيق الهاتف — مربوط تلقائياً بمندوب المستخدم + موقع GPS اختياري.
  */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
@@ -29,19 +29,33 @@ if (!user_can('m_customer_add') && !user_is_system_admin()) {
     exit;
 }
 
-if (!verify_csrf($_POST['_csrf'] ?? null)) {
+$body = $_POST;
+$raw = file_get_contents('php://input');
+if (is_string($raw) && $raw !== '' && str_contains((string) ($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) {
+    $decoded = json_decode($raw, true);
+    if (is_array($decoded)) {
+        $body = $decoded;
+    }
+}
+
+if (!verify_csrf($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($body['_csrf'] ?? null))) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'csrf', 'message' => 'انتهت صلاحية الجلسة.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
 $uid = (int) (current_user()['id'] ?? 0);
-$name = trim((string) ($_POST['name_ar'] ?? ''));
-$phone = trim((string) ($_POST['phone'] ?? ''));
-$address = trim((string) ($_POST['address_ar'] ?? ''));
+$name = trim((string) ($body['name_ar'] ?? ''));
+$phone = trim((string) ($body['phone'] ?? ''));
+$address = trim((string) ($body['address_ar'] ?? ''));
+$gps = [
+    'latitude' => $body['latitude'] ?? null,
+    'longitude' => $body['longitude'] ?? null,
+    'gps_accuracy' => $body['gps_accuracy'] ?? ($body['accuracy'] ?? null),
+];
 
 try {
-    $result = crm_mobile_customer_create_for_user(db(), $uid, $name, $phone, $address);
+    $result = crm_mobile_customer_create_for_user(db(), $uid, $name, $phone, $address, $gps);
     if (!$result['ok']) {
         http_response_code(400);
         echo json_encode([

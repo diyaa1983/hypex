@@ -10,6 +10,7 @@ $pdo = db();
 require_once app_path('includes/crm_sales_rep_schema.php');
 require_once app_path('includes/crm_party_delete.php');
 crm_sales_rep_ensure_customer_invoice_links($pdo);
+crm_customer_ensure_gps_columns($pdo);
 $salesReps = crm_sales_rep_load_active($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -28,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = trim((string) ($_POST['email'] ?? ''));
             $tax = trim((string) ($_POST['tax_number'] ?? ''));
             $addr = trim((string) ($_POST['address_ar'] ?? ''));
+            $gps = crm_customer_gps_parse_input($_POST);
             $repIdsRaw = $_POST['sales_rep_ids'] ?? [];
             if (!is_array($repIdsRaw)) {
                 $repIdsRaw = [];
@@ -42,7 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($id > 0) {
                 $st = $pdo->prepare(
-                    'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=? WHERE id=?'
+                    'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+                        latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
                 );
                 $st->execute([
                     $name,
@@ -50,6 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $email !== '' ? $email : null,
                     $tax !== '' ? $tax : null,
                     $addr !== '' ? $addr : null,
+                    $gps['latitude'],
+                    $gps['longitude'],
+                    $gps['gps_accuracy'],
+                    $gps['clear'] ? null : date('Y-m-d H:i:s'),
                     $id,
                 ]);
                 crm_customer_save_sales_reps($pdo, $id, $repIdsRaw);
@@ -57,7 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $code = crm_customer_generate_code($pdo);
                 $st = $pdo->prepare(
-                    'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active) VALUES (?,?,?,?,?,?,?,1)'
+                    'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,1)'
                 );
                 $st->execute([
                     $code,
@@ -66,6 +74,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $email !== '' ? $email : null,
                     $tax !== '' ? $tax : null,
                     $addr !== '' ? $addr : null,
+                    $gps['latitude'],
+                    $gps['longitude'],
+                    $gps['gps_accuracy'],
+                    $gps['clear'] ? null : date('Y-m-d H:i:s'),
                     null,
                 ]);
                 $newId = (int) $pdo->lastInsertId();
@@ -116,6 +128,10 @@ if ($action === 'add' || $action === 'edit') {
         'email' => '',
         'tax_number' => '',
         'address_ar' => '',
+        'latitude' => null,
+        'longitude' => null,
+        'gps_accuracy' => null,
+        'gps_at' => null,
         'sales_rep_id' => '',
         'is_active' => 1,
     ];
@@ -207,11 +223,101 @@ if ($action === 'add' || $action === 'edit') {
                 <span class="field-label">العنوان</span>
                 <textarea class="input" name="address_ar"><?= esc((string) ($row['address_ar'] ?? '')) ?></textarea>
             </label>
+            <?php
+            $latVal = $row['latitude'] !== null && $row['latitude'] !== '' ? (string) $row['latitude'] : '';
+            $lngVal = $row['longitude'] !== null && $row['longitude'] !== '' ? (string) $row['longitude'] : '';
+            $accVal = $row['gps_accuracy'] !== null && $row['gps_accuracy'] !== '' ? (string) $row['gps_accuracy'] : '';
+            $hasGps = $latVal !== '' && $lngVal !== '';
+            ?>
+            <fieldset class="field customers-gps-field">
+                <legend class="field-label">موقع العميل (GPS)</legend>
+                <input type="hidden" name="latitude" id="cust-latitude" value="<?= esc($latVal) ?>">
+                <input type="hidden" name="longitude" id="cust-longitude" value="<?= esc($lngVal) ?>">
+                <input type="hidden" name="gps_accuracy" id="cust-gps-accuracy" value="<?= esc($accVal) ?>">
+                <p id="cust-gps-status" class="muted" style="margin:0 0 0.5rem;">
+                    <?= $hasGps
+                        ? 'الموقع الحالي: ' . esc($latVal) . ' ، ' . esc($lngVal)
+                        : 'لم يُحدَّد موقع بعد.' ?>
+                </p>
+                <div class="form-row" style="gap:0.5rem;flex-wrap:wrap;">
+                    <button type="button" class="btn btn-secondary" id="cust-gps-pick-map">تحديد على الخريطة</button>
+                    <button type="button" class="btn btn-secondary" id="cust-gps-my-loc">موقعي الآن (GPS)</button>
+                    <button type="button" class="btn btn-secondary" id="cust-gps-clear" <?= $hasGps ? '' : 'disabled' ?>>مسح الموقع</button>
+                </div>
+            </fieldset>
             <div>
                 <button class="btn btn-primary" type="submit">حفظ</button>
             </div>
         </form>
         </div>
+        <script>
+        (function () {
+          var latEl = document.getElementById('cust-latitude');
+          var lngEl = document.getElementById('cust-longitude');
+          var accEl = document.getElementById('cust-gps-accuracy');
+          var statusEl = document.getElementById('cust-gps-status');
+          var clearBtn = document.getElementById('cust-gps-clear');
+          var mapBtn = document.getElementById('cust-gps-pick-map');
+          var gpsBtn = document.getElementById('cust-gps-my-loc');
+
+          function fmt(n) {
+            var x = parseFloat(n);
+            if (!isFinite(x)) return '';
+            return String(Math.round(x * 1e7) / 1e7);
+          }
+          function setGps(gps) {
+            if (!gps || !isFinite(gps.latitude) || !isFinite(gps.longitude)) return;
+            latEl.value = fmt(gps.latitude);
+            lngEl.value = fmt(gps.longitude);
+            accEl.value = gps.accuracy != null && isFinite(gps.accuracy) ? String(gps.accuracy) : '';
+            statusEl.textContent = 'الموقع الحالي: ' + latEl.value + ' ، ' + lngEl.value;
+            clearBtn.disabled = false;
+          }
+          function clearGps() {
+            latEl.value = '';
+            lngEl.value = '';
+            accEl.value = '';
+            statusEl.textContent = 'لم يُحدَّد موقع بعد.';
+            clearBtn.disabled = true;
+          }
+          if (clearBtn) clearBtn.addEventListener('click', clearGps);
+
+          if (mapBtn) {
+            mapBtn.addEventListener('click', function () {
+              if (!window.AppGeoMapPick || typeof AppGeoMapPick.pickLocationOnMap !== 'function') {
+                alert('خريطة تحديد الموقع غير متاحة.');
+                return;
+              }
+              var opts = { forPost: false };
+              if (latEl.value && lngEl.value) {
+                opts.latitude = parseFloat(latEl.value);
+                opts.longitude = parseFloat(lngEl.value);
+              }
+              AppGeoMapPick.pickLocationOnMap(opts).then(setGps).catch(function () {});
+            });
+          }
+
+          if (gpsBtn) {
+            gpsBtn.addEventListener('click', function () {
+              if (!window.AppGeo || typeof AppGeo.withGpsForPost !== 'function') {
+                // جرّب الخريطة مباشرة
+                if (mapBtn) mapBtn.click();
+                return;
+              }
+              gpsBtn.disabled = true;
+              AppGeo.withGpsForPost('desktop', function (gps) {
+                gpsBtn.disabled = false;
+                if (gps === undefined) return;
+                if (!gps) {
+                  alert('لم يُحدَّد موقع. اسمح بالوصول للموقع أو اختر على الخريطة.');
+                  return;
+                }
+                setGps(gps);
+              });
+            });
+          }
+        })();
+        </script>
         <?php sales_ora12_workspace_close(); ?>
     </div>
     <?php
@@ -226,6 +332,7 @@ $repNamesSub = '(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r2.nam
                 WHERE csr2.customer_id = c.id)';
 
 $sql = "SELECT c.id, c.code, c.name_ar, c.phone, c.email, c.tax_number, c.is_active, c.created_at,
+               c.latitude, c.longitude,
                COALESCE({$repNamesSub}, r.name_ar) AS sales_rep_name
         FROM crm_customer c
         LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id";
@@ -311,6 +418,7 @@ $addUrl = app_url('index.php?r=customers&action=add');
                 <th>الهاتف</th>
                 <th>البريد</th>
                 <th>المندوب</th>
+                <th>الموقع</th>
                 <th>الحالة</th>
                 <th>إجراءات</th>
             </tr>
@@ -318,7 +426,7 @@ $addUrl = app_url('index.php?r=customers&action=add');
             <tbody>
             <?php if (!$rows): ?>
                 <tr>
-                    <td colspan="8" class="muted">
+                    <td colspan="9" class="muted">
                         <?= $search !== '' ? 'لا يوجد عميل مطابق لبحثك.' : 'لا يوجد عملاء بعد.' ?>
                     </td>
                 </tr>
@@ -330,6 +438,9 @@ $addUrl = app_url('index.php?r=customers&action=add');
                 $custName = (string) $c['name_ar'];
                 $deleteConfirm = 'حذف العميل «' . $custName . '» نهائياً من النظام؟';
                 $blockTitle = 'تعذر الحذف: مرتبط بـ ' . $usageCount . ' حركة';
+                $hasLoc = isset($c['latitude'], $c['longitude'])
+                    && $c['latitude'] !== null && $c['longitude'] !== ''
+                    && $c['longitude'] !== null && $c['latitude'] !== '';
                 ?>
                 <tr>
                     <td><?= $custId ?></td>
@@ -338,6 +449,7 @@ $addUrl = app_url('index.php?r=customers&action=add');
                     <td><?= esc((string) ($c['phone'] ?? '')) ?></td>
                     <td><?= esc((string) ($c['email'] ?? '')) ?></td>
                     <td><?= esc((string) ($c['sales_rep_name'] ?? '—')) ?></td>
+                    <td><?= $hasLoc ? '📍 محدد' : '—' ?></td>
                     <td>
                         <?php if ((int) $c['is_active']): ?>
                             <span class="badge badge-ok">نشط</span>

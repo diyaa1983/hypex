@@ -191,7 +191,23 @@ function crm_customer_sales_rep_ids_for_customer(PDO $pdo, int $customerId): arr
     return $single !== null ? [$single] : [];
 }
 
-/** @return list<array{id:int,name_ar:string}> */
+/** أسماء مندوبي العميل مفصولة بـ «، » للعرض في الكشوف. */
+function crm_customer_sales_rep_names(PDO $pdo, int $customerId): string
+{
+    $names = [];
+    foreach (crm_customer_sales_reps_for_customer($pdo, $customerId) as $rep) {
+        $n = trim((string) ($rep['name_ar'] ?? ''));
+        if ($n !== '') {
+            $names[] = $n;
+        }
+    }
+
+    return implode('، ', $names);
+}
+
+/**
+ * @return list<array{id:int,name_ar:string}>
+ */
 function crm_customer_sales_reps_for_customer(PDO $pdo, int $customerId): array
 {
     if ($customerId < 1 || !crm_sales_rep_has_table($pdo)) {
@@ -597,6 +613,64 @@ function crm_customer_sql_linked_to_rep(PDO $pdo, string $customerAlias, int $sa
     return ['(' . implode(' OR ', $parts) . ')', $params];
 }
 
+function crm_customer_ensure_gps_columns(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        $pdo->query('SELECT latitude, longitude FROM crm_customer LIMIT 1');
+    } catch (Throwable $e) {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/238_crm_customer_gps.sql');
+    }
+}
+
+/**
+ * @param array<string, mixed>|null $source
+ * @return array{latitude:?float, longitude:?float, gps_accuracy:?float, clear:bool}
+ */
+function crm_customer_gps_parse_input(?array $source = null): array
+{
+    $source = $source ?? $_POST;
+    $empty = [
+        'latitude' => null,
+        'longitude' => null,
+        'gps_accuracy' => null,
+        'clear' => true,
+    ];
+    if (!empty($source['clear_gps'])) {
+        return $empty;
+    }
+    $latRaw = trim((string) ($source['latitude'] ?? ''));
+    $lngRaw = trim((string) ($source['longitude'] ?? ''));
+    if ($latRaw === '' || $lngRaw === '') {
+        return $empty;
+    }
+    $lat = (float) $latRaw;
+    $lng = (float) $lngRaw;
+    if (!is_finite($lat) || !is_finite($lng) || abs($lat) > 90 || abs($lng) > 180) {
+        return $empty;
+    }
+    if (abs($lat) < 1e-9 && abs($lng) < 1e-9) {
+        return $empty;
+    }
+    $accRaw = $source['gps_accuracy'] ?? null;
+    $acc = $accRaw !== null && $accRaw !== '' ? (float) $accRaw : null;
+    if ($acc !== null && (!is_finite($acc) || $acc < 0)) {
+        $acc = null;
+    }
+
+    return [
+        'latitude' => round($lat, 7),
+        'longitude' => round($lng, 7),
+        'gps_accuracy' => $acc !== null ? round($acc, 2) : null,
+        'clear' => false,
+    ];
+}
+
 function crm_customer_generate_code(PDO $pdo): string
 {
     $maxId = (int) $pdo->query('SELECT IFNULL(MAX(id), 0) FROM crm_customer')->fetchColumn();
@@ -638,12 +712,17 @@ function crm_mobile_customers_for_picker(PDO $pdo, int $limit = 800): array
  * إضافة عميل من تطبيق الهاتف مربوط بالمندوب الحالي.
  * @return array{ok:bool,message:string,customer?:array{id:int,code:string,name:string}}
  */
+/**
+ * @param array{latitude?:float|null,longitude?:float|null,gps_accuracy?:float|null}|null $gps
+ * @return array{ok:bool,message:string,customer?:array{id:int,code:string,name:string}}
+ */
 function crm_mobile_customer_create_for_user(
     PDO $pdo,
     int $userId,
     string $nameAr,
     string $phone = '',
-    string $addressAr = ''
+    string $addressAr = '',
+    ?array $gps = null
 ): array {
     $nameAr = trim($nameAr);
     $phone = trim($phone);
@@ -658,20 +737,43 @@ function crm_mobile_customer_create_for_user(
     }
 
     crm_sales_rep_ensure_customer_invoice_links($pdo);
+    crm_customer_ensure_gps_columns($pdo);
     $code = crm_customer_generate_code($pdo);
-    $st = $pdo->prepare(
-        'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active)
-         VALUES (?,?,?,?,?,?,?,1)'
-    );
-    $st->execute([
-        $code,
-        $nameAr,
-        $phone !== '' ? $phone : null,
-        null,
-        null,
-        $addressAr !== '' ? $addressAr : null,
-        $repId,
-    ]);
+    $gpsParsed = crm_customer_gps_parse_input($gps ?? []);
+    $hasGps = !$gpsParsed['clear'] && $gpsParsed['latitude'] !== null && $gpsParsed['longitude'] !== null;
+
+    if ($hasGps) {
+        $st = $pdo->prepare(
+            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+             VALUES (?,?,?,?,?,?,?,?,?,NOW(),?,1)'
+        );
+        $st->execute([
+            $code,
+            $nameAr,
+            $phone !== '' ? $phone : null,
+            null,
+            null,
+            $addressAr !== '' ? $addressAr : null,
+            $gpsParsed['latitude'],
+            $gpsParsed['longitude'],
+            $gpsParsed['gps_accuracy'],
+            $repId,
+        ]);
+    } else {
+        $st = $pdo->prepare(
+            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active)
+             VALUES (?,?,?,?,?,?,?,1)'
+        );
+        $st->execute([
+            $code,
+            $nameAr,
+            $phone !== '' ? $phone : null,
+            null,
+            null,
+            $addressAr !== '' ? $addressAr : null,
+            $repId,
+        ]);
+    }
     $newId = (int) $pdo->lastInsertId();
     crm_customer_save_sales_reps($pdo, $newId, [$repId]);
 

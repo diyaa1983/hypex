@@ -42,6 +42,31 @@ function sal_customer_order_ensure_schema(PDO $pdo): bool
                 );
                 acc_coa_meta_set($pdo, 'sal_customer_order_mobile_perm_v1', '1');
             }
+            if (acc_coa_meta_get($pdo, 'sal_customer_order_approved_screen_v1') !== '1') {
+                $pdo->exec(
+                    "INSERT INTO sys_screen (code, name_ar, screen_type, sort_order)
+                     SELECT 'sales_customer_orders_approved', 'الطلبات المعتمدة', 'screen', 238
+                     FROM DUAL WHERE NOT EXISTS (
+                         SELECT 1 FROM sys_screen WHERE code = 'sales_customer_orders_approved'
+                     )"
+                );
+                $pdo->exec(
+                    "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+                     SELECT gp.group_id, sn.id, gp.allowed
+                     FROM sys_group_permission gp
+                     INNER JOIN sys_screen so ON so.id = gp.screen_id AND so.code = 'sales_customer_orders_approve'
+                     INNER JOIN sys_screen sn ON sn.code = 'sales_customer_orders_approved'
+                     WHERE gp.allowed = 1"
+                );
+                $pdo->exec(
+                    "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+                     SELECT g.id, s.id, 1
+                     FROM sys_group g
+                     INNER JOIN sys_screen s ON s.code = 'sales_customer_orders_approved'
+                     WHERE g.code IN ('ADMINS', 'administrators', 'admin')"
+                );
+                acc_coa_meta_set($pdo, 'sal_customer_order_approved_screen_v1', '1');
+            }
         } catch (Throwable $e) {
             // ignore
         }
@@ -91,9 +116,67 @@ function sal_customer_order_fetch(PDO $pdo, int $id): ?array
     return $order;
 }
 
+/**
+ * @return array{0:string,1:list<mixed>} SQL WHERE fragment + params (without leading AND)
+ */
+function sal_customer_order_list_where(
+    string $search = '',
+    ?int $salesRepId = null,
+    ?string $status = null,
+    ?int $customerId = null
+): array {
+    $sql = '1=1';
+    $params = [];
+    if ($salesRepId !== null && $salesRepId > 0) {
+        $sql .= ' AND o.sales_rep_id = ?';
+        $params[] = $salesRepId;
+    }
+    if ($customerId !== null && $customerId > 0) {
+        $sql .= ' AND o.customer_id = ?';
+        $params[] = $customerId;
+    }
+    if ($status !== null && in_array($status, ['draft', 'approved'], true)) {
+        $sql .= ' AND o.status = ?';
+        $params[] = $status;
+    }
+    if ($search !== '') {
+        $sql .= ' AND (o.order_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR r.name_ar LIKE ?)';
+        $params = array_merge($params, array_fill(0, 4, '%' . $search . '%'));
+    }
+
+    return [$sql, $params];
+}
+
+function sal_customer_order_list_count(
+    PDO $pdo,
+    string $search = '',
+    ?int $salesRepId = null,
+    ?string $status = null,
+    ?int $customerId = null
+): int {
+    [$where, $params] = sal_customer_order_list_where($search, $salesRepId, $status, $customerId);
+    $sql = 'SELECT COUNT(*)
+            FROM sal_customer_order o
+            INNER JOIN crm_customer c ON c.id = o.customer_id
+            LEFT JOIN crm_sales_rep r ON r.id = o.sales_rep_id
+            WHERE ' . $where;
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+
+    return (int) $st->fetchColumn();
+}
+
 /** @return list<array<string,mixed>> */
-function sal_customer_order_list_fetch(PDO $pdo, string $search = '', ?int $salesRepId = null, ?string $status = null): array
-{
+function sal_customer_order_list_fetch(
+    PDO $pdo,
+    string $search = '',
+    ?int $salesRepId = null,
+    ?string $status = null,
+    ?int $customerId = null,
+    ?int $limit = 200,
+    int $offset = 0
+): array {
+    [$where, $params] = sal_customer_order_list_where($search, $salesRepId, $status, $customerId);
     $sql = 'SELECT o.id, o.order_no, o.order_date, o.status, o.customer_id, o.sales_rep_id, o.warehouse_id,
                    c.name_ar AS customer_name, w.name_ar AS warehouse_name,
                    COALESCE(r.name_ar, \'\') AS sales_rep_name,
@@ -108,25 +191,53 @@ function sal_customer_order_list_fetch(PDO $pdo, string $search = '', ?int $sale
                 FROM sal_customer_order_line
                 GROUP BY order_id
             ) lc ON lc.order_id = o.id
-            WHERE 1=1';
-    $params = [];
-    if ($salesRepId !== null) {
-        $sql .= ' AND o.sales_rep_id = ?';
-        $params[] = $salesRepId;
+            WHERE ' . $where . '
+            ORDER BY o.order_date DESC, o.id DESC';
+    if ($limit !== null) {
+        $sql .= ' LIMIT ' . max(1, (int) $limit) . ' OFFSET ' . max(0, $offset);
     }
-    if ($status !== null && in_array($status, ['draft', 'approved'], true)) {
-        $sql .= ' AND o.status = ?';
-        $params[] = $status;
-    }
-    if ($search !== '') {
-        $sql .= ' AND (o.order_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR r.name_ar LIKE ?)';
-        $params = array_merge($params, array_fill(0, 4, '%' . $search . '%'));
-    }
-    $sql .= ' ORDER BY o.order_date DESC, o.id DESC LIMIT 200';
     $st = $pdo->prepare($sql);
     $st->execute($params);
 
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+function sal_customer_order_delete(PDO $pdo, int $id, ?int $scopedRepId = null): void
+{
+    if ($id < 1) {
+        throw new RuntimeException('معرّف الطلب غير صالح.');
+    }
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare('SELECT id, status, sales_rep_id FROM sal_customer_order WHERE id = ? FOR UPDATE');
+        $st->execute([$id]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            throw new RuntimeException('الطلب غير موجود.');
+        }
+        if ((string) ($row['status'] ?? '') !== 'draft') {
+            throw new RuntimeException('لا يمكن حذف طلب معتمد. فك الاعتماد أولاً.');
+        }
+        if ($scopedRepId !== null && (int) ($row['sales_rep_id'] ?? 0) !== $scopedRepId) {
+            throw new RuntimeException('لا يمكنك حذف طلب لمندوب آخر.');
+        }
+        $pdo->prepare('DELETE FROM sal_customer_order_line WHERE order_id = ?')->execute([$id]);
+        $pdo->prepare('DELETE FROM sal_customer_order WHERE id = ?')->execute([$id]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
+/** هل يمكن للمستخدم الحالي حفظ/حذف مسودة طلب (مندوب أو اعتماد). */
+function sal_customer_order_user_can_edit_drafts(): bool
+{
+    return user_can('sales_customer_orders_approve')
+        || user_can('sales_customer_orders')
+        || user_can('m_customer_orders');
 }
 
 /** @param list<array<string,mixed>> $lines */

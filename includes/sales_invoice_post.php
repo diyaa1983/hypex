@@ -98,6 +98,14 @@ function handle_sales_invoice_post(): void
                     $salesRepId = $userRepId;
                 }
             }
+            if ($err === '') {
+                try {
+                    require_once app_path('includes/sal_rep_route.php');
+                    sal_rep_visit_assert_allowed($pdo, $customerId, $_POST, $userRepId ?? $salesRepId);
+                } catch (Throwable $geoEx) {
+                    $err = $geoEx->getMessage();
+                }
+            }
         }
     }
 

@@ -295,18 +295,28 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
 
   Widget _summary() {
     final r = _result!;
+    final rep = Fmt.str(r['sales_rep_name'] ?? r['sales_rep_names']);
     return Padding(
       padding: const EdgeInsets.all(12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+      child: Column(
         children: [
-          _stat('رصيد أول', Fmt.money(Fmt.toDouble(r['opening_balance']))),
-          _stat('مدين', Fmt.money(Fmt.toDouble(r['total_debit']))),
-          _stat('دائن', Fmt.money(Fmt.toDouble(r['total_credit']))),
-          _stat(
-            'الرصيد',
-            Fmt.money(Fmt.toDouble(r['closing_balance'])),
-            bold: true,
+          if (rep.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text('المندوب: $rep',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _stat('مدين', Fmt.money(Fmt.toDouble(r['total_debit']))),
+              _stat('دائن', Fmt.money(Fmt.toDouble(r['total_credit']))),
+              _stat(
+                'الرصيد',
+                Fmt.money(Fmt.toDouble(r['closing_balance'])),
+                bold: true,
+              ),
+            ],
           ),
         ],
       ),

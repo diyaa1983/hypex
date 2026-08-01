@@ -418,7 +418,11 @@
       var uopt = uomEl.options[uomEl.selectedIndex];
       var newFactor = parseNum(uopt ? uopt.getAttribute('data-factor') : 1) || 1;
       ln.unit_id = parseInt(uomEl.value, 10) || 0;
-      ln.unit_name = uopt ? (uopt.getAttribute('data-name') || uopt.textContent) : (ln.unit_name || '');
+      ln.unit_name = uopt
+        ? String(uopt.getAttribute('data-name') || uopt.textContent || '')
+            .replace(/\s*×\s*[\d.]+$/, '')
+            .trim()
+        : (ln.unit_name || '');
       ln.unit_factor = newFactor;
       if (parseNum(ln.base_price) > 0) {
         ln.unit_price = roundN(parseNum(ln.base_price) * newFactor);
@@ -1603,8 +1607,25 @@
       }
       var btn = saveBtn;
       if (btn) btn.disabled = true;
+
+      function runSaveWithGps(gps) {
+      if (!gps) {
+        if (btn) btn.disabled = false;
+        if (window.AppDialog && AppDialog.alert) {
+          AppDialog.alert('فعّل GPS وحدد موقعك قبل حفظ الفاتورة (يجب أن تكون ضمن 200م من العميل).', { type: 'warning' });
+        }
+        return;
+      }
       var fd = new FormData(form);
       fd.set('invoice_date', invoiceDateIso);
+      if (window.AppGeo && AppGeo.appendToFormData) {
+        AppGeo.appendToFormData(fd, gps, 'mobile');
+      } else {
+        fd.set('latitude', String(gps.latitude));
+        fd.set('longitude', String(gps.longitude));
+        if (gps.accuracy != null) fd.set('gps_accuracy', String(gps.accuracy));
+        fd.set('gps_source', 'mobile');
+      }
       var hasArchivePhoto = false;
       if (photoArchive && photoArchive.takePendingFile) {
         var pendingPhoto = photoArchive.takePendingFile();
@@ -1753,6 +1774,19 @@
           if (btn) btn.disabled = false;
           if (window.AppDialog && AppDialog.error) AppDialog.error('تعذر الاتصال بالخادم.');
         });
+      } // end runSaveWithGps
+
+      if (window.AppGeo && typeof AppGeo.withGpsForPost === 'function') {
+        AppGeo.withGpsForPost('mobile', function (gps) {
+          if (gps === undefined) {
+            if (btn) btn.disabled = false;
+            return;
+          }
+          runSaveWithGps(gps);
+        });
+      } else {
+        runSaveWithGps(null);
+      }
     });
   }
 

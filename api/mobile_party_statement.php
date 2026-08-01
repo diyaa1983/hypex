@@ -80,8 +80,14 @@ if ($partyType === 'customer') {
 
 $partyName = (string) ($party['name_ar'] ?? '');
 $partyCode = (string) ($party['code'] ?? '');
+$salesRepNames = '';
+if ($partyType === 'customer') {
+    require_once app_path('includes/crm_sales_rep_schema.php');
+    $salesRepNames = crm_customer_sales_rep_names($pdo, $partyId);
+}
 
 try {
+    // رصيد العميل كامل دائماً — بدون فلترة حركات حسب المندوب
     $built = crm_party_statement_build($pdo, $partyType, $partyId, $fromIso, $toIso);
     $rows = $built['rows'] ?? [];
 
@@ -98,6 +104,8 @@ try {
         'party_id' => $partyId,
         'party_name' => $partyName,
         'party_code' => $partyCode,
+        'sales_rep_name' => $salesRepNames,
+        'sales_rep_names' => $salesRepNames,
         'from' => $fromIso,
         'to' => $toIso,
         'from_dmy' => format_date_dmY($fromIso),
@@ -123,7 +131,8 @@ try {
             $fromIso,
             $toIso,
             $rows,
-            $built
+            $built,
+            $salesRepNames
         );
         $payload['html'] = $doc['html'];
         $payload['styles'] = $doc['styles'];

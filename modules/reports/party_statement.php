@@ -5,10 +5,12 @@ require_once app_path('includes/crm_party_statement.php');
 require_once app_path('includes/document_header.php');
 require_once app_path('includes/customer_picker.php');
 require_once app_path('includes/supplier_picker.php');
+require_once app_path('includes/crm_sales_rep_schema.php');
 
 $pdo = db();
 crm_ledger_ensure_schema($pdo);
 crm_supplier_ledger_ensure_schema($pdo);
+crm_sales_rep_ensure_schema($pdo);
 
 $activeRoute = (string) ($GLOBALS['activeRoute'] ?? 'report_party_statement');
 
@@ -53,6 +55,7 @@ $reportTitle = 'كشف حساب ' . $partyTypeLabel;
 $rows = [];
 $partyName = '';
 $partyCode = '';
+$salesRepNames = '';
 $openingBalance = 0.0;
 $openingDebit = 0.0;
 $openingCredit = 0.0;
@@ -92,6 +95,9 @@ if ($submitted) {
                 $reportTitle = 'كشف حساب ' . $partyTypeLabel;
                 $partyName = (string) ($party['name_ar'] ?? '');
                 $partyCode = (string) ($party['code'] ?? '');
+                if ($partyType === 'customer') {
+                    $salesRepNames = crm_customer_sales_rep_names($pdo, $partyId);
+                }
                 $built = crm_party_statement_build($pdo, $partyType, $partyId, $from, $to);
                 $rows = $built['rows'];
                 $openingBalance = $built['opening_balance'];
@@ -212,6 +218,9 @@ supplier_picker_json_script($suppliers, 'party-stmt-suppliers-json');
 
             <div class="party-stmt-report-head">
                 <p class="party-stmt-report-customer"><?= esc($partyName) ?></p>
+                <?php if ($partyType === 'customer' && $salesRepNames !== ''): ?>
+                    <p class="party-stmt-report-rep">المندوب: <?= esc($salesRepNames) ?></p>
+                <?php endif; ?>
                 <p class="party-stmt-report-dates">
                     <span>من تاريخ: <?= esc(format_date_dmY($from)) ?></span>
                     <span class="party-stmt-report-dates-sep">|</span>
@@ -232,16 +241,6 @@ supplier_picker_json_script($suppliers, 'party-stmt-suppliers-json');
                     </tr>
                     </thead>
                     <tbody>
-                    <?php if ($from !== '' && (abs($openingBalance) >= 0.000001 || $openingDebit > 0 || $openingCredit > 0)): ?>
-                        <tr class="party-stmt-opening">
-                            <td><?= esc(format_date_dmY($from)) ?></td>
-                            <td><em>رصيد افتتاحي</em></td>
-                            <td>—</td>
-                            <td class="col-money"><?= $openingDebit > 0 ? esc(format_money($openingDebit)) : '—' ?></td>
-                            <td class="col-money"><?= $openingCredit > 0 ? esc(format_money($openingCredit)) : '—' ?></td>
-                            <td class="col-money"><strong><?= esc(format_money($openingBalance)) ?></strong></td>
-                        </tr>
-                    <?php endif; ?>
                     <?php if (!$rows): ?>
                         <tr>
                             <td colspan="6" class="muted" style="text-align:center;padding:1.25rem;">

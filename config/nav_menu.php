@@ -61,6 +61,7 @@ return [
                             'items' => [
                                 ['r' => 'sales_customer_orders', 'label' => 'طلبات شراء العملاء', 'icon' => '📝'],
                                 ['r' => 'sales_customer_orders_approve', 'label' => 'اعتماد طلبات الشراء', 'icon' => '✅'],
+                                ['r' => 'sales_customer_orders_approved', 'label' => 'الطلبات المعتمدة', 'icon' => '📦'],
                             ],
                         ],
                         [
@@ -177,6 +178,7 @@ return [
                     'title' => 'المندوبين',
                     'items' => [
                         ['r' => 'sales_reps', 'label' => 'المندوبين', 'icon' => '🧑‍💼'],
+                        ['r' => 'sales_rep_route', 'label' => 'خط سير المندوب', 'icon' => '🗺️'],
                     ],
                 ],
                 [

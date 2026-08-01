@@ -132,6 +132,24 @@ function inv_item_units_backfill_from_items(PDO $pdo): void
     }
 }
 
+/**
+ * تسمية الوحدة مع التعبئة للعرض/الطباعة — مثال: كرتون × 24
+ */
+function inv_item_unit_pack_label(string $unitName, float $factor = 1.0): string
+{
+    $name = trim($unitName);
+    if ($name === '' || $name === '—') {
+        return $name;
+    }
+    if ($factor > 1.0000001) {
+        $f = rtrim(rtrim(number_format($factor, 6, '.', ''), '0'), '.');
+
+        return $name . ' × ' . ($f !== '' ? $f : (string) $factor);
+    }
+
+    return $name;
+}
+
 function inv_item_unit_to_base_qty(float $qty, float $factor): float
 {
     $f = $factor > 0 ? $factor : 1.0;

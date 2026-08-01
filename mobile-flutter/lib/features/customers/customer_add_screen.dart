@@ -4,9 +4,10 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/config.dart';
+import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
-import '../../widgets/async_view.dart';
+import '../../services/location_service.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -22,6 +23,10 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
   final _phone = TextEditingController();
   final _address = TextEditingController();
   bool _saving = false;
+  bool _locating = false;
+  double? _latitude;
+  double? _longitude;
+  double? _accuracy;
 
   @override
   void dispose() {
@@ -29,6 +34,40 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
     _phone.dispose();
     _address.dispose();
     super.dispose();
+  }
+
+  String get _gpsLabel {
+    if (_latitude == null || _longitude == null) {
+      return 'لم يُحدَّد موقع بعد.';
+    }
+    return 'الموقع: ${Fmt.trimNum(_latitude!)} ، ${Fmt.trimNum(_longitude!)}';
+  }
+
+  Future<void> _pickLocation() async {
+    setState(() => _locating = true);
+    try {
+      final pos = await LocationService.requirePosition();
+      if (!mounted) return;
+      setState(() {
+        _latitude = pos.latitude;
+        _longitude = pos.longitude;
+        _accuracy = pos.accuracy;
+      });
+      showSnack(context, 'تم تحديد موقع العميل.');
+    } catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  void _clearLocation() {
+    setState(() {
+      _latitude = null;
+      _longitude = null;
+      _accuracy = null;
+    });
   }
 
   Future<void> _save() async {
@@ -40,15 +79,23 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
     final s = context.read<SessionController>();
     setState(() => _saving = true);
     try {
+      final fields = <String, dynamic>{
+        'name_ar': name,
+        'phone': _phone.text.trim(),
+        'address_ar': _address.text.trim(),
+      };
+      if (_latitude != null && _longitude != null) {
+        fields['latitude'] = _latitude;
+        fields['longitude'] = _longitude;
+        if (_accuracy != null) {
+          fields['gps_accuracy'] = _accuracy;
+        }
+      }
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.customerSavePath,
-        csrf: s.csrf,
-        fields: {
-          'name_ar': name,
-          'phone': _phone.text.trim(),
-          'address_ar': _address.text.trim(),
-        },
-      );
+            AppConfig.customerSavePath,
+            csrf: s.csrf,
+            fields: fields,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم إضافة العميل').toString());
       final cust = res['customer'];
@@ -71,6 +118,7 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasGps = _latitude != null && _longitude != null;
     return MobileScaffold(
       title: const Text('إضافة عميل'),
       body: ListView(
@@ -119,9 +167,45 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
                     alignLabelWithHint: true,
                   ),
                 ),
+                const SizedBox(height: 14),
+                Text(
+                  'موقع العميل (GPS)',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _gpsLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSoft,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: (_saving || _locating) ? null : _pickLocation,
+                  icon: _locating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.my_location_rounded),
+                  label: Text(
+                      _locating ? 'جاري تحديد الموقع...' : 'تحديد الموقع'),
+                ),
+                if (hasGps) ...[
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: _saving ? null : _clearLocation,
+                    icon: const Icon(Icons.clear_rounded),
+                    label: const Text('مسح الموقع'),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: _saving ? null : _save,
+                  onPressed: _saving || _locating ? null : _save,
                   icon: _saving
                       ? const SizedBox(
                           width: 18,

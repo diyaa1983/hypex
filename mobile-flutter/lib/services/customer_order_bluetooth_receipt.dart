@@ -94,9 +94,11 @@ class CustomerOrderBluetoothReceipt {
           pw.Table(
             border: pw.TableBorder.all(width: .35, color: PdfColors.grey700),
             columnWidths: const {
-              0: pw.FlexColumnWidth(3),
-              1: pw.FlexColumnWidth(1.2),
-              2: pw.FlexColumnWidth(1),
+              0: pw.FlexColumnWidth(2.6),
+              1: pw.FlexColumnWidth(1.4),
+              2: pw.FlexColumnWidth(0.8),
+              3: pw.FlexColumnWidth(0.9),
+              4: pw.FlexColumnWidth(0.9),
             },
             children: [
               pw.TableRow(
@@ -104,19 +106,42 @@ class CustomerOrderBluetoothReceipt {
                 children: [
                   cell('المادة', head: true),
                   cell('الوحدة', head: true),
-                  cell('الكمية', head: true)
+                  cell('التعبئة', head: true),
+                  cell('الكمية', head: true),
+                  cell('العدد', head: true),
                 ],
               ),
               for (final line in lines)
-                pw.TableRow(children: [
-                  cell(Fmt.str(line['item_name'] ?? line['name'])),
-                  cell(Fmt.str(line['unit_name'] ?? line['unit'])),
-                  cell(
-                      Fmt.toDouble(line['qty']) == 0
-                          ? ''
-                          : Fmt.trimNum(Fmt.toDouble(line['qty'])),
-                      ltr: true),
-                ]),
+                () {
+                  final unitName =
+                      Fmt.str(line['unit_name'] ?? line['unit']);
+                  var factor = Fmt.toDouble(line['unit_factor'] ?? 1);
+                  if (factor <= 0) factor = 1;
+                  final pack = factor > 1.0000001
+                      ? ((factor - factor.round()).abs() < 1e-9
+                          ? '${factor.round()}'
+                          : Fmt.trimNum(factor))
+                      : '1';
+                  final unitLbl = unitName.isEmpty
+                      ? ''
+                      : (factor > 1.0000001
+                          ? '$unitName × $pack'
+                          : unitName);
+                  final qty = Fmt.toDouble(line['qty']);
+                  final qtyBase =
+                      Fmt.toDouble(line['qty_base'] ?? (qty * factor));
+                  return pw.TableRow(children: [
+                    cell(Fmt.str(line['item_name'] ?? line['name'])),
+                    cell(unitLbl),
+                    cell(pack, ltr: true),
+                    cell(
+                        qty == 0 ? '' : Fmt.trimNum(qty),
+                        ltr: true),
+                    cell(
+                        qtyBase == 0 ? '' : Fmt.trimNum(qtyBase),
+                        ltr: true),
+                  ]);
+                }(),
             ],
           ),
           pw.SizedBox(height: 9),

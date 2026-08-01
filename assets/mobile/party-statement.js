@@ -287,6 +287,7 @@
       summaryEl.hidden = false;
       summaryEl.removeAttribute('hidden');
       var typeLbl = data.party_type === 'supplier' ? 'مورد' : 'عميل';
+      var repName = String(data.sales_rep_name || data.sales_rep_names || '').trim();
       summaryEl.innerHTML =
         '<p class="m-ps-summary-type">' +
         escapeHtml(typeLbl) +
@@ -294,6 +295,9 @@
         '<p class="m-ps-summary-name">' +
         escapeHtml(data.party_name || '') +
         '</p>' +
+        (repName
+          ? '<p class="m-ps-summary-rep">المندوب: ' + escapeHtml(repName) + '</p>'
+          : '') +
         '<p class="m-ps-summary-period muted">' +
         'من ' +
         escapeHtml(data.from_dmy || '') +
@@ -303,23 +307,7 @@
     }
 
     var bodyHtml = '';
-    var ob = parseFloat(data.opening_balance) || 0;
-    var od = parseFloat(data.opening_debit) || 0;
-    var oc = parseFloat(data.opening_credit) || 0;
-    if (Math.abs(ob) >= 0.000001 || od > 0 || oc > 0 || (data.from_dmy && data.from_dmy !== '')) {
-      bodyHtml += tableRow(
-        [
-          tdDate(data.from_dmy || ''),
-          tdDesc('رصيد افتتاحي', true),
-          tdDoc('', ''),
-          tdMoney(od, false),
-          tdMoney(oc, false),
-          tdMoney(ob, true),
-        ],
-        'm-ps-tr m-ps-tr--open'
-      );
-    }
-    if (!rows.length && bodyHtml === '') {
+    if (!rows.length) {
       bodyHtml +=
         '<tr class="m-ps-tr m-ps-tr--empty"><td colspan="6" class="m-ps-td m-ps-td--empty">لا توجد حركات في هذه الفترة.</td></tr>';
     }
@@ -338,6 +326,8 @@
     });
     linesBody.innerHTML = bodyHtml;
 
+    var od = parseFloat(data.opening_debit) || 0;
+    var oc = parseFloat(data.opening_credit) || 0;
     var footerDebit = od + (parseFloat(data.total_debit) || 0);
     var footerCredit = oc + (parseFloat(data.total_credit) || 0);
     if (linesFoot) {

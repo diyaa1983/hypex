@@ -79,9 +79,23 @@
     };
   }
 
+  function formatUnitPackLabel(unitName, factor) {
+    var name = String(unitName || '').trim();
+    var f = parseFloat(factor);
+    if (!isFinite(f) || f <= 0) f = 1;
+    if (!name || name === '—') return name;
+    if (f > 1.0000001) {
+      var t = String(Math.round(f * 1e6) / 1e6);
+      if (Math.abs(f - Math.round(f)) < 1e-9) t = String(Math.round(f));
+      return name + ' × ' + t;
+    }
+    return name;
+  }
+
   function lineColCount(layout) {
     layout = layout || {};
-    var cols = 9;
+    // تسلسل + رقم + اسم + وحدة + تعبئة + كمية + عدد + افرادي + إجمالي + ضريبة مبلغ + نسبة + إجمالي مع ضريبة = 12
+    var cols = 12;
     if (layout.showQtyExtra) cols += 1;
     if (layout.showUnitPriceIncl) cols += 1;
     if (layout.showDiscount) cols += 1;
@@ -91,7 +105,7 @@
   function theadRow(layout) {
     layout = layout || { showQtyExtra: false, showDiscount: false, showUnitPriceIncl: false };
     var h =
-      '<th>تسلسل</th><th>رقم المادة</th><th>اسم المادة</th><th>الكمية</th>';
+      '<th>تسلسل</th><th>رقم المادة</th><th>اسم المادة</th><th>الوحدة</th><th>التعبئة</th><th>الكمية</th><th>العدد</th>';
     if (layout.showQtyExtra) {
       h += '<th>الكمية الإضافية</th>';
     }
@@ -144,13 +158,32 @@
     }
     var unitSel = tr.querySelector('.js-unit');
     var unitName = '';
+    var unitFactor = 1;
     if (unitSel && unitSel.options[unitSel.selectedIndex]) {
-      unitName = String(unitSel.options[unitSel.selectedIndex].text || '').trim();
+      var uopt = unitSel.options[unitSel.selectedIndex];
+      unitName = String(uopt.getAttribute('data-name') || uopt.text || '').trim();
+      // أزل × من النص إن وُجدت في الخيار
+      unitName = unitName.replace(/\s*×\s*[\d.]+$/, '').trim() || unitName;
+      unitFactor = parseFloat(uopt.getAttribute('data-factor') || '1') || 1;
     }
+    var factorEl = tr.querySelector('.js-unit-factor');
+    if (factorEl && factorEl.value !== '') {
+      var ff = parseFloat(factorEl.value);
+      if (isFinite(ff) && ff > 0) unitFactor = ff;
+    }
+    var qtyVal = (tr.querySelector('.js-qty') || { value: '' }).value;
+    var qtyNum = parseFloat(String(qtyVal).replace(/,/g, '')) || 0;
+    var qtyBaseEl = tr.querySelector('.js-qty-base');
+    var qtyBaseVal = qtyBaseEl && qtyBaseEl.value !== ''
+      ? qtyBaseEl.value
+      : (qtyNum > 0 ? String(Math.round(qtyNum * unitFactor * 1e6) / 1e6) : '');
+    var packDisp = unitFactor > 1.0000001
+      ? (Math.abs(unitFactor - Math.round(unitFactor)) < 1e-9
+          ? String(Math.round(unitFactor))
+          : String(Math.round(unitFactor * 1e6) / 1e6))
+      : '1';
+    var unitLabel = formatUnitPackLabel(unitName, unitFactor);
     var itemName = tr.dataset.nameAr || '';
-    if (unitName && unitName !== '—') {
-      itemName = itemName ? itemName + ' (' + unitName + ')' : unitName;
-    }
 
     var html = '<tr>';
     html +=
@@ -164,7 +197,16 @@
       escapeHtml(itemName) +
       '</td>' +
       '<td>' +
-      escapeHtml((tr.querySelector('.js-qty') || { value: '' }).value) +
+      escapeHtml(unitLabel || '—') +
+      '</td>' +
+      '<td>' +
+      escapeHtml(packDisp) +
+      '</td>' +
+      '<td>' +
+      escapeHtml(qtyVal) +
+      '</td>' +
+      '<td>' +
+      escapeHtml(qtyBaseVal) +
       '</td>';
     if (layout.showQtyExtra) {
       html +=

@@ -1528,7 +1528,9 @@
       var unitId = unitSel ? parseInt(unitSel.value, 10) || 0 : 0;
       var unitName = '';
       if (unitSel && unitSel.selectedIndex >= 0 && unitSel.options[unitSel.selectedIndex]) {
-        unitName = String(unitSel.options[unitSel.selectedIndex].textContent || '').trim();
+        var uoptSave = unitSel.options[unitSel.selectedIndex];
+        unitName = String(uoptSave.getAttribute('data-name') || uoptSave.textContent || '').trim()
+          .replace(/\s*×\s*[\d.]+$/, '').trim();
       }
       var unitFactor = parseNum(unitFactorEl ? unitFactorEl.value : 1) || 1;
       var qtyVal = parseNum(qtyEl ? qtyEl.value : 0);
@@ -1789,9 +1791,14 @@
     list.forEach(function (u) {
       var opt = document.createElement('option');
       var uid = parseInt(u.unit_id != null ? u.unit_id : u.id, 10) || 0;
+      var uname = String(u.name || u.unit_name || '—');
+      var ufactor = parseNum(u.factor != null ? u.factor : u.factor_to_base != null ? u.factor_to_base : 1) || 1;
       opt.value = String(uid);
-      opt.textContent = String(u.name || u.unit_name || '—');
-      opt.setAttribute('data-factor', String(u.factor != null ? u.factor : u.factor_to_base != null ? u.factor_to_base : 1));
+      opt.setAttribute('data-name', uname);
+      opt.setAttribute('data-factor', String(ufactor));
+      opt.textContent = ufactor > 1.0000001
+        ? (uname + ' × ' + (Math.abs(ufactor - Math.round(ufactor)) < 1e-9 ? String(Math.round(ufactor)) : String(Math.round(ufactor * 1e6) / 1e6)))
+        : uname;
       sel.appendChild(opt);
       if (selectedUnitId && uid === selectedUnitId) pick = opt;
       else if (!pick && (u.is_default || u.is_default_issue)) pick = opt;
@@ -2573,7 +2580,7 @@
 
     var ipp = window.InvInvoicePrint;
     var layout = ipp ? ipp.getLayout(tbody) : { showQtyExtra: false, showDiscount: false };
-    var lineCols = ipp ? ipp.lineColCount(layout) : 10;
+    var lineCols = ipp ? ipp.lineColCount(layout) : 12;
     var rowHtml = '';
     tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
       var itemId = parseInt(tr.dataset.itemId, 10);

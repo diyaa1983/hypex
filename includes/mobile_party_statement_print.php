@@ -120,15 +120,24 @@ function mobile_party_statement_print_watermark_overlay(?PDO $pdo): string
         . '<img src="' . esc($url) . '" alt=""></div>';
 }
 
-function mobile_party_statement_print_report_head(string $partyName, string $fromDmy, string $toDmy): string
-{
-    return '<div class="party-stmt-report-head">'
-        . '<p class="party-stmt-report-customer">' . esc($partyName) . '</p>'
-        . '<p class="party-stmt-report-dates">'
+function mobile_party_statement_print_report_head(
+    string $partyName,
+    string $fromDmy,
+    string $toDmy,
+    string $salesRepNames = ''
+): string {
+    $html = '<div class="party-stmt-report-head">'
+        . '<p class="party-stmt-report-customer">' . esc($partyName) . '</p>';
+    if (trim($salesRepNames) !== '') {
+        $html .= '<p class="party-stmt-report-rep">المندوب: ' . esc($salesRepNames) . '</p>';
+    }
+    $html .= '<p class="party-stmt-report-dates">'
         . '<span>من تاريخ: ' . esc($fromDmy) . '</span>'
         . '<span class="party-stmt-report-dates-sep"> | </span>'
         . '<span>إلى تاريخ: ' . esc($toDmy) . '</span>'
         . '</p></div>';
+
+    return $html;
 }
 
 /** @param array<string, mixed> $r */
@@ -168,11 +177,8 @@ function mobile_party_statement_print_lines_table(
     string $fromIso,
     bool $forPdf
 ): string {
-    $fromDmy = format_date_dmY($fromIso);
-    $ob = (float) ($totals['opening_balance'] ?? 0);
     $od = (float) ($totals['opening_debit'] ?? 0);
     $oc = (float) ($totals['opening_credit'] ?? 0);
-    $showOpen = $fromIso !== '' && (abs($ob) >= 0.000001 || $od > 0 || $oc > 0);
 
     $thStyle = $forPdf
         ? ' style="background:#f1f5f9;padding:6px 4px;border:1px solid #94a3b8;text-align:center;font-weight:700;font-size:8px;color:#475569;"'
@@ -186,7 +192,6 @@ function mobile_party_statement_print_lines_table(
     $tdDoc = $forPdf
         ? ' style="padding:6px 4px;border:1px solid #cbd5e1;text-align:right;font-weight:700;font-size:9px;background:#fff;vertical-align:middle;"'
         : ' class="party-stmt-doc-cell"';
-    $tdOpen = $forPdf ? $tdBase : '';
 
     $tblAttr = 'class="data-table report-sales-table party-stmt-table" cellpadding="0" cellspacing="0"'
         . ($forPdf ? ' style="width:100%;border-collapse:collapse;table-layout:fixed;direction:rtl;"' : '');
@@ -199,16 +204,6 @@ function mobile_party_statement_print_lines_table(
         . '<th class="col-money"' . $thStyle . '>دائن</th>'
         . '<th class="col-money"' . $thStyle . '>الرصيد</th>'
         . '</tr></thead><tbody>';
-
-    if ($showOpen) {
-        $html .= '<tr class="party-stmt-opening">'
-            . '<td class="col-date"' . $tdBase . '>' . esc($fromDmy) . '</td>'
-            . '<td' . ($forPdf ? $tdDesc : ' class="col-desc"') . '><em>رصيد افتتاحي</em></td>'
-            . '<td class="col-doc"' . $tdOpen . '>—</td>'
-            . '<td class="col-money"' . $tdBase . '>' . mobile_party_statement_print_money_cell($od, true) . '</td>'
-            . '<td class="col-money"' . $tdBase . '>' . mobile_party_statement_print_money_cell($oc, true) . '</td>'
-            . '<td class="col-money"' . $tdBase . '><strong>' . mobile_party_statement_print_money_cell($ob) . '</strong></td></tr>';
-    }
 
     if ($rows === []) {
         $html .= '<tr><td colspan="6" class="muted" style="padding:1rem;text-align:center;">لا توجد حركات في هذه الفترة.</td></tr>';
@@ -269,7 +264,8 @@ function mobile_party_statement_print_inner_html(
     string $toIso,
     array $rows,
     array $built,
-    bool $forPdf = false
+    bool $forPdf = false,
+    string $salesRepNames = ''
 ): string {
     $partyTypeLabel = $partyType === 'supplier' ? 'مورد' : 'عميل';
     $title = 'كشف حساب ' . $partyTypeLabel;
@@ -285,7 +281,7 @@ function mobile_party_statement_print_inner_html(
     ];
 
     $content = mobile_party_statement_print_header_html($title, $pdo, $forPdf)
-        . mobile_party_statement_print_report_head($partyName, $fromDmy, $toDmy)
+        . mobile_party_statement_print_report_head($partyName, $fromDmy, $toDmy, $salesRepNames)
         . mobile_party_statement_print_lines_table($rows, $totals, $fromIso, $forPdf);
 
     $wm = mobile_party_statement_print_watermark_overlay($pdo);
@@ -328,9 +324,25 @@ function mobile_party_statement_print_document(
     string $fromIso,
     string $toIso,
     array $rows,
-    array $built
+    array $built,
+    string $salesRepNames = ''
 ): array {
-    $inner = mobile_party_statement_print_inner_html($pdo, $partyType, $partyName, $partyCode, $fromIso, $toIso, $rows, $built, false);
+    if ($salesRepNames === '' && $partyType === 'customer' && $partyId > 0) {
+        require_once app_path('includes/crm_sales_rep_schema.php');
+        $salesRepNames = crm_customer_sales_rep_names($pdo, $partyId);
+    }
+    $inner = mobile_party_statement_print_inner_html(
+        $pdo,
+        $partyType,
+        $partyName,
+        $partyCode,
+        $fromIso,
+        $toIso,
+        $rows,
+        $built,
+        false,
+        $salesRepNames
+    );
     $styles = mobile_party_statement_print_styles($pdo) . mobile_party_statement_print_page_css();
     $html = mobile_party_statement_print_full_html($pdo, $inner, false);
     // PDF الموبايل = نفس تصميم الطباعة (ليس إطار html_pdf المنفصل)

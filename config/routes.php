@@ -60,6 +60,18 @@ return [
         'title' => 'اعتماد طلبات الشراء',
         'hide_screen_title' => true,
     ],
+    'sales_customer_orders_approved' => [
+        'file' => 'modules/sales/customer_orders_approved.php',
+        'permission' => 'sales_customer_orders_approve',
+        'title' => 'الطلبات المعتمدة',
+        'hide_screen_title' => true,
+    ],
+    'sales_rep_route' => [
+        'file' => 'modules/sales/rep_route.php',
+        'permission' => 'sales_rep_route',
+        'title' => 'خط سير المندوب',
+        'hide_screen_title' => true,
+    ],
     'report_customer_orders' => [
         'file' => 'modules/reports/customer_orders.php',
         'permission' => 'report_customer_orders',

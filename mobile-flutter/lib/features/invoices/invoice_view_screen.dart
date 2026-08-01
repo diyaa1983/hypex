@@ -422,10 +422,19 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
     final nameRaw =
         Fmt.str(l['item_name'] ?? l['name_ar'] ?? l['name'] ?? l['line_desc']);
     final unitName = Fmt.str(l['unit_name']);
-    final name = unitName.isEmpty
-        ? nameRaw
-        : (nameRaw.isEmpty ? unitName : '$nameRaw ($unitName)');
+    var factor = Fmt.toDouble(l['unit_factor'] ?? 1);
+    if (factor <= 0) factor = 1;
+    final packDisp = factor > 1.0000001
+        ? ((factor - factor.round()).abs() < 1e-9
+            ? '${factor.round()}'
+            : Fmt.trimNum(factor))
+        : '1';
+    final unitLabel = unitName.isEmpty
+        ? ''
+        : (factor > 1.0000001 ? '$unitName × $packDisp' : unitName);
+    final name = nameRaw.isEmpty ? (unitLabel.isEmpty ? 'مادة' : unitLabel) : nameRaw;
     final qty = Fmt.toDouble(l['qty'] ?? l['quantity']);
+    final qtyBase = Fmt.toDouble(l['qty_base'] ?? (qty * factor));
     final qtyExtra = Fmt.toDouble(l['qty_extra']);
     final price = Fmt.toDouble(l['unit_price'] ?? l['price']);
     final disc = Fmt.toDouble(l['discount_amount']);
@@ -468,19 +477,23 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
+              Expanded(
+                child: _fieldBox(
+                  'وحدة',
+                  unitLabel.isNotEmpty ? unitLabel : '—',
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(child: _fieldBox('تعبئة', packDisp)),
+              const SizedBox(width: 5),
               Expanded(child: _fieldBox('كمية', Fmt.money(qty))),
+              const SizedBox(width: 5),
+              Expanded(child: _fieldBox('العدد', Fmt.money(qtyBase))),
               const SizedBox(width: 5),
               Expanded(
                 child: _fieldBox(
                   'إض.',
                   qtyExtra > 0 ? Fmt.money(qtyExtra) : '',
-                ),
-              ),
-              const SizedBox(width: 5),
-              Expanded(
-                child: _fieldBox(
-                  'وحدة',
-                  unitName.isNotEmpty ? unitName : '—',
                 ),
               ),
               const SizedBox(width: 5),

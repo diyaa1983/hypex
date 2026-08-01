@@ -55,6 +55,8 @@ class AppConfig {
       'api/mobile_customer_order_view.php';
   static const String customerOrderSavePath =
       'api/mobile_customer_order_save.php';
+  static const String customerOrderDeletePath =
+      'api/mobile_customer_order_delete.php';
 
   static const String repItemsPath = 'api/mobile_rep_items.php';
   static const String repStockPath = 'api/mobile_rep_stock.php';

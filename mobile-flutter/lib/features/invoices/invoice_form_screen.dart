@@ -537,6 +537,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     final api = context.read<ApiClient>();
     setState(() => _busy = true);
     try {
+      final gps = await LocationService.requirePosition();
       final res = await api.postForm(
         AppConfig.salesInvoiceSaveRoute,
         csrf: s.csrf,
@@ -548,6 +549,10 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           'warehouse_id': _warehouseId,
           'payment_type': _paymentType,
           'lines_json': jsonEncode(_lines.map((l) => l.toJson()).toList()),
+          'latitude': gps.latitude,
+          'longitude': gps.longitude,
+          'gps_accuracy': gps.accuracy,
+          'gps_source': 'mobile',
         },
       );
       final invId = Fmt.toInt(res['invoice_id']);
@@ -562,6 +567,9 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       return invId;
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
+      return 0;
+    } catch (e) {
+      if (mounted) showSnack(context, e.toString(), error: true);
       return 0;
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -582,14 +590,14 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     final api = context.read<ApiClient>();
     setState(() => _busy = true);
     try {
-      final gps = await LocationService.tryGetPosition();
-      final fields = <String, dynamic>{'invoice_id': id};
-      if (gps != null) {
-        fields['latitude'] = gps.latitude;
-        fields['longitude'] = gps.longitude;
-        fields['gps_accuracy'] = gps.accuracy;
-        fields['gps_source'] = 'mobile';
-      }
+      final gps = await LocationService.requirePosition();
+      final fields = <String, dynamic>{
+        'invoice_id': id,
+        'latitude': gps.latitude,
+        'longitude': gps.longitude,
+        'gps_accuracy': gps.accuracy,
+        'gps_source': 'mobile',
+      };
       final p = await api.postForm(
         AppConfig.salesInvoicePostPath,
         fields: fields,
@@ -600,6 +608,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       setState(() => _isPosted = true);
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
+    } catch (e) {
+      if (mounted) showSnack(context, e.toString(), error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

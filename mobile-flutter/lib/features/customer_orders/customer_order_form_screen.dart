@@ -8,6 +8,7 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../services/customer_order_bluetooth_receipt.dart';
+import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/item_picker.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -182,6 +183,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     setState(() => _busy = true);
     try {
+      final gps = await LocationService.requirePosition();
       final result = await context.read<ApiClient>().postJson(
         AppConfig.customerOrderSavePath,
         csrf: context.read<SessionController>().csrf,
@@ -189,7 +191,11 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           'id': _id,
           'customer_id': _customer!.id,
           'warehouse_id': _warehouseId,
-          'lines': _lines.map((l) => l.toJson()).toList()
+          'lines': _lines.map((l) => l.toJson()).toList(),
+          'latitude': gps.latitude,
+          'longitude': gps.longitude,
+          'gps_accuracy': gps.accuracy,
+          'gps_source': 'mobile',
         },
       );
       final id = Fmt.toInt(result['order_id'] ?? result['id']);
@@ -209,6 +215,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       return _id;
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
+      return 0;
+    } catch (e) {
+      if (mounted) showSnack(context, e.toString(), error: true);
       return 0;
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -328,12 +337,23 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                             items: [
                               for (final u in _lines[i].item.units)
                                 DropdownMenuItem(
-                                    value: u.unitId, child: Text(u.name)),
+                                  value: u.unitId,
+                                  child: Text(
+                                    u.factor > 1.0000001
+                                        ? '${u.name} × ${Fmt.trimNum(u.factor)}'
+                                        : u.name,
+                                  ),
+                                ),
                               if (_lines[i].item.units.isEmpty &&
                                   _lines[i].unitName.isNotEmpty)
                                 DropdownMenuItem(
-                                    value: _lines[i].unitId,
-                                    child: Text(_lines[i].unitName)),
+                                  value: _lines[i].unitId,
+                                  child: Text(
+                                    _lines[i].unitFactor > 1.0000001
+                                        ? '${_lines[i].unitName} × ${Fmt.trimNum(_lines[i].unitFactor)}'
+                                        : _lines[i].unitName,
+                                  ),
+                                ),
                             ],
                             onChanged: !_editable
                                 ? null

@@ -7,6 +7,8 @@ require_once app_path('includes/sal_invoice_schema.php');
 require_once app_path('includes/sal_delivery_invoice_link.php');
 require_once app_path('includes/mobile_invoice.php');
 require_once app_path('includes/sal_invoice_gps.php');
+require_once app_path('includes/sal_rep_route.php');
+require_once app_path('includes/crm_sales_rep_schema.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -65,6 +67,24 @@ if ($linkDeliveryId > 0 && count($ids) === 1) {
 }
 
 try {
+    // قبل الترحيل: في الموبايل يجب أن يكون المندوب ضمن 200م ومدرج بخط السير
+    if (sal_rep_visit_geofence_should_enforce()) {
+        $uid = (int) (current_user()['id'] ?? 0);
+        $userRepId = crm_sales_rep_id_for_user($pdo, $uid);
+        $custSt = $pdo->prepare('SELECT customer_id FROM sal_invoice WHERE id = ? LIMIT 1');
+        foreach ($ids as $rawInvId) {
+            $invId = (int) $rawInvId;
+            if ($invId < 1) {
+                continue;
+            }
+            $custSt->execute([$invId]);
+            $custId = (int) $custSt->fetchColumn();
+            if ($custId > 0) {
+                sal_rep_visit_assert_allowed($pdo, $custId, $_POST, $userRepId);
+            }
+        }
+    }
+
     $result = sal_invoice_post_by_ids($pdo, $ids);
 
     require_once app_path('includes/header_check_notifications.php');
@@ -119,6 +139,12 @@ try {
         'message' => $msg,
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['ok' => false, 'error' => 'تعذر الترحيل.'], JSON_UNESCAPED_UNICODE);
+    $msg = $e->getMessage();
+    $isGeo = str_contains($msg, 'متر') || str_contains($msg, 'خط سير') || str_contains($msg, 'GPS') || str_contains($msg, 'موقع');
+    http_response_code($isGeo ? 422 : 500);
+    echo json_encode([
+        'ok' => false,
+        'error' => $isGeo ? 'geofence' : 'تعذر الترحيل.',
+        'message' => $isGeo ? $msg : 'تعذر الترحيل.',
+    ], JSON_UNESCAPED_UNICODE);
 }

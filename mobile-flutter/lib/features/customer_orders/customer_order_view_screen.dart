@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
+import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../services/customer_order_bluetooth_receipt.dart';
 import '../../widgets/async_view.dart';
@@ -77,10 +78,46 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                 )));
   }
 
+  Future<void> _delete() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف الطلب'),
+        content: const Text('هل تريد حذف هذا الطلب نهائياً؟'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('حذف')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await context.read<ApiClient>().postJson(
+        AppConfig.customerOrderDeletePath,
+        body: {'id': widget.orderId},
+        csrf: context.read<SessionController>().csrf,
+      );
+      if (!mounted) return;
+      showSnack(context, 'تم حذف الطلب.');
+      context.go('/customer-orders');
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => MobileScaffold(
         title: const Text('عرض طلب شراء'),
         actions: [
+          if (!_approved && !_loading)
+            IconButton(
+                onPressed: _delete,
+                icon: const Icon(Icons.delete_outline_rounded),
+                tooltip: 'حذف'),
           IconButton(
               onPressed: _loading ? null : _preview,
               icon: const Icon(Icons.print_outlined))
@@ -125,18 +162,52 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                       Expanded(
                           child:
                               Text(Fmt.str(raw['item_name'] ?? raw['name']))),
-                      Text(
-                          '${Fmt.str(raw['unit_name'] ?? raw['unit'])}  •  ${Fmt.trimNum(Fmt.toDouble(raw['qty']))}'),
+                      Text(() {
+                        final unitName =
+                            Fmt.str(raw['unit_name'] ?? raw['unit']);
+                        var factor = Fmt.toDouble(raw['unit_factor'] ?? 1);
+                        if (factor <= 0) factor = 1;
+                        final pack = factor > 1.0000001
+                            ? ((factor - factor.round()).abs() < 1e-9
+                                ? '${factor.round()}'
+                                : Fmt.trimNum(factor))
+                            : '1';
+                        final unitLbl = unitName.isEmpty
+                            ? ''
+                            : (factor > 1.0000001
+                                ? '$unitName × $pack'
+                                : unitName);
+                        final qty = Fmt.toDouble(raw['qty']);
+                        final qtyBase = Fmt.toDouble(
+                            raw['qty_base'] ?? (qty * factor));
+                        final parts = <String>[
+                          if (unitLbl.isNotEmpty) unitLbl,
+                          'تعبئة $pack',
+                          Fmt.trimNum(qty),
+                          'عدد ${Fmt.trimNum(qtyBase)}',
+                        ];
+                        return parts.join('  •  ');
+                      }()),
                     ])),
                 const SizedBox(height: 10),
                 Row(children: [
                   if (!_approved)
                     Expanded(
                         child: OutlinedButton.icon(
-                            onPressed: () => context.push(
-                                '/customer-orders/${widget.orderId}/edit'),
+                            onPressed: () async {
+                              await context.push(
+                                  '/customer-orders/${widget.orderId}/edit');
+                              if (mounted) _load();
+                            },
                             icon: const Icon(Icons.edit_outlined),
                             label: const Text('تعديل'))),
+                  if (!_approved) const SizedBox(width: 8),
+                  if (!_approved)
+                    Expanded(
+                        child: OutlinedButton.icon(
+                            onPressed: _delete,
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            label: const Text('حذف'))),
                   if (!_approved) const SizedBox(width: 8),
                   Expanded(
                       child: FilledButton.icon(
