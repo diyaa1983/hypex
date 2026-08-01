@@ -259,6 +259,8 @@ $geoMapPickCssPath = app_path('assets/css/geo-map-pick.css');
 $geoMapPickCssV = is_file($geoMapPickCssPath) ? (string) filemtime($geoMapPickCssPath) : '';
 $geoMapPickJsPath = app_path('assets/js/geo-map-pick.js');
 $geoMapPickJsV = is_file($geoMapPickJsPath) ? (string) filemtime($geoMapPickJsPath) : '';
+$mapLayersJsPath = app_path('assets/js/leaflet-map-layers.js');
+$mapLayersJsV = is_file($mapLayersJsPath) ? (string) filemtime($mapLayersJsPath) : '';
 ?>
 <link rel="stylesheet" href="<?= esc(app_url('assets/css/geo-map-pick.css')) ?><?= $geoMapPickCssV !== '' ? '?v=' . esc($geoMapPickCssV) : '' ?>">
 <script>
@@ -279,6 +281,7 @@ window.UserSessionGpsConfig = {
     goodEnoughM: 18
 };
 </script>
+<script src="<?= esc(app_url('assets/js/leaflet-map-layers.js')) ?><?= $mapLayersJsV !== '' ? '?v=' . esc($mapLayersJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/geo-map-pick.js')) ?><?= $geoMapPickJsV !== '' ? '?v=' . esc($geoMapPickJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/geo.js')) ?><?= $geoJsV !== '' ? '?v=' . esc($geoJsV) : '' ?>" defer></script>
 <?php

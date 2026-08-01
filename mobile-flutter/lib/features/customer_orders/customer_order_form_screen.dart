@@ -397,6 +397,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                             ?.clamp(1, 999999999) ??
                                         1;
                                   }),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(

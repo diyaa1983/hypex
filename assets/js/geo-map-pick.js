@@ -32,6 +32,9 @@
   }
 
   function ensureLeaflet() {
+    if (global.LeafletMapLayers && typeof LeafletMapLayers.ensureLeaflet === 'function') {
+      return LeafletMapLayers.ensureLeaflet();
+    }
     if (global.L && global.L.map) {
       return Promise.resolve();
     }
@@ -48,6 +51,59 @@
         }
       });
     return leafletPromise;
+  }
+
+  /**
+   * طبقات الأساس: Carto عند التكبير العالي (يمنع بلاطات Esri «Map data not yet available»).
+   */
+  function attachPickBaseLayer(map) {
+    var osmCfg = global.AppOsmConfig || {};
+    if (global.LeafletMapLayers && typeof LeafletMapLayers.attach === 'function') {
+      return LeafletMapLayers.attach(map, {
+        tileUrl: osmCfg.tileUrl,
+        attribution: osmCfg.attribution,
+        mapProvider: osmCfg.mapProvider,
+        googleKey: osmCfg.googleMapsKey || osmCfg.google_maps_key,
+      });
+    }
+
+    var carto = global.L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO',
+        maxZoom: 20,
+        subdomains: 'abcd',
+      }
+    );
+    carto.addTo(map);
+
+    var provider = String(osmCfg.mapProvider || 'esri').toLowerCase();
+    if (provider === 'carto') {
+      return Promise.resolve('carto');
+    }
+
+    var esriUrl =
+      (osmCfg.tileUrl && String(osmCfg.tileUrl).indexOf('{z}') >= 0
+        ? String(osmCfg.tileUrl)
+        : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}');
+    var esri = global.L.tileLayer(esriUrl, {
+      attribution: (osmCfg.attribution && String(osmCfg.attribution)) || '&copy; Esri',
+      maxNativeZoom: 17,
+      maxZoom: 17,
+    });
+    var esriCutoff = 14;
+    function syncEsri() {
+      var z = map.getZoom();
+      if (z > esriCutoff) {
+        if (map.hasLayer(esri)) map.removeLayer(esri);
+      } else if (!map.hasLayer(esri)) {
+        esri.addTo(map);
+      }
+    }
+    map.on('zoomend', syncEsri);
+    syncEsri();
+    return Promise.resolve('esri-hybrid');
   }
 
   function readLastCoords() {
@@ -355,14 +411,7 @@
           document.body.appendChild(root);
 
           map = global.L.map(mapEl, { zoomControl: true }).setView([lat, lng], forPost ? 15 : 16);
-          var osmCfg = global.AppOsmConfig || {};
-          var tileUrl =
-            (osmCfg.tileUrl && String(osmCfg.tileUrl)) || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-          var attribution = (osmCfg.attribution && String(osmCfg.attribution)) || '&copy; OpenStreetMap';
-          global.L.tileLayer(tileUrl, {
-            maxZoom: 19,
-            attribution: attribution,
-          }).addTo(map);
+          attachPickBaseLayer(map);
 
           marker = global.L.marker([lat, lng]).addTo(map);
           updateCoordsLabel();

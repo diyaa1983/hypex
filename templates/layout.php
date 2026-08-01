@@ -381,6 +381,8 @@ $geoMapPickCssPath = app_path('assets/css/geo-map-pick.css');
 $geoMapPickCssV = is_file($geoMapPickCssPath) ? (string) filemtime($geoMapPickCssPath) : '';
 $geoMapPickJsPath = app_path('assets/js/geo-map-pick.js');
 $geoMapPickJsV = is_file($geoMapPickJsPath) ? (string) filemtime($geoMapPickJsPath) : '';
+$mapLayersJsPath = app_path('assets/js/leaflet-map-layers.js');
+$mapLayersJsV = is_file($mapLayersJsPath) ? (string) filemtime($mapLayersJsPath) : '';
 ?>
 <link rel="stylesheet" href="<?= esc(app_url('assets/css/geo-map-pick.css')) ?><?= $geoMapPickCssV !== '' ? '?v=' . esc($geoMapPickCssV) : '' ?>">
 <script>
@@ -399,6 +401,7 @@ window.UserSessionGpsConfig = {
 };
 (function () {
     var files = [
+        <?= json_encode(app_url('assets/js/leaflet-map-layers.js') . ($mapLayersJsV !== '' ? '?v=' . $mapLayersJsV : ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         <?= json_encode(app_url('assets/js/geo-map-pick.js') . ($geoMapPickJsV !== '' ? '?v=' . $geoMapPickJsV : ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         <?= json_encode(app_url('assets/js/geo.js') . ($geoJsV !== '' ? '?v=' . $geoJsV : ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         <?= json_encode(app_url('assets/js/user-session-gps.js') . ($userGpsJsV !== '' ? '?v=' . $userGpsJsV : ''), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
