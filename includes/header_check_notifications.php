@@ -13,23 +13,43 @@ declare(strict_types=1);
  *   einvoice_alerts:list<array<string,mixed>>,
  *   customer_order_alerts:list<array<string,mixed>>,
  *   summary:array{total:int,overdue:int,today:int,soon:int,alert_count:int,delivery_count:int,unposted_count:int,einvoice_count:int,customer_order_count:int},
- *   soon_days:int
+ *   soon_days:int,
+ *   _needs_refresh?:bool
  * }
  */
-function header_check_notifications_collect(PDO $pdo): array
+function header_check_notifications_collect(PDO $pdo, bool $forceFresh = false): array
 {
-    $cacheTtl = 180;
-    $cached = $_SESSION['_header_check_notify_v3'] ?? null;
-    if (
-        is_array($cached)
-        && isset($cached['at'], $cached['data'])
-        && is_array($cached['data'])
-        && (time() - (int) $cached['at']) < $cacheTtl
-    ) {
-        return $cached['data'];
+    // للتخطيط السريع: أعِد الكاش فوراً ولا تُبطئ الصفحة — التحديث عبر AJAX
+    if (!$forceFresh) {
+        return header_check_notifications_for_layout();
     }
 
-    $empty = [
+    return header_check_notifications_collect_fresh($pdo);
+}
+
+/** قراءة سريعة من الجلسة دون استعلامات ثقيلة (مسار التنقّل). */
+function header_check_notifications_for_layout(): array
+{
+    $empty = header_check_notifications_empty_payload();
+    $cached = $_SESSION['_header_check_notify_v3'] ?? null;
+    if (is_array($cached) && isset($cached['data']) && is_array($cached['data'])) {
+        $data = $cached['data'];
+        $age = time() - (int) ($cached['at'] ?? 0);
+        $data['_needs_refresh'] = $age >= 90;
+        return $data;
+    }
+
+    // أول زيارة: لا نُبطئ الصفحة — الجرس يُحدَّث بعد الرسم
+    $empty['enabled'] = header_check_notifications_user_can_see_cheap();
+    $empty['_needs_refresh'] = true;
+
+    return $empty;
+}
+
+/** @return array<string,mixed> */
+function header_check_notifications_empty_payload(): array
+{
+    return [
         'enabled' => false,
         'checks' => [],
         'alert_checks' => [],
@@ -50,6 +70,34 @@ function header_check_notifications_collect(PDO $pdo): array
         ],
         'soon_days' => 7,
     ];
+}
+
+/** فحص صلاحيات رخيص من الجلسة فقط (بدون تحميل وحدات الإشعارات). */
+function header_check_notifications_user_can_see_cheap(): bool
+{
+    $codes = [
+        'cash_receipt', 'cash_receipts_list',
+        'sales_invoices', 'sales_invoices_list',
+        'sales_returns', 'sales_returns_list',
+        'purchase_invoices', 'purchase_invoices_list',
+        'purchase_returns', 'purchase_returns_list',
+        'cash_payment', 'cash_payments_list',
+        'journal_entries', 'warehouse_moves', 'inventory_stocktake',
+        'sales_delivery', 'sales_customer_orders_approve',
+        'sales_einvoice', 'm_sales_einvoice',
+    ];
+    foreach ($codes as $code) {
+        if (user_can($code)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function header_check_notifications_collect_fresh(PDO $pdo): array
+{
+    $empty = header_check_notifications_empty_payload();
 
     $canChecks = user_can('cash_receipt') || user_can('cash_receipts_list');
     require_once app_path('includes/sal_delivery_notifications.php');
@@ -154,6 +202,7 @@ function header_check_notifications_collect(PDO $pdo): array
         'customer_order_alerts' => $customerOrderAlerts,
         'summary' => $summary,
         'soon_days' => $soonDays,
+        '_needs_refresh' => false,
     ];
     $_SESSION['_header_check_notify_v3'] = ['at' => time(), 'data' => $data];
 
@@ -228,8 +277,12 @@ function render_header_check_notifications(array $data): void
     if ($alertCount > 0) {
         $bellClass .= ' has-alerts';
     }
+    $needsRefresh = !empty($data['_needs_refresh']);
+    $refreshUrl = app_url('api/header_notifications_refresh.php');
     ?>
-    <div class="app-check-bell-wrap no-print">
+    <div class="app-check-bell-wrap no-print"
+         data-needs-refresh="<?= $needsRefresh ? '1' : '0' ?>"
+         data-refresh-url="<?= esc($refreshUrl) ?>">
         <button type="button"
                 class="<?= esc($bellClass) ?>"
                 aria-label="التنبيهات<?= $alertCount > 0 ? ' — ' . $alertCount . ' تنبيه' : '' ?>"
@@ -237,9 +290,7 @@ function render_header_check_notifications(array $data): void
                 aria-haspopup="true"
                 title="التنبيهات<?= $alertCount > 0 ? ' (' . $alertCount . ')' : '' ?>">
             <span class="app-check-bell-icon" aria-hidden="true"><?= app_icon_svg('bell', 22) ?></span>
-            <?php if ($alertCount > 0): ?>
-            <span class="app-check-bell-badge" aria-hidden="true"><?= $alertCount > 99 ? '99+' : (string) $alertCount ?></span>
-            <?php endif; ?>
+            <span class="app-check-bell-badge js-check-bell-badge" aria-hidden="true"<?= $alertCount > 0 ? '' : ' hidden' ?>><?= $alertCount > 99 ? '99+' : ($alertCount > 0 ? (string) $alertCount : '') ?></span>
         </button>
         <div class="app-check-bell-panel" hidden role="dialog" aria-label="قائمة التنبيهات">
             <header class="app-check-bell-panel-head">

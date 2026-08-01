@@ -10,32 +10,44 @@ function mobile_can_access_customer_order_api(): bool
 
 function sal_customer_order_ensure_schema(PDO $pdo): bool
 {
+    static $ok = null;
+    if ($ok !== null) {
+        return $ok;
+    }
     try {
         $pdo->query('SELECT id FROM sal_customer_order_line LIMIT 1');
+        $ok = true;
     } catch (Throwable $e) {
         require_once app_path('includes/sql_migration.php');
         sql_migration_run_file($pdo, 'database/migrations/235_sal_customer_order.sql');
         try {
             $pdo->query('SELECT id FROM sal_customer_order_line LIMIT 1');
+            $ok = true;
         } catch (Throwable $e2) {
-            return false;
+            $ok = false;
         }
     }
 
-    // تأكيد صلاحية الموبايل حتى لو نُفّذت الهجرة سابقاً قبل إضافة مجموعة MOBILE.
-    try {
-        $pdo->exec(
-            "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
-             SELECT g.id, s.id, 1
-             FROM sys_group g
-             INNER JOIN sys_screen s ON s.code = 'm_customer_orders'
-             WHERE g.code IN ('MOBILE', 'ADMINS')"
-        );
-    } catch (Throwable $e) {
-        // ignore
+    if ($ok) {
+        // صلاحية الموبايل مرة واحدة فقط — لا INSERT في كل تنقّل/إشعار
+        try {
+            require_once app_path('includes/acc_coa_bootstrap.php');
+            if (acc_coa_meta_get($pdo, 'sal_customer_order_mobile_perm_v1') !== '1') {
+                $pdo->exec(
+                    "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+                     SELECT g.id, s.id, 1
+                     FROM sys_group g
+                     INNER JOIN sys_screen s ON s.code = 'm_customer_orders'
+                     WHERE g.code IN ('MOBILE', 'ADMINS')"
+                );
+                acc_coa_meta_set($pdo, 'sal_customer_order_mobile_perm_v1', '1');
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
     }
 
-    return true;
+    return $ok;
 }
 
 function sal_customer_order_generate_next_no(PDO $pdo, string $orderDate): string

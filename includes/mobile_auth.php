@@ -91,6 +91,8 @@ function mobile_attempt_login(string $username, string $password): bool
 
     $_SESSION['app_context'] = 'mobile';
     $_SESSION['permissions'] = load_user_mobile_permissions($uid);
+    $_SESSION['permissions_user_id'] = $uid;
+    $_SESSION['permissions_loaded_at'] = time();
 
     try {
         require_once app_path('includes/sys_user_open_session.php');

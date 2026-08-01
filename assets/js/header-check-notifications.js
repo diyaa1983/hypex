@@ -117,4 +117,40 @@
   );
 
   global.AppHeaderCheckNotify = { closePanel: closePanel, openPanel: openPanel };
+
+  // تحديث غير حاجب بعد رسم الصفحة — لا يبطئ التنقّل
+  var needsRefresh = wrap.getAttribute('data-needs-refresh') === '1';
+  var refreshUrl = wrap.getAttribute('data-refresh-url') || '';
+  if (needsRefresh && refreshUrl) {
+    var runRefresh = function () {
+      fetch(refreshUrl, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (res) {
+          if (!res || !res.ok) return;
+          var badge = wrap.querySelector('.app-check-bell-badge, .js-check-bell-badge');
+          var count = parseInt(res.alert_count, 10) || 0;
+          if (badge) {
+            if (count > 0) {
+              badge.hidden = false;
+              badge.textContent = count > 99 ? '99+' : String(count);
+            } else {
+              badge.hidden = true;
+              badge.textContent = '';
+            }
+          }
+          wrap.setAttribute('data-needs-refresh', '0');
+        })
+        .catch(function () {});
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(runRefresh, { timeout: 2500 });
+    } else {
+      setTimeout(runRefresh, 400);
+    }
+  }
 })(typeof window !== 'undefined' ? window : this);

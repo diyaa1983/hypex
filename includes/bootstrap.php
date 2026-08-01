@@ -100,7 +100,7 @@ app_lang();
 app_ui_theme();
 
 if (is_logged_in()) {
-    refresh_session_permissions();
+    ensure_session_permissions(300);
     try {
         require_once app_path('includes/sys_user_open_session.php');
         if (sys_user_open_session_guard_current()) {

@@ -85,6 +85,29 @@ function refresh_session_permissions(?int $userId = null): void
         $_SESSION['permissions'] = load_user_permissions($userId);
     }
     $_SESSION['permissions_user_id'] = $userId;
+    $_SESSION['permissions_loaded_at'] = time();
+}
+
+/**
+ * يضمن وجود صلاحيات في الجلسة دون إعادة الاستعلام من DB في كل طلب.
+ * يُعاد التحميل عند غيابها أو بعد انتهاء المهلة أو تغيّر المستخدم.
+ */
+function ensure_session_permissions(int $ttlSeconds = 300): void
+{
+    if (!is_logged_in()) {
+        return;
+    }
+    $userId = (int) (current_user()['id'] ?? 0);
+    if ($userId < 1) {
+        return;
+    }
+    $have = $_SESSION['permissions'] ?? null;
+    $loadedFor = (int) ($_SESSION['permissions_user_id'] ?? 0);
+    $loadedAt = (int) ($_SESSION['permissions_loaded_at'] ?? 0);
+    if (is_array($have) && $loadedFor === $userId && (time() - $loadedAt) < max(30, $ttlSeconds)) {
+        return;
+    }
+    refresh_session_permissions($userId);
 }
 
 function user_can(string $screenCode): bool
@@ -193,12 +216,13 @@ function attempt_login(string $username, string $password): bool
     $_SESSION['is_system_admin'] = user_is_system_admin($uid);
     $_SESSION['permissions'] = load_user_permissions($uid);
     $_SESSION['permissions_user_id'] = $uid;
+    $_SESSION['permissions_loaded_at'] = time();
     $_SESSION['app_context'] = 'desktop';
     try {
         require_once app_path('includes/company_settings.php');
-        unset($_SESSION['ui_theme'], $_SESSION['ui_theme_loaded']);
+        unset($_SESSION['ui_theme'], $_SESSION['ui_theme_loaded'], $_SESSION['_company_settings_sess']);
     } catch (Throwable $e) {
-        unset($_SESSION['ui_theme'], $_SESSION['ui_theme_loaded']);
+        unset($_SESSION['ui_theme'], $_SESSION['ui_theme_loaded'], $_SESSION['_company_settings_sess']);
     }
     unset($_SESSION['fin_check_due_email_boot']);
     unset($_SESSION['fin_out_check_due_email_boot']);

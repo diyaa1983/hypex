@@ -24,16 +24,31 @@ function app_boot_mark_warm(int $migrationCount): void
 /** مسار سريع بعد أول طلب في الجلسة — يتخطى مزامنة الشاشات والترحيلات. */
 function app_boot_try_fast(PDO $pdo, int $migrationCount): bool
 {
-    if (!app_boot_is_warm($migrationCount)) {
+    $warm = $_SESSION['_app_boot_warm'] ?? null;
+    if (!is_string($warm) || $warm === '') {
         return false;
     }
 
-    require_once app_path('includes/acc_coa_bootstrap.php');
-    acc_coa_meta_preload($pdo);
-    require_once app_path('includes/sys_screens.php');
-    sys_repair_user_without_groups($pdo, (int) (current_user()['id'] ?? 0));
-    require_once app_path('includes/fin_check_due_email.php');
+    // لا تعِد حساب filemtime في كل تنقّل — افحص كل دقيقتين فقط
+    $fpAt = (int) ($_SESSION['_app_boot_fp_at'] ?? 0);
+    $now = time();
+    if ($now - $fpAt >= 120) {
+        $_SESSION['_app_boot_fp_at'] = $now;
+        if ($warm !== app_boot_fingerprint($migrationCount)) {
+            return false;
+        }
+    } elseif (!str_ends_with($warm, ':m' . $migrationCount)) {
+        return false;
+    }
+
+    // لا تحمّل acc_coa_bootstrap ولا preload meta في المسار السريع
+    if (empty($_SESSION['_app_user_groups_ok'])) {
+        require_once app_path('includes/sys_screens.php');
+        sys_repair_user_without_groups($pdo, (int) (current_user()['id'] ?? 0));
+        $_SESSION['_app_user_groups_ok'] = 1;
+    }
     if (empty($_SESSION['_app_fin_check_bg'])) {
+        require_once app_path('includes/fin_check_due_email.php');
         fin_check_due_email_register_background_runner();
         $_SESSION['_app_fin_check_bg'] = 1;
     }
@@ -121,6 +136,8 @@ function app_boot_run_full(PDO $pdo, array $appBootMigrations): void
     fin_check_due_email_register_background_runner();
 
     app_boot_mark_warm(count($appBootMigrations));
+    $_SESSION['_app_boot_fp_at'] = time();
+    $_SESSION['_app_user_groups_ok'] = 1;
 }
 
 /** @param list<string> $appBootMigrations */

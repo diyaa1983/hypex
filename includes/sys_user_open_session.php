@@ -365,12 +365,16 @@ function sys_user_open_session_guard_current(): bool
 
     try {
         $pdo = db();
-        if (sys_user_open_session_is_revoked($pdo, $token)) {
-            return true;
+        $revokeAt = (int) ($_SESSION['open_session_revoke_check_at'] ?? 0);
+        if (time() - $revokeAt >= 15) {
+            if (sys_user_open_session_is_revoked($pdo, $token)) {
+                return true;
+            }
+            $_SESSION['open_session_revoke_check_at'] = time();
         }
 
         $lastTouch = (int) ($_SESSION['open_session_touch_ts'] ?? 0);
-        if (time() - $lastTouch >= 25) {
+        if (time() - $lastTouch >= 60) {
             sys_user_open_session_touch($pdo, $token);
             $_SESSION['open_session_touch_ts'] = time();
         }

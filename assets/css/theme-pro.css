@@ -1176,3 +1176,59 @@ body:has(.nav-hub-ora--pro) .main-content {
   }
 }
 
+/*
+ * أزرار شريط العنوان كانت بخط أبيض على خلفية زرقاء (Oracle).
+ * في basic الشريط فاتح — فتصبح غير مرئية. ن강제 تبايناً واضحاً.
+ */
+.dashboard-ora-screen-title .dashboard-ora-screen-title__action,
+.dashboard-ora-screen-title a.dashboard-ora-screen-title__action,
+.dashboard-ora-screen-title button.dashboard-ora-screen-title__action,
+.dashboard-ora-screen-title .sales-inv-title-new,
+.dashboard-ora-screen-title .sales-inv-title-action {
+  color: #1e40af !important;
+  background: #eff6ff !important;
+  border: 1px solid #bfdbfe !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.dashboard-ora-screen-title .dashboard-ora-screen-title__action:hover,
+.dashboard-ora-screen-title a.dashboard-ora-screen-title__action:hover,
+.dashboard-ora-screen-title button.dashboard-ora-screen-title__action:hover:not(:disabled),
+.dashboard-ora-screen-title .sales-inv-title-new:hover,
+.dashboard-ora-screen-title .sales-inv-title-action:hover:not(:disabled) {
+  color: #1e3a8a !important;
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+.dashboard-ora-screen-title .sales-inv-unlink-delivery-btn:not([hidden]) {
+  color: #9a3412 !important;
+  background: #fff7ed !important;
+  border-color: #fdba74 !important;
+}
+
+/* اختصارات F3/F5/F7 — نص داكن دائماً على خلفية فاتحة */
+.sales-inv-field-hotkey,
+.sales-inv-item-hotkey,
+kbd.sales-inv-field-hotkey {
+  color: #334155 !important;
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+/* أزرار عامة فاتحة يجب ألا ترث لوناً أبيض من .btn-primary على خلفيات Oracle الفاتحة */
+.sales-ora12-screen .btn:not(.btn-primary):not(.btn-danger),
+.sales-ora-screen .btn:not(.btn-primary):not(.btn-danger),
+.report-ora12-screen .btn:not(.btn-primary):not(.btn-danger) {
+  color: #0f172a !important;
+}
+
+.sales-ora12-screen .btn-ghost,
+.sales-ora-screen .btn-ghost,
+.report-ora12-screen .btn-ghost {
+  color: #1d4ed8 !important;
+  background: transparent !important;
+  border-color: #bfdbfe !important;
+}
+

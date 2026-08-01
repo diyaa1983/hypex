@@ -13,6 +13,18 @@ function company_settings(?PDO $pdo = null): array
         return $GLOBALS['_company_settings_cache'];
     }
 
+    $sess = $_SESSION['_company_settings_sess'] ?? null;
+    if (
+        is_array($sess)
+        && isset($sess['at'], $sess['data'])
+        && is_array($sess['data'])
+        && (time() - (int) $sess['at']) < 300
+    ) {
+        $GLOBALS['_company_settings_cache'] = $sess['data'];
+
+        return $GLOBALS['_company_settings_cache'];
+    }
+
     $defaults = [
         'company_name_ar' => 'الشركة',
         'tax_rate_percent' => 15.0,
@@ -29,8 +41,6 @@ function company_settings(?PDO $pdo = null): array
     try {
         $pdo = $pdo ?? db();
         company_settings_ensure_schema($pdo);
-        company_settings_ensure_ui_theme_column($pdo);
-        company_settings_ensure_ui_lang_column($pdo);
         $row = $pdo->query(
             'SELECT company_name_ar, tax_rate_percent, decimal_places, invoice_unit_price_decimal_places,
                     invoice_print_decimal_places, invoice_print_unit_price_decimal_places,
@@ -73,6 +83,7 @@ function company_settings(?PDO $pdo = null): array
     $defaults['ui_theme'] = company_ui_theme_normalize((string) ($defaults['ui_theme'] ?? 'classic'));
     $defaults['ui_lang'] = company_ui_lang_normalize((string) ($defaults['ui_lang'] ?? 'ar'));
     $GLOBALS['_company_settings_cache'] = $defaults;
+    $_SESSION['_company_settings_sess'] = ['at' => time(), 'data' => $defaults];
 
     return $defaults;
 }
@@ -80,6 +91,7 @@ function company_settings(?PDO $pdo = null): array
 function company_settings_clear_cache(): void
 {
     $GLOBALS['_company_settings_cache'] = null;
+    unset($_SESSION['_company_settings_sess']);
 }
 
 /** @return 'classic'|'basic' */
@@ -253,6 +265,7 @@ function company_settings_ensure_schema(PDO $pdo): void
     company_settings_ensure_default_row($pdo);
     company_settings_ensure_rows_per_page_column($pdo);
     company_settings_ensure_ui_theme_column($pdo);
+    company_settings_ensure_ui_lang_column($pdo);
     company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
     company_settings_ensure_invoice_print_decimal_places_columns($pdo);
 
@@ -285,6 +298,12 @@ function company_settings_ensure_rows_per_page_column(PDO $pdo): void
 
 function company_settings_ensure_ui_theme_column(PDO $pdo): void
 {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
     try {
         $pdo->query('SELECT ui_theme FROM sys_company_settings LIMIT 1');
     } catch (Throwable $e) {
@@ -301,7 +320,12 @@ function company_settings_ensure_ui_theme_column(PDO $pdo): void
         }
     }
     try {
+        require_once app_path('includes/acc_coa_bootstrap.php');
+        if (acc_coa_meta_get($pdo, 'company_ui_theme_modern_migrated_v1') === '1') {
+            return;
+        }
         $pdo->exec("UPDATE sys_company_settings SET ui_theme = 'basic' WHERE ui_theme = 'modern'");
+        acc_coa_meta_set($pdo, 'company_ui_theme_modern_migrated_v1', '1');
     } catch (Throwable $e3) {
         // ignore
     }
