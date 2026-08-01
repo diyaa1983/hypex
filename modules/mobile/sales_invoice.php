@@ -221,9 +221,17 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
             <h4 class="m-item-quick-title" id="m-item-quick-name"></h4>
             <p class="m-item-quick-code muted" id="m-item-quick-code"></p>
             <div class="m-item-quick-grid">
+                <label class="m-inv-mini m-inv-mini--full">
+                    <span>الوحدة / التعبئة</span>
+                    <select class="m-input m-input--sm" id="m-item-quick-uom" aria-label="وحدة الصرف"></select>
+                </label>
                 <label class="m-inv-mini">
                     <span>الكمية</span>
                     <input type="text" class="m-input m-input--sm m-input--num" id="m-item-quick-qty" inputmode="decimal" autocomplete="off" placeholder="">
+                </label>
+                <label class="m-inv-mini">
+                    <span>العدد</span>
+                    <input type="text" class="m-input m-input--sm m-input--num" id="m-item-quick-qty-base" readonly tabindex="-1" placeholder="—">
                 </label>
                 <label class="m-inv-mini">
                     <span>السعر الإفرادي</span>

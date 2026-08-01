@@ -1201,15 +1201,11 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                             .cast<ItemUnitOpt?>()
                             .followedBy([null]).first;
                         setState(() {
-                          final oldFactor =
-                              l.unitFactor <= 0 ? 1.0 : l.unitFactor;
                           l.unitId = v ?? 0;
                           if (u != null) {
                             l.unitName = u.name;
                             final newFactor = u.factor <= 0 ? 1.0 : u.factor;
-                            if (l.qty > 0 && oldFactor > 0) {
-                              l.qty = (l.qty * oldFactor) / newFactor;
-                            }
+                            // الكمية تبقى كما أدخلها المستخدم؛ العدد = كمية × معامل
                             l.unitFactor = newFactor;
                             if (l.basePrice > 0) {
                               l.unitPrice = l.basePrice * newFactor;
@@ -1229,6 +1225,15 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                     l.qty,
                     enabled: _canEdit,
                     onChanged: (v) => setState(() => l.qty = v),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _numBox(
+                    'العدد',
+                    l.qty * (l.unitFactor <= 0 ? 1 : l.unitFactor),
+                    enabled: false,
+                    onChanged: (_) {},
                   ),
                 ),
                 const SizedBox(width: 6),

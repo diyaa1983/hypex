@@ -48,6 +48,7 @@ $salesRepLabel = '';
 $itemLabel = '';
 $itemDisplayName = '';
 $sumQty = 0.0;
+$sumQtyBase = 0.0;
 $showResult = false;
 $err = '';
 
@@ -129,6 +130,7 @@ if ($submitted) {
                 );
                 foreach ($rows as $r) {
                     $sumQty += (float) ($r['qty'] ?? 0);
+                    $sumQtyBase += (float) ($r['qty_base'] ?? ((float) ($r['qty'] ?? 0) * (float) ($r['unit_factor'] ?? 1)));
                 }
             }
         }
@@ -170,7 +172,7 @@ if ($showResult) {
     $pageDataAttrs .= ' data-to-dmy="' . esc(format_date_dmY($to)) . '"';
 }
 
-$colspanEmpty = 9 + ($showAllCustomers ? 1 : 0);
+$colspanEmpty = 11 + ($showAllCustomers ? 1 : 0);
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($invCssUrl) ?>">
@@ -295,7 +297,9 @@ customer_picker_json_script($customers, 'report-customer-orders-customers-json')
                         <th class="col-rep js-sort-th" data-sort="sales_rep_name" data-sort-type="text">المندوب</th>
                         <th class="col-item js-sort-th" data-sort="item_name" data-sort-type="text">المادة</th>
                         <th class="js-sort-th" data-sort="unit_name" data-sort-type="text">الوحدة</th>
+                        <th class="col-money js-sort-th" data-sort="unit_factor" data-sort-type="number">التعبئة</th>
                         <th class="col-money js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
+                        <th class="col-money js-sort-th" data-sort="qty_base" data-sort-type="number">العدد</th>
                         <th class="col-posted js-sort-th" data-sort="status_label" data-sort-type="text">الحالة</th>
                     </tr>
                     </thead>
@@ -323,7 +327,9 @@ customer_picker_json_script($customers, 'report-customer-orders-customers-json')
                             data-sort-sales_rep_name="<?= esc((string) ($r['sales_rep_name'] ?? '')) ?>"
                             data-sort-item_name="<?= esc((string) ($r['item_name'] ?? '')) ?>"
                             data-sort-unit_name="<?= esc((string) ($r['unit_name'] ?? '')) ?>"
+                            data-sort-unit_factor="<?= esc((string) (float) ($r['unit_factor'] ?? 1)) ?>"
                             data-sort-qty="<?= esc((string) (float) ($r['qty'] ?? 0)) ?>"
+                            data-sort-qty_base="<?= esc((string) (float) ($r['qty_base'] ?? 0)) ?>"
                             data-sort-status_label="<?= esc((string) ($r['status_label'] ?? '')) ?>">
                             <td class="col-seq"><?= $seq ?></td>
                             <td class="col-inv-no">
@@ -338,7 +344,9 @@ customer_picker_json_script($customers, 'report-customer-orders-customers-json')
                             <td class="col-rep"><?= esc((string) ($r['sales_rep_name'] ?? '')) !== '' ? esc((string) $r['sales_rep_name']) : '—' ?></td>
                             <td class="col-item"><?= esc((string) ($r['item_name'] ?? '')) ?></td>
                             <td><?= esc((string) ($r['unit_name'] ?? '')) !== '' ? esc((string) $r['unit_name']) : '—' ?></td>
+                            <td class="col-money" dir="ltr"><?= esc(format_amount((float) ($r['unit_factor'] ?? 1))) ?></td>
                             <td class="col-money"><?= esc(format_amount((float) ($r['qty'] ?? 0))) ?></td>
+                            <td class="col-money"><?= esc(format_amount((float) ($r['qty_base'] ?? ((float) ($r['qty'] ?? 0) * (float) ($r['unit_factor'] ?? 1))))) ?></td>
                             <td class="col-posted"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -346,8 +354,9 @@ customer_picker_json_script($customers, 'report-customer-orders-customers-json')
                     <?php if ($rows): ?>
                     <tfoot>
                     <tr>
-                        <td colspan="<?= $showAllCustomers ? 7 : 6 ?>">إجمالي الكميات</td>
+                        <td colspan="<?= $showAllCustomers ? 8 : 7 ?>">إجمالي الكميات / العدد</td>
                         <td class="col-money"><?= esc(format_amount($sumQty)) ?></td>
+                        <td class="col-money"><?= esc(format_amount($sumQtyBase ?? $sumQty)) ?></td>
                         <td></td>
                     </tr>
                     </tfoot>

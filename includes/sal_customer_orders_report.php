@@ -30,7 +30,9 @@ function sal_report_customer_orders(
                    c.name_ar AS customer_name, c.code AS customer_code,
                    COALESCE(r.name_ar, '') AS sales_rep_name,
                    w.name_ar AS warehouse_name,
-                   l.line_no, l.item_id, l.item_name, l.unit_name, l.qty,
+                   l.line_no, l.item_id, l.item_name, l.unit_name,
+                   l.qty, COALESCE(l.unit_factor, 1) AS unit_factor,
+                   COALESCE(l.qty_base, l.qty * COALESCE(l.unit_factor, 1)) AS qty_base,
                    i.barcode
             FROM sal_customer_order_line l
             INNER JOIN sal_customer_order o ON o.id = l.order_id
@@ -88,6 +90,8 @@ function sal_report_customer_orders(
             'item_name' => (string) ($row['item_name'] ?? ''),
             'unit_name' => (string) ($row['unit_name'] ?? ''),
             'qty' => (float) ($row['qty'] ?? 0),
+            'unit_factor' => (float) ($row['unit_factor'] ?? 1),
+            'qty_base' => (float) ($row['qty_base'] ?? 0),
             'barcode' => (string) ($row['barcode'] ?? ''),
         ];
     }

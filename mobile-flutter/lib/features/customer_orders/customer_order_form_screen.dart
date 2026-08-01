@@ -345,24 +345,12 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                         .cast<ItemUnitOpt?>()
                                         .followedBy([null]).first;
                                     setState(() {
-                                      final oldFactor = _lines[i].unitFactor <= 0
-                                          ? 1.0
-                                          : _lines[i].unitFactor;
                                       _lines[i].unitId = v ?? 0;
                                       if (u != null) {
                                         _lines[i].unitName = u.name;
-                                        final newFactor =
+                                        // الكمية تبقى؛ العدد = كمية × معامل التعبئة
+                                        _lines[i].unitFactor =
                                             u.factor <= 0 ? 1.0 : u.factor;
-                                        if (_lines[i].qty > 0 &&
-                                            oldFactor > 0) {
-                                          final converted =
-                                              (_lines[i].qty * oldFactor) /
-                                                  newFactor;
-                                          _lines[i].qty = converted
-                                              .round()
-                                              .clamp(1, 999999999);
-                                        }
-                                        _lines[i].unitFactor = newFactor;
                                       }
                                     });
                                   },
@@ -380,8 +368,23 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                               ],
                               decoration:
                                   const InputDecoration(labelText: 'الكمية'),
-                              onChanged: (v) => _lines[i].qty =
-                                  int.tryParse(v)?.clamp(1, 999999999) ?? 1),
+                              onChanged: (v) => setState(() {
+                                    _lines[i].qty = int.tryParse(v)
+                                            ?.clamp(1, 999999999) ??
+                                        1;
+                                  }),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 2,
+                          child: InputDecorator(
+                            decoration:
+                                const InputDecoration(labelText: 'العدد'),
+                            child: Text(
+                              '${(_lines[i].qty * (_lines[i].unitFactor <= 0 ? 1 : _lines[i].unitFactor)).round()}',
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
                         ),
                       ]),
                     ],

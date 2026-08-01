@@ -26,31 +26,46 @@ sales_ora12_enqueue_assets();
         <input type="hidden" id="customer-id" value="<?= (int) $order['customer_id'] ?>">
         <input type="hidden" id="warehouse-id" value="<?= (int) $order['warehouse_id'] ?>">
         <table class="data-table">
-            <thead><tr><th>الصنف</th><th>الوحدة</th><th>الكمية</th></tr></thead>
+            <thead><tr><th>الصنف</th><th>الوحدة / التعبئة</th><th>الكمية</th><th>العدد</th></tr></thead>
             <tbody>
             <?php foreach ($order['lines'] as $line):
                 $itemUnits = inv_item_units_for_item($pdo, (int) $line['item_id']);
                 $qtyInt = (int) round((float) ($line['qty'] ?? 0));
                 $curUnitId = (int) ($line['unit_id'] ?? 0);
+                $curFactor = (float) ($line['unit_factor'] ?? 0);
+                if ($curFactor <= 0) {
+                    foreach ($itemUnits as $u) {
+                        if ((int) $u['unit_id'] === $curUnitId) {
+                            $curFactor = (float) $u['factor'];
+                            break;
+                        }
+                    }
+                }
+                if ($curFactor <= 0) {
+                    $curFactor = 1.0;
+                }
+                $qtyBaseDisp = $qtyInt > 0 ? rtrim(rtrim(number_format($qtyInt * $curFactor, 6, '.', ''), '0'), '.') : '';
                 ?>
                 <tr data-item="<?= (int) $line['item_id'] ?>" data-item-name="<?= esc((string) $line['item_name']) ?>">
                     <td><?= esc((string) $line['item_name']) ?></td>
                     <td>
                         <?php if ($order['status'] === 'approved'): ?>
-                            <?= esc((string) ($line['unit_name'] ?? '')) ?>
+                            <?= esc((string) ($line['unit_name'] ?? '')) ?><?= $curFactor > 1 ? ' × ' . esc((string) rtrim(rtrim(number_format($curFactor, 6, '.', ''), '0'), '.')) : '' ?>
                             <input type="hidden" class="co-unit-id" value="<?= $curUnitId ?>">
                             <input type="hidden" class="co-unit-name" value="<?= esc((string) ($line['unit_name'] ?? '')) ?>">
+                            <input type="hidden" class="co-unit-factor" value="<?= esc((string) $curFactor) ?>">
                         <?php else: ?>
                             <select class="input co-unit">
                                 <?php foreach ($itemUnits as $u): ?>
                                     <option value="<?= (int) $u['unit_id'] ?>"
                                             data-name="<?= esc((string) $u['name']) ?>"
+                                            data-factor="<?= esc((string) ((float) $u['factor'])) ?>"
                                             <?= $curUnitId === (int) $u['unit_id'] ? 'selected' : '' ?>>
-                                        <?= esc((string) $u['name']) ?>
+                                        <?= esc((string) $u['name']) ?><?= (float) $u['factor'] > 1 ? ' × ' . rtrim(rtrim(number_format((float) $u['factor'], 6, '.', ''), '0'), '.') : '' ?>
                                     </option>
                                 <?php endforeach; ?>
                                 <?php if ($itemUnits === []): ?>
-                                    <option value="<?= $curUnitId ?>" data-name="<?= esc((string) ($line['unit_name'] ?? '')) ?>" selected><?= esc((string) ($line['unit_name'] ?? '—')) ?></option>
+                                    <option value="<?= $curUnitId ?>" data-name="<?= esc((string) ($line['unit_name'] ?? '')) ?>" data-factor="<?= esc((string) $curFactor) ?>" selected><?= esc((string) ($line['unit_name'] ?? '—')) ?></option>
                                 <?php endif; ?>
                             </select>
                         <?php endif; ?>
@@ -58,6 +73,9 @@ sales_ora12_enqueue_assets();
                     <td>
                         <input class="input co-qty" type="number" step="1" min="1" inputmode="numeric"
                                value="<?= $qtyInt ?>" <?= $order['status'] === 'approved' ? 'disabled' : '' ?>>
+                    </td>
+                    <td>
+                        <input class="input co-qty-base" type="text" readonly tabindex="-1" dir="ltr" value="<?= esc($qtyBaseDisp) ?>" title="العدد = الكمية × التعبئة">
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -86,25 +104,50 @@ sales_ora12_enqueue_assets();
       if (x.ok) location.reload();
     });
   }
+  function syncCoQtyBase(r) {
+    var qtyEl = r.querySelector('.co-qty');
+    var baseEl = r.querySelector('.co-qty-base');
+    var unitSel = r.querySelector('.co-unit');
+    var factor = 1;
+    if (unitSel && unitSel.selectedIndex >= 0) {
+      factor = parseFloat(unitSel.options[unitSel.selectedIndex].getAttribute('data-factor') || '1') || 1;
+    } else {
+      factor = parseFloat((r.querySelector('.co-unit-factor') || {}).value || '1') || 1;
+    }
+    var qty = parseInt(qtyEl ? qtyEl.value : 0, 10) || 0;
+    if (baseEl) baseEl.value = qty > 0 ? String(qty * factor) : '';
+  }
+  document.querySelectorAll('tr[data-item]').forEach(function (r) {
+    var unitSel = r.querySelector('.co-unit');
+    var qtyEl = r.querySelector('.co-qty');
+    if (unitSel) unitSel.addEventListener('change', function () { syncCoQtyBase(r); });
+    if (qtyEl) qtyEl.addEventListener('input', function () { syncCoQtyBase(r); });
+    syncCoQtyBase(r);
+  });
   var save = document.getElementById('co-save');
   if (save) save.onclick = function () {
     var lines = [];
     document.querySelectorAll('tr[data-item]').forEach(function (r) {
       var unitSel = r.querySelector('.co-unit');
-      var unitId = 0, unitName = '';
+      var unitId = 0, unitName = '', unitFactor = 1;
       if (unitSel && unitSel.selectedIndex >= 0) {
         unitId = +unitSel.value || 0;
         unitName = unitSel.options[unitSel.selectedIndex].getAttribute('data-name') || unitSel.options[unitSel.selectedIndex].textContent.trim();
+        unitFactor = parseFloat(unitSel.options[unitSel.selectedIndex].getAttribute('data-factor') || '1') || 1;
       } else {
         unitId = +(r.querySelector('.co-unit-id') || {}).value || 0;
         unitName = (r.querySelector('.co-unit-name') || {}).value || '';
+        unitFactor = parseFloat((r.querySelector('.co-unit-factor') || {}).value || '1') || 1;
       }
+      var qty = parseInt(r.querySelector('.co-qty').value, 10) || 0;
       lines.push({
         item_id: +r.dataset.item,
         item_name: r.dataset.itemName || r.cells[0].textContent.trim(),
         unit_id: unitId,
         unit_name: unitName,
-        qty: parseInt(r.querySelector('.co-qty').value, 10) || 0
+        unit_factor: unitFactor,
+        qty: qty,
+        qty_base: qty * unitFactor
       });
     });
     post(<?= json_encode(app_url('api/sales_customer_order_save.php')) ?>, {
