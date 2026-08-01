@@ -92,6 +92,12 @@ $browserHintVHead = is_file(app_path('assets/mobile/app-browser-hint.js'))
     <title><?= esc(trim($pageTitle) !== '' ? $pageTitle . ' — هاتف' : 'تطبيق الهاتف') ?></title>
     <?php render_app_favicon_links($settingsRow); ?>
     <?php render_mobile_pwa_head($settingsRow); ?>
+    <?php
+    $appFontCssV = is_file(app_path('assets/css/app-font.css'))
+        ? (string) filemtime(app_path('assets/css/app-font.css'))
+        : '';
+    ?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/app-font.css')) ?><?= $appFontCssV !== '' ? '?v=' . esc($appFontCssV) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/ui-dialog.css')) ?><?= $uiDlgCssV !== '' ? '?v=' . esc($uiDlgCssV) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/mobile/app.css')) ?><?= $cssV !== '' ? '?v=' . esc($cssV) : '' ?>">
 <?php
@@ -291,5 +297,22 @@ $pwaInstallJsV = is_file(app_path('assets/mobile/app-pwa-install.js'))
     : '';
 ?>
 <script src="<?= esc(app_url('assets/mobile/app-pwa-install.js')) ?><?= $pwaInstallJsV !== '' ? '?v=' . esc($pwaInstallJsV) : '' ?>"></script>
+<?php
+$appTypoBoldCssV = is_file(app_path('assets/css/app-typography-bold.css'))
+    ? (string) filemtime(app_path('assets/css/app-typography-bold.css'))
+    : '';
+?>
+<link rel="stylesheet" href="<?= esc(app_url('assets/css/app-typography-bold.css')) ?><?= $appTypoBoldCssV !== '' ? '?v=' . esc($appTypoBoldCssV) : '' ?>">
+<style>
+/* جوال: خط محاسبي مؤسسي + عريض وغامق */
+.m-body, .m-body .m-page, .m-body label, .m-body th, .m-body td,
+.m-body .m-input, .m-body input, .m-body select, .m-body textarea,
+.m-body .m-btn, .m-body h1, .m-body h2, .m-body h3, .m-body p, .m-body span {
+  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', Tahoma, Arial, sans-serif) !important;
+  font-weight: 700 !important;
+}
+.m-body { color: #161513; }
+.m-body .m-muted, .m-body .muted { color: #1e293b !important; font-weight: 700 !important; }
+</style>
 </body>
 </html>

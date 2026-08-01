@@ -76,6 +76,7 @@ ob_start();
     require_once app_path('includes/app_pwa.php');
     render_app_pwa_head($loginSettings);
     ?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/app-font.css')) ?><?= is_file(app_path('assets/css/app-font.css')) ? '?v=' . filemtime(app_path('assets/css/app-font.css')) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app.css')) ?><?= is_file(app_path('assets/css/app.css')) ? '?v=' . filemtime(app_path('assets/css/app.css')) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/login-pro.css')) ?><?= is_file(app_path('assets/css/login-pro.css')) ? '?v=' . filemtime(app_path('assets/css/login-pro.css')) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/ui-lang-ltr.css')) ?><?= is_file(app_path('assets/css/ui-lang-ltr.css')) ? '?v=' . filemtime(app_path('assets/css/ui-lang-ltr.css')) : '' ?>">

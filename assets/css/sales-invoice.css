@@ -805,7 +805,7 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
   box-shadow: none;
   cursor: pointer;
   appearance: none;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
   font-size: 0.45rem;
   line-height: 1;
   color: #161513;

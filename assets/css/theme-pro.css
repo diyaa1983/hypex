@@ -4,21 +4,19 @@
  * Loaded after app.css / dashboard.css — overrides shell + dashboard look.
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
-
 :root {
   --shell-bg: #f4f6f9;
   --shell-panel: #ffffff;
   --shell-border: #e2e8f0;
   --shell-text: #0f172a;
-  --shell-text-muted: #64748b;
+  --shell-text-muted: #1e293b;
   --shell-hover: #f1f5f9;
   --shell-active: #eff6ff;
   --shell-active-text: #1d4ed8;
   --bg: #f4f6f9;
   --surface: #ffffff;
   --text: #0f172a;
-  --muted: #64748b;
+  --muted: #1e293b;
   --border: #e2e8f0;
   --ora12-border: #cbd5e1;
   --sidebar: #ffffff;
@@ -38,7 +36,7 @@
   --radius: 10px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --font: 'Source Sans 3', 'Segoe UI', Arial, Helvetica, sans-serif;
+  --font: 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif;
   --pro-navy: #0f172a;
   --pro-blue: #2563eb;
   --pro-blue-dark: #1d4ed8;
@@ -63,6 +61,7 @@ html {
 body.app-body {
   background: var(--bg);
   color: var(--text);
+  font-weight: 700;
   margin: 0 !important;
   padding: 0 !important;
   padding-top: 0 !important;

@@ -1,0 +1,160 @@
+/**
+ * خط عريض وغامق + خط محاسبي مؤسسي لكل شاشات وتقارير النظام.
+ * يُحمَّل متأخراً ليتفوّق على أنماط الشاشات الفرعية (Tahoma/Arial القديمة).
+ */
+:root {
+  --text: #0f172a;
+  --muted: #1e293b;
+  --shell-text: #0f172a;
+  --shell-text-muted: #1e293b;
+  --font: 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif;
+}
+
+html,
+body,
+body.app-body {
+  color: #0f172a;
+  font-family: var(--font);
+  font-weight: 700;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.app-body,
+body.app-body .main-content,
+body.app-body .app-embed-main,
+body.app-body .content,
+body.app-body .card,
+body.app-body .toolbar,
+body.app-body .form-grid,
+body.app-body .dashboard-ora,
+body.app-body .sales-ora12-screen,
+body.app-body .sales-ora-screen,
+body.app-body .ora12-title-bar,
+body.app-body .master-toolbar,
+body.app-body .btn,
+body.app-body .input,
+body.app-body select,
+body.app-body textarea,
+body.app-body label,
+body.app-body table,
+body.app-body th,
+body.app-body td,
+body.app-body .data-table,
+body.app-body .report-table,
+body.app-body .sales-inv-table,
+.ui-dialog {
+  font-family: var(--font) !important;
+}
+
+body.app-body code,
+body.app-body kbd,
+body.app-body pre,
+body.app-body .js-sku,
+body.app-body .mono,
+body.app-body .font-mono {
+  font-family: var(--font-mono, ui-monospace, Consolas, 'Courier New', monospace) !important;
+  font-weight: 600 !important;
+}
+
+/* عريض لكل المحتوى — بدون فرض لون يكسر رؤوس الجداول الملونة */
+body.app-body,
+body.app-body .main-content,
+body.app-body .app-embed-main,
+body.app-body .content,
+body.app-body .card,
+body.app-body .toolbar,
+body.app-body .form-grid,
+body.app-body .field,
+body.app-body .field-label,
+body.app-body label,
+body.app-body th,
+body.app-body td,
+body.app-body p,
+body.app-body span,
+body.app-body small,
+body.app-body strong,
+body.app-body h1,
+body.app-body h2,
+body.app-body h3,
+body.app-body h4,
+body.app-body h5,
+body.app-body h6,
+body.app-body .muted,
+body.app-body .hint,
+body.app-body .field-hint,
+body.app-body .data-table,
+body.app-body .report-table,
+body.app-body .sales-inv-table,
+body.app-body .dashboard-ora,
+body.app-body .ora12-title-bar,
+body.app-body .ora12-title-bar__title,
+body.app-body .master-toolbar,
+body.app-body .master-toolbar-btn,
+body.app-body .btn,
+body.app-body .input,
+body.app-body select,
+body.app-body select.input,
+body.app-body textarea,
+body.app-body textarea.input,
+body.app-body option,
+body.app-body a,
+body.app-body .badge {
+  font-weight: 700 !important;
+}
+
+body.app-body .main-content,
+body.app-body .app-embed-main,
+body.app-body .content,
+body.app-body .card,
+body.app-body .toolbar,
+body.app-body .form-grid,
+body.app-body .field-label,
+body.app-body label,
+body.app-body p,
+body.app-body h1,
+body.app-body h2,
+body.app-body h3,
+body.app-body h4,
+body.app-body h5,
+body.app-body h6,
+body.app-body .input,
+body.app-body select,
+body.app-body select.input,
+body.app-body textarea,
+body.app-body textarea.input {
+  color: #0f172a;
+}
+
+body.app-body .muted,
+body.app-body .hint,
+body.app-body .field-hint,
+body.app-body .brand-sub,
+body.app-body .sales-inv-th-hint,
+body.app-body .sales-inv-disc-hint {
+  color: #1e293b !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+}
+
+body.app-body .input::placeholder,
+body.app-body textarea::placeholder {
+  color: #475569 !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+}
+
+body.app-body .data-table thead th,
+body.app-body .report-table thead th,
+body.app-body table.data-table th,
+body.app-body .sales-inv-table thead th {
+  font-weight: 800 !important;
+}
+
+.ui-dialog,
+.ui-dialog label,
+.ui-dialog .ui-dialog-title,
+.ui-dialog .ui-dialog-body,
+.app-busy-overlay {
+  font-weight: 700 !important;
+  color: #0f172a;
+}

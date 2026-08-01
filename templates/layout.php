@@ -146,6 +146,12 @@ $appHeaderUiJsV = is_file(app_path('assets/js/app-header-ui.js'))
         ? (string) filemtime(app_path('assets/js/app-busy.js'))
         : '';
     ?>
+    <?php
+    $appFontCssV = is_file(app_path('assets/css/app-font.css'))
+        ? (string) filemtime(app_path('assets/css/app-font.css'))
+        : '';
+    ?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/app-font.css')) ?><?= $appFontCssV !== '' ? '?v=' . esc($appFontCssV) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app.css')) ?><?= $appCssV !== '' ? '?v=' . esc($appCssV) : '' ?>">
     <?php
     $themeProCssV = is_file(app_path('assets/css/theme-pro.css'))
@@ -423,5 +429,11 @@ window.UserSessionGpsConfig = {
 <script>window.APP_GPS_ENABLED = false;</script>
 <?php endif; ?>
 <?= document_print_user_footer_html($printUserLabel) ?>
+<?php
+$appTypoBoldCssV = is_file(app_path('assets/css/app-typography-bold.css'))
+    ? (string) filemtime(app_path('assets/css/app-typography-bold.css'))
+    : '';
+?>
+<link rel="stylesheet" href="<?= esc(app_url('assets/css/app-typography-bold.css')) ?><?= $appTypoBoldCssV !== '' ? '?v=' . esc($appTypoBoldCssV) : '' ?>">
 </body>
 </html>

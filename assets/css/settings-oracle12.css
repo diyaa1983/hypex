@@ -1,9 +1,7 @@
 /**
- * إعدادات النظام — تخطيط أوضح + خط حديث غامق
- * الخط: Source Sans 3 (قريب من خطوط أنظمة الأعمال الحديثة: SF Pro / Segoe UI / Inter)
+ * إعدادات النظام — تخطيط أوضح + خط محاسبي مؤسسي
+ * الخط: IBM Plex Sans Arabic (معيار أنظمة الأعمال العالمية مع دعم عربي)
  */
-
-@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700;800&display=swap');
 
 .settings-ora-flash {
   margin-bottom: 0.65rem;
@@ -15,7 +13,7 @@
   flex-direction: column;
   gap: 0.85rem;
   max-width: 1100px;
-  font-family: 'Source Sans 3', 'Segoe UI', Arial, Helvetica, sans-serif;
+  font-family: 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif;
   color: #0f172a;
   -webkit-font-smoothing: antialiased;
 }

@@ -1,7 +1,7 @@
 /* ── شاشات داخلية (HR وغيرها) — Oracle 12c ── */
 
 body.hr-ora-ui {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
 }
 
 body.hr-ora-ui .main-content {
@@ -104,7 +104,7 @@ body.hr-ora-ui [class*="-ora-screen"] textarea.input {
 
 body.hr-ora-ui .hr-emp-ora-screen,
 body.hr-ora-ui [class*="-ora-screen"] {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
   font-size: 0.8125rem;
   color: var(--ora12-text, #161513);
 }
