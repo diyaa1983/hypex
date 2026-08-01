@@ -380,17 +380,18 @@ if ($action === 'add' || $action === 'edit') {
             ?>
             <?php if ($itemUnitsOk): ?>
             <div class="card" style="padding:0.75rem 1rem;margin:0.5rem 0 1rem;background:#f8fafc;" id="item-issue-units-box">
-                <strong style="display:block;margin-bottom:0.5rem;">وحدات الصرف (قطعة → كرتونة…)</strong>
-                <p class="muted" style="font-size:0.8rem;margin:0 0 0.75rem;">
-                    إن كانت الصرف = الأساسية (قطعة → قطعة) لا حاجة لإضافة صفوف.
-                    إن كانت قطعة → كرتونة أضف الكرتونة وحدد كم قطعة تعادل.
+                <strong style="display:block;margin-bottom:0.5rem;">وحدات الصرف الأكبر من الأساسية</strong>
+                <p class="muted" style="font-size:0.8rem;margin:0 0 0.75rem;line-height:1.55;">
+                    الوحدة الأساسية أعلاه (مثل <b>قطعة</b>) معاملها دائماً <b>1</b> — لا تُعاد هنا.
+                    لإضافة <b>كرتون / box</b>: اخترها من القائمة واكتب كم قطعة داخل الكرتونة (مثال: <b>24</b>).
+                    في الفاتورة: كمية <b>1 قطعة</b> = قطعة واحدة، وكمية <b>1 كرتون</b> = 24 قطعة في المخزون والسعر = سعر القطعة × 24.
                 </p>
                 <div class="table-wrap">
                     <table class="data-table" id="item-issue-units-table">
                         <thead>
                         <tr>
-                            <th>وحدة الصرف</th>
-                            <th>تعادل كم من الأساسية</th>
+                            <th>وحدة الصرف (أكبر من الأساسية)</th>
+                            <th>كم قطعة / أساسية في الوحدة الواحدة</th>
                             <th>افتراضي بالفاتورة</th>
                             <th></th>
                         </tr>
@@ -399,14 +400,14 @@ if ($action === 'add' || $action === 'edit') {
                         <?php if (!$itemIssueUnits): ?>
                         <tr class="issue-unit-row">
                             <td>
-                                <select class="input" name="issue_unit_id[]">
+                                <select class="input js-issue-unit-sel" name="issue_unit_id[]">
                                     <option value="">— لا يوجد —</option>
                                     <?php foreach ($units as $u): ?>
                                         <option value="<?= (int) $u['id'] ?>"><?= esc((string) $u['name_ar']) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </td>
-                            <td><input class="input" type="number" name="issue_factor[]" min="2" step="1" value="" placeholder="مثال: 24" dir="ltr"></td>
+                            <td><input class="input" type="number" name="issue_factor[]" min="2" step="1" value="" placeholder="مثال: 24" dir="ltr" title="مثال: الكرتونة = 24 قطعة"></td>
                             <td style="text-align:center;"><input type="checkbox" name="issue_default[0]" value="1"></td>
                             <td></td>
                         </tr>
@@ -414,14 +415,14 @@ if ($action === 'add' || $action === 'edit') {
                         <?php foreach ($itemIssueUnits as $ix => $iu): ?>
                         <tr class="issue-unit-row">
                             <td>
-                                <select class="input" name="issue_unit_id[]">
+                                <select class="input js-issue-unit-sel" name="issue_unit_id[]">
                                     <option value="">— لا يوجد —</option>
                                     <?php foreach ($units as $u): ?>
                                         <option value="<?= (int) $u['id'] ?>" <?= (int) $iu['unit_id'] === (int) $u['id'] ? 'selected' : '' ?>><?= esc((string) $u['name_ar']) ?></option>
                                     <?php endforeach; ?>
                                 </select>
                             </td>
-                            <td><input class="input" type="number" name="issue_factor[]" min="2" step="1" value="<?= esc((string) (float) $iu['factor']) ?>" dir="ltr"></td>
+                            <td><input class="input" type="number" name="issue_factor[]" min="2" step="1" value="<?= esc(rtrim(rtrim(number_format((float) $iu['factor'], 6, '.', ''), '0'), '.') ?: '1') ?>" dir="ltr" title="كم من الأساسية تعادل وحدة الصرف الواحدة"></td>
                             <td style="text-align:center;"><input type="checkbox" name="issue_default[<?= (int) $ix ?>]" value="1" <?= !empty($iu['is_default']) ? 'checked' : '' ?>></td>
                             <td><button type="button" class="btn btn-ghost btn-sm js-remove-issue-unit">حذف</button></td>
                         </tr>
@@ -436,12 +437,34 @@ if ($action === 'add' || $action === 'edit') {
             (function () {
               var tbody = document.querySelector('#item-issue-units-table tbody');
               var addBtn = document.getElementById('js-add-issue-unit');
+              var baseSel = document.getElementById('item-base-unit-id');
               if (!tbody || !addBtn) return;
+              function baseUnitId() {
+                return baseSel ? String(baseSel.value || '') : '';
+              }
+              function syncIssueOptions(row) {
+                var baseId = baseUnitId();
+                (row || tbody).querySelectorAll('.js-issue-unit-sel').forEach(function (sel) {
+                  Array.prototype.forEach.call(sel.options, function (opt) {
+                    if (!opt.value) return;
+                    var isBase = baseId !== '' && opt.value === baseId;
+                    opt.hidden = isBase;
+                    opt.disabled = isBase;
+                    if (isBase && sel.value === opt.value) {
+                      sel.value = '';
+                    }
+                  });
+                });
+              }
               function reindexDefaults() {
                 tbody.querySelectorAll('.issue-unit-row').forEach(function (tr, i) {
                   var cb = tr.querySelector('input[type="checkbox"]');
                   if (cb) cb.name = 'issue_default[' + i + ']';
                 });
+              }
+              syncIssueOptions();
+              if (baseSel) {
+                baseSel.addEventListener('change', function () { syncIssueOptions(); });
               }
               addBtn.addEventListener('click', function () {
                 var first = tbody.querySelector('.issue-unit-row');
@@ -452,6 +475,7 @@ if ($action === 'add' || $action === 'edit') {
                 clone.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
                 tbody.appendChild(clone);
                 reindexDefaults();
+                syncIssueOptions(clone);
               });
               tbody.addEventListener('click', function (e) {
                 var btn = e.target.closest('.js-remove-issue-unit');

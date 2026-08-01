@@ -345,10 +345,24 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                         .cast<ItemUnitOpt?>()
                                         .followedBy([null]).first;
                                     setState(() {
+                                      final oldFactor = _lines[i].unitFactor <= 0
+                                          ? 1.0
+                                          : _lines[i].unitFactor;
                                       _lines[i].unitId = v ?? 0;
                                       if (u != null) {
                                         _lines[i].unitName = u.name;
-                                        _lines[i].unitFactor = u.factor;
+                                        final newFactor =
+                                            u.factor <= 0 ? 1.0 : u.factor;
+                                        if (_lines[i].qty > 0 &&
+                                            oldFactor > 0) {
+                                          final converted =
+                                              (_lines[i].qty * oldFactor) /
+                                                  newFactor;
+                                          _lines[i].qty = converted
+                                              .round()
+                                              .clamp(1, 999999999);
+                                        }
+                                        _lines[i].unitFactor = newFactor;
                                       }
                                     });
                                   },

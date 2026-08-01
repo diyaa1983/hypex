@@ -2364,9 +2364,24 @@
     if (unitSel) {
       unitSel.addEventListener('change', function () {
         var opt = unitSel.options[unitSel.selectedIndex];
-        var factor = parseNum(opt ? opt.getAttribute('data-factor') : 1) || 1;
+        var newFactor = parseNum(opt ? opt.getAttribute('data-factor') : 1) || 1;
         var factorEl = tr.querySelector('.js-unit-factor');
-        if (factorEl) factorEl.value = String(factor);
+        var oldFactor = parseNum(factorEl ? factorEl.value : 1) || 1;
+        var qtyEl = tr.querySelector('.js-qty');
+        var qtyExtraEl = tr.querySelector('.js-qty-extra');
+        if (qtyEl && oldFactor > 0 && newFactor > 0) {
+          var oldQty = parseNum(qtyEl.value);
+          if (oldQty > 0) {
+            qtyEl.value = formatQtyValue((oldQty * oldFactor) / newFactor);
+          }
+        }
+        if (qtyExtraEl && oldFactor > 0 && newFactor > 0) {
+          var oldExtra = parseNum(qtyExtraEl.value);
+          if (oldExtra > 0) {
+            qtyExtraEl.value = formatQtyValue((oldExtra * oldFactor) / newFactor);
+          }
+        }
+        if (factorEl) factorEl.value = String(newFactor);
         applyUnitPriceFromBase(tr);
         recalcRow(tr);
         if (!invoiceIsPosted) markFormDirty();
