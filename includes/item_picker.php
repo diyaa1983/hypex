@@ -64,8 +64,9 @@ function item_picker_modal_once(): void
     </div>
     <input type="search" class="input" id="app-item-picker-search"
            placeholder="بحث: اسم المادة، SKU، Barcode" autocomplete="off">
-    <div class="sales-inv-pick-list-head" aria-hidden="true">
+    <div class="sales-inv-pick-list-head item-picker-list-head" aria-hidden="true">
         <span>اسم المادة</span>
+        <span>التعبئة</span>
         <span>SKU / Barcode</span>
     </div>
     <div class="sales-inv-pick-results" id="app-item-picker-results"></div>

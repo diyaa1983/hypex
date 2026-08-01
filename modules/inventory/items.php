@@ -583,6 +583,7 @@ $hasStockTable = inv_stock_move_has_table($pdo);
 $itemMoveCounts = inv_item_stock_move_counts($pdo);
 $itemDocCounts = inv_item_doc_line_counts($pdo);
 $showBarcodeCol = inv_item_has_barcode_column($pdo);
+$issueUnitMap = $itemUnitsOk ? inv_item_units_issue_map($pdo, $itemIdsOnPage) : [];
 $listColspan = 8;
 if ($showBarcodeCol) {
     $listColspan++;
@@ -591,6 +592,9 @@ if ($extendedSchemaOk) {
     $listColspan += 2;
 } else {
     $listColspan++;
+}
+if ($itemUnitsOk) {
+    $listColspan += 2;
 }
 if ($expirySchemaOk) {
     $listColspan++;
@@ -631,7 +635,11 @@ if ($expirySchemaOk) {
                 <?php if ($showBarcodeCol): ?><th>Barcode</th><?php endif; ?>
                 <th>الاسم</th>
                 <?php if ($extendedSchemaOk): ?><th>الفئة</th><?php endif; ?>
-                <th>الوحدة</th>
+                <th title="الوحدة الأساسية للمخزون">القطعة / الأساسية</th>
+                <?php if ($itemUnitsOk): ?>
+                    <th title="وحدة الصرف الأكبر من الأساسية">وحدة الصرف</th>
+                    <th title="عدد القطع داخل وحدة الصرف">التعبئة</th>
+                <?php endif; ?>
                 <th>تكلفة</th>
                 <th>بيع</th>
                 <th class="col-qty" title="مجموع الرصيد في كل المستودعات">كمية متوفرة</th>
@@ -674,7 +682,19 @@ if ($expirySchemaOk) {
                     <?php if ($extendedSchemaOk): ?>
                         <td><?= esc((string) ($it['category_name'] ?? '—')) ?></td>
                     <?php endif; ?>
-                    <td><?= esc((string) $it['unit_name']) ?></td>
+                    <td><?= esc((string) ($it['unit_name'] ?: 'قطعة')) ?></td>
+                    <?php if ($itemUnitsOk): ?>
+                        <?php
+                        $issueInfo = $issueUnitMap[$itemId] ?? null;
+                        $issueName = $issueInfo ? trim((string) ($issueInfo['name'] ?? '')) : '';
+                        $issueFactor = $issueInfo ? (float) ($issueInfo['factor'] ?? 0) : 0.0;
+                        $issueFactorDisp = $issueFactor > 1
+                            ? (rtrim(rtrim(number_format($issueFactor, 6, '.', ''), '0'), '.') ?: '')
+                            : '';
+                        ?>
+                        <td><?php if ($issueName !== ''): ?><?= esc($issueName) ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                        <td dir="ltr"><?php if ($issueFactorDisp !== ''): ?><?= esc($issueFactorDisp) ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
+                    <?php endif; ?>
                     <td><?= esc(format_money((float) $it['default_cost'])) ?></td>
                     <td><?= esc(format_money((float) $it['default_sale'])) ?></td>
                     <td class="col-qty" dir="ltr">

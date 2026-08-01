@@ -320,6 +320,55 @@ function inv_item_units_single_issue(PDO $pdo, int $itemId): ?array
 }
 
 /**
+ * خريطة وحدة الصرف/التعبئة لعدة مواد (للقوائم).
+ *
+ * @param list<int> $itemIds
+ * @return array<int, array{unit_id:int,name:string,factor:float}>
+ */
+function inv_item_units_issue_map(PDO $pdo, array $itemIds): array
+{
+    $ids = [];
+    foreach ($itemIds as $id) {
+        $id = (int) $id;
+        if ($id > 0) {
+            $ids[$id] = true;
+        }
+    }
+    if ($ids === [] || !inv_item_units_ensure_schema($pdo)) {
+        return [];
+    }
+    $idList = array_keys($ids);
+    $placeholders = implode(',', array_fill(0, count($idList), '?'));
+    try {
+        $st = $pdo->prepare(
+            "SELECT iu.item_id, iu.unit_id, iu.factor_to_base, COALESCE(u.name_ar, '') AS unit_name
+             FROM inv_item_unit iu
+             INNER JOIN inv_unit u ON u.id = iu.unit_id
+             WHERE iu.item_id IN ($placeholders)
+               AND (iu.is_base = 0 OR iu.factor_to_base > 1)
+             ORDER BY iu.item_id ASC, iu.is_base ASC, iu.is_default_issue DESC, iu.id ASC"
+        );
+        $st->execute($idList);
+        $out = [];
+        while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+            $itemId = (int) ($row['item_id'] ?? 0);
+            if ($itemId < 1 || isset($out[$itemId])) {
+                continue;
+            }
+            $out[$itemId] = [
+                'unit_id' => (int) ($row['unit_id'] ?? 0),
+                'name' => (string) ($row['unit_name'] ?? ''),
+                'factor' => (float) ($row['factor_to_base'] ?? 0),
+            ];
+        }
+
+        return $out;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+/**
  * @param list<array<string,mixed>> $units  each: unit_id, factor_to_base, is_base?, is_default_issue?
  *                                         تُقبل وحدة صرف واحدة فقط غير الأساسية.
  */
@@ -501,6 +550,17 @@ function inv_item_units_attach_to_items(PDO $pdo, array $items, string $idKey = 
                 'is_default' => true,
             ]];
         }
+        $issueName = '';
+        $issueFactor = 0.0;
+        foreach ($it['units'] as $u) {
+            if (empty($u['is_base']) || (float) ($u['factor'] ?? 1) > 1) {
+                $issueName = (string) ($u['name'] ?? '');
+                $issueFactor = (float) ($u['factor'] ?? 0);
+                break;
+            }
+        }
+        $it['issue_unit_name'] = $issueName;
+        $it['issue_factor'] = $issueFactor;
     }
     unset($it);
 

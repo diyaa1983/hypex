@@ -440,12 +440,40 @@
       }
 
       var body = document.createElement('div');
-      body.className = 'sales-inv-pick-item-body';
+      body.className = 'sales-inv-pick-item-body item-picker-item-body';
       var code = String(it.barcode || it.sku || '').trim();
       var nameSpan = document.createElement('span');
       nameSpan.className = 'sales-inv-pick-item-name';
       nameSpan.textContent = it.name_ar || '';
       body.appendChild(nameSpan);
+
+      var packSpan = document.createElement('span');
+      packSpan.className = 'sales-inv-pick-item-pack';
+      var issueName = String(it.issue_unit_name || '').trim();
+      var issueFactor = parseFloat(it.issue_factor);
+      if ((!issueName || !(issueFactor > 1)) && Array.isArray(it.units)) {
+        for (var ui = 0; ui < it.units.length; ui++) {
+          var uu = it.units[ui] || {};
+          var uf = parseFloat(uu.factor != null ? uu.factor : uu.factor_to_base);
+          if ((!uu.is_base || uf > 1) && uf > 1) {
+            issueName = String(uu.name || uu.unit_name || '').trim();
+            issueFactor = uf;
+            break;
+          }
+        }
+      }
+      if (issueName && issueFactor > 1) {
+        var fTxt = String(issueFactor);
+        if (Math.abs(issueFactor - Math.round(issueFactor)) < 1e-9) {
+          fTxt = String(Math.round(issueFactor));
+        }
+        packSpan.textContent = issueName + ' × ' + fTxt;
+      } else {
+        packSpan.textContent = '—';
+        packSpan.classList.add('is-empty');
+      }
+      body.appendChild(packSpan);
+
       if (code) {
         var codeSpan = document.createElement('span');
         codeSpan.className = 'sales-inv-pick-item-barcode';
@@ -517,6 +545,19 @@
       var id = parseInt(it.id != null ? it.id : it.item_id, 10);
       if (!id) return;
       var units = Array.isArray(it.units) ? it.units : [];
+      var issueName = it.issue_unit_name != null ? String(it.issue_unit_name) : '';
+      var issueFactor = it.issue_factor != null ? parseFloat(it.issue_factor) : 0;
+      if ((!issueName || !(issueFactor > 1)) && units.length) {
+        for (var i = 0; i < units.length; i++) {
+          var u = units[i] || {};
+          var f = parseFloat(u.factor != null ? u.factor : u.factor_to_base);
+          if ((!u.is_base || f > 1) && f > 1) {
+            issueName = String(u.name || u.unit_name || '');
+            issueFactor = f;
+            break;
+          }
+        }
+      }
       var row = {
         id: id,
         name_ar: String(it.name_ar || it.name || ''),
@@ -527,6 +568,8 @@
         unit_id: it.unit_id != null ? it.unit_id : 0,
         unit_name: it.unit_name != null ? String(it.unit_name) : '',
         units: units,
+        issue_unit_name: issueName,
+        issue_factor: issueFactor > 1 ? issueFactor : 0,
       };
       list.push(row);
       byId[String(id)] = row;

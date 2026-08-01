@@ -20,10 +20,10 @@
   position: fixed;
   z-index: 100602;
   background: #fff;
-  border: 1px solid #c7d2fe;
+  border: 1px solid #cbd5e1;
   border-radius: 12px;
   box-shadow:
-    0 8px 16px rgba(67, 56, 202, 0.08),
+    0 8px 16px rgba(5, 114, 206, 0.08),
     0 20px 40px rgba(15, 23, 42, 0.16);
   padding: 0;
   min-width: 360px;
@@ -68,14 +68,14 @@
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.45rem 0.65rem;
-  background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%);
-  border-bottom: 1px solid #e0e7ff;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+  border-bottom: 1px solid #024d8f;
 }
 
 .sales-inv-pick-title {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #4338ca;
+  color: #ffffff;
 }
 
 .sales-inv-pick-close {
@@ -85,8 +85,8 @@
   padding: 0;
   border: none;
   border-radius: 6px;
-  background: transparent;
-  color: #64748b;
+  background: #dc2626;
+  color: #ffffff;
   font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
@@ -94,8 +94,8 @@
 }
 
 .sales-inv-pick-close:hover {
-  background: #e2e8f0;
-  color: #0f172a;
+  background: #b91c1c;
+  color: #ffffff;
 }
 
 .sales-inv-pick-dropdown .input {
@@ -105,7 +105,7 @@
   font-size: 0.75rem;
   padding: 0.35rem 0.45rem;
   border-radius: 8px;
-  border-color: #c7d2fe;
+  border-color: #cbd5e1;
 }
 
 .sales-inv-pick-results {
@@ -195,7 +195,7 @@
 .sales-inv-pick-item:hover,
 .sales-inv-pick-item:focus,
 .sales-inv-pick-item.is-active {
-  background: #eef2ff;
+  background: #f0f6fc;
   outline: none;
 }
 
@@ -233,14 +233,14 @@
   text-align: start;
   cursor: pointer;
   font-family: inherit;
-  border: 1px dashed #c7d2fe;
+  border: 1px dashed #93c5fd;
   border-radius: 10px;
   background: #f8fafc;
 }
 
 .sales-inv-cust-open:hover:not(:disabled) {
-  border-color: #818cf8;
-  background: #eef2ff;
+  border-color: #0572ce;
+  background: #f0f6fc;
 }
 
 .sales-inv-cust-open:disabled {
@@ -259,13 +259,13 @@
 }
 
 .sales-inv-cust-open-label.is-placeholder {
-  color: #6366f1;
+  color: #0572ce;
   font-weight: 600;
 }
 
 .sales-inv-cust-open-ico {
   flex-shrink: 0;
-  color: #4338ca;
+  color: #024d8f;
   font-size: 0.75rem;
 }
 

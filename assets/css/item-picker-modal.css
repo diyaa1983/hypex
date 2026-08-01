@@ -41,11 +41,11 @@
 #app-item-picker-modal .sales-inv-pick-item:hover,
 #app-item-picker-modal .sales-inv-pick-item.is-selected,
 #app-item-picker-modal .sales-inv-pick-item.is-active {
-  background: #eef2ff;
+  background: #f0f6fc;
 }
 
 #app-item-picker-modal .sales-inv-pick-item.is-active {
-  outline: 2px solid #6366f1;
+  outline: 2px solid #0572ce;
   outline-offset: -2px;
 }
 
@@ -55,10 +55,37 @@
   height: 1.05rem;
   margin-top: 0.2rem;
   cursor: pointer;
-  accent-color: #4f46e5;
+  accent-color: #0572ce;
 }
 
 #app-item-picker-modal .sales-inv-pick-item-body {
   flex: 1;
   min-width: 0;
+}
+
+#app-item-picker-modal .item-picker-list-head,
+#app-item-picker-modal .item-picker-item-body {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.4fr) minmax(4.5rem, 0.7fr) minmax(4.2rem, 0.65fr);
+  gap: 0.35rem;
+  align-items: center;
+}
+
+#app-item-picker-modal .sales-inv-pick-item-pack {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  white-space: nowrap;
+}
+
+#app-item-picker-modal .sales-inv-pick-item-pack.is-empty {
+  color: #64748b;
+}
+
+body.hr-ora-ui #app-item-picker-modal .item-picker-list-head,
+body.ora12-picker-ui #app-item-picker-modal .item-picker-list-head,
+body.hr-ora-ui #app-item-picker-modal .item-picker-item-body,
+body.ora12-picker-ui #app-item-picker-modal .item-picker-item-body {
+  grid-template-columns: minmax(0, 1.4fr) minmax(4.5rem, 0.7fr) minmax(4.2rem, 0.65fr) !important;
 }
