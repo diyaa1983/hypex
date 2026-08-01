@@ -47,10 +47,29 @@ return [
                     'items' => [
                         ['r' => 'sales_invoices', 'label' => 'فاتورة مبيعات', 'icon' => '🧾'],
                         ['r' => 'sales_documents_list', 'label' => 'قائمة فواتير المبيعات', 'icon' => '📑'],
-                        ['r' => 'sales_customer_orders', 'label' => 'طلبات شراء العملاء', 'icon' => '📝'],
-                        ['r' => 'sales_customer_orders_approve', 'label' => 'اعتماد طلبات الشراء', 'icon' => '✅'],
                         ['r' => 'sales_unpaid_invoices', 'label' => 'فواتير البيع غير المسددة', 'icon' => '🔴'],
                         ['r' => 'sales_invoices_list', 'label' => 'ترحيل فواتير المبيعات', 'icon' => '📋'],
+                    ],
+                ],
+                [
+                    'id' => 'customer_orders',
+                    'title' => 'طلبات شراء العملاء',
+                    'subgroups' => [
+                        [
+                            'id' => 'operations',
+                            'title' => 'طلبات شراء العملاء',
+                            'items' => [
+                                ['r' => 'sales_customer_orders', 'label' => 'طلبات شراء العملاء', 'icon' => '📝'],
+                                ['r' => 'sales_customer_orders_approve', 'label' => 'اعتماد طلبات الشراء', 'icon' => '✅'],
+                            ],
+                        ],
+                        [
+                            'id' => 'reports',
+                            'title' => 'تقارير طلبات الشراء',
+                            'items' => [
+                                ['r' => 'report_customer_orders', 'label' => 'تقرير طلبات الشراء', 'icon' => '📊'],
+                            ],
+                        ],
                     ],
                 ],
                 [

@@ -60,6 +60,11 @@ return [
         'title' => 'اعتماد طلبات الشراء',
         'hide_screen_title' => true,
     ],
+    'report_customer_orders' => [
+        'file' => 'modules/reports/customer_orders.php',
+        'permission' => 'report_customer_orders',
+        'title' => 'تقرير طلبات الشراء',
+    ],
     'sales_unpaid_invoices' => [
         'file' => 'modules/sales/unpaid_invoices.php',
         'permission' => 'sales_unpaid_invoices',

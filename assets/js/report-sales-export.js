@@ -6,6 +6,7 @@
     report_sales_between_dates: true,
     report_sales_by_rep: true,
     report_sales_by_item: true,
+    report_customer_orders: true,
     report_sales_returns: true,
     report_sales_returns_totals: true,
     report_sales_qty_extra: true,
@@ -1784,6 +1785,8 @@
         prefix = 'sales-report-rep';
       } else if (routeKey === 'report_sales_by_item') {
         prefix = 'sales-report-item';
+      } else if (routeKey === 'report_customer_orders') {
+        prefix = 'customer-orders-report';
       } else if (routeKey === 'report_purchases_by_item') {
         prefix = 'purchase-report-item';
       } else if (routeKey === 'report_purchase_returns') {
