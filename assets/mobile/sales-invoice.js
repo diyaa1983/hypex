@@ -1151,8 +1151,10 @@
     if (form && form.classList.contains('m-invoice-form--locked')) return;
 
     var gpsEnabled = !!(cfg.gpsEnabled || window.APP_GPS_ENABLED);
+    var needVisitGps = !!cfg.repVisitGeofence;
+    var needGpsCapture = gpsEnabled || needVisitGps;
     var gpsPrimed = null;
-    if (gpsEnabled && window.AppGeo && AppGeo.primePostGpsFromUserGesture) {
+    if (needGpsCapture && window.AppGeo && AppGeo.primePostGpsFromUserGesture) {
       gpsPrimed = AppGeo.primePostGpsFromUserGesture('mobile');
     }
 
@@ -1200,14 +1202,14 @@
     function beginPost() {
       var confirmMsg =
         'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.';
-      if (gpsEnabled) {
+      if (needGpsCapture) {
         confirmMsg += '\n\n📍 قد يُطلب السماح بالموقع على الهاتف.';
       }
       mobileConfirm(confirmMsg, { title: 'تأكيد الترحيل', okText: 'ترحيل' }).then(function (ok) {
         if (!ok) {
           return;
         }
-        if (window.AppGeo && AppGeo.captureForPost) {
+        if (needGpsCapture && window.AppGeo && AppGeo.captureForPost) {
           AppGeo.captureForPost('mobile', { primed: gpsPrimed })
             .then(function (gps) {
               submitPost(gps && gps.latitude != null ? gps : null);
@@ -1776,7 +1778,8 @@
         });
       } // end runSaveWithGps
 
-      if (window.AppGeo && typeof AppGeo.withGpsForPost === 'function') {
+      var needVisitGps = !!cfg.repVisitGeofence;
+      if (needVisitGps && window.AppGeo && typeof AppGeo.withGpsForPost === 'function') {
         AppGeo.withGpsForPost('mobile', function (gps) {
           if (gps === undefined) {
             if (btn) btn.disabled = false;

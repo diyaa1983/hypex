@@ -777,6 +777,11 @@ function crm_mobile_customer_create_for_user(
     $newId = (int) $pdo->lastInsertId();
     crm_customer_save_sales_reps($pdo, $newId, [$repId]);
 
+    if ($hasGps && $newId > 0) {
+        require_once app_path('includes/sal_rep_route.php');
+        sal_rep_route_add_customer_today($pdo, $repId, $newId, $userId);
+    }
+
     return [
         'ok' => true,
         'message' => 'تم إضافة العميل وربطه بمندوبك.',

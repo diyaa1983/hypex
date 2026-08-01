@@ -7,6 +7,7 @@ declare(strict_types=1);
 require_once app_path('includes/mobile_invoice.php');
 require_once app_path('includes/app_gps.php');
 require_once app_path('includes/company_settings.php');
+require_once app_path('includes/sal_rep_route.php');
 
 
 
@@ -195,6 +196,7 @@ $viewJsV = is_file(app_path('assets/mobile/invoice-view.js'))
         canPost: <?= mobile_can_post_sales_invoice() ? 'true' : 'false' ?>,
 
         gpsEnabled: <?= app_gps_enabled() ? 'true' : 'false' ?>,
+        repVisitGeofence: <?= (function_exists('sal_rep_visit_geofence_setting_enabled') ? sal_rep_visit_geofence_setting_enabled() : false) ? 'true' : 'false' ?>,
 
         canArchive: <?= mobile_can_archive_sales_invoice() ? 'true' : 'false' ?>,
 

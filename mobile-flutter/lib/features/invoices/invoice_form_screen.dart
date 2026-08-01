@@ -537,23 +537,26 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     final api = context.read<ApiClient>();
     setState(() => _busy = true);
     try {
-      final gps = await LocationService.requirePosition();
+      final fields = <String, dynamic>{
+        '_action': 'save_invoice',
+        'invoice_id': _invoiceId,
+        'invoice_date': _invoiceDate.isEmpty ? Fmt.todayIso() : _invoiceDate,
+        'customer_id': _customer!.id,
+        'warehouse_id': _warehouseId,
+        'payment_type': _paymentType,
+        'lines_json': jsonEncode(_lines.map((l) => l.toJson()).toList()),
+      };
+      if (s.gpsConfig.repVisitGeofence) {
+        final gps = await LocationService.requirePosition();
+        fields['latitude'] = gps.latitude;
+        fields['longitude'] = gps.longitude;
+        fields['gps_accuracy'] = gps.accuracy;
+        fields['gps_source'] = 'mobile';
+      }
       final res = await api.postForm(
         AppConfig.salesInvoiceSaveRoute,
         csrf: s.csrf,
-        fields: {
-          '_action': 'save_invoice',
-          'invoice_id': _invoiceId,
-          'invoice_date': _invoiceDate.isEmpty ? Fmt.todayIso() : _invoiceDate,
-          'customer_id': _customer!.id,
-          'warehouse_id': _warehouseId,
-          'payment_type': _paymentType,
-          'lines_json': jsonEncode(_lines.map((l) => l.toJson()).toList()),
-          'latitude': gps.latitude,
-          'longitude': gps.longitude,
-          'gps_accuracy': gps.accuracy,
-          'gps_source': 'mobile',
-        },
+        fields: fields,
       );
       final invId = Fmt.toInt(res['invoice_id']);
       final invNo = Fmt.str(res['invoice_no']);
@@ -590,14 +593,16 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     final api = context.read<ApiClient>();
     setState(() => _busy = true);
     try {
-      final gps = await LocationService.requirePosition();
       final fields = <String, dynamic>{
         'invoice_id': id,
-        'latitude': gps.latitude,
-        'longitude': gps.longitude,
-        'gps_accuracy': gps.accuracy,
-        'gps_source': 'mobile',
       };
+      if (s.gpsConfig.repVisitGeofence || s.gpsConfig.enabled) {
+        final gps = await LocationService.requirePosition();
+        fields['latitude'] = gps.latitude;
+        fields['longitude'] = gps.longitude;
+        fields['gps_accuracy'] = gps.accuracy;
+        fields['gps_source'] = 'mobile';
+      }
       final p = await api.postForm(
         AppConfig.salesInvoicePostPath,
         fields: fields,

@@ -244,10 +244,85 @@ function sal_rep_route_customer_is_assigned(PDO $pdo, int $salesRepId, int $cust
 }
 
 /**
- * هل يجب فرض قيد خط السير/الموقع؟ (سياق الموبايل أو مجموعة الموبايل غير الأدمن النظام).
+ * إضافة عميل إلى خط سير اليوم (إنشاء الخط إن لم يوجد) — يُستخدم عند تسجيل عميل جديد بموقع GPS.
+ */
+function sal_rep_route_add_customer_today(
+    PDO $pdo,
+    int $salesRepId,
+    int $customerId,
+    ?int $userId = null
+): void {
+    if ($salesRepId < 1 || $customerId < 1 || !sal_rep_route_ensure_schema($pdo)) {
+        return;
+    }
+    $routeDate = date('Y-m-d');
+    if (sal_rep_route_customer_is_assigned($pdo, $salesRepId, $customerId, $routeDate)) {
+        return;
+    }
+
+    $st = $pdo->prepare('SELECT id FROM sal_rep_route WHERE sales_rep_id = ? AND route_date = ? LIMIT 1');
+    $st->execute([$salesRepId, $routeDate]);
+    $routeId = (int) $st->fetchColumn();
+    if ($routeId < 1) {
+        $pdo->prepare(
+            'INSERT INTO sal_rep_route (sales_rep_id, route_date, notes, is_active, created_by, updated_by)
+             VALUES (?,?,?,?,?,?)'
+        )->execute([
+            $salesRepId,
+            $routeDate,
+            'إضافة تلقائية عند تسجيل عميل جديد',
+            1,
+            $userId,
+            $userId,
+        ]);
+        $routeId = (int) $pdo->lastInsertId();
+        $sort = 1;
+    } else {
+        $pdo->prepare('UPDATE sal_rep_route SET is_active = 1, updated_by = ? WHERE id = ?')
+            ->execute([$userId, $routeId]);
+        $mx = $pdo->prepare('SELECT COALESCE(MAX(sort_order), 0) FROM sal_rep_route_line WHERE route_id = ?');
+        $mx->execute([$routeId]);
+        $sort = (int) $mx->fetchColumn() + 1;
+    }
+
+    try {
+        $pdo->prepare(
+            'INSERT INTO sal_rep_route_line (route_id, customer_id, sort_order) VALUES (?,?,?)'
+        )->execute([$routeId, $customerId, $sort]);
+    } catch (Throwable $e) {
+        // تكرار متزامن — العميل مضاف مسبقاً
+        error_log('sal_rep_route_add_customer_today: ' . $e->getMessage());
+    }
+}
+
+/** هل إعداد النظام يُلزم المندوب بنطاق موقع العميل؟ */
+function sal_rep_visit_geofence_setting_enabled(?PDO $pdo = null): bool
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    try {
+        require_once app_path('includes/mobile_gps_settings.php');
+        $s = mobile_gps_settings($pdo);
+        $cached = !empty($s['rep_visit_geofence']);
+    } catch (Throwable $e) {
+        error_log('sal_rep_visit_geofence_setting_enabled: ' . $e->getMessage());
+        $cached = false;
+    }
+
+    return $cached;
+}
+
+/**
+ * هل يجب فرض قيد خط السير/الموقع؟
+ * يعتمد على إعداد النظام + سياق الموبايل/مجموعة الموبايل.
  */
 function sal_rep_visit_geofence_should_enforce(): bool
 {
+    if (!sal_rep_visit_geofence_setting_enabled()) {
+        return false;
+    }
     if (function_exists('user_is_system_admin') && user_is_system_admin()) {
         // الأدمن على سطح المكتب مستثنى؛ على الموبايل نفرض أيضاً إن كان السياق موبايل
         if (!function_exists('mobile_is_context') || !mobile_is_context()) {

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once app_path('includes/app_gps.php');
 
-/** @return array{auto_enable:bool,interval_sec:int,min_distance_m:int,user_can_disable:bool,enabled:bool} */
+/** @return array{auto_enable:bool,interval_sec:int,min_distance_m:int,user_can_disable:bool,enabled:bool,rep_visit_geofence:bool} */
 function mobile_gps_settings_defaults(): array
 {
     return [
@@ -12,6 +12,7 @@ function mobile_gps_settings_defaults(): array
         'min_distance_m' => 0,
         'user_can_disable' => false,
         'enabled' => true,
+        'rep_visit_geofence' => false,
     ];
 }
 
@@ -31,6 +32,7 @@ function mobile_gps_settings_ensure_schema(PDO $pdo): void
         'gps_google_maps_api_key' => "VARCHAR(255) NOT NULL DEFAULT ''",
         'gps_map_provider' => "VARCHAR(16) NOT NULL DEFAULT 'esri'",
         'gps_map_engine' => "VARCHAR(16) NOT NULL DEFAULT 'leaflet'",
+        'sales_rep_visit_geofence' => 'TINYINT(1) NOT NULL DEFAULT 0',
     ];
 
     foreach ($columns as $col => $def) {
@@ -49,7 +51,7 @@ function mobile_gps_settings_ensure_schema(PDO $pdo): void
     }
 }
 
-/** @return array{auto_enable:bool,interval_sec:int,min_distance_m:int,user_can_disable:bool,enabled:bool} */
+/** @return array{auto_enable:bool,interval_sec:int,min_distance_m:int,user_can_disable:bool,enabled:bool,rep_visit_geofence:bool} */
 function mobile_gps_settings(PDO $pdo = null): array
 {
     $defaults = mobile_gps_settings_defaults();
@@ -61,7 +63,7 @@ function mobile_gps_settings(PDO $pdo = null): array
         $row = $pdo->query(
             'SELECT gps_mobile_auto_enable, gps_mobile_interval_sec,
                     gps_mobile_min_distance_m, gps_mobile_user_can_disable,
-                    gps_google_maps_api_key
+                    gps_google_maps_api_key, sales_rep_visit_geofence
              FROM sys_company_settings WHERE id = 1 LIMIT 1'
         )->fetch(PDO::FETCH_ASSOC);
         if (is_array($row)) {
@@ -73,6 +75,7 @@ function mobile_gps_settings(PDO $pdo = null): array
                 (int) ($row['gps_mobile_min_distance_m'] ?? 0)
             );
             $defaults['user_can_disable'] = (int) ($row['gps_mobile_user_can_disable'] ?? 0) === 1;
+            $defaults['rep_visit_geofence'] = (int) ($row['sales_rep_visit_geofence'] ?? 0) === 1;
         }
     } catch (Throwable $e) {
         error_log('mobile_gps_settings: ' . $e->getMessage());
@@ -112,6 +115,7 @@ function mobile_gps_settings_for_app(?PDO $pdo = null): array
         'interval_sec' => $s['interval_sec'],
         'min_distance_m' => $s['min_distance_m'],
         'user_can_disable' => $s['user_can_disable'],
+        'rep_visit_geofence' => !empty($s['rep_visit_geofence']),
     ];
 }
 
@@ -209,6 +213,7 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
     $interval = mobile_gps_settings_normalize_interval((int) ($input['interval_sec'] ?? 10));
     $distance = mobile_gps_settings_normalize_distance((int) ($input['min_distance_m'] ?? 0));
     $canDisable = !empty($input['user_can_disable']) ? 1 : 0;
+    $repVisitGeofence = !empty($input['rep_visit_geofence']) ? 1 : 0;
     $googleKey = trim((string) ($input['google_maps_api_key'] ?? ''));
     $provider = strtolower(trim((string) ($input['map_provider'] ?? 'esri')));
     if (!in_array($provider, ['esri', 'natgeo', 'carto', 'google'], true)) {
@@ -225,9 +230,10 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
             gps_mobile_interval_sec = ?,
             gps_mobile_min_distance_m = ?,
             gps_mobile_user_can_disable = ?,
+            sales_rep_visit_geofence = ?,
             gps_google_maps_api_key = ?,
             gps_map_provider = ?,
             gps_map_engine = ?
          WHERE id = 1'
-    )->execute([$auto, $interval, $distance, $canDisable, $googleKey, $provider, $engine]);
+    )->execute([$auto, $interval, $distance, $canDisable, $repVisitGeofence, $googleKey, $provider, $engine]);
 }

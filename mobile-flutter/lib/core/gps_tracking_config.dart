@@ -6,6 +6,7 @@ class GpsTrackingConfig {
     this.intervalSec = 10,
     this.minDistanceM = 0,
     this.userCanDisable = false,
+    this.repVisitGeofence = false,
   });
 
   final bool enabled;
@@ -13,6 +14,9 @@ class GpsTrackingConfig {
   final int intervalSec;
   final int minDistanceM;
   final bool userCanDisable;
+
+  /// إلزام التواجد ضمن نطاق موقع العميل عند الفاتورة/طلب الشراء.
+  final bool repVisitGeofence;
 
   static const defaults = GpsTrackingConfig();
 
@@ -24,6 +28,7 @@ class GpsTrackingConfig {
       intervalSec: _clampInt(raw['interval_sec'], 10, 300, 10),
       minDistanceM: _clampInt(raw['min_distance_m'], 0, 500, 0),
       userCanDisable: raw['user_can_disable'] == true,
+      repVisitGeofence: raw['rep_visit_geofence'] == true,
     );
   }
 

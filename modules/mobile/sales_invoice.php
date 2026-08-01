@@ -6,6 +6,7 @@ require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/mobile_invoice.php');
 require_once app_path('includes/mobile_icons.php');
 require_once app_path('includes/app_gps.php');
+require_once app_path('includes/sal_rep_route.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'save_invoice') {
     handle_sales_invoice_post();
@@ -267,6 +268,7 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         canPost: <?= mobile_can_post_sales_invoice() ? 'true' : 'false' ?>,
         postApi: <?= json_encode(app_absolute_url('api/sales_invoice_post.php'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>,
         gpsEnabled: <?= app_gps_enabled() ? 'true' : 'false' ?>,
+        repVisitGeofence: <?= (function_exists('sal_rep_visit_geofence_setting_enabled') ? sal_rep_visit_geofence_setting_enabled() : false) ? 'true' : 'false' ?>,
         decimalPlaces: <?= (int) $dp ?>,
         defaultTax: <?= json_encode($defaultTax, JSON_UNESCAPED_UNICODE) ?>,
         mobileDefaultTax: <?= json_encode($mobileDefaultTaxPercent, JSON_UNESCAPED_UNICODE) ?>,

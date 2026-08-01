@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'interval_sec' => $_POST['gps_mobile_interval_sec'] ?? 10,
                 'min_distance_m' => $_POST['gps_mobile_min_distance_m'] ?? 0,
                 'user_can_disable' => $_POST['gps_mobile_user_can_disable'] ?? null,
+                'rep_visit_geofence' => $_POST['sales_rep_visit_geofence'] ?? null,
                 'google_maps_api_key' => $_POST['gps_google_maps_api_key'] ?? '',
                 'map_provider' => $_POST['gps_map_provider'] ?? 'esri',
                 'map_engine' => $_POST['gps_map_engine'] ?? 'leaflet',
@@ -114,6 +115,22 @@ $cssUrl = app_url('assets/css/settings-oracle12.css') . (is_file($cssPath) ? '?v
             </label>
             <span class="field-hint field--full" style="display:block;margin:-0.15rem 0 0 1.6rem;">
                 افتراضياً: المستخدم العادي لا يرى زر الإيقاف — التتبّع إلزامي من النظام.
+            </span>
+        </div>
+    </div>
+
+    <div class="settings-ora-panel">
+        <h2 class="settings-ora-panel-head">زيارات المندوب (فاتورة / طلب شراء)</h2>
+        <div class="settings-ora-panel-body">
+            <label class="field field-check field--full">
+                <input type="checkbox" name="sales_rep_visit_geofence" value="1" id="rep_visit_geofence"
+                    <?= !empty($settings['rep_visit_geofence']) ? 'checked' : '' ?>>
+                <span class="field-label">إلزام المندوب بالتواجد ضمن نطاق موقع العميل (200م)</span>
+            </label>
+            <span class="field-hint field--full" style="display:block;margin:-0.15rem 0 0 1.6rem;">
+                عند التفعيل: لا يمكن عمل فاتورة مبيعات أو طلب شراء من الموبايل إلا إذا كان العميل مدرجاً في خط سير اليوم وكان المندوب ضمن حوالي 200 متراً من موقع العميل على الخريطة.
+                عند الإلغاء: يعمل المندوب دون قيد على الموقع.
+                عند إضافة عميل جديد مع تحديد موقعه في نفس اللحظة يُدرج تلقائياً في خط سير اليوم ويمكن إصدار فاتورة/طلب وهو في الموقع.
             </span>
         </div>
     </div>

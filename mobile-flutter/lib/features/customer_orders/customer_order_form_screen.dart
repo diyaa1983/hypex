@@ -183,20 +183,24 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     setState(() => _busy = true);
     try {
-      final gps = await LocationService.requirePosition();
+      final session = context.read<SessionController>();
+      final body = <String, dynamic>{
+        'id': _id,
+        'customer_id': _customer!.id,
+        'warehouse_id': _warehouseId,
+        'lines': _lines.map((l) => l.toJson()).toList(),
+      };
+      if (session.gpsConfig.repVisitGeofence) {
+        final gps = await LocationService.requirePosition();
+        body['latitude'] = gps.latitude;
+        body['longitude'] = gps.longitude;
+        body['gps_accuracy'] = gps.accuracy;
+        body['gps_source'] = 'mobile';
+      }
       final result = await context.read<ApiClient>().postJson(
         AppConfig.customerOrderSavePath,
-        csrf: context.read<SessionController>().csrf,
-        body: {
-          'id': _id,
-          'customer_id': _customer!.id,
-          'warehouse_id': _warehouseId,
-          'lines': _lines.map((l) => l.toJson()).toList(),
-          'latitude': gps.latitude,
-          'longitude': gps.longitude,
-          'gps_accuracy': gps.accuracy,
-          'gps_source': 'mobile',
-        },
+        csrf: session.csrf,
+        body: body,
       );
       final id = Fmt.toInt(result['order_id'] ?? result['id']);
       if (mounted) {

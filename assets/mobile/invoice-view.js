@@ -680,8 +680,10 @@
     postFlowBusy = true;
 
     var gpsEnabled = !!(cfg.gpsEnabled || window.APP_GPS_ENABLED);
+    var needVisitGps = !!cfg.repVisitGeofence;
+    var needGpsCapture = gpsEnabled || needVisitGps;
     var gpsPrimed = null;
-    if (gpsEnabled && window.AppGeo && AppGeo.primePostGpsFromUserGesture) {
+    if (needGpsCapture && window.AppGeo && AppGeo.primePostGpsFromUserGesture) {
       gpsPrimed = AppGeo.primePostGpsFromUserGesture('mobile');
     }
 
@@ -760,11 +762,13 @@
       var confirmMsg =
         'هل تريد ترحيل هذه الفاتورة؟\n\nسيتم صرف المخزون وتسجيل حساب العميل.\n' +
         'يُسمح بالصرف حتى لو أصبح الرصيد سالبًا.';
-      if (gpsEnabled && permState === 'prompt') {
+      if (needGpsCapture && permState === 'prompt') {
         confirmMsg +=
           '\n\n📍 سيظهر على الهاتف سؤال «السماح بالموقع؟» — اضغط «سماح» أو Allow لحفظ موقع الترحيل.';
-      } else if (gpsEnabled && permState === 'denied') {
-        confirmMsg += '\n\n⚠ صلاحية الموقع مرفوضة — سيتم الترحيل بدون GPS.';
+      } else if (needGpsCapture && permState === 'denied') {
+        confirmMsg += needVisitGps
+          ? '\n\n⚠ صلاحية الموقع مرفوضة — لا يمكن الترحيل مع تفعيل قيد نطاق موقع العميل.'
+          : '\n\n⚠ صلاحية الموقع مرفوضة — سيتم الترحيل بدون GPS.';
       }
       mobileConfirm(confirmMsg, {
         title: 'تأكيد الترحيل',
@@ -779,6 +783,10 @@
           return;
         }
         showPostStatus('جاري الترحيل...', 'success');
+        if (!needGpsCapture) {
+          submitPost(null);
+          return;
+        }
         waitForPostGps('mobile', gpsPrimed, 12000).then(function (gps) {
           submitPost(gps || null);
         });
@@ -786,7 +794,7 @@
     }
 
     function beginPostConfirmFlow() {
-      if (!gpsEnabled || !window.AppGeo || !AppGeo.queryLocationPermission) {
+      if (!needGpsCapture || !window.AppGeo || !AppGeo.queryLocationPermission) {
         openPostConfirm('granted');
         return;
       }
@@ -804,7 +812,7 @@
       });
     }
 
-    if (gpsEnabled && gpsPrimed) {
+    if (needGpsCapture && gpsPrimed) {
       setTimeout(beginPostConfirmFlow, 1500);
       return;
     }
