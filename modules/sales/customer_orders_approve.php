@@ -227,8 +227,17 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
     save: <?= json_encode(app_url('api/sales_customer_order_save.php')) ?>,
     approve: <?= json_encode(app_url('api/sales_customer_order_approve.php')) ?>,
     del: <?= json_encode(app_url('api/sales_customer_order_delete.php')) ?>,
-    list: <?= json_encode(app_url('index.php?r=sales_customer_orders_approve&' . http_build_query($filterQuery))) ?>
+    list: <?= json_encode(app_url('index.php?r=sales_customer_orders_approve&' . http_build_query($filterQuery))) ?>,
+    items: <?= json_encode(app_url('api/items_search.php')) ?>
   };
+
+  function buildItemsUrl(q, listAll) {
+    var parts = [];
+    if (listAll || !q) parts.push('list=1');
+    else parts.push('q=' + encodeURIComponent(q));
+    if (warehouseId > 0) parts.push('warehouse_id=' + encodeURIComponent(String(warehouseId)));
+    return urls.items + (urls.items.indexOf('?') >= 0 ? '&' : '?') + parts.join('&');
+  }
 
   function post(url, data) {
     return fetch(url, {
@@ -357,7 +366,9 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
       ItemPickerModal.open({
         singleSelect: true,
         screenCenter: true,
+        buildItemsUrl: buildItemsUrl,
         getWarehouseId: function () { return warehouseId; },
+        emptyMessage: warehouseId > 0 ? 'لا توجد مواد في هذا المستودع' : 'لا توجد مواد مطابقة',
         onSelect: function (it) { addLineFromItem(it); },
         onConfirm: function (items) {
           (items || []).forEach(addLineFromItem);
