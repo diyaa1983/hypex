@@ -87,8 +87,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $catVal = $extendedSchemaOk && $categoryId > 0 ? $categoryId : null;
-            $unitVal = $extendedSchemaOk && $unitId > 0 ? $unitId : null;
             $whVal = $extendedSchemaOk && $warehouseId > 0 ? $warehouseId : null;
+
+            $unitsLocked = $id > 0 && $itemUnitsOk && inv_item_units_is_locked($pdo, $id);
+            $normalizedIssue = null;
+            if ($unitsLocked && $extendedSchemaOk) {
+                $stCurUnit = $pdo->prepare('SELECT unit_id, unit_name FROM inv_item WHERE id = ? LIMIT 1');
+                $stCurUnit->execute([$id]);
+                $curUnitRow = $stCurUnit->fetch(PDO::FETCH_ASSOC) ?: [];
+                $lockedUnitId = (int) ($curUnitRow['unit_id'] ?? 0);
+                if ($lockedUnitId > 0) {
+                    $unitId = $lockedUnitId;
+                    $unit = inv_item_unit_name_by_id($pdo, $lockedUnitId)
+                        ?: trim((string) ($curUnitRow['unit_name'] ?? ''))
+                        ?: $unit;
+                }
+            } elseif ($itemUnitsOk && $extendedSchemaOk && $unitId > 0) {
+                $issueUnitIds = $_POST['issue_unit_id'] ?? [];
+                $issueFactors = $_POST['issue_factor'] ?? [];
+                if (!is_array($issueUnitIds)) {
+                    $issueUnitIds = [$issueUnitIds];
+                    $issueFactors = is_array($issueFactors) ? $issueFactors : [$issueFactors];
+                }
+                $postIssueUid = 0;
+                $postIssueFactor = 0.0;
+                foreach ($issueUnitIds as $ix => $rawUid) {
+                    $uid = (int) $rawUid;
+                    if ($uid < 1) {
+                        continue;
+                    }
+                    $postIssueUid = $uid;
+                    $postIssueFactor = (float) str_replace(',', '.', (string) ($issueFactors[$ix] ?? '0'));
+                    break;
+                }
+                $norm = inv_item_units_normalize_selection($pdo, $unitId, $postIssueUid, $postIssueFactor);
+                $unitId = (int) $norm['base_unit_id'];
+                $normalizedIssue = $norm['issue'];
+                $unit = inv_item_unit_name_by_id($pdo, $unitId) ?: $unit;
+            }
+            $unitVal = $extendedSchemaOk && $unitId > 0 ? $unitId : null;
 
             $expiryDate = null;
             $notifyExpiry = 0;
@@ -166,25 +203,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $savedId = (int) $pdo->lastInsertId();
             }
             if ($itemUnitsOk && $extendedSchemaOk && $savedId > 0 && $unitId > 0) {
-                $extraUnits = [];
-                $issueUnitIds = $_POST['issue_unit_id'] ?? [];
-                $issueFactors = $_POST['issue_factor'] ?? [];
-                $issueDefaults = $_POST['issue_default'] ?? [];
-                if (is_array($issueUnitIds)) {
-                    foreach ($issueUnitIds as $ix => $rawUid) {
-                        $uid = (int) $rawUid;
-                        if ($uid < 1 || $uid === $unitId) {
-                            continue;
-                        }
-                        $factor = (float) str_replace(',', '.', (string) ($issueFactors[$ix] ?? '0'));
-                        $extraUnits[] = [
-                            'unit_id' => $uid,
-                            'factor_to_base' => $factor,
-                            'is_default_issue' => isset($issueDefaults[$ix]) && (string) $issueDefaults[$ix] === '1',
-                        ];
-                    }
+                if (!empty($unitsLocked)) {
+                    // بعد الحركات: لا تُعدَّل وحدات الصرف/الأساسية
+                } else {
+                    $extraUnits = $normalizedIssue ? [$normalizedIssue] : [];
+                    inv_item_units_save($pdo, $savedId, $unitId, $extraUnits);
                 }
-                inv_item_units_save($pdo, $savedId, $unitId, $extraUnits);
             }
         } elseif ($act === 'toggle') {
             $id = (int) ($_POST['id'] ?? 0);
@@ -373,129 +397,77 @@ if ($action === 'add' || $action === 'edit') {
                 <span class="muted" style="font-size:0.78rem;">مثل قطعة — السعر في البطاقة لهذه الوحدة. <a href="<?= esc(app_url('index.php?r=item_units')) ?>">إدارة الوحدات</a></span>
             </label>
             <?php
-            $itemIssueUnits = [];
-            if ($itemUnitsOk && (int) ($row['id'] ?? 0) > 0) {
-                foreach (inv_item_units_for_item($pdo, (int) $row['id']) as $iu) {
-                    if (!empty($iu['is_base'])) {
-                        continue;
-                    }
-                    $itemIssueUnits[] = $iu;
-                }
+            $itemIssueUnit = null;
+            $itemUnitsLocked = false;
+            $editItemId = (int) ($row['id'] ?? 0);
+            if ($itemUnitsOk && $editItemId > 0) {
+                $itemIssueUnit = inv_item_units_single_issue($pdo, $editItemId);
+                $itemUnitsLocked = inv_item_units_is_locked($pdo, $editItemId);
             }
+            $issueFactorDisp = $itemIssueUnit
+                ? (rtrim(rtrim(number_format((float) $itemIssueUnit['factor'], 6, '.', ''), '0'), '.') ?: '1')
+                : '';
             ?>
             <?php if ($itemUnitsOk): ?>
             <div class="card" style="padding:0.75rem 1rem;margin:0.5rem 0 1rem;background:#f8fafc;" id="item-issue-units-box">
-                <strong style="display:block;margin-bottom:0.5rem;">وحدات الصرف الأكبر من الأساسية</strong>
+                <strong style="display:block;margin-bottom:0.5rem;">وحدة الصرف والتعبئة (واحدة فقط)</strong>
                 <p class="muted" style="font-size:0.8rem;margin:0 0 0.75rem;line-height:1.55;">
-                    الوحدة الأساسية أعلاه (مثل <b>قطعة</b>) معاملها دائماً <b>1</b> — لا تُعاد هنا.
-                    لإضافة <b>كرتون / box</b>: اخترها من القائمة واكتب كم قطعة داخل الكرتونة (مثال: <b>24</b>).
-                    في الفاتورة: كمية <b>1 قطعة</b> = قطعة واحدة، وكمية <b>1 كرتون</b> = 24 قطعة في المخزون والسعر = سعر القطعة × 24.
+                    إذا كانت الوحدة فوق <b>كرتون</b>: اختر أيضاً <b>كرتون</b> هنا وأدخل عدد القطع داخل الكرتونة (مثال 24).
+                    عند الحفظ تُثبَّت <b>القطعة</b> كوحدة مخزون أساسية والكرتون كوحدة صرف.
+                    أو اختر فوق <b>قطعة</b> وهنا <b>كرتون</b> مع التعبئة مباشرة.
+                    <?php if ($itemUnitsLocked): ?>
+                        <br><b>لا يمكن تعديل الوحدة الأساسية أو وحدة الصرف</b> لأن المادة عليها حركات مخزنية أو مستندات.
+                    <?php endif; ?>
                 </p>
-                <div class="table-wrap">
-                    <table class="data-table" id="item-issue-units-table">
-                        <thead>
-                        <tr>
-                            <th>وحدة الصرف (أكبر من الأساسية)</th>
-                            <th>كم قطعة / أساسية في الوحدة الواحدة</th>
-                            <th>افتراضي بالفاتورة</th>
-                            <th></th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <?php if (!$itemIssueUnits): ?>
-                        <tr class="issue-unit-row">
-                            <td>
-                                <select class="input js-issue-unit-sel" name="issue_unit_id[]">
-                                    <option value="">— لا يوجد —</option>
-                                    <?php foreach ($units as $u): ?>
-                                        <option value="<?= (int) $u['id'] ?>"><?= esc((string) $u['name_ar']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </td>
-                            <td><input class="input" type="number" name="issue_factor[]" min="2" step="1" value="" placeholder="مثال: 24" dir="ltr" title="مثال: الكرتونة = 24 قطعة"></td>
-                            <td style="text-align:center;"><input type="checkbox" name="issue_default[0]" value="1"></td>
-                            <td></td>
-                        </tr>
-                        <?php else: ?>
-                        <?php foreach ($itemIssueUnits as $ix => $iu): ?>
-                        <tr class="issue-unit-row">
-                            <td>
-                                <select class="input js-issue-unit-sel" name="issue_unit_id[]">
-                                    <option value="">— لا يوجد —</option>
-                                    <?php foreach ($units as $u): ?>
-                                        <option value="<?= (int) $u['id'] ?>" <?= (int) $iu['unit_id'] === (int) $u['id'] ? 'selected' : '' ?>><?= esc((string) $u['name_ar']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </td>
-                            <td><input class="input" type="number" name="issue_factor[]" min="2" step="1" value="<?= esc(rtrim(rtrim(number_format((float) $iu['factor'], 6, '.', ''), '0'), '.') ?: '1') ?>" dir="ltr" title="كم من الأساسية تعادل وحدة الصرف الواحدة"></td>
-                            <td style="text-align:center;"><input type="checkbox" name="issue_default[<?= (int) $ix ?>]" value="1" <?= !empty($iu['is_default']) ? 'checked' : '' ?>></td>
-                            <td><button type="button" class="btn btn-ghost btn-sm js-remove-issue-unit">حذف</button></td>
-                        </tr>
-                        <?php endforeach; ?>
-                        <?php endif; ?>
-                        </tbody>
-                    </table>
+                <?php if ($itemUnitsLocked): ?>
+                    <input type="hidden" name="issue_unit_id[]" value="<?= (int) ($itemIssueUnit['unit_id'] ?? 0) ?>">
+                    <input type="hidden" name="issue_factor[]" value="<?= esc($issueFactorDisp) ?>">
+                <?php endif; ?>
+                <div class="form-row" style="align-items:flex-end;gap:0.75rem;flex-wrap:wrap;margin:0;">
+                    <label class="field" style="flex:1.2;min-width:180px;margin:0;">
+                        <span class="field-label">وحدة الصرف</span>
+                        <select class="input js-issue-unit-sel" name="<?= $itemUnitsLocked ? '' : 'issue_unit_id[]' ?>" id="item-issue-unit-id" <?= $itemUnitsLocked ? 'disabled' : '' ?>>
+                            <option value="">— لا يوجد —</option>
+                            <?php foreach ($units as $u): ?>
+                                <option value="<?= (int) $u['id'] ?>" <?= $itemIssueUnit && (int) $itemIssueUnit['unit_id'] === (int) $u['id'] ? 'selected' : '' ?>><?= esc((string) $u['name_ar']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                    <label class="field" style="flex:1;min-width:160px;margin:0;">
+                        <span class="field-label">العدد في وحدة الصرف (تعبئة)</span>
+                        <input class="input" type="number" name="<?= $itemUnitsLocked ? '' : 'issue_factor[]' ?>" id="item-issue-factor" min="2" step="1" value="<?= esc($issueFactorDisp) ?>" placeholder="مثال: 24" dir="ltr" <?= $itemUnitsLocked ? 'readonly disabled' : '' ?> title="عدد القطع داخل الكرتونة أو وحدة الصرف">
+                    </label>
                 </div>
-                <button type="button" class="btn btn-ghost btn-sm" id="js-add-issue-unit" style="margin-top:0.5rem;">+ وحدة صرف</button>
             </div>
             <script>
             (function () {
-              var tbody = document.querySelector('#item-issue-units-table tbody');
-              var addBtn = document.getElementById('js-add-issue-unit');
               var baseSel = document.getElementById('item-base-unit-id');
-              if (!tbody || !addBtn) return;
-              function baseUnitId() {
-                return baseSel ? String(baseSel.value || '') : '';
+              var issueSel = document.getElementById('item-issue-unit-id');
+              var factorInp = document.getElementById('item-issue-factor');
+              var locked = <?= $itemUnitsLocked ? 'true' : 'false' ?>;
+              if (locked && baseSel) {
+                baseSel.disabled = true;
+                var hid = document.createElement('input');
+                hid.type = 'hidden';
+                hid.name = 'unit_id';
+                hid.value = baseSel.value || '';
+                baseSel.insertAdjacentElement('afterend', hid);
               }
-              function syncIssueOptions(row) {
-                var baseId = baseUnitId();
-                (row || tbody).querySelectorAll('.js-issue-unit-sel').forEach(function (sel) {
-                  Array.prototype.forEach.call(sel.options, function (opt) {
-                    if (!opt.value) return;
-                    var isBase = baseId !== '' && opt.value === baseId;
-                    opt.hidden = isBase;
-                    opt.disabled = isBase;
-                    if (isBase && sel.value === opt.value) {
-                      sel.value = '';
-                    }
-                  });
-                });
-              }
-              function reindexDefaults() {
-                tbody.querySelectorAll('.issue-unit-row').forEach(function (tr, i) {
-                  var cb = tr.querySelector('input[type="checkbox"]');
-                  if (cb) cb.name = 'issue_default[' + i + ']';
-                });
-              }
-              syncIssueOptions();
-              if (baseSel) {
-                baseSel.addEventListener('change', function () { syncIssueOptions(); });
-              }
-              addBtn.addEventListener('click', function () {
-                var first = tbody.querySelector('.issue-unit-row');
-                if (!first) return;
-                var clone = first.cloneNode(true);
-                clone.querySelectorAll('select').forEach(function (s) { s.value = ''; });
-                clone.querySelectorAll('input[type="number"]').forEach(function (inp) { inp.value = ''; });
-                clone.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
-                tbody.appendChild(clone);
-                reindexDefaults();
-                syncIssueOptions(clone);
-              });
-              tbody.addEventListener('click', function (e) {
-                var btn = e.target.closest('.js-remove-issue-unit');
-                if (!btn) return;
-                var rows = tbody.querySelectorAll('.issue-unit-row');
-                if (rows.length <= 1) {
-                  var tr = btn.closest('tr');
-                  tr.querySelectorAll('select').forEach(function (s) { s.value = ''; });
-                  tr.querySelectorAll('input[type="number"]').forEach(function (inp) { inp.value = ''; });
-                  tr.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
-                  return;
+              function suggestIssueFromBase() {
+                if (locked || !baseSel || !issueSel) return;
+                var baseId = String(baseSel.value || '');
+                if (!baseId) return;
+                // عند اختيار كرتون فوق: اظهاره واختياره تلقائياً كوحدة صرف إن كانت فارغة
+                if (!issueSel.value) {
+                  issueSel.value = baseId;
                 }
-                btn.closest('tr').remove();
-                reindexDefaults();
-              });
+                if (factorInp && !factorInp.value && issueSel.value) {
+                  factorInp.focus();
+                }
+              }
+              if (baseSel && !locked) {
+                baseSel.addEventListener('change', suggestIssueFromBase);
+              }
             })();
             </script>
             <?php endif; ?>

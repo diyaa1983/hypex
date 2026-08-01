@@ -221,8 +221,107 @@ function inv_item_units_fallback_from_item(PDO $pdo, int $itemId): array
     ]];
 }
 
+/** معرّف وحدة القطعة (الأساسية للمخزون). */
+function inv_item_units_piece_unit_id(PDO $pdo): int
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+    $cached = 0;
+    try {
+        $cached = (int) $pdo->query(
+            "SELECT id FROM inv_unit
+             WHERE is_active = 1
+               AND (code = 'PCS' OR name_ar IN ('قطعة','حبة','قطعة واحدة'))
+             ORDER BY (code = 'PCS') DESC, id ASC
+             LIMIT 1"
+        )->fetchColumn();
+    } catch (Throwable $e) {
+        $cached = 0;
+    }
+
+    return $cached;
+}
+
+/**
+ * تطبيع اختيار الوحدة الأساسية + وحدة الصرف.
+ * إذا اختار المستخدم نفس الوحدة فوق وأسفل مع تعبئة (مثل كرتون / 24):
+ * تُحفظ القطعة كأساسية للمخزون والكرتون كوحدة صرف.
+ *
+ * @return array{base_unit_id:int, issue: ?array{unit_id:int,factor_to_base:float,is_default_issue:bool}}
+ */
+function inv_item_units_normalize_selection(PDO $pdo, int $baseUnitId, int $issueUnitId, float $issueFactor): array
+{
+    if ($baseUnitId < 1) {
+        throw new RuntimeException('اختر الوحدة الأساسية.');
+    }
+    if ($issueUnitId < 1 || $issueFactor <= 1) {
+        return ['base_unit_id' => $baseUnitId, 'issue' => null];
+    }
+
+    if ($issueUnitId === $baseUnitId) {
+        $pcsId = inv_item_units_piece_unit_id($pdo);
+        if ($pcsId < 1) {
+            throw new RuntimeException('عرّف وحدة «قطعة» من إدارة الوحدات أولاً، ثم أعد حفظ المادة مع التعبئة.');
+        }
+        if ($pcsId === $issueUnitId) {
+            throw new RuntimeException('أدخل وحدة صرف أكبر من القطعة (مثل كرتون) مع عدد القطع فيها.');
+        }
+
+        return [
+            'base_unit_id' => $pcsId,
+            'issue' => [
+                'unit_id' => $issueUnitId,
+                'factor_to_base' => $issueFactor,
+                'is_default_issue' => true,
+            ],
+        ];
+    }
+
+    return [
+        'base_unit_id' => $baseUnitId,
+        'issue' => [
+            'unit_id' => $issueUnitId,
+            'factor_to_base' => $issueFactor,
+            'is_default_issue' => true,
+        ],
+    ];
+}
+
+/**
+ * هل وُجدت حركات/مستندات تمنع تعديل وحدات المادة؟
+ */
+function inv_item_units_is_locked(PDO $pdo, int $itemId): bool
+{
+    if ($itemId < 1) {
+        return false;
+    }
+    require_once app_path('includes/inv_item_schema.php');
+    $chk = inv_item_delete_check($pdo, $itemId);
+
+    return empty($chk['can_delete']);
+}
+
+/**
+ * وحدة الصرف الوحيدة غير الأساسية للمادة (إن وُجدت).
+ *
+ * @return array{id:int,unit_id:int,name:string,factor:float,is_base:bool,is_default:bool}|null
+ */
+function inv_item_units_single_issue(PDO $pdo, int $itemId): ?array
+{
+    foreach (inv_item_units_for_item($pdo, $itemId) as $iu) {
+        if (empty($iu['is_base'])) {
+            return $iu;
+        }
+    }
+
+    return null;
+}
+
 /**
  * @param list<array<string,mixed>> $units  each: unit_id, factor_to_base, is_base?, is_default_issue?
+ *                                         تُقبل وحدة صرف واحدة فقط غير الأساسية.
  */
 function inv_item_units_save(PDO $pdo, int $itemId, int $baseUnitId, array $units): void
 {
@@ -243,35 +342,33 @@ function inv_item_units_save(PDO $pdo, int $itemId, int $baseUnitId, array $unit
         'is_default_issue' => 1,
     ];
     $seen[$baseUnitId] = true;
-    $hasDefault = false;
 
+    $issueCount = 0;
+    $issueUnit = null;
     foreach ($units as $u) {
         $uid = (int) ($u['unit_id'] ?? 0);
-        if ($uid < 1 || isset($seen[$uid])) {
+        if ($uid < 1 || isset($seen[$uid]) || $uid === $baseUnitId) {
             continue;
         }
         $factor = (float) ($u['factor_to_base'] ?? $u['factor'] ?? 0);
-        if ($uid === $baseUnitId) {
-            continue;
-        }
         if ($factor <= 1) {
             throw new RuntimeException('وحدة الصرف يجب أن تعادل أكثر من 1 من الوحدة الأساسية.');
         }
-        $isDefault = !empty($u['is_default_issue']) || !empty($u['is_default']);
-        if ($isDefault) {
-            $hasDefault = true;
-            $normalized[0]['is_default_issue'] = 0;
+        $issueCount++;
+        if ($issueCount > 1) {
+            throw new RuntimeException('يُسمح بوحدة صرف واحدة فقط لكل مادة.');
         }
-        $normalized[] = [
+        $issueUnit = [
             'unit_id' => $uid,
             'factor_to_base' => $factor,
             'is_base' => 0,
-            'is_default_issue' => $isDefault ? 1 : 0,
+            'is_default_issue' => 1,
         ];
         $seen[$uid] = true;
     }
-    if (!$hasDefault) {
-        $normalized[0]['is_default_issue'] = 1;
+    if ($issueUnit !== null) {
+        $normalized[0]['is_default_issue'] = 0;
+        $normalized[] = $issueUnit;
     }
 
     $pdo->prepare('DELETE FROM inv_item_unit WHERE item_id = ?')->execute([$itemId]);
