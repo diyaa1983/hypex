@@ -248,12 +248,22 @@ body.doc-print-standalone::after {
     print-color-adjust: exact;
   }
 
+  /* إطار الطباعة المستقل: لا تستخدم ::after الثابت (يسبب تقسيم الصفحات في Chrome) */
   body.doc-print-standalone::after {
-    display: block !important;
+    display: none !important;
   }
 
-  .doc-print-watermark--overlay,
-  .doc-print-watermark {
+  body.doc-print-standalone .doc-print-watermark--overlay {
+    display: flex !important;
+    visibility: visible !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 0 !important;
+    pointer-events: none !important;
+  }
+
+  body:not(.doc-print-standalone) .doc-print-watermark--overlay,
+  body:not(.doc-print-standalone) .doc-print-watermark {
     display: none !important;
     visibility: hidden !important;
   }

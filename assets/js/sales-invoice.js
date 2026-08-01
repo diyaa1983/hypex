@@ -3266,6 +3266,7 @@
       : metaTable;
 
     var inner =
+      '<div class="inv-print-doc">' +
       buildDocPrintHeader('فاتورة مبيعات') +
       headerBlock +
       '<table class="inv-print-lines"><thead><tr>' +
@@ -3275,7 +3276,8 @@
       '</tbody></table>' +
       printTotals +
       notesBlock +
-      buildRecipientSignatureBlock();
+      buildRecipientSignatureBlock() +
+      '</div>';
     return window.DocumentHeader && window.DocumentHeader.wrapPrintContent
       ? window.DocumentHeader.wrapPrintContent(inner, companyLogoUrl)
       : inner;
@@ -3364,10 +3366,10 @@
 
   function printHtmlInFrame(fullHtml) {
     var frame = getPrintFrame();
-    // حجم A4 حقيقي — الإطار 0×0 كان يسبب تقسيم الفاتورة على عدة صفحات
-    frame.style.width = '210mm';
-    frame.style.height = '297mm';
-    frame.style.visibility = 'hidden';
+    // تخطيط A4 ظاهر لمحرّك الطباعة — visibility:hidden كانت تسبب 3 صفحات
+    frame.style.cssText =
+      'position:fixed;left:0;top:0;width:210mm;height:297mm;border:0;margin:0;padding:0;' +
+      'opacity:0;pointer-events:none;z-index:-1;';
     var win = frame.contentWindow;
     win.document.open();
     win.document.write(fullHtml);

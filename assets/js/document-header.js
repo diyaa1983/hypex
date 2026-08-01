@@ -142,8 +142,15 @@
     'body.has-doc-watermark::after{display:block!important;position:fixed!important;inset:0!important;' +
     'width:100%!important;height:100%!important;transform:none!important;z-index:9999;' +
     '-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
-    'body.doc-print-standalone::after{display:block!important;}' +
-    '.doc-print-watermark--overlay,.doc-print-watermark{display:none!important;visibility:hidden!important;}' +
+    /* إطار الفاتورة المستقل: العلامة الثابتة كانت تساهم في تقسيم الصفحات */
+    'body.doc-print-standalone::after{display:none!important;}' +
+    'body.doc-print-standalone .doc-print-watermark--overlay{display:flex!important;visibility:visible!important;' +
+    'position:fixed!important;inset:0!important;z-index:0!important;pointer-events:none!important;}' +
+    'body.doc-print-standalone .doc-print-watermark--overlay img{opacity:var(--doc-watermark-opacity,' +
+    WATERMARK_OPACITY +
+    ')!important;}' +
+    'body:not(.doc-print-standalone) .doc-print-watermark--overlay,' +
+    'body:not(.doc-print-standalone) .doc-print-watermark{display:none!important;visibility:hidden!important;}' +
     '.doc-print-watermark-root{min-height:0!important;height:auto!important;}';
 
   function watermarkHtml(logoUrl) {
