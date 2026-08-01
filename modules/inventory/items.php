@@ -303,6 +303,7 @@ if ($action === 'add' || $action === 'edit') {
     ?>
     <div class="toolbar">
         <h2 style="margin:0;font-size:1.05rem;"><?= esc($formTitle) ?></h2>
+        <button class="btn btn-primary btn-sm" type="submit" form="item-def-form">حفظ</button>
         <?php if ($ledgerBack !== null): ?>
             <a class="btn btn-secondary btn-sm" href="<?= esc($ledgerBack['url']) ?>">← <?= esc($ledgerBack['label']) ?></a>
         <?php else: ?>
@@ -319,7 +320,7 @@ if ($action === 'add' || $action === 'edit') {
     <?php endif; ?>
 
     <div class="card">
-        <form method="post" action="<?= esc($listUrl) ?>" class="form-grid item-def-form" style="max-width:820px;">
+        <form method="post" action="<?= esc($listUrl) ?>" id="item-def-form" class="form-grid item-def-form master-page-form" style="max-width:820px;" data-app-busy-msg="جاري حفظ المادة...">
             <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
             <input type="hidden" name="_action" value="save">
             <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
@@ -583,10 +584,29 @@ if ($action === 'add' || $action === 'edit') {
             <?php endif; ?>
 
             <div>
-                <button class="btn btn-primary" type="submit">حفظ</button>
+                <button class="btn btn-primary" type="submit" id="item-def-form-submit">حفظ</button>
             </div>
         </form>
     </div>
+    <script>
+    (function () {
+      var form = document.getElementById('item-def-form');
+      if (!form) return;
+      document.addEventListener('master-toolbar', function (e) {
+        if (!e.detail || e.detail.action !== 'save') return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (typeof form.reportValidity === 'function' && !form.reportValidity()) return;
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else {
+          var btn = document.getElementById('item-def-form-submit');
+          if (btn) btn.click();
+          else form.submit();
+        }
+      });
+    })();
+    </script>
     <?php
     return;
 }
@@ -762,3 +782,13 @@ if ($expirySchemaOk) {
     </div>
     <?php list_pager_render($pager, $listPagerUrl); ?>
 </div>
+<script>
+(function () {
+  var saveBtn = document.querySelector('#master-toolbar [data-master-action="save"]');
+  if (saveBtn) {
+    saveBtn.hidden = true;
+    saveBtn.disabled = true;
+    saveBtn.classList.add('is-inactive');
+  }
+})();
+</script>

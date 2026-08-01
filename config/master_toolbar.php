@@ -103,6 +103,7 @@ return [
                 'acc_opening_balance',
                 'item_sale_price_adjust',
                 'inv_movement_types_settings',
+                'items',
                 'warehouse_moves',
                 'inventory_stocktake',
                 'hr_employees',

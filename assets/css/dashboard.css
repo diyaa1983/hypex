@@ -98,9 +98,24 @@ body:has(.dashboard-ora) .main-content {
   cursor: pointer;
 }
 
+.ora12-title-bar__btn.ora12-title-bar__close,
+.ora12-title-bar__close {
+  color: #ffffff;
+  background: #dc2626;
+  border: 1px solid #b91c1c;
+  border-radius: 999px;
+}
+
 .ora12-title-bar__btn:hover {
   background: rgba(0, 0, 0, 0.28);
   color: #fff;
+}
+
+.ora12-title-bar__btn.ora12-title-bar__close:hover,
+.ora12-title-bar__close:hover {
+  background: #b91c1c;
+  color: #ffffff;
+  border-color: #991b1b;
 }
 
 .ora12-title-bar__btn:active {

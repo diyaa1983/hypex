@@ -479,16 +479,20 @@ body.app-body--wco .app-titlebar__title--wco {
   pointer-events: none;
 }
 
-/* زر الخروج من الشاشة — مظهر حديث */
+/* زر الخروج من الشاشة — أحمر في جميع الشاشات */
 .app-screen-exit-btn,
+.ora12-title-bar__close,
 .ora12-title-bar__close.app-screen-exit-btn,
+.ora12-title-bar__btn.ora12-title-bar__close,
 .dashboard-ora-screen-title > .ora12-title-bar__close,
 .dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
 .report-ora12-screen-title > .ora12-title-bar__close,
 .report-ora12-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
 .app-screen-title-bar > .ora12-title-bar__close,
 .app-screen-title-bar .ora12-title-bar__close,
-.app-floating-exit-btn {
+.app-floating-exit-btn,
+.hr-ora-title-bar__close,
+.nav-hub-head__actions .ora12-title-bar__close {
   flex-shrink: 0;
   display: inline-flex !important;
   align-items: center;
@@ -499,43 +503,64 @@ body.app-body--wco .app-titlebar__title--wco {
   padding: 0 !important;
   font-size: 0 !important;
   line-height: 0 !important;
-  color: #64748b !important;
+  color: #ffffff !important;
   text-decoration: none !important;
-  background: #ffffff !important;
-  border: 1px solid #e2e8f0 !important;
+  background: #dc2626 !important;
+  border: 1px solid #b91c1c !important;
   border-radius: 999px !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 3px rgba(185, 28, 28, 0.35);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
   cursor: pointer;
 }
 
 .app-screen-exit-btn:hover,
+.ora12-title-bar__close:hover,
 .ora12-title-bar__close.app-screen-exit-btn:hover,
+.ora12-title-bar__btn.ora12-title-bar__close:hover,
 .dashboard-ora-screen-title > .ora12-title-bar__close:hover,
 .dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close:hover,
 .report-ora12-screen-title > .ora12-title-bar__close:hover,
 .app-screen-title-bar > .ora12-title-bar__close:hover,
 .app-screen-title-bar .ora12-title-bar__close:hover,
-.app-floating-exit-btn:hover {
-  color: #b91c1c !important;
-  background: #fef2f2 !important;
-  border-color: #fecaca !important;
-  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.12);
+.app-floating-exit-btn:hover,
+.hr-ora-title-bar__close:hover,
+.nav-hub-head__actions .ora12-title-bar__close:hover {
+  color: #ffffff !important;
+  background: #b91c1c !important;
+  border-color: #991b1b !important;
+  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.4);
   transform: translateY(-1px);
 }
 
 .app-screen-exit-btn:active,
+.ora12-title-bar__close:active,
 .ora12-title-bar__close.app-screen-exit-btn:active,
-.app-floating-exit-btn:active {
+.app-floating-exit-btn:active,
+.hr-ora-title-bar__close:active {
   transform: translateY(0);
   box-shadow: none;
 }
 
-.app-screen-exit-btn__icon {
+.app-screen-exit-btn__icon,
+.ora12-title-bar__close .app-screen-exit-btn__icon {
   display: block;
   width: 14px;
   height: 14px;
   pointer-events: none;
+  color: inherit;
+  stroke: currentColor;
+}
+
+.hr-ora-title-bar__close {
+  font-size: 0.9rem !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+}
+
+.hr-ora-title-bar__close-glyph {
+  color: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
 }
 
 .dashboard-ora-screen-title > .ora12-title-bar__close,

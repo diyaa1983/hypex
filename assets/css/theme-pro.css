@@ -611,11 +611,8 @@ body:has(.dashboard-ora) .main-content {
   font-weight: 600;
 }
 
-.dashboard-ora-screen-title .ora12-title-bar__btn,
-.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn),
-.app-screen-title-bar > .ora12-title-bar__close:not(.ora12-title-bar__btn),
-.app-screen-title-bar .ora12-title-bar__btn,
-.app-screen-exit-btn {
+.dashboard-ora-screen-title .ora12-title-bar__btn:not(.ora12-title-bar__close),
+.app-screen-title-bar .ora12-title-bar__btn:not(.ora12-title-bar__close) {
   color: #64748b !important;
   background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
@@ -623,13 +620,41 @@ body:has(.dashboard-ora) .main-content {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
-.dashboard-ora-screen-title .ora12-title-bar__btn:hover,
-.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn):hover,
-.app-screen-title-bar .ora12-title-bar__btn:hover,
-.app-screen-exit-btn:hover {
-  background: #fef2f2 !important;
-  color: #b91c1c !important;
-  border-color: #fecaca !important;
+.dashboard-ora-screen-title .ora12-title-bar__close,
+.dashboard-ora-screen-title > .ora12-title-bar__close,
+.app-screen-title-bar .ora12-title-bar__close,
+.app-screen-title-bar > .ora12-title-bar__close,
+.app-screen-exit-btn,
+.ora12-title-bar__btn.ora12-title-bar__close,
+.hr-ora-title-bar__close,
+.nav-hub-head__actions .ora12-title-bar__close,
+body.hr-ora-ui .ora12-title-bar__close {
+  color: #ffffff !important;
+  background: #dc2626 !important;
+  border: 1px solid #b91c1c !important;
+  border-radius: 999px !important;
+  box-shadow: 0 1px 3px rgba(185, 28, 28, 0.35);
+}
+
+.dashboard-ora-screen-title .ora12-title-bar__btn:not(.ora12-title-bar__close):hover,
+.app-screen-title-bar .ora12-title-bar__btn:not(.ora12-title-bar__close):hover {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
+}
+
+.dashboard-ora-screen-title .ora12-title-bar__close:hover,
+.dashboard-ora-screen-title > .ora12-title-bar__close:hover,
+.app-screen-title-bar .ora12-title-bar__close:hover,
+.app-screen-title-bar > .ora12-title-bar__close:hover,
+.app-screen-exit-btn:hover,
+.ora12-title-bar__btn.ora12-title-bar__close:hover,
+.hr-ora-title-bar__close:hover,
+.nav-hub-head__actions .ora12-title-bar__close:hover,
+body.hr-ora-ui .ora12-title-bar__close:hover {
+  background: #b91c1c !important;
+  color: #ffffff !important;
+  border-color: #991b1b !important;
 }
 
 .dashboard-ora-workspace {
@@ -1078,8 +1103,14 @@ body:has(.nav-hub-ora--pro) .main-content {
   flex-shrink: 0;
 }
 
-.nav-hub-head__actions .ora12-title-bar__close,
-.nav-hub-head__actions .ora12-title-bar__btn {
+.nav-hub-head__actions .ora12-title-bar__close {
+  color: #ffffff !important;
+  background: #dc2626 !important;
+  border: 1px solid #b91c1c !important;
+  border-radius: 999px !important;
+}
+
+.nav-hub-head__actions .ora12-title-bar__btn:not(.ora12-title-bar__close) {
   color: #475569 !important;
   background: var(--surface) !important;
   border: 1px solid #e2e8f0 !important;

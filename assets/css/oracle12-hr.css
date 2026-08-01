@@ -22,16 +22,17 @@ body.hr-ora-ui .ora12-title-bar__close {
   height: 1.55rem;
   font-size: 1rem;
   font-weight: 700;
-  color: #fff;
+  color: #ffffff;
   text-decoration: none;
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 2px;
+  background: #dc2626;
+  border: 1px solid #b91c1c;
+  border-radius: 999px;
 }
 
 body.hr-ora-ui .ora12-title-bar__close:hover {
-  background: rgba(0, 0, 0, 0.25);
-  color: #fff;
+  background: #b91c1c;
+  color: #ffffff;
+  border-color: #991b1b;
 }
 
 body.hr-ora-ui [class*="-ora-screen"] .alert,
