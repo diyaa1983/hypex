@@ -447,6 +447,26 @@
   text-align: center;
 }
 
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table thead th.sales-inv-col-qty-base {
+  background: linear-gradient(180deg, #eef2f6 0%, #e2e8f0 100%);
+  color: #334155;
+  border-color: var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-qty-base {
+  background: #f8fafc !important;
+  border-color: var(--ora12-border);
+}
+
+.dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table tbody td.sales-inv-col-qty-base .js-qty-base {
+  background: #f1f5f9 !important;
+  border-color: var(--ora12-border);
+  color: var(--ora12-muted);
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table thead th.sales-inv-col-qty-extra {
   background: linear-gradient(180deg, #e8f0f8 0%, #d8e4ef 100%);
   color: #1e3a5f;

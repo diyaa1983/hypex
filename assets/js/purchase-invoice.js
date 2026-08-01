@@ -1803,7 +1803,24 @@
     if (list.length > 1) sel.disabled = !!invoiceIsPosted;
     var factor = parseNum(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].getAttribute('data-factor') : 1) || 1;
     if (factorEl) factorEl.value = String(factor);
+    syncQtyBaseDisplay(tr);
     return factor;
+  }
+
+  /** العدد بالوحدة الأساسية = الكمية × معامل التعبئة (عرض فقط). */
+  function syncQtyBaseDisplay(tr) {
+    if (!tr) return;
+    var qtyEl = tr.querySelector('.js-qty');
+    var factorEl = tr.querySelector('.js-unit-factor');
+    var baseEl = tr.querySelector('.js-qty-base');
+    if (!baseEl) return;
+    var qty = parseNum(qtyEl ? qtyEl.value : 0);
+    var factor = parseNum(factorEl ? factorEl.value : 1) || 1;
+    if (qty <= 0) {
+      baseEl.value = '';
+      return;
+    }
+    baseEl.value = formatQtyValue(qty * factor);
   }
 
   function applyUnitPriceFromBase(tr) {
@@ -2366,23 +2383,10 @@
         var opt = unitSel.options[unitSel.selectedIndex];
         var newFactor = parseNum(opt ? opt.getAttribute('data-factor') : 1) || 1;
         var factorEl = tr.querySelector('.js-unit-factor');
-        var oldFactor = parseNum(factorEl ? factorEl.value : 1) || 1;
-        var qtyEl = tr.querySelector('.js-qty');
-        var qtyExtraEl = tr.querySelector('.js-qty-extra');
-        if (qtyEl && oldFactor > 0 && newFactor > 0) {
-          var oldQty = parseNum(qtyEl.value);
-          if (oldQty > 0) {
-            qtyEl.value = formatQtyValue((oldQty * oldFactor) / newFactor);
-          }
-        }
-        if (qtyExtraEl && oldFactor > 0 && newFactor > 0) {
-          var oldExtra = parseNum(qtyExtraEl.value);
-          if (oldExtra > 0) {
-            qtyExtraEl.value = formatQtyValue((oldExtra * oldFactor) / newFactor);
-          }
-        }
+        // الكمية تبقى كما أدخلها المستخدم بالوحدة الجديدة؛ العدد = كمية × معامل
         if (factorEl) factorEl.value = String(newFactor);
         applyUnitPriceFromBase(tr);
+        syncQtyBaseDisplay(tr);
         recalcRow(tr);
         if (!invoiceIsPosted) markFormDirty();
       });
@@ -2398,6 +2402,9 @@
         if (el.classList.contains('js-qty') || el.classList.contains('js-qty-extra')) {
           applyRowQtyLock(tr);
         }
+        if (el.classList.contains('js-qty')) {
+          syncQtyBaseDisplay(tr);
+        }
       });
       el.addEventListener('change', function () {
         if (el.classList.contains('js-qty')) normalizeQtyInput(el);
@@ -2408,6 +2415,9 @@
         recalcRowLiveFromField(tr, el);
         if (el.classList.contains('js-qty') || el.classList.contains('js-qty-extra')) {
           applyRowQtyLock(tr);
+        }
+        if (el.classList.contains('js-qty')) {
+          syncQtyBaseDisplay(tr);
         }
       });
       el.addEventListener('blur', function () {

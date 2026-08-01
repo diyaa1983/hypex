@@ -657,7 +657,26 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
 .sales-inv-col-item { width: 20%; min-width: 9rem; }
 .sales-inv-col-unit { width: 7%; min-width: 5rem; }
 .sales-inv-col-qty { width: 6%; }
+.sales-inv-col-qty-base { width: 5.5%; }
 .sales-inv-col-qty-extra { width: 6%; }
+
+/* العدد بالوحدة الأساسية — عرض فقط */
+.sales-inv-table thead th.sales-inv-col-qty-base {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+.sales-inv-table tbody td.sales-inv-col-qty-base {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+.sales-inv-table tbody td.sales-inv-col-qty-base .js-qty-base {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+  cursor: default;
+  pointer-events: none;
+}
 .sales-inv-col-discount { width: 7%; min-width: 4.5rem; }
 .sales-inv-col-discount .js-discount {
   width: 100%;

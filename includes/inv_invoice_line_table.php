@@ -15,6 +15,7 @@ function inv_invoice_line_table_head(bool $showUnitPriceIncl = false): void
         <th class="sales-inv-col-item">اسم المادة</th>
         <th class="sales-inv-col-unit">الوحدة</th>
         <th class="sales-inv-col-qty">الكمية</th>
+        <th class="sales-inv-col-qty-base" title="الكمية بالوحدة الأساسية (قطعة) = الكمية × معامل التعبئة — للعرض فقط">العدد</th>
         <th class="sales-inv-col-qty-extra" title="تُحسب في المخزون مع الكمية؛ المبلغ يعتمد على الكمية فقط">الكمية الإضافية</th>
         <th class="sales-inv-col-price" title="سعر الوحدة قبل الضريبة">الافرادي غ.ش</th>
         <?php if ($showUnitPriceIncl): ?>
@@ -59,6 +60,9 @@ function inv_invoice_line_table_row_template(array $taxRates, string $unitPriceS
             <input type="hidden" class="js-base-price" value="">
         </td>
         <td class="sales-inv-col-qty"><input type="number" class="input input-num js-qty" min="0" step="1" inputmode="decimal" value="" placeholder=""></td>
+        <td class="sales-inv-col-qty-base">
+            <input type="text" class="input input-num js-qty-base" value="" readonly tabindex="-1" title="العدد بالوحدة الأساسية — يُحسب تلقائياً (الكمية × معامل التعبئة)" aria-label="العدد بالوحدة الأساسية">
+        </td>
         <td class="sales-inv-col-qty-extra"><input type="number" class="input input-num js-qty-extra" min="0" step="1" inputmode="decimal" value="" title="كمية إضافية تُحسب في المخزون فقط"></td>
         <td class="sales-inv-col-price"><input type="text" class="input input-num js-price" min="0" step="<?= esc($unitPriceStep) ?>" inputmode="decimal" value="" title="الافرادي غير شامل الضريبة"></td>
         <?php if ($showUnitPriceIncl): ?>
