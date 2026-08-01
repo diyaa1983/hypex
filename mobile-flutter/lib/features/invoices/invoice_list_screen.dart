@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
 class InvoiceListScreen extends StatefulWidget {
@@ -69,10 +70,10 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     final s = context.read<SessionController>();
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.salesInvoicePostPath,
-        fields: {'invoice_id': row['id']},
-        csrf: s.csrf,
-      );
+            AppConfig.salesInvoicePostPath,
+            fields: {'invoice_id': row['id']},
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الترحيل').toString());
       await _load();
@@ -91,10 +92,10 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     final s = context.read<SessionController>();
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.salesInvoiceDeletePath,
-        fields: {'invoice_id': row['id']},
-        csrf: s.csrf,
-      );
+            AppConfig.salesInvoiceDeletePath,
+            fields: {'invoice_id': row['id']},
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الحذف').toString());
       await _load();
@@ -132,19 +133,18 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   @override
   Widget build(BuildContext context) {
     final canDelete = context.read<SessionController>().can('m_sales_invoices');
-    return Scaffold(
+    return MobileScaffold(
       backgroundColor: const Color(0xFFF3F5F9),
-      appBar: AppBar(
-        title: const Text('فواتير المبيعات'),
-        automaticallyImplyLeading: !widget.embedded,
-        actions: [
-          IconButton(
-            tooltip: 'تحديث',
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
+      title: const Text('فواتير المبيعات'),
+      showBack: !widget.embedded,
+      showLogout: !widget.embedded,
+      actions: [
+        IconButton(
+          tooltip: 'تحديث',
+          onPressed: _load,
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
       body: Column(
         children: [
           Container(

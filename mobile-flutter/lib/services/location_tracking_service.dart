@@ -132,9 +132,11 @@ class LocationTrackingService {
     }
   }
 
-  static Future<void> saveDeviceId(String id, {String label = 'أندرويد'}) async {
+  static Future<void> saveDeviceId(String id,
+      {String label = 'أندرويد'}) async {
     await FlutterForegroundTask.saveData(key: TrackKeys.deviceId, value: id);
-    await FlutterForegroundTask.saveData(key: TrackKeys.deviceLabel, value: label);
+    await FlutterForegroundTask.saveData(
+        key: TrackKeys.deviceLabel, value: label);
   }
 
   static Future<void> clearCredentials() async {
@@ -146,8 +148,7 @@ class LocationTrackingService {
   static Future<bool?> get enabledFlagOrNull async =>
       FlutterForegroundTask.getData<bool>(key: TrackKeys.enabled);
 
-  static Future<bool> get isEnabled async =>
-      (await enabledFlagOrNull) ?? true;
+  static Future<bool> get isEnabled async => (await enabledFlagOrNull) ?? true;
 
   static Future<int> get intervalSec async =>
       (await FlutterForegroundTask.getData<int>(key: TrackKeys.intervalSec)) ??
@@ -179,9 +180,9 @@ class LocationTrackingService {
     await setMinDistance(minDistanceM);
   }
 
-  static Future<void> setMinDistance(int meters) => FlutterForegroundTask
-      .saveData(key: TrackKeys.minDistance, value: meters)
-      .then((_) {});
+  static Future<void> setMinDistance(int meters) =>
+      FlutterForegroundTask.saveData(key: TrackKeys.minDistance, value: meters)
+          .then((_) {});
 
   /// طلب كل الأذونات اللازمة؛ تُرجع null عند النجاح، أو رسالة خطأ تمنع التشغيل.
   /// على الآيفون: يطلب أولاً «أثناء الاستخدام» ثم يرقّيه إلى «دائماً».
@@ -239,7 +240,8 @@ class LocationTrackingService {
     double? lat,
     double? lng,
   }) async {
-    await FlutterForegroundTask.saveData(key: TrackKeys.lastStatus, value: text);
+    await FlutterForegroundTask.saveData(
+        key: TrackKeys.lastStatus, value: text);
     if (lat != null) {
       await FlutterForegroundTask.saveData(key: TrackKeys.lastLat, value: lat);
     }
@@ -326,9 +328,8 @@ class LocationTrackingService {
       sentCount:
           await FlutterForegroundTask.getData<int>(key: TrackKeys.sentCount) ??
               0,
-      lastPing: lastMs == null
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch(lastMs),
+      lastPing:
+          lastMs == null ? null : DateTime.fromMillisecondsSinceEpoch(lastMs),
       lastStatus: await FlutterForegroundTask.getData<String>(
             key: TrackKeys.lastStatus,
           ) ??
@@ -383,7 +384,8 @@ class _TrackingTaskHandler extends TaskHandler {
     _lastLng =
         await FlutterForegroundTask.getData<double>(key: TrackKeys.lastLng);
     _lastSentMs =
-        await FlutterForegroundTask.getData<int>(key: TrackKeys.lastPingMs) ?? 0;
+        await FlutterForegroundTask.getData<int>(key: TrackKeys.lastPingMs) ??
+            0;
 
     _dio = Dio(
       BaseOptions(
@@ -426,7 +428,8 @@ class _TrackingTaskHandler extends TaskHandler {
         await FlutterForegroundTask.getData<String>(key: TrackKeys.pass);
     if (encUser == null || encPass == null) {
       _authenticated = false;
-      await _setStatus('لا توجد بيانات دخول محفوظة — سجّل الدخول مع "تذكّرني".');
+      await _setStatus(
+          'لا توجد بيانات دخول محفوظة — سجّل الدخول مع "تذكّرني".');
       return false;
     }
     try {
@@ -436,16 +439,21 @@ class _TrackingTaskHandler extends TaskHandler {
           'action': 'login',
           'username': utf8.decode(base64Decode(encUser)),
           'password': utf8.decode(base64Decode(encPass)),
-          'device_id': await FlutterForegroundTask.getData<String>(key: TrackKeys.deviceId) ?? '',
-          'device_label': await FlutterForegroundTask.getData<String>(key: TrackKeys.deviceLabel) ?? 'أندرويد',
+          'device_id': await FlutterForegroundTask.getData<String>(
+                  key: TrackKeys.deviceId) ??
+              '',
+          'device_label': await FlutterForegroundTask.getData<String>(
+                  key: TrackKeys.deviceLabel) ??
+              'أندرويد',
         },
         options: Options(contentType: Headers.formUrlEncodedContentType),
       );
       final map = _asMap(res.data);
       if (map['ok'] != true || map['authenticated'] != true) {
         _authenticated = false;
-        final msg = (map['message'] ?? map['error'] ?? 'فشل تسجيل الدخول للخدمة.')
-            .toString();
+        final msg =
+            (map['message'] ?? map['error'] ?? 'فشل تسجيل الدخول للخدمة.')
+                .toString();
         await _setStatus(msg);
         return false;
       }
@@ -482,8 +490,7 @@ class _TrackingTaskHandler extends TaskHandler {
         );
         // نبضة إجبارية حتى لو لم يتحرك — وإلا اختفى الواقف من التتبّع الحي.
         final silentMs = DateTime.now().millisecondsSinceEpoch - _lastSentMs;
-        final needHeartbeat =
-            _lastSentMs == 0 || silentMs >= _heartbeatMs;
+        final needHeartbeat = _lastSentMs == 0 || silentMs >= _heartbeatMs;
         if (moved < minDist && !needHeartbeat) {
           await _setStatus('لم يتغيّر الموقع (أقل من $minDist م).');
           return;
@@ -573,8 +580,12 @@ class _TrackingTaskHandler extends TaskHandler {
           'gps_accuracy': pos.accuracy,
           'gps_source': 'mobile',
           'gps_channel': 'native_app',
-          'device_id': await FlutterForegroundTask.getData<String>(key: TrackKeys.deviceId) ?? '',
-          'device_label': await FlutterForegroundTask.getData<String>(key: TrackKeys.deviceLabel) ?? 'أندرويد',
+          'device_id': await FlutterForegroundTask.getData<String>(
+                  key: TrackKeys.deviceId) ??
+              '',
+          'device_label': await FlutterForegroundTask.getData<String>(
+                  key: TrackKeys.deviceLabel) ??
+              'أندرويد',
         },
         options: Options(
           contentType: Headers.formUrlEncodedContentType,
@@ -582,7 +593,9 @@ class _TrackingTaskHandler extends TaskHandler {
         ),
       );
       final map = _asMap(res.data);
-      if (res.statusCode == 401 || res.statusCode == 403 || res.statusCode == 409) {
+      if (res.statusCode == 401 ||
+          res.statusCode == 403 ||
+          res.statusCode == 409) {
         _authenticated = false;
         if (res.statusCode == 409) {
           await _setStatus(
@@ -594,7 +607,8 @@ class _TrackingTaskHandler extends TaskHandler {
       if (map['ok'] == true) return true;
       if (map['error'] == 'device_in_use') {
         _authenticated = false;
-        await _setStatus((map['message'] ?? 'الحساب مستخدم على جهاز آخر.').toString());
+        await _setStatus(
+            (map['message'] ?? 'الحساب مستخدم على جهاز آخر.').toString());
         return false;
       }
       if (map['error'] == 'csrf' || map['error'] == 'unauthorized') {

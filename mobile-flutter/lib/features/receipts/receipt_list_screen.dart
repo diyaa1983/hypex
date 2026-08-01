@@ -8,6 +8,7 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../services/receipt_print_helper.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
 class ReceiptListScreen extends StatefulWidget {
@@ -69,10 +70,10 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
     final s = context.read<SessionController>();
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.receiptPostPath,
-        fields: {'voucher_id': row['id']},
-        csrf: s.csrf,
-      );
+            AppConfig.receiptPostPath,
+            fields: {'voucher_id': row['id']},
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الترحيل').toString());
       await _load();
@@ -108,10 +109,10 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
     final s = context.read<SessionController>();
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.receiptDeletePath,
-        fields: {'voucher_id': row['id']},
-        csrf: s.csrf,
-      );
+            AppConfig.receiptDeletePath,
+            fields: {'voucher_id': row['id']},
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الحذف').toString());
       await _load();
@@ -123,18 +124,17 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('سندات القبض'),
-        automaticallyImplyLeading: !widget.embedded,
-        actions: [
-          IconButton(
-            tooltip: 'تحديث',
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
+    return MobileScaffold(
+      title: const Text('سندات القبض'),
+      showBack: !widget.embedded,
+      showLogout: !widget.embedded,
+      actions: [
+        IconButton(
+          tooltip: 'تحديث',
+          onPressed: _load,
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/receipts/new').then((_) => _load()),
         icon: const Icon(Icons.add_rounded, size: 20),
@@ -366,7 +366,8 @@ class _ReceiptCard extends StatelessWidget {
                   tooltip: 'ترحيل',
                   visualDensity: VisualDensity.compact,
                   onPressed: onPost,
-                  icon: const Icon(Icons.check_circle_outline_rounded, size: 19),
+                  icon:
+                      const Icon(Icons.check_circle_outline_rounded, size: 19),
                   color: AppTheme.success,
                 ),
               if (!posted)

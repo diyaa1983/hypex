@@ -25,7 +25,8 @@ class _Marker {
   double get lat => (data['latitude'] as num?)?.toDouble() ?? 0;
   double get lng => (data['longitude'] as num?)?.toDouble() ?? 0;
   bool get online => data['is_online'] == true;
-  String get status => (data['status'] ?? (online ? 'online' : 'away')).toString();
+  String get status =>
+      (data['status'] ?? (online ? 'online' : 'away')).toString();
   String get statusLabel => (data['status_label'] ?? '').toString();
   String get ageLabel => (data['age_label'] ?? '').toString();
   String get sourceLabel => (data['source_label'] ?? '').toString();
@@ -93,8 +94,10 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   void initState() {
     super.initState();
     _load();
-    _poll = Timer.periodic(const Duration(seconds: 5), (_) => _load(silent: true));
-    _animTimer = Timer.periodic(const Duration(milliseconds: 50), (_) => _tickAnims());
+    _poll =
+        Timer.periodic(const Duration(seconds: 5), (_) => _load(silent: true));
+    _animTimer =
+        Timer.periodic(const Duration(milliseconds: 50), (_) => _tickAnims());
   }
 
   @override
@@ -172,7 +175,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
       _map.move(_markers.first.point, 14);
       return;
     }
-    final bounds = LatLngBounds.fromPoints(_markers.map((m) => m.point).toList());
+    final bounds =
+        LatLngBounds.fromPoints(_markers.map((m) => m.point).toList());
     _map.fitCamera(
       CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
     );
@@ -225,7 +229,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
       return;
     }
     final duration = Duration(
-      milliseconds: math.min(_smoothMoveMs, math.max(1200, (dist * 18).round())),
+      milliseconds:
+          math.min(_smoothMoveMs, math.max(1200, (dist * 18).round())),
     );
     _anims[userId] = _MoveAnim(
       from: from,
@@ -246,7 +251,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     var changed = false;
     final done = <int>[];
     _anims.forEach((id, anim) {
-      final elapsed = now.difference(anim.start).inMilliseconds / anim.duration.inMilliseconds;
+      final elapsed = now.difference(anim.start).inMilliseconds /
+          anim.duration.inMilliseconds;
       if (elapsed >= 1) {
         _displayPos[id] = anim.to;
         _appendTrailPoint(id, anim.to);
@@ -258,8 +264,10 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         return;
       }
       final e = _easeInOut(elapsed.clamp(0.0, 1.0));
-      final lat = anim.from.latitude + (anim.to.latitude - anim.from.latitude) * e;
-      final lng = anim.from.longitude + (anim.to.longitude - anim.from.longitude) * e;
+      final lat =
+          anim.from.latitude + (anim.to.latitude - anim.from.latitude) * e;
+      final lng =
+          anim.from.longitude + (anim.to.longitude - anim.from.longitude) * e;
       final pos = LatLng(lat, lng);
       _displayPos[id] = pos;
       if (elapsed > 0.15 && elapsed < 0.95) {
@@ -422,7 +430,6 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 ),
               ],
             ),
-
             Positioned(
               top: 12,
               left: 12,
@@ -443,7 +450,6 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 ],
               ),
             ),
-
             Positioned(
               left: 12,
               bottom: 18,
@@ -460,12 +466,12 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                     _LegendDot(AppTheme.success),
                     Text(' متصل · ', style: TextStyle(fontSize: 11.5)),
                     _LegendLine(Color(0xFF2563EB)),
-                    Text(' خط حي · حركة سلسة مثل الخرائط  ', style: TextStyle(fontSize: 11.5)),
+                    Text(' خط حي · حركة سلسة مثل الخرائط  ',
+                        style: TextStyle(fontSize: 11.5)),
                   ],
                 ),
               ),
             ),
-
             if (selectedMarker != null)
               Positioned(
                 left: 12,
@@ -477,7 +483,6 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                   onClose: () => setState(() => _selectedId = null),
                 ),
               ),
-
             if (_listOpen)
               Positioned.fill(
                 child: _DeviceDrawer(

@@ -7,6 +7,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../services/party_statement_bluetooth_receipt.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
@@ -162,10 +163,8 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
         .toList();
     final hasResult = _result != null && _party != null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('كشف حساب'),
-      ),
+    return MobileScaffold(
+      title: const Text('كشف حساب'),
       body: Column(
         children: [
           Card(
@@ -317,7 +316,8 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
   Widget _stat(String label, String value, {bool bold = false}) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+        Text(label,
+            style: const TextStyle(fontSize: 12, color: Colors.black54)),
         const SizedBox(height: 2),
         Text(
           value,
@@ -345,7 +345,9 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text(
-            debit > 0 ? 'مدين ${Fmt.money(debit)}' : 'دائن ${Fmt.money(credit)}',
+            debit > 0
+                ? 'مدين ${Fmt.money(debit)}'
+                : 'دائن ${Fmt.money(credit)}',
             textDirection: TextDirection.ltr,
             style: const TextStyle(fontSize: 12),
           ),

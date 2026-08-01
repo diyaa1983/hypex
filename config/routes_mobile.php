@@ -74,6 +74,15 @@ return [
 
     ],
 
+    'm_customer_orders' => [
+        'file' => 'modules/mobile/customer_orders.php',
+        'permission' => 'm_customer_orders',
+        'title' => 'طلبات شراء العملاء',
+        'icon' => 'list',
+        'tile_kind' => 'doc',
+        'home_tile' => true,
+    ],
+
     'm_sales_invoice_gps' => [
 
         'file' => 'modules/mobile/sales_invoice_gps_list.php',

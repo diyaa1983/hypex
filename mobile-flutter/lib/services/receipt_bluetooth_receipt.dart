@@ -101,9 +101,7 @@ class ReceiptBluetoothReceipt {
       await rootBundle.load('assets/fonts/Arial-Bold.ttf'),
     );
 
-    final width = paperMm == 80
-        ? 80 * PdfPageFormat.mm
-        : 58 * PdfPageFormat.mm;
+    final width = paperMm == 80 ? 80 * PdfPageFormat.mm : 58 * PdfPageFormat.mm;
     final pageFormat = PdfPageFormat(
       width,
       double.infinity,
@@ -177,8 +175,10 @@ class ReceiptBluetoothReceipt {
               ),
               pw.SizedBox(height: 5),
               pw.Divider(thickness: 0.8),
-              _kv('رقم السند', voucherNo.isEmpty ? '—' : voucherNo, fontReg, fontBold, fsSm),
-              _kv('التاريخ', date.isEmpty ? '—' : date, fontReg, fontBold, fsSm),
+              _kv('رقم السند', voucherNo.isEmpty ? '—' : voucherNo, fontReg,
+                  fontBold, fsSm),
+              _kv('التاريخ', date.isEmpty ? '—' : date, fontReg, fontBold,
+                  fsSm),
               _kv('العميل', customer, fontReg, fontBold, fsSm),
               if (salesRep.isNotEmpty)
                 _kv('المندوب', salesRep, fontReg, fontBold, fsSm),
@@ -199,7 +199,7 @@ class ReceiptBluetoothReceipt {
               pw.SizedBox(height: 2),
               pw.Center(
                 child: pw.Text(
-                  Fmt.money(amount),
+                  amount == 0 ? '' : Fmt.money(amount),
                   textDirection: pw.TextDirection.ltr,
                   style: pw.TextStyle(
                     font: fontBold,
@@ -235,10 +235,11 @@ class ReceiptBluetoothReceipt {
                             if (bank.isNotEmpty) bank,
                             if (due.isNotEmpty && due != '—') 'استحقاق $due',
                           ].join(' • '),
-                          style: pw.TextStyle(font: fontReg, fontSize: fsSm - 0.5),
+                          style:
+                              pw.TextStyle(font: fontReg, fontSize: fsSm - 0.5),
                         ),
                         pw.Text(
-                          Fmt.money(amt),
+                          amt == 0 ? '' : Fmt.money(amt),
                           textDirection: pw.TextDirection.ltr,
                           style: pw.TextStyle(font: fontBold, fontSize: fsSm),
                         ),

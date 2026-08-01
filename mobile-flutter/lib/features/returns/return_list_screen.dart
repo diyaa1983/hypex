@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../services/return_print_helper.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
 class ReturnListScreen extends StatefulWidget {
@@ -54,17 +55,15 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('مرتجعات المبيعات'),
-        actions: [
-          IconButton(
-            tooltip: 'تحديث',
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
+    return MobileScaffold(
+      title: const Text('مرتجعات المبيعات'),
+      actions: [
+        IconButton(
+          tooltip: 'تحديث',
+          onPressed: _load,
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/returns/new').then((_) => _load()),
         icon: const Icon(Icons.add_rounded, size: 20),
@@ -100,9 +99,8 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
                     return AppCard(
                       onTap: id < 1
                           ? null
-                          : () => context
-                              .push('/returns/$id')
-                              .then((_) => _load()),
+                          : () =>
+                              context.push('/returns/$id').then((_) => _load()),
                       padding: const EdgeInsets.fromLTRB(12, 12, 6, 8),
                       child: Column(
                         children: [
@@ -185,7 +183,8 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
                                 visualDensity: VisualDensity.compact,
                                 onPressed: id < 1
                                     ? null
-                                    : () => ReturnPrintHelper.openThermalPreview(
+                                    : () =>
+                                        ReturnPrintHelper.openThermalPreview(
                                           context,
                                           returnId: id,
                                           fallback: r,
@@ -206,7 +205,8 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
                                           returnId: id,
                                           fallback: r,
                                         ),
-                                icon: const Icon(Icons.print_outlined, size: 19),
+                                icon:
+                                    const Icon(Icons.print_outlined, size: 19),
                                 color: AppTheme.primary,
                               ),
                             ],

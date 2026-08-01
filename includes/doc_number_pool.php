@@ -44,6 +44,11 @@ function doc_number_pool_key_sal_return(): string
     return 'sal_return';
 }
 
+function doc_number_pool_key_sal_customer_order(): string
+{
+    return 'sal_customer_order';
+}
+
 function doc_number_pool_key_pur_invoice(): string
 {
     return 'pur_invoice';

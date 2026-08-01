@@ -85,9 +85,7 @@ class InvoiceBluetoothReceipt {
       await rootBundle.load('assets/fonts/Arial-Bold.ttf'),
     );
 
-    final width = paperMm == 80
-        ? 80 * PdfPageFormat.mm
-        : 58 * PdfPageFormat.mm;
+    final width = paperMm == 80 ? 80 * PdfPageFormat.mm : 58 * PdfPageFormat.mm;
     final pageFormat = PdfPageFormat(
       width,
       double.infinity,
@@ -98,7 +96,8 @@ class InvoiceBluetoothReceipt {
         ? 'الشركة'
         : Fmt.str(inv['company_name']);
     final invoiceNo = Fmt.str(inv['invoice_no']);
-    final date = Fmt.dmy(Fmt.str(inv['invoice_date'] ?? inv['invoice_date_dmy']));
+    final date =
+        Fmt.dmy(Fmt.str(inv['invoice_date'] ?? inv['invoice_date_dmy']));
     final customer = Fmt.str(inv['customer_name']).isEmpty
         ? '—'
         : Fmt.str(inv['customer_name']);
@@ -163,9 +162,19 @@ class InvoiceBluetoothReceipt {
               ),
               pw.SizedBox(height: 6),
               pw.Divider(thickness: 0.8),
-              _kv('رقم الفاتورة', invoiceNo.isEmpty ? '—' : invoiceNo, fontReg, fontBold, fsSm),
-              _kv('التاريخ', date.isEmpty ? '—' : date, fontReg, fontBold, fsSm),
+              _kv('رقم الفاتورة', invoiceNo.isEmpty ? '—' : invoiceNo, fontReg,
+                  fontBold, fsSm),
+              _kv('التاريخ', date.isEmpty ? '—' : date, fontReg, fontBold,
+                  fsSm),
               _kv('العميل', customer, fontReg, fontBold, fsSm),
+              if (Fmt.str(inv['sales_rep_name']).trim().isNotEmpty)
+                _kv(
+                  'المندوب',
+                  Fmt.str(inv['sales_rep_name']).trim(),
+                  fontReg,
+                  fontBold,
+                  fsSm,
+                ),
               if (paymentLabel.isNotEmpty)
                 _kv('طريقة الدفع', paymentLabel, fontReg, fontBold, fsSm),
               pw.SizedBox(height: 6),
@@ -282,11 +291,9 @@ class InvoiceBluetoothReceipt {
       String? disc,
     }) {
       final cells = <pw.Widget>[
-        if (showDisc)
-          cell(disc ?? '—', align: pw.TextAlign.center, ltr: true),
+        if (showDisc) cell(disc ?? '', align: pw.TextAlign.center, ltr: true),
         cell(price, align: pw.TextAlign.center, ltr: true),
-        if (showExtra)
-          cell(extra ?? '—', align: pw.TextAlign.center, ltr: true),
+        if (showExtra) cell(extra ?? '', align: pw.TextAlign.center, ltr: true),
         cell(qty, align: pw.TextAlign.center, ltr: true),
         cell(name, style: nameStyle),
         cell(seq, align: pw.TextAlign.center, ltr: true),
@@ -323,9 +330,8 @@ class InvoiceBluetoothReceipt {
       );
       final disc = Fmt.toDouble(ln['discount_amount'] ?? ln['discount']);
       final discInput = Fmt.str(ln['line_discount_input']);
-      final discLabel = discInput.isNotEmpty
-          ? discInput
-          : (disc > 0 ? Fmt.money(disc) : '—');
+      final discLabel =
+          discInput.isNotEmpty ? discInput : (disc > 0 ? Fmt.money(disc) : '');
 
       rows.add(
         pw.TableRow(
@@ -333,7 +339,7 @@ class InvoiceBluetoothReceipt {
             seq: '$seq',
             name: name.isEmpty ? 'مادة' : name,
             qty: Fmt.money(qty),
-            extra: qtyExtra > 0 ? Fmt.money(qtyExtra) : '—',
+            extra: qtyExtra > 0 ? Fmt.money(qtyExtra) : '',
             price: Fmt.money(price),
             disc: discLabel,
           ),

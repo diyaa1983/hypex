@@ -8,6 +8,9 @@ import 'core/theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/server_setup_screen.dart';
 import 'features/customers/customer_add_screen.dart';
+import 'features/customer_orders/customer_order_form_screen.dart';
+import 'features/customer_orders/customer_order_list_screen.dart';
+import 'features/customer_orders/customer_order_view_screen.dart';
 import 'features/gps/invoice_gps_screen.dart';
 import 'features/gps/user_gps_screen.dart';
 import 'features/gps/user_gps_tracker_screen.dart';
@@ -87,6 +90,26 @@ class NammaApp extends StatelessWidget {
         GoRoute(
           path: '/customers/new',
           builder: (_, __) => const CustomerAddScreen(),
+        ),
+        GoRoute(
+          path: '/customer-orders',
+          builder: (_, __) => const CustomerOrderListScreen(),
+        ),
+        GoRoute(
+          path: '/customer-orders/new',
+          builder: (_, __) => const CustomerOrderFormScreen(),
+        ),
+        GoRoute(
+          path: '/customer-orders/:id/edit',
+          builder: (_, s) => CustomerOrderFormScreen(
+            orderId: int.parse(s.pathParameters['id']!),
+          ),
+        ),
+        GoRoute(
+          path: '/customer-orders/:id',
+          builder: (_, s) => CustomerOrderViewScreen(
+            orderId: int.parse(s.pathParameters['id']!),
+          ),
         ),
         GoRoute(
           path: '/invoices/:id/edit',

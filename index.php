@@ -165,6 +165,7 @@ $appBootMigrations = [
     'database/migrations/229_fin_private_out_checks.sql',
     'database/migrations/231_sys_user_open_session.sql',
     'database/migrations/232_mobile_customer_add.sql',
+    'database/migrations/235_sal_customer_order.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

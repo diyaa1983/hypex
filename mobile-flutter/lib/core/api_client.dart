@@ -128,16 +128,16 @@ class ApiClient {
       final code = res.statusCode ?? 0;
       final bytes = res.data ?? <int>[];
       if (code >= 400) {
-        final body = bytes.isEmpty
-            ? ''
-            : String.fromCharCodes(bytes.take(200)).trim();
+        final body =
+            bytes.isEmpty ? '' : String.fromCharCodes(bytes.take(200)).trim();
         if (code == 403) {
           throw ApiException('لا توجد صلاحية لتنزيل الملف.', statusCode: code);
         }
         if (code == 404) {
           throw ApiException('الملف غير موجود على السيرفر.', statusCode: code);
         }
-        if (body.contains('PDF library not installed') || body.contains('pdf_error')) {
+        if (body.contains('PDF library not installed') ||
+            body.contains('pdf_error')) {
           throw ApiException(
             'تعذر إنشاء PDF على السيرفر. تأكد من تثبيت مكتبات PDF (vendor) وصلاحية مجلد logs.',
             statusCode: code,
@@ -195,6 +195,25 @@ class ApiClient {
         data: data,
         options: Options(
           contentType: Headers.formUrlEncodedContentType,
+          headers: _deviceHeaders(csrf: csrf),
+        ),
+      ),
+    );
+  }
+
+  /// طلب POST بجسم JSON لواجهات الهاتف الحديثة.
+  Future<Map<String, dynamic>> postJson(
+    String path, {
+    required Map<String, dynamic> body,
+    String? csrf,
+  }) {
+    final data = _mergeDeviceFields(body);
+    return _handle(
+      () => _dio.post(
+        url(path),
+        data: data,
+        options: Options(
+          contentType: Headers.jsonContentType,
           headers: _deviceHeaders(csrf: csrf),
         ),
       ),
@@ -292,8 +311,9 @@ class ApiClient {
 
   ApiException _htmlOrUnexpected(String body, int? statusCode) {
     final lower = body.toLowerCase();
-    final looksHtml =
-        lower.contains('<!doctype') || lower.contains('<html') || lower.contains('<body');
+    final looksHtml = lower.contains('<!doctype') ||
+        lower.contains('<html') ||
+        lower.contains('<body');
     if (statusCode == 404 || (looksHtml && body.contains('404'))) {
       return ApiException(
         'واجهة الدخول غير موجودة على السيرفر. ارفع ملفات api/mobile_session.php و api/mobile_home.php إلى الموقع.',

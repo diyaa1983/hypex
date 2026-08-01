@@ -19,8 +19,7 @@ class GpsMapTiles {
   }) {
     final provider = (mapProvider ?? 'esri').toLowerCase();
     const pkg = 'com.gppjo.biodev.mobile';
-    final showEsri =
-        zoom == null || zoom <= esriVisibleMaxZoom;
+    final showEsri = zoom == null || zoom <= esriVisibleMaxZoom;
 
     if (provider == 'carto') {
       return [

@@ -18,7 +18,8 @@ class AppConfig {
   static const String salesInvoiceDeletePath = 'api/sales_invoice_delete.php';
   static const String salesInvoicePrintPath = 'api/mobile_invoice_print.php';
   static const String salesInvoicePdfPath = 'api/mobile_invoice_pdf.php';
-  static const String salesInvoiceEinvoiceSendPath = 'api/sales_einvoice_send.php';
+  static const String salesInvoiceEinvoiceSendPath =
+      'api/sales_einvoice_send.php';
   static const String salesInvoiceSaveRoute = 'm/index.php?r=m_sales_invoices';
   static const String itemsSearchPath = 'api/items_search.php';
   static const String invoiceMetaPath = 'api/mobile_invoice_meta.php';
@@ -36,13 +37,24 @@ class AppConfig {
   static const String returnInvoicesPath = 'api/mobile_return_invoices.php';
   static const String returnPostPath = 'api/sales_return_post.php';
   static const String returnDeletePath = 'api/sales_return_delete.php';
-  static const String returnEinvoiceSendPath = 'api/sales_return_einvoice_send.php';
+  static const String returnEinvoiceSendPath =
+      'api/sales_return_einvoice_send.php';
   static const String returnSaveRoute = 'm/index.php?r=m_sales_returns';
 
   static const String partyStatementPath = 'api/mobile_party_statement.php';
-  static const String partyStatementPdfPath = 'api/mobile_party_statement_pdf.php';
+  static const String partyStatementPdfPath =
+      'api/mobile_party_statement_pdf.php';
   static const String partiesPath = 'api/mobile_parties.php';
   static const String customerSavePath = 'api/mobile_customer_save.php';
+
+  static const String customerOrderMetaPath =
+      'api/mobile_customer_order_meta.php';
+  static const String customerOrderListPath =
+      'api/mobile_customer_order_list.php';
+  static const String customerOrderViewPath =
+      'api/mobile_customer_order_view.php';
+  static const String customerOrderSavePath =
+      'api/mobile_customer_order_save.php';
 
   static const String repItemsPath = 'api/mobile_rep_items.php';
   static const String repStockPath = 'api/mobile_rep_stock.php';

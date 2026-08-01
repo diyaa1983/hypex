@@ -6,7 +6,10 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../services/document_print_helper.dart';
+import '../../services/rep_stock_bluetooth_receipt.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
+import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
 
 class RepStockScreen extends StatefulWidget {
@@ -51,9 +54,9 @@ class _RepStockScreenState extends State<RepStockScreen> {
         query['warehouse_id'] = _warehouseId;
       }
       final res = await context.read<ApiClient>().getJson(
-        AppConfig.repStockPath,
-        query: query,
-      );
+            AppConfig.repStockPath,
+            query: query,
+          );
       if (!mounted) return;
 
       final wh = (res['warehouse'] as Map?)?.cast<String, dynamic>();
@@ -105,32 +108,63 @@ class _RepStockScreenState extends State<RepStockScreen> {
     }
   }
 
+  Map<String, dynamic> _receiptData() => {
+        'warehouse_name': _whName,
+        'rep_name': _repName,
+        'items': _items,
+      };
+
+  Future<void> _previewReceipt() async {
+    if (_items.isEmpty) {
+      showSnack(context, 'لا توجد مواد لعرضها.', error: true);
+      return;
+    }
+    final data = _receiptData();
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ThermalPreviewScreen(
+          title: 'معاينة رصيد المستودع',
+          buildPdf: (paperMm) =>
+              RepStockBluetoothReceipt.buildThermalPdf(data, paperMm: paperMm),
+          onPrint: (ctx) async {
+            final err = await RepStockBluetoothReceipt.printStock(data);
+            if (ctx.mounted)
+              showSnack(ctx, err ?? 'تمت الطباعة.', error: err != null);
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('رصيد المستودع'),
-        actions: [
-          IconButton(
-            tooltip: 'طباعة Bluetooth',
-            onPressed: (_loading || _printing || _warehouseId == null)
-                ? null
-                : _printBluetooth,
-            icon: _printing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.print_outlined),
-          ),
-          IconButton(
-            tooltip: 'تحديث',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
+    return MobileScaffold(
+      title: const Text('رصيد المستودع'),
+      actions: [
+        IconButton(
+          tooltip: 'عرض',
+          onPressed: _loading || _items.isEmpty ? null : _previewReceipt,
+          icon: const Icon(Icons.visibility_outlined),
+        ),
+        IconButton(
+          tooltip: 'طباعة Bluetooth',
+          onPressed: (_loading || _printing || _warehouseId == null)
+              ? null
+              : _printBluetooth,
+          icon: _printing
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.print_outlined),
+        ),
+        IconButton(
+          tooltip: 'تحديث',
+          onPressed: _loading ? null : _load,
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
       body: Column(
         children: [
           Container(

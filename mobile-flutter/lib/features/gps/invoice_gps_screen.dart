@@ -58,7 +58,8 @@ class _InvoiceGpsScreenState extends State<InvoiceGpsScreen> {
   }
 
   Future<void> _openMap(double lat, double lng) async {
-    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    final uri =
+        Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (mounted) showSnack(context, 'تعذر فتح الخريطة', error: true);
     }
@@ -110,8 +111,7 @@ class _InvoiceGpsScreenState extends State<InvoiceGpsScreen> {
                             child: ListTile(
                               leading: const Icon(Icons.location_on,
                                   color: Colors.red),
-                              title: Text(
-                                  '${r['customer_name'] ?? '—'}',
+                              title: Text('${r['customer_name'] ?? '—'}',
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold)),
                               subtitle: Text(

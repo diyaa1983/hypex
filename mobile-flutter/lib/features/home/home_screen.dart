@@ -9,6 +9,7 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../services/location_tracking_service.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
 /// وصف شاشة داخل التطبيق: المسار + الأيقونة + اللون + القسم.
@@ -39,6 +40,12 @@ const Map<String, TileSpec> kTileSpecs = {
     '/customers/new',
     Icons.person_add_alt_1_rounded,
     AppTheme.primary,
+    'المبيعات',
+  ),
+  'm_customer_orders': TileSpec(
+    '/customer-orders',
+    Icons.shopping_cart_checkout_rounded,
+    AppTheme.teal,
     'المبيعات',
   ),
   'm_sales_returns': TileSpec(
@@ -243,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
             trackingOk: _trackingOk,
             trackingLabel: _trackingLabel,
             onRefresh: _load,
+            onLogout: () => MobileScaffold.confirmLogout(context),
           ),
           Expanded(
             child: RefreshIndicator(
@@ -291,6 +299,7 @@ class _Header extends StatelessWidget {
     required this.trackingOk,
     required this.trackingLabel,
     required this.onRefresh,
+    required this.onLogout,
   });
 
   final String company;
@@ -299,6 +308,7 @@ class _Header extends StatelessWidget {
   final bool trackingOk;
   final String trackingLabel;
   final VoidCallback onRefresh;
+  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -354,6 +364,11 @@ class _Header extends StatelessWidget {
                 tooltip: 'تحديث',
                 onPressed: onRefresh,
                 icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+              ),
+              IconButton(
+                tooltip: 'خروج',
+                onPressed: onLogout,
+                icon: const Icon(Icons.logout_rounded, color: Colors.white),
               ),
             ],
           ),

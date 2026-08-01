@@ -149,7 +149,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           onSubmitted: (_) => _submit(),
                           decoration: InputDecoration(
                             labelText: 'كلمة المرور',
-                            prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                            prefixIcon:
+                                const Icon(Icons.lock_outline, size: 20),
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscure

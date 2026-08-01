@@ -11,14 +11,15 @@ declare(strict_types=1);
  *   delivery_alerts:list<array<string,mixed>>,
  *   unposted_alerts:list<array<string,mixed>>,
  *   einvoice_alerts:list<array<string,mixed>>,
- *   summary:array{total:int,overdue:int,today:int,soon:int,alert_count:int,delivery_count:int,unposted_count:int,einvoice_count:int},
+ *   customer_order_alerts:list<array<string,mixed>>,
+ *   summary:array{total:int,overdue:int,today:int,soon:int,alert_count:int,delivery_count:int,unposted_count:int,einvoice_count:int,customer_order_count:int},
  *   soon_days:int
  * }
  */
 function header_check_notifications_collect(PDO $pdo): array
 {
     $cacheTtl = 180;
-    $cached = $_SESSION['_header_check_notify_v2'] ?? null;
+    $cached = $_SESSION['_header_check_notify_v3'] ?? null;
     if (
         is_array($cached)
         && isset($cached['at'], $cached['data'])
@@ -35,6 +36,7 @@ function header_check_notifications_collect(PDO $pdo): array
         'delivery_alerts' => [],
         'unposted_alerts' => [],
         'einvoice_alerts' => [],
+        'customer_order_alerts' => [],
         'summary' => [
             'total' => 0,
             'overdue' => 0,
@@ -44,6 +46,7 @@ function header_check_notifications_collect(PDO $pdo): array
             'delivery_count' => 0,
             'unposted_count' => 0,
             'einvoice_count' => 0,
+            'customer_order_count' => 0,
         ],
         'soon_days' => 7,
     ];
@@ -55,9 +58,11 @@ function header_check_notifications_collect(PDO $pdo): array
     $canUnposted = header_unposted_notifications_user_can_see();
     require_once app_path('includes/sal_einvoice_notifications.php');
     $canEinvoice = sal_einvoice_notifications_user_can_see();
+    require_once app_path('includes/sal_customer_order.php');
+    $canCustomerOrders = sal_customer_order_notifications_user_can_see();
 
-    if (!$canChecks && !$canDelivery && !$canUnposted && !$canEinvoice) {
-        $_SESSION['_header_check_notify_v2'] = ['at' => time(), 'data' => $empty];
+    if (!$canChecks && !$canDelivery && !$canUnposted && !$canEinvoice && !$canCustomerOrders) {
+        $_SESSION['_header_check_notify_v3'] = ['at' => time(), 'data' => $empty];
 
         return $empty;
     }
@@ -67,6 +72,7 @@ function header_check_notifications_collect(PDO $pdo): array
     $deliveryAlerts = [];
     $unpostedAlerts = [];
     $einvoiceAlerts = [];
+    $customerOrderAlerts = [];
     $summary = [
         'total' => 0,
         'overdue' => 0,
@@ -76,6 +82,7 @@ function header_check_notifications_collect(PDO $pdo): array
         'delivery_count' => 0,
         'unposted_count' => 0,
         'einvoice_count' => 0,
+        'customer_order_count' => 0,
     ];
     $soonDays = 7;
 
@@ -117,10 +124,16 @@ function header_check_notifications_collect(PDO $pdo): array
         $summary['einvoice_count'] = sal_einvoice_unsent_count($pdo);
     }
 
+    if ($canCustomerOrders) {
+        $summary['customer_order_count'] = sal_customer_order_pending_approve_count($pdo);
+        $customerOrderAlerts = sal_customer_order_pending_approve_alerts($pdo, 20);
+    }
+
     $summary['alert_count'] = count($alertChecks)
         + $summary['delivery_count']
         + $summary['unposted_count']
-        + $summary['einvoice_count'];
+        + $summary['einvoice_count']
+        + $summary['customer_order_count'];
 
     $data = [
         'enabled' => true,
@@ -129,17 +142,18 @@ function header_check_notifications_collect(PDO $pdo): array
         'delivery_alerts' => $deliveryAlerts,
         'unposted_alerts' => $unpostedAlerts,
         'einvoice_alerts' => $einvoiceAlerts,
+        'customer_order_alerts' => $customerOrderAlerts,
         'summary' => $summary,
         'soon_days' => $soonDays,
     ];
-    $_SESSION['_header_check_notify_v2'] = ['at' => time(), 'data' => $data];
+    $_SESSION['_header_check_notify_v3'] = ['at' => time(), 'data' => $data];
 
     return $data;
 }
 
 function header_check_notifications_invalidate_cache(): void
 {
-    unset($_SESSION['_header_check_notify_v2']);
+    unset($_SESSION['_header_check_notify_v3'], $_SESSION['_header_check_notify_v2']);
 }
 
 function header_check_notifications_user_can_see(): bool
@@ -156,8 +170,12 @@ function header_check_notifications_user_can_see(): bool
         return true;
     }
     require_once app_path('includes/sal_einvoice_notifications.php');
+    if (sal_einvoice_notifications_user_can_see()) {
+        return true;
+    }
+    require_once app_path('includes/sal_customer_order.php');
 
-    return sal_einvoice_notifications_user_can_see();
+    return sal_customer_order_notifications_user_can_see();
 }
 
 function render_header_check_notifications(array $data): void
@@ -172,8 +190,10 @@ function render_header_check_notifications(array $data): void
     $deliveryAlerts = $data['delivery_alerts'] ?? [];
     $unpostedAlerts = $data['unposted_alerts'] ?? [];
     $einvoiceAlerts = $data['einvoice_alerts'] ?? [];
+    $customerOrderAlerts = $data['customer_order_alerts'] ?? [];
     $unpostedCount = (int) ($summary['unposted_count'] ?? 0);
     $einvoiceCount = (int) ($summary['einvoice_count'] ?? 0);
+    $customerOrderCount = (int) ($summary['customer_order_count'] ?? 0);
     $checksJson = json_encode($data['checks'] ?? [], JSON_UNESCAPED_UNICODE);
     if ($checksJson === false) {
         $checksJson = '[]';
@@ -181,11 +201,13 @@ function render_header_check_notifications(array $data): void
 
     $dashboardUrl = app_url('index.php?r=dashboard');
     $salesInvoicesUrl = app_url('index.php?r=sales_invoices');
+    $customerOrdersApproveUrl = app_url('index.php?r=sales_customer_orders_approve');
     $soonDays = (int) ($data['soon_days'] ?? 7);
     $hasChecks = $alertChecks !== [];
     $hasDeliveries = $deliveryAlerts !== [];
     $hasUnposted = $unpostedAlerts !== [];
     $hasEinvoice = $einvoiceAlerts !== [];
+    $hasCustomerOrders = $customerOrderAlerts !== [];
     $salesInvoicesListUrl = app_url('index.php?r=sales_invoices_list&filter=unposted');
     $salesDocumentsListUrl = app_url('index.php?r=sales_documents_list');
     $salesReturnsDocumentsListUrl = app_url('index.php?r=sales_returns_documents_list');
@@ -217,9 +239,42 @@ function render_header_check_notifications(array $data): void
                 <span class="app-check-bell-panel-count"><?= (int) $alertCount ?> تنبيه</span>
                 <?php endif; ?>
             </header>
-            <?php if (!$hasChecks && !$hasDeliveries && !$hasUnposted && !$hasEinvoice): ?>
+            <?php if (!$hasChecks && !$hasDeliveries && !$hasUnposted && !$hasEinvoice && !$hasCustomerOrders): ?>
             <p class="app-check-bell-panel-empty">لا توجد تنبيهات حالياً.</p>
             <?php else: ?>
+            <?php if ($hasCustomerOrders): ?>
+            <p class="app-check-bell-section-title">طلبات شراء بانتظار الاعتماد<?= $customerOrderCount > 0 ? ' (' . $customerOrderCount . ')' : '' ?></p>
+            <ul class="app-check-bell-list">
+                <?php foreach ($customerOrderAlerts as $ord): ?>
+                <li>
+                    <a class="app-check-bell-item app-check-bell-item--link"
+                       href="<?= esc((string) ($ord['url'] ?? $customerOrdersApproveUrl)) ?>">
+                        <span class="dashboard-check-status dashboard-check-status--pending">
+                            <?= esc((string) ($ord['urgency_label'] ?? 'بانتظار الاعتماد')) ?>
+                        </span>
+                        <span class="app-check-bell-item-main">
+                            <span class="app-check-bell-item-no"><?= esc((string) (($ord['order_no'] ?? '') !== '' ? $ord['order_no'] : '—')) ?></span>
+                            <span class="app-check-bell-item-party">
+                                <?= esc((string) ($ord['customer_name'] ?? '—')) ?>
+                                <?php if (trim((string) ($ord['sales_rep_name'] ?? '')) !== ''): ?>
+                                · <?= esc((string) $ord['sales_rep_name']) ?>
+                                <?php endif; ?>
+                            </span>
+                        </span>
+                        <span class="app-check-bell-item-meta">
+                            <?php
+                            $ordDate = trim((string) ($ord['order_date'] ?? ''));
+                            echo $ordDate !== '' ? esc(format_date_dmY($ordDate)) : '—';
+                            ?>
+                        </span>
+                    </a>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+            <?php if ($customerOrderCount > count($customerOrderAlerts)): ?>
+            <p class="app-check-bell-panel-more muted">و<?= $customerOrderCount - count($customerOrderAlerts) ?> طلباً إضافياً…</p>
+            <?php endif; ?>
+            <?php endif; ?>
             <?php if ($hasUnposted): ?>
             <p class="app-check-bell-section-title">مستندات بحاجة ترحيل<?= $unpostedCount > 0 ? ' (' . $unpostedCount . ')' : '' ?></p>
             <ul class="app-check-bell-list">
@@ -361,6 +416,9 @@ function render_header_check_notifications(array $data): void
                 <?php if ((int) ($summary['soon'] ?? 0) > 0): ?>
                 <button type="button" class="btn btn-ghost btn-sm js-check-alert-open"
                         data-filter="soon" data-title="قريبة الاستحقاق">قريب (<?= (int) $summary['soon'] ?>)</button>
+                <?php endif; ?>
+                <?php if ($hasCustomerOrders && user_can('sales_customer_orders_approve')): ?>
+                <a class="btn btn-ghost btn-sm" href="<?= esc($customerOrdersApproveUrl) ?>">اعتماد الطلبات</a>
                 <?php endif; ?>
                 <?php if ($hasDeliveries): ?>
                 <a class="btn btn-ghost btn-sm" href="<?= esc($salesInvoicesUrl) ?>">فواتير المبيعات</a>

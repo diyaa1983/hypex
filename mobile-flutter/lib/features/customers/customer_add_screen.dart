@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
 class CustomerAddScreen extends StatefulWidget {
@@ -70,8 +71,8 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('إضافة عميل')),
+    return MobileScaffold(
+      title: const Text('إضافة عميل'),
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [

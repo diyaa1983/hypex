@@ -56,11 +56,8 @@ class _Line {
     final raw = discountInput.trim();
     if (raw.isEmpty || lineBase <= 0) return 0;
     final isPct = raw.endsWith('%') || raw.endsWith('٪');
-    final numPart = raw
-        .replaceAll('%', '')
-        .replaceAll('٪', '')
-        .replaceAll(',', '')
-        .trim();
+    final numPart =
+        raw.replaceAll('%', '').replaceAll('٪', '').replaceAll(',', '').trim();
     final v = double.tryParse(numPart) ?? 0;
     if (v <= 0) return 0;
     if (isPct) {
@@ -138,8 +135,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   bool get _isEdit => _invoiceId > 0;
   bool get _canEdit => !_isPosted && !_einvSent;
   bool get _canChangeWarehouse => _warehouses.length > 1 && _canEdit;
-  bool get _canSendEinvoice =>
-      _isPosted && !_einvSent;
+  bool get _canSendEinvoice => _isPosted && !_einvSent;
 
   double get _subTotal => _lines.fold(0.0, (s, l) => s + l.subtotal);
   double get _taxTotal => _lines.fold(0.0, (s, l) => s + l.taxAmount);
@@ -195,8 +191,9 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       setState(() {
         _warehouses = whs;
         _taxRates = rates;
-        _defaultTaxPercent =
-            defaultPct > 0 ? defaultPct : (rates.isNotEmpty ? rates.first.rate : 5);
+        _defaultTaxPercent = defaultPct > 0
+            ? defaultPct
+            : (rates.isNotEmpty ? rates.first.rate : 5);
         _defaultTaxRateId = defaultId;
         _defaultWarehouseId = defWh;
         _warehouseId = defWh;
@@ -258,8 +255,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           } else if (_taxRates.isNotEmpty && pct > 0) {
             rateId = _taxRates
                 .reduce(
-                  (a, b) =>
-                      (a.rate - pct).abs() < (b.rate - pct).abs() ? a : b,
+                  (a, b) => (a.rate - pct).abs() < (b.rate - pct).abs() ? a : b,
                 )
                 .id;
           }
@@ -292,9 +288,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         _invoiceNo = Fmt.str(inv['invoice_no']);
         _isPosted = posted;
         _einvSent = einv;
-        _customer = cid > 0
-            ? Party(cid, cname, Fmt.str(inv['customer_code']))
-            : null;
+        _customer =
+            cid > 0 ? Party(cid, cname, Fmt.str(inv['customer_code'])) : null;
         _warehouseId = Fmt.toInt(inv['warehouse_id']);
         if (_warehouseId == 0 && _warehouses.isNotEmpty) {
           _warehouseId = Fmt.toInt(_warehouses.first['id']);
@@ -361,7 +356,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     }
     final it = await pickItem(context, warehouseId: _warehouseId);
     if (it == null) return;
-    _appendOrBumpLine(it, qty: 1, qtyExtra: 0, price: it.price > 0 ? it.price : 0);
+    _appendOrBumpLine(it,
+        qty: 1, qtyExtra: 0, price: it.price > 0 ? it.price : 0);
   }
 
   Future<void> _lookupBarcode() async {
@@ -516,7 +512,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         _invoiceId = invId;
         if (invNo.isNotEmpty) _invoiceNo = invNo;
       });
-      showSnack(context, (res['message'] ?? 'تم حفظ الفاتورة بنجاح.').toString());
+      showSnack(
+          context, (res['message'] ?? 'تم حفظ الفاتورة بنجاح.').toString());
       return invId;
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
@@ -588,7 +585,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   Future<void> _sendEinvoice() async {
     if (!_canSendEinvoice) {
       if (!_isPosted) {
-        showSnack(context, 'يجب ترحيل الفاتورة قبل إرسالها للفوترة.', error: true);
+        showSnack(context, 'يجب ترحيل الفاتورة قبل إرسالها للفوترة.',
+            error: true);
       } else {
         showSnack(context, 'الفاتورة مُرسلة للفوترة مسبقاً.');
       }
@@ -616,10 +614,10 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     setState(() => _busy = true);
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.salesInvoiceEinvoiceSendPath,
-        fields: {'invoice_id': _invoiceId},
-        csrf: s.csrf,
-      );
+            AppConfig.salesInvoiceEinvoiceSendPath,
+            fields: {'invoice_id': _invoiceId},
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الإرسال للفوترة.').toString());
       setState(() => _einvSent = true);
@@ -794,8 +792,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                             ),
                           )
                           .toList(),
-                      onChanged: (v) =>
-                          setState(() => _warehouseId = v ?? 0),
+                      onChanged: (v) => setState(() => _warehouseId = v ?? 0),
                     ),
                   )
                 : _readonlyValue(_warehouseName()),
@@ -869,9 +866,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
 
   Widget _customerTile() {
     final initial = (_customer?.name ?? '').trim();
-    final letter = initial.isEmpty
-        ? ''
-        : String.fromCharCodes(initial.runes.take(1));
+    final letter =
+        initial.isEmpty ? '' : String.fromCharCodes(initial.runes.take(1));
     return Material(
       color: const Color(0xFFF8FAFC),
       borderRadius: BorderRadius.circular(14),
@@ -1298,7 +1294,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                 _dockBtn(
                   Icons.edit_outlined,
                   'تعديل',
-                  onTap: _busy || !_canEdit || _invoiceId < 1 ? null : _openEdit,
+                  onTap:
+                      _busy || !_canEdit || _invoiceId < 1 ? null : _openEdit,
                 ),
               ],
             ),
@@ -1332,7 +1329,8 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
               borderRadius: BorderRadius.circular(14),
               border: primary
                   ? null
-                  : Border.all(color: enabled ? _border : const Color(0xFFE2E8F0)),
+                  : Border.all(
+                      color: enabled ? _border : const Color(0xFFE2E8F0)),
             ),
             child: Column(
               children: [
@@ -1476,8 +1474,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       ),
-      onChanged: (v) =>
-          onChanged(double.tryParse(v.replaceAll(',', '')) ?? 0),
+      onChanged: (v) => onChanged(double.tryParse(v.replaceAll(',', '')) ?? 0),
     );
   }
 

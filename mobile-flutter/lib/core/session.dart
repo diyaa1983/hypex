@@ -31,6 +31,7 @@ class SessionController extends ChangeNotifier {
   Set<String> permissions = <String>{};
   String? lastError;
   GpsTrackingConfig gpsConfig = GpsTrackingConfig.defaults;
+
   /// فتح إعدادات التتبّع بعد التحقق من كلمة مرور مدير النظام (جلسة التطبيق فقط).
   bool settingsUnlocked = false;
 
@@ -73,7 +74,9 @@ class SessionController extends ChangeNotifier {
     String label = 'هاتف';
     if (!kIsWeb) {
       try {
-        label = Platform.isAndroid ? 'أندرويد' : (Platform.isIOS ? 'آيفون' : Platform.operatingSystem);
+        label = Platform.isAndroid
+            ? 'أندرويد'
+            : (Platform.isIOS ? 'آيفون' : Platform.operatingSystem);
       } catch (_) {}
     }
     return {'device_id': id, 'device_label': label};

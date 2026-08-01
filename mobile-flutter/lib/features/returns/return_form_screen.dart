@@ -11,6 +11,7 @@ import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -232,9 +233,9 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
         query['exclude_return_id'] = _editReturnId;
       }
       final res = await context.read<ApiClient>().getJson(
-        AppConfig.returnLinesPath,
-        query: query,
-      );
+            AppConfig.returnLinesPath,
+            query: query,
+          );
       if (!mounted) return;
       setState(() {
         _invoiceNo = (res['invoice_no'] ?? '').toString();
@@ -496,9 +497,8 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                             : AppTheme.textMain,
                       ),
                     ),
-                    trailing: _isEdit
-                        ? null
-                        : const Icon(Icons.chevron_left_rounded),
+                    trailing:
+                        _isEdit ? null : const Icon(Icons.chevron_left_rounded),
                     onTap: _isEdit ? null : _pickCustomer,
                   ),
                 ),
@@ -637,10 +637,8 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEdit ? 'تعديل مرتجع' : 'مرتجع جديد'),
-      ),
+    return MobileScaffold(
+      title: Text(_isEdit ? 'تعديل مرتجع' : 'مرتجع جديد'),
       body: body,
     );
   }
@@ -659,9 +657,15 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
             child: const Row(
               children: [
                 Expanded(flex: 3, child: Text('المادة', style: _th)),
-                Expanded(child: Text('متبقي', textAlign: TextAlign.center, style: _th)),
-                Expanded(child: Text('سعر', textAlign: TextAlign.center, style: _th)),
-                Expanded(child: Text('إرجاع', textAlign: TextAlign.center, style: _th)),
+                Expanded(
+                    child:
+                        Text('متبقي', textAlign: TextAlign.center, style: _th)),
+                Expanded(
+                    child:
+                        Text('سعر', textAlign: TextAlign.center, style: _th)),
+                Expanded(
+                    child:
+                        Text('إرجاع', textAlign: TextAlign.center, style: _th)),
               ],
             ),
           ),
@@ -709,7 +713,8 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
               Fmt.money(l.qtyRemaining),
               textAlign: TextAlign.center,
               textDirection: TextDirection.ltr,
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+              style:
+                  const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
             ),
           ),
           Expanded(
@@ -717,7 +722,8 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
               Fmt.money(l.unitPrice),
               textAlign: TextAlign.center,
               textDirection: TextDirection.ltr,
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+              style:
+                  const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
             ),
           ),
           Expanded(

@@ -84,9 +84,7 @@ class PartyStatementBluetoothReceipt {
       await rootBundle.load('assets/fonts/Arial-Bold.ttf'),
     );
 
-    final width = paperMm == 80
-        ? 80 * PdfPageFormat.mm
-        : 58 * PdfPageFormat.mm;
+    final width = paperMm == 80 ? 80 * PdfPageFormat.mm : 58 * PdfPageFormat.mm;
     final pageFormat = PdfPageFormat(
       width,
       double.infinity,
@@ -95,9 +93,8 @@ class PartyStatementBluetoothReceipt {
 
     final partyType = Fmt.str(data['party_type']);
     final partyLabel = partyType == 'supplier' ? 'مورد' : 'عميل';
-    final partyName = Fmt.str(data['party_name']).isEmpty
-        ? '—'
-        : Fmt.str(data['party_name']);
+    final partyName =
+        Fmt.str(data['party_name']).isEmpty ? '—' : Fmt.str(data['party_name']);
     final partyCode = Fmt.str(data['party_code']);
     final from = Fmt.dmy(Fmt.str(data['from_dmy'] ?? data['from']));
     final to = Fmt.dmy(Fmt.str(data['to_dmy'] ?? data['to']));
@@ -150,14 +147,17 @@ class PartyStatementBluetoothReceipt {
                 fontBold,
                 fsSm,
               ),
-              _kv('رصيد أول المدة', Fmt.money(opening), fontReg, fontBold, fsSm),
+              _kv('رصيد أول المدة', Fmt.money(opening), fontReg, fontBold,
+                  fsSm),
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
               _movementsTable(rows, fontReg, fontBold, fsSm, paperMm),
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
-              _kv('إجمالي المدين', Fmt.money(totalDebit), fontReg, fontBold, fsSm),
-              _kv('إجمالي الدائن', Fmt.money(totalCredit), fontReg, fontBold, fsSm),
+              _kv('إجمالي المدين', Fmt.money(totalDebit), fontReg, fontBold,
+                  fsSm),
+              _kv('إجمالي الدائن', Fmt.money(totalCredit), fontReg, fontBold,
+                  fsSm),
               _kv('الرصيد الختامي', Fmt.money(closing), fontReg, fontBold, fs),
               pw.SizedBox(height: 8),
               pw.Center(

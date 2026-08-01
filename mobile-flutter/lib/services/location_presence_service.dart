@@ -127,9 +127,8 @@ class LocationPresenceService {
 
       if (res['ok'] == true) {
         lastOkAt = DateTime.now();
-        lastMessage = res['skipped'] == true
-            ? 'تم تأكيد الحضور'
-            : 'تم إرسال الموقع';
+        lastMessage =
+            res['skipped'] == true ? 'تم تأكيد الحضور' : 'تم إرسال الموقع';
         await LocationTrackingService.saveLastStatus(
           lastMessage,
           lat: pos.latitude,

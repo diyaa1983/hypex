@@ -259,10 +259,12 @@ class ActionChipButton extends StatelessWidget {
                 SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                  child:
+                      CircularProgressIndicator(strokeWidth: 2, color: color),
                 )
               else
-                Icon(icon, size: 17, color: enabled ? color : AppTheme.textSoft),
+                Icon(icon,
+                    size: 17, color: enabled ? color : AppTheme.textSoft),
               const SizedBox(width: 7),
               Flexible(
                 child: Text(

@@ -21,7 +21,8 @@ class _ServerSetupScreenState extends State<ServerSetupScreen> {
   @override
   void initState() {
     super.initState();
-    _ctrl = TextEditingController(text: context.read<SessionController>().api.base);
+    _ctrl =
+        TextEditingController(text: context.read<SessionController>().api.base);
   }
 
   @override
@@ -138,7 +139,8 @@ class _ServerSetupScreenState extends State<ServerSetupScreen> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const Icon(Icons.wifi_tethering_rounded, size: 19),
+                              : const Icon(Icons.wifi_tethering_rounded,
+                                  size: 19),
                           label: const Text('فحص الاتصال'),
                         ),
                       ],

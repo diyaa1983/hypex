@@ -84,9 +84,7 @@ class ReturnBluetoothReceipt {
       await rootBundle.load('assets/fonts/Arial-Bold.ttf'),
     );
 
-    final width = paperMm == 80
-        ? 80 * PdfPageFormat.mm
-        : 58 * PdfPageFormat.mm;
+    final width = paperMm == 80 ? 80 * PdfPageFormat.mm : 58 * PdfPageFormat.mm;
     final pageFormat = PdfPageFormat(
       width,
       double.infinity,
@@ -288,10 +286,18 @@ class ReturnBluetoothReceipt {
         pw.TableRow(
           children: [
             cell(name.isEmpty ? 'مادة' : name, style: nameStyle),
-            cell(Fmt.money(qty), align: pw.TextAlign.center, ltr: true),
-            cell(Fmt.money(price), align: pw.TextAlign.center, ltr: true),
             cell(
-              Fmt.money(lineTotal),
+              qty == 0 ? '' : Fmt.money(qty),
+              align: pw.TextAlign.center,
+              ltr: true,
+            ),
+            cell(
+              price == 0 ? '' : Fmt.money(price),
+              align: pw.TextAlign.center,
+              ltr: true,
+            ),
+            cell(
+              lineTotal == 0 ? '' : Fmt.money(lineTotal),
               align: pw.TextAlign.center,
               ltr: true,
               style: nameStyle,

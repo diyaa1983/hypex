@@ -154,7 +154,8 @@ class _BluetoothPrinterSettingsCardState
       showSnack(context, 'تم حفظ الطابعة: ${next.displayLabel}');
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, e.toString().replaceFirst('Bad state: ', ''), error: true);
+      showSnack(context, e.toString().replaceFirst('Bad state: ', ''),
+          error: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -253,7 +254,9 @@ class _BluetoothPrinterSettingsCardState
                       child: FilledButton.icon(
                         onPressed: _busy ? null : _pickDevice,
                         icon: const Icon(Icons.bluetooth_searching_rounded),
-                        label: Text(_cfg.isConfigured ? 'تغيير الطابعة' : 'اختيار طابعة'),
+                        label: Text(_cfg.isConfigured
+                            ? 'تغيير الطابعة'
+                            : 'اختيار طابعة'),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -294,7 +297,8 @@ class _BluetoothPrinterSettingsCardState
                 const SizedBox(height: 4),
                 const Text(
                   'تُستخدم هذه الطابعة لجميع شاشات الطباعة في التطبيق.',
-                  style: TextStyle(fontSize: 11.5, color: AppTheme.textSoft, height: 1.35),
+                  style: TextStyle(
+                      fontSize: 11.5, color: AppTheme.textSoft, height: 1.35),
                 ),
               ],
             ),

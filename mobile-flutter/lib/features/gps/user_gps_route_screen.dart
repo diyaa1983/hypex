@@ -104,8 +104,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     });
     try {
       final res = await context.read<ApiClient>().getJson(
-        AppConfig.userGpsTrackDayPath,
-      );
+            AppConfig.userGpsTrackDayPath,
+          );
       if (!mounted) return;
       final mapCfg = (res['map'] as Map?)?.cast<String, dynamic>() ?? {};
       final tile = (mapCfg['tile_url'] ?? '').toString();
@@ -156,7 +156,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
           .whereType<Map>()
           .map((e) => _Stop(e.cast<String, dynamic>()))
           .toList();
-      var trackLines = _parseTrackLines(res['track_lines'], res['road_paths'], res['road_path']);
+      var trackLines = _parseTrackLines(
+          res['track_lines'], res['road_paths'], res['road_path']);
       final segmentPaths = <List<LatLng>>[];
       if (trackLines.isEmpty) {
         final rawSegs = res['segments'];
@@ -179,8 +180,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
       var matched = res['road_matched'] == true && trackLines.isNotEmpty;
       // إن لم يلتصق السيرفر بالشارع جيداً: مطابقة OSRM بأجزاء لتغطية كامل اليوم.
-      final needClientSnap = !matched ||
-          trackLines.length < 2 && points.length > 400;
+      final needClientSnap =
+          !matched || trackLines.length < 2 && points.length > 400;
       if (needClientSnap && points.length >= 2) {
         final jobs = <List<_TrackPoint>>[];
         final rawSegs = res['segments'];
@@ -407,7 +408,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   Future<List<LatLng>> _osrmMatchOnce(List<LatLng> pts) async {
     final coordStr = pts
-        .map((p) => '${p.longitude.toStringAsFixed(6)},${p.latitude.toStringAsFixed(6)}')
+        .map((p) =>
+            '${p.longitude.toStringAsFixed(6)},${p.latitude.toStringAsFixed(6)}')
         .join(';');
     final url =
         'https://router.project-osrm.org/match/v1/driving/$coordStr?overview=full&geometries=geojson&gaps=ignore';
@@ -416,14 +418,16 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
 
   Future<List<LatLng>> _osrmRouteOnce(List<LatLng> pts) async {
     final coordStr = pts
-        .map((p) => '${p.longitude.toStringAsFixed(6)},${p.latitude.toStringAsFixed(6)}')
+        .map((p) =>
+            '${p.longitude.toStringAsFixed(6)},${p.latitude.toStringAsFixed(6)}')
         .join(';');
     final url =
         'https://router.project-osrm.org/route/v1/driving/$coordStr?overview=full&geometries=geojson&continue_straight=true';
     return _osrmFetchCoords(url, matchings: false);
   }
 
-  Future<List<LatLng>> _osrmFetchCoords(String url, {required bool matchings}) async {
+  Future<List<LatLng>> _osrmFetchCoords(String url,
+      {required bool matchings}) async {
     try {
       final dio = Dio(BaseOptions(
         connectTimeout: const Duration(seconds: 12),
@@ -595,9 +599,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
           children: [
             _buildControls(),
             if (_points.isNotEmpty)
-              _buildSummary(
-                  distance, first, last, active, avgSpeed, maxSpeed, stopsCount,
-                  coverageNote),
+              _buildSummary(distance, first, last, active, avgSpeed, maxSpeed,
+                  stopsCount, coverageNote),
             Expanded(
               child: Stack(
                 children: [
@@ -735,8 +738,15 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     );
   }
 
-  Widget _buildSummary(String distance, String first, String last, String active,
-      String avgSpeed, String maxSpeed, int stops, String coverageNote) {
+  Widget _buildSummary(
+      String distance,
+      String first,
+      String last,
+      String active,
+      String avgSpeed,
+      String maxSpeed,
+      int stops,
+      String coverageNote) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),

@@ -360,10 +360,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-
             const SectionTitle('الطباعة', icon: Icons.print_rounded),
             const BluetoothPrinterSettingsCard(),
-
             const SectionTitle('تتبّع الموقع', icon: Icons.my_location_rounded),
             AppCard(
               padding: EdgeInsets.zero,
@@ -409,7 +407,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: const Text('إذن الموقع على الآيفون'),
                       subtitle: const Text(
                         'اختر «دائماً» حتى يستمر التتبّع والتطبيق مغلق أو في الخلفية.',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSoft),
+                        style:
+                            TextStyle(fontSize: 12, color: AppTheme.textSoft),
                       ),
                       trailing: TextButton(
                         onPressed: () =>
@@ -439,7 +438,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-
             if (st != null) ...[
               const SectionTitle('حالة الخدمة', icon: Icons.insights_rounded),
               AppCard(
@@ -529,7 +527,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ],
-
             const SectionTitle('عام', icon: Icons.tune_rounded),
             AppCard(
               padding: EdgeInsets.zero,

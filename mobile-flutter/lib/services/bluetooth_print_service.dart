@@ -31,7 +31,8 @@ class BluetoothPrintService {
   static Future<void> openSystemBluetoothSettings() async {
     if (kIsWeb) return;
     if (Platform.isAndroid) {
-      const intent = AndroidIntent(action: 'android.settings.BLUETOOTH_SETTINGS');
+      const intent =
+          AndroidIntent(action: 'android.settings.BLUETOOTH_SETTINGS');
       await intent.launch();
       return;
     }

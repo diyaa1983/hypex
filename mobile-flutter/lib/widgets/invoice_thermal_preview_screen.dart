@@ -47,7 +47,8 @@ class _InvoiceThermalPreviewScreenState
     if (pages.isEmpty) {
       throw StateError('تعذر تجهيز معاينة الإيصال.');
     }
-    return _PreviewData(pages: pages, paperMm: paperMm, configured: cfg.isConfigured);
+    return _PreviewData(
+        pages: pages, paperMm: paperMm, configured: cfg.isConfigured);
   }
 
   Future<void> _print() async {

@@ -142,10 +142,10 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
     final s = context.read<SessionController>();
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.salesInvoiceEinvoiceSendPath,
-        fields: {'invoice_id': widget.invoiceId},
-        csrf: s.csrf,
-      );
+            AppConfig.salesInvoiceEinvoiceSendPath,
+            fields: {'invoice_id': widget.invoiceId},
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الإرسال للفوترة').toString());
       await _load();
@@ -216,10 +216,10 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
     final s = context.read<SessionController>();
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.salesInvoiceDeletePath,
-        fields: {'invoice_id': widget.invoiceId},
-        csrf: s.csrf,
-      );
+            AppConfig.salesInvoiceDeletePath,
+            fields: {'invoice_id': widget.invoiceId},
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الحذف').toString());
       context.pop();
@@ -419,7 +419,8 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
   }
 
   Widget _lineCard(Map<String, dynamic> l) {
-    final name = Fmt.str(l['item_name'] ?? l['name_ar'] ?? l['name'] ?? l['line_desc']);
+    final name =
+        Fmt.str(l['item_name'] ?? l['name_ar'] ?? l['name'] ?? l['line_desc']);
     final qty = Fmt.toDouble(l['qty'] ?? l['quantity']);
     final qtyExtra = Fmt.toDouble(l['qty_extra']);
     final price = Fmt.toDouble(l['unit_price'] ?? l['price']);
@@ -465,7 +466,12 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
             children: [
               Expanded(child: _fieldBox('كمية', Fmt.money(qty))),
               const SizedBox(width: 5),
-              Expanded(child: _fieldBox('إض.', Fmt.money(qtyExtra))),
+              Expanded(
+                child: _fieldBox(
+                  'إض.',
+                  qtyExtra > 0 ? Fmt.money(qtyExtra) : '',
+                ),
+              ),
               const SizedBox(width: 5),
               Expanded(child: _fieldBox('سعر', Fmt.money(price))),
               const SizedBox(width: 5),
@@ -474,14 +480,14 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
                   'خصم',
                   discInput.isNotEmpty
                       ? discInput
-                      : (disc > 0 ? Fmt.money(disc) : '—'),
+                      : (disc > 0 ? Fmt.money(disc) : ''),
                 ),
               ),
               const SizedBox(width: 5),
               Expanded(
                 child: _fieldBox(
                   'ضريبة',
-                  taxPct > 0 ? '${Fmt.money(taxPct)}%' : '—',
+                  taxPct > 0 ? '${Fmt.money(taxPct)}%' : '',
                 ),
               ),
             ],
@@ -659,15 +665,33 @@ class _SummaryCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  Fmt.str(inv['customer_name']),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      Fmt.str(inv['customer_name']),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (Fmt.str(inv['sales_rep_name']).trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'المندوب: ${Fmt.str(inv['sales_rep_name']).trim()}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               StatusPill(
@@ -702,10 +726,12 @@ class _SummaryCard extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _line('الإجمالي الفرعي', Fmt.money(Fmt.toDouble(inv['subtotal']))),
+                _line('الإجمالي الفرعي',
+                    Fmt.money(Fmt.toDouble(inv['subtotal']))),
                 _line('الخصم', Fmt.money(Fmt.toDouble(inv['discount_amount']))),
                 _line('الضريبة', Fmt.money(Fmt.toDouble(inv['tax_amount']))),
-                Divider(color: Colors.white.withValues(alpha: 0.25), height: 18),
+                Divider(
+                    color: Colors.white.withValues(alpha: 0.25), height: 18),
                 _line(
                   'الإجمالي النهائي',
                   Fmt.money(Fmt.toDouble(inv['total'])),

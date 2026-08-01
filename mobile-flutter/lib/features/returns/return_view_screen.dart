@@ -9,6 +9,7 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../services/return_print_helper.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
 class ReturnViewScreen extends StatefulWidget {
@@ -160,7 +161,8 @@ class _ReturnViewScreenState extends State<ReturnViewScreen> {
     reasonCtrl.dispose();
     if (reason == null || !mounted) return;
     if (reason.length < 3) {
-      showSnack(context, 'أدخل سبب إرجاع واضحاً (3 أحرف على الأقل).', error: true);
+      showSnack(context, 'أدخل سبب إرجاع واضحاً (3 أحرف على الأقل).',
+          error: true);
       return;
     }
 
@@ -168,13 +170,13 @@ class _ReturnViewScreenState extends State<ReturnViewScreen> {
     final s = context.read<SessionController>();
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.returnEinvoiceSendPath,
-        fields: {
-          'return_id': widget.returnId,
-          'reason': reason,
-        },
-        csrf: s.csrf,
-      );
+            AppConfig.returnEinvoiceSendPath,
+            fields: {
+              'return_id': widget.returnId,
+              'reason': reason,
+            },
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الإرسال للفوترة').toString());
       await _load();
@@ -192,10 +194,10 @@ class _ReturnViewScreenState extends State<ReturnViewScreen> {
     final s = context.read<SessionController>();
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.returnPostPath,
-        fields: {'return_id': widget.returnId},
-        csrf: s.csrf,
-      );
+            AppConfig.returnPostPath,
+            fields: {'return_id': widget.returnId},
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الترحيل').toString());
       await _load();
@@ -235,10 +237,10 @@ class _ReturnViewScreenState extends State<ReturnViewScreen> {
     final s = context.read<SessionController>();
     try {
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.returnDeletePath,
-        fields: {'return_id': widget.returnId},
-        csrf: s.csrf,
-      );
+            AppConfig.returnDeletePath,
+            fields: {'return_id': widget.returnId},
+            csrf: s.csrf,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم الحذف').toString());
       context.pop();
@@ -252,21 +254,19 @@ class _ReturnViewScreenState extends State<ReturnViewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          Fmt.str(_ret['return_no']).isEmpty
-              ? 'مرتجع مبيعات'
-              : 'مرتجع ${Fmt.str(_ret['return_no'])}',
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'تحديث',
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
+    return MobileScaffold(
+      title: Text(
+        Fmt.str(_ret['return_no']).isEmpty
+            ? 'مرتجع مبيعات'
+            : 'مرتجع ${Fmt.str(_ret['return_no'])}',
       ),
+      actions: [
+        IconButton(
+          tooltip: 'تحديث',
+          onPressed: _load,
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
       body: AsyncView(
         loading: _loading,
         error: _error,

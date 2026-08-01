@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 
 class ReceiptFormScreen extends StatefulWidget {
@@ -68,10 +69,10 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
         fields['bank_name'] = _bankName.text.trim();
       }
       final res = await context.read<ApiClient>().postForm(
-        AppConfig.receiptSaveRoute,
-        csrf: s.csrf,
-        fields: fields,
-      );
+            AppConfig.receiptSaveRoute,
+            csrf: s.csrf,
+            fields: fields,
+          );
       if (!mounted) return;
       showSnack(context, (res['message'] ?? 'تم حفظ السند').toString());
       context.pop();
@@ -85,8 +86,8 @@ class _ReceiptFormScreenState extends State<ReceiptFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('سند قبض جديد')),
+    return MobileScaffold(
+      title: const Text('سند قبض جديد'),
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [

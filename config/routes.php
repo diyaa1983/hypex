@@ -48,6 +48,18 @@ return [
         'title' => 'قائمة فواتير المبيعات',
         'hide_screen_title' => true,
     ],
+    'sales_customer_orders' => [
+        'file' => 'modules/sales/customer_orders.php',
+        'permission' => 'sales_customer_orders',
+        'title' => 'طلبات شراء العملاء',
+        'hide_screen_title' => true,
+    ],
+    'sales_customer_orders_approve' => [
+        'file' => 'modules/sales/customer_orders_approve.php',
+        'permission' => 'sales_customer_orders_approve',
+        'title' => 'اعتماد طلبات الشراء',
+        'hide_screen_title' => true,
+    ],
     'sales_unpaid_invoices' => [
         'file' => 'modules/sales/unpaid_invoices.php',
         'permission' => 'sales_unpaid_invoices',

@@ -76,7 +76,8 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
   Future<void> _toggleTracking(bool on) async {
     final session = context.read<SessionController>();
     if (!session.gpsConfig.userCanDisable && !on) {
-      showSnack(context, 'إيقاف التتبّع يتم من إعدادات النظام فقط.', error: true);
+      showSnack(context, 'إيقاف التتبّع يتم من إعدادات النظام فقط.',
+          error: true);
       return;
     }
     String? msg;
@@ -97,9 +98,8 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
     if (msg != null) {
       showSnack(context, msg, error: true);
     } else {
-      final tip = on
-          ? await LocationTrackingService.backgroundPermissionTip()
-          : null;
+      final tip =
+          on ? await LocationTrackingService.backgroundPermissionTip() : null;
       if (!mounted) return;
       showSnack(
         context,
@@ -198,8 +198,7 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
                   ),
                   child: SwitchListTile(
                     dense: true,
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 12),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     value: _tracking,
                     onChanged: _toggleTracking,
                     title: Text(
