@@ -392,12 +392,11 @@ if ($action === 'add' || $action === 'edit') {
             ?>
             <?php if ($itemUnitsOk): ?>
             <div class="card" style="padding:0.75rem 1rem;margin:0.5rem 0 1rem;background:#f8fafc;" id="item-issue-units-box">
-                <strong style="display:block;margin-bottom:0.5rem;">وحدة الصرف والتعبئة (واحدة فقط)</strong>
+                <strong style="display:block;margin-bottom:0.5rem;">وحدة الصرف والتعبئة (اختيارية — واحدة فقط)</strong>
                 <p class="muted" style="font-size:0.8rem;margin:0 0 0.75rem;line-height:1.55;">
-                    إذا كانت الوحدة فوق <b>كرتون</b>: اختر أيضاً <b>كرتون</b> هنا وأدخل عدد القطع داخل الكرتونة (مثال 24).
-                    عند الحفظ تُثبَّت <b>القطعة</b> كوحدة مخزون أساسية والكرتون كوحدة صرف.
-                    أو اختر فوق <b>قطعة</b> وهنا <b>كرتون</b> مع التعبئة مباشرة.
-                    يمكن تعديل الوحدة والتعبئة في أي وقت.
+                    اختيارية: يمكن تركها <b>لا يوجد</b> أو الضغط على <b>حذف</b> لعدم استخدام وحدة صرف.
+                    إذا كانت الوحدة فوق <b>كرتون</b>: اختر أيضاً <b>كرتون</b> هنا وأدخل عدد القطع (مثال 24).
+                    عند الحفظ تُثبَّت <b>القطعة</b> كوحدة مخزون والكرتون كوحدة صرف.
                 </p>
                 <div class="form-row" style="align-items:flex-end;gap:0.75rem;flex-wrap:wrap;margin:0;">
                     <label class="field" style="flex:1.2;min-width:180px;margin:0;">
@@ -411,8 +410,12 @@ if ($action === 'add' || $action === 'edit') {
                     </label>
                     <label class="field" style="flex:1;min-width:160px;margin:0;">
                         <span class="field-label">العدد في وحدة الصرف (تعبئة)</span>
-                        <input class="input" type="number" name="issue_factor[]" id="item-issue-factor" min="2" step="1" value="<?= esc($issueFactorDisp) ?>" placeholder="مثال: 24" dir="ltr" title="عدد القطع داخل الكرتونة أو وحدة الصرف">
+                        <input class="input" type="number" name="issue_factor[]" id="item-issue-factor" min="0" step="1" value="<?= esc($issueFactorDisp) ?>" placeholder="مثال: 24" dir="ltr" title="اتركه فارغاً أو 0 إذا لم تستخدم وحدة صرف">
                     </label>
+                    <div class="field" style="flex:0 0 auto;margin:0;">
+                        <span class="field-label" style="visibility:hidden;">حذف</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="js-clear-issue-unit" title="حذف وحدة الصرف وعدم استخدامها">حذف / بدون صرف</button>
+                    </div>
                 </div>
             </div>
             <script>
@@ -420,14 +423,28 @@ if ($action === 'add' || $action === 'edit') {
               var baseSel = document.getElementById('item-base-unit-id');
               var issueSel = document.getElementById('item-issue-unit-id');
               var factorInp = document.getElementById('item-issue-factor');
+              var clearBtn = document.getElementById('js-clear-issue-unit');
+              function clearIssueUnit() {
+                if (issueSel) issueSel.value = '';
+                if (factorInp) factorInp.value = '';
+              }
+              if (clearBtn) {
+                clearBtn.addEventListener('click', clearIssueUnit);
+              }
+              if (issueSel) {
+                issueSel.addEventListener('change', function () {
+                  if (!issueSel.value) {
+                    if (factorInp) factorInp.value = '';
+                  }
+                });
+              }
               function suggestIssueFromBase() {
                 if (!baseSel || !issueSel) return;
                 var baseId = String(baseSel.value || '');
                 if (!baseId) return;
-                if (!issueSel.value) {
+                // اقتراح فقط إن لم يختر المستخدم «لا يوجد» عمداً ولم تُعبَّأ وحدة صرف بعد
+                if (!issueSel.value && factorInp && !factorInp.value) {
                   issueSel.value = baseId;
-                }
-                if (factorInp && !factorInp.value && issueSel.value) {
                   factorInp.focus();
                 }
               }
