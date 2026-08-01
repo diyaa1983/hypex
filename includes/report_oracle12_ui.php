@@ -71,13 +71,8 @@ function report_ora12_render_fav_button(string $activeRoute): void
 
 function report_ora12_render_title_bar(string $title, string $activeRoute): void
 {
-    $title = trim($title);
-    if ($title === '') {
-        return;
-    }
     echo '<div class="dashboard-ora report-ora12-screen" data-exit-guard="off">';
-    echo '<header class="dashboard-ora-screen-title report-ora12-screen-title" role="banner">';
-    echo '<h1 class="dashboard-ora-screen-title__text">' . esc($title) . '</h1>';
+    echo '<header class="dashboard-ora-screen-title report-ora12-screen-title report-ora12-screen-title--actions" role="banner">';
     echo '<span class="dashboard-ora-screen-title__meta report-ora12-screen-title__actions">';
     report_ora12_render_fav_button($activeRoute);
     echo '</span>';
@@ -93,6 +88,9 @@ function report_ora12_layout_open(string $pageTitle, string $routeTitle, string 
         return;
     }
     $barTitle = trim($pageTitle) !== '' ? trim($pageTitle) : trim($routeTitle);
+    if (function_exists('__') && $barTitle !== '') {
+        $barTitle = __($barTitle);
+    }
     report_ora12_render_title_bar($barTitle, $activeRoute);
 }
 

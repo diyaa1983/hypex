@@ -3340,7 +3340,7 @@
         ? window.DocumentHeader.bodyPrintAttrs(companyLogoUrl, true)
         : '';
     return (
-      '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة مبيعات</title>' +
+      '<!DOCTYPE html><html ' + (typeof appPrintHtmlLangAttrs === 'function' ? appPrintHtmlLangAttrs() : 'lang="ar" dir="rtl"') + '><head><meta charset="utf-8"><title>' + (typeof __ === 'function' ? __('فاتورة مبيعات') : 'فاتورة مبيعات') + '</title>' +
       '<style>' +
       getPrintFrameStyles() +
       '</style></head><body' +
@@ -3366,10 +3366,16 @@
 
   function printHtmlInFrame(fullHtml) {
     var frame = getPrintFrame();
+    if (window.PrintOrientation) {
+      fullHtml = PrintOrientation.prepareHtml(fullHtml);
+    }
     // تخطيط A4 ظاهر لمحرّك الطباعة — visibility:hidden كانت تسبب 3 صفحات
     frame.style.cssText =
       'position:fixed;left:0;top:0;width:210mm;height:297mm;border:0;margin:0;padding:0;' +
       'opacity:0;pointer-events:none;z-index:-1;';
+    if (window.PrintOrientation) {
+      PrintOrientation.sizeFrame(frame);
+    }
     var win = frame.contentWindow;
     win.document.open();
     win.document.write(fullHtml);
@@ -3410,9 +3416,22 @@
     setTimeout(waitForImages, 250);
   }
 
+  function fillPrintPreviewPaper(preview, innerHtml) {
+    if (!preview) return;
+    preview.innerHTML = '<div class="sales-inv-print-paper">' + innerHtml + '</div>';
+    var overlay = preview.closest ? preview.closest('.sales-inv-print-overlay') : document.getElementById('sales-inv-print-overlay');
+    if (overlay && window.PrintOrientation) {
+      PrintOrientation.markActive(overlay);
+    }
+  }
+
   function closePrintPreview() {
     var overlay = document.getElementById('sales-inv-print-overlay');
-    if (overlay) overlay.hidden = true;
+    if (overlay) {
+      overlay.hidden = true;
+      overlay.setAttribute('hidden', '');
+      overlay.style.display = 'none';
+    }
   }
 
   function openPrintPreview(forPdf) {
@@ -3428,11 +3447,11 @@
       if (overlay.parentNode !== document.body) {
         document.body.appendChild(overlay);
       }
-      preview.innerHTML = buildInvoicePrintInnerHtml();
+      fillPrintPreviewPaper(preview, buildInvoicePrintInnerHtml());
       if (title) {
         title.textContent = forPdf
-          ? 'معاينة — اختر «حفظ كـ PDF» من نافذة الطباعة'
-          : 'معاينة الطباعة';
+          ? 'معاينة شكل الورقة — اختر «حفظ كـ PDF» من نافذة الطباعة'
+          : 'معاينة شكل الورقة';
       }
       overlay.removeAttribute('hidden');
       overlay.hidden = false;
@@ -3508,7 +3527,7 @@
       if (overlay.parentNode !== document.body) {
         document.body.appendChild(overlay);
       }
-      preview.innerHTML = buildInvoicePrintInnerHtml();
+      fillPrintPreviewPaper(preview, buildInvoicePrintInnerHtml());
       // اعرض overlay مؤقتاً لكن مع تقليل ظهور المحتوى المرئي للمستخدم.
       overlay.removeAttribute('hidden');
       overlay.hidden = false;
@@ -3548,6 +3567,7 @@
       requestAnimationFrame(function () {
         waitForImages(function () {
           try {
+            var pdfTarget = preview.querySelector('.sales-inv-print-paper') || preview;
             html2pdf()
               .set({
                 margin: [10, 10, 10, 10],
@@ -3557,7 +3577,7 @@
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
                 pagebreak: { mode: ['css', 'legacy'] },
               })
-              .from(preview)
+              .from(pdfTarget)
               .save()
               .then(cleanup)
               .catch(function (err) {

@@ -1845,7 +1845,7 @@
         ? window.DocumentHeader.bodyPrintAttrs(companyLogoUrl, true)
         : '';
     return (
-      '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>سند قبض</title>' +
+      '<!DOCTYPE html><html ' + (typeof appPrintHtmlLangAttrs === 'function' ? appPrintHtmlLangAttrs() : 'lang="ar" dir="rtl"') + '><head><meta charset="utf-8"><title>' + (typeof __ === 'function' ? __('سند قبض') : 'سند قبض') + '</title>' +
       '<style>' +
       getPrintFrameStyles() +
       '</style></head><body' +
@@ -1871,6 +1871,10 @@
 
   function printHtmlInFrame(fullHtml) {
     var frame = getPrintFrame();
+    if (window.PrintOrientation) {
+      fullHtml = PrintOrientation.prepareHtml(fullHtml);
+      PrintOrientation.sizeFrame(frame);
+    }
     var win = frame.contentWindow;
     win.document.open();
     win.document.write(fullHtml);

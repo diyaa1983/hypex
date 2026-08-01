@@ -224,9 +224,9 @@ require_once app_path('includes/inv_delivery_line_table.php');
 <div id="sales-inv-print-overlay" class="sales-inv-print-overlay no-print" hidden>
     <div class="sales-inv-print-overlay-panel">
         <div class="sales-inv-print-overlay-head">
-            <h3 class="sales-inv-print-overlay-title">معاينة الطباعة</h3>
+            <h3 class="sales-inv-print-overlay-title">معاينة شكل الورقة</h3>
             <div class="sales-inv-print-overlay-actions">
-                <button type="button" class="btn btn-secondary btn-sm" id="sales-inv-print-run">طباعة</button>
+                <button type="button" class="btn btn-primary btn-sm" id="sales-inv-print-run">طباعة</button>
                 <button type="button" class="btn btn-secondary btn-sm" id="sales-inv-print-close">إغلاق</button>
             </div>
         </div>

@@ -127,24 +127,45 @@ class EmptyState extends StatelessWidget {
 }
 
 void showSnack(BuildContext context, String message, {bool error = false}) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              error ? Icons.error_outline_rounded : Icons.check_circle_rounded,
-              color: Colors.white,
-              size: 19,
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  final media = MediaQuery.of(context);
+  final bottomGap = (media.size.height / 2) - 28;
+  messenger.showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          Icon(
+            error ? Icons.error_outline_rounded : Icons.check_circle_rounded,
+            color: error ? AppTheme.danger : AppTheme.success,
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppTheme.textMain,
+                fontWeight: FontWeight.w700,
+                fontSize: 14.5,
+              ),
             ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: error ? AppTheme.danger : AppTheme.success,
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: error ? 5 : 3),
+          ),
+        ],
       ),
-    );
+      backgroundColor: Colors.white,
+      behavior: SnackBarBehavior.floating,
+      elevation: 8,
+      margin: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        bottom: bottomGap.clamp(80.0, media.size.height - 120),
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      duration: Duration(seconds: error ? 5 : 3),
+    ),
+  );
 }

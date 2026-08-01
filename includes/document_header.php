@@ -108,7 +108,8 @@ function document_print_header_css(): string
         . '.doc-print-meta table{width:100%;border-collapse:collapse;}'
         . '.doc-print-meta td{padding:0.2rem 0;border:none!important;text-align:start!important;font-weight:700;}'
         . '.doc-print-meta-value--party{font-weight:800;font-size:1.12em;color:#0f172a;}'
-        . document_print_signature_css();
+        . document_print_signature_css()
+        . document_print_user_footer_css();
 }
 
 /** أنماط علامة مائية الشعار (مضمّنة أيضاً في document-header.css). */
@@ -159,8 +160,8 @@ function document_print_signature_css(): string
 /** HTML مكان توقيع المستلم في الطباعة. */
 function document_print_recipient_signature_html(): string
 {
-    return '<div class="doc-print-signature-block" role="group" aria-label="توقيع المستلم">'
-        . '<span class="doc-print-signature-label">توقيع المستلم</span>'
+    return '<div class="doc-print-signature-block" role="group" aria-label="' . esc(__('توقيع المستلم')) . '">'
+        . '<span class="doc-print-signature-label">' . esc(__('توقيع المستلم')) . '</span>'
         . '<span class="doc-print-signature-line" aria-hidden="true"></span>'
         . '</div>';
 }
@@ -181,6 +182,34 @@ function document_print_user_label(): string
     }
 
     return $name;
+}
+
+/** أنماط تذييل الطباعة (اسم المستخدم). */
+function document_print_user_footer_css(): string
+{
+    return '.doc-print-user-footer{display:none;}'
+        . '@media print{'
+        . '.doc-print-user-footer{display:block!important;position:fixed;bottom:0;left:0;right:0;'
+        . 'margin:0;padding:1px 8px 2px;font-family:Arial,Helvetica,sans-serif;font-size:6pt;'
+        . 'font-weight:400;line-height:1.2;color:#94a3b8;text-align:center;direction:rtl;'
+        . 'z-index:10001;pointer-events:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+        . '}';
+}
+
+/** HTML تذييل الطباعة — اسم المستخدم الذي قام بالطباعة. */
+function document_print_user_footer_html(?string $label = null): string
+{
+    if ($label === null) {
+        $label = document_print_user_label();
+    }
+    $label = trim($label);
+    if ($label === '') {
+        return '';
+    }
+
+    return '<footer class="doc-print-user-footer doc-print-only" aria-hidden="true">'
+        . 'طبع بواسطة: ' . esc($label)
+        . '</footer>';
 }
 
 /** رابط ملف CSS للطباعة مع إصدار التعديل. */
@@ -216,10 +245,14 @@ function document_print_emit_standalone_page(
         . $contentHtml
         . '</div>';
 
+    $lang = function_exists('app_html_lang') ? app_html_lang($pdo) : 'ar';
+    $dir = function_exists('app_dir') ? app_dir($pdo) : 'rtl';
+    $pageTitleOut = function_exists('__') ? __($pageTitle) : $pageTitle;
+
     header('Content-Type: text/html; charset=utf-8');
 
-    echo '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8">';
-    echo '<title>' . esc($pageTitle) . '</title>';
+    echo '<!DOCTYPE html><html dir="' . esc($dir) . '" lang="' . esc($lang) . '"><head><meta charset="utf-8">';
+    echo '<title>' . esc($pageTitleOut) . '</title>';
     echo '<link rel="stylesheet" href="' . esc($docCss) . '">';
     echo '<link rel="stylesheet" href="' . esc($reportCss) . '">';
     if ($wmCss !== '') {

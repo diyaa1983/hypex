@@ -194,6 +194,12 @@ function attempt_login(string $username, string $password): bool
     $_SESSION['permissions'] = load_user_permissions($uid);
     $_SESSION['permissions_user_id'] = $uid;
     $_SESSION['app_context'] = 'desktop';
+    try {
+        require_once app_path('includes/company_settings.php');
+        unset($_SESSION['ui_theme'], $_SESSION['ui_theme_loaded']);
+    } catch (Throwable $e) {
+        unset($_SESSION['ui_theme'], $_SESSION['ui_theme_loaded']);
+    }
     unset($_SESSION['fin_check_due_email_boot']);
     unset($_SESSION['fin_out_check_due_email_boot']);
     session_regenerate_id(true);

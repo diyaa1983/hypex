@@ -91,8 +91,8 @@
 
 
     if (action === 'print' && !ev.defaultPrevented) {
+      // التقارير لها معاينة طباعة عبر report-sales-export.js
       if (document.querySelector('.report-sales-page .report-sales-print-area')) {
-        window.print();
         return;
       }
       if (document.querySelector('.sal-gps-list-page .report-sales-print-area')) {

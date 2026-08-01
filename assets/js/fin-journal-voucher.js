@@ -1678,6 +1678,10 @@
       frame.style.cssText = 'position:fixed;width:0;height:0;border:0;visibility:hidden;';
       document.body.appendChild(frame);
     }
+    if (window.PrintOrientation) {
+      fullHtml = PrintOrientation.prepareHtml(fullHtml);
+      PrintOrientation.sizeFrame(frame);
+    }
     var win = frame.contentWindow;
     win.document.open();
     win.document.write(fullHtml);

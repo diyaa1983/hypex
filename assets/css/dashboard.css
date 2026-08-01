@@ -120,36 +120,6 @@ body:has(.dashboard-ora) .main-content {
   margin-inline-end: auto;
 }
 
-.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn),
-.app-screen-title-bar > .ora12-title-bar__close:not(.ora12-title-bar__btn) {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.55rem;
-  height: 1.55rem;
-  margin-inline-start: 0.35rem;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1;
-  color: #fff;
-  text-decoration: none;
-  background: rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 2px;
-}
-
-.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn):hover,
-.app-screen-title-bar > .ora12-title-bar__close:not(.ora12-title-bar__btn):hover {
-  background: rgba(0, 0, 0, 0.28);
-  color: #fff;
-}
-
-.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn):active,
-.app-screen-title-bar > .ora12-title-bar__close:not(.ora12-title-bar__btn):active {
-  background: rgba(0, 0, 0, 0.38);
-}
-
 /* منطقة العمل */
 .dashboard-ora-workspace {
   display: flex;

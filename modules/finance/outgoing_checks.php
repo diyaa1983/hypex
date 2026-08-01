@@ -374,7 +374,7 @@ sales_inv_oracle12_enqueue_assets();
     </div>
 </div>
 
-<div id="fin-oc-print-overlay" class="sales-inv-print-overlay fin-oc-print-overlay no-print" hidden>
+<div id="fin-oc-print-overlay" class="sales-inv-print-overlay fin-oc-print-overlay no-print" data-print-orient="skip" hidden>
     <div class="sales-inv-print-overlay-panel fin-oc-print-overlay-panel">
         <div class="sales-inv-print-overlay-head">
             <h3 class="sales-inv-print-overlay-title" id="fin-oc-print-overlay-title">معاينة الشيك</h3>

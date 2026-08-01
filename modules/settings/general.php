@@ -15,6 +15,8 @@ company_settings_ensure_default_row($pdo);
 company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
 company_settings_ensure_invoice_print_decimal_places_columns($pdo);
 company_settings_ensure_currency_column($pdo);
+company_settings_ensure_ui_theme_column($pdo);
+company_settings_ensure_ui_lang_column($pdo);
 company_smtp_ensure_schema($pdo);
 company_whatsapp_ensure_schema($pdo);
 fin_check_due_email_ensure_settings_columns($pdo);
@@ -45,11 +47,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msgType = 'error';
     } else {
         $name = trim((string) ($_POST['company_name_ar'] ?? ''));
+        $existingCompanyName = trim((string) ($row['company_name_ar'] ?? ''));
+        // لا نفرّغ اسم الشركة أبداً عند الحفظ إن وُجد سابقاً (مثلاً بعد مسح العرض بلغة EN)
+        if ($name === '' && $existingCompanyName !== '') {
+            $name = $existingCompanyName;
+        }
         $dec = (int) ($_POST['decimal_places'] ?? 2);
         $unitPriceDec = (int) ($_POST['invoice_unit_price_decimal_places'] ?? 2);
         $printDec = (int) ($_POST['invoice_print_decimal_places'] ?? $dec);
         $printUnitPriceDec = (int) ($_POST['invoice_print_unit_price_decimal_places'] ?? $unitPriceDec);
         $rowsPerPage = (int) ($_POST['rows_per_page'] ?? 10);
+        $uiTheme = company_ui_theme_normalize((string) ($_POST['ui_theme'] ?? 'classic'));
+        $uiLang = company_ui_lang_normalize((string) ($_POST['ui_lang'] ?? 'ar'));
         $currencyCode = strtoupper(trim((string) ($_POST['currency_code'] ?? 'SAR')));
         if (!company_currency_is_valid($currencyCode)) {
             $currencyCode = 'SAR';
@@ -248,6 +257,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             company_name_ar = ?, tax_rate_percent = ?, decimal_places = ?, invoice_unit_price_decimal_places = ?,
                             invoice_print_decimal_places = ?, invoice_print_unit_price_decimal_places = ?,
                             rows_per_page = ?,
+                            ui_theme = ?,
+                            ui_lang = ?,
                             currency_code = ?,
                             address_ar = ?, phone = ?, email = ?, logo_path = ?,
                             smtp_host = ?, smtp_port = ?, smtp_secure = ?, smtp_username = ?, smtp_password = ?,
@@ -269,6 +280,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $printDec,
                             $printUnitPriceDec,
                             $rowsPerPage,
+                            $uiTheme,
+                            $uiLang,
                             $currencyCode,
                             $addr !== '' ? $addr : null,
                             $phone !== '' ? $phone : null,
@@ -307,6 +320,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         $GLOBALS['_company_settings_cache'] = null;
                         company_currency_reset_cache();
+                        if (function_exists('app_set_lang')) {
+                            app_set_lang($uiLang);
+                        }
                         company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
                         try {
                             if ($documentArchiveDir !== '') {
@@ -322,6 +338,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         if ($msgType !== 'error') {
                             $msg = 'تم حفظ الإعدادات.' . ($logoSkipNote !== '' ? ' —' . $logoSkipNote : '');
+                            company_settings_clear_cache();
+                            if (function_exists('app_set_lang')) {
+                                app_set_lang($uiLang);
+                            }
+                            unset($_SESSION['ui_theme'], $_SESSION['ui_theme_loaded']);
                         }
                         if ($msgType !== 'error' && $dec !== $oldDecimalPlaces) {
                             require_once app_path('includes/company_decimal_reapply.php');
@@ -343,6 +364,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         if ($msgType !== 'error') {
                             $msgType = 'success';
+                            if (function_exists('flash_set')) {
+                                flash_set('success', $msg);
+                            }
+                            redirect(app_url('index.php?r=settings'));
                         }
                         $row = $pdo->query('SELECT * FROM sys_company_settings WHERE id = 1 LIMIT 1')->fetch(PDO::FETCH_ASSOC) ?: [];
                     } catch (Throwable $e) {
@@ -389,6 +414,8 @@ $rpp = (int) ($row['rows_per_page'] ?? 10);
 if (!in_array($rpp, [10, 15, 20], true)) {
     $rpp = 10;
 }
+$uiTheme = company_ui_theme_normalize((string) ($row['ui_theme'] ?? 'classic'));
+$uiLang = company_ui_lang_normalize((string) ($row['ui_lang'] ?? 'ar'));
 $currencyCatalog = company_currency_catalog();
 $currentCurrencyCode = strtoupper(trim((string) ($row['currency_code'] ?? 'SAR')));
 if (!isset($currencyCatalog[$currentCurrencyCode])) {
@@ -404,6 +431,12 @@ $archiveRecommendedDir = fin_voucher_archive_recommended_dir();
 $archivePathIssue = fin_voucher_archive_path_issue($pdo);
 $archiveTodayFolder = app_today_ymd();
 $archiveServerLabel = sys_backup_server_label();
+
+$flash = flash_get();
+if ($flash && $msg === '') {
+    $msg = (string) ($flash['message'] ?? '');
+    $msgType = (string) ($flash['type'] ?? 'success');
+}
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 
@@ -415,15 +448,18 @@ $archiveServerLabel = sys_backup_server_label();
     <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
 
     <div class="settings-ora-panel">
-        <h2 class="settings-ora-panel-head">بيانات الشركة</h2>
+        <h2 class="settings-ora-panel-head"><?= esc(__('بيانات الشركة')) ?></h2>
         <div class="settings-ora-panel-body">
-        <div class="form-row">
-            <label class="field">
-                <span class="field-label">اسم الشركة</span>
-                <input class="input" name="company_name_ar" required value="<?= esc((string) ($row['company_name_ar'] ?? '')) ?>">
+
+        <h3 class="settings-ora-section-title"><?= esc(__('الهوية')) ?></h3>
+        <div class="form-row form-row--2">
+            <label class="field field--wide">
+                <span class="field-label"><?= esc(__('اسم الشركة')) ?></span>
+                <input class="input" name="company_name_ar" type="text" required autocomplete="organization"
+                       value="<?= esc((string) ($row['company_name_ar'] ?? '')) ?>">
             </label>
             <label class="field">
-                <span class="field-label">النسبة الافتراضية للضريبة</span>
+                <span class="field-label"><?= esc(__('النسبة الافتراضية للضريبة')) ?></span>
                 <?php if ($taxRateOptions !== []): ?>
                     <select class="input" name="default_tax_rate_id" required>
                         <?php foreach ($taxRateOptions as $o): ?>
@@ -434,51 +470,75 @@ $archiveServerLabel = sys_backup_server_label();
                     </select>
                     <?php if (user_can('tax_rates_settings')): ?>
                         <span class="field-hint">
-                            لإضافة أو تعديل المعدّلات:
-                            <a href="<?= esc($taxRatesUrl) ?>">معدّلات الضريبة</a>
+                            <?= esc(__('لإضافة أو تعديل المعدّلات:')) ?>
+                            <a href="<?= esc($taxRatesUrl) ?>"><?= esc(__('معدّلات الضريبة')) ?></a>
                         </span>
                     <?php endif; ?>
                 <?php else: ?>
                     <input class="input" name="tax_rate_percent" type="number" step="0.001" min="0" max="100" value="<?= esc((string) ($row['tax_rate_percent'] ?? '0')) ?>">
                     <span class="field-hint">
-                        جدول معدّلات الضريبة غير متوفر؛ أدخل النسبة يدويًا أو نفّذ ترحيل قاعدة البيانات.
+                        <?= esc(__('جدول معدّلات الضريبة غير متوفر؛ أدخل النسبة يدويًا أو نفّذ ترحيل قاعدة البيانات.')) ?>
                         <?php if (user_can('tax_rates_settings')): ?>
-                            <a href="<?= esc($taxRatesUrl) ?>">إدارة المعدّلات</a>
+                            <a href="<?= esc($taxRatesUrl) ?>"><?= esc(__('إدارة المعدّلات')) ?></a>
                         <?php endif; ?>
                     </span>
                 <?php endif; ?>
             </label>
+        </div>
+
+        <h3 class="settings-ora-section-title"><?= esc(__('الخانات العشرية والطباعة')) ?></h3>
+        <div class="form-row form-row--4">
             <label class="field">
-                <span class="field-label">الخانات العشرية بعد الفاصلة (النظام)</span>
+                <span class="field-label"><?= esc(__('خانات النظام')) ?></span>
                 <input class="input" name="decimal_places" type="number" min="0" max="<?= (int) $decimalPlacesMax ?>" value="<?= esc((string) $dp) ?>">
-                <span class="field-hint">تُطبَّق على جميع المبالغ في النظام (إجماليات، ضريبة، قبل الضريبة، تقارير، …). حتى <?= (int) $decimalPlacesMax ?> خانات.</span>
+                <span class="field-hint"><?= esc(__('المبالغ على الشاشة والتقارير')) ?></span>
             </label>
             <label class="field">
-                <span class="field-label">الخانات العشرية للسعر الافرادي في الفواتير</span>
+                <span class="field-label"><?= esc(__('سعر الوحدة (الفواتير)')) ?></span>
                 <input class="input" name="invoice_unit_price_decimal_places" type="number" min="0" max="<?= (int) $decimalPlacesMax ?>" value="<?= esc((string) $unitPriceDp) ?>">
-                <span class="field-hint">تُطبَّق على عمود <strong>سعر الوحدة</strong> فقط في فواتير البيع والشراء (مثلاً <?= (int) $decimalPlacesMax ?> خانات للسعر و3 لباقي المبالغ).</span>
+                <span class="field-hint"><?= esc(__('عمود سعر الوحدة في البيع/الشراء')) ?></span>
             </label>
             <label class="field">
-                <span class="field-label">خانات عشرية للمبالغ عند طباعة الفاتورة</span>
+                <span class="field-label"><?= esc(__('طباعة — المبالغ')) ?></span>
                 <input class="input" name="invoice_print_decimal_places" type="number" min="0" max="<?= (int) $decimalPlacesMax ?>" value="<?= esc((string) $printDp) ?>">
-                <span class="field-hint">تُطبَّق عند <strong>طباعة</strong> فاتورة البيع/الشراء فقط (إجماليات، ضريبة، قبل الضريبة، …) — مستقلة عن العرض على الشاشة.</span>
+                <span class="field-hint"><?= esc(__('عند طباعة الفاتورة فقط')) ?></span>
             </label>
             <label class="field">
-                <span class="field-label">خانات عشرية لسعر الوحدة عند طباعة الفاتورة</span>
+                <span class="field-label"><?= esc(__('طباعة — سعر الوحدة')) ?></span>
                 <input class="input" name="invoice_print_unit_price_decimal_places" type="number" min="0" max="<?= (int) $decimalPlacesMax ?>" value="<?= esc((string) $printUnitPriceDp) ?>">
-                <span class="field-hint">تُطبَّق على <strong>سعر الوحدة</strong> في نسخة الطباعة/PDF فقط.</span>
+                <span class="field-hint"><?= esc(__('سعر الوحدة في PDF/الطباعة')) ?></span>
             </label>
+        </div>
+
+        <h3 class="settings-ora-section-title"><?= esc(__('العرض واللغة')) ?></h3>
+        <div class="form-row form-row--4">
             <label class="field">
-                <span class="field-label">عدد الأسطر بالصفحة</span>
+                <span class="field-label"><?= esc(__('أسطر الصفحة')) ?></span>
                 <select class="input" name="rows_per_page">
                     <?php foreach ([10, 15, 20] as $opt): ?>
                         <option value="<?= $opt ?>" <?= $rpp === $opt ? 'selected' : '' ?>><?= $opt ?></option>
                     <?php endforeach; ?>
                 </select>
-                <span class="field-hint">يُطبَّق على قوائم العملاء والمواد والفواتير وغيرها مع ترقيم الصفحات.</span>
+                <span class="field-hint"><?= esc(__('قوائم العملاء والفواتير')) ?></span>
             </label>
             <label class="field">
-                <span class="field-label">العملة</span>
+                <span class="field-label"><?= esc(__('واجهة النظام')) ?></span>
+                <select class="input" name="ui_theme">
+                    <option value="classic" <?= $uiTheme === 'classic' ? 'selected' : '' ?>>classic</option>
+                    <option value="basic" <?= $uiTheme === 'basic' ? 'selected' : '' ?>>basic</option>
+                </select>
+                <span class="field-hint"><?= esc(__('classic أو basic للنظام كاملاً')) ?></span>
+            </label>
+            <label class="field">
+                <span class="field-label"><?= esc(__('لغة النظام')) ?></span>
+                <select class="input" name="ui_lang">
+                    <option value="ar" <?= $uiLang === 'ar' ? 'selected' : '' ?>><?= esc(__('العربية')) ?></option>
+                    <option value="en" <?= $uiLang === 'en' ? 'selected' : '' ?>><?= esc(__('الإنجليزية')) ?></option>
+                </select>
+                <span class="field-hint"><?= esc(__('بعد الحفظ يُعكس اتجاه الواجهة')) ?></span>
+            </label>
+            <label class="field">
+                <span class="field-label"><?= esc(__('العملة')) ?></span>
                 <select class="input" name="currency_code">
                     <?php foreach ($currencyCatalog as $cc): ?>
                         <option value="<?= esc((string) $cc['code']) ?>" <?= $cc['code'] === $currentCurrencyCode ? 'selected' : '' ?>>
@@ -486,34 +546,35 @@ $archiveServerLabel = sys_backup_server_label();
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <span class="field-hint">تُستخدم في تفقيط المبالغ على السندات والفواتير المطبوعة.</span>
+                <span class="field-hint"><?= esc(__('للتفقيط في السندات والطباعة')) ?></span>
             </label>
         </div>
 
+        <h3 class="settings-ora-section-title"><?= esc(__('التواصل والشعار')) ?></h3>
         <label class="field field--full">
-            <span class="field-label">العنوان</span>
-            <textarea class="input" name="address_ar" rows="3"><?= esc((string) ($row['address_ar'] ?? '')) ?></textarea>
+            <span class="field-label"><?= esc(__('العنوان')) ?></span>
+            <textarea class="input" name="address_ar" rows="2"><?= esc((string) ($row['address_ar'] ?? '')) ?></textarea>
         </label>
 
-        <div class="form-row">
+        <div class="form-row form-row--2">
             <label class="field">
-                <span class="field-label">الهاتف</span>
-                <input class="input" name="phone" value="<?= esc((string) ($row['phone'] ?? '')) ?>">
+                <span class="field-label"><?= esc(__('الهاتف')) ?></span>
+                <input class="input" name="phone" type="text" value="<?= esc((string) ($row['phone'] ?? '')) ?>">
             </label>
             <label class="field">
-                <span class="field-label">البريد</span>
+                <span class="field-label"><?= esc(__('البريد')) ?></span>
                 <input class="input" name="email" type="email" value="<?= esc((string) ($row['email'] ?? '')) ?>">
             </label>
         </div>
 
         <label class="field field--full">
-            <span class="field-label">شعار الشركة (PNG / JPG / WebP)</span>
+            <span class="field-label"><?= esc(__('شعار الشركة (PNG / JPG / WebP)')) ?></span>
             <input class="input" name="logo" type="file" accept="image/png,image/jpeg,image/webp">
         </label>
 
         <?php if (!empty($row['logo_path'])): ?>
             <div class="settings-ora-logo-preview">
-                الشعار الحالي:
+                <?= esc(__('الشعار الحالي:')) ?>
                 <img src="<?= esc(app_url((string) $row['logo_path'])) ?>" alt="">
             </div>
         <?php endif; ?>

@@ -88,12 +88,12 @@ function app_pwa_manifest(?array $settingsRow = null): array
         'start_url' => app_pwa_start_url(),
         'scope' => $scope,
         'display' => 'standalone',
-        'display_override' => ['window-controls-overlay', 'standalone', 'minimal-ui', 'browser'],
+        'display_override' => ['standalone', 'minimal-ui', 'browser'],
         'orientation' => 'any',
         'dir' => 'rtl',
         'lang' => 'ar',
-        'background_color' => '#d4d0c8',
-        'theme_color' => '#1e3a5f',
+        'background_color' => '#0b1220',
+        'theme_color' => '#0b1220',
         'icons' => app_pwa_icons($settingsRow),
         'prefer_related_applications' => false,
     ];
@@ -114,12 +114,14 @@ function app_pwa_sw_url(): string
 function render_app_pwa_head(?array $settingsRow = null): void
 {
     $manifest = esc(app_pwa_manifest_url());
-    $theme = '#1e3a5f';
+    $theme = '#0b1220';
     $swUrl = app_pwa_sw_url();
     $scope = app_pwa_scope();
 
     echo '<link rel="manifest" href="' . $manifest . '">' . "\n";
     echo '<meta name="theme-color" content="' . esc($theme) . '">' . "\n";
+    echo '<meta name="theme-color" media="(prefers-color-scheme: light)" content="' . esc($theme) . '">' . "\n";
+    echo '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="' . esc($theme) . '">' . "\n";
     $brand192 = esc(app_pwa_icon_png_url(192));
     $brand512 = esc(app_pwa_icon_png_url(512));
     echo '<link rel="icon" type="image/png" sizes="192x192" href="' . $brand192 . '">' . "\n";

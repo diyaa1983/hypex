@@ -144,6 +144,10 @@
 
     function printHtmlInFrame(fullHtml) {
         var frame = getPrintFrame();
+    if (window.PrintOrientation) {
+      fullHtml = PrintOrientation.prepareHtml(fullHtml);
+      PrintOrientation.sizeFrame(frame);
+    }
         var win = frame.contentWindow;
         win.document.open();
         win.document.write(fullHtml);
@@ -209,7 +213,7 @@
         if (overlay.parentNode !== document.body) {
             document.body.appendChild(overlay);
         }
-        preview.innerHTML = getPrintAreaInnerHtml();
+        preview.innerHTML = '<div class="sales-inv-print-paper">' + getPrintAreaInnerHtml() + '</div>';
         if (title) {
             title.textContent = 'معاينة الطباعة — اضغط «طباعة» في الشريط العلوي';
         }
@@ -217,6 +221,9 @@
         overlay.hidden = false;
         overlay.style.display = 'flex';
         overlay.style.zIndex = '10050';
+        if (window.PrintOrientation) {
+            PrintOrientation.markActive(overlay);
+        }
     }
 
     function runPrintFromPreview() {

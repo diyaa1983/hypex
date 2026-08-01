@@ -114,9 +114,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if ($isNew) {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
+                require_once app_path('includes/company_settings.php');
+                user_ui_theme_ensure_column($pdo);
+                $newUserTheme = company_ui_theme($pdo);
                 $ins = $pdo->prepare(
-                    'INSERT INTO sys_user (username, password_hash, full_name_ar, email, sales_rep_id, is_active)
-                     VALUES (?,?,?,?,?,?)'
+                    'INSERT INTO sys_user (username, password_hash, full_name_ar, email, sales_rep_id, is_active, ui_theme)
+                     VALUES (?,?,?,?,?,?,?)'
                 );
                 $ins->execute([
                     $username,
@@ -125,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $email !== '' ? $email : null,
                     $salesRepId,
                     $isActive,
+                    $newUserTheme,
                 ]);
                 $id = (int) $pdo->lastInsertId();
             } else {

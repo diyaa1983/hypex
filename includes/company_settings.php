@@ -21,22 +21,39 @@ function company_settings(?PDO $pdo = null): array
         'invoice_print_decimal_places' => 2,
         'invoice_print_unit_price_decimal_places' => 2,
         'rows_per_page' => 10,
+        'ui_theme' => 'basic',
+        'ui_lang' => 'ar',
         'logo_path' => null,
     ];
 
     try {
         $pdo = $pdo ?? db();
         company_settings_ensure_schema($pdo);
+        company_settings_ensure_ui_theme_column($pdo);
+        company_settings_ensure_ui_lang_column($pdo);
         $row = $pdo->query(
             'SELECT company_name_ar, tax_rate_percent, decimal_places, invoice_unit_price_decimal_places,
                     invoice_print_decimal_places, invoice_print_unit_price_decimal_places,
-                    rows_per_page, logo_path FROM sys_company_settings WHERE id = 1 LIMIT 1'
+                    rows_per_page, ui_theme, ui_lang, logo_path FROM sys_company_settings WHERE id = 1 LIMIT 1'
         )->fetch(PDO::FETCH_ASSOC);
         if (is_array($row)) {
             $defaults = array_merge($defaults, $row);
         }
     } catch (Throwable $e) {
-        // DB غير مهيأ
+        // DB غير مهيأ — جرّب بدون أعمدة الواجهة إن لم تُنشأ بعد
+        try {
+            $pdo = $pdo ?? db();
+            $row = $pdo->query(
+                'SELECT company_name_ar, tax_rate_percent, decimal_places, invoice_unit_price_decimal_places,
+                        invoice_print_decimal_places, invoice_print_unit_price_decimal_places,
+                        rows_per_page, logo_path FROM sys_company_settings WHERE id = 1 LIMIT 1'
+            )->fetch(PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                $defaults = array_merge($defaults, $row);
+            }
+        } catch (Throwable $e2) {
+            // ignore
+        }
     }
 
     $defaults['decimal_places'] = invoice_amount_decimals_clamp((int) ($defaults['decimal_places'] ?? 2));
@@ -53,9 +70,75 @@ function company_settings(?PDO $pdo = null): array
     );
     $rpp = (int) ($defaults['rows_per_page'] ?? 10);
     $defaults['rows_per_page'] = in_array($rpp, [10, 15, 20], true) ? $rpp : 10;
+    $defaults['ui_theme'] = company_ui_theme_normalize((string) ($defaults['ui_theme'] ?? 'classic'));
+    $defaults['ui_lang'] = company_ui_lang_normalize((string) ($defaults['ui_lang'] ?? 'ar'));
     $GLOBALS['_company_settings_cache'] = $defaults;
 
     return $defaults;
+}
+
+function company_settings_clear_cache(): void
+{
+    $GLOBALS['_company_settings_cache'] = null;
+}
+
+/** @return 'classic'|'basic' */
+function company_ui_theme_normalize(string $theme): string
+{
+    $theme = strtolower(trim($theme));
+    // modern = اسم قديم لـ basic
+    if ($theme === 'basic' || $theme === 'modern') {
+        return 'basic';
+    }
+
+    return 'classic';
+}
+
+/** واجهة النظام من إعدادات الشركة: classic | basic. */
+function company_ui_theme(?PDO $pdo = null): string
+{
+    return company_ui_theme_normalize((string) (company_settings($pdo)['ui_theme'] ?? 'classic'));
+}
+
+/** واجهة العرض الحالية — من الإعدادات فقط. @return 'classic'|'basic' */
+function app_ui_theme(?PDO $pdo = null): string
+{
+    return company_ui_theme($pdo);
+}
+
+function user_ui_theme_ensure_column(PDO $pdo): void
+{
+    try {
+        $pdo->query('SELECT ui_theme FROM sys_user LIMIT 1');
+    } catch (Throwable $e) {
+        if (strpos($e->getMessage(), 'Unknown column') === false) {
+            return;
+        }
+        try {
+            $pdo->exec(
+                "ALTER TABLE sys_user
+                 ADD COLUMN ui_theme VARCHAR(16) NOT NULL DEFAULT 'classic' AFTER is_active"
+            );
+            $def = company_ui_theme($pdo);
+            $pdo->prepare('UPDATE sys_user SET ui_theme = ?')->execute([$def]);
+        } catch (Throwable $e2) {
+            // ignore
+        }
+    }
+}
+
+/** @return 'ar'|'en' */
+function company_ui_lang_normalize(string $lang): string
+{
+    $lang = strtolower(trim($lang));
+
+    return $lang === 'en' ? 'en' : 'ar';
+}
+
+/** @return 'ar'|'en' */
+function company_ui_lang(?PDO $pdo = null): string
+{
+    return company_ui_lang_normalize((string) (company_settings($pdo)['ui_lang'] ?? 'ar'));
 }
 
 function company_decimal_places(?PDO $pdo = null): int
@@ -169,6 +252,7 @@ function company_settings_ensure_schema(PDO $pdo): void
 
     company_settings_ensure_default_row($pdo);
     company_settings_ensure_rows_per_page_column($pdo);
+    company_settings_ensure_ui_theme_column($pdo);
     company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
     company_settings_ensure_invoice_print_decimal_places_columns($pdo);
 
@@ -195,6 +279,56 @@ function company_settings_ensure_rows_per_page_column(PDO $pdo): void
             );
         } catch (Throwable $e2) {
             // ignore
+        }
+    }
+}
+
+function company_settings_ensure_ui_theme_column(PDO $pdo): void
+{
+    try {
+        $pdo->query('SELECT ui_theme FROM sys_company_settings LIMIT 1');
+    } catch (Throwable $e) {
+        if (strpos($e->getMessage(), 'Unknown column') === false) {
+            return;
+        }
+        try {
+            $pdo->exec(
+                "ALTER TABLE sys_company_settings
+                 ADD COLUMN ui_theme VARCHAR(16) NOT NULL DEFAULT 'classic' AFTER rows_per_page"
+            );
+        } catch (Throwable $e2) {
+            // ignore
+        }
+    }
+    try {
+        $pdo->exec("UPDATE sys_company_settings SET ui_theme = 'basic' WHERE ui_theme = 'modern'");
+    } catch (Throwable $e3) {
+        // ignore
+    }
+}
+
+function company_settings_ensure_ui_lang_column(PDO $pdo): void
+{
+    try {
+        $pdo->query('SELECT ui_lang FROM sys_company_settings LIMIT 1');
+    } catch (Throwable $e) {
+        if (strpos($e->getMessage(), 'Unknown column') === false) {
+            return;
+        }
+        try {
+            $pdo->exec(
+                "ALTER TABLE sys_company_settings
+                 ADD COLUMN ui_lang VARCHAR(8) NOT NULL DEFAULT 'ar' AFTER ui_theme"
+            );
+        } catch (Throwable $e2) {
+            try {
+                $pdo->exec(
+                    "ALTER TABLE sys_company_settings
+                     ADD COLUMN ui_lang VARCHAR(8) NOT NULL DEFAULT 'ar' AFTER rows_per_page"
+                );
+            } catch (Throwable $e3) {
+                // ignore
+            }
         }
     }
 }

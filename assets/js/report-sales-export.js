@@ -1542,7 +1542,11 @@
         reportSalesReturnsCss +
         (incomeTaxPrint ? getHrPayrollIncomeTaxPrintCss() : '') +
         getPdfCaptureSafetyCss(pdfOrientation) +
-        (isHrEmployeesReport() ? getHrEmployeesPdfOverrideCss() : '')
+        (isHrEmployeesReport() ? getHrEmployeesPdfOverrideCss() : '') +
+        /* اتجاه الطباعة المختار من المعاينة يتجاوز أي @page ثابت في أنماط التقرير */
+        '@page{size:A4 ' +
+        (pdfOrientation === 'landscape' ? 'landscape' : 'portrait') +
+        ';}'
       );
     }
 
@@ -1751,7 +1755,7 @@
         areaClass += ' report-hr-employees-print';
       }
       return (
-        '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>' +
+        '<!DOCTYPE html><html ' + (typeof appPrintHtmlLangAttrs === 'function' ? appPrintHtmlLangAttrs() : 'lang="ar" dir="rtl"') + '><head><meta charset="utf-8"><title>' +
         title +
         '</title><style>' +
         getPrintStyles(orient) +
@@ -1944,6 +1948,211 @@
       }, needsFit);
     }
 
+    function applyPreviewFits(win) {
+      if (!win || !win.document) return;
+      try {
+        if (isReceivablesSummaryMode()) {
+          fitReceivablesSummaryPartyNames(win.document);
+        }
+        if (isSalesCustomerNameFitReport()) {
+          fitSalesReportCustomerNames(win.document);
+        }
+        if (isDeliveryReportRoute()) {
+          fitDeliveryReportPrintCells(win.document);
+        }
+        if (isSalesItemNameFitReport()) {
+          fitSalesReportItemNames(win.document);
+        }
+        if (isPurchasesAllSuppliersReport()) {
+          fitPurchasesReportSupplierNames(win.document);
+        }
+        if (isItemStockLedgerReport()) {
+          fitItemStockLedgerPartyNames(win.document);
+        }
+        if (isVoucherChecksReport()) {
+          fitIncomingChecksReportCells(win.document);
+        }
+        if (isHrPayrollIncomeTaxReport()) {
+          fitHrPayrollIncomeTaxReportNames(win.document);
+        }
+      } catch (e) {}
+    }
+
+    var reportPrintOrientation = null;
+
+    function getDefaultReportPrintOrientation() {
+      var routeKey = page.getAttribute('data-report-route') || '';
+      return isLandscapePdfRoute(routeKey) ? 'landscape' : 'portrait';
+    }
+
+    function getSelectedReportPrintOrientation() {
+      if (reportPrintOrientation === 'landscape' || reportPrintOrientation === 'portrait') {
+        return reportPrintOrientation;
+      }
+      if (window.PrintOrientation) {
+        return PrintOrientation.get();
+      }
+      return getDefaultReportPrintOrientation();
+    }
+
+    function syncReportPrintOrientationControls(overlay) {
+      if (!overlay) return;
+      var orient = getSelectedReportPrintOrientation();
+      overlay.classList.toggle('report-print-overlay--landscape', orient === 'landscape');
+      overlay.classList.toggle('print-overlay--landscape', orient === 'landscape');
+      if (window.PrintOrientation) {
+        overlay.setAttribute('data-print-orient-current', orient);
+        PrintOrientation.syncLayout(overlay);
+        return;
+      }
+      var buttons = overlay.querySelectorAll('[data-print-orient]');
+      Array.prototype.forEach.call(buttons, function (btn) {
+        var active = btn.getAttribute('data-print-orient') === orient;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    function renderReportPrintPreviewFrame() {
+      var overlay = document.getElementById('report-print-overlay');
+      var frame = overlay && overlay.querySelector('#report-print-preview-frame');
+      if (!overlay || !frame) return;
+      syncReportPrintOrientationControls(overlay);
+      var orient = getSelectedReportPrintOrientation();
+      var html = buildStandaloneHtml(orient);
+      var win = frame.contentWindow;
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      runAfterPrintLayout(
+        win,
+        function () {
+          applyPreviewFits(win);
+          setTimeout(function () {
+            applyPreviewFits(win);
+          }, 0);
+        },
+        true
+      );
+    }
+
+    function ensureReportPrintOverlay() {
+      var overlay = document.getElementById('report-print-overlay');
+      if (overlay) {
+        return overlay;
+      }
+      overlay = document.createElement('div');
+      overlay.id = 'report-print-overlay';
+      overlay.className = 'sales-inv-print-overlay report-print-overlay no-print';
+      overlay.setAttribute('hidden', '');
+      overlay.innerHTML =
+        '<div class="sales-inv-print-overlay-panel report-print-overlay-panel">' +
+        '<div class="sales-inv-print-overlay-head">' +
+        '<h3 class="sales-inv-print-overlay-title">معاينة الطباعة — شكل الورقة</h3>' +
+        '<div class="sales-inv-print-overlay-actions">' +
+        '<div class="report-print-orient" role="group" aria-label="اتجاه الطباعة">' +
+        '<span class="report-print-orient__label">الاتجاه</span>' +
+        '<button type="button" class="report-print-orient__btn" data-print-orient="portrait" aria-pressed="false">طولي</button>' +
+        '<button type="button" class="report-print-orient__btn" data-print-orient="landscape" aria-pressed="false">عرضي</button>' +
+        '</div>' +
+        '<button type="button" class="btn btn-primary btn-sm" id="report-print-confirm">طباعة</button>' +
+        '<button type="button" class="btn btn-secondary btn-sm" id="report-print-close">إغلاق</button>' +
+        '</div></div>' +
+        '<div class="report-print-preview-stage">' +
+        '<iframe id="report-print-preview-frame" class="report-print-preview-frame" title="معاينة الطباعة"></iframe>' +
+        '</div></div>';
+      document.body.appendChild(overlay);
+
+      var closeBtn = overlay.querySelector('#report-print-close');
+      var confirmBtn = overlay.querySelector('#report-print-confirm');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', closeReportPrintPreview);
+      }
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', confirmReportPrintFromPreview);
+      }
+      if (window.PrintOrientation) {
+        PrintOrientation.enhance(overlay, {
+          defaultOrient: getDefaultReportPrintOrientation(),
+          onChange: function (orient) {
+            reportPrintOrientation = orient;
+            renderReportPrintPreviewFrame();
+          },
+        });
+      } else {
+        Array.prototype.forEach.call(overlay.querySelectorAll('[data-print-orient]'), function (btn) {
+          btn.addEventListener('click', function () {
+            var next = btn.getAttribute('data-print-orient');
+            if (next !== 'portrait' && next !== 'landscape') return;
+            if (getSelectedReportPrintOrientation() === next) return;
+            reportPrintOrientation = next;
+            renderReportPrintPreviewFrame();
+          });
+        });
+      }
+      overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) {
+          closeReportPrintPreview();
+        }
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && overlay && !overlay.hidden) {
+          closeReportPrintPreview();
+        }
+      });
+      return overlay;
+    }
+
+    function closeReportPrintPreview() {
+      var overlay = document.getElementById('report-print-overlay');
+      if (!overlay) return;
+      overlay.hidden = true;
+      overlay.setAttribute('hidden', '');
+      overlay.style.display = 'none';
+    }
+
+    function isReportPrintPreviewOpen() {
+      var overlay = document.getElementById('report-print-overlay');
+      return !!(overlay && !overlay.hidden);
+    }
+
+    function openReportPrintPreview() {
+      var overlay = ensureReportPrintOverlay();
+      var frame = overlay.querySelector('#report-print-preview-frame');
+      if (!frame) {
+        printHtmlInFrame(buildStandaloneHtml(getSelectedReportPrintOrientation()));
+        return;
+      }
+      if (overlay.parentNode !== document.body) {
+        document.body.appendChild(overlay);
+      }
+
+      reportPrintOrientation = getDefaultReportPrintOrientation();
+      if (window.PrintOrientation) {
+        PrintOrientation.set(reportPrintOrientation, overlay);
+        PrintOrientation.markActive(overlay);
+      }
+      overlay.removeAttribute('hidden');
+      overlay.hidden = false;
+      overlay.style.display = 'flex';
+      overlay.style.zIndex = '10050';
+      renderReportPrintPreviewFrame();
+    }
+
+    function confirmReportPrintFromPreview() {
+      var frame = document.querySelector('#report-print-preview-frame');
+      var orient = getSelectedReportPrintOrientation();
+      if (frame && frame.contentWindow) {
+        try {
+          applyPreviewFits(frame.contentWindow);
+          frame.contentWindow.focus();
+          frame.contentWindow.print();
+          return;
+        } catch (e) {}
+      }
+      printHtmlInFrame(buildStandaloneHtml(orient));
+    }
+
     function runReportPrint() {
       if (!hasReportData()) {
         var routeKey = page.getAttribute('data-report-route') || '';
@@ -1955,12 +2164,18 @@
           alertMsg('اختر السنة الضريبية والموظف ثم اضغط «عرض الشهادة».');
         } else if (routeKey === 'report_purchases') {
           alertMsg('اعرض التقرير أولاً باختيار المورد والفترة ثم «عرض التقرير».');
+        } else if (routeKey === 'report_warehouse_items' || routeKey === 'report_warehouse_zero_qty' || routeKey === 'report_warehouse_negative_qty') {
+          alertMsg('اختر المستودع ثم اضغط «عرض التقرير» قبل الطباعة.');
         } else {
           alertMsg('اعرض التقرير أولاً (العميل/المندوب والفترة) ثم اضغط «عرض التقرير».');
         }
         return;
       }
-      printHtmlInFrame(buildStandaloneHtml());
+      if (isReportPrintPreviewOpen()) {
+        confirmReportPrintFromPreview();
+        return;
+      }
+      openReportPrintPreview();
     }
 
     function getExportHost() {

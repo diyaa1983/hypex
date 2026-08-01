@@ -195,6 +195,9 @@ if (!empty($route['standalone'])) {
 }
 
 $routeTitle = (string) ($route['title'] ?? '');
+if (function_exists('__') && $routeTitle !== '') {
+    $routeTitle = __($routeTitle);
+}
 $pageTitle = $routeTitle;
 if (!empty($route['hide_screen_title'])) {
     $pageTitle = '';
@@ -218,14 +221,19 @@ nav_track_page_visit($activeRoute);
 if ($r === 'menu_hub') {
     $hubD = trim((string) ($_GET['d'] ?? ''));
     $hubS = trim((string) ($_GET['s'] ?? ''));
+    $hubSs = trim((string) ($_GET['ss'] ?? ''));
     $hubDomain = nav_find_domain($hubD);
     if ($hubDomain) {
         if ($hubS === '') {
             $pageTitle = (string) ($hubDomain['title'] ?? $pageTitle);
         } else {
-            $hubFound = nav_find_subgroup($hubD, $hubS);
+            $hubFound = nav_find_subgroup_path($hubD, $hubS, $hubSs);
             if ($hubFound) {
-                $pageTitle = (string) ($hubFound['subgroup']['title'] ?? $pageTitle);
+                if ($hubSs !== '' && !empty($hubFound['nested_subgroup']['title'])) {
+                    $pageTitle = (string) $hubFound['nested_subgroup']['title'];
+                } else {
+                    $pageTitle = (string) ($hubFound['subgroup']['title'] ?? $pageTitle);
+                }
             }
         }
     }
@@ -237,4 +245,6 @@ $content = ob_get_clean();
 
 require_once app_path('includes/app_window_manager.php');
 $layoutEmbed = app_mdi_is_embed_request();
+ob_start();
 require app_path($layoutEmbed ? 'templates/layout-embed.php' : 'templates/layout.php');
+echo i18n_translate_blob(ob_get_clean());

@@ -20,42 +20,42 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  min-width: 42px;
-  min-height: 42px;
+  width: 2.15rem;
+  height: 2.15rem;
+  min-width: 2.15rem;
+  min-height: 2.15rem;
   flex-shrink: 0;
   padding: 0;
-  border: 2px solid #64748b;
-  border-radius: 11px;
-  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
-  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #64748b;
   cursor: pointer;
   font-family: inherit;
   line-height: 1;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  box-shadow: none;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .app-check-bell.has-alerts {
-  border-color: #ef4444;
-  background: linear-gradient(180deg, #fff5f5 0%, #fecaca 100%);
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3), 0 2px 6px rgba(220, 38, 38, 0.2);
+  border-color: #fecaca;
+  background: #fff1f2;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.12);
 }
 
 .app-check-bell.has-alerts:hover,
 .app-check-bell.has-alerts[aria-expanded='true'] {
-  background: #fee2e2;
-  border-color: #dc2626;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.35), 0 3px 8px rgba(220, 38, 38, 0.25);
+  background: #ffe4e6;
+  border-color: #fda4af;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.18);
 }
 
 .app-check-bell:hover:not(.has-alerts),
 .app-check-bell[aria-expanded='true']:not(.has-alerts) {
-  background: #fef3c7;
-  border-color: #d97706;
-  color: #92400e;
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35), 0 3px 8px rgba(180, 83, 9, 0.22);
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.1);
 }
 
 .app-check-bell-icon {
@@ -63,34 +63,42 @@
   align-items: center;
   justify-content: center;
   line-height: 0;
-  color: #eab308;
+  color: #64748b;
 }
 
 .app-check-bell-icon svg {
   display: block;
-  width: 1.35rem;
-  height: 1.35rem;
-  stroke-width: 2.1;
-  color: #eab308;
-  stroke: #eab308;
+  width: 1.1rem;
+  height: 1.1rem;
+  stroke-width: 2;
+  color: currentColor;
+  stroke: currentColor;
 }
 
 .app-check-bell.has-alerts .app-check-bell-icon,
 .app-check-bell.has-alerts .app-check-bell-icon svg {
-  color: #facc15;
-  stroke: #facc15;
+  color: #e11d48;
+  stroke: #e11d48;
 }
 
 .app-check-bell.has-alerts .app-check-bell-icon svg {
-  stroke-width: 2.35;
+  stroke-width: 2.15;
 }
 
 .app-check-bell:hover .app-check-bell-icon,
 .app-check-bell:hover .app-check-bell-icon svg,
 .app-check-bell[aria-expanded='true'] .app-check-bell-icon,
 .app-check-bell[aria-expanded='true'] .app-check-bell-icon svg {
-  color: #ca8a04;
-  stroke: #ca8a04;
+  color: #1d4ed8;
+  stroke: #1d4ed8;
+}
+
+.app-check-bell.has-alerts:hover .app-check-bell-icon,
+.app-check-bell.has-alerts:hover .app-check-bell-icon svg,
+.app-check-bell.has-alerts[aria-expanded='true'] .app-check-bell-icon,
+.app-check-bell.has-alerts[aria-expanded='true'] .app-check-bell-icon svg {
+  color: #be123c;
+  stroke: #be123c;
 }
 
 .app-check-bell-badge {

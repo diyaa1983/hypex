@@ -11,11 +11,6 @@ if (is_file($cssPath)) {
 echo '<link rel="stylesheet" href="' . esc($cssUrl) . '">' . "\n";
 ?>
 <div class="dashboard-ora nav-hub-ora nav-hub-ora--favorites">
-    <header class="dashboard-ora-screen-title" role="banner">
-        <h1 class="dashboard-ora-screen-title__text">المفضلة</h1>
-        <span class="dashboard-ora-screen-title__meta">لا توجد اختصارات بعد</span>
-        <?php nav_render_screen_close('favorites_empty'); ?>
-    </header>
     <div class="dashboard-ora-workspace nav-fav-workspace">
         <section class="nav-fav-gallery" aria-label="المفضلة فارغة">
             <div class="nav-fav-gallery__stage">

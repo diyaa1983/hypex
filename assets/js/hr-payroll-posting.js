@@ -858,6 +858,10 @@
 
     function printHtmlInFrame(fullHtml) {
         var frame = getPayrollPostPrintFrame();
+        if (window.PrintOrientation) {
+            fullHtml = PrintOrientation.prepareHtml(fullHtml);
+            PrintOrientation.sizeFrame(frame);
+        }
         var win = frame.contentWindow;
         win.document.open();
         win.document.write(fullHtml);
@@ -1348,7 +1352,7 @@
                 if (overlay.parentNode !== document.body) {
                     document.body.appendChild(overlay);
                 }
-                preview.innerHTML = inner;
+                preview.innerHTML = '<div class="sales-inv-print-paper">' + inner + '</div>';
                 if (title) {
                     title.textContent = slipCount > 1
                         ? '\u0645\u0639\u0627\u064A\u0646\u0629 \u0642\u0633\u0627\u0626\u0645 \u0627\u0644\u0631\u0627\u062A\u0628 \u2014 '
@@ -1359,6 +1363,9 @@
                 overlay.hidden = false;
                 overlay.style.display = 'flex';
                 overlay.style.zIndex = '10050';
+                if (window.PrintOrientation) {
+                    PrintOrientation.markActive(overlay);
+                }
             })
             .catch(function () {
                 showAlert('\u062A\u0639\u0630\u0651\u0631 \u062A\u062D\u0645\u064A\u0644 \u0642\u0633\u0627\u0626\u0645 \u0627\u0644\u0631\u0627\u062A\u0628.', 'warning');

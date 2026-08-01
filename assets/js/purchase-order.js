@@ -2635,6 +2635,10 @@
 
   function printHtmlInFrame(fullHtml) {
     var frame = getPrintFrame();
+    if (window.PrintOrientation) {
+      fullHtml = PrintOrientation.prepareHtml(fullHtml);
+      PrintOrientation.sizeFrame(frame);
+    }
     var win = frame.contentWindow;
     win.document.open();
     win.document.write(fullHtml);
@@ -2662,13 +2666,23 @@
         printHtmlInFrame(buildStandaloneInvoiceHtml());
         return;
       }
-      preview.innerHTML = buildInvoicePrintInnerHtml();
+      if (overlay.parentNode !== document.body) {
+        document.body.appendChild(overlay);
+      }
+      preview.innerHTML = '<div class="sales-inv-print-paper">' + buildInvoicePrintInnerHtml() + '</div>';
+    if (window.PrintOrientation) {
+      var _po = document.getElementById('sales-inv-print-overlay');
+      if (_po) PrintOrientation.markActive(_po);
+    }
       if (title) {
         title.textContent = forPdf
-          ? 'معاينة — اختر «حفظ كـ PDF» من نافذة الطباعة'
-          : 'معاينة الطباعة';
+          ? 'معاينة شكل الورقة — اختر «حفظ كـ PDF» من نافذة الطباعة'
+          : 'معاينة شكل الورقة';
       }
+      overlay.removeAttribute('hidden');
       overlay.hidden = false;
+      overlay.style.display = 'flex';
+      overlay.style.zIndex = '10050';
     }
     if (invoiceEinvQr && !einvQrDataUrl) {
       refreshEinvQrDataUrl(showPreview);

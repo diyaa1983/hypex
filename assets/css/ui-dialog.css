@@ -342,12 +342,12 @@ body.m-inv-upload-busy .ui-dialog-root {
   z-index: 13200;
 }
 
-/* إشعارات نجاح خفيفة — لا تحجب الشاشة ولا تسرق التركيز */
+/* إشعارات نجاح خفيفة — وسط الشاشة */
 .ui-toast-host {
   position: fixed;
-  top: 1rem;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   z-index: 10060;
   display: flex;
   flex-direction: column;
@@ -369,7 +369,7 @@ body.m-inv-upload-busy .ui-dialog-root {
   border: 1px solid #e2e8f0;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(10px) scale(0.96);
   transition: opacity 0.2s ease, transform 0.2s ease;
   pointer-events: none;
   direction: rtl;
@@ -378,7 +378,7 @@ body.m-inv-upload-busy .ui-dialog-root {
 
 .ui-toast.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
 }
 
 .ui-toast-icon {

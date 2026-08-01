@@ -912,6 +912,10 @@
 
   function printHtmlInFrame(fullHtml) {
     var frame = getPrintFrame();
+    if (window.PrintOrientation) {
+      fullHtml = PrintOrientation.prepareHtml(fullHtml);
+      PrintOrientation.sizeFrame(frame);
+    }
     var win = frame.contentWindow;
     win.document.open();
     win.document.write(fullHtml);
@@ -961,7 +965,7 @@
     if (global.DocumentHeader && DocumentHeader.wrapPrintContent) {
       inner = DocumentHeader.wrapPrintContent(inner, companyLogoUrl);
     }
-    preview.innerHTML = inner;
+    preview.innerHTML = '<div class="sales-inv-print-paper">' + inner + '</div>';
     if (overlay.parentNode !== document.body) {
       document.body.appendChild(overlay);
     }
@@ -969,6 +973,9 @@
     overlay.hidden = false;
     overlay.style.display = 'flex';
     overlay.style.zIndex = '10050';
+    if (global.PrintOrientation) {
+      PrintOrientation.markActive(overlay);
+    }
   }
 
   function openPrintPreview() {

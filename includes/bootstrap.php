@@ -91,10 +91,13 @@ require_once app_path('includes/helpers.php');
 require_once app_path('includes/app_gps.php');
 require_once app_path('includes/db.php');
 require_once app_path('includes/company_settings.php');
+require_once app_path('includes/i18n.php');
 require_once app_path('includes/document_header.php');
 require_once app_path('includes/auth.php');
 require_once app_path('includes/date_defaults.php');
 app_apply_timezone();
+app_lang();
+app_ui_theme();
 
 if (is_logged_in()) {
     refresh_session_permissions();

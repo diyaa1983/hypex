@@ -20,6 +20,7 @@ $masterLedgerPostCsrf = $masterLedgerPostCsrf ?? '';
 $settingsRow = ['company_name_ar' => 'النظام المحاسبي', 'logo_path' => null];
 $appDecimalPlaces = 2;
 $appInvoiceUnitPriceDecimals = 2;
+$appUiTheme = 'basic';
 $appCurrency = ['code' => 'SAR', 'name_ar' => 'ريال سعودي', 'main_ar' => 'ريالاً سعودياً', 'fraction_ar' => 'هللة', 'symbol' => 'ر.س', 'fraction_units' => 100];
 try {
     require_once app_path('includes/company_settings.php');
@@ -31,6 +32,7 @@ try {
     ];
     $appDecimalPlaces = company_decimal_places();
     $appInvoiceUnitPriceDecimals = company_invoice_unit_price_decimal_places();
+    $appUiTheme = app_ui_theme();
     $appCurrency = company_currency();
 } catch (Throwable $e) {
     // DB غير مهيأ بعد
@@ -70,12 +72,13 @@ $dashboardUrl = app_url('index.php?r=dashboard');
 $logoutUrl = app_url('logout.php');
 $user = current_user();
 $appUserLabel = document_print_user_label();
+$printUserLabel = $appUserLabel;
 $tabPageTitle = trim($pageTitle) !== '' ? $pageTitle : (string) ($routeTitle ?? '');
 $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? ''));
 
 ?>
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="<?= esc(app_lang()) ?>" dir="<?= esc(app_dir()) ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -144,6 +147,20 @@ $appHeaderUiJsV = is_file(app_path('assets/js/app-header-ui.js'))
         : '';
     ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app.css')) ?><?= $appCssV !== '' ? '?v=' . esc($appCssV) : '' ?>">
+    <?php
+    $themeProCssV = is_file(app_path('assets/css/theme-pro.css'))
+        ? (string) filemtime(app_path('assets/css/theme-pro.css'))
+        : '';
+    if (($appUiTheme ?? 'basic') !== 'classic'):
+    ?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/theme-pro.css')) ?><?= $themeProCssV !== '' ? '?v=' . esc($themeProCssV) : '' ?>">
+    <?php endif; ?>
+    <?php
+    $uiLtrCssV = is_file(app_path('assets/css/ui-lang-ltr.css'))
+        ? (string) filemtime(app_path('assets/css/ui-lang-ltr.css'))
+        : '';
+    ?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/ui-lang-ltr.css')) ?><?= $uiLtrCssV !== '' ? '?v=' . esc($uiLtrCssV) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app-busy.css')) ?><?= $appBusyCssV !== '' ? '?v=' . esc($appBusyCssV) : '' ?>">
     <?php app_mdi_enqueue_styles(); ?>
     <?php app_mdi_enqueue_scripts(); ?>
@@ -191,9 +208,16 @@ if ($favRouteAllowed) {
     }
 }
 ?>
-<body class="app-body<?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?> data-active-route="<?= esc($activeRoute) ?>" data-csrf="<?= esc(csrf_token()) ?>" data-fav-api="<?= esc(app_url('api/favorite_toggle.php')) ?>" data-fav-allowed="<?= $favRouteAllowed ? '1' : '0' ?>" data-is-favorite="<?= $favIsFavorite ? '1' : '0' ?>">
+<body class="app-body ui-theme-<?= esc($appUiTheme) ?><?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-lang="<?= esc(app_lang()) ?>" data-dir="<?= esc(app_dir()) ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?> data-active-route="<?= esc($activeRoute) ?>" data-csrf="<?= esc(csrf_token()) ?>" data-fav-api="<?= esc(app_url('api/favorite_toggle.php')) ?>" data-fav-allowed="<?= $favRouteAllowed ? '1' : '0' ?>" data-is-favorite="<?= $favIsFavorite ? '1' : '0' ?>">
+<?php render_i18n_js(); ?>
 <?php render_app_titlebar($tabPageTitle, (string) $routeTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? '')); ?>
 <div class="app-shell<?= $layoutFocus ? ' app-shell--focus' : '' ?>">
+<?php
+    $screenHeadTitle = trim($tabPageTitle) !== '' ? trim($tabPageTitle) : trim((string) $routeTitle);
+    if ($screenHeadTitle !== '' && function_exists('__')) {
+        $screenHeadTitle = __($screenHeadTitle);
+    }
+?>
 <?php if ($layoutFocus): ?>
     <header class="app-topbar no-print" role="banner">
         <div class="app-topbar-account">
@@ -218,6 +242,9 @@ if ($favRouteAllowed) {
         <div class="app-screen-head-account">
             <?php render_app_header_account($appUserLabel, $logoutUrl); ?>
         </div>
+        <?php if (!$showMasterToolbar && $screenHeadTitle !== ''): ?>
+        <div class="app-screen-head-title" title="<?= esc($screenHeadTitle) ?>"><?= esc($screenHeadTitle) ?></div>
+        <?php endif; ?>
         <div class="app-screen-head-main">
             <?php render_header_check_notifications($headerCheckNotify); ?>
             <?php if ($showMasterToolbar): ?>
@@ -300,15 +327,15 @@ $appDecimalSyncJsV = is_file(app_path('assets/js/app-decimal-sync.js'))
 ?>
 <script src="<?= esc(app_url('assets/js/app-decimal-sync.js')) ?><?= $appDecimalSyncJsV !== '' ? '?v=' . esc($appDecimalSyncJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/document-header.js')) ?><?= $docHdrJsV !== '' ? '?v=' . esc($docHdrJsV) : '' ?>" defer></script>
+<?php
+$printOrientJsV = is_file(app_path('assets/js/print-orientation.js'))
+    ? (string) filemtime(app_path('assets/js/print-orientation.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/js/print-orientation.js')) ?><?= $printOrientJsV !== '' ? '?v=' . esc($printOrientJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/document-no-nav.js')) ?><?= $docNoNavJsV !== '' ? '?v=' . esc($docNoNavJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/ui-dialog.js')) ?><?= $uiDlgJsV !== '' ? '?v=' . esc($uiDlgJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-header-ui.js')) ?><?= $appHeaderUiJsV !== '' ? '?v=' . esc($appHeaderUiJsV) : '' ?>" defer></script>
-<?php
-$appDesktopWinJsV = is_file(app_path('assets/js/app-desktop-window.js'))
-    ? (string) filemtime(app_path('assets/js/app-desktop-window.js'))
-    : '';
-?>
-<script src="<?= esc(app_url('assets/js/app-desktop-window.js')) ?><?= $appDesktopWinJsV !== '' ? '?v=' . esc($appDesktopWinJsV) : '' ?>" defer></script>
 <?php if ($activeRoute === 'system_backup'): ?>
 <?php
 $sysBackupJsV = is_file(app_path('assets/js/sys-backup.js'))
@@ -322,12 +349,6 @@ $sysBackupJsV = is_file(app_path('assets/js/sys-backup.js'))
 <script src="<?= esc(app_url('assets/js/hr-ora-unsaved.js')) ?><?= $hrOraUnsavedJsV !== '' ? '?v=' . esc($hrOraUnsavedJsV) : '' ?>" defer></script>
 <?php endif; ?>
 <script src="<?= esc(app_url('assets/js/master-toolbar.js')) ?>" defer></script>
-<?php
-$docHotkeysJsV = is_file(app_path('assets/js/document-hotkeys.js'))
-    ? (string) filemtime(app_path('assets/js/document-hotkeys.js'))
-    : '';
-?>
-<script src="<?= esc(app_url('assets/js/document-hotkeys.js')) ?><?= $docHotkeysJsV !== '' ? '?v=' . esc($docHotkeysJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-list-keyboard.js')) ?><?= $listKeyboardJsV !== '' ? '?v=' . esc($listKeyboardJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app.js')) ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-date-picker.js')) ?><?= $datePickerJsV !== '' ? '?v=' . esc($datePickerJsV) : '' ?>" defer></script>
@@ -399,5 +420,6 @@ window.UserSessionGpsConfig = {
 <?php else: ?>
 <script>window.APP_GPS_ENABLED = false;</script>
 <?php endif; ?>
+<?= document_print_user_footer_html($printUserLabel) ?>
 </body>
 </html>

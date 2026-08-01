@@ -1,0 +1,1178 @@
+/**
+ * Professional American SaaS / ERP chrome theme
+ * Clean slate surfaces, soft elevation, trust-blue accents.
+ * Loaded after app.css / dashboard.css — overrides shell + dashboard look.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+:root {
+  --shell-bg: #f4f6f9;
+  --shell-panel: #ffffff;
+  --shell-border: #e2e8f0;
+  --shell-text: #0f172a;
+  --shell-text-muted: #64748b;
+  --shell-hover: #f1f5f9;
+  --shell-active: #eff6ff;
+  --shell-active-text: #1d4ed8;
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --ora12-border: #cbd5e1;
+  --sidebar: #ffffff;
+  --sidebar-2: #ffffff;
+  --accent: #2563eb;
+  --accent-2: #16a34a;
+  --danger: #dc2626;
+  --chrome-btn-bg: #ffffff;
+  --chrome-btn-border: #cbd5e1;
+  --chrome-btn-text: #0f172a;
+  --chrome-btn-hover-bg: #f8fafc;
+  --chrome-btn-hover-border: #94a3b8;
+  --chrome-btn-home-bg: #eff6ff;
+  --chrome-btn-home-border: #2563eb;
+  --chrome-btn-home-text: #1e40af;
+  --chrome-btn-home-hover-bg: #dbeafe;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --font: 'Source Sans 3', 'Segoe UI', Arial, Helvetica, sans-serif;
+  --pro-navy: #0f172a;
+  --pro-blue: #2563eb;
+  --pro-blue-dark: #1d4ed8;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  margin: 0;
+  padding: 0;
+}
+
+body.app-body {
+  background: var(--bg);
+  color: var(--text);
+  margin: 0 !important;
+  padding: 0 !important;
+  padding-top: 0 !important;
+}
+
+/* شريط الاسم ملتصق بأعلى النافذة بعرض كامل — متصفح / PWA / WCO */
+body.app-body .app-titlebar {
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  inset: auto !important;
+}
+
+/* ── Title bar ── */
+.app-titlebar {
+  background: linear-gradient(180deg, #111827 0%, #0b1220 100%);
+  border-bottom: 1px solid #020617;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+  margin: 0;
+  width: 100%;
+}
+
+.app-titlebar__row {
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  padding: 0 0.85rem;
+}
+
+.app-titlebar__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 40px;
+  color: #f8fafc;
+}
+
+.app-titlebar__btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #cbd5e1;
+}
+
+.app-titlebar__btn:hover {
+  background: rgba(148, 163, 184, 0.18);
+  color: #fff;
+}
+
+.app-screen-head-title {
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.app-screen-head-main .ora12-title-bar__btn,
+.app-topbar-main .ora12-title-bar__btn {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.app-lang-switch__btn {
+  min-width: 2.25rem;
+  height: 2rem;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.app-lang-switch__btn:hover {
+  background: #dbeafe;
+}
+
+.app-theme-switch__btn {
+  min-width: 2.5rem;
+  height: 2rem;
+  border-radius: 8px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+}
+
+.app-theme-switch__btn:hover {
+  background: #e0e7ff;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 276px;
+  flex: 0 0 276px;
+  background: var(--surface);
+  color: var(--shell-text);
+  border-inline-end: 1px solid var(--shell-border);
+  border-inline-start: none;
+  box-shadow: 1px 0 0 rgba(15, 23, 42, 0.02);
+}
+
+html[dir="rtl"] .sidebar {
+  border-inline-end: none;
+  border-inline-start: 1px solid var(--shell-border);
+  box-shadow: -1px 0 0 rgba(15, 23, 42, 0.02);
+}
+
+html[dir="ltr"] .sidebar {
+  border-inline-start: none !important;
+  border-inline-end: 1px solid var(--shell-border) !important;
+  box-shadow: 1px 0 0 rgba(15, 23, 42, 0.02);
+}
+
+.sidebar--compact-head {
+  background: var(--surface);
+  border-bottom: 1px solid var(--shell-border);
+}
+
+.sidebar-nav {
+  padding: 0.75rem 0.6rem 1rem;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.sidebar-nav a,
+.nav-domain-link,
+.nav-subgroup-link,
+.nav-item-link {
+  border-radius: 10px !important;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #334155 !important;
+  border: 1px solid transparent !important;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sidebar-nav .nav-domain-link {
+  display: flex !important;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0 !important;
+  padding: 0.58rem 0.7rem !important;
+  position: relative;
+}
+
+.sidebar-nav .nav-domain-link .hub-ico {
+  width: 1.85rem !important;
+  height: 1.85rem !important;
+  border-radius: 8px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.sidebar-nav .nav-domain-link .hub-ico svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.sidebar-nav .nav-domain-link__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-nav a:hover,
+.nav-domain-link:hover,
+.nav-subgroup-link:hover,
+.nav-item-link:hover {
+  background: var(--shell-hover) !important;
+  color: var(--text) !important;
+}
+
+.nav-domain-link.is-active,
+.nav-subgroup-link.is-active,
+.nav-item-link.is-active,
+.sidebar-nav a.is-active,
+.nav-domain-link[aria-current="page"],
+.sidebar-nav .is-active > a {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: transparent !important;
+  font-weight: 700;
+}
+
+.sidebar-nav .nav-domain-link.is-active::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
+.sidebar-nav .nav-domain-link.is-active .hub-ico {
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+}
+
+.sidebar-foot {
+  background: var(--surface);
+  border-top: 1px solid var(--shell-border);
+  padding: 0.75rem;
+}
+
+.user-chip {
+  background: var(--shell-hover);
+  border: 1px solid var(--shell-border);
+  border-radius: 12px;
+  padding: 0.6rem 0.7rem;
+}
+
+.user-name {
+  font-weight: 650;
+  font-size: 0.875rem;
+}
+
+.user-meta {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.sidebar-logout-btn,
+.nav-exit-btn {
+  border-radius: 8px !important;
+  border: 1px solid var(--shell-border) !important;
+  background: var(--surface) !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
+}
+
+.sidebar-logout-btn:hover,
+.nav-exit-btn:hover {
+  background: var(--shell-hover) !important;
+  border-color: #94a3b8 !important;
+}
+
+.brand-mark {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+/* ── Main content ── */
+.app-shell {
+  background: var(--bg);
+}
+
+.main-wrap,
+.main-content {
+  background: var(--bg);
+}
+
+.main-content {
+  padding: 1rem 1.15rem 1.5rem;
+}
+
+/* ── Buttons ── */
+.btn {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--pro-blue) !important;
+  border-color: var(--pro-blue-dark) !important;
+  color: #fff !important;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.25);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--pro-blue-dark) !important;
+  border-color: #1e40af !important;
+}
+
+.btn-secondary {
+  background: var(--surface) !important;
+  border: 1px solid #cbd5e1 !important;
+  color: var(--text) !important;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--shell-hover) !important;
+  border-color: #94a3b8 !important;
+}
+
+.btn-danger {
+  background: #dc2626 !important;
+  border-color: #b91c1c !important;
+  color: #fff !important;
+}
+
+/* ── Forms ── */
+.input,
+select.input,
+textarea.input,
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+select,
+textarea {
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: var(--surface) !important;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input:focus,
+select.input:focus,
+textarea.input:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none !important;
+  border-color: #93c5fd !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
+.field-label {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* ── Master toolbar ── */
+.master-toolbar {
+  background: transparent;
+}
+
+.master-toolbar-inner {
+  gap: 0.4rem;
+}
+
+.master-toolbar .master-toolbar-btn {
+  border-radius: 999px !important;
+  min-height: 2.15rem;
+  box-shadow: none !important;
+  font-weight: 600 !important;
+}
+
+.master-toolbar .master-toolbar-btn.btn-secondary {
+  background: #f8fafc !important;
+  color: #334155 !important;
+  border-color: #e2e8f0 !important;
+}
+
+.master-toolbar .master-toolbar-btn.btn-secondary:hover:not(:disabled):not(.is-inactive) {
+  background: #eff6ff !important;
+  color: #1e40af !important;
+  border-color: #bfdbfe !important;
+}
+
+.master-toolbar .master-toolbar-btn.btn-primary {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.28) !important;
+}
+
+.master-toolbar .master-toolbar-btn.btn-danger {
+  background: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+  color: #be123c !important;
+}
+
+.master-toolbar .master-toolbar-btn[data-master-action="post"] {
+  background: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #a16207 !important;
+}
+
+/* ── Header / toolbar ── */
+.app-screen-head,
+.app-topbar {
+  background: #ffffff;
+  border-bottom: 1px solid #e8edf3;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+  min-height: 3.5rem;
+  padding: 0.45rem 1rem;
+}
+
+.app-header-account__name {
+  font-weight: 650;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.app-header-logout-btn {
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.app-header-logout-btn:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+/* ── Login ── */
+.login-body {
+  background:
+    radial-gradient(1200px 500px at 10% -10%, rgba(37, 99, 235, 0.12), transparent 60%),
+    radial-gradient(900px 400px at 100% 0%, rgba(14, 165, 233, 0.10), transparent 55%),
+    #f4f6f9 !important;
+}
+
+.login-card {
+  background: var(--surface) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08) !important;
+  padding: 1.75rem !important;
+}
+
+.login-sub {
+  font-weight: 700 !important;
+  font-size: 1.15rem !important;
+  color: var(--text) !important;
+}
+
+.alert-error {
+  border-radius: 10px !important;
+  border: 1px solid #fecaca !important;
+  background: #fef2f2 !important;
+  color: #991b1b !important;
+}
+
+/* ── Tables (general) ── */
+table.data,
+.table,
+.report-table,
+.grid-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--shell-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+table.data th,
+.table th,
+.report-table th {
+  background: var(--shell-hover) !important;
+  color: #334155 !important;
+  font-weight: 700 !important;
+  border-bottom: 1px solid var(--shell-border) !important;
+}
+
+table.data td,
+.table td,
+.report-table td {
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+/* ── Dashboard professional ── */
+.dashboard-ora {
+  --ora12-blue: #2563eb;
+  --ora12-blue-dark: #1d4ed8;
+  --ora12-blue-light: #eff6ff;
+  --ora12-bg: transparent;
+  --ora12-surface: #ffffff;
+  --ora12-border: #e2e8f0;
+  --ora12-text: #0f172a;
+  --ora12-muted: #64748b;
+  --ora12-link: #2563eb;
+  --ora12-hover: #f8fafc;
+  --ora12-stripe: #f8fafc;
+  --ora12-title: #2563eb;
+  --ora12-warn: #dc2626;
+  --ora12-ok: #16a34a;
+  --ora12-accent: #b45309;
+  font-family: var(--font);
+  font-size: 0.875rem;
+  gap: 0.85rem;
+}
+
+.main-wrap:has(.dashboard-ora) .main-content,
+body:has(.dashboard-ora) .main-content {
+  padding: 1rem 1.15rem 1.5rem;
+  background: var(--bg);
+}
+
+.dashboard-ora-screen-title {
+  min-height: 3rem;
+  padding: 0.55rem 1rem;
+  background: var(--surface) !important;
+  border: 1px solid var(--shell-border) !important;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.report-ora12-screen-title--actions {
+  min-height: 0;
+  padding: 0.25rem 0;
+  justify-content: flex-end;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0;
+}
+
+.dashboard-ora-screen-title__text {
+  color: var(--text) !important;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.dashboard-ora-screen-title__meta {
+  color: #475569 !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.dashboard-ora-screen-title .ora12-title-bar__btn,
+.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn),
+.app-screen-title-bar > .ora12-title-bar__close:not(.ora12-title-bar__btn),
+.app-screen-title-bar .ora12-title-bar__btn,
+.app-screen-exit-btn {
+  color: #64748b !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 999px !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.dashboard-ora-screen-title .ora12-title-bar__btn:hover,
+.dashboard-ora-screen-title > .ora12-title-bar__close:not(.ora12-title-bar__btn):hover,
+.app-screen-title-bar .ora12-title-bar__btn:hover,
+.app-screen-exit-btn:hover {
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+  border-color: #fecaca !important;
+}
+
+.dashboard-ora-workspace {
+  gap: 0.85rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.dashboard-ora-panel {
+  background: var(--surface);
+  border: 1px solid var(--shell-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.dashboard-ora-panel__title {
+  margin: 0;
+  padding: 0.7rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #334155 !important;
+  background: var(--shell-hover) !important;
+  border-bottom: 1px solid var(--shell-border) !important;
+}
+
+.dashboard-ora-panel__sub {
+  color: #475569 !important;
+  background: var(--shell-hover) !important;
+  border-bottom: 1px solid var(--shell-border) !important;
+  font-weight: 600;
+}
+
+.dashboard-ora-panel__body {
+  padding: 0.85rem;
+}
+
+.dashboard-ora-kpi,
+.dashboard-ora-kpi--uniform {
+  border: 1px solid #e6eaf0 !important;
+  border-radius: 14px !important;
+  background: var(--surface) !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+}
+
+.dashboard-ora-kpi:hover,
+.dashboard-ora-kpi--uniform:hover {
+  border-color: #c7d7fe !important;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.08) !important;
+}
+
+.dashboard-ora-kpi--primary,
+.dashboard-ora-kpi--success,
+.dashboard-ora-kpi--warn,
+.dashboard-ora-kpi--danger {
+  border-inline-start: 3px solid var(--kpi-accent, #2563eb) !important;
+}
+
+.dashboard-ora-kpi-label,
+.dashboard-ora-kpi-eyebrow {
+  color: #64748b !important;
+  font-weight: 650 !important;
+  font-size: 0.7rem !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-ora-kpi-value,
+.dashboard-ora-kpi-value--lg {
+  display: block !important;
+}
+
+.dashboard-ora-account-row,
+.dashboard-ora-list-item,
+.dashboard-ora-ledger-row {
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+
+.dashboard-ora-account-row:hover,
+.dashboard-ora-list-item:hover {
+  background: var(--shell-hover) !important;
+  border-color: #e2e8f0;
+}
+
+/* Soften legacy Oracle screen chrome globally when theme is loaded */
+.app-screen-title-bar {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0;
+  color: var(--text) !important;
+  box-shadow: none !important;
+  justify-content: flex-end;
+}
+
+.app-screen-title-bar,
+.app-screen-title-bar * {
+  color: inherit;
+}
+
+/* Check bell */
+.app-check-bell-btn {
+  width: 2.15rem !important;
+  height: 2.15rem !important;
+  border-radius: 999px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #f8fafc !important;
+  color: #64748b !important;
+  box-shadow: none !important;
+}
+
+.app-check-bell-btn:hover {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
+}
+
+/* Dialogs */
+.ui-dialog,
+.ui-dialog-card,
+#ui-dialog-root .ui-dialog-panel {
+  border-radius: 14px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18) !important;
+}
+
+@media (max-width: 960px) {
+  .sidebar {
+    width: 100%;
+    flex-basis: 100%;
+    height: auto;
+    max-height: none;
+    position: relative;
+  }
+}
+
+/* ── Menu hub tiles ── */
+.nav-hub-title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.nav-hub-back {
+  color: #2563eb !important;
+}
+
+.nav-hub-back--prev {
+  border-color: #bfdbfe !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+}
+
+.nav-hub-back--prev:hover {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+.nav-hub-tile {
+  border: 1px solid #e6eaf0 !important;
+  border-radius: 14px !important;
+  background: var(--surface) !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+
+.nav-hub-tile:hover {
+  border-color: #93c5fd !important;
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.10) !important;
+  transform: translateY(-2px);
+}
+
+.nav-hub-tile--folder {
+  background: var(--surface) !important;
+}
+
+.nav-hub-ora-tile,
+.nav-hub-ora-tile--folder {
+  border-radius: 14px !important;
+  background: var(--surface) !important;
+  border: 1px solid #e6eaf0 !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+}
+
+.nav-hub-ora-tile:hover,
+.nav-hub-ora-tile--folder:hover {
+  border-color: #93c5fd !important;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.08) !important;
+}
+
+/* ── Dashboard 2027 — modern accounting SaaS ── */
+.dashboard-ora--modern {
+  gap: 1rem;
+}
+
+.dashboard-ora-panel--kpi {
+  overflow: visible !important;
+}
+
+.dashboard-ora-panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1.05rem 0.75rem;
+  border-bottom: 1px solid #eef2f7;
+  background: var(--surface);
+}
+
+.dashboard-ora-panel--kpi .dashboard-ora-panel__title {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  text-transform: none !important;
+  letter-spacing: -0.01em !important;
+  font-size: 1rem !important;
+  font-weight: 750 !important;
+  color: var(--text) !important;
+}
+
+.dashboard-ora-panel__lead {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi-grid--modern {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi,
+.dashboard-ora--modern .dashboard-ora-kpi--uniform {
+  align-items: flex-start !important;
+  text-align: start !important;
+  gap: 0.3rem !important;
+  min-height: 0 !important;
+  padding: 1.05rem 1.15rem 1rem !important;
+  border-radius: 16px !important;
+  border: 1px solid #e6eaf0 !important;
+  border-inline-start: 3px solid var(--kpi-accent, #2563eb) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease !important;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi:hover,
+.dashboard-ora--modern .dashboard-ora-kpi--uniform:hover {
+  border-color: #c7d7fe !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08) !important;
+  transform: translateY(-1px);
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi--hero {
+  min-height: 7.4rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 55%) !important;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  margin-bottom: 0.2rem;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--kpi-accent, #2563eb);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi--success .dashboard-ora-kpi-dot {
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.14);
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi--warn .dashboard-ora-kpi-dot {
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.14);
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi--danger .dashboard-ora-kpi-dot {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi-label,
+.dashboard-ora--modern .dashboard-ora-kpi-eyebrow {
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b !important;
+  text-align: start !important;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi-value,
+.dashboard-ora--modern .dashboard-ora-kpi-value--lg {
+  display: block !important;
+  margin: 0.05rem 0 0 !important;
+  font-size: 1.55rem !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--text) !important;
+  font-variant-numeric: tabular-nums;
+  text-align: start !important;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi--hero .dashboard-ora-kpi-value {
+  font-size: 1.85rem !important;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi-hint {
+  margin: 0.15rem 0 0 !important;
+  padding: 0 !important;
+  font-size: 0.74rem !important;
+  font-weight: 550 !important;
+  color: #94a3b8 !important;
+  text-align: start !important;
+  line-height: 1.4;
+}
+
+.dashboard-ora--modern .dash-kpi-gauge {
+  display: none !important;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi--danger {
+  background: #fffbfb !important;
+  border-color: #fecaca !important;
+}
+
+.dashboard-ora--modern .dashboard-ora-kpi--danger .dashboard-ora-kpi-value {
+  color: #b91c1c !important;
+}
+
+.dashboard-ora--modern .dashboard-ora-workspace {
+  gap: 1rem;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-ora--modern .dashboard-ora-kpi-grid--modern {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .dashboard-ora--modern .dashboard-ora-kpi-grid--modern {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-ora--modern .dashboard-ora-kpi--hero .dashboard-ora-kpi-value,
+  .dashboard-ora--modern .dashboard-ora-kpi-value {
+    font-size: 1.45rem !important;
+  }
+}
+
+/* ── Hub + icons 2027 (visual only, same navigation) ── */
+.hub-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 14px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  flex-shrink: 0;
+}
+
+.hub-ico--folder {
+  width: 3.35rem;
+  height: 3.35rem;
+  border-radius: 16px;
+}
+
+.hub-ico svg { display: block; }
+.hub-ico--blue { color: #1d4ed8; background: #eff6ff; border-color: #dbeafe; }
+.hub-ico--indigo { color: #4338ca; background: #eef2ff; border-color: #e0e7ff; }
+.hub-ico--teal { color: #0f766e; background: #f0fdfa; border-color: #ccfbf1; }
+.hub-ico--emerald { color: #047857; background: #ecfdf5; border-color: #d1fae5; }
+.hub-ico--violet { color: #6d28d9; background: #f5f3ff; border-color: #ede9fe; }
+.hub-ico--amber { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+.hub-ico--orange { color: #c2410c; background: #fff7ed; border-color: #fed7aa; }
+.hub-ico--rose { color: #be123c; background: #fff1f2; border-color: #fecdd3; }
+.hub-ico--cyan { color: #0e7490; background: #ecfeff; border-color: #a5f3fc; }
+.hub-ico--slate { color: var(--muted); background: var(--shell-hover); border-color: #e2e8f0; }
+
+.nav-hub-ora--pro {
+  gap: 0.9rem;
+}
+
+.main-wrap:has(.nav-hub-ora--pro) .main-content,
+body:has(.nav-hub-ora--pro) .main-content {
+  background: var(--bg, #f4f6f9) !important;
+}
+
+.nav-hub-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.05rem 1.15rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  background:
+    radial-gradient(620px 160px at 100% 0%, rgba(37, 99, 235, 0.09), transparent 55%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.nav-hub-head__eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #2563eb;
+}
+
+.nav-hub-head__title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 750;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.nav-hub-head__sub {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.nav-hub-head__actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.nav-hub-head__actions .ora12-title-bar__close,
+.nav-hub-head__actions .ora12-title-bar__btn {
+  color: #475569 !important;
+  background: var(--surface) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+}
+
+.dashboard-ora-panel--hub .dashboard-ora-panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.85rem 1.05rem 0.7rem;
+  border-bottom: 1px solid #eef2f7;
+  background: var(--surface);
+}
+
+.dashboard-ora-panel--hub .dashboard-ora-panel__title {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  text-transform: none !important;
+  letter-spacing: -0.01em !important;
+  font-size: 1rem !important;
+  font-weight: 750 !important;
+  color: var(--text) !important;
+}
+
+.dashboard-ora-panel--hub .dashboard-ora-panel__lead {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.nav-hub-ora--pro .nav-hub-ora-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)) !important;
+  gap: 0.9rem !important;
+}
+
+.nav-hub-ora--pro .nav-hub-ora-tile,
+.nav-hub-ora--pro .nav-hub-ora-tile--folder {
+  min-height: 9rem !important;
+  padding: 1.1rem 0.85rem 1rem !important;
+  border-radius: 16px !important;
+  border: 1px solid #e6eaf0 !important;
+  background: var(--surface) !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+  gap: 0.75rem !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease !important;
+}
+
+.nav-hub-ora--pro .nav-hub-ora-tile:hover,
+.nav-hub-ora--pro .nav-hub-ora-tile--folder:hover {
+  border-color: #93c5fd !important;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.1) !important;
+  transform: translateY(-2px);
+  background: var(--surface) !important;
+}
+
+.nav-hub-ora--pro .nav-hub-ora-tile-label {
+  font-size: 0.92rem !important;
+  font-weight: 700 !important;
+  color: var(--text) !important;
+}
+
+.nav-hub-ora--pro .nav-hub-ora-tile-meta {
+  font-size: 0.74rem !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+}
+
+.nav-hub-ora--pro .nav-hub-ora-breadcrumb .dashboard-ora-btn {
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+}
+
+.nav-hub-ora--pro .nav-hub-ora-breadcrumb .dashboard-ora-btn:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.nav-fav-tile__face .hub-ico {
+  width: 3.1rem;
+  height: 3.1rem;
+}
+
+@media (max-width: 720px) {
+  .nav-hub-head {
+    flex-direction: column;
+  }
+}
+

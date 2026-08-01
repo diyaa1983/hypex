@@ -4,13 +4,43 @@ declare(strict_types=1);
 /** @return array<string, mixed> */
 function nav_menu_config(): array
 {
-    static $menu = null;
-    if ($menu === null) {
-        $menu = require app_path('config/nav_menu.php');
-        $menu = nav_menu_inject_favorites($menu);
+    static $menuByLang = [];
+    $lang = function_exists('app_lang') ? app_lang() : 'ar';
+    if (isset($menuByLang[$lang]) && is_array($menuByLang[$lang])) {
+        return $menuByLang[$lang];
     }
+    $menu = require app_path('config/nav_menu.php');
+    $menu = nav_menu_inject_favorites($menu);
+    if (function_exists('i18n_translate_nav_tree')) {
+        $menu = i18n_translate_nav_tree($menu);
+    } else {
+        $menu = nav_menu_translate_labels($menu);
+    }
+    $menuByLang[$lang] = $menu;
 
     return $menu;
+}
+
+/**
+ * يترجم title/label في شجرة القائمة حسب لغة النظام.
+ *
+ * @param array<string, mixed> $node
+ * @return array<string, mixed>
+ */
+function nav_menu_translate_labels(array $node): array
+{
+    if (!function_exists('__')) {
+        return $node;
+    }
+    foreach ($node as $key => $value) {
+        if (($key === 'title' || $key === 'label') && is_string($value) && $value !== '') {
+            $node[$key] = __($value);
+        } elseif (is_array($value)) {
+            $node[$key] = nav_menu_translate_labels($value);
+        }
+    }
+
+    return $node;
 }
 
 /**
@@ -750,7 +780,7 @@ function render_app_header_back_button(?string $activeRoute = null): void
 /** شريط عنوان PWA — أزرار رجوع/تحديث + اسم الشاشة على سطر واحد. */
 function render_app_titlebar_refresh_button(): void
 {
-    echo '<button type="button" class="app-titlebar__btn app-titlebar__refresh-btn" id="app-titlebar-refresh" title="تحديث الصفحة" aria-label="تحديث الصفحة">';
+    echo '<button type="button" class="app-titlebar__btn app-titlebar__refresh-btn" id="app-titlebar-refresh" title="' . esc(__('تحديث الصفحة')) . '" aria-label="' . esc(__('تحديث الصفحة')) . '">';
     echo '<span class="app-titlebar__btn-icon" aria-hidden="true">↻</span>';
     echo '</button>';
 }
@@ -766,7 +796,7 @@ function render_app_titlebar_home_button(?string $activeRoute = null): void
     }
 
     $url = nav_home_url();
-    $hint = 'الشاشة الرئيسية';
+    $hint = __('الشاشة الرئيسية');
 
     echo '<a class="app-titlebar__btn app-titlebar__home-btn" href="' . esc($url) . '"';
     echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">';
@@ -845,7 +875,7 @@ function render_app_favicon_links(?array $settingsRow = null): void
     echo '<link rel="shortcut icon" href="' . $href . '">' . "\n";
 }
 
-/** عنوان الشاشة بخط صغير أعلى المحتوى (يُستثنى menu_hub لأنه يعرض عنواناً داخل الصفحة). */
+/** أزرار المفضلة/الإغلاق أعلى المحتوى (العنوان يظهر في وسط شريط الرأس). */
 function render_app_screen_title(string $pageTitle, string $activeRoute = ''): void
 {
     require_once app_path('includes/app_window_manager.php');
@@ -855,8 +885,7 @@ function render_app_screen_title(string $pageTitle, string $activeRoute = ''): v
     if ($pageTitle === '' || $activeRoute === 'menu_hub' || $activeRoute === 'dashboard') {
         return;
     }
-    echo '<header class="app-screen-title-bar">';
-    echo '<h1 class="app-screen-title">' . esc($pageTitle) . '</h1>';
+    echo '<header class="app-screen-title-bar app-screen-title-bar--actions">';
     sys_favorites_render_toggle_button($activeRoute, ['icon_size' => 22]);
     nav_render_screen_close($activeRoute);
     echo '</header>';
@@ -916,6 +945,7 @@ function nav_render_sidebar_domain(array $block, string $activeRoute, ?array $ac
     }
 
     $domainId = (string) ($block['id'] ?? '');
+    $title = (string) ($block['title'] ?? '');
 
     require_once app_path('includes/app_window_manager.php');
     $href = nav_sidebar_domain_href($block);
@@ -924,8 +954,23 @@ function nav_render_sidebar_domain(array $block, string $activeRoute, ?array $ac
     }
     $isActive = nav_sidebar_domain_is_active($domainId, $activeRoute, $activeHub);
 
+    $useProIcons = true;
+    try {
+        if (function_exists('app_ui_theme') && app_ui_theme() === 'classic') {
+            $useProIcons = false;
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+
     echo '<a class="nav-domain-link' . ($isActive ? ' is-active' : '') . '" href="' . esc($href) . '">';
-    echo esc((string) ($block['title'] ?? ''));
+    if ($useProIcons) {
+        require_once app_path('includes/hub_icons.php');
+        echo hub_icon_html($domainId !== '' ? $domainId : $title, $title, false, 18);
+        echo '<span class="nav-domain-link__label">' . esc($title) . '</span>';
+    } else {
+        echo esc($title);
+    }
     echo '</a>';
 }
 
@@ -1023,7 +1068,11 @@ function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl 
         $url = app_mdi_embed_url($url);
     }
     echo '<a class="ora12-title-bar__close app-screen-exit-btn" href="' . esc($url) . '"';
-    echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">×</a>';
+    echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">';
+    echo '<svg class="app-screen-exit-btn__icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">';
+    echo '<path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>';
+    echo '</svg>';
+    echo '</a>';
 }
 
 /** زر × ثابت — يسار الشاشة — للشاشات التي لا تعرض شريط عنوان Oracle. */
@@ -1044,6 +1093,10 @@ function nav_render_floating_screen_exit(string $activeRoute = ''): void
         $url = app_mdi_embed_url($url);
     }
 
-    echo '<a class="app-floating-exit-btn ora12-title-bar__close no-print" href="' . esc($url) . '"';
-    echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">×</a>';
+    echo '<a class="app-floating-exit-btn ora12-title-bar__close app-screen-exit-btn no-print" href="' . esc($url) . '"';
+    echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">';
+    echo '<svg class="app-screen-exit-btn__icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">';
+    echo '<path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>';
+    echo '</svg>';
+    echo '</a>';
 }

@@ -15,6 +15,7 @@ $routeTitle = $routeTitle ?? '';
 $settingsRow = ['company_name_ar' => 'النظام المحاسبي', 'logo_path' => null];
 $appDecimalPlaces = 2;
 $appInvoiceUnitPriceDecimals = 2;
+$appUiTheme = 'basic';
 $appCurrency = ['code' => 'SAR', 'name_ar' => 'ريال سعودي', 'main_ar' => 'ريالاً سعودياً', 'fraction_ar' => 'هللة', 'symbol' => 'ر.س', 'fraction_units' => 100];
 try {
     require_once app_path('includes/company_settings.php');
@@ -26,6 +27,7 @@ try {
     ];
     $appDecimalPlaces = company_decimal_places();
     $appInvoiceUnitPriceDecimals = company_invoice_unit_price_decimal_places();
+    $appUiTheme = app_ui_theme();
     $appCurrency = company_currency();
 } catch (Throwable $e) {
     // DB غير مهيأ بعد
@@ -44,6 +46,8 @@ $docWatermarkLogoUrl = $hasDocWatermark ? document_print_watermark_logo_url() : 
 $activeRoute = (string) ($activeRoute ?? 'dashboard');
 $tabPageTitle = trim($pageTitle) !== '' ? $pageTitle : (string) ($routeTitle ?? '');
 $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? ''));
+$printUserLabel = document_print_user_label();
+
 $appCssV = is_file(app_path('assets/css/app.css')) ? (string) filemtime(app_path('assets/css/app.css')) : '';
 $uiDlgCssV = is_file(app_path('assets/css/ui-dialog.css')) ? (string) filemtime(app_path('assets/css/ui-dialog.css')) : '';
 $uiDlgJsV = is_file(app_path('assets/js/ui-dialog.js')) ? (string) filemtime(app_path('assets/js/ui-dialog.js')) : '';
@@ -87,13 +91,27 @@ $appBusyJsV = is_file(app_path('assets/js/app-busy.js'))
 
 ?>
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="<?= esc(app_lang()) ?>" dir="<?= esc(app_dir()) ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= esc($browserTabTitle) ?></title>
     <?php render_app_favicon_links($settingsRow); ?>
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app.css')) ?><?= $appCssV !== '' ? '?v=' . esc($appCssV) : '' ?>">
+    <?php
+    $themeProCssV = is_file(app_path('assets/css/theme-pro.css'))
+        ? (string) filemtime(app_path('assets/css/theme-pro.css'))
+        : '';
+    if (($appUiTheme ?? 'basic') !== 'classic'):
+    ?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/theme-pro.css')) ?><?= $themeProCssV !== '' ? '?v=' . esc($themeProCssV) : '' ?>">
+    <?php endif; ?>
+    <?php
+    $uiLtrCssV = is_file(app_path('assets/css/ui-lang-ltr.css'))
+        ? (string) filemtime(app_path('assets/css/ui-lang-ltr.css'))
+        : '';
+    ?>
+    <link rel="stylesheet" href="<?= esc(app_url('assets/css/ui-lang-ltr.css')) ?><?= $uiLtrCssV !== '' ? '?v=' . esc($uiLtrCssV) : '' ?>">
     <link rel="stylesheet" href="<?= esc(app_url('assets/css/app-busy.css')) ?><?= $appBusyCssV !== '' ? '?v=' . esc($appBusyCssV) : '' ?>">
     <style>
       html { height: 100%; }
@@ -143,7 +161,8 @@ $appBusyJsV = is_file(app_path('assets/js/app-busy.js'))
     </script>
     <script src="<?= esc(app_url('assets/js/app-busy.js')) ?><?= $appBusyJsV !== '' ? '?v=' . esc($appBusyJsV) : '' ?>" defer></script>
 </head>
-<body class="app-body app-body--embed app-body--focus<?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?>>
+<body class="app-body app-body--embed app-body--focus<?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-lang="<?= esc(app_lang()) ?>" data-dir="<?= esc(app_dir()) ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
+<?php render_i18n_js(); ?>
 <header class="app-embed-head no-print" role="banner">
     <?php app_mdi_render_embed_minimize_btn(); ?>
     <?php render_master_toolbar(); ?>
@@ -163,6 +182,12 @@ app_busy_render_overlay();
 <script src="<?= esc(app_url('assets/js/app-format.js')) ?><?= $appFormatJsV !== '' ? '?v=' . esc($appFormatJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-decimal-sync.js')) ?><?= $appDecimalSyncJsV !== '' ? '?v=' . esc($appDecimalSyncJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/document-header.js')) ?><?= $docHdrJsV !== '' ? '?v=' . esc($docHdrJsV) : '' ?>" defer></script>
+<?php
+$printOrientJsV = is_file(app_path('assets/js/print-orientation.js'))
+    ? (string) filemtime(app_path('assets/js/print-orientation.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/js/print-orientation.js')) ?><?= $printOrientJsV !== '' ? '?v=' . esc($printOrientJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/document-no-nav.js')) ?><?= $docNoNavJsV !== '' ? '?v=' . esc($docNoNavJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/ui-dialog.js')) ?><?= $uiDlgJsV !== '' ? '?v=' . esc($uiDlgJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/screen-exit-guard.js')) ?><?= $screenExitGuardJsV !== '' ? '?v=' . esc($screenExitGuardJsV) : '' ?>" defer></script>
@@ -170,12 +195,6 @@ app_busy_render_overlay();
 <script src="<?= esc(app_url('assets/js/hr-ora-unsaved.js')) ?><?= $hrOraUnsavedJsV !== '' ? '?v=' . esc($hrOraUnsavedJsV) : '' ?>" defer></script>
 <?php endif; ?>
 <script src="<?= esc(app_url('assets/js/master-toolbar.js')) ?>" defer></script>
-<?php
-$docHotkeysJsV = is_file(app_path('assets/js/document-hotkeys.js'))
-    ? (string) filemtime(app_path('assets/js/document-hotkeys.js'))
-    : '';
-?>
-<script src="<?= esc(app_url('assets/js/document-hotkeys.js')) ?><?= $docHotkeysJsV !== '' ? '?v=' . esc($docHotkeysJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-list-keyboard.js')) ?><?= $listKeyboardJsV !== '' ? '?v=' . esc($listKeyboardJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app.js')) ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-date-picker.js')) ?><?= $datePickerJsV !== '' ? '?v=' . esc($datePickerJsV) : '' ?>" defer></script>
@@ -233,5 +252,6 @@ $docHotkeysJsV = is_file(app_path('assets/js/document-hotkeys.js'))
   );
 })();
 </script>
+<?= document_print_user_footer_html($printUserLabel) ?>
 </body>
 </html>

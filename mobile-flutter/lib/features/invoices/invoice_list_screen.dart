@@ -133,6 +133,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   Widget build(BuildContext context) {
     final canDelete = context.read<SessionController>().can('m_sales_invoices');
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F5F9),
       appBar: AppBar(
         title: const Text('فواتير المبيعات'),
         automaticallyImplyLeading: !widget.embedded,
@@ -144,44 +145,141 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/invoices/new').then((_) => _load()),
-        icon: const Icon(Icons.add_rounded, size: 20),
-        label: const Text('فاتورة جديدة'),
-      ),
       body: Column(
         children: [
           Container(
-            color: AppTheme.surface,
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            width: double.infinity,
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _search,
-                  textInputAction: TextInputAction.search,
-                  decoration: InputDecoration(
-                    hintText: 'بحث برقم الفاتورة أو العميل...',
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                    suffixIcon: _search.text.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.close_rounded, size: 18),
-                            onPressed: () {
-                              _search.clear();
-                              _load();
-                            },
-                          ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F4FC),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  onChanged: (_) => setState(() {}),
-                  onSubmitted: (_) => _load(),
+                  child: const Row(
+                    children: [
+                      Text(
+                        'قائمة',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0572CE),
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'اختر فاتورة ثم طباعة',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 10),
-                _FilterChips(
+                SizedBox(
+                  height: 46,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: const LinearGradient(
+                        begin: Alignment.centerRight,
+                        end: Alignment.centerLeft,
+                        colors: [
+                          Color(0xFF1A8FE8),
+                          Color(0xFF0572CE),
+                          Color(0xFF024D8F),
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color:
+                              const Color(0xFF0572CE).withValues(alpha: 0.28),
+                          blurRadius: 12,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () =>
+                            context.push('/invoices/new').then((_) => _load()),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Center(
+                          child: Text(
+                            '+ فاتورة جديدة',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _FilterSeg(
                   value: _filter,
                   onChanged: (v) {
                     setState(() => _filter = v);
                     _load();
                   },
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _search,
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: 'رقم الفاتورة أو اسم العميل...',
+                          prefixIcon:
+                              const Icon(Icons.search_rounded, size: 20),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide:
+                                const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        onSubmitted: (_) => _load(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 44,
+                      child: FilledButton(
+                        onPressed: _load,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF0572CE),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text('بحث'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -209,10 +307,11 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                         ],
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 90),
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
                         itemCount: _rows.length,
-                        itemBuilder: (_, i) => _InvoiceCard(
+                        itemBuilder: (_, i) => _InvoiceStrip(
                           row: _rows[i],
+                          even: i.isEven,
                           canDelete: canDelete,
                           onTap: () => context
                               .push('/invoices/${_rows[i]['id']}')
@@ -230,8 +329,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   }
 }
 
-class _FilterChips extends StatelessWidget {
-  const _FilterChips({required this.value, required this.onChanged});
+class _FilterSeg extends StatelessWidget {
+  const _FilterSeg({required this.value, required this.onChanged});
 
   final String value;
   final ValueChanged<String> onChanged;
@@ -243,18 +342,36 @@ class _FilterChips extends StatelessWidget {
       'unposted': 'غير مرحّلة',
       'posted': 'مرحّلة',
     };
-    return SizedBox(
-      height: 36,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
         children: items.entries.map((e) {
           final sel = e.key == value;
-          return Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: ChoiceChip(
-              label: Text(e.value),
-              selected: sel,
-              onSelected: (_) => onChanged(e.key),
+          return Expanded(
+            child: Material(
+              color: sel ? const Color(0xFF0572CE) : Colors.transparent,
+              borderRadius: BorderRadius.circular(9),
+              child: InkWell(
+                onTap: () => onChanged(e.key),
+                borderRadius: BorderRadius.circular(9),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 9),
+                  child: Text(
+                    e.value,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: sel ? Colors.white : const Color(0xFF475569),
+                    ),
+                  ),
+                ),
+              ),
             ),
           );
         }).toList(),
@@ -263,9 +380,10 @@ class _FilterChips extends StatelessWidget {
   }
 }
 
-class _InvoiceCard extends StatelessWidget {
-  const _InvoiceCard({
+class _InvoiceStrip extends StatelessWidget {
+  const _InvoiceStrip({
     required this.row,
+    required this.even,
     required this.canDelete,
     required this.onTap,
     required this.onPost,
@@ -273,6 +391,7 @@ class _InvoiceCard extends StatelessWidget {
   });
 
   final Map<String, dynamic> row;
+  final bool even;
   final bool canDelete;
   final VoidCallback onTap;
   final VoidCallback onPost;
@@ -281,141 +400,142 @@ class _InvoiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final posted = row['is_posted'] == true;
-    return AppCard(
-      onTap: onTap,
-      padding: const EdgeInsets.fromLTRB(12, 12, 6, 8),
-      child: Column(
-        children: [
-          Row(
+    final rep = (row['sales_rep_name'] ?? '').toString().trim();
+    return Material(
+      color: even ? Colors.white : const Color(0xFFF7F9FB),
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 12, 10, 10),
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+          ),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              MiniIcon(
-                Icons.receipt_long_rounded,
-                color: posted ? AppTheme.success : AppTheme.warn,
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: posted
+                      ? const Color(0xFF13A05C).withValues(alpha: 0.12)
+                      : const Color(0xFFE08700).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.receipt_long_rounded,
+                  size: 20,
+                  color: posted ? AppTheme.success : AppTheme.warn,
+                ),
               ),
-              const SizedBox(width: 11),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '#${row['invoice_no'] ?? '—'}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        StatusPill(
+                          text: posted ? 'مرحّلة' : 'غير مرحّلة',
+                          color: posted ? AppTheme.success : AppTheme.warn,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(
                       (row['customer_name'] ?? '—').toString(),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
                       ),
                     ),
-                    if ((row['sales_rep_name'] ?? '').toString().trim().isNotEmpty) ...[
+                    if (rep.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
-                        'المندوب: ${(row['sales_rep_name'] ?? '').toString().trim()}',
+                        'المندوب: $rep',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
-                          color: AppTheme.textSoft,
+                          color: Color(0xFF64748B),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          '#${row['invoice_no'] ?? '—'}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSoft,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text('•',
-                            style: TextStyle(color: AppTheme.textSoft)),
-                        const SizedBox(width: 8),
-                        Text(
-                          (row['invoice_date_dmy'] ?? '').toString(),
-                          textDirection: TextDirection.ltr,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSoft,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      '${row['invoice_date_dmy'] ?? ''}'
+                      '${(row['payment_label'] ?? '').toString().isNotEmpty ? '  •  ${row['payment_label']}' : ''}',
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: Text(
-                      (row['total_fmt'] ?? '0').toString(),
-                      textDirection: TextDirection.ltr,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.primary,
-                      ),
+                  Text(
+                    (row['total_fmt'] ?? '0').toString(),
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF024D8F),
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: StatusPill(
-                      text: posted ? 'مرحّلة' : 'غير مرحّلة',
-                      color: posted ? AppTheme.success : AppTheme.warn,
-                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!posted)
+                        IconButton(
+                          tooltip: 'ترحيل',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: onPost,
+                          icon: const Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 18,
+                          ),
+                          color: AppTheme.success,
+                        ),
+                      if (!posted && canDelete)
+                        IconButton(
+                          tooltip: 'حذف',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: onDelete,
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                          ),
+                          color: AppTheme.danger,
+                        ),
+                    ],
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              if ((row['payment_label'] ?? '').toString().isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Text(
-                    row['payment_label'].toString(),
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: AppTheme.textSoft,
-                    ),
-                  ),
-                ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'عرض',
-                visualDensity: VisualDensity.compact,
-                onPressed: onTap,
-                icon: const Icon(Icons.visibility_outlined, size: 19),
-                color: AppTheme.textSoft,
-              ),
-              if (!posted)
-                IconButton(
-                  tooltip: 'ترحيل',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onPost,
-                  icon: const Icon(Icons.check_circle_outline_rounded, size: 19),
-                  color: AppTheme.success,
-                ),
-              if (!posted && canDelete)
-                IconButton(
-                  tooltip: 'حذف',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline_rounded, size: 19),
-                  color: AppTheme.danger,
-                ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

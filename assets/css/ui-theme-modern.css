@@ -1,0 +1,229 @@
+/**
+ * الواجهة الحديثة — تسجيل الدخول + مظهر النظام
+ * تُفعَّل عبر body.ui-theme-modern من إعدادات النظام
+ */
+
+/* ——— شاشة الدخول ——— */
+body.login-body.ui-theme-modern {
+  background: #f1f5f9;
+  display: block;
+  min-height: 100vh;
+}
+
+.login-modern-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  direction: rtl;
+}
+
+.login-modern-hero {
+  background:
+    radial-gradient(900px 500px at 20% 10%, rgba(96, 165, 250, 0.35), transparent 55%),
+    radial-gradient(700px 420px at 90% 80%, rgba(37, 99, 235, 0.45), transparent 50%),
+    linear-gradient(160deg, #0b1f4d 0%, #123a8a 48%, #1d4ed8 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-modern-hero-inner {
+  width: min(440px, 100%);
+  position: relative;
+  z-index: 1;
+}
+
+.login-modern-brand-mark {
+  margin-bottom: 1.25rem;
+}
+
+.login-modern-brand-logo {
+  max-height: 56px;
+  max-width: 160px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0.35rem 0.5rem;
+}
+
+.login-modern-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3rem;
+  height: 3rem;
+  padding: 0 0.75rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  font-size: 0.95rem;
+}
+
+.login-modern-hero-title {
+  margin: 0 0 0.85rem;
+  font-size: clamp(1.55rem, 2.4vw, 2.1rem);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.login-modern-hero-text {
+  margin: 0 0 1.5rem;
+  font-size: 0.98rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.login-modern-hero-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.login-modern-hero-points li {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.login-modern-hero-points li::before {
+  content: '';
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: #93c5fd;
+  box-shadow: 0 0 0 4px rgba(147, 197, 253, 0.22);
+  flex-shrink: 0;
+}
+
+.login-modern-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+  background: #eef2f7;
+}
+
+.login-modern-card {
+  width: min(420px, 100%);
+  border-radius: 18px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.login-modern-welcome {
+  margin: 0 0 0.25rem;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.login-modern-heading {
+  margin: 0 0 0.35rem;
+  text-align: center;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.login-modern-sub {
+  margin-bottom: 1.35rem !important;
+}
+
+body.login-body.ui-theme-modern .login-modern-card .input {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+body.login-body.ui-theme-modern .login-modern-card .btn-primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
+}
+
+@media (max-width: 900px) {
+  .login-modern-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .login-modern-hero {
+    min-height: auto;
+    padding: 1.75rem 1.25rem 1.5rem;
+  }
+
+  .login-modern-hero-text,
+  .login-modern-hero-points {
+    display: none;
+  }
+}
+
+/* ——— مظهر النظام بعد الدخول ——— */
+body.app-body.ui-theme-modern {
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  background: #e8eef7;
+}
+
+body.app-body.ui-theme-modern .sidebar {
+  background: linear-gradient(180deg, #0b1f4d 0%, #123a8a 100%);
+  border-inline-end: none;
+  color: #e2e8f0;
+}
+
+body.app-body.ui-theme-modern .sidebar-nav a,
+body.app-body.ui-theme-modern .sidebar .nav-link,
+body.app-body.ui-theme-modern .sidebar .nav-item,
+body.app-body.ui-theme-modern .sidebar-nav .nav-domain-title,
+body.app-body.ui-theme-modern .sidebar-nav .nav-group-title {
+  color: rgba(226, 232, 240, 0.92);
+}
+
+body.app-body.ui-theme-modern .sidebar-nav a:hover,
+body.app-body.ui-theme-modern .sidebar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+body.app-body.ui-theme-modern .sidebar-nav a.is-active,
+body.app-body.ui-theme-modern .sidebar .nav-link.is-active,
+body.app-body.ui-theme-modern .sidebar-nav .is-active > a {
+  background: rgba(37, 99, 235, 0.45);
+  color: #fff;
+}
+
+body.app-body.ui-theme-modern .app-screen-head,
+body.app-body.ui-theme-modern .app-topbar {
+  background: #fff;
+  border-bottom: 1px solid #dbe3f0;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+body.app-body.ui-theme-modern .main-content,
+body.app-body.ui-theme-modern .main-wrap {
+  background: transparent;
+}
+
+body.app-body.ui-theme-modern .card,
+body.app-body.ui-theme-modern .dashboard-ora .dash-kpi,
+body.app-body.ui-theme-modern .dashboard-ora [class*='card'] {
+  border-radius: 14px;
+  border-color: #dbe3f0;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+}
+
+body.app-body.ui-theme-modern .btn-primary {
+  background: #2563eb;
+  border-color: #2563eb;
+}

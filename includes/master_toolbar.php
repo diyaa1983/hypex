@@ -36,7 +36,7 @@ function render_app_header_account(string $userLabel, string $logoutUrl): void
 {
     echo '<div class="app-header-account">';
     echo '<span class="app-header-account__name">' . esc($userLabel) . '</span>';
-    echo '<a class="app-header-logout-btn" href="' . esc($logoutUrl) . '" title="تسجيل خروج" aria-label="تسجيل خروج">';
+    echo '<a class="app-header-logout-btn" href="' . esc($logoutUrl) . '" title="' . esc(t('تسجيل خروج')) . '" aria-label="' . esc(t('تسجيل خروج')) . '">';
     echo '<span class="app-header-logout-btn__icon" aria-hidden="true">' . app_logout_icon_svg() . '</span>';
     echo '</a>';
     echo '</div>';
@@ -104,7 +104,7 @@ function render_master_toolbar(?string $activeRoute = null): void
         static fn (array $btn): bool => ($btn['action'] ?? '') !== 'exit'
     ));
 
-    echo '<div class="master-toolbar no-print" id="master-toolbar" role="toolbar" aria-label="شريط الإجراءات"';
+    echo '<div class="master-toolbar no-print" id="master-toolbar" role="toolbar" aria-label="' . esc(t('شريط الإجراءات')) . '"';
     echo ' data-active-route="' . esc($activeRoute) . '"';
     echo ' data-exit-url="' . esc($exitUrl) . '"';
     echo ' data-close-url="' . esc($closeUrl) . '">';
@@ -112,25 +112,17 @@ function render_master_toolbar(?string $activeRoute = null): void
 
     foreach ($visibleButtons as $btn) {
         $action = (string) ($btn['action'] ?? '');
-        $label = (string) ($btn['label'] ?? $action);
+        $label = t((string) ($btn['label'] ?? $action));
         if ($action === 'exit' && $ledgerBack !== null) {
-            $label = '← ' . $ledgerBack['label'];
+            $label = '← ' . t((string) $ledgerBack['label']);
         }
         $variant = (string) ($btn['variant'] ?? 'secondary');
         if (!in_array($variant, $allowedVariants, true)) {
             $variant = 'secondary';
         }
-        $title = (string) ($btn['title'] ?? $label);
+        $title = t((string) ($btn['title'] ?? $btn['label'] ?? $label));
         if ($action === 'exit' && $ledgerBack !== null) {
-            $title = 'العودة إلى ' . $ledgerBack['label'];
-        }
-        $shortcut = '';
-        $shortcutRaw = trim((string) ($btn['shortcut'] ?? ''));
-        if ($shortcutRaw !== '') {
-            $shortcutScreens = $btn['shortcut_screens'] ?? null;
-            if (!is_array($shortcutScreens) || $shortcutScreens === [] || in_array($activeRoute, $shortcutScreens, true)) {
-                $shortcut = $shortcutRaw;
-            }
+            $title = t('العودة إلى ') . t((string) $ledgerBack['label']);
         }
         $display = (string) ($btn['display'] ?? 'text');
         $iconOnly = $display === 'icon';
@@ -148,10 +140,7 @@ function render_master_toolbar(?string $activeRoute = null): void
             echo '<span class="master-toolbar-icon" aria-hidden="true">' . master_toolbar_exit_icon_svg() . '</span>';
             echo '<span class="sr-only">' . esc($label) . '</span>';
         } else {
-            echo '<span class="master-toolbar-btn__label">' . esc($label) . '</span>';
-            if ($shortcut !== '') {
-                echo '<kbd class="master-toolbar-shortcut" aria-hidden="true">' . esc($shortcut) . '</kbd>';
-            }
+            echo esc($label);
         }
         echo '</button>';
     }
