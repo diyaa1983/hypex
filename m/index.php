@@ -27,6 +27,7 @@ sql_migration_run_files_once($pdo, [
     'database/migrations/235_sal_customer_order.sql',
     'database/migrations/236_report_customer_orders.sql',
     'database/migrations/237_inv_item_units.sql',
+    'database/migrations/241_m_rep_route_today.sql',
 ]);
 
 require_mobile_login();
@@ -44,6 +45,20 @@ $route = $routes[$r];
 if ($r === 'm_rep_custody_list') {
     require_once app_path('includes/mobile_rep_custody.php');
     if (!mobile_can_access_rep_custody_list()) {
+        http_response_code(403);
+        echo '<!DOCTYPE html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
+        echo '<title>ممنوع</title><body style="font-family:system-ui;padding:1.5rem;text-align:center;">';
+        echo '<p>ليس لديك صلاحية لهذه الشاشة على الهاتف.</p>';
+        echo '<p><a href="' . esc(mobile_url('r=m_home')) . '">العودة</a></p></body></html>';
+        exit;
+    }
+} elseif ($r === 'm_rep_route_today') {
+    if (
+        !user_can('m_rep_route_today')
+        && !user_can('m_customer_orders')
+        && !user_can('m_sales_invoices')
+        && !user_is_system_admin()
+    ) {
         http_response_code(403);
         echo '<!DOCTYPE html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
         echo '<title>ممنوع</title><body style="font-family:system-ui;padding:1.5rem;text-align:center;">';

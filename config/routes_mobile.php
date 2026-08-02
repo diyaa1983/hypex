@@ -83,6 +83,16 @@ return [
         'home_tile' => true,
     ],
 
+    'm_rep_route_today' => [
+        'file' => 'modules/mobile/rep_route_today.php',
+        'permission' => 'm_rep_route_today',
+        'title' => 'خط سير اليوم',
+        'home_label' => 'خط سير اليوم',
+        'icon' => 'map-pin',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+
     'm_sales_invoice_gps' => [
 
         'file' => 'modules/mobile/sales_invoice_gps_list.php',

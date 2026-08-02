@@ -244,6 +244,56 @@ function sal_rep_route_customer_is_assigned(PDO $pdo, int $salesRepId, int $cust
 }
 
 /**
+ * عملاء خط سير المندوب لتاريخ معيّن (افتراضياً اليوم).
+ *
+ * @return array{route:array<string,mixed>|null, customers:list<array<string,mixed>>, route_date:string}
+ */
+function sal_rep_route_customers_for_date(PDO $pdo, int $salesRepId, ?string $routeDate = null): array
+{
+    $routeDate = $routeDate && preg_match('/^\d{4}-\d{2}-\d{2}$/', $routeDate)
+        ? $routeDate
+        : date('Y-m-d');
+    $empty = ['route' => null, 'customers' => [], 'route_date' => $routeDate];
+    if ($salesRepId < 1 || !sal_rep_route_ensure_schema($pdo)) {
+        return $empty;
+    }
+
+    $route = sal_rep_route_for_rep_date($pdo, $salesRepId, $routeDate);
+    if ($route === null || empty($route['is_active'])) {
+        return $empty;
+    }
+
+    $customers = [];
+    foreach ($route['lines'] as $ln) {
+        $lat = $ln['latitude'] ?? null;
+        $lng = $ln['longitude'] ?? null;
+        $hasGps = $lat !== null && $lat !== '' && $lng !== null && $lng !== ''
+            && sal_invoice_gps_coords_valid((float) $lat, (float) $lng);
+        $customers[] = [
+            'id' => (int) ($ln['customer_id'] ?? 0),
+            'code' => (string) ($ln['customer_code'] ?? ''),
+            'name' => (string) ($ln['customer_name'] ?? ''),
+            'sort_order' => (int) ($ln['sort_order'] ?? 0),
+            'has_gps' => $hasGps,
+            'latitude' => $hasGps ? (float) $lat : null,
+            'longitude' => $hasGps ? (float) $lng : null,
+        ];
+    }
+
+    return [
+        'route' => [
+            'id' => (int) ($route['id'] ?? 0),
+            'sales_rep_id' => (int) ($route['sales_rep_id'] ?? 0),
+            'sales_rep_name' => (string) ($route['sales_rep_name'] ?? ''),
+            'route_date' => (string) ($route['route_date'] ?? $routeDate),
+            'notes' => (string) ($route['notes'] ?? ''),
+        ],
+        'customers' => $customers,
+        'route_date' => $routeDate,
+    ];
+}
+
+/**
  * إضافة عميل إلى خط سير اليوم (إنشاء الخط إن لم يوجد) — يُستخدم عند تسجيل عميل جديد بموقع GPS.
  */
 function sal_rep_route_add_customer_today(

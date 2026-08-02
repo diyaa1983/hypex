@@ -9,13 +9,43 @@ require_once app_path('includes/customer_picker.php');
 $pdo = db();
 sal_rep_route_ensure_schema($pdo);
 crm_sales_rep_ensure_schema($pdo);
+crm_sales_rep_ensure_customer_invoice_links($pdo);
 crm_customer_ensure_gps_columns($pdo);
 
 $listUrl = app_url('index.php?r=sales_rep_route');
 $salesReps = crm_sales_rep_load_active($pdo);
+$hasCustRepCol = crm_sales_rep_customer_has_link($pdo);
 $customers = $pdo->query(
-    'SELECT id, code, name_ar, latitude, longitude FROM crm_customer WHERE is_active = 1 ORDER BY name_ar'
+    $hasCustRepCol
+        ? 'SELECT id, code, name_ar, latitude, longitude, sales_rep_id FROM crm_customer WHERE is_active = 1 ORDER BY name_ar'
+        : 'SELECT id, code, name_ar, latitude, longitude FROM crm_customer WHERE is_active = 1 ORDER BY name_ar'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$customerRepIds = [];
+foreach ($customers as $c) {
+    $cid = (int) $c['id'];
+    $customerRepIds[$cid] = [];
+    $primary = (int) ($c['sales_rep_id'] ?? 0);
+    if ($primary > 0) {
+        $customerRepIds[$cid][$primary] = true;
+    }
+}
+try {
+    $linkRows = $pdo->query(
+        'SELECT customer_id, sales_rep_id FROM crm_customer_sales_rep'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($linkRows as $lr) {
+        $cid = (int) ($lr['customer_id'] ?? 0);
+        $rid = (int) ($lr['sales_rep_id'] ?? 0);
+        if ($cid > 0 && $rid > 0) {
+            if (!isset($customerRepIds[$cid])) {
+                $customerRepIds[$cid] = [];
+            }
+            $customerRepIds[$cid][$rid] = true;
+        }
+    }
+} catch (Throwable $e) {
+    /* جدول الربط قد لا يكون موجوداً */
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
@@ -44,8 +74,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (int) (current_user()['id'] ?? 0),
                 (int) ($_POST['id'] ?? 0) ?: null
             );
-            flash_set('success', 'تم حفظ خط السير.');
-            redirect(app_url('index.php?r=sales_rep_route&id=' . $id));
+            flash_set(
+                'success',
+                'تم حفظ وترحيل خط السير ليوم '
+                . format_date_dmY($routeDate)
+                . '. يمكنك الآن تعيين خط سير لتاريخ آخر.'
+            );
+            // العودة لنموذج جديد حتى يسهل اختيار تاريخ/مندوب آخر دون فقد المحفوظ
+            redirect($listUrl . ($repId > 0 ? '&sales_rep_id=' . $repId : ''));
         }
     } catch (Throwable $e) {
         flash_set('error', $e->getMessage());
@@ -81,8 +117,10 @@ customer_picker_enqueue_assets();
 <div class="sales-ora-panel card">
     <h2><?= $edit ? 'تعديل خط السير' : 'تعيين خط سير جديد' ?></h2>
     <p class="muted" style="margin-top:0;">
-        اختر المندوب وتاريخ الخط والعملاء المطلوب زيارتهم.
-        لن يتمكن المندوب من عمل طلب شراء أو فاتورة لعميل إلا إذا كان مدرجاً هنا وكان ضمن 200 متر من موقع العميل.
+        1) اختر المندوب والتاريخ 2) حدّد العملاء المطلوب زيارتهم 3) اضغط «حفظ وترحيل».
+        يُحفظ خط السير لذلك اليوم ويظهر للمندوب في تطبيق الهاتف (خط سير اليوم).
+        كل تاريخ مستقل — بعد الحفظ يمكنك اختيار تاريخ آخر وتعيين عملاء جدد دون أن يُفقد المحفوظ السابق.
+        عند تفعيل إلزام الموقع من الإعدادات: لن يعمل المندوب فاتورة/طلب إلا لعملاء خط اليوم وضمن نطاق موقعهم.
     </p>
     <form method="post" action="<?= esc($listUrl) ?>" class="form-grid" id="rep-route-form">
         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -131,8 +169,10 @@ customer_picker_enqueue_assets();
                         $cid = (int) $c['id'];
                         $hasLoc = $c['latitude'] !== null && $c['longitude'] !== null
                             && $c['latitude'] !== '' && $c['longitude'] !== '';
+                        $repKeys = array_keys($customerRepIds[$cid] ?? []);
+                        $repAttr = implode(',', array_map('strval', $repKeys));
                         ?>
-                        <tr>
+                        <tr class="rep-route-cust-row" data-rep-ids="<?= esc($repAttr) ?>">
                             <td>
                                 <input type="checkbox" class="rep-route-cust" name="customer_ids[]"
                                        value="<?= $cid ?>" <?= isset($selectedCustIds[$cid]) ? 'checked' : '' ?>>
@@ -150,16 +190,16 @@ customer_picker_enqueue_assets();
             </div>
         </fieldset>
         <div class="form-row" style="gap:0.5rem;">
-            <button class="btn btn-primary" type="submit">حفظ خط السير</button>
+            <button class="btn btn-primary" type="submit">حفظ وترحيل</button>
             <?php if ($edit): ?>
-                <a class="btn btn-secondary" href="<?= esc($listUrl) ?>">جديد</a>
+                <a class="btn btn-secondary" href="<?= esc($listUrl) ?>">خط سير لتاريخ آخر</a>
             <?php endif; ?>
         </div>
     </form>
 </div>
 
 <div class="sales-ora-panel card">
-    <h2>خطوط السير المحفوظة</h2>
+    <h2>خطوط السير المحفوظة (حسب التاريخ)</h2>
     <form method="get" action="<?= esc(app_url('index.php')) ?>" class="form-row" style="gap:0.5rem;align-items:end;">
         <input type="hidden" name="r" value="sales_rep_route">
         <label class="field">
@@ -214,17 +254,46 @@ customer_picker_enqueue_assets();
 
 <script>
 (function () {
+  var form = document.getElementById('rep-route-form');
+  var repSel = form ? form.querySelector('select[name="sales_rep_id"]') : null;
   var allBtn = document.getElementById('rep-route-check-all');
   var noneBtn = document.getElementById('rep-route-uncheck-all');
+
+  function visibleCustChecks() {
+    return Array.prototype.slice.call(document.querySelectorAll('.rep-route-cust-row')).filter(function (row) {
+      return row.style.display !== 'none';
+    }).map(function (row) {
+      return row.querySelector('.rep-route-cust');
+    }).filter(Boolean);
+  }
+
+  function filterByRep() {
+    var rid = repSel ? String(repSel.value || '') : '';
+    document.querySelectorAll('.rep-route-cust-row').forEach(function (row) {
+      var ids = String(row.getAttribute('data-rep-ids') || '');
+      var show = !rid || ids === '' || (',' + ids + ',').indexOf(',' + rid + ',') >= 0;
+      // إن لم يكن للعميل مندوب مرتبط نُظهره دائماً ليُختار يدوياً
+      if (ids === '') show = true;
+      row.style.display = show ? '' : 'none';
+      if (!show) {
+        var cb = row.querySelector('.rep-route-cust');
+        if (cb && !cb.defaultChecked) cb.checked = false;
+      }
+    });
+  }
+
   function setAll(on) {
-    document.querySelectorAll('.rep-route-cust').forEach(function (el) { el.checked = !!on; });
+    visibleCustChecks().forEach(function (el) { el.checked = !!on; });
   }
   if (allBtn) allBtn.onclick = function () { setAll(true); };
   if (noneBtn) noneBtn.onclick = function () { setAll(false); };
-  var form = document.getElementById('rep-route-form');
+  if (repSel) {
+    repSel.addEventListener('change', filterByRep);
+    filterByRep();
+  }
   if (form) {
     form.addEventListener('submit', function (e) {
-      if (!form.querySelector('.rep-route-cust:checked')) {
+      if (!visibleCustChecks().some(function (el) { return el.checked; })) {
         e.preventDefault();
         alert('حدّد عميلاً واحداً على الأقل.');
       }

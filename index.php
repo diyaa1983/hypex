@@ -171,6 +171,7 @@ $appBootMigrations = [
     'database/migrations/238_crm_customer_gps.sql',
     'database/migrations/239_sal_rep_route.sql',
     'database/migrations/240_sales_rep_visit_geofence.sql',
+    'database/migrations/241_m_rep_route_today.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 
