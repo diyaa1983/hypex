@@ -171,20 +171,12 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                             ? ((factor - factor.round()).abs() < 1e-9
                                 ? '${factor.round()}'
                                 : Fmt.trimNum(factor))
-                            : '1';
-                        final unitLbl = unitName.isEmpty
-                            ? ''
-                            : (factor > 1.0000001
-                                ? '$unitName × $pack'
-                                : unitName);
+                            : '';
                         final qty = Fmt.toDouble(raw['qty']);
-                        final qtyBase = Fmt.toDouble(
-                            raw['qty_base'] ?? (qty * factor));
                         final parts = <String>[
-                          if (unitLbl.isNotEmpty) unitLbl,
-                          'تعبئة $pack',
+                          if (unitName.isNotEmpty) unitName,
+                          if (pack.isNotEmpty) 'تعبئة × $pack',
                           Fmt.trimNum(qty),
-                          'عدد ${Fmt.trimNum(qtyBase)}',
                         ];
                         return parts.join('  •  ');
                       }()),

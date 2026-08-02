@@ -453,18 +453,13 @@
         var unitFactor = parseFloat(ln.unit_factor) || 1;
         if (!(unitFactor > 0)) unitFactor = 1;
         var unitName = String(ln.unit_name || '').trim();
-        var packDisp = unitFactor > 1.0000001
-          ? (Math.abs(unitFactor - Math.round(unitFactor)) < 1e-9
-              ? String(Math.round(unitFactor))
-              : String(Math.round(unitFactor * 1e6) / 1e6))
-          : '1';
-        var unitLabel = unitName;
-        if (unitName && unitFactor > 1.0000001) {
-          unitLabel = unitName + ' × ' + packDisp;
+        var packHint = '';
+        if (unitFactor > 1.0000001) {
+          var packDisp = Math.abs(unitFactor - Math.round(unitFactor)) < 1e-9
+            ? String(Math.round(unitFactor))
+            : String(Math.round(unitFactor * 1e6) / 1e6);
+          packHint = ' <span class="m-inv-pack-hint" dir="ltr">تعبئة × ' + escapeHtml(packDisp) + '</span>';
         }
-        var qtyBase = ln.qty_base != null && ln.qty_base !== ''
-          ? parseFloat(ln.qty_base)
-          : (parseFloat(ln.qty) || 0) * unitFactor;
         var sub = fmt(ln.line_subtotal != null ? ln.line_subtotal : ln.line_total);
         var card = document.createElement('article');
         card.className = 'm-inv-view-line-card';
@@ -473,16 +468,14 @@
           '<header class="m-inv-view-line-card-head">' +
           '<span class="m-inv-view-line-card-seq">' + (idx + 1) + '</span>' +
           '<div class="m-inv-view-line-card-title">' +
-          '<div class="m-inv-view-line-card-name">' + escapeHtml(ln.name_ar || ln.line_desc || '—') + '</div>' +
+          '<div class="m-inv-view-line-card-name">' + escapeHtml(ln.name_ar || ln.line_desc || '—') + packHint + '</div>' +
           (code ? '<div class="m-inv-view-line-card-code muted">' + escapeHtml(code) + '</div>' : '') +
           '</div>' +
           '<div class="m-inv-view-line-card-gross">' + fmt(ln.line_gross) + '</div>' +
           '</header>' +
           '<dl class="m-inv-view-line-card-grid">' +
-          '<div><dt>الوحدة</dt><dd>' + escapeHtml(unitLabel || '—') + '</dd></div>' +
-          '<div><dt>التعبئة</dt><dd>' + escapeHtml(packDisp) + '</dd></div>' +
+          '<div><dt>الوحدة</dt><dd>' + escapeHtml(unitName || '—') + '</dd></div>' +
           '<div><dt>كمية</dt><dd>' + fmt(ln.qty) + '</dd></div>' +
-          '<div><dt>العدد</dt><dd>' + fmt(qtyBase) + '</dd></div>' +
           '<div><dt>إضافية</dt><dd>' + (qExtra > 0 ? fmt(qExtra) : '—') + '</dd></div>' +
           '<div><dt>السعر</dt><dd>' + fmt(ln.unit_price) + '</dd></div>' +
           '<div><dt>خصم</dt><dd>' + escapeHtml(disc) + '</dd></div>' +

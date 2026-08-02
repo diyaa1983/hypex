@@ -479,25 +479,18 @@ function mobile_rep_custody_delete_move(
 /**
  * @return list<array<string, mixed>>
  */
-function mobile_rep_custody_list_rows(
-    PDO $pdo,
-    array $ctx,
-    string $filter = 'all',
-    string $search = '',
-    int $limit = 100
-): array {
-    require_once app_path('includes/helpers.php');
-
+/**
+ * @return array{0:string,1:list<mixed>}
+ */
+function mobile_rep_custody_list_from_where(array $ctx, string $filter = 'all', string $search = ''): array
+{
     $fromWh = mobile_rep_custody_source_warehouse_id($ctx, 'load');
     $toWh = mobile_rep_custody_dest_warehouse_id($ctx, 'load');
     $tag = '[MREP:load]';
     $userId = (int) ($ctx['user_id'] ?? 0);
-    $limit = max(1, min(200, $limit));
     $filter = in_array($filter, ['all', 'posted', 'unposted'], true) ? $filter : 'all';
 
-    $sql = 'SELECT m.id, m.move_no, m.move_date, m.status, m.posted_at, m.notes,
-            (SELECT COUNT(*) FROM inv_wh_move_line l WHERE l.move_id = m.id) AS line_count
-            FROM inv_wh_move m
+    $fromWhere = ' FROM inv_wh_move m
             WHERE m.movement_type_code = ?
               AND m.notes LIKE ?
               AND m.warehouse_id = ?
@@ -505,25 +498,59 @@ function mobile_rep_custody_list_rows(
     $params = ['transfer', '%' . $tag . '%', $fromWh, $toWh];
 
     if ($filter === 'posted') {
-        $sql .= ' AND m.status = ?';
+        $fromWhere .= ' AND m.status = ?';
         $params[] = 'posted';
     } elseif ($filter === 'unposted') {
-        $sql .= ' AND m.status = ?';
+        $fromWhere .= ' AND m.status = ?';
         $params[] = 'draft';
     }
 
     if ($userId > 0) {
-        $sql .= ' AND (m.created_by IS NULL OR m.created_by = 0 OR m.created_by = ?)';
+        $fromWhere .= ' AND (m.created_by IS NULL OR m.created_by = 0 OR m.created_by = ?)';
         $params[] = $userId;
     }
 
     $search = trim($search);
     if ($search !== '') {
-        $sql .= ' AND m.move_no LIKE ?';
+        $fromWhere .= ' AND m.move_no LIKE ?';
         $params[] = '%' . $search . '%';
     }
 
-    $sql .= ' ORDER BY COALESCE(m.posted_at, m.move_date) DESC, m.id DESC LIMIT ' . $limit;
+    return [$fromWhere, $params];
+}
+
+function mobile_rep_custody_list_count(
+    PDO $pdo,
+    array $ctx,
+    string $filter = 'all',
+    string $search = ''
+): int {
+    [$fromWhere, $params] = mobile_rep_custody_list_from_where($ctx, $filter, $search);
+    $st = $pdo->prepare('SELECT COUNT(*)' . $fromWhere);
+    $st->execute($params);
+
+    return (int) $st->fetchColumn();
+}
+
+function mobile_rep_custody_list_rows(
+    PDO $pdo,
+    array $ctx,
+    string $filter = 'all',
+    string $search = '',
+    int $limit = 100,
+    int $offset = 0
+): array {
+    require_once app_path('includes/helpers.php');
+
+    $limit = max(1, min(200, $limit));
+    $offset = max(0, $offset);
+    [$fromWhere, $params] = mobile_rep_custody_list_from_where($ctx, $filter, $search);
+
+    $sql = 'SELECT m.id, m.move_no, m.move_date, m.status, m.posted_at, m.notes,
+            (SELECT COUNT(*) FROM inv_wh_move_line l WHERE l.move_id = m.id) AS line_count'
+        . $fromWhere
+        . ' ORDER BY COALESCE(m.posted_at, m.move_date) DESC, m.id DESC'
+        . ' LIMIT ' . $limit . ' OFFSET ' . $offset;
 
     $st = $pdo->prepare($sql);
     $st->execute($params);

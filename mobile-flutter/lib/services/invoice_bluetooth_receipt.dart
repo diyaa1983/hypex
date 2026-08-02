@@ -280,25 +280,12 @@ class InvoiceBluetoothReceipt {
       );
     }
 
-    String packLabel(String unitName, double factor) {
-      final name = unitName.trim();
-      if (name.isEmpty) return '';
-      if (factor > 1.0000001) {
-        final t = (factor - factor.round()).abs() < 1e-9
-            ? '${factor.round()}'
-            : Fmt.trimNum(factor);
-        return '$name × $t';
-      }
-      return name;
-    }
-
     // الجدول LTR داخلياً → نعكس العناصر ليظهر يمين→يسار:
-    // يمين: # | المادة | كمية | عدد | إضافي؟ | سعر | خصم؟ :يسار
+    // يمين: # | المادة | كمية | إضافي؟ | سعر | خصم؟ :يسار
     List<pw.Widget> rowCells({
       required String seq,
       required String name,
       required String qty,
-      required String qtyBase,
       String? extra,
       required String price,
       String? disc,
@@ -307,7 +294,6 @@ class InvoiceBluetoothReceipt {
         if (showDisc) cell(disc ?? '', align: pw.TextAlign.center, ltr: true),
         cell(price, align: pw.TextAlign.center, ltr: true),
         if (showExtra) cell(extra ?? '', align: pw.TextAlign.center, ltr: true),
-        cell(qtyBase, align: pw.TextAlign.center, ltr: true),
         cell(qty, align: pw.TextAlign.center, ltr: true),
         cell(name, style: nameStyle),
         cell(seq, align: pw.TextAlign.center, ltr: true),
@@ -324,7 +310,6 @@ class InvoiceBluetoothReceipt {
           cell('سعر', align: pw.TextAlign.center, style: headStyle),
           if (showExtra)
             cell('إض.', align: pw.TextAlign.center, style: headStyle),
-          cell('عدد', align: pw.TextAlign.center, style: headStyle),
           cell('كمية', align: pw.TextAlign.center, style: headStyle),
           cell('المادة', style: headStyle),
           cell('#', align: pw.TextAlign.center, style: headStyle),
@@ -341,12 +326,18 @@ class InvoiceBluetoothReceipt {
       final unitName = Fmt.str(ln['unit_name']);
       var factor = Fmt.toDouble(ln['unit_factor'] ?? 1);
       if (factor <= 0) factor = 1;
-      final unitLbl = packLabel(unitName, factor);
-      final name = unitLbl.isEmpty
-          ? nameRaw
-          : (nameRaw.isEmpty ? unitLbl : '$nameRaw ($unitLbl)');
+      final packTxt = factor > 1.0000001
+          ? ((factor - factor.round()).abs() < 1e-9
+              ? '${factor.round()}'
+              : Fmt.trimNum(factor))
+          : '';
+      var name = nameRaw.isEmpty ? 'مادة' : nameRaw;
+      if (packTxt.isNotEmpty) {
+        name = '$name (تعبئة × $packTxt)';
+      } else if (unitName.isNotEmpty && nameRaw.isNotEmpty) {
+        name = '$nameRaw ($unitName)';
+      }
       final qty = Fmt.toDouble(ln['qty']);
-      final qtyBase = Fmt.toDouble(ln['qty_base'] ?? (qty * factor));
       final qtyExtra = Fmt.toDouble(ln['qty_extra']);
       final price = Fmt.toDouble(
         ln['unit_price'] ?? ln['price'] ?? ln['sale_price'],
@@ -362,7 +353,6 @@ class InvoiceBluetoothReceipt {
             seq: '$seq',
             name: name.isEmpty ? 'مادة' : name,
             qty: Fmt.money(qty),
-            qtyBase: Fmt.money(qtyBase),
             extra: qtyExtra > 0 ? Fmt.money(qtyExtra) : '',
             price: Fmt.money(price),
             disc: discLabel,
@@ -381,7 +371,6 @@ class InvoiceBluetoothReceipt {
     if (showExtra) {
       widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.75 : 0.7); // إض
     }
-    widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.85 : 0.8); // عدد
     widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.85 : 0.8); // كمية
     widths[i++] = const pw.FlexColumnWidth(2.6); // اسم
     widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.5 : 0.45); // #

@@ -14,7 +14,8 @@ function fin_voucher_list_fetch(
     string $filter,
     string $search,
     int $apiLimit = 0,
-    ?int $salesRepId = null
+    ?int $salesRepId = null,
+    int $apiOffset = 0
 ): array {
     if (!in_array($filter, ['all', 'unposted', 'posted'], true)) {
         $filter = 'all';
@@ -111,26 +112,33 @@ function fin_voucher_list_fetch(
 
     if ($apiLimit > 0) {
         $apiLimit = max(1, min(200, $apiLimit));
-        $sql .= ' LIMIT ' . (int) $apiLimit;
+        $apiOffset = max(0, $apiOffset);
+
+        $stCount = $pdo->prepare('SELECT COUNT(*)' . $fromWhere);
+        $stCount->execute($params);
+        $filteredTotal = (int) $stCount->fetchColumn();
+
+        $page = (int) floor($apiOffset / max(1, $apiLimit)) + 1;
+        $pager = list_pager_with_total([
+            'page' => max(1, $page),
+            'per_page' => $apiLimit,
+            'limit' => $apiLimit,
+            'offset' => $apiOffset,
+        ], $filteredTotal);
+
+        $sql .= list_pager_sql_limit($pager);
         $st = $pdo->prepare($sql);
         $st->execute($params);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         return [
             'rows' => $rows,
-            'total' => count($rows),
-            'filtered_total' => count($rows),
+            'total' => $filteredTotal,
+            'filtered_total' => $filteredTotal,
             'sum_amount' => 0.0,
             'unposted' => 0,
             'has_posted_col' => $hasPostedCol,
-            'pager' => [
-                'page' => 1,
-                'per_page' => $apiLimit,
-                'limit' => $apiLimit,
-                'offset' => 0,
-                'total' => count($rows),
-                'total_pages' => 1,
-            ],
+            'pager' => $pager,
         ];
     }
 

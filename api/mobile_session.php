@@ -9,6 +9,7 @@ require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/mobile_device_session.php');
 require_once app_path('includes/mobile_gps_settings.php');
 require_once app_path('includes/sys_user_open_session.php');
+require_once app_path('includes/list_pagination.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -35,10 +36,12 @@ function mobile_session_payload(array $extra = []): array
         $base['is_system_admin'] = user_is_system_admin($uid);
         $base['permissions'] = load_user_mobile_permissions($uid);
         $base['gps_tracking'] = mobile_gps_settings_for_app();
+        $base['rows_per_page'] = company_rows_per_page();
     } else {
         $base['user'] = null;
         $base['is_system_admin'] = false;
         $base['permissions'] = [];
+        $base['rows_per_page'] = company_rows_per_page();
     }
 
     return array_merge($base, $extra);

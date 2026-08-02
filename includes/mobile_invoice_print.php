@@ -229,18 +229,18 @@ function mobile_invoice_print_layout(array $inv): array
 /** أعمدة الجدول بنسب ثابتة — html2pdf لا يحترم flex جيداً */
 function mobile_invoice_print_colgroup(bool $showQtyExtra, bool $showDiscount): string
 {
-    // تسلسل، رقم، اسم، وحدة، تعبئة، كمية، العدد، [إضافي]، إفرادي، [خصم]، إجمالي، ضريبة، نسبة، مع ضريبة
-    $w = [4, 7, 16, 8, 5, 6, 6];
+    // تسلسل، رقم، اسم، وحدة، كمية، [إضافي]، إفرادي، [خصم]، إجمالي، ضريبة، نسبة، مع ضريبة
+    $w = [4, 8, 22, 10, 8];
     if ($showQtyExtra) {
-        $w[2] = 14;
-        $w[] = 5;
-    }
-    $w[] = 7;
-    if ($showDiscount) {
-        $w[2] = max(12, $w[2] - 2);
+        $w[2] = 18;
         $w[] = 6;
     }
-    $w = array_merge($w, [8, 7, 5, 9]);
+    $w[] = 8;
+    if ($showDiscount) {
+        $w[2] = max(14, $w[2] - 2);
+        $w[] = 6;
+    }
+    $w = array_merge($w, [9, 8, 6, 11]);
     $sum = array_sum($w);
     if ($sum !== 100) {
         $w[count($w) - 1] += 100 - $sum;
@@ -255,7 +255,7 @@ function mobile_invoice_print_colgroup(bool $showQtyExtra, bool $showDiscount): 
 
 function mobile_invoice_print_thead_row(bool $showQtyExtra, bool $showDiscount): string
 {
-    $h = '<tr><th>تسلسل</th><th>رقم المادة</th><th>اسم المادة</th><th>الوحدة</th><th>التعبئة</th><th>الكمية</th><th>العدد</th>';
+    $h = '<tr><th>تسلسل</th><th>رقم المادة</th><th>اسم المادة</th><th>الوحدة</th><th>الكمية</th>';
     if ($showQtyExtra) {
         $h .= '<th>الكمية الإضافية</th>';
     }
@@ -308,11 +308,10 @@ function mobile_invoice_print_line_row(
         $unitFactor = 1.0;
     }
     $qty = (float) ($ln['qty'] ?? 0);
-    $qtyBase = (float) ($ln['qty_base'] ?? ($qty * $unitFactor));
-    $unitLabel = $unitName !== '' ? inv_item_unit_pack_label($unitName, $unitFactor) : '';
-    $packDisp = $unitFactor > 1.0000001
-        ? rtrim(rtrim(number_format($unitFactor, 6, '.', ''), '0'), '.')
-        : '1';
+    if ($unitFactor > 1.0000001) {
+        $packTxt = rtrim(rtrim(number_format($unitFactor, 6, '.', ''), '0'), '.');
+        $name = trim($name) !== '' ? (trim($name) . ' (تعبئة × ' . $packTxt . ')') : $name;
+    }
     $sku = (string) ($ln['barcode'] ?? $ln['sku'] ?? '');
     $sub = (float) ($ln['line_subtotal'] ?? $ln['line_total'] ?? 0);
     $gross = (float) ($ln['line_gross'] ?? $sub);
@@ -321,10 +320,8 @@ function mobile_invoice_print_line_row(
     $html .= '<td>' . $seq . '</td>';
     $html .= '<td class="inv-print-cell-sku">' . esc($sku) . '</td>';
     $html .= '<td class="inv-print-cell-item">' . esc($name) . '</td>';
-    $html .= '<td>' . esc($unitLabel !== '' ? $unitLabel : '—') . '</td>';
-    $html .= '<td>' . esc($packDisp !== '' ? $packDisp : '1') . '</td>';
+    $html .= '<td>' . esc($unitName !== '' ? $unitName : '—') . '</td>';
     $html .= '<td>' . esc(mobile_invoice_print_fmt($qty, $amountDp)) . '</td>';
-    $html .= '<td>' . esc(mobile_invoice_print_fmt($qtyBase, $amountDp)) . '</td>';
     if ($showQtyExtra) {
         $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['qty_extra'] ?? 0), $amountDp)) . '</td>';
     }

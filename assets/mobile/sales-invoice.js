@@ -74,7 +74,7 @@
   var itemQuickCode = document.getElementById('m-item-quick-code');
   var itemQuickQty = document.getElementById('m-item-quick-qty');
   var itemQuickUom = document.getElementById('m-item-quick-uom');
-  var itemQuickQtyBase = document.getElementById('m-item-quick-qty-base');
+  var itemQuickPack = document.getElementById('m-item-quick-pack');
   var itemQuickUnit = document.getElementById('m-item-quick-unit');
   var itemQuickTotal = document.getElementById('m-item-quick-total');
   var itemQuickCancel = document.getElementById('m-item-quick-cancel');
@@ -124,7 +124,7 @@
     units.forEach(function (u) {
       var opt = document.createElement('option');
       opt.value = String(u.unit_id);
-      opt.textContent = u.factor > 1 ? (u.name + ' (×' + u.factor + ')') : u.name;
+      opt.textContent = u.name;
       opt.setAttribute('data-factor', String(u.factor > 0 ? u.factor : 1));
       opt.setAttribute('data-name', u.name);
       itemQuickUom.appendChild(opt);
@@ -143,10 +143,18 @@
   }
 
   function syncQuickQtyBase() {
-    if (!itemQuickQtyBase) return;
-    var qty = parseNum(itemQuickQty ? itemQuickQty.value : 0);
     var factor = currentQuickFactor();
-    itemQuickQtyBase.value = qty > 0 ? inputDisplayQty(qty * factor) : '';
+    if (!itemQuickPack) return;
+    if (factor > 1.0000001) {
+      var fTxt = Math.abs(factor - Math.round(factor)) < 1e-9
+        ? String(Math.round(factor))
+        : String(Math.round(factor * 1e6) / 1e6);
+      itemQuickPack.textContent = 'تعبئة × ' + fTxt;
+      itemQuickPack.hidden = false;
+    } else {
+      itemQuickPack.textContent = '';
+      itemQuickPack.hidden = true;
+    }
   }
 
   function applyQuickUnitPriceFromBase() {
@@ -411,7 +419,6 @@
     var discEl = row.querySelector('.m-inp-disc');
     var taxEl = row.querySelector('.m-inp-tax');
     var uomEl = row.querySelector('.m-inp-uom');
-    var qtyBaseEl = row.querySelector('.m-inp-qty-base');
     ln.qty = parseNum(qtyEl ? qtyEl.value : 0);
     ln.qty_extra = parseNum(qeEl ? qeEl.value : 0);
     if (uomEl && uomEl.selectedIndex >= 0) {
@@ -433,8 +440,6 @@
     if (ln.unit_price <= 0 && priceEl && String(priceEl.placeholder || '').trim() !== '') {
       ln.unit_price = parseNum(priceEl.placeholder);
     }
-    var factor = parseNum(ln.unit_factor) || 1;
-    if (qtyBaseEl) qtyBaseEl.value = ln.qty > 0 ? inputDisplayQty(ln.qty * factor) : '';
     ln.line_discount_input = discEl ? String(discEl.value || '').trim() : '';
     if (taxEl) {
       ln.tax_rate_id = parseInt(taxEl.value, 10) || 0;
@@ -500,10 +505,9 @@
       var uid = parseInt(u.unit_id != null ? u.unit_id : u.id, 10) || 0;
       var factor = parseNum(u.factor != null ? u.factor : u.factor_to_base) || 1;
       var name = String(u.name || u.unit_name || 'قطعة');
-      var label = factor > 1 ? (name + ' ×' + factor) : name;
       var sel = cur ? uid === cur : !!(u.is_default || u.is_default_issue || (!cur && i === 0));
       h += '<option value="' + uid + '" data-factor="' + factor + '" data-name="' + escapeHtml(name) + '"' +
-        (sel ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+        (sel ? ' selected' : '') + '>' + escapeHtml(name) + '</option>';
     }
     return h + '</select>';
   }
@@ -517,7 +521,13 @@
       var pricePh =
         ln.unit_price <= 0 && ln.default_unit_price > 0 ? inputDisplayAmount(ln.default_unit_price) : '';
       var factor = parseNum(ln.unit_factor) || 1;
-      var qtyBaseVal = ln.qty > 0 ? inputDisplayQty(ln.qty * factor) : '';
+      var packHint = '';
+      if (factor > 1.0000001) {
+        var fTxt = Math.abs(factor - Math.round(factor)) < 1e-9
+          ? String(Math.round(factor))
+          : String(Math.round(factor * 1e6) / 1e6);
+        packHint = '<span class="m-inv-pack-hint" dir="ltr">تعبئة × ' + escapeHtml(fTxt) + '</span>';
+      }
       var wrap = document.createElement('div');
       wrap.className = 'm-inv-line-swipe';
       wrap.setAttribute('data-line-id', String(ln.id));
@@ -530,7 +540,7 @@
         '<div class="m-inv-line-head">' +
         '<span class="m-inv-seq">' + (idx + 1) + '</span>' +
         '<div class="m-inv-item-text">' +
-        '<div class="m-inv-item-name">' + escapeHtml(ln.item_name) + '</div>' +
+        '<div class="m-inv-item-name">' + escapeHtml(ln.item_name) + ' ' + packHint + '</div>' +
         '<div class="m-inv-item-code muted">' + escapeHtml(ln.item_code || '—') + '</div>' +
         '</div>' +
         '<div class="m-inv-line-head-end">' +
@@ -542,9 +552,6 @@
         '<label class="m-inv-mini"><span>كمية</span>' +
         '<input type="text" class="m-input m-input--xs m-input--num m-inp-qty" inputmode="decimal" autocomplete="off" aria-label="الكمية" value="' +
         escapeHtml(inputDisplayQty(ln.qty)) + '"></label>' +
-        '<label class="m-inv-mini"><span>العدد</span>' +
-        '<input type="text" class="m-input m-input--xs m-input--num m-inp-qty-base" readonly tabindex="-1" aria-label="العدد بالقطعة" value="' +
-        escapeHtml(qtyBaseVal) + '"></label>' +
         '<label class="m-inv-mini"><span>إضافي</span>' +
         '<input type="text" class="m-input m-input--xs m-input--num m-inp-qty-extra" inputmode="decimal" autocomplete="off" aria-label="الكمية الإضافية" value="' +
         escapeHtml(inputDisplayQty(ln.qty_extra)) + '" title="للمخزون"></label>' +

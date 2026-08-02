@@ -3916,12 +3916,6 @@ body.m-picker-open .m-bottom-dock {
   grid-column: 1 / -1;
 }
 
-.m-inp-qty-base[readonly] {
-  background: #f1f5f9;
-  color: #334155;
-  font-weight: 700;
-}
-
 .m-inv-field-grid--6 {
   grid-template-columns: repeat(5, minmax(0, 1fr)) 2rem;
 }

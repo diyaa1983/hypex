@@ -1796,9 +1796,7 @@
       opt.value = String(uid);
       opt.setAttribute('data-name', uname);
       opt.setAttribute('data-factor', String(ufactor));
-      opt.textContent = ufactor > 1.0000001
-        ? (uname + ' × ' + (Math.abs(ufactor - Math.round(ufactor)) < 1e-9 ? String(Math.round(ufactor)) : String(Math.round(ufactor * 1e6) / 1e6)))
-        : uname;
+      opt.textContent = uname;
       sel.appendChild(opt);
       if (selectedUnitId && uid === selectedUnitId) pick = opt;
       else if (!pick && (u.is_default || u.is_default_issue)) pick = opt;
@@ -1814,20 +1812,30 @@
     return factor;
   }
 
-  /** العدد بالوحدة الأساسية = الكمية × معامل التعبئة (عرض فقط). */
+  /** حفظ qty_base للمخزون + عرض التعبئة بجانب اسم المادة. */
   function syncQtyBaseDisplay(tr) {
     if (!tr) return;
     var qtyEl = tr.querySelector('.js-qty');
     var factorEl = tr.querySelector('.js-unit-factor');
     var baseEl = tr.querySelector('.js-qty-base');
-    if (!baseEl) return;
+    var packEl = tr.querySelector('.js-pack-hint');
     var qty = parseNum(qtyEl ? qtyEl.value : 0);
     var factor = parseNum(factorEl ? factorEl.value : 1) || 1;
-    if (qty <= 0) {
-      baseEl.value = '';
-      return;
+    if (baseEl) {
+      baseEl.value = qty > 0 ? formatQtyValue(qty * factor) : '';
     }
-    baseEl.value = formatQtyValue(qty * factor);
+    if (packEl) {
+      if (factor > 1.0000001) {
+        var fTxt = Math.abs(factor - Math.round(factor)) < 1e-9
+          ? String(Math.round(factor))
+          : String(Math.round(factor * 1e6) / 1e6);
+        packEl.textContent = 'تعبئة × ' + fTxt;
+        packEl.hidden = false;
+      } else {
+        packEl.textContent = '';
+        packEl.hidden = true;
+      }
+    }
   }
 
   function applyUnitPriceFromBase(tr) {

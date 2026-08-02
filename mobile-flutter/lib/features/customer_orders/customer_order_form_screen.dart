@@ -317,9 +317,25 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                     children: [
                       Row(children: [
                         Expanded(
-                            child: Text(_lines[i].item.name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700))),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_lines[i].item.name,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              if (_lines[i].unitFactor > 1.0000001)
+                                Text(
+                                  'تعبئة × ${Fmt.trimNum(_lines[i].unitFactor)}',
+                                  textDirection: TextDirection.ltr,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0369A1),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                         if (_editable)
                           IconButton(
                               onPressed: () =>
@@ -342,21 +358,13 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                               for (final u in _lines[i].item.units)
                                 DropdownMenuItem(
                                   value: u.unitId,
-                                  child: Text(
-                                    u.factor > 1.0000001
-                                        ? '${u.name} × ${Fmt.trimNum(u.factor)}'
-                                        : u.name,
-                                  ),
+                                  child: Text(u.name),
                                 ),
                               if (_lines[i].item.units.isEmpty &&
                                   _lines[i].unitName.isNotEmpty)
                                 DropdownMenuItem(
                                   value: _lines[i].unitId,
-                                  child: Text(
-                                    _lines[i].unitFactor > 1.0000001
-                                        ? '${_lines[i].unitName} × ${Fmt.trimNum(_lines[i].unitFactor)}'
-                                        : _lines[i].unitName,
-                                  ),
+                                  child: Text(_lines[i].unitName),
                                 ),
                             ],
                             onChanged: !_editable
@@ -372,7 +380,6 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                       _lines[i].unitId = v ?? 0;
                                       if (u != null) {
                                         _lines[i].unitName = u.name;
-                                        // الكمية تبقى؛ العدد = كمية × معامل التعبئة
                                         _lines[i].unitFactor =
                                             u.factor <= 0 ? 1.0 : u.factor;
                                       }
@@ -397,18 +404,6 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                             ?.clamp(1, 999999999) ??
                                         1;
                                   }),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 2,
-                          child: InputDecorator(
-                            decoration:
-                                const InputDecoration(labelText: 'العدد'),
-                            child: Text(
-                              '${(_lines[i].qty * (_lines[i].unitFactor <= 0 ? 1 : _lines[i].unitFactor)).round()}',
-                              style: const TextStyle(fontWeight: FontWeight.w700),
-                            ),
                           ),
                         ),
                       ]),

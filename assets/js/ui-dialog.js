@@ -639,6 +639,54 @@
     return Promise.resolve(true);
   }
 
+  var lastClientErrorKey = '';
+  var lastClientErrorAt = 0;
+
+  function reportClientError(message, options) {
+    options = options || {};
+    if (options.skipLog) return;
+    var msg = String(message || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!msg) return;
+    var now = Date.now();
+    var key = msg.slice(0, 220);
+    if (key === lastClientErrorKey && now - lastClientErrorAt < 8000) return;
+    lastClientErrorKey = key;
+    lastClientErrorAt = now;
+
+    try {
+      var body = document.body;
+      if (!body) return;
+      var api = body.getAttribute('data-error-log-api') || '';
+      var csrf = body.getAttribute('data-csrf') || '';
+      var route = body.getAttribute('data-active-route') || '';
+      if (global.AppMobile) {
+        if (!csrf && AppMobile.csrf) csrf = String(AppMobile.csrf);
+        if (!route && AppMobile.activeRoute) route = String(AppMobile.activeRoute);
+        if (!api && AppMobile.baseUrl) api = String(AppMobile.baseUrl).replace(/\/?$/, '/') + 'api/sys_error_log_client.php';
+      }
+      if (!api || !csrf) return;
+      var fd = new FormData();
+      fd.append('_csrf', csrf);
+      fd.append('message', msg.slice(0, 1000));
+      var detail = options.detail != null ? String(options.detail) : '';
+      if (detail) fd.append('detail', detail.slice(0, 8000));
+      if (route) fd.append('screen_code', route);
+      if (typeof location !== 'undefined' && location.href) {
+        fd.append('request_uri', String(location.pathname || '') + String(location.search || ''));
+      }
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(api, fd);
+      } else if (typeof fetch === 'function') {
+        fetch(api, { method: 'POST', body: fd, credentials: 'same-origin', keepalive: true }).catch(function () {});
+      }
+    } catch (e) {
+      /* ignore logging failures */
+    }
+  }
+
   var AppDialog = {
     alert: alertDialog,
     confirm: confirmDialog,
@@ -646,6 +694,7 @@
     prompt: promptDialog,
     formatActionMessage: formatActionMessage,
     toast: toastDialog,
+    reportError: reportClientError,
     /** نجاح: إشعار خفيف افتراضياً — لا نافذة ولا تحديث مرتبط بزر موافق */
     success: function (message, options) {
       options = options || {};
@@ -658,6 +707,7 @@
     error: function (message, options) {
       options = options || {};
       options.type = 'error';
+      reportClientError(message, options);
       return alertDialog(message, options);
     },
     open: open,
@@ -718,6 +768,9 @@
     if (type === 'success') {
       toastDialog(msg, { type: 'success', theme: theme });
       return;
+    }
+    if (type === 'error') {
+      reportClientError(msg, { detail: 'flash-alert' });
     }
     alertDialog(msg, {
       type: type,

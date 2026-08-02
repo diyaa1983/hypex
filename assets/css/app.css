@@ -491,6 +491,66 @@ body.app-body .app-titlebar {
   pointer-events: none;
 }
 
+.co-pack-hint,
+.m-inv-pack-hint {
+  display: inline-block;
+  margin-inline-start: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0369a1;
+  white-space: nowrap;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+
+/* زر × ثابت — يبقى ظاهراً أثناء التمرير لأسفل */
+.app-floating-exit-btn.app-screen-exit-btn,
+a.app-floating-exit-btn {
+  position: fixed !important;
+  top: 4.15rem;
+  inset-inline-start: 0.7rem;
+  z-index: 10050 !important;
+  margin: 0 !important;
+  order: unset !important;
+  box-shadow: 0 2px 10px rgba(185, 28, 28, 0.45) !important;
+}
+
+body.app-body--focus .app-floating-exit-btn {
+  top: 4.15rem;
+}
+
+body.app-body--embed .app-floating-exit-btn {
+  top: 3.1rem;
+}
+
+@media (max-width: 720px) {
+  .app-floating-exit-btn.app-screen-exit-btn,
+  a.app-floating-exit-btn {
+    top: 3.75rem;
+    inset-inline-start: 0.45rem;
+  }
+
+  body.app-body--embed .app-floating-exit-btn {
+    top: 2.85rem;
+  }
+}
+
+/* إخفاء × داخل شريط العنوان عند وجود الزر الثابت (لتفادي التكرار) */
+body:has(.app-floating-exit-btn) .dashboard-ora-screen-title > .ora12-title-bar__close,
+body:has(.app-floating-exit-btn) .dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+body:has(.app-floating-exit-btn) .report-ora12-screen-title > .ora12-title-bar__close,
+body:has(.app-floating-exit-btn) .report-ora12-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+body:has(.app-floating-exit-btn) .app-screen-title-bar > .ora12-title-bar__close,
+body:has(.app-floating-exit-btn) .app-screen-title-bar .ora12-title-bar__close,
+body:has(.app-floating-exit-btn) .hr-ora-title-bar__close,
+body:has(.app-floating-exit-btn) .nav-hub-head__actions .ora12-title-bar__close {
+  display: none !important;
+}
+
 /* زر الخروج من الشاشة — أحمر في جميع الشاشات */
 .app-screen-exit-btn,
 .ora12-title-bar__close,
@@ -583,6 +643,20 @@ body.app-body .app-titlebar {
   order: -1;
   margin-inline-end: auto;
   margin-inline-start: 0;
+}
+
+/* شريط عنوان الشاشة يثبت أعلى منطقة التمرير (احتياطي مع الزر الثابت) */
+.main-content .dashboard-ora-screen-title,
+.main-content .report-ora12-screen-title,
+.main-content .app-screen-title-bar,
+.main-content .hr-ora-title-bar,
+.app-embed-main .dashboard-ora-screen-title,
+.app-embed-main .report-ora12-screen-title,
+.app-embed-main .app-screen-title-bar,
+.app-embed-main .hr-ora-title-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 
 .app-shell-body {

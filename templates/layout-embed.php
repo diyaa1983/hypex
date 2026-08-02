@@ -167,7 +167,7 @@ $appBusyJsV = is_file(app_path('assets/js/app-busy.js'))
     </script>
     <script src="<?= esc(app_url('assets/js/app-busy.js')) ?><?= $appBusyJsV !== '' ? '?v=' . esc($appBusyJsV) : '' ?>" defer></script>
 </head>
-<body class="app-body app-body--embed app-body--focus<?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-lang="<?= esc(app_lang()) ?>" data-dir="<?= esc(app_dir()) ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?>>
+<body class="app-body app-body--embed app-body--focus<?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-lang="<?= esc(app_lang()) ?>" data-dir="<?= esc(app_dir()) ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?> data-active-route="<?= esc($activeRoute) ?>" data-csrf="<?= esc(csrf_token()) ?>" data-error-log-api="<?= esc(app_url('api/sys_error_log_client.php')) ?>">
 <?php render_i18n_js(); ?>
 <header class="app-embed-head no-print" role="banner">
     <?php app_mdi_render_embed_minimize_btn(); ?>
@@ -182,6 +182,8 @@ $appBusyJsV = is_file(app_path('assets/js/app-busy.js'))
     ?>
 </main>
 <?php
+require_once app_path('includes/nav_helpers.php');
+nav_render_floating_screen_exit($activeRoute);
 require_once app_path('includes/app_busy.php');
 app_busy_render_overlay();
 ?>

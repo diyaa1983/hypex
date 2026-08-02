@@ -8,6 +8,7 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../services/receipt_print_helper.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -24,6 +25,8 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _rows = [];
+  Map<String, dynamic>? _pager;
+  int _page = 1;
   String _filter = 'all';
   final _search = TextEditingController();
 
@@ -47,14 +50,24 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
     try {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.receiptListPath,
-        query: {'filter': _filter, 'q': _search.text.trim()},
+        query: {
+          'filter': _filter,
+          'q': _search.text.trim(),
+          'page': _page,
+        },
       );
       if (!mounted) return;
+      final pager = (res['pager'] is Map)
+          ? (res['pager'] as Map).cast<String, dynamic>()
+          : null;
+      final serverPage = (pager?['page'] as num?)?.toInt();
       setState(() {
         _rows = (res['receipts'] as List? ?? [])
             .whereType<Map>()
             .map((e) => e.cast<String, dynamic>())
             .toList();
+        _pager = pager;
+        if (serverPage != null && serverPage > 0) _page = serverPage;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -64,6 +77,17 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
         _loading = false;
       });
     }
+  }
+
+  void _changePage(int page) {
+    if (page < 1 || page == _page) return;
+    setState(() => _page = page);
+    _load();
+  }
+
+  void _resetAndLoad() {
+    setState(() => _page = 1);
+    _load();
   }
 
   Future<void> _post(Map<String, dynamic> row) async {
@@ -159,12 +183,12 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
                             icon: const Icon(Icons.close_rounded, size: 18),
                             onPressed: () {
                               _search.clear();
-                              _load();
+                              _resetAndLoad();
                             },
                           ),
                   ),
                   onChanged: (_) => setState(() {}),
-                  onSubmitted: (_) => _load(),
+                  onSubmitted: (_) => _resetAndLoad(),
                 ),
                 const SizedBox(height: 10),
                 SizedBox(
@@ -182,7 +206,10 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
                           label: Text(e.value),
                           selected: e.key == _filter,
                           onSelected: (_) {
-                            setState(() => _filter = e.key);
+                            setState(() {
+                              _filter = e.key;
+                              _page = 1;
+                            });
                             _load();
                           },
                         ),
@@ -247,6 +274,7 @@ class _ReceiptListScreenState extends State<ReceiptListScreen> {
               ),
             ),
           ),
+          ListPageBar.fromPager(_pager, onPageChanged: _changePage),
         ],
       ),
     );

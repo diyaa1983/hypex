@@ -540,6 +540,7 @@ return [
                         ['r' => 'tax_rates_settings', 'label' => 'معدّلات الضريبة', 'icon' => '%'],
                         ['r' => 'einvoice_settings', 'label' => 'إعدادات الفوترة', 'icon' => '🧾'],
                         ['r' => 'report_audit_log', 'label' => 'حركات التعديل', 'icon' => '📝'],
+                        ['r' => 'system_error_log', 'label' => 'سجل أخطاء النظام', 'icon' => '⚠'],
                         ['r' => 'sales_invoice_gps', 'label' => 'مواقع فواتير البيع', 'icon' => '📍'],
                         ['r' => 'user_gps_locations', 'label' => 'مواقع المستخدمين', 'icon' => '🗺'],
                         ['r' => 'user_gps_tracker', 'label' => 'تتبّع المواقع الحية', 'icon' => '📡'],

@@ -94,8 +94,8 @@
 
   function lineColCount(layout) {
     layout = layout || {};
-    // تسلسل + رقم + اسم + وحدة + تعبئة + كمية + عدد + افرادي + إجمالي + ضريبة مبلغ + نسبة + إجمالي مع ضريبة = 12
-    var cols = 12;
+    // تسلسل + رقم + اسم + وحدة + كمية + افرادي + إجمالي + ضريبة مبلغ + نسبة + إجمالي مع ضريبة = 10
+    var cols = 10;
     if (layout.showQtyExtra) cols += 1;
     if (layout.showUnitPriceIncl) cols += 1;
     if (layout.showDiscount) cols += 1;
@@ -105,7 +105,7 @@
   function theadRow(layout) {
     layout = layout || { showQtyExtra: false, showDiscount: false, showUnitPriceIncl: false };
     var h =
-      '<th>تسلسل</th><th>رقم المادة</th><th>اسم المادة</th><th>الوحدة</th><th>التعبئة</th><th>الكمية</th><th>العدد</th>';
+      '<th>تسلسل</th><th>رقم المادة</th><th>اسم المادة</th><th>الوحدة</th><th>الكمية</th>';
     if (layout.showQtyExtra) {
       h += '<th>الكمية الإضافية</th>';
     }
@@ -172,18 +172,16 @@
       if (isFinite(ff) && ff > 0) unitFactor = ff;
     }
     var qtyVal = (tr.querySelector('.js-qty') || { value: '' }).value;
-    var qtyNum = parseFloat(String(qtyVal).replace(/,/g, '')) || 0;
-    var qtyBaseEl = tr.querySelector('.js-qty-base');
-    var qtyBaseVal = qtyBaseEl && qtyBaseEl.value !== ''
-      ? qtyBaseEl.value
-      : (qtyNum > 0 ? String(Math.round(qtyNum * unitFactor * 1e6) / 1e6) : '');
-    var packDisp = unitFactor > 1.0000001
-      ? (Math.abs(unitFactor - Math.round(unitFactor)) < 1e-9
-          ? String(Math.round(unitFactor))
-          : String(Math.round(unitFactor * 1e6) / 1e6))
-      : '1';
-    var unitLabel = formatUnitPackLabel(unitName, unitFactor);
     var itemName = tr.dataset.nameAr || '';
+    if (unitFactor > 1.0000001) {
+      var packTxt = Math.abs(unitFactor - Math.round(unitFactor)) < 1e-9
+        ? String(Math.round(unitFactor))
+        : String(Math.round(unitFactor * 1e6) / 1e6);
+      itemName = String(itemName || '').trim();
+      if (itemName) {
+        itemName = itemName + ' (تعبئة × ' + packTxt + ')';
+      }
+    }
 
     var html = '<tr>';
     html +=
@@ -197,16 +195,10 @@
       escapeHtml(itemName) +
       '</td>' +
       '<td>' +
-      escapeHtml(unitLabel || '—') +
-      '</td>' +
-      '<td>' +
-      escapeHtml(packDisp) +
+      escapeHtml(unitName || '—') +
       '</td>' +
       '<td>' +
       escapeHtml(qtyVal) +
-      '</td>' +
-      '<td>' +
-      escapeHtml(qtyBaseVal) +
       '</td>';
     if (layout.showQtyExtra) {
       html +=

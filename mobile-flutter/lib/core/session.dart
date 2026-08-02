@@ -32,6 +32,9 @@ class SessionController extends ChangeNotifier {
   String? lastError;
   GpsTrackingConfig gpsConfig = GpsTrackingConfig.defaults;
 
+  /// عدد أسطر الصفحة من إعدادات النظام (10 / 15 / 20).
+  int rowsPerPage = 10;
+
   /// فتح إعدادات التتبّع بعد التحقق من كلمة مرور مدير النظام (جلسة التطبيق فقط).
   bool settingsUnlocked = false;
 
@@ -270,6 +273,7 @@ class SessionController extends ChangeNotifier {
     userUsername = null;
     userId = 0;
     gpsConfig = GpsTrackingConfig.defaults;
+    rowsPerPage = 10;
     settingsUnlocked = false;
     notifyListeners();
   }
@@ -322,6 +326,8 @@ class SessionController extends ChangeNotifier {
         rawGps.map((k, v) => MapEntry(k.toString(), v)),
       );
     }
+    final rpp = (res['rows_per_page'] as num?)?.toInt() ?? rowsPerPage;
+    rowsPerPage = (rpp == 10 || rpp == 15 || rpp == 20) ? rpp : 10;
     final user = res['user'];
     if (user is Map) {
       userId = (user['id'] as num?)?.toInt() ?? 0;

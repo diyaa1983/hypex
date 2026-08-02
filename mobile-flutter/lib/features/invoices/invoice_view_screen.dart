@@ -428,13 +428,9 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
         ? ((factor - factor.round()).abs() < 1e-9
             ? '${factor.round()}'
             : Fmt.trimNum(factor))
-        : '1';
-    final unitLabel = unitName.isEmpty
-        ? ''
-        : (factor > 1.0000001 ? '$unitName × $packDisp' : unitName);
-    final name = nameRaw.isEmpty ? (unitLabel.isEmpty ? 'مادة' : unitLabel) : nameRaw;
+        : '';
+    final name = nameRaw.isEmpty ? 'مادة' : nameRaw;
     final qty = Fmt.toDouble(l['qty'] ?? l['quantity']);
-    final qtyBase = Fmt.toDouble(l['qty_base'] ?? (qty * factor));
     final qtyExtra = Fmt.toDouble(l['qty_extra']);
     final price = Fmt.toDouble(l['unit_price'] ?? l['price']);
     final disc = Fmt.toDouble(l['discount_amount']);
@@ -464,12 +460,27 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (packDisp.isNotEmpty)
+                      Text(
+                        'تعبئة × $packDisp',
+                        textDirection: TextDirection.ltr,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0369A1),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -480,15 +491,11 @@ class _InvoiceViewScreenState extends State<InvoiceViewScreen> {
               Expanded(
                 child: _fieldBox(
                   'وحدة',
-                  unitLabel.isNotEmpty ? unitLabel : '—',
+                  unitName.isNotEmpty ? unitName : '—',
                 ),
               ),
               const SizedBox(width: 5),
-              Expanded(child: _fieldBox('تعبئة', packDisp)),
-              const SizedBox(width: 5),
               Expanded(child: _fieldBox('كمية', Fmt.money(qty))),
-              const SizedBox(width: 5),
-              Expanded(child: _fieldBox('العدد', Fmt.money(qtyBase))),
               const SizedBox(width: 5),
               Expanded(
                 child: _fieldBox(

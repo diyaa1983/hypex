@@ -154,9 +154,8 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
             <thead>
             <tr>
                 <th>الصنف</th>
-                <th>الوحدة / التعبئة</th>
+                <th>الوحدة</th>
                 <th>الكمية</th>
-                <th>العدد</th>
                 <th></th>
             </tr>
             </thead>
@@ -177,10 +176,19 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
                 if ($curFactor <= 0) {
                     $curFactor = 1.0;
                 }
-                $qtyBaseDisp = $qtyInt > 0 ? rtrim(rtrim(number_format($qtyInt * $curFactor, 6, '.', ''), '0'), '.') : '';
+                $packHint = $curFactor > 1.0000001
+                    ? ('تعبئة × ' . rtrim(rtrim(number_format($curFactor, 6, '.', ''), '0'), '.'))
+                    : '';
                 ?>
                 <tr data-item="<?= (int) $line['item_id'] ?>" data-item-name="<?= esc((string) $line['item_name']) ?>">
-                    <td><?= esc((string) $line['item_name']) ?></td>
+                    <td>
+                        <span class="co-item-name"><?= esc((string) $line['item_name']) ?></span>
+                        <?php if ($packHint !== ''): ?>
+                            <span class="co-pack-hint" dir="ltr"><?= esc($packHint) ?></span>
+                        <?php else: ?>
+                            <span class="co-pack-hint" dir="ltr" hidden></span>
+                        <?php endif; ?>
+                    </td>
                     <td>
                         <select class="input co-unit">
                             <?php foreach ($itemUnits as $u): ?>
@@ -188,7 +196,7 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
                                         data-name="<?= esc((string) $u['name']) ?>"
                                         data-factor="<?= esc((string) ((float) $u['factor'])) ?>"
                                         <?= $curUnitId === (int) $u['unit_id'] ? 'selected' : '' ?>>
-                                    <?= esc((string) $u['name']) ?><?= (float) $u['factor'] > 1 ? ' × ' . rtrim(rtrim(number_format((float) $u['factor'], 6, '.', ''), '0'), '.') : '' ?>
+                                    <?= esc((string) $u['name']) ?>
                                 </option>
                             <?php endforeach; ?>
                             <?php if ($itemUnits === []): ?>
@@ -198,9 +206,6 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
                     </td>
                     <td>
                         <input class="input co-qty" type="number" step="1" min="1" inputmode="numeric" value="<?= $qtyInt ?>">
-                    </td>
-                    <td>
-                        <input class="input co-qty-base" type="text" readonly tabindex="-1" dir="ltr" value="<?= esc($qtyBaseDisp) ?>" title="العدد = الكمية × التعبئة">
                     </td>
                     <td>
                         <button type="button" class="btn btn-secondary btn-sm co-remove-line">حذف</button>
@@ -247,26 +252,29 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
     }).then(function (r) { return r.json(); });
   }
 
-  function syncCoQtyBase(r) {
-    var qtyEl = r.querySelector('.co-qty');
-    var baseEl = r.querySelector('.co-qty-base');
+  function syncCoPackHint(r) {
     var unitSel = r.querySelector('.co-unit');
+    var packEl = r.querySelector('.co-pack-hint');
     var factor = 1;
     if (unitSel && unitSel.selectedIndex >= 0) {
       factor = parseFloat(unitSel.options[unitSel.selectedIndex].getAttribute('data-factor') || '1') || 1;
     }
-    var qty = parseInt(qtyEl ? qtyEl.value : 0, 10) || 0;
-    if (baseEl) baseEl.value = qty > 0 ? String(Math.round(qty * factor * 1e6) / 1e6) : '';
+    if (!packEl) return;
+    if (factor > 1.0000001) {
+      packEl.textContent = 'تعبئة × ' + formatFactor(factor);
+      packEl.hidden = false;
+    } else {
+      packEl.textContent = '';
+      packEl.hidden = true;
+    }
   }
 
   function bindRow(r) {
     var unitSel = r.querySelector('.co-unit');
-    var qtyEl = r.querySelector('.co-qty');
     var rem = r.querySelector('.co-remove-line');
-    if (unitSel) unitSel.addEventListener('change', function () { syncCoQtyBase(r); });
-    if (qtyEl) qtyEl.addEventListener('input', function () { syncCoQtyBase(r); });
+    if (unitSel) unitSel.addEventListener('change', function () { syncCoPackHint(r); });
     if (rem) rem.addEventListener('click', function () { r.remove(); });
-    syncCoQtyBase(r);
+    syncCoPackHint(r);
   }
 
   function collectLines() {
@@ -282,9 +290,10 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
         unitFactor = parseFloat(unitSel.options[unitSel.selectedIndex].getAttribute('data-factor') || '1') || 1;
       }
       var qty = parseInt(r.querySelector('.co-qty').value, 10) || 0;
+      var nameEl = r.querySelector('.co-item-name');
       lines.push({
         item_id: +r.dataset.item,
-        item_name: r.dataset.itemName || r.cells[0].textContent.trim(),
+        item_name: r.dataset.itemName || (nameEl ? nameEl.textContent.trim() : ''),
         unit_id: unitId,
         unit_name: unitName,
         unit_factor: unitFactor,
@@ -308,7 +317,7 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
     if (existing) {
       var q = existing.querySelector('.co-qty');
       if (q) q.value = String((parseInt(q.value, 10) || 0) + 1);
-      syncCoQtyBase(existing);
+      syncCoPackHint(existing);
       return;
     }
     var units = Array.isArray(it.units) ? it.units : [];
@@ -335,21 +344,20 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
         var uid = parseInt(u.unit_id != null ? u.unit_id : u.id, 10) || 0;
         var un = String(u.name || u.unit_name || 'قطعة');
         var uf = parseFloat(u.factor != null ? u.factor : u.factor_to_base) || 1;
-        var lab = uf > 1.0000001 ? (un + ' × ' + formatFactor(uf)) : un;
         opts += '<option value="' + uid + '" data-name="' + un.replace(/"/g, '&quot;') + '" data-factor="' + uf + '"' +
-          (uid === unitId ? ' selected' : '') + '>' + lab + '</option>';
+          (uid === unitId ? ' selected' : '') + '>' + un + '</option>';
       });
     } else {
       opts = '<option value="' + unitId + '" data-name="' + unitName.replace(/"/g, '&quot;') + '" data-factor="' + factor + '" selected>' +
-        (factor > 1 ? unitName + ' × ' + formatFactor(factor) : unitName) + '</option>';
+        unitName + '</option>';
     }
+    var itemName = String(it.name_ar || it.name || 'مادة');
     tr.innerHTML =
-      '<td></td>' +
+      '<td><span class="co-item-name"></span> <span class="co-pack-hint" dir="ltr" hidden></span></td>' +
       '<td><select class="input co-unit">' + opts + '</select></td>' +
       '<td><input class="input co-qty" type="number" step="1" min="1" inputmode="numeric" value="1"></td>' +
-      '<td><input class="input co-qty-base" type="text" readonly tabindex="-1" dir="ltr" value=""></td>' +
       '<td><button type="button" class="btn btn-secondary btn-sm co-remove-line">حذف</button></td>';
-    tr.cells[0].textContent = String(it.name_ar || it.name || 'مادة');
+    tr.querySelector('.co-item-name').textContent = itemName;
     tbody.appendChild(tr);
     bindRow(tr);
   }

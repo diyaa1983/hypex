@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_receipt.php');
 require_once app_path('includes/fin_voucher_schema.php');
+require_once app_path('includes/list_pagination.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -25,12 +26,24 @@ try {
 
     $filter = trim((string) ($_GET['filter'] ?? 'all'));
     $search = trim((string) ($_GET['q'] ?? ''));
-    $rows = mobile_receipt_list_rows($pdo, $filter, $search, 120);
+    $basePager = list_pager_from_request($pdo);
+    $page = mobile_receipt_list_page(
+        $pdo,
+        $filter,
+        $search,
+        (int) $basePager['limit'],
+        (int) $basePager['offset']
+    );
+    $pager = !empty($page['pager'])
+        ? $page['pager']
+        : list_pager_with_total($basePager, (int) ($page['total'] ?? 0));
 
     echo json_encode([
         'ok' => true,
-        'receipts' => $rows,
-        'count' => count($rows),
+        'receipts' => $page['rows'],
+        'count' => count($page['rows']),
+        'pager' => mobile_list_pager_meta($pager),
+        'rows_per_page' => (int) ($pager['per_page'] ?? $basePager['per_page']),
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     error_log('mobile_receipts_list: ' . $e->getMessage());

@@ -161,9 +161,7 @@ sales_ora12_enqueue_assets();
                 <th>#</th>
                 <th>الصنف</th>
                 <th>الوحدة</th>
-                <th>التعبئة</th>
                 <th>الكمية</th>
-                <th>العدد</th>
             </tr>
             </thead>
             <tbody>
@@ -173,24 +171,26 @@ sales_ora12_enqueue_assets();
                 if ($factor <= 0) {
                     $factor = 1.0;
                 }
-                $qtyBase = (float) ($line['qty_base'] ?? ($qty * $factor));
                 $unitName = trim((string) ($line['unit_name'] ?? ''));
-                $unitLabel = $unitName !== '' ? inv_item_unit_pack_label($unitName, $factor) : '—';
-                $packDisp = $factor > 1.0000001
-                    ? rtrim(rtrim(number_format($factor, 6, '.', ''), '0'), '.')
-                    : '1';
+                $itemName = trim((string) ($line['item_name'] ?? ''));
+                $packHint = $factor > 1.0000001
+                    ? ('تعبئة × ' . rtrim(rtrim(number_format($factor, 6, '.', ''), '0'), '.'))
+                    : '';
                 ?>
                 <tr>
                     <td><?= $i + 1 ?></td>
-                    <td><?= esc((string) ($line['item_name'] ?? '')) ?></td>
-                    <td><?= esc($unitLabel) ?></td>
-                    <td dir="ltr"><?= esc($packDisp) ?></td>
+                    <td>
+                        <?= esc($itemName) ?>
+                        <?php if ($packHint !== ''): ?>
+                            <span class="co-pack-hint" dir="ltr"><?= esc($packHint) ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td><?= esc($unitName !== '' ? $unitName : '—') ?></td>
                     <td dir="ltr"><?= esc(rtrim(rtrim(number_format($qty, 6, '.', ''), '0'), '.')) ?></td>
-                    <td dir="ltr"><?= esc(rtrim(rtrim(number_format($qtyBase, 6, '.', ''), '0'), '.')) ?></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($order['lines'])): ?>
-                <tr><td colspan="6" class="muted">لا توجد بنود.</td></tr>
+                <tr><td colspan="4" class="muted">لا توجد بنود.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>

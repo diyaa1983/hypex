@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -22,6 +23,8 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _orders = [];
+  Map<String, dynamic>? _pager;
+  int _page = 1;
   final _search = TextEditingController();
   String _status = ''; // '' | draft | approved
 
@@ -43,18 +46,27 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
       _error = null;
     });
     try {
-      final query = <String, dynamic>{'q': _search.text.trim()};
+      final query = <String, dynamic>{
+        'q': _search.text.trim(),
+        'page': _page,
+      };
       if (_status.isNotEmpty) query['status'] = _status;
       final data = await context.read<ApiClient>().getJson(
             AppConfig.customerOrderListPath,
             query: query,
           );
       if (!mounted) return;
+      final pager = (data['pager'] is Map)
+          ? (data['pager'] as Map).cast<String, dynamic>()
+          : null;
+      final serverPage = (pager?['page'] as num?)?.toInt();
       setState(() {
         _orders = (data['orders'] as List? ?? [])
             .whereType<Map>()
             .map((e) => e.cast<String, dynamic>())
             .toList();
+        _pager = pager;
+        if (serverPage != null && serverPage > 0) _page = serverPage;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -65,6 +77,17 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
         });
       }
     }
+  }
+
+  void _changePage(int page) {
+    if (page < 1 || page == _page) return;
+    setState(() => _page = page);
+    _load();
+  }
+
+  void _resetAndLoad() {
+    setState(() => _page = 1);
+    _load();
   }
 
   bool _isApproved(Map<String, dynamic> o) =>
@@ -93,7 +116,7 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
             child: TextField(
               controller: _search,
-              onSubmitted: (_) => _load(),
+              onSubmitted: (_) => _resetAndLoad(),
               decoration: InputDecoration(
                 hintText: 'بحث برقم الطلب أو العميل',
                 prefixIcon: const Icon(Icons.search_rounded),
@@ -103,7 +126,7 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
                         icon: const Icon(Icons.close_rounded),
                         onPressed: () {
                           _search.clear();
-                          _load();
+                          _resetAndLoad();
                         },
                       ),
               ),
@@ -119,7 +142,10 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
                   label: const Text('الكل'),
                   selected: _status == '',
                   onSelected: (_) {
-                    setState(() => _status = '');
+                    setState(() {
+                      _status = '';
+                      _page = 1;
+                    });
                     _load();
                   },
                 ),
@@ -127,7 +153,10 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
                   label: const Text('مسودة'),
                   selected: _status == 'draft',
                   onSelected: (_) {
-                    setState(() => _status = 'draft');
+                    setState(() {
+                      _status = 'draft';
+                      _page = 1;
+                    });
                     _load();
                   },
                 ),
@@ -135,7 +164,10 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
                   label: const Text('معتمد'),
                   selected: _status == 'approved',
                   onSelected: (_) {
-                    setState(() => _status = 'approved');
+                    setState(() {
+                      _status = 'approved';
+                      _page = 1;
+                    });
                     _load();
                   },
                 ),
@@ -214,6 +246,7 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
                     ),
                   ),
           )),
+          ListPageBar.fromPager(_pager, onPageChanged: _changePage),
         ]),
       );
 }

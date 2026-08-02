@@ -142,7 +142,10 @@ $toolbarRoutesJsV = is_file(app_path('assets/mobile/mobile-toolbar-routes.js'))
     <script src="<?= esc(app_url('assets/mobile/mobile-toolbar.js')) ?><?= $toolbarJsVHead !== '' ? '?v=' . esc($toolbarJsVHead) : '' ?>"></script>
     <script src="<?= esc(app_url('assets/mobile/mobile-toolbar-routes.js')) ?><?= $toolbarRoutesJsV !== '' ? '?v=' . esc($toolbarRoutesJsV) : '' ?>" defer></script>
 </head>
-<body class="<?= esc($pageBodyClass) ?><?= $showBottomDock ? ' m-has-action-dock' : '' ?><?= ($activeRoute ?? '') === 'm_sales_invoice_view' ? ' m-page-inv-view' : '' ?><?= ($activeRoute ?? '') === 'm_party_statement' ? ' m-page-party-stmt' : '' ?>">
+<body class="<?= esc($pageBodyClass) ?><?= $showBottomDock ? ' m-has-action-dock' : '' ?><?= ($activeRoute ?? '') === 'm_sales_invoice_view' ? ' m-page-inv-view' : '' ?><?= ($activeRoute ?? '') === 'm_party_statement' ? ' m-page-party-stmt' : '' ?>"
+      data-active-route="<?= esc((string) ($activeRoute ?? '')) ?>"
+      data-csrf="<?= esc(csrf_token()) ?>"
+      data-error-log-api="<?= esc(app_url('api/sys_error_log_client.php')) ?>">
 <header class="m-header">
     <?php
     $backUrl = mobile_url('r=m_home');

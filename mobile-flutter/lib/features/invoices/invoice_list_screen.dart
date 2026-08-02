@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -24,6 +25,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _rows = [];
+  Map<String, dynamic>? _pager;
+  int _page = 1;
   String _filter = 'all';
   final _search = TextEditingController();
 
@@ -47,14 +50,24 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     try {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.salesInvoiceListPath,
-        query: {'filter': _filter, 'q': _search.text.trim()},
+        query: {
+          'filter': _filter,
+          'q': _search.text.trim(),
+          'page': _page,
+        },
       );
       if (!mounted) return;
+      final pager = (res['pager'] is Map)
+          ? (res['pager'] as Map).cast<String, dynamic>()
+          : null;
+      final serverPage = (pager?['page'] as num?)?.toInt();
       setState(() {
         _rows = (res['invoices'] as List? ?? [])
             .whereType<Map>()
             .map((e) => e.cast<String, dynamic>())
             .toList();
+        _pager = pager;
+        if (serverPage != null && serverPage > 0) _page = serverPage;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -64,6 +77,17 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
         _loading = false;
       });
     }
+  }
+
+  void _changePage(int page) {
+    if (page < 1 || page == _page) return;
+    setState(() => _page = page);
+    _load();
+  }
+
+  void _resetAndLoad() {
+    setState(() => _page = 1);
+    _load();
   }
 
   Future<void> _post(Map<String, dynamic> row) async {
@@ -233,7 +257,10 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                 _FilterSeg(
                   value: _filter,
                   onChanged: (v) {
-                    setState(() => _filter = v);
+                    setState(() {
+                      _filter = v;
+                      _page = 1;
+                    });
                     _load();
                   },
                 ),
@@ -262,14 +289,14 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
                                 const BorderSide(color: Color(0xFFE2E8F0)),
                           ),
                         ),
-                        onSubmitted: (_) => _load(),
+                        onSubmitted: (_) => _resetAndLoad(),
                       ),
                     ),
                     const SizedBox(width: 8),
                     SizedBox(
                       height: 44,
                       child: FilledButton(
-                        onPressed: _load,
+                        onPressed: _resetAndLoad,
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF0572CE),
                           shape: RoundedRectangleBorder(
@@ -323,6 +350,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
               ),
             ),
           ),
+          ListPageBar.fromPager(_pager, onPageChanged: _changePage),
         ],
       ),
     );

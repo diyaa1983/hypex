@@ -428,6 +428,11 @@ return [
         'title' => 'إعدادات تتبّع موقع الهاتف',
         'hide_screen_title' => true,
     ],
+    'system_error_log' => [
+        'file' => 'modules/settings/system_error_log.php',
+        'permission' => 'system_error_log',
+        'title' => 'سجل أخطاء النظام',
+    ],
     'report_audit_log' => [
         'file' => 'modules/reports/audit_log.php',
         'permission' => 'report_audit_log',

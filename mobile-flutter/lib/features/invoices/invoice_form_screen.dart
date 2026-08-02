@@ -1158,6 +1158,16 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                           color: _ink,
                         ),
                       ),
+                      if (l.unitFactor > 1.0000001)
+                        Text(
+                          'تعبئة × ${Fmt.trimNum(l.unitFactor)}',
+                          textDirection: TextDirection.ltr,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF0369A1),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       if (l.barcode.isNotEmpty)
                         Text(
                           l.barcode,
@@ -1220,7 +1230,6 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                           if (u != null) {
                             l.unitName = u.name;
                             final newFactor = u.factor <= 0 ? 1.0 : u.factor;
-                            // الكمية تبقى كما أدخلها المستخدم؛ العدد = كمية × معامل
                             l.unitFactor = newFactor;
                             if (l.basePrice > 0) {
                               l.unitPrice = l.basePrice * newFactor;
@@ -1240,15 +1249,6 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                     l.qty,
                     enabled: _canEdit,
                     onChanged: (v) => setState(() => l.qty = v),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _numBox(
-                    'العدد',
-                    l.qty * (l.unitFactor <= 0 ? 1 : l.unitFactor),
-                    enabled: false,
-                    onChanged: (_) {},
                   ),
                 ),
                 const SizedBox(width: 6),

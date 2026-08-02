@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_return.php');
+require_once app_path('includes/list_pagination.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -19,12 +20,16 @@ try {
     $pdo = db();
     $filter = trim((string) ($_GET['filter'] ?? 'all'));
     $search = trim((string) ($_GET['q'] ?? ''));
-    $rows = mobile_return_list_rows($pdo, $filter, $search, 120);
+    $total = mobile_return_list_count($pdo, $filter, $search);
+    $pager = mobile_list_pager_from_request($pdo, $total);
+    $rows = mobile_return_list_rows($pdo, $filter, $search, (int) $pager['limit'], (int) $pager['offset']);
 
     echo json_encode([
         'ok' => true,
         'returns' => $rows,
         'count' => count($rows),
+        'pager' => mobile_list_pager_meta($pager),
+        'rows_per_page' => (int) $pager['per_page'],
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     error_log('mobile_returns_list: ' . $e->getMessage());

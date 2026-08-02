@@ -55,6 +55,38 @@ function list_pager_sql_limit(array $pager): string
     return ' LIMIT ' . (int) $pager['limit'] . ' OFFSET ' . (int) $pager['offset'];
 }
 
+/**
+ * ترقيم قوائم تطبيق الهاتف حسب إعداد «أسطر الصفحة».
+ *
+ * @return array{page:int, per_page:int, limit:int, offset:int, total:int, total_pages:int}
+ */
+function mobile_list_pager_from_request(?PDO $pdo = null, ?int $total = null): array
+{
+    $pager = list_pager_from_request($pdo);
+    if ($total !== null) {
+        return list_pager_with_total($pager, $total);
+    }
+
+    $pager['total'] = 0;
+    $pager['total_pages'] = 1;
+
+    return $pager;
+}
+
+/**
+ * @param array{page:int, per_page:int, total?:int, total_pages?:int} $pager
+ * @return array{page:int, per_page:int, total:int, total_pages:int}
+ */
+function mobile_list_pager_meta(array $pager): array
+{
+    return [
+        'page' => (int) ($pager['page'] ?? 1),
+        'per_page' => (int) ($pager['per_page'] ?? company_rows_per_page()),
+        'total' => (int) ($pager['total'] ?? 0),
+        'total_pages' => (int) ($pager['total_pages'] ?? 1),
+    ];
+}
+
 /** @param array<string, scalar|null> $query */
 function list_pager_base_url(string $route, array $query = []): string
 {

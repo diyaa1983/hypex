@@ -130,7 +130,10 @@ function mobile_invoice_enrich_display(PDO $pdo, array $invoice): array
 }
 
 /** @return list<array<string, mixed>> */
-function mobile_invoice_list_rows(PDO $pdo, string $filter = 'all', string $search = '', int $limit = 100): array
+/**
+ * @return array{0:string,1:list<mixed>,2:string} [fromWhereSql, params, postedExpr]
+ */
+function mobile_invoice_list_from_where(PDO $pdo, string $filter = 'all', string $search = ''): array
 {
     sal_invoice_ensure_schema($pdo);
     crm_ledger_ensure_schema($pdo);
@@ -141,18 +144,10 @@ function mobile_invoice_list_rows(PDO $pdo, string $filter = 'all', string $sear
     if (!in_array($filter, ['all', 'unposted', 'posted'], true)) {
         $filter = 'all';
     }
-    $limit = max(1, min(200, $limit));
     $search = trim($search);
-
     $postedExpr = sal_invoice_sql_is_posted_expr('i');
-    $einvExpr = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');
 
-    $sql = "SELECT i.id, i.invoice_no, i.invoice_date, i.total, i.subtotal, i.tax_amount,
-                   i.payment_type, i.customer_id, c.name_ar AS customer_name, c.code AS customer_code,
-                   i.sales_rep_id, COALESCE(sr.name_ar, '') AS sales_rep_name,
-                   ({$postedExpr}) AS is_posted,
-                   ({$einvExpr}) AS einv_sent
-            FROM sal_invoice i
+    $fromWhere = " FROM sal_invoice i
             LEFT JOIN crm_customer c ON c.id = i.customer_id
             LEFT JOIN crm_sales_rep sr ON sr.id = i.sales_rep_id
             WHERE i.status = 'confirmed'";
@@ -160,24 +155,53 @@ function mobile_invoice_list_rows(PDO $pdo, string $filter = 'all', string $sear
     $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
     if ($scopedRepId !== null) {
         [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
-        $sql .= ' AND (i.sales_rep_id = ? OR ' . $linkSql . ')';
+        $fromWhere .= ' AND (i.sales_rep_id = ? OR ' . $linkSql . ')';
         $params[] = $scopedRepId;
         $params = array_merge($params, $linkParams);
     }
     if ($filter === 'unposted') {
-        $sql .= " AND NOT ({$postedExpr})";
+        $fromWhere .= " AND NOT ({$postedExpr})";
     } elseif ($filter === 'posted') {
-        $sql .= " AND ({$postedExpr})";
+        $fromWhere .= " AND ({$postedExpr})";
     }
     if ($search !== '') {
-        $sql .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR sr.name_ar LIKE ?)';
+        $fromWhere .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR sr.name_ar LIKE ?)';
         $like = '%' . $search . '%';
-        $params[] = $like;
-        $params[] = $like;
-        $params[] = $like;
-        $params[] = $like;
+        array_push($params, $like, $like, $like, $like);
     }
-    $sql .= ' ORDER BY i.id DESC LIMIT ' . (int) $limit;
+
+    return [$fromWhere, $params, $postedExpr];
+}
+
+function mobile_invoice_list_count(PDO $pdo, string $filter = 'all', string $search = ''): int
+{
+    [$fromWhere, $params] = mobile_invoice_list_from_where($pdo, $filter, $search);
+    $st = $pdo->prepare('SELECT COUNT(*)' . $fromWhere);
+    $st->execute($params);
+
+    return (int) $st->fetchColumn();
+}
+
+function mobile_invoice_list_rows(
+    PDO $pdo,
+    string $filter = 'all',
+    string $search = '',
+    int $limit = 100,
+    int $offset = 0
+): array {
+    require_once app_path('includes/sal_documents_list.php');
+    [$fromWhere, $params, $postedExpr] = mobile_invoice_list_from_where($pdo, $filter, $search);
+    $limit = max(1, min(200, $limit));
+    $offset = max(0, $offset);
+    $einvExpr = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');
+
+    $sql = "SELECT i.id, i.invoice_no, i.invoice_date, i.total, i.subtotal, i.tax_amount,
+                   i.payment_type, i.customer_id, c.name_ar AS customer_name, c.code AS customer_code,
+                   i.sales_rep_id, COALESCE(sr.name_ar, '') AS sales_rep_name,
+                   ({$postedExpr}) AS is_posted,
+                   ({$einvExpr}) AS einv_sent"
+        . $fromWhere
+        . ' ORDER BY i.id DESC LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
 
     $st = $pdo->prepare($sql);
     $st->execute($params);

@@ -214,7 +214,7 @@ if ($favRouteAllowed) {
     }
 }
 ?>
-<body class="app-body ui-theme-<?= esc($appUiTheme) ?><?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-lang="<?= esc(app_lang()) ?>" data-dir="<?= esc(app_dir()) ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?> data-active-route="<?= esc($activeRoute) ?>" data-csrf="<?= esc(csrf_token()) ?>" data-fav-api="<?= esc(app_url('api/favorite_toggle.php')) ?>" data-fav-allowed="<?= $favRouteAllowed ? '1' : '0' ?>" data-is-favorite="<?= $favIsFavorite ? '1' : '0' ?>">
+<body class="app-body ui-theme-<?= esc($appUiTheme) ?><?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-lang="<?= esc(app_lang()) ?>" data-dir="<?= esc(app_dir()) ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?> data-active-route="<?= esc($activeRoute) ?>" data-csrf="<?= esc(csrf_token()) ?>" data-error-log-api="<?= esc(app_url('api/sys_error_log_client.php')) ?>" data-fav-api="<?= esc(app_url('api/favorite_toggle.php')) ?>" data-fav-allowed="<?= $favRouteAllowed ? '1' : '0' ?>" data-is-favorite="<?= $favIsFavorite ? '1' : '0' ?>">
 <?php render_i18n_js(); ?>
 <?php render_app_titlebar($tabPageTitle, (string) $routeTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? '')); ?>
 <div class="app-shell<?= $layoutFocus ? ' app-shell--focus' : '' ?>">
@@ -303,6 +303,8 @@ if ($favRouteAllowed) {
 <?php endif; ?>
 </div>
 <?php
+require_once app_path('includes/nav_helpers.php');
+nav_render_floating_screen_exit($activeRoute);
 require_once app_path('includes/app_busy.php');
 app_busy_render_overlay();
 ?>

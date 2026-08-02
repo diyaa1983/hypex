@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../services/return_print_helper.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -21,6 +22,8 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _rows = [];
+  Map<String, dynamic>? _pager;
+  int _page = 1;
 
   @override
   void initState() {
@@ -36,21 +39,35 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
     try {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.returnsListPath,
-        query: {'filter': 'all'},
+        query: {'filter': 'all', 'page': _page},
       );
+      if (!mounted) return;
+      final pager = (res['pager'] is Map)
+          ? (res['pager'] as Map).cast<String, dynamic>()
+          : null;
+      final serverPage = (pager?['page'] as num?)?.toInt();
       setState(() {
         _rows = (res['returns'] as List? ?? [])
             .whereType<Map>()
             .map((e) => e.cast<String, dynamic>())
             .toList();
+        _pager = pager;
+        if (serverPage != null && serverPage > 0) _page = serverPage;
         _loading = false;
       });
     } on ApiException catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.message;
         _loading = false;
       });
     }
+  }
+
+  void _changePage(int page) {
+    if (page < 1 || page == _page) return;
+    setState(() => _page = page);
+    _load();
   }
 
   @override
@@ -69,7 +86,10 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
         icon: const Icon(Icons.add_rounded, size: 20),
         label: const Text('مرتجع جديد'),
       ),
-      body: RefreshIndicator(
+      body: Column(
+        children: [
+          Expanded(
+            child: RefreshIndicator(
         onRefresh: _load,
         child: AsyncView(
           loading: _loading,
@@ -217,6 +237,10 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
                   },
                 ),
         ),
+      ),
+          ),
+          ListPageBar.fromPager(_pager, onPageChanged: _changePage),
+        ],
       ),
     );
   }

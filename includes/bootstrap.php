@@ -31,7 +31,18 @@ error_reporting(E_ALL);
 @ini_set('log_errors', '1');
 @ini_set('display_errors', $appDebugMode ? '1' : '0');
 
-set_exception_handler(static function (Throwable $e) use ($appDebugMode, $bootEsc): void {
+$setExceptionHandler = static function (Throwable $e) use ($appDebugMode, $bootEsc): void {
+    try {
+        $logFile = dirname(__DIR__) . '/includes/sys_error_log.php';
+        if (is_file($logFile)) {
+            require_once $logFile;
+            if (function_exists('sys_error_log_from_throwable')) {
+                sys_error_log_from_throwable($e, 'server');
+            }
+        }
+    } catch (Throwable $ignored) {
+    }
+
     if (!headers_sent()) {
         http_response_code(500);
         header('Content-Type: text/html; charset=utf-8');
@@ -51,7 +62,8 @@ set_exception_handler(static function (Throwable $e) use ($appDebugMode, $bootEs
     echo '<p style="margin:0">تحقق من إعدادات قاعدة البيانات في <code>config/database.local.php</code>، ';
     echo 'وتأكد من نسخة PHP المناسبة. إذا استمرت المشكلة راجع ملف <code>error_log</code> في cPanel.</p>';
     echo '</body></html>';
-});
+};
+set_exception_handler($setExceptionHandler);
 
 register_shutdown_function(static function () use ($appDebugMode, $bootEsc): void {
     $e = error_get_last();
@@ -62,6 +74,26 @@ register_shutdown_function(static function () use ($appDebugMode, $bootEsc): voi
     if (!in_array((int) ($e['type'] ?? 0), $fatalTypes, true)) {
         return;
     }
+
+    try {
+        $logFile = dirname(__DIR__) . '/includes/sys_error_log.php';
+        if (is_file($logFile)) {
+            require_once $logFile;
+            if (function_exists('sys_error_log_write')) {
+                $msg = trim((string) ($e['message'] ?? 'Fatal error'));
+                $file = (string) ($e['file'] ?? '');
+                $line = (string) ($e['line'] ?? '');
+                sys_error_log_write([
+                    'source' => 'fatal',
+                    'level' => 'fatal',
+                    'message' => $msg !== '' ? $msg : 'Fatal error',
+                    'detail' => ($file !== '' ? ($file . ':' . $line) : null),
+                ]);
+            }
+        }
+    } catch (Throwable $ignored) {
+    }
+
     if (!headers_sent()) {
         http_response_code(500);
         header('Content-Type: text/html; charset=utf-8');
