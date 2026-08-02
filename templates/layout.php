@@ -227,7 +227,6 @@ if ($favRouteAllowed) {
 <?php if ($layoutFocus): ?>
     <header class="app-topbar no-print" role="banner">
         <div class="app-topbar-account">
-            <?php render_header_screen_exit($activeRoute); ?>
             <?php render_app_header_account($appUserLabel, $logoutUrl); ?>
         </div>
         <div class="app-topbar-main">
@@ -247,7 +246,6 @@ if ($favRouteAllowed) {
     <?php $showMasterToolbar = $activeRoute !== 'dashboard' && $activeRoute !== 'menu_hub'; ?>
     <header class="app-screen-head no-print" role="banner">
         <div class="app-screen-head-account">
-            <?php render_header_screen_exit($activeRoute); ?>
             <?php render_app_header_account($appUserLabel, $logoutUrl); ?>
         </div>
         <?php if (!$showMasterToolbar && $screenHeadTitle !== ''): ?>

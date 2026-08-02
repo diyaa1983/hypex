@@ -172,7 +172,8 @@ if ($showResult) {
     $pageDataAttrs .= ' data-to-dmy="' . esc(format_date_dmY($to)) . '"';
 }
 
-$colspanEmpty = 11 + ($showAllCustomers ? 1 : 0);
+$colCount = ($showAllCustomers ? 11 : 10);
+$footerLabelColspan = $showAllCustomers ? 8 : 7;
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($invCssUrl) ?>">
@@ -283,9 +284,24 @@ customer_picker_json_script($customers, 'report-customer-orders-customers-json')
             </div>
 
             <div class="report-sales-table-wrap">
-                <table class="report-sales-table js-sortable-report"
+                <table class="report-sales-table report-sales-table--customer-orders js-sortable-report<?= $showAllCustomers ? ' report-sales-table--all-customers' : '' ?>"
                        data-default-sort="<?= esc($defaultSortKey) ?>"
                        data-default-dir="asc">
+                    <colgroup>
+                        <col class="col-seq">
+                        <col class="col-inv-no">
+                        <col class="col-date">
+                        <?php if ($showAllCustomers): ?>
+                        <col class="col-customer">
+                        <?php endif; ?>
+                        <col class="col-rep">
+                        <col class="col-item">
+                        <col class="col-unit">
+                        <col class="col-factor">
+                        <col class="col-qty">
+                        <col class="col-qty-base">
+                        <col class="col-posted">
+                    </colgroup>
                     <thead>
                     <tr>
                         <th class="col-seq js-sort-th" data-sort="seq" data-sort-type="number">#</th>
@@ -296,17 +312,17 @@ customer_picker_json_script($customers, 'report-customer-orders-customers-json')
                         <?php endif; ?>
                         <th class="col-rep js-sort-th" data-sort="sales_rep_name" data-sort-type="text">المندوب</th>
                         <th class="col-item js-sort-th" data-sort="item_name" data-sort-type="text">المادة</th>
-                        <th class="js-sort-th" data-sort="unit_name" data-sort-type="text">الوحدة</th>
-                        <th class="col-money js-sort-th" data-sort="unit_factor" data-sort-type="number">التعبئة</th>
-                        <th class="col-money js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
-                        <th class="col-money js-sort-th" data-sort="qty_base" data-sort-type="number">العدد</th>
+                        <th class="col-unit js-sort-th" data-sort="unit_name" data-sort-type="text">الوحدة</th>
+                        <th class="col-factor js-sort-th" data-sort="unit_factor" data-sort-type="number">التعبئة</th>
+                        <th class="col-qty js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
+                        <th class="col-qty-base js-sort-th" data-sort="qty_base" data-sort-type="number">العدد</th>
                         <th class="col-posted js-sort-th" data-sort="status_label" data-sort-type="text">الحالة</th>
                     </tr>
                     </thead>
                     <tbody>
                     <?php if (!$rows): ?>
                         <tr>
-                            <td colspan="<?= (int) $colspanEmpty ?>" class="muted" style="text-align:center;padding:1.25rem;">
+                            <td colspan="<?= (int) $colCount ?>" class="muted" style="text-align:center;padding:1.25rem;">
                                 لا توجد طلبات شراء مطابقة في الفترة المحددة.
                             </td>
                         </tr>
@@ -316,6 +332,11 @@ customer_picker_json_script($customers, 'report-customer-orders-customers-json')
                     foreach ($rows as $r):
                         $seq += 1;
                         $viewUrl = app_url('index.php?r=sales_customer_orders_approve&id=' . (int) $r['id']);
+                        $statusKey = (string) ($r['status'] ?? 'draft');
+                        $statusLabel = (string) ($r['status_label'] ?? '');
+                        $qtyVal = (float) ($r['qty'] ?? 0);
+                        $factorVal = (float) ($r['unit_factor'] ?? 1);
+                        $qtyBaseVal = (float) ($r['qty_base'] ?? ($qtyVal * $factorVal));
                         ?>
                         <tr data-sort-row="1"
                             data-sort-seq="<?= $seq ?>"
@@ -327,37 +348,41 @@ customer_picker_json_script($customers, 'report-customer-orders-customers-json')
                             data-sort-sales_rep_name="<?= esc((string) ($r['sales_rep_name'] ?? '')) ?>"
                             data-sort-item_name="<?= esc((string) ($r['item_name'] ?? '')) ?>"
                             data-sort-unit_name="<?= esc((string) ($r['unit_name'] ?? '')) ?>"
-                            data-sort-unit_factor="<?= esc((string) (float) ($r['unit_factor'] ?? 1)) ?>"
-                            data-sort-qty="<?= esc((string) (float) ($r['qty'] ?? 0)) ?>"
-                            data-sort-qty_base="<?= esc((string) (float) ($r['qty_base'] ?? 0)) ?>"
-                            data-sort-status_label="<?= esc((string) ($r['status_label'] ?? '')) ?>">
+                            data-sort-unit_factor="<?= esc((string) $factorVal) ?>"
+                            data-sort-qty="<?= esc((string) $qtyVal) ?>"
+                            data-sort-qty_base="<?= esc((string) $qtyBaseVal) ?>"
+                            data-sort-status_label="<?= esc($statusLabel) ?>">
                             <td class="col-seq"><?= $seq ?></td>
                             <td class="col-inv-no">
-                                <code><?= esc((string) $r['order_no']) ?></code>
-                                <a class="btn btn-ghost btn-sm no-print" style="padding:0 0.35rem;font-size:0.75rem;"
-                                   href="<?= esc($viewUrl) ?>">عرض</a>
+                                <span class="report-co-order-cell">
+                                    <code><?= esc((string) $r['order_no']) ?></code>
+                                    <a class="btn btn-ghost btn-sm no-print report-co-view-btn"
+                                       href="<?= esc($viewUrl) ?>">عرض</a>
+                                </span>
                             </td>
                             <td class="col-date" dir="ltr"><?= esc(format_date_dmY((string) ($r['order_date'] ?? ''))) ?></td>
                             <?php if ($showAllCustomers): ?>
                             <td class="col-customer"><span class="report-sales-party-name"><?= esc((string) ($r['customer_name'] ?? '')) ?></span></td>
                             <?php endif; ?>
                             <td class="col-rep"><?= esc((string) ($r['sales_rep_name'] ?? '')) !== '' ? esc((string) $r['sales_rep_name']) : '—' ?></td>
-                            <td class="col-item"><?= esc((string) ($r['item_name'] ?? '')) ?></td>
-                            <td><?= esc((string) ($r['unit_name'] ?? '')) !== '' ? esc((string) $r['unit_name']) : '—' ?></td>
-                            <td class="col-money" dir="ltr"><?= esc(format_amount((float) ($r['unit_factor'] ?? 1))) ?></td>
-                            <td class="col-money"><?= esc(format_amount((float) ($r['qty'] ?? 0))) ?></td>
-                            <td class="col-money"><?= esc(format_amount((float) ($r['qty_base'] ?? ((float) ($r['qty'] ?? 0) * (float) ($r['unit_factor'] ?? 1))))) ?></td>
-                            <td class="col-posted"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
+                            <td class="col-item"><span class="report-sales-item-name" title="<?= esc((string) ($r['item_name'] ?? '')) ?>"><?= esc((string) ($r['item_name'] ?? '')) !== '' ? esc((string) $r['item_name']) : '—' ?></span></td>
+                            <td class="col-unit"><?= esc((string) ($r['unit_name'] ?? '')) !== '' ? esc((string) $r['unit_name']) : '—' ?></td>
+                            <td class="col-factor" dir="ltr"><?= esc(format_amount($factorVal)) ?></td>
+                            <td class="col-qty" dir="ltr"><?= esc(format_amount($qtyVal)) ?></td>
+                            <td class="col-qty-base" dir="ltr"><?= esc(format_amount($qtyBaseVal)) ?></td>
+                            <td class="col-posted">
+                                <span class="report-co-status report-co-status--<?= esc($statusKey === 'approved' ? 'approved' : 'draft') ?>"><?= esc($statusLabel) ?></span>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
                     <?php if ($rows): ?>
                     <tfoot>
                     <tr>
-                        <td colspan="<?= $showAllCustomers ? 8 : 7 ?>">إجمالي الكميات / العدد</td>
-                        <td class="col-money"><?= esc(format_amount($sumQty)) ?></td>
-                        <td class="col-money"><?= esc(format_amount($sumQtyBase ?? $sumQty)) ?></td>
-                        <td></td>
+                        <td colspan="<?= (int) $footerLabelColspan ?>">إجمالي الكميات / العدد</td>
+                        <td class="col-qty" dir="ltr"><?= esc(format_amount($sumQty)) ?></td>
+                        <td class="col-qty-base" dir="ltr"><?= esc(format_amount($sumQtyBase)) ?></td>
+                        <td class="col-posted"></td>
                     </tr>
                     </tfoot>
                     <?php endif; ?>

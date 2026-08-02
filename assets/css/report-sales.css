@@ -3283,3 +3283,146 @@ html[dir="ltr"] .report-print-overlay.sales-inv-print-overlay {
   color: #fff;
   box-shadow: 0 1px 2px rgba(37, 99, 235, 0.25);
 }
+
+/* ????? ????? ?????? ? ????? ??????? ??? ?? ????? «??????» */
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 72rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-seq {
+  width: 2.5rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-inv-no {
+  width: 8.5rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-date {
+  width: 6.5rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-customer {
+  width: 9rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-rep {
+  width: 7.5rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-item {
+  width: auto;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-unit {
+  width: 5.5rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-factor,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-qty,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-qty-base {
+  width: 5.25rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders col.col-posted {
+  width: 5.5rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders th,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders td {
+  vertical-align: middle;
+  padding: 0.45rem 0.4rem;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-item,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-customer,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-rep,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-unit {
+  text-align: start;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders td.col-item {
+  max-width: 0;
+  overflow: hidden;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-factor,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-qty,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-qty-base,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-date,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-seq,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-posted {
+  text-align: center;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-qty,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-qty-base,
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders .col-factor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-co-order-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-co-order-cell code {
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-co-view-btn {
+  padding: 0.1rem 0.4rem !important;
+  font-size: 0.72rem !important;
+  line-height: 1.3;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-co-status {
+  display: inline-block;
+  min-width: 3.6rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-co-status--approved {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-co-status--draft {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+.report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders tfoot td {
+  font-weight: 700;
+  background: #f1f5f9;
+}
+
+@media print {
+  .report-sales-page[data-report-route="report_customer_orders"] .report-sales-table--customer-orders {
+    min-width: 0;
+  }
+
+  .report-sales-page[data-report-route="report_customer_orders"] .report-co-view-btn {
+    display: none !important;
+  }
+}

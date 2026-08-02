@@ -137,11 +137,24 @@
           if (badge) {
             if (count > 0) {
               badge.hidden = false;
+              badge.removeAttribute('hidden');
               badge.textContent = count > 99 ? '99+' : String(count);
             } else {
               badge.hidden = true;
+              badge.setAttribute('hidden', '');
               badge.textContent = '';
             }
+          }
+          if (bell) {
+            if (count > 0) {
+              bell.classList.add('has-alerts');
+            } else {
+              bell.classList.remove('has-alerts');
+            }
+            bell.setAttribute(
+              'aria-label',
+              count > 0 ? 'التنبيهات — ' + count + ' تنبيه' : 'التنبيهات'
+            );
           }
           wrap.setAttribute('data-needs-refresh', '0');
         })
