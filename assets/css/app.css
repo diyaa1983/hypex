@@ -507,12 +507,15 @@ body.app-body .app-titlebar {
   vertical-align: middle;
 }
 
-/* زر × ثابت — يبقى ظاهراً أثناء التمرير لأسفل */
+/* زر × ثابت — دائماً على يسار الشاشة (left فعلي) ويبقى ظاهراً أثناء التمرير */
 .app-floating-exit-btn.app-screen-exit-btn,
 a.app-floating-exit-btn {
   position: fixed !important;
   top: 4.15rem;
-  inset-inline-start: 0.7rem;
+  left: 0.7rem;
+  right: auto;
+  inset-inline-start: auto;
+  inset-inline-end: auto;
   z-index: 10050 !important;
   margin: 0 !important;
   order: unset !important;
@@ -531,7 +534,8 @@ body.app-body--embed .app-floating-exit-btn {
   .app-floating-exit-btn.app-screen-exit-btn,
   a.app-floating-exit-btn {
     top: 3.75rem;
-    inset-inline-start: 0.45rem;
+    left: 0.45rem;
+    right: auto;
   }
 
   body.app-body--embed .app-floating-exit-btn {
