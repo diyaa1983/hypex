@@ -1114,6 +1114,7 @@ function nav_render_floating_screen_exit(string $activeRoute = ''): void
     }
 
     echo '<a class="app-floating-exit-btn ora12-title-bar__close app-screen-exit-btn no-print" href="' . esc($url) . '"';
+    echo ' style="position:fixed!important;top:4.25rem!important;left:0.55rem!important;right:auto!important;bottom:auto!important;z-index:10050!important;"';
     echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">';
     echo '<svg class="app-screen-exit-btn__icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">';
     echo '<path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>';
