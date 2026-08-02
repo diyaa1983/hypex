@@ -52,7 +52,8 @@ $filterQuery = array_filter([
 $pagerUrl = list_pager_base_url('sales_customer_orders_approved', $filterQuery);
 
 $activeRoute = 'sales_customer_orders_approved';
-$canUnapprove = user_can('sales_customer_orders_approve');
+$canUnapprove = sal_customer_order_user_can_unapprove();
+$canOpenApprove = user_can('sales_customer_orders_approve');
 sales_ora12_enqueue_assets();
 ?>
 <div class="dashboard-ora sales-ora12-screen">
@@ -92,7 +93,7 @@ sales_ora12_enqueue_assets();
         </div>
         <button class="btn btn-primary" type="submit">تصفية</button>
         <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=sales_customer_orders_approved')) ?>">إعادة تعيين</a>
-        <?php if ($canUnapprove): ?>
+        <?php if ($canOpenApprove): ?>
             <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=sales_customer_orders_approve')) ?>">اعتماد الطلبات</a>
         <?php endif; ?>
     </form>
@@ -196,14 +197,14 @@ sales_ora12_enqueue_assets();
     </div>
     <?php if ($canUnapprove): ?>
         <p id="co-message" class="muted"></p>
-        <button type="button" id="co-unapprove" class="btn btn-warn">فك الاعتماد</button>
+        <button type="button" id="co-unapprove" class="btn btn-warn no-print sr-only" aria-hidden="true">فك الاعتماد</button>
         <script>
         (function () {
           var msg = document.getElementById('co-message');
           var btn = document.getElementById('co-unapprove');
           var csrf = <?= json_encode(csrf_token()) ?>;
           var id = <?= (int) $order['id'] ?>;
-          btn.onclick = function () {
+          function doUnapprove() {
             if (!confirm('فك اعتماد هذا الطلب وإعادته للمسودات؟')) return;
             fetch(<?= json_encode(app_url('api/sales_customer_order_unapprove.php')) ?>, {
               method: 'POST',
@@ -215,11 +216,30 @@ sales_ora12_enqueue_assets();
                 location.href = <?= json_encode(app_url('index.php?r=sales_customer_orders_approve&id=' . (int) $order['id'])) ?>;
               }
             });
-          };
+          }
+          if (btn) btn.onclick = doUnapprove;
+          window.CoUnapproveToolbar = { unapprove: doUnapprove };
         })();
         </script>
     <?php endif; ?>
 </div>
 <?php endif; ?>
+<script>
+document.addEventListener('master-toolbar', function (e) {
+  if (!e.detail || e.detail.action !== 'unapprove') return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  var api = window.CoUnapproveToolbar;
+  if (!api) {
+    if (window.AppDialog && AppDialog.alert) {
+      AppDialog.alert('افتح طلباً معتمداً أولاً.', { type: 'warning' });
+    } else {
+      alert('افتح طلباً معتمداً أولاً.');
+    }
+    return;
+  }
+  api.unapprove();
+});
+</script>
 <?php sales_ora12_workspace_close(); ?>
 </div>

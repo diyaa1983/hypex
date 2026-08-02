@@ -6,9 +6,9 @@ require_once app_path('includes/sal_customer_order.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!is_logged_in() || !user_can('sales_customer_orders_approve') || $_SERVER['REQUEST_METHOD'] !== 'POST') {
+if (!is_logged_in() || !sal_customer_order_user_can_delete_managed() || $_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(403);
-    echo json_encode(['ok' => false, 'error' => 'forbidden'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'error' => 'forbidden', 'message' => 'لا توجد صلاحية حذف الطلب.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 

@@ -225,6 +225,13 @@ function sal_rep_route_delete(PDO $pdo, int $id): void
     $pdo->prepare('DELETE FROM sal_rep_route WHERE id = ?')->execute([$id]);
 }
 
+/** حذف خط سير المندوب — شاشة الخط + صلاحية الإجراء. */
+function sal_rep_route_user_can_delete(): bool
+{
+    return user_is_system_admin()
+        || (user_can('sales_rep_route') && user_can_action('action_delete_sales_rep_route'));
+}
+
 function sal_rep_route_customer_is_assigned(PDO $pdo, int $salesRepId, int $customerId, ?string $routeDate = null): bool
 {
     if ($salesRepId < 1 || $customerId < 1 || !sal_rep_route_ensure_schema($pdo)) {

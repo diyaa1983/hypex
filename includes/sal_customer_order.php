@@ -240,6 +240,39 @@ function sal_customer_order_user_can_edit_drafts(): bool
         || user_can('m_customer_orders');
 }
 
+/** اعتماد طلب شراء عميل — شاشة الاعتماد + صلاحية الإجراء. */
+function sal_customer_order_user_can_approve(): bool
+{
+    return user_is_system_admin()
+        || (
+            user_can('sales_customer_orders_approve')
+            && user_can_action('action_approve_customer_order')
+        );
+}
+
+/** فك اعتماد طلب شراء عميل. */
+function sal_customer_order_user_can_unapprove(): bool
+{
+    return user_is_system_admin()
+        || (
+            (user_can('sales_customer_orders_approve') || user_can('sales_customer_orders_approved'))
+            && user_can_action('action_unapprove_customer_order')
+        );
+}
+
+/**
+ * حذف طلب من شاشة الاعتماد/الإدارة.
+ * حذف المندوب لطلباته من الموبايل يبقى عبر صلاحية شاشة الموبايل دون هذا الإجراء.
+ */
+function sal_customer_order_user_can_delete_managed(): bool
+{
+    return user_is_system_admin()
+        || (
+            user_can('sales_customer_orders_approve')
+            && user_can_action('action_delete_customer_order')
+        );
+}
+
 /** @param list<array<string,mixed>> $lines */
 function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $userId, ?int $forceRepId = null): int
 {

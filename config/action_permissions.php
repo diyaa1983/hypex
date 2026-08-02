@@ -40,8 +40,13 @@ return [
                 ],
                 [
                     'code' => 'action_unapprove_purchase_order',
-                    'name_ar' => 'فك اعتماد طلب شراء',
+                    'name_ar' => 'فك اعتماد طلب شراء (مورد)',
                     'inherit_from' => ['purchase_orders', 'purchase_orders_list'],
+                ],
+                [
+                    'code' => 'action_unapprove_customer_order',
+                    'name_ar' => 'فك اعتماد طلب شراء عميل',
+                    'inherit_from' => ['sales_customer_orders_approve', 'sales_customer_orders_approved'],
                 ],
                 [
                     'code' => 'action_unpost_cash_receipt',
@@ -160,8 +165,13 @@ return [
                 ],
                 [
                     'code' => 'action_approve_purchase_order',
-                    'name_ar' => 'اعتماد طلب شراء',
+                    'name_ar' => 'اعتماد طلب شراء (مورد)',
                     'inherit_from' => ['purchase_orders', 'purchase_orders_list'],
+                ],
+                [
+                    'code' => 'action_approve_customer_order',
+                    'name_ar' => 'اعتماد طلب شراء عميل',
+                    'inherit_from' => ['sales_customer_orders_approve'],
                 ],
                 [
                     'code' => 'action_post_cash_receipt',
@@ -235,8 +245,18 @@ return [
                 ],
                 [
                     'code' => 'action_delete_purchase_order',
-                    'name_ar' => 'حذف طلب شراء',
+                    'name_ar' => 'حذف طلب شراء (مورد)',
                     'inherit_from' => ['purchase_orders', 'purchase_orders_list'],
+                ],
+                [
+                    'code' => 'action_delete_customer_order',
+                    'name_ar' => 'حذف طلب شراء عميل',
+                    'inherit_from' => ['sales_customer_orders_approve', 'sales_customer_orders_approved'],
+                ],
+                [
+                    'code' => 'action_delete_sales_rep_route',
+                    'name_ar' => 'حذف خط سير المندوب',
+                    'inherit_from' => ['sales_rep_route'],
                 ],
                 [
                     'code' => 'action_convert_purchase_order',

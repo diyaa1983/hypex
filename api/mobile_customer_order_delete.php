@@ -26,12 +26,11 @@ try {
     sal_customer_order_ensure_schema($pdo);
     $uid = (int) (current_user()['id'] ?? 0);
     $rep = user_is_system_admin() ? null : crm_mobile_scoped_sales_rep_id($pdo);
-    if ($rep === null && !user_is_system_admin() && !user_can('sales_customer_orders_approve')) {
-        throw new RuntimeException('حسابك غير مربوط بمندوب مبيعات.');
-    }
-    // المندوب يحذف طلباته فقط؛ المسؤول/من له اعتماد يحذف أي مسودة
+    // حذف إداري لأي طلب يتطلب صلاحية الإجراء؛ المندوب يحذف مسوداته فقط
     $scoped = null;
-    if (!user_is_system_admin() && !user_can('sales_customer_orders_approve')) {
+    if (sal_customer_order_user_can_delete_managed()) {
+        $scoped = null;
+    } else {
         if ($rep === null) {
             throw new RuntimeException('حسابك غير مربوط بمندوب مبيعات.');
         }

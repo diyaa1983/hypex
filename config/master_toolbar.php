@@ -125,6 +125,31 @@ return [
                 'hr_overtime_settings',
                 'hr_social_security_rates',
                 'hr_income_tax_settings',
+                'sales_customer_orders_approve',
+            ],
+        ],
+        [
+            'action' => 'approve',
+            'label' => 'اعتماد',
+            'variant' => 'secondary',
+            'title' => 'اعتماد طلب الشراء بعد الحفظ',
+            'screens' => [
+                'sales_customer_orders_approve',
+            ],
+            'permission_by_screen' => [
+                'sales_customer_orders_approve' => 'action_approve_customer_order',
+            ],
+        ],
+        [
+            'action' => 'unapprove',
+            'label' => 'فك الاعتماد',
+            'variant' => 'secondary',
+            'title' => 'فك اعتماد طلب الشراء وإعادته للمسودات',
+            'screens' => [
+                'sales_customer_orders_approved',
+            ],
+            'permission_by_screen' => [
+                'sales_customer_orders_approved' => 'action_unapprove_customer_order',
             ],
         ],
         [
@@ -540,8 +565,10 @@ return [
                 'hr_overtime_settings',
                 'hr_social_security_rates',
                 'hr_income_tax_settings',
+                'sales_customer_orders_approve',
             ],
             'permission_by_screen' => [
+                'sales_customer_orders_approve' => 'action_delete_customer_order',
                 'sales_invoices' => 'action_delete_sales_invoice',
                 'sales_invoices_list' => 'action_delete_sales_invoice',
                 'sales_delivery' => 'action_delete_sales_delivery',

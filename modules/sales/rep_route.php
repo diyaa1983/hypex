@@ -55,6 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = (string) ($_POST['_action'] ?? 'save');
     try {
         if ($act === 'delete') {
+            if (!sal_rep_route_user_can_delete()) {
+                throw new RuntimeException('لا توجد صلاحية حذف خط السير.');
+            }
             sal_rep_route_delete($pdo, (int) ($_POST['id'] ?? 0));
             flash_set('success', 'تم حذف خط السير.');
         } else {
@@ -102,6 +105,7 @@ if ($edit) {
     }
 }
 $rows = sal_rep_route_list($pdo, $filterRep > 0 ? $filterRep : null, null, null, 80);
+$canDeleteRoute = sal_rep_route_user_can_delete();
 
 sales_ora12_enqueue_assets();
 customer_picker_enqueue_assets();
@@ -234,6 +238,7 @@ customer_picker_enqueue_assets();
                     <td><?= esc((string) ($r['notes'] ?: '—')) ?></td>
                     <td>
                         <a class="btn btn-sm" href="<?= esc(app_url('index.php?r=sales_rep_route&id=' . (int) $r['id'])) ?>">تعديل</a>
+                        <?php if ($canDeleteRoute): ?>
                         <form method="post" action="<?= esc($listUrl) ?>" style="display:inline;"
                               onsubmit="return confirm('حذف خط السير؟');">
                             <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -241,6 +246,7 @@ customer_picker_enqueue_assets();
                             <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
                             <button class="btn btn-secondary btn-sm" type="submit">حذف</button>
                         </form>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>

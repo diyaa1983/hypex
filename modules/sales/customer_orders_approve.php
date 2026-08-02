@@ -210,7 +210,7 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
             </tbody>
         </table>
         <p id="co-message" class="muted"></p>
-        <div class="form-row" style="gap:0.5rem;flex-wrap:wrap;">
+        <div class="form-row no-print sr-only" aria-hidden="true">
             <button type="button" id="co-save" class="btn btn-primary">حفظ التعديلات</button>
             <button type="button" id="co-approve" class="btn btn-success">اعتماد</button>
             <button type="button" id="co-delete" class="btn btn-secondary">حذف الطلب</button>
@@ -377,7 +377,7 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
     };
   }
 
-  document.getElementById('co-save').onclick = function () {
+  function doSave() {
     var lines = collectLines();
     if (!lines.length) {
       msg.textContent = 'أدخل بنداً واحداً على الأقل.';
@@ -393,9 +393,9 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
       msg.textContent = x.message || (x.ok ? 'تم الحفظ.' : 'تعذر الحفظ.');
       if (x.ok) location.reload();
     });
-  };
+  }
 
-  document.getElementById('co-approve').onclick = function () {
+  function doApprove() {
     var lines = collectLines();
     if (!lines.length) {
       msg.textContent = 'احفظ بنداً واحداً على الأقل قبل الاعتماد.';
@@ -418,19 +418,66 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
       msg.textContent = x.message || (x.ok ? 'تم الاعتماد.' : 'تعذر الاعتماد.');
       if (x.ok) location.href = <?= json_encode(app_url('index.php?r=sales_customer_orders_approved')) ?>;
     });
-  };
+  }
 
-  document.getElementById('co-delete').onclick = function () {
+  function doDelete() {
     if (!confirm('حذف هذا الطلب نهائياً؟')) return;
     post(urls.del, { id: id }).then(function (x) {
       msg.textContent = x.message || (x.ok ? 'تم الحذف.' : 'تعذر الحذف.');
       if (x.ok) location.href = urls.list;
     });
-  };
+  }
+
+  var saveBtn = document.getElementById('co-save');
+  var approveBtn = document.getElementById('co-approve');
+  var deleteBtn = document.getElementById('co-delete');
+  if (saveBtn) saveBtn.onclick = doSave;
+  if (approveBtn) approveBtn.onclick = doApprove;
+  if (deleteBtn) deleteBtn.onclick = doDelete;
+
+  window.CoApproveToolbar = { save: doSave, approve: doApprove, delete: doDelete };
 })();
 </script>
 </div>
 <?php item_picker_modal_once(); ?>
 <?php endif; ?>
+<script>
+document.addEventListener('master-toolbar', function (e) {
+  var action = e.detail && e.detail.action;
+  if (action !== 'save' && action !== 'approve' && action !== 'delete') return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  var api = window.CoApproveToolbar;
+  if (!api) {
+    if (window.AppDialog && AppDialog.alert) {
+      AppDialog.alert('افتح طلباً من القائمة أولاً.', { type: 'warning' });
+    } else {
+      alert('افتح طلباً من القائمة أولاً.');
+    }
+    return;
+  }
+  if (action === 'save') {
+    api.save();
+    return;
+  }
+  if (action === 'approve') {
+    <?php if (!sal_customer_order_user_can_approve()): ?>
+    if (window.AppDialog && AppDialog.alert) AppDialog.alert('لا توجد صلاحية اعتماد الطلب.', { type: 'warning' });
+    else alert('لا توجد صلاحية اعتماد الطلب.');
+    return;
+    <?php endif; ?>
+    api.approve();
+    return;
+  }
+  if (action === 'delete') {
+    <?php if (!sal_customer_order_user_can_delete_managed()): ?>
+    if (window.AppDialog && AppDialog.alert) AppDialog.alert('لا توجد صلاحية حذف الطلب.', { type: 'warning' });
+    else alert('لا توجد صلاحية حذف الطلب.');
+    return;
+    <?php endif; ?>
+    api.delete();
+  }
+});
+</script>
 <?php sales_ora12_workspace_close(); ?>
 </div>
