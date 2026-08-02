@@ -507,76 +507,65 @@ body.app-body .app-titlebar {
   vertical-align: middle;
 }
 
-/* زر × ثابت — دائماً أقصى يسار الشاشة فعلياً (left) ويبقى ظاهراً أثناء التمرير */
-.app-floating-exit-btn.app-screen-exit-btn,
-a.app-floating-exit-btn,
-body a.app-floating-exit-btn.app-screen-exit-btn {
-  position: fixed !important;
-  top: 4.25rem !important;
-  bottom: auto !important;
-  left: 0.55rem !important;
-  right: auto !important;
-  z-index: 10050 !important;
-  margin: 0 !important;
-  order: unset !important;
-  float: none !important;
-  box-shadow: 0 2px 10px rgba(185, 28, 28, 0.45) !important;
+/* زر × — داخل شريط عنوان الشاشة (يسار الشريط) كجزء من الإطار */
+.dashboard-ora-screen-title > .ora12-title-bar__close,
+.dashboard-ora-screen-title > .ora12-title-bar__controls,
+.report-ora12-screen-title > .ora12-title-bar__close,
+.report-ora12-screen-title > .ora12-title-bar__controls,
+.app-screen-title-bar > .ora12-title-bar__close {
+  order: 100;
+  flex-shrink: 0;
+  align-self: center;
+  margin-inline-start: auto !important;
+  margin-inline-end: 0 !important;
 }
 
-/* حماية من أي قاعدة inset/direction تعيد الزر لليمين في RTL */
-html[dir="rtl"] body a.app-floating-exit-btn,
-html[dir="rtl"] .app-floating-exit-btn,
-body[data-dir="rtl"] a.app-floating-exit-btn,
-body[data-dir="rtl"] .app-floating-exit-btn {
-  left: 0.55rem !important;
-  right: auto !important;
-  bottom: auto !important;
+.dashboard-ora-screen-title > .ora12-title-bar__close.app-screen-exit-btn,
+.dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+.report-ora12-screen-title > .ora12-title-bar__close.app-screen-exit-btn,
+.report-ora12-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+.app-screen-title-bar > .ora12-title-bar__close.app-screen-exit-btn,
+header.dashboard-ora-screen-title > a.ora12-title-bar__close {
+  width: 1.7rem !important;
+  height: 1.7rem !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.42) !important;
+  background: linear-gradient(180deg, #f04343 0%, #dc2626 55%, #b91c1c 100%) !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 1px 2px rgba(0, 0, 0, 0.18) !important;
 }
 
-body.app-body--focus a.app-floating-exit-btn,
-body.app-body--focus .app-floating-exit-btn {
-  top: 4.25rem !important;
+/* عند وجود badges مع margin auto — الزر يبقى مباشرة بجانبها على اليسار */
+.dashboard-ora-screen-title:has(.sales-inv-status-badges) > .ora12-title-bar__close.app-screen-exit-btn {
+  margin-inline-start: 0.4rem !important;
 }
 
-body.app-body--embed a.app-floating-exit-btn,
-body.app-body--embed .app-floating-exit-btn {
-  top: 3.15rem !important;
-  left: 0.5rem !important;
-  right: auto !important;
+.dashboard-ora-screen-title > .ora12-title-bar__close.app-screen-exit-btn:hover,
+.report-ora12-screen-title > .ora12-title-bar__close.app-screen-exit-btn:hover,
+.app-screen-title-bar > .ora12-title-bar__close.app-screen-exit-btn:hover,
+header.dashboard-ora-screen-title > a.ora12-title-bar__close:hover {
+  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 55%, #991b1b 100%) !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  transform: none;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.28) inset,
+    0 2px 4px rgba(0, 0, 0, 0.22) !important;
 }
 
-@media (max-width: 720px) {
-  .app-floating-exit-btn.app-screen-exit-btn,
-  a.app-floating-exit-btn,
-  body a.app-floating-exit-btn.app-screen-exit-btn {
-    top: 3.85rem !important;
-    left: 0.4rem !important;
-    right: auto !important;
-  }
-
-  body.app-body--embed .app-floating-exit-btn {
-    top: 2.9rem !important;
-  }
+/* شريط عنوان شفاف (مفضلة فقط) */
+.app-screen-title-bar {
+  justify-content: flex-start;
+  gap: 0.45rem;
 }
 
-/* إخفاء أي × داخل شريط العنوان عند وجود الزر الثابت */
-body:has(.app-floating-exit-btn) .dashboard-ora-screen-title > .ora12-title-bar__close:not(.app-floating-exit-btn),
-body:has(.app-floating-exit-btn) .dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
-body:has(.app-floating-exit-btn) .report-ora12-screen-title > .ora12-title-bar__close:not(.app-floating-exit-btn),
-body:has(.app-floating-exit-btn) .report-ora12-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
-body:has(.app-floating-exit-btn) .app-screen-title-bar > .ora12-title-bar__close:not(.app-floating-exit-btn),
-body:has(.app-floating-exit-btn) .app-screen-title-bar .ora12-title-bar__close:not(.app-floating-exit-btn),
-body:has(.app-floating-exit-btn) .hr-ora-title-bar__close,
-body:has(.app-floating-exit-btn) .nav-hub-head__actions .ora12-title-bar__close {
+.app-screen-title-bar > .ora12-title-bar__close.app-screen-exit-btn {
+  border-radius: 999px !important;
+}
+
+/* لا زر عائم خارج الإطار */
+.app-floating-exit-btn {
   display: none !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  overflow: hidden !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
 }
 
 /* زر الخروج من الشاشة — أحمر في جميع الشاشات */
@@ -663,30 +652,7 @@ body:has(.app-floating-exit-btn) .nav-hub-head__actions .ora12-title-bar__close 
   line-height: 1;
 }
 
-/* زر × داخل الشريط (إن وُجد) — دائماً أقصى اليسار */
-.dashboard-ora-screen-title > .ora12-title-bar__close:not(.app-floating-exit-btn),
-.dashboard-ora-screen-title .ora12-title-bar__controls,
-.report-ora12-screen-title > .ora12-title-bar__close:not(.app-floating-exit-btn),
-.report-ora12-screen-title .ora12-title-bar__controls,
-.app-screen-title-bar > .ora12-title-bar__close:not(.app-floating-exit-btn) {
-  order: 99;
-  margin-inline-start: auto !important;
-  margin-inline-end: 0 !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
-
-/* بعد display:inline-flex — إعادة فرض الإخفاء للزر المكرر */
-body:has(.app-floating-exit-btn) .dashboard-ora-screen-title > .ora12-title-bar__close:not(.app-floating-exit-btn),
-body:has(.app-floating-exit-btn) .dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
-body:has(.app-floating-exit-btn) .report-ora12-screen-title > .ora12-title-bar__close:not(.app-floating-exit-btn),
-body:has(.app-floating-exit-btn) .report-ora12-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
-body:has(.app-floating-exit-btn) .app-screen-title-bar > .ora12-title-bar__close:not(.app-floating-exit-btn),
-body:has(.app-floating-exit-btn) .app-screen-title-bar .ora12-title-bar__close:not(.app-floating-exit-btn),
-body:has(.app-floating-exit-btn) .hr-ora-title-bar__close,
-body:has(.app-floating-exit-btn) .nav-hub-head__actions .ora12-title-bar__close {
-  display: none !important;
-}
+/* تم نقل زر × إلى داخل شريط العنوان — لا حاجة لإخفاء/تكرار */
 
 /* شريط عنوان الشاشة يثبت أعلى منطقة التمرير (احتياطي مع الزر الثابت) */
 .main-content .dashboard-ora-screen-title,

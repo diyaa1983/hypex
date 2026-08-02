@@ -1045,28 +1045,21 @@ function nav_screen_close_info(string $activeRoute = ''): array
 }
 
 /**
- * زر × الموحّد ثابت أعلى يسار المحتوى — لا نكرّر زر الإغلاق داخل شريط العنوان.
+ * إظهار زر × داخل شريط عنوان الشاشة (جزء من إطارها) — ليس عائماً خارجها.
+ * يُرجع false دائماً: لم نعد نستخدم الزر العائم.
  */
 function nav_uses_floating_screen_exit(string $activeRoute = ''): bool
 {
-    if ($activeRoute === '') {
-        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
-    }
-    if ($activeRoute === '') {
-        $activeRoute = trim((string) ($_GET['r'] ?? ''));
-    }
-
-    return !in_array($activeRoute, ['dashboard', 'menu_hub', 'login', 'logout', 'favorites_empty', ''], true);
+    return false;
 }
 
-/** أزرار التحكم (تصغير / إغلاق) — لا يُستخدم إن وُجد الزر الثابت يسار الشاشة. */
+/** زر إغلاق الشاشة — داخل شريط العنوان (يسار الشريط في الواجهة العربية). */
 function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl = null, ?string $overrideHint = null): void
 {
     require_once app_path('includes/app_window_manager.php');
     $activeRoute = app_mdi_resolve_route($activeRoute);
 
-    // الخروج يظهر مرة واحدة كزر عائم أعلى اليسار في كل الشاشات
-    if (nav_uses_floating_screen_exit($activeRoute)) {
+    if (in_array($activeRoute, ['dashboard', 'menu_hub', 'login', 'logout', 'favorites_empty', ''], true)) {
         return;
     }
 
@@ -1086,7 +1079,7 @@ function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl 
     if (app_mdi_is_embed_request()) {
         $url = app_mdi_embed_url($url);
     }
-    echo '<a class="ora12-title-bar__close app-screen-exit-btn" href="' . esc($url) . '"';
+    echo '<a class="ora12-title-bar__close app-screen-exit-btn no-print" href="' . esc($url) . '"';
     echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">';
     echo '<svg class="app-screen-exit-btn__icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">';
     echo '<path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>';
@@ -1094,30 +1087,8 @@ function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl 
     echo '</a>';
 }
 
-/** زر × ثابت — أعلى يسار منطقة المحتوى — لجميع الشاشات. */
+/** لم يعد يُستخدم زر عائم — الإغلاق داخل إطار الشاشة فقط. */
 function nav_render_floating_screen_exit(string $activeRoute = ''): void
 {
-    if ($activeRoute === '') {
-        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
-    }
-    require_once app_path('includes/app_window_manager.php');
-    $activeRoute = app_mdi_resolve_route($activeRoute);
-    if (!nav_uses_floating_screen_exit($activeRoute)) {
-        return;
-    }
-
-    $info = nav_screen_close_info($activeRoute);
-    $url = (string) ($info['url'] ?? nav_exit_url($activeRoute));
-    $hint = (string) ($info['hint'] ?? 'إغلاق والعودة');
-    if (app_mdi_is_embed_request()) {
-        $url = app_mdi_embed_url($url);
-    }
-
-    echo '<a class="app-floating-exit-btn ora12-title-bar__close app-screen-exit-btn no-print" href="' . esc($url) . '"';
-    echo ' style="position:fixed!important;top:4.25rem!important;left:0.55rem!important;right:auto!important;bottom:auto!important;z-index:10050!important;"';
-    echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">';
-    echo '<svg class="app-screen-exit-btn__icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">';
-    echo '<path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>';
-    echo '</svg>';
-    echo '</a>';
+    // مقصوداً فارغ: الزر جزء من شريط العنوان عبر nav_render_screen_close.
 }

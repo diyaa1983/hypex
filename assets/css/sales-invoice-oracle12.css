@@ -132,6 +132,7 @@
   align-items: center;
   gap: 0.35rem;
   margin-inline-start: auto;
+  margin-inline-end: 0.15rem;
 }
 
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__end {
