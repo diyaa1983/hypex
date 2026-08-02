@@ -1044,12 +1044,33 @@ function nav_screen_close_info(string $activeRoute = ''): array
     ];
 }
 
-/** أزرار التحكم (تصغير / إغلاق) — يسار شريط العنوان الأزرق. */
+/**
+ * زر × الموحّد ثابت أعلى يسار المحتوى — لا نكرّر زر الإغلاق داخل شريط العنوان.
+ */
+function nav_uses_floating_screen_exit(string $activeRoute = ''): bool
+{
+    if ($activeRoute === '') {
+        $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
+    }
+    if ($activeRoute === '') {
+        $activeRoute = trim((string) ($_GET['r'] ?? ''));
+    }
+
+    return !in_array($activeRoute, ['dashboard', 'menu_hub', 'login', 'logout', 'favorites_empty', ''], true);
+}
+
+/** أزرار التحكم (تصغير / إغلاق) — لا يُستخدم إن وُجد الزر الثابت يسار الشاشة. */
 function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl = null, ?string $overrideHint = null): void
 {
     require_once app_path('includes/app_window_manager.php');
     $activeRoute = app_mdi_resolve_route($activeRoute);
-    if (app_mdi_route_allowed($activeRoute) && !app_mdi_is_embed_request()) {
+
+    // الخروج يظهر مرة واحدة كزر عائم أعلى اليسار في كل الشاشات
+    if (nav_uses_floating_screen_exit($activeRoute)) {
+        return;
+    }
+
+    if (app_mdi_enabled() && app_mdi_route_allowed($activeRoute) && !app_mdi_is_embed_request()) {
         app_mdi_render_title_bar_controls($activeRoute, $overrideUrl, $overrideHint);
         return;
     }
@@ -1073,20 +1094,21 @@ function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl 
     echo '</a>';
 }
 
-/** زر × ثابت — يسار الشاشة — للشاشات التي لا تعرض شريط عنوان Oracle. */
+/** زر × ثابت — أعلى يسار منطقة المحتوى — لجميع الشاشات. */
 function nav_render_floating_screen_exit(string $activeRoute = ''): void
 {
     if ($activeRoute === '') {
         $activeRoute = (string) ($GLOBALS['activeRoute'] ?? '');
     }
-    if (in_array($activeRoute, ['dashboard', 'menu_hub', 'login', 'logout', 'favorites_empty'], true)) {
+    require_once app_path('includes/app_window_manager.php');
+    $activeRoute = app_mdi_resolve_route($activeRoute);
+    if (!nav_uses_floating_screen_exit($activeRoute)) {
         return;
     }
 
     $info = nav_screen_close_info($activeRoute);
     $url = (string) ($info['url'] ?? nav_exit_url($activeRoute));
     $hint = (string) ($info['hint'] ?? 'إغلاق والعودة');
-    require_once app_path('includes/app_window_manager.php');
     if (app_mdi_is_embed_request()) {
         $url = app_mdi_embed_url($url);
     }

@@ -177,7 +177,7 @@ function app_mdi_render_layer(): void
 
 function app_mdi_render_title_bar_controls(string $activeRoute, ?string $overrideUrl = null, ?string $overrideHint = null): void
 {
-    if (app_mdi_is_embed_request() || !app_mdi_route_allowed($activeRoute)) {
+    if (!app_mdi_enabled() || app_mdi_is_embed_request() || !app_mdi_route_allowed($activeRoute)) {
         return;
     }
 
