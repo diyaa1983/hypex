@@ -2,18 +2,22 @@
 declare(strict_types=1);
 
 /**
- * إعدادات MySQL — انسخ إلى database.local.php (محلي أو HostGator).
+ * إعدادات MySQL — انسخ إلى database.local.php (لا يُرفع إلى Git).
  *
- * HostGator (cPanel):
- * - أنشئ قاعدة بيانات + مستخدم من MySQL® Databases
- * - Host غالباً: localhost
- * - اسم القاعدة يكون بصيغة: cpaneluser_dbname
- * - اسم المستخدم: cpaneluser_dbuser
+ * ── XAMPP محلي ──
+ * host: 127.0.0.1 | user: root | pass: (فارغ أو root)
+ *
+ * ── سيرفر مخصص (Static IP) ──
+ * host: 127.0.0.1 أو localhost  (لا تستخدم IP العام لـ MySQL)
+ * أنشئ مستخدماً وكلمة مرور قوية — لا تستخدم root من الويب.
+ *
+ * ── cPanel / HostGator ──
+ * name/user بصيغة: cpaneluser_dbname
  */
 return [
-    'host' => 'localhost',
-    'name' => 'cpaneluser_namma_erp',
-    'user' => 'cpaneluser_erpuser',
-    'pass' => 'ضع_كلمة_المرور_القوية_هنا',
+    'host' => '127.0.0.1',
+    'name' => 'hypex',
+    'user' => 'hypex_user',
+    'pass' => 'ضع_كلمة_مرور_قوية_هنا',
     'charset' => 'utf8mb4',
 ];

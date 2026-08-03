@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 /**
  * تفريغ بيانات التشغيل (فواتير، قيود، مخزون، دفاتر أطراف) مع الإبقاء على البيانات الأساسية.
+ *
+ * لنسخة قالب فارغة بالكامل (للأنظمة الجديدة): نفّذ
+ *   database/scripts/factory_empty_template.sql
+ * على قاعدة البيانات بعد نسخة احتياطية.
  */
 
 function data_reset_table_exists(PDO $pdo, string $table): bool

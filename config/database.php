@@ -9,7 +9,7 @@ declare(strict_types=1);
  */
 $base = [
     'host' => '127.0.0.1',
-    'name' => 'namma_erp',
+    'name' => 'hypex',
     'user' => 'root',
     'pass' => 'root',
     'charset' => 'utf8mb4',
