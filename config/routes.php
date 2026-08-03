@@ -493,6 +493,11 @@ return [
         'permission' => 'report_customers',
         'title' => 'تقرير العملاء',
     ],
+    'report_customers_by_rep' => [
+        'file' => 'modules/reports/customers_by_rep.php',
+        'permission' => 'report_customers_by_rep',
+        'title' => 'تقرير العملاء حسب المندوب',
+    ],
     'report_suppliers' => [
         'file' => 'modules/reports/suppliers.php',
         'permission' => 'report_suppliers',

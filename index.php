@@ -173,6 +173,7 @@ $appBootMigrations = [
     'database/migrations/240_sales_rep_visit_geofence.sql',
     'database/migrations/241_m_rep_route_today.sql',
     'database/migrations/242_sys_error_log.sql',
+    'database/migrations/243_report_customers_by_rep.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

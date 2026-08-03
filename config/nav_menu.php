@@ -145,6 +145,7 @@ return [
                     'title' => 'تقارير العملاء',
                     'items' => [
                         ['r' => 'report_customers', 'label' => 'تقرير العملاء', 'icon' => '👥'],
+                        ['r' => 'report_customers_by_rep', 'label' => 'تقرير العملاء حسب المندوب', 'icon' => '👤'],
                     ],
                 ],
             ],
