@@ -16,3 +16,5 @@
 # كل تحديث بعد التعديل محلياً:
 #   (محلي)  git add -A && git commit -m "..." && git push origin main
 #   (سيرفر) cd /var/www/hypex && bash deploy/update.sh
+#
+# آخر تحقق من الربط مع GitHub: 2026-08-03 (push test OK)
