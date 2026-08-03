@@ -18,3 +18,4 @@
 #   (سيرفر) cd /var/www/hypex && bash deploy/update.sh
 #
 # آخر تحقق من الربط مع GitHub: 2026-08-03 (push test OK)
+# تجربة Git Gui: احذف هذا السطر بعد أن ترى الملف في Unstaged
