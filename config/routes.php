@@ -179,6 +179,11 @@ return [
         'title' => 'العملاء',
         'hide_screen_title' => true,
     ],
+    'oracle_customers_sync' => [
+        'file' => 'modules/system/oracle_customers_sync.php',
+        'permission' => 'oracle_customers_sync',
+        'title' => 'تكامل Oracle — العملاء',
+    ],
     'sales_reps' => [
         'file' => 'modules/sales/sales_reps.php',
         'permission' => 'sales_reps',

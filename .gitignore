@@ -2,6 +2,7 @@
 config/database.local.php
 config/app.local.php
 config/einvoice.local.php
+config/oracle.local.php
 
 # سجلات وتشغيل
 logs/*

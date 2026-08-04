@@ -1,0 +1,281 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * اتصال Oracle لتكامل العملاء (قراءة).
+ *
+ * يتطلب على السيرفر أحد: pdo_oci | oci8 | pdo_odbc مع Oracle ODBC.
+ */
+
+/** @return array<string, mixed> */
+function oracle_config(): array
+{
+    static $cfg = null;
+    if (is_array($cfg)) {
+        return $cfg;
+    }
+    $file = app_path('config/oracle.local.php');
+    if (!is_file($file)) {
+        $cfg = ['enabled' => false];
+        return $cfg;
+    }
+    $raw = require $file;
+    $cfg = is_array($raw) ? $raw : ['enabled' => false];
+
+    return $cfg;
+}
+
+function oracle_is_enabled(): bool
+{
+    $cfg = oracle_config();
+
+    return !empty($cfg['enabled']) && trim((string) ($cfg['host'] ?? '')) !== ''
+        && trim((string) ($cfg['user'] ?? '')) !== '';
+}
+
+function oracle_tns_descriptor(array $cfg): string
+{
+    $host = trim((string) ($cfg['host'] ?? '127.0.0.1'));
+    $port = (int) ($cfg['port'] ?? 1521);
+    $sid = trim((string) ($cfg['sid'] ?? ''));
+    $service = trim((string) ($cfg['service_name'] ?? ''));
+
+    $connectData = $service !== ''
+        ? '(SERVICE_NAME=' . $service . ')'
+        : '(SID=' . ($sid !== '' ? $sid : 'ORCL') . ')';
+
+    return '(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=' . $host . ')(PORT=' . $port . '))(CONNECT_DATA=' . $connectData . '))';
+}
+
+/**
+ * @return array{ok:bool, driver:string, message:string, pdo:?PDO, oci:mixed}
+ */
+function oracle_connect(): array
+{
+    if (!oracle_is_enabled()) {
+        return [
+            'ok' => false,
+            'driver' => '',
+            'message' => 'Oracle غير مفعّل. أنشئ config/oracle.local.php من المثال.',
+            'pdo' => null,
+            'oci' => null,
+        ];
+    }
+
+    $cfg = oracle_config();
+    $user = (string) $cfg['user'];
+    $pass = (string) ($cfg['pass'] ?? '');
+    $tns = oracle_tns_descriptor($cfg);
+    $charset = (string) ($cfg['charset'] ?? 'AL32UTF8');
+
+    // 1) PDO_OCI
+    if (extension_loaded('pdo_oci')) {
+        try {
+            $dsn = 'oci:dbname=' . $tns . ';charset=' . $charset;
+            $pdo = new PDO($dsn, $user, $pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+
+            return [
+                'ok' => true,
+                'driver' => 'pdo_oci',
+                'message' => 'تم الاتصال عبر PDO_OCI.',
+                'pdo' => $pdo,
+                'oci' => null,
+            ];
+        } catch (Throwable $e) {
+            $pdoErr = $e->getMessage();
+        }
+    } else {
+        $pdoErr = 'امتداد pdo_oci غير محمّل';
+    }
+
+    // 2) OCI8
+    if (function_exists('oci_connect')) {
+        $conn = @oci_connect($user, $pass, $tns, $charset);
+        if ($conn) {
+            return [
+                'ok' => true,
+                'driver' => 'oci8',
+                'message' => 'تم الاتصال عبر OCI8.',
+                'pdo' => null,
+                'oci' => $conn,
+            ];
+        }
+        $ociErr = function_exists('oci_error') ? (oci_error()['message'] ?? 'oci_connect failed') : 'oci_connect failed';
+    } else {
+        $ociErr = 'امتداد oci8 غير محمّل';
+    }
+
+    // 3) PDO_ODBC (DSN اختياري في الإعداد)
+    $odbcDsn = trim((string) ($cfg['odbc_dsn'] ?? ''));
+    if ($odbcDsn !== '' && extension_loaded('pdo_odbc')) {
+        try {
+            $pdo = new PDO('odbc:' . $odbcDsn, $user, $pass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+
+            return [
+                'ok' => true,
+                'driver' => 'pdo_odbc',
+                'message' => 'تم الاتصال عبر ODBC.',
+                'pdo' => $pdo,
+                'oci' => null,
+            ];
+        } catch (Throwable $e) {
+            $odbcErr = $e->getMessage();
+        }
+    } else {
+        $odbcErr = $odbcDsn === '' ? 'لم يُضبط odbc_dsn' : 'امتداد pdo_odbc غير محمّل';
+    }
+
+    return [
+        'ok' => false,
+        'driver' => '',
+        'message' => 'فشل الاتصال بـ Oracle.'
+            . ' | PDO_OCI: ' . ($pdoErr ?? '')
+            . ' | OCI8: ' . ($ociErr ?? '')
+            . ' | ODBC: ' . ($odbcErr ?? '')
+            . ' — ثبّت Oracle Instant Client + pdo_oci على سيرفر Hypex.',
+        'pdo' => null,
+        'oci' => null,
+    ];
+}
+
+/**
+ * @param array{pdo:?PDO, oci:mixed} $conn
+ * @return list<array<string, mixed>>
+ */
+function oracle_query_all(array $conn, string $sql, array $binds = []): array
+{
+    if (!empty($conn['pdo']) && $conn['pdo'] instanceof PDO) {
+        $st = $conn['pdo']->prepare($sql);
+        foreach ($binds as $k => $v) {
+            $name = is_int($k) ? $k + 1 : (str_starts_with((string) $k, ':') ? (string) $k : ':' . $k);
+            $st->bindValue($name, $v);
+        }
+        $st->execute();
+
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    if (!empty($conn['oci'])) {
+        $st = oci_parse($conn['oci'], $sql);
+        if ($st === false) {
+            $err = oci_error($conn['oci']);
+            throw new RuntimeException('oci_parse: ' . ($err['message'] ?? 'error'));
+        }
+        $bindVars = [];
+        foreach ($binds as $k => $v) {
+            $name = is_int($k) ? (string) ($k + 1) : ltrim((string) $k, ':');
+            $bindVars[$name] = $v;
+        }
+        foreach ($bindVars as $name => &$val) {
+            oci_bind_by_name($st, ':' . $name, $val);
+        }
+        unset($val);
+        if (!@oci_execute($st)) {
+            $err = oci_error($st);
+            throw new RuntimeException('oci_execute: ' . ($err['message'] ?? 'error'));
+        }
+        $rows = [];
+        while (($row = oci_fetch_assoc($st)) !== false) {
+            $norm = [];
+            foreach ($row as $col => $val) {
+                if (is_object($val) && method_exists($val, 'load')) {
+                    $val = $val->load();
+                }
+                $norm[(string) $col] = $val;
+            }
+            $rows[] = $norm;
+        }
+
+        return $rows;
+    }
+
+    throw new RuntimeException('لا يوجد اتصال Oracle فعّال.');
+}
+
+/**
+ * جداول مرشّحة لمزامنة العملاء.
+ *
+ * @return list<array{owner:string, table_name:string}>
+ */
+function oracle_discover_customer_tables(array $conn): array
+{
+    $sql = "SELECT owner, table_name
+            FROM all_tables
+            WHERE owner NOT IN ('SYS','SYSTEM','OUTLN','DBSNMP','WMSYS','XDB','CTXSYS','MDSYS','ORDSYS','ORDDATA')
+              AND (
+                UPPER(table_name) LIKE '%CUST%'
+                OR UPPER(table_name) LIKE '%CLIENT%'
+                OR UPPER(table_name) LIKE '%CUSTOMER%'
+                OR UPPER(table_name) LIKE '%زبون%'
+              )
+            ORDER BY owner, table_name";
+
+    try {
+        $rows = oracle_query_all($conn, $sql);
+    } catch (Throwable $e) {
+        // SYSTEM أحياناً يفضّل dba_tables
+        $rows = oracle_query_all(
+            $conn,
+            "SELECT owner, table_name FROM dba_tables
+             WHERE owner NOT IN ('SYS','SYSTEM','OUTLN','DBSNMP')
+               AND (UPPER(table_name) LIKE '%CUST%' OR UPPER(table_name) LIKE '%CLIENT%' OR UPPER(table_name) LIKE '%CUSTOMER%')
+             ORDER BY owner, table_name"
+        );
+    }
+
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'owner' => (string) ($r['OWNER'] ?? $r['owner'] ?? ''),
+            'table_name' => (string) ($r['TABLE_NAME'] ?? $r['table_name'] ?? ''),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @return list<array{column_name:string, data_type:string}>
+ */
+function oracle_describe_table(array $conn, string $owner, string $table): array
+{
+    $owner = strtoupper(trim($owner));
+    $table = strtoupper(trim($table));
+    $rows = oracle_query_all(
+        $conn,
+        'SELECT column_name, data_type
+         FROM all_tab_columns
+         WHERE owner = :ow AND table_name = :tb
+         ORDER BY column_id',
+        ['ow' => $owner, 'tb' => $table]
+    );
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'column_name' => (string) ($r['COLUMN_NAME'] ?? $r['column_name'] ?? ''),
+            'data_type' => (string) ($r['DATA_TYPE'] ?? $r['data_type'] ?? ''),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function oracle_preview_table(array $conn, string $owner, string $table, int $limit = 20): array
+{
+    $owner = strtoupper(trim($owner));
+    $table = strtoupper(trim($table));
+    $limit = max(1, min(100, $limit));
+    // Oracle versions differ: ROWNUM vs FETCH FIRST
+    $sql = 'SELECT * FROM "' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '" WHERE ROWNUM <= ' . $limit;
+
+    return oracle_query_all($conn, $sql);
+}
