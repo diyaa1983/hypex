@@ -30,9 +30,28 @@ $map = [
     'is_active' => strtoupper(trim((string) ($_POST['map_active'] ?? ''))),
 ];
 
-// حفظ تعيين الأعمدة في الإعداد المحلي (ملف) عند الطلب — اختياري عبر الحقول فقط لهذه الجلسة
-
-if ($action !== '') {
+if ($action === 'save_config') {
+    try {
+        $path = oracle_write_local_config([
+            'enabled' => isset($_POST['cfg_enabled']),
+            'host' => (string) ($_POST['cfg_host'] ?? ''),
+            'port' => (int) ($_POST['cfg_port'] ?? 1521),
+            'sid' => (string) ($_POST['cfg_sid'] ?? ''),
+            'service_name' => (string) ($_POST['cfg_service'] ?? ''),
+            'user' => (string) ($_POST['cfg_user'] ?? ''),
+            'pass' => (string) ($_POST['cfg_pass'] ?? ''),
+            'charset' => (string) ($_POST['cfg_charset'] ?? 'AL32UTF8'),
+            'odbc_dsn' => (string) ($_POST['cfg_odbc'] ?? ''),
+        ]);
+        $msg = "تم حفظ الإعداد بنجاح:\n" . $path
+            . "\nالحالة الآن: " . (oracle_is_enabled() ? 'مفعّل' : 'غير مفعّل — راجع الحقول');
+        if (!oracle_php_has_oracle_driver()) {
+            $msg .= "\nتنبيه: ما زال PHP بلا pdo_oci/oci8 — الاتصال لن ينجح حتى تثبت Instant Client + الامتداد.";
+        }
+    } catch (Throwable $e) {
+        $err = $e->getMessage();
+    }
+} elseif ($action !== '') {
     $connInfo = oracle_connect();
     if (!$connInfo['ok']) {
         $err = (string) $connInfo['message'];
@@ -107,22 +126,16 @@ if ($describeCols !== []) {
     }
 }
 
-$colOptions = '';
-foreach ($describeCols as $c) {
-    $cn = (string) $c['column_name'];
-    $colOptions .= '<option value="' . esc($cn) . '">' . esc($cn . ' (' . ($c['data_type'] ?? '') . ')') . '</option>';
-}
-$mapSelect = static function (string $name, string $value, string $optionsHtml): string {
-    $html = '<select class="input" name="' . esc($name) . '"><option value="">—</option>';
-    // rebuild with selected
-    return $html;
-};
+$cfg = oracle_config();
+$drivers = oracle_php_drivers_status();
+$cfgEnabled = oracle_is_enabled();
+$cfgPath = (string) ($cfg['_path'] ?? app_path('config/oracle.local.php'));
+$passPlaceholder = is_file($cfgPath) && trim((string) ($cfg['pass'] ?? '')) !== '';
 ?>
 <div class="card" style="max-width:1100px;">
     <h2 style="margin-top:0;">تكامل Oracle — تجربة العملاء</h2>
     <p class="muted" style="margin-top:0;">
         اتصال تجريبي بـ Oracle واستكشاف جداول العملاء ثم مزامنتها إلى Hypex.
-        تأكد من تثبيت <strong>Oracle Instant Client</strong> وامتداد <code>pdo_oci</code> أو <code>oci8</code> على سيرفر PHP.
     </p>
 
     <?php if ($msg !== ''): ?>
@@ -131,6 +144,74 @@ $mapSelect = static function (string $name, string $value, string $optionsHtml):
     <?php if ($err !== ''): ?>
         <div class="alert alert-error" style="white-space:pre-wrap;"><?= esc($err) ?></div>
     <?php endif; ?>
+
+    <div class="alert <?= $cfgEnabled ? 'alert-success' : 'alert-error' ?>" style="white-space:pre-wrap;">
+        <strong>1) ملف الإعداد</strong><br>
+        المسار: <code><?= esc($cfgPath) ?></code><br>
+        الحالة: <?= $cfgEnabled ? 'مفعّل' : 'غير مفعّل' ?><br>
+        <?php if (!$cfgEnabled): ?>
+            <?= esc(oracle_config_status_message()) ?><br>
+            <strong>مهم:</strong> احفظ الإعداد من النموذج أدناه (لا تعتمد على example فقط).
+            على السيرفر يكون المسار غالباً: <code>C:\xampp\htdocs\system\config\oracle.local.php</code>
+        <?php endif; ?>
+    </div>
+
+    <div class="alert <?= oracle_php_has_oracle_driver() ? 'alert-success' : 'alert-error' ?>" style="white-space:pre-wrap;">
+        <strong>2) مشغّلات PHP على هذا الجهاز</strong><br>
+        pdo_oci: <?= !empty($drivers['pdo_oci']) ? 'موجود' : 'غير محمّل' ?><br>
+        oci8: <?= !empty($drivers['oci8']) ? 'موجود' : 'غير محمّل' ?><br>
+        pdo_odbc: <?= !empty($drivers['pdo_odbc']) ? 'موجود' : 'غير محمّل' ?>
+        <?php if (!oracle_php_has_oracle_driver()): ?>
+            <br><br>
+            <strong>هذا سبب فشل «اختبار الاتصال» بعد تفعيل الملف.</strong><br>
+            ثبّت Oracle Instant Client + فعّل <code>pdo_oci</code> أو <code>oci8</code> في php.ini لـ XAMPP ثم أعد تشغيل Apache.
+        <?php endif; ?>
+    </div>
+
+    <h3>إعداد الاتصال (يحفظ oracle.local.php هنا)</h3>
+    <form method="post" class="report-sales-filters" style="margin-bottom:1.25rem;">
+        <input type="hidden" name="action" value="save_config">
+        <div class="form-row" style="flex-wrap:wrap;gap:0.75rem;">
+            <label class="field" style="flex:0 0 auto;">
+                <span class="field-label">
+                    <input type="checkbox" name="cfg_enabled" value="1" <?= !empty($cfg['enabled']) || !is_file($cfgPath) ? 'checked' : '' ?>>
+                    مفعّل
+                </span>
+            </label>
+            <label class="field" style="flex:1 1 10rem;">
+                <span class="field-label">Host</span>
+                <input class="input" name="cfg_host" value="<?= esc((string) ($cfg['host'] ?? '192.168.100.2')) ?>" required>
+            </label>
+            <label class="field" style="flex:0 1 6rem;">
+                <span class="field-label">Port</span>
+                <input class="input" name="cfg_port" type="number" value="<?= esc((string) ($cfg['port'] ?? 1521)) ?>">
+            </label>
+            <label class="field" style="flex:1 1 8rem;">
+                <span class="field-label">SID</span>
+                <input class="input" name="cfg_sid" value="<?= esc((string) ($cfg['sid'] ?? 'taqwa')) ?>">
+            </label>
+            <label class="field" style="flex:1 1 8rem;">
+                <span class="field-label">Service Name (اختياري)</span>
+                <input class="input" name="cfg_service" value="<?= esc((string) ($cfg['service_name'] ?? '')) ?>">
+            </label>
+            <label class="field" style="flex:1 1 8rem;">
+                <span class="field-label">User</span>
+                <input class="input" name="cfg_user" value="<?= esc((string) ($cfg['user'] ?? '')) ?>" required>
+            </label>
+            <label class="field" style="flex:1 1 8rem;">
+                <span class="field-label">Password<?= $passPlaceholder ? ' (اتركه فارغاً للإبقاء)' : '' ?></span>
+                <input class="input" type="password" name="cfg_pass" value="" autocomplete="new-password" <?= $passPlaceholder ? '' : 'required' ?>>
+            </label>
+            <label class="field" style="flex:1 1 10rem;">
+                <span class="field-label">ODBC DSN (اختياري)</span>
+                <input class="input" name="cfg_odbc" value="<?= esc((string) ($cfg['odbc_dsn'] ?? '')) ?>" placeholder="إن وُجد Oracle ODBC">
+            </label>
+            <input type="hidden" name="cfg_charset" value="<?= esc((string) ($cfg['charset'] ?? 'AL32UTF8')) ?>">
+        </div>
+        <div style="margin-top:0.75rem;">
+            <button class="btn btn-primary" type="submit">حفظ الإعداد على هذا السيرفر</button>
+        </div>
+    </form>
 
     <div class="form-row" style="gap:0.5rem;flex-wrap:wrap;">
         <form method="post" style="display:inline;">
@@ -144,12 +225,10 @@ $mapSelect = static function (string $name, string $value, string $optionsHtml):
     </div>
 
     <p class="muted" style="font-size:0.9rem;">
-        الإعداد من: <code>config/oracle.local.php</code>
-        — Host: <?= esc((string) (oracle_config()['host'] ?? '')) ?>
-        :
-        <?= esc((string) (oracle_config()['port'] ?? '')) ?>
-        SID: <?= esc((string) (oracle_config()['sid'] ?? '')) ?>
-        User: <?= esc((string) (oracle_config()['user'] ?? '')) ?>
+        Host حالياً: <?= esc((string) ($cfg['host'] ?? '')) ?>
+        :<?= esc((string) ($cfg['port'] ?? '')) ?>
+        | SID: <?= esc((string) ($cfg['sid'] ?? '')) ?>
+        | User: <?= esc((string) ($cfg['user'] ?? '')) ?>
     </p>
 
     <?php if ($candidateTables !== []): ?>
