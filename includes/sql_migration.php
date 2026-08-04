@@ -58,7 +58,16 @@ function sql_migration_exec_statements(PDO $pdo, array $stmts): ?string
     $lastErr = null;
     foreach ($stmts as $stmt) {
         try {
-            $pdo->exec($stmt);
+            // SELECT عبر exec يترك result set مفتوحاً على mysql (خطأ 2014 unbuffered)
+            if (preg_match('/^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i', $stmt) === 1) {
+                $q = $pdo->query($stmt);
+                if ($q instanceof PDOStatement) {
+                    $q->fetchAll();
+                    $q->closeCursor();
+                }
+            } else {
+                $pdo->exec($stmt);
+            }
             sql_migration_drain_pdo($pdo);
         } catch (Throwable $e) {
             sql_migration_drain_pdo($pdo);
@@ -67,6 +76,9 @@ function sql_migration_exec_statements(PDO $pdo, array $stmts): ?string
                 continue;
             }
             if (str_contains($msg, 'duplicate column') || str_contains($msg, 'Duplicate column')) {
+                continue;
+            }
+            if (str_contains($msg, 'check that column/key exists')) {
                 continue;
             }
             $lastErr = $msg;
