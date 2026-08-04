@@ -259,6 +259,7 @@ return [
                     'items' => [
                         ['r' => 'item_stock_movements', 'label' => 'كشف حركات مادة', 'icon' => '📋'],
                         ['r' => 'report_warehouse_items', 'label' => 'تقرير المواد', 'icon' => '📋'],
+                        ['r' => 'report_customer_purchases_by_item', 'label' => 'تقرير مشتريات العميل حسب المادة', 'icon' => '🛒'],
                         ['r' => 'report_warehouse_zero_qty', 'label' => 'المواد التي رصيدها صفر', 'icon' => '0️⃣'],
                         ['r' => 'report_warehouse_negative_qty', 'label' => 'تقرير المواد السالبة', 'icon' => '➖'],
                         ['r' => 'report_warehouse_financial', 'label' => 'أرصدة المستودع المالية', 'icon' => '💰'],

@@ -174,6 +174,7 @@ $appBootMigrations = [
     'database/migrations/241_m_rep_route_today.sql',
     'database/migrations/242_sys_error_log.sql',
     'database/migrations/243_report_customers_by_rep.sql',
+    'database/migrations/244_report_customer_purchases_by_item.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 
