@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "interval_seconds": 60,
+  "php_exe": "C:/xampp/php/php.exe",
+  "sync_script": "C:/xampp/htdocs/system/api/oracle_sync.php",
+  "token": "CHANGE_ME_SAME_AS_oracle.local.php_sync_token",
+  "entities": "customers,item_groups,items",
+  "log_dir": "C:/xampp/htdocs/system/storage/logs",
+  "log_name": "oracle-agent"
+}

@@ -468,32 +468,6 @@ function oracle_normalize_owner_table_rows(array $rows): array
 }
 
 /**
- * @return list<array{column_name:string, data_type:string}>
- */
-function oracle_describe_table(array $conn, string $owner, string $table): array
-{
-    $owner = strtoupper(trim($owner));
-    $table = strtoupper(trim($table));
-    $rows = oracle_query_all(
-        $conn,
-        'SELECT column_name, data_type
-         FROM all_tab_columns
-         WHERE owner = :ow AND table_name = :tb
-         ORDER BY column_id',
-        ['ow' => $owner, 'tb' => $table]
-    );
-    $out = [];
-    foreach ($rows as $r) {
-        $out[] = [
-            'column_name' => (string) ($r['COLUMN_NAME'] ?? $r['column_name'] ?? ''),
-            'data_type' => (string) ($r['DATA_TYPE'] ?? $r['data_type'] ?? ''),
-        ];
-    }
-
-    return $out;
-}
-
-/**
  * @return list<array<string, mixed>>
  */
 function oracle_preview_table(array $conn, string $owner, string $table, int $limit = 20): array

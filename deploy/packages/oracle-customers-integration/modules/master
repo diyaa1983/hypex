@@ -10,11 +10,9 @@ $pdo = db();
 require_once app_path('includes/crm_sales_rep_schema.php');
 require_once app_path('includes/crm_party_delete.php');
 require_once app_path('includes/oracle_customer_sync.php');
-require_once app_path('includes/oracle_sync_service.php');
 crm_sales_rep_ensure_customer_invoice_links($pdo);
 crm_customer_ensure_gps_columns($pdo);
 oracle_customer_schema_ensure($pdo);
-oracle_customer_account_schema_ensure($pdo);
 $salesReps = crm_sales_rep_load_active($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -27,14 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($act === 'oracle_sync') {
-            $syncResult = oracle_run_continuous_sync($pdo, ['customers', 'accounts']);
-            $c = is_array($syncResult['customers'] ?? null) ? $syncResult['customers'] : [];
-            $a = is_array($syncResult['accounts'] ?? null) ? $syncResult['accounts'] : [];
-            $sum = 'مزامنة Oracle — عملاء: +' . (int) ($c['inserted'] ?? 0)
-                . ' ~' . (int) ($c['updated'] ?? 0)
-                . ' | حسابات: ~' . (int) ($a['updated'] ?? 0)
-                . ' | ' . (int) ($syncResult['elapsed_ms'] ?? 0) . 'ms';
-            if (!empty($syncResult['errors'])) {
+            $syncResult = oracle_sync_customers_from_saved_config($pdo);
+            $sum = 'مزامنة Oracle: جديد ' . $syncResult['inserted']
+                . ' | محدّث ' . $syncResult['updated']
+                . ' | متجاوز ' . $syncResult['skipped'];
+            if ($syncResult['errors'] !== []) {
                 flash_set('error', $sum . ' — ' . implode(' | ', array_slice($syncResult['errors'], 0, 5)));
             } else {
                 flash_set('success', $sum);
@@ -395,8 +390,7 @@ $st->execute($params);
 $rows = $st->fetchAll() ?: [];
 $customerUsageCounts = crm_customer_usage_counts($pdo);
 $addUrl = app_url('index.php?r=customers&action=add');
-require_once app_path('includes/oracle_pdo.php');
-$oracleMapReady = oracle_customers_saved_mapping() !== null || oracle_is_enabled();
+$oracleMapReady = oracle_customers_saved_mapping() !== null;
 $oracleLinkedCount = 0;
 try {
     $oracleLinkedCount = (int) $pdo->query(
@@ -417,11 +411,11 @@ try {
 
     <div class="sales-ora-toolbar toolbar" style="flex-wrap:wrap;gap:0.5rem;">
         <a class="btn btn-primary btn-sm" href="<?= esc($addUrl) ?>">➕ إضافة عميل</a>
-        <?php if ($oracleMapReady || oracle_is_enabled()): ?>
-            <form method="post" style="display:inline;" data-confirm="تحديث العملاء وحساباتهم من Oracle الآن؟">
+        <?php if ($oracleMapReady): ?>
+            <form method="post" style="display:inline;" data-confirm="تحديث العملاء من Oracle؟ قد يستغرق ثوانٍ.">
                 <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                 <input type="hidden" name="_action" value="oracle_sync">
-                <button type="submit" class="btn btn-secondary btn-sm">🔄 تحديث من Oracle (دائم)</button>
+                <button type="submit" class="btn btn-secondary btn-sm">🔄 تحديث من Oracle</button>
             </form>
         <?php else: ?>
             <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=oracle_customers_sync')) ?>">

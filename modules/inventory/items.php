@@ -7,11 +7,13 @@ require_once app_path('includes/inv_item_barcode.php');
 require_once app_path('includes/inv_item_schema.php');
 require_once app_path('includes/inv_stock.php');
 require_once app_path('includes/inv_item_units.php');
+require_once app_path('includes/oracle_sync_service.php');
 
 $extendedSchemaOk = inv_item_ensure_extended_schema($pdo);
 $barcodeSchemaOk = inv_item_ensure_barcode_schema($pdo);
 $expirySchemaOk = inv_item_ensure_expiry_schema($pdo);
 $itemUnitsOk = inv_item_units_ensure_schema($pdo);
+oracle_item_schema_ensure($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
@@ -22,6 +24,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = (string) ($_POST['_action'] ?? '');
 
     try {
+        if ($act === 'oracle_sync') {
+            $syncResult = oracle_run_continuous_sync($pdo, ['item_groups', 'items']);
+            $g = is_array($syncResult['item_groups'] ?? null) ? $syncResult['item_groups'] : [];
+            $i = is_array($syncResult['items'] ?? null) ? $syncResult['items'] : [];
+            $sum = 'مزامنة Oracle — مجموعات: +' . (int) ($g['inserted'] ?? 0)
+                . ' ~' . (int) ($g['updated'] ?? 0)
+                . ' | مواد: +' . (int) ($i['inserted'] ?? 0)
+                . ' ~' . (int) ($i['updated'] ?? 0)
+                . ' | ' . (int) ($syncResult['elapsed_ms'] ?? 0) . 'ms';
+            if (!empty($syncResult['errors'])) {
+                flash_set('error', $sum . ' — ' . implode(' | ', array_slice($syncResult['errors'], 0, 5)));
+            } else {
+                flash_set('success', $sum);
+            }
+            redirect($listUrl);
+        }
         if ($act === 'save') {
             $id = (int) ($_POST['id'] ?? 0);
             $sku = trim((string) ($_POST['sku'] ?? ''));
@@ -605,6 +623,13 @@ if ($expirySchemaOk) {
 <?php endif; ?>
 <div class="toolbar">
     <a class="btn btn-primary btn-sm" href="<?= esc(app_url('index.php?r=items&action=add')) ?>">+ إضافة مادة</a>
+    <?php if (oracle_is_enabled()): ?>
+        <form method="post" style="display:inline;" data-confirm="تحديث المجموعات والمواد من Oracle الآن؟">
+            <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+            <input type="hidden" name="_action" value="oracle_sync">
+            <button type="submit" class="btn btn-secondary btn-sm">🔄 تحديث من Oracle</button>
+        </form>
+    <?php endif; ?>
 </div>
 
 <?php if ($flash): ?>

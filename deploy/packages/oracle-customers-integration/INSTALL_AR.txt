@@ -1,0 +1,124 @@
+﻿============================================================
+تكامل Oracle (عملاء) — دليل الرفع اليدوي على السيرفر
+Hypex commit: 8e90641+ (oracle customers integration)
+============================================================
+
+الهدف: مزامنة العملاء من قاعدة Oracle (Forms 6i تستخدم هذه القاعدة)
+       إلى Hypex — قراءة فقط من Oracle.
+
+لا يعتمد على Static IP / الإنترنت — انسخ من فلاشة أو شبكة داخلية.
+
+------------------------------------------------------------
+أ) الملفات التي يجب نسخها إلى مجلد النظام
+   الهدف غالباً: C:\xampp\htdocs\system\
+------------------------------------------------------------
+
+من هذه الحزمة انسخ مع الإبقاء على نفس المسارات:
+
+  config\oracle.local.example.php
+  includes\oracle_pdo.php
+  includes\oracle_customer_sync.php
+  modules\system\oracle_customers_sync.php
+  database\migrations\245_crm_customer_oracle_key.sql
+  database\migrations\246_oracle_customers_sync_screen.sql
+
+ثم:
+
+  1) إن كان السيرفر منصوباً من نفس GitHub حديثاً:
+     - استبدل أيضاً (من مجلد patch):
+         patch\routes.php.FULL   -> config\routes.php
+         patch\nav_menu.php.FULL -> config\nav_menu.php
+         patch\index.php.FULL    -> index.php
+     أو تجاهل إن كانت هذه الملفات تحوي نفس مداخل oracle_* مسبقاً.
+
+  2) إن لم تستبدل الملفات الثلاثة الكاملة:
+     - افتح patch\*.snippet وادمج الأسطر يدوياً في الملفات
+       routes.php / nav_menu.php / index.php
+
+  3) إعداد الاتصال (مرة واحدة على السيرفر فقط):
+     انسخ:
+       config\oracle.local.php.SAMPLE
+     إلى:
+       C:\xampp\htdocs\system\config\oracle.local.php
+     وعدّل user/pass/host إن لزم.
+     هذا الملف لا يُرفع إلى Git.
+
+------------------------------------------------------------
+ب) سكربت نسخ سريع (على السيرفر)
+------------------------------------------------------------
+
+  PowerShell (كمسؤول اختياري):
+
+  cd X:\path\to\oracle-customers-integration
+  .\apply-copy.ps1 -Target "C:\xampp\htdocs\system"
+
+  ثم انسخ SAMPLE يدوياً إلى oracle.local.php إن لم يكن موجوداً.
+
+------------------------------------------------------------
+ج) متطلبات البيئة على السيرفر (ليست ملفات PHP)
+------------------------------------------------------------
+
+1) Oracle Instant Client (Basic) مفكوك وفيه oci.dll
+2) مجلد Instant Client في System PATH
+3) VC++ Redistributable x64
+4) في C:\xampp\php\php.ini:
+     extension=php_pdo_oci.dll
+   أو
+     extension=php_oci8_19.dll
+   (الملف يجب أن يوجد في C:\xampp\php\ext\)
+5) أعد تشغيل Apache من XAMPP
+6) تحقق:
+     C:\xampp\php\php.exe -m | findstr /i oci
+
+------------------------------------------------------------
+د) الاستخدام بعد الرفع
+------------------------------------------------------------
+
+1) افتح كـ admin:
+   http://localhost/system/index.php?r=oracle_customers_sync
+
+2) قائمة العملاء → تكامل Oracle — العملاء
+   (إن لم تظهر: افتح الرابط مباشرة؛ صلاحيات admin تُنشأ بهجرة 246)
+
+3) تأكد:
+   - ملف الإعداد: مفعّل
+   - pdo_oci أو oci8: موجود
+
+4) اختبار الاتصال
+5) اكتشاف جداول العملاء
+6) تعيين الأعمدة (مفتاح + اسم)
+7) مزامنة العملاء
+
+------------------------------------------------------------
+هـ) ماذا يفعل التكامل / ماذا لا يفعل
+------------------------------------------------------------
+
+يعمل الآن:
+  - قراءة جدول عملاء من Oracle
+  - إدراج/تحديث في MySQL: crm_customer
+  - ربط عبر عمود: oracle_key
+
+لا يعمل بعد (مراحل لاحقة):
+  - فواتير / أصناف / مخزون
+  - كتابة بيانات من Hypex إلى Oracle
+  - مزامنة تلقائية مجدولة
+
+------------------------------------------------------------
+و) قائمة الملفات (MANIFEST)
+------------------------------------------------------------
+
+config/oracle.local.example.php
+config/oracle.local.php.SAMPLE
+includes/oracle_pdo.php
+includes/oracle_customer_sync.php
+modules/system/oracle_customers_sync.php
+database/migrations/245_crm_customer_oracle_key.sql
+database/migrations/246_oracle_customers_sync_screen.sql
+patch/routes_snippet.php
+patch/nav_snippet.php
+patch/index_snippet.php
+patch/routes.php.FULL
+patch/nav_menu.php.FULL
+patch/index.php.FULL
+apply-copy.ps1
+INSTALL_AR.txt

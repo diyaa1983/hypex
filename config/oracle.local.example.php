@@ -2,40 +2,63 @@
 declare(strict_types=1);
 
 /**
- * إعداد اتصال Oracle — انسخ إلى oracle.local.php (لا يُرفع إلى Git).
+ * إعداد Oracle — انسخ إلى oracle.local.php
  *
- * tnsnames مثال:
- *   taqwa =
- *     (DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = dbserver)(PORT = 1521))
- *       (CONNECT_DATA = (SID = taqwa)))
+ * entities للـ API/agent:
+ *   customers | item_groups | items | all
  */
 return [
     'enabled' => true,
-    'host' => '192.168.100.2',
+    'host' => '192.168.1.94',
     'port' => 1521,
-    /** SID أو Service Name حسب السيرفر */
     'sid' => 'taqwa',
     'service_name' => '',
     'user' => 'system',
-    'pass' => 'manager1',
+    'pass' => 'CHANGE_ME',
     'charset' => 'AL32UTF8',
-    /**
-     * تعيين أعمدة جدول العملاء بعد اكتشافه.
-     * اترك table/owner فارغين لشاشة الاستكشاف؛ عبّئهما بعد معرفة الجدول.
-     */
+    'sync_token' => 'CHANGE_ME_SYNC_TOKEN',
+
     'customers' => [
-        'owner' => '',
-        'table' => '',
+        'owner' => 'ACCINV',
+        'table' => 'CUSTOMER',
         'columns' => [
-            // 'code' => 'CUST_CODE',
-            // 'name_ar' => 'CUST_NAME',
-            // 'phone' => 'TEL',
-            // 'email' => 'EMAIL',
-            // 'tax_number' => 'TAX_NO',
-            // 'address_ar' => 'ADDR',
-            // 'is_active' => 'ACTIVE_FLAG',
-            // 'oracle_key' => 'CUST_ID', // مفتاح الربط — يُفضّل المفتاح الأساسي
+            'oracle_key' => 'CUS_NUM',
+            'code' => 'CUS_NUM',
+            'name_ar' => 'CUS_TITLE',
         ],
-        'active_true_values' => ['1', 'Y', 'YES', 'نعم', 'ACTIVE', 'A'],
+    ],
+
+    /**
+     * مجموعات / فئات المواد → inv_item_category
+     * عدّل owner/table/columns بعد التحقق من Toad
+     */
+    'item_groups' => [
+        'owner' => 'MAS',
+        'table' => 'ITEM_GROUP', // مثال — غيّر للاسم الحقيقي
+        'columns' => [
+            'oracle_key' => 'GROUP_CODE',
+            'code' => 'GROUP_CODE',
+            'name_ar' => 'GROUP_NAME',
+        ],
+    ],
+
+    /**
+     * المواد → inv_item
+     * group_key يربط بمفتاح المجموعة في Oracle
+     */
+    'items' => [
+        'owner' => 'MAS',
+        'table' => 'ITEM', // مثال — غيّر للاسم الحقيقي
+        'columns' => [
+            'oracle_key' => 'ITEM_CODE',
+            'sku' => 'ITEM_CODE',
+            'name_ar' => 'ITEM_NAME',
+            'group_key' => 'GROUP_CODE',
+            // اختياري:
+            // 'default_cost' => 'COST',
+            // 'default_sale' => 'PRICE',
+            // 'unit_name' => 'UNIT',
+            // 'barcode' => 'BARCODE',
+        ],
     ],
 ];

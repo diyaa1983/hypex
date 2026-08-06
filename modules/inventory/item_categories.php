@@ -4,7 +4,9 @@ declare(strict_types=1);
 $listUrl = app_url('index.php?r=item_categories');
 $pdo = db();
 require_once app_path('includes/inv_item_schema.php');
+require_once app_path('includes/oracle_sync_service.php');
 inv_item_ensure_extended_schema($pdo);
+oracle_item_schema_ensure($pdo);
 
 /** رقم تسلسلي تالي لرمز الفئة (أرقام فقط). */
 function inv_category_next_code(PDO $pdo): string
@@ -30,6 +32,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = (string) ($_POST['_action'] ?? '');
 
     try {
+        if ($act === 'oracle_sync') {
+            $syncResult = oracle_run_continuous_sync($pdo, ['item_groups']);
+            $g = is_array($syncResult['item_groups'] ?? null) ? $syncResult['item_groups'] : [];
+            $sum = 'مزامنة مجموعات Oracle: +' . (int) ($g['inserted'] ?? 0)
+                . ' محدّث ' . (int) ($g['updated'] ?? 0)
+                . ' | ' . (int) ($syncResult['elapsed_ms'] ?? 0) . 'ms';
+            if (!empty($syncResult['errors'])) {
+                flash_set('error', $sum . ' — ' . implode(' | ', array_slice($syncResult['errors'], 0, 5)));
+            } else {
+                flash_set('success', $sum);
+            }
+            redirect($listUrl);
+        }
         if ($act === 'save') {
             $id = (int) ($_POST['id'] ?? 0);
             $name = trim((string) ($_POST['name_ar'] ?? ''));
@@ -164,6 +179,13 @@ $rows = $stList->fetchAll() ?: [];
 </style>
 <div class="toolbar">
     <a class="btn btn-primary btn-sm" href="<?= esc(app_url('index.php?r=item_categories&action=add')) ?>">+ إضافة فئة</a>
+    <?php if (oracle_is_enabled()): ?>
+        <form method="post" style="display:inline;" data-confirm="تحديث مجموعات المواد من Oracle الآن؟">
+            <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+            <input type="hidden" name="_action" value="oracle_sync">
+            <button type="submit" class="btn btn-secondary btn-sm">🔄 تحديث من Oracle</button>
+        </form>
+    <?php endif; ?>
 </div>
 
 <?php if ($flash): ?>

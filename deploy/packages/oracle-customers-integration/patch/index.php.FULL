@@ -177,8 +177,6 @@ $appBootMigrations = [
     'database/migrations/244_report_customer_purchases_by_item.sql',
     'database/migrations/245_crm_customer_oracle_key.sql',
     'database/migrations/246_oracle_customers_sync_screen.sql',
-    'database/migrations/247_crm_customer_oracle_acc_key.sql',
-    'database/migrations/248_inv_item_oracle_keys.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 
