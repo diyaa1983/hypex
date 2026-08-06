@@ -21,6 +21,8 @@ return [
     'customers' => [
         'owner' => 'ACCINV',
         'table' => 'CUSTOMER',
+        // فقط العملاء الذين يبدأ رقمهم بهذه البادئة (فراغ = الكل)
+        'code_prefix' => '112',
         'columns' => [
             'oracle_key' => 'CUS_NUM',
             'code' => 'CUS_NUM',

@@ -69,18 +69,45 @@ function oracle_sync_customers_to_mysql(
     foreach ($cols as $c) {
         $quoted[] = '"' . str_replace('"', '""', $c) . '"';
     }
-    $sql = 'SELECT ' . implode(', ', $quoted)
-        . ' FROM "' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"';
-
-    try {
-        $rows = oracle_query_all($oraConn, $sql);
-    } catch (Throwable $e) {
-        $result['errors'][] = 'فشل قراءة Oracle: ' . $e->getMessage();
-
-        return $result;
-    }
 
     $cfg = oracle_config();
+    // فقط أرقام العملاء التي تبدأ ببادئة محددة (افتراضي 112)
+    $codePrefix = trim((string) ($cfg['customers']['code_prefix'] ?? '112'));
+    // العمود المستخدم لفلترة رقم العميل
+    $filterCol = $codeCol !== '' ? $codeCol : $keyCol;
+    $filterQuoted = '"' . str_replace('"', '""', $filterCol) . '"';
+
+    $sql = 'SELECT ' . implode(', ', $quoted)
+        . ' FROM "' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"';
+    $binds = [];
+    if ($codePrefix !== '') {
+        // TO_CHAR يعمل لرقم أو نص؛ LIKE '112%'
+        $sql .= ' WHERE TO_CHAR(' . $filterQuoted . ') LIKE :code_prefix';
+        $binds['code_prefix'] = $codePrefix . '%';
+    }
+
+    try {
+        $rows = oracle_query_all($oraConn, $sql, $binds);
+    } catch (Throwable $e) {
+        // احتياط: بعض قواعد Oracle القديمة/أنواع الأعمدة قد ترفض TO_CHAR — نجرب بدون CAST
+        if ($codePrefix !== '') {
+            try {
+                $sql2 = 'SELECT ' . implode(', ', $quoted)
+                    . ' FROM "' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"'
+                    . ' WHERE ' . $filterQuoted . ' LIKE :code_prefix';
+                $rows = oracle_query_all($oraConn, $sql2, $binds);
+            } catch (Throwable $e2) {
+                $result['errors'][] = 'فشل قراءة Oracle: ' . $e->getMessage();
+
+                return $result;
+            }
+        } else {
+            $result['errors'][] = 'فشل قراءة Oracle: ' . $e->getMessage();
+
+            return $result;
+        }
+    }
+
     $activeTrue = $cfg['customers']['active_true_values'] ?? ['1', 'Y', 'YES', 'ACTIVE', 'A'];
     $activeTrue = array_map('strtoupper', array_map('strval', $activeTrue));
 
@@ -121,6 +148,15 @@ function oracle_sync_customers_to_mysql(
         $code = $codeCol !== '' ? $get($row, $codeCol) : $oracleKey;
         if ($code === '') {
             $code = $oracleKey;
+        }
+
+        // فلتر إضافي في PHP (احتياط إن لم يُطبَّق WHERE في Oracle)
+        if ($codePrefix !== '') {
+            $checkNum = $code !== '' ? $code : $oracleKey;
+            if (!str_starts_with($checkNum, $codePrefix) && !str_starts_with($oracleKey, $codePrefix)) {
+                $result['skipped']++;
+                continue;
+            }
         }
         // أكواد MySQL UNIQUE
         $baseCode = mb_substr($code, 0, 40);
