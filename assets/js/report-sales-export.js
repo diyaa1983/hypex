@@ -1076,6 +1076,100 @@
       );
     }
 
+    function isOracleCustomerStatementReport() {
+      var routeKey = page.getAttribute('data-report-route') || '';
+      return routeKey === 'report_oracle_customer_statement' || page.classList.contains('ora-stmt-page');
+    }
+
+    /** طباعة كشف حساب تفصيلي Oracle — A4 أفقي، حدود واضحة، تكرار رأس الجدول */
+    function getOracleCustomerStatementPrintCss() {
+      return (
+        '@page{size:A4 landscape;margin:8mm 10mm 10mm 10mm;}' +
+        'body,html{margin:0!important;padding:0!important;}' +
+        '.ora-stmt-page .report-sales-print-area,.ora-stmt-print{' +
+          'font-size:8pt!important;width:100%!important;max-width:none!important;direction:rtl!important;' +
+        '}' +
+        '.doc-print-header{margin:0 0 0.35rem!important;}' +
+        '.doc-print-header-title{font-size:13pt!important;font-weight:800!important;text-align:center!important;margin:0.2rem 0!important;}' +
+        '.doc-print-header-subtitle{font-size:8pt!important;text-align:center!important;color:#334155!important;margin:0 0 0.2rem!important;}' +
+        '.doc-print-header-co{font-size:11pt!important;font-weight:800!important;}' +
+        '.doc-print-header-logo img{max-height:14mm!important;max-width:22mm!important;}' +
+        '.ora-stmt-meta{' +
+          'margin:0 0 0.45rem!important;padding:0.3rem 0.5rem!important;' +
+          'border:1px solid #334155!important;background:#f1f5f9!important;border-radius:0!important;' +
+          '-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;' +
+        '}' +
+        '.ora-stmt-meta__row{display:flex!important;flex-wrap:wrap!important;gap:0.35rem 1rem!important;justify-content:space-between!important;}' +
+        '.ora-stmt-meta__row--main{margin-bottom:0.25rem!important;padding-bottom:0.25rem!important;border-bottom:1px solid #94a3b8!important;}' +
+        '.ora-stmt-meta__row--sub{font-size:8pt!important;font-weight:700!important;color:#0f172a!important;}' +
+        '.ora-stmt-meta__label{font-size:7pt!important;font-weight:700!important;color:#475569!important;margin-bottom:0!important;display:inline!important;margin-inline-end:0.25rem!important;}' +
+        '.ora-stmt-meta__acc-no{font-size:10pt!important;font-weight:800!important;direction:ltr!important;unicode-bidi:isolate!important;}' +
+        '.ora-stmt-meta__acc-name{font-size:9.5pt!important;font-weight:800!important;}' +
+        '.ora-stmt-table-wrap{overflow:visible!important;width:100%!important;}' +
+        '.ora-stmt-table{' +
+          'width:100%!important;table-layout:fixed!important;border-collapse:collapse!important;' +
+          'font-size:7.5pt!important;direction:rtl!important;' +
+        '}' +
+        '.ora-stmt-table col.col-doc-no{width:7%!important;}' +
+        '.ora-stmt-table col.col-doc-type{width:11%!important;}' +
+        '.ora-stmt-table col.col-date{width:9%!important;}' +
+        '.ora-stmt-table col.col-debit,.ora-stmt-table col.col-credit,.ora-stmt-table col.col-balance{width:9%!important;}' +
+        '.ora-stmt-table col.col-desc{width:37%!important;}' +
+        '.ora-stmt-table th,.ora-stmt-table td{' +
+          'border:0.6pt solid #1e293b!important;padding:1.5px 3px!important;line-height:1.2!important;' +
+          'font-size:7.5pt!important;font-weight:700!important;color:#0f172a!important;vertical-align:middle!important;' +
+        '}' +
+        '.ora-stmt-table thead{display:table-header-group!important;}' +
+        '.ora-stmt-table tfoot{display:table-footer-group!important;}' +
+        '.ora-stmt-table thead th{' +
+          'background:#d1d5db!important;text-align:center!important;font-weight:800!important;' +
+          '-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;' +
+        '}' +
+        '.ora-stmt-table tbody tr{page-break-inside:avoid!important;break-inside:avoid!important;}' +
+        '.ora-stmt-table tbody tr:nth-child(even) td{' +
+          'background:#f8fafc!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;' +
+        '}' +
+        '.ora-stmt-table .ora-stmt-opening td{' +
+          'background:#e2e8f0!important;font-style:italic!important;' +
+          '-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;' +
+        '}' +
+        '.ora-stmt-table .col-doc-no,.ora-stmt-table .col-date,.ora-stmt-table .col-money{' +
+          'text-align:center!important;white-space:nowrap!important;' +
+          'font-variant-numeric:tabular-nums!important;direction:ltr!important;unicode-bidi:isolate!important;' +
+        '}' +
+        '.ora-stmt-table .col-doc-type{text-align:center!important;white-space:nowrap!important;}' +
+        '.ora-stmt-table .ora-stmt-desc{' +
+          'text-align:right!important;white-space:normal!important;word-break:break-word!important;' +
+          'font-weight:600!important;font-size:7pt!important;' +
+        '}' +
+        '.ora-stmt-table tfoot .ora-stmt-totals td{' +
+          'background:#cbd5e1!important;font-weight:800!important;border-top:1.4pt solid #0f172a!important;' +
+          '-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;' +
+        '}' +
+        '.ora-stmt-cheques{margin-top:0.55rem!important;page-break-inside:avoid!important;break-inside:avoid!important;}' +
+        '.ora-stmt-cheques__title{' +
+          'font-size:10pt!important;font-weight:800!important;text-align:center!important;' +
+          'margin:0.3rem 0 0.35rem!important;padding:0.2rem 0!important;' +
+          'border-top:1.2pt solid #0f172a!important;border-bottom:0.7pt solid #334155!important;' +
+        '}' +
+        '.ora-stmt-chq-table{' +
+          'width:55%!important;max-width:none!important;margin:0 auto!important;' +
+          'table-layout:fixed!important;border-collapse:collapse!important;font-size:8pt!important;' +
+        '}' +
+        '.ora-stmt-chq-table th,.ora-stmt-chq-table td{' +
+          'border:0.6pt solid #1e293b!important;padding:2px 4px!important;text-align:center!important;' +
+          'font-weight:700!important;' +
+        '}' +
+        '.ora-stmt-chq-table thead th{' +
+          'background:#d1d5db!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;' +
+        '}' +
+        '.ora-stmt-chq-table tfoot td{' +
+          'background:#cbd5e1!important;font-weight:800!important;' +
+          '-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;' +
+        '}'
+      );
+    }
+
     function getAccSummaryReportPrintCss() {
       return (
         '@page{size:A4 portrait;margin:10mm 12mm 14mm 12mm;@bottom-center{content:counter(page)" / "counter(pages);font-family:Arial,Helvetica,sans-serif;font-size:10pt;font-weight:700;color:#0f172a;}}' +
@@ -1402,6 +1496,9 @@
       var partyStatementPrintCss = isPartyStatementReport()
         ? getPartyStatementPrintCss()
         : '';
+      var oracleStatementPrintCss = isOracleCustomerStatementReport()
+        ? getOracleCustomerStatementPrintCss()
+        : '';
       var accSummaryPrintCss =
         routeKey === 'report_vat_net_payable'
           ? getVatNetPayablePrintCss()
@@ -1469,6 +1566,7 @@
         hrEmployeesPrintCss +
         hrEmployeesByNatPrintCss +
         partyStatementPrintCss +
+        oracleStatementPrintCss +
         accSummaryPrintCss +
         hrTaxAr3PrintCss +
         reportSalesCss +
@@ -2197,6 +2295,7 @@
     function isLandscapePdfRoute(routeKey) {
       return (
         routeKey === 'report_customers' ||
+        routeKey === 'report_oracle_customer_statement' ||
         routeKey === 'report_receivables_aging' ||
         isWarehouseItemsReportRoute(routeKey) ||
         routeKey === 'report_trial_balance' ||

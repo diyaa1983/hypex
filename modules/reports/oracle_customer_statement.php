@@ -242,32 +242,47 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
         }
         $nowDate = date('d-m-Y');
         $nowTime = date('H:i:s');
+        $lineCount = count($lines);
         ?>
         <div class="report-sales-result report-sales-print-area ora-stmt-print">
-            <div class="ora-stmt-header">
-                <div class="ora-stmt-header__sys">نظام المحاسبة والذمم</div>
-                <div class="ora-stmt-header__title"><?= esc($reportTitle) ?></div>
-                <div class="ora-stmt-header__meta">
-                    <span>التاريخ: <?= esc($nowDate) ?></span>
-                    <span>الوقت: <?= esc($nowTime) ?></span>
-                </div>
-                <div class="ora-stmt-header__range">
-                    من <?= esc($fmtDate($from)) ?>
-                    إلى <?= esc($fmtDate($to)) ?>
-                </div>
-                <div class="ora-stmt-header__acc">
-                    <div><strong>الحساب:</strong>
-                        <span dir="ltr"><?= esc($accountNo) ?></span>
-                        <?php if ($partyName !== ''): ?>
-                            — <?= esc($partyName) ?>
-                        <?php endif; ?>
+            <?= document_print_header_html($reportTitle, $pdo, 'قراءة من Oracle · نظام المحاسبة والذمم') ?>
+
+            <div class="ora-stmt-meta">
+                <div class="ora-stmt-meta__row ora-stmt-meta__row--main">
+                    <div class="ora-stmt-meta__acc">
+                        <span class="ora-stmt-meta__label">الحساب</span>
+                        <span class="ora-stmt-meta__value">
+                            <span class="ora-stmt-meta__acc-no" dir="ltr"><?= esc($accountNo) ?></span>
+                            <?php if ($partyName !== ''): ?>
+                                <span class="ora-stmt-meta__acc-name"><?= esc($partyName) ?></span>
+                            <?php endif; ?>
+                        </span>
                     </div>
-                    <div><strong>العملة:</strong> محلية</div>
+                    <div class="ora-stmt-meta__currency">
+                        <span class="ora-stmt-meta__label">العملة</span>
+                        <span class="ora-stmt-meta__value">محلية</span>
+                    </div>
+                </div>
+                <div class="ora-stmt-meta__row ora-stmt-meta__row--sub">
+                    <span>الفترة: <strong dir="ltr"><?= esc($fmtDate($from)) ?></strong>
+                        — <strong dir="ltr"><?= esc($fmtDate($to)) ?></strong></span>
+                    <span>تاريخ الطباعة: <strong dir="ltr"><?= esc($nowDate) ?></strong>
+                        · <strong dir="ltr"><?= esc($nowTime) ?></strong></span>
+                    <span>عدد الحركات: <strong><?= (int) $lineCount ?></strong></span>
                 </div>
             </div>
 
-            <div class="report-sales-table-wrap">
+            <div class="report-sales-table-wrap ora-stmt-table-wrap">
                 <table class="data-table report-sales-table ora-stmt-table">
+                    <colgroup>
+                        <col class="col-doc-no">
+                        <col class="col-doc-type">
+                        <col class="col-date">
+                        <col class="col-debit">
+                        <col class="col-credit">
+                        <col class="col-balance">
+                        <col class="col-desc">
+                    </colgroup>
                     <thead>
                     <tr>
                         <th>رقم السند</th>
@@ -282,30 +297,30 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
                     <tbody>
                     <?php if ($lines === []): ?>
                         <tr>
-                            <td colspan="7" class="muted" style="text-align:center;padding:1.25rem;">
+                            <td colspan="7" class="muted ora-stmt-empty">
                                 لا توجد حركات في هذه الفترة.
                             </td>
                         </tr>
                     <?php endif; ?>
                     <?php foreach ($lines as $ln): ?>
                         <tr class="<?= !empty($ln['is_opening']) ? 'ora-stmt-opening' : '' ?>">
-                            <td dir="ltr"><?= esc((string) ($ln['doc_no'] ?? '')) ?></td>
-                            <td><?= esc((string) ($ln['doc_type'] ?? '')) ?></td>
-                            <td dir="ltr"><?= esc($fmtDate((string) ($ln['trn_date'] ?? ''))) ?></td>
-                            <td class="col-money" dir="ltr">
+                            <td class="col-doc-no" dir="ltr"><?= esc((string) ($ln['doc_no'] ?? '')) ?></td>
+                            <td class="col-doc-type"><?= esc((string) ($ln['doc_type'] ?? '')) ?></td>
+                            <td class="col-date" dir="ltr"><?= esc($fmtDate((string) ($ln['trn_date'] ?? ''))) ?></td>
+                            <td class="col-money col-debit" dir="ltr">
                                 <?= ((float) ($ln['debit'] ?? 0)) > 0.0000001 ? esc($fmtAmt((float) $ln['debit'])) : '' ?>
                             </td>
-                            <td class="col-money" dir="ltr">
+                            <td class="col-money col-credit" dir="ltr">
                                 <?= ((float) ($ln['credit'] ?? 0)) > 0.0000001 ? esc($fmtAmt((float) $ln['credit'])) : '' ?>
                             </td>
-                            <td class="col-money" dir="ltr"><?= esc($fmtAmt((float) ($ln['balance'] ?? 0))) ?></td>
+                            <td class="col-money col-balance" dir="ltr"><?= esc($fmtAmt((float) ($ln['balance'] ?? 0))) ?></td>
                             <td class="ora-stmt-desc"><?= esc((string) ($ln['description'] ?? '')) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
                     <tfoot>
                     <tr class="ora-stmt-totals">
-                        <td colspan="3">المجموع / الرصيد الختامي</td>
+                        <td colspan="3" class="ora-stmt-totals__lbl">المجموع / الرصيد الختامي</td>
                         <td class="col-money" dir="ltr"><?= esc($fmtAmt($totalDebit)) ?></td>
                         <td class="col-money" dir="ltr"><?= esc($fmtAmt($totalCredit)) ?></td>
                         <td class="col-money" dir="ltr"><strong><?= esc($fmtAmt($balance)) ?></strong></td>
@@ -319,6 +334,12 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
                 <h3 class="ora-stmt-cheques__title">الشيكات قيد التحصيل</h3>
                 <div class="report-sales-table-wrap">
                     <table class="data-table report-sales-table ora-stmt-chq-table">
+                        <colgroup>
+                            <col class="col-chq-no">
+                            <col class="col-chq-date">
+                            <col class="col-chq-amt">
+                            <col class="col-chq-recv">
+                        </colgroup>
                         <thead>
                         <tr>
                             <th>الشيك</th>
@@ -330,7 +351,7 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
                         <tbody>
                         <?php if ($cheques === []): ?>
                             <tr>
-                                <td colspan="4" class="muted" style="text-align:center;">لا توجد شيكات قيد التحصيل.</td>
+                                <td colspan="4" class="muted ora-stmt-empty">لا توجد شيكات قيد التحصيل.</td>
                             </tr>
                         <?php endif; ?>
                         <?php foreach ($cheques as $ch): ?>
@@ -343,7 +364,7 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
                         <?php endforeach; ?>
                         </tbody>
                         <tfoot>
-                        <tr>
+                        <tr class="ora-stmt-chq-total">
                             <td colspan="2">مجموع الشيكات قيد التحصيل</td>
                             <td class="col-money" dir="ltr"><strong><?= esc($fmtAmt((float) ($result['cheque_total'] ?? 0))) ?></strong></td>
                             <td></td>

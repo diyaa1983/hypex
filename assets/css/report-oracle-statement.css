@@ -1,96 +1,240 @@
-/* كشف حساب تفصيلي — Oracle (Forms parity) */
-.ora-stmt-page .ora-stmt-header {
-  text-align: center;
-  margin: 0.75rem 0 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid #c5c9d0;
+/* كشف حساب تفصيلي Oracle — شاشة + طباعة */
+
+.ora-stmt-page .ora-stmt-meta {
+  margin: 0.65rem 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #c5cdd8;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 4px;
 }
 
-.ora-stmt-header__sys {
-  font-size: 0.95rem;
-  color: #445;
-  margin-bottom: 0.2rem;
-}
-
-.ora-stmt-header__title {
-  font-size: 1.35rem;
-  font-weight: 700;
-  margin: 0.25rem 0;
-}
-
-.ora-stmt-header__meta {
+.ora-stmt-meta__row {
   display: flex;
-  justify-content: center;
-  gap: 1.5rem;
   flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.75rem 1.5rem;
+  justify-content: space-between;
+}
+
+.ora-stmt-meta__row--main {
+  margin-bottom: 0.45rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.ora-stmt-meta__row--sub {
   font-size: 0.88rem;
-  color: #555;
-  margin-top: 0.35rem;
+  color: #334155;
 }
 
-.ora-stmt-header__range {
-  margin-top: 0.45rem;
-  font-size: 0.95rem;
-  font-weight: 600;
+.ora-stmt-meta__label {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 0.15rem;
 }
 
-.ora-stmt-header__acc {
-  margin-top: 0.55rem;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 1.25rem;
-  font-size: 0.95rem;
+.ora-stmt-meta__acc-no {
+  font-weight: 800;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  margin-inline-end: 0.4rem;
 }
+
+.ora-stmt-meta__acc-name {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.ora-stmt-meta__currency .ora-stmt-meta__value {
+  font-weight: 700;
+}
+
+.ora-stmt-table-wrap {
+  overflow-x: auto;
+}
+
+.ora-stmt-table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ora-stmt-table col.col-doc-no { width: 8%; }
+.ora-stmt-table col.col-doc-type { width: 12%; }
+.ora-stmt-table col.col-date { width: 10%; }
+.ora-stmt-table col.col-debit,
+.ora-stmt-table col.col-credit,
+.ora-stmt-table col.col-balance { width: 10%; }
+.ora-stmt-table col.col-desc { width: 30%; }
 
 .ora-stmt-table th,
 .ora-stmt-table td,
 .ora-stmt-chq-table th,
 .ora-stmt-chq-table td {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid #94a3b8;
+  vertical-align: middle;
+}
+
+.ora-stmt-table thead th,
+.ora-stmt-chq-table thead th {
+  background: #e2e8f0;
+  font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.ora-stmt-table tbody tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.ora-stmt-table .col-doc-no,
+.ora-stmt-table .col-date,
+.ora-stmt-table .col-money {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ora-stmt-table .col-doc-type {
+  text-align: center;
   white-space: nowrap;
 }
 
 .ora-stmt-table .ora-stmt-desc {
   white-space: normal;
-  max-width: 22rem;
   text-align: right;
+  word-break: break-word;
+  line-height: 1.25;
+  font-weight: 600;
 }
 
 .ora-stmt-table .ora-stmt-opening td {
-  background: #f3f5f8;
+  background: #eef2ff !important;
   font-style: italic;
 }
 
 .ora-stmt-table tfoot .ora-stmt-totals td {
-  border-top: 2px dashed #888;
-  font-weight: 600;
-  background: #fafafa;
+  border-top: 2px solid #0f172a;
+  font-weight: 800;
+  background: #e2e8f0;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.ora-stmt-totals__lbl {
+  text-align: right;
+}
+
+.ora-stmt-empty {
+  text-align: center;
+  padding: 1rem !important;
 }
 
 .ora-stmt-cheques {
-  margin-top: 1.75rem;
+  margin-top: 1.5rem;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .ora-stmt-cheques__title {
-  font-size: 1.1rem;
-  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+  margin: 0 0 0.55rem;
   text-align: center;
-  border-top: 1px solid #c5c9d0;
-  padding-top: 1rem;
+  font-weight: 800;
+  padding: 0.4rem 0;
+  border-top: 2px solid #334155;
+  border-bottom: 1px solid #94a3b8;
 }
 
-.ora-stmt-chq-table tfoot td {
-  font-weight: 600;
-  border-top: 1px solid #888;
+.ora-stmt-chq-table {
+  width: 100%;
+  max-width: 36rem;
+  margin: 0 auto;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
+.ora-stmt-chq-table col.col-chq-no { width: 20%; }
+.ora-stmt-chq-table col.col-chq-date { width: 28%; }
+.ora-stmt-chq-table col.col-chq-amt { width: 24%; }
+.ora-stmt-chq-table col.col-chq-recv { width: 28%; }
+
+.ora-stmt-chq-table td {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ora-stmt-chq-table tfoot .ora-stmt-chq-total td {
+  font-weight: 800;
+  background: #e2e8f0;
+  border-top: 2px solid #0f172a;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* شاشة */
+@media screen {
+  .ora-stmt-print .doc-print-header {
+    margin-bottom: 0.75rem;
+  }
+}
+
+/* طباعة المتصفح المباشرة (إن وُجدت) */
 @media print {
   .ora-stmt-page .no-print,
-  .ora-stmt-page .report-sales-filters {
+  .ora-stmt-page .report-sales-filters,
+  .ora-stmt-page .alert {
     display: none !important;
   }
+
   .ora-stmt-print {
-    box-shadow: none;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .ora-stmt-page .ora-stmt-meta {
+    background: #f1f5f9 !important;
+    border-color: #334155 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .ora-stmt-table thead {
+    display: table-header-group;
+  }
+
+  .ora-stmt-table tfoot {
+    display: table-footer-group;
+  }
+
+  .ora-stmt-table tbody tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .ora-stmt-table th,
+  .ora-stmt-table td,
+  .ora-stmt-chq-table th,
+  .ora-stmt-chq-table td {
+    border-color: #334155 !important;
+    font-size: 8pt !important;
+    padding: 2px 3px !important;
+  }
+
+  .ora-stmt-table thead th,
+  .ora-stmt-chq-table thead th {
+    background: #d9d9d9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .ora-stmt-table-wrap {
+    overflow: visible !important;
   }
 }
