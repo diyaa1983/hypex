@@ -69,6 +69,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $repIdsRaw = [];
             }
 
+            // عملاء Oracle: لا يُعدَّل الرقم ولا الاسم من النظام
+            $oracleLocked = false;
+            if ($id > 0) {
+                $stOra = $pdo->prepare(
+                    "SELECT code, name_ar, oracle_key FROM crm_customer WHERE id = ? LIMIT 1"
+                );
+                $stOra->execute([$id]);
+                $oraRow = $stOra->fetch(PDO::FETCH_ASSOC) ?: null;
+                if ($oraRow && trim((string) ($oraRow['oracle_key'] ?? '')) !== '') {
+                    $oracleLocked = true;
+                    $name = trim((string) ($oraRow['name_ar'] ?? ''));
+                }
+            }
+
             if ($name === '') {
                 throw new RuntimeException('اسم العميل مطلوب.');
             }
@@ -77,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($id > 0) {
+                // الاسم: من Oracle يُثبَّت؛ الرقم لا يُحدَّث من النموذج أصلاً
                 $st = $pdo->prepare(
                     'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
                         latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
@@ -94,7 +109,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id,
                 ]);
                 crm_customer_save_sales_reps($pdo, $id, $repIdsRaw);
-                flash_set('success', 'تم تحديث بيانات العميل.');
+                flash_set(
+                    'success',
+                    $oracleLocked
+                        ? 'تم تحديث بيانات العميل (الرقم والاسم من Oracle — غير قابلين للتعديل).'
+                        : 'تم تحديث بيانات العميل.'
+                );
             } else {
                 $code = crm_customer_generate_code($pdo);
                 $st = $pdo->prepare(
@@ -188,6 +208,7 @@ if ($action === 'add' || $action === 'edit') {
         ? crm_customer_sales_rep_ids_for_customer($pdo, (int) $row['id'])
         : [];
 
+    $isOracleLinked = trim((string) ($row['oracle_key'] ?? '')) !== '';
     $formTitle = $action === 'add' ? 'إضافة عميل' : 'تعديل عميل';
     ?>
     <?php sales_ora12_enqueue_assets(); ?>
@@ -211,16 +232,29 @@ if ($action === 'add' || $action === 'edit') {
 
             <div class="form-row">
                 <label class="field">
-                    <span class="field-label">رمز العميل</span>
+                    <span class="field-label">رمز العميل<?= $isOracleLinked ? ' (من Oracle)' : '' ?></span>
                     <input class="input" value="<?= esc((string) $row['code']) ?>"
                            placeholder="يُولَّد تلقائياً عند الحفظ"
-                           readonly tabindex="-1" aria-readonly="true">
+                           readonly tabindex="-1" aria-readonly="true"
+                           style="<?= $isOracleLinked ? 'background:#f1f5f9;cursor:not-allowed;' : '' ?>">
                 </label>
                 <label class="field">
-                    <span class="field-label">اسم العميل *</span>
-                    <input class="input" name="name_ar" required value="<?= esc((string) $row['name_ar']) ?>">
+                    <span class="field-label">اسم العميل *<?= $isOracleLinked ? ' (من Oracle)' : '' ?></span>
+                    <?php if ($isOracleLinked): ?>
+                        <input class="input" name="name_ar" value="<?= esc((string) $row['name_ar']) ?>"
+                               readonly tabindex="-1" aria-readonly="true" required
+                               style="background:#f1f5f9;cursor:not-allowed;"
+                               title="الاسم من Oracle (GLACTMF) — يُحدَّث بالمزامنة فقط">
+                    <?php else: ?>
+                        <input class="input" name="name_ar" required value="<?= esc((string) $row['name_ar']) ?>">
+                    <?php endif; ?>
                 </label>
             </div>
+            <?php if ($isOracleLinked): ?>
+                <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem;">
+                    هذا العميل مربوط بـ Oracle — الرمز والاسم للقراءة فقط ويُحدَّثان عبر «تحديث من Oracle».
+                </p>
+            <?php endif; ?>
             <div class="form-row">
                 <label class="field">
                     <span class="field-label">الهاتف</span>
