@@ -42,35 +42,66 @@ function sql_migration_split_statements(string $sql): array
  * @param list<string> $stmts
  * @return string|null رسالة خطأ أخيرة (إن وُجدت)
  */
+/**
+ * تفريغ أي result sets متبقية من PDO/MySQL (تجنب SQLSTATE 2014).
+ */
 function sql_migration_drain_pdo(PDO $pdo): void
 {
     try {
         while ($pdo->nextRowset()) {
-            // استهلاك أي result sets متبقية (مثلاً بعد PREPARE/EXECUTE في ملفات SQL).
+            //
         }
     } catch (Throwable $e) {
-        // ignore
+        // ignore — لا result set إضافي
     }
 }
 
+/**
+ * نفّذ جملة SQL واحدة بأمان مع استهلاك كامل للنتائج.
+ */
+function sql_migration_exec_one(PDO $pdo, string $stmt): void
+{
+    // SELECT وما يشبهه + EXECUTE (قد يُرجع SELECT 1 من الترحيلات) يترك cursor مفتوحاً مع exec()
+    $mayReturn = preg_match(
+        '/^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN|EXECUTE|CALL)\b/i',
+        $stmt
+    ) === 1;
+
+    if ($mayReturn) {
+        $q = $pdo->query($stmt);
+        if ($q instanceof PDOStatement) {
+            try {
+                $q->fetchAll();
+            } catch (Throwable $e) {
+                // ignore empty/no result
+            }
+            try {
+                $q->closeCursor();
+            } catch (Throwable $e) {
+                // ignore
+            }
+        }
+    } else {
+        $pdo->exec($stmt);
+    }
+    sql_migration_drain_pdo($pdo);
+}
+
+/**
+ * @param list<string> $stmts
+ * @return string|null رسالة خطأ أخيرة (إن وُجدت)
+ */
 function sql_migration_exec_statements(PDO $pdo, array $stmts): ?string
 {
     $lastErr = null;
     foreach ($stmts as $stmt) {
         try {
-            // SELECT عبر exec يترك result set مفتوحاً على mysql (خطأ 2014 unbuffered)
-            if (preg_match('/^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i', $stmt) === 1) {
-                $q = $pdo->query($stmt);
-                if ($q instanceof PDOStatement) {
-                    $q->fetchAll();
-                    $q->closeCursor();
-                }
-            } else {
-                $pdo->exec($stmt);
-            }
-            sql_migration_drain_pdo($pdo);
+            sql_migration_exec_one($pdo, $stmt);
         } catch (Throwable $e) {
-            sql_migration_drain_pdo($pdo);
+            try {
+                sql_migration_drain_pdo($pdo);
+            } catch (Throwable $ignored) {
+            }
             $msg = $e->getMessage();
             if (str_contains($msg, 'already exists') || str_contains($msg, 'Duplicate')) {
                 continue;
@@ -80,6 +111,17 @@ function sql_migration_exec_statements(PDO $pdo, array $stmts): ?string
             }
             if (str_contains($msg, 'check that column/key exists')) {
                 continue;
+            }
+            // 2014 أثناء الترحيل: حاول مرة أخرى بعد التفريغ
+            if (str_contains($msg, '2014') || str_contains($msg, 'unbuffered')) {
+                try {
+                    sql_migration_drain_pdo($pdo);
+                    sql_migration_exec_one($pdo, $stmt);
+                    continue;
+                } catch (Throwable $e2) {
+                    $lastErr = $e2->getMessage();
+                    continue;
+                }
             }
             $lastErr = $msg;
         }
@@ -120,10 +162,16 @@ function sql_migration_ensure_registry(PDO $pdo): void
 function sql_migration_run_file_once(PDO $pdo, string $relativePath): ?string
 {
     sql_migration_ensure_registry($pdo);
+    sql_migration_drain_pdo($pdo);
+
     $st = $pdo->prepare('SELECT 1 FROM sys_sql_migration WHERE path = ? LIMIT 1');
     $st->execute([$relativePath]);
     $already = $st->fetchColumn();
-    $st->closeCursor();
+    try {
+        $st->closeCursor();
+    } catch (Throwable $e) {
+        // ignore
+    }
     if ($already !== false) {
         return null;
     }
@@ -133,7 +181,11 @@ function sql_migration_run_file_once(PDO $pdo, string $relativePath): ?string
     try {
         $ins = $pdo->prepare('INSERT IGNORE INTO sys_sql_migration (path) VALUES (?)');
         $ins->execute([$relativePath]);
-        $ins->closeCursor();
+        try {
+            $ins->closeCursor();
+        } catch (Throwable $e) {
+            // ignore
+        }
     } catch (Throwable $e) {
         error_log('[sql_migration] registry insert failed for ' . $relativePath . ': ' . $e->getMessage());
     }
@@ -170,7 +222,12 @@ function sql_migration_run_files_once(PDO $pdo, array $relativePaths): void
     $st = $pdo->prepare('SELECT path FROM sys_sql_migration WHERE path IN (' . $placeholders . ')');
     $st->execute($paths);
     $applied = array_flip($st->fetchAll(PDO::FETCH_COLUMN) ?: []);
-    $st->closeCursor();
+    try {
+        $st->closeCursor();
+    } catch (Throwable $e) {
+        // ignore
+    }
+    sql_migration_drain_pdo($pdo);
 
     foreach ($paths as $relativePath) {
         if (isset($applied[$relativePath])) {
