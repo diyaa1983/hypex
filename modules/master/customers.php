@@ -32,10 +32,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $a = is_array($syncResult['accounts'] ?? null) ? $syncResult['accounts'] : [];
             $sum = 'مزامنة Oracle — عملاء: +' . (int) ($c['inserted'] ?? 0)
                 . ' ~' . (int) ($c['updated'] ?? 0)
-                . ' | تنظيف: ' . (int) ($c['cleaned'] ?? 0)
-                . ' حذف: ' . (int) ($c['deleted_non_prefix'] ?? 0)
-                . ' (بادئة ' . (string) ($c['code_prefix'] ?? '112') . ')'
-                . ' | حسابات: ~' . (int) ($a['updated'] ?? 0)
+                . ' | حذف خارج 112: ' . (int) ($c['deleted_non_prefix'] ?? 0)
+                . (isset($c['kept_with_usage']) && (int) $c['kept_with_usage'] > 0
+                    ? ' | تعطيل (لديهم حركات): ' . (int) $c['kept_with_usage']
+                    : '')
                 . ' | ' . (int) ($syncResult['elapsed_ms'] ?? 0) . 'ms';
             if (!empty($syncResult['errors'])) {
                 flash_set('error', $sum . ' — ' . implode(' | ', array_slice($syncResult['errors'], 0, 5)));

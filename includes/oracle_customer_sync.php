@@ -235,57 +235,74 @@ function oracle_sync_customers_to_mysql(
         }
     }
 
-    // تنظيف: ابقِ فقط العملاء برمز يبدأ بـ 112 من مزامنة Oracle
+    // حذف من Hypex كل عميل رمزه لا يبدأ بالبادئة (112) — المطلوب: القائمة = 112 فقط
     $result['cleaned'] = 0;
     $result['deleted_non_prefix'] = 0;
+    $result['kept_with_usage'] = 0;
     try {
         $like = $codePrefix . '%';
-
-        // فك الربط + تعطيل لكل من ليس ببادئة 112
-        $clean = $mysql->prepare(
-            "UPDATE crm_customer
-             SET is_active = 0,
-                 oracle_key = NULL
-             WHERE (
-                    (oracle_key IS NOT NULL AND oracle_key <> '' AND (
-                        oracle_key NOT LIKE ? OR code NOT LIKE ?
-                    ))
-                 OR (
-                        code NOT LIKE ?
-                    AND code REGEXP '^[0-9]{5,}$'
-                    AND is_active = 1
-                 )
-             )"
-        );
-        $clean->execute([$like, $like, $like]);
-        $result['cleaned'] = $clean->rowCount();
-
-        // حذف غير المُستخدَمين خارج 112 (معطّلون بعد التنظيف)
-        $st = $mysql->prepare(
-            "SELECT id FROM crm_customer
-             WHERE code NOT LIKE ?
-               AND is_active = 0"
-        );
-        $st->execute([$like]);
-        $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN) ?: []);
         require_once app_path('includes/crm_party_delete.php');
-        foreach ($ids as $cid) {
+
+        $st = $mysql->prepare(
+            'SELECT id, code, oracle_key FROM crm_customer WHERE code NOT LIKE ? OR (
+                oracle_key IS NOT NULL AND oracle_key <> \'\' AND oracle_key NOT LIKE ?
+            )'
+        );
+        $st->execute([$like, $like]);
+        $toRemove = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $usage = crm_customer_usage_counts($mysql);
+        $delRep = null;
+        try {
+            $delRep = $mysql->prepare('DELETE FROM crm_customer_sales_rep WHERE customer_id = ?');
+        } catch (Throwable $e) {
+            $delRep = null;
+        }
+        $delCust = $mysql->prepare('DELETE FROM crm_customer WHERE id = ?');
+        $disCust = $mysql->prepare(
+            'UPDATE crm_customer SET is_active = 0, oracle_key = NULL WHERE id = ?'
+        );
+
+        foreach ($toRemove as $row) {
+            $cid = (int) ($row['id'] ?? 0);
             if ($cid < 1) {
                 continue;
             }
-            $chk = crm_customer_delete_check($mysql, $cid);
-            if (empty($chk['can_delete'])) {
+            $used = (int) ($usage[$cid] ?? 0);
+            if ($used > 0) {
+                // لا يُحذف بسبب حركات — عطّل فقط
+                try {
+                    $disCust->execute([$cid]);
+                    $result['kept_with_usage']++;
+                    $result['cleaned']++;
+                } catch (Throwable $e) {
+                    // ignore
+                }
                 continue;
             }
             try {
-                $mysql->prepare('DELETE FROM crm_customer WHERE id = ?')->execute([$cid]);
-                $result['deleted_non_prefix']++;
+                if ($delRep !== null) {
+                    $delRep->execute([$cid]);
+                }
             } catch (Throwable $e) {
-                // FK — يبقى معطّلاً
+                // ignore
+            }
+            try {
+                $delCust->execute([$cid]);
+                if ($delCust->rowCount() > 0) {
+                    $result['deleted_non_prefix']++;
+                }
+            } catch (Throwable $e) {
+                try {
+                    $disCust->execute([$cid]);
+                    $result['cleaned']++;
+                } catch (Throwable $e2) {
+                    $result['errors'][] = 'تعذر حذف عميل #' . $cid . ': ' . $e->getMessage();
+                }
             }
         }
     } catch (Throwable $e) {
-        $result['errors'][] = 'تنظيف غير ' . $codePrefix . ': ' . $e->getMessage();
+        $result['errors'][] = 'حذف غير ' . $codePrefix . ': ' . $e->getMessage();
     }
 
     return $result;
