@@ -42,6 +42,29 @@ return [
     ],
 
     /**
+     * كشف حساب تفصيلي — GLVODMF (حركات) + GLCHEQF (شيكات قيد التحصيل)
+     * لا حاجة لتعديله عادةً إن كانت الجداول تحت ACCINV
+     */
+    'statement' => [
+        'owner' => 'ACCINV',
+        'table' => 'GLVODMF',
+        'acc' => 'VOD_ACC',
+        'date' => 'VOD_DATE',
+        'side' => 'VOD_SIDE',
+        'amount' => 'VOD_AMOUNT',
+        'num' => 'VOD_NUM',
+        'remark' => 'VOD_REMARK',
+        'type' => 'VOD_TYPE',
+        'flag' => 'VOD_FLAG',
+        'srl' => 'VOD_SR1',
+        'dep' => 'VOD_DEP',
+        'debit_side' => 1,
+        'credit_side' => 2,
+        'cheque_table' => 'GLCHEQF',
+        'cheque_cus' => 'CHQ_CUS_NUM',
+    ],
+
+    /**
      * مجموعات / فئات المواد → inv_item_category
      * عدّل owner/table/columns بعد التحقق من Toad
      */

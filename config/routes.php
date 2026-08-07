@@ -184,6 +184,11 @@ return [
         'permission' => 'oracle_customers_sync',
         'title' => 'تكامل Oracle — العملاء',
     ],
+    'report_oracle_customer_statement' => [
+        'file' => 'modules/reports/oracle_customer_statement.php',
+        'permission' => 'report_oracle_customer_statement',
+        'title' => 'كشف حساب تفصيلي Oracle',
+    ],
     'sales_reps' => [
         'file' => 'modules/sales/sales_reps.php',
         'permission' => 'sales_reps',

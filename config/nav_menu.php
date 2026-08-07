@@ -331,6 +331,7 @@ return [
                         ['r' => 'report_outgoing_checks', 'label' => 'تقرير الشيكات الصادرة', 'icon' => '📒'],
                         ['r' => 'report_supplier_payables', 'label' => 'كشف ذمم الموردين', 'icon' => '📒'],
                         ['r' => 'report_party_statement', 'label' => 'كشف حساب مورد - عميل', 'icon' => '📋'],
+                        ['r' => 'report_oracle_customer_statement', 'label' => 'كشف حساب تفصيلي Oracle', 'icon' => '📒'],
                         ['r' => 'report_account_statement', 'label' => 'كشف حساب', 'icon' => '📋'],
                         ['r' => 'report_trial_balance', 'label' => 'ميزان المراجعة', 'icon' => '⚖'],
                         ['r' => 'report_trial_balance_detailed', 'label' => 'ميزان مراجعة تفصيلي', 'icon' => '⚖'],

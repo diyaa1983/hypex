@@ -1,0 +1,96 @@
+/* كشف حساب تفصيلي — Oracle (Forms parity) */
+.ora-stmt-page .ora-stmt-header {
+  text-align: center;
+  margin: 0.75rem 0 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #c5c9d0;
+}
+
+.ora-stmt-header__sys {
+  font-size: 0.95rem;
+  color: #445;
+  margin-bottom: 0.2rem;
+}
+
+.ora-stmt-header__title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0.25rem 0;
+}
+
+.ora-stmt-header__meta {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  font-size: 0.88rem;
+  color: #555;
+  margin-top: 0.35rem;
+}
+
+.ora-stmt-header__range {
+  margin-top: 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.ora-stmt-header__acc {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.25rem;
+  font-size: 0.95rem;
+}
+
+.ora-stmt-table th,
+.ora-stmt-table td,
+.ora-stmt-chq-table th,
+.ora-stmt-chq-table td {
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.ora-stmt-table .ora-stmt-desc {
+  white-space: normal;
+  max-width: 22rem;
+  text-align: right;
+}
+
+.ora-stmt-table .ora-stmt-opening td {
+  background: #f3f5f8;
+  font-style: italic;
+}
+
+.ora-stmt-table tfoot .ora-stmt-totals td {
+  border-top: 2px dashed #888;
+  font-weight: 600;
+  background: #fafafa;
+}
+
+.ora-stmt-cheques {
+  margin-top: 1.75rem;
+}
+
+.ora-stmt-cheques__title {
+  font-size: 1.1rem;
+  margin: 0 0 0.6rem;
+  text-align: center;
+  border-top: 1px solid #c5c9d0;
+  padding-top: 1rem;
+}
+
+.ora-stmt-chq-table tfoot td {
+  font-weight: 600;
+  border-top: 1px solid #888;
+}
+
+@media print {
+  .ora-stmt-page .no-print,
+  .ora-stmt-page .report-sales-filters {
+    display: none !important;
+  }
+  .ora-stmt-print {
+    box-shadow: none;
+  }
+}

@@ -559,6 +559,17 @@ try {
                     <td>
                         <div class="row-actions">
                             <a class="btn btn-secondary btn-sm" href="<?= esc(app_url('index.php?r=customers&action=edit&id=' . (int) $c['id'])) ?>">تعديل</a>
+                            <?php if ($okey !== '' || str_starts_with((string) $c['code'], '112')):
+                                $stmtAcc = $okey !== '' ? $okey : (string) $c['code'];
+                                $stmtUrl = app_url(
+                                    'index.php?r=report_oracle_customer_statement'
+                                    . '&customer_id=' . $custId
+                                    . '&account=' . rawurlencode($stmtAcc)
+                                    . '&from=01-01-2020'
+                                );
+                                ?>
+                                <a class="btn btn-ghost btn-sm" href="<?= esc($stmtUrl) ?>" title="كشف حساب تفصيلي من Oracle">كشف Oracle</a>
+                            <?php endif; ?>
                             <form method="post" action="<?= esc($listUrl) ?>" data-confirm="تغيير حالة العميل؟">
                                 <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                                 <input type="hidden" name="_action" value="toggle">
