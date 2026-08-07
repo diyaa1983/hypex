@@ -235,21 +235,55 @@ function oracle_sync_customers_to_mysql(
         }
     }
 
-    // تنظيف العملاء الذين دُخلوا سابقاً من Oracle وليسوا ببادئة 112 (مثل 212...)
+    // تنظيف: ابقِ فقط العملاء برمز يبدأ بـ 112 من مزامنة Oracle
     $result['cleaned'] = 0;
+    $result['deleted_non_prefix'] = 0;
     try {
         $like = $codePrefix . '%';
+
+        // فك الربط + تعطيل لكل من ليس ببادئة 112
         $clean = $mysql->prepare(
             "UPDATE crm_customer
              SET is_active = 0,
                  oracle_key = NULL
-             WHERE oracle_key IS NOT NULL
-               AND oracle_key <> ''
-               AND code NOT LIKE ?
-               AND oracle_key NOT LIKE ?"
+             WHERE (
+                    (oracle_key IS NOT NULL AND oracle_key <> '' AND (
+                        oracle_key NOT LIKE ? OR code NOT LIKE ?
+                    ))
+                 OR (
+                        code NOT LIKE ?
+                    AND code REGEXP '^[0-9]{5,}$'
+                    AND is_active = 1
+                 )
+             )"
         );
-        $clean->execute([$like, $like]);
+        $clean->execute([$like, $like, $like]);
         $result['cleaned'] = $clean->rowCount();
+
+        // حذف غير المُستخدَمين خارج 112 (معطّلون بعد التنظيف)
+        $st = $mysql->prepare(
+            "SELECT id FROM crm_customer
+             WHERE code NOT LIKE ?
+               AND is_active = 0"
+        );
+        $st->execute([$like]);
+        $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN) ?: []);
+        require_once app_path('includes/crm_party_delete.php');
+        foreach ($ids as $cid) {
+            if ($cid < 1) {
+                continue;
+            }
+            $chk = crm_customer_delete_check($mysql, $cid);
+            if (empty($chk['can_delete'])) {
+                continue;
+            }
+            try {
+                $mysql->prepare('DELETE FROM crm_customer WHERE id = ?')->execute([$cid]);
+                $result['deleted_non_prefix']++;
+            } catch (Throwable $e) {
+                // FK — يبقى معطّلاً
+            }
+        }
     } catch (Throwable $e) {
         $result['errors'][] = 'تنظيف غير ' . $codePrefix . ': ' . $e->getMessage();
     }

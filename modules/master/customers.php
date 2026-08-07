@@ -32,6 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $a = is_array($syncResult['accounts'] ?? null) ? $syncResult['accounts'] : [];
             $sum = 'مزامنة Oracle — عملاء: +' . (int) ($c['inserted'] ?? 0)
                 . ' ~' . (int) ($c['updated'] ?? 0)
+                . ' | تنظيف: ' . (int) ($c['cleaned'] ?? 0)
+                . ' حذف: ' . (int) ($c['deleted_non_prefix'] ?? 0)
+                . ' (بادئة ' . (string) ($c['code_prefix'] ?? '112') . ')'
                 . ' | حسابات: ~' . (int) ($a['updated'] ?? 0)
                 . ' | ' . (int) ($syncResult['elapsed_ms'] ?? 0) . 'ms';
             if (!empty($syncResult['errors'])) {
@@ -356,8 +359,14 @@ $sql = "SELECT c.id, c.code, c.name_ar, c.phone, c.email, c.tax_number, c.is_act
         FROM crm_customer c
         LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id";
 $params = [];
+// القائمة: العملاء النشطون فقط افتراضياً (يُخفي 212/116 بعد تنظيف المزامنة)
+$showInactive = ((string) ($_GET['all'] ?? '') === '1');
+$whereParts = [];
+if (!$showInactive) {
+    $whereParts[] = 'c.is_active = 1';
+}
 if ($search !== '') {
-    $sql .= ' WHERE (c.name_ar LIKE ? OR c.code LIKE ? OR c.phone LIKE ? OR c.email LIKE ?'
+    $whereParts[] = '(c.name_ar LIKE ? OR c.code LIKE ? OR c.phone LIKE ? OR c.email LIKE ?'
         . ' OR c.tax_number LIKE ? OR IFNULL(r.name_ar, \'\') LIKE ?'
         . ' OR IFNULL(' . $repNamesSub . ', \'\') LIKE ?'
         . ' OR EXISTS (
@@ -368,18 +377,14 @@ if ($search !== '') {
     $like = '%' . $search . '%';
     $params = array_fill(0, 8, $like);
 }
+if ($whereParts !== []) {
+    $sql .= ' WHERE ' . implode(' AND ', $whereParts);
+}
 require_once app_path('includes/list_pagination.php');
 
 $countSql = 'SELECT COUNT(*) FROM crm_customer c LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id';
-if ($search !== '') {
-    $countSql .= ' WHERE (c.name_ar LIKE ? OR c.code LIKE ? OR c.phone LIKE ? OR c.email LIKE ?'
-        . ' OR c.tax_number LIKE ? OR IFNULL(r.name_ar, \'\') LIKE ?'
-        . ' OR IFNULL(' . $repNamesSub . ', \'\') LIKE ?'
-        . ' OR EXISTS (
-              SELECT 1 FROM crm_customer_sales_rep csr3
-              INNER JOIN crm_sales_rep r3 ON r3.id = csr3.sales_rep_id
-              WHERE csr3.customer_id = c.id AND r3.name_ar LIKE ?
-           ))';
+if ($whereParts !== []) {
+    $countSql .= ' WHERE ' . implode(' AND ', $whereParts);
 }
 $stCount = $pdo->prepare($countSql);
 $stCount->execute($params);
@@ -400,7 +405,9 @@ $oracleMapReady = oracle_customers_saved_mapping() !== null || oracle_is_enabled
 $oracleLinkedCount = 0;
 try {
     $oracleLinkedCount = (int) $pdo->query(
-        "SELECT COUNT(*) FROM crm_customer WHERE oracle_key IS NOT NULL AND oracle_key <> ''"
+        "SELECT COUNT(*) FROM crm_customer
+         WHERE oracle_key IS NOT NULL AND oracle_key <> ''
+           AND code LIKE '112%'"
     )->fetchColumn();
 } catch (Throwable $e) {
     $oracleLinkedCount = 0;
