@@ -71,8 +71,11 @@ function oracle_sync_customers_to_mysql(
     }
 
     $cfg = oracle_config();
-    // فقط أرقام العملاء التي تبدأ ببادئة محددة (افتراضي 112)
+    // فقط العملاء الذين يبدأ رقمهم بـ 112 (قابل للتغيير عبر code_prefix)
     $codePrefix = trim((string) ($cfg['customers']['code_prefix'] ?? '112'));
+    if ($codePrefix === '') {
+        $codePrefix = '112'; // إجباري في هذا التكامل
+    }
     // العمود المستخدم لفلترة رقم العميل
     $filterCol = $codeCol !== '' ? $codeCol : $keyCol;
     $filterQuoted = '"' . str_replace('"', '""', $filterCol) . '"';
@@ -80,36 +83,48 @@ function oracle_sync_customers_to_mysql(
     $sql = 'SELECT ' . implode(', ', $quoted)
         . ' FROM "' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"';
     $binds = [];
-    if ($codePrefix !== '') {
-        // TO_CHAR يعمل لرقم أو نص؛ LIKE '112%'
-        $sql .= ' WHERE TO_CHAR(' . $filterQuoted . ') LIKE :code_prefix';
-        $binds['code_prefix'] = $codePrefix . '%';
-    }
+    // LTRIM يزيل فراغات TO_CHAR على NUMBER
+    $sql .= ' WHERE LTRIM(TO_CHAR(' . $filterQuoted . ')) LIKE :code_prefix';
+    $binds['code_prefix'] = $codePrefix . '%';
 
     try {
         $rows = oracle_query_all($oraConn, $sql, $binds);
     } catch (Throwable $e) {
-        // احتياط: بعض قواعد Oracle القديمة/أنواع الأعمدة قد ترفض TO_CHAR — نجرب بدون CAST
-        if ($codePrefix !== '') {
+        try {
+            $sql2 = 'SELECT ' . implode(', ', $quoted)
+                . ' FROM "' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"'
+                . ' WHERE TO_CHAR(' . $filterQuoted . ') LIKE :code_prefix';
+            $rows = oracle_query_all($oraConn, $sql2, $binds);
+        } catch (Throwable $e2) {
             try {
-                $sql2 = 'SELECT ' . implode(', ', $quoted)
+                // VARCHAR / CHAR
+                $sql3 = 'SELECT ' . implode(', ', $quoted)
                     . ' FROM "' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"'
                     . ' WHERE ' . $filterQuoted . ' LIKE :code_prefix';
-                $rows = oracle_query_all($oraConn, $sql2, $binds);
-            } catch (Throwable $e2) {
-                $result['errors'][] = 'فشل قراءة Oracle: ' . $e->getMessage();
+                $rows = oracle_query_all($oraConn, $sql3, $binds);
+            } catch (Throwable $e3) {
+                $result['errors'][] = 'فشل قراءة Oracle (فلتر ' . $codePrefix . '): ' . $e->getMessage();
 
                 return $result;
             }
-        } else {
-            $result['errors'][] = 'فشل قراءة Oracle: ' . $e->getMessage();
-
-            return $result;
         }
     }
 
+    $result['code_prefix'] = $codePrefix;
+    $result['oracle_rows'] = count($rows);
+
     $activeTrue = $cfg['customers']['active_true_values'] ?? ['1', 'Y', 'YES', 'ACTIVE', 'A'];
     $activeTrue = array_map('strtoupper', array_map('strval', $activeTrue));
+
+    $normCode = static function (string $s): string {
+        $s = trim($s);
+        // "112000.0" من بعض أنواع NUMBER
+        if (preg_match('/^(\d+)\.0+$/', $s, $m)) {
+            return $m[1];
+        }
+
+        return $s;
+    };
 
     $sel = $mysql->prepare('SELECT id FROM crm_customer WHERE oracle_key = ? LIMIT 1');
     $selCode = $mysql->prepare('SELECT id FROM crm_customer WHERE code = ? LIMIT 1');
@@ -138,25 +153,23 @@ function oracle_sync_customers_to_mysql(
             return trim((string) $v);
         };
 
-        $oracleKey = $get($row, $keyCol);
+        $oracleKey = $normCode($get($row, $keyCol));
         $name = $get($row, $nameCol);
         if ($oracleKey === '' || $name === '') {
             $result['skipped']++;
             continue;
         }
 
-        $code = $codeCol !== '' ? $get($row, $codeCol) : $oracleKey;
+        $code = $codeCol !== '' ? $normCode($get($row, $codeCol)) : $oracleKey;
         if ($code === '') {
             $code = $oracleKey;
         }
 
-        // فلتر إضافي في PHP (احتياط إن لم يُطبَّق WHERE في Oracle)
-        if ($codePrefix !== '') {
-            $checkNum = $code !== '' ? $code : $oracleKey;
-            if (!str_starts_with($checkNum, $codePrefix) && !str_starts_with($oracleKey, $codePrefix)) {
-                $result['skipped']++;
-                continue;
-            }
+        // فقط البادئة 112 (أو code_prefix) — رفض 212 وغيرها
+        $checkNum = $code !== '' ? $code : $oracleKey;
+        if (!str_starts_with($checkNum, $codePrefix) && !str_starts_with($oracleKey, $codePrefix)) {
+            $result['skipped']++;
+            continue;
         }
         // أكواد MySQL UNIQUE
         $baseCode = mb_substr($code, 0, 40);
@@ -222,6 +235,25 @@ function oracle_sync_customers_to_mysql(
         }
     }
 
+    // تنظيف العملاء الذين دُخلوا سابقاً من Oracle وليسوا ببادئة 112 (مثل 212...)
+    $result['cleaned'] = 0;
+    try {
+        $like = $codePrefix . '%';
+        $clean = $mysql->prepare(
+            "UPDATE crm_customer
+             SET is_active = 0,
+                 oracle_key = NULL
+             WHERE oracle_key IS NOT NULL
+               AND oracle_key <> ''
+               AND code NOT LIKE ?
+               AND oracle_key NOT LIKE ?"
+        );
+        $clean->execute([$like, $like]);
+        $result['cleaned'] = $clean->rowCount();
+    } catch (Throwable $e) {
+        $result['errors'][] = 'تنظيف غير ' . $codePrefix . ': ' . $e->getMessage();
+    }
+
     return $result;
 }
 
@@ -256,6 +288,9 @@ function oracle_customers_save_mapping(string $owner, string $table, array $colu
         [
             'owner' => strtoupper(trim($owner)),
             'table' => strtoupper(trim($table)),
+            'code_prefix' => trim((string) (
+                (is_array($cfg['customers'] ?? null) ? ($cfg['customers']['code_prefix'] ?? '112') : '112')
+            )) ?: '112',
             'columns' => $cleanCols,
             'active_true_values' => $cfg['customers']['active_true_values']
                 ?? ['1', 'Y', 'YES', 'ACTIVE', 'A'],
