@@ -206,7 +206,7 @@ function oracle_run_continuous_sync(PDO $mysql, array $entities = ['customers', 
                 $cols = [
                     'oracle_key' => 'CUS_NUM',
                     'code' => 'CUS_NUM',
-                    'name_ar' => 'CUSTOMER',
+                    'name_ar' => 'CUS_TITLE',
                 ];
             }
             if ($owner !== '' && $table !== '' && $cols !== []) {

@@ -30,15 +30,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $syncResult = oracle_run_continuous_sync($pdo, ['customers', 'accounts']);
             $c = is_array($syncResult['customers'] ?? null) ? $syncResult['customers'] : [];
             $a = is_array($syncResult['accounts'] ?? null) ? $syncResult['accounts'] : [];
-            $sum = 'مزامنة Oracle — عملاء: +' . (int) ($c['inserted'] ?? 0)
-                . ' ~' . (int) ($c['updated'] ?? 0)
+            $sum = 'مزامنة Oracle — +' . (int) ($c['inserted'] ?? 0)
+                . ' محدّث ' . (int) ($c['updated'] ?? 0)
+                . ' تخطي ' . (int) ($c['skipped'] ?? 0)
+                . ' | من Oracle: ' . (int) ($c['oracle_rows_raw'] ?? $c['oracle_rows'] ?? 0)
                 . ' | حذف خارج 112: ' . (int) ($c['deleted_non_prefix'] ?? 0)
                 . (isset($c['kept_with_usage']) && (int) $c['kept_with_usage'] > 0
-                    ? ' | تعطيل (لديهم حركات): ' . (int) $c['kept_with_usage']
+                    ? ' | تعطيل(حركات): ' . (int) $c['kept_with_usage']
                     : '')
                 . ' | ' . (int) ($syncResult['elapsed_ms'] ?? 0) . 'ms';
-            if (!empty($syncResult['errors'])) {
-                flash_set('error', $sum . ' — ' . implode(' | ', array_slice($syncResult['errors'], 0, 5)));
+            // أخطاء الاتصال تظهر حتى لو حُسبت أصفار
+            $errs = $syncResult['errors'] ?? [];
+            if (is_array($c['errors'] ?? null)) {
+                $errs = array_merge($errs, $c['errors']);
+            }
+            if ($errs !== []) {
+                flash_set('error', $sum . ' — ' . implode(' | ', array_slice(array_map('strval', $errs), 0, 5)));
+            } elseif ((int) ($c['inserted'] ?? 0) + (int) ($c['updated'] ?? 0) < 1
+                && (int) ($c['oracle_rows_raw'] ?? 0) < 1) {
+                flash_set('error', $sum . ' — لم تُقرأ صفوف من Oracle. راجع host/pass في oracle.local.php واتصال Oracle.');
             } else {
                 flash_set('success', $sum);
             }
