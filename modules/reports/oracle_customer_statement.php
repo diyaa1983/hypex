@@ -151,6 +151,9 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
 $oraCssPath = app_path('assets/css/report-oracle-statement.css');
 $oraCssUrl = app_url('assets/css/report-oracle-statement.css')
     . (is_file($oraCssPath) ? '?v=' . (string) filemtime($oraCssPath) : '');
+$exportJsPath = app_path('assets/js/report-sales-export.js');
+$exportJsUrl = app_url('assets/js/report-sales-export.js')
+    . (is_file($exportJsPath) ? '?v=' . (string) filemtime($exportJsPath) : '');
 
 $reportTitle = 'كشف حساب تفصيلي';
 $printCompany = '';
@@ -218,7 +221,7 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
             <button class="btn btn-primary" type="submit">عرض الكشف من Oracle</button>
             <a class="btn btn-ghost" href="<?= esc($listCustomersUrl) ?>">قائمة العملاء</a>
             <?php if ($showResult): ?>
-                <button class="btn btn-secondary no-print" type="button" onclick="window.print()">طباعة</button>
+                <button class="btn btn-secondary no-print" type="button" id="ora-stmt-print-btn">طباعة</button>
             <?php endif; ?>
         </div>
         <p class="muted" style="margin-top:0.5rem;font-size:0.9rem;">
@@ -352,3 +355,17 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
         </div>
     <?php endif; ?>
 </div>
+<script src="<?= esc($exportJsUrl) ?>" defer></script>
+<script>
+(function () {
+  var btn = document.getElementById('ora-stmt-print-btn');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    document.dispatchEvent(new CustomEvent('master-toolbar', {
+      detail: { action: 'print' },
+      cancelable: true,
+      bubbles: true
+    }));
+  });
+})();
+</script>

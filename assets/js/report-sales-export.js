@@ -19,6 +19,7 @@
     report_purchase_orders_open: true,
     report_purchase_returns: true,
     report_party_statement: true,
+    report_oracle_customer_statement: true,
     report_customer_statement: true,
     report_supplier_statement: true,
     report_receivables: true,
