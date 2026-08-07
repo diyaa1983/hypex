@@ -33,7 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sum = 'مزامنة Oracle — +' . (int) ($c['inserted'] ?? 0)
                 . ' محدّث ' . (int) ($c['updated'] ?? 0)
                 . ' تخطي ' . (int) ($c['skipped'] ?? 0)
-                . ' | من Oracle: ' . (int) ($c['oracle_rows_raw'] ?? $c['oracle_rows'] ?? 0)
+                . (isset($c['skipped_no_gl']) ? ' (بلا اسم GL: ' . (int) $c['skipped_no_gl'] . ')' : '')
+                . ' | CUSTOMER: ' . (int) ($c['oracle_rows_raw'] ?? $c['oracle_rows'] ?? 0)
+                . ' | GLACTMF: ' . (int) ($c['gl_rows'] ?? 0)
                 . ' | حذف خارج 112: ' . (int) ($c['deleted_non_prefix'] ?? 0)
                 . (isset($c['kept_with_usage']) && (int) $c['kept_with_usage'] > 0
                     ? ' | تعطيل(حركات): ' . (int) $c['kept_with_usage']

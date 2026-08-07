@@ -21,12 +21,23 @@ return [
     'customers' => [
         'owner' => 'ACCINV',
         'table' => 'CUSTOMER',
-        // فقط العملاء الذين يبدأ رقمهم بهذه البادئة (فراغ = الكل)
+        // فقط العملاء الذين يبدأ رقمهم بهذه البادئة
         'code_prefix' => '112',
         'columns' => [
             'oracle_key' => 'CUS_NUM',
             'code' => 'CUS_NUM',
-            'name_ar' => 'CUS_TITLE',
+            // الاسم لم يعد من CUSTOMER — من GLACTMF أدناه
+        ],
+        /**
+         * اسم العميل من الدليل المحاسبي:
+         * CUSTOMER.CUS_NUM (112…) يجب أن يطابق GLACTMF.ACC_NUM → الاسم = ACC_DESC
+         */
+        'name_from_gl' => [
+            'enabled' => true,
+            'owner' => 'ACCINV', // غيّر إن كان GLACTMF تحت مالك آخر
+            'table' => 'GLACTMF',
+            'acc_num' => 'ACC_NUM',
+            'acc_desc' => 'ACC_DESC',
         ],
     ],
 

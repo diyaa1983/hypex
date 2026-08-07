@@ -28,6 +28,116 @@ function oracle_customer_schema_ensure(PDO $pdo): void
 }
 
 /**
+ * تحميل أسماء العملاء من جدول GL: ACC_NUM → ACC_DESC
+ * يجرّب عدة owners إن لزم.
+ *
+ * @param array{errors?:list<string>} $result
+ * @return array<string, string>  رقم الحساب => الوصف/الاسم
+ */
+function oracle_load_gl_account_names(
+    array $oraConn,
+    string $glOwner,
+    string $glTable,
+    string $glAccNum,
+    string $glAccDesc,
+    string $codePrefix,
+    array &$result
+): array {
+    $glTable = strtoupper(trim($glTable));
+    $glAccNum = strtoupper(trim($glAccNum));
+    $glAccDesc = strtoupper(trim($glAccDesc));
+    if ($glTable === '' || $glAccNum === '' || $glAccDesc === '') {
+        $result['errors'][] = 'تعيين GLACTMF ناقص (table/acc_num/acc_desc).';
+
+        return [];
+    }
+
+    $ownersTry = array_values(array_unique(array_filter([
+        strtoupper(trim($glOwner)),
+        'ACCINV',
+        'ACCT',
+        'GL',
+        'ACC',
+        'MAS',
+        'TAQWA',
+    ])));
+
+    $numQ = '"' . str_replace('"', '""', $glAccNum) . '"';
+    $descQ = '"' . str_replace('"', '""', $glAccDesc) . '"';
+    $pfx = str_replace("'", "''", $codePrefix);
+    $binds = ['code_prefix' => $codePrefix . '%'];
+
+    $lastErr = '';
+    $rows = [];
+    foreach ($ownersTry as $ow) {
+        $from = ' FROM "' . str_replace('"', '""', $ow) . '"."' . str_replace('"', '""', $glTable) . '"';
+        $attempts = [
+            'SELECT ' . $numQ . ' AS ACC_NUM_V, ' . $descQ . ' AS ACC_DESC_V' . $from
+                . ' WHERE LTRIM(TO_CHAR(' . $numQ . ')) LIKE :code_prefix',
+            'SELECT ' . $numQ . ' AS ACC_NUM_V, ' . $descQ . ' AS ACC_DESC_V' . $from
+                . ' WHERE TO_CHAR(' . $numQ . ') LIKE :code_prefix',
+            'SELECT ' . $numQ . ' AS ACC_NUM_V, ' . $descQ . ' AS ACC_DESC_V' . $from
+                . ' WHERE ' . $numQ . ' LIKE :code_prefix',
+            'SELECT ' . $numQ . ' AS ACC_NUM_V, ' . $descQ . ' AS ACC_DESC_V' . $from
+                . " WHERE TRIM(TO_CHAR(" . $numQ . ")) LIKE '" . $pfx . "%'",
+            'SELECT ' . $numQ . ' AS ACC_NUM_V, ' . $descQ . ' AS ACC_DESC_V' . $from,
+        ];
+        foreach ($attempts as $sql) {
+            try {
+                $useBinds = (str_contains($sql, ':code_prefix')) ? $binds : [];
+                $rows = oracle_query_all($oraConn, $sql, $useBinds);
+                $result['gl_owner_used'] = $ow;
+                $lastErr = '';
+                break 2;
+            } catch (Throwable $e) {
+                $lastErr = $e->getMessage();
+                $rows = [];
+            }
+        }
+    }
+
+    if ($lastErr !== '' && $rows === []) {
+        $result['errors'][] = 'فشل قراءة GLACTMF: ' . $lastErr;
+
+        return [];
+    }
+
+    $map = [];
+    foreach ($rows as $r) {
+        $num = $r['ACC_NUM_V']
+            ?? $r['acc_num_v']
+            ?? $r[$glAccNum]
+            ?? $r[strtolower($glAccNum)]
+            ?? '';
+        $desc = $r['ACC_DESC_V']
+            ?? $r['acc_desc_v']
+            ?? $r[$glAccDesc]
+            ?? $r[strtolower($glAccDesc)]
+            ?? '';
+        if (is_object($num) && method_exists($num, 'load')) {
+            $num = $num->load();
+        }
+        if (is_object($desc) && method_exists($desc, 'load')) {
+            $desc = $desc->load();
+        }
+        $num = trim((string) $num);
+        $desc = trim((string) $desc);
+        if (preg_match('/^(\d+)\.0+$/', $num, $m)) {
+            $num = $m[1];
+        }
+        if ($num === '' || $desc === '') {
+            continue;
+        }
+        if ($codePrefix !== '' && !str_starts_with($num, $codePrefix)) {
+            continue;
+        }
+        $map[$num] = $desc;
+    }
+
+    return $map;
+}
+
+/**
  * @param array<string, string> $columnMap field => oracle_column
  * @return array{inserted:int, updated:int, skipped:int, errors:list<string>}
  */
@@ -48,16 +158,35 @@ function oracle_sync_customers_to_mysql(
     $nameCol = strtoupper(trim((string) ($columnMap['name_ar'] ?? '')));
     $keyCol = strtoupper(trim((string) ($columnMap['oracle_key'] ?? $columnMap['code'] ?? '')));
 
-    if ($owner === '' || $table === '' || $nameCol === '' || $keyCol === '') {
-        $result['errors'][] = 'يجب تحديد المالك والجدول وأعمدة name_ar و oracle_key (أو code).';
+    $cfg = oracle_config();
+    // اسم العميل من جدول GL (GLACTMF.ACC_DESC) عبر ACC_NUM
+    $glCfg = is_array($cfg['customers']['name_from_gl'] ?? null)
+        ? $cfg['customers']['name_from_gl']
+        : [];
+    // مفعّل افتراضياً إن وُجدت إعدادات الجدول، أو بالافتراضي GLACTMF
+    $glEnabled = !array_key_exists('enabled', $glCfg) || !empty($glCfg['enabled']);
+    $glOwner = strtoupper(trim((string) ($glCfg['owner'] ?? $owner)));
+    $glTable = strtoupper(trim((string) ($glCfg['table'] ?? 'GLACTMF')));
+    $glAccNum = strtoupper(trim((string) ($glCfg['acc_num'] ?? 'ACC_NUM')));
+    $glAccDesc = strtoupper(trim((string) ($glCfg['acc_desc'] ?? 'ACC_DESC')));
+
+    if ($owner === '' || $table === '' || $keyCol === '') {
+        $result['errors'][] = 'يجب تحديد المالك والجدول وعمود oracle_key/code (رقم العميل).';
+
+        return $result;
+    }
+    if (!$glEnabled && $nameCol === '') {
+        $result['errors'][] = 'يجب تعيين name_ar من CUSTOMER أو تفعيل name_from_gl (GLACTMF).';
 
         return $result;
     }
 
+    // فقط الأعمدة من CUSTOMER (الرقم أساساً)
     $cols = array_values(array_unique(array_filter([
         $keyCol,
         $codeCol,
-        $nameCol,
+        // الاسم من CUSTOMER اختياري — الاسم الرسمي من GLACTMF
+        $glEnabled ? '' : $nameCol,
         strtoupper(trim((string) ($columnMap['phone'] ?? ''))),
         strtoupper(trim((string) ($columnMap['email'] ?? ''))),
         strtoupper(trim((string) ($columnMap['tax_number'] ?? ''))),
@@ -70,8 +199,7 @@ function oracle_sync_customers_to_mysql(
         $quoted[] = '"' . str_replace('"', '""', $c) . '"';
     }
 
-    $cfg = oracle_config();
-    // فقط العملاء الذين يبدأ رقمهم بـ 112 (قابل للتغيير عبر code_prefix)
+    // فقط العملاء الذين يبدأ رقمهم بـ 112
     $codePrefix = trim((string) ($cfg['customers']['code_prefix'] ?? '112'));
     if ($codePrefix === '') {
         $codePrefix = '112';
@@ -82,7 +210,6 @@ function oracle_sync_customers_to_mysql(
     $selectList = implode(', ', $quoted);
 
     $binds = ['code_prefix' => $codePrefix . '%'];
-    // عدة محاولات لقراءة Oracle (أنواع أعمدة مختلفة)
     $sqlAttempts = [
         'SELECT ' . $selectList . $from
             . ' WHERE LTRIM(TO_CHAR(' . $filterQuoted . ')) LIKE :code_prefix',
@@ -92,7 +219,6 @@ function oracle_sync_customers_to_mysql(
             . ' WHERE ' . $filterQuoted . ' LIKE :code_prefix',
         'SELECT ' . $selectList . $from
             . " WHERE TRIM(TO_CHAR(" . $filterQuoted . ")) LIKE '" . str_replace("'", "''", $codePrefix) . "%'",
-        // بدون WHERE — الفرز في PHP (آخر احتياط)
         'SELECT ' . $selectList . $from,
     ];
 
@@ -111,7 +237,7 @@ function oracle_sync_customers_to_mysql(
         }
     }
     if ($sqlUsed === '') {
-        $result['errors'][] = 'فشل قراءة Oracle: ' . ($lastErr !== '' ? $lastErr : 'خطأ غير معروف');
+        $result['errors'][] = 'فشل قراءة CUSTOMER: ' . ($lastErr !== '' ? $lastErr : 'خطأ غير معروف');
 
         return $result;
     }
@@ -119,9 +245,7 @@ function oracle_sync_customers_to_mysql(
     $result['code_prefix'] = $codePrefix;
     $result['oracle_rows_raw'] = count($rows);
     $result['sql_mode'] = str_contains($sqlUsed, 'WHERE') ? 'filtered' : 'full_php_filter';
-
-    $activeTrue = $cfg['customers']['active_true_values'] ?? ['1', 'Y', 'YES', 'ACTIVE', 'A'];
-    $activeTrue = array_map('strtoupper', array_map('strval', $activeTrue));
+    $result['name_source'] = $glEnabled ? ($glOwner . '.' . $glTable . '.' . $glAccDesc) : ('CUSTOMER.' . $nameCol);
 
     $normCode = static function (string $s): string {
         $s = trim($s);
@@ -131,6 +255,47 @@ function oracle_sync_customers_to_mysql(
 
         return $s;
     };
+
+    $getCell = static function (array $r, string $col): string {
+        if ($col === '') {
+            return '';
+        }
+        $v = $r[$col]
+            ?? $r[strtolower($col)]
+            ?? $r[strtoupper($col)]
+            ?? $r[ucfirst(strtolower($col))]
+            ?? '';
+        if (is_object($v) && method_exists($v, 'load')) {
+            $v = $v->load();
+        }
+
+        return trim((string) $v);
+    };
+
+    // خريطة ACC_NUM → ACC_DESC من GLACTMF (اسم العميل)
+    $glNames = [];
+    $result['gl_rows'] = 0;
+    $result['skipped_no_gl'] = 0;
+    if ($glEnabled) {
+        $glNames = oracle_load_gl_account_names(
+            $oraConn,
+            $glOwner,
+            $glTable,
+            $glAccNum,
+            $glAccDesc,
+            $codePrefix,
+            $result
+        );
+        $result['gl_rows'] = count($glNames);
+        if ($glNames === [] && empty($result['errors'])) {
+            $result['errors'][] = 'لم تُقرأ أسماء من '
+                . $glOwner . '.' . $glTable
+                . ' (ACC_NUM/ACC_DESC). تحقق من اسم الجدول/المالك في Toad.';
+        }
+    }
+
+    $activeTrue = $cfg['customers']['active_true_values'] ?? ['1', 'Y', 'YES', 'ACTIVE', 'A'];
+    $activeTrue = array_map('strtoupper', array_map('strval', $activeTrue));
 
     $sel = $mysql->prepare('SELECT id FROM crm_customer WHERE oracle_key = ? LIMIT 1');
     $selCode = $mysql->prepare('SELECT id FROM crm_customer WHERE code = ? LIMIT 1');
@@ -143,46 +308,57 @@ function oracle_sync_customers_to_mysql(
          SET code = ?, name_ar = ?, phone = ?, email = ?, tax_number = ?, address_ar = ?, is_active = ?, oracle_key = ?
          WHERE id = ?'
     );
+    // ربط مفتاح الحساب إن وُجد العمود
+    $updAcc = null;
+    try {
+        if (function_exists('oracle_customer_account_schema_ensure')) {
+            oracle_customer_account_schema_ensure($mysql);
+        }
+        $mysql->query('SELECT oracle_acc_key FROM crm_customer LIMIT 1');
+        $updAcc = $mysql->prepare('UPDATE crm_customer SET oracle_acc_key = ? WHERE id = ?');
+    } catch (Throwable $e) {
+        $updAcc = null;
+    }
 
     $usedCodes = [];
 
     foreach ($rows as $row) {
-        $get = static function (array $r, string $col): string {
-            if ($col === '') {
-                return '';
-            }
-            $v = $r[$col] ?? $r[strtolower($col)] ?? $r[ucfirst(strtolower($col))] ?? '';
-            if (is_object($v) && method_exists($v, 'load')) {
-                $v = $v->load();
-            }
-
-            return trim((string) $v);
-        };
-
-        $oracleKey = $normCode($get($row, $keyCol));
-        $name = $get($row, $nameCol);
+        $oracleKey = $normCode($getCell($row, $keyCol));
         if ($oracleKey === '') {
             $result['skipped']++;
             continue;
         }
 
-        $code = $codeCol !== '' ? $normCode($get($row, $codeCol)) : $oracleKey;
+        $code = $codeCol !== '' ? $normCode($getCell($row, $codeCol)) : $oracleKey;
         if ($code === '') {
             $code = $oracleKey;
         }
 
-        // فقط البادئة 112 — رفض 212 وغيرها
+        // فقط البادئة 112
         $checkNum = $code !== '' ? $code : $oracleKey;
         if (!str_starts_with($checkNum, $codePrefix) && !str_starts_with($oracleKey, $codePrefix)) {
             $result['skipped']++;
             continue;
         }
 
-        // اسم فارغ لا يمنع المزامنة — استخدم الرمز
-        if ($name === '') {
-            $name = 'عميل ' . $code;
+        // الاسم: من GLACTMF.ACC_DESC إذا وُجد ACC_NUM = رقم العميل — وإلا تخطَّ
+        $name = '';
+        $accKey = '';
+        if ($glEnabled) {
+            $name = $glNames[$oracleKey] ?? $glNames[$code] ?? '';
+            if ($name === '') {
+                $result['skipped']++;
+                $result['skipped_no_gl']++;
+                continue;
+            }
+            $accKey = $oracleKey;
+        } else {
+            $name = $getCell($row, $nameCol);
+            if ($name === '') {
+                $name = 'عميل ' . $code;
+            }
         }
-        // أكواد MySQL UNIQUE
+
         $baseCode = mb_substr($code, 0, 40);
         $codeFinal = $baseCode;
         $n = 1;
@@ -193,11 +369,11 @@ function oracle_sync_customers_to_mysql(
         }
         $usedCodes[$codeFinal] = true;
 
-        $phone = $get($row, strtoupper(trim((string) ($columnMap['phone'] ?? ''))));
-        $email = $get($row, strtoupper(trim((string) ($columnMap['email'] ?? ''))));
-        $tax = $get($row, strtoupper(trim((string) ($columnMap['tax_number'] ?? ''))));
-        $addr = $get($row, strtoupper(trim((string) ($columnMap['address_ar'] ?? ''))));
-        $activeRaw = strtoupper($get($row, strtoupper(trim((string) ($columnMap['is_active'] ?? '')))));
+        $phone = $getCell($row, strtoupper(trim((string) ($columnMap['phone'] ?? ''))));
+        $email = $getCell($row, strtoupper(trim((string) ($columnMap['email'] ?? ''))));
+        $tax = $getCell($row, strtoupper(trim((string) ($columnMap['tax_number'] ?? ''))));
+        $addr = $getCell($row, strtoupper(trim((string) ($columnMap['address_ar'] ?? ''))));
+        $activeRaw = strtoupper($getCell($row, strtoupper(trim((string) ($columnMap['is_active'] ?? '')))));
         $isActive = 1;
         if ($activeRaw !== '') {
             $isActive = in_array($activeRaw, $activeTrue, true) ? 1 : 0;
@@ -235,7 +411,15 @@ function oracle_sync_customers_to_mysql(
                     $isActive,
                     $oracleKey,
                 ]);
+                $id = (int) $mysql->lastInsertId();
                 $result['inserted']++;
+            }
+            if ($updAcc !== null && $accKey !== '' && $id > 0) {
+                try {
+                    $updAcc->execute([$accKey, $id]);
+                } catch (Throwable $e) {
+                    // ignore
+                }
             }
         } catch (Throwable $e) {
             $result['errors'][] = 'مفتاح ' . $oracleKey . ': ' . $e->getMessage();
