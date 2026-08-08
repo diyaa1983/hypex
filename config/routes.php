@@ -179,6 +179,12 @@ return [
         'title' => 'العملاء',
         'hide_screen_title' => true,
     ],
+    'customer_regions' => [
+        'file' => 'modules/master/regions.php',
+        'permission' => 'customer_regions',
+        'title' => 'مناطق العملاء',
+        'hide_screen_title' => true,
+    ],
     'oracle_customers_sync' => [
         'file' => 'modules/system/oracle_customers_sync.php',
         'permission' => 'oracle_customers_sync',

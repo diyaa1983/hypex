@@ -138,6 +138,7 @@ return [
                     'title' => 'العملاء',
                     'items' => [
                         ['r' => 'customers', 'label' => 'العملاء', 'icon' => '👤'],
+                        ['r' => 'customer_regions', 'label' => 'مناطق العملاء', 'icon' => '🗺️'],
                         ['r' => 'oracle_customers_sync', 'label' => 'تكامل Oracle — العملاء', 'icon' => '🔗'],
                     ],
                 ],

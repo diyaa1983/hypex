@@ -11,11 +11,14 @@ require_once app_path('includes/crm_sales_rep_schema.php');
 require_once app_path('includes/crm_party_delete.php');
 require_once app_path('includes/oracle_customer_sync.php');
 require_once app_path('includes/oracle_sync_service.php');
+require_once app_path('includes/crm_region.php');
 crm_sales_rep_ensure_customer_invoice_links($pdo);
 crm_customer_ensure_gps_columns($pdo);
 oracle_customer_schema_ensure($pdo);
 oracle_customer_account_schema_ensure($pdo);
+crm_region_ensure_schema($pdo);
 $salesReps = crm_sales_rep_load_active($pdo);
+$regions = crm_region_load_active($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
@@ -68,6 +71,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!is_array($repIdsRaw)) {
                 $repIdsRaw = [];
             }
+            $regionId = (int) ($_POST['region_id'] ?? 0);
+            if ($regionId > 0 && !crm_region_exists_active($pdo, $regionId)) {
+                throw new RuntimeException('المنطقة المحددة غير موجودة أو غير نشطة.');
+            }
+            $regionIdDb = $regionId > 0 ? $regionId : null;
 
             // عملاء Oracle: لا يُعدَّل الرقم ولا الاسم من النظام
             $oracleLocked = false;
@@ -94,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // الاسم: من Oracle يُثبَّت؛ الرقم لا يُحدَّث من النموذج أصلاً
                 $st = $pdo->prepare(
                     'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
-                        latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
+                        region_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
                 );
                 $st->execute([
                     $name,
@@ -102,6 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $email !== '' ? $email : null,
                     $tax !== '' ? $tax : null,
                     $addr !== '' ? $addr : null,
+                    $regionIdDb,
                     $gps['latitude'],
                     $gps['longitude'],
                     $gps['gps_accuracy'],
@@ -118,8 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $code = crm_customer_generate_code($pdo);
                 $st = $pdo->prepare(
-                    'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,1)'
+                    'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, region_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)'
                 );
                 $st->execute([
                     $code,
@@ -128,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $email !== '' ? $email : null,
                     $tax !== '' ? $tax : null,
                     $addr !== '' ? $addr : null,
+                    $regionIdDb,
                     $gps['latitude'],
                     $gps['longitude'],
                     $gps['gps_accuracy'],
@@ -187,6 +197,7 @@ if ($action === 'add' || $action === 'edit') {
         'gps_accuracy' => null,
         'gps_at' => null,
         'sales_rep_id' => '',
+        'region_id' => '',
         'is_active' => 1,
     ];
     if ($action === 'edit') {
@@ -270,12 +281,38 @@ if ($action === 'add' || $action === 'edit') {
                     <span class="field-label">الرقم الضريبي</span>
                     <input class="input" name="tax_number" value="<?= esc((string) ($row['tax_number'] ?? '')) ?>">
                 </label>
+                <label class="field">
+                    <span class="field-label">المنطقة</span>
+                    <select class="input" name="region_id">
+                        <option value="">— بدون منطقة —</option>
+                        <?php
+                        $curRegion = (int) ($row['region_id'] ?? 0);
+                        foreach ($regions as $rg):
+                            $rid = (int) $rg['id'];
+                            ?>
+                            <option value="<?= $rid ?>"<?= $curRegion === $rid ? ' selected' : '' ?>>
+                                <?= esc((string) $rg['name_ar']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if (!$regions): ?>
+                        <span class="muted" style="font-size:0.85rem;display:block;margin-top:0.25rem;">
+                            لا توجد مناطق — أضف من
+                            <a href="<?= esc(app_url('index.php?r=customer_regions')) ?>">مناطق العملاء</a>
+                        </span>
+                    <?php endif; ?>
+                </label>
             </div>
             <fieldset class="field customers-reps-field">
-                <legend class="field-label">مندوبو المبيعات</legend>
+                <legend class="field-label">المندوب / مندوبو المبيعات</legend>
                 <?php if (!$salesReps): ?>
-                    <p class="muted">لا يوجد مندوبون نشطون — أضف مندوباً من شاشة المندوبين أولاً.</p>
+                    <p class="muted">لا يوجد مندوبون نشطون —
+                        <a href="<?= esc(app_url('index.php?r=sales_reps')) ?>">أضف مندوباً من شاشة المندوبين</a>.
+                    </p>
                 <?php else: ?>
+                    <p class="muted" style="margin:0 0 0.45rem;font-size:0.85rem;">
+                        اختر مندوباً واحداً أو أكثر لربط هذا العميل بهم.
+                    </p>
                     <div class="customers-reps-checkboxes">
                         <?php foreach ($salesReps as $rep): ?>
                             <label class="customers-rep-check">
@@ -400,10 +437,12 @@ $repNamesSub = '(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r2.nam
                 WHERE csr2.customer_id = c.id)';
 
 $sql = "SELECT c.id, c.code, c.name_ar, c.phone, c.email, c.tax_number, c.is_active, c.created_at,
-               c.latitude, c.longitude, c.oracle_key,
+               c.latitude, c.longitude, c.oracle_key, c.region_id,
+               rg.name_ar AS region_name,
                COALESCE({$repNamesSub}, r.name_ar) AS sales_rep_name
         FROM crm_customer c
-        LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id";
+        LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
+        LEFT JOIN crm_region rg ON rg.id = c.region_id";
 $params = [];
 // القائمة: العملاء النشطون فقط افتراضياً (يُخفي 212/116 بعد تنظيف المزامنة)
 $showInactive = ((string) ($_GET['all'] ?? '') === '1');
@@ -415,20 +454,23 @@ if ($search !== '') {
     $whereParts[] = '(c.name_ar LIKE ? OR c.code LIKE ? OR c.phone LIKE ? OR c.email LIKE ?'
         . ' OR c.tax_number LIKE ? OR IFNULL(r.name_ar, \'\') LIKE ?'
         . ' OR IFNULL(' . $repNamesSub . ', \'\') LIKE ?'
+        . ' OR IFNULL(rg.name_ar, \'\') LIKE ?'
         . ' OR EXISTS (
               SELECT 1 FROM crm_customer_sales_rep csr3
               INNER JOIN crm_sales_rep r3 ON r3.id = csr3.sales_rep_id
               WHERE csr3.customer_id = c.id AND r3.name_ar LIKE ?
            ))';
     $like = '%' . $search . '%';
-    $params = array_fill(0, 8, $like);
+    $params = array_fill(0, 9, $like);
 }
 if ($whereParts !== []) {
     $sql .= ' WHERE ' . implode(' AND ', $whereParts);
 }
 require_once app_path('includes/list_pagination.php');
 
-$countSql = 'SELECT COUNT(*) FROM crm_customer c LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id';
+$countSql = 'SELECT COUNT(*) FROM crm_customer c
+             LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
+             LEFT JOIN crm_region rg ON rg.id = c.region_id';
 if ($whereParts !== []) {
     $countSql .= ' WHERE ' . implode(' AND ', $whereParts);
 }
@@ -470,6 +512,8 @@ try {
 
     <div class="sales-ora-toolbar toolbar" style="flex-wrap:wrap;gap:0.5rem;">
         <a class="btn btn-primary btn-sm" href="<?= esc($addUrl) ?>">➕ إضافة عميل</a>
+        <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=customer_regions')) ?>">🗺️ المناطق</a>
+        <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=sales_reps')) ?>">المندوبين</a>
         <?php if ($oracleMapReady || oracle_is_enabled()): ?>
             <form method="post" style="display:inline;" data-confirm="تحديث العملاء وحساباتهم من Oracle الآن؟">
                 <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
@@ -492,7 +536,7 @@ try {
             <label class="field customers-ora-search-field">
                 <span class="field-label">بحث عن العميل</span>
                 <input class="input" type="search" name="q" value="<?= esc($search) ?>"
-                       placeholder="الاسم، الرمز، الهاتف، البريد، المندوب…" autocomplete="off" spellcheck="false">
+                       placeholder="الاسم، الرمز، الهاتف، المنطقة، المندوب…" autocomplete="off" spellcheck="false">
             </label>
             <div class="customers-ora-search-actions">
                 <button type="submit" class="btn btn-secondary btn-sm">بحث</button>
@@ -511,8 +555,8 @@ try {
                 <th>#</th>
                 <th>الرمز</th>
                 <th>الاسم</th>
+                <th>المنطقة</th>
                 <th>الهاتف</th>
-                <th>البريد</th>
                 <th>المندوب</th>
                 <th>Oracle</th>
                 <th>الموقع</th>
@@ -536,16 +580,16 @@ try {
                 $deleteConfirm = 'حذف العميل «' . $custName . '» نهائياً من النظام؟';
                 $blockTitle = 'تعذر الحذف: مرتبط بـ ' . $usageCount . ' حركة';
                 $hasLoc = isset($c['latitude'], $c['longitude'])
-                    && $c['latitude'] !== null && $c['longitude'] !== ''
-                    && $c['longitude'] !== null && $c['latitude'] !== '';
+                    && $c['latitude'] !== null && $c['latitude'] !== ''
+                    && $c['longitude'] !== null && $c['longitude'] !== '';
                 $okey = trim((string) ($c['oracle_key'] ?? ''));
                 ?>
                 <tr>
                     <td><?= $custId ?></td>
                     <td><code><?= esc((string) $c['code']) ?></code></td>
                     <td><?= esc((string) $c['name_ar']) ?></td>
+                    <td><?= esc((string) ($c['region_name'] ?? '') !== '' ? (string) $c['region_name'] : '—') ?></td>
                     <td><?= esc((string) ($c['phone'] ?? '')) ?></td>
-                    <td><?= esc((string) ($c['email'] ?? '')) ?></td>
                     <td><?= esc((string) ($c['sales_rep_name'] ?? '—')) ?></td>
                     <td><?= $okey !== '' ? '<span title="' . esc($okey) . '">✓</span>' : '—' ?></td>
                     <td><?= $hasLoc ? '📍 محدد' : '—' ?></td>

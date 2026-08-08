@@ -180,6 +180,7 @@ $appBootMigrations = [
     'database/migrations/247_crm_customer_oracle_acc_key.sql',
     'database/migrations/248_inv_item_oracle_keys.sql',
     'database/migrations/249_report_oracle_customer_statement.sql',
+    'database/migrations/250_crm_region.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 
