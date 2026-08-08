@@ -52,6 +52,8 @@ $pagerUrl = list_pager_base_url('sales_customer_orders', $filterQuery);
 $activeRoute = 'sales_customer_orders';
 $canApprove = user_can('sales_customer_orders_approve');
 $canApproved = $canApprove;
+$canCreate = sal_customer_order_user_can_edit_drafts();
+$newOrderUrl = app_url('index.php?r=sales_customer_order_entry');
 sales_ora12_enqueue_assets();
 ?>
 <div class="dashboard-ora sales-ora12-screen">
@@ -96,6 +98,9 @@ sales_ora12_enqueue_assets();
             </select>
         </div>
         <button class="btn btn-primary">تصفية</button>
+        <?php if ($canCreate): ?>
+            <a class="btn btn-primary" href="<?= esc($newOrderUrl) ?>">+ طلب شراء عميل جديد</a>
+        <?php endif; ?>
         <?php if ($canApprove): ?>
             <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=sales_customer_orders_approve')) ?>">اعتماد الطلبات</a>
         <?php endif; ?>
@@ -122,10 +127,20 @@ sales_ora12_enqueue_assets();
             <tbody>
             <?php foreach ($rows as $r):
                 $isApproved = (string) $r['status'] === 'approved';
-                $viewRoute = $isApproved ? 'sales_customer_orders_approved' : 'sales_customer_orders_approve';
-                $canOpen = $isApproved
-                    ? ($canApproved || user_can('sales_customer_orders'))
-                    : ($canApprove || user_can('sales_customer_orders'));
+                if ($isApproved) {
+                    $viewRoute = 'sales_customer_orders_approved';
+                    $viewLabel = 'عرض';
+                    $canOpen = $canApproved || user_can('sales_customer_orders');
+                    $openOk = $canApproved;
+                } else {
+                    $viewRoute = 'sales_customer_order_entry';
+                    $viewLabel = $canCreate ? 'تعديل' : 'عرض';
+                    $canOpen = $canCreate || $canApprove;
+                    $openOk = $canOpen;
+                    if (!$canCreate && $canApprove) {
+                        $viewRoute = 'sales_customer_orders_approve';
+                    }
+                }
                 ?>
                 <tr>
                     <td><code><?= esc((string) $r['order_no']) ?></code></td>
@@ -140,16 +155,16 @@ sales_ora12_enqueue_assets();
                         </span>
                     </td>
                     <td>
-                        <?php if ($canOpen && (($isApproved && $canApproved) || (!$isApproved && $canApprove))): ?>
-                            <a class="btn btn-sm" href="<?= esc(app_url('index.php?r=' . $viewRoute . '&id=' . (int) $r['id'])) ?>">عرض</a>
-                        <?php elseif (user_can('sales_customer_orders')): ?>
+                        <?php if ($openOk): ?>
+                            <a class="btn btn-sm" href="<?= esc(app_url('index.php?r=' . $viewRoute . '&id=' . (int) $r['id'])) ?>"><?= esc($viewLabel) ?></a>
+                        <?php else: ?>
                             <span class="muted">—</span>
                         <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
             <?php if (!$rows): ?>
-                <tr><td colspan="8" class="muted">لا توجد طلبات.</td></tr>
+                <tr><td colspan="8" class="muted">لا توجد طلبات.<?php if ($canCreate): ?> <a href="<?= esc($newOrderUrl) ?>">إنشاء طلب جديد</a><?php endif; ?></td></tr>
             <?php endif; ?>
             </tbody>
         </table>

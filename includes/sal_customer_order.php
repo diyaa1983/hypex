@@ -559,6 +559,7 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
     }
     $notes = trim((string) ($data['notes'] ?? '')) ?: null;
     $headerDisc = trim((string) ($data['invoice_discount'] ?? $data['invoice_discount_input'] ?? ''));
+    $salesRepInput = (int) ($data['sales_rep_id'] ?? 0);
 
     sal_customer_order_ensure_pricing_schema($pdo);
     $hasPricing = sal_customer_order_has_pricing($pdo);
@@ -582,27 +583,33 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
     $pdo->beginTransaction();
     try {
         if ($id > 0) {
-            $st = $pdo->prepare('SELECT status FROM sal_customer_order WHERE id=? FOR UPDATE');
+            $st = $pdo->prepare('SELECT status, sales_rep_id FROM sal_customer_order WHERE id=? FOR UPDATE');
             $st->execute([$id]);
-            if ($st->fetchColumn() !== 'draft') {
+            $old = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$old || (string) ($old['status'] ?? '') !== 'draft') {
                 throw new RuntimeException('لا يمكن تعديل طلب معتمد. فك الاعتماد أولاً.');
+            }
+            $repToStore = $salesRepInput > 0 ? $salesRepInput : ((int) ($old['sales_rep_id'] ?? 0) ?: null);
+            if ($forceRepId !== null) {
+                $repToStore = $forceRepId;
             }
             if ($hasPricing) {
                 $pdo->prepare(
-                    'UPDATE sal_customer_order SET order_date=?,customer_id=?,warehouse_id=?,notes=?,
+                    'UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,notes=?,
                      subtotal=?,discount_amount=?,tax_amount=?,total=?,invoice_discount_input=?,updated_by=? WHERE id=?'
                 )->execute([
-                    $date, $customerId, $warehouseId, $notes,
+                    $date, $customerId, $repToStore, $warehouseId, $notes,
                     $norm['subtotal'], $norm['discount_amount'], $norm['tax_amount'], $norm['total'],
                     $norm['invoice_discount_input'], $userId, $id,
                 ]);
             } else {
-                $pdo->prepare('UPDATE sal_customer_order SET order_date=?,customer_id=?,warehouse_id=?,notes=?,updated_by=? WHERE id=?')
-                    ->execute([$date, $customerId, $warehouseId, $notes, $userId, $id]);
+                $pdo->prepare(
+                    'UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,notes=?,updated_by=? WHERE id=?'
+                )->execute([$date, $customerId, $repToStore, $warehouseId, $notes, $userId, $id]);
             }
         } else {
             $no = sal_customer_order_generate_next_no($pdo, $date);
-            $rep = $forceRepId ?? ((int) ($data['sales_rep_id'] ?? 0) ?: null);
+            $rep = $forceRepId ?? ($salesRepInput > 0 ? $salesRepInput : null);
             if ($hasPricing) {
                 $pdo->prepare(
                     'INSERT INTO sal_customer_order

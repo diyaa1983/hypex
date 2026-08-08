@@ -54,6 +54,19 @@ return [
         'title' => 'طلبات شراء العملاء',
         'hide_screen_title' => true,
     ],
+    'sales_customer_order_entry' => [
+        'file' => 'modules/sales/customer_order_entry.php',
+        'permission' => 'sales_customer_orders',
+        'title' => 'طلب شراء عميل',
+        'hide_screen_title' => true,
+    ],
+    // نفس النموذج لمن لديه صلاحية الاعتماد فقط
+    'sales_customer_order_entry_approve' => [
+        'file' => 'modules/sales/customer_order_entry.php',
+        'permission' => 'sales_customer_orders_approve',
+        'title' => 'طلب شراء عميل',
+        'hide_screen_title' => true,
+    ],
     'sales_customer_orders_approve' => [
         'file' => 'modules/sales/customer_orders_approve.php',
         'permission' => 'sales_customer_orders_approve',

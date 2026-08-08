@@ -127,6 +127,8 @@ return [
                 'hr_social_security_rates',
                 'hr_income_tax_settings',
                 'sales_customer_orders_approve',
+                'sales_customer_order_entry',
+                'sales_customer_order_entry_approve',
             ],
         ],
         [
@@ -136,9 +138,13 @@ return [
             'title' => 'اعتماد طلب الشراء بعد الحفظ',
             'screens' => [
                 'sales_customer_orders_approve',
+                'sales_customer_order_entry',
+                'sales_customer_order_entry_approve',
             ],
             'permission_by_screen' => [
                 'sales_customer_orders_approve' => 'action_approve_customer_order',
+                'sales_customer_order_entry' => 'action_approve_customer_order',
+                'sales_customer_order_entry_approve' => 'action_approve_customer_order',
             ],
         ],
         [
@@ -575,9 +581,13 @@ return [
                 'hr_social_security_rates',
                 'hr_income_tax_settings',
                 'sales_customer_orders_approve',
+                'sales_customer_order_entry',
+                'sales_customer_order_entry_approve',
             ],
             'permission_by_screen' => [
                 'sales_customer_orders_approve' => 'action_delete_customer_order',
+                'sales_customer_order_entry' => 'action_delete_customer_order',
+                'sales_customer_order_entry_approve' => 'action_delete_customer_order',
                 'sales_invoices' => 'action_delete_sales_invoice',
                 'sales_invoices_list' => 'action_delete_sales_invoice',
                 'sales_delivery' => 'action_delete_sales_delivery',
