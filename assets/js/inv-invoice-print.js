@@ -74,8 +74,8 @@
       showQtyExtra: !!showQtyExtra,
       showDiscount: !!showDiscount,
       showUnitPriceIncl: !!opts.showUnitPriceIncl,
-      unitPriceExclLabel: opts.unitPriceExclLabel || 'الافرادي غ.ش',
-      unitPriceInclLabel: opts.unitPriceInclLabel || 'الافرادي ش.',
+      unitPriceExclLabel: opts.unitPriceExclLabel || 'السعر الافرادي',
+      unitPriceInclLabel: opts.unitPriceInclLabel || 'السعر الافرادي ش.',
     };
   }
 
@@ -94,7 +94,7 @@
 
   function lineColCount(layout) {
     layout = layout || {};
-    // تسلسل + رقم + اسم + وحدة + كمية + افرادي + إجمالي + ضريبة مبلغ + نسبة + إجمالي مع ضريبة = 10
+    // تسلسل + باركود + اسم + وحدة + كمية + افرادي + إجمالي + ضريبة مبلغ + نسبة + المجموع = 10
     var cols = 10;
     if (layout.showQtyExtra) cols += 1;
     if (layout.showUnitPriceIncl) cols += 1;
@@ -105,19 +105,19 @@
   function theadRow(layout) {
     layout = layout || { showQtyExtra: false, showDiscount: false, showUnitPriceIncl: false };
     var h =
-      '<th>تسلسل</th><th>رقم المادة</th><th>اسم المادة</th><th>الوحدة</th><th>الكمية</th>';
+      '<th>تسلسل</th><th>باركود المادة</th><th>اسم المادة</th><th>الوحدة</th><th>الكمية</th>';
     if (layout.showQtyExtra) {
       h += '<th>الكمية الإضافية</th>';
     }
-    h += '<th>' + (layout.unitPriceExclLabel || 'الافرادي غ.ش') + '</th>';
+    h += '<th>' + (layout.unitPriceExclLabel || 'السعر الافرادي') + '</th>';
     if (layout.showUnitPriceIncl) {
-      h += '<th>' + (layout.unitPriceInclLabel || 'الافرادي ش.') + '</th>';
+      h += '<th>' + (layout.unitPriceInclLabel || 'السعر الافرادي ش.') + '</th>';
     }
     if (layout.showDiscount) {
-      h += '<th>الخصم</th>';
+      h += '<th>نسبة الخصم</th>';
     }
     h +=
-      '<th>السعر الإجمالي</th><th>مبلغ الضريبة</th><th>نسبة الضريبة</th><th>الإجمالي مع الضريبة</th>';
+      '<th>السعر الإجمالي</th><th>الضريبة</th><th>نسبة الضريبة</th><th>المجموع</th>';
     return h;
   }
 

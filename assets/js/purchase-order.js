@@ -1255,9 +1255,31 @@
     });
     var elDisc = document.getElementById('sales-inv-sum-disc');
     if (elDisc) elDisc.textContent = fmtAmount(disc);
-    document.getElementById('sales-inv-sum-sub').textContent = fmtAmount(sub);
-    document.getElementById('sales-inv-sum-tax').textContent = fmtAmount(tax);
-    document.getElementById('sales-inv-sum-grand').textContent = fmtAmount(gross);
+    var elSub = document.getElementById('sales-inv-sum-sub');
+    if (elSub) elSub.textContent = fmtAmount(sub);
+    var elTax = document.getElementById('sales-inv-sum-tax');
+    if (elTax) elTax.textContent = fmtAmount(tax);
+    var elGrand = document.getElementById('sales-inv-sum-grand');
+    if (elGrand) elGrand.textContent = fmtAmount(gross);
+
+    // خصم على مستوى الطلب كامل — يظهر في المجموع النهائي عند تفعيله
+    var hdrRow = document.getElementById('sales-inv-header-disc-row');
+    var hdrSum = document.getElementById('sales-inv-sum-header-disc');
+    var hdrInp = document.getElementById('inv-invoice-discount');
+    var hdrRaw = hdrInp ? String(hdrInp.value || '').trim() : '';
+    var showHdr = !!(headerDiscountMode && hdrRaw && disc > 0);
+    if (hdrRow) {
+      if (showHdr) {
+        hdrRow.hidden = false;
+        hdrRow.removeAttribute('hidden');
+      } else {
+        hdrRow.hidden = true;
+        hdrRow.setAttribute('hidden', '');
+      }
+    }
+    if (hdrSum) {
+      hdrSum.textContent = fmtAmount(showHdr ? disc : 0);
+    }
   }
 
   function getRowItemId(tr) {

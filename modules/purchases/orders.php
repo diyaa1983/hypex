@@ -201,21 +201,23 @@ $screenTitle = 'طلب شراء';
             <?= document_print_header_html('طلب شراء', $pdo) ?>
         </div>
 
-        <div class="sales-inv-card">
-            <div class="sales-inv-lines-header">
-                <h3 class="sales-inv-lines-title">بنود الطلب</h3>
-            </div>
+        <section class="dashboard-ora-panel sales-inv-card">
+            <h2 class="dashboard-ora-panel__title no-print">بنود الطلب</h2>
+            <div class="dashboard-ora-panel__body dashboard-ora-panel__body--flush">
             <div class="sales-inv-table-wrap" id="sales-inv-table-wrap">
                 <table class="sales-inv-table">
                     <thead>
                     <?php
                     require_once app_path('includes/inv_invoice_line_table.php');
-                    inv_invoice_line_table_head();
+                    inv_invoice_line_table_head(false);
                     ?>
                     </thead>
                     <tbody id="sales-inv-lines-body">
                     <?php if ($initialOrderId < 1): ?>
-                        <?php require app_path('includes/inv_invoice_entry_row.php'); ?>
+                        <?php
+                        $showUnitPriceIncl = false;
+                        require app_path('includes/inv_invoice_entry_row.php');
+                        ?>
                     <?php endif; ?>
                     </tbody>
                 </table>
@@ -227,9 +229,13 @@ $screenTitle = 'طلب شراء';
             </div>
             <div class="sales-inv-totals">
                 <div class="row sales-inv-totals-disc">
-                    <label for="inv-invoice-discount">خصم الطلب <span class="sales-inv-disc-hint">10% أو مبلغ</span></label>
+                    <label for="inv-invoice-discount">خصم الطلب (كامل) <span class="sales-inv-disc-hint">10 أو 10% أو مبلغ</span></label>
                     <input type="text" class="input input-compact input-num" name="invoice_discount" id="inv-invoice-discount"
-                           value="" autocomplete="off">
+                           value="" title="خصم على مستوى الطلب كامل — نسبة % أو مبلغ يُوزَّع على البنود" autocomplete="off">
+                </div>
+                <div class="row sales-inv-totals-header-disc" id="sales-inv-header-disc-row" hidden>
+                    <span>قيمة خصم مستوى الطلب</span>
+                    <span id="sales-inv-sum-header-disc"><?= esc(format_amount(0)) ?></span>
                 </div>
                 <div class="row"><span>مجموع الخصم</span><span id="sales-inv-sum-disc"><?= esc(format_amount(0)) ?></span></div>
                 <div class="row"><span>المجموع بدون ضريبة</span><span id="sales-inv-sum-sub"><?= esc(format_amount(0)) ?></span></div>
@@ -241,6 +247,7 @@ $screenTitle = 'طلب شراء';
                 <?= document_print_recipient_signature_html() ?>
             </div>
             </div>
+        </section>
         </div>
 
     </form>

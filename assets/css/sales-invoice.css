@@ -721,6 +721,20 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
   text-align: center;
 }
 
+.sales-inv-totals-header-disc {
+  font-weight: 700;
+  color: #0f172a;
+  background: #f1f5f9;
+  border-radius: 4px;
+  padding-inline: 0.35rem;
+}
+
+.sales-inv-totals-header-disc span:last-child {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 /* عمود الكمية الإضافية — لون مميز (بعد الإجمالي قبل الضريبة) */
 .sales-inv-table thead th.sales-inv-col-qty-extra {
   background: #dbeafe;
