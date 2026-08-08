@@ -268,206 +268,254 @@ if ($editAddressId > 0) {
 sales_ora12_enqueue_assets();
 $csrf = csrf_token();
 $selName = $selectedRegion ? (string) $selectedRegion['name_ar'] : '';
+$selCode = $selectedRegion ? (string) ($selectedRegion['code'] ?? '') : '';
+$cssPath = app_path('assets/css/regions-ssms.css');
+$cssUrl = app_url('assets/css/regions-ssms.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
+$customersUrl = app_url('index.php?r=customers');
+$repsUrl = app_url('index.php?r=sales_reps');
 ?>
-<style>
-.rg-simple{max-width:720px;margin:0 auto}
-.rg-simple .rg-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-bottom:1rem}
-.rg-simple .rg-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1rem}
-.rg-simple h3{margin:0 0 .75rem;font-size:1rem;font-weight:600}
-.rg-simple .rg-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-.rg-simple .rg-row .input,.rg-simple .rg-row select{flex:1;min-width:10rem}
-.rg-simple .rg-hint{margin:.35rem 0 0;font-size:.85rem;color:#6b7280}
-.rg-simple table{width:100%;border-collapse:collapse;margin-top:.75rem}
-.rg-simple th,.rg-simple td{padding:.5rem .4rem;border-bottom:1px solid #f0f0f0;text-align:right;font-size:.93rem}
-.rg-simple th{color:#6b7280;font-weight:600;font-size:.8rem}
-.rg-simple tr.rg-off td{opacity:.55}
-.rg-simple .rg-actions{display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-start}
-.rg-simple .rg-actions form{display:inline;margin:0}
-.rg-simple details.rg-import{margin-bottom:1rem}
-.rg-simple details.rg-import>summary{cursor:pointer;font-weight:600;padding:.55rem .75rem;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;list-style:none}
-.rg-simple details.rg-import[open]>summary{border-radius:8px 8px 0 0;border-bottom:none}
-.rg-simple details.rg-import .rg-import-body{border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:.85rem 1rem;background:#fff}
-.rg-simple .rg-empty{padding:.85rem 0;color:#9ca3af;text-align:center}
-.rg-simple .rg-name-form{display:inline;margin:0}
-.rg-simple .rg-name-form input.input{min-width:8rem;padding:.25rem .4rem;font-size:.9rem}
-</style>
-<div class="dashboard-ora sales-ora12-screen customers-ora-screen">
-    <?php sales_ora12_render_title_bar('مناطق العملاء'); ?>
-    <?php sales_ora12_workspace_open(); ?>
+<link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 
-    <div class="rg-simple">
+<div class="dashboard-ora sales-ora12-screen rg-ssms" data-exit-guard="custom">
+    <header class="dashboard-ora-screen-title no-print" role="banner">
+        <h1 class="dashboard-ora-screen-title__text">مناطق العملاء</h1>
+        <span class="dashboard-ora-screen-title__meta"><?= count($regions) ?> منطقة</span>
+        <?php nav_render_screen_close($GLOBALS['activeRoute'] ?? 'customer_regions'); ?>
+    </header>
+
+    <div class="dashboard-ora-workspace rg-ssms-workspace">
         <?php if ($flash): ?>
-            <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-ora-flash"><?= esc($flash['message']) ?></div>
+            <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> rg-ssms-flash"><?= esc($flash['message']) ?></div>
         <?php endif; ?>
 
-        <div class="rg-bar">
-            <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=customers')) ?>">العملاء</a>
-            <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=sales_reps')) ?>">المندوبين</a>
+        <!-- شريط أدوات SSMS -->
+        <div class="rg-ssms-toolbar" role="toolbar">
+            <a class="rg-tb" href="<?= esc($listUrl . ($selectedRegionId ? '&region_id=' . $selectedRegionId : '') . '#rg-new-region') ?>" title="منطقة جديدة">
+                <span class="rg-tb-ico">＋</span> منطقة
+            </a>
+            <?php if ($selectedRegionId > 0): ?>
+                <a class="rg-tb" href="<?= esc($listUrl . '&region_id=' . $selectedRegionId . '#rg-new-addr') ?>" title="عنوان جديد">
+                    <span class="rg-tb-ico">＋</span> عنوان
+                </a>
+            <?php endif; ?>
+            <span class="rg-tb-sep"></span>
+            <a class="rg-tb" href="<?= esc($customersUrl) ?>">العملاء</a>
+            <a class="rg-tb" href="<?= esc($repsUrl) ?>">المندوبون</a>
+            <span class="rg-tb-sep"></span>
+            <button type="button" class="rg-tb" id="rg-import-toggle" title="استيراد Excel">
+                <span class="rg-tb-ico">▤</span> استيراد
+            </button>
+            <span class="rg-tb-grow"></span>
+            <span class="rg-tb-hint" dir="ltr">dbo.crm_region · crm_region_address</span>
         </div>
 
-        <details class="rg-import">
-            <summary>استيراد من Excel</summary>
-            <div class="rg-import-body">
-                <p class="rg-hint" style="margin-top:0">
-                    ارفع ملف المناطق (رقم العميل · المنطقة · العنوان · المندوب).
-                    <?php if ($excelPath): ?>
-                        ملف جاهز على القرص: <code dir="ltr"><?= esc(basename($excelPath)) ?></code>
-                    <?php endif; ?>
-                </p>
-                <form method="post" action="<?= esc($listUrl) ?>" enctype="multipart/form-data" class="rg-row">
-                    <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
-                    <input type="hidden" name="_action" value="import_excel">
-                    <input class="input" type="file" name="excel_file" accept=".xlsx">
-                    <button class="btn btn-primary btn-sm" type="submit" data-confirm="استيراد الملف وربطه بالعملاء؟">استيراد</button>
-                </form>
-            </div>
-        </details>
+        <div class="rg-ssms-import" id="rg-import-box" hidden>
+            <form method="post" action="<?= esc($listUrl) ?>" enctype="multipart/form-data" class="rg-ssms-import-form">
+                <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                <input type="hidden" name="_action" value="import_excel">
+                <label class="rg-ssms-lbl">ملف Excel
+                    <input class="rg-ssms-input" type="file" name="excel_file" accept=".xlsx">
+                </label>
+                <button class="rg-tb rg-tb--primary" type="submit" data-confirm="استيراد المناطق والعناوين وربط العملاء؟">تنفيذ الاستيراد</button>
+                <span class="rg-ssms-muted">رقم العميل · المنطقة · العنوان · المندوب</span>
+            </form>
+        </div>
 
-        <!-- 1) المنطقة -->
-        <div class="rg-card">
-            <h3>1) المنطقة</h3>
-            <form method="get" action="<?= esc(app_url('index.php')) ?>" class="rg-row" id="rg-select-form">
-                <input type="hidden" name="r" value="customer_regions">
-                <select class="input" name="region_id" onchange="this.form.submit()" aria-label="اختر المنطقة">
+        <div class="rg-ssms-split">
+            <!-- Object Explorer -->
+            <aside class="rg-ssms-explorer" aria-label="مستكشف المناطق">
+                <div class="rg-ssms-pane-title">
+                    <span class="rg-ssms-folder">🗀</span> Object Explorer
+                    <span class="rg-ssms-count"><?= count($regions) ?></span>
+                </div>
+                <div class="rg-ssms-tree-head">
+                    <span class="rg-ssms-server">■ CRM → Regions</span>
+                </div>
+                <ul class="rg-ssms-tree">
                     <?php if (!$regions): ?>
-                        <option value="">لا توجد مناطق</option>
+                        <li class="rg-ssms-empty-node">لا توجد مناطق</li>
                     <?php endif; ?>
                     <?php foreach ($regions as $rg):
                         $rid = (int) $rg['id'];
-                        $label = (string) $rg['name_ar'];
-                        if (!(int) $rg['is_active']) {
-                            $label .= ' (موقوف)';
-                        }
-                        $label .= ' — ' . (int) ($rg['address_count'] ?? 0) . ' عنوان';
+                        $active = $rid === $selectedRegionId;
+                        $nAddr = (int) ($rg['address_count'] ?? 0);
+                        $isOn = (int) ($rg['is_active'] ?? 1);
                         ?>
-                        <option value="<?= $rid ?>"<?= $rid === $selectedRegionId ? ' selected' : '' ?>>
-                            <?= esc($label) ?>
-                        </option>
+                        <li class="<?= $active ? 'is-selected' : '' ?><?= $isOn ? '' : ' is-off' ?>">
+                            <a href="<?= esc($listUrl . '&region_id=' . $rid) ?>" class="rg-ssms-node">
+                                <span class="rg-ssms-icon">▣</span>
+                                <span class="rg-ssms-node-name"><?= esc((string) $rg['name_ar']) ?></span>
+                                <span class="rg-ssms-badge" dir="ltr"><?= $nAddr ?></span>
+                            </a>
+                        </li>
                     <?php endforeach; ?>
-                </select>
-            </form>
+                </ul>
 
-            <form method="post" action="<?= esc($listUrl) ?>" class="rg-row" style="margin-top:.65rem">
-                <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
-                <input type="hidden" name="_action" value="save_region">
-                <input type="hidden" name="id" value="<?= (int) ($editRegionRow['id'] ?? 0) ?>">
-                <input type="hidden" name="code" value="<?= esc((string) ($editRegionRow['code'] ?? '')) ?>">
-                <input type="hidden" name="sort_order" value="<?= (int) ($editRegionRow['sort_order'] ?? 0) ?>">
-                <input class="input" name="name_ar" required maxlength="180"
-                       value="<?= esc((string) ($editRegionRow['name_ar'] ?? '')) ?>"
-                       placeholder="<?= $editRegionRow ? 'تعديل اسم المنطقة' : 'منطقة جديدة (مثل: عمان الغربية)' ?>">
-                <button class="btn btn-primary btn-sm" type="submit">
-                    <?= $editRegionRow ? 'حفظ الاسم' : 'إضافة' ?>
-                </button>
-                <?php if ($editRegionRow): ?>
-                    <a class="btn btn-ghost btn-sm" href="<?= esc($listUrl . '&region_id=' . $selectedRegionId) ?>">إلغاء</a>
-                <?php endif; ?>
-            </form>
+                <div class="rg-ssms-pane-title rg-ssms-pane-title--sub" id="rg-new-region">New Region</div>
+                <form method="post" action="<?= esc($listUrl) ?>" class="rg-ssms-mini-form">
+                    <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                    <input type="hidden" name="_action" value="save_region">
+                    <input type="hidden" name="id" value="<?= (int) ($editRegionRow['id'] ?? 0) ?>">
+                    <input type="hidden" name="code" value="<?= esc((string) ($editRegionRow['code'] ?? '')) ?>">
+                    <input type="hidden" name="sort_order" value="<?= (int) ($editRegionRow['sort_order'] ?? 0) ?>">
+                    <label class="rg-ssms-lbl">Name
+                        <input class="rg-ssms-input" name="name_ar" required maxlength="180"
+                               value="<?= esc((string) ($editRegionRow['name_ar'] ?? '')) ?>"
+                               placeholder="عمان الغربية">
+                    </label>
+                    <div class="rg-ssms-mini-actions">
+                        <button class="rg-tb rg-tb--primary" type="submit">
+                            <?= $editRegionRow ? 'Update' : 'Add' ?>
+                        </button>
+                        <?php if ($editRegionRow): ?>
+                            <a class="rg-tb" href="<?= esc($listUrl . '&region_id=' . $selectedRegionId) ?>">Cancel</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </aside>
 
-            <?php if ($selectedRegion): ?>
-                <div class="rg-row" style="margin-top:.65rem">
-                    <a class="btn btn-secondary btn-sm"
-                       href="<?= esc($listUrl . '&region_id=' . $selectedRegionId . '&edit_region=' . $selectedRegionId) ?>">تعديل الاسم</a>
-                    <form method="post" action="<?= esc($listUrl) ?>" data-confirm="تغيير حالة المنطقة؟">
-                        <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
-                        <input type="hidden" name="_action" value="toggle_region">
-                        <input type="hidden" name="id" value="<?= $selectedRegionId ?>">
-                        <button class="btn btn-ghost btn-sm" type="submit"><?= (int) $selectedRegion['is_active'] ? 'تعطيل المنطقة' : 'تفعيل المنطقة' ?></button>
-                    </form>
-                    <?php if ((int) ($selectedRegion['customer_count'] ?? 0) < 1): ?>
-                        <form method="post" action="<?= esc($listUrl) ?>" data-confirm="حذف المنطقة وكل عناوينها؟">
-                            <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
-                            <input type="hidden" name="_action" value="delete_region">
-                            <input type="hidden" name="id" value="<?= $selectedRegionId ?>">
-                            <button class="btn btn-ghost btn-sm" type="submit" style="color:#b91c1c">حذف المنطقة</button>
-                        </form>
+            <!-- Results / Properties -->
+            <main class="rg-ssms-results">
+                <div class="rg-ssms-pane-title">
+                    <?php if ($selectedRegion): ?>
+                        <span class="rg-ssms-folder">▦</span>
+                        Results — <?= esc($selName) ?>
+                        <span class="rg-ssms-muted" dir="ltr">(<?= esc($selCode) ?>)</span>
+                    <?php else: ?>
+                        <span class="rg-ssms-folder">▦</span> Results
                     <?php endif; ?>
                 </div>
-            <?php endif; ?>
-        </div>
 
-        <!-- 2) العناوين -->
-        <div class="rg-card">
-            <h3>
-                2) العناوين
-                <?php if ($selName !== ''): ?>
-                    <span style="font-weight:500;color:#0f766e">— <?= esc($selName) ?></span>
-                <?php endif; ?>
-            </h3>
-
-            <?php if (!$selectedRegion): ?>
-                <p class="rg-empty">أضف منطقة أولاً ثم أضف عناوينها.</p>
-            <?php else: ?>
-                <form method="post" action="<?= esc($listUrl) ?>" class="rg-row">
-                    <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
-                    <input type="hidden" name="_action" value="save_address">
-                    <input type="hidden" name="region_id" value="<?= $selectedRegionId ?>">
-                    <input type="hidden" name="id" value="<?= (int) ($editAddressRow['id'] ?? 0) ?>">
-                    <input type="hidden" name="sort_order" value="<?= (int) ($editAddressRow['sort_order'] ?? 0) ?>">
-                    <input class="input" name="name_ar" required maxlength="180"
-                           value="<?= esc((string) ($editAddressRow['name_ar'] ?? '')) ?>"
-                           placeholder="<?= $editAddressRow ? 'تعديل العنوان' : 'عنوان جديد (مثل: الرابية)' ?>"
-                           <?= $editAddressRow ? 'autofocus' : '' ?>>
-                    <button class="btn btn-primary btn-sm" type="submit">
-                        <?= $editAddressRow ? 'حفظ' : 'إضافة عنوان' ?>
-                    </button>
-                    <?php if ($editAddressRow): ?>
-                        <a class="btn btn-ghost btn-sm" href="<?= esc($listUrl . '&region_id=' . $selectedRegionId) ?>">إلغاء</a>
-                    <?php endif; ?>
-                </form>
-
-                <?php if (!$addresses): ?>
-                    <p class="rg-empty">لا عناوين بعد لهذه المنطقة.</p>
+                <?php if (!$selectedRegion): ?>
+                    <div class="rg-ssms-placeholder">
+                        <p>Select a region from Object Explorer</p>
+                        <p class="rg-ssms-muted">اختر منطقة من الشجرة لعرض العناوين المرتبطة</p>
+                    </div>
                 <?php else: ?>
-                    <table>
-                        <thead>
-                        <tr>
-                            <th>العنوان</th>
-                            <th style="width:4rem">عملاء</th>
-                            <th style="width:9rem"></th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($addresses as $a):
-                            $aid = (int) $a['id'];
-                            $on = (int) $a['is_active'];
-                            ?>
-                            <tr class="<?= $on ? '' : 'rg-off' ?>">
-                                <td>
-                                    <?= esc((string) $a['name_ar']) ?>
-                                    <?php if (!$on): ?><span class="badge badge-off" style="font-size:.7rem;margin-inline-start:.35rem">موقوف</span><?php endif; ?>
-                                </td>
-                                <td dir="ltr"><?= (int) ($a['customer_count'] ?? 0) ?></td>
-                                <td>
-                                    <div class="rg-actions">
-                                        <a class="btn btn-ghost btn-sm"
-                                           href="<?= esc($listUrl . '&region_id=' . $selectedRegionId . '&edit_address=' . $aid) ?>">تعديل</a>
-                                        <form method="post" action="<?= esc($listUrl) ?>" data-confirm="تغيير حالة العنوان؟">
+                    <!-- Object properties strip -->
+                    <div class="rg-ssms-props">
+                        <div class="rg-ssms-prop"><span>Name</span><b><?= esc($selName) ?></b></div>
+                        <div class="rg-ssms-prop"><span>Code</span><b dir="ltr"><?= esc($selCode) ?></b></div>
+                        <div class="rg-ssms-prop"><span>Addresses</span><b dir="ltr"><?= count($addresses) ?></b></div>
+                        <div class="rg-ssms-prop"><span>Customers</span><b dir="ltr"><?= (int) ($selectedRegion['customer_count'] ?? 0) ?></b></div>
+                        <div class="rg-ssms-prop"><span>Status</span>
+                            <b class="<?= (int) $selectedRegion['is_active'] ? 'is-on' : 'is-off' ?>">
+                                <?= (int) $selectedRegion['is_active'] ? 'Active' : 'Disabled' ?>
+                            </b>
+                        </div>
+                        <div class="rg-ssms-prop-actions">
+                            <a class="rg-tb" href="<?= esc($listUrl . '&region_id=' . $selectedRegionId . '&edit_region=' . $selectedRegionId) ?>">Edit</a>
+                            <form method="post" action="<?= esc($listUrl) ?>" data-confirm="Toggle region status?">
+                                <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                                <input type="hidden" name="_action" value="toggle_region">
+                                <input type="hidden" name="id" value="<?= $selectedRegionId ?>">
+                                <button class="rg-tb" type="submit"><?= (int) $selectedRegion['is_active'] ? 'Disable' : 'Enable' ?></button>
+                            </form>
+                            <?php if ((int) ($selectedRegion['customer_count'] ?? 0) < 1): ?>
+                                <form method="post" action="<?= esc($listUrl) ?>" data-confirm="Delete region and all addresses?">
+                                    <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                                    <input type="hidden" name="_action" value="delete_region">
+                                    <input type="hidden" name="id" value="<?= $selectedRegionId ?>">
+                                    <button class="rg-tb rg-tb--danger" type="submit">Delete</button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Grid toolbar -->
+                    <div class="rg-ssms-grid-bar" id="rg-new-addr">
+                        <form method="post" action="<?= esc($listUrl) ?>" class="rg-ssms-grid-add">
+                            <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                            <input type="hidden" name="_action" value="save_address">
+                            <input type="hidden" name="region_id" value="<?= $selectedRegionId ?>">
+                            <input type="hidden" name="id" value="<?= (int) ($editAddressRow['id'] ?? 0) ?>">
+                            <input type="hidden" name="sort_order" value="<?= (int) ($editAddressRow['sort_order'] ?? 0) ?>">
+                            <span class="rg-ssms-muted"><?= $editAddressRow ? 'Edit row:' : 'New row:' ?></span>
+                            <input class="rg-ssms-input rg-ssms-input--wide" name="name_ar" required maxlength="180"
+                                   value="<?= esc((string) ($editAddressRow['name_ar'] ?? '')) ?>"
+                                   placeholder="اسم العنوان (الرابية…)"
+                                   <?= $editAddressRow ? 'autofocus' : '' ?>>
+                            <button class="rg-tb rg-tb--primary" type="submit"><?= $editAddressRow ? 'Update' : 'Insert' ?></button>
+                            <?php if ($editAddressRow): ?>
+                                <a class="rg-tb" href="<?= esc($listUrl . '&region_id=' . $selectedRegionId) ?>">Cancel</a>
+                            <?php endif; ?>
+                        </form>
+                    </div>
+
+                    <!-- Data grid -->
+                    <div class="rg-ssms-grid-wrap">
+                        <table class="rg-ssms-grid">
+                            <thead>
+                            <tr>
+                                <th class="col-sel"></th>
+                                <th class="col-id">ID</th>
+                                <th class="col-name">Address Name</th>
+                                <th class="col-num">Customers</th>
+                                <th class="col-status">Status</th>
+                                <th class="col-act">Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php if (!$addresses): ?>
+                                <tr class="rg-ssms-empty-row">
+                                    <td colspan="6">No rows — (0 row(s) affected)</td>
+                                </tr>
+                            <?php endif; ?>
+                            <?php foreach ($addresses as $i => $a):
+                                $aid = (int) $a['id'];
+                                $on = (int) $a['is_active'];
+                                $editing = $editAddressId === $aid;
+                                ?>
+                                <tr class="<?= $on ? '' : 'is-off' ?><?= $editing ? ' is-edit' : '' ?>">
+                                    <td class="col-sel"><?= $i + 1 ?></td>
+                                    <td class="col-id" dir="ltr"><?= $aid ?></td>
+                                    <td class="col-name"><?= esc((string) $a['name_ar']) ?></td>
+                                    <td class="col-num" dir="ltr"><?= (int) ($a['customer_count'] ?? 0) ?></td>
+                                    <td class="col-status">
+                                        <span class="rg-status <?= $on ? 'on' : 'off' ?>"><?= $on ? 'Active' : 'Off' ?></span>
+                                    </td>
+                                    <td class="col-act">
+                                        <a href="<?= esc($listUrl . '&region_id=' . $selectedRegionId . '&edit_address=' . $aid) ?>">Edit</a>
+                                        <form method="post" action="<?= esc($listUrl) ?>" data-confirm="Toggle status?">
                                             <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
                                             <input type="hidden" name="_action" value="toggle_address">
                                             <input type="hidden" name="id" value="<?= $aid ?>">
                                             <input type="hidden" name="region_id" value="<?= $selectedRegionId ?>">
-                                            <button class="btn btn-ghost btn-sm" type="submit"><?= $on ? 'تعطيل' : 'تفعيل' ?></button>
+                                            <button type="submit"><?= $on ? 'Disable' : 'Enable' ?></button>
                                         </form>
                                         <?php if ((int) ($a['customer_count'] ?? 0) < 1): ?>
-                                            <form method="post" action="<?= esc($listUrl) ?>" data-confirm="حذف العنوان؟">
+                                            <form method="post" action="<?= esc($listUrl) ?>" data-confirm="Delete address?">
                                                 <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
                                                 <input type="hidden" name="_action" value="delete_address">
                                                 <input type="hidden" name="id" value="<?= $aid ?>">
                                                 <input type="hidden" name="region_id" value="<?= $selectedRegionId ?>">
-                                                <button class="btn btn-ghost btn-sm" type="submit" style="color:#b91c1c">حذف</button>
+                                                <button type="submit" class="danger">Delete</button>
                                             </form>
                                         <?php endif; ?>
-                                    </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="rg-ssms-status-bar">
+                        <span><?= count($addresses) ?> row(s)</span>
+                        <span dir="ltr">region_id = <?= $selectedRegionId ?></span>
+                        <span>Query executed successfully</span>
+                    </div>
                 <?php endif; ?>
-            <?php endif; ?>
+            </main>
         </div>
     </div>
-
-    <?php sales_ora12_workspace_close(); ?>
 </div>
+<script>
+(function () {
+  var btn = document.getElementById('rg-import-toggle');
+  var box = document.getElementById('rg-import-box');
+  if (btn && box) {
+    btn.addEventListener('click', function () {
+      box.hidden = !box.hidden;
+    });
+  }
+})();
+</script>

@@ -326,6 +326,14 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
                                 <span>الحساب</span>
                                 <strong id="co-ora-ar-account" dir="ltr">—</strong>
                             </div>
+                            <div class="co-ora-ar-kpi co-ora-ar-kpi--debit">
+                                <span>مجموع المدين</span>
+                                <strong id="co-ora-ar-debit" dir="ltr">0</strong>
+                            </div>
+                            <div class="co-ora-ar-kpi co-ora-ar-kpi--credit">
+                                <span>مجموع الدائن</span>
+                                <strong id="co-ora-ar-credit" dir="ltr">0</strong>
+                            </div>
                             <div class="co-ora-ar-kpi co-ora-ar-kpi--due">
                                 <span>المبالغ المستحقة (الرصيد)</span>
                                 <strong id="co-ora-ar-balance" dir="ltr">0</strong>
@@ -481,11 +489,15 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
         if (oraSummary) oraSummary.hidden = false;
         var accEl = document.getElementById('co-ora-ar-account');
         var balEl = document.getElementById('co-ora-ar-balance');
+        var debEl = document.getElementById('co-ora-ar-debit');
+        var creEl = document.getElementById('co-ora-ar-credit');
         var cntEl = document.getElementById('co-ora-ar-chq-count');
         var totEl = document.getElementById('co-ora-ar-chq-total');
         var metaEl = document.getElementById('co-ora-ar-meta');
         var linkEl = document.getElementById('co-ora-ar-full-link');
         if (accEl) accEl.textContent = x.account || '—';
+        if (debEl) debEl.textContent = fmtAmt(x.total_debit);
+        if (creEl) creEl.textContent = fmtAmt(x.total_credit);
         if (balEl) balEl.textContent = fmtAmt(x.balance);
         if (cntEl) cntEl.textContent = String(x.cheque_count || 0);
         if (totEl) totEl.textContent = fmtAmt(x.cheque_total);

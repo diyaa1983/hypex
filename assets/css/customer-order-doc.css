@@ -380,7 +380,7 @@
 
 .co-doc .co-ora-ar-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
   margin-bottom: 0.65rem;
 }
@@ -411,6 +411,24 @@
   font-size: 1.05rem;
   font-weight: 800;
   color: #0f172a;
+}
+
+.co-doc .co-ora-ar-kpi--debit {
+  border-color: #f0c4a8;
+  background: linear-gradient(180deg, #fffaf5 0%, #fff3e8 100%);
+}
+
+.co-doc .co-ora-ar-kpi--debit strong {
+  color: #9a3412;
+}
+
+.co-doc .co-ora-ar-kpi--credit {
+  border-color: #a8d4b8;
+  background: linear-gradient(180deg, #f4fbf6 0%, #e8f6ec 100%);
+}
+
+.co-doc .co-ora-ar-kpi--credit strong {
+  color: #166534;
 }
 
 .co-doc .co-ora-ar-kpi--due {
