@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
                 $st->execute([$code, $name, $sort]);
                 $redirRegion = (int) $pdo->lastInsertId();
-                flash_set('success', 'تم إضافة المنطقة. أضف عناوينها من القائمة اليسرى.');
+                flash_set('success', 'تم إضافة المنطقة. أضف عناوينها أدناه.');
             }
         } elseif ($act === 'save_address') {
             $id = (int) ($_POST['id'] ?? 0);
@@ -266,229 +266,208 @@ if ($editAddressId > 0) {
 }
 
 sales_ora12_enqueue_assets();
+$csrf = csrf_token();
+$selName = $selectedRegion ? (string) $selectedRegion['name_ar'] : '';
 ?>
 <style>
-.crm-ra-layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(300px,1.15fr);gap:1rem;align-items:start}
-@media (max-width:900px){.crm-ra-layout{grid-template-columns:1fr}}
-.crm-ra-list{list-style:none;margin:0;padding:0;max-height:28rem;overflow:auto}
-.crm-ra-list li{border-bottom:1px solid rgba(0,0,0,.06)}
-.crm-ra-list a{display:flex;justify-content:space-between;gap:.5rem;padding:.55rem .65rem;text-decoration:none;color:inherit}
-.crm-ra-list a:hover{background:rgba(13,110,110,.06)}
-.crm-ra-list a.is-active{background:rgba(13,110,110,.12);font-weight:600}
-.crm-ra-list .cnt{font-size:.8rem;opacity:.7;direction:ltr}
-.crm-ra-muted{font-size:.88rem;opacity:.8;margin:0 0 .65rem}
-.crm-ra-form-inline{display:flex;flex-wrap:wrap;gap:.5rem;align-items:end;margin-bottom:.75rem}
-.crm-ra-form-inline .field{margin:0;flex:1;min-width:9rem}
-.crm-ra-table{width:100%;border-collapse:collapse;font-size:.92rem}
-.crm-ra-table th,.crm-ra-table td{padding:.45rem .5rem;border-bottom:1px solid rgba(0,0,0,.07);text-align:right}
-.crm-ra-table th{font-weight:600;background:rgba(0,0,0,.03)}
+.rg-simple{max-width:720px;margin:0 auto}
+.rg-simple .rg-bar{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin-bottom:1rem}
+.rg-simple .rg-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1rem}
+.rg-simple h3{margin:0 0 .75rem;font-size:1rem;font-weight:600}
+.rg-simple .rg-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.rg-simple .rg-row .input,.rg-simple .rg-row select{flex:1;min-width:10rem}
+.rg-simple .rg-hint{margin:.35rem 0 0;font-size:.85rem;color:#6b7280}
+.rg-simple table{width:100%;border-collapse:collapse;margin-top:.75rem}
+.rg-simple th,.rg-simple td{padding:.5rem .4rem;border-bottom:1px solid #f0f0f0;text-align:right;font-size:.93rem}
+.rg-simple th{color:#6b7280;font-weight:600;font-size:.8rem}
+.rg-simple tr.rg-off td{opacity:.55}
+.rg-simple .rg-actions{display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-start}
+.rg-simple .rg-actions form{display:inline;margin:0}
+.rg-simple details.rg-import{margin-bottom:1rem}
+.rg-simple details.rg-import>summary{cursor:pointer;font-weight:600;padding:.55rem .75rem;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;list-style:none}
+.rg-simple details.rg-import[open]>summary{border-radius:8px 8px 0 0;border-bottom:none}
+.rg-simple details.rg-import .rg-import-body{border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:.85rem 1rem;background:#fff}
+.rg-simple .rg-empty{padding:.85rem 0;color:#9ca3af;text-align:center}
+.rg-simple .rg-name-form{display:inline;margin:0}
+.rg-simple .rg-name-form input.input{min-width:8rem;padding:.25rem .4rem;font-size:.9rem}
 </style>
 <div class="dashboard-ora sales-ora12-screen customers-ora-screen">
     <?php sales_ora12_render_title_bar('مناطق العملاء'); ?>
     <?php sales_ora12_workspace_open(); ?>
-    <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-ora-flash"><?= esc($flash['message']) ?></div>
-    <?php endif; ?>
 
-    <div class="sales-ora-toolbar toolbar" style="flex-wrap:wrap;gap:0.5rem;">
-        <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=customers')) ?>">العملاء</a>
-        <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=sales_reps')) ?>">المندوبين</a>
-    </div>
+    <div class="rg-simple">
+        <?php if ($flash): ?>
+            <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-ora-flash"><?= esc($flash['message']) ?></div>
+        <?php endif; ?>
 
-    <div class="sales-ora-panel card" style="margin-bottom:1rem;">
-        <h3 style="margin:0 0 0.5rem;font-size:1rem;">استيراد من Excel</h3>
-        <p class="crm-ra-muted">
-            الملف الافتراضي: <code dir="ltr"><?= esc($excelDefaultHint) ?></code>
-            <?php if ($excelPath): ?>
-                — موجود: <code dir="ltr"><?= esc($excelPath) ?></code>
-            <?php else: ?>
-                — <strong>غير موجود</strong>؛ ارفع الملف أدناه.
-            <?php endif; ?>
-            <br>
-            الأعمدة: <strong>رقم العميل</strong> · <strong>اسم العميل</strong> · <strong>العنوان</strong> · <strong>المنطقة</strong> · <strong>اسم المندوب</strong>
-            — يُنشئ المناطق/العناوين ويربط كل مندوب بالعميل حسب رقم العميل.
-        </p>
-        <form method="post" action="<?= esc($listUrl) ?>" enctype="multipart/form-data" class="form-row" style="flex-wrap:wrap;gap:0.5rem;align-items:end;">
-            <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-            <input type="hidden" name="_action" value="import_excel">
-            <label class="field">
-                <span class="field-label">رفع ملف</span>
-                <input class="input" type="file" name="excel_file" accept=".xlsx">
-            </label>
-            <button class="btn btn-primary" type="submit" data-confirm="استيراد المناطق والعناوين وربط المندوبين بالعملاء؟">
-                استيراد الآن
-            </button>
-        </form>
-    </div>
+        <div class="rg-bar">
+            <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=customers')) ?>">العملاء</a>
+            <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=sales_reps')) ?>">المندوبين</a>
+        </div>
 
-    <div class="crm-ra-layout">
-        <!-- قائمة المناطق -->
-        <div class="sales-ora-panel card">
-            <h3 style="margin:0 0 0.4rem;font-size:1rem;">قائمة المناطق</h3>
-            <p class="crm-ra-muted">مثال: عمان الغربية، شمال عمان، وسط عمان</p>
+        <details class="rg-import">
+            <summary>استيراد من Excel</summary>
+            <div class="rg-import-body">
+                <p class="rg-hint" style="margin-top:0">
+                    ارفع ملف المناطق (رقم العميل · المنطقة · العنوان · المندوب).
+                    <?php if ($excelPath): ?>
+                        ملف جاهز على القرص: <code dir="ltr"><?= esc(basename($excelPath)) ?></code>
+                    <?php endif; ?>
+                </p>
+                <form method="post" action="<?= esc($listUrl) ?>" enctype="multipart/form-data" class="rg-row">
+                    <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                    <input type="hidden" name="_action" value="import_excel">
+                    <input class="input" type="file" name="excel_file" accept=".xlsx">
+                    <button class="btn btn-primary btn-sm" type="submit" data-confirm="استيراد الملف وربطه بالعملاء؟">استيراد</button>
+                </form>
+            </div>
+        </details>
 
-            <form method="post" action="<?= esc($listUrl) ?>" class="crm-ra-form-inline">
-                <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+        <!-- 1) المنطقة -->
+        <div class="rg-card">
+            <h3>1) المنطقة</h3>
+            <form method="get" action="<?= esc(app_url('index.php')) ?>" class="rg-row" id="rg-select-form">
+                <input type="hidden" name="r" value="customer_regions">
+                <select class="input" name="region_id" onchange="this.form.submit()" aria-label="اختر المنطقة">
+                    <?php if (!$regions): ?>
+                        <option value="">لا توجد مناطق</option>
+                    <?php endif; ?>
+                    <?php foreach ($regions as $rg):
+                        $rid = (int) $rg['id'];
+                        $label = (string) $rg['name_ar'];
+                        if (!(int) $rg['is_active']) {
+                            $label .= ' (موقوف)';
+                        }
+                        $label .= ' — ' . (int) ($rg['address_count'] ?? 0) . ' عنوان';
+                        ?>
+                        <option value="<?= $rid ?>"<?= $rid === $selectedRegionId ? ' selected' : '' ?>>
+                            <?= esc($label) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+
+            <form method="post" action="<?= esc($listUrl) ?>" class="rg-row" style="margin-top:.65rem">
+                <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
                 <input type="hidden" name="_action" value="save_region">
                 <input type="hidden" name="id" value="<?= (int) ($editRegionRow['id'] ?? 0) ?>">
-                <label class="field">
-                    <span class="field-label">اسم المنطقة *</span>
-                    <input class="input" name="name_ar" required maxlength="180"
-                           value="<?= esc((string) ($editRegionRow['name_ar'] ?? '')) ?>"
-                           placeholder="شمال عمان">
-                </label>
-                <label class="field" style="flex:0 0 6rem;">
-                    <span class="field-label">الرمز</span>
-                    <input class="input" name="code" dir="ltr" maxlength="20"
-                           value="<?= esc((string) ($editRegionRow['code'] ?? '')) ?>" placeholder="تلقائي">
-                </label>
-                <label class="field" style="flex:0 0 5rem;">
-                    <span class="field-label">ترتيب</span>
-                    <input class="input" name="sort_order" type="number" dir="ltr"
-                           value="<?= (int) ($editRegionRow['sort_order'] ?? 0) ?>">
-                </label>
+                <input type="hidden" name="code" value="<?= esc((string) ($editRegionRow['code'] ?? '')) ?>">
+                <input type="hidden" name="sort_order" value="<?= (int) ($editRegionRow['sort_order'] ?? 0) ?>">
+                <input class="input" name="name_ar" required maxlength="180"
+                       value="<?= esc((string) ($editRegionRow['name_ar'] ?? '')) ?>"
+                       placeholder="<?= $editRegionRow ? 'تعديل اسم المنطقة' : 'منطقة جديدة (مثل: عمان الغربية)' ?>">
                 <button class="btn btn-primary btn-sm" type="submit">
-                    <?= $editRegionRow ? 'تحديث' : 'إضافة منطقة' ?>
+                    <?= $editRegionRow ? 'حفظ الاسم' : 'إضافة' ?>
                 </button>
                 <?php if ($editRegionRow): ?>
                     <a class="btn btn-ghost btn-sm" href="<?= esc($listUrl . '&region_id=' . $selectedRegionId) ?>">إلغاء</a>
                 <?php endif; ?>
             </form>
 
-            <ul class="crm-ra-list">
-                <?php if (!$regions): ?>
-                    <li class="muted" style="padding:.65rem;">لا توجد مناطق بعد.</li>
-                <?php endif; ?>
-                <?php foreach ($regions as $rg):
-                    $rid = (int) $rg['id'];
-                    $active = $rid === $selectedRegionId;
-                    $href = $listUrl . '&region_id=' . $rid;
-                    ?>
-                    <li>
-                        <a href="<?= esc($href) ?>" class="<?= $active ? 'is-active' : '' ?>">
-                            <span>
-                                <?= esc((string) $rg['name_ar']) ?>
-                                <?php if (!(int) $rg['is_active']): ?>
-                                    <span class="badge badge-off" style="font-size:.7rem;">موقوف</span>
-                                <?php endif; ?>
-                            </span>
-                            <span class="cnt"><?= (int) ($rg['address_count'] ?? 0) ?> عنوان</span>
-                        </a>
-                        <?php if ($active): ?>
-                            <div class="row-actions" style="padding:0 .5rem .5rem;display:flex;gap:.35rem;flex-wrap:wrap;">
-                                <a class="btn btn-secondary btn-sm"
-                                   href="<?= esc($listUrl . '&region_id=' . $rid . '&edit_region=' . $rid) ?>">تعديل الاسم</a>
-                                <form method="post" action="<?= esc($listUrl) ?>" data-confirm="تغيير حالة المنطقة؟" style="display:inline;">
-                                    <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                                    <input type="hidden" name="_action" value="toggle_region">
-                                    <input type="hidden" name="id" value="<?= $rid ?>">
-                                    <button class="btn btn-danger btn-sm" type="submit"><?= (int) $rg['is_active'] ? 'تعطيل' : 'تفعيل' ?></button>
-                                </form>
-                                <?php if ((int) ($rg['customer_count'] ?? 0) < 1): ?>
-                                    <form method="post" action="<?= esc($listUrl) ?>" data-confirm="حذف المنطقة وكل عناوينها؟" style="display:inline;">
-                                        <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                                        <input type="hidden" name="_action" value="delete_region">
-                                        <input type="hidden" name="id" value="<?= $rid ?>">
-                                        <button class="btn btn-danger btn-sm" type="submit">حذف</button>
-                                    </form>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
+            <?php if ($selectedRegion): ?>
+                <div class="rg-row" style="margin-top:.65rem">
+                    <a class="btn btn-secondary btn-sm"
+                       href="<?= esc($listUrl . '&region_id=' . $selectedRegionId . '&edit_region=' . $selectedRegionId) ?>">تعديل الاسم</a>
+                    <form method="post" action="<?= esc($listUrl) ?>" data-confirm="تغيير حالة المنطقة؟">
+                        <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                        <input type="hidden" name="_action" value="toggle_region">
+                        <input type="hidden" name="id" value="<?= $selectedRegionId ?>">
+                        <button class="btn btn-ghost btn-sm" type="submit"><?= (int) $selectedRegion['is_active'] ? 'تعطيل المنطقة' : 'تفعيل المنطقة' ?></button>
+                    </form>
+                    <?php if ((int) ($selectedRegion['customer_count'] ?? 0) < 1): ?>
+                        <form method="post" action="<?= esc($listUrl) ?>" data-confirm="حذف المنطقة وكل عناوينها؟">
+                            <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                            <input type="hidden" name="_action" value="delete_region">
+                            <input type="hidden" name="id" value="<?= $selectedRegionId ?>">
+                            <button class="btn btn-ghost btn-sm" type="submit" style="color:#b91c1c">حذف المنطقة</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
-        <!-- عناوين المنطقة -->
-        <div class="sales-ora-panel card">
-            <h3 style="margin:0 0 0.4rem;font-size:1rem;">
-                عناوين المنطقة
-                <?php if ($selectedRegion): ?>
-                    — <span style="color:#0d6e6e;"><?= esc((string) $selectedRegion['name_ar']) ?></span>
+        <!-- 2) العناوين -->
+        <div class="rg-card">
+            <h3>
+                2) العناوين
+                <?php if ($selName !== ''): ?>
+                    <span style="font-weight:500;color:#0f766e">— <?= esc($selName) ?></span>
                 <?php endif; ?>
             </h3>
 
             <?php if (!$selectedRegion): ?>
-                <p class="crm-ra-muted">اختر منطقة من القائمة أو أضف منطقة جديدة ثم اربط بها العناوين (الرابية، الشميساني…).</p>
+                <p class="rg-empty">أضف منطقة أولاً ثم أضف عناوينها.</p>
             <?php else: ?>
-                <p class="crm-ra-muted">كل عنوان مرتبط فقط بالمنطقة المحددة. المندوب يختار منطقة ثم يرى هذه العناوين.</p>
-
-                <form method="post" action="<?= esc($listUrl) ?>" class="crm-ra-form-inline">
-                    <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+                <form method="post" action="<?= esc($listUrl) ?>" class="rg-row">
+                    <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
                     <input type="hidden" name="_action" value="save_address">
                     <input type="hidden" name="region_id" value="<?= $selectedRegionId ?>">
                     <input type="hidden" name="id" value="<?= (int) ($editAddressRow['id'] ?? 0) ?>">
-                    <label class="field">
-                        <span class="field-label">اسم العنوان *</span>
-                        <input class="input" name="name_ar" required maxlength="180"
-                               value="<?= esc((string) ($editAddressRow['name_ar'] ?? '')) ?>"
-                               placeholder="الرابية، شفا بدران…">
-                    </label>
-                    <label class="field" style="flex:0 0 5rem;">
-                        <span class="field-label">ترتيب</span>
-                        <input class="input" name="sort_order" type="number" dir="ltr"
-                               value="<?= (int) ($editAddressRow['sort_order'] ?? 0) ?>">
-                    </label>
+                    <input type="hidden" name="sort_order" value="<?= (int) ($editAddressRow['sort_order'] ?? 0) ?>">
+                    <input class="input" name="name_ar" required maxlength="180"
+                           value="<?= esc((string) ($editAddressRow['name_ar'] ?? '')) ?>"
+                           placeholder="<?= $editAddressRow ? 'تعديل العنوان' : 'عنوان جديد (مثل: الرابية)' ?>"
+                           <?= $editAddressRow ? 'autofocus' : '' ?>>
                     <button class="btn btn-primary btn-sm" type="submit">
-                        <?= $editAddressRow ? 'تحديث العنوان' : 'ربط عنوان' ?>
+                        <?= $editAddressRow ? 'حفظ' : 'إضافة عنوان' ?>
                     </button>
                     <?php if ($editAddressRow): ?>
                         <a class="btn btn-ghost btn-sm" href="<?= esc($listUrl . '&region_id=' . $selectedRegionId) ?>">إلغاء</a>
                     <?php endif; ?>
                 </form>
 
-                <table class="crm-ra-table">
-                    <thead>
-                    <tr>
-                        <th>العنوان</th>
-                        <th>عملاء</th>
-                        <th>حالة</th>
-                        <th>إجراء</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php if (!$addresses): ?>
-                        <tr><td colspan="4" class="muted">لا عناوين بعد — أضف من النموذج أعلاه أو استورد Excel.</td></tr>
-                    <?php endif; ?>
-                    <?php foreach ($addresses as $a): ?>
+                <?php if (!$addresses): ?>
+                    <p class="rg-empty">لا عناوين بعد لهذه المنطقة.</p>
+                <?php else: ?>
+                    <table>
+                        <thead>
                         <tr>
-                            <td><?= esc((string) $a['name_ar']) ?></td>
-                            <td dir="ltr"><?= (int) ($a['customer_count'] ?? 0) ?></td>
-                            <td>
-                                <?php if ((int) $a['is_active']): ?>
-                                    <span class="badge badge-ok">نشط</span>
-                                <?php else: ?>
-                                    <span class="badge badge-off">موقوف</span>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <div class="row-actions" style="display:flex;gap:.3rem;flex-wrap:wrap;">
-                                    <a class="btn btn-secondary btn-sm"
-                                       href="<?= esc($listUrl . '&region_id=' . $selectedRegionId . '&edit_address=' . (int) $a['id']) ?>">تعديل</a>
-                                    <form method="post" action="<?= esc($listUrl) ?>" data-confirm="تغيير حالة العنوان؟" style="display:inline;">
-                                        <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                                        <input type="hidden" name="_action" value="toggle_address">
-                                        <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
-                                        <input type="hidden" name="region_id" value="<?= $selectedRegionId ?>">
-                                        <button class="btn btn-danger btn-sm" type="submit"><?= (int) $a['is_active'] ? 'تعطيل' : 'تفعيل' ?></button>
-                                    </form>
-                                    <?php if ((int) ($a['customer_count'] ?? 0) < 1): ?>
-                                        <form method="post" action="<?= esc($listUrl) ?>" data-confirm="حذف هذا العنوان؟" style="display:inline;">
-                                            <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                                            <input type="hidden" name="_action" value="delete_address">
-                                            <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
-                                            <input type="hidden" name="region_id" value="<?= $selectedRegionId ?>">
-                                            <button class="btn btn-danger btn-sm" type="submit">حذف</button>
-                                        </form>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
+                            <th>العنوان</th>
+                            <th style="width:4rem">عملاء</th>
+                            <th style="width:9rem"></th>
                         </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($addresses as $a):
+                            $aid = (int) $a['id'];
+                            $on = (int) $a['is_active'];
+                            ?>
+                            <tr class="<?= $on ? '' : 'rg-off' ?>">
+                                <td>
+                                    <?= esc((string) $a['name_ar']) ?>
+                                    <?php if (!$on): ?><span class="badge badge-off" style="font-size:.7rem;margin-inline-start:.35rem">موقوف</span><?php endif; ?>
+                                </td>
+                                <td dir="ltr"><?= (int) ($a['customer_count'] ?? 0) ?></td>
+                                <td>
+                                    <div class="rg-actions">
+                                        <a class="btn btn-ghost btn-sm"
+                                           href="<?= esc($listUrl . '&region_id=' . $selectedRegionId . '&edit_address=' . $aid) ?>">تعديل</a>
+                                        <form method="post" action="<?= esc($listUrl) ?>" data-confirm="تغيير حالة العنوان؟">
+                                            <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                                            <input type="hidden" name="_action" value="toggle_address">
+                                            <input type="hidden" name="id" value="<?= $aid ?>">
+                                            <input type="hidden" name="region_id" value="<?= $selectedRegionId ?>">
+                                            <button class="btn btn-ghost btn-sm" type="submit"><?= $on ? 'تعطيل' : 'تفعيل' ?></button>
+                                        </form>
+                                        <?php if ((int) ($a['customer_count'] ?? 0) < 1): ?>
+                                            <form method="post" action="<?= esc($listUrl) ?>" data-confirm="حذف العنوان؟">
+                                                <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                                                <input type="hidden" name="_action" value="delete_address">
+                                                <input type="hidden" name="id" value="<?= $aid ?>">
+                                                <input type="hidden" name="region_id" value="<?= $selectedRegionId ?>">
+                                                <button class="btn btn-ghost btn-sm" type="submit" style="color:#b91c1c">حذف</button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>
+
     <?php sales_ora12_workspace_close(); ?>
 </div>
