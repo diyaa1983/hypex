@@ -49,6 +49,10 @@ function crm_region_excel_normalize_header(string $h): string
 }
 
 /**
+ * رؤوس ملف «المنطقة.xlsx» النموذجي:
+ *   A رقم العميل · B اسم العميل · C العنوان · D المنطقة · F اسم المندوب
+ * (أعمدة فارغة/مخفية تُتجاهل — الربط بالاسم وليس برقم العمود)
+ *
  * @param list<string> $header
  * @return array<string,int> map field => column index
  */
@@ -56,73 +60,113 @@ function crm_region_excel_map_columns(array $header): array
 {
     $map = [];
     foreach ($header as $i => $raw) {
-        $h = crm_region_excel_normalize_header((string) $raw);
+        // إزالة BOM/فواصل أعمدة Excel
+        $raw = preg_replace('/^\xEF\xBB\xBF/u', '', (string) $raw) ?? (string) $raw;
+        $h = crm_region_excel_normalize_header($raw);
         if ($h === '') {
             continue;
         }
-        // منطقة
+
+        // رقم / رمز العميل — قبل أي مطابقة تحوي كلمة «عميل»
         if (
-            str_contains($h, 'منطقة') || str_contains($h, 'منطقه')
+            $h === 'رقمالعميل' || $h === 'رمزالعميل' || $h === 'كودالعميل'
+            || $h === 'رقم' || str_contains($h, 'رقمالعميل') || str_contains($h, 'رمزالعميل')
+            || str_contains($h, 'كودالعميل') || str_contains($h, 'رقمالحساب')
+            || $h === 'code' || str_contains($h, 'customercode') || str_contains($h, 'customerno')
+            || str_contains($h, 'oracle')
+        ) {
+            $map['customer_code'] = $map['customer_code'] ?? $i;
+            continue;
+        }
+
+        // اسم المندوب — قبل «اسم» العام
+        if (
+            str_contains($h, 'مندوب') || str_contains($h, 'بائع')
+            || str_contains($h, 'salesrep') || $h === 'rep' || str_contains($h, 'repname')
+            || $h === 'اسمالمندوب'
+        ) {
+            $map['rep'] = $map['rep'] ?? $i;
+            continue;
+        }
+
+        // اسم العميل
+        if (
+            $h === 'اسمالعميل' || str_contains($h, 'اسمالعميل')
+            || str_contains($h, 'customername') || str_contains($h, 'اسمالحساب')
+            || ($h === 'اسم' && !isset($map['customer_name']))
+            || ($h === 'name' && !isset($map['customer_name']))
+            || ($h === 'العميل' && !isset($map['customer_name']))
+        ) {
+            $map['customer_name'] = $map['customer_name'] ?? $i;
+            continue;
+        }
+
+        // المنطقة (مثال: عمان الغربية / شمال عمان)
+        if (
+            $h === 'المنطقة' || $h === 'المنطقه' || $h === 'منطقة' || $h === 'منطقه'
+            || str_contains($h, 'منطقة') || str_contains($h, 'منطقه')
             || $h === 'region' || str_contains($h, 'regionname')
         ) {
             $map['region'] = $map['region'] ?? $i;
             continue;
         }
-        // عنوان
+
+        // العنوان (مثال: الرابية / الشميساني / شفا بدران)
         if (
-            str_contains($h, 'عنوان') || str_contains($h, 'العنوان')
+            $h === 'العنوان' || $h === 'عنوان' || str_contains($h, 'عنوان')
             || $h === 'address' || str_contains($h, 'address')
         ) {
             $map['address'] = $map['address'] ?? $i;
             continue;
         }
-        // مندوب
-        if (
-            str_contains($h, 'مندوب') || str_contains($h, 'بائع')
-            || str_contains($h, 'salesrep') || $h === 'rep' || str_contains($h, 'repname')
-        ) {
-            $map['rep'] = $map['rep'] ?? $i;
-            continue;
-        }
-        // رمز عميل
-        if (
-            str_contains($h, 'رمزالعميل') || str_contains($h, 'رقمالعميل')
-            || str_contains($h, 'كودالعميل') || $h === 'code'
-            || str_contains($h, 'customercode') || str_contains($h, 'acc')
-            || str_contains($h, 'oracle') || $h === 'sku'
-        ) {
-            $map['customer_code'] = $map['customer_code'] ?? $i;
-            continue;
-        }
-        // اسم عميل
-        if (
-            str_contains($h, 'اسمالعميل') || str_contains($h, 'العميل')
-            || str_contains($h, 'customername') || ($h === 'name' && !isset($map['customer_name']))
-            || str_contains($h, 'اسمالحساب')
-        ) {
-            $map['customer_name'] = $map['customer_name'] ?? $i;
+
+        // يوم الزيارة — مسموح وغير مستخدم حالياً
+        if ($h === 'اليوم' || $h === 'يوم' || str_contains($h, 'visitday')) {
+            $map['day'] = $map['day'] ?? $i;
             continue;
         }
     }
 
-    // إن لم يُعثر على رؤوس: افتراض ترتيب شائع [منطقة، عنوان، مندوب، رمز، اسم]
+    // ترتيب ملف المناطق عند غياب الرؤوس: رقم، اسم، عنوان، منطقة، …، مندوب
     if (!isset($map['region']) && !isset($map['rep']) && !isset($map['customer_code'])) {
-        if (count($header) >= 3) {
+        if (count($header) >= 4) {
             $map = [
-                'region' => 0,
-                'address' => 1,
-                'rep' => 2,
+                'customer_code' => 0,
+                'customer_name' => 1,
+                'address' => 2,
+                'region' => 3,
             ];
-            if (count($header) >= 4) {
-                $map['customer_code'] = 3;
-            }
-            if (count($header) >= 5) {
-                $map['customer_name'] = 4;
+            // عمود المندوب غالباً F = فهرس 5
+            if (count($header) >= 6) {
+                $map['rep'] = 5;
+            } elseif (count($header) >= 5) {
+                $map['rep'] = 4;
             }
         }
     }
 
     return $map;
+}
+
+/** تنظيف رمز عميل من Excel (أرقام مثل 11200612.0). */
+function crm_region_excel_normalize_code(string $code): string
+{
+    $code = trim($code);
+    if ($code === '') {
+        return '';
+    }
+    // علمية / عشري من Excel
+    if (preg_match('/^-?\d+\.0+$/', $code)) {
+        return (string) (int) round((float) $code);
+    }
+    if (is_numeric($code) && !str_contains($code, 'e') && !str_contains($code, 'E')) {
+        // حافظ على رقم كامل بدون .0
+        if (preg_match('/^\d+\.\d+$/', $code) && floor((float) $code) == (float) $code) {
+            return sprintf('%.0f', (float) $code);
+        }
+    }
+
+    return $code;
 }
 
 function crm_region_excel_cell(array $row, array $map, string $key): string
@@ -385,7 +429,7 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
             $regionName = crm_region_excel_cell($row, $map, 'region');
             $address = crm_region_excel_cell($row, $map, 'address');
             $repName = crm_region_excel_cell($row, $map, 'rep');
-            $custCode = crm_region_excel_cell($row, $map, 'customer_code');
+            $custCode = crm_region_excel_normalize_code(crm_region_excel_cell($row, $map, 'customer_code'));
             $custName = crm_region_excel_cell($row, $map, 'customer_name');
 
             // إن كان الجدول فقط مناطق/مندوب بدون أسماء أعمدة واضحة

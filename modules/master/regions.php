@@ -251,7 +251,13 @@ sales_ora12_enqueue_assets();
             <?php else: ?>
                 <br><strong>الملف غير موجود حالياً على هذا الجهاز.</strong> انسخ <code>المنطقة.xlsx</code> إلى المسار أعلاه أو ارفعه هنا.
             <?php endif; ?>
-            <br>الأعمدة المتوقعة: <strong>المنطقة</strong> · <strong>العنوان</strong> · <strong>المندوب</strong> · (رمز العميل) · (اسم العميل)
+            <br>أعمدة ملفك (كما في المنطقة.xlsx):
+            <strong>رقم العميل</strong> ·
+            <strong>اسم العميل</strong> ·
+            <strong>العنوان</strong> (الرابية، الشميساني…) ·
+            <strong>المنطقة</strong> (عمان الغربية، شمال عمان…) ·
+            <strong>اسم المندوب</strong>
+            — الأعمدة الفارغة أو «اليوم» تُتجاهل.
         </p>
         <form method="post" action="<?= esc($listUrl) ?>" enctype="multipart/form-data" class="form-row" style="flex-wrap:wrap;gap:0.5rem;align-items:end;">
             <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
