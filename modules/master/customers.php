@@ -19,6 +19,7 @@ oracle_customer_account_schema_ensure($pdo);
 crm_region_ensure_schema($pdo);
 $salesReps = crm_sales_rep_load_active($pdo);
 $regions = crm_region_load_active($pdo);
+$regionAddressesMap = crm_region_addresses_map($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
@@ -72,10 +73,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $repIdsRaw = [];
             }
             $regionId = (int) ($_POST['region_id'] ?? 0);
+            $regionAddressId = (int) ($_POST['region_address_id'] ?? 0);
             if ($regionId > 0 && !crm_region_exists_active($pdo, $regionId)) {
                 throw new RuntimeException('المنطقة المحددة غير موجودة أو غير نشطة.');
             }
+            if ($regionAddressId > 0) {
+                if (!crm_region_address_exists_active($pdo, $regionAddressId)) {
+                    throw new RuntimeException('العنوان المحدد غير موجود أو غير نشط.');
+                }
+                $stCheck = $pdo->prepare('SELECT region_id FROM crm_region_address WHERE id = ? LIMIT 1');
+                $stCheck->execute([$regionAddressId]);
+                $ownerRegion = (int) $stCheck->fetchColumn();
+                if ($regionId > 0 && $ownerRegion !== $regionId) {
+                    throw new RuntimeException('العنوان لا يتبع المنطقة المختارة.');
+                }
+                if ($regionId < 1 && $ownerRegion > 0) {
+                    $regionId = $ownerRegion;
+                }
+            }
             $regionIdDb = $regionId > 0 ? $regionId : null;
+            $regionAddressIdDb = $regionAddressId > 0 ? $regionAddressId : null;
 
             // عملاء Oracle: لا يُعدَّل الرقم ولا الاسم من النظام
             $oracleLocked = false;
@@ -102,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // الاسم: من Oracle يُثبَّت؛ الرقم لا يُحدَّث من النموذج أصلاً
                 $st = $pdo->prepare(
                     'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
-                        region_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
+                        region_id=?, region_address_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
                 );
                 $st->execute([
                     $name,
@@ -111,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $tax !== '' ? $tax : null,
                     $addr !== '' ? $addr : null,
                     $regionIdDb,
+                    $regionAddressIdDb,
                     $gps['latitude'],
                     $gps['longitude'],
                     $gps['gps_accuracy'],
@@ -127,8 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $code = crm_customer_generate_code($pdo);
                 $st = $pdo->prepare(
-                    'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, region_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)'
+                    'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
                 );
                 $st->execute([
                     $code,
@@ -138,6 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $tax !== '' ? $tax : null,
                     $addr !== '' ? $addr : null,
                     $regionIdDb,
+                    $regionAddressIdDb,
                     $gps['latitude'],
                     $gps['longitude'],
                     $gps['gps_accuracy'],
@@ -198,6 +217,7 @@ if ($action === 'add' || $action === 'edit') {
         'gps_at' => null,
         'sales_rep_id' => '',
         'region_id' => '',
+        'region_address_id' => '',
         'is_active' => 1,
     ];
     if ($action === 'edit') {
@@ -282,29 +302,31 @@ if ($action === 'add' || $action === 'edit') {
                     <input class="input" name="tax_number" value="<?= esc((string) ($row['tax_number'] ?? '')) ?>">
                 </label>
                 <label class="field">
-                    <span class="field-label">المنطقة / العنوان</span>
+                    <span class="field-label">المنطقة</span>
                     <select class="input" name="region_id" id="customer-region-id">
                         <option value="">— بدون منطقة —</option>
                         <?php
                         $curRegion = (int) ($row['region_id'] ?? 0);
                         foreach ($regions as $rg):
                             $rid = (int) $rg['id'];
-                            $label = (string) ($rg['label'] ?? $rg['name_ar'] ?? '');
                             ?>
-                            <option value="<?= $rid ?>"
-                                    data-address="<?= esc((string) ($rg['address_ar'] ?? '')) ?>"
-                                    <?= $curRegion === $rid ? ' selected' : '' ?>>
-                                <?= esc($label) ?>
+                            <option value="<?= $rid ?>"<?= $curRegion === $rid ? ' selected' : '' ?>>
+                                <?= esc((string) ($rg['name_ar'] ?? '')) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                     <?php if (!$regions): ?>
                         <span class="muted" style="font-size:0.85rem;display:block;margin-top:0.25rem;">
                             لا توجد مناطق — أضف من
-                            <a href="<?= esc(app_url('index.php?r=customer_regions')) ?>">مناطق العملاء</a>
-                            أو استورد Excel.
+                            <a href="<?= esc(app_url('index.php?r=customer_regions')) ?>">مناطق العملاء</a>.
                         </span>
                     <?php endif; ?>
+                </label>
+                <label class="field">
+                    <span class="field-label">العنوان (ضمن المنطقة)</span>
+                    <select class="input" name="region_address_id" id="customer-region-address-id">
+                        <option value="">— اختر المنطقة أولاً —</option>
+                    </select>
                     <span id="customer-region-address-hint" class="muted" style="font-size:0.85rem;display:block;margin-top:0.25rem;"></span>
                 </label>
             </div>
@@ -430,43 +452,67 @@ if ($action === 'add' || $action === 'edit') {
 
         (function () {
           var regionSel = document.getElementById('customer-region-id');
+          var addrSel = document.getElementById('customer-region-address-id');
           var addrHint = document.getElementById('customer-region-address-hint');
           var boxes = document.querySelectorAll('#customer-reps-checkboxes .js-customer-rep');
           var apiBase = <?= json_encode(app_url('api/sales_rep_regions.php')) ?>;
-          if (!regionSel || !boxes.length) return;
+          var addrMap = <?= json_encode($regionAddressesMap, JSON_UNESCAPED_UNICODE) ?>;
+          var initialAddrId = <?= (int) ($row['region_address_id'] ?? 0) ?>;
 
-          function updateAddressHint() {
-            if (!addrHint) return;
-            var opt = regionSel.options[regionSel.selectedIndex];
-            var a = opt ? (opt.getAttribute('data-address') || '') : '';
-            addrHint.textContent = a ? ('العنوان: ' + a) : '';
+          if (!regionSel || !addrSel) return;
+
+          function fillAddresses(regionId, preferId) {
+            addrSel.innerHTML = '';
+            var empty = document.createElement('option');
+            empty.value = '';
+            empty.textContent = regionId ? '— بدون عنوان —' : '— اختر المنطقة أولاً —';
+            addrSel.appendChild(empty);
+            var list = addrMap[regionId] || addrMap[String(regionId)] || [];
+            list.forEach(function (a) {
+              var o = document.createElement('option');
+              o.value = String(a.id);
+              o.textContent = a.name_ar || '';
+              if (preferId && parseInt(a.id, 10) === preferId) o.selected = true;
+              addrSel.appendChild(o);
+            });
+            if (addrHint) {
+              addrHint.textContent = list.length
+                ? ''
+                : (regionId ? 'لا عناوين مربوطة بهذه المنطقة بعد.' : '');
+            }
           }
 
-          regionSel.addEventListener('change', updateAddressHint);
-          updateAddressHint();
+          regionSel.addEventListener('change', function () {
+            fillAddresses(parseInt(regionSel.value, 10) || 0, 0);
+            var ta = document.querySelector('textarea[name="address_ar"]');
+            var opt = addrSel.options[addrSel.selectedIndex];
+            if (ta && opt && opt.value && !String(ta.value || '').trim()) {
+              ta.value = opt.textContent || '';
+            }
+          });
+          fillAddresses(parseInt(regionSel.value, 10) || 0, initialAddrId);
 
-          function applyRegions(regions) {
-            if (!regions || !regions.length) return;
-            // إن وُجدت منطقة واحدة للمندوب — اخترها
-            if (regions.length === 1) {
-              regionSel.value = String(regions[0].id);
-              updateAddressHint();
-              // إن كان عنوان العميل فارغاً ملّئه
-              var ta = document.querySelector('textarea[name="address_ar"]');
-              if (ta && !String(ta.value || '').trim() && regions[0].address_ar) {
-                ta.value = regions[0].address_ar;
-              }
-              return;
+          addrSel.addEventListener('change', function () {
+            var opt = addrSel.options[addrSel.selectedIndex];
+            var ta = document.querySelector('textarea[name="address_ar"]');
+            if (ta && opt && opt.value && !String(ta.value || '').trim()) {
+              ta.value = opt.textContent || '';
             }
-            // عدة مناطق: إن كانت المنطقة الحالية ليست ضمن قائمة المندوب، اختر الأولى
-            var current = parseInt(regionSel.value, 10) || 0;
-            var ids = regions.map(function (r) { return parseInt(r.id, 10); });
-            if (current && ids.indexOf(current) >= 0) {
-              updateAddressHint();
-              return;
+          });
+
+          function applyCoverage(items) {
+            if (!items || !items.length) return;
+            var first = items[0];
+            var rid = parseInt(first.region_id, 10) || 0;
+            var aid = parseInt(first.address_id || first.id, 10) || 0;
+            if (rid) {
+              regionSel.value = String(rid);
+              fillAddresses(rid, aid);
             }
-            regionSel.value = String(regions[0].id);
-            updateAddressHint();
+            var ta = document.querySelector('textarea[name="address_ar"]');
+            if (ta && !String(ta.value || '').trim() && first.address_ar) {
+              ta.value = first.address_ar;
+            }
           }
 
           function onRepChange() {
@@ -480,7 +526,7 @@ if ($action === 'add' || $action === 'edit') {
             fetch(apiBase + (apiBase.indexOf('?') >= 0 ? '&' : '?') + 'sales_rep_id=' + encodeURIComponent(String(id)), {
               credentials: 'same-origin'
             }).then(function (r) { return r.json(); }).then(function (x) {
-              if (x && x.ok) applyRegions(x.regions || []);
+              if (x && x.ok) applyCoverage(x.regions || []);
             }).catch(function () {});
           }
 

@@ -44,6 +44,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!is_array($regionIdsRaw)) {
                 $regionIdsRaw = [];
             }
+            $addressIdsRaw = $_POST['region_address_ids'] ?? [];
+            if (!is_array($addressIdsRaw)) {
+                $addressIdsRaw = [];
+            }
 
             if ($name === '') {
                 throw new RuntimeException('اسم المندوب مطلوب.');
@@ -105,7 +109,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($autoCreateWarehouse && $warehouseId === null) {
                     crm_sales_rep_ensure_custody_warehouse($pdo, $id);
                 }
-                crm_sales_rep_save_regions($pdo, $id, $regionIdsRaw);
+                if ($addressIdsRaw !== []) {
+                    crm_sales_rep_save_region_addresses($pdo, $id, $addressIdsRaw);
+                } else {
+                    crm_sales_rep_save_region_addresses($pdo, $id, []);
+                    if ($regionIdsRaw !== []) {
+                        crm_sales_rep_save_regions($pdo, $id, $regionIdsRaw);
+                    }
+                }
                 flash_set('success', 'تم تحديث بيانات المندوب.');
             } else {
                 if ($hasWhCol) {
@@ -135,7 +146,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     crm_sales_rep_ensure_custody_warehouse($pdo, $newId);
                 }
                 if ($newId > 0) {
-                    crm_sales_rep_save_regions($pdo, $newId, $regionIdsRaw);
+                    if ($addressIdsRaw !== []) {
+                        crm_sales_rep_save_region_addresses($pdo, $newId, $addressIdsRaw);
+                    } elseif ($regionIdsRaw !== []) {
+                        crm_sales_rep_save_regions($pdo, $newId, $regionIdsRaw);
+                    }
                 }
                 flash_set('success', 'تم إضافة المندوب.');
             }
@@ -192,14 +207,28 @@ if ($action === 'add' || $action === 'edit') {
         'SELECT id, code, name_ar FROM inv_warehouse WHERE is_active = 1 ORDER BY name_ar'
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $regions = crm_region_load_active($pdo);
-    $selectedRegionIds = (int) ($row['id'] ?? 0) > 0
-        ? crm_sales_rep_region_ids($pdo, (int) $row['id'])
+    $addressesMap = crm_region_addresses_map($pdo);
+    $selectedAddressIds = (int) ($row['id'] ?? 0) > 0
+        ? crm_sales_rep_region_address_ids($pdo, (int) $row['id'])
+        : [];
+    $selectedCoverage = (int) ($row['id'] ?? 0) > 0
+        ? crm_sales_rep_coverage_detail($pdo, (int) $row['id'])
         : [];
 
     $formTitle = $action === 'add' ? 'إضافة مندوب' : 'تعديل مندوب';
     ?>
     <?php sales_ora12_enqueue_assets(); ?>
-
+    <style>
+    .rep-coverage-box{border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:.75rem;background:rgba(0,0,0,.02)}
+    .rep-coverage-add{display:flex;flex-wrap:wrap;gap:.5rem;align-items:end;margin-bottom:.65rem}
+    .rep-coverage-add .field{margin:0;flex:1;min-width:10rem}
+    .rep-coverage-addrs{display:flex;flex-wrap:wrap;gap:.35rem .75rem;margin:.35rem 0 .5rem;max-height:9rem;overflow:auto}
+    .rep-coverage-addrs label{display:inline-flex;align-items:center;gap:.3rem;font-size:.9rem}
+    .rep-coverage-list{width:100%;border-collapse:collapse;font-size:.9rem}
+    .rep-coverage-list th,.rep-coverage-list td{padding:.4rem .5rem;border-bottom:1px solid rgba(0,0,0,.07);text-align:right}
+    .rep-coverage-list th{background:rgba(0,0,0,.03)}
+    .rep-cov-empty{color:#888;font-size:.9rem;margin:.4rem 0}
+    </style>
     <div class="dashboard-ora sales-ora12-screen sales-reps-ora-screen sales-reps-ora-form-page">
         <?php sales_ora12_render_title_bar($formTitle); ?>
         <?php sales_ora12_workspace_open(); ?>
@@ -212,10 +241,15 @@ if ($action === 'add' || $action === 'edit') {
         </div>
 
         <div class="sales-ora-panel card">
-        <form method="post" action="<?= esc($listUrl) ?>" class="form-grid">
+        <form method="post" action="<?= esc($listUrl) ?>" class="form-grid" id="sales-rep-form">
             <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
             <input type="hidden" name="_action" value="save">
             <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
+            <div id="rep-coverage-hiddens">
+                <?php foreach ($selectedAddressIds as $aid): ?>
+                    <input type="hidden" name="region_address_ids[]" value="<?= (int) $aid ?>" data-aid="<?= (int) $aid ?>">
+                <?php endforeach; ?>
+            </div>
 
             <label class="field">
                 <span class="field-label">اسم المندوب *</span>
@@ -228,29 +262,58 @@ if ($action === 'add' || $action === 'edit') {
             </label>
 
             <label class="field">
-                <span class="field-label">العنوان</span>
-                <textarea class="input" name="address_ar" rows="3"><?= esc((string) ($row['address_ar'] ?? '')) ?></textarea>
+                <span class="field-label">العنوان الشخصي (اختياري)</span>
+                <textarea class="input" name="address_ar" rows="2"><?= esc((string) ($row['address_ar'] ?? '')) ?></textarea>
             </label>
 
             <fieldset class="field customers-reps-field">
-                <legend class="field-label">المناطق التي يغطيها المندوب</legend>
+                <legend class="field-label">تغطية المناطق والعناوين</legend>
                 <?php if (!$regions): ?>
                     <p class="muted">
                         لا توجد مناطق —
-                        <a href="<?= esc(app_url('index.php?r=customer_regions')) ?>">أضف مناطقًا أولاً</a>.
+                        <a href="<?= esc(app_url('index.php?r=customer_regions')) ?>">عرّف المناطق والعناوين أولاً</a>.
                     </p>
                 <?php else: ?>
-                    <p class="muted" style="margin:0 0 0.45rem;font-size:0.85rem;">
-                        اختر منطقة أو أكثر (مثال: الزرقاء، طبربور).
-                    </p>
-                    <div class="customers-reps-checkboxes">
-                        <?php foreach ($regions as $rg): ?>
-                            <label class="customers-rep-check">
-                                <input type="checkbox" name="region_ids[]" value="<?= (int) $rg['id'] ?>"
-                                    <?= in_array((int) $rg['id'], $selectedRegionIds, true) ? ' checked' : '' ?>>
-                                <?= esc((string) $rg['name_ar']) ?>
+                    <div class="rep-coverage-box">
+                        <p class="muted" style="margin:0 0 .5rem;font-size:.85rem;">
+                            اختر <strong>المنطقة</strong> فتظهر عناوينها، ثم أضف العناوين المختارة. يمكن تكرار العملية لمنطقة أخرى.
+                        </p>
+                        <div class="rep-coverage-add">
+                            <label class="field">
+                                <span class="field-label">المنطقة</span>
+                                <select class="input" id="rep-pick-region">
+                                    <option value="">— اختر منطقة —</option>
+                                    <?php foreach ($regions as $rg): ?>
+                                        <option value="<?= (int) $rg['id'] ?>"><?= esc((string) $rg['name_ar']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </label>
-                        <?php endforeach; ?>
+                        </div>
+                        <div id="rep-pick-addrs" class="rep-coverage-addrs"></div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="rep-add-coverage">➕ إضافة العناوين المحددة للتغطية</button>
+
+                        <h4 style="margin:1rem 0 .4rem;font-size:.95rem;">التغطية الحالية</h4>
+                        <table class="rep-coverage-list" id="rep-coverage-table">
+                            <thead>
+                            <tr><th>المنطقة</th><th>العنوان</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                            <?php if (!$selectedCoverage): ?>
+                                <tr class="rep-cov-empty-row"><td colspan="3" class="rep-cov-empty">لم تُضف مناطق/عناوين بعد.</td></tr>
+                            <?php endif; ?>
+                            <?php foreach ($selectedCoverage as $cv):
+                                if ((int) ($cv['address_id'] ?? 0) < 1) {
+                                    continue;
+                                }
+                                ?>
+                                <tr data-aid="<?= (int) $cv['address_id'] ?>">
+                                    <td><?= esc((string) ($cv['region_name'] ?? $cv['name_ar'] ?? '')) ?></td>
+                                    <td><?= esc((string) ($cv['address_ar'] ?? '')) ?></td>
+                                    <td><button type="button" class="btn btn-danger btn-sm js-rep-cov-remove">إزالة</button></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
                 <?php endif; ?>
             </fieldset>
@@ -286,6 +349,112 @@ if ($action === 'add' || $action === 'edit') {
             </div>
         </form>
         </div>
+        <?php if ($regions): ?>
+        <script>
+        (function () {
+          var map = <?= json_encode($addressesMap, JSON_UNESCAPED_UNICODE) ?>;
+          var regionNames = {};
+          <?php foreach ($regions as $rg): ?>
+          regionNames[<?= (int) $rg['id'] ?>] = <?= json_encode((string) $rg['name_ar'], JSON_UNESCAPED_UNICODE) ?>;
+          <?php endforeach; ?>
+
+          var regionSel = document.getElementById('rep-pick-region');
+          var addrsBox = document.getElementById('rep-pick-addrs');
+          var addBtn = document.getElementById('rep-add-coverage');
+          var tbody = document.querySelector('#rep-coverage-table tbody');
+          var hiddens = document.getElementById('rep-coverage-hiddens');
+
+          function hasAid(aid) {
+            return !!hiddens.querySelector('input[data-aid="' + aid + '"]');
+          }
+
+          function renderAddrs() {
+            addrsBox.innerHTML = '';
+            var rid = parseInt(regionSel.value, 10) || 0;
+            if (!rid || !map[rid] || !map[rid].length) {
+              addrsBox.innerHTML = '<span class="muted" style="font-size:.85rem;">لا عناوين مربوطة بهذه المنطقة — عرّفها من شاشة المناطق.</span>';
+              return;
+            }
+            map[rid].forEach(function (a) {
+              var id = parseInt(a.id, 10);
+              var lab = document.createElement('label');
+              var cb = document.createElement('input');
+              cb.type = 'checkbox';
+              cb.value = String(id);
+              cb.disabled = hasAid(id);
+              lab.appendChild(cb);
+              lab.appendChild(document.createTextNode(' ' + (a.name_ar || '')));
+              addrsBox.appendChild(lab);
+            });
+          }
+
+          function removeEmptyRow() {
+            var er = tbody.querySelector('.rep-cov-empty-row');
+            if (er) er.remove();
+          }
+
+          function ensureEmpty() {
+            if (!tbody.querySelector('tr[data-aid]')) {
+              tbody.innerHTML = '<tr class="rep-cov-empty-row"><td colspan="3" class="rep-cov-empty">لم تُضف مناطق/عناوين بعد.</td></tr>';
+            }
+          }
+
+          function addCoverage(aid, regionId, addrName) {
+            aid = parseInt(aid, 10);
+            if (!aid || hasAid(aid)) return;
+            removeEmptyRow();
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'region_address_ids[]';
+            inp.value = String(aid);
+            inp.setAttribute('data-aid', String(aid));
+            hiddens.appendChild(inp);
+
+            var tr = document.createElement('tr');
+            tr.setAttribute('data-aid', String(aid));
+            tr.innerHTML = '<td></td><td></td><td><button type="button" class="btn btn-danger btn-sm js-rep-cov-remove">إزالة</button></td>';
+            tr.cells[0].textContent = regionNames[regionId] || '';
+            tr.cells[1].textContent = addrName || '';
+            tbody.appendChild(tr);
+          }
+
+          function removeCoverage(aid) {
+            var h = hiddens.querySelector('input[data-aid="' + aid + '"]');
+            if (h) h.remove();
+            var tr = tbody.querySelector('tr[data-aid="' + aid + '"]');
+            if (tr) tr.remove();
+            ensureEmpty();
+            renderAddrs();
+          }
+
+          if (regionSel) regionSel.addEventListener('change', renderAddrs);
+          if (addBtn) {
+            addBtn.addEventListener('click', function () {
+              var rid = parseInt(regionSel.value, 10) || 0;
+              if (!rid) { alert('اختر المنطقة أولاً'); return; }
+              var checks = addrsBox.querySelectorAll('input[type="checkbox"]:checked:not(:disabled)');
+              if (!checks.length) { alert('اختر عنواناً واحداً على الأقل'); return; }
+              checks.forEach(function (cb) {
+                var lab = cb.parentNode;
+                var name = lab ? lab.textContent.replace(/^\s+/, '').trim() : '';
+                addCoverage(cb.value, rid, name);
+              });
+              renderAddrs();
+            });
+          }
+          if (tbody) {
+            tbody.addEventListener('click', function (e) {
+              var btn = e.target.closest('.js-rep-cov-remove');
+              if (!btn) return;
+              var tr = btn.closest('tr[data-aid]');
+              if (!tr) return;
+              removeCoverage(tr.getAttribute('data-aid'));
+            });
+          }
+          renderAddrs();
+        })();
+        </script>
+        <?php endif; ?>
         <?php sales_ora12_workspace_close(); ?>
     </div>
     <?php
@@ -294,10 +463,11 @@ if ($action === 'add' || $action === 'edit') {
 
 $search = trim((string) ($_GET['q'] ?? ''));
 
-$regionNamesSub = '(SELECT GROUP_CONCAT(rg.name_ar ORDER BY srr.sort_order, rg.name_ar SEPARATOR \'، \')
-                   FROM crm_sales_rep_region srr
-                   INNER JOIN crm_region rg ON rg.id = srr.region_id
-                   WHERE srr.sales_rep_id = r.id)';
+$regionNamesSub = '(SELECT GROUP_CONCAT(DISTINCT CONCAT(rg.name_ar, \' — \', a.name_ar) ORDER BY rg.name_ar, a.name_ar SEPARATOR \'، \')
+                   FROM crm_sales_rep_region_address sra
+                   INNER JOIN crm_region_address a ON a.id = sra.region_address_id
+                   INNER JOIN crm_region rg ON rg.id = a.region_id
+                   WHERE sra.sales_rep_id = r.id)';
 
 $sql = "SELECT r.id, r.code, r.name_ar, r.phone, r.address_ar, r.is_active, r.created_at,
         w.name_ar AS warehouse_name_ar, w.code AS warehouse_code,

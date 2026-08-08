@@ -180,57 +180,33 @@ function crm_region_excel_cell(array $row, array $map, string $key): string
 }
 
 /**
- * إيجاد أو إنشاء منطقة (الاسم + العنوان).
+ * إيجاد أو إنشاء منطقة بالاسم فقط (العنوان يُربط عبر crm_region_address).
+ * المعامل الثاني اختياري للتوافق مع الاستدعاءات القديمة — يُنشئ عنواناً ويُرجِع region_id.
  */
 function crm_region_find_or_create(PDO $pdo, string $nameAr, string $addressAr = '', ?int $sortHint = null): int
 {
-    crm_region_ensure_schema($pdo);
-    $nameAr = trim($nameAr);
+    $regionId = crm_region_find_or_create_by_name($pdo, $nameAr, $sortHint);
     $addressAr = trim($addressAr);
-    if ($nameAr === '') {
-        throw new RuntimeException('اسم المنطقة فارغ.');
-    }
-
     if ($addressAr !== '') {
-        $st = $pdo->prepare(
-            'SELECT id FROM crm_region WHERE name_ar = ? AND COALESCE(address_ar, \'\') = ? LIMIT 1'
-        );
-        $st->execute([$nameAr, $addressAr]);
-    } else {
-        $st = $pdo->prepare(
-            'SELECT id FROM crm_region WHERE name_ar = ? AND (address_ar IS NULL OR address_ar = \'\') LIMIT 1'
-        );
-        $st->execute([$nameAr]);
-    }
-    $id = (int) $st->fetchColumn();
-    if ($id > 0) {
-        // تفعيل إن كانت موقوفة
-        $pdo->prepare('UPDATE crm_region SET is_active = 1 WHERE id = ?')->execute([$id]);
-
-        return $id;
+        crm_region_address_find_or_create($pdo, $regionId, $addressAr, $sortHint);
     }
 
-    $n = (int) $pdo->query('SELECT IFNULL(MAX(id), 0) FROM crm_region')->fetchColumn();
-    $code = 'R' . str_pad((string) ($n + 1), 4, '0', STR_PAD_LEFT);
-    // تأكد من فرادة الرمز
-    $try = 0;
-    while ($try < 50) {
-        $chk = $pdo->prepare('SELECT id FROM crm_region WHERE code = ? LIMIT 1');
-        $chk->execute([$code]);
-        if (!$chk->fetch()) {
-            break;
-        }
-        $try++;
-        $code = 'R' . str_pad((string) ($n + 1 + $try), 4, '0', STR_PAD_LEFT);
+    return $regionId;
+}
+
+/**
+ * @return array{region_id:int,address_id:int}
+ */
+function crm_region_with_address_find_or_create(PDO $pdo, string $regionName, string $addressName, ?int $sortHint = null): array
+{
+    $regionId = crm_region_find_or_create_by_name($pdo, $regionName, $sortHint);
+    $addressId = 0;
+    $addressName = trim($addressName);
+    if ($addressName !== '') {
+        $addressId = crm_region_address_find_or_create($pdo, $regionId, $addressName, $sortHint);
     }
 
-    $sort = $sortHint !== null ? $sortHint : (($n + 1) * 10);
-    $ins = $pdo->prepare(
-        'INSERT INTO crm_region (code, name_ar, address_ar, sort_order, is_active) VALUES (?,?,?,?,1)'
-    );
-    $ins->execute([$code, $nameAr, $addressAr !== '' ? $addressAr : null, $sort]);
-
-    return (int) $pdo->lastInsertId();
+    return ['region_id' => $regionId, 'address_id' => $addressId];
 }
 
 /**
@@ -396,24 +372,28 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
         'reps_created' => 0,
         'reps_linked' => 0,
         'regions_created' => 0,
+        'addresses_created' => 0,
         'regions_used' => 0,
         'customers_linked' => 0,
         'customers_missing' => 0,
         'skipped' => 0,
     ];
     $warnings = [];
-    $repRegionPairs = []; // "repId:regionId" => true
+    $repAddrPairs = []; // "repId:addressId" => true
     $existingRepNames = [];
-    $existingRegionKeys = [];
+    $existingRegionNames = [];
+    $existingAddrKeys = []; // "regionId|addr" => id
 
-    // snapshot موجود مسبقاً
     try {
         foreach ($pdo->query('SELECT id, name_ar FROM crm_sales_rep')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
             $existingRepNames[mb_strtolower(trim((string) $r['name_ar']), 'UTF-8')] = (int) $r['id'];
         }
-        foreach ($pdo->query('SELECT id, name_ar, address_ar FROM crm_region')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-            $key = mb_strtolower(trim((string) $r['name_ar']) . '|' . trim((string) ($r['address_ar'] ?? '')), 'UTF-8');
-            $existingRegionKeys[$key] = (int) $r['id'];
+        foreach ($pdo->query('SELECT id, name_ar FROM crm_region')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $existingRegionNames[mb_strtolower(trim((string) $r['name_ar']), 'UTF-8')] = (int) $r['id'];
+        }
+        foreach ($pdo->query('SELECT id, region_id, name_ar FROM crm_region_address')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $key = (int) $r['region_id'] . '|' . mb_strtolower(trim((string) $r['name_ar']), 'UTF-8');
+            $existingAddrKeys[$key] = (int) $r['id'];
         }
     } catch (Throwable $e) {
         //
@@ -432,24 +412,29 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
             $custCode = crm_region_excel_normalize_code(crm_region_excel_cell($row, $map, 'customer_code'));
             $custName = crm_region_excel_cell($row, $map, 'customer_name');
 
-            // إن كان الجدول فقط مناطق/مندوب بدون أسماء أعمدة واضحة
-            if ($regionName === '' && isset($row[0])) {
-                // skip — already mapped
-            }
-
             if ($regionName === '' && $repName === '' && $custCode === '' && $custName === '') {
                 $stats['skipped']++;
                 continue;
             }
 
             $regionId = 0;
+            $addressId = 0;
             if ($regionName !== '') {
-                $rkey = mb_strtolower($regionName . '|' . $address, 'UTF-8');
-                $before = $existingRegionKeys[$rkey] ?? 0;
-                $regionId = crm_region_find_or_create($pdo, $regionName, $address, ($ri + 1) * 10);
-                if ($before < 1) {
+                $rnKey = mb_strtolower($regionName, 'UTF-8');
+                $wasNewRegion = !isset($existingRegionNames[$rnKey]);
+                $pair = crm_region_with_address_find_or_create($pdo, $regionName, $address, ($ri + 1) * 10);
+                $regionId = (int) $pair['region_id'];
+                $addressId = (int) $pair['address_id'];
+                if ($wasNewRegion) {
                     $stats['regions_created']++;
-                    $existingRegionKeys[$rkey] = $regionId;
+                    $existingRegionNames[$rnKey] = $regionId;
+                }
+                if ($addressId > 0) {
+                    $ak = $regionId . '|' . mb_strtolower($address, 'UTF-8');
+                    if (!isset($existingAddrKeys[$ak])) {
+                        $stats['addresses_created']++;
+                        $existingAddrKeys[$ak] = $addressId;
+                    }
                 }
                 $stats['regions_used']++;
             }
@@ -465,20 +450,28 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
                 }
             }
 
-            if ($repId > 0 && $regionId > 0) {
-                $pair = $repId . ':' . $regionId;
-                if (!isset($repRegionPairs[$pair])) {
-                    // إضافة المنطقة للمندوب دون حذف بقية مناطقه
-                    $ids = crm_sales_rep_region_ids($pdo, $repId);
-                    if (!in_array($regionId, $ids, true)) {
-                        $ids[] = $regionId;
-                        crm_sales_rep_save_regions($pdo, $repId, $ids);
+            // ربط المندوب بالمنطقة+العنوان (عدة مناطق/عناوين)
+            if ($repId > 0 && $addressId > 0) {
+                $pairKey = $repId . ':' . $addressId;
+                if (!isset($repAddrPairs[$pairKey])) {
+                    $ids = crm_sales_rep_region_address_ids($pdo, $repId);
+                    if (!in_array($addressId, $ids, true)) {
+                        $ids[] = $addressId;
+                        crm_sales_rep_save_region_addresses($pdo, $repId, $ids);
                     }
-                    $repRegionPairs[$pair] = true;
+                    $repAddrPairs[$pairKey] = true;
+                    $stats['reps_linked']++;
+                }
+            } elseif ($repId > 0 && $regionId > 0) {
+                $ids = crm_sales_rep_region_ids($pdo, $repId);
+                if (!in_array($regionId, $ids, true)) {
+                    $ids[] = $regionId;
+                    crm_sales_rep_save_regions($pdo, $repId, $ids);
                     $stats['reps_linked']++;
                 }
             }
 
+            // ربط العميل بالمندوب حسب رقم العميل
             if ($custCode !== '' || $custName !== '') {
                 $customerId = crm_customer_find_for_import($pdo, $custCode, $custName);
                 if ($customerId === null) {
@@ -488,13 +481,17 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
                     }
                 } else {
                     if ($regionId > 0) {
-                        $pdo->prepare('UPDATE crm_customer SET region_id = ? WHERE id = ?')
-                            ->execute([$regionId, $customerId]);
+                        $pdo->prepare(
+                            'UPDATE crm_customer SET region_id = ?, region_address_id = ? WHERE id = ?'
+                        )->execute([
+                            $regionId,
+                            $addressId > 0 ? $addressId : null,
+                            $customerId,
+                        ]);
                     }
                     if ($repId > 0) {
                         crm_customer_link_sales_rep($pdo, $customerId, $repId, $replaceCustomerReps);
                     }
-                    // تحديث عنوان العميل من عنوان المنطقة إن كان فارغاً
                     if ($address !== '') {
                         $pdo->prepare(
                             'UPDATE crm_customer SET address_ar = COALESCE(NULLIF(TRIM(address_ar), \'\'), ?) WHERE id = ?'
@@ -514,11 +511,12 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
     }
 
     $msg = sprintf(
-        'تم الاستيراد من «%s»: صفوف %d — مندوبون جدد %d — مناطق جديدة %d — عملاء مربوطون %d — عملاء غير موجودين %d.',
+        'تم الاستيراد من «%s»: صفوف %d — مندوبون جدد %d — مناطق جديدة %d — عناوين جديدة %d — عملاء مربوطون بالمندوب %d — عملاء غير موجودين %d.',
         basename($resolved),
         $stats['rows'],
         $stats['reps_created'],
         $stats['regions_created'],
+        $stats['addresses_created'],
         $stats['customers_linked'],
         $stats['customers_missing']
     );
@@ -533,41 +531,4 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
     ];
 }
 
-/**
- * مناطق مندوب مع العنوان — للاستخدام في واجهة العميل.
- *
- * @return list<array{id:int,name_ar:string,address_ar:string,label:string}>
- */
-function crm_sales_rep_regions_detail(PDO $pdo, int $salesRepId): array
-{
-    if ($salesRepId < 1) {
-        return [];
-    }
-    crm_sales_rep_region_ensure_schema($pdo);
-    try {
-        $st = $pdo->prepare(
-            'SELECT rg.id, rg.name_ar, COALESCE(rg.address_ar, \'\') AS address_ar
-             FROM crm_sales_rep_region srr
-             INNER JOIN crm_region rg ON rg.id = srr.region_id
-             WHERE srr.sales_rep_id = ? AND rg.is_active = 1
-             ORDER BY srr.sort_order ASC, rg.name_ar ASC'
-        );
-        $st->execute([$salesRepId]);
-        $out = [];
-        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
-            $name = (string) ($r['name_ar'] ?? '');
-            $addr = trim((string) ($r['address_ar'] ?? ''));
-            $label = $addr !== '' ? ($name . ' — ' . $addr) : $name;
-            $out[] = [
-                'id' => (int) ($r['id'] ?? 0),
-                'name_ar' => $name,
-                'address_ar' => $addr,
-                'label' => $label,
-            ];
-        }
-
-        return $out;
-    } catch (Throwable $e) {
-        return [];
-    }
-}
+// crm_sales_rep_regions_detail معرّف في crm_region.php
