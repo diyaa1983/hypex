@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * إنشاء / تعديل مسودة طلب شراء عميل (ديسكتوب) — واجهة حديثة.
+ * إنشاء / تعديل مسودة طلب شراء عميل — واجهة سند (مثل شاشات التسليم/الفواتير).
  */
 require_once app_path('includes/sal_customer_order.php');
 require_once app_path('includes/inv_item_units.php');
@@ -12,6 +12,8 @@ require_once app_path('includes/crm_sales_rep_schema.php');
 require_once app_path('includes/item_picker.php');
 require_once app_path('includes/customer_picker.php');
 require_once app_path('includes/warehouse_access.php');
+require_once app_path('includes/nav_helpers.php');
+require_once app_path('includes/app_icons.php');
 
 if (!sal_customer_order_user_can_edit_drafts()) {
     require_permission('sales_customer_orders');
@@ -100,166 +102,221 @@ $newUrl = user_can('sales_customer_orders')
     ? app_url('index.php?r=sales_customer_order_entry')
     : app_url('index.php?r=sales_customer_order_entry_approve');
 $entryUrl = $newUrl;
+$activeRoute = (string) ($GLOBALS['activeRoute'] ?? 'sales_customer_order_entry');
 if (isset($_GET['r']) && (string) $_GET['r'] === 'sales_customer_order_entry_approve') {
     $entryUrl = app_url('index.php?r=sales_customer_order_entry_approve');
     $newUrl = $entryUrl;
+    $activeRoute = 'sales_customer_order_entry_approve';
+}
+if (!in_array($activeRoute, ['sales_customer_order_entry', 'sales_customer_order_entry_approve'], true)) {
+    $activeRoute = 'sales_customer_order_entry';
 }
 
-$cssInvPath = app_path('assets/css/sales-invoice.css');
-$cssInv = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
-$cssModernPath = app_path('assets/css/customer-order-modern.css');
-$cssModern = app_url('assets/css/customer-order-modern.css') . (is_file($cssModernPath) ? '?v=' . (string) filemtime($cssModernPath) : '');
+$exitUrl = nav_exit_url($activeRoute);
+$screenTitle = 'طلب شراء عميل';
+$isNew = !$order;
+$flash = flash_get();
+
+$cssDocPath = app_path('assets/css/customer-order-doc.css');
+$cssDoc = app_url('assets/css/customer-order-doc.css') . (is_file($cssDocPath) ? '?v=' . (string) filemtime($cssDocPath) : '');
 $jsDiscPath = app_path('assets/js/inv-invoice-discount.js');
 $jsDisc = app_url('assets/js/inv-invoice-discount.js') . (is_readable($jsDiscPath) ? '?v=' . (string) filemtime($jsDiscPath) : '1');
 $jsCoPath = app_path('assets/js/customer-order-lines.js');
 $jsCo = app_url('assets/js/customer-order-lines.js') . (is_readable($jsCoPath) ? '?v=' . (string) filemtime($jsCoPath) : '1');
 
-$activeRoute = (string) ($GLOBALS['activeRoute'] ?? 'sales_customer_order_entry');
-if (!in_array($activeRoute, ['sales_customer_order_entry', 'sales_customer_order_entry_approve'], true)) {
-    $activeRoute = 'sales_customer_order_entry';
-}
-
-$screenTitle = $order ? 'تعديل طلب شراء عميل' : 'طلب شراء عميل جديد';
-$isNew = !$order;
-
-// لا نحمّل sales-oracle12 الثقيل — خلفية حديثة فقط + سلوك الجدول
-sales_ora12_enqueue_assets();
+require_once app_path('includes/inv_invoice_line_table.php');
+sales_inv_oracle12_enqueue_assets();
 customer_picker_json_script($customers, 'co-entry-customers-json');
 ?>
-<link rel="stylesheet" href="<?= esc($cssInv) ?>">
-<link rel="stylesheet" href="<?= esc($cssModern) ?>">
+<link rel="stylesheet" href="<?= esc($cssDoc) ?>">
 
-<div class="dashboard-ora co-modern" data-exit-guard="custom">
-<?php sales_ora12_render_title_bar($screenTitle, $orderNo !== '' ? $orderNo : '', $activeRoute); ?>
-<?php sales_ora12_workspace_open(); ?>
+<div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main co-doc" data-exit-guard="custom">
+    <header class="dashboard-ora-screen-title no-print" role="banner">
+        <div class="dashboard-ora-screen-title__group">
+            <h1 class="dashboard-ora-screen-title__text"><?= esc($screenTitle) ?></h1>
+            <div class="sales-inv-title-actions no-print">
+                <a class="dashboard-ora-screen-title__action sales-inv-btn-new sales-inv-title-new"
+                   href="<?= esc($newUrl) ?>">+ طلب جديد</a>
+            </div>
+        </div>
+        <span class="dashboard-ora-screen-title__meta sales-inv-status-badges">
+            <span class="sales-inv-posted-badge badge badge-warn">
+                <?= $isNew ? 'مسودة جديدة' : 'مسودة' ?>
+            </span>
+            <?php if ($orderNo !== ''): ?>
+                <span class="sales-inv-posted-badge"><?= esc($orderNo) ?></span>
+            <?php endif; ?>
+        </span>
+        <?php nav_render_screen_close($activeRoute); ?>
+    </header>
 
-<div class="co-modern__topbar no-print">
-    <nav class="co-modern__nav" aria-label="تنقل الطلب">
-        <a class="co-modern__chip co-modern__chip--primary" href="<?= esc($newUrl) ?>">+ طلب جديد</a>
-        <a class="co-modern__chip" href="<?= esc($listUrl) ?>">قائمة الطلبات</a>
-        <?php if (user_can('sales_customer_orders_approve')): ?>
-            <a class="co-modern__chip" href="<?= esc(app_url('index.php?r=sales_customer_orders_approve')) ?>">اعتماد الطلبات</a>
+    <div class="dashboard-ora-workspace">
+        <?php if ($flash): ?>
+            <div class="alert no-print alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-inv-grid-flash"><?= esc($flash['message']) ?></div>
         <?php endif; ?>
-    </nav>
-    <span class="co-modern__status <?= $isNew ? 'is-draft' : 'is-draft' ?>">
-        <?= $isNew ? 'مسودة جديدة' : 'مسودة — قابلة للتعديل' ?>
-    </span>
-</div>
 
-<form id="customer-order-form" class="master-page-form co-modern__doc"
-      data-decimals="<?= (int) $dp ?>"
-      data-unit-price-decimals="<?= (int) $unitPriceDp ?>"
-      data-default-tax-rate="<?= esc((string) $defaultTax) ?>"
-      data-warehouse-id="<?= (int) $warehouseId ?>"
-      data-api-items="<?= esc(app_url('api/items_search.php')) ?>"
-      data-invoice-discount="<?= esc($headerDisc) ?>">
-    <input type="hidden" id="order-id" value="<?= (int) ($order['id'] ?? 0) ?>">
-
-    <section class="co-modern__section no-print">
-        <div class="co-modern__section-head">
-            <h2 class="co-modern__section-title">بيانات الطلب</h2>
-        </div>
-        <div class="co-modern__meta">
-            <div class="co-modern__field">
-                <label for="co_order_no">رقم الطلب</label>
-                <input class="input" type="text" id="co_order_no"
-                       value="<?= esc($orderNo) ?>" placeholder="يُولَّد عند الحفظ" readonly>
-            </div>
-            <div class="co-modern__field">
-                <label for="order-date">التاريخ</label>
-                <input class="input js-date-dmy" type="text" id="order-date"
-                       value="<?= esc(format_date_dmY($orderDate)) ?>"
-                       placeholder="يوم-شهر-سنة" dir="ltr"
-                       autocomplete="off" inputmode="numeric" required>
-            </div>
-            <?= customer_picker_field([
-                'id' => 'co_customer',
-                'label' => 'العميل',
-                'compact' => true,
-                'wrapper_class' => 'co-modern__field co-modern__field--customer',
-                'json_id' => 'co-entry-customers-json',
-                'manual_bind' => false,
-                'hotkey' => 'F7',
-                'value' => $customerIdSel > 0 ? (string) $customerIdSel : '',
-            ]) ?>
-            <div class="co-modern__field">
-                <label for="co_sales_rep">المندوب</label>
-                <select class="input" id="co_sales_rep" name="sales_rep_id">
-                    <option value="">— بدون مندوب —</option>
-                    <?php foreach ($salesReps as $rep): ?>
-                        <option value="<?= (int) $rep['id'] ?>" <?= $salesRepSel === (int) $rep['id'] ? 'selected' : '' ?>>
-                            <?= esc((string) $rep['name_ar']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="co-modern__field">
-                <label for="warehouse-id">المستودع</label>
-                <select class="input" id="warehouse-id" required>
-                    <option value="">— المستودع —</option>
-                    <?php foreach ($warehouses as $w): ?>
-                        <option value="<?= (int) $w['id'] ?>" <?= $warehouseId === (int) $w['id'] ? 'selected' : '' ?>>
-                            <?= esc((string) $w['name_ar']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-        </div>
-    </section>
-
-    <section class="co-modern__section">
-        <div class="co-modern__section-head no-print">
-            <h2 class="co-modern__section-title">بنود الطلب</h2>
-            <div class="co-modern__section-actions">
-                <button type="button" id="co-add-item" class="co-modern__btn co-modern__btn--accent">+ إضافة مادة</button>
-            </div>
-        </div>
-        <div class="sales-inv-table-wrap" id="sales-inv-table-wrap">
-            <table class="sales-inv-table">
-                <thead>
-                <?php
-                require_once app_path('includes/inv_invoice_line_table.php');
-                inv_invoice_line_table_head(false);
-                ?>
-                </thead>
-                <tbody id="co-lines-body"></tbody>
-            </table>
-        </div>
-
-        <div class="co-modern__footer">
-            <div class="co-modern__notes">
-                <label for="inv_notes">ملاحظات</label>
-                <textarea class="input" name="notes" id="inv_notes" rows="4" placeholder="ملاحظات اختيارية على الطلب…"><?= esc($notes) ?></textarea>
-                <p id="co-message" class="co-modern__msg muted"></p>
-            </div>
-            <div class="co-modern__totals sales-inv-totals">
-                <div class="row sales-inv-totals-disc">
-                    <label for="inv-invoice-discount">خصم الطلب (كامل) <span class="sales-inv-disc-hint">10 أو 10% أو مبلغ</span></label>
-                    <input type="text" class="input input-compact input-num" name="invoice_discount" id="inv-invoice-discount"
-                           value="<?= esc($headerDisc) ?>" title="خصم على مستوى الطلب كامل" autocomplete="off">
-                </div>
-                <div class="row sales-inv-totals-header-disc" id="sales-inv-header-disc-row" hidden>
-                    <span>قيمة خصم مستوى الطلب</span>
-                    <span id="sales-inv-sum-header-disc"><?= esc(format_amount(0)) ?></span>
-                </div>
-                <div class="row"><span>مجموع الخصم</span><span id="sales-inv-sum-disc"><?= esc(format_amount((float) ($order['discount_amount'] ?? 0))) ?></span></div>
-                <div class="row"><span>المجموع بدون ضريبة</span><span id="sales-inv-sum-sub"><?= esc(format_amount((float) ($order['subtotal'] ?? 0))) ?></span></div>
-                <div class="row"><span>مجموع الضريبة</span><span id="sales-inv-sum-tax"><?= esc(format_amount((float) ($order['tax_amount'] ?? 0))) ?></span></div>
-                <div class="row grand"><span>الإجمالي</span><span id="sales-inv-sum-grand"><?= esc(format_amount((float) ($order['total'] ?? 0))) ?></span></div>
-            </div>
-        </div>
-
-        <div class="form-row no-print sr-only" aria-hidden="true">
-            <button type="button" id="co-save" class="btn btn-primary">حفظ</button>
+        <!-- شريط أوامر كشاشة السند -->
+        <div class="co-doc-toolbar no-print" role="toolbar" aria-label="أوامر الطلب">
+            <a class="co-tb-btn co-tb-btn--ok" href="<?= esc($newUrl) ?>" title="طلب جديد">
+                <span class="co-tb-ico">＋</span><span>جديد</span>
+            </a>
+            <button type="button" class="co-tb-btn co-tb-btn--ok" id="co-save" title="حفظ">
+                <span class="co-tb-ico">✓</span><span>حفظ</span>
+            </button>
             <?php if ($canApprove): ?>
-                <button type="button" id="co-approve" class="btn btn-success">اعتماد</button>
+                <button type="button" class="co-tb-btn co-tb-btn--ok" id="co-approve" title="اعتماد">
+                    <span class="co-tb-ico">✔</span><span>اعتماد</span>
+                </button>
             <?php endif; ?>
-            <?php if ($canDelete && $id > 0): ?>
-                <button type="button" id="co-delete" class="btn btn-secondary">حذف</button>
+            <?php if ($canDelete): ?>
+                <button type="button" class="co-tb-btn co-tb-btn--danger" id="co-delete" title="حذف" <?= $isNew ? 'disabled' : '' ?>>
+                    <span class="co-tb-ico">✕</span><span>حذف</span>
+                </button>
+            <?php else: ?>
+                <button type="button" class="co-tb-btn co-tb-btn--danger" id="co-delete" hidden disabled></button>
             <?php endif; ?>
+            <a class="co-tb-btn" href="<?= esc($listUrl) ?>" title="بحث / قائمة الطلبات">
+                <span class="co-tb-ico">⌕</span><span>بحث</span>
+            </a>
+            <?php if (user_can('sales_customer_orders_approve')): ?>
+                <a class="co-tb-btn" href="<?= esc(app_url('index.php?r=sales_customer_orders_approve')) ?>" title="اعتماد الطلبات">
+                    <span class="co-tb-ico">▤</span><span>اعتمادات</span>
+                </a>
+            <?php endif; ?>
+            <a class="co-tb-btn co-tb-btn--exit" href="<?= esc($exitUrl) ?>" title="خروج">
+                <span class="co-tb-ico">↩</span><span>خروج</span>
+            </a>
         </div>
-    </section>
-</form>
+
+        <form id="customer-order-form" class="master-page-form co-doc-form"
+              data-decimals="<?= (int) $dp ?>"
+              data-unit-price-decimals="<?= (int) $unitPriceDp ?>"
+              data-default-tax-rate="<?= esc((string) $defaultTax) ?>"
+              data-warehouse-id="<?= (int) $warehouseId ?>"
+              data-api-items="<?= esc(app_url('api/items_search.php')) ?>"
+              data-invoice-discount="<?= esc($headerDisc) ?>">
+            <input type="hidden" id="order-id" value="<?= (int) ($order['id'] ?? 0) ?>">
+
+            <section class="dashboard-ora-panel no-print">
+                <h2 class="dashboard-ora-panel__title">بيانات السند</h2>
+                <div class="dashboard-ora-panel__body">
+                    <header class="sales-inv-doc-header sales-inv-meta-panel">
+                        <div class="sales-inv-meta-row">
+                            <div class="sales-inv-meta-item sales-inv-meta-no">
+                                <label for="co_order_no">رقم السند</label>
+                                <div class="sales-inv-no-nav">
+                                    <a class="sales-inv-no-arrow" href="<?= esc($listUrl) ?>" title="قائمة الطلبات" aria-label="بحث">‹</a>
+                                    <input class="input input-compact sales-inv-no-input" type="text" id="co_order_no"
+                                           value="<?= esc($orderNo) ?>" placeholder="يُولَّد عند الحفظ" readonly>
+                                    <a class="sales-inv-no-arrow" href="<?= esc($newUrl) ?>" title="طلب جديد" aria-label="جديد">›</a>
+                                </div>
+                            </div>
+                            <div class="sales-inv-meta-item sales-inv-meta-date">
+                                <label for="order-date">تاريخ السند</label>
+                                <input class="input input-compact js-date-dmy" type="text" id="order-date"
+                                       value="<?= esc(format_date_dmY($orderDate)) ?>"
+                                       placeholder="يوم-شهر-سنة" dir="ltr"
+                                       autocomplete="off" inputmode="numeric" required>
+                            </div>
+                            <?= customer_picker_field([
+                                'id' => 'co_customer',
+                                'label' => 'العميل',
+                                'compact' => true,
+                                'wrapper_class' => 'sales-inv-meta-item sales-inv-meta-customer',
+                                'json_id' => 'co-entry-customers-json',
+                                'manual_bind' => false,
+                                'hotkey' => 'F7',
+                                'value' => $customerIdSel > 0 ? (string) $customerIdSel : '',
+                            ]) ?>
+                            <div class="sales-inv-meta-item">
+                                <label for="co_sales_rep">المندوب</label>
+                                <select class="input input-compact" id="co_sales_rep" name="sales_rep_id">
+                                    <option value="">— بدون مندوب —</option>
+                                    <?php foreach ($salesReps as $rep): ?>
+                                        <option value="<?= (int) $rep['id'] ?>" <?= $salesRepSel === (int) $rep['id'] ? 'selected' : '' ?>>
+                                            <?= esc((string) $rep['name_ar']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="sales-inv-meta-item sales-inv-meta-wh">
+                                <label for="warehouse-id">المستودع</label>
+                                <select class="input input-compact" id="warehouse-id" required>
+                                    <option value="">— المستودع —</option>
+                                    <?php foreach ($warehouses as $w): ?>
+                                        <option value="<?= (int) $w['id'] ?>" <?= $warehouseId === (int) $w['id'] ? 'selected' : '' ?>>
+                                            <?= esc((string) $w['name_ar']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                    </header>
+                </div>
+            </section>
+
+            <section class="dashboard-ora-panel sales-inv-card">
+                <h2 class="dashboard-ora-panel__title no-print">تفاصيل المواد</h2>
+                <div class="dashboard-ora-panel__body dashboard-ora-panel__body--flush">
+                    <div class="sales-inv-table-wrap" id="sales-inv-table-wrap">
+                        <table class="sales-inv-table">
+                            <thead>
+                            <?php inv_invoice_line_table_head(false); ?>
+                            </thead>
+                            <tbody id="co-lines-body"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="co-doc-addline no-print">
+                        <button type="button" id="co-add-item" class="co-add-line-btn">＋ إضافة سطر</button>
+                    </div>
+
+                    <div class="sales-inv-footer-grid co-doc-footer">
+                        <div class="sales-inv-notes sales-inv-field no-print">
+                            <label for="inv_notes">ملاحظات</label>
+                            <textarea class="input" name="notes" id="inv_notes" rows="3" placeholder="اختياري"><?= esc($notes) ?></textarea>
+                            <p id="co-message" class="co-doc-msg muted"></p>
+                        </div>
+                        <div class="sales-inv-totals co-doc-totals">
+                            <div class="row sales-inv-totals-disc">
+                                <label for="inv-invoice-discount">خصم الطلب</label>
+                                <input type="text" class="input input-compact input-num" name="invoice_discount" id="inv-invoice-discount"
+                                       value="<?= esc($headerDisc) ?>" title="خصم على مستوى الطلب" autocomplete="off">
+                            </div>
+                            <div class="row sales-inv-totals-header-disc" id="sales-inv-header-disc-row" hidden>
+                                <span>قيمة خصم الطلب</span>
+                                <span id="sales-inv-sum-header-disc"><?= esc(format_amount(0)) ?></span>
+                            </div>
+                            <div class="row"><span>مجموع الخصم</span><span id="sales-inv-sum-disc"><?= esc(format_amount((float) ($order['discount_amount'] ?? 0))) ?></span></div>
+                            <div class="row"><span>بدون ضريبة</span><span id="sales-inv-sum-sub"><?= esc(format_amount((float) ($order['subtotal'] ?? 0))) ?></span></div>
+                            <div class="row"><span>الضريبة</span><span id="sales-inv-sum-tax"><?= esc(format_amount((float) ($order['tax_amount'] ?? 0))) ?></span></div>
+                            <div class="row grand"><span>الإجمالي</span><span id="sales-inv-sum-grand"><?= esc(format_amount((float) ($order['total'] ?? 0))) ?></span></div>
+                        </div>
+                    </div>
+
+                    <div class="co-doc-sumbar no-print" aria-live="polite">
+                        <div class="co-doc-sumbar__item">
+                            <span>مجموع الخصم</span>
+                            <strong id="co-bar-disc"><?= esc(format_amount((float) ($order['discount_amount'] ?? 0))) ?></strong>
+                        </div>
+                        <div class="co-doc-sumbar__item">
+                            <span>بدون ضريبة</span>
+                            <strong id="co-bar-sub"><?= esc(format_amount((float) ($order['subtotal'] ?? 0))) ?></strong>
+                        </div>
+                        <div class="co-doc-sumbar__item">
+                            <span>الضريبة</span>
+                            <strong id="co-bar-tax"><?= esc(format_amount((float) ($order['tax_amount'] ?? 0))) ?></strong>
+                        </div>
+                        <div class="co-doc-sumbar__item co-doc-sumbar__item--grand">
+                            <span>الإجمالي</span>
+                            <strong id="co-bar-grand"><?= esc(format_amount((float) ($order['total'] ?? 0))) ?></strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </form>
+    </div>
+</div>
 
 <script type="application/json" id="co-initial-lines-json"><?= json_encode($orderLinesJson, JSON_UNESCAPED_UNICODE) ?></script>
 <template id="sales-inv-line-template">
@@ -291,6 +348,26 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
     if (kind === 'error') msg.classList.add('is-error');
     if (kind === 'ok') msg.classList.add('is-ok');
   }
+
+  function syncBar() {
+    var map = [
+      ['sales-inv-sum-disc', 'co-bar-disc'],
+      ['sales-inv-sum-sub', 'co-bar-sub'],
+      ['sales-inv-sum-tax', 'co-bar-tax'],
+      ['sales-inv-sum-grand', 'co-bar-grand']
+    ];
+    map.forEach(function (pair) {
+      var src = document.getElementById(pair[0]);
+      var dst = document.getElementById(pair[1]);
+      if (src && dst) dst.textContent = src.textContent || '';
+    });
+  }
+
+  var moTarget = document.querySelector('.sales-inv-totals');
+  if (moTarget && window.MutationObserver) {
+    new MutationObserver(syncBar).observe(moTarget, { childList: true, subtree: true, characterData: true });
+  }
+  setInterval(syncBar, 800);
 
   var whSel = document.getElementById('warehouse-id');
   if (whSel && form) {
@@ -441,5 +518,3 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
   });
 })();
 </script>
-<?php sales_ora12_workspace_close(); ?>
-</div>

@@ -1,0 +1,364 @@
+/**
+ * طلب شراء عميل — شكل سند (شريط أوامر + بيانات السند + جدول + إضافة سطر + شريط مجاميع)
+ * Scoped تحت .co-doc
+ */
+
+.co-doc.dashboard-ora.sales-ora12-screen {
+  --co-blue: #1a5f9e;
+  --co-blue-deep: #0f3f6a;
+  --co-blue-soft: #e8f1f8;
+  --co-ok: #1b7d3a;
+  --co-ok-bg: #e8f5e9;
+  --co-danger: #c62828;
+  --co-danger-bg: #fdecea;
+  --co-border: #c5d0db;
+  --co-muted: #5a6a7a;
+  background: #e9eef3;
+}
+
+/* شريط الأوامر */
+.co-doc .co-doc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.55rem;
+  margin: 0 0 0.65rem;
+  background: linear-gradient(180deg, #f7f9fb 0%, #e9eef3 100%);
+  border: 1px solid var(--co-border);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 #fff inset;
+}
+
+.co-doc .co-tb-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 3.5rem;
+  padding: 0.35rem 0.55rem 0.3rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1e293b;
+  text-decoration: none !important;
+  background: linear-gradient(180deg, #ffffff 0%, #eef2f6 100%);
+  border: 1px solid #b8c4d0;
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 1px 2px rgba(15, 23, 42, 0.06);
+  cursor: pointer;
+  line-height: 1.15;
+}
+
+.co-doc .co-tb-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff 0%, #e2eaf2 100%);
+  border-color: #8eabc4;
+  color: #0f172a;
+}
+
+.co-doc .co-tb-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.co-doc .co-tb-ico {
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--co-ok);
+}
+
+.co-doc .co-tb-btn--ok .co-tb-ico {
+  color: var(--co-ok);
+}
+
+.co-doc .co-tb-btn--ok {
+  border-color: #9ccc9c;
+  background: linear-gradient(180deg, #f4fff6 0%, #e2f3e6 100%);
+}
+
+.co-doc .co-tb-btn--danger {
+  border-color: #e0a8a8;
+  background: linear-gradient(180deg, #fff7f7 0%, #fdeaea 100%);
+}
+
+.co-doc .co-tb-btn--danger .co-tb-ico {
+  color: var(--co-danger);
+}
+
+.co-doc .co-tb-btn--exit {
+  margin-inline-start: auto;
+  border-color: #e0a8a8;
+  background: linear-gradient(180deg, #fff7f7 0%, #fce8e8 100%);
+  color: var(--co-danger);
+}
+
+.co-doc .co-tb-btn--exit .co-tb-ico {
+  color: var(--co-danger);
+}
+
+/* لوحة بيانات السند */
+.co-doc .dashboard-ora-panel {
+  border: 1px solid var(--co-border);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  margin-bottom: 0.65rem;
+  overflow: hidden;
+}
+
+.co-doc .dashboard-ora-panel__title {
+  margin: 0;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #2a78bf 0%, var(--co-blue) 55%, var(--co-blue-deep) 100%);
+  border-bottom: 1px solid var(--co-blue-deep);
+}
+
+.co-doc .dashboard-ora-panel__body {
+  padding: 0.75rem 0.85rem;
+  background: #fafbfc;
+}
+
+.co-doc .dashboard-ora-panel__body--flush {
+  padding: 0.55rem 0.55rem 0.65rem;
+}
+
+.co-doc .sales-inv-meta-row {
+  gap: 0.55rem 0.85rem;
+}
+
+.co-doc .sales-inv-meta-item label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #334155;
+}
+
+.co-doc .sales-inv-meta-customer {
+  flex: 1 1 16rem;
+  min-width: 14rem;
+}
+
+.co-doc .input,
+.co-doc select.input,
+.co-doc textarea.input {
+  background: #fff !important;
+  border: 1px solid #b8c5d3 !important;
+  border-radius: 4px !important;
+  min-height: 2rem;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.co-doc .input:focus,
+.co-doc select.input:focus,
+.co-doc textarea.input:focus {
+  border-color: #3b82c4 !important;
+  box-shadow: 0 0 0 2px rgba(26, 95, 158, 0.18) !important;
+  outline: none !important;
+}
+
+.co-doc .sales-inv-no-input {
+  font-weight: 800 !important;
+  text-align: center;
+}
+
+/* الجدول */
+.co-doc .sales-inv-table-wrap,
+.co-doc #sales-inv-table-wrap {
+  border: 1px solid var(--co-border) !important;
+  border-radius: 3px !important;
+  background: #fff;
+  max-height: min(48vh, 520px);
+  overflow: auto;
+}
+
+.co-doc .sales-inv-table thead th {
+  background: #eef3f8 !important;
+  color: #1e3a5f !important;
+  font-weight: 800 !important;
+  font-size: 0.72rem !important;
+  border-bottom: 1px solid var(--co-border) !important;
+  white-space: nowrap;
+}
+
+.co-doc .sales-inv-table tbody td {
+  border-color: #edf1f5 !important;
+  vertical-align: middle;
+}
+
+.co-doc .sales-inv-table tbody tr:hover td {
+  background: #f5f9fc !important;
+}
+
+/* زر إضافة سطر */
+.co-doc .co-doc-addline {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0.55rem 0.15rem 0.35rem;
+}
+
+.co-doc .co-add-line-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.35rem;
+  padding: 0.45rem 1.15rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--co-blue);
+  background: #fff;
+  border: 1.5px solid #7eb0d8;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.co-doc .co-add-line-btn:hover {
+  background: var(--co-blue-soft);
+  border-color: var(--co-blue);
+  color: var(--co-blue-deep);
+}
+
+/* تذييل: ملاحظات + مجاميع */
+.co-doc .co-doc-footer {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 0.75rem;
+  align-items: start;
+  margin-top: 0.35rem;
+  padding: 0 0.15rem;
+}
+
+@media (max-width: 900px) {
+  .co-doc .co-doc-footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+.co-doc .co-doc-totals {
+  background: #fff;
+  border: 1px solid var(--co-border);
+  border-radius: 4px;
+  padding: 0.45rem 0.65rem;
+}
+
+.co-doc .co-doc-totals .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.28rem 0;
+  font-size: 0.82rem;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.co-doc .co-doc-totals .row:last-child {
+  border-bottom: 0;
+}
+
+.co-doc .co-doc-totals .row > span:last-child {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  font-weight: 700;
+}
+
+.co-doc .co-doc-totals .row.grand {
+  margin-top: 0.2rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--co-border);
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
+.co-doc .co-doc-totals .row.grand span:last-child {
+  color: var(--co-blue-deep);
+  font-size: 1.1rem;
+}
+
+.co-doc .co-doc-totals .sales-inv-totals-disc {
+  flex-wrap: wrap;
+}
+
+.co-doc .co-doc-totals .sales-inv-totals-disc #inv-invoice-discount {
+  max-width: 6.5rem;
+  margin-inline-start: auto;
+  text-align: center;
+}
+
+.co-doc .co-doc-msg {
+  margin: 0.45rem 0 0;
+  min-height: 1.15rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.co-doc .co-doc-msg.is-error {
+  color: var(--co-danger);
+}
+
+.co-doc .co-doc-msg.is-ok {
+  color: var(--co-ok);
+}
+
+/* شريط مجاميع أزرق أسفل النموذج */
+.co-doc .co-doc-sumbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: 0.65rem;
+  padding: 0.55rem 0.85rem;
+  color: #fff;
+  background: linear-gradient(180deg, #2a78bf 0%, var(--co-blue) 50%, var(--co-blue-deep) 100%);
+  border-radius: 4px;
+  border: 1px solid var(--co-blue-deep);
+}
+
+.co-doc .co-doc-sumbar__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 5.5rem;
+}
+
+.co-doc .co-doc-sumbar__item span {
+  font-size: 0.7rem;
+  opacity: 0.9;
+  font-weight: 600;
+}
+
+.co-doc .co-doc-sumbar__item strong {
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  text-align: start;
+}
+
+.co-doc .co-doc-sumbar__item--grand {
+  margin-inline-start: auto;
+  padding-inline-start: 1rem;
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.co-doc .co-doc-sumbar__item--grand strong {
+  font-size: 1.15rem;
+}
+
+/* عنوان الشاشة */
+.co-doc .dashboard-ora-screen-title {
+  margin-bottom: 0.35rem;
+}
+
+@media print {
+  .co-doc .co-doc-toolbar,
+  .co-doc .co-doc-addline,
+  .co-doc .co-doc-sumbar {
+    display: none !important;
+  }
+}
