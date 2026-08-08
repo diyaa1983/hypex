@@ -437,3 +437,114 @@ function oracle_fetch_customer_statement(string $accountNo, string $dateFrom, st
         'cheque_total' => $chequeTotal,
     ];
 }
+
+/**
+ * كشف Oracle مختصر لعميل CRM (رصيد + شيكات قيد التحصيل).
+ *
+ * @return array{
+ *   ok:bool,
+ *   message:string,
+ *   customer_id:int,
+ *   account:string,
+ *   name:string,
+ *   from:string,
+ *   to:string,
+ *   balance:float,
+ *   total_debit:float,
+ *   total_credit:float,
+ *   opening:float,
+ *   cheques:list<array<string,mixed>>,
+ *   cheque_total:float,
+ *   cheque_count:int
+ * }
+ */
+function oracle_customer_ar_summary(PDO $pdo, int $customerId, ?string $dateFrom = null, ?string $dateTo = null): array
+{
+    $empty = [
+        'ok' => false,
+        'message' => '',
+        'customer_id' => $customerId,
+        'account' => '',
+        'name' => '',
+        'from' => '',
+        'to' => '',
+        'balance' => 0.0,
+        'total_debit' => 0.0,
+        'total_credit' => 0.0,
+        'opening' => 0.0,
+        'cheques' => [],
+        'cheque_total' => 0.0,
+        'cheque_count' => 0,
+    ];
+
+    if ($customerId < 1) {
+        $empty['message'] = 'اختر العميل أولاً.';
+
+        return $empty;
+    }
+
+    try {
+        if (function_exists('oracle_customer_schema_ensure')) {
+            require_once app_path('includes/oracle_customer_sync.php');
+            oracle_customer_schema_ensure($pdo);
+        }
+    } catch (Throwable $e) {
+        //
+    }
+
+    $st = $pdo->prepare(
+        'SELECT id, code, name_ar, oracle_key FROM crm_customer WHERE id = ? LIMIT 1'
+    );
+    $st->execute([$customerId]);
+    $party = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$party) {
+        $empty['message'] = 'العميل غير موجود.';
+
+        return $empty;
+    }
+
+    $accountNo = trim((string) ($party['oracle_key'] ?? ''));
+    if ($accountNo === '') {
+        $accountNo = preg_replace('/\D+/', '', (string) ($party['code'] ?? '')) ?? '';
+    }
+    if ($accountNo === '' || !preg_match('/^\d+$/', $accountNo)) {
+        $empty['message'] = 'لا يوجد رقم حساب Oracle لهذا العميل.';
+        $empty['name'] = (string) ($party['name_ar'] ?? '');
+
+        return $empty;
+    }
+
+    $from = $dateFrom !== null && $dateFrom !== '' ? $dateFrom : '2020-01-01';
+    $to = $dateTo !== null && $dateTo !== '' ? $dateTo : date('Y-m-d');
+    $stmt = oracle_fetch_customer_statement($accountNo, $from, $to);
+    if (!$stmt['ok']) {
+        $empty['message'] = (string) ($stmt['message'] ?? 'تعذر جلب الكشف من Oracle.');
+        $empty['account'] = $accountNo;
+        $empty['name'] = (string) ($party['name_ar'] ?? '');
+
+        return $empty;
+    }
+
+    $name = (string) ($stmt['name'] ?? '');
+    if ($name === '') {
+        $name = (string) ($party['name_ar'] ?? '');
+    }
+    $cheques = is_array($stmt['cheques'] ?? null) ? $stmt['cheques'] : [];
+
+    return [
+        'ok' => true,
+        'message' => '',
+        'customer_id' => $customerId,
+        'account' => (string) ($stmt['account'] ?? $accountNo),
+        'name' => $name,
+        'from' => (string) ($stmt['from'] ?? $from),
+        'to' => (string) ($stmt['to'] ?? $to),
+        'balance' => (float) ($stmt['balance'] ?? 0),
+        'total_debit' => (float) ($stmt['total_debit'] ?? 0),
+        'total_credit' => (float) ($stmt['total_credit'] ?? 0),
+        'opening' => (float) ($stmt['opening'] ?? 0),
+        'cheques' => $cheques,
+        'cheque_total' => (float) ($stmt['cheque_total'] ?? 0),
+        'cheque_count' => count($cheques),
+    ];
+}

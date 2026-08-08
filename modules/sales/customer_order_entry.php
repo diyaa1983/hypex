@@ -314,6 +314,58 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
                     </div>
                 </div>
             </section>
+
+            <!-- كشف حساب Oracle: رصيد + شيكات قيد التحصيل -->
+            <section class="dashboard-ora-panel co-ora-ar-panel" id="co-ora-ar-panel" hidden>
+                <h2 class="dashboard-ora-panel__title">كشف حساب العميل (Oracle) — المستحقات والشيكات</h2>
+                <div class="dashboard-ora-panel__body">
+                    <p class="co-ora-ar-status muted" id="co-ora-ar-status">اختر عميلاً ثم احفظ الطلب لعرض الرصيد والشيكات من Oracle.</p>
+                    <div class="co-ora-ar-summary" id="co-ora-ar-summary" hidden>
+                        <div class="co-ora-ar-kpis">
+                            <div class="co-ora-ar-kpi">
+                                <span>الحساب</span>
+                                <strong id="co-ora-ar-account" dir="ltr">—</strong>
+                            </div>
+                            <div class="co-ora-ar-kpi co-ora-ar-kpi--due">
+                                <span>المبالغ المستحقة (الرصيد)</span>
+                                <strong id="co-ora-ar-balance" dir="ltr">0</strong>
+                            </div>
+                            <div class="co-ora-ar-kpi">
+                                <span>شيكات قيد التحصيل</span>
+                                <strong id="co-ora-ar-chq-count" dir="ltr">0</strong>
+                            </div>
+                            <div class="co-ora-ar-kpi">
+                                <span>إجمالي قيمة الشيكات</span>
+                                <strong id="co-ora-ar-chq-total" dir="ltr">0</strong>
+                            </div>
+                        </div>
+                        <p class="co-ora-ar-meta muted" id="co-ora-ar-meta"></p>
+                        <div class="co-ora-ar-chq-wrap">
+                            <h3 class="co-ora-ar-chq-title">الشيكات قيد التحصيل</h3>
+                            <div class="co-ora-ar-table-wrap">
+                                <table class="co-ora-ar-table">
+                                    <thead>
+                                    <tr>
+                                        <th>رقم الشيك</th>
+                                        <th>تاريخ الاستحقاق</th>
+                                        <th>القيمة</th>
+                                        <th>تاريخ القبض</th>
+                                        <th>مرجع</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="co-ora-ar-chq-body">
+                                    <tr><td colspan="5" class="muted">لا شيكات.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <p class="co-ora-ar-actions">
+                            <a class="btn btn-secondary btn-sm" id="co-ora-ar-full-link" href="#" target="_blank" rel="noopener">فتح الكشف التفصيلي من Oracle</a>
+                            <button type="button" class="btn btn-ghost btn-sm" id="co-ora-ar-refresh">تحديث من Oracle</button>
+                        </p>
+                    </div>
+                </div>
+            </section>
         </form>
     </div>
 </div>
@@ -338,8 +390,133 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
   var urls = {
     save: <?= json_encode(app_url('api/sales_customer_order_save.php')) ?>,
     approve: <?= json_encode(app_url('api/sales_customer_order_approve.php')) ?>,
-    del: <?= json_encode(app_url('api/sales_customer_order_delete.php')) ?>
+    del: <?= json_encode(app_url('api/sales_customer_order_delete.php')) ?>,
+    oraAr: <?= json_encode(app_url('api/oracle_customer_ar_summary.php')) ?>
   };
+
+  /* ─── كشف حساب Oracle ─── */
+  var oraPanel = document.getElementById('co-ora-ar-panel');
+  var oraStatus = document.getElementById('co-ora-ar-status');
+  var oraSummary = document.getElementById('co-ora-ar-summary');
+  var oraLoadSeq = 0;
+
+  function fmtAmt(n) {
+    var x = parseFloat(n);
+    if (!isFinite(x)) x = 0;
+    try {
+      return x.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    } catch (e) {
+      return String(Math.round(x * 1000) / 1000);
+    }
+  }
+
+  function fmtDate(iso) {
+    iso = String(iso || '').trim();
+    if (!iso) return '—';
+    if (window.AppFormat && AppFormat.formatDateDmY) {
+      var d = AppFormat.formatDateDmY(iso);
+      if (d) return d;
+    }
+    var m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    return iso;
+  }
+
+  function setOraStatus(text, kind) {
+    if (!oraStatus) return;
+    oraStatus.hidden = !text;
+    oraStatus.textContent = text || '';
+    oraStatus.classList.remove('is-error', 'is-ok');
+    if (kind === 'error') oraStatus.classList.add('is-error');
+    if (kind === 'ok') oraStatus.classList.add('is-ok');
+  }
+
+  function renderCheques(list) {
+    var tbody = document.getElementById('co-ora-ar-chq-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!list || !list.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">لا شيكات قيد التحصيل لهذا العميل.</td></tr>';
+      return;
+    }
+    list.forEach(function (ch) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td dir="ltr"></td><td dir="ltr"></td><td dir="ltr" class="col-money"></td><td dir="ltr"></td><td dir="ltr"></td>';
+      tr.cells[0].textContent = ch.chq_no || '—';
+      tr.cells[1].textContent = fmtDate(ch.chq_date);
+      tr.cells[2].textContent = fmtAmt(ch.amount);
+      tr.cells[3].textContent = fmtDate(ch.receipt_date);
+      tr.cells[4].textContent = ch.receipt_ref || '—';
+      tbody.appendChild(tr);
+    });
+  }
+
+  function loadOracleAr(customerId, opts) {
+    opts = opts || {};
+    if (!oraPanel) return;
+    customerId = parseInt(customerId, 10) || 0;
+    if (!(customerId > 0)) {
+      oraPanel.hidden = true;
+      if (oraSummary) oraSummary.hidden = true;
+      setOraStatus('اختر عميلاً لعرض المستحقات والشيكات من Oracle.', null);
+      return;
+    }
+    oraPanel.hidden = false;
+    if (oraSummary) oraSummary.hidden = true;
+    setOraStatus(opts.afterSave ? 'تم الحفظ — جاري جلب الرصيد والشيكات من Oracle…' : 'جاري جلب كشف الحساب من Oracle…', null);
+
+    var seq = ++oraLoadSeq;
+    var url = urls.oraAr + (urls.oraAr.indexOf('?') >= 0 ? '&' : '?') + 'customer_id=' + encodeURIComponent(String(customerId));
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (x) {
+        if (seq !== oraLoadSeq) return;
+        if (!x || !x.ok) {
+          setOraStatus((x && x.message) ? x.message : 'تعذر جلب كشف الحساب من Oracle.', 'error');
+          if (oraSummary) oraSummary.hidden = true;
+          return;
+        }
+        setOraStatus('', null);
+        if (oraSummary) oraSummary.hidden = false;
+        var accEl = document.getElementById('co-ora-ar-account');
+        var balEl = document.getElementById('co-ora-ar-balance');
+        var cntEl = document.getElementById('co-ora-ar-chq-count');
+        var totEl = document.getElementById('co-ora-ar-chq-total');
+        var metaEl = document.getElementById('co-ora-ar-meta');
+        var linkEl = document.getElementById('co-ora-ar-full-link');
+        if (accEl) accEl.textContent = x.account || '—';
+        if (balEl) balEl.textContent = fmtAmt(x.balance);
+        if (cntEl) cntEl.textContent = String(x.cheque_count || 0);
+        if (totEl) totEl.textContent = fmtAmt(x.cheque_total);
+        if (metaEl) {
+          metaEl.textContent =
+            (x.name ? (x.name + ' · ') : '') +
+            'الفترة: ' + fmtDate(x.from) + ' — ' + fmtDate(x.to) +
+            ' · قراءة مباشرة من Oracle (GLVODMF + GLCHEQF)';
+        }
+        if (linkEl) {
+          if (x.statement_url) {
+            linkEl.href = x.statement_url;
+            linkEl.hidden = false;
+          } else {
+            linkEl.hidden = true;
+          }
+        }
+        renderCheques(x.cheques || []);
+        if (opts.afterSave) {
+          setMsg('تم الحفظ. تم تحديث مستحقات وشيكات العميل من Oracle.', 'ok');
+          try {
+            oraPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e) {}
+        }
+      })
+      .catch(function () {
+        if (seq !== oraLoadSeq) return;
+        setOraStatus('فشل الاتصال أثناء جلب كشف الحساب من Oracle.', 'error');
+        if (oraSummary) oraSummary.hidden = true;
+      });
+  }
 
   function setMsg(text, kind) {
     if (!msg) return;
@@ -440,14 +617,28 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
       }
       setMsg(x.message || 'تم الحفظ.', 'ok');
       var newId = parseInt(x.order_id || (x.order && x.order.id) || 0, 10) || 0;
+      var idEl = document.getElementById('order-id');
+      if (idEl && newId > 0) idEl.value = String(newId);
+      var noEl = document.getElementById('co_order_no');
+      if (noEl && x.order && x.order.order_no) {
+        noEl.value = String(x.order.order_no);
+      }
+      // عرض رصيد Oracle والشيكات في نهاية الطلب بعد الحفظ
+      loadOracleAr(data.customer_id, { afterSave: true });
       if (typeof after === 'function') {
         after(newId, x);
         return;
       }
       if (newId > 0) {
-        location.href = entryBase + (entryBase.indexOf('?') >= 0 ? '&' : '?') + 'id=' + newId;
-      } else {
-        location.reload();
+        var target = entryBase + (entryBase.indexOf('?') >= 0 ? '&' : '?') + 'id=' + newId;
+        // حدّث العنوان بدون فقدان اللوحة إن أمكن، وإلا أعد التحميل
+        try {
+          history.replaceState(null, '', target);
+        } catch (e) {
+          //
+        }
+        var delBtn = document.getElementById('co-delete');
+        if (delBtn) delBtn.disabled = false;
       }
     });
   }
@@ -516,5 +707,26 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
     else if (action === 'approve') api.approve();
     else if (action === 'delete') api.delete();
   });
+
+  // تحميل عند فتح طلب محفوظ / تغيير العميل
+  var custEl = document.getElementById('co_customer');
+  if (custEl) {
+    custEl.addEventListener('change', function () {
+      loadOracleAr(customerId(), {});
+    });
+  }
+  var refreshBtn = document.getElementById('co-ora-ar-refresh');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', function () {
+      loadOracleAr(customerId(), {});
+    });
+  }
+  // عند فتح مسودة محفوظة: اعرض الرصيد والشيكات مباشرة
+  if (customerId() > 0) {
+    loadOracleAr(customerId(), { afterSave: false });
+  } else if (oraPanel) {
+    oraPanel.hidden = false;
+    setOraStatus('اختر عميلاً ثم احفظ الطلب — سيظهر الرصيد المستحق وشيكاته من Oracle هنا.', null);
+  }
 })();
 </script>

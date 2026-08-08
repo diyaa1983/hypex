@@ -362,3 +362,118 @@
     display: none !important;
   }
 }
+
+/* كشف حساب Oracle تحت الطلب */
+.co-doc .co-ora-ar-panel .dashboard-ora-panel__body {
+  background: #f7fafc;
+}
+
+.co-doc .co-ora-ar-status {
+  margin: 0 0 0.5rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.co-doc .co-ora-ar-status.is-error {
+  color: #b91c1c;
+}
+
+.co-doc .co-ora-ar-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+@media (max-width: 900px) {
+  .co-doc .co-ora-ar-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.co-doc .co-ora-ar-kpi {
+  background: #fff;
+  border: 1px solid #c5d0db;
+  border-radius: 4px;
+  padding: 0.5rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.co-doc .co-ora-ar-kpi span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #5a6a7a;
+}
+
+.co-doc .co-ora-ar-kpi strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.co-doc .co-ora-ar-kpi--due {
+  border-color: #7eb0d8;
+  background: linear-gradient(180deg, #f0f7fc 0%, #e4f0f9 100%);
+}
+
+.co-doc .co-ora-ar-kpi--due strong {
+  color: #0f3f6a;
+  font-size: 1.2rem;
+}
+
+.co-doc .co-ora-ar-meta {
+  margin: 0 0 0.65rem;
+  font-size: 0.8rem;
+}
+
+.co-doc .co-ora-ar-chq-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #1e3a5f;
+}
+
+.co-doc .co-ora-ar-table-wrap {
+  border: 1px solid #c5d0db;
+  border-radius: 3px;
+  overflow: auto;
+  max-height: 14rem;
+  background: #fff;
+  margin-bottom: 0.55rem;
+}
+
+.co-doc .co-ora-ar-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.co-doc .co-ora-ar-table th,
+.co-doc .co-ora-ar-table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid #edf1f5;
+  text-align: right;
+}
+
+.co-doc .co-ora-ar-table th {
+  background: #eef3f8;
+  font-weight: 800;
+  color: #1e3a5f;
+  position: sticky;
+  top: 0;
+}
+
+.co-doc .co-ora-ar-table .col-money {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.co-doc .co-ora-ar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0;
+}
