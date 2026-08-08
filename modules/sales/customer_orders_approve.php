@@ -57,7 +57,42 @@ $pagerUrl = list_pager_base_url('sales_customer_orders_approve', $filterQuery);
 $activeRoute = 'sales_customer_orders_approve';
 sales_ora12_enqueue_assets();
 $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
+
+$settings = company_settings($pdo);
+$dp = company_decimal_places($pdo);
+$unitPriceDp = company_invoice_unit_price_decimal_places($pdo);
+$unitPriceStep = company_invoice_unit_price_decimal_step($pdo);
+$amountStep = company_decimal_step($dp);
+$defaultTax = (float) ($settings['tax_rate_percent'] ?? 15);
+$taxRates = [];
+try {
+    $taxRates = $pdo->query('SELECT id, name_ar, rate_percent FROM sys_tax_rate WHERE is_active = 1 ORDER BY sort_order, id')->fetchAll();
+} catch (Throwable $e) {
+    $taxRates = [];
+}
+if (!$taxRates) {
+    $taxRates = [['id' => 0, 'name_ar' => 'افتراضي (' . $defaultTax . '%)', 'rate_percent' => $defaultTax]];
+}
+
+// وحدات البنود للتحميل
+$orderLinesJson = [];
+if ($order) {
+    require_once app_path('includes/inv_item_units.php');
+    foreach ($order['lines'] as $line) {
+        $itemUnits = inv_item_units_for_item($pdo, (int) $line['item_id']);
+        $line['units'] = $itemUnits;
+        $orderLinesJson[] = $line;
+    }
+}
+
+$cssInvPath = app_path('assets/css/sales-invoice.css');
+$cssInv = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
+$jsDiscPath = app_path('assets/js/inv-invoice-discount.js');
+$jsDisc = app_url('assets/js/inv-invoice-discount.js') . (is_readable($jsDiscPath) ? '?v=' . (string) filemtime($jsDiscPath) : '1');
+$jsCoPath = app_path('assets/js/customer-order-lines.js');
+$jsCo = app_url('assets/js/customer-order-lines.js') . (is_readable($jsCoPath) ? '?v=' . (string) filemtime($jsCoPath) : '1');
 ?>
+<link rel="stylesheet" href="<?= esc($cssInv) ?>">
 <div class="dashboard-ora sales-ora12-screen">
 <?php sales_ora12_render_title_bar('اعتماد طلبات الشراء', '', $activeRoute); ?>
 <?php sales_ora12_workspace_open(); ?>
@@ -135,85 +170,60 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
 </div>
 
 <?php if ($order): ?>
-<div class="sales-ora-panel card">
-    <h3><?= esc((string) $order['order_no']) ?> — <?= esc((string) $order['customer_name']) ?></h3>
+<div class="sales-ora-panel card sales-inv-wrap sales-inv-bold">
+    <h3>رقم الطلب: <code><?= esc((string) $order['order_no']) ?></code> — <?= esc((string) $order['customer_name']) ?></h3>
     <p>
         المستودع: <?= esc((string) $order['warehouse_name']) ?>
         | المندوب: <?= esc((string) ($order['sales_rep_name'] ?: '—')) ?>
         | التاريخ: <?= esc(format_date_dmY((string) $order['order_date'])) ?>
     </p>
-    <form id="customer-order-form">
+    <form id="customer-order-form" class="sales-inv-main"
+          data-decimals="<?= (int) $dp ?>"
+          data-unit-price-decimals="<?= (int) $unitPriceDp ?>"
+          data-default-tax-rate="<?= esc((string) $defaultTax) ?>"
+          data-warehouse-id="<?= (int) $warehouseIdForPicker ?>"
+          data-api-items="<?= esc(app_url('api/items_search.php')) ?>"
+          data-invoice-discount="<?= esc((string) ($order['invoice_discount_input'] ?? '')) ?>">
         <input type="hidden" id="order-id" value="<?= (int) $order['id'] ?>">
         <input type="hidden" id="order-date" value="<?= esc((string) $order['order_date']) ?>">
         <input type="hidden" id="customer-id" value="<?= (int) $order['customer_id'] ?>">
         <input type="hidden" id="warehouse-id" value="<?= (int) $order['warehouse_id'] ?>">
-        <div class="form-row" style="margin-bottom:0.75rem;gap:0.5rem;align-items:center;">
+        <div class="form-row no-print" style="margin-bottom:0.75rem;gap:0.5rem;align-items:center;">
             <button type="button" id="co-add-item" class="btn btn-secondary btn-sm">إضافة مادة</button>
         </div>
-        <table class="data-table" id="co-lines-table">
-            <thead>
-            <tr>
-                <th>الصنف</th>
-                <th>الوحدة</th>
-                <th>الكمية</th>
-                <th></th>
-            </tr>
-            </thead>
-            <tbody id="co-lines-body">
-            <?php foreach ($order['lines'] as $line):
-                $itemUnits = inv_item_units_for_item($pdo, (int) $line['item_id']);
-                $qtyInt = (int) round((float) ($line['qty'] ?? 0));
-                $curUnitId = (int) ($line['unit_id'] ?? 0);
-                $curFactor = (float) ($line['unit_factor'] ?? 0);
-                if ($curFactor <= 0) {
-                    foreach ($itemUnits as $u) {
-                        if ((int) $u['unit_id'] === $curUnitId) {
-                            $curFactor = (float) $u['factor'];
-                            break;
-                        }
-                    }
-                }
-                if ($curFactor <= 0) {
-                    $curFactor = 1.0;
-                }
-                $packHint = $curFactor > 1.0000001
-                    ? ('تعبئة × ' . rtrim(rtrim(number_format($curFactor, 6, '.', ''), '0'), '.'))
-                    : '';
+        <div class="sales-inv-table-wrap" id="sales-inv-table-wrap">
+            <table class="sales-inv-table">
+                <thead>
+                <?php
+                require_once app_path('includes/inv_invoice_line_table.php');
+                inv_invoice_line_table_head(false);
                 ?>
-                <tr data-item="<?= (int) $line['item_id'] ?>" data-item-name="<?= esc((string) $line['item_name']) ?>">
-                    <td>
-                        <span class="co-item-name"><?= esc((string) $line['item_name']) ?></span>
-                        <?php if ($packHint !== ''): ?>
-                            <span class="co-pack-hint" dir="ltr"><?= esc($packHint) ?></span>
-                        <?php else: ?>
-                            <span class="co-pack-hint" dir="ltr" hidden></span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <select class="input co-unit">
-                            <?php foreach ($itemUnits as $u): ?>
-                                <option value="<?= (int) $u['unit_id'] ?>"
-                                        data-name="<?= esc((string) $u['name']) ?>"
-                                        data-factor="<?= esc((string) ((float) $u['factor'])) ?>"
-                                        <?= $curUnitId === (int) $u['unit_id'] ? 'selected' : '' ?>>
-                                    <?= esc((string) $u['name']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                            <?php if ($itemUnits === []): ?>
-                                <option value="<?= $curUnitId ?>" data-name="<?= esc((string) ($line['unit_name'] ?? '')) ?>" data-factor="<?= esc((string) $curFactor) ?>" selected><?= esc((string) ($line['unit_name'] ?? '—')) ?></option>
-                            <?php endif; ?>
-                        </select>
-                    </td>
-                    <td>
-                        <input class="input co-qty" type="number" step="1" min="1" inputmode="numeric" value="<?= $qtyInt ?>">
-                    </td>
-                    <td>
-                        <button type="button" class="btn btn-secondary btn-sm co-remove-line">حذف</button>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+                </thead>
+                <tbody id="co-lines-body"></tbody>
+            </table>
+        </div>
+        <div class="sales-inv-footer-grid">
+            <div class="sales-inv-notes sales-inv-field">
+                <label for="inv_notes">ملاحظات</label>
+                <textarea class="input" name="notes" id="inv_notes" rows="3" placeholder="اختياري"><?= esc((string) ($order['notes'] ?? '')) ?></textarea>
+            </div>
+            <div class="sales-inv-totals">
+                <div class="row sales-inv-totals-disc">
+                    <label for="inv-invoice-discount">خصم الطلب (كامل) <span class="sales-inv-disc-hint">10 أو 10% أو مبلغ</span></label>
+                    <input type="text" class="input input-compact input-num" name="invoice_discount" id="inv-invoice-discount"
+                           value="<?= esc((string) ($order['invoice_discount_input'] ?? '')) ?>"
+                           title="خصم على مستوى الطلب كامل" autocomplete="off">
+                </div>
+                <div class="row sales-inv-totals-header-disc" id="sales-inv-header-disc-row" hidden>
+                    <span>قيمة خصم مستوى الطلب</span>
+                    <span id="sales-inv-sum-header-disc"><?= esc(format_amount(0)) ?></span>
+                </div>
+                <div class="row"><span>مجموع الخصم</span><span id="sales-inv-sum-disc"><?= esc(format_amount((float) ($order['discount_amount'] ?? 0))) ?></span></div>
+                <div class="row"><span>المجموع بدون ضريبة</span><span id="sales-inv-sum-sub"><?= esc(format_amount((float) ($order['subtotal'] ?? 0))) ?></span></div>
+                <div class="row"><span>مجموع الضريبة</span><span id="sales-inv-sum-tax"><?= esc(format_amount((float) ($order['tax_amount'] ?? 0))) ?></span></div>
+                <div class="row grand"><span>الإجمالي</span><span id="sales-inv-sum-grand"><?= esc(format_amount((float) ($order['total'] ?? 0))) ?></span></div>
+            </div>
+        </div>
         <p id="co-message" class="muted"></p>
         <div class="form-row no-print sr-only" aria-hidden="true">
             <button type="button" id="co-save" class="btn btn-primary">حفظ التعديلات</button>
@@ -221,28 +231,26 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
             <button type="button" id="co-delete" class="btn btn-secondary">حذف الطلب</button>
         </div>
     </form>
+    <script type="application/json" id="co-initial-lines-json"><?= json_encode($orderLinesJson, JSON_UNESCAPED_UNICODE) ?></script>
+    <template id="sales-inv-line-template">
+        <?php
+        inv_invoice_line_table_row_template($taxRates, $unitPriceStep, $amountStep, false);
+        ?>
+    </template>
+<script src="<?= esc($jsDisc) ?>"></script>
+<script src="<?= esc($jsCo) ?>"></script>
 <script>
 (function () {
   var id = +document.getElementById('order-id').value;
   var msg = document.getElementById('co-message');
   var csrf = <?= json_encode(csrf_token()) ?>;
-  var warehouseId = <?= (int) $warehouseIdForPicker ?>;
-  var tbody = document.getElementById('co-lines-body');
   var urls = {
     save: <?= json_encode(app_url('api/sales_customer_order_save.php')) ?>,
     approve: <?= json_encode(app_url('api/sales_customer_order_approve.php')) ?>,
     del: <?= json_encode(app_url('api/sales_customer_order_delete.php')) ?>,
-    list: <?= json_encode(app_url('index.php?r=sales_customer_orders_approve&' . http_build_query($filterQuery))) ?>,
-    items: <?= json_encode(app_url('api/items_search.php')) ?>
+    list: <?= json_encode(app_url('index.php?r=sales_customer_orders_approve&' . http_build_query($filterQuery))) ?>
   };
-
-  function buildItemsUrl(q, listAll) {
-    var parts = [];
-    if (listAll || !q) parts.push('list=1');
-    else parts.push('q=' + encodeURIComponent(q));
-    if (warehouseId > 0) parts.push('warehouse_id=' + encodeURIComponent(String(warehouseId)));
-    return urls.items + (urls.items.indexOf('?') >= 0 ? '&' : '?') + parts.join('&');
-  }
+  var linesApi = window.initCustomerOrderLines ? window.initCustomerOrderLines({}) : null;
 
   function post(url, data) {
     return fetch(url, {
@@ -252,170 +260,38 @@ $warehouseIdForPicker = $order ? (int) ($order['warehouse_id'] ?? 0) : 0;
     }).then(function (r) { return r.json(); });
   }
 
-  function syncCoPackHint(r) {
-    var unitSel = r.querySelector('.co-unit');
-    var packEl = r.querySelector('.co-pack-hint');
-    var factor = 1;
-    if (unitSel && unitSel.selectedIndex >= 0) {
-      factor = parseFloat(unitSel.options[unitSel.selectedIndex].getAttribute('data-factor') || '1') || 1;
-    }
-    if (!packEl) return;
-    if (factor > 1.0000001) {
-      packEl.textContent = 'تعبئة × ' + formatFactor(factor);
-      packEl.hidden = false;
-    } else {
-      packEl.textContent = '';
-      packEl.hidden = true;
-    }
-  }
-
-  function bindRow(r) {
-    var unitSel = r.querySelector('.co-unit');
-    var rem = r.querySelector('.co-remove-line');
-    if (unitSel) unitSel.addEventListener('change', function () { syncCoPackHint(r); });
-    if (rem) rem.addEventListener('click', function () { r.remove(); });
-    syncCoPackHint(r);
-  }
-
-  function collectLines() {
-    var lines = [];
-    tbody.querySelectorAll('tr[data-item]').forEach(function (r) {
-      var unitSel = r.querySelector('.co-unit');
-      var unitId = 0, unitName = '', unitFactor = 1;
-      if (unitSel && unitSel.selectedIndex >= 0) {
-        unitId = +unitSel.value || 0;
-        unitName = unitSel.options[unitSel.selectedIndex].getAttribute('data-name')
-          || unitSel.options[unitSel.selectedIndex].textContent.trim();
-        unitName = String(unitName).replace(/\s*×\s*[\d.]+$/, '').trim();
-        unitFactor = parseFloat(unitSel.options[unitSel.selectedIndex].getAttribute('data-factor') || '1') || 1;
-      }
-      var qty = parseInt(r.querySelector('.co-qty').value, 10) || 0;
-      var nameEl = r.querySelector('.co-item-name');
-      lines.push({
-        item_id: +r.dataset.item,
-        item_name: r.dataset.itemName || (nameEl ? nameEl.textContent.trim() : ''),
-        unit_id: unitId,
-        unit_name: unitName,
-        unit_factor: unitFactor,
-        qty: qty,
-        qty_base: qty * unitFactor
-      });
-    });
-    return lines;
-  }
-
-  function formatFactor(f) {
-    f = parseFloat(f) || 1;
-    if (Math.abs(f - Math.round(f)) < 1e-9) return String(Math.round(f));
-    return String(Math.round(f * 1e6) / 1e6);
-  }
-
-  function addLineFromItem(it) {
-    if (!it || !(+it.id > 0)) return;
-    var itemId = +it.id;
-    var existing = tbody.querySelector('tr[data-item="' + itemId + '"]');
-    if (existing) {
-      var q = existing.querySelector('.co-qty');
-      if (q) q.value = String((parseInt(q.value, 10) || 0) + 1);
-      syncCoPackHint(existing);
-      return;
-    }
-    var units = Array.isArray(it.units) ? it.units : [];
-    var pick = null;
-    units.forEach(function (u) {
-      if (!pick && (u.is_default || u.is_default_issue)) pick = u;
-    });
-    if (!pick) {
-      units.forEach(function (u) {
-        if (!pick && !u.is_base && (parseFloat(u.factor) || 1) > 1) pick = u;
-      });
-    }
-    if (!pick && units.length) pick = units[0];
-    var unitId = pick ? (parseInt(pick.unit_id != null ? pick.unit_id : pick.id, 10) || 0) : (parseInt(it.unit_id, 10) || 0);
-    var unitName = pick ? String(pick.name || pick.unit_name || 'قطعة') : String(it.unit_name || 'قطعة');
-    var factor = pick ? (parseFloat(pick.factor != null ? pick.factor : pick.factor_to_base) || 1) : 1;
-
-    var tr = document.createElement('tr');
-    tr.setAttribute('data-item', String(itemId));
-    tr.setAttribute('data-item-name', String(it.name_ar || it.name || ''));
-    var opts = '';
-    if (units.length) {
-      units.forEach(function (u) {
-        var uid = parseInt(u.unit_id != null ? u.unit_id : u.id, 10) || 0;
-        var un = String(u.name || u.unit_name || 'قطعة');
-        var uf = parseFloat(u.factor != null ? u.factor : u.factor_to_base) || 1;
-        opts += '<option value="' + uid + '" data-name="' + un.replace(/"/g, '&quot;') + '" data-factor="' + uf + '"' +
-          (uid === unitId ? ' selected' : '') + '>' + un + '</option>';
-      });
-    } else {
-      opts = '<option value="' + unitId + '" data-name="' + unitName.replace(/"/g, '&quot;') + '" data-factor="' + factor + '" selected>' +
-        unitName + '</option>';
-    }
-    var itemName = String(it.name_ar || it.name || 'مادة');
-    tr.innerHTML =
-      '<td><span class="co-item-name"></span> <span class="co-pack-hint" dir="ltr" hidden></span></td>' +
-      '<td><select class="input co-unit">' + opts + '</select></td>' +
-      '<td><input class="input co-qty" type="number" step="1" min="1" inputmode="numeric" value="1"></td>' +
-      '<td><button type="button" class="btn btn-secondary btn-sm co-remove-line">حذف</button></td>';
-    tr.querySelector('.co-item-name').textContent = itemName;
-    tbody.appendChild(tr);
-    bindRow(tr);
-  }
-
-  tbody.querySelectorAll('tr[data-item]').forEach(bindRow);
-
-  var addBtn = document.getElementById('co-add-item');
-  if (addBtn) {
-    addBtn.onclick = function () {
-      if (!window.ItemPickerModal) {
-        msg.textContent = 'تعذر فتح اختيار المواد.';
-        return;
-      }
-      ItemPickerModal.open({
-        singleSelect: true,
-        screenCenter: true,
-        buildItemsUrl: buildItemsUrl,
-        getWarehouseId: function () { return warehouseId; },
-        emptyMessage: warehouseId > 0 ? 'لا توجد مواد في هذا المستودع' : 'لا توجد مواد مطابقة',
-        onSelect: function (it) { addLineFromItem(it); },
-        onConfirm: function (items) {
-          (items || []).forEach(addLineFromItem);
-        }
-      });
-    };
-  }
-
-  function doSave() {
-    var lines = collectLines();
-    if (!lines.length) {
-      msg.textContent = 'أدخل بنداً واحداً على الأقل.';
-      return;
-    }
-    post(urls.save, {
+  function payload() {
+    var lines = linesApi ? linesApi.collectLines() : [];
+    return {
       id: id,
       order_date: document.getElementById('order-date').value,
       customer_id: +document.getElementById('customer-id').value,
       warehouse_id: +document.getElementById('warehouse-id').value,
+      notes: (document.getElementById('inv_notes') || {}).value || '',
+      invoice_discount: linesApi ? linesApi.getHeaderDiscount() : '',
       lines: lines
-    }).then(function (x) {
+    };
+  }
+
+  function doSave() {
+    var data = payload();
+    if (!data.lines.length) {
+      msg.textContent = 'أدخل بنداً واحداً على الأقل.';
+      return;
+    }
+    post(urls.save, data).then(function (x) {
       msg.textContent = x.message || (x.ok ? 'تم الحفظ.' : 'تعذر الحفظ.');
       if (x.ok) location.reload();
     });
   }
 
   function doApprove() {
-    var lines = collectLines();
-    if (!lines.length) {
+    var data = payload();
+    if (!data.lines.length) {
       msg.textContent = 'احفظ بنداً واحداً على الأقل قبل الاعتماد.';
       return;
     }
-    post(urls.save, {
-      id: id,
-      order_date: document.getElementById('order-date').value,
-      customer_id: +document.getElementById('customer-id').value,
-      warehouse_id: +document.getElementById('warehouse-id').value,
-      lines: lines
-    }).then(function (x) {
+    post(urls.save, data).then(function (x) {
       if (!x.ok) {
         msg.textContent = x.message || 'تعذر الحفظ قبل الاعتماد.';
         return null;

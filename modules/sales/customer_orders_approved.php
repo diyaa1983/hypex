@@ -136,9 +136,16 @@ sales_ora12_enqueue_assets();
     <?php list_pager_render($pager, $pagerUrl); ?>
 </div>
 
-<?php if ($order): ?>
-<div class="sales-ora-panel card">
-    <h3><?= esc((string) $order['order_no']) ?> — <?= esc((string) $order['customer_name']) ?></h3>
+<?php if ($order):
+    $cssInvPath = app_path('assets/css/sales-invoice.css');
+    $cssInv = app_url('assets/css/sales-invoice.css') . (is_file($cssInvPath) ? '?v=' . (string) filemtime($cssInvPath) : '');
+    $hdrDisc = trim((string) ($order['invoice_discount_input'] ?? ''));
+    $headerDiscAmt = (float) ($order['discount_amount'] ?? 0);
+    $showHeaderDisc = $hdrDisc !== '' && $headerDiscAmt > 0.0000001;
+    ?>
+<link rel="stylesheet" href="<?= esc($cssInv) ?>">
+<div class="sales-ora-panel card sales-inv-wrap sales-inv-bold">
+    <h3>رقم الطلب: <code><?= esc((string) $order['order_no']) ?></code> — <?= esc((string) $order['customer_name']) ?></h3>
     <p>
         الحالة: معتمد
         | المستودع: <?= esc((string) $order['warehouse_name']) ?>
@@ -154,46 +161,80 @@ sales_ora12_enqueue_assets();
     <?php if (!empty($order['notes'])): ?>
         <p>ملاحظات: <?= esc((string) $order['notes']) ?></p>
     <?php endif; ?>
-    <div class="table-wrap">
-        <table class="data-table">
+    <div class="sales-inv-table-wrap">
+        <table class="sales-inv-table">
             <thead>
-            <tr>
-                <th>#</th>
-                <th>الصنف</th>
-                <th>الوحدة</th>
-                <th>الكمية</th>
-            </tr>
+            <?php
+            require_once app_path('includes/inv_invoice_line_table.php');
+            inv_invoice_line_table_head(false);
+            ?>
             </thead>
             <tbody>
             <?php foreach ($order['lines'] as $i => $line):
                 $qty = (float) ($line['qty'] ?? 0);
+                $qtyExtra = (float) ($line['qty_extra'] ?? 0);
                 $factor = (float) ($line['unit_factor'] ?? 1);
                 if ($factor <= 0) {
                     $factor = 1.0;
                 }
                 $unitName = trim((string) ($line['unit_name'] ?? ''));
                 $itemName = trim((string) ($line['item_name'] ?? ''));
+                $sku = trim((string) ($line['sku'] ?? $line['barcode'] ?? ''));
                 $packHint = $factor > 1.0000001
                     ? ('تعبئة × ' . rtrim(rtrim(number_format($factor, 6, '.', ''), '0'), '.'))
                     : '';
+                $discLabel = trim((string) ($line['line_discount_input'] ?? ''));
+                if ($discLabel === '' && (float) ($line['discount_amount'] ?? 0) > 0) {
+                    $discLabel = format_amount((float) $line['discount_amount']);
+                }
                 ?>
                 <tr>
-                    <td><?= $i + 1 ?></td>
-                    <td>
+                    <td class="sales-inv-col-seq"><?= $i + 1 ?></td>
+                    <td class="sales-inv-col-sku"><code><?= esc($sku !== '' ? $sku : '—') ?></code></td>
+                    <td class="sales-inv-col-item">
                         <?= esc($itemName) ?>
                         <?php if ($packHint !== ''): ?>
-                            <span class="co-pack-hint" dir="ltr"><?= esc($packHint) ?></span>
+                            <span class="sales-inv-pack-hint" dir="ltr"><?= esc($packHint) ?></span>
                         <?php endif; ?>
                     </td>
-                    <td><?= esc($unitName !== '' ? $unitName : '—') ?></td>
-                    <td dir="ltr"><?= esc(rtrim(rtrim(number_format($qty, 6, '.', ''), '0'), '.')) ?></td>
+                    <td class="sales-inv-col-unit"><?= esc($unitName !== '' ? $unitName : '—') ?></td>
+                    <td class="sales-inv-col-qty" dir="ltr"><?= esc(rtrim(rtrim(number_format($qty, 6, '.', ''), '0'), '.')) ?></td>
+                    <td class="sales-inv-col-qty-extra" dir="ltr"><?= esc($qtyExtra > 0 ? rtrim(rtrim(number_format($qtyExtra, 6, '.', ''), '0'), '.') : '—') ?></td>
+                    <td class="sales-inv-col-price" dir="ltr"><?= esc(format_amount((float) ($line['unit_price'] ?? 0))) ?></td>
+                    <td class="sales-inv-col-discount" dir="ltr"><?= esc($discLabel !== '' ? $discLabel : '—') ?></td>
+                    <td class="sales-inv-col-money" dir="ltr"><?= esc(format_amount((float) ($line['line_total'] ?? 0))) ?></td>
+                    <td class="sales-inv-col-money" dir="ltr"><?= esc(format_amount((float) ($line['tax_amount'] ?? 0))) ?></td>
+                    <td class="sales-inv-col-tax" dir="ltr"><?= esc(rtrim(rtrim(number_format((float) ($line['tax_rate_percent'] ?? 0), 3, '.', ''), '0'), '.') . '%') ?></td>
+                    <td class="sales-inv-col-total" dir="ltr"><?= esc(format_amount((float) ($line['line_gross'] ?? 0))) ?></td>
+                    <td class="sales-inv-col-del"></td>
                 </tr>
             <?php endforeach; ?>
             <?php if (empty($order['lines'])): ?>
-                <tr><td colspan="4" class="muted">لا توجد بنود.</td></tr>
+                <tr><td colspan="13" class="muted">لا توجد بنود.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>
+    </div>
+    <div class="sales-inv-footer-grid">
+        <div></div>
+        <div class="sales-inv-totals">
+            <?php if ($hdrDisc !== ''): ?>
+                <div class="row sales-inv-totals-disc">
+                    <span>خصم الطلب (كامل)</span>
+                    <span dir="ltr"><?= esc($hdrDisc) ?></span>
+                </div>
+            <?php endif; ?>
+            <?php if ($showHeaderDisc): ?>
+                <div class="row sales-inv-totals-header-disc">
+                    <span>قيمة خصم مستوى الطلب</span>
+                    <span dir="ltr"><?= esc(format_amount($headerDiscAmt)) ?></span>
+                </div>
+            <?php endif; ?>
+            <div class="row"><span>مجموع الخصم</span><span dir="ltr"><?= esc(format_amount((float) ($order['discount_amount'] ?? 0))) ?></span></div>
+            <div class="row"><span>المجموع بدون ضريبة</span><span dir="ltr"><?= esc(format_amount((float) ($order['subtotal'] ?? 0))) ?></span></div>
+            <div class="row"><span>مجموع الضريبة</span><span dir="ltr"><?= esc(format_amount((float) ($order['tax_amount'] ?? 0))) ?></span></div>
+            <div class="row grand"><span>الإجمالي</span><span dir="ltr"><?= esc(format_amount((float) ($order['total'] ?? 0))) ?></span></div>
+        </div>
     </div>
     <?php if ($canUnapprove): ?>
         <p id="co-message" class="muted"></p>
