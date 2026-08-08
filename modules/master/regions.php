@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * شاشة مناطق العملاء (الأردن وغيرها) — ربط من شاشة العملاء.
+ * شاشة مناطق العملاء — المنطقة + العنوان + استيراد Excel.
  */
 
 $listUrl = app_url('index.php?r=customer_regions');
@@ -10,6 +10,7 @@ $listUrl = app_url('index.php?r=customer_regions');
 require_once app_path('includes/nav_helpers.php');
 require_once app_path('includes/sales_oracle12_ui.php');
 require_once app_path('includes/crm_region.php');
+require_once app_path('includes/crm_region_excel_import.php');
 
 $pdo = db();
 if (!crm_region_ensure_schema($pdo)) {
@@ -17,6 +18,7 @@ if (!crm_region_ensure_schema($pdo)) {
     <div class="alert alert-error">
         تعذر إنشاء جدول المناطق. نفّذ:
         <code>database/migrations/250_crm_region.sql</code>
+        و<code>254_crm_region_address.sql</code>
         ثم حدّث الصفحة.
     </div>
     <?php
@@ -32,10 +34,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = (string) ($_POST['_action'] ?? '');
 
     try {
+        if ($act === 'import_excel') {
+            $uploadPath = null;
+            if (!empty($_FILES['excel_file']['tmp_name']) && is_uploaded_file((string) $_FILES['excel_file']['tmp_name'])) {
+                $tmp = (string) $_FILES['excel_file']['tmp_name'];
+                $destDir = app_path('uploads');
+                if (!is_dir($destDir)) {
+                    @mkdir($destDir, 0775, true);
+                }
+                $dest = $destDir . DIRECTORY_SEPARATOR . 'region_import_' . date('Ymd_His') . '.xlsx';
+                if (!@move_uploaded_file($tmp, $dest)) {
+                    throw new RuntimeException('تعذر حفظ الملف المرفوع.');
+                }
+                $uploadPath = $dest;
+            }
+            $result = crm_region_excel_import($pdo, $uploadPath, true);
+            if (!$result['ok']) {
+                throw new RuntimeException((string) $result['message']);
+            }
+            $msg = (string) $result['message'];
+            if (!empty($result['warnings'])) {
+                $msg .= ' — تنبيه: ' . count($result['warnings']) . ' صف لم يُربط بعميل.';
+            }
+            flash_set('success', $msg);
+            redirect($listUrl);
+        }
+
         if ($act === 'save') {
             $id = (int) ($_POST['id'] ?? 0);
             $code = strtoupper(trim((string) ($_POST['code'] ?? '')));
             $name = trim((string) ($_POST['name_ar'] ?? ''));
+            $address = trim((string) ($_POST['address_ar'] ?? ''));
             $sort = (int) ($_POST['sort_order'] ?? 0);
 
             if ($name === '') {
@@ -62,15 +91,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($id > 0) {
                 $st = $pdo->prepare(
-                    'UPDATE crm_region SET code=?, name_ar=?, sort_order=? WHERE id=?'
+                    'UPDATE crm_region SET code=?, name_ar=?, address_ar=?, sort_order=? WHERE id=?'
                 );
-                $st->execute([$code, $name, $sort, $id]);
+                $st->execute([$code, $name, $address !== '' ? $address : null, $sort, $id]);
                 flash_set('success', 'تم تحديث المنطقة.');
             } else {
                 $st = $pdo->prepare(
-                    'INSERT INTO crm_region (code, name_ar, sort_order, is_active) VALUES (?,?,?,1)'
+                    'INSERT INTO crm_region (code, name_ar, address_ar, sort_order, is_active) VALUES (?,?,?,?,1)'
                 );
-                $st->execute([$code, $name, $sort]);
+                $st->execute([$code, $name, $address !== '' ? $address : null, $sort]);
                 flash_set('success', 'تم إضافة المنطقة.');
             }
         } elseif ($act === 'toggle') {
@@ -101,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (RuntimeException $e) {
         flash_set('error', $e->getMessage());
     } catch (Throwable $e) {
-        flash_set('error', 'تعذر تنفيذ العملية.');
+        flash_set('error', 'تعذر تنفيذ العملية: ' . $e->getMessage());
     }
 
     redirect($listUrl);
@@ -109,12 +138,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $flash = flash_get();
 $action = (string) ($_GET['action'] ?? 'list');
+$excelPath = crm_region_excel_resolve_path();
+$excelDefaultHint = 'C:\\xampp\\htdocs\\system\\المنطقة.xlsx';
 
 if ($action === 'add' || $action === 'edit') {
     $row = [
         'id' => 0,
         'code' => '',
         'name_ar' => '',
+        'address_ar' => '',
         'sort_order' => 0,
         'is_active' => 1,
     ];
@@ -162,13 +194,19 @@ if ($action === 'add' || $action === 'edit') {
                                placeholder="يُولَّد تلقائياً إن تُرك فارغاً">
                     </label>
                     <label class="field">
-                        <span class="field-label">اسم المنطقة *</span>
-                        <input class="input" name="name_ar" required maxlength="120"
+                        <span class="field-label">المنطقة *</span>
+                        <input class="input" name="name_ar" required maxlength="180"
                                value="<?= esc((string) $row['name_ar']) ?>"
-                               placeholder="مثال: الزرقاء، طبربور، عمّان">
+                               placeholder="مثال: الزرقاء، عمّان، طبربور">
                     </label>
                 </div>
                 <div class="form-row">
+                    <label class="field" style="flex:1;">
+                        <span class="field-label">العنوان</span>
+                        <input class="input" name="address_ar" maxlength="255"
+                               value="<?= esc((string) ($row['address_ar'] ?? '')) ?>"
+                               placeholder="العنوان التفصيلي حسب ملف المناطق">
+                    </label>
                     <label class="field">
                         <span class="field-label">ترتيب العرض</span>
                         <input class="input" name="sort_order" type="number" dir="ltr"
@@ -203,8 +241,33 @@ sales_ora12_enqueue_assets();
         <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=sales_reps')) ?>">المندوبين</a>
     </div>
 
+    <div class="sales-ora-panel card" style="margin-bottom:1rem;">
+        <h3 style="margin:0 0 0.5rem;font-size:1rem;">استيراد من Excel</h3>
+        <p class="muted" style="margin:0 0 0.65rem;font-size:0.9rem;">
+            الملف الافتراضي:
+            <code dir="ltr"><?= esc($excelDefaultHint) ?></code>
+            <?php if ($excelPath): ?>
+                <br>ملف موجود الآن: <code dir="ltr"><?= esc($excelPath) ?></code>
+            <?php else: ?>
+                <br><strong>الملف غير موجود حالياً على هذا الجهاز.</strong> انسخ <code>المنطقة.xlsx</code> إلى المسار أعلاه أو ارفعه هنا.
+            <?php endif; ?>
+            <br>الأعمدة المتوقعة: <strong>المنطقة</strong> · <strong>العنوان</strong> · <strong>المندوب</strong> · (رمز العميل) · (اسم العميل)
+        </p>
+        <form method="post" action="<?= esc($listUrl) ?>" enctype="multipart/form-data" class="form-row" style="flex-wrap:wrap;gap:0.5rem;align-items:end;">
+            <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+            <input type="hidden" name="_action" value="import_excel">
+            <label class="field">
+                <span class="field-label">رفع ملف (اختياري)</span>
+                <input class="input" type="file" name="excel_file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </label>
+            <button class="btn btn-primary" type="submit" data-confirm="استيراد المندوبين والمناطق وربط العملاء من Excel؟">
+                استيراد الآن
+            </button>
+        </form>
+    </div>
+
     <p class="muted" style="margin:0.5rem 0 1rem;">
-        عرّف المناطق (عمّان، الزرقاء، طبربور…) ثم اربط كل عميل بمنطقة من شاشة تعديل العميل.
+        كل سجل = <strong>منطقة + عنوان</strong>. عند اختيار المندوب في شاشة العميل تُسحَب المنطقة والعنوان المرتبطان به.
     </p>
 
     <div class="sales-ora-panel card" style="overflow:auto;">
@@ -214,6 +277,7 @@ sales_ora12_enqueue_assets();
                 <th>#</th>
                 <th>الرمز</th>
                 <th>المنطقة</th>
+                <th>العنوان</th>
                 <th>الترتيب</th>
                 <th>العملاء</th>
                 <th>المندوبون</th>
@@ -223,13 +287,14 @@ sales_ora12_enqueue_assets();
             </thead>
             <tbody>
             <?php if (!$rows): ?>
-                <tr><td colspan="8" class="muted">لا توجد مناطق بعد. أضف منطقة أو انتظر تشغيل الترحيل لتهيئة مناطق الأردن.</td></tr>
+                <tr><td colspan="9" class="muted">لا توجد مناطق بعد. استورد Excel أو أضف يدوياً.</td></tr>
             <?php endif; ?>
             <?php foreach ($rows as $r): ?>
                 <tr>
                     <td><?= (int) $r['id'] ?></td>
                     <td><code><?= esc((string) $r['code']) ?></code></td>
                     <td><?= esc((string) $r['name_ar']) ?></td>
+                    <td><?= esc(trim((string) ($r['address_ar'] ?? '')) !== '' ? (string) $r['address_ar'] : '—') ?></td>
                     <td dir="ltr"><?= (int) $r['sort_order'] ?></td>
                     <td dir="ltr"><?= (int) ($r['customer_count'] ?? 0) ?></td>
                     <td dir="ltr"><?= (int) ($r['rep_count'] ?? 0) ?></td>

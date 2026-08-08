@@ -16,7 +16,8 @@ function crm_region_ensure_schema(PDO $pdo): bool
             "CREATE TABLE IF NOT EXISTS crm_region (
                 id INT UNSIGNED NOT NULL AUTO_INCREMENT,
                 code VARCHAR(20) NOT NULL,
-                name_ar VARCHAR(120) NOT NULL,
+                name_ar VARCHAR(180) NOT NULL,
+                address_ar VARCHAR(255) NULL DEFAULT NULL,
                 sort_order INT NOT NULL DEFAULT 0,
                 is_active TINYINT(1) NOT NULL DEFAULT 1,
                 created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
@@ -25,6 +26,22 @@ function crm_region_ensure_schema(PDO $pdo): bool
                 KEY idx_crm_region_active (is_active, sort_order, name_ar)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
+
+        // عمود العنوان
+        try {
+            $pdo->query('SELECT address_ar FROM crm_region LIMIT 1');
+        } catch (Throwable $e) {
+            try {
+                $pdo->exec('ALTER TABLE crm_region ADD COLUMN address_ar VARCHAR(255) NULL DEFAULT NULL AFTER name_ar');
+            } catch (Throwable $e2) {
+                //
+            }
+        }
+        try {
+            $pdo->exec('ALTER TABLE crm_region MODIFY name_ar VARCHAR(180) NOT NULL');
+        } catch (Throwable $e) {
+            //
+        }
 
         $hasCol = false;
         try {
@@ -47,26 +64,31 @@ function crm_region_ensure_schema(PDO $pdo): bool
 }
 
 /**
- * @return list<array{id:int,code:string,name_ar:string,sort_order:int,is_active:int}>
+ * @return list<array{id:int,code:string,name_ar:string,address_ar:string,sort_order:int,is_active:int,label:string}>
  */
 function crm_region_load_active(PDO $pdo): array
 {
     crm_region_ensure_schema($pdo);
     try {
         $rows = $pdo->query(
-            'SELECT id, code, name_ar, sort_order, is_active
+            'SELECT id, code, name_ar, COALESCE(address_ar, \'\') AS address_ar, sort_order, is_active
              FROM crm_region
              WHERE is_active = 1
-             ORDER BY sort_order ASC, name_ar ASC'
+             ORDER BY sort_order ASC, name_ar ASC, address_ar ASC'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         return array_map(static function (array $r): array {
+            $name = (string) ($r['name_ar'] ?? '');
+            $addr = trim((string) ($r['address_ar'] ?? ''));
+
             return [
                 'id' => (int) ($r['id'] ?? 0),
                 'code' => (string) ($r['code'] ?? ''),
-                'name_ar' => (string) ($r['name_ar'] ?? ''),
+                'name_ar' => $name,
+                'address_ar' => $addr,
                 'sort_order' => (int) ($r['sort_order'] ?? 0),
                 'is_active' => (int) ($r['is_active'] ?? 0),
+                'label' => $addr !== '' ? ($name . ' — ' . $addr) : $name,
             ];
         }, $rows);
     } catch (Throwable $e) {

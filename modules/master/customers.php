@@ -282,16 +282,19 @@ if ($action === 'add' || $action === 'edit') {
                     <input class="input" name="tax_number" value="<?= esc((string) ($row['tax_number'] ?? '')) ?>">
                 </label>
                 <label class="field">
-                    <span class="field-label">المنطقة</span>
-                    <select class="input" name="region_id">
+                    <span class="field-label">المنطقة / العنوان</span>
+                    <select class="input" name="region_id" id="customer-region-id">
                         <option value="">— بدون منطقة —</option>
                         <?php
                         $curRegion = (int) ($row['region_id'] ?? 0);
                         foreach ($regions as $rg):
                             $rid = (int) $rg['id'];
+                            $label = (string) ($rg['label'] ?? $rg['name_ar'] ?? '');
                             ?>
-                            <option value="<?= $rid ?>"<?= $curRegion === $rid ? ' selected' : '' ?>>
-                                <?= esc((string) $rg['name_ar']) ?>
+                            <option value="<?= $rid ?>"
+                                    data-address="<?= esc((string) ($rg['address_ar'] ?? '')) ?>"
+                                    <?= $curRegion === $rid ? ' selected' : '' ?>>
+                                <?= esc($label) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
@@ -299,8 +302,10 @@ if ($action === 'add' || $action === 'edit') {
                         <span class="muted" style="font-size:0.85rem;display:block;margin-top:0.25rem;">
                             لا توجد مناطق — أضف من
                             <a href="<?= esc(app_url('index.php?r=customer_regions')) ?>">مناطق العملاء</a>
+                            أو استورد Excel.
                         </span>
                     <?php endif; ?>
+                    <span id="customer-region-address-hint" class="muted" style="font-size:0.85rem;display:block;margin-top:0.25rem;"></span>
                 </label>
             </div>
             <fieldset class="field customers-reps-field">
@@ -311,12 +316,12 @@ if ($action === 'add' || $action === 'edit') {
                     </p>
                 <?php else: ?>
                     <p class="muted" style="margin:0 0 0.45rem;font-size:0.85rem;">
-                        اختر مندوباً واحداً أو أكثر لربط هذا العميل بهم.
+                        اختر مندوباً — تُملأ <strong>المنطقة والعنوان</strong> تلقائياً عند توفرها على المندوب.
                     </p>
-                    <div class="customers-reps-checkboxes">
+                    <div class="customers-reps-checkboxes" id="customer-reps-checkboxes">
                         <?php foreach ($salesReps as $rep): ?>
                             <label class="customers-rep-check">
-                                <input type="checkbox" name="sales_rep_ids[]" value="<?= (int) $rep['id'] ?>"
+                                <input type="checkbox" class="js-customer-rep" name="sales_rep_ids[]" value="<?= (int) $rep['id'] ?>"
                                     <?= in_array((int) $rep['id'], $selectedRepIds, true) ? ' checked' : '' ?>>
                                 <?= esc((string) $rep['name_ar']) ?>
                             </label>
@@ -421,6 +426,69 @@ if ($action === 'add' || $action === 'edit') {
               });
             });
           }
+        })();
+
+        (function () {
+          var regionSel = document.getElementById('customer-region-id');
+          var addrHint = document.getElementById('customer-region-address-hint');
+          var boxes = document.querySelectorAll('#customer-reps-checkboxes .js-customer-rep');
+          var apiBase = <?= json_encode(app_url('api/sales_rep_regions.php')) ?>;
+          if (!regionSel || !boxes.length) return;
+
+          function updateAddressHint() {
+            if (!addrHint) return;
+            var opt = regionSel.options[regionSel.selectedIndex];
+            var a = opt ? (opt.getAttribute('data-address') || '') : '';
+            addrHint.textContent = a ? ('العنوان: ' + a) : '';
+          }
+
+          regionSel.addEventListener('change', updateAddressHint);
+          updateAddressHint();
+
+          function applyRegions(regions) {
+            if (!regions || !regions.length) return;
+            // إن وُجدت منطقة واحدة للمندوب — اخترها
+            if (regions.length === 1) {
+              regionSel.value = String(regions[0].id);
+              updateAddressHint();
+              // إن كان عنوان العميل فارغاً ملّئه
+              var ta = document.querySelector('textarea[name="address_ar"]');
+              if (ta && !String(ta.value || '').trim() && regions[0].address_ar) {
+                ta.value = regions[0].address_ar;
+              }
+              return;
+            }
+            // عدة مناطق: إن كانت المنطقة الحالية ليست ضمن قائمة المندوب، اختر الأولى
+            var current = parseInt(regionSel.value, 10) || 0;
+            var ids = regions.map(function (r) { return parseInt(r.id, 10); });
+            if (current && ids.indexOf(current) >= 0) {
+              updateAddressHint();
+              return;
+            }
+            regionSel.value = String(regions[0].id);
+            updateAddressHint();
+          }
+
+          function onRepChange() {
+            var firstChecked = null;
+            boxes.forEach(function (b) {
+              if (!firstChecked && b.checked) firstChecked = b;
+            });
+            if (!firstChecked) return;
+            var id = parseInt(firstChecked.value, 10) || 0;
+            if (!id) return;
+            fetch(apiBase + (apiBase.indexOf('?') >= 0 ? '&' : '?') + 'sales_rep_id=' + encodeURIComponent(String(id)), {
+              credentials: 'same-origin'
+            }).then(function (r) { return r.json(); }).then(function (x) {
+              if (x && x.ok) applyRegions(x.regions || []);
+            }).catch(function () {});
+          }
+
+          boxes.forEach(function (b) {
+            b.addEventListener('change', function () {
+              if (b.checked) onRepChange();
+            });
+          });
         })();
         </script>
         <?php sales_ora12_workspace_close(); ?>
