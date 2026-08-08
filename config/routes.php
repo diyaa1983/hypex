@@ -474,6 +474,11 @@ return [
         'permission' => 'report_sales_by_rep',
         'title' => 'تقرير المبيعات حسب المندوب',
     ],
+    'report_sales_by_region' => [
+        'file' => 'modules/reports/sales_by_region.php',
+        'permission' => 'report_sales_by_region',
+        'title' => 'تقرير المبيعات حسب المنطقة',
+    ],
     'report_sales_by_item' => [
         'file' => 'modules/reports/sales_by_item.php',
         'permission' => 'report_sales_by_item',

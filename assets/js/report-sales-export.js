@@ -5,6 +5,7 @@
     report_sales: true,
     report_sales_between_dates: true,
     report_sales_by_rep: true,
+    report_sales_by_region: true,
     report_sales_by_item: true,
     report_customer_orders: true,
     report_sales_returns: true,

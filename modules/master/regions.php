@@ -216,13 +216,14 @@ sales_ora12_enqueue_assets();
                 <th>المنطقة</th>
                 <th>الترتيب</th>
                 <th>العملاء</th>
+                <th>المندوبون</th>
                 <th>الحالة</th>
                 <th>إجراءات</th>
             </tr>
             </thead>
             <tbody>
             <?php if (!$rows): ?>
-                <tr><td colspan="7" class="muted">لا توجد مناطق بعد. أضف منطقة أو انتظر تشغيل الترحيل لتهيئة مناطق الأردن.</td></tr>
+                <tr><td colspan="8" class="muted">لا توجد مناطق بعد. أضف منطقة أو انتظر تشغيل الترحيل لتهيئة مناطق الأردن.</td></tr>
             <?php endif; ?>
             <?php foreach ($rows as $r): ?>
                 <tr>
@@ -231,6 +232,7 @@ sales_ora12_enqueue_assets();
                     <td><?= esc((string) $r['name_ar']) ?></td>
                     <td dir="ltr"><?= (int) $r['sort_order'] ?></td>
                     <td dir="ltr"><?= (int) ($r['customer_count'] ?? 0) ?></td>
+                    <td dir="ltr"><?= (int) ($r['rep_count'] ?? 0) ?></td>
                     <td>
                         <?php if ((int) $r['is_active']): ?>
                             <span class="badge badge-ok">نشط</span>

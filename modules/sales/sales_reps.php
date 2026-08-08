@@ -5,10 +5,13 @@ $listUrl = app_url('index.php?r=sales_reps');
 
 require_once app_path('includes/nav_helpers.php');
 require_once app_path('includes/sales_oracle12_ui.php');
+require_once app_path('includes/crm_sales_rep_schema.php');
+require_once app_path('includes/crm_region.php');
 
 $pdo = db();
-require_once app_path('includes/crm_sales_rep_schema.php');
 crm_sales_rep_ensure_mobile_custody_schema($pdo);
+crm_region_ensure_schema($pdo);
+crm_sales_rep_region_ensure_schema($pdo);
 if (!crm_sales_rep_ensure_schema($pdo)) {
     ?>
     <div class="alert alert-error">
@@ -37,6 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $address = trim((string) ($_POST['address_ar'] ?? ''));
             $warehouseId = (int) ($_POST['warehouse_id'] ?? 0);
             $autoCreateWarehouse = isset($_POST['auto_create_warehouse']);
+            $regionIdsRaw = $_POST['region_ids'] ?? [];
+            if (!is_array($regionIdsRaw)) {
+                $regionIdsRaw = [];
+            }
 
             if ($name === '') {
                 throw new RuntimeException('اسم المندوب مطلوب.');
@@ -98,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($autoCreateWarehouse && $warehouseId === null) {
                     crm_sales_rep_ensure_custody_warehouse($pdo, $id);
                 }
+                crm_sales_rep_save_regions($pdo, $id, $regionIdsRaw);
                 flash_set('success', 'تم تحديث بيانات المندوب.');
             } else {
                 if ($hasWhCol) {
@@ -125,6 +133,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newId = (int) $pdo->lastInsertId();
                 if ($autoCreateWarehouse && $warehouseId === null && $newId > 0) {
                     crm_sales_rep_ensure_custody_warehouse($pdo, $newId);
+                }
+                if ($newId > 0) {
+                    crm_sales_rep_save_regions($pdo, $newId, $regionIdsRaw);
                 }
                 flash_set('success', 'تم إضافة المندوب.');
             }
@@ -180,6 +191,10 @@ if ($action === 'add' || $action === 'edit') {
     $warehouses = $pdo->query(
         'SELECT id, code, name_ar FROM inv_warehouse WHERE is_active = 1 ORDER BY name_ar'
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $regions = crm_region_load_active($pdo);
+    $selectedRegionIds = (int) ($row['id'] ?? 0) > 0
+        ? crm_sales_rep_region_ids($pdo, (int) $row['id'])
+        : [];
 
     $formTitle = $action === 'add' ? 'إضافة مندوب' : 'تعديل مندوب';
     ?>
@@ -216,6 +231,29 @@ if ($action === 'add' || $action === 'edit') {
                 <span class="field-label">العنوان</span>
                 <textarea class="input" name="address_ar" rows="3"><?= esc((string) ($row['address_ar'] ?? '')) ?></textarea>
             </label>
+
+            <fieldset class="field customers-reps-field">
+                <legend class="field-label">المناطق التي يغطيها المندوب</legend>
+                <?php if (!$regions): ?>
+                    <p class="muted">
+                        لا توجد مناطق —
+                        <a href="<?= esc(app_url('index.php?r=customer_regions')) ?>">أضف مناطقًا أولاً</a>.
+                    </p>
+                <?php else: ?>
+                    <p class="muted" style="margin:0 0 0.45rem;font-size:0.85rem;">
+                        اختر منطقة أو أكثر (مثال: الزرقاء، طبربور).
+                    </p>
+                    <div class="customers-reps-checkboxes">
+                        <?php foreach ($regions as $rg): ?>
+                            <label class="customers-rep-check">
+                                <input type="checkbox" name="region_ids[]" value="<?= (int) $rg['id'] ?>"
+                                    <?= in_array((int) $rg['id'], $selectedRegionIds, true) ? ' checked' : '' ?>>
+                                <?= esc((string) $rg['name_ar']) ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </fieldset>
 
             <?php if (crm_sales_rep_has_warehouse_link($pdo)): ?>
             <label class="field">
@@ -256,21 +294,29 @@ if ($action === 'add' || $action === 'edit') {
 
 $search = trim((string) ($_GET['q'] ?? ''));
 
-$sql = 'SELECT r.id, r.code, r.name_ar, r.phone, r.address_ar, r.is_active, r.created_at,
-        w.name_ar AS warehouse_name_ar, w.code AS warehouse_code
+$regionNamesSub = '(SELECT GROUP_CONCAT(rg.name_ar ORDER BY srr.sort_order, rg.name_ar SEPARATOR \'، \')
+                   FROM crm_sales_rep_region srr
+                   INNER JOIN crm_region rg ON rg.id = srr.region_id
+                   WHERE srr.sales_rep_id = r.id)';
+
+$sql = "SELECT r.id, r.code, r.name_ar, r.phone, r.address_ar, r.is_active, r.created_at,
+        w.name_ar AS warehouse_name_ar, w.code AS warehouse_code,
+        {$regionNamesSub} AS region_names
         FROM crm_sales_rep r
-        LEFT JOIN inv_warehouse w ON w.id = r.warehouse_id';
+        LEFT JOIN inv_warehouse w ON w.id = r.warehouse_id";
 $params = [];
 if ($search !== '') {
-    $sql .= ' WHERE (r.name_ar LIKE ? OR r.code LIKE ? OR r.phone LIKE ? OR r.address_ar LIKE ?)';
+    $sql .= " WHERE (r.name_ar LIKE ? OR r.code LIKE ? OR r.phone LIKE ? OR r.address_ar LIKE ?
+              OR IFNULL({$regionNamesSub}, '') LIKE ?)";
     $like = '%' . $search . '%';
-    $params = array_fill(0, 4, $like);
+    $params = array_fill(0, 5, $like);
 }
 require_once app_path('includes/list_pagination.php');
 
-$countSql = 'SELECT COUNT(*) FROM crm_sales_rep';
+$countSql = 'SELECT COUNT(*) FROM crm_sales_rep r';
 if ($search !== '') {
-    $countSql .= ' WHERE (name_ar LIKE ? OR code LIKE ? OR phone LIKE ? OR address_ar LIKE ?)';
+    $countSql .= " WHERE (r.name_ar LIKE ? OR r.code LIKE ? OR r.phone LIKE ? OR r.address_ar LIKE ?
+                   OR IFNULL({$regionNamesSub}, '') LIKE ?)";
 }
 $stCount = $pdo->prepare($countSql);
 $stCount->execute($params);
@@ -304,7 +350,7 @@ $addUrl = app_url('index.php?r=sales_reps&action=add');
             <label class="field sales-reps-ora-search-field">
                 <span class="field-label">بحث عن المندوب</span>
                 <input class="input" type="search" name="q" value="<?= esc($search) ?>"
-                       placeholder="الاسم، الرمز، التلفون، العنوان…" autocomplete="off" spellcheck="false">
+                       placeholder="الاسم، الرمز، التلفون، المنطقة…" autocomplete="off" spellcheck="false">
             </label>
             <div class="sales-reps-ora-search-actions">
                 <button type="submit" class="btn btn-secondary btn-sm">بحث</button>
@@ -323,9 +369,9 @@ $addUrl = app_url('index.php?r=sales_reps&action=add');
                 <th>#</th>
                 <th>الرمز</th>
                 <th>اسم المندوب</th>
+                <th>المناطق</th>
                 <th>التلفون</th>
                 <th>مستودع العهدة</th>
-                <th>العنوان</th>
                 <th>الحالة</th>
                 <th>إجراءات</th>
             </tr>
@@ -343,6 +389,7 @@ $addUrl = app_url('index.php?r=sales_reps&action=add');
                     <td><?= (int) $rep['id'] ?></td>
                     <td><code><?= esc((string) $rep['code']) ?></code></td>
                     <td><?= esc((string) $rep['name_ar']) ?></td>
+                    <td><?= esc(trim((string) ($rep['region_names'] ?? '')) !== '' ? (string) $rep['region_names'] : '—') ?></td>
                     <td><?= esc((string) ($rep['phone'] ?? '—')) ?></td>
                     <td>
                         <?php if (!empty($rep['warehouse_name_ar'])): ?>
@@ -352,7 +399,6 @@ $addUrl = app_url('index.php?r=sales_reps&action=add');
                             <span class="muted">—</span>
                         <?php endif; ?>
                     </td>
-                    <td class="muted sales-reps-address-cell"><?= esc((string) ($rep['address_ar'] ?? '—')) ?></td>
                     <td>
                         <?php if ((int) $rep['is_active']): ?>
                             <span class="badge badge-ok">نشط</span>
