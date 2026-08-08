@@ -1,0 +1,590 @@
+/**
+ * طلب شراء عميل — واجهة حديثة (SaaS / document editor)
+ * Scoped تحت .co-modern فقط حتى لا يؤثر على باقي الشاشات.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
+
+.co-modern {
+  --co-bg0: #eef2f6;
+  --co-bg1: #f7f9fc;
+  --co-surface: #ffffff;
+  --co-ink: #0f172a;
+  --co-muted: #64748b;
+  --co-line: #e2e8f0;
+  --co-line-strong: #cbd5e1;
+  --co-accent: #0d9488;
+  --co-accent-ink: #0f766e;
+  --co-accent-soft: #ccfbf1;
+  --co-danger: #e11d48;
+  --co-danger-soft: #fff1f2;
+  --co-warn: #d97706;
+  --co-radius: 14px;
+  --co-radius-sm: 10px;
+  --co-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 28px rgba(15, 23, 42, 0.06);
+  --co-font: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  font-family: var(--co-font);
+  color: var(--co-ink);
+  background:
+    radial-gradient(1200px 480px at 100% -10%, rgba(13, 148, 136, 0.10), transparent 55%),
+    radial-gradient(900px 420px at 0% 0%, rgba(14, 165, 233, 0.07), transparent 50%),
+    linear-gradient(180deg, var(--co-bg1) 0%, var(--co-bg0) 100%);
+  min-height: calc(100vh - 2rem);
+  padding-bottom: 2.5rem;
+}
+
+/* إخفاء / تهدئة شريط Oracle الثقيل */
+.co-modern.dashboard-ora {
+  background:
+    radial-gradient(1200px 480px at 100% -10%, rgba(13, 148, 136, 0.10), transparent 55%),
+    radial-gradient(900px 420px at 0% 0%, rgba(14, 165, 233, 0.07), transparent 50%),
+    linear-gradient(180deg, var(--co-bg1) 0%, var(--co-bg0) 100%) !important;
+}
+
+.co-modern .dashboard-ora-screen-title,
+.co-modern header.dashboard-ora-screen-title {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0.5rem 0.35rem 1rem !important;
+  margin: 0 0 0.15rem !important;
+  min-height: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0 !important;
+  animation: co-fade-up 0.45s ease both;
+}
+
+.co-modern .dashboard-ora-screen-title__text {
+  font-size: 1.55rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em;
+  color: var(--co-ink) !important;
+  text-shadow: none !important;
+}
+
+.co-modern .dashboard-ora-screen-title__meta {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--co-accent-ink) !important;
+  background: var(--co-accent-soft) !important;
+  border: 1px solid rgba(13, 148, 136, 0.22);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+}
+
+.co-modern .dashboard-ora-screen-title .app-screen-fav-btn {
+  color: var(--co-muted) !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  border: 1px solid var(--co-line) !important;
+  border-radius: 10px !important;
+}
+
+.co-modern .dashboard-ora-screen-title > .ora12-title-bar__close,
+.co-modern .dashboard-ora-screen-title .ora12-title-bar__close {
+  background: var(--co-danger-soft) !important;
+  color: var(--co-danger) !important;
+  border: 1px solid #fecdd3 !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+.co-modern .dashboard-ora-workspace {
+  padding: 0 !important;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* شريط تنقّل علوي خفيف */
+.co-modern__topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  animation: co-fade-up 0.5s ease 0.05s both;
+}
+
+.co-modern__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.co-modern__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.42rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none !important;
+  border: 1px solid var(--co-line);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--co-ink) !important;
+  backdrop-filter: blur(8px);
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.co-modern__chip:hover {
+  background: #fff;
+  border-color: var(--co-line-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.co-modern__chip--primary {
+  background: var(--co-accent);
+  border-color: var(--co-accent);
+  color: #fff !important;
+}
+
+.co-modern__chip--primary:hover {
+  background: var(--co-accent-ink);
+  border-color: var(--co-accent-ink);
+  color: #fff !important;
+}
+
+.co-modern__status {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--co-muted);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid var(--co-line);
+}
+
+.co-modern__status.is-draft {
+  color: var(--co-warn);
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+/* سطح المستند */
+.co-modern__doc {
+  background: var(--co-surface);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: calc(var(--co-radius) + 2px);
+  box-shadow: var(--co-shadow);
+  overflow: hidden;
+  animation: co-fade-up 0.55s ease 0.1s both;
+}
+
+.co-modern__section {
+  padding: 1.15rem 1.25rem 1.25rem;
+  border-bottom: 1px solid var(--co-line);
+}
+
+.co-modern__section:last-child {
+  border-bottom: 0;
+}
+
+.co-modern__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.co-modern__section-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--co-muted);
+}
+
+.co-modern__section-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+/* شبكة البيانات */
+.co-modern__meta {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+@media (max-width: 1100px) {
+  .co-modern__meta {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .co-modern__meta {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .co-modern__meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+.co-modern__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+.co-modern__field--customer {
+  grid-column: span 2;
+}
+
+@media (max-width: 720px) {
+  .co-modern__field--customer {
+    grid-column: span 1;
+  }
+}
+
+.co-modern__field label,
+.co-modern .co-modern__field > label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--co-muted);
+  margin: 0;
+}
+
+.co-modern .input,
+.co-modern select.input,
+.co-modern textarea.input,
+.co-modern .sales-inv-cust-open {
+  width: 100%;
+  border: 1px solid var(--co-line) !important;
+  border-radius: var(--co-radius-sm) !important;
+  background: #f8fafc !important;
+  box-shadow: none !important;
+  min-height: 2.4rem;
+  font-family: var(--co-font) !important;
+  font-size: 0.9rem !important;
+  color: var(--co-ink) !important;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.co-modern .input:hover,
+.co-modern select.input:hover,
+.co-modern .sales-inv-cust-open:hover {
+  border-color: var(--co-line-strong) !important;
+  background: #fff !important;
+}
+
+.co-modern .input:focus,
+.co-modern select.input:focus,
+.co-modern textarea.input:focus,
+.co-modern .sales-inv-cust-open:focus {
+  outline: none !important;
+  border-color: rgba(13, 148, 136, 0.55) !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.14) !important;
+}
+
+.co-modern input[readonly].input {
+  background: #f1f5f9 !important;
+  color: var(--co-muted) !important;
+  cursor: default;
+}
+
+/* أزرار */
+.co-modern__btn {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--co-font);
+  font-weight: 600;
+  font-size: 0.84rem;
+  border-radius: var(--co-radius-sm);
+  padding: 0.5rem 0.95rem;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  text-decoration: none !important;
+}
+
+.co-modern__btn:active {
+  transform: scale(0.98);
+}
+
+.co-modern__btn--ghost {
+  background: #f1f5f9;
+  color: var(--co-ink);
+  border: 1px solid var(--co-line);
+}
+
+.co-modern__btn--ghost:hover {
+  background: #e2e8f0;
+}
+
+.co-modern__btn--accent {
+  background: var(--co-accent);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(13, 148, 136, 0.22);
+}
+
+.co-modern__btn--accent:hover {
+  background: var(--co-accent-ink);
+}
+
+/* جدول البنود */
+.co-modern .sales-inv-table-wrap,
+.co-modern #sales-inv-table-wrap {
+  border: 1px solid var(--co-line) !important;
+  border-radius: var(--co-radius) !important;
+  overflow: auto;
+  background: #fff;
+  max-height: min(52vh, 560px);
+  box-shadow: none !important;
+}
+
+.co-modern .sales-inv-table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-size: 0.82rem !important;
+  width: 100%;
+}
+
+.co-modern .sales-inv-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fafc !important;
+  color: var(--co-muted) !important;
+  font-weight: 700 !important;
+  font-size: 0.72rem !important;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  border-bottom: 1px solid var(--co-line) !important;
+  border-color: var(--co-line) !important;
+  padding: 0.65rem 0.45rem !important;
+  white-space: nowrap;
+}
+
+.co-modern .sales-inv-table tbody td {
+  border-color: #f1f5f9 !important;
+  background: #fff !important;
+  padding: 0.4rem 0.35rem !important;
+  vertical-align: middle;
+  transition: background 0.12s ease;
+}
+
+.co-modern .sales-inv-table tbody tr:hover td {
+  background: #f8fafc !important;
+}
+
+.co-modern .sales-inv-table tbody tr.is-entry-row td {
+  background: #fcfdff !important;
+}
+
+.co-modern .sales-inv-table .input,
+.co-modern .sales-inv-table select.input {
+  min-height: 2.05rem;
+  background: #fff !important;
+  border-radius: 8px !important;
+  font-size: 0.82rem !important;
+}
+
+.co-modern .sales-inv-table thead th.sales-inv-col-qty-extra {
+  background: #ecfeff !important;
+  color: #0e7490 !important;
+  border-color: #a5f3fc !important;
+}
+
+.co-modern .sales-inv-table tbody td.sales-inv-col-qty-extra {
+  background: #f0fdfa !important;
+}
+
+.co-modern .sales-inv-table tbody tr:hover td.sales-inv-col-qty-extra {
+  background: #ccfbf1 !important;
+}
+
+.co-modern .btn-icon.danger {
+  border-radius: 8px;
+  background: var(--co-danger-soft);
+  color: var(--co-danger);
+}
+
+/* تذييل: ملاحظات + مجاميع */
+.co-modern__footer {
+  display: grid;
+  grid-template-columns: 1.2fr 0.85fr;
+  gap: 1.1rem;
+  align-items: start;
+  padding-top: 0.35rem;
+}
+
+@media (max-width: 900px) {
+  .co-modern__footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+.co-modern__notes label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--co-muted);
+  margin-bottom: 0.35rem;
+}
+
+.co-modern__notes textarea {
+  min-height: 7.5rem;
+  resize: vertical;
+}
+
+.co-modern__totals {
+  background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid var(--co-line);
+  border-radius: var(--co-radius);
+  padding: 0.85rem 1rem;
+}
+
+.co-modern__totals .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.42rem 0;
+  font-size: 0.88rem;
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.35);
+  color: var(--co-ink);
+}
+
+.co-modern__totals .row:last-child {
+  border-bottom: 0;
+}
+
+.co-modern__totals .row > span:last-child {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  font-weight: 600;
+}
+
+.co-modern__totals .sales-inv-totals-disc {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+}
+
+.co-modern__totals .sales-inv-totals-disc label {
+  font-size: 0.82rem;
+  color: var(--co-muted);
+  font-weight: 600;
+}
+
+.co-modern__totals .sales-inv-totals-disc #inv-invoice-discount {
+  max-width: 7.5rem;
+  margin-inline-start: auto;
+  text-align: center;
+  background: #fff !important;
+}
+
+.co-modern__totals .sales-inv-totals-header-disc {
+  background: var(--co-accent-soft);
+  border-radius: 8px;
+  padding-inline: 0.5rem !important;
+  border-bottom: 0 !important;
+  margin-bottom: 0.15rem;
+  font-weight: 700;
+}
+
+.co-modern__totals .row.grand {
+  margin-top: 0.25rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--co-line-strong);
+  border-bottom: 0 !important;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.co-modern__totals .row.grand span:last-child {
+  color: var(--co-accent-ink);
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.co-modern__msg {
+  margin: 0.75rem 0 0;
+  min-height: 1.25rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--co-muted);
+}
+
+.co-modern__msg.is-error {
+  color: var(--co-danger);
+}
+
+.co-modern__msg.is-ok {
+  color: var(--co-accent-ink);
+}
+
+/* إخفاء عناوين اللوحات القديمة داخل الشاشة */
+.co-modern .dashboard-ora-panel,
+.co-modern .dashboard-ora-panel__body,
+.co-modern .sales-inv-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.co-modern .dashboard-ora-panel__title {
+  display: none !important;
+}
+
+.co-modern .sales-inv-footer-grid {
+  display: contents;
+}
+
+.co-modern .sales-inv-meta-panel,
+.co-modern .sales-inv-doc-header,
+.co-modern .sales-inv-meta-row {
+  display: contents !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.co-modern .sales-inv-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+@keyframes co-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .co-modern,
+  .co-modern .dashboard-ora-screen-title,
+  .co-modern__topbar,
+  .co-modern__doc {
+    animation: none !important;
+  }
+}
