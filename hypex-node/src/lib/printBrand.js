@@ -299,7 +299,7 @@ async function renderStandalonePrintPage({
   <div class="hx-doc-bar no-print">
     <strong>${escapeHtml(documentTitle)}</strong>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-      <button type="button" class="hx-doc-btn hx-doc-btn--pri" data-print="1" id="hx-print-btn">طباعة / PDF</button>
+      <button type="button" class="hx-doc-btn hx-doc-btn--pri" data-print="1" id="hx-print-btn">طباعة</button>
       ${back}
     </div>
   </div>
