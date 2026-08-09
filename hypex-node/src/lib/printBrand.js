@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * ترويسة/تذييل طباعة موحّدان — شعار يسار + اسم يمين + تذييل مستخدم
+ * ترويسة/تذييل طباعة موحّدان — نفس أسلوب document_print_header (PHP)
+ * وواجهات Node 2027: شعار + اسم شركة + عنوان، وتذييل مستخدم.
  */
 const db = require('../db');
 const basePath = require('./basePath');
@@ -76,7 +77,8 @@ function escapeAttr(s) {
 }
 
 /**
- * يلف المحتوى بترويسة/تذييل الطباعة (بدون جدول خارجي يكسر التنسيق).
+ * يلف المحتوى بترويسة/تذييل الطباعة داخل تدفق المستند (يظهر في معاينة الطباعة).
+ * الهيكل مطابق لتقارير PHP الحديثة (document_print_header).
  */
 function wrapPrintShell(bodyHtml, opts = {}) {
   const brand = getPrintBrand();
@@ -86,36 +88,35 @@ function wrapPrintShell(bodyHtml, opts = {}) {
   const username = String(user.username || '').trim();
   const docTitle = String(opts.documentTitle || '').trim();
   const logo = brand.logoUrl
-    ? `<img class="hx-print-logo-img" src="${escapeAttr(brand.logoUrl)}" alt="" width="90" height="40">`
+    ? `<img class="hx-print-logo-img" src="${escapeAttr(brand.logoUrl)}" alt="" width="72" height="48">`
     : `<span class="hx-print-logo-fallback" aria-hidden="true">H</span>`;
+
+  const userLine = username
+    ? `${escapeHtml(userLabel)} (@${escapeHtml(username)})`
+    : escapeHtml(userLabel);
 
   return `
 <div class="hx-print-root">
-  <!-- ترويسة ثابتة عند الطباعة — شعار يسار / اسم يمين -->
-  <div class="hx-print-chrome hx-print-chrome--head" aria-hidden="true">
-    <div class="hx-print-head">
-      <div class="hx-print-logo">${logo}</div>
-      <div class="hx-print-co">
-        <div class="hx-print-co-name">${escapeHtml(brand.companyName)}</div>
-        ${docTitle ? `<div class="hx-print-doc-title">${escapeHtml(docTitle)}</div>` : ''}
+  <header class="hx-print-header hx-print-only" role="banner" aria-hidden="true">
+    <div class="hx-print-header-top">
+      <div class="hx-print-header-brand">
+        <div class="hx-print-header-co">${escapeHtml(brand.companyName)}</div>
+        <div class="hx-print-header-logo">${logo}</div>
       </div>
     </div>
-  </div>
+    ${docTitle ? `<div class="hx-print-header-title">${escapeHtml(docTitle)}</div>` : ''}
+    <div class="hx-print-header-meta">
+      طُبع: <span class="si-print-when" dir="ltr"></span>
+    </div>
+  </header>
 
   <div class="hx-print-content">
     ${bodyHtml}
   </div>
 
-  <!-- تذييل ثابت عند الطباعة -->
-  <div class="hx-print-chrome hx-print-chrome--foot" aria-hidden="true">
-    <div class="hx-print-foot">
-      <span class="hx-print-user">المستخدم: ${escapeHtml(userLabel)}${
-        username ? ` (@${escapeHtml(username)})` : ''
-      }</span>
-      <span class="hx-print-when-label">طُبع: <span class="si-print-when"></span></span>
-      <span class="hx-print-pages">صفحة <span class="hx-page-num">—</span></span>
-    </div>
-  </div>
+  <footer class="hx-print-footer hx-print-only" aria-hidden="true">
+    طبع بواسطة: ${userLine}
+  </footer>
 </div>`;
 }
 

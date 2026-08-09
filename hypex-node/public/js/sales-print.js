@@ -1,5 +1,5 @@
 /**
- * طباعة: وقت + تقدير عدد الصفحات
+ * طباعة تقارير Node 2027: ختم وقت الطباعة + جاهزية قبل window.print
  */
 (function () {
   'use strict';
@@ -25,25 +25,8 @@
     });
   }
 
-  function stampPageEstimate() {
-    var numEls = document.querySelectorAll('.hx-page-num');
-    if (!numEls.length) return;
-    var area =
-      document.querySelector('.hx-print-content .si-print-area') ||
-      document.querySelector('.hx-print-content .ora-stmt') ||
-      document.querySelector('.hx-print-content') ||
-      document.querySelector('main') ||
-      document.body;
-    var h = Math.max(area.scrollHeight || 0, area.offsetHeight || 0, 800);
-    var total = Math.max(1, Math.ceil(h / 900));
-    numEls.forEach(function (el) {
-      el.textContent = String(total);
-    });
-  }
-
   function preparePrint() {
     stampPrintTime();
-    stampPageEstimate();
   }
 
   document.querySelectorAll('.si-btn--print, [data-print]').forEach(function (btn) {
