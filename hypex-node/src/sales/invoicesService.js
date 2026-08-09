@@ -104,7 +104,7 @@ async function getInvoice(id) {
   if (!headers[0]) return null;
   const h = headers[0];
   const lines = await db.query(
-    `SELECT il.*, it.code AS item_code, it.name_ar AS item_name
+    `SELECT il.*, it.sku AS item_code, it.name_ar AS item_name
      FROM sal_invoice_line il
      INNER JOIN inv_item it ON it.id = il.item_id
      WHERE il.invoice_id = ?
