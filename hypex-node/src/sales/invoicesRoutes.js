@@ -77,18 +77,18 @@ function toolbarCaps(user, inv) {
 function toolbarHtml(caps, inv) {
   const id = inv && inv.id ? Number(inv.id) : 0;
   const posted = !!(inv && inv.is_posted);
-  const b = (idAttr, label, cls, disabled) =>
+  const b = (idAttr, label, cls, disabled, extra = '') =>
     `<button type="button" class="si-tb ${cls || ''}" id="${idAttr}" ${
       disabled ? 'disabled' : ''
-    }>${esc(label)}</button>`;
+    }${extra}>${esc(label)}</button>`;
 
   return `
     <div class="si-cmd si-doc-toolbar" id="si-doc-bar" role="toolbar" aria-label="إجراءات الفاتورة"
          data-invoice-id="${id}" data-posted="${posted ? '1' : '0'}">
       <div class="si-tb-group si-tb-group--core">
-        ${b('si-save', 'حفظ', 'si-tb--save', !caps.canSave)}
+        ${b('si-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="F10 حفظ"')}
         ${b('si-post', 'ترحيل', 'si-tb--post', !caps.canPost && !(caps.canSave && !id))}
-        ${b('si-add-line', '＋ سطر', 'si-tb--accent', !caps.canSave)}
+        ${b('si-add-line', '＋ سطر', 'si-tb--accent', !caps.canSave, ' data-hx-add-line="1" title="F2 سطر جديد"')}
       </div>
       <div class="si-tb-group">
         ${b('si-search', 'بحث', 'si-tb--ghost', false)}

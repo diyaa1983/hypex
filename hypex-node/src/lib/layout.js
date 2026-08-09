@@ -12,6 +12,29 @@ const {
   bodyPrintDataHtml,
 } = require('./printBrand');
 
+function faviconLinksHtml() {
+  const brand = getPrintBrand();
+  let href = brand.logoUrl || '';
+  let type = 'image/png';
+  if (!href) {
+    href = basePath.ensurePrefixed('/assets/favicon.svg');
+    type = 'image/svg+xml';
+  } else {
+    const lower = href.toLowerCase();
+    if (lower.includes('.svg')) type = 'image/svg+xml';
+    else if (lower.includes('.jpg') || lower.includes('.jpeg')) type = 'image/jpeg';
+    else if (lower.includes('.webp')) type = 'image/webp';
+    else if (lower.includes('.ico')) type = 'image/x-icon';
+    else type = 'image/png';
+  }
+  const h = esc(href);
+  return (
+    `<link rel="icon" href="${h}" type="${esc(type)}">\n` +
+    `<link rel="shortcut icon" href="${h}">\n` +
+    `<link rel="apple-touch-icon" href="${h}">`
+  );
+}
+
 function phpUrl(route, extra = '') {
   if (!route) return config.phpBaseUrl;
   return `${config.phpBaseUrl}/index.php?r=${encodeURIComponent(route)}${extra}`;
@@ -89,11 +112,20 @@ function renderApp({
 
   const base = basePath.basePath || '';
   const spVer = assetVersion('js/sales-print.js');
+  const scVer = assetVersion('js/hx-shortcuts.js');
+  const scCssVer = assetVersion('css/hx-shortcuts.css');
   const allCss = [...css];
   const allJs = [...js];
   if (printChrome && user) {
     const hasPrint = allJs.some((j) => String(j).indexOf('sales-print.js') !== -1);
     if (!hasPrint) allJs.push(`/assets/js/sales-print.js?v=${spVer}`);
+  }
+  // اختصارات النظام لكل الشاشات
+  if (user) {
+    const hasSc = allJs.some((j) => String(j).indexOf('hx-shortcuts.js') !== -1);
+    if (!hasSc) allJs.push(`/assets/js/hx-shortcuts.js?v=${scVer}`);
+    const hasScCss = allCss.some((c) => String(c).indexOf('hx-shortcuts.css') !== -1);
+    if (!hasScCss) allCss.unshift(`/assets/css/hx-shortcuts.css?v=${scCssVer}`);
   }
 
   const cssLinks = allCss
@@ -139,6 +171,7 @@ function renderApp({
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
   <meta name="hx-print-engine" content="standalone-v3">
   <title>${esc(title)} · ${esc(getPrintBrand().companyName || 'Hypex')}</title>
+  ${faviconLinksHtml()}
   <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
   <script src="/assets/js/base-path.js"></script>
   <link rel="stylesheet" href="/assets/css/shell.css">
@@ -191,4 +224,5 @@ module.exports = {
   embedUrl,
   phpEmbedPage,
   renderSidebar,
+  faviconLinksHtml,
 };

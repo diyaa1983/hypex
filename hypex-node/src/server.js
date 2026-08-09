@@ -8,7 +8,7 @@ const db = require('./db');
 const auth = require('./auth');
 const nav = require('./nav');
 const dashboard = require('./dashboard');
-const { renderApp, phpUrl } = require('./lib/layout');
+const { renderApp, phpUrl, faviconLinksHtml } = require('./lib/layout');
 const { esc, fmtAmt, isoToDmy } = require('./lib/html');
 const salesInvoices = require('./sales/invoicesRoutes');
 const salesReturns = require('./sales/returnsRoutes');
@@ -103,6 +103,41 @@ app.get('/api/print-brand', async (req, res) => {
       logoUrl: b.logoUrl || '',
     });
   }
+});
+
+/** بحث عملاء/مواد — اختصارات F7 / F3 (أي مستخدم مسجّل) */
+app.get('/api/lookup/customers', auth.requireAuth, async (req, res) => {
+  try {
+    const inv = require('./sales/invoicesService');
+    const rows = await inv.searchCustomers(String(req.query.q || ''), 50);
+    res.json({ ok: true, rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message || 'خطأ' });
+  }
+});
+
+app.get('/api/lookup/items', auth.requireAuth, async (req, res) => {
+  try {
+    const inv = require('./sales/invoicesService');
+    const rows = await inv.searchItems(String(req.query.q || ''), 50);
+    res.json({ ok: true, rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message || 'خطأ' });
+  }
+});
+
+/** أيقونة التبويب — شعار الشركة بدل افتراضي XAMPP */
+app.get(['/favicon.ico', '/favicon.png', '/favicon'], async (req, res) => {
+  try {
+    await ensurePrintBrand(true);
+  } catch {
+    /* ignore */
+  }
+  const brand = getPrintBrand();
+  let url = brand.logoUrl || basePath.ensurePrefixed('/assets/favicon.svg');
+  // لطلبات مباشرة من جذر المنفذ أعد توجيه نسبي
+  if (url && url.startsWith('http')) return res.redirect(302, url);
+  return res.redirect(302, url || basePath.ensurePrefixed('/assets/favicon.svg'));
 });
 
 /** تقديم أصول Node مع إعادة كتابة مسارات JS تحت /hypex */
@@ -468,6 +503,21 @@ function renderLogin({ error, username, brand }) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تسجيل الدخول · ${esc(companyName)}</title>
+  ${(() => {
+    const h = logoUrl || '';
+    if (h) {
+      return (
+        `<link rel="icon" href="${esc(h)}">\n` +
+        `<link rel="shortcut icon" href="${esc(h)}">\n` +
+        `<link rel="apple-touch-icon" href="${esc(h)}">`
+      );
+    }
+    try {
+      return faviconLinksHtml();
+    } catch {
+      return '<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">';
+    }
+  })()}
   <script>window.__HYPEX_BASE__=${JSON.stringify(basePath.basePath || '')};</script>
   <script src="/assets/js/base-path.js"></script>
   <link rel="stylesheet" href="/assets/css/app-font.css">
