@@ -261,7 +261,7 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
     const custLabel =
       (inv.customer_code ? inv.customer_code + ' — ' : '') + (inv.customer_name || '—');
 
-    // QR + المجاميع أسفل الجدول فقط بعد الإرسال للفوترة (وجود einv_qr)
+    // QR فقط بعد الإرسال للفوترة (وجود einv_qr)؛ المجاميع دائماً ظاهرة
     const einvSent = !!inv.einv_sent;
     const qrSrc = einvSent ? einvQrImageSrc(inv.einv_qr) : null;
 
@@ -294,8 +294,8 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         ? `<div class="inv-v1-qr"><img src="${esc(qrSrc)}" width="120" height="120" alt="QR الفوترة"></div>`
         : '';
 
-    const sumsBlock = einvSent
-      ? `<div class="inv-v1-sumwrap">
+    // المجاميع دائماً ظاهرة تحت الجدول؛ QR فقط إن وُجدت بعد الإرسال
+    const sumsBlock = `<div class="inv-v1-sumwrap">
             <table class="inv-v1-sum">
               <tr>
                 <td class="lbl">المجموع بدون ضريبة</td>
@@ -315,12 +315,7 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
                 ? `<div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(inv.notes)}</div>`
                 : ''
             }
-          </div>`
-      : inv.notes
-        ? `<div class="inv-v1-sumwrap"><div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(
-            inv.notes
-          )}</div></div>`
-        : '';
+          </div>`;
 
     const contentHtml = `
       <div class="inv-v1${einvSent ? ' inv-v1--einv' : ' inv-v1--draft'}" dir="rtl">
@@ -359,11 +354,11 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         </table>
 
         <div class="inv-v1-foot">
+          ${sumsBlock}
           <div class="inv-v1-sign">
             <div class="inv-v1-sign-label">توقيع المستلم</div>
             <div class="inv-v1-sign-line"></div>
           </div>
-          ${sumsBlock}
         </div>
       </div>`;
 

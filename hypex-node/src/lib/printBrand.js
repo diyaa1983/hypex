@@ -215,8 +215,8 @@ async function renderStandalonePrintPage({
     .inv-v1-table .c-gross{font-weight:800}
     .inv-v1-table .empty{text-align:center;color:#64748b;padding:12px}
     .inv-v1-foot{display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;margin-top:10px}
-    .inv-v1-sumwrap{margin-inline-start:auto;min-width:14rem}
-    .inv-v1-sum{width:auto;min-width:14rem;border-collapse:collapse;margin-inline-start:auto;font-size:10pt}
+    .inv-v1-sumwrap{min-width:14rem;flex:0 0 auto}
+    .inv-v1-sum{width:auto;min-width:14rem;border-collapse:collapse;font-size:10pt}
     .inv-v1-sum td{border:0!important;padding:3px 6px;background:transparent!important}
     .inv-v1-sum .lbl{text-align:right;font-weight:700;color:#1e3a5f;white-space:nowrap}
     .inv-v1-sum .val{text-align:left;font-weight:700;font-variant-numeric:tabular-nums;min-width:5.5rem;color:#0f172a}
