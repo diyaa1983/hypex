@@ -19,3 +19,8 @@ _cookies.txt
 _dash_headers.txt
 _einv_headers.txt
 composer.phar
+
+# Hypex Node — أسرار وتبعيات محلية (التفاصيل في hypex-node/.gitignore)
+hypex-node/node_modules/
+hypex-node/.env
+hypex-node/logs/

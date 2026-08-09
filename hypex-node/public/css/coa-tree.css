@@ -1,0 +1,239 @@
+/* شجرة الحسابات — Node 2027 */
+.coa-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(260px, 1.05fr);
+  min-height: min(68vh, 620px);
+  overflow: hidden;
+  margin-top: 0.35rem;
+}
+@media (max-width: 900px) {
+  .coa-split {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+}
+
+.coa-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-inline-end: 1px solid var(--si-line, #e4e8f0);
+}
+.coa-panel:last-child {
+  border-inline-end: 0;
+}
+
+.coa-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #3d4659;
+  background: rgba(15, 23, 42, 0.03);
+  border-bottom: 1px solid var(--si-line, #e4e8f0);
+}
+
+.coa-tree-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 0.5rem 0.35rem 1rem;
+  max-height: min(60vh, 560px);
+}
+
+.coa-tree-ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  padding-inline-start: 0.85rem;
+}
+
+.coa-tree-li > .coa-tree-ul {
+  display: none;
+}
+.coa-tree-li.is-open > .coa-tree-ul {
+  display: block;
+}
+
+.coa-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.45rem;
+  margin: 0.08rem 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  border: 1px solid transparent;
+  user-select: none;
+}
+.coa-tree-row:hover {
+  background: rgba(15, 110, 106, 0.06);
+}
+.coa-tree-row.is-selected {
+  background: rgba(15, 110, 106, 0.12);
+  border-color: rgba(15, 110, 106, 0.25);
+}
+.coa-tree-li.is-inactive > .coa-tree-row {
+  opacity: 0.55;
+}
+.coa-tree-li.is-match > .coa-tree-row {
+  box-shadow: inset 0 0 0 1px rgba(11, 99, 203, 0.25);
+}
+
+.coa-toggle {
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.06);
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: #475569;
+  padding: 0;
+}
+.coa-toggle--empty {
+  display: inline-block;
+  width: 1.35rem;
+  background: transparent;
+}
+.coa-tree-li.is-open > .coa-tree-row .coa-toggle {
+  transform: none;
+}
+
+.coa-tree-code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-weight: 700;
+  color: #0b63ce;
+  min-width: 3.2rem;
+}
+.coa-tree-name {
+  font-weight: 650;
+  color: #1e293b;
+  flex: 1;
+  min-width: 0;
+}
+
+.coa-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.coa-badge--off {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.coa-tone--asset .coa-tree-code { color: #0369a1; }
+.coa-tone--liability .coa-tree-code { color: #b45309; }
+.coa-tone--equity .coa-tree-code { color: #6d28d9; }
+.coa-tone--revenue .coa-tree-code { color: #047857; }
+.coa-tone--expense .coa-tree-code { color: #be123c; }
+
+.coa-empty {
+  padding: 1rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.coa-detail {
+  padding: 1rem 1.15rem;
+  flex: 1;
+}
+.coa-detail-placeholder {
+  color: #64748b;
+  font-size: 0.92rem;
+  margin: 0.5rem 0;
+}
+.coa-detail dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.45rem 0.75rem;
+  font-size: 0.9rem;
+}
+.coa-detail dt {
+  color: #64748b;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+.coa-detail dd {
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.coa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.75rem 1.15rem 1.1rem;
+  border-top: 1px solid var(--si-line, #e4e8f0);
+  background: rgba(15, 23, 42, 0.02);
+}
+.coa-actions .si-btn {
+  min-height: 2.2rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+/* form */
+.coa-form {
+  padding: 1.15rem 1.25rem 1.35rem;
+  max-width: 44rem;
+}
+.coa-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+@media (max-width: 640px) {
+  .coa-form-grid { grid-template-columns: 1fr; }
+}
+.coa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #3d4659;
+}
+.coa-hint {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #64748b;
+  margin: 0.25rem 0 0;
+}
+.coa-form-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 1rem 0 0.75rem;
+}
+.coa-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+.coa-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+.coa-form-actions .si-btn {
+  min-height: 2.2rem;
+  padding: 0.4rem 0.95rem;
+}

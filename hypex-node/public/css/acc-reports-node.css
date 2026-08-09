@@ -1,0 +1,58 @@
+/* تقارير ومحاسبة Node */
+.ar-report .ar-filters,
+.ar-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.75rem;
+  align-items: flex-end;
+  max-width: 100%;
+}
+.ar-filters .si-field {
+  min-height: 2.2rem;
+}
+.ar-mode {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+  font-weight: 600;
+}
+.ar-totals {
+  margin: 0.75rem 0 0;
+  font-size: 0.95rem;
+}
+.ar-badge {
+  display: inline-block;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  margin-inline-start: 0.25rem;
+}
+.tax-hero {
+  margin: 1rem 0;
+  padding: 1.25rem;
+  background: #eef6ff;
+  border-radius: 10px;
+  text-align: center;
+}
+.tax-hero-amt {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0.35rem 0;
+}
+.tax-meta p { margin: 0.25rem 0; }
+.ar-open td {
+  background: rgba(148, 163, 184, 0.12);
+}
+tr.is-current td {
+  background: rgba(187, 247, 208, 0.35);
+}
+tr.is-locked td {
+  color: #9a3412;
+}
+@media print {
+  .si-rail, .no-print, .si-hero-actions { display: none !important; }
+}

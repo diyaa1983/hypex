@@ -1,0 +1,191 @@
+/* بصمات الموظفين — Node */
+.att-hint {
+  margin: 0.25rem 0 0.65rem;
+  font-size: 0.88rem;
+  color: #475569;
+  line-height: 1.5;
+}
+.att-toolbar {
+  margin-bottom: 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.att-section {
+  margin-top: 0.75rem;
+}
+.att-empty {
+  margin: 0;
+  padding: 0.85rem 0.25rem;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.att-empty a {
+  color: #0f766e;
+  font-weight: 700;
+}
+.att-muted {
+  color: #94a3b8;
+  font-size: 0.85em;
+}
+.att-unlinked {
+  color: #b45309;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.att-row-unlinked td {
+  background: #fffbeb !important;
+}
+.att-mismatch td {
+  background: #fef2f2 !important;
+}
+.att-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+.att-filters label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+.att-filters .si-field {
+  min-height: 2.2rem;
+  min-width: 9.5rem;
+}
+.att-link-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: flex-end;
+}
+.att-link-grid label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+  flex: 1 1 14rem;
+}
+.att-link-grid .si-field {
+  min-height: 2.3rem;
+}
+.att-link-grid .si-btn {
+  margin-bottom: 0.05rem;
+}
+
+.att-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0.75rem;
+}
+.att-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid #d0d7e2;
+  background: #fff;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.att-tab:hover {
+  border-color: #0f766e;
+  color: #0f766e;
+}
+.att-tab.is-active {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.att-callout {
+  margin: 0 0 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  font-weight: 600;
+}
+.att-callout--ok {
+  border-color: #86efac;
+  background: #ecfdf5;
+  color: #166534;
+}
+.att-callout--warn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+.att-callout a {
+  color: inherit;
+  font-weight: 800;
+}
+
+.att-panel-body {
+  padding: 0.85rem 1.1rem 1.15rem;
+}
+.att-steps {
+  margin: 0 0 1rem;
+  padding-inline-start: 1.25rem;
+  color: #334155;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  font-weight: 600;
+}
+.att-steps code,
+.att-code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.82em;
+  background: #f1f5f9;
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+}
+.att-code--token {
+  word-break: break-all;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.att-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.65rem 1rem;
+  margin: 0.85rem 0 0;
+  padding: 0;
+}
+.att-meta dt {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  margin: 0 0 0.2rem;
+}
+.att-meta dd {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.att-meta--codes {
+  grid-template-columns: 1fr;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.att-meta--codes dd {
+  margin-top: 0.25rem;
+}

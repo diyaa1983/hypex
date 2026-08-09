@@ -1,0 +1,38 @@
+/* سند قبض — Node */
+.rc-page .rc-status { margin: 0.25rem 0 0.5rem; }
+.rc-pay-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+  padding: 0.35rem 0 0.15rem;
+}
+.rc-pay-opt {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  cursor: pointer;
+}
+.rc-checks .si-table input.si-field {
+  min-height: 2rem;
+  font-size: 0.85rem;
+}
+.rc-lookup {
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+}
+textarea.si-field {
+  min-height: 4rem;
+  resize: vertical;
+  font-weight: 500;
+  color: #0f172a;
+  padding: 0.5rem 0.65rem;
+}
+@media print {
+  .si-rail, .sh-actions, .rc-lookup, .si-hero-actions, .no-print { display: none !important; }
+}

@@ -36,5 +36,42 @@ if command -v composer >/dev/null 2>&1 && [[ -f composer.json ]]; then
   composer install --no-dev --optimize-autoloader 2>/dev/null || true
 fi
 
+# واجهة Node (hypex-node) — تثبيت الحزم وإعادة التشغيل عبر pm2 إن وُجد
+if [[ -d hypex-node ]]; then
+  echo "==> تحديث hypex-node"
+  if [[ ! -f hypex-node/.env ]]; then
+    if [[ -f hypex-node/.env.example ]]; then
+      cp hypex-node/.env.example hypex-node/.env
+      echo "تحذير: أُنشئ hypex-node/.env من المثال — عدّل DB و PHP_BASE_URL و SESSION_SECRET."
+    else
+      echo "تحذير: hypex-node/.env غير موجود."
+    fi
+  fi
+  if command -v npm >/dev/null 2>&1; then
+    (
+      cd hypex-node
+      if [[ -f package-lock.json ]]; then
+        npm ci --omit=dev
+      else
+        npm install --omit=dev
+      fi
+    )
+    if command -v pm2 >/dev/null 2>&1; then
+      if pm2 describe hypex-node >/dev/null 2>&1; then
+        pm2 restart hypex-node --update-env
+      else
+        pm2 start hypex-node/src/server.js --name hypex-node --cwd "$ROOT/hypex-node"
+        pm2 save 2>/dev/null || true
+      fi
+      echo "    Node يعمل عبر pm2 (hypex-node)."
+    else
+      echo "تحذير: pm2 غير مثبّت — ثبّته (npm i -g pm2) أو شغّل: cd hypex-node && npm start"
+    fi
+  else
+    echo "تحذير: npm/Node غير موجود على السيرفر — ثبّت Node 18+ ثم أعد: bash deploy/update.sh"
+  fi
+fi
+
 echo "==> تم التحديث بنجاح."
-echo "    افتح النظام عبر: http://STATIC_IP/"
+echo "    PHP:  http://STATIC_IP/"
+echo "    Node: http://STATIC_IP:3000/  (أو عبر reverse proxy إن ضبطت)"

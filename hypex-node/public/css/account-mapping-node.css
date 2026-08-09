@@ -1,0 +1,59 @@
+/* ربط الحسابات — Node */
+.am-section { margin-top: 0.75rem; }
+.am-body { padding: 0.85rem 1.1rem 1.15rem; }
+.am-code {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: #64748b;
+  font-family: ui-monospace, Consolas, monospace;
+}
+.am-req {
+  color: #b91c1c;
+  font-weight: 800;
+  margin-inline-start: 0.2rem;
+}
+.am-opt {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.am-hint {
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 550;
+  line-height: 1.45;
+  max-width: 28rem;
+}
+.am-filter-row {
+  margin-bottom: 0.75rem;
+}
+.am-filter-label {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+  max-width: 28rem;
+}
+.am-select {
+  min-width: 16rem;
+  max-width: 100%;
+  min-height: 2.35rem;
+}
+.am-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+}
+.am-table td.empty {
+  text-align: center;
+  color: #64748b;
+  font-weight: 600;
+  padding: 1.5rem 1rem;
+}
+@media (max-width: 900px) {
+  .am-select { min-width: 0; width: 100%; }
+  .am-hint { max-width: none; }
+}

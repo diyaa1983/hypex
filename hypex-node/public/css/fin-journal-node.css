@@ -1,0 +1,89 @@
+/* سند قيد — Node */
+.jv-page .jv-status { margin: 0.25rem 0 0.5rem; }
+.jv-lookup {
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+}
+.jv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+.jv-lines-wrap {
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+.jv-lines th,
+.jv-lines td {
+  vertical-align: middle;
+}
+.jv-lines .si-field,
+.jv-lines select.si-field {
+  min-height: 2.1rem;
+  font-size: 0.82rem;
+  width: 100%;
+  min-width: 0;
+}
+.jv-lines .jv-debit,
+.jv-lines .jv-credit {
+  max-width: 7.5rem;
+  text-align: left;
+  direction: ltr;
+}
+.jv-lines .jv-party {
+  min-width: 9rem;
+}
+.jv-lines .jv-acc {
+  min-width: 14rem;
+}
+.jv-lines .jv-memo {
+  min-width: 10rem;
+}
+.jv-lines .jv-remove {
+  color: #b91c1c;
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  line-height: 1;
+}
+.jv-lines .jv-remove:hover { opacity: 0.75; }
+.jv-totals td {
+  font-weight: 700;
+  background: rgba(148, 163, 184, 0.12);
+}
+.jv-bal-ok { color: #15803d; font-weight: 700; }
+.jv-bal-bad { color: #b91c1c; font-weight: 700; }
+.jv-add-row { margin-top: 0.65rem; }
+.jv-edit-unlock {
+  display: inline-block;
+  position: relative;
+}
+.jv-edit-unlock > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.jv-edit-unlock > summary::-webkit-details-marker { display: none; }
+.jv-edit-form {
+  position: absolute;
+  z-index: 20;
+  inset-inline-end: 0;
+  top: 100%;
+  margin-top: 0.35rem;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 10px;
+  padding: 0.75rem;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  min-width: 14rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+@media print {
+  .si-rail, .sh-actions, .jv-lookup, .si-hero-actions, .no-print, .jv-add-row { display: none !important; }
+  .jv-lines .jv-remove { display: none !important; }
+}

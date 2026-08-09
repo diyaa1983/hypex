@@ -1,0 +1,124 @@
+/* بيانات الموظف — Node 2027 */
+.he-picker {
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 0.65rem;
+}
+.he-picker label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #3d4659;
+  max-width: 28rem;
+}
+
+.he-form {
+  padding: 0.85rem 1.1rem 1.25rem;
+}
+
+.he-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--si-line, #e4e8f0);
+}
+
+.si-btn--warn {
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+  border-color: #d97706;
+  color: #1c1917;
+  font-weight: 800;
+}
+.si-btn--warn:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+.si-btn--danger {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+  font-weight: 700;
+}
+.si-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.he-section {
+  margin-top: 0.9rem;
+}
+.he-section h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f766e;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid rgba(15, 118, 110, 0.15);
+}
+
+.he-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+  gap: 0.65rem 0.75rem;
+}
+
+.he-field {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+  min-width: 0;
+}
+.he-field--full {
+  grid-column: 1 / -1;
+}
+.he-field .si-field,
+.he-field select.si-field,
+.he-field textarea.si-field {
+  font-weight: 500;
+  color: #0f172a;
+  width: 100%;
+  min-height: 2.35rem;
+}
+.he-field textarea.si-field {
+  min-height: 3.5rem;
+  resize: vertical;
+}
+
+.he-radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: center;
+  min-height: 2.35rem;
+  font-weight: 650;
+  color: #334155;
+}
+.he-radio-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.he-check {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  font-weight: 650;
+  color: #334155;
+}
+.he-check input {
+  width: 1rem;
+  height: 1rem;
+}
+
+@media (max-width: 640px) {
+  .he-grid {
+    grid-template-columns: 1fr;
+  }
+}

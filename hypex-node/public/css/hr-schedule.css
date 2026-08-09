@@ -1,0 +1,119 @@
+/* تعريف دوام الموظف */
+.sch-section { margin-top: 0.75rem; }
+.sch-body { padding: 0.85rem 1.1rem 1.1rem; }
+.sch-muted { margin: 0; color: #64748b; font-weight: 600; font-size: 0.9rem; line-height: 1.5; }
+.sch-emp-line { margin: 0.65rem 0 0; font-size: 0.95rem; font-weight: 700; color: #0f172a; }
+
+.sch-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+.sch-pick label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+  flex: 1 1 16rem;
+}
+.sch-pick .si-field { min-height: 2.3rem; }
+
+.sch-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.65rem 0 0;
+}
+.sch-tab {
+  display: inline-flex;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid #d0d7e2;
+  background: #fff;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.sch-tab.is-active {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.sch-period-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.sch-period-list a {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-decoration: none;
+  direction: ltr;
+}
+.sch-period-list li.is-active a {
+  border-color: #0f766e;
+  background: rgba(15, 118, 110, 0.1);
+  color: #0f766e;
+}
+
+.sch-range {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+.sch-range label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+.sch-range .si-field { min-height: 2.2rem; min-width: 10rem; }
+
+.sch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+}
+.si-btn--danger {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+  font-weight: 700;
+}
+.si-btn.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.sch-default-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: flex-end;
+  max-width: 28rem;
+}
+.sch-default-form label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+  flex: 1 1 14rem;
+}
+.sch-default-form .si-field { min-height: 2.3rem; }

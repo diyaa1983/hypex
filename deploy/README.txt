@@ -17,5 +17,17 @@
 #   (محلي)  git add -A && git commit -m "..." && git push origin main
 #   (سيرفر) cd /var/www/hypex && bash deploy/update.sh
 #
+# واجهة Node (hypex-node) على السيرفر (مرة أولى):
+#   1) ثبّت Node.js 18+ و npm  و  npm i -g pm2
+#   2) أنشئ/عدّل hypex-node/.env  (من .env.example):
+#        DB_* = نفس MySQL النظام
+#        PHP_BASE_URL = http://STATIC_IP  (أو مسار PHP العام)
+#        SESSION_SECRET = سلسلة عشوائية قوية
+#        PORT=3000
+#   3) افتح Firewall للمنفذ 3000 (أو اضبط reverse proxy على Apache/Nginx)
+#   4) bash deploy/update.sh   ← يثبت npm ويعيد تشغيل pm2
+#   5) افتح: http://STATIC_IP:3000/
+#
+# ملاحظة: .env و node_modules لا يُرفعان إلى GitHub — يُبنيان على السيرفر فقط.
+#
 # آخر تحقق من الربط مع GitHub: 2026-08-03 (push test OK)
-# تجربة Git Gui: احذف هذا السطر بعد أن ترى الملف في Unstaged
