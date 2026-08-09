@@ -20,8 +20,8 @@ body.app-body.si-2027 {
   --si-warn: #9a6700;
   --si-danger: #b42318;
   --si-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
-  --si-display: "Outfit", "IBM Plex Sans Arabic", system-ui, sans-serif;
-  --si-body: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  --si-display: "Plus Jakarta Sans", "Noto Sans Arabic", system-ui, sans-serif;
+  --si-body: "Noto Sans Arabic", "Plus Jakarta Sans", "Segoe UI", Tahoma, sans-serif;
   --si-radius: 14px;
   --si-shadow: 0 18px 50px rgba(11, 18, 32, 0.1);
   font-family: var(--si-body);

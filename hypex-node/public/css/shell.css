@@ -16,7 +16,10 @@
   --warn: #a16207;
   --danger: #c50f1f;
   --sidebar-w: 16.75rem;
-  --font: "IBM Plex Sans Arabic", "Outfit", "Segoe UI", Tahoma, sans-serif;
+  /* Node 2027: Noto Sans Arabic (واجهة) + Plus Jakarta Sans (العناوين اللاتينية) + JetBrains Mono */
+  --font: "Noto Sans Arabic", "Plus Jakarta Sans", "Segoe UI", Tahoma, sans-serif;
+  --font-display: "Plus Jakarta Sans", "Noto Sans Arabic", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --radius: 10px;
   --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
@@ -25,11 +28,20 @@
   box-sizing: border-box;
 }
 
+html {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
 html,
 body {
   margin: 0;
   min-height: 100%;
   font-family: var(--font);
+  font-weight: 400;
+  letter-spacing: 0;
   color: var(--text);
   background: #e8eef5;
 }
@@ -321,7 +333,7 @@ a:hover {
   --sb-hover: rgba(255, 255, 255, 0.055);
   --sb-active-bg: linear-gradient(90deg, rgba(26, 167, 159, 0.22) 0%, rgba(26, 167, 159, 0.08) 100%);
   --sb-line: rgba(255, 255, 255, 0.08);
-  --sb-font: "IBM Plex Sans Arabic", "Outfit", "Segoe UI", Tahoma, sans-serif;
+  --sb-font: "Noto Sans Arabic", "Plus Jakarta Sans", "Segoe UI", Tahoma, sans-serif;
   position: sticky;
   top: 0;
   align-self: start;
@@ -353,7 +365,7 @@ a:hover {
   width: 2.45rem;
   height: 2.45rem;
   border-radius: 12px;
-  font-family: "Outfit", var(--sb-font);
+  font-family: var(--font-display), var(--sb-font);
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -365,7 +377,7 @@ a:hover {
 
 .sidebar--2027 .sidebar-brand__text strong {
   display: block;
-  font-family: "Outfit", var(--sb-font);
+  font-family: var(--font-display), var(--sb-font);
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.01em;
@@ -525,7 +537,7 @@ a:hover {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-family: "Outfit", var(--sb-font);
+  font-family: var(--font-display), var(--sb-font);
   font-weight: 700;
   font-size: 0.95rem;
   color: #ecfeff;

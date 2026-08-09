@@ -1,12 +1,21 @@
 /**
- * خط الأنظمة المحاسبية المؤسسية العالمية.
- * IBM Plex Sans Arabic — معيار مؤسسي (IBM) يدعم العربية واللاتينية بوضوح في الجداول والأرقام.
+ * خطوط Hypex Node 2027 — الأنظمة ثنائية اللغة (عربي + لاتيني)
+ * - Noto Sans Arabic: وضوح مؤسسي للجداول والواجهات
+ * - Plus Jakarta Sans: عناوين وواجهة لاتينية حديثة
+ * - JetBrains Mono: أرقام ورموز
  */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
 
 :root {
-  --font: 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif;
-  --font-mono: ui-monospace, 'IBM Plex Mono', Consolas, 'Courier New', monospace;
+  --font: 'Noto Sans Arabic', 'Plus Jakarta Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Noto Sans Arabic', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, 'Courier New', monospace;
+}
+
+html {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 html,
