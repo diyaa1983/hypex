@@ -9,7 +9,7 @@ const {
   wrapPrintShell,
   getPrintBrand,
   assetVersion,
-  criticalPrintStyleTag,
+  bodyPrintDataHtml,
 } = require('./printBrand');
 
 function phpUrl(route, extra = '') {
@@ -77,23 +77,26 @@ function renderApp({
   bodyClass = '',
   mainClass = 'main main--wide',
   activePath = '',
-  /** false لتعطيل الترويسة/التذييل (نادر — مثل شاشة login / iframe) */
+  /** false لتعطيل نظام طباعة 2027 (iframe) */
   printChrome = true,
   printTitle = '',
 }) {
   getPrintBrand();
 
   const base = basePath.basePath || '';
-  const pcVer = assetVersion('css/print-chrome.css');
   const spVer = assetVersion('js/sales-print.js');
-  const allCss = [`/assets/css/print-chrome.css?v=${pcVer}`, ...css];
+  const pcVer = assetVersion('css/print-chrome.css');
+  const allCss = printChrome && user
+    ? [`/assets/css/print-chrome.css?v=${pcVer}`, ...css]
+    : [...css];
   const allJs = [...js];
-  if (printChrome && user && !allJs.includes('/assets/js/sales-print.js')) {
-    allJs.push(`/assets/js/sales-print.js?v=${spVer}`);
+  if (printChrome && user) {
+    const printJsPath = '/assets/js/sales-print.js';
+    const hasPrint = allJs.some((j) => String(j).indexOf('sales-print.js') !== -1);
+    if (!hasPrint) allJs.push(`${printJsPath}?v=${spVer}`);
   }
   const cssLinks = allCss
     .map((c) => {
-      // كسر كاش للأصول المطلقة غير المُصدَّرة مسبقاً
       let href = c;
       if (c.startsWith('/assets/') && !c.includes('?')) {
         const rel = c.replace(/^\/assets\//, '');
@@ -116,16 +119,19 @@ function renderApp({
     .filter(Boolean)
     .join(' ');
   const mainCls = mainClass || 'main main--wide';
-  const mainBody =
+  const mainBody = printChrome && user ? wrapPrintShell(bodyHtml) : bodyHtml;
+  const printAttrs =
     printChrome && user
-      ? wrapPrintShell(bodyHtml, { user, documentTitle: printTitle || title })
-      : bodyHtml;
+      ? bodyPrintDataHtml({ user, documentTitle: printTitle || title })
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta name="hx-print-engine" content="standalone-v3">
   <title>${esc(title)} · Hypex</title>
   <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
   <script src="/assets/js/base-path.js"></script>
@@ -134,10 +140,9 @@ function renderApp({
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/shell.css">
   ${cssLinks}
-  ${printChrome && user ? criticalPrintStyleTag() : ''}
   ${extraHead}
 </head>
-<body class="${esc(bodyCls)}">
+<body class="${esc(bodyCls)}"${printAttrs}>
   <div class="app-shell">
     ${user ? renderSidebar(user, activePath) : ''}
     <main class="${esc(mainCls)}">

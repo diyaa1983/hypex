@@ -57,6 +57,8 @@ router.use((req, res, next) => {
 });
 
 function sendPage(res, req, title, bodyHtml) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
   res.send(
     ui.salesPage({
       user: req.session.user,
@@ -727,7 +729,11 @@ router.get('/accounting/reports/party-statement', async (req, res) => {
 });
 
 /* ═══════════════ Oracle ═══════════════ */
-router.get('/accounting/reports/oracle-statement', async (req, res) => {
+/* توافق روابط قديمة oracle_statement */
+router.get(
+  ['/accounting/reports/oracle-statement', '/accounting/reports/oracle_statement'],
+  async (req, res) => {
+
   if (!can(req.session.user, 'report_oracle_customer_statement')) return forbid(res);
   const { from, to } = svc.range(req.query.from, req.query.to);
   let accountNo = String(req.query.account_no || req.query.account || '')

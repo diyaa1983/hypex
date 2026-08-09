@@ -1,23 +1,23 @@
 /**
- * ترويسة وتذييل طباعة — دعم إضافي (الأنماط الحرجة مضمّنة في HTML)
- * شعار يسار | اسم الشركة يمين | تذييل مستخدم
+ * دعم طباعة الشاشة (Ctrl+P) — المحتوى فقط، بدون شعار عملاق.
+ * الطباعة الرسمية من زر «طباعة» تستخدم iframe (sales-print.js).
  */
-
-.hx-print-root {
-  display: block;
-  width: 100%;
-}
-
-/* مخفي على الشاشة */
-.hx-print-header,
-.hx-print-footer {
-  display: none !important;
-}
-
 @media print {
   @page {
     size: A4 portrait;
     margin: 10mm 8mm 12mm 8mm;
+  }
+
+  .sidebar,
+  .no-print,
+  .si-rail,
+  .si-hero,
+  .si-hero-actions,
+  .ora-filters,
+  .si-btn--print,
+  [data-print],
+  #hx-print-frame {
+    display: none !important;
   }
 
   html,
@@ -26,13 +26,12 @@
   .main,
   .main.si-main,
   .si-stage,
-  .hx-print-root,
   .hx-print-content {
-    min-height: 0 !important;
     height: auto !important;
+    min-height: 0 !important;
     max-height: none !important;
-    background: #fff !important;
     overflow: visible !important;
+    background: #fff !important;
   }
 
   .app-shell {
@@ -40,131 +39,15 @@
     grid-template-columns: none !important;
   }
 
-  .sidebar,
-  .no-print,
-  .si-rail,
-  .si-hero-actions,
-  .ora-filters,
-  .si-btn--print,
-  [data-print] {
-    display: none !important;
-  }
-
-  body.has-print-chrome .si-hero {
-    display: none !important;
-  }
-
-  .main.si-main,
-  .main {
+  .main,
+  .main.si-main {
     padding: 0 !important;
     margin: 0 !important;
-    max-width: none !important;
   }
 
-  .si-stage {
-    padding: 0 !important;
-    animation: none !important;
-  }
-
-  .hx-print-header {
-    display: block !important;
-    position: static !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 0 0.55rem !important;
-    padding: 0 0 0.4rem !important;
-    border-bottom: 1px solid #222 !important;
-    background: #fff !important;
-    page-break-after: avoid;
-    break-after: avoid;
-  }
-
-  .hx-print-header-brand {
-    display: flex !important;
-    flex-direction: row !important;
-    flex-wrap: nowrap !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    width: 100% !important;
-    gap: 0.75rem !important;
-    direction: ltr !important;
-  }
-
-  .hx-print-header-logo {
-    flex: 0 0 auto !important;
-    width: 24mm !important;
-    max-width: 24mm !important;
-    height: 12mm !important;
-    max-height: 12mm !important;
-    overflow: hidden !important;
-  }
-
-  .hx-print-logo-img {
-    display: block !important;
-    max-height: 11mm !important;
-    max-width: 23mm !important;
-    width: auto !important;
-    height: auto !important;
-    object-fit: contain !important;
-  }
-
-  .hx-print-header-co {
-    flex: 1 1 auto !important;
-    text-align: right !important;
-    direction: rtl !important;
-    font-family: Arial, Tahoma, sans-serif !important;
-    font-size: 13pt !important;
-    font-weight: 800 !important;
-    color: #0f172a !important;
-    min-width: 0 !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  .hx-print-header-title {
-    text-align: center !important;
-    font-size: 12pt !important;
-    font-weight: 700 !important;
-    margin: 0.35rem 0 0 !important;
-  }
-
-  .hx-print-header-meta {
-    text-align: center !important;
-    font-size: 8pt !important;
-    color: #475569 !important;
-    margin: 0.15rem 0 0 !important;
-  }
-
-  .hx-print-footer {
-    display: block !important;
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    font-size: 6.5pt !important;
-    color: #64748b !important;
-    text-align: center !important;
-    direction: rtl !important;
-    z-index: 10001 !important;
-    pointer-events: none !important;
-  }
-
-  .hx-print-content {
-    display: block !important;
-    width: 100% !important;
-    padding-bottom: 4mm !important;
-  }
-
-  .si-surface,
-  .ora-stmt-body,
-  .ora-stmt {
-    break-inside: auto !important;
-    page-break-inside: auto !important;
-  }
-
-  .ora-table thead,
-  .si-table thead {
-    display: table-header-group !important;
+  /* أي شعار متبقٍ لا يكبر */
+  img {
+    max-width: 48px !important;
+    max-height: 48px !important;
   }
 }
