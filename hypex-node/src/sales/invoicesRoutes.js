@@ -237,93 +237,115 @@ router.get('/sales/invoices', async (req, res) => {
   }
 });
 
-/** طباعة / PDF — ترويسة الشركة المعتمدة + نفس محرك كشف Oracle */
+/** طباعة فاتورة البيع — شكل فوترة مبيعات كلاسيكي */
 router.get('/sales/invoices/:id/print', async (req, res) => {
   try {
     await ensurePrintBrand();
     const inv = await svc.getInvoice(req.params.id);
     if (!inv) return res.status(404).send('الفاتورة غير موجودة');
 
+    const payLabel = inv.payment_type === 'cash' ? 'نقدي' : 'ذمم';
+    const custLabel =
+      (inv.customer_code ? inv.customer_code + ' — ' : '') + (inv.customer_name || '—');
+    const qrPayload = encodeURIComponent(
+      JSON.stringify({
+        no: inv.invoice_no,
+        date: inv.invoice_date,
+        total: inv.total,
+        customer: inv.customer_name,
+      })
+    );
+    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=0&data=${qrPayload}`;
+
     const bodyRows =
       inv.lines
-        .map(
-          (ln, i) => `<tr>
-        <td dir="ltr">${i + 1}</td>
-        <td dir="ltr">${esc(ln.item_code || '')}</td>
-        <td>${esc(ln.name_ar || '')}</td>
-        <td dir="ltr">${esc(fmtAmt(ln.qty))}</td>
-        <td dir="ltr">${esc(fmtAmt(ln.unit_price))}</td>
-        <td dir="ltr">${esc(fmtAmt(ln.discount_pct))}</td>
-        <td dir="ltr">${esc(fmtAmt(ln.line_total))}</td>
-        <td dir="ltr">${esc(fmtAmt(ln.tax_amount))}</td>
-        <td dir="ltr"><strong>${esc(fmtAmt(ln.line_gross))}</strong></td>
-      </tr>`
-        )
+        .map((ln, i) => {
+          const qty = Number(ln.qty) || 0;
+          const taxPct = Number(ln.tax_rate_percent) || 0;
+          const unitNet = Number(ln.unit_price) || 0;
+          const unitGross = unitNet * (1 + taxPct / 100);
+          return `<tr>
+            <td class="c-idx" dir="ltr">${i + 1}</td>
+            <td class="c-code" dir="ltr">${esc(ln.item_code || '')}</td>
+            <td class="c-name">${esc(ln.name_ar || '')}</td>
+            <td class="c-unit">${esc(ln.unit_name || 'قطعة')}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(qty))}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(unitNet))}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(unitGross))}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(ln.line_total))}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(ln.tax_amount))}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(taxPct))}%</td>
+            <td class="c-num c-gross" dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
+          </tr>`;
+        })
         .join('') ||
-      '<tr><td colspan="9" class="empty">لا بنود</td></tr>';
+      `<tr><td colspan="11" class="empty">لا بنود</td></tr>`;
 
     const contentHtml = `
-      <div class="ora-stmt inv-print-doc">
-        <header class="ora-stmt-head inv-print-meta">
-          <div class="ora-stmt-head__main">
-            <p class="ora-stmt-kicker">فاتورة مبيعات</p>
-            <h2 class="ora-stmt-name">رقم ${esc(inv.invoice_no || '—')}</h2>
-            <p class="ora-stmt-meta">
-              التاريخ: <strong dir="ltr">${esc(isoToDmy(inv.invoice_date))}</strong>
-              <span aria-hidden="true"> · </span>
-              العميل: <strong>${esc(
-                (inv.customer_code ? inv.customer_code + ' — ' : '') + (inv.customer_name || '')
-              )}</strong>
-              <span aria-hidden="true"> · </span>
-              الدفع: <strong>${esc(inv.payment_type === 'cash' ? 'نقدي' : 'ذمم')}</strong>
-              <span aria-hidden="true"> · </span>
-              الحالة: <strong>${inv.is_posted ? 'مرحّلة' : 'مسودة'}</strong>
-            </p>
+      <div class="inv-v1" dir="rtl">
+        <div class="inv-v1-top">
+          <div class="inv-v1-meta">
+            <div><span>رقم الفاتورة:</span> <strong dir="ltr">${esc(inv.invoice_no || '—')}</strong></div>
+            <div><span>التاريخ:</span> <strong dir="ltr">${esc(isoToDmy(inv.invoice_date))}</strong></div>
+            <div><span>العميل:</span> <strong>${esc(custLabel)}</strong></div>
+            <div><span>النوع:</span> <strong>${esc(payLabel)}</strong></div>
+            <div><span>المندوب:</span> <strong>${esc(inv.sales_rep_name || '—')}</strong></div>
+            <div><span>المستودع:</span> <strong>${esc(inv.warehouse_name || '—')}</strong></div>
+          </div>
+          <div class="inv-v1-title-block">
+            <h1 class="inv-v1-title">فاتورة مبيعات</h1>
+          </div>
+          <div class="inv-v1-qr">
+            <img src="${esc(qrSrc)}" width="120" height="120" alt="QR">
+          </div>
+        </div>
+
+        <table class="inv-v1-table">
+          <thead>
+            <tr>
+              <th>تسلسل</th>
+              <th>رقم المادة</th>
+              <th>اسم المادة</th>
+              <th>الوحدة</th>
+              <th>الكمية</th>
+              <th>الافرادي غ.ش</th>
+              <th>الافرادي ش.</th>
+              <th>السعر الإجمالي</th>
+              <th>مبلغ الضريبة</th>
+              <th>نسبة الضريبة</th>
+              <th>الإجمالي مع الضريبة</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+
+        <div class="inv-v1-foot">
+          <div class="inv-v1-sign">
+            <div class="inv-v1-sign-label">توقيع المستلم</div>
+            <div class="inv-v1-sign-line"></div>
+          </div>
+          <div class="inv-v1-sumwrap">
+            <table class="inv-v1-sum">
+              <tr>
+                <td class="lbl">المجموع بدون ضريبة</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(inv.subtotal))}</td>
+              </tr>
+              <tr>
+                <td class="lbl">مجموع الضريبة</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(inv.tax_amount))}</td>
+              </tr>
+              <tr class="grand">
+                <td class="lbl">الإجمالي</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(inv.total))}</td>
+              </tr>
+            </table>
             ${
               inv.notes
-                ? `<p class="ora-stmt-meta">ملاحظات: ${esc(inv.notes)}</p>`
+                ? `<div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(inv.notes)}</div>`
                 : ''
             }
           </div>
-        </header>
-
-        <section class="si-surface ora-stmt-body inv-print-lines">
-          <div class="si-surface-head">بنود الفاتورة</div>
-          <div class="si-table-wrap">
-            <table class="si-table ora-table inv-print-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>الرمز</th>
-                  <th>المادة</th>
-                  <th>الكمية</th>
-                  <th>السعر</th>
-                  <th>خصم %</th>
-                  <th>الصافي</th>
-                  <th>الضريبة</th>
-                  <th>الإجمالي</th>
-                </tr>
-              </thead>
-              <tbody>${bodyRows}</tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- المجاميع تحت الجدول فقط — لا تظهر قبل جدول البنود -->
-        <section class="inv-print-totals ora-stmt-totals" aria-label="ملخص الفاتورة">
-          <div class="ora-stat">
-            <span>بدون ضريبة</span>
-            <strong dir="ltr">${esc(fmtAmt(inv.subtotal))}</strong>
-          </div>
-          <div class="ora-stat">
-            <span>الضريبة</span>
-            <strong dir="ltr">${esc(fmtAmt(inv.tax_amount))}</strong>
-          </div>
-          <div class="ora-stat ora-stat--balance">
-            <span>الإجمالي</span>
-            <strong dir="ltr">${esc(fmtAmt(inv.total))}</strong>
-          </div>
-        </section>
+        </div>
       </div>`;
 
     const autoPrint =
@@ -332,11 +354,12 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
     res.send(
       await renderStandalonePrintPage({
         user: req.session.user,
-        documentTitle: `فاتورة مبيعات ${inv.invoice_no || inv.id}`,
+        documentTitle: 'فاتورة مبيعات',
         backHref: `/sales/invoices/${inv.id}`,
         contentHtml,
         autoPrint,
         printMode: 'sheet',
+        theme: 'invoice-v1',
       })
     );
   } catch (e) {

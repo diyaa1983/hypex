@@ -94,9 +94,13 @@ async function getInvoice(id) {
 
   const headers = await db.query(
     `SELECT i.*, c.name_ar AS customer_name, c.code AS customer_code,
+            w.name_ar AS warehouse_name,
+            COALESCE(r.name_ar, '') AS sales_rep_name,
             (${POSTED_SQL}) AS is_posted
      FROM sal_invoice i
      INNER JOIN crm_customer c ON c.id = i.customer_id
+     LEFT JOIN inv_warehouse w ON w.id = i.warehouse_id
+     LEFT JOIN crm_sales_rep r ON r.id = i.sales_rep_id
      WHERE i.id = ?
      LIMIT 1`,
     [invId]
@@ -104,7 +108,8 @@ async function getInvoice(id) {
   if (!headers[0]) return null;
   const h = headers[0];
   const lines = await db.query(
-    `SELECT il.*, it.sku AS item_code, it.name_ar AS item_name
+    `SELECT il.*, it.sku AS item_code, it.name_ar AS item_name,
+            COALESCE(NULLIF(TRIM(il.unit_name), ''), NULLIF(TRIM(it.unit_name), ''), 'قطعة') AS unit_name
      FROM sal_invoice_line il
      INNER JOIN inv_item it ON it.id = il.item_id
      WHERE il.invoice_id = ?
@@ -120,7 +125,9 @@ async function getInvoice(id) {
     customer_name: h.customer_name,
     customer_code: h.customer_code,
     sales_rep_id: h.sales_rep_id != null ? Number(h.sales_rep_id) : null,
+    sales_rep_name: h.sales_rep_name || '',
     warehouse_id: h.warehouse_id != null ? Number(h.warehouse_id) : null,
+    warehouse_name: h.warehouse_name || '',
     payment_type: h.payment_type || 'credit',
     subtotal: Number(h.subtotal || 0),
     tax_amount: Number(h.tax_amount || 0),
@@ -143,7 +150,7 @@ async function getInvoice(id) {
       line_total: Number(ln.line_total || 0),
       line_gross: Number(ln.line_gross || 0),
       unit_id: ln.unit_id != null ? Number(ln.unit_id) : null,
-      unit_name: ln.unit_name || '',
+      unit_name: ln.unit_name || 'قطعة',
       unit_factor: Number(ln.unit_factor || 1),
       qty_base: Number(ln.qty_base || ln.qty || 0),
     })),

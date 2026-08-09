@@ -166,8 +166,10 @@ async function renderStandalonePrintPage({
   backHref = '',
   contentHtml,
   autoPrint = false,
-  /** sheet = اطبع الصفحة كما هي (ترتيب DOM محفوظ) · iframe = محرك sales-print */
+  /** sheet = اطبع الصفحة كما هي · iframe = محرك sales-print */
   printMode = 'sheet',
+  /** invoice-v1 = شكل فاتورة مبيعات المرجع */
+  theme = '',
 }) {
   await ensurePrintBrand();
   const brand = printDataAttrs({ user, documentTitle });
@@ -183,6 +185,58 @@ async function renderStandalonePrintPage({
     : '';
 
   const mode = printMode === 'iframe' ? 'iframe' : 'sheet';
+  const isInv = theme === 'invoice-v1';
+
+  const invCss = isInv
+    ? `
+    /* ── فاتورة مبيعات v1 (شكل المرجع) ── */
+    .hx-doc-title,.hx-doc-stamp{display:none!important}
+    .hx-doc-head{margin:0 0 8px;padding:0 0 8px;border-bottom:1px solid #cbd5e1}
+    .hx-doc-company{font-size:12pt!important}
+    .inv-v1{color:#0f172a;font-family:Arial,Helvetica,sans-serif}
+    .inv-v1-top{display:grid;grid-template-columns:minmax(12rem,15rem) 1fr 130px;gap:10px 14px;align-items:start;margin:0 0 12px}
+    .inv-v1-qr img{display:block;width:118px;height:118px;border:1px solid #94a3b8;padding:3px;background:#fff}
+    .inv-v1-title-block{display:flex;align-items:center;justify-content:center;min-height:70px}
+    .inv-v1-title{margin:0;font:800 18pt/1.2 Arial,Helvetica,sans-serif;color:#1e3a5f;text-align:center}
+    .inv-v1-meta{font-size:9.5pt;line-height:1.75;text-align:right}
+    .inv-v1-meta div{margin:0}
+    .inv-v1-meta span{color:#475569;font-weight:600}
+    .inv-v1-meta strong{color:#0f172a;font-weight:700}
+    .inv-v1-table{width:100%;border-collapse:collapse;font-size:8pt;margin:0 0 6px}
+    .inv-v1-table thead th{
+      background:#5b6b7c;color:#fff;font-weight:700;font-size:7.5pt;
+      border:1px solid #4a5568;padding:5px 3px;text-align:center;white-space:nowrap
+    }
+    .inv-v1-table tbody td{border:1px solid #94a3b8;padding:4px 3px;vertical-align:middle;background:#fff}
+    .inv-v1-table .c-idx,.inv-v1-table .c-code,.inv-v1-table .c-num{text-align:center;font-variant-numeric:tabular-nums}
+    .inv-v1-table .c-name{text-align:right;font-weight:600}
+    .inv-v1-table .c-unit{text-align:center}
+    .inv-v1-table .c-gross{font-weight:800}
+    .inv-v1-table .empty{text-align:center;color:#64748b;padding:12px}
+    .inv-v1-foot{display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;margin-top:10px}
+    .inv-v1-sumwrap{margin-inline-start:auto;min-width:14rem}
+    .inv-v1-sum{width:auto;min-width:14rem;border-collapse:collapse;margin-inline-start:auto;font-size:10pt}
+    .inv-v1-sum td{border:0!important;padding:3px 6px;background:transparent!important}
+    .inv-v1-sum .lbl{text-align:right;font-weight:700;color:#1e3a5f;white-space:nowrap}
+    .inv-v1-sum .val{text-align:left;font-weight:700;font-variant-numeric:tabular-nums;min-width:5.5rem;color:#0f172a}
+    .inv-v1-sum tr.grand td{font-size:12pt;font-weight:800;color:#1e3a5f;padding-top:7px;
+      border-top:1px solid #1e3a5f!important}
+    .inv-v1-notes{margin-top:10px;font-size:9.5pt;text-align:right;color:#334155}
+    .inv-v1-notes span{font-weight:700;color:#1e3a5f}
+    .inv-v1-sign{margin-top:2.2rem;min-width:11rem;text-align:center}
+    .inv-v1-sign-label{font-size:10pt;font-weight:700;color:#1e3a5f;margin-bottom:1.6rem}
+    .inv-v1-sign-line{border-bottom:1px solid #0f172a;width:11rem;margin:0 auto}
+    @media print{
+      .inv-v1-table thead th{background:#5b6b7c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .inv-v1-top{grid-template-columns:130px 1fr minmax(11rem,14rem)}
+    }
+    @media (max-width:720px){
+      .inv-v1-top{grid-template-columns:1fr;text-align:center}
+      .inv-v1-qr,.inv-v1-meta,.inv-v1-title-block{order:unset}
+      .inv-v1-meta{text-align:right}
+      .inv-v1-foot{flex-direction:column-reverse}
+    }`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -201,7 +255,7 @@ async function renderStandalonePrintPage({
     .hx-doc-bar a,.hx-doc-btn{font:700 .88rem Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;
       border:0;border-radius:8px;padding:.45rem .85rem;text-decoration:none;cursor:pointer}
     .hx-doc-btn--pri{background:#0f6e6a;color:#fff}
-    .hx-doc-sheet{max-width:210mm;margin:1rem auto 2rem;background:#fff;padding:12mm 10mm;
+    .hx-doc-sheet{max-width:210mm;margin:1rem auto 2rem;background:#fff;padding:10mm 8mm;
       box-shadow:0 8px 28px rgba(15,23,42,.1)}
     .hx-doc-head{margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid #222}
     .hx-doc-head__row{display:flex;direction:ltr;align-items:center;justify-content:space-between;gap:14px;width:100%}
@@ -211,44 +265,17 @@ async function renderStandalonePrintPage({
     .hx-doc-company{flex:1 1 auto;text-align:right;font:800 15pt/1.3 Arial,Helvetica,sans-serif;color:#0f172a;direction:rtl}
     .hx-doc-title{text-align:center;font:700 12pt/1.3 Arial,Helvetica,sans-serif;margin-top:10px;color:#1e293b}
     .hx-doc-stamp{text-align:center;font:500 7.5pt Arial,Helvetica,sans-serif;color:#64748b;margin-top:4px}
-    .ora-stmt,.inv-print-doc{display:block}
-    .ora-stmt-head,.inv-print-meta{display:block;margin:0 0 10px;padding:0 0 8px;border-bottom:1px solid #ccc}
-    .ora-stmt-kicker{font-size:8pt;color:#334155;margin:0}
-    .ora-stmt-name{font:800 12pt Arial,Helvetica,sans-serif;margin:2px 0}
-    .ora-stmt-meta{font-size:9pt;color:#334155;margin:2px 0 0;line-height:1.7}
-    .inv-print-lines{display:block;margin:0 0 10px}
-    /* مجاميع الفاتورة — دائماً بعد الجدول */
-    .inv-print-totals,.ora-stmt-totals.inv-print-totals{
-      display:grid!important;
-      grid-template-columns:repeat(3,minmax(0,1fr));
-      gap:8px;
-      width:100%;
-      margin:12px 0 0!important;
-      order:99;
-    }
-    .ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:8px 10px;background:#fff}
-    .ora-stat span{font-size:8pt;color:#64748b;font-weight:700}
-    .ora-stat strong{font-size:11pt;font-weight:800;font-variant-numeric:tabular-nums}
-    .ora-stat--balance{background:#e8f5f4!important;border:2px solid #0f6e6a!important}
-    .ora-stat--balance span,.ora-stat--balance strong{color:#0a4f4c!important}
-    table{width:100%;border-collapse:collapse;font-size:9pt;margin:0}
-    th,td{border:1px solid #334155;padding:4px 5px;vertical-align:top;text-align:right}
-    th{background:#e2e8f0;font-weight:800}
-    thead{display:table-header-group}
-    tr{page-break-inside:avoid}
-    .si-surface{border:1px solid #bbb;margin:0;overflow:visible}
-    .si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700;font-size:9pt}
     .empty{color:#64748b;text-align:center;padding:.75rem}
+    ${invCss}
     @media print{
       body{background:#fff}
       .no-print,.hx-doc-bar{display:none!important}
       .hx-doc-sheet{max-width:none;margin:0;padding:0;box-shadow:none}
-      .inv-print-totals{margin-top:10px!important}
-      @page{size:A4 portrait;margin:10mm 8mm 12mm 8mm}
+      @page{size:A4 portrait;margin:8mm 7mm 10mm 7mm}
     }
   </style>
 </head>
-<body${bodyPrintDataHtml({ user, documentTitle })}${autoPrint ? ' data-hx-auto-print="1"' : ''} data-hx-print-mode="${mode}">
+<body${bodyPrintDataHtml({ user, documentTitle })}${autoPrint ? ' data-hx-auto-print="1"' : ''} data-hx-print-mode="${mode}"${isInv ? ' data-hx-theme="invoice-v1"' : ''}>
   <div class="hx-doc-bar no-print">
     <strong>${escapeHtml(documentTitle)}</strong>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap">
@@ -262,8 +289,12 @@ async function renderStandalonePrintPage({
         <div style="flex:0 0 auto;max-width:90px;max-height:72px;overflow:hidden">${logoHtml}</div>
         <div class="hx-doc-company">${escapeHtml(brand.company)}</div>
       </div>
-      <div class="hx-doc-title">${escapeHtml(documentTitle)}</div>
-      <div class="hx-doc-stamp" dir="rtl">طُبع بواسطة ${escapeHtml(brand.user)}</div>
+      ${
+        isInv
+          ? ''
+          : `<div class="hx-doc-title">${escapeHtml(documentTitle)}</div>
+      <div class="hx-doc-stamp" dir="rtl">طُبع بواسطة ${escapeHtml(brand.user)}</div>`
+      }
     </header>
     <div class="si-print-area hx-print-content">
       ${contentHtml}
