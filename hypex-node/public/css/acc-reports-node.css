@@ -157,19 +157,20 @@ tr.is-locked td {
 }
 
 .ora-stmt-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem 1.5rem;
-  justify-content: space-between;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
   background: linear-gradient(135deg, #f3faf9 0%, #fff 55%, #f8fafc 100%);
   border: 1px solid #e2e8f0;
   border-radius: 16px;
-  padding: 1.1rem 1.25rem;
-  margin-bottom: 0.85rem;
+  padding: 1.15rem 1.3rem 1.25rem;
+  margin-bottom: 0.9rem;
+}
+.ora-stmt-head__main {
+  min-width: 0;
 }
 .ora-stmt-kicker {
-  margin: 0 0 0.25rem;
+  margin: 0 0 0.3rem;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -177,58 +178,86 @@ tr.is-locked td {
   color: #0f6e6a;
 }
 .ora-stmt-name {
-  margin: 0 0 0.35rem;
-  font-size: 1.35rem;
+  margin: 0 0 0.45rem;
+  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
   font-weight: 800;
   color: #0f172a;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 .ora-stmt-meta {
   margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.15rem;
   font-size: 0.88rem;
   color: #64748b;
+  line-height: 1.55;
+}
+.ora-stmt-meta strong {
+  color: #334155;
+  font-weight: 800;
 }
 .ora-dot {
-  margin-inline: 0.4rem;
-  opacity: 0.5;
+  margin-inline: 0.45rem;
+  opacity: 0.45;
 }
+/* أربعة مؤشرات متساوية في صف واحد */
 .ora-stmt-totals {
   display: grid;
-  grid-template-columns: repeat(2, minmax(6.5rem, 1fr));
-  gap: 0.45rem;
-  min-width: min(100%, 18rem);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  width: 100%;
+  min-width: 0;
 }
 .ora-stat {
   background: #fff;
-  border: 1px solid #e8edf4;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 0.45rem 0.65rem;
+  padding: 0.6rem 0.7rem;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 0;
+  text-align: center;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
 }
 .ora-stat span {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #94a3b8;
+  letter-spacing: 0.01em;
 }
 .ora-stat strong {
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 800;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  direction: ltr;
 }
 .ora-stat--balance {
-  grid-column: 1 / -1;
+  grid-column: auto;
   background: linear-gradient(165deg, #0f6e6a 0%, #0a4f4c 100%);
   border-color: transparent;
+  box-shadow: 0 4px 14px rgba(15, 110, 106, 0.22);
 }
 .ora-stat--balance span,
 .ora-stat--balance strong {
   color: #fff;
 }
 .ora-stat--balance strong {
-  font-size: 1.15rem;
+  font-size: 1.08rem;
+}
+
+@media (max-width: 720px) {
+  .ora-stmt-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ora-stat--balance {
+    grid-column: 1 / -1;
+  }
 }
 
 .ora-table {
@@ -394,7 +423,7 @@ tr.is-locked td {
     border: 1px solid #333 !important;
     border-radius: 0 !important;
     padding: 0.4rem 0.5rem !important;
-    margin: 0 0 0.4rem !important;
+    margin: 0 0 0.45rem !important;
     page-break-after: avoid;
     break-after: avoid-page;
     break-inside: avoid;
@@ -402,7 +431,7 @@ tr.is-locked td {
   }
 
   .ora-stmt-head__main {
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.4rem;
   }
 
   .ora-stmt-kicker {
@@ -419,58 +448,60 @@ tr.is-locked td {
   .ora-stmt-meta {
     font-size: 9pt !important;
     color: #222 !important;
+    display: block !important;
   }
 
-  /* صف واحد للأرصدة بدل شبكة عمودية ضخمة */
+  /* أربعة أرصدة متساوية في صف واحد */
   .ora-stmt-totals {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 0.35rem 0.75rem !important;
-    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 0.35rem !important;
     width: 100% !important;
+    min-width: 0 !important;
     border-top: 1px solid #ccc;
-    padding-top: 0.3rem;
-    margin-top: 0.25rem;
+    padding-top: 0.35rem;
+    margin-top: 0.2rem;
   }
 
   .ora-stat {
-    display: inline-flex !important;
-    flex-direction: row !important;
-    align-items: baseline !important;
-    gap: 0.35rem !important;
-    background: transparent !important;
-    border: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 0.15rem !important;
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
     border-radius: 0 !important;
-    padding: 0 !important;
-    min-width: auto !important;
+    padding: 0.3rem 0.25rem !important;
+    min-width: 0 !important;
+    text-align: center !important;
   }
 
   .ora-stat span {
-    font-size: 8pt !important;
+    font-size: 7.5pt !important;
     color: #444 !important;
     font-weight: 700 !important;
   }
 
   .ora-stat strong {
-    font-size: 9.5pt !important;
+    font-size: 9pt !important;
     color: #000 !important;
   }
 
   .ora-stat--balance {
     grid-column: auto !important;
-    background: transparent !important;
-    border: 0 !important;
-    margin-inline-start: auto;
+    background: #e8f5f4 !important;
+    border-color: #0f6e6a !important;
+    margin-inline-start: 0 !important;
   }
 
   .ora-stat--balance span,
   .ora-stat--balance strong {
-    color: #000 !important;
+    color: #0a4f4c !important;
   }
 
   .ora-stat--balance strong {
-    font-size: 11pt !important;
-    text-decoration: underline;
+    font-size: 10pt !important;
+    text-decoration: none;
   }
 
   .si-table-wrap {

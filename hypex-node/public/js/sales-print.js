@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  var LOGO_MAX = 48;
+  var LOGO_MAX = 72;
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -79,16 +79,16 @@
         : '<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid #333;font:800 14px Arial,sans-serif">H</span>';
 
     return (
-      '<header style="margin:0 0 10px 0;padding:0 0 8px 0;border-bottom:1px solid #222">' +
-      '<div style="display:flex;direction:ltr;align-items:center;justify-content:space-between;width:100%;gap:12px">' +
-      '<div style="flex:0 0 auto;max-width:56px;max-height:48px;overflow:hidden">' +
+      '<header style="margin:0 0 12px 0;padding:0 0 10px 0;border-bottom:1px solid #222">' +
+      '<div style="display:flex;direction:ltr;align-items:center;justify-content:space-between;width:100%;gap:14px">' +
+      '<div style="flex:0 0 auto;max-width:90px;max-height:72px;overflow:hidden">' +
       logo +
       '</div>' +
-      '<div dir="rtl" style="flex:1 1 auto;text-align:right;font:800 14pt/1.3 Arial,Tahoma,sans-serif;color:#0f172a">' +
+      '<div dir="rtl" style="flex:1 1 auto;text-align:right;font:800 15pt/1.3 Arial,Tahoma,sans-serif;color:#0f172a">' +
       esc(b.company) +
       '</div>' +
       '</div>' +
-      '<div style="text-align:center;font:700 12pt/1.3 Arial,Tahoma,sans-serif;margin-top:8px;color:#1e293b">' +
+      '<div style="text-align:center;font:700 12pt/1.3 Arial,Tahoma,sans-serif;margin-top:10px;color:#1e293b">' +
       esc(b.title) +
       '</div>' +
       '<div style="text-align:center;font:600 8pt Arial,Tahoma,sans-serif;color:#475569;margin-top:3px">طُبع: <span dir="ltr">' +
@@ -115,18 +115,24 @@
       'tfoot{display:table-footer-group}' +
       'tr{page-break-inside:avoid}' +
       '.empty,.muted{color:#64748b}' +
-      '.ora-stmt-head,.ora-stmt-meta{margin-bottom:8px}' +
+      '.ora-stmt-head{display:block;margin:0 0 10px;padding:0 0 8px;border-bottom:1px solid #ccc}' +
+      '.ora-stmt-head__main{margin:0 0 8px}' +
       '.ora-stmt-name{font:800 12pt Arial,Tahoma,sans-serif;margin:2px 0}' +
       '.ora-stmt-kicker{font-size:8pt;color:#334155;margin:0}' +
-      '.ora-stmt-totals{display:flex;flex-wrap:wrap;gap:8px 14px;margin:6px 0;font-size:9pt}' +
-      '.ora-stat{display:inline-flex;gap:6px;align-items:baseline}' +
+      '.ora-stmt-meta{font-size:9pt;color:#334155;margin:2px 0 0}' +
+      '.ora-stmt-totals{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0;width:100%}' +
+      '.ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:4px 6px;border-radius:0;background:#fff}' +
+      '.ora-stat span{font-size:7.5pt;color:#64748b;font-weight:700}' +
+      '.ora-stat strong{font-size:9pt;font-weight:800;font-variant-numeric:tabular-nums}' +
+      '.ora-stat--balance{background:#e8f5f4!important;border-color:#0f6e6a!important}' +
+      '.ora-stat--balance span,.ora-stat--balance strong{color:#0a4f4c!important}' +
       '.si-surface,.ora-stmt-body{border:1px solid #bbb;padding:0;margin:0 0 8px}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
       '.si-table-wrap{overflow:visible}' +
       '.si-hero,.sidebar,.no-print,.si-rail,.ora-filters,.si-btn{display:none!important}' +
       '@page{size:A4 portrait;margin:10mm 8mm 14mm 8mm}' +
       'body{margin:0;padding:0 0 12mm 0;font-family:Arial,Tahoma,sans-serif;color:#0f172a;background:#fff}' +
-      'img{max-width:48px!important;max-height:48px!important;width:auto!important;height:auto!important;object-fit:contain!important}'
+      'img{max-width:72px!important;max-height:72px!important;width:auto!important;height:auto!important;object-fit:contain!important}'
     );
   }
 
