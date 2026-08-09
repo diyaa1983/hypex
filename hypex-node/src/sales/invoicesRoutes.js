@@ -237,6 +237,19 @@ router.get('/sales/invoices', async (req, res) => {
   }
 });
 
+/** صورة QR من حقل الفوترة (نص / رابط / base64) — null إن غير مرسلة */
+function einvQrImageSrc(einvQr) {
+  const qr = String(einvQr || '').trim();
+  if (!qr) return null;
+  if (qr.startsWith('data:') || qr.startsWith('http://') || qr.startsWith('https://')) return qr;
+  if (qr.startsWith('iVBORw0KGgo')) return 'data:image/png;base64,' + qr;
+  if (qr.startsWith('/9j/')) return 'data:image/jpeg;base64,' + qr;
+  return (
+    'https://api.qrserver.com/v1/create-qr-code/?size=140x140&format=png&margin=4&ecc=H&data=' +
+    encodeURIComponent(qr)
+  );
+}
+
 /** طباعة فاتورة البيع — شكل فوترة مبيعات كلاسيكي */
 router.get('/sales/invoices/:id/print', async (req, res) => {
   try {
@@ -247,15 +260,10 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
     const payLabel = inv.payment_type === 'cash' ? 'نقدي' : 'ذمم';
     const custLabel =
       (inv.customer_code ? inv.customer_code + ' — ' : '') + (inv.customer_name || '—');
-    const qrPayload = encodeURIComponent(
-      JSON.stringify({
-        no: inv.invoice_no,
-        date: inv.invoice_date,
-        total: inv.total,
-        customer: inv.customer_name,
-      })
-    );
-    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=0&data=${qrPayload}`;
+
+    // QR + المجاميع أسفل الجدول فقط بعد الإرسال للفوترة (وجود einv_qr)
+    const einvSent = !!inv.einv_sent;
+    const qrSrc = einvSent ? einvQrImageSrc(inv.einv_qr) : null;
 
     const bodyRows =
       inv.lines
@@ -281,8 +289,41 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         .join('') ||
       `<tr><td colspan="11" class="empty">لا بنود</td></tr>`;
 
+    const qrBlock =
+      qrSrc
+        ? `<div class="inv-v1-qr"><img src="${esc(qrSrc)}" width="120" height="120" alt="QR الفوترة"></div>`
+        : '';
+
+    const sumsBlock = einvSent
+      ? `<div class="inv-v1-sumwrap">
+            <table class="inv-v1-sum">
+              <tr>
+                <td class="lbl">المجموع بدون ضريبة</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(inv.subtotal))}</td>
+              </tr>
+              <tr>
+                <td class="lbl">مجموع الضريبة</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(inv.tax_amount))}</td>
+              </tr>
+              <tr class="grand">
+                <td class="lbl">الإجمالي</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(inv.total))}</td>
+              </tr>
+            </table>
+            ${
+              inv.notes
+                ? `<div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(inv.notes)}</div>`
+                : ''
+            }
+          </div>`
+      : inv.notes
+        ? `<div class="inv-v1-sumwrap"><div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(
+            inv.notes
+          )}</div></div>`
+        : '';
+
     const contentHtml = `
-      <div class="inv-v1" dir="rtl">
+      <div class="inv-v1${einvSent ? ' inv-v1--einv' : ' inv-v1--draft'}" dir="rtl">
         <div class="inv-v1-top">
           <div class="inv-v1-meta">
             <div><span>رقم الفاتورة:</span> <strong dir="ltr">${esc(inv.invoice_no || '—')}</strong></div>
@@ -295,9 +336,7 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
           <div class="inv-v1-title-block">
             <h1 class="inv-v1-title">فاتورة مبيعات</h1>
           </div>
-          <div class="inv-v1-qr">
-            <img src="${esc(qrSrc)}" width="120" height="120" alt="QR">
-          </div>
+          ${qrBlock}
         </div>
 
         <table class="inv-v1-table">
@@ -324,27 +363,7 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
             <div class="inv-v1-sign-label">توقيع المستلم</div>
             <div class="inv-v1-sign-line"></div>
           </div>
-          <div class="inv-v1-sumwrap">
-            <table class="inv-v1-sum">
-              <tr>
-                <td class="lbl">المجموع بدون ضريبة</td>
-                <td class="val" dir="ltr">${esc(fmtAmt(inv.subtotal))}</td>
-              </tr>
-              <tr>
-                <td class="lbl">مجموع الضريبة</td>
-                <td class="val" dir="ltr">${esc(fmtAmt(inv.tax_amount))}</td>
-              </tr>
-              <tr class="grand">
-                <td class="lbl">الإجمالي</td>
-                <td class="val" dir="ltr">${esc(fmtAmt(inv.total))}</td>
-              </tr>
-            </table>
-            ${
-              inv.notes
-                ? `<div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(inv.notes)}</div>`
-                : ''
-            }
-          </div>
+          ${sumsBlock}
         </div>
       </div>`;
 

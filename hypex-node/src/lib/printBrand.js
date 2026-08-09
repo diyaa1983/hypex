@@ -195,6 +195,7 @@ async function renderStandalonePrintPage({
     .hx-doc-company{font-size:12pt!important}
     .inv-v1{color:#0f172a;font-family:Arial,Helvetica,sans-serif}
     .inv-v1-top{display:grid;grid-template-columns:minmax(12rem,15rem) 1fr 130px;gap:10px 14px;align-items:start;margin:0 0 12px}
+    .inv-v1--draft .inv-v1-top{grid-template-columns:minmax(12rem,15rem) 1fr}
     .inv-v1-qr img{display:block;width:118px;height:118px;border:1px solid #94a3b8;padding:3px;background:#fff}
     .inv-v1-title-block{display:flex;align-items:center;justify-content:center;min-height:70px}
     .inv-v1-title{margin:0;font:800 18pt/1.2 Arial,Helvetica,sans-serif;color:#1e3a5f;text-align:center}

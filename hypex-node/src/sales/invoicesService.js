@@ -136,6 +136,13 @@ async function getInvoice(id) {
     invoice_discount_input: h.invoice_discount_input || '',
     status: h.status,
     is_posted: !!(h.is_posted === 1 || h.is_posted === true || h.is_posted === '1'),
+    einv_status: h.einv_status != null ? String(h.einv_status) : '',
+    einv_qr: h.einv_qr != null ? String(h.einv_qr).trim() : '',
+    einv_num: h.einv_num != null ? String(h.einv_num) : '',
+    einv_inv_uuid: h.einv_inv_uuid != null ? String(h.einv_inv_uuid) : '',
+    einv_sent_at: h.einv_sent_at || null,
+    /** مرسلة للفوترة = وجود EINV_QR (نفس منطق PHP) */
+    einv_sent: !!(h.einv_qr != null && String(h.einv_qr).trim() !== ''),
     lines: lines.map((ln) => ({
       item_id: Number(ln.item_id),
       item_code: ln.item_code,
