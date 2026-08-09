@@ -1,0 +1,152 @@
+/**
+ * ترويسة وتذييل طباعة موحّدان لكل شاشات Node
+ * شعار يسار · اسم الشركة يمين · تذييل: مستخدم + تاريخ + ترقيم صفحات
+ */
+
+.hx-print-chrome {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 22mm 10mm 16mm 10mm;
+  }
+
+  .hx-print-chrome {
+    display: block !important;
+  }
+
+  /* تتكرر على كل صفحة مطبوعة (Chrome / Edge) */
+  .hx-print-head {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 16mm;
+    padding: 0 2mm 1.5mm;
+    box-sizing: border-box;
+    display: flex !important;
+    flex-direction: row;
+    direction: ltr;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4mm;
+    border-bottom: 0.4pt solid #222;
+    background: #fff;
+    z-index: 9999;
+  }
+
+  .hx-print-logo {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    max-width: 42mm;
+  }
+
+  .hx-print-logo-img {
+    max-height: 12mm;
+    max-width: 40mm;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+  }
+
+  .hx-print-logo-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 10mm;
+    height: 10mm;
+    border: 0.4pt solid #333;
+    font-weight: 800;
+    font-size: 9pt;
+    color: #0f6e6a;
+  }
+
+  .hx-print-co {
+    flex: 1 1 auto;
+    text-align: right;
+    direction: rtl;
+    min-width: 0;
+  }
+
+  .hx-print-co-name {
+    font-family: Arial, "Segoe UI", Tahoma, sans-serif;
+    font-weight: 800;
+    font-size: 12pt;
+    color: #0f172a;
+    line-height: 1.25;
+  }
+
+  .hx-print-doc-title {
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: #475569;
+    margin-top: 0.5mm;
+  }
+
+  .hx-print-foot {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 10mm;
+    padding: 1.2mm 2mm 0;
+    box-sizing: border-box;
+    display: flex !important;
+    flex-direction: row;
+    direction: rtl;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3mm;
+    border-top: 0.35pt solid #666;
+    background: #fff;
+    font-family: Arial, "Segoe UI", Tahoma, sans-serif;
+    font-size: 7.5pt;
+    font-weight: 600;
+    color: #334155;
+    z-index: 9999;
+  }
+
+  .hx-print-user {
+    flex: 1 1 auto;
+    text-align: right;
+    min-width: 0;
+  }
+
+  .hx-print-when-label {
+    flex: 0 1 auto;
+    white-space: nowrap;
+    color: #64748b;
+  }
+
+  .hx-print-pages {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 7pt;
+    color: #0f172a;
+    direction: ltr;
+  }
+
+  /* مساحة للمحتوى تحت الترويسة / فوق التذييل */
+  body.si-2027 .main.si-main,
+  body.app-body .main.si-main {
+    padding-top: 2mm !important;
+  }
+
+  body.si-2027 .sidebar,
+  body.si-2027 .no-print,
+  body.si-2027 .si-rail,
+  body.si-2027 .si-hero-actions,
+  body.si-2027 .ora-filters {
+    display: none !important;
+  }
+
+  /* بطل الصفحة (هيرو الشاشة) يُخفى — الترويسة الموحدة تغني عنه */
+  body.si-2027.has-print-chrome .si-hero {
+    display: none !important;
+  }
+}

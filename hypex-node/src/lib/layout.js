@@ -5,6 +5,7 @@ const nav = require('../nav');
 const { esc } = require('./html');
 const { iconFor, isPathActive } = require('./navIcons');
 const basePath = require('./basePath');
+const { printChromeHtml, getPrintBrand } = require('./printBrand');
 
 function phpUrl(route, extra = '') {
   if (!route) return config.phpBaseUrl;
@@ -36,7 +37,7 @@ function renderSidebar(user, activePath = '') {
   const name = user.full_name_ar || user.username || '';
   const initial = String(name).trim().charAt(0) || 'U';
 
-  return `<aside class="sidebar sidebar--2027" data-active-path="${esc(activePath || '')}">
+  return `<aside class="sidebar sidebar--2027 no-print" data-active-path="${esc(activePath || '')}">
     <div class="sidebar-brand">
       <span class="brand-mark" aria-hidden="true">H</span>
       <div class="sidebar-brand__text">
@@ -71,12 +72,28 @@ function renderApp({
   bodyClass = '',
   mainClass = 'main main--wide',
   activePath = '',
+  /** false لتعطيل الترويسة/التذييل (نادر — مثل شاشة login / iframe) */
+  printChrome = true,
+  printTitle = '',
 }) {
+  getPrintBrand();
+
   const base = basePath.basePath || '';
-  const cssLinks = css.map((c) => `<link rel="stylesheet" href="${esc(c)}">`).join('\n');
-  const jsLinks = js.map((j) => `<script src="${esc(j)}" defer></script>`).join('\n');
-  const bodyCls = ['app-body', bodyClass].filter(Boolean).join(' ');
+  const allCss = ['/assets/css/print-chrome.css', ...css];
+  const allJs = [...js];
+  if (printChrome && user && !allJs.includes('/assets/js/sales-print.js')) {
+    allJs.push('/assets/js/sales-print.js');
+  }
+  const cssLinks = allCss.map((c) => `<link rel="stylesheet" href="${esc(c)}">`).join('\n');
+  const jsLinks = allJs.map((j) => `<script src="${esc(j)}" defer></script>`).join('\n');
+  const bodyCls = ['app-body', bodyClass, printChrome && user ? 'has-print-chrome' : '']
+    .filter(Boolean)
+    .join(' ');
   const mainCls = mainClass || 'main main--wide';
+  const chrome =
+    printChrome && user
+      ? printChromeHtml({ user, documentTitle: printTitle || title })
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -94,8 +111,9 @@ function renderApp({
   ${extraHead}
 </head>
 <body class="${esc(bodyCls)}">
+  ${chrome}
   <div class="app-shell">
-    ${renderSidebar(user, activePath)}
+    ${user ? renderSidebar(user, activePath) : ''}
     <main class="${esc(mainCls)}">
       ${bodyHtml}
     </main>
@@ -106,7 +124,7 @@ function renderApp({
 </html>`;
 }
 
-/** تضمين شاشة PHP داخل غلاف Node — المستخدم لا يغادر :3000 */
+/** تضمين شاشة PHP داخل غلاف Node */
 function phpEmbedPage({ user, title, phpRoute, extra = '', backHref = '/app' }) {
   const src = phpUrl(phpRoute, extra);
   const bodyHtml = `
@@ -129,6 +147,7 @@ function phpEmbedPage({ user, title, phpRoute, extra = '', backHref = '/app' }) 
     bodyHtml,
     bodyClass: 'embed-app',
     mainClass: 'main main--embed',
+    printChrome: false,
   });
 }
 

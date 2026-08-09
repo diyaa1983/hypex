@@ -53,6 +53,7 @@ const { phpEmbedPage } = require('./lib/layout');
 const basePath = require('./lib/basePath');
 const fs = require('fs');
 const { createSessionMiddleware } = require('./sessionStore');
+const { warmPrintBrand } = require('./lib/printBrand');
 
 const app = express();
 const phpRoot = path.join(__dirname, '..', '..');
@@ -525,6 +526,7 @@ function renderError(msg) {
 }
 
 app.listen(config.port, () => {
+  warmPrintBrand().catch(() => {});
   const base = basePath.hasBase() ? basePath.basePath : '';
   const publicUrl = base
     ? `http://localhost${base}`

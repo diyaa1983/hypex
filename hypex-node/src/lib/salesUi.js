@@ -6,7 +6,8 @@ const { salesCatalog } = require('../sales/catalog');
 
 const SALES_CSS = ['/assets/css/sales-2027.css'];
 
-function salesPage({ user, title, bodyHtml, js = [], css = [], activePath = '' }) {
+function salesPage({ user, title, bodyHtml, js = [], css = [], activePath = '', printTitle = '' }) {
+  const printJs = js.includes('/assets/js/sales-print.js') ? js : [...js, '/assets/js/sales-print.js'];
   return renderApp({
     user,
     title,
@@ -14,8 +15,10 @@ function salesPage({ user, title, bodyHtml, js = [], css = [], activePath = '' }
     bodyClass: 'si-2027',
     mainClass: 'main si-main',
     css: [...SALES_CSS, ...css],
-    js,
+    js: printJs,
     activePath,
+    printChrome: true,
+    printTitle: printTitle || title,
   });
 }
 
