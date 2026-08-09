@@ -266,7 +266,7 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
   <meta charset="utf-8">
   <title>فاتورة ${esc(inv.invoice_no)}</title>
   <style>
-    body{font-family:Tahoma,Arial,sans-serif;margin:1.2rem;color:#111}
+    body{font-family:Arial, Helvetica, sans-serif;margin:1.2rem;color:#111}
     h1{font-size:1.2rem;margin:0 0 .35rem}
     .meta{margin-bottom:1rem;font-size:.9rem;line-height:1.7}
     table{width:100%;border-collapse:collapse;font-size:.85rem}

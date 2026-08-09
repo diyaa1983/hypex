@@ -338,7 +338,7 @@ code.voucher-no-is-cancelled {
   border-radius: 4px;
   background: #f8fafc;
   color: #475569;
-  font-family: Consolas, "Courier New", monospace;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.62rem;
   font-weight: 700;
   line-height: 1.15;
@@ -818,7 +818,7 @@ tr:not(.is-entry-row) .sales-inv-col-sku .js-sku {
   box-shadow: none;
   cursor: pointer;
   appearance: none;
-  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
+  font-family: var(--font, Arial, Helvetica, sans-serif);
   font-size: 0.45rem;
   line-height: 1;
   color: #161513;

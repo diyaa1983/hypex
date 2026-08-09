@@ -18,7 +18,7 @@
   --ssms-muted: #666;
   --ssms-danger: #c50f1f;
   --ssms-ok: #0b6a0b;
-  --ssms-font: 'Segoe UI', Tahoma, 'IBM Plex Sans Arabic', Arial, sans-serif;
+  --ssms-font: Arial, Helvetica, sans-serif;
   font-family: var(--ssms-font);
   background: var(--ssms-bg) !important;
   color: var(--ssms-text);
@@ -127,7 +127,7 @@
 .rg-tb-hint {
   font-size: 0.72rem;
   color: var(--ssms-muted);
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 /* Import */
@@ -200,7 +200,7 @@
   font-size: 0.7rem;
   color: var(--ssms-muted);
   font-weight: 600;
-  font-family: Consolas, monospace;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .rg-ssms-tree-head {
@@ -211,7 +211,7 @@
 }
 
 .rg-ssms-server {
-  font-family: Consolas, monospace;
+  font-family: Arial, Helvetica, sans-serif;
   color: #0b5cab;
   font-weight: 700;
 }
@@ -269,7 +269,7 @@
 
 .rg-ssms-badge {
   font-size: 0.68rem;
-  font-family: Consolas, monospace;
+  font-family: Arial, Helvetica, sans-serif;
   color: var(--ssms-muted);
   background: #eee;
   border: 1px solid #ddd;
@@ -408,7 +408,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8rem;
-  font-family: Consolas, 'Segoe UI', monospace;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .rg-ssms-grid thead th {
@@ -421,7 +421,7 @@
   padding: 0.28rem 0.4rem;
   font-weight: 700;
   font-size: 0.75rem;
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   text-align: right;
   color: #333;
   white-space: nowrap;
@@ -475,7 +475,7 @@
 .rg-ssms-grid .col-act {
   width: 11rem;
   white-space: nowrap;
-  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.75rem;
 }
 
@@ -507,7 +507,7 @@
   padding: 0 0.3rem;
   font-size: 0.7rem;
   font-weight: 700;
-  font-family: 'Segoe UI', sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   border-radius: 2px;
   border: 1px solid transparent;
 }
@@ -529,7 +529,7 @@
   color: var(--ssms-muted);
   font-style: italic;
   padding: 1.5rem !important;
-  font-family: 'Segoe UI', sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .rg-ssms-placeholder {
@@ -556,7 +556,7 @@
   background: #007acc;
   color: #fff;
   font-size: 0.72rem;
-  font-family: 'Segoe UI', sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   border-top: 1px solid #005a9e;
 }
 

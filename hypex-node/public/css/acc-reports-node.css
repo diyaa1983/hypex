@@ -130,7 +130,7 @@ tr.is-locked td {
   outline: none;
 }
 .ora-suggest-acc {
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
   color: #0f6e6a;
@@ -519,8 +519,9 @@ tr.is-locked td {
     display: table-header-group !important;
   }
 
+  /* الإجمالي مرة واحدة في آخر الصفحة — لا table-footer-group */
   .ora-table tfoot {
-    display: table-footer-group !important;
+    display: table-row-group !important;
   }
 
   .ora-table tr {

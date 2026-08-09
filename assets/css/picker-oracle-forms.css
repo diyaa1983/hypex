@@ -10,7 +10,7 @@ body.hr-ora-ui .sales-inv-pick-dropdown,
 body.ora12-picker-ui .sales-inv-pick-dropdown,
 body.hr-ora-ui #sales-inv-picker.sales-inv-pick-dropdown,
 body.ora12-picker-ui #sales-inv-picker.sales-inv-pick-dropdown {
-  font-family: Tahoma, Arial, "MS Sans Serif", sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   background: #d4d0c8;
   border: 2px solid #000;
   border-radius: 0;
@@ -62,7 +62,7 @@ body.ora12-picker-ui .sales-inv-pick-close {
   border-radius: 0;
   background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
   color: #000;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1;
@@ -90,7 +90,7 @@ body.ora12-picker-ui #sales-inv-picker .input {
   width: calc(100% - 0.9rem);
   margin: 0.35rem 0.45rem 0.3rem;
   padding: 0.22rem 0.35rem;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   font-weight: 600;
   color: #000;
@@ -165,7 +165,7 @@ body.ora12-picker-ui .sales-inv-pick-item {
   border-radius: 0;
   background: #fff;
   cursor: default;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   text-align: start;
 }
@@ -306,7 +306,7 @@ body.ora12-picker-ui .item-picker-foot .sales-inv-pick-add {
   border-radius: 0;
   background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
   color: #000;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
   padding: 0.18rem 0.55rem;
@@ -415,7 +415,7 @@ body.ora12-picker-ui .sales-inv-pick-btn {
   border-color: #808080 #fff #fff #808080;
   background: #fff;
   box-shadow: none;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   font-weight: 600;
   color: #000;
@@ -795,7 +795,7 @@ body.ora12-picker-ui #app-item-picker-modal .sales-inv-pick-add {
   border-radius: 0;
   background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
   color: #000;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
   padding: 0.18rem 0.55rem;
@@ -936,7 +936,7 @@ body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12.hr-emp-picker-panel {
 body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-title {
   margin: 0;
   padding: 0.22rem 0.45rem;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
   color: #fff;
@@ -961,7 +961,7 @@ body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12-table {
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   color: #000;
 }
@@ -1034,7 +1034,7 @@ body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-no-arrow {
   border-radius: 0;
   background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
   color: #000;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.72rem;
   font-weight: 700;
   line-height: 1;
@@ -1069,7 +1069,7 @@ body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-code {
   border-radius: 0;
   background: #fff;
   box-shadow: none;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
   color: #000;
@@ -1120,7 +1120,7 @@ body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-slot .sale
   min-width: 0;
   padding: 0.12rem 0.35rem;
   border-inline-end: 1px solid #808080;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   font-weight: 600;
   color: #000;
@@ -1165,7 +1165,7 @@ body.hr-ora-ui .hr-emp-ora-screen .hr-emp-picker-ora12 .hr-emp-picker-td-total s
   border: 2px solid;
   border-color: #808080 #fff #fff #808080;
   background: #fff;
-  font-family: Tahoma, Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.78rem;
   font-weight: 600;
   color: #000;
@@ -1191,7 +1191,7 @@ body.hr-ora-ui #app-account-picker-modal.sales-inv-pick-dropdown,
 body.ora12-picker-ui #app-account-picker-modal.sales-inv-pick-dropdown,
 body.hr-ora-ui #app-employee-picker-modal.sales-inv-pick-dropdown,
 body.ora12-picker-ui #app-employee-picker-modal.sales-inv-pick-dropdown {
-  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, sans-serif) !important;
+  font-family: var(--font, Arial, Helvetica, sans-serif) !important;
   background: #ffffff !important;
   border: 1px solid #cbd5e1 !important;
   border-radius: 10px !important;

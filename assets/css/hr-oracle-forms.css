@@ -20,7 +20,7 @@
     margin: 0;
     padding: 0.12rem 0.25rem 0.12rem 0;
     text-align: start;
-    font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
+    font-family: var(--font, Arial, Helvetica, sans-serif);
     font-size: 0.9rem;
     font-weight: 700;
     color: #fff;
@@ -41,7 +41,7 @@
     border-radius: 999px;
     background: #dc2626;
     color: #ffffff;
-    font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
+    font-family: var(--font, Arial, Helvetica, sans-serif);
     font-size: 0.82rem;
     font-weight: 700;
     line-height: 1;
@@ -81,7 +81,7 @@ body.hr-ora-ui .hr-ora-msg {
     border-radius: 0;
     background: #ece9e4;
     box-shadow: 1px 1px 0 #808080;
-    font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
+    font-family: var(--font, Arial, Helvetica, sans-serif);
     font-size: 0.78rem;
     font-weight: 600;
     line-height: 1.45;

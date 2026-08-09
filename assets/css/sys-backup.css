@@ -14,7 +14,7 @@
 
 .sys-backup-field .input {
   max-width: 42rem;
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .sys-backup-actions {
@@ -113,7 +113,7 @@ body.sys-backup-is-busy {
   padding: 1.5rem;
   background: rgba(15, 23, 42, 0.5);
   color: #ffff99;
-  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.92rem;
   line-height: 1.45;
 }

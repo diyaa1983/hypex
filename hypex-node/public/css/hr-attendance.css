@@ -147,7 +147,7 @@
 }
 .att-steps code,
 .att-code {
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.82em;
   background: #f1f5f9;
   padding: 0.1rem 0.35rem;

@@ -22,7 +22,7 @@ body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-bt
   padding: 0.15rem 0.55rem !important;
   font-size: 0.78rem !important;
   font-weight: 600 !important;
-  font-family: 'Segoe UI', Tahoma, 'IBM Plex Sans Arabic', Arial, sans-serif !important;
+  font-family: Arial, Helvetica, sans-serif !important;
   box-shadow: none !important;
   line-height: 1.2 !important;
 }
@@ -78,7 +78,7 @@ body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-in
   --si-text: #1e1e1e;
   --si-muted: #666;
   --si-select: #cce8ff;
-  font-family: 'Segoe UI', Tahoma, 'IBM Plex Sans Arabic', Arial, sans-serif !important;
+  font-family: Arial, Helvetica, sans-serif !important;
   background: var(--si-bg) !important;
   color: var(--si-text);
 }
@@ -360,7 +360,7 @@ body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-in
   color: #444;
   background: linear-gradient(180deg, #f3f3f3 0%, #e6e6e6 100%);
   border-top: 1px solid var(--si-border);
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .si-ssms .sales-inv-grid-flash {
@@ -405,7 +405,7 @@ body:has(.si-ssms) .sales-inv-dlv-pick-modal__head {
   color: #0b5cab;
   font-weight: 700;
   text-decoration: none;
-  font-family: Consolas, 'Courier New', monospace;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .si-ssms-list .si-list-code a:hover {

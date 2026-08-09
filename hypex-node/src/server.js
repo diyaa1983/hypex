@@ -555,7 +555,7 @@ function renderLogin({ error, username, brand }) {
 
 function renderError(msg) {
   return `<!DOCTYPE html><html lang="ar" dir="rtl"><meta charset="utf-8">
-  <body style="font-family:Segoe UI,Tahoma,sans-serif;padding:2rem;background:#f0f0f0">
+  <body style="font-family:Arial, Helvetica, sans-serif;padding:2rem;background:#f0f0f0">
   <h1>خطأ</h1><pre>${esc(msg)}</pre>
   <a href="/login">العودة لتسجيل الدخول</a></body></html>`;
 }

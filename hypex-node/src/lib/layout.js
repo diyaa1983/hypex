@@ -141,9 +141,6 @@ function renderApp({
   <title>${esc(title)} · ${esc(getPrintBrand().companyName || 'Hypex')}</title>
   <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
   <script src="/assets/js/base-path.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/shell.css">
   ${cssLinks}
   ${extraHead}

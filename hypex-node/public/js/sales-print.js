@@ -93,6 +93,7 @@
       .forEach(function (el) {
         el.remove();
       });
+    moveTotalsToTableEnd(clone);
     return clone.innerHTML;
   }
 
@@ -119,14 +120,14 @@
       '<div style="flex:0 0 auto;max-width:90px;max-height:72px;overflow:hidden">' +
       logo +
       '</div>' +
-      '<div dir="rtl" style="flex:1 1 auto;text-align:right;font:800 15pt/1.3 Arial,Tahoma,sans-serif;color:#0f172a">' +
+      '<div dir="rtl" style="flex:1 1 auto;text-align:right;font:800 15pt/1.3 Arial,Helvetica,sans-serif;color:#0f172a">' +
       esc(b.company) +
       '</div>' +
       '</div>' +
-      '<div style="text-align:center;font:700 12pt/1.3 Arial,Tahoma,sans-serif;margin-top:10px;color:#1e293b">' +
+      '<div style="text-align:center;font:700 12pt/1.3 Arial,Helvetica,sans-serif;margin-top:10px;color:#1e293b">' +
       esc(b.title) +
       '</div>' +
-      '<div style="text-align:center;font:600 8pt Arial,Tahoma,sans-serif;color:#475569;margin-top:3px">طُبع: <span dir="ltr">' +
+      '<div style="text-align:center;font:600 8pt Arial,Helvetica,sans-serif;color:#475569;margin-top:3px">طُبع: <span dir="ltr">' +
       esc(when) +
       '</span></div>' +
       '</header>'
@@ -135,10 +136,34 @@
 
   function buildFooter(b) {
     return (
-      '<footer style="position:fixed;bottom:0;left:0;right:0;text-align:center;font:500 6.5pt Arial,Tahoma,sans-serif;color:#64748b;direction:rtl;padding:2px 6px">طبع بواسطة: ' +
+      '<footer class="hx-print-footer">طبع بواسطة: ' +
       esc(b.user) +
       '</footer>'
     );
+  }
+
+  /**
+   * الإجمالي داخل tfoot يُعاد على كل صفحة طباعة (table-footer-group) —
+   * ننقله لآخر tbody ليظهر مرة واحدة في الصفحة الأخيرة فقط.
+   */
+  function moveTotalsToTableEnd(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('table').forEach(function (table) {
+      var tf = table.tFoot || table.querySelector('tfoot');
+      if (!tf) return;
+      var tb =
+        (table.tBodies && table.tBodies[table.tBodies.length - 1]) ||
+        null;
+      if (!tb) {
+        tb = document.createElement('tbody');
+        table.appendChild(tb);
+      }
+      Array.prototype.slice.call(tf.querySelectorAll('tr')).forEach(function (tr) {
+        tr.classList.add('hx-print-total-row');
+        tb.appendChild(tr);
+      });
+      tf.remove();
+    });
   }
 
   function tableCss() {
@@ -146,13 +171,17 @@
       'table{width:100%;border-collapse:collapse;font-size:9pt}' +
       'th,td{border:1px solid #334155;padding:3px 4px;vertical-align:top}' +
       'th{background:#e2e8f0;font-weight:800}' +
+      /* thead يتكرر أعلى كل صفحة؛ tfoot/الإجمالي لا يتكرر (يُنقل لـ tbody) */
       'thead{display:table-header-group}' +
-      'tfoot{display:table-footer-group}' +
+      'tfoot{display:table-row-group}' +
+      'tbody{display:table-row-group}' +
       'tr{page-break-inside:avoid}' +
+      'tr.hx-print-total-row,tr.ora-foot,tfoot tr{font-weight:800;background:#f1f5f9}' +
+      'tr.hx-print-total-row td,tr.ora-foot td{border-top:2px solid #0f172a}' +
       '.empty,.muted{color:#64748b}' +
       '.ora-stmt-head{display:block;margin:0 0 10px;padding:0 0 8px;border-bottom:1px solid #ccc}' +
       '.ora-stmt-head__main{margin:0 0 8px}' +
-      '.ora-stmt-name{font:800 12pt Arial,Tahoma,sans-serif;margin:2px 0}' +
+      '.ora-stmt-name{font:800 12pt Arial,Helvetica,sans-serif;margin:2px 0}' +
       '.ora-stmt-kicker{font-size:8pt;color:#334155;margin:0}' +
       '.ora-stmt-meta{font-size:9pt;color:#334155;margin:2px 0 0}' +
       '.ora-stmt-totals{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0;width:100%}' +
@@ -164,9 +193,13 @@
       '.si-surface,.ora-stmt-body{border:1px solid #bbb;padding:0;margin:0 0 8px}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
       '.si-table-wrap{overflow:visible}' +
+      '.hx-print-doc{padding-bottom:4mm}' +
+      '.hx-print-footer{position:fixed;bottom:0;left:0;right:0;height:10mm;box-sizing:border-box;' +
+      'text-align:center;font:500 7pt Arial,Helvetica,sans-serif;color:#64748b;direction:rtl;' +
+      'padding:2mm 4mm 0;border-top:0.5pt solid #cbd5e1;background:#fff}' +
       '.si-hero,.sidebar,.no-print,.si-rail,.ora-filters,.si-btn{display:none!important}' +
       '@page{size:A4 portrait;margin:10mm 8mm 14mm 8mm}' +
-      'body{margin:0;padding:0 0 12mm 0;font-family:Arial,Tahoma,sans-serif;color:#0f172a;background:#fff}' +
+      'body{margin:0;padding:0 0 12mm 0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#fff}' +
       'img{max-width:72px!important;max-height:72px!important;width:auto!important;height:auto!important;object-fit:contain!important}'
     );
   }

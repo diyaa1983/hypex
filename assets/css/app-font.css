@@ -1,15 +1,10 @@
 /**
- * خطوط Hypex Node 2027 — الأنظمة ثنائية اللغة (عربي + لاتيني)
- * - Noto Sans Arabic: وضوح مؤسسي للجداول والواجهات
- * - Plus Jakarta Sans: عناوين وواجهة لاتينية حديثة
- * - JetBrains Mono: أرقام ورموز
+ * خط موحّد — Arial لكل النظام والتقارير
  */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
-
 :root {
-  --font: 'Noto Sans Arabic', 'Plus Jakarta Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif;
-  --font-display: 'Plus Jakarta Sans', 'Noto Sans Arabic', 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, 'Courier New', monospace;
+  --font: Arial, Helvetica, sans-serif;
+  --font-display: Arial, Helvetica, sans-serif;
+  --font-mono: Arial, Helvetica, sans-serif;
 }
 
 html {
@@ -23,6 +18,17 @@ body,
 button,
 input,
 select,
-textarea {
+textarea,
+table,
+th,
+td {
   font-family: var(--font);
+}
+
+@media print {
+  html,
+  body,
+  body * {
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
 }

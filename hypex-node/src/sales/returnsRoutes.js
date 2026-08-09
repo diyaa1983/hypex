@@ -357,7 +357,7 @@ router.get('/sales/returns/:id/print', async (req, res) => {
     const autoPdf = String(req.query.pdf || '') === '1';
     res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
 <title>مرتجع ${esc(doc.return_no)}</title>
-<style>body{font-family:Tahoma,Arial,sans-serif;margin:1.2rem}table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{border:1px solid #ccc;padding:.35rem;text-align:right}th{background:#f3f4f6}@media print{.no-print{display:none}}</style></head><body>
+<style>body{font-family:Arial, Helvetica, sans-serif;margin:1.2rem}table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{border:1px solid #ccc;padding:.35rem;text-align:right}th{background:#f3f4f6}@media print{.no-print{display:none}}</style></head><body>
 <div class="no-print" style="margin-bottom:1rem"><button onclick="window.print()">طباعة / PDF</button> · <a href="/sales/returns/form/${doc.id}">عودة</a></div>
 <h1>مرتجع مبيعات ${esc(doc.return_no)}</h1>
 <p>التاريخ: <strong dir="ltr">${esc(isoToDmy(doc.return_date))}</strong><br>

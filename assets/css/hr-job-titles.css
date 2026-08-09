@@ -300,7 +300,7 @@
 /* ── نمط Oracle Forms — المسميات الوظيفية ── */
 
 body:has(.hr-jt-ora-screen) {
-    font-family: Tahoma, Arial, "MS Sans Serif", sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
 }
 
 body:has(.hr-jt-ora-screen) .main-content {
@@ -328,7 +328,7 @@ body:has(.hr-jt-ora-screen) .app-screen-head {
 body:has(.hr-jt-ora-screen) .app-screen-head .brand-name,
 body:has(.hr-jt-ora-screen) .app-screen-head .brand-sub {
     color: #000;
-    font-family: Tahoma, Arial, sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
 }
 
 .hr-jt-ora-screen {
@@ -336,7 +336,7 @@ body:has(.hr-jt-ora-screen) .app-screen-head .brand-sub {
     width: 100%;
     margin: 0;
     padding: 0.25rem 0.35rem 0.75rem;
-    font-family: Tahoma, Arial, "MS Sans Serif", sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
     font-size: 0.8125rem;
     font-weight: 600;
     color: #000;
@@ -563,7 +563,7 @@ body:has(.hr-jt-ora-screen) .app-screen-head .brand-sub {
     background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
     box-shadow: none;
     color: #000;
-    font-family: Tahoma, Arial, sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
     font-size: 0.78rem;
     font-weight: 400;
     line-height: 1.2;

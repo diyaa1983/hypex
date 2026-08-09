@@ -16,10 +16,10 @@
   --warn: #a16207;
   --danger: #c50f1f;
   --sidebar-w: 16.75rem;
-  /* Node 2027: Noto Sans Arabic (واجهة) + Plus Jakarta Sans (العناوين اللاتينية) + JetBrains Mono */
-  --font: "Noto Sans Arabic", "Plus Jakarta Sans", "Segoe UI", Tahoma, sans-serif;
-  --font-display: "Plus Jakarta Sans", "Noto Sans Arabic", "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  /* خط موحّد للنظام والتقارير */
+  --font: Arial, Helvetica, sans-serif;
+  --font-display: Arial, Helvetica, sans-serif;
+  --font-mono: Arial, Helvetica, sans-serif;
   --radius: 10px;
   --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
@@ -44,6 +44,27 @@ body {
   letter-spacing: 0;
   color: var(--text);
   background: #e8eef5;
+}
+
+button,
+input,
+select,
+textarea,
+table,
+th,
+td,
+label,
+.main,
+.sidebar {
+  font-family: var(--font);
+}
+
+@media print {
+  html,
+  body,
+  body * {
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
 }
 
 a {
@@ -333,7 +354,7 @@ a:hover {
   --sb-hover: rgba(255, 255, 255, 0.055);
   --sb-active-bg: linear-gradient(90deg, rgba(26, 167, 159, 0.22) 0%, rgba(26, 167, 159, 0.08) 100%);
   --sb-line: rgba(255, 255, 255, 0.08);
-  --sb-font: "Noto Sans Arabic", "Plus Jakarta Sans", "Segoe UI", Tahoma, sans-serif;
+  --sb-font: Arial, Helvetica, sans-serif;
   position: sticky;
   top: 0;
   align-self: start;

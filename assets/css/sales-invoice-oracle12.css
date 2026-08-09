@@ -3,7 +3,7 @@
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap {
   width: 100%;
   max-width: 100%;
-  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
+  font-family: var(--font, Arial, Helvetica, sans-serif);
 }
 
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .input,
@@ -13,7 +13,7 @@
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .sales-inv-table,
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title,
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-panel {
-  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
+  font-family: var(--font, Arial, Helvetica, sans-serif);
 }
 
 .dashboard-ora.sales-ora12-screen.sales-inv-wrap .dashboard-ora-screen-title__group {
@@ -976,7 +976,7 @@ body:has(.sales-inv-main) .sales-inv-dlv-pick-item__badge {
 
 body:has(.sales-inv-main) .sales-inv-pick-dropdown.item-picker-modal,
 body:has(.sales-inv-main) .sales-inv-dlv-pick-modal {
-  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, Helvetica, sans-serif);
+  font-family: var(--font, Arial, Helvetica, sans-serif);
 }
 
 /* خط غامق — فاتورة مبيعات Oracle 12c */

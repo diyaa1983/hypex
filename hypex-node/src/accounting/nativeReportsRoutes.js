@@ -891,14 +891,14 @@ router.get(
         )}</td></tr>`;
 
       const foot = `
-        <tfoot>
-          <tr class="ora-foot">
+        <tbody class="ora-totals-body">
+          <tr class="ora-foot hx-print-total-row">
             <td colspan="3">الإجمالي</td>
             <td dir="ltr">${money(data.total_debit)}</td>
             <td dir="ltr">${money(data.total_credit)}</td>
             <td dir="ltr"><strong>${money(data.balance)}</strong></td>
           </tr>
-        </tfoot>`;
+        </tbody>`;
 
       let chequesHtml = '';
       if (cheques.length) {

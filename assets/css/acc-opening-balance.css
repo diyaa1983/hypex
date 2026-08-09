@@ -199,7 +199,7 @@
 }
 
 .acc-opening-balance-ora .acc-opening-table code {
-  font-family: Consolas, "Courier New", monospace;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 0.76rem;
   font-weight: 700;
   color: var(--ora12-link);

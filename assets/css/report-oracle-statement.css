@@ -267,8 +267,9 @@
     display: table-header-group;
   }
 
+  /* الإجمالي في الصفحة الأخيرة فقط */
   .ora-stmt-table tfoot {
-    display: table-footer-group;
+    display: table-row-group;
   }
 
   .ora-stmt-table tbody tr {

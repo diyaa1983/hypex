@@ -314,7 +314,7 @@ $appTypoBoldCssV = is_file(app_path('assets/css/app-typography-bold.css'))
 .m-body, .m-body .m-page, .m-body label, .m-body th, .m-body td,
 .m-body .m-input, .m-body input, .m-body select, .m-body textarea,
 .m-body .m-btn, .m-body h1, .m-body h2, .m-body h3, .m-body p, .m-body span {
-  font-family: var(--font, 'IBM Plex Sans Arabic', 'IBM Plex Sans', Tahoma, Arial, sans-serif) !important;
+  font-family: var(--font, Arial, Helvetica, sans-serif) !important;
   font-weight: 700 !important;
 }
 .m-body { color: #161513; }
