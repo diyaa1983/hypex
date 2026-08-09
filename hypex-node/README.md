@@ -1,49 +1,52 @@
 # Hypex — واجهة واحدة على Node.js
 
-الرابط العام (XAMPP): **http://localhost/hypex**  
-نفس قاعدة البيانات والشاشات — الواجهة Node خلف Apache.
+الرابط العام (XAMPP): **http://localhost/hypex**
 
-## التشغيل اليومي
+## لماذا نعيد تشغيل Node؟
 
-1. شغّل **Apache + MySQL** من XAMPP  
-2. شغّل Node:
+Node يحمّل ملفات JavaScript **مرة واحدة** عند البدء. التعديل على الملفات على القرص لا يدخل الذاكرة إلا بعد إعادة التشغيل.
+
+**الحل أثناء التطوير:** وضع المراقبة (`--watch`) يعيد التشغيل تلقائياً عند الحفظ.
+
+## التشغيل
+
+1. Apache + MySQL من XAMPP  
+2. Node:
+
+| الوضع | الأمر |
+|--------|--------|
+| عادي (إنتاج) | `deploy\start-hypex-node.cmd` أو `npm start` |
+| **تلقائي بعد التعديل** | `deploy\start-hypex-node-watch.cmd` أو `npm run dev` |
+
+ثم: **http://localhost/hypex**
+
+### pm2 على السيرفر (تشغيل دائم)
 
 ```bat
-deploy\start-hypex-node.cmd
+cd c:\xampp\htdocs\hypex\hypex-node
+pm2 start src/server.js --name hypex-node
+pm2 save
 ```
 
-أو:
+بعد نسخ ملفات جديدة: `pm2 restart hypex-node`
 
-```bash
-cd hypex-node
-npm start
+أثناء التطوير فقط (مراقبة ملفات):
+
+```bat
+pm2 start src/server.js --name hypex-node --watch --ignore-watch="node_modules"
 ```
 
-3. افتح المتصفح: **http://localhost/hypex**
+### ملاحظات
 
-بدون الخطوة 2 يظهر رسالة «واجهة Node غير متاحة».
-
-## كيف يعمل
-
-| الطبقة | الدور |
-|--------|--------|
-| `http://localhost/hypex` | Apache → `node-front.php` → Node |
-| `hypex-node` (منفذ 3000) | التطبيق الفعلي |
-| `APP_BASE_PATH=/hypex` | المسارات الداخلية تطابق الرابط القديم |
-| PHP المتبقي | `index.php?r=...` للشاشات غير المحوّلة + ترحيل CLI |
+- ملفات **CSS/JS في المتصفح** (`public/…`): غالباً يكفي **Ctrl+F5** بدون إعادة تشغيل Node.
+- ملفات **PHP** (تقارير Oracle عبر CLI): تُقرأ عند كل طلب — لا تحتاج إعادة تشغيل Node عادة.
+- ملفات **`src/*.js`**: تحتاج إعادة تشغيل Node أو وضع `watch` / `pm2 restart`.
 
 ## إعداد `.env`
 
-انسخ من `.env.example` وعدّل MySQL إن لزم:
+انسخ من `.env.example`:
 
 - `APP_BASE_PATH=/hypex`
 - `PHP_BASE_URL=http://127.0.0.1/hypex`
+- `DB_*` = نفس MySQL
 - `PORT=3000`
-
-## تطوير مباشر بدون Apache
-
-افتح `http://127.0.0.1:3000/hypex` (مع نفس `APP_BASE_PATH`).
-
-## الأقسام
-
-مبيعات · مشتريات · عملاء · موردين · مندوبين · مستودعات · محاسبة · موظفين · نظام · هاتف

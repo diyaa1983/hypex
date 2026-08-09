@@ -295,21 +295,246 @@ tr.is-locked td {
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 10mm 8mm;
+  }
+
+  html,
+  body,
+  body.app-body,
+  body.si-2027,
+  .app-shell,
+  .main,
+  .main.si-main,
+  .si-stage,
+  .sh-page,
+  .ar-report,
+  .si-print-area,
+  .ora-stmt {
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    background: #fff !important;
+  }
+
+  .app-shell {
+    display: block !important;
+    grid-template-columns: none !important;
+  }
+
+  .main.si-main,
+  .main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+
+  .sidebar,
   .si-rail,
   .no-print,
-  .si-hero-actions {
+  .si-hero-actions,
+  .ora-filters,
+  .si-btn--print,
+  [data-print] {
     display: none !important;
   }
-  .ora-stmt-head {
-    box-shadow: none;
-    border-color: #ccc;
+
+  /* الهيرو يبقى مدمجاً — بدون فراغات */
+  .si-hero {
+    margin: 0 0 0.45rem !important;
+    padding: 0 0 0.35rem !important;
+    border-bottom: 1px solid #333 !important;
+    box-shadow: none !important;
+    background: none !important;
+    animation: none !important;
+    page-break-after: avoid;
+    break-after: avoid;
   }
-  .ora-stat--balance {
-    background: #eee !important;
+  .si-hero-actions { display: none !important; }
+  .si-brand-mark {
+    box-shadow: none !important;
+    width: 1.8rem !important;
+    height: 1.8rem !important;
+    font-size: 0.75rem !important;
+  }
+  .si-hero h1 {
+    font-size: 14pt !important;
+    margin: 0 !important;
+  }
+  .si-kicker,
+  .si-hero p {
+    font-size: 9pt !important;
+    margin: 0.1rem 0 0 !important;
+  }
+
+  /* لا تمنع فصل الجدول عبر الصفحات — هذا سبب الفراغ الكبير */
+  .ora-stmt-body.si-surface,
+  .ora-stmt .si-surface,
+  .si-print-area .si-surface {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    box-shadow: none !important;
+    border: 1px solid #bbb !important;
+    background: #fff !important;
+    backdrop-filter: none !important;
+    border-radius: 4px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .ora-stmt {
+    display: block !important;
+  }
+
+  .ora-stmt-head {
+    display: block !important;
+    background: #fff !important;
+    border: 1px solid #333 !important;
+    border-radius: 0 !important;
+    padding: 0.4rem 0.5rem !important;
+    margin: 0 0 0.4rem !important;
+    page-break-after: avoid;
+    break-after: avoid-page;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ora-stmt-head__main {
+    margin-bottom: 0.35rem;
+  }
+
+  .ora-stmt-kicker {
+    font-size: 8pt !important;
     color: #000 !important;
   }
+
+  .ora-stmt-name {
+    font-size: 13pt !important;
+    margin: 0.1rem 0 !important;
+    color: #000 !important;
+  }
+
+  .ora-stmt-meta {
+    font-size: 9pt !important;
+    color: #222 !important;
+  }
+
+  /* صف واحد للأرصدة بدل شبكة عمودية ضخمة */
+  .ora-stmt-totals {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.35rem 0.75rem !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    border-top: 1px solid #ccc;
+    padding-top: 0.3rem;
+    margin-top: 0.25rem;
+  }
+
+  .ora-stat {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: baseline !important;
+    gap: 0.35rem !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    min-width: auto !important;
+  }
+
+  .ora-stat span {
+    font-size: 8pt !important;
+    color: #444 !important;
+    font-weight: 700 !important;
+  }
+
+  .ora-stat strong {
+    font-size: 9.5pt !important;
+    color: #000 !important;
+  }
+
+  .ora-stat--balance {
+    grid-column: auto !important;
+    background: transparent !important;
+    border: 0 !important;
+    margin-inline-start: auto;
+  }
+
   .ora-stat--balance span,
   .ora-stat--balance strong {
     color: #000 !important;
+  }
+
+  .ora-stat--balance strong {
+    font-size: 11pt !important;
+    text-decoration: underline;
+  }
+
+  .si-table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .ora-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8.5pt !important;
+  }
+
+  .ora-table thead {
+    display: table-header-group !important;
+  }
+
+  .ora-table tfoot {
+    display: table-footer-group !important;
+  }
+
+  .ora-table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .ora-table th,
+  .ora-table td {
+    border: 1px solid #bbb !important;
+    padding: 0.18rem 0.3rem !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .ora-table thead th {
+    background: #e8e8e8 !important;
+    font-size: 8pt !important;
+    position: static !important;
+  }
+
+  .ora-row-open td {
+    background: #f0f0f0 !important;
+    font-weight: 700 !important;
+  }
+
+  .ora-foot td {
+    background: #eee !important;
+    font-weight: 800 !important;
+    border-top: 2px solid #333 !important;
+  }
+
+  .ora-cheques {
+    margin-top: 0.6rem !important;
+    border: 1px solid #aaa !important;
+    border-radius: 0 !important;
+    padding: 0.35rem !important;
+    page-break-inside: auto;
+  }
+
+  .ora-cheques__head h3 {
+    font-size: 10pt !important;
+  }
+
+  .ora-c-desc {
+    min-width: 0 !important;
   }
 }
