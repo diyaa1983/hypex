@@ -242,11 +242,11 @@ async function renderStandalonePrintPage({
     .inv-v1-notes{margin-top:10px;font-size:9.5pt;text-align:right;color:#334155}
     .inv-v1-notes span{font-weight:700;color:#1e3a5f}
     .inv-v1-sign{
-      margin-top:2.8rem;width:100%;text-align:center;
-      display:flex;flex-direction:column;align-items:center
+      margin-top:2.8rem;width:100%;
+      display:flex;flex-direction:column;align-items:flex-end
     }
-    .inv-v1-sign-label{font-size:10pt;font-weight:700;color:#1e3a5f;margin-bottom:1.8rem}
-    .inv-v1-sign-line{border-bottom:1px solid #0f172a;width:12rem;margin:0 auto}
+    .inv-v1-sign-label{font-size:10pt;font-weight:700;color:#1e3a5f;margin-bottom:1.8rem;text-align:center;width:12rem}
+    .inv-v1-sign-line{border-bottom:1px solid #0f172a;width:12rem;margin:0}
     @media print{
       .inv-v1-table thead th{background:#5b6b7c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     }
