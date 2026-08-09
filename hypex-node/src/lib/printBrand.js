@@ -255,7 +255,7 @@ async function renderStandalonePrintPage({
       .inv-v1-meta,.inv-v1-title-block,.inv-v1-qr{grid-column:1}
       .inv-v1-meta{text-align:right}
       .inv-v1-qr{justify-self:center}
-    }``
+    }`
     : '';
 
   return `<!DOCTYPE html>

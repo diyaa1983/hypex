@@ -7,54 +7,47 @@
 الجلسات مخزّنة في **MySQL** (جدول `hypex_node_sessions`) وليس في ذاكرة Node.
 بعد `pm2 restart` أو تحديث الكود **المستخدم لا يحتاج إعادة تسجيل الدخول** (طالما الكوكي لم تنتهِ و`SESSION_SECRET` لم يتغيّر).
 
-## تشغيل ثابت على السيرفر (مستحسن)
+## تشغيل ثابت كخدمة (مستحسن — مرة واحدة)
 
-مرة واحدة:
-
-```bat
-deploy\pm2-start-hypex.cmd
-```
-
-أو:
+شغّل **كـ Administrator**:
 
 ```bat
-cd c:\xampp\htdocs\hypex\hypex-node
-npm install -g pm2
-npm install
-pm2 start src/server.js --name hypex-node
-pm2 save
-pm2 startup
+deploy\pm2-install-service.cmd
 ```
 
-بعد رفع ملفات جديدة:
+ماذا يفعل؟
+1. يثبت **PM2**
+2. يشغّل `hypex-node` في الخلفية
+3. **watch** على مجلد `src/` → أي تعديل في كود السيرفر = reload تلقائي (بدون start/stop يدوي)
+4. يسجّل مهمة Windows **HypexNodePM2** لتعيد الخدمة بعد إعادة تشغيل الجهاز
 
-```bat
-pm2 restart hypex-node
-```
+لا حاجة لإبقاء نافذة CMD مفتوحة، ولا لتشغيل يدوي كل مرة.
 
 | | |
 |--|--|
 | حالة | `pm2 status` |
 | سجلات | `pm2 logs hypex-node` |
-| إيقاف | `pm2 stop hypex-node` |
-
-لا حاجة لإبقاء نافذة CMD مفتوحة.
+| إيقاف مؤقت | `pm2 stop hypex-node` |
+| تشغيل بعد الإيقاف | `pm2 start hypex-node` |
 
 ## أنواع الملفات — ماذا تحتاج؟
 
 | التعديل | ماذا تفعل؟ |
 |---------|------------|
-| `public/css` أو `public/js` | **Ctrl+F5** في المتصفح فقط |
-| PHP (تقارير Oracle…) | لا شيء — تُقرأ فوراً |
-| `src/*.js` أو `.env` | `pm2 restart hypex-node` (بدون logout للمستخدمين) |
+| `public/css` أو `public/js` | **Ctrl+F5** فقط — بدون أي restart |
+| `src/*.js` | **لا شيء** — PM2 watch يعيد التحميل وحده |
+| `.env` | `pm2 restart hypex-node` مرة واحدة |
+| PHP | لا شيء |
 
-## تطوير محلي (مراقبة ملفات)
+**ملاحظة:** بعد reload التلقائي **الجلسات لا تُفقد** (مخزّنة في MySQL).
+
+## تطوير محلي بدون PM2
 
 ```bat
 deploy\start-hypex-node-watch.cmd
 ```
 
-أو `npm run dev` — يعيد التشغيل تلقائياً عند الحفظ، **والجلسة تبقى** بفضل MySQL.
+أو `npm run dev` — يحتاج نافذة مفتوحة.
 
 ## إعداد `.env`
 
