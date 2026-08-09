@@ -847,17 +847,23 @@ router.get('/system/settings', async (req, res) => {
 
 router.post('/system/settings', (req, res) => {
   if (!can(req.session.user, 'settings')) return forbid(res);
-  logoUpload.single('logo')(req, res, async (uploadErr) => {
+
+  const finish = async (uploadErr) => {
     if (uploadErr) {
       return res.redirect(
-        '/system/settings?err=' + encodeURIComponent('تعذر رفع الشعار: ' + uploadErr.message)
+        '/system/settings?err=' +
+          encodeURIComponent('تعذر رفع الشعار: ' + (uploadErr.message || String(uploadErr)))
       );
     }
     try {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
       const logoFile = req.file
         ? { buffer: req.file.buffer, mimetype: req.file.mimetype, size: req.file.size }
         : null;
-      const result = await svc.saveCompanySettings(req.body || {}, logoFile);
+      if (!Object.keys(body).length) {
+        console.warn('settings POST: empty body, content-type=', req.headers['content-type']);
+      }
+      const result = await svc.saveCompanySettings(body, logoFile);
       res.redirect(
         '/system/settings?' +
           (result.ok ? 'msg=' : 'err=') +
@@ -867,7 +873,15 @@ router.post('/system/settings', (req, res) => {
       console.error('settings save', e);
       res.redirect('/system/settings?err=' + encodeURIComponent(e.message || 'خطأ غير متوقع'));
     }
-  });
+  };
+
+  const ct = String(req.headers['content-type'] || '');
+  if (ct.includes('multipart/form-data')) {
+    logoUpload.single('logo')(req, res, finish);
+  } else {
+    // النموذج بدون ملفات / إن وصل urlencoded
+    finish(null);
+  }
 });
 
 /* ═══════════ DASHBOARD ACCOUNTS ═══════════ */

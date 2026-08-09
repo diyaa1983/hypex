@@ -2,6 +2,9 @@
 /**
  * Front reverse-proxy: توحيد الرابط http://localhost/hypex → Node.js
  * يُستدعى من .htaccess لكل المسارات ما عدا PHP القديم/الأصول.
+ *
+ * ملاحظة: مع enctype=multipart/form-data تكون php://input فارغة في PHP
+ * (يملأ $_POST و $_FILES) — لذا نعيد بناء الطلب لـ curl.
  */
 declare(strict_types=1);
 
@@ -13,10 +16,90 @@ $uri = $_SERVER['REQUEST_URI'] ?? '/';
 $target = $nodeOrigin . $uri;
 
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
-$body = null;
-if (!in_array($method, ['GET', 'HEAD'], true)) {
-    $body = file_get_contents('php://input');
+$contentType = (string) ($_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '');
+$isMultipart = $method !== 'GET'
+    && $method !== 'HEAD'
+    && stripos($contentType, 'multipart/form-data') !== false;
+
+/**
+ * بناء حقول POST لـ curl من $_POST و $_FILES (متعدد الأبعاد للأسماء الشبكية).
+ *
+ * @param array<string,mixed> $src
+ * @param string $prefix
+ * @param array<string,mixed> $out
+ */
+function hypex_proxy_flatten_post(array $src, string $prefix, array &$out): void
+{
+    foreach ($src as $k => $v) {
+        $key = $prefix === '' ? (string) $k : $prefix . '[' . $k . ']';
+        if (is_array($v)) {
+            hypex_proxy_flatten_post($v, $key, $out);
+        } else {
+            $out[$key] = $v;
+        }
+    }
 }
+
+/**
+ * @return array<string, mixed>|string|null
+ */
+function hypex_proxy_build_body(string $method, string $contentType, bool $isMultipart)
+{
+    if (in_array($method, ['GET', 'HEAD'], true)) {
+        return null;
+    }
+
+    if ($isMultipart) {
+        $fields = [];
+        hypex_proxy_flatten_post($_POST, '', $fields);
+
+        foreach ($_FILES as $name => $file) {
+            // ملف واحد
+            if (!is_array($file['name'])) {
+                if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK
+                    && !empty($file['tmp_name'])
+                    && is_uploaded_file($file['tmp_name'])
+                ) {
+                    $fields[$name] = new CURLFile(
+                        $file['tmp_name'],
+                        $file['type'] ?: 'application/octet-stream',
+                        $file['name'] ?: 'file'
+                    );
+                }
+                continue;
+            }
+            // مصفوفة ملفات (نادراً)
+            foreach ((array) $file['name'] as $i => $fname) {
+                $err = (int) ($file['error'][$i] ?? UPLOAD_ERR_NO_FILE);
+                $tmp = (string) ($file['tmp_name'][$i] ?? '');
+                if ($err !== UPLOAD_ERR_OK || $tmp === '' || !is_uploaded_file($tmp)) {
+                    continue;
+                }
+                $fields[$name . '[' . $i . ']'] = new CURLFile(
+                    $tmp,
+                    (string) ($file['type'][$i] ?? 'application/octet-stream'),
+                    (string) $fname
+                );
+            }
+        }
+
+        return $fields;
+    }
+
+    // application/x-www-form-urlencoded أو JSON أو غيره — من php://input
+    $raw = file_get_contents('php://input');
+    if ($raw !== false && $raw !== '') {
+        return $raw;
+    }
+    // احتياط إن فُرِّغ الإدخال وامتلأت $_POST فقط
+    if (!empty($_POST)) {
+        return http_build_query($_POST);
+    }
+
+    return '';
+}
+
+$body = hypex_proxy_build_body($method, $contentType, $isMultipart);
 
 $headers = [];
 foreach ($_SERVER as $k => $v) {
@@ -25,11 +108,15 @@ foreach ($_SERVER as $k => $v) {
         if (in_array(strtolower($name), ['host', 'connection', 'content-length', 'accept-encoding'], true)) {
             continue;
         }
+        // عند إعادة بناء multipart يضبط curl الـ Content-Type + boundary
+        if ($isMultipart && strtolower($name) === 'content-type') {
+            continue;
+        }
         $headers[] = $name . ': ' . $v;
     }
 }
-if (!empty($_SERVER['CONTENT_TYPE'])) {
-    $headers[] = 'Content-Type: ' . $_SERVER['CONTENT_TYPE'];
+if (!$isMultipart && $contentType !== '') {
+    $headers[] = 'Content-Type: ' . $contentType;
 }
 $headers[] = 'X-Forwarded-For: ' . ($_SERVER['REMOTE_ADDR'] ?? '');
 $headers[] = 'X-Forwarded-Proto: ' . ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http');
@@ -46,9 +133,16 @@ curl_setopt_array($ch, [
     CURLOPT_HTTPHEADER => $headers,
     CURLOPT_ENCODING => '', // allow identity; Node may gzip
 ]);
-if ($body !== null && $body !== false && $body !== '') {
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+
+if ($body !== null) {
+    if (is_array($body)) {
+        // multipart fields array — curl يضبط boundary تلقائياً
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    } elseif (is_string($body) && $body !== '') {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    }
 }
+
 if ($method === 'HEAD') {
     curl_setopt($ch, CURLOPT_NOBODY, true);
 }

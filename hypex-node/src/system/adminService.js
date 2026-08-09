@@ -295,71 +295,153 @@ async function listActiveTaxRates() {
  * @param {{ buffer?: Buffer, mimetype?: string, size?: number }|null} logoFile
  */
 async function saveCompanySettings(payload, logoFile) {
+  payload = payload && typeof payload === 'object' ? payload : {};
+  const payloadKeys = Object.keys(payload);
+  if (payloadKeys.length === 0) {
+    return {
+      ok: false,
+      error:
+        'لم تصل بيانات النموذج إلى الخادم (body فارغ). تأكد أن الخدمة Node تستقبل multipart، ثم أعد الحفظ.',
+    };
+  }
+
+  await q(
+    `INSERT IGNORE INTO sys_company_settings (id, company_name_ar, tax_rate_percent, decimal_places)
+     VALUES (1, 'Hypex', 16.000, 3)`
+  ).catch(() => {});
+
   const row = (await getCompanySettings()) || {};
-  let name = String(payload.company_name_ar || '').trim();
+  const has = (k) => Object.prototype.hasOwnProperty.call(payload, k);
+
+  let name = has('company_name_ar')
+    ? String(payload.company_name_ar || '').trim()
+    : String(row.company_name_ar || '').trim();
   if (!name && row.company_name_ar) name = String(row.company_name_ar);
   if (!name) return { ok: false, error: 'اسم الشركة مطلوب.' };
 
-  const clampDec = (v, d = 2) => {
+  const clampDec = (v, fallback) => {
+    const fb = Number.isFinite(Number(fallback)) ? Math.floor(Number(fallback)) : 2;
+    if (v === undefined || v === null || v === '') return Math.max(0, Math.min(6, fb));
     const n = Number(v);
-    if (!Number.isFinite(n)) return d;
+    if (!Number.isFinite(n)) return Math.max(0, Math.min(6, fb));
     return Math.max(0, Math.min(6, Math.floor(n)));
   };
 
   const taxRates = await listActiveTaxRates();
   let taxF = null;
   if (taxRates.length) {
-    const taxId = Number(payload.default_tax_rate_id || 0);
-    if (taxId > 0) {
-      const hit = taxRates.find((t) => Number(t.id) === taxId);
-      if (hit) taxF = Number(hit.rate_percent);
+    if (has('default_tax_rate_id')) {
+      const taxId = Number(payload.default_tax_rate_id || 0);
+      if (taxId > 0) {
+        const hit = taxRates.find((t) => Number(t.id) === taxId);
+        if (hit) taxF = Number(hit.rate_percent);
+      }
     }
-    if (taxF == null) taxF = Number(taxRates[0].rate_percent);
-  } else {
+    if (taxF == null && row.tax_rate_percent != null) {
+      taxF = Number(row.tax_rate_percent);
+    }
+    if (taxF == null || !Number.isFinite(taxF)) taxF = Number(taxRates[0].rate_percent);
+  } else if (has('tax_rate_percent')) {
     taxF = Number(String(payload.tax_rate_percent || '0').replace(',', '.'));
+  } else {
+    taxF = Number(row.tax_rate_percent ?? 0);
   }
   if (!Number.isFinite(taxF) || taxF < 0 || taxF > 100) {
     return { ok: false, error: 'نسبة الضريبة غير منطقية (0–100).' };
   }
 
-  const dec = clampDec(payload.decimal_places, 2);
-  const unitDec = clampDec(payload.invoice_unit_price_decimal_places, 3);
-  const printDec = clampDec(payload.invoice_print_decimal_places, dec);
-  const printUnitDec = clampDec(payload.invoice_print_unit_price_decimal_places, unitDec);
-  let rowsPerPage = Number(payload.rows_per_page || 15) || 15;
+  const dec = clampDec(
+    has('decimal_places') ? payload.decimal_places : row.decimal_places,
+    row.decimal_places ?? 3
+  );
+  const unitDec = clampDec(
+    has('invoice_unit_price_decimal_places')
+      ? payload.invoice_unit_price_decimal_places
+      : row.invoice_unit_price_decimal_places,
+    row.invoice_unit_price_decimal_places ?? 3
+  );
+  const printDec = clampDec(
+    has('invoice_print_decimal_places')
+      ? payload.invoice_print_decimal_places
+      : row.invoice_print_decimal_places,
+    row.invoice_print_decimal_places ?? dec
+  );
+  const printUnitDec = clampDec(
+    has('invoice_print_unit_price_decimal_places')
+      ? payload.invoice_print_unit_price_decimal_places
+      : row.invoice_print_unit_price_decimal_places,
+    row.invoice_print_unit_price_decimal_places ?? unitDec
+  );
+
+  let rowsPerPage = has('rows_per_page')
+    ? Number(payload.rows_per_page || 15) || 15
+    : Number(row.rows_per_page || 15) || 15;
   if (![10, 15, 20].includes(rowsPerPage)) rowsPerPage = 15;
 
-  let uiTheme = String(payload.ui_theme || 'basic').toLowerCase();
+  let uiTheme = String(
+    has('ui_theme') ? payload.ui_theme : row.ui_theme || 'basic'
+  ).toLowerCase();
   if (uiTheme === 'modern') uiTheme = 'basic';
   if (!['classic', 'basic'].includes(uiTheme)) uiTheme = 'basic';
-  let uiLang = String(payload.ui_lang || 'ar').toLowerCase();
+  let uiLang = String(has('ui_lang') ? payload.ui_lang : row.ui_lang || 'ar').toLowerCase();
   if (!['ar', 'en'].includes(uiLang)) uiLang = 'ar';
 
-  let currency = String(payload.currency_code || 'JOD').toUpperCase().trim();
+  let currency = String(
+    has('currency_code') ? payload.currency_code : row.currency_code || 'JOD'
+  )
+    .toUpperCase()
+    .trim();
   if (!CURRENCY_CATALOG[currency]) currency = 'JOD';
 
-  const addr = String(payload.address_ar || '').trim();
-  const phone = String(payload.phone || '').trim();
-  const email = String(payload.email || '').trim();
+  const addr = has('address_ar')
+    ? String(payload.address_ar || '').trim()
+    : String(row.address_ar || '').trim();
+  const phone = has('phone')
+    ? String(payload.phone || '').trim()
+    : String(row.phone || '').trim();
+  const email = has('email')
+    ? String(payload.email || '').trim()
+    : String(row.email || '').trim();
 
-  const smtpHost = String(payload.smtp_host || '').trim();
-  let smtpPort = Number(payload.smtp_port || 587) || 587;
+  const smtpHost = has('smtp_host')
+    ? String(payload.smtp_host || '').trim()
+    : String(row.smtp_host || '').trim();
+  let smtpPort = has('smtp_port')
+    ? Number(payload.smtp_port || 587) || 587
+    : Number(row.smtp_port || 587) || 587;
   if (smtpPort < 1 || smtpPort > 65535) smtpPort = 587;
-  let smtpSecure = String(payload.smtp_secure || 'tls').toLowerCase();
+  let smtpSecure = String(
+    has('smtp_secure') ? payload.smtp_secure : row.smtp_secure || 'tls'
+  ).toLowerCase();
   if (!['tls', 'ssl', 'none'].includes(smtpSecure)) smtpSecure = 'tls';
-  const smtpUser = String(payload.smtp_username || '').trim();
-  let smtpPass = String(payload.smtp_password || '');
+  const smtpUser = has('smtp_username')
+    ? String(payload.smtp_username || '').trim()
+    : String(row.smtp_username || '').trim();
+  let smtpPass = has('smtp_password') ? String(payload.smtp_password || '') : '';
   if (!smtpPass && row.smtp_password) smtpPass = String(row.smtp_password);
-  const smtpFromEmail = String(payload.smtp_from_email || '').trim();
-  const smtpFromName = String(payload.smtp_from_name || '').trim();
+  const smtpFromEmail = has('smtp_from_email')
+    ? String(payload.smtp_from_email || '').trim()
+    : String(row.smtp_from_email || '').trim();
+  const smtpFromName = has('smtp_from_name')
+    ? String(payload.smtp_from_name || '').trim()
+    : String(row.smtp_from_name || '').trim();
 
-  let loginRecaptchaEnabled = !!(
-    payload.login_recaptcha_enabled === '1' ||
-    payload.login_recaptcha_enabled === 'on' ||
-    payload.login_recaptcha_enabled === true
-  );
-  const loginRecaptchaSiteKey = String(payload.login_recaptcha_site_key || '').trim();
-  let loginRecaptchaSecret = String(payload.login_recaptcha_secret_key || '');
+  // النموذج الكامل يرسل company_name_ar دائماً — عندها checkbox الغائب = غير مفعّل
+  const formComplete = has('company_name_ar') || has('decimal_places') || has('currency_code');
+
+  let loginRecaptchaEnabled = formComplete
+    ? !!(
+        payload.login_recaptcha_enabled === '1' ||
+        payload.login_recaptcha_enabled === 'on' ||
+        payload.login_recaptcha_enabled === true
+      )
+    : Number(row.login_recaptcha_enabled) === 1;
+  const loginRecaptchaSiteKey = has('login_recaptcha_site_key')
+    ? String(payload.login_recaptcha_site_key || '').trim()
+    : String(row.login_recaptcha_site_key || '').trim();
+  let loginRecaptchaSecret = has('login_recaptcha_secret_key')
+    ? String(payload.login_recaptcha_secret_key || '')
+    : '';
   if (!loginRecaptchaSecret && row.login_recaptcha_secret_key) {
     loginRecaptchaSecret = String(row.login_recaptcha_secret_key);
   }
@@ -371,33 +453,49 @@ async function saveCompanySettings(payload, logoFile) {
     return { ok: false, error: 'reCAPTCHA: أدخل Secret Key من Google (مطلوب في أول حفظ).' };
   }
 
-  const checkEmailEnabled = !!(
-    payload.check_email_enabled === '1' ||
-    payload.check_email_enabled === 'on' ||
-    payload.check_email_enabled === true
-  );
-  let checkEmailDays = Number(payload.check_email_days_before || 5) || 5;
+  const checkEmailEnabled = formComplete
+    ? !!(
+        payload.check_email_enabled === '1' ||
+        payload.check_email_enabled === 'on' ||
+        payload.check_email_enabled === true
+      )
+    : Number(row.check_email_enabled) === 1;
+  let checkEmailDays = has('check_email_days_before')
+    ? Number(payload.check_email_days_before || 5) || 5
+    : Number(row.check_email_days_before || 5) || 5;
   checkEmailDays = Math.max(1, Math.min(60, Math.floor(checkEmailDays)));
-  const checkEmailOnDue = !!(
-    payload.check_email_on_due_day === '1' ||
-    payload.check_email_on_due_day === 'on' ||
-    payload.check_email_on_due_day === true
-  );
-  const checkEmailRecipients = String(payload.check_email_recipients || '').trim();
+  const checkEmailOnDue = formComplete
+    ? !!(
+        payload.check_email_on_due_day === '1' ||
+        payload.check_email_on_due_day === 'on' ||
+        payload.check_email_on_due_day === true
+      )
+    : row.check_email_on_due_day == null || Number(row.check_email_on_due_day) === 1;
+  const checkEmailRecipients = has('check_email_recipients')
+    ? String(payload.check_email_recipients || '').trim()
+    : String(row.check_email_recipients || '').trim();
 
-  const outCheckEmailEnabled = !!(
-    payload.out_check_email_enabled === '1' ||
-    payload.out_check_email_enabled === 'on' ||
-    payload.out_check_email_enabled === true
-  );
-  let outCheckEmailDays = Number(payload.out_check_email_days_before || 5) || 5;
+  const outCheckEmailEnabled = formComplete
+    ? !!(
+        payload.out_check_email_enabled === '1' ||
+        payload.out_check_email_enabled === 'on' ||
+        payload.out_check_email_enabled === true
+      )
+    : Number(row.out_check_email_enabled) === 1;
+  let outCheckEmailDays = has('out_check_email_days_before')
+    ? Number(payload.out_check_email_days_before || 5) || 5
+    : Number(row.out_check_email_days_before || 5) || 5;
   outCheckEmailDays = Math.max(1, Math.min(60, Math.floor(outCheckEmailDays)));
-  const outCheckEmailOnDue = !!(
-    payload.out_check_email_on_due_day === '1' ||
-    payload.out_check_email_on_due_day === 'on' ||
-    payload.out_check_email_on_due_day === true
-  );
-  const outCheckEmailRecipients = String(payload.out_check_email_recipients || '').trim();
+  const outCheckEmailOnDue = formComplete
+    ? !!(
+        payload.out_check_email_on_due_day === '1' ||
+        payload.out_check_email_on_due_day === 'on' ||
+        payload.out_check_email_on_due_day === true
+      )
+    : row.out_check_email_on_due_day == null || Number(row.out_check_email_on_due_day) === 1;
+  const outCheckEmailRecipients = has('out_check_email_recipients')
+    ? String(payload.out_check_email_recipients || '').trim()
+    : String(row.out_check_email_recipients || '').trim();
 
   const checkHasRcpt =
     parseEmailList(checkEmailRecipients).length > 0 || (email && isValidEmail(email));
@@ -434,8 +532,12 @@ async function saveCompanySettings(payload, logoFile) {
     };
   }
 
-  let documentArchiveDir = String(payload.document_archive_dir || '').trim();
-  let documentArchiveMaxMb = Number(payload.document_archive_max_mb || 10) || 10;
+  let documentArchiveDir = has('document_archive_dir')
+    ? String(payload.document_archive_dir || '').trim()
+    : String(row.document_archive_dir || '').trim();
+  let documentArchiveMaxMb = has('document_archive_max_mb')
+    ? Number(payload.document_archive_max_mb || 10) || 10
+    : Number(row.document_archive_max_mb || 10) || 10;
   documentArchiveMaxMb = Math.max(1, Math.min(100, Math.floor(documentArchiveMaxMb)));
   if (documentArchiveDir) {
     try {
@@ -447,11 +549,18 @@ async function saveCompanySettings(payload, logoFile) {
     }
   }
 
-  const waPhoneId = String(payload.wa_phone_id || '').trim();
-  let waApiVersion = String(payload.wa_api_version || 'v20.0').trim() || 'v20.0';
-  let waToken = String(payload.wa_access_token || '');
+  const waPhoneId = has('wa_phone_id')
+    ? String(payload.wa_phone_id || '').trim()
+    : String(row.wa_phone_id || '').trim();
+  let waApiVersion = has('wa_api_version')
+    ? String(payload.wa_api_version || 'v20.0').trim() || 'v20.0'
+    : String(row.wa_api_version || 'v20.0').trim() || 'v20.0';
+  let waToken = has('wa_access_token') ? String(payload.wa_access_token || '') : '';
   if (!waToken && row.wa_access_token) waToken = String(row.wa_access_token);
-  const waCountry = String(payload.wa_default_country || '').replace(/\D+/g, '') || null;
+  const waCountryRaw = has('wa_default_country')
+    ? String(payload.wa_default_country || '')
+    : String(row.wa_default_country || '');
+  const waCountry = waCountryRaw.replace(/\D+/g, '') || null;
 
   let logoPath = row.logo_path ? String(row.logo_path) : null;
   let logoNote = '';
@@ -488,9 +597,51 @@ async function saveCompanySettings(payload, logoFile) {
     }
   }
 
-  try {
-    await q(
-      `UPDATE sys_company_settings SET
+  const params = [
+    name,
+    taxF.toFixed(3),
+    dec,
+    unitDec,
+    printDec,
+    printUnitDec,
+    rowsPerPage,
+    uiTheme,
+    uiLang,
+    currency,
+    addr || null,
+    phone || null,
+    email || null,
+    logoPath || null,
+    smtpHost || null,
+    smtpPort,
+    smtpSecure,
+    smtpUser || null,
+    smtpPass || null,
+    smtpFromEmail || null,
+    smtpFromName || null,
+    'cloud',
+    waPhoneId || null,
+    waToken || null,
+    waApiVersion,
+    waCountry,
+    null,
+    null,
+    checkEmailEnabled ? 1 : 0,
+    checkEmailDays,
+    checkEmailOnDue ? 1 : 0,
+    checkEmailRecipients || null,
+    outCheckEmailEnabled ? 1 : 0,
+    outCheckEmailDays,
+    outCheckEmailOnDue ? 1 : 0,
+    outCheckEmailRecipients || null,
+    loginRecaptchaEnabled ? 1 : 0,
+    loginRecaptchaSiteKey || null,
+    loginRecaptchaSecret || null,
+    documentArchiveDir || null,
+    documentArchiveMaxMb,
+  ];
+
+  const updateSql = `UPDATE sys_company_settings SET
          company_name_ar = ?, tax_rate_percent = ?, decimal_places = ?,
          invoice_unit_price_decimal_places = ?, invoice_print_decimal_places = ?,
          invoice_print_unit_price_decimal_places = ?, rows_per_page = ?,
@@ -507,57 +658,71 @@ async function saveCompanySettings(payload, logoFile) {
          login_recaptcha_enabled = ?, login_recaptcha_site_key = ?, login_recaptcha_secret_key = ?,
          document_archive_dir = ?, document_archive_max_mb = ?,
          updated_at = NOW()
-       WHERE id = 1`,
-      [
-        name,
-        taxF.toFixed(3),
-        dec,
-        unitDec,
-        printDec,
-        printUnitDec,
-        rowsPerPage,
-        uiTheme,
-        uiLang,
-        currency,
-        addr || null,
-        phone || null,
-        email || null,
-        logoPath || null,
-        smtpHost || null,
-        smtpPort,
-        smtpSecure,
-        smtpUser || null,
-        smtpPass || null,
-        smtpFromEmail || null,
-        smtpFromName || null,
-        'cloud',
-        waPhoneId || null,
-        waToken || null,
-        waApiVersion,
-        waCountry,
-        null,
-        null,
-        checkEmailEnabled ? 1 : 0,
-        checkEmailDays,
-        checkEmailOnDue ? 1 : 0,
-        checkEmailRecipients || null,
-        outCheckEmailEnabled ? 1 : 0,
-        outCheckEmailDays,
-        outCheckEmailOnDue ? 1 : 0,
-        outCheckEmailRecipients || null,
-        loginRecaptchaEnabled ? 1 : 0,
-        loginRecaptchaSiteKey || null,
-        loginRecaptchaSecret || null,
-        documentArchiveDir || null,
-        documentArchiveMaxMb,
-      ]
-    );
+       WHERE id = 1`;
+
+  try {
+    let result = await q(updateSql, params);
+    let affected = Number(result && result.affectedRows != null ? result.affectedRows : -1);
+    if (affected === 0) {
+      await q(
+        `INSERT IGNORE INTO sys_company_settings (id, company_name_ar, tax_rate_percent, decimal_places)
+         VALUES (1, ?, ?, ?)`,
+        [name, taxF.toFixed(3), dec]
+      );
+      result = await q(updateSql, params);
+      affected = Number(result && result.affectedRows != null ? result.affectedRows : 1);
+    }
+    // تحقّق قراءة سريعة
+    const after = await getCompanySettings();
+    if (!after) {
+      return { ok: false, error: 'تم التحديث لكن تعذر قراءة صف الإعدادات (id=1).' };
+    }
+    if (String(after.company_name_ar || '') !== name) {
+      return {
+        ok: false,
+        error:
+          'قاعدة البيانات لم تعكس الاسم بعد الحفظ. تحقق من صلاحيات مستخدم MySQL على sys_company_settings.',
+      };
+    }
     return {
       ok: true,
       message: 'تم حفظ الإعدادات.' + (logoNote ? ' —' + logoNote : ''),
     };
   } catch (e) {
     console.error('saveCompanySettings', e.message);
+    const msg = String(e.message || '');
+    if (/document_archive|Unknown column/i.test(msg)) {
+      try {
+        // أعمدة الأرشيف قد تكون غير موجودة — احفظ بدونها
+        const sqlCore = `UPDATE sys_company_settings SET
+           company_name_ar = ?, tax_rate_percent = ?, decimal_places = ?,
+           invoice_unit_price_decimal_places = ?, invoice_print_decimal_places = ?,
+           invoice_print_unit_price_decimal_places = ?, rows_per_page = ?,
+           ui_theme = ?, ui_lang = ?, currency_code = ?,
+           address_ar = ?, phone = ?, email = ?, logo_path = ?,
+           smtp_host = ?, smtp_port = ?, smtp_secure = ?, smtp_username = ?, smtp_password = ?,
+           smtp_from_email = ?, smtp_from_name = ?,
+           wa_provider = ?, wa_phone_id = ?, wa_access_token = ?, wa_api_version = ?,
+           wa_default_country = ?, wa_bridge_url = ?, wa_bridge_token = ?,
+           check_email_enabled = ?, check_email_days_before = ?, check_email_on_due_day = ?,
+           check_email_recipients = ?,
+           out_check_email_enabled = ?, out_check_email_days_before = ?, out_check_email_on_due_day = ?,
+           out_check_email_recipients = ?,
+           login_recaptcha_enabled = ?, login_recaptcha_site_key = ?, login_recaptcha_secret_key = ?,
+           updated_at = NOW()
+         WHERE id = 1`;
+        const coreParams = params.slice(0, -2);
+        await q(sqlCore, coreParams);
+        return {
+          ok: true,
+          message:
+            'تم حفظ الإعدادات (بدون مسار الأرشيف — عمود document_archive غير موجود في قاعدتك).' +
+            logoNote,
+        };
+      } catch (e2) {
+        return { ok: false, error: 'تعذر حفظ الإعدادات: ' + e2.message };
+      }
+    }
     return { ok: false, error: 'تعذر حفظ الإعدادات: ' + e.message };
   }
 }
