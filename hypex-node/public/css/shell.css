@@ -660,10 +660,7 @@ a:hover {
 }
 
 .embed-kicker {
-  display: block;
-  font-size: 0.72rem;
-  color: #64748b;
-  font-weight: 700;
+  display: none !important;
 }
 
 .embed-bar-actions {

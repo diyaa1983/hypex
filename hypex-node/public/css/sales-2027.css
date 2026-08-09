@@ -129,14 +129,24 @@ body.si-2027 .si-main::before {
   min-width: 0;
 }
 
-.si-kicker {
-  margin: 0 0 0.15rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--si-accent-2);
-  font-family: var(--si-display);
+/* ????? ??????/?????? ?????? ??? ???????? (Hypex · Node ??????) */
+.si-kicker,
+.si-brand-mark,
+.embed-kicker {
+  display: none !important;
+}
+
+.si-hero-badge {
+  margin-top: 0.35rem;
+}
+
+.si-hero-sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--si-muted);
+  max-width: 40rem;
+  line-height: 1.45;
 }
 
 .si-hero h1 {

@@ -125,14 +125,9 @@ body.si-2027 .si-main::before {
   min-width: 0;
 }
 
-.si-kicker {
-  margin: 0 0 0.15rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--si-accent-2);
-  font-family: var(--si-display);
+.si-kicker,
+.si-brand-mark {
+  display: none !important;
 }
 
 .si-hero h1 {

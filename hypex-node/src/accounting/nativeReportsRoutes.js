@@ -976,16 +976,16 @@ router.get(
           <div class="ora-search-wrap si-cust-wrap">
             <input type="search" class="si-field ora-search-input" id="ora-search"
                    value="${esc(searchLabel)}"
-                   placeholder="اكتب جزءاً من الاسم أو رقم الحساب 112…"
+                   placeholder="ابحث بالاسم أو رقم العميل…"
                    autocomplete="off" spellcheck="false">
             <div class="si-suggest ora-suggest" id="ora-suggest" hidden></div>
           </div>
         </label>
 
         <label class="ora-field ora-field--acc">
-          <span>رقم الحساب Oracle</span>
+          <span class="ora-field__hint">رقم العميل</span>
           <input class="si-field si-field--mono" name="account_no" id="ora-account"
-                 value="${esc(accountNo)}" placeholder="11200101" dir="ltr" inputmode="numeric">
+                 value="${esc(accountNo)}" placeholder="" dir="ltr" inputmode="numeric" autocomplete="off">
         </label>
 
         <label class="ora-field">

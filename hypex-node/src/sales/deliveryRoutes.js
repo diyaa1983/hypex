@@ -97,11 +97,9 @@ async function renderForm(req, res, deliveryId) {
     <div class="si-stage">
       <header class="si-hero">
         <div class="si-brand-lockup">
-          <div class="si-brand-mark" aria-hidden="true">DL</div>
           <div class="si-brand-text">
-            <p class="si-kicker">Hypex Sales · Node</p>
             <h1>${titleLine}</h1>
-            <p>سند تسليم بضاعة — إدخال وحفظ أصلي على Node. ${badge}</p>
+            ${badge ? `<div class="si-hero-badge">${badge}</div>` : ''}
           </div>
         </div>
         <div class="si-hero-actions">

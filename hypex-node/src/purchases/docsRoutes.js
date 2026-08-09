@@ -110,11 +110,9 @@ async function renderDocForm(req, res, conf) {
     <div class="si-stage">
       <header class="si-hero">
         <div class="si-brand-lockup">
-          <div class="si-brand-mark" aria-hidden="true">${esc(conf.mark)}</div>
           <div class="si-brand-text">
-            <p class="si-kicker">Hypex Purchases · Node</p>
             <h1>${titleLine}</h1>
-            <p>مستند ${esc(conf.title)} أصلي على Node. ${badge}</p>
+            ${badge ? `<div class="si-hero-badge">${badge}</div>` : ''}
           </div>
         </div>
         <div class="si-hero-actions">

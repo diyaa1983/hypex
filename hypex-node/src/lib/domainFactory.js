@@ -49,7 +49,6 @@ function createDomainRouter(conf) {
           user: u,
           title: 'ممنوع',
           bodyHtml: `<div class="si-stage">${ui.hero({
-            kicker,
             title: 'لا صلاحية',
             subtitle: 'ليس لديك صلاحيات في هذا القسم',
           })}</div>`,
@@ -67,7 +66,6 @@ function createDomainRouter(conf) {
             user: req.session.user,
             title: 'ممنوع',
             bodyHtml: `<div class="si-stage">${ui.hero({
-              kicker,
               title: 'ممنوع',
               subtitle: 'لا صلاحية لهذه الشاشة',
             })}</div>`,
@@ -92,8 +90,6 @@ function createDomainRouter(conf) {
     const body = `
       <div class="si-stage">
         ${ui.hero({
-          mark,
-          kicker,
           title: hubTitle,
           subtitle: hubSubtitle,
           actions: [
@@ -126,7 +122,7 @@ function createDomainRouter(conf) {
     // لا نفتح تبويب PHP خارجي — الشاشات داخل Node
     const body = `
       <div class="si-stage">
-        ${ui.hero({ mark: m, kicker, title, subtitle, actions })}
+        ${ui.hero({ title, subtitle, actions })}
         ${filtersHtml || (searchPath ? ui.railSearch(searchPath, qVal) : '')}
         ${ui.tableSurface(title, `${count} صف`, headers, rowsHtml)}
       </div>`;
@@ -155,7 +151,7 @@ function createDomainRouter(conf) {
     ];
     const body = `
       <div class="si-stage si-report-page">
-        ${ui.hero({ mark: m, kicker, title, subtitle, actions })}
+        ${ui.hero({ title, subtitle, actions })}
         ${filtersHtml || (useDateFilters && path ? ui.dateFilters(path, from, to) : '')}
         <div class="si-print-area">
           ${extraHtml}
@@ -216,7 +212,6 @@ function createDomainRouter(conf) {
             user: req.session.user,
             title: 'خطأ',
             bodyHtml: `<div class="si-stage">${ui.hero({
-              kicker,
               title: 'خطأ في الشاشة',
               subtitle: String(e.message || e),
             })}</div>`,

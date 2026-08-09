@@ -135,10 +135,11 @@
   }
 
   function buildFooter(b) {
+    /* تذييل داخل هامش الصفحة فقط — لا يغطي صفوف الجدول */
     return (
-      '<footer class="hx-print-footer">طبع بواسطة: ' +
+      '<footer class="hx-print-footer"><span>طبع بواسطة: ' +
       esc(b.user) +
-      '</footer>'
+      '</span></footer>'
     );
   }
 
@@ -171,11 +172,11 @@
       'table{width:100%;border-collapse:collapse;font-size:9pt}' +
       'th,td{border:1px solid #334155;padding:3px 4px;vertical-align:top}' +
       'th{background:#e2e8f0;font-weight:800}' +
-      /* thead يتكرر أعلى كل صفحة؛ tfoot/الإجمالي لا يتكرر (يُنقل لـ tbody) */
+      /* thead يتكرر أعلى كل صفحة؛ الإجمالي لا يتكرر */
       'thead{display:table-header-group}' +
       'tfoot{display:table-row-group}' +
       'tbody{display:table-row-group}' +
-      'tr{page-break-inside:avoid}' +
+      'tr{page-break-inside:avoid;break-inside:avoid}' +
       'tr.hx-print-total-row,tr.ora-foot,tfoot tr{font-weight:800;background:#f1f5f9}' +
       'tr.hx-print-total-row td,tr.ora-foot td{border-top:2px solid #0f172a}' +
       '.empty,.muted{color:#64748b}' +
@@ -190,16 +191,19 @@
       '.ora-stat strong{font-size:9pt;font-weight:800;font-variant-numeric:tabular-nums}' +
       '.ora-stat--balance{background:#e8f5f4!important;border-color:#0f6e6a!important}' +
       '.ora-stat--balance span,.ora-stat--balance strong{color:#0a4f4c!important}' +
-      '.si-surface,.ora-stmt-body{border:1px solid #bbb;padding:0;margin:0 0 8px}' +
+      '.si-surface,.ora-stmt-body{border:1px solid #bbb;padding:0;margin:0 0 8px;overflow:visible!important}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
-      '.si-table-wrap{overflow:visible}' +
-      '.hx-print-doc{padding-bottom:4mm}' +
-      '.hx-print-footer{position:fixed;bottom:0;left:0;right:0;height:10mm;box-sizing:border-box;' +
+      '.si-table-wrap,.ora-stmt,.hx-print-doc{overflow:visible!important}' +
+      /* هامش سفلي كبير لكل صفحة حتى لا يغطي التذييل أي صف */
+      '@page{size:A4 portrait;margin:10mm 8mm 20mm 8mm}' +
+      'html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#fff}' +
+      '.hx-print-doc{padding-bottom:4mm;margin-bottom:0}' +
+      /* التذييل داخل الهامش السفلي فقط (خارج منطقة المحتوى) */
+      '.hx-print-footer{position:fixed;left:0;right:0;bottom:0;height:12mm;margin:0;padding:3mm 4mm 0;box-sizing:border-box;' +
       'text-align:center;font:500 7pt Arial,Helvetica,sans-serif;color:#64748b;direction:rtl;' +
-      'padding:2mm 4mm 0;border-top:0.5pt solid #cbd5e1;background:#fff}' +
+      'background:transparent;border:0;z-index:1;pointer-events:none}' +
+      '.hx-print-footer span{display:inline-block;padding:0 2mm}' +
       '.si-hero,.sidebar,.no-print,.si-rail,.ora-filters,.si-btn{display:none!important}' +
-      '@page{size:A4 portrait;margin:10mm 8mm 14mm 8mm}' +
-      'body{margin:0;padding:0 0 12mm 0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#fff}' +
       'img{max-width:72px!important;max-height:72px!important;width:auto!important;height:auto!important;object-fit:contain!important}'
     );
   }

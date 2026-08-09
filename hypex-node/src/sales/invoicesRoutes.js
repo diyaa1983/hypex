@@ -150,11 +150,8 @@ router.get('/sales/invoices', async (req, res) => {
       <div class="si-stage">
         <header class="si-hero">
           <div class="si-brand-lockup">
-            <div class="si-brand-mark" aria-hidden="true">Hx</div>
             <div class="si-brand-text">
-              <p class="si-kicker">Hypex Sales · Node</p>
               <h1>فواتير المبيعات</h1>
-              <p>حفظ الفاتورة بدون قيود. الترحيل: قيود + مستودع ثم الإرسال إلى الفوترة.</p>
             </div>
           </div>
           <div class="si-hero-actions">
@@ -372,7 +369,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
 
     const badge = initial.is_posted
       ? '<span class="si-pill si-pill--lock">مرحّلة — قراءة فقط</span>'
-      : '<span class="si-pill si-pill--wait">مسودة — حفظ بدون قيود</span>';
+      : '<span class="si-pill si-pill--wait">مسودة</span>';
 
     const titleLine = initial.invoice_no
       ? `فاتورة ${esc(initial.invoice_no)}`
@@ -382,11 +379,9 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
       <div class="si-stage">
         <header class="si-hero">
           <div class="si-brand-lockup">
-            <div class="si-brand-mark" aria-hidden="true">SI</div>
             <div class="si-brand-text">
-              <p class="si-kicker">Sales Invoice · Hypex</p>
               <h1>${titleLine}</h1>
-              <p>حفظ = مسودة فقط · ترحيل = قيود + مستودع ثم الفوترة. ${badge}</p>
+              ${badge ? `<div class="si-hero-badge">${badge}</div>` : ''}
             </div>
           </div>
           <div class="si-hero-actions">

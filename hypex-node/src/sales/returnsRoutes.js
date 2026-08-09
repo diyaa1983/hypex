@@ -127,11 +127,8 @@ router.get('/sales/returns/documents', async (req, res) => {
       <div class="si-stage">
         <header class="si-hero">
           <div class="si-brand-lockup">
-            <div class="si-brand-mark">↩</div>
             <div class="si-brand-text">
-              <p class="si-kicker">Hypex Sales · Node</p>
               <h1>مرتجعات المبيعات</h1>
-              <p>حفظ بدون قيود · ترحيل = مخزون + دفتر العميل ثم الفوترة</p>
             </div>
           </div>
           <div class="si-hero-actions">
@@ -223,17 +220,15 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
     };
     const badge = initial.is_posted
       ? '<span class="si-pill si-pill--lock">مرحّل — قراءة فقط</span>'
-      : '<span class="si-pill si-pill--wait">مسودة — حفظ بدون قيود</span>';
+      : '<span class="si-pill si-pill--wait">مسودة</span>';
     const title = initial.return_no ? `مرتجع ${esc(initial.return_no)}` : 'مرتجع مبيعات جديد';
     const body = `
       <div class="si-stage">
         <header class="si-hero">
           <div class="si-brand-lockup">
-            <div class="si-brand-mark">↩</div>
             <div class="si-brand-text">
-              <p class="si-kicker">Sales Return · Node</p>
               <h1>${title}</h1>
-              <p>حفظ = مسودة فقط · ترحيل = مخزون + قيود ثم الفوترة. ${badge}</p>
+              ${badge ? `<div class="si-hero-badge">${badge}</div>` : ''}
             </div>
           </div>
           <div class="si-hero-actions">
@@ -282,7 +277,6 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
           <div class="si-surface-head"><h2>مواد المرتجع</h2></div>
           <p class="muted" style="font-size:.82rem;margin:.25rem 0 .6rem">
             فقط فواتير البيع <strong>المرحّلة</strong>. حدّد الكميات القابلة للإرجاع.
-            الحفظ لا يؤثر على المخزون/القيود — الترحيل يطبّقها.
           </p>
           <div style="overflow:auto">
             <table class="sr-lines" id="sr-lines">

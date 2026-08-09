@@ -24,8 +24,8 @@ function salesPage({ user, title, bodyHtml, js = [], css = [], activePath = '', 
 
 function hero(opts) {
   const {
-    mark = 'Hx',
-    kicker = 'Hypex Sales · Node',
+    mark = '',
+    kicker = '',
     title,
     subtitle = '',
     actions = [],
@@ -41,14 +41,19 @@ function hero(opts) {
       return `<a class="${cls}${extraCls}${a.external || a.ghost ? ' no-print' : ' no-print'}" href="${esc(a.href || '#')}"${target}>${esc(a.label)}</a>`;
     })
     .join('');
+  const markHtml = mark
+    ? `<div class="si-brand-mark" aria-hidden="true">${esc(mark)}</div>`
+    : '';
+  const kickerHtml = kicker ? `<p class="si-kicker">${esc(kicker)}</p>` : '';
+  // العناوين فقط — بدون نصوص تسويقية/إرشادية افتراضية
   return `
     <header class="si-hero">
       <div class="si-brand-lockup">
-        <div class="si-brand-mark" aria-hidden="true">${esc(mark)}</div>
+        ${markHtml}
         <div class="si-brand-text">
-          <p class="si-kicker">${esc(kicker)}</p>
+          ${kickerHtml}
           <h1>${esc(title)}</h1>
-          ${subtitle ? `<p>${subtitle}</p>` : ''}
+          ${subtitle ? `<p class="si-hero-sub">${subtitle}</p>` : ''}
         </div>
       </div>
       <div class="si-hero-actions">${acts}</div>
