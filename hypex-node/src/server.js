@@ -2,7 +2,6 @@
 
 const path = require('path');
 const express = require('express');
-const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const config = require('./config');
 const db = require('./db');
@@ -53,6 +52,7 @@ const { resolveScreen } = require('./lib/screenMap');
 const { phpEmbedPage } = require('./lib/layout');
 const basePath = require('./lib/basePath');
 const fs = require('fs');
+const { createSessionMiddleware } = require('./sessionStore');
 
 const app = express();
 const phpRoot = path.join(__dirname, '..', '..');
@@ -66,20 +66,8 @@ app.use(basePath.middleware());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '2mb' }));
-app.use(
-  session({
-    name: 'hypex_node_sid',
-    secret: config.sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 12 * 60 * 60 * 1000,
-      path: basePath.hasBase() ? basePath.basePath : '/',
-    },
-  })
-);
+// جلسة في MySQL — لا تُفقد عند إيقاف/تشغيل Node
+app.use(createSessionMiddleware());
 
 /** تقديم أصول Node مع إعادة كتابة مسارات JS تحت /hypex */
 function sendPublicFile(req, res, next) {

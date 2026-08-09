@@ -1,52 +1,74 @@
 # Hypex — واجهة واحدة على Node.js
 
-الرابط العام (XAMPP): **http://localhost/hypex**
+الرابط: **http://localhost/hypex**
 
-## لماذا نعيد تشغيل Node؟
+## جلسة لا تُفقد عند إعادة التشغيل
 
-Node يحمّل ملفات JavaScript **مرة واحدة** عند البدء. التعديل على الملفات على القرص لا يدخل الذاكرة إلا بعد إعادة التشغيل.
+الجلسات مخزّنة في **MySQL** (جدول `hypex_node_sessions`) وليس في ذاكرة Node.
+بعد `pm2 restart` أو تحديث الكود **المستخدم لا يحتاج إعادة تسجيل الدخول** (طالما الكوكي لم تنتهِ و`SESSION_SECRET` لم يتغيّر).
 
-**الحل أثناء التطوير:** وضع المراقبة (`--watch`) يعيد التشغيل تلقائياً عند الحفظ.
+## تشغيل ثابت على السيرفر (مستحسن)
 
-## التشغيل
+مرة واحدة:
 
-1. Apache + MySQL من XAMPP  
-2. Node:
+```bat
+deploy\pm2-start-hypex.cmd
+```
 
-| الوضع | الأمر |
-|--------|--------|
-| عادي (إنتاج) | `deploy\start-hypex-node.cmd` أو `npm start` |
-| **تلقائي بعد التعديل** | `deploy\start-hypex-node-watch.cmd` أو `npm run dev` |
-
-ثم: **http://localhost/hypex**
-
-### pm2 على السيرفر (تشغيل دائم)
+أو:
 
 ```bat
 cd c:\xampp\htdocs\hypex\hypex-node
+npm install -g pm2
+npm install
 pm2 start src/server.js --name hypex-node
 pm2 save
+pm2 startup
 ```
 
-بعد نسخ ملفات جديدة: `pm2 restart hypex-node`
-
-أثناء التطوير فقط (مراقبة ملفات):
+بعد رفع ملفات جديدة:
 
 ```bat
-pm2 start src/server.js --name hypex-node --watch --ignore-watch="node_modules"
+pm2 restart hypex-node
 ```
 
-### ملاحظات
+| | |
+|--|--|
+| حالة | `pm2 status` |
+| سجلات | `pm2 logs hypex-node` |
+| إيقاف | `pm2 stop hypex-node` |
 
-- ملفات **CSS/JS في المتصفح** (`public/…`): غالباً يكفي **Ctrl+F5** بدون إعادة تشغيل Node.
-- ملفات **PHP** (تقارير Oracle عبر CLI): تُقرأ عند كل طلب — لا تحتاج إعادة تشغيل Node عادة.
-- ملفات **`src/*.js`**: تحتاج إعادة تشغيل Node أو وضع `watch` / `pm2 restart`.
+لا حاجة لإبقاء نافذة CMD مفتوحة.
+
+## أنواع الملفات — ماذا تحتاج؟
+
+| التعديل | ماذا تفعل؟ |
+|---------|------------|
+| `public/css` أو `public/js` | **Ctrl+F5** في المتصفح فقط |
+| PHP (تقارير Oracle…) | لا شيء — تُقرأ فوراً |
+| `src/*.js` أو `.env` | `pm2 restart hypex-node` (بدون logout للمستخدمين) |
+
+## تطوير محلي (مراقبة ملفات)
+
+```bat
+deploy\start-hypex-node-watch.cmd
+```
+
+أو `npm run dev` — يعيد التشغيل تلقائياً عند الحفظ، **والجلسة تبقى** بفضل MySQL.
 
 ## إعداد `.env`
 
-انسخ من `.env.example`:
+```env
+PORT=3000
+APP_BASE_PATH=/hypex
+PHP_BASE_URL=http://127.0.0.1/hypex
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=...
+DB_USER=...
+DB_PASS=...
+SESSION_SECRET=لا-تغيّره-عشوائياً-بعد-الإنتاج
+SESSION_MAX_AGE_HOURS=12
+```
 
-- `APP_BASE_PATH=/hypex`
-- `PHP_BASE_URL=http://127.0.0.1/hypex`
-- `DB_*` = نفس MySQL
-- `PORT=3000`
+**مهم:** لا تغيّر `SESSION_SECRET` بعد تسجيل دخول المستخدمين وإلا تُلغى كل الجلسات.
