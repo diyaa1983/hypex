@@ -304,30 +304,69 @@
   var custInput = document.getElementById('inv_customer');
   var custId = document.getElementById('inv_customer_id');
   var custBox = document.getElementById('cust_suggest');
+
+  function renderCustomerSuggestions(data) {
+    if (!custBox) return;
+    custBox.innerHTML = '';
+    var rows = (data && data.rows) || [];
+    if (!data || !data.ok) {
+      var err = document.createElement('div');
+      err.className = 'si-suggest-empty';
+      err.textContent = (data && data.error) || 'تعذر تحميل العملاء';
+      err.style.cssText = 'padding:.65rem .8rem;color:#b91c1c;font-size:.85rem';
+      custBox.appendChild(err);
+      custBox.hidden = false;
+      return;
+    }
+    if (!rows.length) {
+      var empty = document.createElement('div');
+      empty.className = 'si-suggest-empty';
+      empty.textContent = 'لا يوجد عملاء مطابقون. أضف عميلاً من قائمة العملاء.';
+      empty.style.cssText = 'padding:.65rem .8rem;color:#64748b;font-size:.85rem';
+      custBox.appendChild(empty);
+      custBox.hidden = false;
+      return;
+    }
+    rows.slice(0, 25).forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
+      b.addEventListener('click', function () {
+        if (custId) custId.value = c.id;
+        custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
+        custBox.hidden = true;
+      });
+      custBox.appendChild(b);
+    });
+    custBox.hidden = false;
+  }
+
+  function searchCustomers(q) {
+    return fetch('/api/customers?q=' + encodeURIComponent(q || ''), {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('http ' + r.status);
+        return r.json();
+      })
+      .then(renderCustomerSuggestions)
+      .catch(function () {
+        renderCustomerSuggestions({ ok: false, error: 'تعذر الاتصال بخدمة العملاء' });
+      });
+  }
+
   if (custInput && custBox && !posted) {
+    custInput.addEventListener('focus', function () {
+      if (custBox.hidden || !custBox.childNodes.length) {
+        searchCustomers(custInput.value || '');
+      }
+    });
     custInput.addEventListener('input', function () {
+      if (custId) custId.value = '';
       clearTimeout(custTimer);
       custTimer = setTimeout(function () {
-        fetch('/api/customers?q=' + encodeURIComponent(custInput.value || ''))
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (data) {
-            if (!data.ok) return;
-            custBox.innerHTML = '';
-            (data.rows || []).slice(0, 25).forEach(function (c) {
-              var b = document.createElement('button');
-              b.type = 'button';
-              b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
-              b.addEventListener('click', function () {
-                custId.value = c.id;
-                custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
-                custBox.hidden = true;
-              });
-              custBox.appendChild(b);
-            });
-            custBox.hidden = !(data.rows && data.rows.length);
-          });
+        searchCustomers(custInput.value || '');
       }, 220);
     });
     document.addEventListener('click', function (e) {

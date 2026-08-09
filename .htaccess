@@ -5,12 +5,14 @@ RewriteEngine On
 RewriteRule ^node-front\.php$ - [L]
 RewriteRule ^(index|login|logout|forgot_password|reset_password|activate_license|manifest|favicon)\.php$ - [L]
 RewriteRule ^sw\.js$ - [L]
-RewriteRule ^(modules|api|templates|lang|data|cron|database|config|includes|tools|deploy|mobile-app|mobile-flutter|desktop-win|logs)(/|$) - [L]
+# APIs القديمة بصيغة api/*.php فقط — مسارات Node مثل /api/customers تُمرَّر لـ node-front
+RewriteRule ^api/.+\.php$ - [L]
+RewriteRule ^(modules|templates|lang|data|cron|database|config|includes|tools|deploy|mobile-app|mobile-flutter|desktop-win|logs)(/|$) - [L]
 # لا تُفتح شفرة Node من الويب مباشرة
 RewriteRule ^hypex-node(/|$) - [F]
 RewriteRule ^node_modules(/|$) - [F]
 
-# باقي المسارات (الواجهة + /assets + /uploads) → Node
+# باقي المسارات (الواجهة + /api لـ Node + /assets + /uploads) → Node
 RewriteRule ^(.*)$ node-front.php [QSA,L]
 </IfModule>
 

@@ -47,7 +47,12 @@ function guard(code) {
 }
 
 router.use((req, res, next) => {
-  if (!req.path.startsWith('/customers')) return next('router');
+  const p = req.path || '';
+  const ok =
+    p.startsWith('/customers') ||
+    p === '/api/customers/region-addresses' ||
+    p.startsWith('/api/customers/region-addresses');
+  if (!ok) return next('router');
   return auth.requireAuth(req, res, (err) => {
     if (err) return next(err);
     return requireAnyCustomers(req, res, next);
