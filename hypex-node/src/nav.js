@@ -49,8 +49,23 @@ function buildSidebar(user) {
   return items;
 }
 
+function findDomainCatalog(domainId) {
+  const raw = String(domainId || '').trim();
+  if (!raw) return null;
+  const asHub = raw.startsWith('/hub/') ? raw : `/hub/${raw}`;
+  const und = raw.replace(/-/g, '_');
+  const hyp = raw.replace(/_/g, '-');
+  return (
+    DOMAIN_CATALOGS.find((d) => d.id === raw) ||
+    DOMAIN_CATALOGS.find((d) => d.id === und) ||
+    DOMAIN_CATALOGS.find((d) => d.id === hyp) ||
+    DOMAIN_CATALOGS.find((d) => d.hub === asHub || d.hub === `/hub/${und}` || d.hub === `/hub/${hyp}`) ||
+    null
+  );
+}
+
 function domainHubContent(user, domainId) {
-  const domain = DOMAIN_CATALOGS.find((d) => d.id === domainId);
+  const domain = findDomainCatalog(domainId);
   if (!domain) return null;
   const groups = domain.catalog
     .map((g) => {
