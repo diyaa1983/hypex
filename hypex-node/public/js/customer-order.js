@@ -248,6 +248,48 @@
     renderLines();
   }
 
+  document.addEventListener('hx:item-picked', function (e) {
+    if (locked || !document.getElementById('co-lines-body')) return;
+    var it = e.detail;
+    if (!it || !it.id) return;
+    e.preventDefault();
+    var idx = -1;
+    for (var i = 0; i < (state.lines || []).length; i++) {
+      if (!state.lines[i] || !state.lines[i].item_id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      addEmptyLine();
+      idx = state.lines.length - 1;
+    }
+    state.lines[idx] = state.lines[idx] || {};
+    state.lines[idx].item_id = it.id;
+    state.lines[idx].item_code = it.code || it.sku || '';
+    state.lines[idx].name_ar = it.name_ar || '';
+    state.lines[idx].unit_price = Number(it.sale_price) || 0;
+    if (!state.lines[idx].qty) state.lines[idx].qty = 1;
+    if (state.lines[idx].tax_rate_percent == null) state.lines[idx].tax_rate_percent = defaultTax;
+    renderLines();
+  });
+
+  document.addEventListener('hx:customer-picked', function (e) {
+    if (locked || !document.getElementById('co_customer')) return;
+    var c = e.detail;
+    if (!c || !c.id) return;
+    e.preventDefault();
+    if (custId) custId.value = c.id;
+    if (custInput) custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
+    if (custBox) custBox.hidden = true;
+  });
+
+  document.addEventListener('hx:add-line', function (e) {
+    if (locked || !document.getElementById('co-add-line')) return;
+    e.preventDefault();
+    addEmptyLine();
+  });
+
   var custInput = document.getElementById('co_customer');
   var custId = document.getElementById('co_customer_id');
   var custBox = document.getElementById('cust_suggest');

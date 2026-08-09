@@ -181,8 +181,8 @@ async function renderForm(req, res, orderId) {
       </header>
 
       <div class="si-cmd" id="co-doc-bar">
-        <button type="button" class="si-btn si-btn--primary" id="co-save" ${locked || !canEdit(user) ? 'disabled' : ''}>حفظ</button>
-        <button type="button" class="si-btn" id="co-add-line" ${locked || !canEdit(user) ? 'disabled' : ''}>＋ سطر</button>
+        <button type="button" class="si-btn si-btn--primary" id="co-save" data-hx-save="1" title="F10 حفظ" ${locked || !canEdit(user) ? 'disabled' : ''}>حفظ</button>
+        <button type="button" class="si-btn" id="co-add-line" data-hx-add-line="1" title="F2 سطر جديد" ${locked || !canEdit(user) ? 'disabled' : ''}>＋ سطر</button>
         ${approveBtn}
         ${unapproveBtn}
         ${deleteBtn}

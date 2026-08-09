@@ -110,8 +110,8 @@ async function renderForm(req, res, deliveryId) {
       </header>
 
       <div class="si-cmd">
-        <button type="button" class="si-btn si-btn--primary" id="dl-save" ${locked ? 'disabled' : ''}>حفظ</button>
-        <button type="button" class="si-btn" id="dl-add-line" ${locked ? 'disabled' : ''}>＋ سطر</button>
+        <button type="button" class="si-btn si-btn--primary" id="dl-save" data-hx-save="1" title="F10 حفظ" ${locked ? 'disabled' : ''}>حفظ</button>
+        <button type="button" class="si-btn" id="dl-add-line" data-hx-add-line="1" title="F2 سطر جديد" ${locked ? 'disabled' : ''}>＋ سطر</button>
         <span class="si-msg" id="dl-msg"></span>
       </div>
 

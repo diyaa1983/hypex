@@ -56,14 +56,14 @@ function caps(user, doc) {
 }
 
 function toolbar(cs) {
-  const b = (id, label, cls, dis) =>
-    `<button type="button" class="si-tb ${cls || ''}" id="${id}" ${dis ? 'disabled' : ''}>${esc(
+  const b = (id, label, cls, dis, extra = '') =>
+    `<button type="button" class="si-tb ${cls || ''}" id="${id}" ${dis ? 'disabled' : ''}${extra}>${esc(
       label
     )}</button>`;
   return `
     <div class="si-cmd si-doc-toolbar" id="sr-doc-bar" role="toolbar" aria-label="إجراءات المرتجع">
       <div class="si-tb-group si-tb-group--core">
-        ${b('sr-save', 'حفظ', 'si-tb--save', !cs.canSave)}
+        ${b('sr-save', 'حفظ', 'si-tb--save', !cs.canSave, ' data-hx-save="1" title="F10 حفظ"')}
         ${b('sr-post', 'ترحيل', 'si-tb--post', !cs.canPost && !cs.canSave)}
       </div>
       <div class="si-tb-group">

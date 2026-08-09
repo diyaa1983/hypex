@@ -69,7 +69,7 @@
     if (elGrand) elGrand.textContent = fmt(r3(sumSub + sumTax));
   }
   function escAttr(s) {
-    return String(s == null ? '')
+    return String(s == null ? '' : s)
       .replace(/&/g, '&amp;')
       .replace(/"/g, '&quot;')
       .replace(/</g, '&lt;');
@@ -213,6 +213,48 @@
     });
     renderLines();
   }
+
+  document.addEventListener('hx:item-picked', function (e) {
+    if (locked || !document.getElementById('df-lines-body')) return;
+    var it = e.detail;
+    if (!it || !it.id) return;
+    e.preventDefault();
+    var idx = -1;
+    for (var i = 0; i < (state.lines || []).length; i++) {
+      if (!state.lines[i] || !state.lines[i].item_id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      addEmptyLine();
+      idx = state.lines.length - 1;
+    }
+    state.lines[idx] = state.lines[idx] || {};
+    state.lines[idx].item_id = it.id;
+    state.lines[idx].item_code = it.code || it.sku || '';
+    state.lines[idx].name_ar = it.name_ar || '';
+    state.lines[idx].unit_price = Number(it.sale_price || it.default_sale || it.default_cost) || 0;
+    if (!state.lines[idx].qty) state.lines[idx].qty = 1;
+    if (state.lines[idx].tax_rate_percent == null) state.lines[idx].tax_rate_percent = defaultTax;
+    renderLines();
+  });
+
+  document.addEventListener('hx:customer-picked', function (e) {
+    if (locked || !document.getElementById('df_party')) return;
+    var c = e.detail;
+    if (!c || !c.id) return;
+    e.preventDefault();
+    if (partyId) partyId.value = c.id;
+    if (partyInput) partyInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
+    if (partyBox) partyBox.hidden = true;
+  });
+
+  document.addEventListener('hx:add-line', function (e) {
+    if (locked || !document.getElementById('df-add-line')) return;
+    e.preventDefault();
+    addEmptyLine();
+  });
 
   var partyInput = document.getElementById('df_party');
   var partyId = document.getElementById('df_party_id');

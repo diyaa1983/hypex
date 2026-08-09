@@ -936,8 +936,13 @@ body.si-2027 .si-main::before {
   background: rgba(15, 110, 106, 0.08);
 }
 
-/* Lines grid */
+/* Lines grid — ????? ?????? ?? ???? ???? ?????? */
 .si-lines-wrap {
+  overflow: visible;
+  max-height: none;
+}
+
+.si-lines-wrap.is-scroll {
   overflow: auto;
   max-height: min(46vh, 480px);
 }
@@ -1009,10 +1014,34 @@ body.si-2027 .si-main::before {
 .si-item-cell {
   position: relative;
   min-width: 15rem;
+  z-index: 1;
+  overflow: visible;
+}
+
+.si-item-cell:focus-within,
+.si-item-cell.is-open {
+  z-index: 50;
 }
 
 .si-item-cell .si-suggest {
-  min-width: 20rem;
+  min-width: min(24rem, 70vw);
+  max-height: min(16rem, 40vh);
+  z-index: 90;
+}
+
+/* ????? ????? ??? ?????? */
+.si-suggest.si-suggest--float {
+  position: fixed !important;
+  inset: auto !important;
+  top: 0;
+  left: 0;
+  z-index: 12000;
+  max-height: min(16rem, 40vh);
+  overflow: auto;
+  box-shadow: 0 18px 40px rgba(11, 18, 32, 0.18);
+  background: #fffefb;
+  border: 1px solid var(--si-line-strong);
+  border-radius: 12px;
 }
 
 .si-del {
