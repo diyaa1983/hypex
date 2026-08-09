@@ -8,6 +8,7 @@ const auth = require('../auth');
 const ui = require('../lib/salesUi');
 const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
 const svc = require('./nativeService');
+const db = require('../db');
 
 const router = express.Router();
 const KICKER = 'Hypex Accounting · Node';
@@ -729,57 +730,220 @@ router.get('/accounting/reports/party-statement', async (req, res) => {
 router.get('/accounting/reports/oracle-statement', async (req, res) => {
   if (!can(req.session.user, 'report_oracle_customer_statement')) return forbid(res);
   const { from, to } = svc.range(req.query.from, req.query.to);
-  const accountNo = String(req.query.account_no || '').trim();
+  let accountNo = String(req.query.account_no || req.query.account || '').trim();
+  const customerId = Number(req.query.customer_id || 0) || 0;
   const run = String(req.query.run || '') === '1';
-  let result = '<p class="muted">أدخل رقم حساب Oracle والفترة. يتطلب اتصال Oracle مُعدّاً.</p>';
+
+  // قائمة عملاء مرتبطين بـ Oracle (للأسماء ورقم الحساب)
+  let customers = [];
+  try {
+    customers = await db.query(
+      `SELECT id, code, name_ar,
+              COALESCE(NULLIF(TRIM(oracle_key), ''), code) AS acc_no
+       FROM crm_customer
+       WHERE is_active = 1
+         AND (
+           (oracle_key IS NOT NULL AND TRIM(oracle_key) <> '')
+           OR code LIKE '112%'
+         )
+       ORDER BY name_ar
+       LIMIT 5000`
+    );
+  } catch {
+    customers = [];
+  }
+
+  let selectedParty = null;
+  if (customerId > 0) {
+    selectedParty = customers.find((c) => Number(c.id) === customerId) || null;
+    if (selectedParty && !accountNo) {
+      accountNo = String(selectedParty.acc_no || selectedParty.code || '').replace(/\D+/g, '');
+    }
+  }
+  if (!accountNo && req.query.account) {
+    accountNo = String(req.query.account).replace(/\D+/g, '');
+  }
+
+  let result = '<p class="muted">اختر العميل أو أدخل رقم حساب Oracle (مثل 11200101) ثم الفترة — يتطلب إعداد Oracle على السيرفر.</p>';
+
   if (run && accountNo) {
     const data = await svc.run('oracle_statement', uid(req), {
       from,
       to,
       account_no: accountNo,
     });
-    if (!data.ok) {
-      result = `<p class="si-pill si-pill--lock">${esc(data.error || data.message || '')}</p>`;
+
+    if (!data || data.ok === false) {
+      const errMsg =
+        data?.error ||
+        data?.message ||
+        'تعذر الاتصال بـ Oracle. تحقق من config/oracle.local.php ومشغّلات PHP (pdo_oci / oci8) على السيرفر.';
+      result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(errMsg)}</p>`;
     } else {
-      const rows = data.rows || data.data || [];
-      result = `<div class="si-surface sh-section">
-        <div class="si-table-wrap"><table class="si-table">
-          <thead><tr><th>التاريخ</th><th>المستند</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
-          <tbody>${
-            (Array.isArray(rows) ? rows : [])
-              .map((r) => {
-                const keys = Object.keys(r);
-                return `<tr>${keys
-                  .slice(0, 6)
-                  .map((k) => `<td>${esc(String(r[k] ?? ''))}</td>`)
-                  .join('')}</tr>`;
-              })
-              .join('') ||
-            `<tr><td colspan="6" class="empty">${esc(
-              data.message || 'لا بيانات أو فشل الاتصال.'
-            )}</td></tr>`
-          }</tbody>
-        </table></div>
-      </div>`;
+      const lines = Array.isArray(data.lines)
+        ? data.lines
+        : Array.isArray(data.rows)
+          ? data.rows
+          : [];
+      const name =
+        String(data.name || '').trim() ||
+        (selectedParty ? String(selectedParty.name_ar || '') : '') ||
+        '';
+      const partyCode = selectedParty
+        ? String(selectedParty.code || accountNo)
+        : String(data.account || accountNo);
+      const cheques = Array.isArray(data.cheques) ? data.cheques : [];
+
+      const head = `
+        <div class="si-surface sh-section" style="margin-bottom:.75rem;padding:1rem 1.1rem">
+          <div style="display:flex;flex-wrap:wrap;gap:1rem 2rem;align-items:baseline">
+            <div>
+              <div class="muted" style="font-size:.75rem;font-weight:700">رقم الحساب</div>
+              <strong dir="ltr">${esc(partyCode)}</strong>
+            </div>
+            <div style="flex:1;min-width:12rem">
+              <div class="muted" style="font-size:.75rem;font-weight:700">اسم العميل / الحساب</div>
+              <strong>${esc(name || '—')}</strong>
+            </div>
+            <div>
+              <div class="muted" style="font-size:.75rem;font-weight:700">الفترة</div>
+              <span dir="ltr">${dmy(from)} — ${dmy(to)}</span>
+            </div>
+            <div>
+              <div class="muted" style="font-size:.75rem;font-weight:700">الرصيد الختامي</div>
+              <strong dir="ltr">${money(data.balance)}</strong>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:1.25rem;margin-top:.75rem;font-size:.88rem">
+            <span>افتتاحي: <strong dir="ltr">${money(data.opening)}</strong></span>
+            <span>إجمالي مدين: <strong dir="ltr">${money(data.total_debit)}</strong></span>
+            <span>إجمالي دائن: <strong dir="ltr">${money(data.total_credit)}</strong></span>
+          </div>
+        </div>`;
+
+      const bodyRows =
+        lines
+          .map((r) => {
+            const isOpen = !!r.is_opening;
+            const docLabel = isOpen
+              ? ''
+              : [r.doc_type, r.doc_no].filter(Boolean).join(' · ') || String(r.doc_no || '');
+            return `<tr class="${isOpen ? 'is-opening' : ''}">
+              <td dir="ltr">${dmy(r.trn_date)}</td>
+              <td>${esc(docLabel)}</td>
+              <td>${esc(String(r.description || ''))}</td>
+              <td dir="ltr" class="si-num">${isOpen && !Number(r.debit) ? '' : money(r.debit)}</td>
+              <td dir="ltr" class="si-num">${isOpen && !Number(r.credit) ? '' : money(r.credit)}</td>
+              <td dir="ltr" class="si-num"><strong>${money(r.balance)}</strong></td>
+            </tr>`;
+          })
+          .join('') ||
+        `<tr><td colspan="6" class="empty">${esc(
+          data.message || 'لا توجد حركات في هذه الفترة.'
+        )}</td></tr>`;
+
+      let chequesHtml = '';
+      if (cheques.length) {
+        chequesHtml = `
+          <div class="si-surface sh-section" style="margin-top:.85rem">
+            <div class="si-surface-head"><h2>شيكات قيد التحصيل</h2>
+              <span class="muted">الإجمالي: <strong dir="ltr">${money(data.cheque_total)}</strong></span>
+            </div>
+            <div class="si-table-wrap"><table class="si-table">
+              <thead><tr>
+                <th>رقم الشيك</th><th>تاريخ الاستحقاق</th><th>المبلغ</th><th>الاسم</th><th>مرجع</th>
+              </tr></thead>
+              <tbody>${cheques
+                .map(
+                  (c) => `<tr>
+                  <td dir="ltr">${esc(String(c.chq_no || ''))}</td>
+                  <td dir="ltr">${dmy(c.chq_date)}</td>
+                  <td dir="ltr">${money(c.amount)}</td>
+                  <td>${esc(String(c.name || ''))}</td>
+                  <td dir="ltr">${esc(String(c.receipt_ref || ''))}</td>
+                </tr>`
+                )
+                .join('')}</tbody>
+            </table></div>
+          </div>`;
+      }
+
+      result = `${head}
+        <div class="si-surface sh-section">
+          <div class="si-table-wrap"><table class="si-table">
+            <thead><tr>
+              <th>التاريخ</th><th>المستند</th><th>البيان</th>
+              <th>مدين</th><th>دائن</th><th>الرصيد</th>
+            </tr></thead>
+            <tbody>${bodyRows}</tbody>
+          </table></div>
+        </div>
+        ${chequesHtml}`;
     }
+  } else if (run && !accountNo) {
+    result = `<p class="si-pill si-pill--lock" style="display:inline-block">اختر عميلاً أو أدخل رقم الحساب.</p>`;
   }
+
+  const custOpts = customers
+    .map((c) => {
+      const acc = String(c.acc_no || c.code || '');
+      const label = `${c.name_ar || ''} — ${c.code || acc}`;
+      return `<option value="${Number(c.id)}" data-acc="${esc(acc)}" ${
+        customerId === Number(c.id) ? 'selected' : ''
+      }>${esc(label)}</option>`;
+    })
+    .join('');
+
   const filters = `
-    <form class="si-search ar-filters" method="get" action="/accounting/reports/oracle-statement">
+    <form class="si-search ar-filters" method="get" action="/accounting/reports/oracle-statement" id="ora-stmt-form">
       <input type="hidden" name="run" value="1">
-      <label>رقم الحساب
-        <input class="si-field si-field--mono" name="account_no" value="${esc(accountNo)}" required>
+      <label style="min-width:16rem">العميل
+        <select class="si-field" name="customer_id" id="ora-customer">
+          <option value="0">— اختر بالاسم —</option>
+          ${custOpts}
+        </select>
+      </label>
+      <label>رقم الحساب Oracle
+        <input class="si-field si-field--mono" name="account_no" id="ora-account" value="${esc(
+          accountNo
+        )}" placeholder="11200101" dir="ltr">
       </label>
       ${dateFields(from, to)}
       <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
-    </form>`;
+    </form>
+    <script>
+      (function(){
+        var sel = document.getElementById('ora-customer');
+        var acc = document.getElementById('ora-account');
+        if (!sel || !acc) return;
+        sel.addEventListener('change', function(){
+          var opt = sel.options[sel.selectedIndex];
+          var a = opt && opt.getAttribute('data-acc');
+          if (a) acc.value = a;
+        });
+      })();
+    </script>`;
+
   sendPage(
     res,
     req,
     'كشف حساب تفصيلي Oracle',
-    shell('كشف حساب تفصيلي Oracle', '', filters, result)
+    shell(
+      'كشف حساب تفصيلي Oracle',
+      nameFromSelectionHint(selectedParty, accountNo),
+      filters,
+      result
+    )
   );
 });
 
+function nameFromSelectionHint(party, accountNo) {
+  if (party && party.name_ar) {
+    return esc(String(party.name_ar)) + ' · <span dir="ltr">' + esc(String(party.code || accountNo)) + '</span>';
+  }
+  if (accountNo) return 'حساب <span dir="ltr">' + esc(accountNo) + '</span>';
+  return 'اختر العميل بالاسم أو برقم حساب Oracle';
+}
 /* ═══════════════ Checks reports ═══════════════ */
 router.get('/accounting/reports/checks-in', async (req, res) => {
   if (!can(req.session.user, 'report_incoming_checks')) return forbid(res);
