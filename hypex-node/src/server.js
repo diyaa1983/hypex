@@ -51,10 +51,18 @@ const menuAll = require('./menuAllRoutes');
 const hubRoutes = require('./hubRoutes');
 const { resolveScreen } = require('./lib/screenMap');
 const { phpEmbedPage } = require('./lib/layout');
+const basePath = require('./lib/basePath');
+const fs = require('fs');
 
 const app = express();
+const phpRoot = path.join(__dirname, '..', '..');
+const nodePublic = path.join(__dirname, '..', 'public');
 
 app.set('trust proxy', 1);
+
+// توحيد المسار /hypex قبل كل شيء
+app.use(basePath.middleware());
+
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '2mb' }));
@@ -68,15 +76,39 @@ app.use(
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 12 * 60 * 60 * 1000,
+      path: basePath.hasBase() ? basePath.basePath : '/',
     },
   })
 );
-app.use('/assets', express.static(path.join(__dirname, '..', 'public')));
-// أصول PHP (خرائط GPS / CSS / JS) لشاشات Node المتوافقة
-app.use('/hypex/assets', express.static(path.join(__dirname, '..', '..', 'assets')));
-app.use('/hypex/vendor', express.static(path.join(__dirname, '..', '..', 'assets', 'vendor')));
-// شعارات وأرشيفات محمّلة من جانب PHP
-app.use('/hypex/uploads', express.static(path.join(__dirname, '..', '..', 'uploads')));
+
+/** تقديم أصول Node مع إعادة كتابة مسارات JS تحت /hypex */
+function sendPublicFile(req, res, next) {
+  const rel = decodeURIComponent(req.path || '').replace(/^\/+/, '');
+  if (!rel || rel.includes('..')) return next();
+  const file = path.join(nodePublic, rel);
+  if (!file.startsWith(nodePublic) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+    return next();
+  }
+  if (/\.js$/i.test(file) && basePath.hasBase()) {
+    try {
+      const code = fs.readFileSync(file, 'utf8');
+      res.type('application/javascript');
+      return res.send(basePath.rewriteJs(code));
+    } catch (e) {
+      return next(e);
+    }
+  }
+  return res.sendFile(file);
+}
+
+app.use('/assets', sendPublicFile);
+app.use('/assets', express.static(path.join(phpRoot, 'assets')));
+app.use('/vendor', express.static(path.join(phpRoot, 'assets', 'vendor')));
+app.use('/uploads', express.static(path.join(phpRoot, 'uploads')));
+// توافق مع روابط قديمة /hypex/assets بعد strip لا تُستخدم — تُخدَم أعلاه
+app.use('/hypex/assets', express.static(path.join(phpRoot, 'assets')));
+app.use('/hypex/vendor', express.static(path.join(phpRoot, 'assets', 'vendor')));
+app.use('/hypex/uploads', express.static(path.join(phpRoot, 'uploads')));
 
 app.get('/health', async (_req, res) => {
   try {
@@ -389,9 +421,9 @@ async function getLoginBrand() {
     const lp = String(r.logo_path || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
     if (lp) {
       if (/^https?:\/\//i.test(lp)) logoUrl = lp;
-      else if (lp.startsWith('uploads/')) logoUrl = '/hypex/' + lp;
-      else if (lp.startsWith('hypex/')) logoUrl = '/' + lp;
-      else logoUrl = '/hypex/' + lp;
+      else if (lp.startsWith('uploads/')) logoUrl = '/uploads/' + lp.slice('uploads/'.length);
+      else if (lp.startsWith('hypex/')) logoUrl = '/' + lp.replace(/^hypex\//, '');
+      else logoUrl = '/uploads/' + lp;
     }
     return { companyName, logoUrl };
   } catch {
@@ -412,9 +444,11 @@ function renderLogin({ error, username, brand }) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>تسجيل الدخول · ${esc(companyName)}</title>
-  <link rel="stylesheet" href="/hypex/assets/css/app-font.css">
-  <link rel="stylesheet" href="/hypex/assets/css/login-pro.css">
-  <link rel="stylesheet" href="/hypex/assets/css/app-pwa-install.css">
+  <script>window.__HYPEX_BASE__=${JSON.stringify(basePath.basePath || '')};</script>
+  <script src="/assets/js/base-path.js"></script>
+  <link rel="stylesheet" href="/assets/css/app-font.css">
+  <link rel="stylesheet" href="/assets/css/login-pro.css">
+  <link rel="stylesheet" href="/assets/css/app-pwa-install.css">
   <style>
     .login-panel__pwa .btn {
       display: inline-flex;
@@ -490,7 +524,7 @@ function renderLogin({ error, username, brand }) {
     <p class="login-panel__foot">${esc(companyName)}</p>
   </main>
 </div>
-<script src="/hypex/assets/js/app-pwa-install.js"></script>
+<script src="/assets/js/app-pwa-install.js"></script>
 </body>
 </html>`;
 }
@@ -503,15 +537,12 @@ function renderError(msg) {
 }
 
 app.listen(config.port, () => {
-  console.log(`Hypex Node shell → http://127.0.0.1:${config.port}`);
-  console.log(`  Sales hub        → http://127.0.0.1:${config.port}/sales`);
-  console.log(`  Purchases hub    → http://127.0.0.1:${config.port}/purchases`);
-  console.log(`  Customers hub    → http://127.0.0.1:${config.port}/customers`);
-  console.log(`  Sales-reps hub   → http://127.0.0.1:${config.port}/sales-reps`);
-  console.log(`  Accounting hub   → http://127.0.0.1:${config.port}/accounting`);
-  console.log(`  Inventory hub    → http://127.0.0.1:${config.port}/inventory`);
-  console.log(`  HR hub           → http://127.0.0.1:${config.port}/hr`);
-  console.log(`  Domain hubs      → http://127.0.0.1:${config.port}/hub/sales …`);
-  console.log(`  PHP embeds       → inside Node shell (iframe)`);
-  console.log(`Legacy PHP base    → ${config.phpBaseUrl}`);
+  const base = basePath.hasBase() ? basePath.basePath : '';
+  const publicUrl = base
+    ? `http://localhost${base}`
+    : `http://127.0.0.1:${config.port}`;
+  console.log(`Hypex Node UI      → ${publicUrl}`);
+  console.log(`  (داخلي)          → http://127.0.0.1:${config.port}${base || ''}`);
+  console.log(`  APP_BASE_PATH    → ${base || '(root)'}`);
+  console.log(`  PHP embeds       → ${config.phpBaseUrl}`);
 });

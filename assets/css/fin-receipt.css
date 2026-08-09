@@ -1,8 +1,13 @@
 .fin-rc-wrap .fin-rc-pay-row {
   display: flex;
   gap: 1.25rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
   flex-wrap: wrap;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 
 .fin-rc-wrap .fin-rc-pay-opt {
@@ -15,16 +20,84 @@
 
 .fin-rc-wrap .fin-rc-body {
   padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* بيانات الرأس: شبكة مرتبة بدل صف واحد مضغوط */
+.fin-rc-wrap .sales-inv-meta-row {
+  display: grid !important;
+  grid-template-columns: minmax(11rem, 1.1fr) minmax(9rem, 0.8fr) minmax(14rem, 1.6fr) minmax(9rem, 0.9fr);
+  gap: 0.75rem 1rem;
+  align-items: end;
+  width: 100%;
+}
+
+.fin-rc-wrap .sales-inv-meta-item,
+.fin-rc-wrap .sales-inv-meta-no,
+.fin-rc-wrap .sales-inv-meta-date,
+.fin-rc-wrap .sales-inv-meta-customer,
+.fin-rc-wrap .fin-rc-meta-rep {
+  flex: none !important;
+  width: 100%;
+  min-width: 0 !important;
+  max-width: none;
+}
+
+.fin-rc-wrap .sales-inv-meta-item label {
+  margin-bottom: 0.2rem;
+}
+
+.fin-rc-wrap .sales-inv-cust-open,
+.fin-rc-wrap .input-compact,
+.fin-rc-wrap .sales-inv-no-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fin-rc-wrap .sales-inv-no-nav {
+  width: 100%;
+}
+
+.fin-rc-wrap .fin-rc-amount-row {
+  display: block !important;
+  max-width: 16rem;
+  width: 100%;
+}
+
+.fin-rc-wrap .fin-rc-field-cash {
+  min-width: 0;
+  width: 100%;
 }
 
 .fin-rc-wrap .fin-rc-notes {
-  margin-top: 0.75rem;
-  max-width: 480px;
+  margin-top: 0;
+  max-width: none;
+  width: 100%;
+}
+
+.fin-rc-wrap .fin-rc-notes textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
 }
 
 .fin-rc-wrap .fin-rc-meta-rep input[readonly] {
   background: #f8fafc;
   color: #334155;
+}
+
+@media (max-width: 1100px) {
+  .fin-rc-wrap .sales-inv-meta-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .fin-rc-wrap .sales-inv-meta-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .fin-rc-wrap.fin-rc-form-is-posted .fin-rc-body input:not([readonly]),
@@ -71,7 +144,7 @@
 
 /* جدول الشيكات */
 .fin-rc-wrap .fin-rc-checks-wrap {
-  margin-top: 0.85rem;
+  margin-top: 0;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
@@ -104,7 +177,7 @@
 
 .fin-rc-wrap .fin-rc-checks-table th,
 .fin-rc-wrap .fin-rc-checks-table td {
-  border: 1px solid var(--ora12-border);
+  border: 1px solid var(--ora12-border, #cbd5e1);
   padding: 0.35rem 0.45rem;
   vertical-align: middle;
   text-align: center;
@@ -183,6 +256,23 @@
 
 .fin-rc-wrap.fin-rc-form-is-cancelled .sales-inv-no-input.is-cancelled {
   pointer-events: auto;
+}
+
+/* أزرار شريط الأدوات داخل الشاشة */
+.fin-rc-wrap .dashboard-ora-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fin-rc-wrap .dashboard-ora-toolbar .dashboard-ora-btn {
+  min-height: 2.2rem;
+  height: auto;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.25;
+  box-sizing: border-box;
 }
 
 @media print {

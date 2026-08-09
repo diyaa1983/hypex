@@ -1,5 +1,63 @@
 /* كشف حساب تفصيلي Oracle — شاشة + طباعة */
 
+/* معايير التقرير: شبكة مرتّبة */
+.ora-stmt-page .report-sales-filters {
+  max-width: none;
+}
+
+.ora-stmt-page .ora-stmt-filters-grid {
+  display: grid;
+  grid-template-columns: minmax(9rem, 11rem) minmax(9rem, 11rem) minmax(14rem, 1.6fr) minmax(10rem, 12rem);
+  gap: 0.75rem 1rem;
+  align-items: end;
+  width: 100%;
+}
+
+.ora-stmt-page .ora-stmt-filters-grid .field {
+  margin: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.ora-stmt-page .ora-stmt-filters-grid .input,
+.ora-stmt-page .ora-stmt-filters-grid .sales-inv-cust-open {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ora-stmt-page .ora-stmt-actions {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ora-stmt-page .ora-stmt-actions .btn {
+  min-height: 2.2rem;
+  padding: 0.4rem 0.95rem;
+  font-size: 0.85rem;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
+
+.ora-stmt-page .ora-stmt-foot-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 960px) {
+  .ora-stmt-page .ora-stmt-filters-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .ora-stmt-page .ora-stmt-filters-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .ora-stmt-page .ora-stmt-meta {
   margin: 0.65rem 0 1rem;
   padding: 0.65rem 0.85rem;

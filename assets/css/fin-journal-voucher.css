@@ -1,3 +1,54 @@
+.fin-jv-wrap .journal-entry-header.sales-inv-meta-row {
+  display: grid !important;
+  grid-template-columns: minmax(11rem, 1fr) minmax(9rem, 0.75fr) minmax(14rem, 2fr);
+  gap: 0.75rem 1rem;
+  align-items: end;
+  width: 100%;
+}
+
+.fin-jv-wrap .journal-entry-header .sales-inv-meta-item,
+.fin-jv-wrap .journal-entry-header .sales-inv-meta-no,
+.fin-jv-wrap .journal-entry-header .sales-inv-meta-date,
+.fin-jv-wrap .journal-entry-header .field {
+  flex: none !important;
+  width: 100%;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+.fin-jv-wrap .journal-entry-header .sales-inv-no-nav,
+.fin-jv-wrap .journal-entry-header .input-compact {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fin-jv-wrap .dashboard-ora-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fin-jv-wrap .dashboard-ora-toolbar .dashboard-ora-btn {
+  min-height: 2.2rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .fin-jv-wrap .journal-entry-header.sales-inv-meta-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .fin-jv-wrap .journal-entry-header.sales-inv-meta-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .fin-jv-wrap .journal-entry-card {
   margin-top: 0.5rem;
 }

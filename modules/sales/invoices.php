@@ -102,18 +102,10 @@ require_once app_path('includes/inv_invoice_line_table.php');
 $showUnitPriceIncl = true;
 ?>
 
-<div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main sales-inv-bold" data-exit-guard="custom">
+<div class="dashboard-ora sales-ora12-screen sales-inv-wrap sales-inv-main sales-inv-bold rg-ssms si-ssms" data-exit-guard="custom">
     <header class="dashboard-ora-screen-title no-print" role="banner">
         <div class="dashboard-ora-screen-title__group">
             <h1 class="dashboard-ora-screen-title__text"><?= esc($screenTitle) ?></h1>
-            <?php if (!$ledgerView): ?>
-                <div class="sales-inv-title-actions no-print">
-                    <a class="dashboard-ora-screen-title__action sales-inv-btn-new sales-inv-title-new"
-                       href="<?= esc($newInvoiceUrl) ?>">+ فاتورة جديدة</a>
-                    <button type="button" class="dashboard-ora-screen-title__action sales-inv-title-action" id="inv_pull_delivery_btn">سحب سند تسليم</button>
-                    <button type="button" class="dashboard-ora-screen-title__action sales-inv-title-action sales-inv-unlink-delivery-btn" id="inv_unlink_delivery_btn" hidden>فك ربط السند</button>
-                </div>
-            <?php endif; ?>
         </div>
         <span class="dashboard-ora-screen-title__meta sales-inv-status-badges">
             <span id="inv_posted_badge" class="sales-inv-posted-badge badge badge-warn" hidden></span>
@@ -122,17 +114,31 @@ $showUnitPriceIncl = true;
         <?php nav_render_screen_close($activeRoute ?? 'sales_invoices'); ?>
     </header>
 
-    <div class="dashboard-ora-workspace">
+    <div class="dashboard-ora-workspace rg-ssms-workspace">
     <?php if ($flash): ?>
-        <div class="alert no-print alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-inv-grid-flash"><?= esc($flash['message']) ?></div>
+        <div class="alert no-print alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-inv-grid-flash rg-ssms-flash"><?= esc($flash['message']) ?></div>
+    <?php endif; ?>
+
+    <?php if (!$ledgerView): ?>
+    <div class="si-ssms-toolbar no-print" role="toolbar" aria-label="أوامر الفاتورة">
+        <a class="rg-tb rg-tb--primary" href="<?= esc($newInvoiceUrl) ?>"><span class="rg-tb-ico">＋</span> فاتورة جديدة</a>
+        <span class="rg-tb-sep"></span>
+        <button type="button" class="rg-tb" id="inv_pull_delivery_btn">سحب سند تسليم</button>
+        <button type="button" class="rg-tb rg-tb--danger sales-inv-unlink-delivery-btn" id="inv_unlink_delivery_btn" hidden>فك ربط السند</button>
+        <span class="rg-tb-sep"></span>
+        <a class="rg-tb" href="<?= esc($listInvoicesUrl) ?>">قائمة الترحيل</a>
+        <span class="rg-tb-grow"></span>
+        <span class="rg-tb-hint" dir="ltr">dbo.sal_invoice · Results</span>
+    </div>
     <?php endif; ?>
 
     <?php if ($ledgerView): ?>
-    <div class="dashboard-ora-toolbar sales-inv-toolbar no-print">
+    <div class="dashboard-ora-toolbar sales-inv-toolbar no-print si-ssms-toolbar">
         <?php require app_path('includes/ledger_back_button.php'); ?>
     </div>
     <?php endif; ?>
 
+    <div class="si-ssms-doc">
     <form id="sales-inv-form" class="master-page-form" method="post" action="<?= esc(app_url('index.php?r=sales_invoices')) ?>" novalidate
           data-app-busy-skip="1"
           data-app-busy-msg="جاري حفظ الفاتورة..."
@@ -177,7 +183,7 @@ $showUnitPriceIncl = true;
         <input type="hidden" name="delivery_id" id="inv_delivery_id" value="">
 
         <section class="dashboard-ora-panel no-print">
-            <h2 class="dashboard-ora-panel__title">بيانات الفاتورة</h2>
+            <h2 class="dashboard-ora-panel__title"><span class="rg-ssms-folder">▦</span> Properties — بيانات الفاتورة</h2>
             <div class="dashboard-ora-panel__body">
         <header class="sales-inv-doc-header sales-inv-meta-panel">
             <div class="sales-inv-meta-row">
@@ -242,10 +248,10 @@ $showUnitPriceIncl = true;
         </div>
 
         <section class="dashboard-ora-panel sales-inv-card">
-            <h2 class="dashboard-ora-panel__title no-print">بنود الفاتورة</h2>
+            <h2 class="dashboard-ora-panel__title no-print"><span class="rg-ssms-folder">▦</span> Results — بنود الفاتورة</h2>
             <div class="dashboard-ora-panel__body dashboard-ora-panel__body--flush">
             <div class="sales-inv-table-wrap" id="sales-inv-table-wrap">
-                <table class="sales-inv-table">
+                <table class="sales-inv-table rg-ssms-grid">
                     <thead>
                     <?php inv_invoice_line_table_head($showUnitPriceIncl); ?>
                     </thead>
@@ -285,6 +291,12 @@ $showUnitPriceIncl = true;
         </div>
 
     </form>
+    <div class="si-ssms-status-bar no-print">
+        <span>Sales Invoice · sal_invoice / sal_invoice_line</span>
+        <span dir="ltr">Ready</span>
+        <span>Query executed successfully</span>
+    </div>
+    </div>
     </div>
 </div>
 

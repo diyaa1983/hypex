@@ -2380,6 +2380,14 @@ table.data-table {
   font-weight: 600;
   border-radius: 999px;
   filter: none;
+  /* توحيد ارتفاع/حشو كل أزرار الشريط (بحث، حفظ، ترحيل…) */
+  min-height: 2.15rem !important;
+  height: 2.15rem;
+  padding: 0 0.85rem !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.2 !important;
+  box-sizing: border-box;
+  align-items: center;
 }
 
 #master-toolbar .master-toolbar-btn.btn-secondary {

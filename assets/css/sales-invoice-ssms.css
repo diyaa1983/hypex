@@ -1,0 +1,465 @@
+/**
+ * فاتورة مبيعات + قائمة الترحيل — مظهر SSMS (مثل المناطق / العملاء)
+ * Scoped: .si-ssms | body[data-active-route="sales_invoices"|"sales_invoices_list"]
+ */
+
+/* ── شريط Master (أعلى النافذة) ── */
+body[data-active-route="sales_invoices"] .app-screen-head,
+body[data-active-route="sales_invoices_list"] .app-screen-head,
+body[data-active-route="sales_invoices"] .app-topbar,
+body[data-active-route="sales_invoices_list"] .app-topbar {
+  background: linear-gradient(180deg, #fafafa 0%, #e8e8e8 100%) !important;
+  border-bottom: 1px solid #a0a0a0 !important;
+  box-shadow: none !important;
+  min-height: 2.25rem !important;
+  padding: 0.2rem 0.45rem !important;
+}
+
+body[data-active-route="sales_invoices"] #master-toolbar .master-toolbar-btn,
+body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-btn {
+  border-radius: 2px !important;
+  min-height: 1.55rem !important;
+  padding: 0.15rem 0.55rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  font-family: 'Segoe UI', Tahoma, 'IBM Plex Sans Arabic', Arial, sans-serif !important;
+  box-shadow: none !important;
+  line-height: 1.2 !important;
+}
+
+body[data-active-route="sales_invoices"] #master-toolbar .master-toolbar-btn.btn-secondary,
+body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-btn.btn-secondary {
+  background: linear-gradient(180deg, #fff 0%, #ececec 100%) !important;
+  color: #1e1e1e !important;
+  border: 1px solid #adadad !important;
+}
+
+body[data-active-route="sales_invoices"] #master-toolbar .master-toolbar-btn.btn-secondary:hover:not(:disabled):not(.is-inactive),
+body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-btn.btn-secondary:hover:not(:disabled):not(.is-inactive) {
+  background: linear-gradient(180deg, #fff 0%, #e0effc 100%) !important;
+  border-color: #7aa7ce !important;
+  color: #000 !important;
+}
+
+body[data-active-route="sales_invoices"] #master-toolbar .master-toolbar-btn.btn-primary,
+body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-btn.btn-primary {
+  background: linear-gradient(180deg, #e8f3fc 0%, #cce4f7 100%) !important;
+  border: 1px solid #7aa7ce !important;
+  color: #0b5cab !important;
+}
+
+body[data-active-route="sales_invoices"] #master-toolbar .master-toolbar-btn.btn-danger,
+body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-btn.btn-danger {
+  background: linear-gradient(180deg, #fff 0%, #fceaea 100%) !important;
+  border: 1px solid #e0a0a0 !important;
+  color: #c50f1f !important;
+}
+
+body[data-active-route="sales_invoices"] #master-toolbar .master-toolbar-btn[data-master-action="post"],
+body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-btn[data-master-action="post"] {
+  background: linear-gradient(180deg, #fffef5 0%, #f5ecd0 100%) !important;
+  border: 1px solid #c9b870 !important;
+  color: #6a5600 !important;
+}
+
+body[data-active-route="sales_invoices"] #master-toolbar .master-toolbar-inner,
+body[data-active-route="sales_invoices_list"] #master-toolbar .master-toolbar-inner {
+  gap: 0.2rem !important;
+}
+
+/* ── مساحة الفاتورة ── */
+.si-ssms.dashboard-ora.sales-ora12-screen.sales-inv-wrap {
+  --si-border: #a0a0a0;
+  --si-border-soft: #d0d0d0;
+  --si-bg: #f0f0f0;
+  --si-panel: #ffffff;
+  --si-header: #e8e8e8;
+  --si-title: #0078d4;
+  --si-text: #1e1e1e;
+  --si-muted: #666;
+  --si-select: #cce8ff;
+  font-family: 'Segoe UI', Tahoma, 'IBM Plex Sans Arabic', Arial, sans-serif !important;
+  background: var(--si-bg) !important;
+  color: var(--si-text);
+}
+
+.si-ssms .dashboard-ora-workspace {
+  padding: 0 !important;
+  max-width: none !important;
+  background: var(--si-bg) !important;
+}
+
+.si-ssms .dashboard-ora-screen-title {
+  background: linear-gradient(180deg, #fdfdfd 0%, #ececec 100%) !important;
+  border: 1px solid var(--si-border) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  min-height: 2rem !important;
+  padding: 0.25rem 0.55rem !important;
+  margin-bottom: 0 !important;
+}
+
+.si-ssms .dashboard-ora-screen-title__text {
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  color: var(--si-text) !important;
+  text-shadow: none !important;
+}
+
+.si-ssms .dashboard-ora-screen-title__meta {
+  background: #fff !important;
+  border: 1px solid var(--si-border-soft) !important;
+  color: var(--si-muted) !important;
+  border-radius: 2px !important;
+  font-size: 0.75rem !important;
+  padding: 0.1rem 0.4rem !important;
+}
+
+.si-ssms .dashboard-ora-screen-title__action.sales-inv-title-new,
+.si-ssms .dashboard-ora-screen-title__action.sales-inv-title-action {
+  background: linear-gradient(180deg, #fff 0%, #ececec 100%) !important;
+  border: 1px solid #adadad !important;
+  color: #1e1e1e !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  min-height: 1.45rem !important;
+  font-size: 0.75rem !important;
+  padding: 0.12rem 0.45rem !important;
+}
+
+.si-ssms .dashboard-ora-screen-title__action.sales-inv-title-new:hover,
+.si-ssms .dashboard-ora-screen-title__action.sales-inv-title-action:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff 0%, #e0effc 100%) !important;
+  border-color: #7aa7ce !important;
+  color: #000 !important;
+}
+
+.si-ssms .sales-inv-posted-badge {
+  border-radius: 2px !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+}
+
+/* Secondary local toolbar (new / pull delivery) */
+.si-ssms .si-ssms-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.3rem 0.4rem;
+  background: linear-gradient(180deg, #fafafa 0%, #e6e6e6 100%);
+  border: 1px solid var(--si-border);
+  border-top: none;
+}
+
+.si-ssms .si-ssms-doc {
+  border: 1px solid var(--si-border);
+  border-top: none;
+  background: var(--si-panel);
+  min-height: calc(100vh - 9rem);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Panels → SSMS panes */
+.si-ssms .dashboard-ora-panel {
+  margin: 0 !important;
+  border: none !important;
+  border-bottom: 1px solid var(--si-border-soft) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: var(--si-panel) !important;
+  overflow: visible !important;
+}
+
+.si-ssms .dashboard-ora-panel__title {
+  margin: 0 !important;
+  padding: 0.28rem 0.5rem !important;
+  font-size: 0.78rem !important;
+  font-weight: 700 !important;
+  color: #333 !important;
+  background: linear-gradient(180deg, #f7f7f7 0%, #e9e9e9 100%) !important;
+  border-bottom: 1px solid var(--si-border-soft) !important;
+  border-radius: 0 !important;
+  text-shadow: none !important;
+}
+
+.si-ssms .dashboard-ora-panel__body {
+  padding: 0.45rem 0.55rem !important;
+  background: #fcfcfc !important;
+}
+
+.si-ssms .dashboard-ora-panel__body--flush {
+  padding: 0 !important;
+  background: #fff !important;
+}
+
+/* Header fields as property grid row */
+.si-ssms .sales-inv-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  align-items: flex-end;
+}
+
+.si-ssms .sales-inv-meta-item label,
+.si-ssms .sales-inv-field label {
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  color: #444 !important;
+  margin-bottom: 0.12rem !important;
+}
+
+.si-ssms .input,
+.si-ssms select.input,
+.si-ssms textarea.input {
+  min-height: 1.55rem !important;
+  padding: 0.15rem 0.4rem !important;
+  font-size: 0.78rem !important;
+  border: 1px solid #adadad !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.04) !important;
+  color: var(--si-text) !important;
+}
+
+.si-ssms .input:focus,
+.si-ssms select.input:focus,
+.si-ssms textarea.input:focus {
+  border-color: #0078d4 !important;
+  box-shadow: 0 0 0 1px #0078d4 !important;
+  outline: none !important;
+}
+
+.si-ssms .sales-inv-no-arrow {
+  border-radius: 0 !important;
+  border: 1px solid #adadad !important;
+  background: linear-gradient(180deg, #fff 0%, #ececec 100%) !important;
+  min-height: 1.55rem !important;
+  box-shadow: none !important;
+}
+
+/* Results / lines grid */
+.si-ssms .sales-inv-table-wrap,
+.si-ssms #sales-inv-table-wrap {
+  border: none !important;
+  border-radius: 0 !important;
+  max-height: min(52vh, 560px);
+  overflow: auto;
+  background: #fff;
+}
+
+.si-ssms .sales-inv-table {
+  border-collapse: collapse !important;
+  width: 100%;
+  font-size: 0.78rem !important;
+}
+
+.si-ssms .sales-inv-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f5f5f5 !important;
+  color: #1e1e1e !important;
+  font-weight: 700 !important;
+  font-size: 0.72rem !important;
+  border: 1px solid #d0d0d0 !important;
+  border-top: none !important;
+  padding: 0.28rem 0.35rem !important;
+  white-space: nowrap;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.si-ssms .sales-inv-table tbody td {
+  border: 1px solid #e8e8e8 !important;
+  padding: 0.12rem 0.25rem !important;
+  vertical-align: middle !important;
+  background: #fff;
+}
+
+.si-ssms .sales-inv-table tbody tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+.si-ssms .sales-inv-table tbody tr:hover td {
+  background: var(--si-select) !important;
+}
+
+.si-ssms .sales-inv-table tbody td .input,
+.si-ssms .sales-inv-table tbody td select.input {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-height: 1.4rem !important;
+  border-radius: 0 !important;
+  width: 100%;
+}
+
+.si-ssms .sales-inv-table tbody td .input:focus,
+.si-ssms .sales-inv-table tbody td select.input:focus {
+  border-color: #0078d4 !important;
+  background: #fff !important;
+  box-shadow: 0 0 0 1px #0078d4 !important;
+}
+
+/* Footer notes + totals */
+.si-ssms .sales-inv-footer-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(14rem, 18rem);
+  gap: 0.5rem 0.85rem;
+  padding: 0.45rem 0.55rem;
+  background: #f7f7f7;
+  border-top: 1px solid var(--si-border-soft);
+}
+
+@media (max-width: 720px) {
+  .si-ssms .sales-inv-footer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.si-ssms .sales-inv-totals {
+  border: 1px solid var(--si-border-soft);
+  background: #fff;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0;
+  font-size: 0.78rem;
+}
+
+.si-ssms .sales-inv-totals .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.18rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.si-ssms .sales-inv-totals .row.grand {
+  border-bottom: none;
+  border-top: 1px solid #adadad;
+  margin-top: 0.15rem;
+  padding-top: 0.35rem;
+  font-weight: 800;
+  color: #0b5cab;
+}
+
+.si-ssms .sales-inv-totals .row.grand span:last-child {
+  border-bottom: 2px solid #0078d4;
+  padding-bottom: 0.05rem;
+}
+
+/* Status bar */
+.si-ssms .si-ssms-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  color: #444;
+  background: linear-gradient(180deg, #f3f3f3 0%, #e6e6e6 100%);
+  border-top: 1px solid var(--si-border);
+  font-family: Consolas, 'Courier New', monospace;
+}
+
+.si-ssms .sales-inv-grid-flash {
+  margin: 0.35rem 0.45rem !important;
+  border-radius: 2px !important;
+  font-size: 0.85rem !important;
+}
+
+/* Delivery pick modal → SSMS dialog */
+.si-ssms ~ .sales-inv-dlv-pick-modal .sales-inv-dlv-pick-modal__panel,
+body:has(.si-ssms) .sales-inv-dlv-pick-modal__panel {
+  border-radius: 0 !important;
+  border: 1px solid #a0a0a0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+}
+
+body:has(.si-ssms) .sales-inv-dlv-pick-modal__head {
+  background: linear-gradient(180deg, #f7f7f7 0%, #e9e9e9 100%) !important;
+  border-bottom: 1px solid #d0d0d0 !important;
+  color: #1e1e1e !important;
+  border-radius: 0 !important;
+}
+
+/* Print stays printable */
+@media print {
+  .si-ssms .si-ssms-toolbar,
+  .si-ssms .si-ssms-status-bar {
+    display: none !important;
+  }
+
+  .si-ssms.dashboard-ora.sales-ora12-screen.sales-inv-wrap {
+    background: #fff !important;
+  }
+}
+
+/* ── قائمة الترحيل (si-ssms list) ── */
+.si-ssms-list .rg-ssms-explorer {
+  max-width: 240px;
+}
+
+.si-ssms-list .si-list-code a {
+  color: #0b5cab;
+  font-weight: 700;
+  text-decoration: none;
+  font-family: Consolas, 'Courier New', monospace;
+}
+
+.si-ssms-list .si-list-code a:hover {
+  text-decoration: underline;
+}
+
+.si-ssms-list .rg-ssms-grid .col-act {
+  width: 12rem;
+  min-width: 10rem;
+}
+
+.si-ssms-list .rg-ssms-grid .col-act a,
+.si-ssms-list .rg-ssms-grid .col-act button {
+  font-size: 0.72rem;
+  padding: 0.08rem 0.35rem;
+  margin: 0 0.1rem;
+  border: 1px solid #adadad;
+  background: linear-gradient(180deg, #fff 0%, #ececec 100%);
+  border-radius: 2px;
+  color: #1e1e1e;
+  cursor: pointer;
+  text-decoration: none;
+  font: inherit;
+}
+
+.si-ssms-list .rg-ssms-grid .col-act button.danger,
+.si-ssms-list .rg-ssms-grid .col-act .danger {
+  color: #c50f1f;
+  border-color: #e0a0a0;
+}
+
+.si-ssms-list .rg-ssms-grid .col-act form {
+  display: inline;
+}
+
+.si-ssms-list .si-list-pager {
+  padding: 0.35rem 0.5rem;
+  background: #f3f3f3;
+  border-top: 1px solid #d0d0d0;
+}
+
+.si-ssms-list .rg-status.on {
+  color: #0b6a0b;
+}
+
+.si-ssms-list .rg-status.off {
+  color: #8b5a00;
+}
+
+.si-ssms-list .rg-ssms-results {
+  min-height: calc(100vh - 9rem);
+}
+
+.si-ssms-list .si-check {
+  width: 2rem;
+  text-align: center;
+}

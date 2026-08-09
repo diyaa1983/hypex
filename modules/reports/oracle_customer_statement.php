@@ -184,7 +184,7 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
     <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print" id="ora-stmt-form">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
 
-        <div class="form-row">
+        <div class="ora-stmt-filters-grid">
             <label class="field">
                 <span class="field-label">من تاريخ *</span>
                 <input class="input js-date-dmy" type="text" name="from"
@@ -197,19 +197,15 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
                        value="<?= esc($fmtDate($to)) ?>"
                        placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
             </label>
-        </div>
-
-        <div class="form-row" style="margin-top:0.5rem;">
             <?= customer_picker_field([
                 'id' => 'ora_stmt_cust',
                 'name' => 'customer_id',
                 'value' => $customerId > 0 ? $customerId : 0,
                 'label' => 'العميل (Oracle 112…)',
-                'wrapper_class' => 'field',
-                'wrapper_style' => 'flex:1 1 18rem',
+                'wrapper_class' => 'field ora-stmt-field-customer',
                 'json_id' => 'ora-stmt-customers-json',
             ]) ?>
-            <label class="field" style="flex:0 1 12rem;">
+            <label class="field ora-stmt-field-account">
                 <span class="field-label">أو رقم الحساب</span>
                 <input class="input" type="text" name="account" dir="ltr"
                        value="<?= esc($accountOverride !== '' ? $accountOverride : ($showResult ? $accountNo : '')) ?>"
@@ -217,14 +213,14 @@ customer_picker_json_script($customers, 'ora-stmt-customers-json');
             </label>
         </div>
 
-        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+        <div class="ora-stmt-actions">
             <button class="btn btn-primary" type="submit">عرض الكشف من Oracle</button>
-            <a class="btn btn-ghost" href="<?= esc($listCustomersUrl) ?>">قائمة العملاء</a>
+            <a class="btn btn-secondary" href="<?= esc($listCustomersUrl) ?>">قائمة العملاء</a>
             <?php if ($showResult): ?>
                 <button class="btn btn-secondary no-print" type="button" id="ora-stmt-print-btn">طباعة</button>
             <?php endif; ?>
         </div>
-        <p class="muted" style="margin-top:0.5rem;font-size:0.9rem;">
+        <p class="muted ora-stmt-foot-hint">
             قراءة مباشرة من <code>GLVODMF</code> + الشيكات من <code>GLCHEQF</code> — بدون تعديل على Oracle.
         </p>
     </form>

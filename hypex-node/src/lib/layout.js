@@ -4,6 +4,7 @@ const config = require('../config');
 const nav = require('../nav');
 const { esc } = require('./html');
 const { iconFor, isPathActive } = require('./navIcons');
+const basePath = require('./basePath');
 
 function phpUrl(route, extra = '') {
   if (!route) return config.phpBaseUrl;
@@ -71,6 +72,7 @@ function renderApp({
   mainClass = 'main main--wide',
   activePath = '',
 }) {
+  const base = basePath.basePath || '';
   const cssLinks = css.map((c) => `<link rel="stylesheet" href="${esc(c)}">`).join('\n');
   const jsLinks = js.map((j) => `<script src="${esc(j)}" defer></script>`).join('\n');
   const bodyCls = ['app-body', bodyClass].filter(Boolean).join(' ');
@@ -82,6 +84,8 @@ function renderApp({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(title)} · Hypex</title>
+  <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
+  <script src="/assets/js/base-path.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">

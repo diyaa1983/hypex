@@ -9,7 +9,12 @@
   });
 
   /** تمييز القسم النشط من المسار الحالي */
+  var base = typeof window.__HYPEX_BASE__ === 'string' ? window.__HYPEX_BASE__ : '';
+  if (base && base.charAt(base.length - 1) === '/') base = base.slice(0, -1);
   var path = window.location.pathname || '';
+  if (base && (path === base || path.indexOf(base + '/') === 0)) {
+    path = path.slice(base.length) || '/';
+  }
   var sidebar = document.querySelector('.sidebar--2027');
   if (!sidebar || !path) return;
 

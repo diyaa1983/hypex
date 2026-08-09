@@ -125,6 +125,18 @@
 
 .acc-map-actions {
   margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.acc-map-actions .btn {
+  min-height: 2.2rem;
+  padding: 0.4rem 0.95rem;
+  font-size: 0.85rem;
+  line-height: 1.25;
+  box-sizing: border-box;
 }
 
 .acc-map-payroll-lead {

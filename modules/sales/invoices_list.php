@@ -82,6 +82,24 @@ $st = $pdo->prepare($sql);
 $st->execute($params);
 $rows = $st->fetchAll() ?: [];
 
+// Counts for explorer (all / unposted / posted) — independent of search for folder badges
+$cntAll = 0;
+$cntUnposted = 0;
+$cntPosted = 0;
+try {
+    $cntAll = (int) $pdo->query(
+        "SELECT COUNT(*) FROM sal_invoice i WHERE i.status = 'confirmed'"
+    )->fetchColumn();
+    $cntUnposted = (int) $pdo->query(
+        "SELECT COUNT(*) FROM sal_invoice i WHERE i.status = 'confirmed' AND NOT (" . $postedExpr . ')'
+    )->fetchColumn();
+    $cntPosted = (int) $pdo->query(
+        "SELECT COUNT(*) FROM sal_invoice i WHERE i.status = 'confirmed' AND (" . $postedExpr . ')'
+    )->fetchColumn();
+} catch (Throwable $e) {
+    $cntAll = $listTotal;
+}
+
 function sal_inv_list_filter_url(string $base, string $f, string $q): string
 {
     $url = $base . '&filter=' . rawurlencode($f);
@@ -92,112 +110,176 @@ function sal_inv_list_filter_url(string $base, string $f, string $q): string
     return $url;
 }
 
+$canPost = user_can_action('action_post_sales_invoice');
+$canDelete = user_can_action('action_delete_sales_invoice');
+$filterLabel = match ($filter) {
+    'unposted' => 'Unposted',
+    'posted' => 'Posted',
+    default => 'All Invoices',
+};
+
 ?>
-<?php sales_ora12_enqueue_assets(); ?>
+<?php sales_invoices_list_ssms_enqueue_assets(); ?>
 
-<div class="dashboard-ora sales-ora12-screen sales-ora-list-page sales-inv-list-page"
-     data-exit-url="<?= esc($exitUrl) ?>">
-    <?php sales_ora12_render_title_bar('ترحيل فواتير المبيعات'); ?>
-    <?php sales_ora12_workspace_open(); ?>
+<div class="dashboard-ora sales-ora12-screen rg-ssms si-ssms-list sales-inv-list-page"
+     data-exit-url="<?= esc($exitUrl) ?>"
+     id="sales-invoices-list-screen"
+     data-post-url="<?= esc($apiPost) ?>"
+     data-delete-url="<?= esc($apiDelete) ?>"
+     data-csrf="<?= esc($csrf) ?>"
+     data-can-post="<?= $canPost ? '1' : '0' ?>"
+     data-can-delete="<?= $canDelete ? '1' : '0' ?>">
+    <header class="dashboard-ora-screen-title no-print" role="banner">
+        <h1 class="dashboard-ora-screen-title__text">ترحيل فواتير المبيعات</h1>
+        <span class="dashboard-ora-screen-title__meta"><?= (int) $listTotal ?> صف</span>
+        <?php nav_render_screen_close('sales_invoices_list'); ?>
+    </header>
 
-    <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-ora-flash"><?= esc($flash['message']) ?></div>
-    <?php endif; ?>
+    <div class="dashboard-ora-workspace rg-ssms-workspace">
+        <?php if ($flash): ?>
+            <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> rg-ssms-flash"><?= esc($flash['message']) ?></div>
+        <?php endif; ?>
 
-    <div class="sales-ora-toolbar toolbar" id="sales-invoices-list-screen"
-         data-post-url="<?= esc($apiPost) ?>"
-         data-delete-url="<?= esc($apiDelete) ?>"
-         data-csrf="<?= esc($csrf) ?>"
-         data-can-post="<?= user_can_action('action_post_sales_invoice') ? '1' : '0' ?>"
-         data-can-delete="<?= user_can_action('action_delete_sales_invoice') ? '1' : '0' ?>">
-        <a class="btn btn-primary btn-sm" href="<?= esc($newUrl) ?>">➕ فاتورة جديدة</a>
-        <button type="button" class="btn btn-secondary btn-sm" id="sal-inv-post-selected" disabled>ترحيل المحدد</button>
-    </div>
-
-    <div class="sales-ora-panel card">
-        <form method="get" action="<?= esc(app_url('index.php')) ?>" class="sales-ora-search-form form-row">
-            <input type="hidden" name="r" value="sales_invoices_list">
-            <input type="hidden" name="filter" value="<?= esc($filter) ?>">
-            <label class="field" style="flex:1;min-width:200px;">
-                <span class="field-label">بحث (رقم فاتورة، عميل)</span>
-                <input class="input" type="search" name="q" value="<?= esc($search) ?>" placeholder="بحث…">
-            </label>
-            <button type="submit" class="btn btn-secondary btn-sm">بحث</button>
-            <?php if ($search !== ''): ?>
-                <a class="btn btn-ghost btn-sm" href="<?= esc(sal_inv_list_filter_url($listUrl, $filter, '')) ?>">مسح</a>
-            <?php endif; ?>
-        </form>
-    </div>
-
-    <div class="sales-ora-tabs sal-inv-list-tabs">
-        <a class="btn btn-sm <?= $filter === 'all' ? 'btn-primary' : 'btn-secondary' ?>"
-           href="<?= esc(sal_inv_list_filter_url($listUrl, 'all', $search)) ?>">الكل</a>
-        <a class="btn btn-sm <?= $filter === 'unposted' ? 'btn-primary' : 'btn-secondary' ?>"
-           href="<?= esc(sal_inv_list_filter_url($listUrl, 'unposted', $search)) ?>">غير مرحّلة</a>
-        <a class="btn btn-sm <?= $filter === 'posted' ? 'btn-primary' : 'btn-secondary' ?>"
-           href="<?= esc(sal_inv_list_filter_url($listUrl, 'posted', $search)) ?>">مرحّلة</a>
-    </div>
-
-    <div class="sales-ora-panel card">
-        <div class="table-wrap">
-            <table class="data-table" id="sal-invoices-table">
-                <thead>
-                <tr>
-                    <th style="width:2.5rem;"><input type="checkbox" id="sal-inv-check-all" title="تحديد الكل"></th>
-                    <th>رقم الفاتورة</th>
-                    <th>التاريخ</th>
-                    <th>العميل</th>
-                    <th>النوع</th>
-                    <th>الإجمالي</th>
-                    <th>الترحيل</th>
-                    <th>إجراءات</th>
-                </tr>
-                </thead>
-                <tbody>
-                <?php if (!$rows): ?>
-                    <tr><td colspan="8" class="muted" style="text-align:center;">لا توجد فواتير مطابقة.</td></tr>
-                <?php endif; ?>
-                <?php foreach ($rows as $inv): ?>
-                    <?php
-                    $posted = !empty($inv['is_posted']);
-                    $pay = ($inv['payment_type'] ?? 'cash') === 'credit' ? 'ذمم' : 'نقدي';
-                    ?>
-                    <tr data-invoice-id="<?= (int) $inv['id'] ?>" data-posted="<?= $posted ? '1' : '0' ?>">
-                        <td>
-                            <?php if (!$posted): ?>
-                                <input type="checkbox" class="sal-inv-row-check" value="<?= (int) $inv['id'] ?>">
-                            <?php endif; ?>
-                        </td>
-                        <td><code><?= esc((string) $inv['invoice_no']) ?></code></td>
-                        <td><?= esc(format_date_dmY((string) ($inv['invoice_date'] ?? ''))) ?></td>
-                        <td><?= esc((string) $inv['customer_name']) ?></td>
-                        <td><?= esc($pay) ?></td>
-                        <td><?= esc(format_amount((float) $inv['total'])) ?></td>
-                        <td>
-                            <?php if ($posted): ?>
-                                <span class="badge badge-posted">مرحّلة</span>
-                            <?php else: ?>
-                                <span class="badge badge-warn">غير مرحّلة</span>
-                            <?php endif; ?>
-                        </td>
-                        <td class="row-actions">
-                            <a class="btn btn-secondary btn-sm" href="<?= esc($viewBase . (int) $inv['id']) ?>">عرض</a>
-                            <?php if (!$posted): ?>
-                                <button type="button" class="btn btn-primary btn-sm sal-inv-post-one"
-                                        data-id="<?= (int) $inv['id'] ?>">ترحيل</button>
-                                <button type="button" class="btn btn-danger btn-sm sal-inv-delete-one"
-                                        data-id="<?= (int) $inv['id'] ?>"
-                                        data-no="<?= esc((string) $inv['invoice_no']) ?>">حذف</button>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
+        <div class="rg-ssms-toolbar" role="toolbar">
+            <a class="rg-tb rg-tb--primary" href="<?= esc($newUrl) ?>"><span class="rg-tb-ico">＋</span> فاتورة جديدة</a>
+            <span class="rg-tb-sep"></span>
+            <button type="button" class="rg-tb" id="sal-inv-post-selected" disabled>ترحيل المحدد</button>
+            <span class="rg-tb-sep"></span>
+            <a class="rg-tb" href="<?= esc($newUrl) ?>">Entry</a>
+            <span class="rg-tb-grow"></span>
+            <span class="rg-tb-hint" dir="ltr">dbo.sal_invoice · filter=<?= esc($filter) ?></span>
         </div>
-        <?php list_pager_render($pager, $listPagerUrl); ?>
+
+        <div class="rg-ssms-split">
+            <aside class="rg-ssms-explorer" aria-label="مستكشف الفواتير">
+                <div class="rg-ssms-pane-title">
+                    <span class="rg-ssms-folder">🗀</span> Object Explorer
+                </div>
+                <div class="rg-ssms-tree-head">
+                    <span class="rg-ssms-server">■ Sales → Invoices</span>
+                </div>
+                <ul class="rg-ssms-tree">
+                    <li class="<?= $filter === 'all' ? 'is-selected' : '' ?>">
+                        <a class="rg-ssms-node" href="<?= esc(sal_inv_list_filter_url($listUrl, 'all', $search)) ?>">
+                            <span class="rg-ssms-icon">▣</span>
+                            <span class="rg-ssms-node-name">All Invoices</span>
+                            <span class="rg-ssms-badge" dir="ltr"><?= (int) $cntAll ?></span>
+                        </a>
+                    </li>
+                    <li class="<?= $filter === 'unposted' ? 'is-selected' : '' ?>">
+                        <a class="rg-ssms-node" href="<?= esc(sal_inv_list_filter_url($listUrl, 'unposted', $search)) ?>">
+                            <span class="rg-ssms-icon">▤</span>
+                            <span class="rg-ssms-node-name">Unposted</span>
+                            <span class="rg-ssms-badge" dir="ltr"><?= (int) $cntUnposted ?></span>
+                        </a>
+                    </li>
+                    <li class="<?= $filter === 'posted' ? 'is-selected' : '' ?>">
+                        <a class="rg-ssms-node" href="<?= esc(sal_inv_list_filter_url($listUrl, 'posted', $search)) ?>">
+                            <span class="rg-ssms-icon">▥</span>
+                            <span class="rg-ssms-node-name">Posted</span>
+                            <span class="rg-ssms-badge" dir="ltr"><?= (int) $cntPosted ?></span>
+                        </a>
+                    </li>
+                </ul>
+            </aside>
+
+            <main class="rg-ssms-results">
+                <div class="rg-ssms-pane-title">
+                    <span class="rg-ssms-folder">▦</span>
+                    Results
+                    <span class="rg-ssms-muted">— <?= esc($filterLabel) ?></span>
+                </div>
+
+                <div class="rg-ssms-grid-bar">
+                    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="rg-ssms-grid-add">
+                        <input type="hidden" name="r" value="sales_invoices_list">
+                        <input type="hidden" name="filter" value="<?= esc($filter) ?>">
+                        <span class="rg-ssms-muted">Filter:</span>
+                        <input class="rg-ssms-input rg-ssms-input--wide" type="search" name="q" value="<?= esc($search) ?>"
+                               placeholder="Invoice No / Customer / Code" autocomplete="off" spellcheck="false">
+                        <button class="rg-tb rg-tb--primary" type="submit">Execute</button>
+                        <?php if ($search !== ''): ?>
+                            <a class="rg-tb" href="<?= esc(sal_inv_list_filter_url($listUrl, $filter, '')) ?>">Clear</a>
+                        <?php endif; ?>
+                    </form>
+                </div>
+
+                <div class="rg-ssms-grid-wrap">
+                    <table class="rg-ssms-grid" id="sal-invoices-table">
+                        <thead>
+                        <tr>
+                            <th class="si-check"><input type="checkbox" id="sal-inv-check-all" title="تحديد الكل"></th>
+                            <th class="col-id">ID</th>
+                            <th>Invoice No</th>
+                            <th>Date</th>
+                            <th class="col-name">Customer</th>
+                            <th>Type</th>
+                            <th>Total</th>
+                            <th class="col-status">Post</th>
+                            <th class="col-act">Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <?php if (!$rows): ?>
+                            <tr class="rg-ssms-empty-row">
+                                <td colspan="9">
+                                    <?= $search !== '' ? 'No rows matching filter.' : 'No rows — (0 row(s) returned)' ?>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php foreach ($rows as $inv): ?>
+                            <?php
+                            $posted = !empty($inv['is_posted']);
+                            $pay = ($inv['payment_type'] ?? 'cash') === 'credit' ? 'ذمم' : 'نقدي';
+                            $invId = (int) $inv['id'];
+                            ?>
+                            <tr data-invoice-id="<?= $invId ?>" data-posted="<?= $posted ? '1' : '0' ?>">
+                                <td class="si-check">
+                                    <?php if (!$posted): ?>
+                                        <input type="checkbox" class="sal-inv-row-check" value="<?= $invId ?>">
+                                    <?php else: ?>
+                                        —
+                                    <?php endif; ?>
+                                </td>
+                                <td class="col-id" dir="ltr"><?= $invId ?></td>
+                                <td class="si-list-code" dir="ltr">
+                                    <a href="<?= esc($viewBase . $invId) ?>"><?= esc((string) $inv['invoice_no']) ?></a>
+                                </td>
+                                <td dir="ltr"><?= esc(format_date_dmY((string) ($inv['invoice_date'] ?? ''))) ?></td>
+                                <td class="col-name"><?= esc((string) $inv['customer_name']) ?></td>
+                                <td><?= esc($pay) ?></td>
+                                <td dir="ltr"><?= esc(format_amount((float) $inv['total'])) ?></td>
+                                <td class="col-status">
+                                    <span class="rg-status <?= $posted ? 'on' : 'off' ?>">
+                                        <?= $posted ? 'Posted' : 'Unposted' ?>
+                                    </span>
+                                </td>
+                                <td class="col-act">
+                                    <a href="<?= esc($viewBase . $invId) ?>">Open</a>
+                                    <?php if (!$posted): ?>
+                                        <button type="button" class="sal-inv-post-one" data-id="<?= $invId ?>">Post</button>
+                                        <button type="button" class="sal-inv-delete-one danger"
+                                                data-id="<?= $invId ?>"
+                                                data-no="<?= esc((string) $inv['invoice_no']) ?>">Delete</button>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="rg-ssms-status-bar">
+                    <span><?= count($rows) ?> row(s) displayed · <?= (int) $listTotal ?> total</span>
+                    <span dir="ltr">SELECT * FROM sal_invoice WHERE filter=<?= esc($filter) ?></span>
+                    <span>Query executed successfully</span>
+                </div>
+                <div class="si-list-pager">
+                    <?php list_pager_render($pager, $listPagerUrl); ?>
+                </div>
+            </main>
+        </div>
     </div>
-    <?php sales_ora12_workspace_close(); ?>
 </div>
 
 <script src="<?= esc(app_url('assets/js/sales-invoices-list.js')) ?>" defer></script>

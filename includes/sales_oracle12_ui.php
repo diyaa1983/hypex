@@ -22,7 +22,7 @@ function sales_ora12_enqueue_assets(): void
     }
 }
 
-/** جدول بنود الفاتورة/السند — sales-invoice.css ثم oracle12 (يُحمَّل أخيراً لنمط SQL) */
+/** جدول بنود الفاتورة/السند — sales-invoice.css ثم oracle12 ثم SSMS (مثل المناطق/العملاء) */
 function sales_inv_oracle12_enqueue_assets(): void
 {
     static $done = false;
@@ -33,7 +33,28 @@ function sales_inv_oracle12_enqueue_assets(): void
 
     sales_ora12_enqueue_assets();
 
-    foreach (['sales-invoice.css', 'sales-invoice-oracle12.css'] as $file) {
+    foreach (['sales-invoice.css', 'sales-invoice-oracle12.css', 'regions-ssms.css', 'sales-invoice-ssms.css'] as $file) {
+        $path = app_path('assets/css/' . $file);
+        $url = app_url('assets/css/' . $file);
+        if (is_file($path)) {
+            $url .= '?v=' . (string) filemtime($path);
+        }
+        echo '<link rel="stylesheet" href="' . esc($url) . '">' . "\n";
+    }
+}
+
+/** قائمة ترحيل فواتير المبيعات — نمط SSMS */
+function sales_invoices_list_ssms_enqueue_assets(): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    sales_ora12_enqueue_assets();
+
+    foreach (['regions-ssms.css', 'sales-invoice-ssms.css'] as $file) {
         $path = app_path('assets/css/' . $file);
         $url = app_url('assets/css/' . $file);
         if (is_file($path)) {

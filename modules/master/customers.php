@@ -544,6 +544,8 @@ if ($action === 'add' || $action === 'edit') {
 }
 
 $search = trim((string) ($_GET['q'] ?? ''));
+$showInactive = ((string) ($_GET['all'] ?? '') === '1');
+$regionFilterId = (int) ($_GET['region_id'] ?? 0);
 
 $repNamesSub = '(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r2.name_ar SEPARATOR \'، \')
                 FROM crm_customer_sales_rep csr2
@@ -553,29 +555,34 @@ $repNamesSub = '(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r2.nam
 $sql = "SELECT c.id, c.code, c.name_ar, c.phone, c.email, c.tax_number, c.is_active, c.created_at,
                c.latitude, c.longitude, c.oracle_key, c.region_id,
                rg.name_ar AS region_name,
+               ra.name_ar AS region_address_name,
                COALESCE({$repNamesSub}, r.name_ar) AS sales_rep_name
         FROM crm_customer c
         LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
-        LEFT JOIN crm_region rg ON rg.id = c.region_id";
+        LEFT JOIN crm_region rg ON rg.id = c.region_id
+        LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id";
 $params = [];
-// القائمة: العملاء النشطون فقط افتراضياً (يُخفي 212/116 بعد تنظيف المزامنة)
-$showInactive = ((string) ($_GET['all'] ?? '') === '1');
 $whereParts = [];
 if (!$showInactive) {
     $whereParts[] = 'c.is_active = 1';
+}
+if ($regionFilterId > 0) {
+    $whereParts[] = 'c.region_id = ?';
+    $params[] = $regionFilterId;
 }
 if ($search !== '') {
     $whereParts[] = '(c.name_ar LIKE ? OR c.code LIKE ? OR c.phone LIKE ? OR c.email LIKE ?'
         . ' OR c.tax_number LIKE ? OR IFNULL(r.name_ar, \'\') LIKE ?'
         . ' OR IFNULL(' . $repNamesSub . ', \'\') LIKE ?'
         . ' OR IFNULL(rg.name_ar, \'\') LIKE ?'
+        . ' OR IFNULL(ra.name_ar, \'\') LIKE ?'
         . ' OR EXISTS (
               SELECT 1 FROM crm_customer_sales_rep csr3
               INNER JOIN crm_sales_rep r3 ON r3.id = csr3.sales_rep_id
               WHERE csr3.customer_id = c.id AND r3.name_ar LIKE ?
            ))';
     $like = '%' . $search . '%';
-    $params = array_fill(0, 9, $like);
+    array_push($params, $like, $like, $like, $like, $like, $like, $like, $like, $like, $like);
 }
 if ($whereParts !== []) {
     $sql .= ' WHERE ' . implode(' AND ', $whereParts);
@@ -584,7 +591,8 @@ require_once app_path('includes/list_pagination.php');
 
 $countSql = 'SELECT COUNT(*) FROM crm_customer c
              LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
-             LEFT JOIN crm_region rg ON rg.id = c.region_id';
+             LEFT JOIN crm_region rg ON rg.id = c.region_id
+             LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id';
 if ($whereParts !== []) {
     $countSql .= ' WHERE ' . implode(' AND ', $whereParts);
 }
@@ -592,8 +600,18 @@ $stCount = $pdo->prepare($countSql);
 $stCount->execute($params);
 $listTotal = (int) $stCount->fetchColumn();
 
+$listPagerQuery = [];
+if ($search !== '') {
+    $listPagerQuery['q'] = $search;
+}
+if ($showInactive) {
+    $listPagerQuery['all'] = '1';
+}
+if ($regionFilterId > 0) {
+    $listPagerQuery['region_id'] = (string) $regionFilterId;
+}
 $pager = list_pager_with_total(list_pager_from_request($pdo), $listTotal);
-$listPagerUrl = list_pager_base_url('customers', $search !== '' ? ['q' => $search] : []);
+$listPagerUrl = list_pager_base_url('customers', $listPagerQuery);
 
 $sql .= ' ORDER BY c.id DESC' . list_pager_sql_limit($pager);
 
@@ -614,144 +632,233 @@ try {
 } catch (Throwable $e) {
     $oracleLinkedCount = 0;
 }
+
+$allRegions = crm_region_load_all($pdo);
+$cssPath = app_path('assets/css/regions-ssms.css');
+$cssUrl = app_url('assets/css/regions-ssms.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
+$cssCustPath = app_path('assets/css/customers-ssms.css');
+$cssCustUrl = app_url('assets/css/customers-ssms.css') . (is_file($cssCustPath) ? '?v=' . (string) filemtime($cssCustPath) : '');
+$csrf = csrf_token();
+$regionsUrl = app_url('index.php?r=customer_regions');
+$repsUrl = app_url('index.php?r=sales_reps');
 ?>
 <?php sales_ora12_enqueue_assets(); ?>
+<link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+<link rel="stylesheet" href="<?= esc($cssCustUrl) ?>">
 
-<div class="dashboard-ora sales-ora12-screen customers-ora-screen customers-ora-list-page">
-    <?php sales_ora12_render_title_bar('العملاء'); ?>
-    <?php sales_ora12_workspace_open(); ?>
-    <?php if ($flash): ?>
-        <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> sales-ora-flash"><?= esc($flash['message']) ?></div>
-    <?php endif; ?>
+<div class="dashboard-ora sales-ora12-screen rg-ssms cu-ssms" data-exit-guard="custom">
+    <header class="dashboard-ora-screen-title no-print" role="banner">
+        <h1 class="dashboard-ora-screen-title__text">العملاء</h1>
+        <span class="dashboard-ora-screen-title__meta"><?= (int) $listTotal ?> صف</span>
+        <?php nav_render_screen_close($GLOBALS['activeRoute'] ?? 'customers'); ?>
+    </header>
 
-    <div class="sales-ora-toolbar toolbar" style="flex-wrap:wrap;gap:0.5rem;">
-        <a class="btn btn-primary btn-sm" href="<?= esc($addUrl) ?>">➕ إضافة عميل</a>
-        <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=customer_regions')) ?>">🗺️ المناطق</a>
-        <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=sales_reps')) ?>">المندوبين</a>
-        <?php if ($oracleMapReady || oracle_is_enabled()): ?>
-            <form method="post" style="display:inline;" data-confirm="تحديث العملاء وحساباتهم من Oracle الآن؟">
-                <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                <input type="hidden" name="_action" value="oracle_sync">
-                <button type="submit" class="btn btn-secondary btn-sm">🔄 تحديث من Oracle (دائم)</button>
-            </form>
-        <?php else: ?>
-            <a class="btn btn-ghost btn-sm" href="<?= esc(app_url('index.php?r=oracle_customers_sync')) ?>">
-                إعداد تكامل Oracle
-            </a>
+    <div class="dashboard-ora-workspace rg-ssms-workspace">
+        <?php if ($flash): ?>
+            <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : 'error' ?> rg-ssms-flash"><?= esc($flash['message']) ?></div>
         <?php endif; ?>
-        <span class="muted" style="font-size:0.85rem;align-self:center;">
-            مربوط بـ Oracle: <?= (int) $oracleLinkedCount ?> عميل
-        </span>
-    </div>
 
-    <div class="sales-ora-panel card">
-        <form method="get" action="<?= esc(app_url('index.php')) ?>" class="sales-ora-search-form form-row">
-            <input type="hidden" name="r" value="customers">
-            <label class="field customers-ora-search-field">
-                <span class="field-label">بحث عن العميل</span>
-                <input class="input" type="search" name="q" value="<?= esc($search) ?>"
-                       placeholder="الاسم، الرمز، الهاتف، المنطقة، المندوب…" autocomplete="off" spellcheck="false">
-            </label>
-            <div class="customers-ora-search-actions">
-                <button type="submit" class="btn btn-secondary btn-sm">بحث</button>
-                <?php if ($search !== ''): ?>
-                    <a class="btn btn-ghost btn-sm" href="<?= esc($listUrl) ?>">مسح</a>
-                <?php endif; ?>
-            </div>
-        </form>
-    </div>
-
-    <div class="sales-ora-panel card">
-    <div class="table-wrap">
-        <table class="data-table">
-            <thead>
-            <tr>
-                <th>#</th>
-                <th>الرمز</th>
-                <th>الاسم</th>
-                <th>المنطقة</th>
-                <th>الهاتف</th>
-                <th>المندوب</th>
-                <th>Oracle</th>
-                <th>الموقع</th>
-                <th>الحالة</th>
-                <th>إجراءات</th>
-            </tr>
-            </thead>
-            <tbody>
-            <?php if (!$rows): ?>
-                <tr>
-                    <td colspan="10" class="muted">
-                        <?= $search !== '' ? 'لا يوجد عميل مطابق لبحثك.' : 'لا يوجد عملاء بعد. استخدم تكامل Oracle أو أضِف عميلاً.' ?>
-                    </td>
-                </tr>
+        <div class="rg-ssms-toolbar" role="toolbar">
+            <a class="rg-tb rg-tb--primary" href="<?= esc($addUrl) ?>"><span class="rg-tb-ico">＋</span> عميل</a>
+            <span class="rg-tb-sep"></span>
+            <a class="rg-tb" href="<?= esc($regionsUrl) ?>">المناطق</a>
+            <a class="rg-tb" href="<?= esc($repsUrl) ?>">المندوبون</a>
+            <span class="rg-tb-sep"></span>
+            <?php if ($oracleMapReady || oracle_is_enabled()): ?>
+                <form method="post" class="cu-ssms-inline-form" data-confirm="تحديث العملاء وحساباتهم من Oracle الآن؟">
+                    <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                    <input type="hidden" name="_action" value="oracle_sync">
+                    <button type="submit" class="rg-tb"><span class="rg-tb-ico">↻</span> Oracle Sync</button>
+                </form>
+            <?php else: ?>
+                <a class="rg-tb" href="<?= esc(app_url('index.php?r=oracle_customers_sync')) ?>">إعداد Oracle</a>
             <?php endif; ?>
-            <?php foreach ($rows as $c):
-                $custId = (int) $c['id'];
-                $usageCount = (int) ($customerUsageCounts[$custId] ?? 0);
-                $blockedDelete = $usageCount > 0;
-                $custName = (string) $c['name_ar'];
-                $deleteConfirm = 'حذف العميل «' . $custName . '» نهائياً من النظام؟';
-                $blockTitle = 'تعذر الحذف: مرتبط بـ ' . $usageCount . ' حركة';
-                $hasLoc = isset($c['latitude'], $c['longitude'])
-                    && $c['latitude'] !== null && $c['latitude'] !== ''
-                    && $c['longitude'] !== null && $c['longitude'] !== '';
-                $okey = trim((string) ($c['oracle_key'] ?? ''));
-                ?>
-                <tr>
-                    <td><?= $custId ?></td>
-                    <td><code><?= esc((string) $c['code']) ?></code></td>
-                    <td><?= esc((string) $c['name_ar']) ?></td>
-                    <td><?= esc((string) ($c['region_name'] ?? '') !== '' ? (string) $c['region_name'] : '—') ?></td>
-                    <td><?= esc((string) ($c['phone'] ?? '')) ?></td>
-                    <td><?= esc((string) ($c['sales_rep_name'] ?? '—')) ?></td>
-                    <td><?= $okey !== '' ? '<span title="' . esc($okey) . '">✓</span>' : '—' ?></td>
-                    <td><?= $hasLoc ? '📍 محدد' : '—' ?></td>
-                    <td>
-                        <?php if ((int) $c['is_active']): ?>
-                            <span class="badge badge-ok">نشط</span>
-                        <?php else: ?>
-                            <span class="badge badge-off">موقوف</span>
+            <span class="rg-tb-sep"></span>
+            <?php if ($showInactive): ?>
+                <a class="rg-tb" href="<?= esc(app_url('index.php?r=customers' . ($search !== '' ? '&q=' . rawurlencode($search) : '') . ($regionFilterId > 0 ? '&region_id=' . $regionFilterId : ''))) ?>">نشط فقط</a>
+            <?php else: ?>
+                <a class="rg-tb" href="<?= esc(app_url('index.php?r=customers&all=1' . ($search !== '' ? '&q=' . rawurlencode($search) : '') . ($regionFilterId > 0 ? '&region_id=' . $regionFilterId : ''))) ?>">الكل</a>
+            <?php endif; ?>
+            <span class="rg-tb-grow"></span>
+            <span class="rg-tb-hint" dir="ltr">dbo.crm_customer · Oracle <?= (int) $oracleLinkedCount ?></span>
+        </div>
+
+        <div class="rg-ssms-split cu-ssms-split">
+            <aside class="rg-ssms-explorer" aria-label="مستكشف العملاء">
+                <div class="rg-ssms-pane-title">
+                    <span class="rg-ssms-folder">🗀</span> Object Explorer
+                </div>
+                <div class="rg-ssms-tree-head">
+                    <span class="rg-ssms-server">■ CRM → Customers</span>
+                </div>
+                <ul class="rg-ssms-tree">
+                    <li class="<?= $regionFilterId < 1 ? 'is-selected' : '' ?>">
+                        <a class="rg-ssms-node" href="<?= esc(app_url('index.php?r=customers' . ($search !== '' ? '&q=' . rawurlencode($search) : '') . ($showInactive ? '&all=1' : ''))) ?>">
+                            <span class="rg-ssms-icon">▣</span>
+                            <span class="rg-ssms-node-name">All Customers</span>
+                            <span class="rg-ssms-badge" dir="ltr"><?= $regionFilterId < 1 ? (int) $listTotal : '…' ?></span>
+                        </a>
+                    </li>
+                    <li class="cu-ssms-tree-group">
+                        <span class="cu-ssms-group-label">Folders / Regions</span>
+                    </li>
+                    <?php foreach ($allRegions as $rg):
+                        $rid = (int) $rg['id'];
+                        $active = $rid === $regionFilterId;
+                        $href = app_url(
+                            'index.php?r=customers&region_id=' . $rid
+                            . ($search !== '' ? '&q=' . rawurlencode($search) : '')
+                            . ($showInactive ? '&all=1' : '')
+                        );
+                        ?>
+                        <li class="<?= $active ? 'is-selected' : '' ?><?= (int) ($rg['is_active'] ?? 1) ? '' : ' is-off' ?>">
+                            <a class="rg-ssms-node" href="<?= esc($href) ?>">
+                                <span class="rg-ssms-icon">▤</span>
+                                <span class="rg-ssms-node-name"><?= esc((string) $rg['name_ar']) ?></span>
+                                <span class="rg-ssms-badge" dir="ltr"><?= (int) ($rg['customer_count'] ?? 0) ?></span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </aside>
+
+            <main class="rg-ssms-results">
+                <div class="rg-ssms-pane-title">
+                    <span class="rg-ssms-folder">▦</span>
+                    Results
+                    <?php if ($regionFilterId > 0): ?>
+                        <?php
+                        $rfName = '';
+                        foreach ($allRegions as $rg) {
+                            if ((int) $rg['id'] === $regionFilterId) {
+                                $rfName = (string) $rg['name_ar'];
+                                break;
+                            }
+                        }
+                        ?>
+                        <span class="rg-ssms-muted">— <?= esc($rfName !== '' ? $rfName : ('region_id=' . $regionFilterId)) ?></span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="rg-ssms-grid-bar">
+                    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="rg-ssms-grid-add cu-ssms-search">
+                        <input type="hidden" name="r" value="customers">
+                        <?php if ($regionFilterId > 0): ?>
+                            <input type="hidden" name="region_id" value="<?= $regionFilterId ?>">
                         <?php endif; ?>
-                    </td>
-                    <td>
-                        <div class="row-actions">
-                            <a class="btn btn-secondary btn-sm" href="<?= esc(app_url('index.php?r=customers&action=edit&id=' . (int) $c['id'])) ?>">تعديل</a>
-                            <?php if ($okey !== '' || str_starts_with((string) $c['code'], '112')):
-                                $stmtAcc = $okey !== '' ? $okey : (string) $c['code'];
-                                $stmtUrl = app_url(
-                                    'index.php?r=report_oracle_customer_statement'
-                                    . '&customer_id=' . $custId
-                                    . '&account=' . rawurlencode($stmtAcc)
-                                    . '&from=01-01-2020'
-                                );
-                                ?>
-                                <a class="btn btn-ghost btn-sm" href="<?= esc($stmtUrl) ?>" title="كشف حساب تفصيلي من Oracle">كشف Oracle</a>
-                            <?php endif; ?>
-                            <form method="post" action="<?= esc($listUrl) ?>" data-confirm="تغيير حالة العميل؟">
-                                <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                                <input type="hidden" name="_action" value="toggle">
-                                <input type="hidden" name="id" value="<?= (int) $c['id'] ?>">
-                                <button class="btn btn-danger btn-sm" type="submit"><?= (int) $c['is_active'] ? 'تعطيل' : 'تفعيل' ?></button>
-                            </form>
-                            <?php if ($blockedDelete): ?>
-                                <button class="btn btn-danger btn-sm" type="button" disabled title="<?= esc($blockTitle) ?>">حذف</button>
-                            <?php else: ?>
-                                <form method="post" action="<?= esc($listUrl) ?>" data-confirm="<?= esc($deleteConfirm) ?>">
-                                    <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-                                    <input type="hidden" name="_action" value="delete">
-                                    <input type="hidden" name="id" value="<?= $custId ?>">
-                                    <button class="btn btn-danger btn-sm" type="submit">حذف</button>
-                                </form>
-                            <?php endif; ?>
-                        </div>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
+                        <?php if ($showInactive): ?>
+                            <input type="hidden" name="all" value="1">
+                        <?php endif; ?>
+                        <span class="rg-ssms-muted">Filter:</span>
+                        <input class="rg-ssms-input rg-ssms-input--wide" type="search" name="q" value="<?= esc($search) ?>"
+                               placeholder="Name / Code / Phone / Region / Rep" autocomplete="off" spellcheck="false">
+                        <button class="rg-tb rg-tb--primary" type="submit">Execute</button>
+                        <?php if ($search !== ''): ?>
+                            <a class="rg-tb" href="<?= esc(app_url('index.php?r=customers' . ($regionFilterId > 0 ? '&region_id=' . $regionFilterId : '') . ($showInactive ? '&all=1' : ''))) ?>">Clear</a>
+                        <?php endif; ?>
+                    </form>
+                </div>
+
+                <div class="rg-ssms-grid-wrap">
+                    <table class="rg-ssms-grid cu-ssms-grid">
+                        <thead>
+                        <tr>
+                            <th class="col-sel">#</th>
+                            <th class="col-id">ID</th>
+                            <th>Code</th>
+                            <th class="col-name">Name</th>
+                            <th>Region</th>
+                            <th>Address</th>
+                            <th>Phone</th>
+                            <th>Sales Rep</th>
+                            <th>Oracle</th>
+                            <th class="col-status">Status</th>
+                            <th class="col-act">Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <?php if (!$rows): ?>
+                            <tr class="rg-ssms-empty-row">
+                                <td colspan="11">
+                                    <?= $search !== '' ? 'No rows matching filter.' : 'No rows — (0 row(s) returned)' ?>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php
+                        $rowNum = 0;
+                        foreach ($rows as $c):
+                            $rowNum++;
+                            $custId = (int) $c['id'];
+                            $usageCount = (int) ($customerUsageCounts[$custId] ?? 0);
+                            $blockedDelete = $usageCount > 0;
+                            $custName = (string) $c['name_ar'];
+                            $deleteConfirm = 'حذف العميل «' . $custName . '» نهائياً من النظام؟';
+                            $blockTitle = 'تعذر الحذف: مرتبط بـ ' . $usageCount . ' حركة';
+                            $okey = trim((string) ($c['oracle_key'] ?? ''));
+                            $on = (int) $c['is_active'];
+                            $regionLabel = trim((string) ($c['region_name'] ?? ''));
+                            $addrLabel = trim((string) ($c['region_address_name'] ?? ''));
+                            ?>
+                            <tr class="<?= $on ? '' : 'is-off' ?>">
+                                <td class="col-sel"><?= $rowNum ?></td>
+                                <td class="col-id" dir="ltr"><?= $custId ?></td>
+                                <td dir="ltr" class="cu-ssms-code">
+                                    <a href="<?= esc(app_url('index.php?r=customers&action=edit&id=' . $custId)) ?>"><?= esc((string) $c['code']) ?></a>
+                                </td>
+                                <td class="col-name"><?= esc((string) $c['name_ar']) ?></td>
+                                <td><?= esc($regionLabel !== '' ? $regionLabel : '—') ?></td>
+                                <td><?= esc($addrLabel !== '' ? $addrLabel : '—') ?></td>
+                                <td dir="ltr"><?= esc((string) ($c['phone'] ?? '') !== '' ? (string) $c['phone'] : '—') ?></td>
+                                <td><?= esc((string) ($c['sales_rep_name'] ?? '') !== '' ? (string) $c['sales_rep_name'] : '—') ?></td>
+                                <td class="cu-ssms-ora" title="<?= esc($okey) ?>"><?= $okey !== '' ? '✓' : '—' ?></td>
+                                <td class="col-status">
+                                    <span class="rg-status <?= $on ? 'on' : 'off' ?>"><?= $on ? 'Active' : 'Off' ?></span>
+                                </td>
+                                <td class="col-act">
+                                    <a href="<?= esc(app_url('index.php?r=customers&action=edit&id=' . $custId)) ?>">Edit</a>
+                                    <?php if ($okey !== '' || str_starts_with((string) $c['code'], '112')):
+                                        $stmtAcc = $okey !== '' ? $okey : (string) $c['code'];
+                                        $stmtUrl = app_url(
+                                            'index.php?r=report_oracle_customer_statement'
+                                            . '&customer_id=' . $custId
+                                            . '&account=' . rawurlencode($stmtAcc)
+                                            . '&from=01-01-2020'
+                                        );
+                                        ?>
+                                        <a href="<?= esc($stmtUrl) ?>" title="كشف Oracle">Oracle</a>
+                                    <?php endif; ?>
+                                    <form method="post" action="<?= esc($listUrl) ?>" data-confirm="تغيير حالة العميل؟">
+                                        <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                                        <input type="hidden" name="_action" value="toggle">
+                                        <input type="hidden" name="id" value="<?= $custId ?>">
+                                        <button type="submit"><?= $on ? 'Disable' : 'Enable' ?></button>
+                                    </form>
+                                    <?php if ($blockedDelete): ?>
+                                        <button type="button" disabled title="<?= esc($blockTitle) ?>">Delete</button>
+                                    <?php else: ?>
+                                        <form method="post" action="<?= esc($listUrl) ?>" data-confirm="<?= esc($deleteConfirm) ?>">
+                                            <input type="hidden" name="_csrf" value="<?= esc($csrf) ?>">
+                                            <input type="hidden" name="_action" value="delete">
+                                            <input type="hidden" name="id" value="<?= $custId ?>">
+                                            <button type="submit" class="danger">Delete</button>
+                                        </form>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="rg-ssms-status-bar">
+                    <span><?= count($rows) ?> row(s) displayed · <?= (int) $listTotal ?> total</span>
+                    <span dir="ltr">SELECT * FROM crm_customer<?= $regionFilterId > 0 ? ' WHERE region_id=' . $regionFilterId : '' ?></span>
+                    <span>Query executed successfully</span>
+                </div>
+                <div class="cu-ssms-pager">
+                    <?php list_pager_render($pager, $listPagerUrl); ?>
+                </div>
+            </main>
+        </div>
     </div>
-    <?php list_pager_render($pager, $listPagerUrl); ?>
-    </div>
-    <?php sales_ora12_workspace_close(); ?>
 </div>
