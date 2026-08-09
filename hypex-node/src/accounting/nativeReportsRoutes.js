@@ -730,11 +730,12 @@ router.get('/accounting/reports/party-statement', async (req, res) => {
 router.get('/accounting/reports/oracle-statement', async (req, res) => {
   if (!can(req.session.user, 'report_oracle_customer_statement')) return forbid(res);
   const { from, to } = svc.range(req.query.from, req.query.to);
-  let accountNo = String(req.query.account_no || req.query.account || '').trim();
-  const customerId = Number(req.query.customer_id || 0) || 0;
+  let accountNo = String(req.query.account_no || req.query.account || '')
+    .trim()
+    .replace(/\D+/g, '');
+  let customerId = Number(req.query.customer_id || 0) || 0;
   const run = String(req.query.run || '') === '1';
 
-  // قائمة عملاء مرتبطين بـ Oracle (للأسماء ورقم الحساب)
   let customers = [];
   try {
     customers = await db.query(
@@ -747,7 +748,7 @@ router.get('/accounting/reports/oracle-statement', async (req, res) => {
            OR code LIKE '112%'
          )
        ORDER BY name_ar
-       LIMIT 5000`
+       LIMIT 8000`
     );
   } catch {
     customers = [];
@@ -756,15 +757,45 @@ router.get('/accounting/reports/oracle-statement', async (req, res) => {
   let selectedParty = null;
   if (customerId > 0) {
     selectedParty = customers.find((c) => Number(c.id) === customerId) || null;
-    if (selectedParty && !accountNo) {
-      accountNo = String(selectedParty.acc_no || selectedParty.code || '').replace(/\D+/g, '');
+    if (!selectedParty) {
+      try {
+        const rows = await db.query(
+          `SELECT id, code, name_ar,
+                  COALESCE(NULLIF(TRIM(oracle_key), ''), code) AS acc_no
+           FROM crm_customer WHERE id = ? LIMIT 1`,
+          [customerId]
+        );
+        selectedParty = rows[0] || null;
+      } catch {
+        /* ignore */
+      }
     }
   }
-  if (!accountNo && req.query.account) {
-    accountNo = String(req.query.account).replace(/\D+/g, '');
+  if (!selectedParty && accountNo) {
+    selectedParty =
+      customers.find(
+        (c) =>
+          String(c.acc_no || '').replace(/\D+/g, '') === accountNo ||
+          String(c.code || '').replace(/\D+/g, '') === accountNo
+      ) || null;
+    if (selectedParty) customerId = Number(selectedParty.id);
+  }
+  if (selectedParty && !accountNo) {
+    accountNo = String(selectedParty.acc_no || selectedParty.code || '').replace(/\D+/g, '');
   }
 
-  let result = '<p class="muted">اختر العميل أو أدخل رقم حساب Oracle (مثل 11200101) ثم الفترة — يتطلب إعداد Oracle على السيرفر.</p>';
+  const searchLabel = selectedParty
+    ? `${String(selectedParty.code || selectedParty.acc_no || '')} — ${String(
+        selectedParty.name_ar || ''
+      )}`
+    : accountNo
+      ? accountNo
+      : '';
+
+  let result = `
+    <div class="ora-empty no-print">
+      <p>ابحث باسم العميل أو رقم حسابه (مثل 112…) ثم اختر من القائمة وحدّد الفترة واضغط «عرض التقرير».</p>
+    </div>`;
 
   if (run && accountNo) {
     const data = await svc.run('oracle_statement', uid(req), {
@@ -777,7 +808,7 @@ router.get('/accounting/reports/oracle-statement', async (req, res) => {
       const errMsg =
         data?.error ||
         data?.message ||
-        'تعذر الاتصال بـ Oracle. تحقق من config/oracle.local.php ومشغّلات PHP (pdo_oci / oci8) على السيرفر.';
+        'تعذر الاتصال بـ Oracle. تحقق من config/oracle.local.php ومشغّلات PHP على السيرفر.';
       result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(errMsg)}</p>`;
     } else {
       const lines = Array.isArray(data.lines)
@@ -789,52 +820,63 @@ router.get('/accounting/reports/oracle-statement', async (req, res) => {
         String(data.name || '').trim() ||
         (selectedParty ? String(selectedParty.name_ar || '') : '') ||
         '';
-      const partyCode = selectedParty
-        ? String(selectedParty.code || accountNo)
-        : String(data.account || accountNo);
+      const partyCode = String(
+        (selectedParty && (selectedParty.code || selectedParty.acc_no)) || data.account || accountNo
+      );
       const cheques = Array.isArray(data.cheques) ? data.cheques : [];
+      const nTrans = lines.filter((r) => !r.is_opening).length;
 
       const head = `
-        <div class="si-surface sh-section" style="margin-bottom:.75rem;padding:1rem 1.1rem">
-          <div style="display:flex;flex-wrap:wrap;gap:1rem 2rem;align-items:baseline">
-            <div>
-              <div class="muted" style="font-size:.75rem;font-weight:700">رقم الحساب</div>
-              <strong dir="ltr">${esc(partyCode)}</strong>
+        <header class="ora-stmt-head print-area">
+          <div class="ora-stmt-head__main">
+            <p class="ora-stmt-kicker">كشف حساب تفصيلي · Oracle</p>
+            <h2 class="ora-stmt-name">${esc(name || '—')}</h2>
+            <p class="ora-stmt-meta">
+              رقم الحساب: <strong dir="ltr">${esc(partyCode)}</strong>
+              <span class="ora-dot" aria-hidden="true">·</span>
+              الفترة: <span dir="ltr">${dmy(from)} — ${dmy(to)}</span>
+              <span class="ora-dot" aria-hidden="true">·</span>
+              ${nTrans} حركة
+            </p>
+          </div>
+          <div class="ora-stmt-totals" aria-label="ملخص الأرصدة">
+            <div class="ora-stat">
+              <span>افتتاحي</span>
+              <strong dir="ltr">${money(data.opening)}</strong>
             </div>
-            <div style="flex:1;min-width:12rem">
-              <div class="muted" style="font-size:.75rem;font-weight:700">اسم العميل / الحساب</div>
-              <strong>${esc(name || '—')}</strong>
+            <div class="ora-stat">
+              <span>مدين</span>
+              <strong dir="ltr">${money(data.total_debit)}</strong>
             </div>
-            <div>
-              <div class="muted" style="font-size:.75rem;font-weight:700">الفترة</div>
-              <span dir="ltr">${dmy(from)} — ${dmy(to)}</span>
+            <div class="ora-stat">
+              <span>دائن</span>
+              <strong dir="ltr">${money(data.total_credit)}</strong>
             </div>
-            <div>
-              <div class="muted" style="font-size:.75rem;font-weight:700">الرصيد الختامي</div>
+            <div class="ora-stat ora-stat--balance">
+              <span>الرصيد الختامي</span>
               <strong dir="ltr">${money(data.balance)}</strong>
             </div>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:1.25rem;margin-top:.75rem;font-size:.88rem">
-            <span>افتتاحي: <strong dir="ltr">${money(data.opening)}</strong></span>
-            <span>إجمالي مدين: <strong dir="ltr">${money(data.total_debit)}</strong></span>
-            <span>إجمالي دائن: <strong dir="ltr">${money(data.total_credit)}</strong></span>
-          </div>
-        </div>`;
+        </header>`;
 
       const bodyRows =
         lines
           .map((r) => {
             const isOpen = !!r.is_opening;
             const docLabel = isOpen
-              ? ''
-              : [r.doc_type, r.doc_no].filter(Boolean).join(' · ') || String(r.doc_no || '');
-            return `<tr class="${isOpen ? 'is-opening' : ''}">
-              <td dir="ltr">${dmy(r.trn_date)}</td>
-              <td>${esc(docLabel)}</td>
-              <td>${esc(String(r.description || ''))}</td>
-              <td dir="ltr" class="si-num">${isOpen && !Number(r.debit) ? '' : money(r.debit)}</td>
-              <td dir="ltr" class="si-num">${isOpen && !Number(r.credit) ? '' : money(r.credit)}</td>
-              <td dir="ltr" class="si-num"><strong>${money(r.balance)}</strong></td>
+              ? '—'
+              : [r.doc_type, r.doc_no].filter(Boolean).join(' · ') || String(r.doc_no || '—');
+            return `<tr class="${isOpen ? 'ora-row-open is-opening' : ''}">
+              <td class="ora-c-date" dir="ltr">${dmy(r.trn_date)}</td>
+              <td class="ora-c-doc">${esc(docLabel)}</td>
+              <td class="ora-c-desc">${esc(String(r.description || ''))}</td>
+              <td class="ora-c-amt" dir="ltr">${
+                isOpen && !Number(r.debit) ? '—' : money(r.debit)
+              }</td>
+              <td class="ora-c-amt" dir="ltr">${
+                isOpen && !Number(r.credit) ? '—' : money(r.credit)
+              }</td>
+              <td class="ora-c-bal" dir="ltr"><strong>${money(r.balance)}</strong></td>
             </tr>`;
           })
           .join('') ||
@@ -842,84 +884,238 @@ router.get('/accounting/reports/oracle-statement', async (req, res) => {
           data.message || 'لا توجد حركات في هذه الفترة.'
         )}</td></tr>`;
 
+      const foot = `
+        <tfoot>
+          <tr class="ora-foot">
+            <td colspan="3">الإجمالي</td>
+            <td dir="ltr">${money(data.total_debit)}</td>
+            <td dir="ltr">${money(data.total_credit)}</td>
+            <td dir="ltr"><strong>${money(data.balance)}</strong></td>
+          </tr>
+        </tfoot>`;
+
       let chequesHtml = '';
       if (cheques.length) {
         chequesHtml = `
-          <div class="si-surface sh-section" style="margin-top:.85rem">
-            <div class="si-surface-head"><h2>شيكات قيد التحصيل</h2>
-              <span class="muted">الإجمالي: <strong dir="ltr">${money(data.cheque_total)}</strong></span>
+          <section class="ora-cheques print-area">
+            <div class="ora-cheques__head">
+              <h3>شيكات قيد التحصيل</h3>
+              <span>الإجمالي: <strong dir="ltr">${money(data.cheque_total)}</strong> · ${
+                cheques.length
+              } شيك</span>
             </div>
-            <div class="si-table-wrap"><table class="si-table">
-              <thead><tr>
-                <th>رقم الشيك</th><th>تاريخ الاستحقاق</th><th>المبلغ</th><th>الاسم</th><th>مرجع</th>
-              </tr></thead>
-              <tbody>${cheques
-                .map(
-                  (c) => `<tr>
-                  <td dir="ltr">${esc(String(c.chq_no || ''))}</td>
-                  <td dir="ltr">${dmy(c.chq_date)}</td>
-                  <td dir="ltr">${money(c.amount)}</td>
-                  <td>${esc(String(c.name || ''))}</td>
-                  <td dir="ltr">${esc(String(c.receipt_ref || ''))}</td>
-                </tr>`
-                )
-                .join('')}</tbody>
-            </table></div>
-          </div>`;
+            <div class="si-table-wrap">
+              <table class="si-table ora-table">
+                <thead><tr>
+                  <th>رقم الشيك</th><th>الاستحقاق</th><th>المبلغ</th><th>الاسم</th><th>مرجع</th>
+                </tr></thead>
+                <tbody>${cheques
+                  .map(
+                    (c) => `<tr>
+                    <td dir="ltr">${esc(String(c.chq_no || ''))}</td>
+                    <td dir="ltr">${dmy(c.chq_date)}</td>
+                    <td dir="ltr">${money(c.amount)}</td>
+                    <td>${esc(String(c.name || ''))}</td>
+                    <td dir="ltr">${esc(String(c.receipt_ref || ''))}</td>
+                  </tr>`
+                  )
+                  .join('')}</tbody>
+              </table>
+            </div>
+          </section>`;
       }
 
-      result = `${head}
-        <div class="si-surface sh-section">
-          <div class="si-table-wrap"><table class="si-table">
-            <thead><tr>
-              <th>التاريخ</th><th>المستند</th><th>البيان</th>
-              <th>مدين</th><th>دائن</th><th>الرصيد</th>
-            </tr></thead>
-            <tbody>${bodyRows}</tbody>
-          </table></div>
+      result = `<div class="ora-stmt print-area">
+        ${head}
+        <div class="si-surface sh-section ora-stmt-body">
+          <div class="si-table-wrap">
+            <table class="si-table ora-table">
+              <thead><tr>
+                <th class="ora-c-date">التاريخ</th>
+                <th class="ora-c-doc">المستند</th>
+                <th class="ora-c-desc">البيان</th>
+                <th class="ora-c-amt">مدين</th>
+                <th class="ora-c-amt">دائن</th>
+                <th class="ora-c-bal">الرصيد</th>
+              </tr></thead>
+              <tbody>${bodyRows}</tbody>
+              ${foot}
+            </table>
+          </div>
         </div>
-        ${chequesHtml}`;
+        ${chequesHtml}
+      </div>`;
     }
   } else if (run && !accountNo) {
-    result = `<p class="si-pill si-pill--lock" style="display:inline-block">اختر عميلاً أو أدخل رقم الحساب.</p>`;
+    result = `<p class="si-pill si-pill--lock" style="display:inline-block">اختر عميلاً من البحث الذكي أو أدخل رقم الحساب.</p>`;
   }
 
-  const custOpts = customers
-    .map((c) => {
-      const acc = String(c.acc_no || c.code || '');
-      const label = `${c.name_ar || ''} — ${c.code || acc}`;
-      return `<option value="${Number(c.id)}" data-acc="${esc(acc)}" ${
-        customerId === Number(c.id) ? 'selected' : ''
-      }>${esc(label)}</option>`;
-    })
-    .join('');
+  const catalogJson = JSON.stringify(
+    customers.map((c) => ({
+      id: Number(c.id),
+      code: String(c.code || ''),
+      acc: String(c.acc_no || c.code || '').replace(/\D+/g, ''),
+      name: String(c.name_ar || ''),
+    }))
+  ).replace(/</g, '\\u003c');
 
   const filters = `
-    <form class="si-search ar-filters" method="get" action="/accounting/reports/oracle-statement" id="ora-stmt-form">
+    <form class="ora-filters no-print" method="get" action="/accounting/reports/oracle-statement" id="ora-stmt-form" autocomplete="off">
       <input type="hidden" name="run" value="1">
-      <label style="min-width:16rem">العميل
-        <select class="si-field" name="customer_id" id="ora-customer">
-          <option value="0">— اختر بالاسم —</option>
-          ${custOpts}
-        </select>
-      </label>
-      <label>رقم الحساب Oracle
-        <input class="si-field si-field--mono" name="account_no" id="ora-account" value="${esc(
-          accountNo
-        )}" placeholder="11200101" dir="ltr">
-      </label>
-      ${dateFields(from, to)}
-      <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+      <input type="hidden" name="customer_id" id="ora-cid" value="${customerId || 0}">
+
+      <div class="ora-filters__grid">
+        <label class="ora-field ora-field--search">
+          <span>العميل <em>(بحث بالاسم أو الرقم)</em></span>
+          <div class="ora-search-wrap si-cust-wrap">
+            <input type="search" class="si-field ora-search-input" id="ora-search"
+                   value="${esc(searchLabel)}"
+                   placeholder="اكتب جزءاً من الاسم أو رقم الحساب 112…"
+                   autocomplete="off" spellcheck="false">
+            <div class="si-suggest ora-suggest" id="ora-suggest" hidden></div>
+          </div>
+        </label>
+
+        <label class="ora-field ora-field--acc">
+          <span>رقم الحساب Oracle</span>
+          <input class="si-field si-field--mono" name="account_no" id="ora-account"
+                 value="${esc(accountNo)}" placeholder="11200101" dir="ltr" inputmode="numeric">
+        </label>
+
+        <label class="ora-field">
+          <span>من تاريخ</span>
+          <input class="si-field" type="date" name="from" value="${esc(from)}">
+        </label>
+        <label class="ora-field">
+          <span>إلى تاريخ</span>
+          <input class="si-field" type="date" name="to" value="${esc(to)}">
+        </label>
+
+        <div class="ora-field ora-field--actions">
+          <button class="si-btn si-btn--primary ora-run-btn" type="submit">عرض التقرير</button>
+        </div>
+      </div>
     </form>
+    <script type="application/json" id="ora-catalog">${catalogJson}</script>
     <script>
-      (function(){
-        var sel = document.getElementById('ora-customer');
+      (function () {
+        var catalog = [];
+        try {
+          catalog = JSON.parse(document.getElementById('ora-catalog').textContent || '[]');
+        } catch (e) { catalog = []; }
+        var search = document.getElementById('ora-search');
+        var suggest = document.getElementById('ora-suggest');
+        var cid = document.getElementById('ora-cid');
         var acc = document.getElementById('ora-account');
-        if (!sel || !acc) return;
-        sel.addEventListener('change', function(){
-          var opt = sel.options[sel.selectedIndex];
-          var a = opt && opt.getAttribute('data-acc');
-          if (a) acc.value = a;
+        if (!search || !suggest || !cid || !acc) return;
+
+        function norm(s) {
+          return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim();
+        }
+        function digits(s) {
+          return String(s || '').replace(/\\D+/g, '');
+        }
+        function labelOf(c) {
+          return (c.code || c.acc || '') + ' — ' + (c.name || '');
+        }
+        function pick(c) {
+          cid.value = String(c.id || 0);
+          acc.value = c.acc || digits(c.code) || '';
+          search.value = labelOf(c);
+          suggest.hidden = true;
+          suggest.innerHTML = '';
+        }
+        function render(list) {
+          if (!list.length) {
+            suggest.innerHTML = '<div class="ora-suggest-empty">لا نتائج مطابقة</div>';
+            suggest.hidden = false;
+            return;
+          }
+          suggest.innerHTML = list
+            .map(function (c) {
+              return (
+                '<button type="button" class="ora-suggest-item" data-id="' +
+                c.id +
+                '">' +
+                '<span class="ora-suggest-acc" dir="ltr">' +
+                String(c.acc || c.code || '') +
+                '</span>' +
+                '<span class="ora-suggest-name">' +
+                String(c.name || '') +
+                '</span>' +
+                '</button>'
+              );
+            })
+            .join('');
+          suggest.hidden = false;
+          suggest.querySelectorAll('.ora-suggest-item').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              var id = Number(btn.getAttribute('data-id') || 0);
+              var c = catalog.find(function (x) { return Number(x.id) === id; });
+              if (c) pick(c);
+            });
+          });
+        }
+        function filter(q) {
+          q = norm(q);
+          var qd = digits(q);
+          if (!q) return catalog.slice(0, 40);
+          return catalog
+            .filter(function (c) {
+              var name = norm(c.name);
+              var code = norm(c.code);
+              var a = digits(c.acc || c.code);
+              if (name.indexOf(q) !== -1 || code.indexOf(q) !== -1) return true;
+              if (qd && a.indexOf(qd) !== -1) return true;
+              return false;
+            })
+            .slice(0, 40);
+        }
+        var t = null;
+        search.addEventListener('input', function () {
+          cid.value = '0';
+          clearTimeout(t);
+          t = setTimeout(function () {
+            var q = search.value;
+            if (!String(q).trim()) {
+              suggest.hidden = true;
+              suggest.innerHTML = '';
+              return;
+            }
+            render(filter(q));
+          }, 120);
+        });
+        search.addEventListener('focus', function () {
+          if (String(search.value || '').trim()) render(filter(search.value));
+        });
+        search.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') {
+            suggest.hidden = true;
+          }
+          if (e.key === 'Enter') {
+            var first = suggest.querySelector('.ora-suggest-item');
+            if (first && !suggest.hidden) {
+              e.preventDefault();
+              first.click();
+            }
+          }
+        });
+        document.addEventListener('click', function (e) {
+          if (!suggest.contains(e.target) && e.target !== search) {
+            suggest.hidden = true;
+          }
+        });
+        acc.addEventListener('input', function () {
+          cid.value = '0';
+          var d = digits(acc.value);
+          if (!d) return;
+          var hit = catalog.find(function (c) {
+            return digits(c.acc || c.code) === d;
+          });
+          if (hit) {
+            cid.value = String(hit.id);
+            search.value = labelOf(hit);
+          }
         });
       })();
     </script>`;
@@ -930,20 +1126,13 @@ router.get('/accounting/reports/oracle-statement', async (req, res) => {
     'كشف حساب تفصيلي Oracle',
     shell(
       'كشف حساب تفصيلي Oracle',
-      nameFromSelectionHint(selectedParty, accountNo),
+      'بحث ذكي بالاسم أو رقم الحساب · بيانات من Oracle',
       filters,
       result
     )
   );
 });
 
-function nameFromSelectionHint(party, accountNo) {
-  if (party && party.name_ar) {
-    return esc(String(party.name_ar)) + ' · <span dir="ltr">' + esc(String(party.code || accountNo)) + '</span>';
-  }
-  if (accountNo) return 'حساب <span dir="ltr">' + esc(accountNo) + '</span>';
-  return 'اختر العميل بالاسم أو برقم حساب Oracle';
-}
 /* ═══════════════ Checks reports ═══════════════ */
 router.get('/accounting/reports/checks-in', async (req, res) => {
   if (!can(req.session.user, 'report_incoming_checks')) return forbid(res);
