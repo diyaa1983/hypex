@@ -215,13 +215,17 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
   const custChecks = customers
     .map((c) => {
       const linked = !selectedRep || !c.sales_rep_id || Number(c.sales_rep_id) === selectedRep;
-      const cls = linked ? '' : ' style="opacity:.55"';
-      return `<label${cls} style="display:flex;align-items:center;gap:.4rem;font-size:.86rem;font-weight:600;padding:.2rem 0">
+      const dim = linked ? '' : ' is-dim';
+      const name = String(c.name_ar || '');
+      const code = String(c.code || '');
+      return `<label class="srr-cust__row${dim}" data-name="${esc(name.toLowerCase())}" data-code="${esc(
+        code.toLowerCase()
+      )}">
         <input type="checkbox" name="customer_ids" value="${c.id}" ${
           selectedCust.has(Number(c.id)) ? 'checked' : ''
         }>
-        <span>${esc(c.name_ar || '')}</span>
-        <span class="muted" dir="ltr" style="font-weight:500">${esc(c.code || '')}</span>
+        <span class="srr-cust__name">${esc(name)}</span>
+        <span class="srr-cust__code" dir="ltr">${esc(code)}</span>
       </label>`;
     })
     .join('');
@@ -234,10 +238,10 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       <td>${ui.esc(r.sales_rep_name || '')}</td>
       <td class="si-num" dir="ltr">${Number(r.customer_count || 0)}</td>
       <td>${dash(r.notes)}</td>
-      <td>
+      <td class="srr-table-actions">
         <a class="si-btn" href="/sales-reps/route?id=${r.id}">تعديل</a>
         <form method="post" action="/sales-reps/route/${r.id}/delete" style="display:inline" onsubmit="return confirm('حذف خط السير؟');">
-          <button type="submit" class="si-btn" style="color:#b42318">حذف</button>
+          <button type="submit" class="si-btn si-btn--danger-text">حذف</button>
         </form>
       </td>
     </tr>`
@@ -245,12 +249,10 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       .join('') || ui.emptyRow(5, 'لا خطوط سير بعد');
 
   const body = `
-    <div class="si-stage">
+    <div class="si-stage srr-page">
       ${ui.hero({
-        mark: '🗺️',
-        kicker: KICKER,
         title: 'خط سير المندوب',
-        subtitle: 'تعيين عملاء الزيارة ليوم محدد — يظهر للمندوب في تطبيق الهاتف',
+        subtitle: 'عيّن عملاء الزيارة ليوم محدد لظهورهم في تطبيق المندوب',
         actions: [
           { label: 'المندوبين', href: '/sales-reps/list' },
           { label: 'لوحة المندوبين', href: HUB },
@@ -258,38 +260,78 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       })}
       ${flash ? `<p class="si-pill si-pill--ok" style="display:inline-block">${esc(flash)}</p>` : ''}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
-      <section class="si-surface">
-        <div class="si-surface-head"><h2>${edit ? 'تعديل خط السير' : 'تعيين خط سير جديد'}</h2></div>
-        <form method="post" action="/sales-reps/route" class="si-meta" style="padding:1rem 1.1rem 1.25rem">
+
+      <section class="si-surface srr-card">
+        <div class="si-surface-head">
+          <h2>${edit ? 'تعديل خط السير' : 'تعيين خط سير جديد'}</h2>
+          <span class="si-count">${edit ? 'تعديل #' + edit.id : 'جديد'}</span>
+        </div>
+        <form method="post" action="/sales-reps/route" class="srr-form" id="srr-form" data-hx-save="1">
           <input type="hidden" name="id" value="${edit ? edit.id : 0}">
-          <label>المندوب *
-            <select class="si-field" name="sales_rep_id" required>
-              <option value="">— اختر —</option>
-              ${repOpts}
-            </select>
-          </label>
-          <label>تاريخ خط السير *
-            <input class="si-field" type="date" name="route_date" required value="${esc(routeDate)}">
-          </label>
-          <label class="si-span-2">ملاحظات
-            <input class="si-field" name="notes" value="${esc(edit?.notes || '')}" placeholder="اختياري">
-          </label>
-          <div class="si-span-2" style="border:1px solid #e4e8f0;border-radius:12px;padding:.75rem 1rem;max-height:16rem;overflow:auto">
-            <div style="font-weight:800;margin-bottom:.4rem">العملاء للزيارة (${customers.length})</div>
-            ${custChecks || '<p class="muted">لا عملاء نشطون</p>'}
+
+          <div class="srr-form__fields">
+            <div class="srr-form__row">
+              <label class="srr-field">
+                <span>المندوب <em>*</em></span>
+                <select class="si-field" name="sales_rep_id" id="srr-rep" required>
+                  <option value="">— اختر المندوب —</option>
+                  ${repOpts}
+                </select>
+              </label>
+              <label class="srr-field">
+                <span>تاريخ خط السير <em>*</em></span>
+                <input class="si-field si-field--mono" type="date" name="route_date" required value="${esc(
+                  routeDate
+                )}">
+              </label>
+            </div>
+            <label class="srr-field srr-field--full">
+              <span>ملاحظات</span>
+              <textarea class="si-field srr-notes" name="notes" rows="3" placeholder="اختياري…">${esc(
+                edit?.notes || ''
+              )}</textarea>
+            </label>
+            <div class="srr-form__actions">
+              <button class="si-btn si-btn--primary" type="submit" data-hx-save="1" title="F10">حفظ وترحيل</button>
+              <a class="si-btn" href="/sales-reps/route">جديد</a>
+              <span class="srr-selected muted" id="srr-selected-count">0 محدد</span>
+            </div>
           </div>
-          <div class="si-span-2" style="display:flex;gap:.5rem;margin-top:.35rem">
-            <button class="si-btn si-btn--primary" type="submit">حفظ وترحيل</button>
-            <a class="si-btn" href="/sales-reps/route">جديد</a>
+
+          <div class="srr-form__cust">
+            <div class="srr-cust__toolbar">
+              <div class="srr-cust__title">
+                <strong>عملاء الزيارة</strong>
+                <span class="muted" id="srr-cust-total">${customers.length}</span>
+              </div>
+              <input type="search" class="si-field srr-cust__search" id="srr-cust-q"
+                     placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
+              <div class="srr-cust__tools">
+                <label class="srr-check-all">
+                  <input type="checkbox" id="srr-check-all">
+                  <span>تحديد الظاهر</span>
+                </label>
+                <button type="button" class="si-btn srr-btn-sm" id="srr-clear">مسح التحديد</button>
+              </div>
+            </div>
+            <div class="srr-cust__list" id="srr-cust-list">
+              ${custChecks || '<p class="srr-cust__empty">لا عملاء نشطون</p>'}
+            </div>
           </div>
         </form>
       </section>
-      <div style="margin-top:.85rem">
-        <div class="si-rail">
-          <form method="get" action="/sales-reps/route" class="si-search" style="display:flex;gap:.4rem;align-items:center">
-            <label style="font-size:.8rem;font-weight:700;color:#5c6578">تصفية المندوب
-              <select name="sales_rep_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:10rem" onchange="this.form.submit()">
-                <option value="0">الكل</option>
+
+      <section class="si-surface srr-list-card">
+        <div class="si-surface-head">
+          <h2>خطوط السير المحفوظة</h2>
+          <span class="si-count">${routes.length} صف</span>
+        </div>
+        <div class="srr-list-filter">
+          <form method="get" action="/sales-reps/route" class="srr-filter-form">
+            <label>
+              <span>تصفية بالمندوب</span>
+              <select name="sales_rep_id" class="si-field" onchange="this.form.submit()">
+                <option value="0">كل المندوبين</option>
                 ${reps
                   .map(
                     (r) =>
@@ -302,15 +344,76 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
             </label>
           </form>
         </div>
-        ${ui.tableSurface(
-          'خطوط السير المحفوظة',
-          `${routes.length} صف`,
-          ['التاريخ', 'المندوب', 'عملاء', 'ملاحظات', ''],
-          listHtml
-        )}
-      </div>
-    </div>`;
-  res.send(ui.salesPage({ user: req.session.user, title: 'خط سير المندوب', bodyHtml: body }));
+        <div class="si-table-wrap srr-table-wrap">
+          <table class="si-table">
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>المندوب</th>
+                <th>عملاء</th>
+                <th>ملاحظات</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>${listHtml}</tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+    <script>
+    (function(){
+      var list=document.getElementById('srr-cust-list');
+      var q=document.getElementById('srr-cust-q');
+      var countEl=document.getElementById('srr-selected-count');
+      var totalEl=document.getElementById('srr-cust-total');
+      var all=document.getElementById('srr-check-all');
+      var clearBtn=document.getElementById('srr-clear');
+      if(!list)return;
+      function rows(){return Array.prototype.slice.call(list.querySelectorAll('.srr-cust__row'));}
+      function visibleRows(){return rows().filter(function(r){return r.style.display!=='none';});}
+      function updateCount(){
+        var n=rows().filter(function(r){var c=r.querySelector('input');return c&&c.checked;}).length;
+        if(countEl)countEl.textContent=n+' محدد';
+        var vis=visibleRows();
+        if(totalEl)totalEl.textContent=vis.length+(vis.length!==rows().length?' / '+rows().length:'');
+        if(all){
+          var visChecked=vis.filter(function(r){var c=r.querySelector('input');return c&&c.checked;});
+          all.checked=vis.length>0&&visChecked.length===vis.length;
+          all.indeterminate=visChecked.length>0&&visChecked.length<vis.length;
+        }
+      }
+      function filter(){
+        var term=String(q&&q.value||'').trim().toLowerCase();
+        rows().forEach(function(r){
+          if(!term){r.style.display='';return;}
+          var name=r.getAttribute('data-name')||'';
+          var code=r.getAttribute('data-code')||'';
+          r.style.display=(name.indexOf(term)!==-1||code.indexOf(term)!==-1)?'':'none';
+        });
+        updateCount();
+      }
+      if(q)q.addEventListener('input',filter);
+      list.addEventListener('change',function(e){if(e.target&&e.target.type==='checkbox')updateCount();});
+      if(all)all.addEventListener('change',function(){
+        var on=all.checked;
+        visibleRows().forEach(function(r){var c=r.querySelector('input');if(c)c.checked=on;});
+        updateCount();
+      });
+      if(clearBtn)clearBtn.addEventListener('click',function(){
+        rows().forEach(function(r){var c=r.querySelector('input');if(c)c.checked=false;});
+        updateCount();
+      });
+      updateCount();
+    })();
+    </script>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'خط سير المندوب',
+      bodyHtml: body,
+      css: ['/assets/css/sales-rep-route.css'],
+    })
+  );
 });
 
 router.post('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {

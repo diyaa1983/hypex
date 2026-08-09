@@ -177,12 +177,7 @@ tr.is-locked td {
   min-width: 0;
 }
 .ora-stmt-kicker {
-  margin: 0 0 0.3rem;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #0f6e6a;
+  display: none !important;
 }
 .ora-stmt-name {
   margin: 0 0 0.45rem;
@@ -333,7 +328,7 @@ tr.is-locked td {
 @media print {
   @page {
     size: A4;
-    margin: 10mm 8mm 20mm 8mm;
+    margin: 10mm 8mm 12mm 8mm;
   }
 
   html,

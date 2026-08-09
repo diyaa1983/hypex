@@ -350,17 +350,28 @@
         if (!r.ok) throw new Error('http ' + r.status);
         return r.json();
       })
-      .then(renderCustomerSuggestions)
+      .then(function (data) {
+        renderCustomerSuggestions(data);
+        if (custBox) {
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+        }
+      })
       .catch(function () {
         renderCustomerSuggestions({ ok: false, error: 'تعذر الاتصال بخدمة العملاء' });
+        if (custBox) {
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+        }
       });
   }
 
   if (custInput && custBox && !posted) {
     custInput.addEventListener('focus', function () {
-      if (custBox.hidden || !custBox.childNodes.length) {
-        searchCustomers(custInput.value || '');
-      }
+      searchCustomers(custInput.value || '');
+    });
+    custInput.addEventListener('click', function () {
+      if (custBox.hidden) searchCustomers(custInput.value || '');
     });
     custInput.addEventListener('input', function () {
       if (custId) custId.value = '';
@@ -370,9 +381,14 @@
       }, 220);
     });
     document.addEventListener('click', function (e) {
-      if (!custBox.contains(e.target) && e.target !== custInput) custBox.hidden = true;
+      if (!custBox.contains(e.target) && e.target !== custInput) {
+        custBox.hidden = true;
+        custBox.setAttribute('hidden', '');
+      }
       document.querySelectorAll('.js-item-suggest').forEach(function (box) {
-        if (!box.contains(e.target) && !box.parentElement.contains(e.target)) box.hidden = true;
+        if (!box.contains(e.target) && !box.parentElement.contains(e.target)) {
+          box.hidden = true;
+        }
       });
     });
   }

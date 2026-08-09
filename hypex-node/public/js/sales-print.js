@@ -80,72 +80,8 @@
     );
   }
 
-  function getContentHtml() {
-    var area =
-      document.querySelector('.si-print-area') ||
-      document.querySelector('.ora-stmt') ||
-      document.querySelector('.hx-print-content') ||
-      document.querySelector('main');
-    if (!area) return '';
-    var clone = area.cloneNode(true);
-    clone
-      .querySelectorAll('.no-print, .si-rail, .ora-filters, script, style, .si-hero, .sidebar')
-      .forEach(function (el) {
-        el.remove();
-      });
-    moveTotalsToTableEnd(clone);
-    return clone.innerHTML;
-  }
-
-  /** شعار يسار · اسم الشركة يمين · عنوان في الوسط */
-  function buildHeader(b, when) {
-    var logo =
-      b.logo !== ''
-        ? '<img src="' +
-          esc(b.logo) +
-          '" alt="" width="' +
-          LOGO_MAX +
-          '" height="' +
-          LOGO_MAX +
-          '" style="display:block;max-width:' +
-          LOGO_MAX +
-          'px;max-height:' +
-          LOGO_MAX +
-          'px;width:auto;height:auto;object-fit:contain">'
-        : '<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid #333;font:800 14px Arial,sans-serif">H</span>';
-
-    return (
-      '<header style="margin:0 0 12px 0;padding:0 0 10px 0;border-bottom:1px solid #222">' +
-      '<div style="display:flex;direction:ltr;align-items:center;justify-content:space-between;width:100%;gap:14px">' +
-      '<div style="flex:0 0 auto;max-width:90px;max-height:72px;overflow:hidden">' +
-      logo +
-      '</div>' +
-      '<div dir="rtl" style="flex:1 1 auto;text-align:right;font:800 15pt/1.3 Arial,Helvetica,sans-serif;color:#0f172a">' +
-      esc(b.company) +
-      '</div>' +
-      '</div>' +
-      '<div style="text-align:center;font:700 12pt/1.3 Arial,Helvetica,sans-serif;margin-top:10px;color:#1e293b">' +
-      esc(b.title) +
-      '</div>' +
-      '<div style="text-align:center;font:600 8pt Arial,Helvetica,sans-serif;color:#475569;margin-top:3px">طُبع: <span dir="ltr">' +
-      esc(when) +
-      '</span></div>' +
-      '</header>'
-    );
-  }
-
-  function buildFooter(b) {
-    /* تذييل داخل هامش الصفحة فقط — لا يغطي صفوف الجدول */
-    return (
-      '<footer class="hx-print-footer"><span>طبع بواسطة: ' +
-      esc(b.user) +
-      '</span></footer>'
-    );
-  }
-
   /**
-   * الإجمالي داخل tfoot يُعاد على كل صفحة طباعة (table-footer-group) —
-   * ننقله لآخر tbody ليظهر مرة واحدة في الصفحة الأخيرة فقط.
+   * الإجمالي داخل tfoot لا يتكرر كل صفحة — يُنقل لآخر tbody.
    */
   function moveTotalsToTableEnd(root) {
     if (!root || !root.querySelectorAll) return;
@@ -167,12 +103,73 @@
     });
   }
 
+  function getContentHtml() {
+    var area =
+      document.querySelector('.si-print-area') ||
+      document.querySelector('.ora-stmt') ||
+      document.querySelector('.hx-print-content') ||
+      document.querySelector('main');
+    if (!area) return '';
+    var clone = area.cloneNode(true);
+    clone
+      .querySelectorAll('.no-print, .si-rail, .ora-filters, script, style, .si-hero, .sidebar')
+      .forEach(function (el) {
+        el.remove();
+      });
+    moveTotalsToTableEnd(clone);
+    return clone.innerHTML;
+  }
+
+  /** شعار يسار · اسم الشركة يمين · عنوان · التوقيت والمستخدم في الترويسة فقط (لا تذييل ثابت) */
+  function buildHeader(b, when) {
+    var logo =
+      b.logo !== ''
+        ? '<img src="' +
+          esc(b.logo) +
+          '" alt="" width="' +
+          LOGO_MAX +
+          '" height="' +
+          LOGO_MAX +
+          '" style="display:block;max-width:' +
+          LOGO_MAX +
+          'px;max-height:' +
+          LOGO_MAX +
+          'px;width:auto;height:auto;object-fit:contain">'
+        : '<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid #333;font:800 14px Arial,sans-serif">H</span>';
+
+    var userLine =
+      b.user && b.user !== '—'
+        ? ' · <span style="font-weight:600">' + esc(b.user) + '</span>'
+        : '';
+
+    return (
+      '<header class="hx-print-head" style="margin:0 0 12px 0;padding:0 0 10px 0;border-bottom:1px solid #222">' +
+      '<div style="display:flex;direction:ltr;align-items:center;justify-content:space-between;width:100%;gap:14px">' +
+      '<div style="flex:0 0 auto;max-width:90px;max-height:72px;overflow:hidden">' +
+      logo +
+      '</div>' +
+      '<div dir="rtl" style="flex:1 1 auto;text-align:right;font:800 15pt/1.3 Arial,Helvetica,sans-serif;color:#0f172a">' +
+      esc(b.company) +
+      '</div>' +
+      '</div>' +
+      '<div style="text-align:center;font:700 12pt/1.3 Arial,Helvetica,sans-serif;margin-top:10px;color:#1e293b">' +
+      esc(b.title) +
+      '</div>' +
+      '<div dir="rtl" style="text-align:center;font:500 7.5pt Arial,Helvetica,sans-serif;color:#64748b;margin-top:4px">' +
+      'طُبع <span dir="ltr">' +
+      esc(when) +
+      '</span>' +
+      userLine +
+      '</div>' +
+      '</header>'
+    );
+  }
+
   function tableCss() {
     return (
       'table{width:100%;border-collapse:collapse;font-size:9pt}' +
       'th,td{border:1px solid #334155;padding:3px 4px;vertical-align:top}' +
       'th{background:#e2e8f0;font-weight:800}' +
-      /* thead يتكرر أعلى كل صفحة؛ الإجمالي لا يتكرر */
       'thead{display:table-header-group}' +
       'tfoot{display:table-row-group}' +
       'tbody{display:table-row-group}' +
@@ -194,15 +191,11 @@
       '.si-surface,.ora-stmt-body{border:1px solid #bbb;padding:0;margin:0 0 8px;overflow:visible!important}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
       '.si-table-wrap,.ora-stmt,.hx-print-doc{overflow:visible!important}' +
-      /* هامش سفلي كبير لكل صفحة حتى لا يغطي التذييل أي صف */
-      '@page{size:A4 portrait;margin:10mm 8mm 20mm 8mm}' +
+      /* بدون تذييل ثابت — هامش سفلي عادي ولا قص للجدول */
+      '@page{size:A4 portrait;margin:10mm 8mm 12mm 8mm}' +
       'html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#fff}' +
-      '.hx-print-doc{padding-bottom:4mm;margin-bottom:0}' +
-      /* التذييل داخل الهامش السفلي فقط (خارج منطقة المحتوى) */
-      '.hx-print-footer{position:fixed;left:0;right:0;bottom:0;height:12mm;margin:0;padding:3mm 4mm 0;box-sizing:border-box;' +
-      'text-align:center;font:500 7pt Arial,Helvetica,sans-serif;color:#64748b;direction:rtl;' +
-      'background:transparent;border:0;z-index:1;pointer-events:none}' +
-      '.hx-print-footer span{display:inline-block;padding:0 2mm}' +
+      '.hx-print-doc{padding-bottom:2mm;margin:0}' +
+      '.hx-print-head{page-break-after:avoid}' +
       '.si-hero,.sidebar,.no-print,.si-rail,.ora-filters,.si-btn{display:none!important}' +
       'img{max-width:72px!important;max-height:72px!important;width:auto!important;height:auto!important;object-fit:contain!important}'
     );
@@ -221,7 +214,6 @@
       '<div class="hx-print-doc">' +
       content +
       '</div>' +
-      buildFooter(b) +
       '</body></html>'
     );
   }

@@ -276,15 +276,6 @@ app.get('/app', auth.requireAuth, async (req, res) => {
           </table>
         </div>
       </section>
-      <section class="panel panel--hint">
-        <h2>مسار الهجرة</h2>
-        <ol class="steps">
-          <li class="done">قائمة مجالات مطابقة للنظام القديم</li>
-          <li class="done">كل الشاشات تُفتح داخل Node (قوائم محلية أو تضمين)</li>
-          <li class="done">فاتورة مبيعات (حفظ Node)</li>
-          <li>استبدال التضمين بواجهات Node أصلية تدريجياً</li>
-        </ol>
-      </section>
     `;
 
     res.send(renderApp({ user, title: 'لوحة التحكم', bodyHtml }));

@@ -52,7 +52,8 @@ body.si-2027 .main.si-main {
   padding: 0 !important;
   min-height: 100vh;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Atmosphere mesh */
@@ -129,7 +130,7 @@ body.si-2027 .si-main::before {
   min-width: 0;
 }
 
-/* ????? ??????/?????? ?????? ??? ???????? (Hypex ∑ Node ??????) */
+/* ????? ??????/?????? ?????? ??? ???????? (Hypex ù Node ??????) */
 .si-kicker,
 .si-brand-mark,
 .embed-kicker {
@@ -345,14 +346,21 @@ body.si-2027 .si-main::before {
   padding-inline: 0.9rem;
 }
 
-/* Surfaces */
+/* Surfaces ù overflow:visible ??? ?? ???? ????? ???????/?????? */
 .si-surface {
   background: var(--si-surface);
   border: 1px solid var(--si-line);
   border-radius: var(--si-radius);
   box-shadow: var(--si-shadow);
   backdrop-filter: blur(14px);
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+
+.si-surface:has(.si-suggest:not([hidden])),
+.si-surface:has(.si-cust-wrap:focus-within) {
+  z-index: 40;
 }
 
 .si-surface + .si-surface {
@@ -890,19 +898,24 @@ body.si-2027 .si-main::before {
 
 .si-cust-wrap {
   position: relative;
+  z-index: 20;
 }
 
 .si-suggest {
   position: absolute;
   inset-inline: 0;
   top: calc(100% + 4px);
-  z-index: 30;
-  max-height: 15rem;
+  z-index: 80;
+  max-height: min(18rem, 50vh);
   overflow: auto;
   border-radius: 12px;
   background: #fffefb;
   border: 1px solid var(--si-line-strong);
   box-shadow: 0 18px 40px rgba(11, 18, 32, 0.16);
+}
+
+.si-suggest[hidden] {
+  display: none !important;
 }
 
 .si-suggest button {

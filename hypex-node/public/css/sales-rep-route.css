@@ -1,0 +1,255 @@
+/**
+ * شاشة خط سير المندوب — ترتيب الحقول + قائمة العملاء
+ */
+.srr-page .srr-card {
+  margin-top: 0.35rem;
+  overflow: visible;
+}
+
+.srr-form {
+  display: grid;
+  grid-template-columns: minmax(17rem, 0.95fr) minmax(20rem, 1.15fr);
+  gap: 1rem 1.15rem;
+  padding: 1rem 1.1rem 1.2rem;
+  align-items: stretch;
+}
+
+.srr-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.srr-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.srr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+
+.srr-field em {
+  color: #b42318;
+  font-style: normal;
+}
+
+.srr-field--full {
+  flex: 1 1 auto;
+}
+
+.srr-notes {
+  min-height: 5.5rem;
+  resize: vertical;
+  font-weight: 500;
+}
+
+.srr-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: auto;
+  padding-top: 0.35rem;
+}
+
+.srr-selected {
+  margin-inline-start: 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.srr-form__cust {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 20rem;
+  max-height: min(32rem, 62vh);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.srr-cust__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, #f8fafc, #fff);
+  flex-shrink: 0;
+}
+
+.srr-cust__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.srr-cust__title strong {
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.srr-cust__title .muted {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-cust__search {
+  min-height: 2.15rem;
+}
+
+.srr-cust__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.srr-check-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  margin: 0;
+  cursor: pointer;
+}
+
+.srr-btn-sm {
+  min-height: 1.85rem !important;
+  padding: 0.2rem 0.65rem !important;
+  font-size: 0.78rem !important;
+}
+
+.srr-cust__list {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 0.35rem 0.45rem 0.55rem;
+}
+
+.srr-cust__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.45rem 0.55rem;
+  margin: 0;
+  padding: 0.42rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.srr-cust__row:hover {
+  background: rgba(15, 110, 106, 0.07);
+}
+
+.srr-cust__row.is-dim {
+  opacity: 0.52;
+}
+
+.srr-cust__row input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #0f6e6a;
+}
+
+.srr-cust__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srr-cust__code {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-cust__empty {
+  margin: 1.5rem 0.75rem;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.88rem;
+}
+
+/* قائمة المحفوظ */
+.srr-list-card {
+  margin-top: 0.9rem;
+  overflow: visible;
+}
+
+.srr-list-filter {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fafbfc;
+}
+
+.srr-filter-form label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+
+.srr-filter-form .si-field {
+  min-height: 2.15rem;
+  width: auto;
+  min-width: 12rem;
+}
+
+.srr-table-wrap {
+  padding: 0;
+  overflow: auto;
+}
+
+.srr-table-actions {
+  white-space: nowrap;
+}
+
+.srr-table-actions .si-btn {
+  min-height: 1.7rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.76rem;
+}
+
+.si-btn--danger-text {
+  color: #b42318 !important;
+}
+
+@media (max-width: 900px) {
+  .srr-form {
+    grid-template-columns: 1fr;
+  }
+
+  .srr-form__cust {
+    min-height: 16rem;
+    max-height: 22rem;
+  }
+
+  .srr-form__row {
+    grid-template-columns: 1fr;
+  }
+}
