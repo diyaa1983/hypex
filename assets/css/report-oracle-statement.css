@@ -194,45 +194,75 @@
 }
 
 .ora-stmt-cheques {
-  margin-top: 1.5rem;
+  margin-top: 1.35rem;
+  padding: 0.55rem 0 0.3rem;
+  border-top: 1px dashed #000;
+  border-bottom: 1px dashed #000;
   break-inside: avoid;
   page-break-inside: avoid;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .ora-stmt-cheques__title {
-  font-size: 1.05rem;
-  margin: 0 0 0.55rem;
-  text-align: center;
+  font-size: 1rem;
+  margin: 0 0 0.45rem;
+  text-align: right;
   font-weight: 800;
-  padding: 0.4rem 0;
-  border-top: 2px solid #334155;
-  border-bottom: 1px solid #94a3b8;
+  text-decoration: underline;
+  padding: 0;
+  border: 0;
+  color: #000;
 }
 
 .ora-stmt-chq-table {
   width: 100%;
-  max-width: 36rem;
-  margin: 0 auto;
+  max-width: 28rem;
+  margin: 0;
   border-collapse: collapse;
   table-layout: fixed;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #000;
 }
 
-.ora-stmt-chq-table col.col-chq-no { width: 20%; }
+.ora-stmt-chq-table col.col-chq-no { width: 18%; }
 .ora-stmt-chq-table col.col-chq-date { width: 28%; }
-.ora-stmt-chq-table col.col-chq-amt { width: 24%; }
+.ora-stmt-chq-table col.col-chq-amt { width: 26%; }
 .ora-stmt-chq-table col.col-chq-recv { width: 28%; }
 
+.ora-stmt-chq-table thead th {
+  background: transparent !important;
+  border: 0 !important;
+  color: #000;
+  font-weight: 800;
+  text-decoration: underline;
+  text-align: right;
+  padding: 0.22rem 0.3rem 0.4rem;
+}
+
 .ora-stmt-chq-table td {
-  text-align: center;
+  border: 0 !important;
+  background: transparent !important;
+  text-align: right;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  padding: 0.2rem 0.3rem;
+  color: #000;
+}
+
+.ora-stmt-chq-table th.col-money,
+.ora-stmt-chq-table td.col-money {
+  text-align: left;
 }
 
 .ora-stmt-chq-table tfoot .ora-stmt-chq-total td {
   font-weight: 800;
-  background: #e2e8f0;
-  border-top: 2px solid #0f172a;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
+  background: transparent !important;
+  border-top: 1px dashed #000 !important;
+  text-decoration: underline;
+  padding-top: 0.4rem;
+  color: #000;
 }
 
 /* شاشة */

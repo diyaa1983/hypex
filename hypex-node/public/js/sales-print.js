@@ -190,16 +190,16 @@
       '.ora-stat strong{font-size:9pt;font-weight:800;font-variant-numeric:tabular-nums}' +
       '.ora-stat--balance{background:#e8f5f4!important;border-color:#0f6e6a!important}' +
       '.ora-stat--balance span,.ora-stat--balance strong{color:#0a4f4c!important}' +
-      '.ora-cheques{margin-top:8px;border:2px solid #333;padding:0;background:#fff}' +
-      '.ora-cheques__head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:center;padding:5px 6px;background:#f0f0f0;border-bottom:2px solid #333}' +
-      '.ora-cheques__title{display:flex;align-items:center;gap:6px}' +
-      '.ora-cheques__badge{display:inline-block;padding:1px 5px;font:800 7pt Arial,sans-serif;background:#000;color:#fff}' +
-      '.ora-cheques__head h3{margin:0;font:800 10.5pt Arial,sans-serif;color:#000}' +
-      '.ora-cheques__meta{font:800 9pt Arial,sans-serif}' +
-      '.ora-cheques__total strong,.ora-cheques__count strong{font-weight:900}' +
-      '.ora-cheques-table th{background:#e8e8e8!important;font-weight:800!important}' +
-      '.ora-cheques-table td{font-weight:700!important}' +
-      '.ora-cheque-no,.ora-cheque-amt,.ora-cheque-name{font-weight:900!important}' +
+      /* شيكات قيد التحصيل — شكل Oracle */ +
+      '.ora-stmt-cheques{margin-top:10px;padding:6px 0 4px;border-top:1px dashed #000;border-bottom:1px dashed #000;background:transparent;color:#000}' +
+      '.ora-stmt-cheques__title{margin:0 0 6px;font:800 10pt Arial,Helvetica,sans-serif;text-decoration:underline;text-align:right;color:#000;border:0}' +
+      '.ora-stmt-chq-wrap{max-width:320px}' +
+      '.ora-stmt-chq-table{width:100%;max-width:320px;border-collapse:collapse;table-layout:fixed;font:800 9pt Arial,Helvetica,sans-serif;color:#000}' +
+      '.ora-stmt-chq-table th,.ora-stmt-chq-table td{border:0!important;background:transparent!important;font-weight:800!important;color:#000!important;padding:1px 4px;text-align:right}' +
+      '.ora-stmt-chq-table thead th{text-decoration:underline;padding-bottom:4px}' +
+      '.ora-stmt-chq-table td.col-money,.ora-stmt-chq-table th.col-money{text-align:left}' +
+      '.ora-stmt-chq-table tfoot .ora-stmt-chq-total td{border-top:1px dashed #000!important;text-decoration:underline;padding-top:5px}' +
+      '.ora-stmt-chq-table tfoot strong{font-weight:800;text-decoration:underline}' +
       '.si-surface,.ora-stmt-body{border:1px solid #bbb;padding:0;margin:0 0 8px;overflow:visible!important}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
       '.si-table-wrap,.ora-stmt,.hx-print-doc{overflow:visible!important}' +

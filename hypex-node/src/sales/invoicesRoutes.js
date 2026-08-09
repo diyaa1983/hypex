@@ -504,6 +504,20 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
               <tbody id="si-lines-body"></tbody>
             </table>
           </div>
+          <div class="si-sum-strip" aria-label="ملخص الفاتورة">
+            <div class="si-sum-box">
+              <span>بدون ضريبة</span>
+              <strong id="sum_sub" dir="ltr">0.000</strong>
+            </div>
+            <div class="si-sum-box">
+              <span>الضريبة</span>
+              <strong id="sum_tax" dir="ltr">0.000</strong>
+            </div>
+            <div class="si-sum-box si-sum-box--grand">
+              <span>الإجمالي</span>
+              <strong id="sum_grand" dir="ltr">0.000</strong>
+            </div>
+          </div>
           <div class="si-doc-foot">
             <label class="si-notes">ملاحظات
               <textarea id="inv_notes" rows="3" ${
@@ -517,9 +531,6 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 )}"
                        placeholder="10 أو 10% أو 1.000" ${initial.is_posted ? 'readonly' : ''}>
               </label>
-              <div class="si-tot-row"><span>بدون ضريبة</span><strong id="sum_sub" dir="ltr">0.000</strong></div>
-              <div class="si-tot-row"><span>الضريبة</span><strong id="sum_tax" dir="ltr">0.000</strong></div>
-              <div class="si-tot-row si-tot-grand"><span>الإجمالي</span><strong id="sum_grand" dir="ltr">0.000</strong></div>
             </div>
           </div>
         </section>

@@ -291,173 +291,107 @@ tr.is-locked td {
   border-top: 2px solid #cbd5e1;
 }
 
-/* ── شيكات قيد التحصيل — إبراز واضح ── */
-.ora-cheques {
-  margin-top: 1.15rem;
-  background: linear-gradient(180deg, #fffef8 0%, #fff 55%);
-  border: 2px solid #b45309;
-  border-radius: 12px;
+/* ── الشيكات قيد التحصيل — شكل تقرير Oracle الكلاسيكي ── */
+.ora-stmt-cheques {
+  margin-top: 1.35rem;
+  padding: 0.65rem 0 0.35rem;
+  border-top: 1px dashed #000;
+  border-bottom: 1px dashed #000;
+  background: transparent;
+  font-family: Arial, Helvetica, sans-serif;
+  color: #000;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.ora-stmt-cheques__title {
+  margin: 0 0 0.55rem;
   padding: 0;
-  overflow: hidden;
-  box-shadow: 0 4px 16px rgba(180, 83, 9, 0.1);
-}
-
-.ora-cheques__head {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.55rem 1rem;
-  align-items: center;
-  padding: 0.7rem 1rem;
-  background: linear-gradient(90deg, #fef3c7 0%, #fff7ed 55%, #fffbeb 100%);
-  border-bottom: 2px solid #d97706;
-}
-
-.ora-cheques__title {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  min-width: 0;
-}
-
-.ora-cheques__badge {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.2rem 0.45rem;
-  border-radius: 6px;
-  font-size: 0.68rem;
+  text-align: right;
+  font-size: 1rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #fff;
-  background: #b45309;
-  line-height: 1.2;
+  text-decoration: underline;
+  color: #000;
+  letter-spacing: 0;
+  border: 0;
+  background: none;
 }
 
-.ora-cheques__head h3 {
+.ora-stmt-chq-wrap {
+  overflow-x: auto;
+  max-width: 28rem;
   margin: 0;
-  font-size: 1.08rem;
-  font-weight: 800;
-  color: #7c2d12;
-  letter-spacing: 0.01em;
 }
 
-.ora-cheques__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem 0.75rem;
-  align-items: center;
+.ora-stmt-chq-table {
+  width: 100%;
+  max-width: 28rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.92rem;
+  color: #000;
+  border: 0;
+  background: transparent;
+}
+
+.ora-stmt-chq-table col.col-chq-no { width: 18%; }
+.ora-stmt-chq-table col.col-chq-date { width: 28%; }
+.ora-stmt-chq-table col.col-chq-amt { width: 26%; }
+.ora-stmt-chq-table col.col-chq-recv { width: 28%; }
+
+.ora-stmt-chq-table thead th {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: none !important;
+  color: #000;
+  font-weight: 800;
   font-size: 0.9rem;
-  font-weight: 700;
-  color: #78350f;
+  text-decoration: underline;
+  text-align: right;
+  padding: 0.25rem 0.35rem 0.45rem;
+  white-space: nowrap;
 }
 
-.ora-cheques__count {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  background: #fff;
-  border: 1px solid #f59e0b;
+.ora-stmt-chq-table thead th.col-money,
+.ora-stmt-chq-table td.col-money {
+  text-align: left;
+}
+
+.ora-stmt-chq-table tbody td {
+  border: 0 !important;
+  background: transparent !important;
+  color: #000;
   font-weight: 800;
-  color: #92400e;
-}
-
-.ora-cheques__count strong {
-  font-weight: 900;
   font-variant-numeric: tabular-nums;
-  color: #b45309;
-}
-
-.ora-cheques__total {
-  font-weight: 800;
-  color: #7c2d12;
-}
-
-.ora-cheques__total strong {
-  font-weight: 900;
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
-  color: #9a3412;
-}
-
-.ora-cheques .si-table-wrap {
-  padding: 0;
-  margin: 0;
-}
-
-.ora-cheques-table {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.ora-cheques-table thead th {
-  background: #fff7ed !important;
-  color: #7c2d12;
-  font-weight: 800;
-  font-size: 0.8rem;
-  border-bottom: 2px solid #fdba74;
-  padding: 0.55rem 0.65rem;
-}
-
-.ora-cheques-table tbody td {
-  font-weight: 700;
-  color: #1c1917;
-  padding: 0.55rem 0.65rem;
-  border-color: #fde68a;
+  text-align: right;
+  padding: 0.22rem 0.35rem;
   vertical-align: middle;
 }
 
-.ora-cheque-row:nth-child(even) td {
-  background: rgba(254, 243, 199, 0.45);
+.ora-stmt-chq-table tbody td.col-money {
+  text-align: left;
+  font-weight: 800;
 }
 
-.ora-cheque-row:hover td {
-  background: rgba(251, 191, 36, 0.2);
+.ora-stmt-chq-table tfoot .ora-stmt-chq-total td {
+  border: 0 !important;
+  border-top: 1px dashed #000 !important;
+  background: transparent !important;
+  color: #000;
+  font-weight: 800;
+  text-decoration: underline;
+  padding: 0.45rem 0.35rem 0.2rem;
+  font-size: 0.92rem;
 }
 
-.ora-cheque-no {
-  font-weight: 900 !important;
-  font-variant-numeric: tabular-nums;
-  color: #9a3412 !important;
-  letter-spacing: 0.02em;
+.ora-stmt-chq-table tfoot .ora-stmt-chq-total td.col-money {
+  text-decoration: underline;
+  text-align: left;
 }
 
-.ora-cheque-date {
-  font-weight: 800 !important;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.ora-cheque-amt {
-  font-weight: 900 !important;
-  font-size: 0.98rem;
-  font-variant-numeric: tabular-nums;
-  color: #b45309 !important;
-  white-space: nowrap;
-}
-
-.ora-cheque-name {
-  font-weight: 800 !important;
-  color: #0f172a !important;
-}
-
-.ora-cheque-ref {
-  font-weight: 700 !important;
-  font-variant-numeric: tabular-nums;
-  color: #44403c !important;
-}
-
-@media (max-width: 640px) {
-  .ora-cheques__head {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .ora-cheques__meta {
-    justify-content: space-between;
-  }
+.ora-stmt-chq-table tfoot .ora-stmt-chq-total strong {
+  font-weight: 800;
+  text-decoration: underline;
 }
 
 @media (max-width: 960px) {
@@ -707,71 +641,47 @@ tr.is-locked td {
     border-top: 2px solid #333 !important;
   }
 
-  .ora-cheques {
-    margin-top: 0.65rem !important;
-    border: 2px solid #333 !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-    box-shadow: none !important;
-    page-break-inside: auto;
-  }
-
-  .ora-cheques__head {
-    background: #f3f3f3 !important;
-    border-bottom: 2px solid #333 !important;
-    padding: 0.35rem 0.45rem !important;
-  }
-
-  .ora-cheques__badge {
-    background: #000 !important;
-    color: #fff !important;
-    font-weight: 800 !important;
-  }
-
-  .ora-cheques__head h3 {
-    font-size: 11pt !important;
-    font-weight: 800 !important;
-    color: #000 !important;
-  }
-
-  .ora-cheques__meta,
-  .ora-cheques__count,
-  .ora-cheques__total {
-    font-weight: 800 !important;
-    color: #000 !important;
-    border-color: #999 !important;
+  .ora-stmt-cheques {
+    margin-top: 0.75rem !important;
+    padding: 0.4rem 0 0.2rem !important;
+    border-top: 1px dashed #000 !important;
+    border-bottom: 1px dashed #000 !important;
     background: transparent !important;
+    page-break-inside: avoid;
   }
 
-  .ora-cheques__total strong,
-  .ora-cheques__count strong {
-    font-weight: 900 !important;
-    font-size: 10.5pt !important;
-  }
-
-  .ora-cheques-table thead th {
-    background: #e8e8e8 !important;
+  .ora-stmt-cheques__title {
+    font-size: 10pt !important;
     font-weight: 800 !important;
-    border-bottom: 2px solid #333 !important;
+    text-decoration: underline !important;
+    text-align: right !important;
     color: #000 !important;
+    margin: 0 0 0.35rem !important;
+    border: 0 !important;
   }
 
-  .ora-cheques-table tbody td {
-    font-weight: 700 !important;
-    color: #000 !important;
-    border-color: #999 !important;
+  .ora-stmt-chq-wrap {
+    max-width: 100% !important;
   }
 
-  .ora-cheque-row:nth-child(even) td {
-    background: #f5f5f5 !important;
+  .ora-stmt-chq-table th,
+  .ora-stmt-chq-table td {
+    font-size: 9pt !important;
+    font-weight: 800 !important;
+    color: #000 !important;
+    border: 0 !important;
+    background: transparent !important;
+    padding: 1px 3px !important;
   }
 
-  .ora-cheque-no,
-  .ora-cheque-amt,
-  .ora-cheque-name {
-    font-weight: 900 !important;
-    color: #000 !important;
+  .ora-stmt-chq-table thead th {
+    text-decoration: underline !important;
+  }
+
+  .ora-stmt-chq-table tfoot .ora-stmt-chq-total td {
+    border-top: 1px dashed #000 !important;
+    text-decoration: underline !important;
+    font-weight: 800 !important;
   }
 
   .ora-c-desc {
