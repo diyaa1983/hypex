@@ -194,12 +194,25 @@ async function renderStandalonePrintPage({
     .hx-doc-head{margin:0 0 8px;padding:0 0 8px;border-bottom:1px solid #cbd5e1}
     .hx-doc-company{font-size:12pt!important}
     .inv-v1{color:#0f172a;font-family:Arial,Helvetica,sans-serif}
-    .inv-v1-top{display:grid;grid-template-columns:minmax(12rem,15rem) 1fr 130px;gap:10px 14px;align-items:start;margin:0 0 12px}
-    .inv-v1--draft .inv-v1-top{grid-template-columns:minmax(12rem,15rem) 1fr}
+    /* meta يمين · عنوان وسط الصفحة · QR يسار */
+    .inv-v1-top{
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      gap:8px 12px;
+      align-items:start;
+      margin:0 0 14px;
+      position:relative
+    }
+    .inv-v1-meta{grid-column:1;justify-self:stretch;font-size:9.5pt;line-height:1.75;text-align:right}
+    .inv-v1-title-block{
+      grid-column:2;justify-self:center;align-self:center;
+      display:flex;align-items:center;justify-content:center;min-height:48px;padding:0 8px
+    }
+    .inv-v1-title{margin:0;font:800 18pt/1.2 Arial,Helvetica,sans-serif;color:#1e3a5f;text-align:center;white-space:nowrap}
+    .inv-v1-qr{grid-column:3;justify-self:start}
+    .inv-v1--draft .inv-v1-top{grid-template-columns:1fr auto 1fr}
+    .inv-v1--draft .inv-v1-title-block{grid-column:2}
     .inv-v1-qr img{display:block;width:118px;height:118px;border:1px solid #94a3b8;padding:3px;background:#fff}
-    .inv-v1-title-block{display:flex;align-items:center;justify-content:center;min-height:70px}
-    .inv-v1-title{margin:0;font:800 18pt/1.2 Arial,Helvetica,sans-serif;color:#1e3a5f;text-align:center}
-    .inv-v1-meta{font-size:9.5pt;line-height:1.75;text-align:right}
     .inv-v1-meta div{margin:0}
     .inv-v1-meta span{color:#475569;font-weight:600}
     .inv-v1-meta strong{color:#0f172a;font-weight:700}
@@ -214,8 +227,12 @@ async function renderStandalonePrintPage({
     .inv-v1-table .c-unit{text-align:center}
     .inv-v1-table .c-gross{font-weight:800}
     .inv-v1-table .empty{text-align:center;color:#64748b;padding:12px}
-    .inv-v1-foot{display:flex;justify-content:space-between;align-items:flex-start;gap:1.5rem;margin-top:10px}
-    .inv-v1-sumwrap{min-width:14rem;flex:0 0 auto}
+    /* مجاميع على اليمين، التوقيع أسفلها في الأسفل */
+    .inv-v1-foot{
+      display:flex;flex-direction:column;align-items:flex-start;
+      gap:0;margin-top:12px
+    }
+    .inv-v1-sumwrap{min-width:14rem;align-self:flex-start}
     .inv-v1-sum{width:auto;min-width:14rem;border-collapse:collapse;font-size:10pt}
     .inv-v1-sum td{border:0!important;padding:3px 6px;background:transparent!important}
     .inv-v1-sum .lbl{text-align:right;font-weight:700;color:#1e3a5f;white-space:nowrap}
@@ -224,19 +241,21 @@ async function renderStandalonePrintPage({
       border-top:1px solid #1e3a5f!important}
     .inv-v1-notes{margin-top:10px;font-size:9.5pt;text-align:right;color:#334155}
     .inv-v1-notes span{font-weight:700;color:#1e3a5f}
-    .inv-v1-sign{margin-top:2.2rem;min-width:11rem;text-align:center}
-    .inv-v1-sign-label{font-size:10pt;font-weight:700;color:#1e3a5f;margin-bottom:1.6rem}
-    .inv-v1-sign-line{border-bottom:1px solid #0f172a;width:11rem;margin:0 auto}
+    .inv-v1-sign{
+      margin-top:2.8rem;width:100%;text-align:center;
+      display:flex;flex-direction:column;align-items:center
+    }
+    .inv-v1-sign-label{font-size:10pt;font-weight:700;color:#1e3a5f;margin-bottom:1.8rem}
+    .inv-v1-sign-line{border-bottom:1px solid #0f172a;width:12rem;margin:0 auto}
     @media print{
       .inv-v1-table thead th{background:#5b6b7c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      .inv-v1-top{grid-template-columns:130px 1fr minmax(11rem,14rem)}
     }
     @media (max-width:720px){
       .inv-v1-top{grid-template-columns:1fr;text-align:center}
-      .inv-v1-qr,.inv-v1-meta,.inv-v1-title-block{order:unset}
+      .inv-v1-meta,.inv-v1-title-block,.inv-v1-qr{grid-column:1}
       .inv-v1-meta{text-align:right}
-      .inv-v1-foot{flex-direction:column-reverse}
-    }`
+      .inv-v1-qr{justify-self:center}
+    }``
     : '';
 
   return `<!DOCTYPE html>
