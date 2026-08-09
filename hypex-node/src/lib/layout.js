@@ -5,7 +5,7 @@ const nav = require('../nav');
 const { esc } = require('./html');
 const { iconFor, isPathActive } = require('./navIcons');
 const basePath = require('./basePath');
-const { printChromeHtml, getPrintBrand } = require('./printBrand');
+const { wrapPrintShell, getPrintBrand } = require('./printBrand');
 
 function phpUrl(route, extra = '') {
   if (!route) return config.phpBaseUrl;
@@ -90,10 +90,10 @@ function renderApp({
     .filter(Boolean)
     .join(' ');
   const mainCls = mainClass || 'main main--wide';
-  const chrome =
+  const mainBody =
     printChrome && user
-      ? printChromeHtml({ user, documentTitle: printTitle || title })
-      : '';
+      ? wrapPrintShell(bodyHtml, { user, documentTitle: printTitle || title })
+      : bodyHtml;
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -111,11 +111,10 @@ function renderApp({
   ${extraHead}
 </head>
 <body class="${esc(bodyCls)}">
-  ${chrome}
   <div class="app-shell">
     ${user ? renderSidebar(user, activePath) : ''}
     <main class="${esc(mainCls)}">
-      ${bodyHtml}
+      ${mainBody}
     </main>
   </div>
   <script src="/assets/js/shell.js" defer></script>

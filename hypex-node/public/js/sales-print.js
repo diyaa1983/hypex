@@ -1,5 +1,5 @@
 /**
- * طباعة موحّدة: وقت الطباعة + ترقيم صفحات تقريبي عند المعاينة/الطباعة
+ * طباعة موحّدة: وقت الطباعة + عدد الصفحات التقريبي
  */
 (function () {
   'use strict';
@@ -25,24 +25,20 @@
     });
   }
 
-  /**
-   * Chrome لا يدعم counter(page) في العناصر العادية.
-   * نقدّر عدد الصفحات من ارتفاع المحتوى ونرقم كل صفحة مرئية في التذييل الثابت.
-   * التذييل الثابت نفسه يتكرر؛ نعرض "الكل" كتقريب: 1–N
-   */
   function stampPageEstimate() {
     var numEls = document.querySelectorAll('.hx-page-num');
     if (!numEls.length) return;
     var area =
+      document.querySelector('.hx-print-shell-body') ||
       document.querySelector('.si-print-area') ||
       document.querySelector('.ora-stmt') ||
       document.querySelector('main') ||
       document.body;
-    var h = area ? area.scrollHeight : document.body.scrollHeight;
-    // ارتفاع صفحة A4 تقريباً بعد الهوامش (بكسل شاشة ~ 1122px للمحتوى)
-    var pagePx = 1000;
+    var h = Math.max(area.scrollHeight || 0, area.offsetHeight || 0, 1);
+    /* ~ A4 content height in CSS px for typical screen/print scaling */
+    var pagePx = 920;
     var total = Math.max(1, Math.ceil(h / pagePx));
-    var label = total <= 1 ? '1' : '1–' + total + ' / ' + total;
+    var label = String(total);
     numEls.forEach(function (el) {
       el.textContent = label;
     });
