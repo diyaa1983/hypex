@@ -1,34 +1,23 @@
 /**
- * ترويسة/تذييل طباعة موحّدان
- * التكرار على كل صفحة عبر thead/tfoot (أوثق من position:fixed)
- *
- * شعار ← يسار | اسم الشركة ← يمين
- * تذييل: المستخدم · وقت الطباعة · ترقيم صفحات
+ * ترويسة وتذييل طباعة — لا يظهران على الشاشة
+ * شعار يسار | اسم الشركة يمين
+ * تذييل: مستخدم + طباعة + صفحات
  */
 
-/* ── شاشة: لا تظهر الترويسة/التذييل ── */
-.hx-print-shell {
+.hx-print-root {
+  display: block;
   width: 100%;
-  border-collapse: collapse;
-  border-spacing: 0;
 }
 
-.hx-print-shell > thead,
-.hx-print-shell > tfoot {
-  display: none;
+/* مخفي على الشاشة */
+.hx-print-chrome {
+  display: none !important;
 }
 
-.hx-print-shell > tbody > tr > td.hx-print-shell-cell {
-  border: 0;
-  padding: 0;
-  vertical-align: top;
-}
-
-/* ── طباعة ── */
 @media print {
   @page {
-    size: A4;
-    margin: 10mm 8mm 12mm 8mm;
+    size: A4 portrait;
+    margin: 18mm 10mm 14mm 10mm;
   }
 
   html,
@@ -36,10 +25,14 @@
   .app-shell,
   .main,
   .main.si-main,
-  .si-stage {
+  .si-stage,
+  .hx-print-root,
+  .hx-print-content {
     min-height: 0 !important;
     height: auto !important;
+    max-height: none !important;
     background: #fff !important;
+    overflow: visible !important;
   }
 
   .app-shell {
@@ -66,136 +59,175 @@
     max-width: none !important;
   }
 
-  /* إطار الطباعة */
-  .hx-print-shell {
+  /* —— ترويسة: ثابتة + حجم محكوم —— */
+  .hx-print-chrome--head {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 14mm !important;
+    max-height: 14mm !important;
+    overflow: hidden !important;
+    z-index: 10000 !important;
+    background: #fff !important;
+    border-bottom: 0.4pt solid #222 !important;
+    box-sizing: border-box !important;
+    padding: 1mm 3mm 1.5mm !important;
+  }
+
+  .hx-print-head {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    direction: ltr !important;
+    align-items: center !important;
+    justify-content: space-between !important;
     width: 100% !important;
-    border-collapse: collapse !important;
-  }
-
-  .hx-print-shell > thead {
-    display: table-header-group !important;
-  }
-
-  .hx-print-shell > tfoot {
-    display: table-footer-group !important;
-  }
-
-  .hx-print-shell > tbody {
-    display: table-row-group !important;
-  }
-
-  .hx-print-shell > * > tr > td.hx-print-shell-cell {
-    border: 0 !important;
+    height: 100% !important;
+    max-height: 12mm !important;
+    gap: 4mm !important;
+    margin: 0 !important;
     padding: 0 !important;
   }
 
-  .hx-print-shell-body {
-    padding: 1.5mm 0 2mm !important;
-  }
-
-  /* —— الترويسة (تتكرر) —— */
-  .hx-print-head {
-    display: flex !important;
-    flex-direction: row;
-    direction: ltr;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4mm;
-    padding: 0 1mm 2mm;
-    margin: 0 0 2mm;
-    border-bottom: 0.5pt solid #111;
-    background: #fff !important;
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-
   .hx-print-logo {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    max-width: 38mm;
+    flex: 0 0 auto !important;
+    order: 1 !important;
+    display: block !important;
+    width: 28mm !important;
+    max-width: 28mm !important;
+    height: 11mm !important;
+    max-height: 11mm !important;
+    overflow: hidden !important;
   }
 
   .hx-print-logo-img {
-    max-height: 11mm;
-    max-width: 36mm;
-    width: auto;
-    height: auto;
-    object-fit: contain;
-    display: block;
+    display: block !important;
+    max-height: 11mm !important;
+    max-width: 28mm !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain !important;
+    object-position: left center !important;
   }
 
   .hx-print-logo-fallback {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 9mm;
-    height: 9mm;
-    border: 0.4pt solid #333;
-    font-weight: 800;
-    font-size: 8pt;
-    color: #0f6e6a;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 9mm !important;
+    height: 9mm !important;
+    border: 0.35pt solid #333 !important;
+    font-size: 8pt !important;
+    font-weight: 800 !important;
   }
 
   .hx-print-co {
-    flex: 1 1 auto;
-    text-align: right;
-    direction: rtl;
-    min-width: 0;
+    flex: 1 1 auto !important;
+    order: 2 !important;
+    text-align: right !important;
+    direction: rtl !important;
+    min-width: 0 !important;
+    max-height: 12mm !important;
+    overflow: hidden !important;
   }
 
   .hx-print-co-name {
-    font-family: Arial, "Segoe UI", Tahoma, sans-serif;
-    font-weight: 800;
-    font-size: 11pt;
+    font-family: Arial, Tahoma, sans-serif !important;
+    font-size: 11pt !important;
+    font-weight: 800 !important;
     color: #000 !important;
-    line-height: 1.25;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .hx-print-doc-title {
-    font-size: 8pt;
-    font-weight: 600;
+    font-size: 8pt !important;
+    font-weight: 600 !important;
     color: #333 !important;
-    margin-top: 0.4mm;
+    margin: 0.3mm 0 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
-  /* —— التذييل (يتكرر) —— */
+  /* —— تذييل —— */
+  .hx-print-chrome--foot {
+    display: block !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 9mm !important;
+    max-height: 9mm !important;
+    overflow: hidden !important;
+    z-index: 10000 !important;
+    background: #fff !important;
+    border-top: 0.35pt solid #555 !important;
+    box-sizing: border-box !important;
+    padding: 1mm 3mm 0 !important;
+  }
+
   .hx-print-foot {
     display: flex !important;
-    flex-direction: row;
-    direction: rtl;
-    align-items: center;
-    justify-content: space-between;
-    gap: 3mm;
-    padding: 1.5mm 1mm 0;
-    margin: 2mm 0 0;
-    border-top: 0.4pt solid #555;
-    background: #fff !important;
-    font-family: Arial, "Segoe UI", Tahoma, sans-serif;
-    font-size: 7pt;
-    font-weight: 600;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    direction: rtl !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    gap: 3mm !important;
+    font-family: Arial, Tahoma, sans-serif !important;
+    font-size: 7pt !important;
+    font-weight: 600 !important;
     color: #222 !important;
-    page-break-inside: avoid;
-    break-inside: avoid;
   }
 
   .hx-print-user {
-    flex: 1 1 auto;
-    text-align: right;
-    min-width: 0;
+    flex: 1 1 auto !important;
+    text-align: right !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .hx-print-when-label {
-    flex: 0 1 auto;
-    white-space: nowrap;
-    color: #444 !important;
+    flex: 0 0 auto !important;
+    white-space: nowrap !important;
   }
 
   .hx-print-pages {
-    flex: 0 0 auto;
-    white-space: nowrap;
-    direction: ltr;
-    font-size: 7pt;
-    color: #000 !important;
+    flex: 0 0 auto !important;
+    direction: ltr !important;
+    white-space: nowrap !important;
+  }
+
+  /* المحتوى لا يختبئ تحت الترويسة/التذييل */
+  .hx-print-content {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* جداول التقارير لا تُمنع من التقسيم */
+  .si-surface,
+  .ora-stmt-body,
+  .ora-stmt {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .ora-table thead {
+    display: table-header-group !important;
+  }
+
+  .ora-table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
 }

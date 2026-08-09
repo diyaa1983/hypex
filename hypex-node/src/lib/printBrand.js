@@ -1,8 +1,7 @@
 'use strict';
 
 /**
- * بيانات ترويسة/تذييل الطباعة الموحدة (شعار + اسم الشركة).
- * التكرار على كل صفحة عبر <thead>/<tfoot> (موثوق في Chrome).
+ * ترويسة/تذييل طباعة موحّدان — شعار يسار + اسم يمين + تذييل مستخدم
  */
 const db = require('../db');
 const basePath = require('./basePath');
@@ -47,7 +46,7 @@ async function refreshBrand() {
     };
     lastLoad = Date.now();
   } catch {
-    /* keep cache */
+    /* keep */
   } finally {
     loading = false;
   }
@@ -76,65 +75,51 @@ function escapeAttr(s) {
   return escapeHtml(s).replace(/'/g, '&#39;');
 }
 
-function printHeadInner(opts = {}) {
+/**
+ * يلف المحتوى بترويسة/تذييل الطباعة (بدون جدول خارجي يكسر التنسيق).
+ */
+function wrapPrintShell(bodyHtml, opts = {}) {
   const brand = getPrintBrand();
+  const user = opts.user || {};
+  const userLabel =
+    String(user.full_name_ar || user.full_name || user.username || '').trim() || '—';
+  const username = String(user.username || '').trim();
   const docTitle = String(opts.documentTitle || '').trim();
   const logo = brand.logoUrl
-    ? `<img class="hx-print-logo-img" src="${escapeAttr(brand.logoUrl)}" alt="">`
+    ? `<img class="hx-print-logo-img" src="${escapeAttr(brand.logoUrl)}" alt="" width="90" height="40">`
     : `<span class="hx-print-logo-fallback" aria-hidden="true">H</span>`;
 
   return `
+<div class="hx-print-root">
+  <!-- ترويسة ثابتة عند الطباعة — شعار يسار / اسم يمين -->
+  <div class="hx-print-chrome hx-print-chrome--head" aria-hidden="true">
     <div class="hx-print-head">
       <div class="hx-print-logo">${logo}</div>
       <div class="hx-print-co">
         <div class="hx-print-co-name">${escapeHtml(brand.companyName)}</div>
         ${docTitle ? `<div class="hx-print-doc-title">${escapeHtml(docTitle)}</div>` : ''}
       </div>
-    </div>`;
-}
+    </div>
+  </div>
 
-function printFootInner(opts = {}) {
-  const user = opts.user || {};
-  const userLabel =
-    String(user.full_name_ar || user.full_name || user.username || '').trim() || '—';
-  const username = String(user.username || '').trim();
+  <div class="hx-print-content">
+    ${bodyHtml}
+  </div>
 
-  return `
+  <!-- تذييل ثابت عند الطباعة -->
+  <div class="hx-print-chrome hx-print-chrome--foot" aria-hidden="true">
     <div class="hx-print-foot">
       <span class="hx-print-user">المستخدم: ${escapeHtml(userLabel)}${
-        username ? ` <span dir="ltr">(@${escapeHtml(username)})</span>` : ''
+        username ? ` (@${escapeHtml(username)})` : ''
       }</span>
       <span class="hx-print-when-label">طُبع: <span class="si-print-when"></span></span>
       <span class="hx-print-pages">صفحة <span class="hx-page-num">—</span></span>
-    </div>`;
+    </div>
+  </div>
+</div>`;
 }
 
-/**
- * يلف محتوى الصفحة بجدول طباعة — thead/tfoot يتكرران على كل صفحة.
- */
-function wrapPrintShell(bodyHtml, opts = {}) {
-  return `
-<table class="hx-print-shell">
-  <thead>
-    <tr>
-      <td class="hx-print-shell-cell">${printHeadInner(opts)}</td>
-    </tr>
-  </thead>
-  <tfoot>
-    <tr>
-      <td class="hx-print-shell-cell">${printFootInner(opts)}</td>
-    </tr>
-  </tfoot>
-  <tbody>
-    <tr>
-      <td class="hx-print-shell-cell hx-print-shell-body">${bodyHtml}</td>
-    </tr>
-  </tbody>
-</table>`;
-}
-
-/** توافق قديم — لم يعد يُستخدم منفصلاً */
-function printChromeHtml(opts = {}) {
+function printChromeHtml(opts) {
   return wrapPrintShell('', opts);
 }
 

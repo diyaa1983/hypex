@@ -1,5 +1,5 @@
 /**
- * طباعة موحّدة: وقت الطباعة + عدد الصفحات التقريبي
+ * طباعة: وقت + تقدير عدد الصفحات
  */
 (function () {
   'use strict';
@@ -29,18 +29,15 @@
     var numEls = document.querySelectorAll('.hx-page-num');
     if (!numEls.length) return;
     var area =
-      document.querySelector('.hx-print-shell-body') ||
-      document.querySelector('.si-print-area') ||
-      document.querySelector('.ora-stmt') ||
+      document.querySelector('.hx-print-content .si-print-area') ||
+      document.querySelector('.hx-print-content .ora-stmt') ||
+      document.querySelector('.hx-print-content') ||
       document.querySelector('main') ||
       document.body;
-    var h = Math.max(area.scrollHeight || 0, area.offsetHeight || 0, 1);
-    /* ~ A4 content height in CSS px for typical screen/print scaling */
-    var pagePx = 920;
-    var total = Math.max(1, Math.ceil(h / pagePx));
-    var label = String(total);
+    var h = Math.max(area.scrollHeight || 0, area.offsetHeight || 0, 800);
+    var total = Math.max(1, Math.ceil(h / 900));
     numEls.forEach(function (el) {
-      el.textContent = label;
+      el.textContent = String(total);
     });
   }
 
