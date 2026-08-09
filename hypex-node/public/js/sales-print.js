@@ -184,7 +184,8 @@
       '.ora-stmt-name{font:800 12pt Arial,Helvetica,sans-serif;margin:2px 0}' +
       '.ora-stmt-kicker{font-size:8pt;color:#334155;margin:0}' +
       '.ora-stmt-meta{font-size:9pt;color:#334155;margin:2px 0 0}' +
-      '.ora-stmt-totals{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0;width:100%}' +
+      '.ora-stmt-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:10px 0 0;width:100%}' +
+      '.inv-print-totals{margin:10px 0 0!important;page-break-inside:avoid}' +
       '.ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:4px 6px;border-radius:0;background:#fff}' +
       '.ora-stat span{font-size:7.5pt;color:#64748b;font-weight:700}' +
       '.ora-stat strong{font-size:9pt;font-weight:800;font-variant-numeric:tabular-nums}' +

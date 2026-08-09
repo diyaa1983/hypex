@@ -213,6 +213,7 @@ async function renderStandalonePrintPage({
     .ora-stmt-name{font:800 12pt Arial,Helvetica,sans-serif;margin:2px 0}
     .ora-stmt-meta{font-size:9pt;color:#334155;margin:2px 0 0;line-height:1.7}
     .ora-stmt-totals{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0 0;width:100%}
+    .inv-print-totals{margin:10px 0 0!important}
     .ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:6px 8px;background:#fff}
     .ora-stat span{font-size:7.5pt;color:#64748b;font-weight:700}
     .ora-stat strong{font-size:10pt;font-weight:800}

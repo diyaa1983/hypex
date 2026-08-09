@@ -285,20 +285,6 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
                 : ''
             }
           </div>
-          <div class="ora-stmt-totals" aria-label="ملخص الفاتورة">
-            <div class="ora-stat">
-              <span>بدون ضريبة</span>
-              <strong dir="ltr">${esc(fmtAmt(inv.subtotal))}</strong>
-            </div>
-            <div class="ora-stat">
-              <span>الضريبة</span>
-              <strong dir="ltr">${esc(fmtAmt(inv.tax_amount))}</strong>
-            </div>
-            <div class="ora-stat ora-stat--balance">
-              <span>الإجمالي</span>
-              <strong dir="ltr">${esc(fmtAmt(inv.total))}</strong>
-            </div>
-          </div>
         </header>
         <div class="si-surface ora-stmt-body">
           <div class="si-surface-head">بنود الفاتورة</div>
@@ -318,15 +304,21 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
                 </tr>
               </thead>
               <tbody>${bodyRows}</tbody>
-              <tbody>
-                <tr class="hx-print-total-row">
-                  <td colspan="6">الإجمالي</td>
-                  <td dir="ltr">${esc(fmtAmt(inv.subtotal))}</td>
-                  <td dir="ltr">${esc(fmtAmt(inv.tax_amount))}</td>
-                  <td dir="ltr"><strong>${esc(fmtAmt(inv.total))}</strong></td>
-                </tr>
-              </tbody>
             </table>
+          </div>
+        </div>
+        <div class="ora-stmt-totals inv-print-totals" aria-label="ملخص الفاتورة">
+          <div class="ora-stat">
+            <span>بدون ضريبة</span>
+            <strong dir="ltr">${esc(fmtAmt(inv.subtotal))}</strong>
+          </div>
+          <div class="ora-stat">
+            <span>الضريبة</span>
+            <strong dir="ltr">${esc(fmtAmt(inv.tax_amount))}</strong>
+          </div>
+          <div class="ora-stat ora-stat--balance">
+            <span>الإجمالي</span>
+            <strong dir="ltr">${esc(fmtAmt(inv.total))}</strong>
           </div>
         </div>
       </div>`;
