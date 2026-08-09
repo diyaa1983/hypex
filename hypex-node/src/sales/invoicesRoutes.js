@@ -362,8 +362,8 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         </div>
       </div>`;
 
-    const autoPrint =
-      String(req.query.pdf || '') === '1' || String(req.query.auto || '') === '1';
+    // لا تفتح حوار الطباعة تلقائياً — فقط بعد ضغط زر «طباعة» في صفحة المعاينة
+    const autoPrint = false;
 
     res.send(
       await renderStandalonePrintPage({
