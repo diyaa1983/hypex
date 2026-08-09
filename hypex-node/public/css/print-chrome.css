@@ -1,22 +1,19 @@
 /**
- * دعم طباعة الشاشة (Ctrl+P) — المحتوى فقط، بدون شعار عملاق.
- * الطباعة الرسمية من زر «طباعة» تستخدم iframe (sales-print.js).
+ * طباعة: إخفاء الشريط الجانبي والأزرار فقط — بدون ترويسة/تذييل شركة
  */
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm 8mm 12mm 8mm;
+    margin: 10mm 8mm;
   }
 
   .sidebar,
   .no-print,
   .si-rail,
-  .si-hero,
   .si-hero-actions,
   .ora-filters,
   .si-btn--print,
-  [data-print],
-  #hx-print-frame {
+  [data-print] {
     display: none !important;
   }
 
@@ -25,8 +22,7 @@
   .app-shell,
   .main,
   .main.si-main,
-  .si-stage,
-  .hx-print-content {
+  .si-stage {
     height: auto !important;
     min-height: 0 !important;
     max-height: none !important;
@@ -43,11 +39,5 @@
   .main.si-main {
     padding: 0 !important;
     margin: 0 !important;
-  }
-
-  /* أي شعار متبقٍ لا يكبر */
-  img {
-    max-width: 48px !important;
-    max-height: 48px !important;
   }
 }
