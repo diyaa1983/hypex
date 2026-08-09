@@ -6,7 +6,9 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "pm2": "pm2 start ecosystem.config.cjs",
+    "pm2:reload": "pm2 reload hypex-node"
   },
   "engines": {
     "node": ">=18"

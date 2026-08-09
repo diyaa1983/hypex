@@ -1,8 +1,7 @@
 'use strict';
 
 /**
- * بيانات العلامة التجارية للطباعة (بدون إدراج <img> في صفحة الشاشة —
- * الشعار يظهر فقط داخل إطار الطباعة المنفصل مثل تقارير Node 2027).
+ * ترويسة/تذييل طباعة — بيانات العلامة فقط (الشعار داخل iframe الطباعة)
  */
 const fs = require('fs');
 const path = require('path');
@@ -87,10 +86,7 @@ function assetVersion(relFromPublic) {
   }
 }
 
-/**
- * لا نضع شعار الشركة كـ <img> داخل الصفحة الرئيسية (كان سبب ظهور شعار عملاق في المعاينة).
- * المحتوى فقط — الطباعة عبر iframe في sales-print.js.
- */
+/** غلاف محتوى الطباعة — بدون صورة شعار في DOM الشاشة */
 function wrapPrintShell(bodyHtml) {
   return `<div class="hx-print-content" data-hx-print-shell="standalone-v3">${bodyHtml}</div>`;
 }

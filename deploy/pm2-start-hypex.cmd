@@ -1,6 +1,6 @@
 @echo off
 setlocal
-REM تشغيل Hypex Node كخدمة دائمة عبر pm2
+REM تشغيل Hypex Node كخدمة دائمة مع إعادة تحميل عند تعديل src/
 cd /d "%~dp0..\hypex-node"
 if not exist "src\server.js" (
   echo ERROR: src\server.js not found in %cd%
@@ -26,8 +26,8 @@ echo.
 echo Stopping old instance if any...
 pm2 delete hypex-node 2>nul
 
-echo Starting hypex-node...
-pm2 start "%cd%\src\server.js" --name hypex-node --cwd "%cd%"
+echo Starting hypex-node with file watch (auto-reload on src change)...
+pm2 start ecosystem.config.cjs
 if errorlevel 1 (
   echo ERROR: pm2 start failed
   pause
@@ -40,8 +40,10 @@ echo ========== status ==========
 pm2 status
 echo.
 echo OK - open http://localhost/hypex
-echo Logs: pm2 logs hypex-node
-echo Restart later: pm2 restart hypex-node
+echo.
+echo  تعديلات JS في src/  → يعاد تشغيل Node تلقائياً
+echo  تعديلات public/css,js → Ctrl+F5 فقط (لا تحتاج restart)
+echo  Logs: pm2 logs hypex-node
 echo.
 pause
 endlocal

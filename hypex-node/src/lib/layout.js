@@ -5,6 +5,12 @@ const nav = require('../nav');
 const { esc } = require('./html');
 const { iconFor, isPathActive } = require('./navIcons');
 const basePath = require('./basePath');
+const {
+  wrapPrintShell,
+  getPrintBrand,
+  assetVersion,
+  bodyPrintDataHtml,
+} = require('./printBrand');
 
 function phpUrl(route, extra = '') {
   if (!route) return config.phpBaseUrl;
@@ -71,18 +77,55 @@ function renderApp({
   bodyClass = '',
   mainClass = 'main main--wide',
   activePath = '',
-  /** @deprecated أُلغيت ترويسة/تذييل الطباعة بالكامل */
-  printChrome = false,
+  /** ترويسة/تذييل الطباعة عبر iframe (افتراضي مفعّل) */
+  printChrome = true,
   printTitle = '',
 }) {
-  void printChrome;
-  void printTitle;
+  getPrintBrand();
 
   const base = basePath.basePath || '';
-  const cssLinks = css.map((c) => `<link rel="stylesheet" href="${esc(c)}">`).join('\n');
-  const jsLinks = js.map((j) => `<script src="${esc(j)}" defer></script>`).join('\n');
-  const bodyCls = ['app-body', bodyClass].filter(Boolean).join(' ');
+  const spVer = assetVersion('js/sales-print.js');
+  const allCss = [...css];
+  const allJs = [...js];
+  if (printChrome && user) {
+    const hasPrint = allJs.some((j) => String(j).indexOf('sales-print.js') !== -1);
+    if (!hasPrint) allJs.push(`/assets/js/sales-print.js?v=${spVer}`);
+  }
+
+  const cssLinks = allCss
+    .map((c) => {
+      let href = c;
+      if (c.startsWith('/assets/') && !String(c).includes('?')) {
+        const rel = c.replace(/^\/assets\//, '');
+        try {
+          href = `${c}?v=${assetVersion(rel)}`;
+        } catch {
+          href = c;
+        }
+      }
+      return `<link rel="stylesheet" href="${esc(href)}">`;
+    })
+    .join('\n');
+  const jsLinks = allJs
+    .map((j) => {
+      let src = j;
+      if (j.startsWith('/assets/') && !String(j).includes('?')) {
+        const rel = j.replace(/^\/assets\//, '');
+        src = `${j}?v=${assetVersion(rel)}`;
+      }
+      return `<script src="${esc(src)}" defer></script>`;
+    })
+    .join('\n');
+
+  const bodyCls = ['app-body', bodyClass, printChrome && user ? 'has-print-chrome' : '']
+    .filter(Boolean)
+    .join(' ');
   const mainCls = mainClass || 'main main--wide';
+  const mainBody = printChrome && user ? wrapPrintShell(bodyHtml) : bodyHtml;
+  const printAttrs =
+    printChrome && user
+      ? bodyPrintDataHtml({ user, documentTitle: printTitle || title })
+      : '';
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -90,6 +133,7 @@ function renderApp({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta name="hx-print-engine" content="standalone-v3">
   <title>${esc(title)} · Hypex</title>
   <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
   <script src="/assets/js/base-path.js"></script>
@@ -100,11 +144,11 @@ function renderApp({
   ${cssLinks}
   ${extraHead}
 </head>
-<body class="${esc(bodyCls)}">
+<body class="${esc(bodyCls)}"${printAttrs}>
   <div class="app-shell">
     ${user ? renderSidebar(user, activePath) : ''}
     <main class="${esc(mainCls)}">
-      ${bodyHtml}
+      ${mainBody}
     </main>
   </div>
   <script src="/assets/js/shell.js" defer></script>

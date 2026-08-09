@@ -1,12 +1,7 @@
 /**
- * طباعة: إخفاء الشريط الجانبي والأزرار فقط — بدون ترويسة/تذييل شركة
+ * طباعة: إخفاء القوائم — الترويسة الرسمية من iframe (sales-print.js)
  */
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 10mm 8mm;
-  }
-
   .sidebar,
   .no-print,
   .si-rail,
@@ -17,19 +12,6 @@
     display: none !important;
   }
 
-  html,
-  body,
-  .app-shell,
-  .main,
-  .main.si-main,
-  .si-stage {
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    overflow: visible !important;
-    background: #fff !important;
-  }
-
   .app-shell {
     display: block !important;
     grid-template-columns: none !important;
@@ -38,6 +20,5 @@
   .main,
   .main.si-main {
     padding: 0 !important;
-    margin: 0 !important;
   }
 }
