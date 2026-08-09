@@ -5,7 +5,12 @@ const nav = require('../nav');
 const { esc } = require('./html');
 const { iconFor, isPathActive } = require('./navIcons');
 const basePath = require('./basePath');
-const { wrapPrintShell, getPrintBrand } = require('./printBrand');
+const {
+  wrapPrintShell,
+  getPrintBrand,
+  assetVersion,
+  criticalPrintStyleTag,
+} = require('./printBrand');
 
 function phpUrl(route, extra = '') {
   if (!route) return config.phpBaseUrl;
@@ -79,13 +84,34 @@ function renderApp({
   getPrintBrand();
 
   const base = basePath.basePath || '';
-  const allCss = ['/assets/css/print-chrome.css', ...css];
+  const pcVer = assetVersion('css/print-chrome.css');
+  const spVer = assetVersion('js/sales-print.js');
+  const allCss = [`/assets/css/print-chrome.css?v=${pcVer}`, ...css];
   const allJs = [...js];
   if (printChrome && user && !allJs.includes('/assets/js/sales-print.js')) {
-    allJs.push('/assets/js/sales-print.js');
+    allJs.push(`/assets/js/sales-print.js?v=${spVer}`);
   }
-  const cssLinks = allCss.map((c) => `<link rel="stylesheet" href="${esc(c)}">`).join('\n');
-  const jsLinks = allJs.map((j) => `<script src="${esc(j)}" defer></script>`).join('\n');
+  const cssLinks = allCss
+    .map((c) => {
+      // كسر كاش للأصول المطلقة غير المُصدَّرة مسبقاً
+      let href = c;
+      if (c.startsWith('/assets/') && !c.includes('?')) {
+        const rel = c.replace(/^\/assets\//, '');
+        href = `${c}?v=${assetVersion(rel)}`;
+      }
+      return `<link rel="stylesheet" href="${esc(href)}">`;
+    })
+    .join('\n');
+  const jsLinks = allJs
+    .map((j) => {
+      let src = j;
+      if (j.startsWith('/assets/') && !j.includes('?')) {
+        const rel = j.replace(/^\/assets\//, '');
+        src = `${j}?v=${assetVersion(rel)}`;
+      }
+      return `<script src="${esc(src)}" defer></script>`;
+    })
+    .join('\n');
   const bodyCls = ['app-body', bodyClass, printChrome && user ? 'has-print-chrome' : '']
     .filter(Boolean)
     .join(' ');
@@ -108,6 +134,7 @@ function renderApp({
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/shell.css">
   ${cssLinks}
+  ${printChrome && user ? criticalPrintStyleTag() : ''}
   ${extraHead}
 </head>
 <body class="${esc(bodyCls)}">

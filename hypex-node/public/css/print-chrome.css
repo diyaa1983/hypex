@@ -1,6 +1,6 @@
 /**
- * ترويسة وتذييل طباعة — نمط تقارير Node 2027 / document-header PHP
- * مخفية على الشاشة · تظهر داخل تدفق الصفحة عند الطباعة (موثوقة في Chrome)
+ * ترويسة وتذييل طباعة — دعم إضافي (الأنماط الحرجة مضمّنة في HTML)
+ * شعار يسار | اسم الشركة يمين | تذييل مستخدم
  */
 
 .hx-print-root {
@@ -8,8 +8,7 @@
   width: 100%;
 }
 
-/* مخفي على الشاشة — مثل .doc-print-only */
-.hx-print-only,
+/* مخفي على الشاشة */
 .hx-print-header,
 .hx-print-footer {
   display: none !important;
@@ -51,7 +50,6 @@
     display: none !important;
   }
 
-  /* الهيرو الشاشي يُستبدل بترويسة الشركة الرسمية */
   body.has-print-chrome .si-hero {
     display: none !important;
   }
@@ -68,27 +66,19 @@
     animation: none !important;
   }
 
-  /* —— ترويسة في تدفق المستند (تظهر دائماً في الطباعة) —— */
-  .hx-print-header.hx-print-only,
   .hx-print-header {
     display: block !important;
-    margin: 0 0 0.55rem !important;
-    padding: 0 !important;
     position: static !important;
     width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 0 0.55rem !important;
+    padding: 0 0 0.4rem !important;
+    border-bottom: 1px solid #222 !important;
     background: #fff !important;
     page-break-after: avoid;
     break-after: avoid;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
 
-  .hx-print-header-top {
-    padding: 0 0 0.4rem !important;
-    border-bottom: 1px solid #222 !important;
-  }
-
-  /* RTL: الاسم يمين · الشعار يسار — مثل document-header */
   .hx-print-header-brand {
     display: flex !important;
     flex-direction: row !important;
@@ -97,103 +87,75 @@
     justify-content: space-between !important;
     width: 100% !important;
     gap: 0.75rem !important;
-    direction: rtl !important;
-  }
-
-  .hx-print-header-co {
-    flex: 1 1 auto !important;
-    min-width: 0 !important;
-    font-family: Arial, Helvetica, Tahoma, sans-serif !important;
-    font-weight: 800 !important;
-    font-size: 13pt !important;
-    color: #0f172a !important;
-    text-align: start !important;
-    line-height: 1.3 !important;
+    direction: ltr !important;
   }
 
   .hx-print-header-logo {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
     flex: 0 0 auto !important;
-    overflow: visible !important;
+    width: 24mm !important;
+    max-width: 24mm !important;
+    height: 12mm !important;
+    max-height: 12mm !important;
+    overflow: hidden !important;
   }
 
   .hx-print-logo-img {
     display: block !important;
-    max-height: 18mm !important;
-    max-width: 28mm !important;
+    max-height: 11mm !important;
+    max-width: 23mm !important;
     width: auto !important;
     height: auto !important;
     object-fit: contain !important;
   }
 
-  .hx-print-logo-fallback {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 10mm !important;
-    height: 10mm !important;
-    border: 0.4pt solid #333 !important;
-    font-size: 9pt !important;
+  .hx-print-header-co {
+    flex: 1 1 auto !important;
+    text-align: right !important;
+    direction: rtl !important;
+    font-family: Arial, Tahoma, sans-serif !important;
+    font-size: 13pt !important;
     font-weight: 800 !important;
     color: #0f172a !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
 
   .hx-print-header-title {
-    display: block !important;
     text-align: center !important;
-    font-family: Arial, Helvetica, Tahoma, sans-serif !important;
-    font-weight: 700 !important;
     font-size: 12pt !important;
-    color: #1e293b !important;
-    padding: 0.4rem 0 0.1rem !important;
-    margin: 0 !important;
+    font-weight: 700 !important;
+    margin: 0.35rem 0 0 !important;
   }
 
   .hx-print-header-meta {
-    display: block !important;
     text-align: center !important;
-    font-family: Arial, Helvetica, Tahoma, sans-serif !important;
     font-size: 8pt !important;
-    font-weight: 600 !important;
     color: #475569 !important;
     margin: 0.15rem 0 0 !important;
   }
 
-  /* —— تذييل: أسفل كل صفحة (ثابت صغير مثل PHP) —— */
-  .hx-print-footer.hx-print-only,
   .hx-print-footer {
     display: block !important;
     position: fixed !important;
     bottom: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    margin: 0 !important;
-    padding: 1px 6px 2px !important;
-    font-family: Arial, Helvetica, Tahoma, sans-serif !important;
     font-size: 6.5pt !important;
-    font-weight: 500 !important;
-    line-height: 1.25 !important;
     color: #64748b !important;
     text-align: center !important;
     direction: rtl !important;
-    background: transparent !important;
-    border: none !important;
     z-index: 10001 !important;
     pointer-events: none !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
 
   .hx-print-content {
     display: block !important;
     width: 100% !important;
-    margin: 0 !important;
-    padding: 0 0 4mm 0 !important;
+    padding-bottom: 4mm !important;
   }
 
-  /* جداول التقارير */
   .si-surface,
   .ora-stmt-body,
   .ora-stmt {
@@ -204,11 +166,5 @@
   .ora-table thead,
   .si-table thead {
     display: table-header-group !important;
-  }
-
-  .ora-table tr,
-  .si-table tbody tr {
-    page-break-inside: avoid;
-    break-inside: avoid;
   }
 }
