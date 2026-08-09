@@ -1,6 +1,7 @@
 /**
- * طباعة Node 2027 — إطار مستقل (iframe): ترويسة + محتوى + تذييل
- * اسم الشركة والشعار من الإعدادات عبر /api/print-brand (مع احتياط data-* على body)
+ * طباعة Node 2027
+ * - sheet: طباعة الصفحة كما هي (فواتير — ترتيب DOM محفوظ)
+ * - iframe: ترويسة + محتوى منفصل (التقارير)
  */
 (function () {
   'use strict';
@@ -35,7 +36,6 @@
     };
   }
 
-  /** يحدّث اسم الشركة/الشعار من الإعدادات (db) */
   function fetchBrandThen(cb) {
     var fallback = brandFromDom();
     var url = baseUrl('/api/print-brand');
@@ -48,7 +48,6 @@
         if (data && data.ok) {
           if (data.companyName) fallback.company = String(data.companyName);
           if (data.logoUrl != null) fallback.logo = String(data.logoUrl || '');
-          // حدّث data-attrs للمرة التالية
           if (document.body) {
             document.body.setAttribute('data-hx-company', fallback.company);
             if (fallback.logo) document.body.setAttribute('data-hx-logo', fallback.logo);
@@ -80,17 +79,15 @@
     );
   }
 
-  /**
-   * الإجمالي داخل tfoot لا يتكرر كل صفحة — يُنقل لآخر tbody.
-   */
   function moveTotalsToTableEnd(root) {
     if (!root || !root.querySelectorAll) return;
     root.querySelectorAll('table').forEach(function (table) {
+      // جداول فواتير الطباعة: لا تُضف صف إجمالي داخل الجدول
+      if (table.classList && table.classList.contains('inv-print-table')) return;
       var tf = table.tFoot || table.querySelector('tfoot');
       if (!tf) return;
       var tb =
-        (table.tBodies && table.tBodies[table.tBodies.length - 1]) ||
-        null;
+        (table.tBodies && table.tBodies[table.tBodies.length - 1]) || null;
       if (!tb) {
         tb = document.createElement('tbody');
         table.appendChild(tb);
@@ -100,6 +97,23 @@
         tb.appendChild(tr);
       });
       tf.remove();
+    });
+  }
+
+  /** مجاميع فاتورة المبيعات دائماً بعد جدول البنود */
+  function ensureInvoiceTotalsAfterTable(root) {
+    if (!root || !root.querySelector) return;
+    var scope = root.querySelector
+      ? root.querySelector('.inv-print-doc, .ora-stmt') || root
+      : root;
+    if (!scope.querySelector) return;
+    var lines = scope.querySelector('.inv-print-lines, .ora-stmt-body');
+    var totals = scope.querySelector('.inv-print-totals');
+    if (lines && totals && lines.parentNode) {
+      lines.parentNode.appendChild(totals);
+    }
+    scope.querySelectorAll('.inv-print-table tr.hx-print-total-row').forEach(function (tr) {
+      tr.remove();
     });
   }
 
@@ -118,11 +132,11 @@
       .forEach(function (el) {
         el.remove();
       });
+    ensureInvoiceTotalsAfterTable(clone);
     moveTotalsToTableEnd(clone);
     return clone.innerHTML;
   }
 
-  /** شعار يسار · اسم الشركة يمين · عنوان · التوقيت والمستخدم في الترويسة فقط (لا تذييل ثابت) */
   function buildHeader(b, when) {
     var logo =
       b.logo !== ''
@@ -179,19 +193,18 @@
       'tr.hx-print-total-row,tr.ora-foot,tfoot tr{font-weight:800;background:#f1f5f9}' +
       'tr.hx-print-total-row td,tr.ora-foot td{border-top:2px solid #0f172a}' +
       '.empty,.muted{color:#64748b}' +
-      '.ora-stmt-head{display:block;margin:0 0 10px;padding:0 0 8px;border-bottom:1px solid #ccc}' +
+      '.ora-stmt-head,.inv-print-meta{display:block;margin:0 0 10px;padding:0 0 8px;border-bottom:1px solid #ccc}' +
       '.ora-stmt-head__main{margin:0 0 8px}' +
       '.ora-stmt-name{font:800 12pt Arial,Helvetica,sans-serif;margin:2px 0}' +
       '.ora-stmt-kicker{font-size:8pt;color:#334155;margin:0}' +
       '.ora-stmt-meta{font-size:9pt;color:#334155;margin:2px 0 0}' +
-      '.ora-stmt-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:10px 0 0;width:100%}' +
-      '.inv-print-totals{margin:10px 0 0!important;page-break-inside:avoid}' +
-      '.ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:4px 6px;border-radius:0;background:#fff}' +
+      '.inv-print-lines{display:block;margin:0 0 8px}' +
+      '.inv-print-totals,.ora-stmt-totals.inv-print-totals{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:12px 0 0!important;width:100%;page-break-inside:avoid}' +
+      '.ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:4px 6px;background:#fff}' +
       '.ora-stat span{font-size:7.5pt;color:#64748b;font-weight:700}' +
       '.ora-stat strong{font-size:9pt;font-weight:800;font-variant-numeric:tabular-nums}' +
-      '.ora-stat--balance{background:#e8f5f4!important;border-color:#0f6e6a!important}' +
+      '.ora-stat--balance{background:#e8f5f4!important;border:2px solid #0f6e6a!important}' +
       '.ora-stat--balance span,.ora-stat--balance strong{color:#0a4f4c!important}' +
-      /* شيكات قيد التحصيل — شكل Oracle */ +
       '.ora-stmt-cheques{margin-top:10px;padding:6px 0 4px;border-top:1px dashed #000;border-bottom:1px dashed #000;background:transparent;color:#000}' +
       '.ora-stmt-cheques__title{margin:0 0 6px;font:800 10pt Arial,Helvetica,sans-serif;text-decoration:underline;text-align:right;color:#000;border:0}' +
       '.ora-stmt-chq-wrap{max-width:320px}' +
@@ -201,10 +214,9 @@
       '.ora-stmt-chq-table td.col-money,.ora-stmt-chq-table th.col-money{text-align:left}' +
       '.ora-stmt-chq-table tfoot .ora-stmt-chq-total td{border-top:1px dashed #000!important;text-decoration:underline;padding-top:5px}' +
       '.ora-stmt-chq-table tfoot strong{font-weight:800;text-decoration:underline}' +
-      '.si-surface,.ora-stmt-body{border:1px solid #bbb;padding:0;margin:0 0 8px;overflow:visible!important}' +
+      '.si-surface,.ora-stmt-body,.inv-print-lines{border:1px solid #bbb;padding:0;margin:0 0 8px;overflow:visible!important}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
-      '.si-table-wrap,.ora-stmt,.hx-print-doc{overflow:visible!important}' +
-      /* بدون تذييل ثابت — هامش سفلي عادي ولا قص للجدول */
+      '.si-table-wrap,.ora-stmt,.hx-print-doc,.inv-print-doc{overflow:visible!important}' +
       '@page{size:A4 portrait;margin:10mm 8mm 12mm 8mm}' +
       'html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#fff}' +
       '.hx-print-doc{padding-bottom:2mm;margin:0}' +
@@ -295,17 +307,36 @@
     });
   }
 
+  function isSheetMode() {
+    return document.body && document.body.getAttribute('data-hx-print-mode') === 'sheet';
+  }
+
+  /** طباعة صفحة الفاتورة كما تظهر — المجاميع تبقى تحت الجدول */
+  function printCurrentSheet() {
+    ensureInvoiceTotalsAfterTable(document);
+    try {
+      window.focus();
+      window.print();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function runPrint() {
+    if (isSheetMode()) printCurrentSheet();
+    else runStandalonePrint();
+  }
+
   function bind() {
     document.querySelectorAll('.si-btn--print, [data-print]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        runStandalonePrint();
+        runPrint();
       });
     });
-    // فتح مباشر للطباعة (?pdf=1 أو data-hx-auto-print)
     if (document.body && document.body.getAttribute('data-hx-auto-print') === '1') {
-      setTimeout(runStandalonePrint, 350);
+      setTimeout(runPrint, 400);
     }
   }
 
@@ -316,6 +347,8 @@
   }
 
   window.HypexPrint = {
-    run: runStandalonePrint,
+    run: runPrint,
+    sheet: printCurrentSheet,
+    iframe: runStandalonePrint,
   };
 })();

@@ -166,6 +166,8 @@ async function renderStandalonePrintPage({
   backHref = '',
   contentHtml,
   autoPrint = false,
+  /** sheet = اطبع الصفحة كما هي (ترتيب DOM محفوظ) · iframe = محرك sales-print */
+  printMode = 'sheet',
 }) {
   await ensurePrintBrand();
   const brand = printDataAttrs({ user, documentTitle });
@@ -179,6 +181,8 @@ async function renderStandalonePrintPage({
   const back = backHref
     ? `<a class="hx-doc-btn" href="${escapeAttr(basePath.ensurePrefixed(backHref))}">عودة</a>`
     : '';
+
+  const mode = printMode === 'iframe' ? 'iframe' : 'sheet';
 
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -199,7 +203,6 @@ async function renderStandalonePrintPage({
     .hx-doc-btn--pri{background:#0f6e6a;color:#fff}
     .hx-doc-sheet{max-width:210mm;margin:1rem auto 2rem;background:#fff;padding:12mm 10mm;
       box-shadow:0 8px 28px rgba(15,23,42,.1)}
-    /* ترويسة معتمدة — شعار يسار · اسم الشركة يمين */
     .hx-doc-head{margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid #222}
     .hx-doc-head__row{display:flex;direction:ltr;align-items:center;justify-content:space-between;gap:14px;width:100%}
     .hx-doc-logo{display:block;max-width:72px;max-height:72px;width:auto;height:auto;object-fit:contain}
@@ -208,44 +211,52 @@ async function renderStandalonePrintPage({
     .hx-doc-company{flex:1 1 auto;text-align:right;font:800 15pt/1.3 Arial,Helvetica,sans-serif;color:#0f172a;direction:rtl}
     .hx-doc-title{text-align:center;font:700 12pt/1.3 Arial,Helvetica,sans-serif;margin-top:10px;color:#1e293b}
     .hx-doc-stamp{text-align:center;font:500 7.5pt Arial,Helvetica,sans-serif;color:#64748b;margin-top:4px}
-    .ora-stmt-head{display:block;margin:0 0 10px;padding:0 0 8px;border-bottom:1px solid #ccc}
+    .ora-stmt,.inv-print-doc{display:block}
+    .ora-stmt-head,.inv-print-meta{display:block;margin:0 0 10px;padding:0 0 8px;border-bottom:1px solid #ccc}
     .ora-stmt-kicker{font-size:8pt;color:#334155;margin:0}
     .ora-stmt-name{font:800 12pt Arial,Helvetica,sans-serif;margin:2px 0}
     .ora-stmt-meta{font-size:9pt;color:#334155;margin:2px 0 0;line-height:1.7}
-    .ora-stmt-totals{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0 0;width:100%}
-    .inv-print-totals{margin:10px 0 0!important}
-    .ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:6px 8px;background:#fff}
-    .ora-stat span{font-size:7.5pt;color:#64748b;font-weight:700}
-    .ora-stat strong{font-size:10pt;font-weight:800}
-    .ora-stat--balance{background:#e8f5f4!important;border-color:#0f6e6a!important}
+    .inv-print-lines{display:block;margin:0 0 10px}
+    /* مجاميع الفاتورة — دائماً بعد الجدول */
+    .inv-print-totals,.ora-stmt-totals.inv-print-totals{
+      display:grid!important;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px;
+      width:100%;
+      margin:12px 0 0!important;
+      order:99;
+    }
+    .ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:8px 10px;background:#fff}
+    .ora-stat span{font-size:8pt;color:#64748b;font-weight:700}
+    .ora-stat strong{font-size:11pt;font-weight:800;font-variant-numeric:tabular-nums}
+    .ora-stat--balance{background:#e8f5f4!important;border:2px solid #0f6e6a!important}
     .ora-stat--balance span,.ora-stat--balance strong{color:#0a4f4c!important}
-    table{width:100%;border-collapse:collapse;font-size:9pt;margin-top:6px}
+    table{width:100%;border-collapse:collapse;font-size:9pt;margin:0}
     th,td{border:1px solid #334155;padding:4px 5px;vertical-align:top;text-align:right}
     th{background:#e2e8f0;font-weight:800}
     thead{display:table-header-group}
     tr{page-break-inside:avoid}
-    tr.hx-print-total-row{font-weight:800;background:#f1f5f9}
-    tr.hx-print-total-row td{border-top:2px solid #0f172a}
-    .si-surface{border:1px solid #bbb;margin:0 0 8px;overflow:visible}
+    .si-surface{border:1px solid #bbb;margin:0;overflow:visible}
     .si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700;font-size:9pt}
     .empty{color:#64748b;text-align:center;padding:.75rem}
     @media print{
       body{background:#fff}
       .no-print,.hx-doc-bar{display:none!important}
       .hx-doc-sheet{max-width:none;margin:0;padding:0;box-shadow:none}
+      .inv-print-totals{margin-top:10px!important}
       @page{size:A4 portrait;margin:10mm 8mm 12mm 8mm}
     }
   </style>
 </head>
-<body${bodyPrintDataHtml({ user, documentTitle })}${autoPrint ? ' data-hx-auto-print="1"' : ''}>
+<body${bodyPrintDataHtml({ user, documentTitle })}${autoPrint ? ' data-hx-auto-print="1"' : ''} data-hx-print-mode="${mode}">
   <div class="hx-doc-bar no-print">
     <strong>${escapeHtml(documentTitle)}</strong>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-      <button type="button" class="hx-doc-btn hx-doc-btn--pri" data-print="1">طباعة / PDF</button>
+      <button type="button" class="hx-doc-btn hx-doc-btn--pri" data-print="1" id="hx-print-btn">طباعة / PDF</button>
       ${back}
     </div>
   </div>
-  <div class="hx-doc-sheet">
+  <div class="hx-doc-sheet" id="hx-print-sheet">
     <header class="hx-doc-head" aria-label="ترويسة الشركة">
       <div class="hx-doc-head__row">
         <div style="flex:0 0 auto;max-width:90px;max-height:72px;overflow:hidden">${logoHtml}</div>

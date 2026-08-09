@@ -263,8 +263,8 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
       '<tr><td colspan="9" class="empty">لا بنود</td></tr>';
 
     const contentHtml = `
-      <div class="ora-stmt print-area">
-        <header class="ora-stmt-head">
+      <div class="ora-stmt inv-print-doc">
+        <header class="ora-stmt-head inv-print-meta">
           <div class="ora-stmt-head__main">
             <p class="ora-stmt-kicker">فاتورة مبيعات</p>
             <h2 class="ora-stmt-name">رقم ${esc(inv.invoice_no || '—')}</h2>
@@ -286,10 +286,11 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
             }
           </div>
         </header>
-        <div class="si-surface ora-stmt-body">
+
+        <section class="si-surface ora-stmt-body inv-print-lines">
           <div class="si-surface-head">بنود الفاتورة</div>
           <div class="si-table-wrap">
-            <table class="si-table ora-table">
+            <table class="si-table ora-table inv-print-table">
               <thead>
                 <tr>
                   <th>#</th>
@@ -306,8 +307,10 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
               <tbody>${bodyRows}</tbody>
             </table>
           </div>
-        </div>
-        <div class="ora-stmt-totals inv-print-totals" aria-label="ملخص الفاتورة">
+        </section>
+
+        <!-- المجاميع تحت الجدول فقط — لا تظهر قبل جدول البنود -->
+        <section class="inv-print-totals ora-stmt-totals" aria-label="ملخص الفاتورة">
           <div class="ora-stat">
             <span>بدون ضريبة</span>
             <strong dir="ltr">${esc(fmtAmt(inv.subtotal))}</strong>
@@ -320,7 +323,7 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
             <span>الإجمالي</span>
             <strong dir="ltr">${esc(fmtAmt(inv.total))}</strong>
           </div>
-        </div>
+        </section>
       </div>`;
 
     const autoPrint =
@@ -333,6 +336,7 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         backHref: `/sales/invoices/${inv.id}`,
         contentHtml,
         autoPrint,
+        printMode: 'sheet',
       })
     );
   } catch (e) {
