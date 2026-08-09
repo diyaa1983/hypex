@@ -6,6 +6,7 @@ const svc = require('./invoicesService');
 const { renderApp, phpUrl, embedUrl } = require('../lib/layout');
 const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
 const config = require('../config');
+const { ensurePrintBrand, renderStandalonePrintPage } = require('../lib/printBrand');
 
 const router = express.Router();
 
@@ -236,73 +237,115 @@ router.get('/sales/invoices', async (req, res) => {
   }
 });
 
-/** طباعة / PDF */
+/** طباعة / PDF — ترويسة الشركة المعتمدة + نفس محرك كشف Oracle */
 router.get('/sales/invoices/:id/print', async (req, res) => {
   try {
+    await ensurePrintBrand();
     const inv = await svc.getInvoice(req.params.id);
     if (!inv) return res.status(404).send('الفاتورة غير موجودة');
-    const lines = inv.lines
-      .map(
-        (ln, i) => `<tr>
-        <td>${i + 1}</td>
-        <td>${esc(ln.item_code || '')}</td>
+
+    const bodyRows =
+      inv.lines
+        .map(
+          (ln, i) => `<tr>
+        <td dir="ltr">${i + 1}</td>
+        <td dir="ltr">${esc(ln.item_code || '')}</td>
         <td>${esc(ln.name_ar || '')}</td>
         <td dir="ltr">${esc(fmtAmt(ln.qty))}</td>
         <td dir="ltr">${esc(fmtAmt(ln.unit_price))}</td>
+        <td dir="ltr">${esc(fmtAmt(ln.discount_pct))}</td>
         <td dir="ltr">${esc(fmtAmt(ln.line_total))}</td>
         <td dir="ltr">${esc(fmtAmt(ln.tax_amount))}</td>
-        <td dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
+        <td dir="ltr"><strong>${esc(fmtAmt(ln.line_gross))}</strong></td>
       </tr>`
-      )
-      .join('');
+        )
+        .join('') ||
+      '<tr><td colspan="9" class="empty">لا بنود</td></tr>';
 
-    const autoPdf = String(req.query.pdf || '') === '1';
-    res.send(`<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8">
-  <title>فاتورة ${esc(inv.invoice_no)}</title>
-  <style>
-    body{font-family:Arial, Helvetica, sans-serif;margin:1.2rem;color:#111}
-    h1{font-size:1.2rem;margin:0 0 .35rem}
-    .meta{margin-bottom:1rem;font-size:.9rem;line-height:1.7}
-    table{width:100%;border-collapse:collapse;font-size:.85rem}
-    th,td{border:1px solid #ccc;padding:.35rem .45rem;text-align:right}
-    th{background:#f3f4f6}
-    .tot{margin-top:.8rem;max-width:16rem;margin-right:0;margin-left:auto}
-    .tot div{display:flex;justify-content:space-between;padding:.2rem 0;font-weight:700}
-    .grand{border-top:2px solid #333;margin-top:.3rem;padding-top:.35rem}
-    @media print{.no-print{display:none!important}}
-  </style>
-</head>
-<body>
-  <div class="no-print" style="margin-bottom:1rem;display:flex;gap:.4rem;flex-wrap:wrap">
-    <button onclick="window.print()">طباعة / حفظ PDF</button>
-    <a href="/sales/invoices/${inv.id}">عودة للفاتورة</a>
-  </div>
-  <h1>فاتورة مبيعات ${esc(inv.invoice_no)}</h1>
-  <div class="meta">
-    <div>التاريخ: <strong dir="ltr">${esc(isoToDmy(inv.invoice_date))}</strong></div>
-    <div>العميل: <strong>${esc((inv.customer_code ? inv.customer_code + ' — ' : '') + inv.customer_name)}</strong></div>
-    <div>الحالة: <strong>${inv.is_posted ? 'مرحّلة' : 'مسودة'}</strong></div>
-    ${inv.notes ? `<div>ملاحظات: ${esc(inv.notes)}</div>` : ''}
-  </div>
-  <table>
-    <thead>
-      <tr><th>#</th><th>الرمز</th><th>المادة</th><th>الكمية</th><th>السعر</th><th>الصافي</th><th>الضريبة</th><th>الإجمالي</th></tr>
-    </thead>
-    <tbody>${lines || '<tr><td colspan="8">لا بنود</td></tr>'}</tbody>
-  </table>
-  <div class="tot">
-    <div><span>بدون ضريبة</span><span dir="ltr">${esc(fmtAmt(inv.subtotal))}</span></div>
-    <div><span>الضريبة</span><span dir="ltr">${esc(fmtAmt(inv.tax_amount))}</span></div>
-    <div class="grand"><span>الإجمالي</span><span dir="ltr">${esc(fmtAmt(inv.total))}</span></div>
-  </div>
-  ${autoPdf ? '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},300)});</script>' : ''}
-</body>
-</html>`);
+    const contentHtml = `
+      <div class="ora-stmt print-area">
+        <header class="ora-stmt-head">
+          <div class="ora-stmt-head__main">
+            <p class="ora-stmt-kicker">فاتورة مبيعات</p>
+            <h2 class="ora-stmt-name">رقم ${esc(inv.invoice_no || '—')}</h2>
+            <p class="ora-stmt-meta">
+              التاريخ: <strong dir="ltr">${esc(isoToDmy(inv.invoice_date))}</strong>
+              <span aria-hidden="true"> · </span>
+              العميل: <strong>${esc(
+                (inv.customer_code ? inv.customer_code + ' — ' : '') + (inv.customer_name || '')
+              )}</strong>
+              <span aria-hidden="true"> · </span>
+              الدفع: <strong>${esc(inv.payment_type === 'cash' ? 'نقدي' : 'ذمم')}</strong>
+              <span aria-hidden="true"> · </span>
+              الحالة: <strong>${inv.is_posted ? 'مرحّلة' : 'مسودة'}</strong>
+            </p>
+            ${
+              inv.notes
+                ? `<p class="ora-stmt-meta">ملاحظات: ${esc(inv.notes)}</p>`
+                : ''
+            }
+          </div>
+          <div class="ora-stmt-totals" aria-label="ملخص الفاتورة">
+            <div class="ora-stat">
+              <span>بدون ضريبة</span>
+              <strong dir="ltr">${esc(fmtAmt(inv.subtotal))}</strong>
+            </div>
+            <div class="ora-stat">
+              <span>الضريبة</span>
+              <strong dir="ltr">${esc(fmtAmt(inv.tax_amount))}</strong>
+            </div>
+            <div class="ora-stat ora-stat--balance">
+              <span>الإجمالي</span>
+              <strong dir="ltr">${esc(fmtAmt(inv.total))}</strong>
+            </div>
+          </div>
+        </header>
+        <div class="si-surface ora-stmt-body">
+          <div class="si-surface-head">بنود الفاتورة</div>
+          <div class="si-table-wrap">
+            <table class="si-table ora-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>الرمز</th>
+                  <th>المادة</th>
+                  <th>الكمية</th>
+                  <th>السعر</th>
+                  <th>خصم %</th>
+                  <th>الصافي</th>
+                  <th>الضريبة</th>
+                  <th>الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody>${bodyRows}</tbody>
+              <tbody>
+                <tr class="hx-print-total-row">
+                  <td colspan="6">الإجمالي</td>
+                  <td dir="ltr">${esc(fmtAmt(inv.subtotal))}</td>
+                  <td dir="ltr">${esc(fmtAmt(inv.tax_amount))}</td>
+                  <td dir="ltr"><strong>${esc(fmtAmt(inv.total))}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+
+    const autoPrint =
+      String(req.query.pdf || '') === '1' || String(req.query.auto || '') === '1';
+
+    res.send(
+      await renderStandalonePrintPage({
+        user: req.session.user,
+        documentTitle: `فاتورة مبيعات ${inv.invoice_no || inv.id}`,
+        backHref: `/sales/invoices/${inv.id}`,
+        contentHtml,
+        autoPrint,
+      })
+    );
   } catch (e) {
-    res.status(500).send(e.message);
+    console.error(e);
+    res.status(500).send(e.message || 'خطأ');
   }
 });
 

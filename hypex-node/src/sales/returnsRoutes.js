@@ -5,6 +5,7 @@ const auth = require('../auth');
 const svc = require('./returnsService');
 const { renderApp, embedUrl } = require('../lib/layout');
 const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
+const { ensurePrintBrand, renderStandalonePrintPage } = require('../lib/printBrand');
 
 const router = express.Router();
 
@@ -337,35 +338,79 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
 
 router.get('/sales/returns/:id/print', async (req, res) => {
   try {
+    await ensurePrintBrand();
     const doc = await svc.getReturn(req.params.id);
     if (!doc) return res.status(404).send('غير موجود');
-    const lines = doc.lines
-      .map(
-        (ln, i) => `<tr>
-        <td>${i + 1}</td><td>${esc(ln.item_code || '')}</td><td>${esc(ln.name_ar || '')}</td>
-        <td dir="ltr">${esc(fmtAmt(ln.qty))}</td><td dir="ltr">${esc(fmtAmt(ln.unit_price))}</td>
-        <td dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
+    const bodyRows =
+      doc.lines
+        .map(
+          (ln, i) => `<tr>
+        <td dir="ltr">${i + 1}</td>
+        <td dir="ltr">${esc(ln.item_code || '')}</td>
+        <td>${esc(ln.name_ar || '')}</td>
+        <td dir="ltr">${esc(fmtAmt(ln.qty))}</td>
+        <td dir="ltr">${esc(fmtAmt(ln.unit_price))}</td>
+        <td dir="ltr"><strong>${esc(fmtAmt(ln.line_gross))}</strong></td>
       </tr>`
-      )
-      .join('');
-    const autoPdf = String(req.query.pdf || '') === '1';
-    res.send(`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
-<title>مرتجع ${esc(doc.return_no)}</title>
-<style>body{font-family:Arial, Helvetica, sans-serif;margin:1.2rem}table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{border:1px solid #ccc;padding:.35rem;text-align:right}th{background:#f3f4f6}@media print{.no-print{display:none}}</style></head><body>
-<div class="no-print" style="margin-bottom:1rem"><button onclick="window.print()">طباعة / PDF</button> · <a href="/sales/returns/form/${doc.id}">عودة</a></div>
-<h1>مرتجع مبيعات ${esc(doc.return_no)}</h1>
-<p>التاريخ: <strong dir="ltr">${esc(isoToDmy(doc.return_date))}</strong><br>
-العميل: <strong>${esc(doc.customer_name)}</strong><br>
-فاتورة البيع: <strong dir="ltr">${esc(doc.invoice_no)}</strong> · ${
-      doc.is_posted ? 'مرحّل' : 'مسودة'
-    }</p>
-<table><thead><tr><th>#</th><th>رمز</th><th>مادة</th><th>كمية</th><th>سعر</th><th>الإجمالي</th></tr></thead>
-<tbody>${lines || '<tr><td colspan="6">لا بنود</td></tr>'}</tbody></table>
-<p style="text-align:left;font-weight:800;margin-top:1rem">الإجمالي: <span dir="ltr">${esc(
-      fmtAmt(doc.total)
-    )}</span></p>
-${autoPdf ? '<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},250)})</script>' : ''}
-</body></html>`);
+        )
+        .join('') || '<tr><td colspan="6" class="empty">لا بنود</td></tr>';
+
+    const contentHtml = `
+      <div class="ora-stmt print-area">
+        <header class="ora-stmt-head">
+          <div class="ora-stmt-head__main">
+            <p class="ora-stmt-kicker">مرتجع مبيعات</p>
+            <h2 class="ora-stmt-name">رقم ${esc(doc.return_no || '—')}</h2>
+            <p class="ora-stmt-meta">
+              التاريخ: <strong dir="ltr">${esc(isoToDmy(doc.return_date))}</strong>
+              <span aria-hidden="true"> · </span>
+              العميل: <strong>${esc(doc.customer_name || '')}</strong>
+              <span aria-hidden="true"> · </span>
+              فاتورة البيع: <strong dir="ltr">${esc(doc.invoice_no || '—')}</strong>
+              <span aria-hidden="true"> · </span>
+              الحالة: <strong>${doc.is_posted ? 'مرحّل' : 'مسودة'}</strong>
+            </p>
+          </div>
+          <div class="ora-stmt-totals" style="grid-template-columns:1fr">
+            <div class="ora-stat ora-stat--balance">
+              <span>الإجمالي</span>
+              <strong dir="ltr">${esc(fmtAmt(doc.total))}</strong>
+            </div>
+          </div>
+        </header>
+        <div class="si-surface ora-stmt-body">
+          <div class="si-surface-head">بنود المرتجع</div>
+          <div class="si-table-wrap">
+            <table class="si-table ora-table">
+              <thead>
+                <tr>
+                  <th>#</th><th>الرمز</th><th>المادة</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody>${bodyRows}</tbody>
+              <tbody>
+                <tr class="hx-print-total-row">
+                  <td colspan="5">الإجمالي</td>
+                  <td dir="ltr"><strong>${esc(fmtAmt(doc.total))}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+
+    const autoPrint =
+      String(req.query.pdf || '') === '1' || String(req.query.auto || '') === '1';
+
+    res.send(
+      await renderStandalonePrintPage({
+        user: req.session.user,
+        documentTitle: `مرتجع مبيعات ${doc.return_no || doc.id}`,
+        backHref: `/sales/returns/form/${doc.id}`,
+        contentHtml,
+        autoPrint,
+      })
+    );
   } catch (e) {
     res.status(500).send(e.message);
   }

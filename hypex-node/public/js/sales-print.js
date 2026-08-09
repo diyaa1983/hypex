@@ -112,7 +112,9 @@
     if (!area) return '';
     var clone = area.cloneNode(true);
     clone
-      .querySelectorAll('.no-print, .si-rail, .ora-filters, script, style, .si-hero, .sidebar')
+      .querySelectorAll(
+        '.no-print, .si-rail, .ora-filters, script, style, .si-hero, .sidebar, .hx-doc-bar, .hx-doc-head'
+      )
       .forEach(function (el) {
         el.remove();
       });
@@ -188,6 +190,16 @@
       '.ora-stat strong{font-size:9pt;font-weight:800;font-variant-numeric:tabular-nums}' +
       '.ora-stat--balance{background:#e8f5f4!important;border-color:#0f6e6a!important}' +
       '.ora-stat--balance span,.ora-stat--balance strong{color:#0a4f4c!important}' +
+      '.ora-cheques{margin-top:8px;border:2px solid #333;padding:0;background:#fff}' +
+      '.ora-cheques__head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:center;padding:5px 6px;background:#f0f0f0;border-bottom:2px solid #333}' +
+      '.ora-cheques__title{display:flex;align-items:center;gap:6px}' +
+      '.ora-cheques__badge{display:inline-block;padding:1px 5px;font:800 7pt Arial,sans-serif;background:#000;color:#fff}' +
+      '.ora-cheques__head h3{margin:0;font:800 10.5pt Arial,sans-serif;color:#000}' +
+      '.ora-cheques__meta{font:800 9pt Arial,sans-serif}' +
+      '.ora-cheques__total strong,.ora-cheques__count strong{font-weight:900}' +
+      '.ora-cheques-table th{background:#e8e8e8!important;font-weight:800!important}' +
+      '.ora-cheques-table td{font-weight:700!important}' +
+      '.ora-cheque-no,.ora-cheque-amt,.ora-cheque-name{font-weight:900!important}' +
       '.si-surface,.ora-stmt-body{border:1px solid #bbb;padding:0;margin:0 0 8px;overflow:visible!important}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
       '.si-table-wrap,.ora-stmt,.hx-print-doc{overflow:visible!important}' +
@@ -290,6 +302,10 @@
         runStandalonePrint();
       });
     });
+    // فتح مباشر للطباعة (?pdf=1 أو data-hx-auto-print)
+    if (document.body && document.body.getAttribute('data-hx-auto-print') === '1') {
+      setTimeout(runStandalonePrint, 350);
+    }
   }
 
   if (document.readyState === 'loading') {
@@ -297,4 +313,8 @@
   } else {
     bind();
   }
+
+  window.HypexPrint = {
+    run: runStandalonePrint,
+  };
 })();

@@ -902,27 +902,38 @@ router.get(
 
       let chequesHtml = '';
       if (cheques.length) {
+        const nChq = cheques.length;
         chequesHtml = `
-          <section class="ora-cheques print-area">
+          <section class="ora-cheques print-area" aria-label="شيكات قيد التحصيل">
             <div class="ora-cheques__head">
-              <h3>شيكات قيد التحصيل</h3>
-              <span>الإجمالي: <strong dir="ltr">${money(data.cheque_total)}</strong> · ${
-                cheques.length
-              } شيك</span>
+              <div class="ora-cheques__title">
+                <span class="ora-cheques__badge" aria-hidden="true">شيك</span>
+                <h3>شيكات قيد التحصيل</h3>
+              </div>
+              <div class="ora-cheques__meta">
+                <span class="ora-cheques__count"><strong dir="ltr">${nChq}</strong> شيك</span>
+                <span class="ora-cheques__total">الإجمالي: <strong dir="ltr">${money(
+                  data.cheque_total
+                )}</strong></span>
+              </div>
             </div>
             <div class="si-table-wrap">
-              <table class="si-table ora-table">
+              <table class="si-table ora-table ora-cheques-table">
                 <thead><tr>
-                  <th>رقم الشيك</th><th>الاستحقاق</th><th>المبلغ</th><th>الاسم</th><th>مرجع</th>
+                  <th>رقم الشيك</th>
+                  <th>الاستحقاق</th>
+                  <th>المبلغ</th>
+                  <th>الاسم</th>
+                  <th>مرجع</th>
                 </tr></thead>
                 <tbody>${cheques
                   .map(
-                    (c) => `<tr>
-                    <td dir="ltr">${esc(String(c.chq_no || ''))}</td>
-                    <td dir="ltr">${dmy(c.chq_date)}</td>
-                    <td dir="ltr">${money(c.amount)}</td>
-                    <td>${esc(String(c.name || ''))}</td>
-                    <td dir="ltr">${esc(String(c.receipt_ref || ''))}</td>
+                    (c) => `<tr class="ora-cheque-row">
+                    <td class="ora-cheque-no" dir="ltr">${esc(String(c.chq_no || ''))}</td>
+                    <td class="ora-cheque-date" dir="ltr">${dmy(c.chq_date)}</td>
+                    <td class="ora-cheque-amt" dir="ltr">${money(c.amount)}</td>
+                    <td class="ora-cheque-name">${esc(String(c.name || ''))}</td>
+                    <td class="ora-cheque-ref" dir="ltr">${esc(String(c.receipt_ref || ''))}</td>
                   </tr>`
                   )
                   .join('')}</tbody>

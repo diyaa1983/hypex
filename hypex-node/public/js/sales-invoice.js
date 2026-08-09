@@ -813,7 +813,8 @@
       setMsg('احفظ الفاتورة أولاً.', 'error');
       return;
     }
-    var url = '/sales/invoices/' + state.id + '/print' + (pdf ? '?pdf=1' : '');
+    // طباعة بنفس محرك كشف Oracle + الترويسة المعتمدة
+    var url = '/sales/invoices/' + state.id + '/print?auto=1' + (pdf ? '&pdf=1' : '');
     window.open(url, '_blank');
   }
 
