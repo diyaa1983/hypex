@@ -362,6 +362,10 @@ a:hover {
 }
 
 .sidebar--2027 .brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   width: 2.45rem;
   height: 2.45rem;
   border-radius: 12px;
@@ -369,30 +373,43 @@ a:hover {
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+  color: #fff;
   background: linear-gradient(145deg, #2dd4bf 0%, var(--sb-accent-deep) 100%);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.12) inset,
     0 8px 20px rgba(15, 110, 106, 0.35);
+  overflow: hidden;
+}
+
+.sidebar--2027 .brand-mark--logo {
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  padding: 0.2rem;
+}
+
+.sidebar--2027 .brand-mark--logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sidebar--2027 .sidebar-brand__text {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .sidebar--2027 .sidebar-brand__text strong {
   display: block;
   font-family: var(--font-display), var(--sb-font);
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 700;
   letter-spacing: 0.01em;
   color: #f8fafc;
-  line-height: 1.15;
-}
-
-.sidebar--2027 .sidebar-brand__text small {
-  display: block;
-  margin-top: 0.15rem;
-  color: var(--sb-muted);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-section-label {

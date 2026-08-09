@@ -53,7 +53,7 @@ const { phpEmbedPage } = require('./lib/layout');
 const basePath = require('./lib/basePath');
 const fs = require('fs');
 const { createSessionMiddleware } = require('./sessionStore');
-const { warmPrintBrand } = require('./lib/printBrand');
+const { warmPrintBrand, ensurePrintBrand, getPrintBrand } = require('./lib/printBrand');
 
 const app = express();
 const phpRoot = path.join(__dirname, '..', '..');
@@ -69,6 +69,41 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '2mb' }));
 // جلسة في MySQL — لا تُفقد عند إيقاف/تشغيل Node
 app.use(createSessionMiddleware());
+
+/** تحميل اسم الشركة/الشعار من الإعدادات قبل عرض الصفحات (ترويسة الطباعة) */
+app.use(async (req, res, next) => {
+  try {
+    if (req.session && req.session.user) {
+      await ensurePrintBrand();
+    }
+  } catch {
+    /* ignore */
+  }
+  next();
+});
+
+/** بيانات الترويسة للطباعة — دائماً من sys_company_settings */
+app.get('/api/print-brand', async (req, res) => {
+  if (!req.session || !req.session.user) {
+    return res.status(401).json({ ok: false, error: 'auth' });
+  }
+  try {
+    const brand = await ensurePrintBrand(true);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      ok: true,
+      companyName: brand.companyName || 'Hypex',
+      logoUrl: brand.logoUrl || '',
+    });
+  } catch (e) {
+    const b = getPrintBrand();
+    res.json({
+      ok: true,
+      companyName: b.companyName || 'Hypex',
+      logoUrl: b.logoUrl || '',
+    });
+  }
+});
 
 /** تقديم أصول Node مع إعادة كتابة مسارات JS تحت /hypex */
 function sendPublicFile(req, res, next) {

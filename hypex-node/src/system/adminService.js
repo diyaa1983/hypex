@@ -684,6 +684,15 @@ async function saveCompanySettings(payload, logoFile) {
           'قاعدة البيانات لم تعكس الاسم بعد الحفظ. تحقق من صلاحيات مستخدم MySQL على sys_company_settings.',
       };
     }
+    try {
+      const { invalidatePrintBrand } = require('../lib/printBrand');
+      invalidatePrintBrand({
+        company_name_ar: after.company_name_ar,
+        logo_path: after.logo_path,
+      });
+    } catch {
+      /* ignore */
+    }
     return {
       ok: true,
       message: 'تم حفظ الإعدادات.' + (logoNote ? ' —' + logoNote : ''),

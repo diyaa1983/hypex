@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * ترويسة/تذييل طباعة — بيانات العلامة فقط (الشعار داخل iframe الطباعة)
+ * بيانات ترويسة/تذييل الطباعة من sys_company_settings (الإعدادات)
  */
 const fs = require('fs');
 const path = require('path');
@@ -14,8 +14,10 @@ const DEFAULT = {
 };
 
 let cache = { ...DEFAULT };
-let loading = false;
 let lastLoad = 0;
+let loadPromise = null;
+
+const CACHE_MS = 5_000;
 
 function logoUrlFromPath(lp) {
   const raw = String(lp || '')
@@ -32,37 +34,73 @@ function logoUrlFromPath(lp) {
   return basePath.ensurePrefixed(p);
 }
 
-async function refreshBrand() {
-  if (loading) return;
-  loading = true;
-  try {
-    const rows = await db.query(
-      `SELECT company_name_ar, logo_path FROM sys_company_settings WHERE id = 1 LIMIT 1`
-    );
-    const r = rows[0] || {};
-    let companyName = String(r.company_name_ar || '').trim();
-    if (!companyName || companyName === 'اسم الشركة') companyName = 'Hypex';
-    cache = {
-      companyName,
-      logoUrl: logoUrlFromPath(r.logo_path),
-    };
-    lastLoad = Date.now();
-  } catch {
-    /* keep */
-  } finally {
-    loading = false;
-  }
+function normalizeName(raw) {
+  let companyName = String(raw || '').trim();
+  if (!companyName || companyName === 'اسم الشركة') companyName = 'Hypex';
+  return companyName;
 }
 
-function getPrintBrand() {
-  if (Date.now() - lastLoad > 60_000) {
-    refreshBrand().catch(() => {});
+async function refreshBrand(force = false) {
+  if (loadPromise && !force) return loadPromise;
+  loadPromise = (async () => {
+    try {
+      const rows = await db.query(
+        `SELECT company_name_ar, logo_path FROM sys_company_settings WHERE id = 1 LIMIT 1`
+      );
+      const r = rows[0] || {};
+      cache = {
+        companyName: normalizeName(r.company_name_ar),
+        logoUrl: logoUrlFromPath(r.logo_path),
+      };
+      lastLoad = Date.now();
+    } catch (e) {
+      console.error('printBrand refresh', e.message || e);
+      /* keep previous cache */
+    } finally {
+      loadPromise = null;
+    }
+    return cache;
+  })();
+  return loadPromise;
+}
+
+/** يحدّث الكاش إن انتهت مدته أو force */
+async function ensurePrintBrand(force = false) {
+  if (force || Date.now() - lastLoad > CACHE_MS || !lastLoad) {
+    return refreshBrand(force);
   }
   return cache;
 }
 
+function getPrintBrand() {
+  if (Date.now() - lastLoad > CACHE_MS || !lastLoad) {
+    refreshBrand().catch(() => {});
+  }
+  return { ...cache };
+}
+
 function warmPrintBrand() {
-  return refreshBrand();
+  return refreshBrand(true);
+}
+
+/** بعد حفظ الإعدادات — استخدم الاسم فوراً */
+function invalidatePrintBrand(snapshot = null) {
+  if (snapshot && (snapshot.companyName || snapshot.company_name_ar)) {
+    cache = {
+      companyName: normalizeName(snapshot.companyName || snapshot.company_name_ar),
+      logoUrl:
+        snapshot.logoUrl != null
+          ? String(snapshot.logoUrl)
+          : snapshot.logo_path != null
+            ? logoUrlFromPath(snapshot.logo_path)
+            : cache.logoUrl,
+    };
+    lastLoad = Date.now();
+  } else {
+    lastLoad = 0;
+    cache = { ...DEFAULT };
+  }
+  return refreshBrand(true);
 }
 
 function escapeHtml(s) {
@@ -121,11 +159,13 @@ function bodyPrintDataHtml(opts = {}) {
 module.exports = {
   getPrintBrand,
   warmPrintBrand,
+  ensurePrintBrand,
+  invalidatePrintBrand,
+  refreshBrand,
   wrapPrintShell,
   printDataAttrs,
   bodyPrintDataHtml,
   assetVersion,
-  refreshBrand,
   escapeHtml,
   escapeAttr,
 };

@@ -41,13 +41,17 @@ function renderSidebar(user, activePath = '') {
 
   const name = user.full_name_ar || user.username || '';
   const initial = String(name).trim().charAt(0) || 'U';
+  const brand = getPrintBrand();
+  const companyName = brand.companyName || 'Hypex';
+  const markHtml = brand.logoUrl
+    ? `<span class="brand-mark brand-mark--logo" aria-hidden="true"><img src="${esc(brand.logoUrl)}" alt="" width="40" height="40"></span>`
+    : `<span class="brand-mark" aria-hidden="true">${esc(String(companyName).charAt(0) || 'H')}</span>`;
 
   return `<aside class="sidebar sidebar--2027 no-print" data-active-path="${esc(activePath || '')}">
     <div class="sidebar-brand">
-      <span class="brand-mark" aria-hidden="true">H</span>
+      ${markHtml}
       <div class="sidebar-brand__text">
-        <strong>Hypex</strong>
-        <small>Node · 2027</small>
+        <strong title="${esc(companyName)}">${esc(companyName)}</strong>
       </div>
     </div>
     <p class="sidebar-section-label">الأقسام</p>
@@ -134,7 +138,7 @@ function renderApp({
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
   <meta name="hx-print-engine" content="standalone-v3">
-  <title>${esc(title)} · Hypex</title>
+  <title>${esc(title)} · ${esc(getPrintBrand().companyName || 'Hypex')}</title>
   <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
   <script src="/assets/js/base-path.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">

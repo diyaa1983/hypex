@@ -1,8 +1,6 @@
 /**
  * طباعة Node 2027 — إطار مستقل (iframe): ترويسة + محتوى + تذييل
- * لا يضع شعار الشركة في صفحة الشاشة (يتفادى الشعار العملاق في المعاينة).
- *
- * يتطلب: data-hx-print="standalone-v3" + data-hx-company/logo/user على body
+ * اسم الشركة والشعار من الإعدادات عبر /api/print-brand (مع احتياط data-* على body)
  */
 (function () {
   'use strict';
@@ -17,7 +15,17 @@
       .replace(/"/g, '&quot;');
   }
 
-  function brand() {
+  function baseUrl(path) {
+    var b =
+      typeof window.__HYPEX_BASE__ === 'string' && window.__HYPEX_BASE__
+        ? window.__HYPEX_BASE__
+        : '';
+    if (b && b.charAt(b.length - 1) === '/') b = b.slice(0, -1);
+    if (!path || path.charAt(0) !== '/') path = '/' + (path || '');
+    return b + path;
+  }
+
+  function brandFromDom() {
     var b = document.body || {};
     return {
       company: b.getAttribute('data-hx-company') || 'Hypex',
@@ -25,6 +33,33 @@
       user: b.getAttribute('data-hx-user') || '—',
       title: b.getAttribute('data-hx-print-title') || document.title || 'تقرير',
     };
+  }
+
+  /** يحدّث اسم الشركة/الشعار من الإعدادات (db) */
+  function fetchBrandThen(cb) {
+    var fallback = brandFromDom();
+    var url = baseUrl('/api/print-brand');
+    fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (r) {
+        if (!r.ok) throw new Error('brand http ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          if (data.companyName) fallback.company = String(data.companyName);
+          if (data.logoUrl != null) fallback.logo = String(data.logoUrl || '');
+          // حدّث data-attrs للمرة التالية
+          if (document.body) {
+            document.body.setAttribute('data-hx-company', fallback.company);
+            if (fallback.logo) document.body.setAttribute('data-hx-logo', fallback.logo);
+            else document.body.removeAttribute('data-hx-logo');
+          }
+        }
+        cb(fallback);
+      })
+      .catch(function () {
+        cb(fallback);
+      });
   }
 
   function stampNow() {
@@ -136,8 +171,7 @@
     );
   }
 
-  function buildHtml(content) {
-    var b = brand();
+  function buildHtml(content, b) {
     var when = stampNow();
     return (
       '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
@@ -161,59 +195,62 @@
       window.alert('لا يوجد محتوى للطباعة.');
       return;
     }
-    var html = buildHtml(content);
-    var frame = document.getElementById('hx-print-frame');
-    if (frame) frame.remove();
-    frame = document.createElement('iframe');
-    frame.id = 'hx-print-frame';
-    frame.setAttribute('title', 'print');
-    frame.style.cssText =
-      'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none';
-    document.body.appendChild(frame);
 
-    var win = frame.contentWindow;
-    var doc = win.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
+    fetchBrandThen(function (b) {
+      var html = buildHtml(content, b);
+      var frame = document.getElementById('hx-print-frame');
+      if (frame) frame.remove();
+      frame = document.createElement('iframe');
+      frame.id = 'hx-print-frame';
+      frame.setAttribute('title', 'print');
+      frame.style.cssText =
+        'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none';
+      document.body.appendChild(frame);
 
-    var printed = false;
-    function doPrint() {
-      if (printed) return;
-      printed = true;
-      try {
-        win.focus();
-        win.print();
-      } catch (e) {
-        window.print();
-      }
-      setTimeout(function () {
+      var win = frame.contentWindow;
+      var doc = win.document;
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      var printed = false;
+      function doPrint() {
+        if (printed) return;
+        printed = true;
         try {
-          frame.remove();
-        } catch (err) {
-          /* ignore */
+          win.focus();
+          win.print();
+        } catch (e) {
+          window.print();
         }
-      }, 1500);
-    }
-
-    var imgs = doc.images ? Array.prototype.slice.call(doc.images) : [];
-    if (!imgs.length) {
-      setTimeout(doPrint, 50);
-      return;
-    }
-    var left = imgs.length;
-    var done = function () {
-      left -= 1;
-      if (left <= 0) setTimeout(doPrint, 30);
-    };
-    imgs.forEach(function (img) {
-      if (img.complete) done();
-      else {
-        img.onload = done;
-        img.onerror = done;
+        setTimeout(function () {
+          try {
+            frame.remove();
+          } catch (err) {
+            /* ignore */
+          }
+        }, 1500);
       }
+
+      var imgs = doc.images ? Array.prototype.slice.call(doc.images) : [];
+      if (!imgs.length) {
+        setTimeout(doPrint, 50);
+        return;
+      }
+      var left = imgs.length;
+      var done = function () {
+        left -= 1;
+        if (left <= 0) setTimeout(doPrint, 30);
+      };
+      imgs.forEach(function (img) {
+        if (img.complete) done();
+        else {
+          img.onload = done;
+          img.onerror = done;
+        }
+      });
+      setTimeout(doPrint, 2500);
     });
-    setTimeout(doPrint, 2500);
   }
 
   function bind() {
