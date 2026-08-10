@@ -123,7 +123,7 @@ function mobile_rep_transfer_print_lines_table_mobile_pdf(array $lines, string $
         . 'style="border-collapse:collapse;width:100%;margin-top:8px;table-layout:fixed;direction:rtl;">'
         . '<thead><tr>'
         . '<th style="' . $th . 'width:8%;">#</th>'
-        . '<th style="' . $th . 'width:22%;">رقم المادة</th>'
+        . '<th style="' . $th . 'width:22%;">الباركود</th>'
         . '<th style="' . $th . '">المادة</th>'
         . '<th style="' . $th . 'width:16%;">' . esc($qtyHdr) . '</th>'
         . '</tr></thead><tbody>' . $body . '</tbody></table>';

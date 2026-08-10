@@ -115,7 +115,7 @@ if ($showResult && $err === '') {
                     <thead>
                     <tr>
                         <th class="col-seq">#</th>
-                        <th class="col-inv-no">رقم المادة</th>
+                        <th class="col-inv-no">الباركود</th>
                         <th class="col-item-name">اسم المادة</th>
                         <th class="col-qty">الكمية</th>
                         <th class="col-category">الفئة</th>

@@ -239,7 +239,7 @@ async function renderOrderPrint(req, res, orderId) {
           <thead>
             <tr>
               <th>تسلسل</th>
-              <th>رقم المادة</th>
+              <th>الباركود</th>
               <th>اسم المادة</th>
               <th>الوحدة</th>
               <th>الكمية</th>

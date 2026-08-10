@@ -1136,7 +1136,7 @@
   }
 
   function doExcel() {
-    var rows = [['#', 'رقم المادة', 'المادة', 'المتوفرة', 'الكمية']];
+    var rows = [['#', 'الباركود', 'المادة', 'المتوفرة', 'الكمية']];
     tbody.querySelectorAll('tr.wh-move-line:not(.is-entry-row)').forEach(function (tr, i) {
       rows.push([
         String(i + 1),

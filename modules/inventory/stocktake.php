@@ -216,7 +216,7 @@ item_picker_enqueue_assets();
                             <thead>
                             <tr>
                                 <th>#</th>
-                                <th>رقم المادة</th>
+                                <th>الباركود</th>
                                 <th>اسم المادة</th>
                                 <th>الكمية الفعلية</th>
                                 <th>كمية الجرد المدخلة</th>
@@ -260,7 +260,7 @@ item_picker_enqueue_assets();
                 <table class="report-sales-table stocktake-print-table">
                     <thead>
                     <tr>
-                        <th>#</th><th>رقم المادة</th><th>اسم المادة</th><th>الكمية الفعلية</th><th>كمية الجرد المدخلة</th><th>سعر الوحدة (غ ش)</th><th>الفرق</th><th>تكلفة الفرق</th>
+                        <th>#</th><th>الباركود</th><th>اسم المادة</th><th>الكمية الفعلية</th><th>كمية الجرد المدخلة</th><th>سعر الوحدة (غ ش)</th><th>الفرق</th><th>تكلفة الفرق</th>
                     </tr>
                     </thead>
                     <tbody id="stocktake-print-body"></tbody>

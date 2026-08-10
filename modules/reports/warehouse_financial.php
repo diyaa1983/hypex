@@ -173,7 +173,7 @@ if ($showResult && $err === '') {
                     <thead>
                     <tr>
                         <th class="col-seq">تسلسل</th>
-                        <th class="col-inv-no">رقم المادة</th>
+                        <th class="col-inv-no">الباركود</th>
                         <th class="col-item-name">اسم المادة</th>
                         <th class="col-qty">الكمية</th>
                         <th class="col-unit">الوحدة</th>

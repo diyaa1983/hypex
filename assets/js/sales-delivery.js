@@ -1897,7 +1897,7 @@
       buildDocPrintHeader('سند تسليم بضاعة') +
       metaTable +
       '<table><thead><tr>' +
-      '<th>#</th><th>رقم المادة</th><th>المادة</th><th>الكمية</th>' +
+      '<th>#</th><th>الباركود</th><th>المادة</th><th>الكمية</th>' +
       '</tr></thead><tbody>' +
       rowHtml +
       '</tbody></table>' +

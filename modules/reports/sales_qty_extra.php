@@ -185,7 +185,7 @@ $apiItems = app_url('api/items_search.php');
                     <thead>
                     <tr>
                         <th class="col-seq">تسلسل</th>
-                        <th class="col-inv-no">رقم المادة</th>
+                        <th class="col-inv-no">الباركود</th>
                         <th class="col-item">اسم المادة</th>
                         <th class="col-inv-no">رقم الفاتورة</th>
                         <th class="col-date">تاريخ الفاتورة</th>

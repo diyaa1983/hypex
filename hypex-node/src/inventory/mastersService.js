@@ -122,7 +122,7 @@ async function ensureItemCardColumns() {
   }
 }
 
-/** رقم العرض على الشاشات: الباركود أولاً ثم رقم المادة (sku) */
+/** رقم العرض على الشاشات والتقارير والفواتير: الباركود فقط (رقم المادة/sku للبطاقة فقط) */
 function itemDisplayCode(row) {
   const bc = String(row?.barcode || '').trim();
   if (bc) return bc;

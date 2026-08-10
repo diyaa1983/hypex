@@ -3,6 +3,11 @@
 const db = require('../db');
 const { todayIso } = require('../lib/html');
 
+/** المعرّف الظاهر: الباركود (رقم المادة/sku فقط في بطاقة المادة) */
+function ITEM_CODE_SQL(alias = 'i') {
+  return `COALESCE(NULLIF(TRIM(${alias}.barcode), ''), ${alias}.sku)`;
+}
+
 function monthStart() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
@@ -119,7 +124,7 @@ async function listStocktakeDocs({ q = '' } = {}) {
 
 async function reportItems() {
   return safeQuery(
-    `SELECT i.sku, i.name_ar, i.default_cost, i.default_sale, i.is_active,
+    `SELECT ${ITEM_CODE_SQL('i')} AS item_code, i.barcode, i.sku, i.name_ar, i.default_cost, i.default_sale, i.is_active,
             c.name_ar AS category_name,
             COALESCE((SELECT SUM(m.qty_delta) FROM inv_stock_move m WHERE m.item_id = i.id),0) AS qty
      FROM inv_item i
@@ -132,14 +137,14 @@ async function reportItems() {
 async function reportQtyFilter(mode) {
   const having = mode === 'zero' ? 'HAVING qty = 0' : mode === 'neg' ? 'HAVING qty < 0' : '';
   return safeQuery(
-    `SELECT i.sku, i.name_ar,
+    `SELECT ${ITEM_CODE_SQL('i')} AS item_code, i.barcode, i.sku, i.name_ar,
             COALESCE(SUM(m.qty_delta),0) AS qty,
             w.name_ar AS warehouse_name
      FROM inv_item i
      LEFT JOIN inv_stock_move m ON m.item_id = i.id
      LEFT JOIN inv_warehouse w ON w.id = i.default_warehouse_id
      WHERE i.is_active = 1
-     GROUP BY i.id, i.sku, i.name_ar, warehouse_name
+     GROUP BY i.id, i.barcode, i.sku, i.name_ar, warehouse_name
      ${having}
      ORDER BY qty ASC, i.name_ar
      LIMIT 500`
@@ -173,7 +178,7 @@ async function itemOnHand(itemId, warehouseId) {
 async function itemStockLedger(itemId, warehouseId) {
   const raw = await safeQuery(
     `SELECT m.id AS move_id, m.move_date, m.created_at, m.qty_delta, m.ref_type, m.ref_id, m.note,
-            it.sku, it.name_ar AS item_name
+            ${ITEM_CODE_SQL('it')} AS item_code, it.barcode, it.sku, it.name_ar AS item_name
      FROM inv_stock_move m
      INNER JOIN inv_item it ON it.id = m.item_id
      WHERE m.item_id = ? AND m.warehouse_id = ?
@@ -195,7 +200,7 @@ async function itemStockLedger(itemId, warehouseId) {
 
 async function getItemBrief(itemId) {
   const rows = await safeQuery(
-    `SELECT id, sku, barcode, name_ar FROM inv_item WHERE id = ? LIMIT 1`,
+    `SELECT id, sku, barcode, ${ITEM_CODE_SQL('inv_item')} AS item_code, name_ar FROM inv_item WHERE id = ? LIMIT 1`,
     [Number(itemId)]
   );
   return rows[0] || null;
@@ -217,7 +222,8 @@ async function customerPurchasesByItem({ customerId, from, to, warehouseId = 0, 
     details = await safeQuery(
       `SELECT i.id AS invoice_id, i.invoice_no, i.invoice_date,
               COALESCE(w.name_ar, '') AS warehouse_name,
-              COALESCE(it.sku, '') AS item_sku,
+              COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku, '') AS item_sku,
+              COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku, '') AS item_code,
               COALESCE(NULLIF(TRIM(l.line_desc), ''), it.name_ar, '') AS item_name,
               it.id AS item_id,
               l.qty, l.unit_price,

@@ -255,7 +255,7 @@ function mobile_invoice_print_colgroup(bool $showQtyExtra, bool $showDiscount): 
 
 function mobile_invoice_print_thead_row(bool $showQtyExtra, bool $showDiscount): string
 {
-    $h = '<tr><th>تسلسل</th><th>رقم المادة</th><th>اسم المادة</th><th>الوحدة</th><th>الكمية</th>';
+    $h = '<tr><th>تسلسل</th><th>الباركود</th><th>اسم المادة</th><th>الوحدة</th><th>الكمية</th>';
     if ($showQtyExtra) {
         $h .= '<th>الكمية الإضافية</th>';
     }

@@ -52,7 +52,7 @@ async function getOrder(id) {
     lines = await db.query(
       `SELECT l.*,
               COALESCE(NULLIF(TRIM(i.barcode), ''), i.sku) AS item_code,
-              i.sku AS item_sku,
+              COALESCE(NULLIF(TRIM(i.barcode), ''), i.sku) AS item_sku,
               COALESCE(NULLIF(TRIM(l.item_name), ''), i.name_ar, '') AS item_name_resolved,
               COALESCE(NULLIF(TRIM(l.unit_name), ''), NULLIF(TRIM(i.unit_name), ''), 'قطعة') AS unit_name_resolved,
               COALESCE(i.default_sale, 0) AS item_default_sale
@@ -64,7 +64,9 @@ async function getOrder(id) {
     );
   } catch {
     lines = await db.query(
-      `SELECT l.*, i.sku AS item_code, i.sku AS item_sku,
+      `SELECT l.*,
+              COALESCE(NULLIF(TRIM(i.barcode), ''), i.sku) AS item_code,
+              COALESCE(NULLIF(TRIM(i.barcode), ''), i.sku) AS item_sku,
               COALESCE(NULLIF(TRIM(l.item_name), ''), i.name_ar, '') AS item_name_resolved,
               COALESCE(NULLIF(TRIM(l.unit_name), ''), 'قطعة') AS unit_name_resolved,
               COALESCE(i.default_sale, 0) AS item_default_sale

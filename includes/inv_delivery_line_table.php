@@ -11,7 +11,7 @@ function inv_delivery_line_table_head(): void
     ?>
     <tr>
         <th class="sales-inv-col-seq">تسلسل</th>
-        <th class="sales-inv-col-sku">رقم المادة</th>
+        <th class="sales-inv-col-sku">الباركود</th>
         <th class="sales-inv-col-item">اسم المادة</th>
         <th class="sales-inv-col-qty">الكمية</th>
         <th class="sales-inv-col-del" aria-label="حذف"></th>

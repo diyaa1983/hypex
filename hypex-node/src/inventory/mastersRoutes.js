@@ -183,8 +183,7 @@ router.get('/inventory/items', async (req, res) => {
       rows
         .map(
           (r) => `<tr>
-        <td class="si-num" dir="ltr">${esc(r.barcode || '—')}</td>
-        <td class="si-num" dir="ltr" style="opacity:.65">${esc(r.sku || '—')}</td>
+        <td class="si-num" dir="ltr">${esc(r.barcode || svc.itemDisplayCode(r) || '—')}</td>
         <td>
           <strong>${esc(r.name_ar || '')}</strong>
           ${r.name_en ? `<div class="muted" style="font-size:.78rem;font-weight:500" dir="ltr">${esc(r.name_en)}</div>` : ''}
@@ -207,7 +206,7 @@ router.get('/inventory/items', async (req, res) => {
         </td>
       </tr>`
         )
-        .join('') || ui.emptyRow(8);
+        .join('') || ui.emptyRow(7);
 
     const body = `
       <div class="si-stage">
@@ -215,7 +214,7 @@ router.get('/inventory/items', async (req, res) => {
           mark: 'It',
           kicker: KICKER,
           title: 'المواد والأصناف',
-          subtitle: 'بطاقة المادة — الباركود هو المعرّف الظاهر في الفواتير والتقارير',
+          subtitle: 'الباركود هو المعرّف الظاهر في النظام · رقم المادة داخلي في بطاقة المادة فقط',
           actions: [
             { label: '＋ مادة جديدة', href: '/inventory/items/new', primary: true },
             { label: 'الفئات', href: '/inventory/categories' },
@@ -228,7 +227,7 @@ router.get('/inventory/items', async (req, res) => {
         ${ui.tableSurface(
           'المواد',
           `${rows.length} صف`,
-          ['الباركود', 'رقم المادة', 'الاسم', 'الفئة', 'الوحدة', 'سعر البيع', 'الحالة', 'إجراءات'],
+          ['الباركود', 'الاسم', 'الفئة', 'الوحدة', 'سعر البيع', 'الحالة', 'إجراءات'],
           rowsHtml
         )}
       </div>`;

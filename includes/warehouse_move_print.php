@@ -98,7 +98,7 @@ function warehouse_move_print_build(PDO $pdo, int $moveId): array
             <thead>
             <tr>
                 <th class="col-seq">#</th>
-                <th class="col-inv-no">رقم المادة</th>
+                <th class="col-inv-no">الباركود</th>
                 <th>المادة</th>
                 <th class="col-money"><?= esc($qtyHdr) ?></th>
             </tr>

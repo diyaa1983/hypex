@@ -200,7 +200,7 @@ $itemIdValue = $itemId > 0 ? (string) $itemId : '';
                     <thead>
                     <tr>
                         <th class="col-seq">تسلسل</th>
-                        <th class="col-inv-no">رقم المادة</th>
+                        <th class="col-inv-no">الباركود</th>
                         <th class="col-item-name">اسم المادة</th>
                         <th class="col-mov-type">نوع الحركة</th>
                         <th class="col-party">العميل / المورد</th>

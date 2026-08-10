@@ -93,12 +93,12 @@ module.exports = createDomainRouter({
       const rows = await q.reportItems();
       return {
         useDateFilters: false,
-        headers: ['SKU', 'الاسم', 'الفئة', 'الرصيد', 'تكلفة', 'بيع'],
+        headers: ['الباركود', 'الاسم', 'الفئة', 'الرصيد', 'تكلفة', 'بيع'],
         rowsHtml:
           rows
             .map(
               (r) => `<tr>
-            <td class="si-num" dir="ltr">${dash(ui, r.sku)}</td>
+            <td class="si-num" dir="ltr">${dash(ui, r.item_code || r.barcode || r.sku)}</td>
             <td>${ui.esc(r.name_ar || '')}</td>
             <td>${dash(ui, r.category_name)}</td>
             <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty))}</td>
@@ -114,12 +114,12 @@ module.exports = createDomainRouter({
       const rows = await q.reportQtyFilter('zero');
       return {
         useDateFilters: false,
-        headers: ['SKU', 'الاسم', 'المستودع', 'الرصيد'],
+        headers: ['الباركود', 'الاسم', 'المستودع', 'الرصيد'],
         rowsHtml:
           rows
             .map(
               (r) => `<tr>
-            <td class="si-num" dir="ltr">${dash(ui, r.sku)}</td>
+            <td class="si-num" dir="ltr">${dash(ui, r.item_code || r.barcode || r.sku)}</td>
             <td>${ui.esc(r.name_ar || '')}</td>
             <td>${dash(ui, r.warehouse_name)}</td>
             <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty))}</td>
@@ -133,12 +133,12 @@ module.exports = createDomainRouter({
       const rows = await q.reportQtyFilter('neg');
       return {
         useDateFilters: false,
-        headers: ['SKU', 'الاسم', 'المستودع', 'الرصيد'],
+        headers: ['الباركود', 'الاسم', 'المستودع', 'الرصيد'],
         rowsHtml:
           rows
             .map(
               (r) => `<tr>
-            <td class="si-num" dir="ltr">${dash(ui, r.sku)}</td>
+            <td class="si-num" dir="ltr">${dash(ui, r.item_code || r.barcode || r.sku)}</td>
             <td>${ui.esc(r.name_ar || '')}</td>
             <td>${dash(ui, r.warehouse_name)}</td>
             <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty))}</td>
@@ -202,7 +202,7 @@ module.exports = createDomainRouter({
         .map(
           (it) =>
             `<option value="${it.id}" ${itemId === Number(it.id) ? 'selected' : ''}>${ui.esc(
-              (it.sku ? it.sku + ' — ' : '') + (it.name_ar || '')
+              ((it.barcode || it.sku) ? (it.barcode || it.sku) + ' — ' : '') + (it.name_ar || '')
             )}</option>`
         )
         .join('');
@@ -365,7 +365,7 @@ module.exports = createDomainRouter({
         detBlock = `<div style="margin-top:.85rem">${ui.tableSurface(
           'تفصيل الفواتير',
           `${data.details.length} بند`,
-          ['فاتورة', 'التاريخ', 'مستودع', 'SKU', 'المادة', 'كمية', 'سعر', 'الإجمالي'],
+          ['فاتورة', 'التاريخ', 'مستودع', 'الباركود', 'المادة', 'كمية', 'سعر', 'الإجمالي'],
           detHtml
         )}</div>`;
       }
@@ -420,7 +420,7 @@ module.exports = createDomainRouter({
             ${ui.tableSurface(
               'الملخص حسب المادة',
               `${data.summary.length} مادة`,
-              ['SKU', 'المادة', 'الكمية', 'قبل الضريبة', 'مع الضريبة', 'فواتير'],
+              ['الباركود', 'المادة', 'الكمية', 'قبل الضريبة', 'مع الضريبة', 'فواتير'],
               sumHtml
             )}
             ${detBlock}

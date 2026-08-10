@@ -405,7 +405,7 @@ item_picker_enqueue_assets();
                 <thead>
                 <tr>
                     <th class="wh-col-seq">#</th>
-                    <th class="wh-col-sku">رقم المادة</th>
+                    <th class="wh-col-sku">الباركود</th>
                     <th class="wh-col-item">المادة</th>
                     <th class="wh-col-onhand" id="wh-move-onhand-col-label">الكمية الحالية</th>
                     <th class="wh-col-qty" id="wh-move-qty-col-label">الكمية</th>

@@ -180,8 +180,8 @@ async function getReturn(id) {
   if (!headers[0]) return null;
   const h = headers[0];
   const lines = await safeQuery(
-    `SELECT rl.*, COALESCE(it.sku, '') AS item_code, it.name_ar AS item_name,
-            COALESCE(it.barcode, it.sku, '') AS barcode
+    `SELECT rl.*, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku, '') AS item_code, it.name_ar AS item_name,
+            COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku, '') AS barcode
      FROM pur_return_line rl
      LEFT JOIN inv_item it ON it.id = rl.item_id
      WHERE rl.return_id = ?

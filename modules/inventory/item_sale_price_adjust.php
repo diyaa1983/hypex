@@ -202,7 +202,7 @@ $pageTitle = 'تعديل أسعار البيع';
                 <thead>
                 <tr>
                     <th class="col-seq">تسلسل</th>
-                    <th class="col-inv-no">رقم المادة</th>
+                    <th class="col-inv-no">الباركود</th>
                     <th class="col-item">اسم المادة</th>
                     <th class="col-money">السعر الحالي</th>
                     <th class="col-money">السعر المعدّل</th>
