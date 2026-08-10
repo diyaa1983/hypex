@@ -1409,12 +1409,12 @@ async function customerForm(req, res, id) {
               alert('خريطة تحديد الموقع غير متاحة. حدّث الصفحة أو تأكد من تحميل ملفات الموقع.');
               return;
             }
-            var opts = { forPost: false };
-            if (latEl.value && lngEl.value) {
-              opts.latitude = parseFloat(latEl.value);
-              opts.longitude = parseFloat(lngEl.value);
-            }
-            AppGeoMapPick.pickLocationOnMap(opts).then(setGps).catch(function () {});
+              var opts = { forPost: false, preferCurrentGps: true };
+              if (latEl.value && lngEl.value) {
+                opts.latitude = parseFloat(latEl.value);
+                opts.longitude = parseFloat(lngEl.value);
+              }
+              AppGeoMapPick.pickLocationOnMap(opts).then(setGps).catch(function () {});
           });
         }
 

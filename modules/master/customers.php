@@ -420,7 +420,7 @@ if ($action === 'add' || $action === 'edit') {
                 alert('خريطة تحديد الموقع غير متاحة.');
                 return;
               }
-              var opts = { forPost: false };
+              var opts = { forPost: false, preferCurrentGps: true };
               if (latEl.value && lngEl.value) {
                 opts.latitude = parseFloat(latEl.value);
                 opts.longitude = parseFloat(lngEl.value);
