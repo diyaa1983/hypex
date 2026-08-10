@@ -30,6 +30,24 @@ function sal_rep_route_ensure_schema(PDO $pdo): bool
         }
     }
 
+    if ($ok) {
+        try {
+            $pdo->query('SELECT id FROM sal_rep_tour LIMIT 1');
+        } catch (Throwable $e) {
+            require_once app_path('includes/sql_migration.php');
+            sql_migration_run_file($pdo, 'database/migrations/262_sal_rep_tour.sql');
+        }
+        try {
+            $pdo->query('SELECT tour_id FROM sal_rep_route LIMIT 1');
+        } catch (Throwable $e) {
+            try {
+                $pdo->exec('ALTER TABLE sal_rep_route ADD COLUMN tour_id INT UNSIGNED NULL DEFAULT NULL');
+            } catch (Throwable $e2) {
+                // ignore
+            }
+        }
+    }
+
     return $ok;
 }
 

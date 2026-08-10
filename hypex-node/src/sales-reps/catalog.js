@@ -7,7 +7,7 @@ const salesRepsCatalog = [
     title: 'المندوبين',
     items: [
       { r: 'sales_reps', label: 'المندوبين', icon: '🧑‍💼', path: '/sales-reps/list', kind: 'list' },
-      { r: 'sales_rep_route', label: 'خط سير المندوب', icon: '🗺️', path: '/sales-reps/route', kind: 'list' },
+      { r: 'sales_rep_route', label: 'جولات المندوبين', icon: '🗺️', path: '/sales-reps/route', kind: 'list' },
     ],
   },
 ];

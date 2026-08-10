@@ -82,7 +82,7 @@ return [
     'sales_rep_route' => [
         'file' => 'modules/sales/rep_route.php',
         'permission' => 'sales_rep_route',
-        'title' => 'خط سير المندوب',
+        'title' => 'جولات المندوبين',
         'hide_screen_title' => true,
     ],
     'report_customer_orders' => [

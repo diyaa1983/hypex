@@ -47,6 +47,40 @@ function nullIfEmpty(v) {
   return s === '' ? null : s;
 }
 
+/** @returns {{latitude:number|null, longitude:number|null, gps_accuracy:number|null, clear:boolean}} */
+function parseCustomerGps(payload) {
+  const empty = { latitude: null, longitude: null, gps_accuracy: null, clear: true };
+  if (!payload) return empty;
+  if (
+    payload.clear_gps === '1' ||
+    payload.clear_gps === 1 ||
+    payload.clear_gps === true ||
+    payload.clear_gps === 'on'
+  ) {
+    return empty;
+  }
+  const latRaw = String(payload.latitude ?? '').trim();
+  const lngRaw = String(payload.longitude ?? '').trim();
+  if (!latRaw || !lngRaw) return empty;
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+    return empty;
+  }
+  if (Math.abs(lat) < 1e-9 && Math.abs(lng) < 1e-9) return empty;
+  let acc = null;
+  if (payload.gps_accuracy != null && String(payload.gps_accuracy).trim() !== '') {
+    const a = Number(payload.gps_accuracy);
+    if (Number.isFinite(a) && a >= 0) acc = Math.round(a * 100) / 100;
+  }
+  return {
+    latitude: Math.round(lat * 1e7) / 1e7,
+    longitude: Math.round(lng * 1e7) / 1e7,
+    gps_accuracy: acc,
+    clear: false,
+  };
+}
+
 async function saveCustomer(payload) {
   const id = Number(payload.id || 0);
   const name = String(payload.name_ar || '').trim();
@@ -58,6 +92,8 @@ async function saveCustomer(payload) {
   const addr = nullIfEmpty(payload.address_ar);
   const regionId = Number(payload.region_id || 0) || null;
   const regionAddressId = Number(payload.region_address_id || 0) || null;
+  const gps = parseCustomerGps(payload);
+  const gpsAt = gps.clear ? null : new Date().toISOString().slice(0, 19).replace('T', ' ');
 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: 'البريد الإلكتروني غير صالح.' };
@@ -81,7 +117,8 @@ async function saveCustomer(payload) {
     try {
       await safeQuery(
         `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
-         region_id=?, region_address_id=?, sales_rep_id=? WHERE id=?`,
+         region_id=?, region_address_id=?, sales_rep_id=?,
+         latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?`,
         [
           finalName,
           phone,
@@ -91,14 +128,29 @@ async function saveCustomer(payload) {
           regionId,
           regionAddressId,
           repIds[0] || null,
+          gps.latitude,
+          gps.longitude,
+          gps.gps_accuracy,
+          gpsAt,
           id,
         ]
       );
-    } catch {
-      await safeQuery(
-        `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?, sales_rep_id=? WHERE id=?`,
-        [finalName, phone, email, tax, addr, repIds[0] || null, id]
-      );
+    } catch (e1) {
+      try {
+        await safeQuery(
+          `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+           region_id=?, region_address_id=?, sales_rep_id=? WHERE id=?`,
+          [finalName, phone, email, tax, addr, regionId, regionAddressId, repIds[0] || null, id]
+        );
+      } catch {
+        await safeQuery(
+          `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?, sales_rep_id=? WHERE id=?`,
+          [finalName, phone, email, tax, addr, repIds[0] || null, id]
+        );
+      }
+      if (!String(e1.message || '').includes('Unknown column')) {
+        console.error('saveCustomer gps/region', e1.message);
+      }
     }
     await saveCustomerReps(id, repIds);
     return {
@@ -110,27 +162,54 @@ async function saveCustomer(payload) {
     };
   }
 
-  const code = (await nextCustomerCode());
+  const code = await nextCustomerCode();
   try {
     const [result] = await db.getPool().execute(
       `INSERT INTO crm_customer
-       (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id, sales_rep_id, is_active)
-       VALUES (?,?,?,?,?,?,?,?,?,1)`,
-      [code, name, phone, email, tax, addr, regionId, regionAddressId, repIds[0] || null]
+       (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id,
+        latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
+      [
+        code,
+        name,
+        phone,
+        email,
+        tax,
+        addr,
+        regionId,
+        regionAddressId,
+        gps.latitude,
+        gps.longitude,
+        gps.gps_accuracy,
+        gpsAt,
+        repIds[0] || null,
+      ]
     );
     const newId = Number(result.insertId);
     await saveCustomerReps(newId, repIds);
     return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
   } catch {
-    const [result] = await db.getPool().execute(
-      `INSERT INTO crm_customer
-       (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active)
-       VALUES (?,?,?,?,?,?,?,1)`,
-      [code, name, phone, email, tax, addr, repIds[0] || null]
-    );
-    const newId = Number(result.insertId);
-    await saveCustomerReps(newId, repIds);
-    return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
+    try {
+      const [result] = await db.getPool().execute(
+        `INSERT INTO crm_customer
+         (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id, sales_rep_id, is_active)
+         VALUES (?,?,?,?,?,?,?,?,?,1)`,
+        [code, name, phone, email, tax, addr, regionId, regionAddressId, repIds[0] || null]
+      );
+      const newId = Number(result.insertId);
+      await saveCustomerReps(newId, repIds);
+      return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
+    } catch {
+      const [result] = await db.getPool().execute(
+        `INSERT INTO crm_customer
+         (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active)
+         VALUES (?,?,?,?,?,?,?,1)`,
+        [code, name, phone, email, tax, addr, repIds[0] || null]
+      );
+      const newId = Number(result.insertId);
+      await saveCustomerReps(newId, repIds);
+      return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
+    }
   }
 }
 

@@ -1052,6 +1052,18 @@ async function customerForm(req, res, id) {
   if (row?.sales_rep_id) selectedReps.add(Number(row.sales_rep_id));
   const primaryRepId = [...selectedReps][0] || Number(row?.sales_rep_id || 0) || 0;
   const oracleLocked = !isNew && String(row.oracle_key || '').trim() !== '';
+  const latVal =
+    row?.latitude != null && String(row.latitude).trim() !== '' ? String(row.latitude) : '';
+  const lngVal =
+    row?.longitude != null && String(row.longitude).trim() !== '' ? String(row.longitude) : '';
+  const accVal =
+    row?.gps_accuracy != null && String(row.gps_accuracy).trim() !== ''
+      ? String(row.gps_accuracy)
+      : '';
+  const hasGps = latVal !== '' && lngVal !== '';
+  const mapsHref = hasGps
+    ? `https://www.google.com/maps?q=${encodeURIComponent(latVal + ',' + lngVal)}`
+    : '';
 
   const regionOpts = regions
     .map(
@@ -1102,6 +1114,15 @@ async function customerForm(req, res, id) {
       .cf-foot{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.15rem 0 .25rem}
       .cf-hint-line{margin:0;font-size:.8rem;color:#64748b;flex:1;min-width:10rem;line-height:1.45}
       select#cust-region-addr:disabled{opacity:.65;cursor:not-allowed;background:#f1f5f9}
+      .cf-gps{display:grid;gap:.55rem;grid-column:1/-1;padding:.75rem .85rem;border-radius:12px;
+        border:1px dashed #cbd5e1;background:linear-gradient(180deg,#fff,#f8fafc)}
+      .cf-gps-status{margin:0;font-size:.86rem;font-weight:700;color:#0f172a}
+      .cf-gps-status.is-empty{color:#94a3b8;font-weight:600}
+      .cf-gps-coords{display:grid;grid-template-columns:1fr 1fr auto;gap:.55rem;align-items:end}
+      @media (max-width:640px){.cf-gps-coords{grid-template-columns:1fr}}
+      .cf-gps-coords label{margin:0}
+      .cf-gps-actions{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
+      .cf-gps-actions .si-btn{min-height:2rem;padding:.25rem .75rem;font-size:.8rem}
     </style>
     <div class="si-stage">
       ${ui.hero({
@@ -1183,6 +1204,48 @@ async function customerForm(req, res, id) {
                   )}</textarea>
                   <p class="cf-field-note">تُعرَّف المناطق وعناوينها من شاشة «تعريف المناطق». يتحدّث عنوان القائمة تلقائياً عند تغيير المنطقة.</p>
                 </label>
+                <div class="cf-gps" id="cust-gps-box">
+                  <div class="cf-sec-h" style="padding:0 0 .35rem;border:0;background:transparent">
+                    <h3 style="font-size:.88rem">موقع العميل (Location)</h3>
+                    <span>GPS على الخريطة</span>
+                  </div>
+                  <input type="hidden" name="latitude" id="cust-latitude" value="${esc(latVal)}">
+                  <input type="hidden" name="longitude" id="cust-longitude" value="${esc(lngVal)}">
+                  <input type="hidden" name="gps_accuracy" id="cust-gps-accuracy" value="${esc(accVal)}">
+                  <input type="hidden" name="clear_gps" id="cust-clear-gps" value="0">
+                  <p id="cust-gps-status" class="cf-gps-status${hasGps ? '' : ' is-empty'}">
+                    ${
+                      hasGps
+                        ? 'الموقع الحالي: <span dir="ltr">' +
+                          esc(latVal) +
+                          ' ، ' +
+                          esc(lngVal) +
+                          '</span>'
+                        : 'لم يُحدَّد موقع بعد — حدّد على الخريطة أو استخدم GPS الجهاز'
+                    }
+                  </p>
+                  <div class="cf-gps-coords">
+                    <label>خط العرض (Latitude)
+                      <input class="si-field si-field--mono" id="cust-lat-view" type="text" dir="ltr" readonly
+                             value="${esc(latVal)}" placeholder="—">
+                    </label>
+                    <label>خط الطول (Longitude)
+                      <input class="si-field si-field--mono" id="cust-lng-view" type="text" dir="ltr" readonly
+                             value="${esc(lngVal)}" placeholder="—">
+                    </label>
+                    <label>
+                      <span style="visibility:hidden">.</span>
+                      <a class="si-btn" id="cust-gps-maps" href="${mapsHref || '#'}" target="_blank" rel="noopener"
+                         style="justify-content:center;width:100%;${hasGps ? '' : 'pointer-events:none;opacity:.45'}">فتح في الخرائط</a>
+                    </label>
+                  </div>
+                  <div class="cf-gps-actions">
+                    <button type="button" class="si-btn si-btn--primary" id="cust-gps-pick-map">تحديد على الخريطة</button>
+                    <button type="button" class="si-btn" id="cust-gps-my-loc">موقعي الآن (GPS)</button>
+                    <button type="button" class="si-btn" id="cust-gps-clear" ${hasGps ? '' : 'disabled'}>مسح الموقع</button>
+                  </div>
+                  <p class="cf-field-note">يُستخدم الموقع في تطبيق المندوب وتحديد نطاق الزيارة حول العميل عند الترحيل.</p>
+                </div>
               </div>
             </div>
 
@@ -1265,12 +1328,125 @@ async function customerForm(req, res, id) {
           loadAddresses(reg.value, null);
         });
       })();
+
+      (function () {
+        var latEl = document.getElementById('cust-latitude');
+        var lngEl = document.getElementById('cust-longitude');
+        var accEl = document.getElementById('cust-gps-accuracy');
+        var clearFlag = document.getElementById('cust-clear-gps');
+        var statusEl = document.getElementById('cust-gps-status');
+        var latView = document.getElementById('cust-lat-view');
+        var lngView = document.getElementById('cust-lng-view');
+        var mapsLink = document.getElementById('cust-gps-maps');
+        var clearBtn = document.getElementById('cust-gps-clear');
+        var mapBtn = document.getElementById('cust-gps-pick-map');
+        var gpsBtn = document.getElementById('cust-gps-my-loc');
+        if (!latEl || !lngEl) return;
+
+        window.APP_GPS_ENABLED = true;
+
+        function fmt(n) {
+          var x = parseFloat(n);
+          if (!isFinite(x)) return '';
+          return String(Math.round(x * 1e7) / 1e7);
+        }
+        function syncViews() {
+          var lat = latEl.value || '';
+          var lng = lngEl.value || '';
+          var has = lat !== '' && lng !== '';
+          if (latView) latView.value = lat;
+          if (lngView) lngView.value = lng;
+          if (statusEl) {
+            if (has) {
+              statusEl.className = 'cf-gps-status';
+              statusEl.innerHTML = 'الموقع الحالي: <span dir="ltr">' + lat + ' ، ' + lng + '</span>';
+            } else {
+              statusEl.className = 'cf-gps-status is-empty';
+              statusEl.textContent = 'لم يُحدَّد موقع بعد — حدّد على الخريطة أو استخدم GPS الجهاز';
+            }
+          }
+          if (clearBtn) clearBtn.disabled = !has;
+          if (mapsLink) {
+            if (has) {
+              mapsLink.href = 'https://www.google.com/maps?q=' + encodeURIComponent(lat + ',' + lng);
+              mapsLink.style.pointerEvents = '';
+              mapsLink.style.opacity = '';
+            } else {
+              mapsLink.href = '#';
+              mapsLink.style.pointerEvents = 'none';
+              mapsLink.style.opacity = '0.45';
+            }
+          }
+          if (clearFlag) clearFlag.value = has ? '0' : '1';
+        }
+        function setGps(gps) {
+          if (!gps) return;
+          var lat = gps.latitude != null ? gps.latitude : gps.lat;
+          var lng = gps.longitude != null ? gps.longitude : gps.lng;
+          if (!isFinite(lat) || !isFinite(lng)) return;
+          latEl.value = fmt(lat);
+          lngEl.value = fmt(lng);
+          if (accEl) {
+            accEl.value =
+              gps.accuracy != null && isFinite(gps.accuracy) ? String(gps.accuracy) : '';
+          }
+          if (clearFlag) clearFlag.value = '0';
+          syncViews();
+        }
+        function clearGps() {
+          latEl.value = '';
+          lngEl.value = '';
+          if (accEl) accEl.value = '';
+          if (clearFlag) clearFlag.value = '1';
+          syncViews();
+        }
+
+        if (clearBtn) clearBtn.addEventListener('click', clearGps);
+
+        if (mapBtn) {
+          mapBtn.addEventListener('click', function () {
+            if (!window.AppGeoMapPick || typeof AppGeoMapPick.pickLocationOnMap !== 'function') {
+              alert('خريطة تحديد الموقع غير متاحة. حدّث الصفحة أو تأكد من تحميل ملفات الموقع.');
+              return;
+            }
+            var opts = { forPost: false };
+            if (latEl.value && lngEl.value) {
+              opts.latitude = parseFloat(latEl.value);
+              opts.longitude = parseFloat(lngEl.value);
+            }
+            AppGeoMapPick.pickLocationOnMap(opts).then(setGps).catch(function () {});
+          });
+        }
+
+        if (gpsBtn) {
+          gpsBtn.addEventListener('click', function () {
+            if (!window.AppGeo || typeof AppGeo.withGpsForPost !== 'function') {
+              if (mapBtn) mapBtn.click();
+              return;
+            }
+            gpsBtn.disabled = true;
+            AppGeo.withGpsForPost('desktop', function (gps) {
+              gpsBtn.disabled = false;
+              if (gps === undefined) return;
+              if (!gps) {
+                alert('لم يُحدَّد موقع. اسمح بالوصول للموقع أو اختر على الخريطة.');
+                return;
+              }
+              setGps(gps);
+            });
+          });
+        }
+
+        syncViews();
+      })();
     </script>`;
   res.send(
     ui.salesPage({
       user: req.session.user,
       title: isNew ? 'إضافة عميل' : 'تعريف العميل',
       bodyHtml: body,
+      css: ['/assets/css/geo-map-pick.css'],
+      js: ['/assets/js/geo-map-pick.js', '/assets/js/geo.js'],
     })
   );
 }

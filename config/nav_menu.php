@@ -185,7 +185,7 @@ return [
                     'title' => 'المندوبين',
                     'items' => [
                         ['r' => 'sales_reps', 'label' => 'المندوبين', 'icon' => '🧑‍💼'],
-                        ['r' => 'sales_rep_route', 'label' => 'خط سير المندوب', 'icon' => '🗺️'],
+                        ['r' => 'sales_rep_route', 'label' => 'جولات المندوبين', 'icon' => '🗺️'],
                     ],
                 ],
             ],

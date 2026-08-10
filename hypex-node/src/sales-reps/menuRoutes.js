@@ -38,7 +38,8 @@ function guard(code) {
 }
 
 router.use((req, res, next) => {
-  if (!req.path.startsWith('/sales-reps')) return next('router');
+  const p = req.path || '';
+  if (!(p.startsWith('/sales-reps') || p.startsWith('/api/sales-reps'))) return next('router');
   return auth.requireAuth(req, res, (err) => {
     if (err) return next(err);
     return requireAny(req, res, next);
@@ -58,7 +59,7 @@ router.get('/sales-reps', (req, res) => {
         mark: 'Rp',
         kicker: KICKER,
         title: 'المندوبين',
-        subtitle: 'دليل المندوبين وخط السير وتقارير المبيعات — كلها على Node.',
+        subtitle: 'دليل المندوبين وجولات الزيارات — كلها على Node.',
         actions: [
           { label: 'قائمة المندوبين', href: '/sales-reps/list', primary: true },
           { label: 'لوحة التحكم', href: '/app', ghost: true },
@@ -194,19 +195,49 @@ router.post('/sales-reps/new', async (req, res) => {
   res.redirect('/sales-reps/list?msg=' + encodeURIComponent(result.message || 'تم'));
 });
 
-/* ═══════════ خط السير ═══════════ */
+/* ═══════════ جولات المندوبين ═══════════ */
+function statusLabel(st) {
+  return String(st) === 'posted' ? 'مرحّلة' : 'مسودة';
+}
+
+function statusPill(st) {
+  return String(st) === 'posted'
+    ? ui.statusPill('ok', 'مرحّلة')
+    : ui.statusPill('wait', 'مسودة');
+}
+
+router.get('/api/sales-reps/addresses', guard('sales_rep_route'), async (req, res) => {
+  const regionId = Number(req.query.region_id || 0) || 0;
+  const rows = await masters.listAddressesForRegion(regionId);
+  res.json({ ok: true, rows });
+});
+
+router.get('/api/sales-reps/tour-customers', guard('sales_rep_route'), async (req, res) => {
+  const rows = await masters.listTourCustomers({
+    salesRepId: Number(req.query.sales_rep_id || 0) || 0,
+    regionId: Number(req.query.region_id || 0) || 0,
+    regionAddressId: Number(req.query.region_address_id || 0) || 0,
+    q: String(req.query.q || ''),
+    limit: 400,
+  });
+  res.json({ ok: true, rows });
+});
+
 router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
+  await masters.ensureTourSchema();
   const filterRep = Number(req.query.sales_rep_id || 0) || 0;
   const editId = Number(req.query.id || 0) || 0;
   const flash = String(req.query.msg || '');
   const err = String(req.query.err || '');
-  const edit = editId ? await masters.getRoute(editId) : null;
+  const edit = editId ? await masters.getTour(editId) : null;
   const reps = await q.listRepsSimple();
-  const customers = await masters.listActiveCustomers();
-  const routes = await masters.listRoutes({ salesRepId: filterRep });
+  const regions = await masters.listRegionsSimple();
+  const tours = await masters.listTours({ salesRepId: filterRep });
   const selectedRep = edit ? Number(edit.sales_rep_id) : filterRep;
-  const selectedCust = new Set((edit?.lines || []).map((l) => Number(l.customer_id)));
-  const routeDate = edit ? String(edit.route_date).slice(0, 10) : todayIso();
+  const isPosted = edit && String(edit.status) === 'posted';
+  const dateFrom = edit ? String(edit.date_from).slice(0, 10) : todayIso();
+  const dateTo = edit ? String(edit.date_to).slice(0, 10) : todayIso();
+  const editLines = edit?.lines || [];
 
   const repOpts = reps
     .map(
@@ -217,47 +248,61 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
     )
     .join('');
 
-  const custChecks = customers
-    .map((c) => {
-      const linked = !selectedRep || !c.sales_rep_id || Number(c.sales_rep_id) === selectedRep;
-      const dim = linked ? '' : ' is-dim';
-      const name = String(c.name_ar || '');
-      const code = String(c.code || '');
-      return `<label class="srr-cust__row${dim}" data-name="${esc(name.toLowerCase())}" data-code="${esc(
-        code.toLowerCase()
-      )}">
-        <input type="checkbox" name="customer_ids" value="${c.id}" ${
-          selectedCust.has(Number(c.id)) ? 'checked' : ''
-        }>
-        <span class="srr-cust__name">${esc(name)}</span>
-        <span class="srr-cust__code" dir="ltr">${esc(code)}</span>
-      </label>`;
-    })
+  const regionOpts = regions
+    .map((r) => `<option value="${r.id}">${esc(r.name_ar)}${r.code ? ' (' + esc(r.code) + ')' : ''}</option>`)
     .join('');
 
+  const selectedJson = JSON.stringify(
+    editLines.map((l) => ({
+      customer_id: Number(l.customer_id),
+      code: l.customer_code || '',
+      name: l.customer_name || '',
+      region_id: Number(l.region_id || 0) || null,
+      region_address_id: Number(l.region_address_id || 0) || null,
+      region_name: l.region_name || '',
+      address_name: l.address_name || '',
+      date_from: String(l.date_from || dateFrom).slice(0, 10),
+      date_to: String(l.date_to || dateTo).slice(0, 10),
+    }))
+  ).replace(/</g, '\\u003c');
+
   const listHtml =
-    routes
+    tours
       .map(
         (r) => `<tr>
-      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.route_date))}</td>
+      <td class="si-num" dir="ltr">#${r.id}</td>
       <td>${ui.esc(r.sales_rep_name || '')}</td>
+      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.date_from))} – ${ui.esc(ui.isoToDmy(r.date_to))}</td>
       <td class="si-num" dir="ltr">${Number(r.customer_count || 0)}</td>
+      <td>${statusPill(r.status)}</td>
       <td>${dash(r.notes)}</td>
       <td class="srr-table-actions">
-        <a class="si-btn" href="/sales-reps/route?id=${r.id}">تعديل</a>
-        <form method="post" action="/sales-reps/route/${r.id}/delete" style="display:inline" onsubmit="return confirm('حذف خط السير؟');">
-          <button type="submit" class="si-btn si-btn--danger-text">حذف</button>
-        </form>
+        <a class="si-btn" href="/sales-reps/route?id=${r.id}">فتح</a>
+        <a class="si-btn" href="/sales-reps/route/${r.id}/print" target="_blank">طباعة</a>
+        ${
+          String(r.status) === 'posted'
+            ? `<form method="post" action="/sales-reps/route/${r.id}/unpost" style="display:inline">
+                <button type="submit" class="si-btn">فك ترحيل</button>
+              </form>`
+            : `<form method="post" action="/sales-reps/route/${r.id}/post" style="display:inline">
+                <button type="submit" class="si-btn si-btn--primary">ترحيل</button>
+              </form>
+              <form method="post" action="/sales-reps/route/${r.id}/delete" style="display:inline" onsubmit="return confirm('حذف الجولة؟');">
+                <button type="submit" class="si-btn si-btn--danger-text">حذف</button>
+              </form>`
+        }
       </td>
     </tr>`
       )
-      .join('') || ui.emptyRow(5, 'لا خطوط سير بعد');
+      .join('') || ui.emptyRow(7, 'لا جولات بعد');
 
   const body = `
-    <div class="si-stage srr-page">
+    <div class="si-stage srr-page srr-tour-page">
       ${ui.hero({
-        title: 'خط سير المندوب',
-        subtitle: 'عيّن عملاء الزيارة ليوم محدد لظهورهم في تطبيق المندوب',
+        mark: '🗺️',
+        kicker: KICKER,
+        title: 'جولات المندوبين',
+        subtitle: 'اختر المندوب ثم المنطقة والعنوان والعملاء، وحدد خطة بين تاريخين — احفظ ثم رحّل لظهورها في تطبيق المندوب',
         actions: [
           { label: 'المندوبين', href: '/sales-reps/list' },
           { label: 'لوحة المندوبين', href: HUB },
@@ -268,59 +313,119 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
 
       <section class="si-surface srr-card">
         <div class="si-surface-head">
-          <h2>${edit ? 'تعديل خط السير' : 'تعيين خط سير جديد'}</h2>
-          <span class="si-count">${edit ? 'تعديل #' + edit.id : 'جديد'}</span>
+          <h2>${edit ? (isPosted ? 'عرض جولة مرحّلة' : 'تعديل جولة') : 'خطة جولة جديدة'}</h2>
+          <span class="si-count">${
+            edit
+              ? '#' + edit.id + ' · ' + statusLabel(edit.status)
+              : 'جديد · مسودة'
+          }</span>
         </div>
-        <form method="post" action="/sales-reps/route" class="srr-form" id="srr-form" data-hx-save="1">
+        <form method="post" action="/sales-reps/route" class="srr-form srr-tour-form" id="srr-form" data-hx-save="1">
           <input type="hidden" name="id" value="${edit ? edit.id : 0}">
+          <input type="hidden" name="lines_json" id="srr-lines-json" value="">
 
           <div class="srr-form__fields">
             <div class="srr-form__row">
               <label class="srr-field">
                 <span>المندوب <em>*</em></span>
-                <select class="si-field" name="sales_rep_id" id="srr-rep" required>
+                <select class="si-field" name="sales_rep_id" id="srr-rep" required ${isPosted ? 'disabled' : ''}>
                   <option value="">— اختر المندوب —</option>
                   ${repOpts}
                 </select>
+                ${isPosted ? `<input type="hidden" name="sales_rep_id" value="${selectedRep}">` : ''}
               </label>
               <label class="srr-field">
-                <span>تاريخ خط السير <em>*</em></span>
-                <input class="si-field si-field--mono" type="date" name="route_date" required value="${esc(
-                  routeDate
-                )}">
+                <span>المنطقة</span>
+                <select class="si-field" id="srr-region" ${isPosted ? 'disabled' : ''}>
+                  <option value="0">— كل المناطق —</option>
+                  ${regionOpts}
+                </select>
               </label>
+            </div>
+            <div class="srr-form__row">
+              <label class="srr-field">
+                <span>العنوان</span>
+                <select class="si-field" id="srr-address" ${isPosted ? 'disabled' : ''}>
+                  <option value="0">— اختر المنطقة أولاً —</option>
+                </select>
+              </label>
+              <div class="srr-form__row srr-form__row--inline">
+                <label class="srr-field">
+                  <span>من تاريخ <em>*</em></span>
+                  <input class="si-field si-field--mono" type="date" name="date_from" id="srr-from" required value="${esc(
+                    dateFrom
+                  )}" ${isPosted ? 'readonly' : ''}>
+                </label>
+                <label class="srr-field">
+                  <span>إلى تاريخ <em>*</em></span>
+                  <input class="si-field si-field--mono" type="date" name="date_to" id="srr-to" required value="${esc(
+                    dateTo
+                  )}" ${isPosted ? 'readonly' : ''}>
+                </label>
+              </div>
             </div>
             <label class="srr-field srr-field--full">
               <span>ملاحظات</span>
-              <textarea class="si-field srr-notes" name="notes" rows="3" placeholder="اختياري…">${esc(
-                edit?.notes || ''
-              )}</textarea>
+              <textarea class="si-field srr-notes" name="notes" rows="2" placeholder="اختياري…" ${
+                isPosted ? 'readonly' : ''
+              }>${esc(edit?.notes || '')}</textarea>
             </label>
+
+            <div class="srr-selected-panel">
+              <div class="srr-selected-panel__head">
+                <strong>عملاء الخطة</strong>
+                <span class="muted" id="srr-selected-count">0 عميل</span>
+              </div>
+              <div class="srr-selected-table-wrap">
+                <table class="si-table srr-selected-table" id="srr-selected-table">
+                  <thead>
+                    <tr>
+                      <th>العميل</th>
+                      <th>المنطقة</th>
+                      <th>العنوان</th>
+                      <th>من</th>
+                      <th>إلى</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="srr-selected-body"></tbody>
+                </table>
+              </div>
+            </div>
+
             <div class="srr-form__actions">
-              <button class="si-btn si-btn--primary" type="submit" data-hx-save="1" title="F10">حفظ وترحيل</button>
+              ${
+                isPosted
+                  ? `<button class="si-btn" type="submit" formaction="/sales-reps/route/${edit.id}/unpost" formmethod="post">فك ترحيل</button>
+                    <a class="si-btn si-btn--primary" href="/sales-reps/route/${edit.id}/print" target="_blank">طباعة الجولة</a>`
+                  : `<button class="si-btn si-btn--primary" type="submit" data-hx-save="1" title="F10">حفظ</button>
+                    <button class="si-btn" type="submit" name="and_post" value="1">حفظ وترحيل</button>
+                    ${
+                      edit
+                        ? `<button class="si-btn" type="submit" formaction="/sales-reps/route/${edit.id}/post" formmethod="post">ترحيل</button>`
+                        : ''
+                    }`
+              }
               <a class="si-btn" href="/sales-reps/route">جديد</a>
-              <span class="srr-selected muted" id="srr-selected-count">0 محدد</span>
             </div>
           </div>
 
           <div class="srr-form__cust">
             <div class="srr-cust__toolbar">
               <div class="srr-cust__title">
-                <strong>عملاء الزيارة</strong>
-                <span class="muted" id="srr-cust-total">${customers.length}</span>
+                <strong>اختيار العملاء</strong>
+                <span class="muted" id="srr-cust-total">0</span>
               </div>
               <input type="search" class="si-field srr-cust__search" id="srr-cust-q"
-                     placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
+                     placeholder="بحث بالاسم أو الرمز…" autocomplete="off" ${isPosted ? 'disabled' : ''}>
               <div class="srr-cust__tools">
-                <label class="srr-check-all">
-                  <input type="checkbox" id="srr-check-all">
-                  <span>تحديد الظاهر</span>
-                </label>
-                <button type="button" class="si-btn srr-btn-sm" id="srr-clear">مسح التحديد</button>
+                <button type="button" class="si-btn srr-btn-sm" id="srr-add-visible" ${
+                  isPosted ? 'disabled' : ''
+                }>إضافة الظاهر</button>
               </div>
             </div>
             <div class="srr-cust__list" id="srr-cust-list">
-              ${custChecks || '<p class="srr-cust__empty">لا عملاء نشطون</p>'}
+              <p class="srr-cust__empty">اختر المندوب ثم المنطقة/العنوان لعرض العملاء</p>
             </div>
           </div>
         </form>
@@ -328,8 +433,8 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
 
       <section class="si-surface srr-list-card">
         <div class="si-surface-head">
-          <h2>خطوط السير المحفوظة</h2>
-          <span class="si-count">${routes.length} صف</span>
+          <h2>الجولات</h2>
+          <span class="si-count">${tours.length} صف</span>
         </div>
         <div class="srr-list-filter">
           <form method="get" action="/sales-reps/route" class="srr-filter-form">
@@ -353,9 +458,11 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
           <table class="si-table">
             <thead>
               <tr>
-                <th>التاريخ</th>
+                <th>#</th>
                 <th>المندوب</th>
+                <th>الفترة</th>
                 <th>عملاء</th>
+                <th>الحالة</th>
                 <th>ملاحظات</th>
                 <th></th>
               </tr>
@@ -367,64 +474,246 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
     </div>
     <script>
     (function(){
-      var list=document.getElementById('srr-cust-list');
-      var q=document.getElementById('srr-cust-q');
-      var countEl=document.getElementById('srr-selected-count');
-      var totalEl=document.getElementById('srr-cust-total');
-      var all=document.getElementById('srr-check-all');
-      var clearBtn=document.getElementById('srr-clear');
-      if(!list)return;
-      function rows(){return Array.prototype.slice.call(list.querySelectorAll('.srr-cust__row'));}
-      function visibleRows(){return rows().filter(function(r){return r.style.display!=='none';});}
-      function updateCount(){
-        var n=rows().filter(function(r){var c=r.querySelector('input');return c&&c.checked;}).length;
-        if(countEl)countEl.textContent=n+' محدد';
-        var vis=visibleRows();
-        if(totalEl)totalEl.textContent=vis.length+(vis.length!==rows().length?' / '+rows().length:'');
-        if(all){
-          var visChecked=vis.filter(function(r){var c=r.querySelector('input');return c&&c.checked;});
-          all.checked=vis.length>0&&visChecked.length===vis.length;
-          all.indeterminate=visChecked.length>0&&visChecked.length<vis.length;
+      var posted = ${isPosted ? 'true' : 'false'};
+      var selected = ${selectedJson};
+      var repEl = document.getElementById('srr-rep');
+      var regionEl = document.getElementById('srr-region');
+      var addressEl = document.getElementById('srr-address');
+      var fromEl = document.getElementById('srr-from');
+      var toEl = document.getElementById('srr-to');
+      var list = document.getElementById('srr-cust-list');
+      var qEl = document.getElementById('srr-cust-q');
+      var totalEl = document.getElementById('srr-cust-total');
+      var bodySel = document.getElementById('srr-selected-body');
+      var countEl = document.getElementById('srr-selected-count');
+      var linesInput = document.getElementById('srr-lines-json');
+      var form = document.getElementById('srr-form');
+      var addVisibleBtn = document.getElementById('srr-add-visible');
+      var custCache = [];
+      var loadTimer = null;
+
+      function escHtml(s){
+        return String(s==null?'':s)
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+      function defaultFrom(){ return fromEl && fromEl.value ? fromEl.value : ''; }
+      function defaultTo(){ return toEl && toEl.value ? toEl.value : ''; }
+
+      function syncHidden(){
+        if(linesInput) linesInput.value = JSON.stringify(selected.map(function(r){
+          return {
+            customer_id: r.customer_id,
+            date_from: r.date_from || defaultFrom(),
+            date_to: r.date_to || defaultTo(),
+            region_id: r.region_id || null,
+            region_address_id: r.region_address_id || null
+          };
+        }));
+        if(countEl) countEl.textContent = selected.length + ' عميل';
+      }
+
+      function renderSelected(){
+        if(!bodySel) return;
+        if(!selected.length){
+          bodySel.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center;padding:.8rem">لم يُختر عملاء بعد</td></tr>';
+          syncHidden();
+          return;
         }
+        bodySel.innerHTML = selected.map(function(r, idx){
+          return '<tr data-idx="'+idx+'">'
+            + '<td><strong>'+escHtml(r.name)+'</strong> <span class="muted" dir="ltr">'+escHtml(r.code)+'</span></td>'
+            + '<td>'+escHtml(r.region_name||'—')+'</td>'
+            + '<td>'+escHtml(r.address_name||'—')+'</td>'
+            + '<td><input type="date" class="si-field srr-line-from" data-idx="'+idx+'" value="'+escHtml(r.date_from||defaultFrom())+'" '+(posted?'readonly':'')+'></td>'
+            + '<td><input type="date" class="si-field srr-line-to" data-idx="'+idx+'" value="'+escHtml(r.date_to||defaultTo())+'" '+(posted?'readonly':'')+'></td>'
+            + '<td>'+(posted?'':('<button type="button" class="si-btn srr-btn-sm srr-remove" data-idx="'+idx+'">حذف</button>'))+'</td>'
+            + '</tr>';
+        }).join('');
+        syncHidden();
       }
-      function filter(){
-        var term=String(q&&q.value||'').trim().toLowerCase();
-        rows().forEach(function(r){
-          if(!term){r.style.display='';return;}
-          var name=r.getAttribute('data-name')||'';
-          var code=r.getAttribute('data-code')||'';
-          r.style.display=(name.indexOf(term)!==-1||code.indexOf(term)!==-1)?'':'none';
+
+      function selectedIds(){
+        var m = {};
+        selected.forEach(function(r){ m[r.customer_id]=1; });
+        return m;
+      }
+
+      function addCustomer(c){
+        if(posted) return;
+        var id = Number(c.id);
+        if(!id || selectedIds()[id]) return;
+        selected.push({
+          customer_id: id,
+          code: c.code || '',
+          name: c.name_ar || c.name || '',
+          region_id: c.region_id || null,
+          region_address_id: c.region_address_id || null,
+          region_name: c.region_name || '',
+          address_name: c.address_name || '',
+          date_from: defaultFrom(),
+          date_to: defaultTo()
         });
-        updateCount();
+        renderSelected();
+        renderCustList();
       }
-      if(q)q.addEventListener('input',filter);
-      list.addEventListener('change',function(e){if(e.target&&e.target.type==='checkbox')updateCount();});
-      if(all)all.addEventListener('change',function(){
-        var on=all.checked;
-        visibleRows().forEach(function(r){var c=r.querySelector('input');if(c)c.checked=on;});
-        updateCount();
+
+      function renderCustList(){
+        if(!list) return;
+        var ids = selectedIds();
+        if(!custCache.length){
+          list.innerHTML = '<p class="srr-cust__empty">لا عملاء مطابقون للفلتر</p>';
+          if(totalEl) totalEl.textContent = '0';
+          return;
+        }
+        list.innerHTML = custCache.map(function(c){
+          var on = !!ids[Number(c.id)];
+          return '<label class="srr-cust__row'+(on?' is-on':'')+'">'
+            + '<input type="checkbox" '+(on?'checked':'')+' data-id="'+c.id+'" '+(posted?'disabled':'')+'>'
+            + '<span class="srr-cust__name">'+escHtml(c.name_ar||'')
+            + (c.region_name || c.address_name
+                ? ' <span class="muted">· '+escHtml([c.region_name,c.address_name].filter(Boolean).join(' / '))+'</span>'
+                : '')
+            + '</span>'
+            + '<span class="srr-cust__code" dir="ltr">'+escHtml(c.code||'')+'</span>'
+            + '</label>';
+        }).join('');
+        if(totalEl) totalEl.textContent = String(custCache.length);
+      }
+
+      function loadAddresses(){
+        if(!addressEl) return Promise.resolve();
+        var rid = Number(regionEl && regionEl.value || 0);
+        addressEl.innerHTML = '<option value="0">— كل العناوين —</option>';
+        if(rid < 1) return Promise.resolve();
+        return fetch('/api/sales-reps/addresses?region_id='+rid, {credentials:'same-origin'})
+          .then(function(r){ return r.json(); })
+          .then(function(j){
+            (j.rows||[]).forEach(function(a){
+              var o = document.createElement('option');
+              o.value = a.id;
+              o.textContent = a.name_ar || ('#'+a.id);
+              addressEl.appendChild(o);
+            });
+          }).catch(function(){});
+      }
+
+      function loadCustomers(){
+        if(!list) return;
+        var repId = Number(repEl && repEl.value || 0);
+        if(repId < 1){
+          custCache = [];
+          list.innerHTML = '<p class="srr-cust__empty">اختر المندوب أولاً</p>';
+          if(totalEl) totalEl.textContent = '0';
+          return;
+        }
+        list.innerHTML = '<p class="srr-cust__empty">جاري التحميل…</p>';
+        var qs = new URLSearchParams({
+          sales_rep_id: String(repId),
+          region_id: String(regionEl && regionEl.value || 0),
+          region_address_id: String(addressEl && addressEl.value || 0),
+          q: String(qEl && qEl.value || '')
+        });
+        fetch('/api/sales-reps/tour-customers?'+qs.toString(), {credentials:'same-origin'})
+          .then(function(r){ return r.json(); })
+          .then(function(j){
+            custCache = j.rows || [];
+            renderCustList();
+          })
+          .catch(function(){
+            list.innerHTML = '<p class="srr-cust__empty">تعذر تحميل العملاء</p>';
+          });
+      }
+
+      function scheduleLoad(){
+        clearTimeout(loadTimer);
+        loadTimer = setTimeout(loadCustomers, 200);
+      }
+
+      if(list){
+        list.addEventListener('change', function(e){
+          var t = e.target;
+          if(!t || t.type !== 'checkbox') return;
+          var id = Number(t.getAttribute('data-id')||0);
+          if(!id) return;
+          if(t.checked){
+            var c = custCache.find(function(x){ return Number(x.id)===id; });
+            if(c) addCustomer(c);
+          } else {
+            selected = selected.filter(function(r){ return Number(r.customer_id)!==id; });
+            renderSelected();
+            renderCustList();
+          }
+        });
+      }
+
+      if(bodySel){
+        bodySel.addEventListener('click', function(e){
+          var btn = e.target.closest('.srr-remove');
+          if(!btn) return;
+          var idx = Number(btn.getAttribute('data-idx')|| -1);
+          if(idx>=0){ selected.splice(idx,1); renderSelected(); renderCustList(); }
+        });
+        bodySel.addEventListener('change', function(e){
+          var t = e.target;
+          if(!t) return;
+          var idx = Number(t.getAttribute('data-idx')|| -1);
+          if(idx<0 || !selected[idx]) return;
+          if(t.classList.contains('srr-line-from')) selected[idx].date_from = t.value;
+          if(t.classList.contains('srr-line-to')) selected[idx].date_to = t.value;
+          syncHidden();
+        });
+      }
+
+      if(repEl) repEl.addEventListener('change', scheduleLoad);
+      if(regionEl) regionEl.addEventListener('change', function(){
+        loadAddresses().then(scheduleLoad);
       });
-      if(clearBtn)clearBtn.addEventListener('click',function(){
-        rows().forEach(function(r){var c=r.querySelector('input');if(c)c.checked=false;});
-        updateCount();
+      if(addressEl) addressEl.addEventListener('change', scheduleLoad);
+      if(qEl) qEl.addEventListener('input', scheduleLoad);
+
+      if(fromEl) fromEl.addEventListener('change', function(){
+        selected.forEach(function(r){ if(!r.date_from) r.date_from = defaultFrom(); });
+        renderSelected();
       });
-      updateCount();
+      if(toEl) toEl.addEventListener('change', function(){
+        selected.forEach(function(r){ if(!r.date_to) r.date_to = defaultTo(); });
+        renderSelected();
+      });
+
+      if(addVisibleBtn) addVisibleBtn.addEventListener('click', function(){
+        custCache.forEach(addCustomer);
+      });
+
+      if(form) form.addEventListener('submit', function(){
+        syncHidden();
+      });
+
+      renderSelected();
+      if(Number(repEl && repEl.value || 0) > 0) scheduleLoad();
     })();
     </script>`;
   res.send(
     ui.salesPage({
       user: req.session.user,
-      title: 'خط سير المندوب',
+      title: 'جولات المندوبين',
       bodyHtml: body,
       css: ['/assets/css/sales-rep-route.css'],
+      js: ['/assets/js/sales-print.js'],
     })
   );
 });
 
 router.post('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
   const body = req.body || {};
-  body.customer_ids = [].concat(body.customer_ids || []).filter(Boolean);
-  const result = await masters.saveRoute(body, req.session.user?.id);
+  try {
+    if (body.lines_json) {
+      const parsed = JSON.parse(String(body.lines_json || '[]'));
+      if (Array.isArray(parsed)) body.lines = parsed;
+    }
+  } catch {
+    /* keep customer_ids if any */
+  }
+  const result = await masters.saveTour(body, req.session.user?.id);
   if (!result.ok) {
     return res.redirect(
       '/sales-reps/route?err=' +
@@ -432,17 +721,117 @@ router.post('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         (body.sales_rep_id ? '&sales_rep_id=' + body.sales_rep_id : '')
     );
   }
+  if (String(body.and_post || '') === '1') {
+    const post = await masters.postTour(result.id, req.session.user?.id);
+    return res.redirect(
+      '/sales-reps/route?id=' +
+        result.id +
+        (post.ok ? '&msg=' : '&err=') +
+        encodeURIComponent(post.ok ? post.message : post.error || result.message)
+    );
+  }
   res.redirect(
-    '/sales-reps/route?msg=' +
-      encodeURIComponent(result.message || 'تم') +
-      (body.sales_rep_id ? '&sales_rep_id=' + body.sales_rep_id : '')
+    '/sales-reps/route?id=' +
+      result.id +
+      '&msg=' +
+      encodeURIComponent(result.message || 'تم')
+  );
+});
+
+router.post('/sales-reps/route/:id/post', guard('sales_rep_route'), async (req, res) => {
+  const result = await masters.postTour(req.params.id, req.session.user?.id);
+  const key = result.ok ? 'msg' : 'err';
+  res.redirect(
+    '/sales-reps/route?id=' +
+      Number(req.params.id) +
+      '&' +
+      key +
+      '=' +
+      encodeURIComponent(result.message || result.error || '')
+  );
+});
+
+router.post('/sales-reps/route/:id/unpost', guard('sales_rep_route'), async (req, res) => {
+  const result = await masters.unpostTour(req.params.id, req.session.user?.id);
+  const key = result.ok ? 'msg' : 'err';
+  res.redirect(
+    '/sales-reps/route?id=' +
+      Number(req.params.id) +
+      '&' +
+      key +
+      '=' +
+      encodeURIComponent(result.message || result.error || '')
   );
 });
 
 router.post('/sales-reps/route/:id/delete', guard('sales_rep_route'), async (req, res) => {
-  const result = await masters.deleteRoute(req.params.id);
+  const result = await masters.deleteTour(req.params.id);
   const key = result.ok ? 'msg' : 'err';
   res.redirect('/sales-reps/route?' + key + '=' + encodeURIComponent(result.message || result.error || ''));
+});
+
+router.get('/sales-reps/route/:id/print', guard('sales_rep_route'), async (req, res) => {
+  const data = await masters.getTourPrintRows(req.params.id);
+  if (!data) return res.status(404).send('الجولة غير موجودة');
+  const { tour, rows } = data;
+  const rowsHtml =
+    rows
+      .map(
+        (r, i) => `<tr>
+      <td class="si-num" dir="ltr">${i + 1}</td>
+      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.visit_date))}</td>
+      <td>${ui.esc(r.customer_name || '')}</td>
+      <td class="si-num" dir="ltr">${dash(r.customer_code)}</td>
+      <td>${dash(r.region_name)}</td>
+      <td>${dash(r.address_name)}</td>
+    </tr>`
+      )
+      .join('') || ui.emptyRow(6, 'لا تفاصيل');
+
+  const body = `
+    <div class="si-stage si-report-page srr-print-page">
+      ${ui.hero({
+        mark: '🖨',
+        kicker: KICKER,
+        title: 'طباعة جولة مندوب',
+        subtitle: `${ui.esc(tour.sales_rep_name || '')} · ${ui.esc(ui.isoToDmy(tour.date_from))} → ${ui.esc(
+          ui.isoToDmy(tour.date_to)
+        )} · ${statusLabel(tour.status)}`,
+        actions: [
+          { label: '🖨 طباعة', primary: true, print: true },
+          { label: 'العودة للجولة', href: '/sales-reps/route?id=' + tour.id },
+        ],
+      })}
+      <div class="si-print-area">
+        <div class="srr-print-meta">
+          <table class="si-table" style="margin-bottom:1rem">
+            <tbody>
+              <tr><th style="width:9rem">المندوب</th><td>${ui.esc(tour.sales_rep_name || '')}${
+                tour.sales_rep_code ? ' (' + ui.esc(tour.sales_rep_code) + ')' : ''
+              }</td></tr>
+              <tr><th>تاريخ البداية</th><td dir="ltr">${ui.esc(ui.isoToDmy(tour.date_from))}</td></tr>
+              <tr><th>تاريخ النهاية</th><td dir="ltr">${ui.esc(ui.isoToDmy(tour.date_to))}</td></tr>
+              <tr><th>الحالة</th><td>${statusLabel(tour.status)}</td></tr>
+              ${tour.notes ? `<tr><th>ملاحظات</th><td>${ui.esc(tour.notes)}</td></tr>` : ''}
+            </tbody>
+          </table>
+        </div>
+        ${ui.tableSurface(
+          'تفاصيل الجولة',
+          `${rows.length} صف`,
+          ['#', 'اليوم', 'العميل', 'الرمز', 'المنطقة', 'العنوان'],
+          rowsHtml
+        )}
+      </div>
+    </div>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'طباعة جولة — ' + (tour.sales_rep_name || ''),
+      bodyHtml: body,
+      js: ['/assets/js/sales-print.js'],
+    })
+  );
 });
 
 /* ═══════════ Reports → تحت المبيعات ═══════════ */
