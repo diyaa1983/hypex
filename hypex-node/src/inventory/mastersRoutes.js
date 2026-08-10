@@ -311,8 +311,9 @@ async function itemForm(req, res, id) {
     .map((u) => `<option value="${u.id}">${esc(u.name_ar)}</option>`)
     .join('');
 
-  // packing rows (non-base)
+  // packing rows (non-base) — allow *adding* first pack/carton even when base unit is locked after movements
   const packUnits = (item?.item_units || []).filter((u) => !Number(u.is_base));
+  const packFieldsLocked = unitsLocked && packUnits.length > 0;
   const packRowsHtml =
     packUnits.length > 0
       ? packUnits
@@ -327,16 +328,16 @@ async function itemForm(req, res, id) {
               .join('');
             return `<div class="inv-pack-row" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
               <label style="flex:1.2;min-width:9rem">الوحدة
-                <select class="si-field" name="pack_unit_id[]" ${unitsLocked ? 'disabled' : ''}>
+                <select class="si-field" name="pack_unit_id[]" ${packFieldsLocked ? 'disabled' : ''}>
                   <option value="">—</option>${opts}
                 </select>
               </label>
               <label style="flex:1;min-width:7rem">العدد في الوحدة
                 <input class="si-field si-field--mono" name="pack_factor[]" type="number" step="1" min="1"
-                       value="${esc(facStr)}" dir="ltr" ${unitsLocked ? 'readonly' : ''} placeholder="مثال: 24">
+                       value="${esc(facStr)}" dir="ltr" ${packFieldsLocked ? 'readonly' : ''} placeholder="مثال: 24">
               </label>
               ${
-                unitsLocked
+                packFieldsLocked
                   ? ''
                   : `<button type="button" class="si-btn js-pack-remove" style="margin-bottom:.1rem">حذف</button>`
               }
@@ -345,15 +346,15 @@ async function itemForm(req, res, id) {
           .join('')
       : `<div class="inv-pack-row" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
           <label style="flex:1.2;min-width:9rem">الوحدة
-            <select class="si-field" name="pack_unit_id[]" ${unitsLocked ? 'disabled' : ''}>
+            <select class="si-field" name="pack_unit_id[]">
               <option value="">— إضافة وحدة إضافية —</option>${unitOptionsHtml}
             </select>
           </label>
           <label style="flex:1;min-width:7rem">العدد في الوحدة
             <input class="si-field si-field--mono" name="pack_factor[]" type="number" step="1" min="1" value="" dir="ltr"
-                   ${unitsLocked ? 'readonly' : ''} placeholder="قطعة=1 · كرتون=24">
+                   placeholder="قطعة=1 · كرتون=24">
           </label>
-          ${unitsLocked ? '' : `<button type="button" class="si-btn js-pack-remove" style="margin-bottom:.1rem">حذف</button>`}
+          <button type="button" class="si-btn js-pack-remove" style="margin-bottom:.1rem">حذف</button>
         </div>`;
 
   const lockNote = pricesLocked
@@ -459,7 +460,13 @@ async function itemForm(req, res, id) {
             <p class="muted" style="margin:0 0 .75rem;font-size:.82rem;line-height:1.5">
               الوحدة الأساسية (مثل <b>قطعة</b>) عددها دائماً 1. أضف وحدة أخرى دون تكرار (مثال: <b>كرتون</b> والعدد 24).
               في الفواتير وطلبات الشراء/المبيعات تُستخدم هذه الوحدات فقط.
-              ${unitsLocked ? ' <b>الوحدات مقفلة بعد الحركات.</b>' : ''}
+              ${
+                packFieldsLocked
+                  ? ' <b>الوحدات مقفلة بعد الحركات (لا يمكن تعديل معامل الكرتون).</b>'
+                  : unitsLocked
+                    ? ' الوحدة الأساسية مقفلة بعد الحركات — يمكنك إضافة وحدة التعبئة (كرتون) إن لم تُعرَّف بعد.'
+                    : ''
+              }
             </p>
             <div class="si-meta" style="margin-bottom:.65rem">
               <label>الوحدة الأساسية *
@@ -474,7 +481,7 @@ async function itemForm(req, res, id) {
             ${unitsLocked ? `<input type="hidden" name="unit_id" value="${esc(String(item?.unit_id || ''))}">` : ''}
             <div id="inv-pack-list">${packRowsHtml}</div>
             ${
-              unitsLocked
+              packFieldsLocked
                 ? ''
                 : `<button type="button" class="si-btn" id="inv-pack-add" style="margin-top:.25rem">＋ إضافة وحدة أخرى</button>
                    <template id="inv-pack-tpl">

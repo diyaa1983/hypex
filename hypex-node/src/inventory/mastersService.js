@@ -272,24 +272,30 @@ async function allocateSku(itemId) {
 }
 
 /**
+ * Form arrays may arrive as pack_unit_id (extended:true) or pack_unit_id[] (extended:false).
+ */
+function bodyArray(payload, keys) {
+  for (const k of keys) {
+    const raw = payload?.[k];
+    if (raw == null || raw === '') continue;
+    return Array.isArray(raw) ? raw : [raw];
+  }
+  return [];
+}
+
+/**
  * Parse multi-unit rows: no duplicate unit_id; one base (factor 1).
  * payload:
  *  - unit_id (base)
- *  - pack_unit_id[] + pack_factor[] additional issue units
+ *  - pack_unit_id / pack_unit_id[] + pack_factor / pack_factor[] additional issue units
  */
 function parsePackUnits(payload, baseUnitId) {
   const baseId = Number(baseUnitId) || 0;
   const seen = new Set();
   if (baseId > 0) seen.add(baseId);
 
-  const rawIds = payload.pack_unit_id;
-  const rawFactors = payload.pack_factor;
-  const ids = Array.isArray(rawIds) ? rawIds : rawIds != null && rawIds !== '' ? [rawIds] : [];
-  const factors = Array.isArray(rawFactors)
-    ? rawFactors
-    : rawFactors != null && rawFactors !== ''
-      ? [rawFactors]
-      : [];
+  const ids = bodyArray(payload, ['pack_unit_id', 'pack_unit_id[]']);
+  const factors = bodyArray(payload, ['pack_factor', 'pack_factor[]']);
 
   // legacy single issue_unit_id
   if (!ids.length && Number(payload.issue_unit_id || 0) > 0) {
@@ -301,13 +307,13 @@ function parsePackUnits(payload, baseUnitId) {
   for (let i = 0; i < ids.length; i++) {
     const uid = Number(ids[i] || 0);
     if (!uid || seen.has(uid)) continue;
-    let factor = Number(String(factors[i] ?? '1').replace(',', '.')) || 0;
+    const factorRaw = factors[i];
+    // unit chosen without factor → skip (empty row or incomplete)
+    if (factorRaw === '' || factorRaw == null) continue;
+    let factor = Number(String(factorRaw).replace(',', '.')) || 0;
     if (factor <= 0) continue;
-    // base unit pack row → factor stays 1
-    if (uid === baseId) {
-      factor = 1;
-      continue;
-    }
+    // base unit pack row → ignore (base is always factor 1)
+    if (uid === baseId) continue;
     seen.add(uid);
     extras.push({ unit_id: uid, factor });
   }
@@ -465,6 +471,8 @@ async function saveItem(payload) {
 
   // multi unit normalize
   let packExtras = [];
+  /** When item has movements, base unit stays locked — but allow *first* carton/pack definition if none yet */
+  let packWriteAllowed = !unitsLocked;
   if (unitId && !unitsLocked) {
     const parsed = parsePackUnits(payload, unitId);
     const norm = await normalizeBaseAndPacks(parsed.baseUnitId, parsed.extras);
@@ -474,6 +482,14 @@ async function saveItem(payload) {
     // keep existing base
     const curU = await safeQuery(`SELECT unit_id FROM inv_item WHERE id = ? LIMIT 1`, [id]);
     if (curU[0]?.unit_id) unitId = Number(curU[0].unit_id);
+    const existing = await getItemUnits(id);
+    const hasPack = existing.some((u) => !Number(u.is_base));
+    if (!hasPack) {
+      const parsed = parsePackUnits(payload, unitId);
+      const norm = await normalizeBaseAndPacks(unitId, parsed.extras);
+      packExtras = norm.extras;
+      if (packExtras.length) packWriteAllowed = true;
+    }
   }
 
   let unitName = 'قطعة';
@@ -554,14 +570,14 @@ async function saveItem(payload) {
     }
     params.push(id);
     await safeQuery(`UPDATE inv_item SET ${sets.join(', ')} WHERE id=?`, params);
-    await saveItemUnits(id, unitId, packExtras, unitsLocked);
-    return {
-      ok: true,
-      id,
-      message: pricesLocked
-        ? 'تم تحديث المادة (الأسعار مقفلة بعد الحركات — عدّلها من شاشات الأسعار).'
-        : 'تم تحديث المادة.',
-    };
+    await saveItemUnits(id, unitId, packExtras, !packWriteAllowed);
+    let msg = 'تم تحديث المادة.';
+    if (pricesLocked) {
+      msg = packWriteAllowed && packExtras.length
+        ? 'تم تحديث المادة. أُضيفت وحدة التعبئة. الأسعار ما زالت مقفلة بعد الحركات.'
+        : 'تم تحديث المادة (الأسعار والوحدات مقفلة بعد الحركات — عدّل الأسعار من شاشات الأسعار).';
+    }
+    return { ok: true, id, message: msg };
   }
 
   // insert
