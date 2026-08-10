@@ -337,6 +337,7 @@ async function renderForm(req, res, orderId) {
           ],
     defaults: {
       tax: lookups.default_tax,
+      tax_rates: lookups.tax_rates || [],
       warehouses: lookups.warehouses,
       sales_reps: lookups.sales_reps,
     },

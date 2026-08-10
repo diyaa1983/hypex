@@ -1192,13 +1192,14 @@ label .si-field-key {
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 
-.si-lines input:focus,
-.si-lines select:focus {
-  outline: none;
-  border-color: var(--si-accent);
+.si-lines select.js-tax {
+  min-width: 5.8rem;
+  max-width: 9.5rem;
+  cursor: pointer;
   background: #fff;
-  box-shadow: 0 0 0 2px rgba(3, 105, 161, 0.12);
+  border-color: var(--si-line, #e2e8f0);
 }
+
 
 .si-lines .si-num-out {
   font-family: var(--si-mono);

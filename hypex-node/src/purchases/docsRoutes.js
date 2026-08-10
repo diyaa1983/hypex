@@ -104,7 +104,10 @@ async function renderDocForm(req, res, conf) {
               tax_rate_percent: lookups.default_tax,
             },
           ],
-    defaults: { tax: lookups.default_tax },
+    defaults: {
+      tax: lookups.default_tax,
+      tax_rates: lookups.tax_rates || [],
+    },
   };
 
   const whOpts = (lookups.warehouses || [])

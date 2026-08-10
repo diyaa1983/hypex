@@ -7,11 +7,60 @@
   var state = JSON.parse(root.textContent || '{}');
   var locked = !!state.is_approved;
   var defaultTax = Number((state.defaults && state.defaults.tax) || 16);
+  var taxRates = Array.isArray(state.defaults && state.defaults.tax_rates)
+    ? state.defaults.tax_rates
+    : [];
   var msgEl = document.getElementById('co-msg');
   var tbody = document.getElementById('co-lines-body');
   var custTimer = null;
   var itemTimers = {};
   var busy = false;
+
+  function rateClose(a, b) {
+    return Math.abs(Number(a) - Number(b)) < 0.0001;
+  }
+
+  function taxSelectHtml(selected, disabled) {
+    var cur = Number(selected != null && selected !== '' ? selected : defaultTax);
+    if (!Number.isFinite(cur)) cur = defaultTax;
+    var opts = '';
+    var found = false;
+    for (var i = 0; i < taxRates.length; i++) {
+      var t = taxRates[i];
+      var rate = Number(t.rate_percent);
+      if (!Number.isFinite(rate)) continue;
+      var sel = rateClose(rate, cur);
+      if (sel) found = true;
+      var label =
+        (t.name_ar ? String(t.name_ar) + ' — ' : '') +
+        rate.toLocaleString('en-US', { maximumFractionDigits: 3 }) +
+        '%';
+      opts +=
+        '<option value="' +
+        escAttr(String(rate)) +
+        '"' +
+        (sel ? ' selected' : '') +
+        '>' +
+        escAttr(label) +
+        '</option>';
+    }
+    if (!opts || !found) {
+      opts =
+        '<option value="' +
+        escAttr(String(cur)) +
+        '" selected>' +
+        escAttr(cur + '%') +
+        '</option>' +
+        opts;
+    }
+    return (
+      '<select class="js-tax"' +
+      (disabled ? ' disabled' : '') +
+      ' title="نسبة الضريبة">' +
+      opts +
+      '</select>'
+    );
+  }
 
   function r3(n) {
     return Math.round((Number(n) || 0) * 1000) / 1000;
@@ -193,11 +242,9 @@
         '" ' +
         (locked ? 'readonly' : '') +
         '></td>' +
-        '<td><input class="js-tax" type="number" step="0.001" min="0" value="' +
-        escAttr(ln.tax_rate_percent != null ? ln.tax_rate_percent : defaultTax) +
-        '" ' +
-        (locked ? 'readonly' : '') +
-        '></td>' +
+        '<td>' +
+        taxSelectHtml(ln.tax_rate_percent != null ? ln.tax_rate_percent : defaultTax, locked) +
+        '</td>' +
         '<td class="js-sub si-num-out" dir="ltr">' +
         fmt(t.sub) +
         '</td>' +
@@ -216,10 +263,11 @@
   function bindRow(tr) {
     ['js-qty', 'js-qty-extra', 'js-price', 'js-disc', 'js-tax'].forEach(function (cls) {
       var el = tr.querySelector('.' + cls);
-      if (el)
-        el.addEventListener('input', function () {
-          readLineFromRow(tr);
-        });
+      if (!el) return;
+      var ev = el.tagName === 'SELECT' ? 'change' : 'input';
+      el.addEventListener(ev, function () {
+        readLineFromRow(tr);
+      });
     });
     var itemInput = tr.querySelector('.js-item');
     var suggest = tr.querySelector('.js-item-suggest');
