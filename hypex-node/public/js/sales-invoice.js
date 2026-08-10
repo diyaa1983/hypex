@@ -28,6 +28,11 @@
     if (!msgEl) return;
     msgEl.textContent = text || '';
     msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : type === 'ok' ? ' is-ok' : '');
+    if (text && window.HypexUI && typeof window.HypexUI.toast === 'function') {
+      if (type === 'error' || type === 'ok') {
+        window.HypexUI.toast(text, type === 'error' ? 'error' : 'ok', type === 'error' ? 4200 : 2800);
+      }
+    }
   }
 
   function lineTotals(ln) {
@@ -139,10 +144,19 @@
 
   function setBusy(on) {
     busy = !!on;
-    ['si-save', 'si-post', 'si-unpost', 'si-delete', 'si-einvoice'].forEach(function (id) {
+    ['si-save', 'si-post', 'si-unpost', 'si-delete', 'si-einvoice', 'si-add-line'].forEach(function (id) {
       var el = document.getElementById(id);
-      if (el && !el.dataset.keepDisabled) {
-        if (on) el.disabled = true;
+      if (!el) return;
+      if (on) {
+        if (el.dataset.hxBusyPrev == null) {
+          el.dataset.hxBusyPrev = el.disabled ? '1' : '0';
+        }
+        el.disabled = true;
+      } else {
+        // أعد الحالة كما كانت قبل القفل — حتى يمكن الحفظ مرة أخرى
+        if (el.dataset.hxBusyPrev === '1') el.disabled = true;
+        else el.disabled = false;
+        delete el.dataset.hxBusyPrev;
       }
     });
   }
@@ -599,8 +613,13 @@
         var bar = document.getElementById('si-doc-bar');
         if (bar) bar.setAttribute('data-invoice-id', String(data.id));
         if (typeof then === 'function') return then(data);
-        if (data.id && location.pathname.indexOf('/sales/invoices/new') !== -1) {
-          window.location.href = '/sales/invoices/' + data.id;
+        // فاتورة جديدة: حدّث الرابط دون إعادة تحميل كاملة (لتبقى التعديلات متاحة فوراً)
+        if (data.id && /\/sales\/invoices\/new\/?$/.test(location.pathname)) {
+          try {
+            history.replaceState({}, '', '/sales/invoices/' + data.id);
+          } catch (e) {
+            /* ignore */
+          }
         }
         return data;
       })
@@ -618,87 +637,103 @@
     }
     var payload = buildPayload();
     if (!validatePayload(payload)) return;
-    if (
-      !confirm(
-        'ترحيل الفاتورة؟\nسيتم: إنشاء القيود المحاسبية + خصم المستودع، ثم الإرسال إلى الفوترة الإلكترونية.'
-      )
-    ) {
-      return;
-    }
-    setMsg('جاري الحفظ ثم الترحيل…');
-    setBusy(true);
-    // احفظ أولاً ثم رحّل
-    fetch('/api/sales/invoices', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-      .then(function (r) {
-        return r.json();
+    var ask =
+      window.HypexUI && window.HypexUI.confirm
+        ? window.HypexUI.confirm(
+            'سيتم: إنشاء القيود المحاسبية + خصم المستودع، ثم الإرسال إلى الفوترة الإلكترونية.',
+            { title: 'ترحيل الفاتورة؟', okLabel: 'ترحيل', cancelLabel: 'إلغاء' }
+          )
+        : Promise.resolve(
+            window.confirm(
+              'ترحيل الفاتورة؟\nسيتم: إنشاء القيود المحاسبية + خصم المستودع، ثم الإرسال إلى الفوترة الإلكترونية.'
+            )
+          );
+    ask.then(function (ok) {
+      if (!ok) return;
+      setMsg('جاري الحفظ ثم الترحيل…');
+      setBusy(true);
+      fetch('/api/sales/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
-      .then(function (saved) {
-        if (!saved.ok) {
-          setBusy(false);
-          setMsg(saved.error || 'تعذر الحفظ قبل الترحيل', 'error');
-          return null;
-        }
-        state.id = saved.id;
-        setMsg('تم الحفظ — جاري الترحيل والفوترة…');
-        return fetch('/api/sales/invoices/' + saved.id + '/post', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ auto_einvoice: true }),
-        }).then(function (r) {
+        .then(function (r) {
           return r.json();
+        })
+        .then(function (saved) {
+          if (!saved.ok) {
+            setBusy(false);
+            setMsg(saved.error || 'تعذر الحفظ قبل الترحيل', 'error');
+            return null;
+          }
+          state.id = saved.id;
+          setMsg('تم الحفظ — جاري الترحيل والفوترة…');
+          return fetch('/api/sales/invoices/' + saved.id + '/post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auto_einvoice: true }),
+          }).then(function (r) {
+            return r.json();
+          });
+        })
+        .then(function (data) {
+          setBusy(false);
+          if (!data) return;
+          if (!data.ok) {
+            setMsg(data.error || data.message || 'تعذر الترحيل', 'error');
+            return;
+          }
+          setMsg(data.message || 'تم الترحيل.', 'ok');
+          setTimeout(function () {
+            window.location.href = '/sales/invoices/' + (data.invoice_id || state.id);
+          }, 600);
+        })
+        .catch(function () {
+          setBusy(false);
+          setMsg('تعذر الاتصال بالخادم', 'error');
         });
-      })
-      .then(function (data) {
-        setBusy(false);
-        if (!data) return;
-        if (!data.ok) {
-          setMsg(data.error || data.message || 'تعذر الترحيل', 'error');
-          if (state.id) window.location.href = '/sales/invoices/' + state.id;
-          return;
-        }
-        setMsg(data.message || 'تم الترحيل.', 'ok');
-        setTimeout(function () {
-          window.location.href = '/sales/invoices/' + (data.invoice_id || state.id);
-        }, 600);
-      })
-      .catch(function () {
-        setBusy(false);
-        setMsg('تعذر الاتصال بالخادم', 'error');
-      });
+    });
   }
 
   function unpostInvoice() {
     if (!state.id || !posted) return;
-    if (!confirm('فك ترحيل الفاتورة؟ (عكس القيود وإرجاع المخزون)')) return;
-    setBusy(true);
-    setMsg('جاري فك الترحيل…');
-    fetch('/api/sales/invoices/' + state.id + '/unpost', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    })
-      .then(function (r) {
-        return r.json();
+    var ask =
+      window.HypexUI && window.HypexUI.confirm
+        ? window.HypexUI.confirm('فك ترحيل الفاتورة؟ (عكس القيود وإرجاع المخزون)', {
+            title: 'فك الترحيل',
+            okLabel: 'فك الترحيل',
+            cancelLabel: 'إلغاء',
+            danger: true,
+          })
+        : Promise.resolve(window.confirm('فك ترحيل الفاتورة؟ (عكس القيود وإرجاع المخزون)'));
+    ask.then(function (ok) {
+      if (!ok) return;
+      setBusy(true);
+      setMsg('جاري فك الترحيل…');
+      fetch('/api/sales/invoices/' + state.id + '/unpost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
       })
-      .then(function (data) {
-        setBusy(false);
-        if (!data.ok) {
-          setMsg(data.error || data.message || 'تعذر فك الترحيل', 'error');
-          return;
-        }
-        setMsg(data.message || 'تم فك الترحيل', 'ok');
-        setTimeout(function () {
-          location.reload();
-        }, 500);
-      })
-      .catch(function () {
-        setBusy(false);
-        setMsg('تعذر الاتصال', 'error');
-      });
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          setBusy(false);
+          if (!data.ok) {
+            setMsg(data.error || data.message || 'تعذر فك الترحيل', 'error');
+            return;
+          }
+          setMsg(data.message || 'تم فك الترحيل', 'ok');
+          setTimeout(function () {
+            location.reload();
+          }, 500);
+        })
+        .catch(function () {
+          setBusy(false);
+          setMsg('تعذر الاتصال', 'error');
+        });
+    });
   }
 
   function deleteInvoice() {
@@ -706,28 +741,39 @@
       setMsg(posted ? 'لا يمكن حذف فاتورة مرحّلة.' : 'احفظ الفاتورة أولاً.', 'error');
       return;
     }
-    if (!confirm('حذف الفاتورة نهائياً؟')) return;
-    setBusy(true);
-    fetch('/api/sales/invoices/' + state.id + '/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    })
-      .then(function (r) {
-        return r.json();
+    var ask =
+      window.HypexUI && window.HypexUI.confirm
+        ? window.HypexUI.confirm('حذف الفاتورة نهائياً؟', {
+            title: 'حذف',
+            okLabel: 'حذف',
+            cancelLabel: 'إلغاء',
+            danger: true,
+          })
+        : Promise.resolve(window.confirm('حذف الفاتورة نهائياً؟'));
+    ask.then(function (ok) {
+      if (!ok) return;
+      setBusy(true);
+      fetch('/api/sales/invoices/' + state.id + '/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
       })
-      .then(function (data) {
-        setBusy(false);
-        if (!data.ok) {
-          setMsg(data.error || data.message || 'تعذر الحذف', 'error');
-          return;
-        }
-        window.location.href = '/sales/invoices';
-      })
-      .catch(function () {
-        setBusy(false);
-        setMsg('تعذر الاتصال', 'error');
-      });
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          setBusy(false);
+          if (!data.ok) {
+            setMsg(data.error || data.message || 'تعذر الحذف', 'error');
+            return;
+          }
+          window.location.href = '/sales/invoices';
+        })
+        .catch(function () {
+          setBusy(false);
+          setMsg('تعذر الاتصال', 'error');
+        });
+    });
   }
 
   function sendEinvoice() {
@@ -735,29 +781,39 @@
       setMsg('يجب ترحيل الفاتورة قبل الإرسال إلى الفوترة.', 'error');
       return;
     }
-    if (!confirm('إرسال الفاتورة إلى الفوترة الإلكترونية؟')) return;
-    setBusy(true);
-    setMsg('جاري الإرسال للفوترة…');
-    fetch('/api/sales/invoices/' + state.id + '/einvoice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    })
-      .then(function (r) {
-        return r.json();
+    var ask =
+      window.HypexUI && window.HypexUI.confirm
+        ? window.HypexUI.confirm('إرسال الفاتورة إلى الفوترة الإلكترونية؟', {
+            title: 'الفوترة',
+            okLabel: 'إرسال',
+            cancelLabel: 'إلغاء',
+          })
+        : Promise.resolve(window.confirm('إرسال الفاتورة إلى الفوترة الإلكترونية؟'));
+    ask.then(function (ok) {
+      if (!ok) return;
+      setBusy(true);
+      setMsg('جاري الإرسال للفوترة…');
+      fetch('/api/sales/invoices/' + state.id + '/einvoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
       })
-      .then(function (data) {
-        setBusy(false);
-        if (!data.ok) {
-          setMsg(data.error || data.message || 'فشل الإرسال', 'error');
-          return;
-        }
-        setMsg(data.message || 'تم الإرسال', 'ok');
-      })
-      .catch(function () {
-        setBusy(false);
-        setMsg('تعذر الاتصال', 'error');
-      });
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          setBusy(false);
+          if (!data.ok) {
+            setMsg(data.error || data.message || 'فشل الإرسال', 'error');
+            return;
+          }
+          setMsg(data.message || 'تم الإرسال', 'ok');
+        })
+        .catch(function () {
+          setBusy(false);
+          setMsg('تعذر الاتصال', 'error');
+        });
+    });
   }
 
   function exportExcel() {

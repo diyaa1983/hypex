@@ -1,0 +1,188 @@
+/**
+ * نوافذ النظام (تنبيه / تأكيد) — وسط الصفحة
+ */
+.hx-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 20050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.hx-ui[hidden] {
+  display: none !important;
+}
+
+.hx-ui__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.hx-ui__panel {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  background: #fff;
+  border: 1px solid #d4e0ef;
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+  padding: 1.15rem 1.25rem 1rem;
+  animation: hx-ui-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  direction: rtl;
+  text-align: right;
+}
+
+@keyframes hx-ui-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hx-ui__kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.hx-ui__title {
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.hx-ui__msg {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hx-ui--warn .hx-ui__kicker {
+  color: #a16207;
+}
+
+.hx-ui--error .hx-ui__kicker {
+  color: #b91c1c;
+}
+
+.hx-ui--ok .hx-ui__kicker {
+  color: #047857;
+}
+
+.hx-ui--error .hx-ui__panel {
+  border-color: rgba(185, 28, 28, 0.25);
+}
+
+.hx-ui--ok .hx-ui__panel {
+  border-color: rgba(4, 120, 87, 0.22);
+}
+
+.hx-ui--warn .hx-ui__panel {
+  border-color: rgba(161, 98, 7, 0.25);
+}
+
+.hx-ui__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-start;
+}
+
+.hx-ui__btn {
+  appearance: none;
+  min-height: 2.25rem;
+  padding: 0.4rem 1rem;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font: 700 0.88rem Arial, Helvetica, sans-serif;
+  cursor: pointer;
+}
+
+.hx-ui__btn:hover {
+  background: #f1f5f9;
+}
+
+.hx-ui__btn--primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+  color: #fff;
+}
+
+.hx-ui__btn--primary:hover {
+  filter: brightness(1.05);
+}
+
+.hx-ui__btn--danger {
+  border-color: transparent;
+  background: linear-gradient(180deg, #f87171 0%, #b91c1c 100%);
+  color: #fff;
+}
+
+/* توست أعلى وسط */
+.hx-ui-toast-host {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20060;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: min(420px, calc(100% - 1.5rem));
+  pointer-events: none;
+}
+
+.hx-ui-toast {
+  pointer-events: auto;
+  padding: 0.7rem 0.95rem;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #f8fafc;
+  font: 700 0.88rem/1.4 Arial, Helvetica, sans-serif;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+  text-align: center;
+  direction: rtl;
+  animation: hx-ui-toast-in 0.25s ease both;
+}
+
+.hx-ui-toast.is-ok {
+  background: linear-gradient(180deg, #059669 0%, #047857 100%);
+}
+
+.hx-ui-toast.is-error {
+  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+}
+
+.hx-ui-toast.is-warn {
+  background: linear-gradient(180deg, #d97706 0%, #b45309 100%);
+}
+
+@keyframes hx-ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

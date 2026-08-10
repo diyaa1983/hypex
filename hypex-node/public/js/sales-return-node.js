@@ -25,6 +25,9 @@
     if (!msgEl) return;
     msgEl.textContent = t || '';
     msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : type === 'ok' ? ' is-ok' : '');
+    if (t && window.HypexUI && window.HypexUI.toast && (type === 'error' || type === 'ok')) {
+      window.HypexUI.toast(t, type, type === 'error' ? 4200 : 2800);
+    }
   }
 
   function calcLine(ln) {

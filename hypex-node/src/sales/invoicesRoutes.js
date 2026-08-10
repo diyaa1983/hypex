@@ -201,19 +201,27 @@ router.get('/sales/invoices', async (req, res) => {
       </div>
       <script>
       (function(){
+        function ask(msg){
+          if(window.HypexUI&&window.HypexUI.confirm) return window.HypexUI.confirm(msg,{title:'ترحيل',okLabel:'ترحيل',cancelLabel:'إلغاء'});
+          return Promise.resolve(window.confirm(msg));
+        }
         document.querySelectorAll('.js-list-post').forEach(function(btn){
           btn.addEventListener('click', function(){
             var id = btn.getAttribute('data-id');
-            if(!id||!confirm('ترحيل الفاتورة؟ (قيود + مستودع ثم الفوترة)')) return;
-            btn.disabled = true;
-            fetch('/api/sales/invoices/'+id+'/post', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
-              .then(function(r){return r.json()})
-              .then(function(d){
-                alert(d.message||d.error||(d.ok?'تم':'فشل'));
-                if(d.ok) location.reload();
-                else btn.disabled=false;
-              })
-              .catch(function(){ btn.disabled=false; alert('تعذر الاتصال'); });
+            if(!id) return;
+            ask('ترحيل الفاتورة؟ (قيود + مستودع ثم الفوترة)').then(function(ok){
+              if(!ok) return;
+              btn.disabled = true;
+              fetch('/api/sales/invoices/'+id+'/post', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+                .then(function(r){return r.json()})
+                .then(function(d){
+                  if(window.HypexUI&&window.HypexUI.alert) window.HypexUI.alert(d.message||d.error||(d.ok?'تم':'فشل'), d.ok?'ok':'error');
+                  else alert(d.message||d.error||(d.ok?'تم':'فشل'));
+                  if(d.ok) location.reload();
+                  else btn.disabled=false;
+                })
+                .catch(function(){ btn.disabled=false; if(window.HypexUI) window.HypexUI.alert('تعذر الاتصال','error'); else alert('تعذر الاتصال'); });
+            });
           });
         });
       })();

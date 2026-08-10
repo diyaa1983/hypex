@@ -114,14 +114,20 @@ function renderApp({
   const spVer = assetVersion('js/sales-print.js');
   const scVer = assetVersion('js/hx-shortcuts.js');
   const scCssVer = assetVersion('css/hx-shortcuts.css');
+  const uiVer = assetVersion('js/hx-ui.js');
+  const uiCssVer = assetVersion('css/hx-ui.css');
   const allCss = [...css];
   const allJs = [...js];
   if (printChrome && user) {
     const hasPrint = allJs.some((j) => String(j).indexOf('sales-print.js') !== -1);
     if (!hasPrint) allJs.push(`/assets/js/sales-print.js?v=${spVer}`);
   }
-  // اختصارات النظام لكل الشاشات
+  // واجهة تنبيهات/تأكيد + اختصارات لكل الشاشات
   if (user) {
+    const hasUi = allJs.some((j) => String(j).indexOf('hx-ui.js') !== -1);
+    if (!hasUi) allJs.unshift(`/assets/js/hx-ui.js?v=${uiVer}`);
+    const hasUiCss = allCss.some((c) => String(c).indexOf('hx-ui.css') !== -1);
+    if (!hasUiCss) allCss.unshift(`/assets/css/hx-ui.css?v=${uiCssVer}`);
     const hasSc = allJs.some((j) => String(j).indexOf('hx-shortcuts.js') !== -1);
     if (!hasSc) allJs.push(`/assets/js/hx-shortcuts.js?v=${scVer}`);
     const hasScCss = allCss.some((c) => String(c).indexOf('hx-shortcuts.css') !== -1);
