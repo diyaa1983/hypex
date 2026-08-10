@@ -415,6 +415,12 @@
       setMsg('أضف بنداً واحداً على الأقل.', 'error');
       return Promise.resolve(null);
     }
+    for (var pi = 0; pi < payload.lines.length; pi++) {
+      if (!(Number(payload.lines[pi].unit_price) > 0)) {
+        setMsg('أدخل السعر لكل بند مادة. لا يمكن الحفظ بدون سعر.', 'error');
+        return Promise.resolve(null);
+      }
+    }
     setMsg('جاري الحفظ…');
     setBusy(true);
     return fetch('/api/sales/customer-orders', {

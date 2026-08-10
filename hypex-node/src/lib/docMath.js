@@ -124,10 +124,30 @@ function normalizeLines(rawLines, defaultTax) {
   return normalized;
 }
 
+/**
+ * يرفض الحفظ إن وُجد بند مادة بدون سعر موجب.
+ * @returns {{ ok: true } | { ok: false, error: string }}
+ */
+function requirePositiveUnitPrices(lines) {
+  if (!Array.isArray(lines) || !lines.length) return { ok: true };
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    if (!ln || !Number(ln.item_id)) continue;
+    if (!(Number(ln.unit_price) > 0)) {
+      return {
+        ok: false,
+        error: `أدخل السعر للمادة في البند رقم ${i + 1}. لا يمكن الحفظ بدون سعر.`,
+      };
+    }
+  }
+  return { ok: true };
+}
+
 module.exports = {
   r3,
   r6,
   computeLine,
   applyHeaderDiscount,
   normalizeLines,
+  requirePositiveUnitPrices,
 };

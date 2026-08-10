@@ -244,6 +244,12 @@ async function saveOrder(payload, userId) {
   for (const ln of rawLines) {
     if (!ln || !Number(ln.item_id)) continue;
     if (Number(ln.qty) < 1) continue;
+    if (!(Number(ln.unit_price) > 0)) {
+      return {
+        ok: false,
+        error: 'أدخل السعر لكل بند مادة. لا يمكن حفظ الطلب بدون سعر.',
+      };
+    }
     const computed = computeLine(ln, defaultTax);
     if (!computed.name_ar) {
       const rows = await db.query(`SELECT name_ar FROM inv_item WHERE id = ? LIMIT 1`, [computed.item_id]);

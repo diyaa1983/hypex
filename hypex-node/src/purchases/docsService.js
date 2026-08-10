@@ -2,7 +2,7 @@
 
 const db = require('../db');
 const { parseDateToIso, todayIso } = require('../lib/html');
-const { normalizeLines, applyHeaderDiscount } = require('../lib/docMath');
+const { normalizeLines, applyHeaderDiscount, requirePositiveUnitPrices } = require('../lib/docMath');
 const invSvc = require('../sales/invoicesService');
 
 async function defaultTax() {
@@ -126,6 +126,13 @@ async function saveOrder(payload, userId) {
   const tax = await defaultTax();
   const lines = normalizeLines(payload.lines, tax);
   if (!lines.length) return { ok: false, error: 'أضف بند مادة واحداً على الأقل.' };
+  const priceCheck = requirePositiveUnitPrices(lines);
+  if (!priceCheck.ok) {
+    return {
+      ok: false,
+      error: 'أدخل السعر لكل بند مادة. لا يمكن حفظ طلب الشراء بدون سعر.',
+    };
+  }
   const totals = applyHeaderDiscount(lines, discountInput);
 
   const pool = db.getPool();
@@ -311,6 +318,13 @@ async function saveInvoice(payload, userId) {
   const tax = await defaultTax();
   const lines = normalizeLines(payload.lines, tax);
   if (!lines.length) return { ok: false, error: 'أضف بند مادة واحداً على الأقل.' };
+  const priceCheck = requirePositiveUnitPrices(lines);
+  if (!priceCheck.ok) {
+    return {
+      ok: false,
+      error: 'أدخل السعر لكل بند مادة. لا يمكن حفظ فاتورة المشتريات بدون سعر.',
+    };
+  }
   const totals = applyHeaderDiscount(lines, discountInput);
 
   const pool = db.getPool();

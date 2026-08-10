@@ -141,6 +141,14 @@
       setMsg('أضف بنداً واحداً على الأقل.', 'error');
       return false;
     }
+    for (var i = 0; i < (payload.lines || []).length; i++) {
+      var ln = payload.lines[i];
+      if (!ln || !ln.item_id) continue;
+      if (!(Number(ln.unit_price) > 0)) {
+        setMsg('أدخل السعر لكل بند مادة. لا يمكن الحفظ بدون سعر.', 'error');
+        return false;
+      }
+    }
     return true;
   }
 

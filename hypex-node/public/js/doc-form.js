@@ -326,6 +326,12 @@
         setMsg('أضف بنداً واحداً.', 'error');
         return;
       }
+      for (var pi = 0; pi < payload.lines.length; pi++) {
+        if (!(Number(payload.lines[pi].unit_price) > 0)) {
+          setMsg('أدخل السعر لكل بند مادة. لا يمكن الحفظ بدون سعر.', 'error');
+          return;
+        }
+      }
       setMsg('جاري الحفظ…');
       saveBtn.disabled = true;
       fetch(state.apiSave || '/api/purchases/orders', {

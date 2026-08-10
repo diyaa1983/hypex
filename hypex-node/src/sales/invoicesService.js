@@ -297,6 +297,12 @@ async function saveInvoice(payload, userId) {
   for (const ln of rawLines) {
     if (!ln || !Number(ln.item_id)) continue;
     if (Number(ln.qty) <= 0 && Number(ln.qty_extra) <= 0) continue;
+    if (!(Number(ln.unit_price) > 0)) {
+      return {
+        ok: false,
+        error: 'أدخل السعر لكل بند مادة. لا يمكن حفظ الفاتورة بدون سعر.',
+      };
+    }
     normalized.push(computeLine(ln));
   }
   const totals = applyHeaderDiscount(normalized, discountInput);
