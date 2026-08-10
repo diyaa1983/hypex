@@ -122,15 +122,7 @@ router.get(BASE, async (req, res) => {
   let entry = null;
   if (!forceNew && editId > 0) {
     entry = await svc.getEntry(editId);
-    if (entry && !entry.is_manual) {
-      return res.redirect(
-        BASE +
-          '?new=1&err=' +
-          encodeURIComponent(
-            'هذا قيد تلقائي من مستند آخر. عدّله من شاشة المستند الأصلي وليس من سند القيد.'
-          )
-      );
-    }
+    // تُعرض كل القيود (يدوي وتلقائي) داخل Node — لا نُحوّل للإدخال PHP/الدخول
   }
 
   const user = req.session.user;
@@ -146,9 +138,18 @@ router.get(BASE, async (req, res) => {
     is_posted: entry ? entry.is_posted : false,
     is_cancelled: entry ? entry.is_cancelled : false,
     is_editable: entry ? entry.is_editable : true,
+    is_manual: entry ? entry.is_manual : true,
+    source: entry ? entry.source : 'manual',
     can_edit_unlock: entry ? entry.can_edit_unlock : false,
     no_delete: entry ? entry.no_delete : false,
   };
+
+  // قيد غير موجود: لا نترك id خاطئاً في الشاشة
+  if (!forceNew && editId > 0 && !entry) {
+    return res.redirect(
+      BASE + '?new=1&err=' + encodeURIComponent('القيد غير موجود (رقم ' + editId + ').')
+    );
+  }
 
   const canEditFields = form.is_editable;
   const statusPill =
@@ -275,7 +276,11 @@ router.get(BASE, async (req, res) => {
         kicker: KICKER,
         title: 'سند قيد',
         subtitle: form.id
-          ? 'سند رقم ' + form.entry_no + ' · ' + (form.status === 'posted' ? 'مرحّل' : form.status === 'cancelled' ? 'ملغى' : 'مسودة')
+          ? 'سند رقم ' +
+            form.entry_no +
+            ' · ' +
+            (form.status === 'posted' ? 'مرحّل' : form.status === 'cancelled' ? 'ملغى' : 'مسودة') +
+            (!form.is_manual ? ' · قيد تلقائي (عرض فقط)' : '')
           : 'قيد يدوي مزدوج القيد',
         actions: [
           { label: '+ سند قيد جديد', href: BASE + '?new=1', primary: true },
@@ -284,6 +289,13 @@ router.get(BASE, async (req, res) => {
         ],
       })}
       ${flashHtml(req)}
+      ${
+        form.id && !form.is_manual
+          ? `<p class="si-pill si-pill--wait" style="display:inline-block;margin:.25rem 0">
+               هذا قيد تلقائي (مصدر: ${esc(form.source || '—')}). يُعرض للقراءة فقط — التعديل من المستند الأصلي.
+             </p>`
+          : ''
+      }
       <div class="rc-status jv-status">${statusPill}</div>
 
       <section class="si-surface sh-section">

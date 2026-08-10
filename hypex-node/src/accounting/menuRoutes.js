@@ -52,11 +52,9 @@ module.exports = createDomainRouter({
           <td>${dash(ui, r.description_ar)}</td>
           <td>${dash(ui, r.status)}</td>
           <td>${dash(ui, r.ref_type || r.source)}</td>
-          <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${
-            String(r.source || 'manual') === 'manual'
-              ? '/accounting/journal-voucher?id=' + r.id
-              : ui.esc(ui.embedUrl('journal_entries', 'id=' + r.id))
-          }">فتح</a></td>
+          <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/accounting/journal-voucher?id=${Number(
+            r.id
+          )}">فتح</a></td>
         </tr>`
           )
           .join('') || ui.emptyRow(6);

@@ -346,6 +346,7 @@ const NATIVE_EMBED_REDIRECT = new Set([
   'account_mapping',
   'fin_employee_advances',
   'journal_voucher',
+  'journal_entries',
   'acc_opening_balance',
   'acc_period_close',
   'acc_year_close',
@@ -391,6 +392,17 @@ function embedQueryString(query) {
 app.get('/embed/:code', auth.requireAuth, (req, res) => {
   const code = String(req.params.code || '').trim();
   if (!code) return res.redirect('/app');
+
+  // القيود: دائماً داخل Node (لا iframe PHP → صفحة دخول)
+  if (code === 'journal_entries' || code === 'journal_voucher') {
+    const id = Number(req.query.id || 0) || 0;
+    if (id > 0) return res.redirect('/accounting/journal-voucher?id=' + id);
+    if (code === 'journal_voucher' || String(req.query.new || '') === '1') {
+      return res.redirect('/accounting/journal-voucher?new=1');
+    }
+    return res.redirect('/accounting/journals');
+  }
+
   const sc = resolveScreen(code);
   // شاشات محوّلة لـ Node: لا تُفتح كـ PHP iframe
   if (sc && sc.path && NATIVE_EMBED_REDIRECT.has(code)) {
