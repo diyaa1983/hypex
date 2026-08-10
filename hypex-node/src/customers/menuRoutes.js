@@ -1,6 +1,9 @@
 'use strict';
 
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const auth = require('../auth');
 const q = require('./domainQueries');
 const masters = require('./mastersService');
@@ -11,6 +14,30 @@ const { esc } = require('../lib/html');
 const router = express.Router();
 const HUB = '/customers';
 const KICKER = 'Hypex Customers · Node';
+
+const importUploadDir = path.join(masters.hypexRoot(), 'uploads');
+try {
+  fs.mkdirSync(importUploadDir, { recursive: true });
+} catch {
+  /* */
+}
+const excelUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, importUploadDir),
+    filename: (_req, file, cb) => {
+      const safe = String(file.originalname || 'import.xlsx')
+        .replace(/[^\w.\-\u0600-\u06FF]+/g, '_')
+        .slice(0, 80);
+      cb(null, 'region_import_' + Date.now() + '_' + safe);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const name = String(file.originalname || '').toLowerCase();
+    if (name.endsWith('.xlsx')) return cb(null, true);
+    cb(new Error('يُقبل ملف Excel بصيغة .xlsx فقط.'));
+  },
+});
 
 function can(user, code) {
   return auth.userCan(user, code) || user.is_admin;
@@ -205,7 +232,23 @@ router.get('/customers/regions', guard('customer_regions'), async (req, res) => 
 
   const flash = String(req.query.msg || '');
   const err = String(req.query.err || '');
+  const showImport = String(req.query.import || '') === '1' || !!err && String(req.query.focus || '') === 'import';
   const qsKeep = `${qv ? '&q=' + encodeURIComponent(qv) : ''}${showAll ? '&all=1' : ''}`;
+  let importWarningsHtml = '';
+  try {
+    const rawWarn = String(req.query.warn || '');
+    if (rawWarn) {
+      const list = JSON.parse(Buffer.from(rawWarn, 'base64url').toString('utf8'));
+      if (Array.isArray(list) && list.length) {
+        importWarningsHtml = `<div class="rg-import-warn"><strong>تنبيهات (${list.length}):</strong><ul>${list
+          .slice(0, 15)
+          .map((w) => `<li>${ui.esc(String(w))}</li>`)
+          .join('')}${list.length > 15 ? `<li>… و ${list.length - 15} أخرى</li>` : ''}</ul></div>`;
+      }
+    }
+  } catch {
+    /* */
+  }
 
   const regionNav =
     rows
@@ -346,21 +389,61 @@ router.get('/customers/regions', guard('customer_regions'), async (req, res) => 
       .rg-addr-edit .si-field{flex:1;min-width:10rem;min-height:2rem}
       .rg-check,.rg-check-row{display:flex;align-items:center;gap:.35rem;font-size:.82rem;font-weight:700;color:#475569;flex-direction:row}
       .rg-filters{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;flex:1}
+      .rg-import{margin:.15rem 0 .85rem;padding:1rem 1.1rem;border:1px solid #dbe4f0;border-radius:14px;background:linear-gradient(180deg,#f8fbff,#fff)}
+      .rg-import h3{margin:0 0 .35rem;font-size:.98rem;font-weight:800}
+      .rg-import p{margin:0 0 .65rem;font-size:.84rem;color:#64748b;line-height:1.5}
+      .rg-import-form{display:flex;flex-wrap:wrap;gap:.55rem;align-items:end}
+      .rg-import-form label{display:grid;gap:.3rem;font-size:.75rem;font-weight:700;color:#64748b;flex:1;min-width:12rem}
+      .rg-import-cols{margin:.65rem 0 0;padding:.55rem .7rem;border-radius:10px;background:#f1f5f9;font-size:.8rem;color:#475569;line-height:1.55}
+      .rg-import-cols code{font-size:.78rem;background:#fff;padding:.05rem .3rem;border-radius:4px}
+      .rg-import-warn{margin:.65rem 0 0;padding:.55rem .75rem;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;font-size:.82rem;color:#9a3412}
+      .rg-import-warn ul{margin:.35rem 0 0;padding-inline-start:1.1rem}
     </style>
     <div class="si-stage">
       ${ui.hero({
         mark: 'Rg',
         kicker: KICKER,
         title: 'تعريف المناطق',
-        subtitle: 'عرّف المنطقة ثم أضف بداخلها العناوين (حي / شارع) — ويمكن أكثر من عنوان لكل منطقة',
+        subtitle: 'عرّف المنطقة ثم أضف بداخلها العناوين — أو استورد ربط العملاء من Excel',
         actions: [
           { label: '＋ منطقة جديدة', href: '/customers/regions?new=1' + qsKeep, primary: true },
+          { label: 'استيراد Excel', href: '/customers/regions?import=1' + qsKeep },
           { label: 'العملاء', href: '/customers/list' },
           { label: 'لوحة العملاء', href: HUB },
         ],
       })}
-      ${flash ? `<p class="si-pill si-pill--ok" style="display:inline-block">${ui.esc(flash)}</p>` : ''}
-      ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>` : ''}
+      ${flash ? `<p class="si-pill si-pill--ok" style="display:inline-block;max-width:100%;white-space:normal;line-height:1.45">${ui.esc(flash)}</p>` : ''}
+      ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block;max-width:100%;white-space:normal;line-height:1.45">${ui.esc(err)}</p>` : ''}
+      ${importWarningsHtml}
+      <section class="rg-import" id="rg-import" ${showImport ? '' : 'hidden'}>
+        <h3>استيراد Excel — ربط العميل · المنطقة · العنوان · المندوب</h3>
+        <p>
+          ارفع ملف <strong>.xlsx</strong> بالأعمدة التالية (يمكن إعادة ترتيبها، المهم عناوين الأعمدة):
+        </p>
+        <div class="rg-import-cols" dir="rtl">
+          <code>رقم العميل</code> ·
+          <code>اسم العميل</code> ·
+          <code>العنوان</code> ·
+          <code>المنطقة</code> ·
+          <code>اسم المندوب</code>
+          <br>مثال: 11200612 · مركز حبيبه / الرابيه · الرابيه · عمان الغربية · إبراهيم
+        </div>
+        <form class="rg-import-form" method="post" action="/customers/regions/import" enctype="multipart/form-data" style="margin-top:.85rem">
+          <label>ملف Excel
+            <input class="si-field" type="file" name="excel_file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+          </label>
+          <label style="flex:0;min-width:auto;flex-direction:row;align-items:center;gap:.4rem;padding-bottom:.45rem">
+            <input type="checkbox" name="replace_reps" value="1" checked>
+            استبدال مندوب العميل بالمندوب من الملف
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">تنفيذ الاستيراد</button>
+          <a class="si-btn" href="/customers/regions${qsKeep ? '?' + qsKeep.slice(1) : ''}">إخفاء</a>
+        </form>
+        <p class="rg-hint" style="margin-top:.65rem">
+          يُنشئ المناطق والعناوين والمندوبين تلقائياً إن لم يكونوا موجودين، ويربط العميل الموجود برمزه في النظام (مثل 11200612).
+          العملاء غير الموجودين في قاعدة البيانات يُذكرون كتنبيه دون إيقاف الاستيراد.
+        </p>
+      </section>
       <div class="si-rail">
         <form class="si-search rg-filters" method="get" action="/customers/regions" style="max-width:100%;margin:0">
           ${focusId && !wantsNew ? `<input type="hidden" name="id" value="${focusId}">` : ''}
@@ -369,6 +452,7 @@ router.get('/customers/regions', guard('customer_regions'), async (req, res) => 
             <input type="checkbox" name="all" value="1" ${showAll ? 'checked' : ''}> عرض الموقوفة
           </label>
           <button class="si-btn si-btn--primary" type="submit">عرض</button>
+          <a class="si-btn" href="/customers/regions?import=1${qsKeep}">استيراد Excel</a>
         </form>
       </div>
       <div class="rg-layout">
@@ -394,6 +478,65 @@ router.get('/customers/regions/:id/edit', async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.redirect('/customers/regions');
   return regionForm(req, res, id);
+});
+
+router.post('/customers/regions/import', guard('customer_regions'), (req, res) => {
+  excelUpload.single('excel_file')(req, res, async (uploadErr) => {
+    if (uploadErr) {
+      return res.redirect(
+        '/customers/regions?import=1&err=' + encodeURIComponent(uploadErr.message || 'فشل رفع الملف')
+      );
+    }
+    const file = req.file;
+    if (!file || !file.path) {
+      return res.redirect('/customers/regions?import=1&err=' + encodeURIComponent('اختر ملف Excel (.xlsx).'));
+    }
+    const replaceReps =
+      !req.body || req.body.replace_reps === undefined
+        ? true
+        : req.body.replace_reps === '1' ||
+          req.body.replace_reps === 'on' ||
+          req.body.replace_reps === true ||
+          req.body.replace_reps === 'true';
+    try {
+      const result = await masters.importRegionCustomerExcel(req.session.user.id, file.path, {
+        replaceReps,
+      });
+      try {
+        fs.unlinkSync(file.path);
+      } catch {
+        /* keep for debug */
+      }
+      if (!result.ok) {
+        return res.redirect(
+          '/customers/regions?import=1&err=' +
+            encodeURIComponent(result.error || result.message || 'فشل الاستيراد')
+        );
+      }
+      let qs =
+        '/customers/regions?msg=' + encodeURIComponent(result.message || 'تم الاستيراد');
+      const warns = Array.isArray(result.warnings) ? result.warnings : [];
+      if (warns.length) {
+        try {
+          qs +=
+            '&warn=' +
+            Buffer.from(JSON.stringify(warns.slice(0, 40)), 'utf8').toString('base64url');
+        } catch {
+          /* */
+        }
+      }
+      return res.redirect(qs);
+    } catch (e) {
+      try {
+        fs.unlinkSync(file.path);
+      } catch {
+        /* */
+      }
+      return res.redirect(
+        '/customers/regions?import=1&err=' + encodeURIComponent(e.message || 'فشل الاستيراد')
+      );
+    }
+  });
 });
 router.post('/customers/regions/new', async (req, res) => {
   if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');

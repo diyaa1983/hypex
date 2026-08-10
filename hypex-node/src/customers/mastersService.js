@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
 const db = require('../db');
 
 async function safeQuery(sql, params = []) {
@@ -255,6 +258,79 @@ async function listAddressesForRegion(regionId, { activeOnly = true } = {}) {
   );
 }
 
+function phpBin() {
+  if (process.env.PHP_BIN) return process.env.PHP_BIN;
+  for (const c of ['C:\\xampp\\php\\php.exe', 'C:\\xampp\\php\\php', 'php']) {
+    if (c === 'php' || fs.existsSync(c)) return c;
+  }
+  return 'php';
+}
+
+function hypexRoot() {
+  return path.resolve(__dirname, '..', '..', '..');
+}
+
+/**
+ * استيراد Excel: رقم عميل · اسم · عنوان · منطقة · مندوب
+ */
+function importRegionCustomerExcel(userId, filePath, { replaceReps = true } = {}) {
+  return new Promise((resolve) => {
+    const script = path.join(__dirname, '..', '..', 'cli', 'crm_region_excel_import.php');
+    if (!fs.existsSync(script)) {
+      return resolve({ ok: false, error: 'سكربت الاستيراد غير موجود.' });
+    }
+    if (!filePath || !fs.existsSync(filePath)) {
+      return resolve({ ok: false, error: 'ملف Excel غير موجود على الخادم.' });
+    }
+    const args = [];
+    const ini = process.env.PHP_INI || 'C:\\xampp\\php\\php.ini';
+    if (fs.existsSync(ini)) {
+      args.push('-c', ini);
+    }
+    args.push(script, String(userId || 0));
+    const child = spawn(phpBin(), args, {
+      cwd: hypexRoot(),
+      windowsHide: true,
+    });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => {
+      out += String(d);
+    });
+    child.stderr.on('data', (d) => {
+      err += String(d);
+    });
+    child.on('error', (e) => {
+      resolve({ ok: false, error: 'تعذر تشغيل PHP: ' + (e.message || '') });
+    });
+    child.on('close', () => {
+      const line = out
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .pop();
+      if (!line) {
+        return resolve({
+          ok: false,
+          error: err.trim() || 'لا استجابة من سكربت الاستيراد.',
+        });
+      }
+      try {
+        resolve(JSON.parse(line));
+      } catch {
+        resolve({ ok: false, error: 'استجابة غير صالحة: ' + line.slice(0, 200) });
+      }
+    });
+    child.stdin.write(
+      JSON.stringify({
+        path: filePath,
+        replace_reps: replaceReps !== false,
+      })
+    );
+    child.stdin.end();
+  });
+}
+
 module.exports = {
   getCustomer,
   saveCustomer,
@@ -264,4 +340,6 @@ module.exports = {
   saveRegionAddress,
   listAddressesForRegion,
   nextRegionCode,
+  importRegionCustomerExcel,
+  hypexRoot,
 };
