@@ -31,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'min_distance_m' => $_POST['gps_mobile_min_distance_m'] ?? 0,
                 'user_can_disable' => $_POST['gps_mobile_user_can_disable'] ?? null,
                 'rep_visit_geofence' => $_POST['sales_rep_visit_geofence'] ?? null,
+                'visit_radius_m' => $_POST['sales_rep_visit_radius_m'] ?? 200,
                 'google_maps_api_key' => $_POST['gps_google_maps_api_key'] ?? '',
                 'map_provider' => $_POST['gps_map_provider'] ?? 'esri',
                 'map_engine' => $_POST['gps_map_engine'] ?? 'leaflet',
@@ -125,13 +126,25 @@ $cssUrl = app_url('assets/css/settings-oracle12.css') . (is_file($cssPath) ? '?v
             <label class="field field-check field--full">
                 <input type="checkbox" name="sales_rep_visit_geofence" value="1" id="rep_visit_geofence"
                     <?= !empty($settings['rep_visit_geofence']) ? 'checked' : '' ?>>
-                <span class="field-label">إلزام المندوب بالتواجد ضمن نطاق موقع العميل (200م)</span>
+                <span class="field-label">تفعيل حدود منطقة العميل للمندوب</span>
             </label>
-            <span class="field-hint field--full" style="display:block;margin:-0.15rem 0 0 1.6rem;">
-                عند التفعيل: لا يمكن عمل فاتورة مبيعات أو طلب شراء من الموبايل إلا إذا كان العميل مدرجاً في خط سير اليوم وكان المندوب ضمن حوالي 200 متراً من موقع العميل على الخريطة.
-                عند الإلغاء: يعمل المندوب دون قيد على الموقع.
-                عند إضافة عميل جديد مع تحديد موقعه في نفس اللحظة يُدرج تلقائياً في خط سير اليوم ويمكن إصدار فاتورة/طلب وهو في الموقع.
+            <span class="field-hint field--full" style="display:block;margin:-0.15rem 0 0.75rem 1.6rem;">
+                عند التفعيل: لن يُسمح للمندوب بإنشاء فاتورة مبيعات أو طلب شراء عميل من التطبيق
+                إلا إذا كان ضمن نصف القطر حول موقع العميل المحفوظ (Location)،
+                وكان العميل ضمن جولته/خط سيره عندما يُفعَّل ذلك.
+                عند الإلغاء: لا يُطبَّق قيد المسافة.
             </span>
+
+            <label class="field">
+                <span class="field-label">حدود منطقة العميل (بالمتر)</span>
+                <input class="input" type="number" name="sales_rep_visit_radius_m" id="rep_visit_radius"
+                       min="10" max="5000" step="10"
+                       value="<?= (int) ($settings['visit_radius_m'] ?? 200) ?>" dir="ltr">
+                <span class="field-hint">
+                    مثال: 200 = يسمح للمندوب بالعمل إذا كان على بعد حتى 200 متراً من موقع العميل.
+                    المدى المسموح: 10–5000 م (الافتراضي 200).
+                </span>
+            </label>
         </div>
     </div>
 

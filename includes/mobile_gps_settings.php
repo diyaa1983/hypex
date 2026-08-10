@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require_once app_path('includes/app_gps.php');
 
-/** @return array{auto_enable:bool,interval_sec:int,min_distance_m:int,user_can_disable:bool,enabled:bool,rep_visit_geofence:bool} */
+/** @return array{auto_enable:bool,interval_sec:int,min_distance_m:int,user_can_disable:bool,enabled:bool,rep_visit_geofence:bool,visit_radius_m:int} */
 function mobile_gps_settings_defaults(): array
 {
     return [
@@ -13,6 +13,7 @@ function mobile_gps_settings_defaults(): array
         'user_can_disable' => false,
         'enabled' => true,
         'rep_visit_geofence' => false,
+        'visit_radius_m' => 200,
     ];
 }
 
@@ -33,6 +34,7 @@ function mobile_gps_settings_ensure_schema(PDO $pdo): void
         'gps_map_provider' => "VARCHAR(16) NOT NULL DEFAULT 'esri'",
         'gps_map_engine' => "VARCHAR(16) NOT NULL DEFAULT 'leaflet'",
         'sales_rep_visit_geofence' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'sales_rep_visit_radius_m' => 'INT UNSIGNED NOT NULL DEFAULT 200',
     ];
 
     foreach ($columns as $col => $def) {
@@ -51,7 +53,7 @@ function mobile_gps_settings_ensure_schema(PDO $pdo): void
     }
 }
 
-/** @return array{auto_enable:bool,interval_sec:int,min_distance_m:int,user_can_disable:bool,enabled:bool,rep_visit_geofence:bool} */
+/** @return array{auto_enable:bool,interval_sec:int,min_distance_m:int,user_can_disable:bool,enabled:bool,rep_visit_geofence:bool,visit_radius_m:int} */
 function mobile_gps_settings(PDO $pdo = null): array
 {
     $defaults = mobile_gps_settings_defaults();
@@ -63,7 +65,8 @@ function mobile_gps_settings(PDO $pdo = null): array
         $row = $pdo->query(
             'SELECT gps_mobile_auto_enable, gps_mobile_interval_sec,
                     gps_mobile_min_distance_m, gps_mobile_user_can_disable,
-                    gps_google_maps_api_key, sales_rep_visit_geofence
+                    gps_google_maps_api_key, sales_rep_visit_geofence,
+                    sales_rep_visit_radius_m
              FROM sys_company_settings WHERE id = 1 LIMIT 1'
         )->fetch(PDO::FETCH_ASSOC);
         if (is_array($row)) {
@@ -76,9 +79,34 @@ function mobile_gps_settings(PDO $pdo = null): array
             );
             $defaults['user_can_disable'] = (int) ($row['gps_mobile_user_can_disable'] ?? 0) === 1;
             $defaults['rep_visit_geofence'] = (int) ($row['sales_rep_visit_geofence'] ?? 0) === 1;
+            $defaults['visit_radius_m'] = mobile_gps_settings_normalize_visit_radius(
+                (int) ($row['sales_rep_visit_radius_m'] ?? 200)
+            );
         }
     } catch (Throwable $e) {
-        error_log('mobile_gps_settings: ' . $e->getMessage());
+        // عمود نصف القطر قد لا يكون موجوداً بعد — حاول بدونها
+        try {
+            $pdo = $pdo ?? db();
+            $row = $pdo->query(
+                'SELECT gps_mobile_auto_enable, gps_mobile_interval_sec,
+                        gps_mobile_min_distance_m, gps_mobile_user_can_disable,
+                        sales_rep_visit_geofence
+                 FROM sys_company_settings WHERE id = 1 LIMIT 1'
+            )->fetch(PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                $defaults['auto_enable'] = (int) ($row['gps_mobile_auto_enable'] ?? 1) === 1;
+                $defaults['interval_sec'] = mobile_gps_settings_normalize_interval(
+                    (int) ($row['gps_mobile_interval_sec'] ?? 10)
+                );
+                $defaults['min_distance_m'] = mobile_gps_settings_normalize_distance(
+                    (int) ($row['gps_mobile_min_distance_m'] ?? 0)
+                );
+                $defaults['user_can_disable'] = (int) ($row['gps_mobile_user_can_disable'] ?? 0) === 1;
+                $defaults['rep_visit_geofence'] = (int) ($row['sales_rep_visit_geofence'] ?? 0) === 1;
+            }
+        } catch (Throwable $e2) {
+            error_log('mobile_gps_settings: ' . $e2->getMessage());
+        }
     }
 
     return $defaults;
@@ -104,6 +132,19 @@ function mobile_gps_settings_normalize_distance(int $meters): int
     return max(0, min(500, $meters));
 }
 
+/** حدود منطقة العميل: 10–5000 م (افتراضي 200). */
+function mobile_gps_settings_normalize_visit_radius(int $meters): int
+{
+    if ($meters < 10) {
+        return 10;
+    }
+    if ($meters > 5000) {
+        return 5000;
+    }
+
+    return $meters;
+}
+
 /** إعدادات تُرسل لتطبيق الهاتف مع الجلسة. */
 function mobile_gps_settings_for_app(?PDO $pdo = null): array
 {
@@ -116,6 +157,7 @@ function mobile_gps_settings_for_app(?PDO $pdo = null): array
         'min_distance_m' => $s['min_distance_m'],
         'user_can_disable' => $s['user_can_disable'],
         'rep_visit_geofence' => !empty($s['rep_visit_geofence']),
+        'visit_radius_m' => (int) ($s['visit_radius_m'] ?? 200),
     ];
 }
 
@@ -214,6 +256,7 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
     $distance = mobile_gps_settings_normalize_distance((int) ($input['min_distance_m'] ?? 0));
     $canDisable = !empty($input['user_can_disable']) ? 1 : 0;
     $repVisitGeofence = !empty($input['rep_visit_geofence']) ? 1 : 0;
+    $visitRadius = mobile_gps_settings_normalize_visit_radius((int) ($input['visit_radius_m'] ?? 200));
     $googleKey = trim((string) ($input['google_maps_api_key'] ?? ''));
     $provider = strtolower(trim((string) ($input['map_provider'] ?? 'esri')));
     if (!in_array($provider, ['esri', 'natgeo', 'carto', 'google'], true)) {
@@ -224,16 +267,52 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
         $engine = 'leaflet';
     }
 
-    $pdo->prepare(
-        'UPDATE sys_company_settings SET
-            gps_mobile_auto_enable = ?,
-            gps_mobile_interval_sec = ?,
-            gps_mobile_min_distance_m = ?,
-            gps_mobile_user_can_disable = ?,
-            sales_rep_visit_geofence = ?,
-            gps_google_maps_api_key = ?,
-            gps_map_provider = ?,
-            gps_map_engine = ?
-         WHERE id = 1'
-    )->execute([$auto, $interval, $distance, $canDisable, $repVisitGeofence, $googleKey, $provider, $engine]);
+    try {
+        $pdo->prepare(
+            'UPDATE sys_company_settings SET
+                gps_mobile_auto_enable = ?,
+                gps_mobile_interval_sec = ?,
+                gps_mobile_min_distance_m = ?,
+                gps_mobile_user_can_disable = ?,
+                sales_rep_visit_geofence = ?,
+                sales_rep_visit_radius_m = ?,
+                gps_google_maps_api_key = ?,
+                gps_map_provider = ?,
+                gps_map_engine = ?
+             WHERE id = 1'
+        )->execute([
+            $auto,
+            $interval,
+            $distance,
+            $canDisable,
+            $repVisitGeofence,
+            $visitRadius,
+            $googleKey,
+            $provider,
+            $engine,
+        ]);
+    } catch (Throwable $e) {
+        // توافق إن لم يُرحّل عمود نصف القطر بعد
+        $pdo->prepare(
+            'UPDATE sys_company_settings SET
+                gps_mobile_auto_enable = ?,
+                gps_mobile_interval_sec = ?,
+                gps_mobile_min_distance_m = ?,
+                gps_mobile_user_can_disable = ?,
+                sales_rep_visit_geofence = ?,
+                gps_google_maps_api_key = ?,
+                gps_map_provider = ?,
+                gps_map_engine = ?
+             WHERE id = 1'
+        )->execute([
+            $auto,
+            $interval,
+            $distance,
+            $canDisable,
+            $repVisitGeofence,
+            $googleKey,
+            $provider,
+            $engine,
+        ]);
+    }
 }

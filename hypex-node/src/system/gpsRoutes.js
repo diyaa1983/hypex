@@ -384,12 +384,25 @@ router.get('/system/gps-settings', async (req, res) => {
           }>
           <span>السماح للمستخدم بإيقاف التتبّع من التطبيق</span>
         </label>
-        <label style="display:flex;gap:.45rem;align-items:flex-start;margin:.5rem 0 1rem;font-weight:600">
+        <label style="display:flex;gap:.45rem;align-items:flex-start;margin:.5rem 0 .35rem;font-weight:600">
           <input type="checkbox" name="sales_rep_visit_geofence" value="1" ${
             s.rep_visit_geofence ? 'checked' : ''
           }>
-          <span>تفعيل حدود الموقع لزيارات المندوب (geofence)</span>
+          <span>تفعيل حدود منطقة العميل للمندوب (فاتورة / طلب شراء)</span>
         </label>
+        <p class="muted" style="font-size:.8rem;margin:0 0 .65rem;line-height:1.45">
+          عند التفعيل لا يُسمح للمندوب بإنشاء فاتورة أو طلب شراء من التطبيق إلا إذا كان ضمن نصف القطر حول موقع العميل.
+          تطبيق APK المندوب سيستخدم هذا الإعداد لاحقاً.
+        </p>
+        <div class="si-meta" style="margin-bottom:1rem">
+          <label>حدود منطقة العميل (متر)
+            <input class="si-field si-field--mono" type="number" name="sales_rep_visit_radius_m"
+                   min="10" max="5000" step="10" value="${Number(s.visit_radius_m) || 200}" dir="ltr">
+          </label>
+          <p class="muted" style="font-size:.78rem;margin:.35rem 0 0;grid-column:1/-1">
+            مثال: 200 متر — المدى 10–5000 (الافتراضي 200).
+          </p>
+        </div>
         <h2 style="margin:0 0 .65rem;font-size:1.05rem">الخريطة</h2>
         <div class="si-meta">
           <label>محرك الخريطة

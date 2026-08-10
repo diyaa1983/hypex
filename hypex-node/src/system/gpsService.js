@@ -482,13 +482,26 @@ async function listGpsTracks({ q: search = '', from = '', to = '', userId = 0 } 
 
 async function getGpsSettings() {
   try {
-    const rows = await db.query(
-      `SELECT gps_mobile_auto_enable, gps_mobile_interval_sec, gps_mobile_min_distance_m,
-              gps_mobile_user_can_disable, gps_google_maps_api_key, gps_map_provider,
-              gps_map_engine, sales_rep_visit_geofence
-       FROM sys_company_settings WHERE id = 1 LIMIT 1`
-    );
+    let rows;
+    try {
+      rows = await db.query(
+        `SELECT gps_mobile_auto_enable, gps_mobile_interval_sec, gps_mobile_min_distance_m,
+                gps_mobile_user_can_disable, gps_google_maps_api_key, gps_map_provider,
+                gps_map_engine, sales_rep_visit_geofence, sales_rep_visit_radius_m
+         FROM sys_company_settings WHERE id = 1 LIMIT 1`
+      );
+    } catch {
+      rows = await db.query(
+        `SELECT gps_mobile_auto_enable, gps_mobile_interval_sec, gps_mobile_min_distance_m,
+                gps_mobile_user_can_disable, gps_google_maps_api_key, gps_map_provider,
+                gps_map_engine, sales_rep_visit_geofence
+         FROM sys_company_settings WHERE id = 1 LIMIT 1`
+      );
+    }
     const r = rows[0] || {};
+    let radius = Number(r.sales_rep_visit_radius_m);
+    if (!Number.isFinite(radius) || radius < 10) radius = 200;
+    if (radius > 5000) radius = 5000;
     return {
       auto_enable: Number(r.gps_mobile_auto_enable) === 1,
       interval_sec: Number(r.gps_mobile_interval_sec) || 10,
@@ -498,6 +511,7 @@ async function getGpsSettings() {
       map_provider: String(r.gps_map_provider || 'esri'),
       map_engine: String(r.gps_map_engine || 'leaflet'),
       rep_visit_geofence: Number(r.sales_rep_visit_geofence) === 1,
+      visit_radius_m: radius,
     };
   } catch (e) {
     return {
@@ -509,6 +523,7 @@ async function getGpsSettings() {
       map_provider: 'esri',
       map_engine: 'leaflet',
       rep_visit_geofence: false,
+      visit_radius_m: 200,
     };
   }
 }
@@ -523,23 +538,51 @@ async function saveGpsSettings(payload) {
     payload.gps_mobile_user_can_disable === '1' || payload.gps_mobile_user_can_disable === 'on' ? 1 : 0;
   const geofence =
     payload.sales_rep_visit_geofence === '1' || payload.sales_rep_visit_geofence === 'on' ? 1 : 0;
+  let radius = Number(payload.sales_rep_visit_radius_m || 200);
+  if (!Number.isFinite(radius) || radius < 10) radius = 200;
+  if (radius > 5000) radius = 5000;
+  radius = Math.round(radius);
   let provider = String(payload.gps_map_provider || 'esri').toLowerCase();
   if (!['esri', 'carto', 'osm', 'google', 'natgeo'].includes(provider)) provider = 'esri';
   let engine = String(payload.gps_map_engine || 'leaflet').toLowerCase();
   if (!['leaflet', 'google'].includes(engine)) engine = 'leaflet';
   const gkey = String(payload.gps_google_maps_api_key || '').trim();
   try {
+    // تأكد من وجود العمود
+    try {
+      await db.query(
+        `ALTER TABLE sys_company_settings
+         ADD COLUMN sales_rep_visit_radius_m INT UNSIGNED NOT NULL DEFAULT 200`
+      );
+    } catch {
+      /* already exists */
+    }
     await db.query(
       `UPDATE sys_company_settings SET
          gps_mobile_auto_enable = ?, gps_mobile_interval_sec = ?, gps_mobile_min_distance_m = ?,
-         gps_mobile_user_can_disable = ?, sales_rep_visit_geofence = ?,
+         gps_mobile_user_can_disable = ?, sales_rep_visit_geofence = ?, sales_rep_visit_radius_m = ?,
          gps_google_maps_api_key = ?, gps_map_provider = ?, gps_map_engine = ?, updated_at = NOW()
        WHERE id = 1`,
-      [auto, interval, dist, canDisable, geofence, gkey || null, provider, engine]
+      [auto, interval, dist, canDisable, geofence, radius, gkey || null, provider, engine]
     );
     return { ok: true, message: 'تم حفظ إعدادات تتبّع موقع تطبيق الهاتف.' };
   } catch (e) {
-    return { ok: false, error: 'تعذر حفظ الإعدادات: ' + e.message };
+    try {
+      await db.query(
+        `UPDATE sys_company_settings SET
+           gps_mobile_auto_enable = ?, gps_mobile_interval_sec = ?, gps_mobile_min_distance_m = ?,
+           gps_mobile_user_can_disable = ?, sales_rep_visit_geofence = ?,
+           gps_google_maps_api_key = ?, gps_map_provider = ?, gps_map_engine = ?, updated_at = NOW()
+         WHERE id = 1`,
+        [auto, interval, dist, canDisable, geofence, gkey || null, provider, engine]
+      );
+      return {
+        ok: true,
+        message: 'تم الحفظ (فعّل ترحيل 263 لحفظ حدود منطقة العميل رقمياً).',
+      };
+    } catch (e2) {
+      return { ok: false, error: 'تعذر حفظ الإعدادات: ' + e2.message };
+    }
   }
 }
 

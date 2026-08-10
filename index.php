@@ -188,6 +188,7 @@ $appBootMigrations = [
     'database/migrations/255_crm_region_address_link.sql',
     'database/migrations/261_report_customers_region_addresses.sql',
     'database/migrations/262_sal_rep_tour.sql',
+    'database/migrations/263_sales_rep_visit_radius.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

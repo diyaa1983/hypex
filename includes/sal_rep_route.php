@@ -4,10 +4,25 @@ declare(strict_types=1);
 require_once app_path('includes/crm_sales_rep_schema.php');
 require_once app_path('includes/sal_invoice_gps.php');
 
-/** نصف قطر الزيارة المسموح حول موقع العميل بالمتر */
-function sal_rep_visit_radius_m(): float
+/** نصف قطر الزيارة المسموح حول موقع العميل بالمتر (حدود منطقة العميل). */
+function sal_rep_visit_radius_m(?PDO $pdo = null): float
 {
-    return 200.0;
+    try {
+        require_once app_path('includes/mobile_gps_settings.php');
+        $s = mobile_gps_settings($pdo);
+        $m = (int) ($s['visit_radius_m'] ?? 200);
+        if (function_exists('mobile_gps_settings_normalize_visit_radius')) {
+            $m = mobile_gps_settings_normalize_visit_radius($m);
+        } else {
+            $m = max(10, min(5000, $m > 0 ? $m : 200));
+        }
+
+        return (float) $m;
+    } catch (Throwable $e) {
+        error_log('sal_rep_visit_radius_m: ' . $e->getMessage());
+
+        return 200.0;
+    }
 }
 
 function sal_rep_route_ensure_schema(PDO $pdo): bool
@@ -415,7 +430,7 @@ function sal_rep_visit_geofence_should_enforce(): bool
 }
 
 /**
- * التحقق من صلاحية زيارة العميل: مدرج بخط السير + ضمن 200م من موقعه.
+ * التحقق من صلاحية زيارة العميل: مدرج بخط السير + ضمن نصف قطر الإعداد (حدود منطقة العميل).
  *
  * @param array<string,mixed>|null $gpsSource طلب فيه latitude/longitude
  * @throws RuntimeException
