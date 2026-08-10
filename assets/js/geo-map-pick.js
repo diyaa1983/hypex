@@ -119,34 +119,224 @@
     return { lat: DEFAULT_LAT, lng: DEFAULT_LNG, isDefault: true };
   }
 
-  function tryGpsCoords(timeoutMs, forPost) {
-    if (!global.AppGeo || typeof AppGeo.getCurrentPosition !== 'function') {
-      return Promise.resolve(null);
+  function classifyGpsError(err) {
+    if (global.AppGeo && typeof AppGeo.gpsEnvironmentHint === 'function') {
+      var env = AppGeo.gpsEnvironmentHint();
+      if (env === 'need_https') return 'need_https';
+      if (env === 'no_geolocation') return 'no_geolocation';
     }
-    return AppGeo.getCurrentPosition({
-      enableHighAccuracy: true,
-      maximumAge: forPost ? 0 : 120000,
-      timeout: timeoutMs || (forPost ? 20000 : 14000),
-    })
-      .then(function (gps) {
-        if (
-          gps &&
-          isFinite(gps.latitude) &&
-          isFinite(gps.longitude) &&
-          !(Math.abs(gps.latitude) < 0.000001 && Math.abs(gps.longitude) < 0.000001)
-        ) {
-          return {
-            lat: gps.latitude,
-            lng: gps.longitude,
-            fromGps: true,
-            accuracy: gps.accuracy != null ? gps.accuracy : null,
-            capturedAt: gps.capturedAt != null ? gps.capturedAt : Date.now(),
-          };
+    if (typeof global.isSecureContext === 'boolean' && !global.isSecureContext) {
+      var h = (global.location && location.hostname) || '';
+      if (h && h !== 'localhost' && h !== '127.0.0.1' && h !== '[::1]') {
+        return 'need_https';
+      }
+    }
+    if (!global.navigator || !navigator.geolocation) {
+      return 'no_geolocation';
+    }
+    var code = err && (err.code != null ? err.code : err.message);
+    var msg = String((err && err.message) || err || '').toLowerCase();
+    if (code === 'need_https' || msg.indexOf('need_https') !== -1) {
+      return 'need_https';
+    }
+    if (msg.indexOf('no_app_geo') !== -1) {
+      /* نتابع للمسار البديل */
+    }
+    if (code === 1 || code === '1' || msg.indexOf('denied') !== -1 || msg.indexOf('permission') !== -1) {
+      return 'denied';
+    }
+    if (code === 3 || code === '3' || msg.indexOf('timeout') !== -1) {
+      return 'timeout';
+    }
+    if (code === 2 || code === '2' || msg.indexOf('unavailable') !== -1) {
+      return 'unavailable';
+    }
+    if (msg.indexOf('no_geolocation') !== -1) return 'no_geolocation';
+    return 'failed';
+  }
+
+  function hintForGpsError(code, forPost) {
+    if (code === 'need_https') {
+      return 'المتصفح يمنع GPS على عنوان الشبكة بدون HTTPS. افتح النظام عبر localhost أو فعّل HTTPS، أو حدّد موقعك بالنقر على الخريطة / البحث.';
+    }
+    if (code === 'denied') {
+      return 'تم رفض إذن الموقع. اسمح للمتصفح بالوصول للموقع (أيقونة القفل بجانب الشريط) ثم أعد المحاولة.';
+    }
+    if (code === 'timeout') {
+      return 'انتهت مهلة انتظار GPS. تأكد من تفعيل موقع Windows/الجهاز و Wi‑Fi، ثم اضغط «موقعي الآن» مجدداً أو انقر على الخريطة.';
+    }
+    if (code === 'unavailable') {
+      return 'خدمة الموقع غير متاحة حالياً. فعّل GPS/Location في النظام ثم أعد المحاولة، أو انقر موقعك على الخريطة.';
+    }
+    if (code === 'no_geolocation') {
+      return 'المتصفح لا يدعم تحديد الموقع. استخدم بحث الإحداثيات أو انقر على الخريطة.';
+    }
+    if (forPost) {
+      return 'تعذر جلب GPS. انقر موقعك على الخريطة ثم «تأكيد الموقع».';
+    }
+    return 'تعذر جلب موقعك الحالي. اسمح بالوصول للموقع من المتصفح، أو انقر على الخريطة / ابحث عن مكان.';
+  }
+
+  function readingOk(gps) {
+    return (
+      gps &&
+      isFinite(gps.lat != null ? gps.lat : gps.latitude) &&
+      isFinite(gps.lng != null ? gps.lng : gps.longitude) &&
+      !(
+        Math.abs(gps.lat != null ? gps.lat : gps.latitude) < 0.000001 &&
+        Math.abs(gps.lng != null ? gps.lng : gps.longitude) < 0.000001
+      )
+    );
+  }
+
+  function normalizeReading(gps) {
+    if (!gps) return null;
+    var lat = gps.lat != null ? gps.lat : gps.latitude;
+    var lng = gps.lng != null ? gps.lng : gps.longitude;
+    if (!isFinite(lat) || !isFinite(lng)) return null;
+    return {
+      lat: lat,
+      lng: lng,
+      fromGps: true,
+      accuracy: gps.accuracy != null ? gps.accuracy : null,
+      capturedAt: gps.capturedAt != null ? gps.capturedAt : Date.now(),
+    };
+  }
+
+  function tryBrowserGeolocation(opts) {
+    opts = opts || {};
+    return new Promise(function (resolve, reject) {
+      if (!global.navigator || !navigator.geolocation) {
+        reject(Object.assign(new Error('no_geolocation'), { code: 0 }));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          resolve({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            capturedAt: pos.timestamp || Date.now(),
+          });
+        },
+        function (err) {
+          reject(err || new Error('gps_failed'));
+        },
+        {
+          enableHighAccuracy: opts.enableHighAccuracy !== false,
+          maximumAge: opts.maximumAge != null ? opts.maximumAge : 60000,
+          timeout: opts.timeout || 15000,
         }
-        return null;
-      })
-      .catch(function () {
-        return null;
+      );
+    });
+  }
+
+  /**
+   * محاولات متدرجة: AppGeo (دقة عالية→منخفضة) ثم المتصفح مباشرة.
+   * يُرجع {lat,lng,...} أو {error:'denied'|...}
+   */
+  function tryGpsCoords(timeoutMs, forPost) {
+    var highTimeout = Math.max(10000, timeoutMs || (forPost ? 22000 : 18000));
+    var lowTimeout = Math.min(12000, Math.max(8000, Math.floor(highTimeout * 0.7)));
+    var maxAge = forPost ? 0 : 300000;
+    var lastErr = null;
+
+    function viaAppGeo(high, to) {
+      if (!global.AppGeo || typeof AppGeo.getCurrentPosition !== 'function') {
+        return Promise.reject(new Error('no_app_geo'));
+      }
+      // بيئة HTTP على شبكة محلية — غالباً المتصفح يمنع GPS
+      if (typeof AppGeo.isHttpLanBlocked === 'function' && AppGeo.isHttpLanBlocked()) {
+        return Promise.reject(Object.assign(new Error('need_https'), { code: 'need_https' }));
+      }
+      return AppGeo.getCurrentPosition({
+        enableHighAccuracy: high,
+        maximumAge: maxAge,
+        timeout: to,
+      });
+    }
+
+    function viaBrowser(high, to) {
+      if (typeof global.isSecureContext === 'boolean' && !global.isSecureContext) {
+        var host = (global.location && location.hostname) || '';
+        if (host && host !== 'localhost' && host !== '127.0.0.1' && host !== '[::1]') {
+          return Promise.reject(Object.assign(new Error('need_https'), { code: 'need_https' }));
+        }
+      }
+      return tryBrowserGeolocation({
+        enableHighAccuracy: high,
+        maximumAge: maxAge,
+        timeout: to,
+      });
+    }
+
+    function ensurePermCheck() {
+      if (!global.navigator || !navigator.permissions || !navigator.permissions.query) {
+        return Promise.resolve();
+      }
+      return navigator.permissions
+        .query({ name: 'geolocation' })
+        .then(function (status) {
+          if (status && status.state === 'denied') {
+            return Promise.reject(Object.assign(new Error('denied'), { code: 1 }));
+          }
+        })
+        .catch(function (err) {
+          if (err && (err.code === 1 || String(err.message || '') === 'denied')) {
+            return Promise.reject(err);
+          }
+          // بعض المتصفحات لا تدعم query('geolocation')
+        });
+    }
+
+    function attempt(fn) {
+      return fn().then(function (gps) {
+        var n = normalizeReading(gps);
+        if (n) return n;
+        throw new Error('invalid_reading');
+      });
+    }
+
+    var chain = [
+      function () {
+        return ensurePermCheck().then(function () {
+          return attempt(function () {
+            return viaAppGeo(true, highTimeout);
+          });
+        });
+      },
+      function () {
+        return attempt(function () {
+          return viaAppGeo(false, lowTimeout);
+        });
+      },
+      function () {
+        return attempt(function () {
+          return viaBrowser(true, highTimeout);
+        });
+      },
+      function () {
+        return attempt(function () {
+          return viaBrowser(false, lowTimeout);
+        });
+      },
+    ];
+
+    return chain
+      .reduce(function (p, step) {
+        return p.catch(function (err) {
+          lastErr = err || lastErr;
+          // لا نضيّع الوقت على محاولات بعد اكتشاف منع HTTPS / رفض الصلاحية
+          var classified = classifyGpsError(err);
+          if (classified === 'need_https' || classified === 'denied' || classified === 'no_geolocation') {
+            return Promise.reject(err);
+          }
+          return step();
+        });
+      }, Promise.reject(new Error('start')))
+      .catch(function (err) {
+        lastErr = err || lastErr;
+        return { error: classifyGpsError(lastErr) };
       });
   }
 
@@ -206,8 +396,8 @@
     }
 
     if (preferGps) {
-      return tryGpsCoords(forPost ? 22000 : 16000, forPost).then(function (gps) {
-        if (gps) return packGps(gps);
+      return tryGpsCoords(forPost ? 22000 : 18000, forPost).then(function (gps) {
+        if (gps && !gps.error && readingOk(gps)) return packGps(gps);
         return fromOptions() || fromLastOrDefault();
       });
     }
@@ -215,8 +405,8 @@
     var opt = fromOptions();
     if (opt) return Promise.resolve(opt);
 
-    return tryGpsCoords(forPost ? 22000 : 14000, forPost).then(function (gps) {
-      if (gps) return packGps(gps);
+    return tryGpsCoords(forPost ? 22000 : 16000, forPost).then(function (gps) {
+      if (gps && !gps.error && readingOk(gps)) return packGps(gps);
       return fromLastOrDefault();
     });
   }
@@ -451,9 +641,12 @@
             }
             myLocBtn.disabled = true;
             myLocBtn.textContent = 'جاري تحديد الموقع…';
-            tryGpsCoords(forPost ? 22000 : 18000, forPost)
+            if (hintEl) {
+              hintEl.textContent = 'جاري جلب موقعك الحالي من GPS…';
+            }
+            tryGpsCoords(forPost ? 25000 : 22000, forPost)
               .then(function (gps) {
-                if (gps) {
+                if (gps && !gps.error && readingOk(gps)) {
                   startAccuracy = gps.accuracy;
                   startCapturedAt = gps.capturedAt;
                   setPoint(gps.lat, gps.lng, true, true);
@@ -463,10 +656,19 @@
                   if (!forPost) {
                     rememberCoords(gps.lat, gps.lng);
                   }
-                } else if (hintEl) {
-                  hintEl.textContent = forPost
-                    ? 'تعذر جلب GPS. انقر موقعك على الخريطة ثم «تأكيد الموقع».'
-                    : 'تعذر جلب GPS. على المحاكي: Android Studio → ⋮ → Location → Send. أو انقر موقعك على الخريطة.';
+                  if (global.AppGeo && typeof AppGeo.rememberReading === 'function') {
+                    AppGeo.rememberReading({
+                      latitude: gps.lat,
+                      longitude: gps.lng,
+                      accuracy: gps.accuracy,
+                      capturedAt: gps.capturedAt,
+                    });
+                  }
+                  return;
+                }
+                var code = (gps && gps.error) || 'failed';
+                if (hintEl) {
+                  hintEl.textContent = hintForGpsError(code, forPost);
                 }
               })
               .finally(function () {

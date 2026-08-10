@@ -1446,7 +1446,7 @@ async function customerForm(req, res, id) {
       title: isNew ? 'إضافة عميل' : 'تعريف العميل',
       bodyHtml: body,
       css: ['/assets/css/geo-map-pick.css'],
-      js: ['/assets/js/geo-map-pick.js', '/assets/js/geo.js'],
+      js: ['/assets/js/geo.js', '/assets/js/geo-map-pick.js'],
     })
   );
 }
