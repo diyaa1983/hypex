@@ -2,13 +2,18 @@
 
 /**
  * حسابات أسطر المستندات المشتركة (مبيعات/مشتريات)
+ * التقريب حسب إعدادات الشركة:
+ *  r3 / amounts → decimal_places
+ *  r6 / unit     → invoice_unit_price_decimal_places (كميات مخزنة أيضاً بدقة الأسعار)
  */
+const companyDecimals = require('./companyDecimals');
+
 function r3(n) {
-  return Math.round((Number(n) || 0) * 1000) / 1000;
+  return companyDecimals.roundAmount(n);
 }
 
 function r6(n) {
-  return Math.round((Number(n) || 0) * 1e6) / 1e6;
+  return companyDecimals.roundUnit(n);
 }
 
 function computeLine(raw, defaultTax = 16) {

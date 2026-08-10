@@ -116,6 +116,7 @@ function renderApp({
   const scCssVer = assetVersion('css/hx-shortcuts.css');
   const uiVer = assetVersion('js/hx-ui.js');
   const uiCssVer = assetVersion('css/hx-ui.css');
+  const decVer = assetVersion('js/hx-decimals.js');
   const allCss = [...css];
   const allJs = [...js];
   if (printChrome && user) {
@@ -124,6 +125,8 @@ function renderApp({
   }
   // واجهة تنبيهات/تأكيد + اختصارات لكل الشاشات
   if (user) {
+    const hasDec = allJs.some((j) => String(j).indexOf('hx-decimals.js') !== -1);
+    if (!hasDec) allJs.unshift(`/assets/js/hx-decimals.js?v=${decVer}`);
     const hasUi = allJs.some((j) => String(j).indexOf('hx-ui.js') !== -1);
     if (!hasUi) allJs.unshift(`/assets/js/hx-ui.js?v=${uiVer}`);
     const hasUiCss = allCss.some((c) => String(c).indexOf('hx-ui.css') !== -1);
@@ -169,6 +172,15 @@ function renderApp({
       ? bodyPrintDataHtml({ user, documentTitle: printTitle || title })
       : '';
 
+  let decimalsScript = '';
+  try {
+    const companyDecimals = require('./companyDecimals');
+    const snap = companyDecimals.snapshot();
+    decimalsScript = `<script>window.__HYPEX_DECIMALS__=${JSON.stringify(snap)};</script>`;
+  } catch {
+    decimalsScript = `<script>window.__HYPEX_DECIMALS__={"amount":3,"unit":3};</script>`;
+  }
+
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -179,6 +191,7 @@ function renderApp({
   <title>${esc(title)} · ${esc(getPrintBrand().companyName || 'Hypex')}</title>
   ${faviconLinksHtml()}
   <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
+  ${decimalsScript}
   <script src="/assets/js/base-path.js"></script>
   <link rel="stylesheet" href="/assets/css/shell.css">
   ${cssLinks}

@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../db');
+const companyDecimals = require('../lib/companyDecimals');
 
 async function safeQuery(sql, params = []) {
   try {
@@ -427,6 +428,15 @@ async function saveItem(payload) {
 
   if (!name) return { ok: false, error: 'اسم المادة بالعربي مطلوب.' };
   if (cost < 0 || sale < 0 || wholesale < 0) return { ok: false, error: 'الأسعار يجب أن تكون ≥ 0.' };
+
+  try {
+    await companyDecimals.load();
+  } catch {
+    /* use cache defaults */
+  }
+  cost = companyDecimals.roundUnit(cost);
+  sale = companyDecimals.roundUnit(sale);
+  wholesale = companyDecimals.roundUnit(wholesale);
 
   const hasBarcode = await tableHasColumn('inv_item', 'barcode');
   const hasCategory = await tableHasColumn('inv_item', 'category_id');

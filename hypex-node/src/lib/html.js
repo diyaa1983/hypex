@@ -1,5 +1,7 @@
 'use strict';
 
+const companyDecimals = require('./companyDecimals');
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -8,12 +10,22 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
-function fmtAmt(n, dp = 3) {
-  const x = Number(n) || 0;
-  return x.toLocaleString('en-US', {
-    minimumFractionDigits: dp,
-    maximumFractionDigits: dp,
-  });
+/** عرض مبالغ حسب خانات النظام (إعدادات الشركة) ما لم يُمرَّر dp صراحة */
+function fmtAmt(n, dp) {
+  const places =
+    dp != null && dp !== ''
+      ? companyDecimals.clampDp(dp, companyDecimals.amountPlaces())
+      : companyDecimals.amountPlaces();
+  return companyDecimals.formatDisplay(n, places);
+}
+
+/** أسعار الوحدة / بطاقة المادة */
+function fmtUnitPrice(n, dp) {
+  const places =
+    dp != null && dp !== ''
+      ? companyDecimals.clampDp(dp, companyDecimals.unitPlaces())
+      : companyDecimals.unitPlaces();
+  return companyDecimals.formatDisplay(n, places);
 }
 
 function todayIso() {
@@ -43,4 +55,4 @@ function parseDateToIso(v) {
   return todayIso();
 }
 
-module.exports = { esc, fmtAmt, todayIso, isoToDmy, parseDateToIso };
+module.exports = { esc, fmtAmt, fmtUnitPrice, todayIso, isoToDmy, parseDateToIso };

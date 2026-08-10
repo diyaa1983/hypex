@@ -1,6 +1,6 @@
 'use strict';
 
-const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
+const { esc, fmtAmt, fmtUnitPrice, isoToDmy, todayIso } = require('../lib/html');
 const { renderApp, phpUrl, embedUrl } = require('../lib/layout');
 const { salesCatalog } = require('../sales/catalog');
 
@@ -183,6 +183,7 @@ module.exports = {
   bridgeCard,
   phpEmbedBlock,
   fmtAmt,
+  fmtUnitPrice,
   isoToDmy,
   esc,
   phpUrl,

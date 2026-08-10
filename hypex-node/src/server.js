@@ -619,6 +619,12 @@ function renderError(msg) {
 
 app.listen(config.port, () => {
   warmPrintBrand().catch(() => {});
+  try {
+    const companyDecimals = require('./lib/companyDecimals');
+    companyDecimals.load(true).catch(() => {});
+  } catch {
+    /* */
+  }
   const base = basePath.hasBase() ? basePath.basePath : '';
   const publicUrl = base
     ? `http://localhost${base}`

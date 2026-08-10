@@ -723,6 +723,12 @@ async function saveCompanySettings(payload, logoFile) {
       /* ignore */
     }
     try {
+      const companyDecimals = require('../lib/companyDecimals');
+      companyDecimals.invalidate(after);
+    } catch {
+      /* ignore */
+    }
+    try {
       await ensurePrintWatermarkColumn();
       await q(`UPDATE sys_company_settings SET print_watermark_enabled = ? WHERE id = 1`, [
         printWatermarkEnabled ? 1 : 0,

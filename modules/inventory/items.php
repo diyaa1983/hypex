@@ -65,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hasNameEn = inv_item_column_exists($pdo, 'name_en');
             $hasWholesale = inv_item_column_exists($pdo, 'default_wholesale');
             $hasTax = inv_item_column_exists($pdo, 'tax_rate_id');
+            require_once app_path('includes/company_settings.php');
 
             if ($name === '') {
                 throw new RuntimeException('اسم المادة بالعربي مطلوب.');
@@ -95,17 +96,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $saleF = (float) ($priceRow['default_sale'] ?? 0);
                     $wholesaleF = $hasWholesale ? (float) ($priceRow['default_wholesale'] ?? 0) : 0.0;
                 } else {
-                    $costF = (float) str_replace(',', '.', $cost);
-                    $saleF = (float) str_replace(',', '.', $sale);
-                    $wholesaleF = (float) str_replace(',', '.', $wholesale);
+                    $costF = company_round_unit_price((float) str_replace(',', '.', $cost), $pdo);
+                    $saleF = company_round_unit_price((float) str_replace(',', '.', $sale), $pdo);
+                    $wholesaleF = company_round_unit_price((float) str_replace(',', '.', $wholesale), $pdo);
                     if ($costF < 0 || $saleF < 0 || $wholesaleF < 0) {
                         throw new RuntimeException('الأسعار يجب أن تكون أكبر أو تساوي صفرًا.');
                     }
                 }
             } else {
-                $costF = (float) str_replace(',', '.', $cost);
-                $saleF = (float) str_replace(',', '.', $sale);
-                $wholesaleF = (float) str_replace(',', '.', $wholesale);
+                $costF = company_round_unit_price((float) str_replace(',', '.', $cost), $pdo);
+                $saleF = company_round_unit_price((float) str_replace(',', '.', $sale), $pdo);
+                $wholesaleF = company_round_unit_price((float) str_replace(',', '.', $wholesale), $pdo);
                 if ($costF < 0 || $saleF < 0 || $wholesaleF < 0) {
                     throw new RuntimeException('الأسعار يجب أن تكون أكبر أو تساوي صفرًا.');
                 }
@@ -551,6 +552,10 @@ if ($action === 'add' || $action === 'edit') {
             $isItemEdit = (int) ($row['id'] ?? 0) > 0;
             $priceAdjustUrl = app_url('index.php?r=item_sale_price_adjust&item_id=' . (int) ($row['id'] ?? 0));
             $priceRo = $pricesLocked ? 'readonly' : '';
+            require_once app_path('includes/company_settings.php');
+            $unitPriceDp = company_invoice_unit_price_decimal_places($pdo);
+            $unitPriceStep = company_invoice_unit_price_decimal_step($pdo);
+            $amountDp = company_decimal_places($pdo);
             ?>
             <?php if ($pricesLocked): ?>
                 <div class="alert" style="background:#fef3c7;border:1px solid #f59e0b;color:#92400e;padding:.65rem .9rem;border-radius:8px;margin-bottom:.75rem;font-size:.88rem;">
@@ -562,19 +567,19 @@ if ($action === 'add' || $action === 'edit') {
             <div class="form-row">
                 <label class="field">
                     <span class="field-label">سعر الكلفة</span>
-                    <input class="input" name="default_cost" type="number" step="0.000001" min="0"
-                           value="<?= esc((string) $row['default_cost']) ?>" dir="ltr" <?= $priceRo ?>>
+                    <input class="input" name="default_cost" type="number" step="<?= esc($unitPriceStep) ?>" min="0"
+                           value="<?= esc(format_amount((float) $row['default_cost'], $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>>
                 </label>
                 <label class="field">
                     <span class="field-label">سعر البيع</span>
-                    <input class="input" name="default_sale" type="number" step="0.000001" min="0"
-                           value="<?= esc((string) $row['default_sale']) ?>" dir="ltr" <?= $priceRo ?>>
+                    <input class="input" name="default_sale" type="number" step="<?= esc($unitPriceStep) ?>" min="0"
+                           value="<?= esc(format_amount((float) $row['default_sale'], $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>>
                 </label>
                 <?php if ($hasWholesale): ?>
                 <label class="field">
                     <span class="field-label">سعر الجملة</span>
-                    <input class="input" name="default_wholesale" type="number" step="0.000001" min="0"
-                           value="<?= esc((string) ($row['default_wholesale'] ?? 0)) ?>" dir="ltr" <?= $priceRo ?>>
+                    <input class="input" name="default_wholesale" type="number" step="<?= esc($unitPriceStep) ?>" min="0"
+                           value="<?= esc(format_amount((float) ($row['default_wholesale'] ?? 0), $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>>
                 </label>
                 <?php endif; ?>
             </div>

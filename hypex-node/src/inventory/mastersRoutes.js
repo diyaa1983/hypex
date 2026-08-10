@@ -5,6 +5,7 @@ const auth = require('../auth');
 const svc = require('./mastersService');
 const ui = require('../lib/salesUi');
 const { esc } = require('../lib/html');
+const companyDecimals = require('../lib/companyDecimals');
 
 const router = express.Router();
 const KICKER = 'Hypex Inventory · Node';
@@ -190,7 +191,7 @@ router.get('/inventory/items', async (req, res) => {
         </td>
         <td>${esc(r.category_name || '—')}</td>
         <td>${esc(r.unit_name || '—')}</td>
-        <td class="si-num" dir="ltr">${esc(ui.fmtAmt(r.default_sale))}</td>
+        <td class="si-num" dir="ltr">${esc(ui.fmtUnitPrice(r.default_sale))}</td>
         <td>${
           Number(r.is_active) === 1
             ? ui.statusPill('ok', 'نشط')
@@ -241,6 +242,11 @@ router.get('/inventory/items', async (req, res) => {
 async function itemForm(req, res, id) {
   if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
   const lookups = await svc.itemLookups();
+  await companyDecimals.load();
+  const unitDp = companyDecimals.unitPlaces();
+  const unitStep = companyDecimals.unitStep();
+  const fmtPrice = (v) => companyDecimals.formatUnitInput(v);
+  const fmtTaxPct = (v) => companyDecimals.formatInput(v, Math.min(unitDp, companyDecimals.amountPlaces()));
   const item = id ? await svc.getItem(id) : null;
   if (id && !item) return res.status(404).send('غير موجود');
   const isNew = !item;
@@ -291,7 +297,7 @@ async function itemForm(req, res, id) {
     (lookups.taxRates || [])
       .map(
         (t) =>
-          `<option value="${t.id}"${Number(item?.tax_rate_id) === Number(t.id) ? ' selected' : ''}>${esc(t.name_ar)} (${esc(String(t.rate_percent))}%)</option>`
+          `<option value="${t.id}"${Number(item?.tax_rate_id) === Number(t.id) ? ' selected' : ''}>${esc(t.name_ar)} (${esc(fmtTaxPct(t.rate_percent))}%)</option>`
       )
       .join('');
 
@@ -420,16 +426,16 @@ async function itemForm(req, res, id) {
             </p>
             <div class="si-meta">
               <label>سعر الكلفة
-                <input class="si-field si-field--mono" name="default_cost" type="number" step="0.001" min="0"
-                       value="${esc(item?.default_cost != null ? item.default_cost : 0)}" dir="ltr" ${ro}>
+                <input class="si-field si-field--mono" name="default_cost" type="number" step="${esc(unitStep)}" min="0"
+                       value="${esc(fmtPrice(item?.default_cost != null ? item.default_cost : 0))}" dir="ltr" ${ro}>
               </label>
               <label>سعر البيع
-                <input class="si-field si-field--mono" name="default_sale" type="number" step="0.001" min="0"
-                       value="${esc(item?.default_sale != null ? item.default_sale : 0)}" dir="ltr" ${ro}>
+                <input class="si-field si-field--mono" name="default_sale" type="number" step="${esc(unitStep)}" min="0"
+                       value="${esc(fmtPrice(item?.default_sale != null ? item.default_sale : 0))}" dir="ltr" ${ro}>
               </label>
               <label>سعر الجملة
-                <input class="si-field si-field--mono" name="default_wholesale" type="number" step="0.001" min="0"
-                       value="${esc(item?.default_wholesale != null ? item.default_wholesale : 0)}" dir="ltr" ${ro}>
+                <input class="si-field si-field--mono" name="default_wholesale" type="number" step="${esc(unitStep)}" min="0"
+                       value="${esc(fmtPrice(item?.default_wholesale != null ? item.default_wholesale : 0))}" dir="ltr" ${ro}>
               </label>
             </div>
           </div>
