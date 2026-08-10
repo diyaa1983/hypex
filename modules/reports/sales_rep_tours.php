@@ -130,6 +130,7 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                 </select>
             </label>
             <button type="submit" class="btn btn-primary">عرض</button>
+            <button type="button" class="btn btn-secondary no-print" onclick="window.print()">🖨 طباعة</button>
         </form>
     </header>
 

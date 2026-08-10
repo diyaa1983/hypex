@@ -1101,11 +1101,12 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
         title: 'تقرير الجولات',
         subtitle: 'الجولات المُنشأة: بداية/نهاية · المندوب · المناطق والعناوين — وأوقات الزيارة عند الربط مع الآيباد',
         actions: [
+          { label: '🖨 طباعة', print: true },
           { label: 'الجولات', href: '/sales-reps/route', primary: true },
           { label: 'لوحة المندوبين', href: HUB },
         ],
       })}
-      <section class="si-surface" style="padding:0.85rem 1rem;margin-bottom:.75rem">
+      <section class="si-surface no-print" style="padding:0.85rem 1rem;margin-bottom:.75rem">
         <form method="get" action="/sales-reps/reports/tours" class="si-meta" style="align-items:end">
           <label>من تاريخ
             <input class="si-field si-field--mono" type="date" name="from" value="${esc(from)}" dir="ltr">
@@ -1127,6 +1128,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
             </select>
           </label>
           <button class="si-btn si-btn--primary" type="submit">عرض</button>
+          <button type="button" class="si-btn si-btn--print no-print" data-print="1">🖨 طباعة</button>
         </form>
         <p class="muted" style="margin:.65rem 0 0;font-size:.82rem;line-height:1.45">
           ${tourIds.size} جولة · ${rows.length} عميل في الخطط
@@ -1136,6 +1138,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
           <b>GPS</b> لاحقاً عندما يسجّل المندوب الدخول/الخروج من الآيباد وهو ضمن حدود العميل.
         </p>
       </section>
+      <div class="si-print-area">
       ${ui.tableSurface(
         'تفاصيل الجولات والعملاء',
         `${rows.length} صف`,
@@ -1157,6 +1160,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
         ],
         rowsHtml
       )}
+      </div>
     </div>`;
 
   res.send(
@@ -1164,6 +1168,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
       user: req.session.user,
       title: 'تقرير الجولات',
       bodyHtml: body,
+      printTitle: 'تقرير الجولات',
     })
   );
 });
