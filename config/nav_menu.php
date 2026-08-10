@@ -185,7 +185,14 @@ return [
                     'title' => 'المندوبين',
                     'items' => [
                         ['r' => 'sales_reps', 'label' => 'المندوبين', 'icon' => '🧑‍💼'],
-                        ['r' => 'sales_rep_route', 'label' => 'جولات المندوبين', 'icon' => '🗺️'],
+                        ['r' => 'sales_rep_route', 'label' => 'الجولات', 'icon' => '🗺️'],
+                    ],
+                ],
+                [
+                    'id' => 'sales_rep_reports',
+                    'title' => 'تقارير المندوبين',
+                    'items' => [
+                        ['r' => 'report_sales_rep_tours', 'label' => 'تقرير الجولات', 'icon' => '📋'],
                     ],
                 ],
             ],
@@ -269,7 +276,8 @@ return [
                     'id' => 'price_adjust',
                     'title' => 'تعديل الأسعار',
                     'items' => [
-                        ['r' => 'item_sale_price_adjust', 'label' => 'تعديل أسعار المواد', 'icon' => '💰'],
+                        ['r' => 'item_sale_price_adjust', 'label' => 'تعديل أسعار البيع', 'icon' => '💰'],
+                        ['r' => 'report_item_price_adjustments', 'label' => 'تقرير الأسعار المعدّلة', 'icon' => '📋'],
                     ],
                 ],
                 [

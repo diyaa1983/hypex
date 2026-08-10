@@ -68,8 +68,12 @@ function inv_price_adj_enrich_for_api(PDO $pdo, array $doc): array
             'item_name' => (string) ($ln['item_name'] ?? ''),
             'old_sale_price' => (float) ($ln['old_sale_price'] ?? 0),
             'new_sale_price' => (float) ($ln['new_sale_price'] ?? 0),
+            'old_wholesale' => (float) ($ln['old_wholesale'] ?? 0),
+            'new_wholesale' => (float) ($ln['new_wholesale'] ?? 0),
             'old_sale_price_display' => inv_item_sale_price_adj_format_price((float) ($ln['old_sale_price'] ?? 0), $pdo),
             'new_sale_price_display' => inv_item_sale_price_adj_format_price((float) ($ln['new_sale_price'] ?? 0), $pdo),
+            'old_wholesale_display' => inv_item_sale_price_adj_format_price((float) ($ln['old_wholesale'] ?? 0), $pdo),
+            'new_wholesale_display' => inv_item_sale_price_adj_format_price((float) ($ln['new_wholesale'] ?? 0), $pdo),
             'tax_rate_percent' => (float) ($ln['tax_rate_percent'] ?? 0),
             'tax_display' => inv_item_sale_price_adj_format_tax((float) ($ln['tax_rate_percent'] ?? 0)),
         ];

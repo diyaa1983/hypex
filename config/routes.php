@@ -82,8 +82,13 @@ return [
     'sales_rep_route' => [
         'file' => 'modules/sales/rep_route.php',
         'permission' => 'sales_rep_route',
-        'title' => 'جولات المندوبين',
+        'title' => 'الجولات',
         'hide_screen_title' => true,
+    ],
+    'report_sales_rep_tours' => [
+        'file' => 'modules/reports/sales_rep_tours.php',
+        'permission' => 'report_sales_rep_tours',
+        'title' => 'تقرير الجولات',
     ],
     'report_customer_orders' => [
         'file' => 'modules/reports/customer_orders.php',
@@ -640,7 +645,12 @@ return [
     'item_sale_price_adjust' => [
         'file' => 'modules/inventory/item_sale_price_adjust.php',
         'permission' => 'item_sale_price_adjust',
-        'title' => 'تعديل أسعار المواد',
+        'title' => 'تعديل أسعار البيع',
+    ],
+    'report_item_price_adjustments' => [
+        'file' => 'modules/inventory/report_price_adjustments.php',
+        'permission' => 'report_item_price_adjustments',
+        'title' => 'تقرير الأسعار المعدّلة',
     ],
     'report_inventory' => [
         'file' => 'modules/reports/inventory.php',

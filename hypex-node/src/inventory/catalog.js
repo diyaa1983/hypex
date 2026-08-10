@@ -30,7 +30,20 @@ const inventoryCatalog = [
     group: 'price',
     title: 'تعديل الأسعار',
     items: [
-      { r: 'item_sale_price_adjust', label: 'تعديل أسعار المواد', icon: '💰', path: '/inventory/price-adjust', kind: 'bridge' },
+      {
+        r: 'item_sale_price_adjust',
+        label: 'تعديل أسعار البيع',
+        icon: '💰',
+        path: '/inventory/price-adjust',
+        kind: 'list',
+      },
+      {
+        r: 'report_item_price_adjustments',
+        label: 'تقرير الأسعار المعدّلة',
+        icon: '📋',
+        path: '/inventory/reports/price-adjustments',
+        kind: 'report',
+      },
     ],
   },
   {

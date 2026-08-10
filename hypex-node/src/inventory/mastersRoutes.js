@@ -637,17 +637,22 @@ async function unitForm(req, res, id) {
         actions: [{ label: 'رجوع للقائمة', href: '/inventory/units' }],
       })}
       ${err ? alertHtml('err', err) : ''}
-      <section class="si-surface">
+      <section class="si-surface" style="max-width:32rem">
         <div class="si-surface-head"><h2>${isNew ? 'وحدة جديدة' : 'تعديل'}</h2></div>
-        <form method="post" action="${isNew ? '/inventory/units/new' : '/inventory/units/' + id}" class="si-meta" style="padding:1rem 1.1rem 1.25rem">
+        <form method="post" action="${isNew ? '/inventory/units/new' : '/inventory/units/' + id}"
+              class="inv-simple-form" style="padding:1rem 1.15rem 1.25rem;display:grid;gap:0.9rem">
           <input type="hidden" name="id" value="${unit ? unit.id : 0}">
-          <label>الرمز <span style="font-weight:500;color:#5c6578">(فارغ = تلقائي)</span>
-            <input class="si-field si-field--mono" name="code" value="${esc(unit?.code || '')}" dir="ltr" placeholder="مثال: BOX" autocomplete="off">
+          <label style="display:grid;gap:.35rem;font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--si-muted,#5c6578)">
+            الرمز <span style="font-weight:500;text-transform:none;letter-spacing:0">(فارغ = تلقائي)</span>
+            <input class="si-field si-field--mono" name="code" value="${esc(unit?.code || '')}" dir="ltr"
+                   placeholder="مثال: BOX" autocomplete="off" style="max-width:12rem">
           </label>
-          <label class="si-span-2">اسم الوحدة *
-            <input class="si-field" name="name_ar" required value="${esc(unit?.name_ar || '')}" placeholder="مثال: كرتون" autocomplete="off">
+          <label style="display:grid;gap:.35rem;font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--si-muted,#5c6578)">
+            اسم الوحدة *
+            <input class="si-field" name="name_ar" required value="${esc(unit?.name_ar || '')}"
+                   placeholder="مثال: كرتونة" autocomplete="off">
           </label>
-          <div class="si-span-2" style="display:flex;gap:.5rem;margin-top:.35rem">
+          <div class="si-form-actions" style="margin:0;padding-top:.75rem">
             <button class="si-btn si-btn--primary" type="submit">حفظ</button>
             <a class="si-btn" href="/inventory/units">إلغاء</a>
           </div>

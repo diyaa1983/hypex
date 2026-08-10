@@ -30,7 +30,7 @@ function inv_item_sale_price_adj_default_tax_percent(?PDO $pdo = null): float
 }
 
 /**
- * @return array{id:int, sku:string, barcode:string, material_number:string, name_ar:string, default_sale:float}|null
+ * @return array{id:int, sku:string, barcode:string, material_number:string, name_ar:string, default_sale:float, default_wholesale:float}|null
  */
 function inv_item_sale_price_adj_item_row(PDO $pdo, int $itemId): ?array
 {
@@ -38,8 +38,15 @@ function inv_item_sale_price_adj_item_row(PDO $pdo, int $itemId): ?array
         return null;
     }
     $barcodeCol = inv_item_has_barcode_column($pdo) ? ', barcode' : '';
+    $whCol = '';
+    try {
+        $pdo->query('SELECT default_wholesale FROM inv_item LIMIT 1');
+        $whCol = ', default_wholesale';
+    } catch (Throwable $e) {
+        $whCol = '';
+    }
     $st = $pdo->prepare(
-        'SELECT id, sku' . $barcodeCol . ', name_ar, default_sale FROM inv_item WHERE id = ? AND is_active = 1 LIMIT 1'
+        'SELECT id, sku' . $barcodeCol . ', name_ar, default_sale' . $whCol . ' FROM inv_item WHERE id = ? AND is_active = 1 LIMIT 1'
     );
     $st->execute([$itemId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
@@ -50,6 +57,7 @@ function inv_item_sale_price_adj_item_row(PDO $pdo, int $itemId): ?array
     $barcode = (string) ($row['barcode'] ?? '');
     $sku = (string) ($row['sku'] ?? '');
     $defaultSale = (float) ($row['default_sale'] ?? 0);
+    $defaultWholesale = (float) ($row['default_wholesale'] ?? 0);
 
     // إذا لم يُحدّد سعر بيع على البطاقة (أو = 0)، حاول استرجاع آخر سعر فعلي
     // من سجل تعديلات الأسعار المرحّل، ثم من آخر بند بفاتورة مبيعات
@@ -64,6 +72,7 @@ function inv_item_sale_price_adj_item_row(PDO $pdo, int $itemId): ?array
         'material_number' => inv_item_material_number($barcode, $sku),
         'name_ar' => (string) ($row['name_ar'] ?? ''),
         'default_sale' => $defaultSale,
+        'default_wholesale' => $defaultWholesale,
     ];
 }
 

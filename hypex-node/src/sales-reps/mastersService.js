@@ -39,11 +39,90 @@ function daysBetween(from, to) {
   return out;
 }
 
+/** 0=الأحد … 6=السبت (نفس Date#getDay) */
+function weekdayOfIso(iso) {
+  if (!isIsoDate(iso)) return null;
+  return new Date(String(iso) + 'T12:00:00').getDay();
+}
+
+function monthBoundsIso(d = new Date()) {
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  const from = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+  const last = new Date(y, m + 1, 0).getDate();
+  const to = `${y}-${String(m + 1).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+  return { from, to };
+}
+
+const WEEKDAY_LABELS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+async function ensureWeekdayColumn() {
+  try {
+    await db.query(`SELECT weekday FROM sal_rep_tour_line LIMIT 1`);
+    return true;
+  } catch {
+    try {
+      await db.query(
+        `ALTER TABLE sal_rep_tour_line ADD COLUMN weekday TINYINT UNSIGNED NOT NULL DEFAULT 0`
+      );
+    } catch {
+      /* */
+    }
+  }
+  try {
+    await db.query(`ALTER TABLE sal_rep_tour_line DROP INDEX uq_sal_rep_tour_line`);
+  } catch {
+    /* */
+  }
+  try {
+    await db.query(
+      `ALTER TABLE sal_rep_tour_line ADD UNIQUE KEY uq_sal_rep_tour_line_wd (tour_id, customer_id, weekday)`
+    );
+  } catch {
+    /* */
+  }
+  try {
+    await db.query(`SELECT weekday FROM sal_rep_tour_line LIMIT 1`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 let schemaReady = false;
+
+async function ensureVisitColumns() {
+  await ensureWeekdayColumn();
+  for (const col of [
+    ['sal_rep_tour_line', 'visit_checkin_at', 'DATETIME NULL DEFAULT NULL'],
+    ['sal_rep_tour_line', 'visit_checkout_at', 'DATETIME NULL DEFAULT NULL'],
+    ['sal_rep_tour_line', 'checkin_method', 'VARCHAR(20) NULL DEFAULT NULL'],
+    ['sal_rep_tour_line', 'checkout_method', 'VARCHAR(20) NULL DEFAULT NULL'],
+    ['sal_rep_route_line', 'visit_checkin_at', 'DATETIME NULL DEFAULT NULL'],
+    ['sal_rep_route_line', 'visit_checkout_at', 'DATETIME NULL DEFAULT NULL'],
+    ['sal_rep_route_line', 'checkin_method', 'VARCHAR(20) NULL DEFAULT NULL'],
+    ['sal_rep_route_line', 'checkout_method', 'VARCHAR(20) NULL DEFAULT NULL'],
+  ]) {
+    try {
+      await db.query(`SELECT \`${col[1]}\` FROM \`${col[0]}\` LIMIT 1`);
+    } catch {
+      try {
+        await db.query(`ALTER TABLE \`${col[0]}\` ADD COLUMN \`${col[1]}\` ${col[2]}`);
+      } catch {
+        /* table may not exist yet */
+      }
+    }
+  }
+}
+
 async function ensureTourSchema() {
-  if (schemaReady) return true;
+  if (schemaReady) {
+    await ensureVisitColumns();
+    return true;
+  }
   try {
     await db.query(`SELECT id FROM sal_rep_tour LIMIT 1`);
+    await ensureVisitColumns();
     schemaReady = true;
     return true;
   } catch {
@@ -104,6 +183,7 @@ async function ensureTourSchema() {
     } catch {
       /* */
     }
+    await ensureVisitColumns();
     schemaReady = true;
     return true;
   } catch (e) {
@@ -216,8 +296,21 @@ async function listAddressesForRegion(regionId) {
 }
 
 async function listTourCustomers({ salesRepId = 0, regionId = 0, regionAddressId = 0, q = '', limit = 400 } = {}) {
-  const where = ['c.is_active = 1'];
-  const params = [];
+  const repId = Number(salesRepId || 0);
+  // لا تعرض أي عملاء قبل اختيار المندوب — فقط العملاء التابعون له
+  if (repId < 1) return [];
+
+  const where = [
+    'c.is_active = 1',
+    `(
+      c.sales_rep_id = ?
+      OR EXISTS (
+        SELECT 1 FROM crm_customer_sales_rep csr
+        WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
+      )
+    )`,
+  ];
+  const params = [repId, repId];
   if (regionId > 0) {
     where.push('c.region_id = ?');
     params.push(regionId);
@@ -225,20 +318,6 @@ async function listTourCustomers({ salesRepId = 0, regionId = 0, regionAddressId
   if (regionAddressId > 0) {
     where.push('c.region_address_id = ?');
     params.push(regionAddressId);
-  }
-  if (salesRepId > 0) {
-    where.push(`(
-      c.sales_rep_id = ?
-      OR EXISTS (
-        SELECT 1 FROM crm_customer_sales_rep csr
-        WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
-      )
-      OR (
-        COALESCE(c.sales_rep_id, 0) = 0
-        AND NOT EXISTS (SELECT 1 FROM crm_customer_sales_rep csr2 WHERE csr2.customer_id = c.id)
-      )
-    )`);
-    params.push(salesRepId, salesRepId);
   }
   if (q) {
     const like = `%${String(q).trim()}%`;
@@ -259,8 +338,39 @@ async function listTourCustomers({ salesRepId = 0, regionId = 0, regionAddressId
       params
     );
   } catch (e) {
-    console.error('listTourCustomers', e.message);
-    return [];
+    // بدون جدول الربط m2m
+    try {
+      const where2 = ['c.is_active = 1', 'c.sales_rep_id = ?'];
+      const params2 = [repId];
+      if (regionId > 0) {
+        where2.push('c.region_id = ?');
+        params2.push(regionId);
+      }
+      if (regionAddressId > 0) {
+        where2.push('c.region_address_id = ?');
+        params2.push(regionAddressId);
+      }
+      if (q) {
+        const like = `%${String(q).trim()}%`;
+        where2.push(`(c.name_ar LIKE ? OR c.code LIKE ?)`);
+        params2.push(like, like);
+      }
+      return await safeQuery(
+        `SELECT c.id, c.code, c.name_ar, c.sales_rep_id, c.region_id, c.region_address_id,
+                COALESCE(rg.name_ar, '') AS region_name,
+                COALESCE(ra.name_ar, '') AS address_name
+         FROM crm_customer c
+         LEFT JOIN crm_region rg ON rg.id = c.region_id
+         LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id
+         WHERE ${where2.join(' AND ')}
+         ORDER BY c.name_ar ASC
+         LIMIT ${Math.min(500, Math.max(1, limit))}`,
+        params2
+      );
+    } catch (e2) {
+      console.error('listTourCustomers', e2.message);
+      return [];
+    }
   }
 }
 
@@ -307,17 +417,31 @@ async function getTour(id) {
       [tourId]
     );
     if (!rows[0]) return null;
+    const hasWd = await ensureWeekdayColumn();
     const lines = await safeQuery(
-      `SELECT l.id, l.customer_id, l.date_from, l.date_to, l.region_id, l.region_address_id, l.sort_order,
-              c.code AS customer_code, c.name_ar AS customer_name,
-              COALESCE(rg.name_ar, '') AS region_name,
-              COALESCE(ra.name_ar, '') AS address_name
-       FROM sal_rep_tour_line l
-       INNER JOIN crm_customer c ON c.id = l.customer_id
-       LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
-       LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
-       WHERE l.tour_id = ?
-       ORDER BY l.sort_order, l.id`,
+      hasWd
+        ? `SELECT l.id, l.customer_id, l.date_from, l.date_to, l.region_id, l.region_address_id, l.sort_order,
+                  l.weekday,
+                  c.code AS customer_code, c.name_ar AS customer_name,
+                  COALESCE(rg.name_ar, '') AS region_name,
+                  COALESCE(ra.name_ar, '') AS address_name
+           FROM sal_rep_tour_line l
+           INNER JOIN crm_customer c ON c.id = l.customer_id
+           LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
+           LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
+           WHERE l.tour_id = ?
+           ORDER BY l.weekday, l.sort_order, l.id`
+        : `SELECT l.id, l.customer_id, l.date_from, l.date_to, l.region_id, l.region_address_id, l.sort_order,
+                  0 AS weekday,
+                  c.code AS customer_code, c.name_ar AS customer_name,
+                  COALESCE(rg.name_ar, '') AS region_name,
+                  COALESCE(ra.name_ar, '') AS address_name
+           FROM sal_rep_tour_line l
+           INNER JOIN crm_customer c ON c.id = l.customer_id
+           LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
+           LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
+           WHERE l.tour_id = ?
+           ORDER BY l.sort_order, l.id`,
       [tourId]
     );
     return { ...rows[0], lines };
@@ -334,11 +458,14 @@ function parseTourLines(payload, tourFrom, tourTo) {
     for (const ln of rawLines) {
       const customerId = Number(ln.customer_id || ln.id || 0);
       if (customerId < 1) continue;
-      // التواريخ على مستوى الجولة فقط — نفس الفترة لكل العملاء
+      let wd = Number(ln.weekday);
+      if (!Number.isFinite(wd) || wd < 0 || wd > 6) continue;
+      wd = Math.floor(wd);
       lines.push({
         customer_id: customerId,
         date_from: tourFrom,
         date_to: tourTo,
+        weekday: wd,
         region_id: Number(ln.region_id || 0) || null,
         region_address_id: Number(ln.region_address_id || 0) || null,
       });
@@ -350,11 +477,13 @@ function parseTourLines(payload, tourFrom, tourTo) {
     } else if (payload.customer_ids != null) {
       custIds = [Number(payload.customer_ids)].filter((n) => n > 0);
     }
+    // بدون يوم = لا نضيف (يلزم اختيار اليوم)
     for (const cid of custIds) {
       lines.push({
         customer_id: cid,
         date_from: tourFrom,
         date_to: tourTo,
+        weekday: 0,
         region_id: null,
         region_address_id: null,
       });
@@ -362,28 +491,52 @@ function parseTourLines(payload, tourFrom, tourTo) {
   }
   const seen = new Set();
   return lines.filter((ln) => {
-    if (seen.has(ln.customer_id)) return false;
-    seen.add(ln.customer_id);
+    const key = `${ln.customer_id}:${ln.weekday}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 }
 
 async function rebuildDailyRoutes(conn, salesRepId, from, to) {
+  const hasWd = await ensureWeekdayColumn();
   const days = daysBetween(from, to);
   for (const day of days) {
-    const [custRows] = await conn.execute(
-      `SELECT DISTINCT tl.customer_id, MIN(tl.sort_order) AS sort_order, MIN(t.id) AS tour_id
-       FROM sal_rep_tour t
-       INNER JOIN sal_rep_tour_line tl ON tl.tour_id = t.id
-       WHERE t.sales_rep_id = ?
-         AND t.status = 'posted'
-         AND t.is_active = 1
-         AND tl.date_from <= ?
-         AND tl.date_to >= ?
-       GROUP BY tl.customer_id
-       ORDER BY sort_order, tl.customer_id`,
-      [salesRepId, day, day]
-    );
+    const jsWd = weekdayOfIso(day);
+    let custRows;
+    if (hasWd) {
+      // DAYOFWEEK: 1=Sun … 7=Sat → نفس JS getDay = DAYOFWEEK-1
+      const [rows] = await conn.execute(
+        `SELECT DISTINCT tl.customer_id, MIN(tl.sort_order) AS sort_order, MIN(t.id) AS tour_id
+         FROM sal_rep_tour t
+         INNER JOIN sal_rep_tour_line tl ON tl.tour_id = t.id
+         WHERE t.sales_rep_id = ?
+           AND t.status = 'posted'
+           AND t.is_active = 1
+           AND tl.date_from <= ?
+           AND tl.date_to >= ?
+           AND tl.weekday = ?
+         GROUP BY tl.customer_id
+         ORDER BY sort_order, tl.customer_id`,
+        [salesRepId, day, day, jsWd]
+      );
+      custRows = rows;
+    } else {
+      const [rows] = await conn.execute(
+        `SELECT DISTINCT tl.customer_id, MIN(tl.sort_order) AS sort_order, MIN(t.id) AS tour_id
+         FROM sal_rep_tour t
+         INNER JOIN sal_rep_tour_line tl ON tl.tour_id = t.id
+         WHERE t.sales_rep_id = ?
+           AND t.status = 'posted'
+           AND t.is_active = 1
+           AND tl.date_from <= ?
+           AND tl.date_to >= ?
+         GROUP BY tl.customer_id
+         ORDER BY sort_order, tl.customer_id`,
+        [salesRepId, day, day]
+      );
+      custRows = rows;
+    }
     const [existRows] = await conn.execute(
       `SELECT id, tour_id FROM sal_rep_route WHERE sales_rep_id = ? AND route_date = ? LIMIT 1`,
       [salesRepId, day]
@@ -455,12 +608,16 @@ async function saveTour(payload, userId) {
   if (span < 1 || span > 93) return { ok: false, error: 'مدة الجولة يجب أن تكون بين يوم و 93 يوماً.' };
 
   const lines = parseTourLines(payload, dateFrom, dateTo);
-  if (!lines.length) return { ok: false, error: 'اختر عميلاً واحداً على الأقل للجولة.' };
+  if (!lines.length) {
+    return { ok: false, error: 'اختر يوماً من أيام الأسبوع، ثم أضف عميلاً واحداً على الأقل لذلك اليوم.' };
+  }
 
   const rep = await safeQuery(`SELECT id FROM crm_sales_rep WHERE id = ? AND is_active = 1 LIMIT 1`, [
     salesRepId,
   ]);
   if (!rep[0]) return { ok: false, error: 'المندوب غير موجود أو غير نشط.' };
+
+  await ensureWeekdayColumn();
 
   // fill region/address from customer if missing
   for (const ln of lines) {
@@ -507,31 +664,49 @@ async function saveTour(payload, userId) {
 
     let sort = 0;
     for (const ln of lines) {
-      await conn.execute(
-        `INSERT INTO sal_rep_tour_line
-           (tour_id, customer_id, date_from, date_to, region_id, region_address_id, sort_order)
-         VALUES (?,?,?,?,?,?,?)`,
-        [
-          tourId,
-          ln.customer_id,
-          ln.date_from,
-          ln.date_to,
-          ln.region_id,
-          ln.region_address_id,
-          sort++,
-        ]
-      );
+      try {
+        await conn.execute(
+          `INSERT INTO sal_rep_tour_line
+             (tour_id, customer_id, date_from, date_to, region_id, region_address_id, sort_order, weekday)
+           VALUES (?,?,?,?,?,?,?,?)`,
+          [
+            tourId,
+            ln.customer_id,
+            ln.date_from,
+            ln.date_to,
+            ln.region_id,
+            ln.region_address_id,
+            sort++,
+            ln.weekday,
+          ]
+        );
+      } catch {
+        await conn.execute(
+          `INSERT INTO sal_rep_tour_line
+             (tour_id, customer_id, date_from, date_to, region_id, region_address_id, sort_order)
+           VALUES (?,?,?,?,?,?,?)`,
+          [
+            tourId,
+            ln.customer_id,
+            ln.date_from,
+            ln.date_to,
+            ln.region_id,
+            ln.region_address_id,
+            sort++,
+          ]
+        );
+      }
     }
     await conn.commit();
     return {
       ok: true,
       id: tourId,
-      message: `تم حفظ الجولة (مسودة) · ${lines.length} عميل · ${dateFrom} → ${dateTo}`,
+      message: `تم حفظ الجولة (مسودة) · ${lines.length} تعيين · ${dateFrom} → ${dateTo}`,
     };
   } catch (e) {
     await conn.rollback();
     console.error('saveTour', e.message);
-    return { ok: false, error: 'تعذر حفظ الجولة. تأكد من تشغيل ترحيل قاعدة البيانات 262.' };
+    return { ok: false, error: 'تعذر حفظ الجولة. تأكد من تشغيل ترحيل قاعدة البيانات 267.' };
   } finally {
     conn.release();
   }
@@ -614,7 +789,7 @@ async function deleteTour(id) {
   }
 }
 
-/** تفاصيل الطباعة: صف لكل يوم + عميل (فترة الجولة لكل العملاء) */
+/** تفاصيل الطباعة: صف لكل يوم + عميل (حسب يوم الأسبوع المعيّن) */
 async function getTourPrintRows(id) {
   const tour = await getTour(id);
   if (!tour) return null;
@@ -623,9 +798,13 @@ async function getTourPrintRows(id) {
   const days = daysBetween(tourFrom, tourTo);
   const rows = [];
   for (const day of days) {
+    const wd = weekdayOfIso(day);
     for (const ln of tour.lines || []) {
+      const lineWd = ln.weekday == null || ln.weekday === '' ? null : Number(ln.weekday);
+      if (lineWd != null && Number.isFinite(lineWd) && lineWd !== wd) continue;
       rows.push({
         visit_date: day,
+        weekday_label: WEEKDAY_LABELS[wd] || '',
         customer_code: ln.customer_code || '',
         customer_name: ln.customer_name || '',
         region_name: ln.region_name || '',
@@ -638,6 +817,142 @@ async function getTourPrintRows(id) {
     return String(a.customer_name).localeCompare(String(b.customer_name), 'ar');
   });
   return { tour, rows };
+}
+
+/**
+ * تقرير الجولات: كل بنود الجولات المُنشأة
+ * أعمدة الدخول/الخروج وطريقة GPS جاهزة وتُقرأ إن وُجدت (آيباد لاحقاً)
+ */
+async function reportTours({ from = '', to = '', salesRepId = 0, status = '', limit = 800 } = {}) {
+  await ensureTourSchema();
+  // أعمدة الزيارة قد تُضاف بعد إنشاء الجدول — تأكد
+  for (const col of [
+    ['sal_rep_tour_line', 'visit_checkin_at', 'DATETIME NULL DEFAULT NULL'],
+    ['sal_rep_tour_line', 'visit_checkout_at', 'DATETIME NULL DEFAULT NULL'],
+    ['sal_rep_tour_line', 'checkin_method', 'VARCHAR(20) NULL DEFAULT NULL'],
+    ['sal_rep_tour_line', 'checkout_method', 'VARCHAR(20) NULL DEFAULT NULL'],
+  ]) {
+    try {
+      await db.query(`SELECT \`${col[1]}\` FROM \`${col[0]}\` LIMIT 1`);
+    } catch {
+      try {
+        await db.query(`ALTER TABLE \`${col[0]}\` ADD COLUMN \`${col[1]}\` ${col[2]}`);
+      } catch {
+        /* */
+      }
+    }
+  }
+
+  const where = ['t.is_active = 1'];
+  const params = [];
+  if (from) {
+    where.push('t.date_to >= ?');
+    params.push(from);
+  }
+  if (to) {
+    where.push('t.date_from <= ?');
+    params.push(to);
+  }
+  if (Number(salesRepId) > 0) {
+    where.push('t.sales_rep_id = ?');
+    params.push(Number(salesRepId));
+  }
+  if (status === 'draft' || status === 'posted') {
+    where.push('t.status = ?');
+    params.push(status);
+  }
+
+  let hasVisitCols = true;
+  try {
+    await db.query(
+      `SELECT visit_checkin_at, visit_checkout_at, checkin_method, checkout_method
+       FROM sal_rep_tour_line LIMIT 1`
+    );
+  } catch {
+    hasVisitCols = false;
+  }
+
+  const visitSel = hasVisitCols
+    ? `l.visit_checkin_at, l.visit_checkout_at, l.checkin_method, l.checkout_method`
+    : `NULL AS visit_checkin_at, NULL AS visit_checkout_at,
+       NULL AS checkin_method, NULL AS checkout_method`;
+
+  // إن وُجد تنفيذ يومي لاحقاً: نأخذ أحدث دخول/خروج مسجّل لخط السير المربوط بالجولة
+  const dailyJoin = hasVisitCols
+    ? `LEFT JOIN (
+         SELECT r.tour_id, rl.customer_id,
+                MIN(rl.visit_checkin_at) AS daily_checkin_at,
+                MAX(rl.visit_checkout_at) AS daily_checkout_at,
+                MAX(rl.checkin_method) AS daily_checkin_method,
+                MAX(rl.checkout_method) AS daily_checkout_method
+         FROM sal_rep_route r
+         INNER JOIN sal_rep_route_line rl ON rl.route_id = r.id
+         WHERE r.tour_id IS NOT NULL
+         GROUP BY r.tour_id, rl.customer_id
+       ) dv ON dv.tour_id = t.id AND dv.customer_id = l.customer_id`
+    : '';
+
+  const visitOut = hasVisitCols
+    ? `COALESCE(l.visit_checkin_at, dv.daily_checkin_at) AS visit_checkin_at,
+       COALESCE(l.visit_checkout_at, dv.daily_checkout_at) AS visit_checkout_at,
+       COALESCE(NULLIF(TRIM(l.checkin_method),''), NULLIF(TRIM(dv.daily_checkin_method),'')) AS checkin_method,
+       COALESCE(NULLIF(TRIM(l.checkout_method),''), NULLIF(TRIM(dv.daily_checkout_method),'')) AS checkout_method`
+    : visitSel;
+
+  try {
+    return await safeQuery(
+      `SELECT t.id AS tour_id, t.date_from, t.date_to, t.status, t.notes, t.created_at,
+              t.sales_rep_id,
+              COALESCE(sr.name_ar, '') AS sales_rep_name,
+              COALESCE(sr.code, '') AS sales_rep_code,
+              l.id AS line_id, l.customer_id, l.sort_order,
+              c.code AS customer_code, c.name_ar AS customer_name,
+              COALESCE(rg.name_ar, '') AS region_name,
+              COALESCE(ra.name_ar, '') AS address_name,
+              ${visitOut}
+       FROM sal_rep_tour t
+       INNER JOIN crm_sales_rep sr ON sr.id = t.sales_rep_id
+       INNER JOIN sal_rep_tour_line l ON l.tour_id = t.id
+       INNER JOIN crm_customer c ON c.id = l.customer_id
+       LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
+       LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
+       ${dailyJoin}
+       WHERE ${where.join(' AND ')}
+       ORDER BY t.date_from DESC, t.id DESC, l.sort_order, c.name_ar
+       LIMIT ${Math.min(2000, Number(limit) || 800)}`,
+      params
+    );
+  } catch (e) {
+    console.error('reportTours', e.message);
+    // fallback بدون join اليومي
+    try {
+      return await safeQuery(
+        `SELECT t.id AS tour_id, t.date_from, t.date_to, t.status, t.notes, t.created_at,
+                t.sales_rep_id,
+                COALESCE(sr.name_ar, '') AS sales_rep_name,
+                COALESCE(sr.code, '') AS sales_rep_code,
+                l.id AS line_id, l.customer_id, l.sort_order,
+                c.code AS customer_code, c.name_ar AS customer_name,
+                COALESCE(rg.name_ar, '') AS region_name,
+                COALESCE(ra.name_ar, '') AS address_name,
+                NULL AS visit_checkin_at, NULL AS visit_checkout_at,
+                NULL AS checkin_method, NULL AS checkout_method
+         FROM sal_rep_tour t
+         INNER JOIN crm_sales_rep sr ON sr.id = t.sales_rep_id
+         INNER JOIN sal_rep_tour_line l ON l.tour_id = t.id
+         INNER JOIN crm_customer c ON c.id = l.customer_id
+         LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
+         LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
+         WHERE ${where.join(' AND ')}
+         ORDER BY t.date_from DESC, t.id DESC, l.sort_order, c.name_ar
+         LIMIT ${Math.min(2000, Number(limit) || 800)}`,
+        params
+      );
+    } catch (e2) {
+      console.error('reportTours fallback', e2.message);
+      return [];
+    }
+  }
 }
 
 /* توافق خلفي لأسماء قديمة */
@@ -663,7 +978,10 @@ module.exports = {
   unpostTour,
   deleteTour,
   getTourPrintRows,
+  reportTours,
   ensureTourSchema,
+  monthBoundsIso,
+  WEEKDAY_LABELS,
   // aliases
   listRoutes,
   getRoute,

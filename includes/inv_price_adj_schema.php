@@ -54,6 +54,35 @@ function inv_price_adj_create_doc_table_fallback(PDO $pdo): void
     }
 }
 
+function inv_price_adj_ensure_wholesale_columns(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    foreach (['old_wholesale' => 'DECIMAL(18,6) NOT NULL DEFAULT 0', 'new_wholesale' => 'DECIMAL(18,6) NOT NULL DEFAULT 0'] as $col => $def) {
+        try {
+            $pdo->query('SELECT `' . $col . '` FROM inv_item_sale_price_adj LIMIT 1');
+        } catch (Throwable $e) {
+            try {
+                $pdo->exec('ALTER TABLE inv_item_sale_price_adj ADD COLUMN `' . $col . '` ' . $def);
+            } catch (Throwable $e2) {
+                // ignore
+            }
+        }
+    }
+    try {
+        $pdo->query('SELECT posted_by FROM inv_price_adj_doc LIMIT 1');
+    } catch (Throwable $e) {
+        try {
+            $pdo->exec('ALTER TABLE inv_price_adj_doc ADD COLUMN posted_by INT UNSIGNED NULL DEFAULT NULL');
+        } catch (Throwable $e2) {
+            // ignore
+        }
+    }
+}
+
 function inv_price_adj_ensure_line_columns(PDO $pdo): void
 {
     require_once app_path('includes/inv_item_sale_price_adj.php');
@@ -110,11 +139,15 @@ function inv_price_adj_ensure_line_columns(PDO $pdo): void
             // ignored
         }
     }
+
+    inv_price_adj_ensure_wholesale_columns($pdo);
 }
 
 function inv_price_adj_ensure_schema(PDO $pdo): bool
 {
     if (inv_price_adj_schema_is_ready($pdo)) {
+        inv_price_adj_ensure_wholesale_columns($pdo);
+
         return true;
     }
 
@@ -254,9 +287,17 @@ function inv_price_adj_lines(PDO $pdo, int $docId): array
     }
     require_once app_path('includes/inv_item_display.php');
     $itemNoSql = inv_item_sql_material_number($pdo, 'i');
+    $whSql = '0 AS old_wholesale, 0 AS new_wholesale';
+    try {
+        $pdo->query('SELECT old_wholesale, new_wholesale FROM inv_item_sale_price_adj LIMIT 1');
+        $whSql = 'l.old_wholesale, l.new_wholesale';
+    } catch (Throwable $e) {
+        // keep zeros
+    }
     try {
         $st = $pdo->prepare(
             "SELECT l.id, l.doc_id, l.line_no, l.item_id, l.old_sale_price, l.new_sale_price,
+                    {$whSql},
                     l.tax_rate_percent, l.status AS line_status,
                     {$itemNoSql} AS item_sku, i.name_ar AS item_name
              FROM inv_item_sale_price_adj l
@@ -270,6 +311,7 @@ function inv_price_adj_lines(PDO $pdo, int $docId): array
     } catch (Throwable $e) {
         $st = $pdo->prepare(
             'SELECT l.id, l.doc_id, l.line_no, l.item_id, l.old_sale_price, l.new_sale_price,
+                    0 AS old_wholesale, 0 AS new_wholesale,
                     l.tax_rate_percent, l.status AS line_status,
                     i.sku AS item_sku, i.name_ar AS item_name
              FROM inv_item_sale_price_adj l

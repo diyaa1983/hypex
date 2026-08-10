@@ -190,6 +190,9 @@ $appBootMigrations = [
     'database/migrations/262_sal_rep_tour.sql',
     'database/migrations/263_sales_rep_visit_radius.sql',
     'database/migrations/264_inv_item_card_extend.sql',
+    'database/migrations/265_inv_price_adj_wholesale.sql',
+    'database/migrations/266_report_sales_rep_tours.sql',
+    'database/migrations/267_sal_rep_tour_weekday.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

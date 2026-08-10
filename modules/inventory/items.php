@@ -555,7 +555,7 @@ if ($action === 'add' || $action === 'edit') {
             <?php if ($pricesLocked): ?>
                 <div class="alert" style="background:#fef3c7;border:1px solid #f59e0b;color:#92400e;padding:.65rem .9rem;border-radius:8px;margin-bottom:.75rem;font-size:.88rem;">
                     الأسعار مقفلة بعد حركات على المادة. عدّل سعر البيع من
-                    <a href="<?= esc($priceAdjustUrl) ?>">شاشة تعديل أسعار المواد</a>
+                    <a href="<?= esc($priceAdjustUrl) ?>">شاشة تعديل أسعار البيع</a>
                     (الكلفة والجملة عبر الشاشات الخاصة لاحقاً).
                 </div>
             <?php endif; ?>

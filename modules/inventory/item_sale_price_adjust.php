@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msg = 'ليس لديك صلاحية الترحيل.';
                 $msgType = 'error';
             } else {
-                $res = inv_price_adj_post_document($pdo, $postDocId);
+                $res = inv_price_adj_post_document($pdo, $postDocId, $userId);
                 if ($res['ok']) {
                     flash_set('success', 'تم ترحيل الأسعار وتحديث بطاقات المواد.');
                     redirect($listUrl . '&id=' . $postDocId . $hubQ);
@@ -119,7 +119,7 @@ $jsItemDisplayUrl = app_url('assets/js/inv-item-display.js')
     . (is_file($jsItemDisplayPath) ? '?v=' . (string) filemtime($jsItemDisplayPath) : '');
 
 $hubQ = nav_hub_query_for_redirect();
-$pageTitle = 'تعديل أسعار المواد';
+$pageTitle = 'تعديل أسعار البيع';
 ?>
 <link rel="stylesheet" href="<?= esc($reportCssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssInvUrl) ?>">
@@ -183,10 +183,10 @@ $pageTitle = 'تعديل أسعار المواد';
                     </div>
                 </div>
                 <div class="item-price-adj-meta-item">
-                    <label for="item-price-adj-date">تاريخ الحركة *</label>
-                    <input type="text" class="input input-compact js-date-dmy" name="adj_date" id="item-price-adj-date"
-                           required value="<?= esc($adjDateDisplay) ?>"
-                        <?= $isPosted ? 'readonly' : '' ?>>
+                    <label for="item-price-adj-date">تاريخ التعديل</label>
+                    <input type="text" class="input input-compact" name="adj_date" id="item-price-adj-date"
+                           value="<?= esc($adjDateDisplay) ?>" readonly
+                           title="تاريخ تلقائي — يوم تنفيذ التعديل">
                 </div>
                 <?php if ($isPosted): ?>
                     <div class="item-price-adj-meta-item item-price-adj-meta-status">
