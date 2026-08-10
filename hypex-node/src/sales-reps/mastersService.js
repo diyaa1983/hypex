@@ -334,17 +334,11 @@ function parseTourLines(payload, tourFrom, tourTo) {
     for (const ln of rawLines) {
       const customerId = Number(ln.customer_id || ln.id || 0);
       if (customerId < 1) continue;
-      let df = String(ln.date_from || tourFrom || '').slice(0, 10);
-      let dt = String(ln.date_to || tourTo || '').slice(0, 10);
-      if (!isIsoDate(df)) df = tourFrom;
-      if (!isIsoDate(dt)) dt = tourTo;
-      if (df > dt) [df, dt] = [dt, df];
-      if (df < tourFrom) df = tourFrom;
-      if (dt > tourTo) dt = tourTo;
+      // التواريخ على مستوى الجولة فقط — نفس الفترة لكل العملاء
       lines.push({
         customer_id: customerId,
-        date_from: df,
-        date_to: dt,
+        date_from: tourFrom,
+        date_to: tourTo,
         region_id: Number(ln.region_id || 0) || null,
         region_address_id: Number(ln.region_address_id || 0) || null,
       });
@@ -620,14 +614,16 @@ async function deleteTour(id) {
   }
 }
 
-/** تفاصيل الطباعة: صف لكل يوم + عميل */
+/** تفاصيل الطباعة: صف لكل يوم + عميل (فترة الجولة لكل العملاء) */
 async function getTourPrintRows(id) {
   const tour = await getTour(id);
   if (!tour) return null;
+  const tourFrom = String(tour.date_from || '').slice(0, 10);
+  const tourTo = String(tour.date_to || '').slice(0, 10);
+  const days = daysBetween(tourFrom, tourTo);
   const rows = [];
-  for (const ln of tour.lines || []) {
-    const days = daysBetween(String(ln.date_from).slice(0, 10), String(ln.date_to).slice(0, 10));
-    for (const day of days) {
+  for (const day of days) {
+    for (const ln of tour.lines || []) {
       rows.push({
         visit_date: day,
         customer_code: ln.customer_code || '',

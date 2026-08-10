@@ -261,8 +261,6 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       region_address_id: Number(l.region_address_id || 0) || null,
       region_name: l.region_name || '',
       address_name: l.address_name || '',
-      date_from: String(l.date_from || dateFrom).slice(0, 10),
-      date_to: String(l.date_to || dateTo).slice(0, 10),
     }))
   ).replace(/</g, '\\u003c');
 
@@ -376,6 +374,9 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
                 <strong>عملاء الخطة</strong>
                 <span class="muted" id="srr-selected-count">0 عميل</span>
               </div>
+              <p class="muted" style="margin:0;padding:.35rem .75rem 0;font-size:.78rem;font-weight:600">
+                فترة الجولة (من/إلى) أعلاه تُطبَّق على كل العملاء — بدون تواريخ منفصلة لكل عميل.
+              </p>
               <div class="srr-selected-table-wrap">
                 <table class="si-table srr-selected-table" id="srr-selected-table">
                   <thead>
@@ -383,8 +384,6 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
                       <th>العميل</th>
                       <th>المنطقة</th>
                       <th>العنوان</th>
-                      <th>من</th>
-                      <th>إلى</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -503,8 +502,6 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         if(linesInput) linesInput.value = JSON.stringify(selected.map(function(r){
           return {
             customer_id: r.customer_id,
-            date_from: r.date_from || defaultFrom(),
-            date_to: r.date_to || defaultTo(),
             region_id: r.region_id || null,
             region_address_id: r.region_address_id || null
           };
@@ -515,7 +512,7 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       function renderSelected(){
         if(!bodySel) return;
         if(!selected.length){
-          bodySel.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center;padding:.8rem">لم يُختر عملاء بعد</td></tr>';
+          bodySel.innerHTML = '<tr><td colspan="4" class="muted" style="text-align:center;padding:.8rem">لم يُختر عملاء بعد</td></tr>';
           syncHidden();
           return;
         }
@@ -524,8 +521,6 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
             + '<td><strong>'+escHtml(r.name)+'</strong> <span class="muted" dir="ltr">'+escHtml(r.code)+'</span></td>'
             + '<td>'+escHtml(r.region_name||'—')+'</td>'
             + '<td>'+escHtml(r.address_name||'—')+'</td>'
-            + '<td><input type="date" class="si-field srr-line-from" data-idx="'+idx+'" value="'+escHtml(r.date_from||defaultFrom())+'" '+(posted?'readonly':'')+'></td>'
-            + '<td><input type="date" class="si-field srr-line-to" data-idx="'+idx+'" value="'+escHtml(r.date_to||defaultTo())+'" '+(posted?'readonly':'')+'></td>'
             + '<td>'+(posted?'':('<button type="button" class="si-btn srr-btn-sm srr-remove" data-idx="'+idx+'">حذف</button>'))+'</td>'
             + '</tr>';
         }).join('');
@@ -549,9 +544,7 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
           region_id: c.region_id || null,
           region_address_id: c.region_address_id || null,
           region_name: c.region_name || '',
-          address_name: c.address_name || '',
-          date_from: defaultFrom(),
-          date_to: defaultTo()
+          address_name: c.address_name || ''
         });
         renderSelected();
         renderCustList();
@@ -653,15 +646,6 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
           var idx = Number(btn.getAttribute('data-idx')|| -1);
           if(idx>=0){ selected.splice(idx,1); renderSelected(); renderCustList(); }
         });
-        bodySel.addEventListener('change', function(e){
-          var t = e.target;
-          if(!t) return;
-          var idx = Number(t.getAttribute('data-idx')|| -1);
-          if(idx<0 || !selected[idx]) return;
-          if(t.classList.contains('srr-line-from')) selected[idx].date_from = t.value;
-          if(t.classList.contains('srr-line-to')) selected[idx].date_to = t.value;
-          syncHidden();
-        });
       }
 
       if(repEl) repEl.addEventListener('change', scheduleLoad);
@@ -670,15 +654,6 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       });
       if(addressEl) addressEl.addEventListener('change', scheduleLoad);
       if(qEl) qEl.addEventListener('input', scheduleLoad);
-
-      if(fromEl) fromEl.addEventListener('change', function(){
-        selected.forEach(function(r){ if(!r.date_from) r.date_from = defaultFrom(); });
-        renderSelected();
-      });
-      if(toEl) toEl.addEventListener('change', function(){
-        selected.forEach(function(r){ if(!r.date_to) r.date_to = defaultTo(); });
-        renderSelected();
-      });
 
       if(addVisibleBtn) addVisibleBtn.addEventListener('click', function(){
         custCache.forEach(addCustomer);
