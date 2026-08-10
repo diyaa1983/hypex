@@ -71,11 +71,17 @@ app.use(express.json({ limit: '2mb' }));
 // جلسة في MySQL — لا تُفقد عند إيقاف/تشغيل Node
 app.use(createSessionMiddleware());
 
-/** تحميل اسم الشركة/الشعار من الإعدادات قبل عرض الصفحات (ترويسة الطباعة) */
+/** تحميل اسم الشركة/الشعار + خانات الأرقام من الإعدادات */
 app.use(async (req, res, next) => {
   try {
     if (req.session && req.session.user) {
       await ensurePrintBrand();
+      try {
+        const companyDecimals = require('./lib/companyDecimals');
+        await companyDecimals.load();
+      } catch {
+        /* */
+      }
     }
   } catch {
     /* ignore */

@@ -567,19 +567,23 @@ if ($action === 'add' || $action === 'edit') {
             <div class="form-row">
                 <label class="field">
                     <span class="field-label">سعر الكلفة</span>
-                    <input class="input" name="default_cost" type="number" step="<?= esc($unitPriceStep) ?>" min="0"
-                           value="<?= esc(format_amount((float) $row['default_cost'], $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>>
+                    <input class="input" name="default_cost" type="text" inputmode="decimal" step="<?= esc($unitPriceStep) ?>" min="0"
+                           value="<?= esc(format_amount((float) $row['default_cost'], $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>
+                           pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
+                    <span class="muted" style="font-size:.75rem">خانات: <?= (int) $unitPriceDp ?></span>
                 </label>
                 <label class="field">
                     <span class="field-label">سعر البيع</span>
-                    <input class="input" name="default_sale" type="number" step="<?= esc($unitPriceStep) ?>" min="0"
-                           value="<?= esc(format_amount((float) $row['default_sale'], $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>>
+                    <input class="input" name="default_sale" type="text" inputmode="decimal" step="<?= esc($unitPriceStep) ?>" min="0"
+                           value="<?= esc(format_amount((float) $row['default_sale'], $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>
+                           pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
                 </label>
                 <?php if ($hasWholesale): ?>
                 <label class="field">
                     <span class="field-label">سعر الجملة</span>
-                    <input class="input" name="default_wholesale" type="number" step="<?= esc($unitPriceStep) ?>" min="0"
-                           value="<?= esc(format_amount((float) ($row['default_wholesale'] ?? 0), $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>>
+                    <input class="input" name="default_wholesale" type="text" inputmode="decimal" step="<?= esc($unitPriceStep) ?>" min="0"
+                           value="<?= esc(format_amount((float) ($row['default_wholesale'] ?? 0), $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>
+                           pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
                 </label>
                 <?php endif; ?>
             </div>
@@ -618,7 +622,8 @@ if ($action === 'add' || $action === 'edit') {
                     <option value="">— بدون ضريبة مخصصة —</option>
                     <?php foreach ($taxRates as $tr): ?>
                         <option value="<?= (int) $tr['id'] ?>" <?= (int) ($row['tax_rate_id'] ?? 0) === (int) $tr['id'] ? 'selected' : '' ?>>
-                            <?= esc((string) $tr['name_ar']) ?> (<?= esc(format_amount((float) $tr['rate_percent'], min(3, $amountDp), false)) ?>%)
+                            <?= esc((string) $tr['name_ar']) ?>
+                            (<?= esc(rtrim(rtrim(number_format((float) $tr['rate_percent'], (int) $amountDp, '.', ''), '0'), '.') ?: '0') ?>%)
                         </option>
                     <?php endforeach; ?>
                 </select>

@@ -241,11 +241,17 @@ router.get('/inventory/items', async (req, res) => {
 async function itemForm(req, res, id) {
   if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
   const lookups = await svc.itemLookups();
-  await companyDecimals.load();
+  await companyDecimals.load(true);
   const unitDp = companyDecimals.unitPlaces();
   const unitStep = companyDecimals.unitStep();
   const fmtPrice = (v) => companyDecimals.formatUnitInput(v);
-  const fmtTaxPct = (v) => companyDecimals.formatInput(v, Math.min(unitDp, companyDecimals.amountPlaces()));
+  const fmtTaxPct = (v) => {
+    // نسب الضريبة: بلا أصفار زائدة (16 بدل 16.000) مع احترام حدّ الخانات
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '0';
+    const fixed = n.toFixed(Math.min(unitDp, companyDecimals.amountPlaces()));
+    return fixed.replace(/\.?0+$/, '') || '0';
+  };
   const item = id ? await svc.getItem(id) : null;
   if (id && !item) return res.status(404).send('غير موجود');
   const isNew = !item;
@@ -422,19 +428,26 @@ async function itemForm(req, res, id) {
             <p class="muted" style="margin:0 0 .65rem;font-size:.8rem;line-height:1.45">
               أدخل <b>سعر الحبة / أقل وحدة</b> فقط. عند البيع بالكرتون (مثلاً 12) يحسب النظام السعر تلقائياً =
               سعر الحبة × 12 في الفاتورة وطلب العميل.
+              · الخانات العشرية حسب الإعدادات: <b dir="ltr">${unitDp}</b>
             </p>
             <div class="si-meta">
               <label>سعر الكلفة
-                <input class="si-field si-field--mono" name="default_cost" type="number" step="${esc(unitStep)}" min="0"
-                       value="${esc(fmtPrice(item?.default_cost != null ? item.default_cost : 0))}" dir="ltr" ${ro}>
+                <input class="si-field si-field--mono" name="default_cost" type="text" inputmode="decimal"
+                       step="${esc(unitStep)}" min="0"
+                       value="${esc(fmtPrice(item?.default_cost != null ? item.default_cost : 0))}" dir="ltr" ${ro}
+                       pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
               </label>
               <label>سعر البيع
-                <input class="si-field si-field--mono" name="default_sale" type="number" step="${esc(unitStep)}" min="0"
-                       value="${esc(fmtPrice(item?.default_sale != null ? item.default_sale : 0))}" dir="ltr" ${ro}>
+                <input class="si-field si-field--mono" name="default_sale" type="text" inputmode="decimal"
+                       step="${esc(unitStep)}" min="0"
+                       value="${esc(fmtPrice(item?.default_sale != null ? item.default_sale : 0))}" dir="ltr" ${ro}
+                       pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
               </label>
               <label>سعر الجملة
-                <input class="si-field si-field--mono" name="default_wholesale" type="number" step="${esc(unitStep)}" min="0"
-                       value="${esc(fmtPrice(item?.default_wholesale != null ? item.default_wholesale : 0))}" dir="ltr" ${ro}>
+                <input class="si-field si-field--mono" name="default_wholesale" type="text" inputmode="decimal"
+                       step="${esc(unitStep)}" min="0"
+                       value="${esc(fmtPrice(item?.default_wholesale != null ? item.default_wholesale : 0))}" dir="ltr" ${ro}
+                       pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
               </label>
             </div>
           </div>
