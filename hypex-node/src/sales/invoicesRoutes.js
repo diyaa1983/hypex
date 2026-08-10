@@ -257,15 +257,33 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
     if (!inv) return res.status(404).send('الفاتورة غير موجودة');
 
     const payLabel = inv.payment_type === 'cash' ? 'نقدي' : 'ذمم';
-    const custLabel =
-      (inv.customer_code ? inv.customer_code + ' — ' : '') + (inv.customer_name || '—');
+    // اسم العميل فقط دون الرمز
+    const custLabel = String(inv.customer_name || '').trim() || '—';
 
-    // QR فقط بعد الإرسال للفوترة (وجود einv_qr)؛ المجاميع دائماً ظاهرة
     const einvSent = !!inv.einv_sent;
     const qrSrc = einvSent ? einvQrImageSrc(inv.einv_qr) : null;
 
+    const lines = Array.isArray(inv.lines) ? inv.lines : [];
+    const showExtra = lines.some((ln) => (Number(ln.qty_extra) || 0) > 0.000001);
+    const discLinesTotal = lines.reduce((a, ln) => a + (Number(ln.discount_amount) || 0), 0);
+    const hasLineDisc = lines.some(
+      (ln) =>
+        (Number(ln.discount_pct) || 0) > 0.000001 || (Number(ln.discount_amount) || 0) > 0.000001
+    );
+    const invDiscRaw = String(inv.invoice_discount_input || '').trim();
+    // أي خصم فاتورة غير فارغ/غير صفري يظهر
+    let hasInvDisc = false;
+    if (invDiscRaw) {
+      const stripped = invDiscRaw.replace(/%/g, '').replace(/,/g, '').trim();
+      const n = Number(stripped);
+      hasInvDisc = Number.isFinite(n) ? Math.abs(n) > 0.000001 : invDiscRaw !== '0' && invDiscRaw !== '0.000';
+    }
+    const showDisc = hasLineDisc || hasInvDisc || discLinesTotal > 0.000001;
+    const invDiscLabel = invDiscRaw || fmtAmt(0);
+    const colCount = 11 + (showExtra ? 1 : 0) + (showDisc ? 1 : 0);
+
     const bodyRows =
-      inv.lines
+      lines
         .map((ln, i) => {
           const qty = Number(ln.qty) || 0;
           const qtyExtra = Number(ln.qty_extra) || 0;
@@ -274,21 +292,26 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
           const taxPct = Number(ln.tax_rate_percent) || 0;
           const unitNet = Number(ln.unit_price) || 0;
           const unitGross = unitNet * (1 + taxPct / 100);
-          // عرض الخصم: النسبة إن وُجدت، وإلا مبلغ الخصم (يبقى العمود دائماً)
           const discCell =
-            discPct > 0.000001
-              ? `${fmtAmt(discPct)}%`
-              : fmtAmt(discAmt);
+            discPct > 0.000001 ? `${fmtAmt(discPct)}%` : fmtAmt(discAmt);
           return `<tr>
             <td class="c-idx" dir="ltr">${i + 1}</td>
             <td class="c-code" dir="ltr">${esc(ln.item_code || '')}</td>
             <td class="c-name">${esc(ln.name_ar || '')}</td>
             <td class="c-unit">${esc(ln.unit_name || 'قطعة')}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(qty))}</td>
-            <td class="c-num" dir="ltr">${esc(fmtAmt(qtyExtra))}</td>
+            ${
+              showExtra
+                ? `<td class="c-num" dir="ltr">${esc(fmtAmt(qtyExtra))}</td>`
+                : ''
+            }
             <td class="c-num" dir="ltr">${esc(fmtAmt(unitNet))}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(unitGross))}</td>
-            <td class="c-num c-disc" dir="ltr">${esc(discCell)}</td>
+            ${
+              showDisc
+                ? `<td class="c-num c-disc" dir="ltr">${esc(discCell)}</td>`
+                : ''
+            }
             <td class="c-num" dir="ltr">${esc(fmtAmt(ln.line_total))}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(ln.tax_amount))}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(taxPct))}%</td>
@@ -296,41 +319,45 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
           </tr>`;
         })
         .join('') ||
-      `<tr><td colspan="13" class="empty">لا بنود</td></tr>`;
-
-    const invDiscLabel = String(inv.invoice_discount_input || '').trim() || fmtAmt(0);
+      `<tr><td colspan="${colCount}" class="empty">لا بنود</td></tr>`;
 
     const qrBlock =
       qrSrc
         ? `<div class="inv-v1-qr"><img src="${esc(qrSrc)}" width="120" height="120" alt="QR الفوترة"></div>`
         : '';
 
-    // المجاميع بنفس شكل شاشة الفاتورة: بطاقات + خصم/ملاحظات
+    const discSumRows = showDisc
+      ? `<tr>
+                <td class="lbl">خصم الفاتورة</td>
+                <td class="val" dir="ltr">${esc(invDiscLabel)}</td>
+              </tr>
+              <tr>
+                <td class="lbl">مجموع الخصم</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(discLinesTotal))}</td>
+              </tr>`
+      : '';
+
     const sumsBlock = `<div class="inv-v1-sumwrap">
-            <div class="inv-v1-sum-strip" aria-label="ملخص الفاتورة">
-              <div class="inv-v1-sum-box">
-                <span>بدون ضريبة</span>
-                <strong dir="ltr">${esc(fmtAmt(inv.subtotal))}</strong>
-              </div>
-              <div class="inv-v1-sum-box">
-                <span>الضريبة</span>
-                <strong dir="ltr">${esc(fmtAmt(inv.tax_amount))}</strong>
-              </div>
-              <div class="inv-v1-sum-box inv-v1-sum-box--grand">
-                <span>الإجمالي</span>
-                <strong dir="ltr">${esc(fmtAmt(inv.total))}</strong>
-              </div>
-            </div>
-            <div class="inv-v1-doc-foot">
-              <div class="inv-v1-foot-field inv-v1-foot-notes">
-                <span class="lbl">ملاحظات</span>
-                <div class="val">${inv.notes ? esc(inv.notes) : '<span class="muted">—</span>'}</div>
-              </div>
-              <div class="inv-v1-foot-field inv-v1-foot-disc">
-                <span class="lbl">خصم مستوى الفاتورة</span>
-                <div class="val" dir="ltr">${esc(invDiscLabel)}</div>
-              </div>
-            </div>
+            <table class="inv-v1-sum">
+              ${discSumRows}
+              <tr>
+                <td class="lbl">المجموع بدون ضريبة</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(inv.subtotal))}</td>
+              </tr>
+              <tr>
+                <td class="lbl">مجموع الضريبة</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(inv.tax_amount))}</td>
+              </tr>
+              <tr class="grand">
+                <td class="lbl">الإجمالي</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(inv.total))}</td>
+              </tr>
+            </table>
+            ${
+              inv.notes
+                ? `<div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(inv.notes)}</div>`
+                : ''
+            }
           </div>`;
 
     const contentHtml = `
@@ -358,10 +385,10 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
               <th>اسم المادة</th>
               <th>الوحدة</th>
               <th>الكمية</th>
-              <th>الكمية الإضافية</th>
+              ${showExtra ? '<th>الكمية الإضافية</th>' : ''}
               <th>الافرادي غ.ش</th>
               <th>الافرادي ش.</th>
-              <th>الخصم</th>
+              ${showDisc ? '<th>الخصم</th>' : ''}
               <th>السعر الإجمالي</th>
               <th>مبلغ الضريبة</th>
               <th>نسبة الضريبة</th>
@@ -380,7 +407,6 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         </div>
       </div>`;
 
-    // لا تفتح حوار الطباعة تلقائياً — فقط بعد ضغط زر «طباعة» في صفحة المعاينة
     const autoPrint = false;
 
     res.send(
@@ -555,20 +581,6 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
               <tbody id="si-lines-body"></tbody>
             </table>
           </div>
-          <div class="si-sum-strip" aria-label="ملخص الفاتورة">
-            <div class="si-sum-box">
-              <span>بدون ضريبة</span>
-              <strong id="sum_sub" dir="ltr">0.000</strong>
-            </div>
-            <div class="si-sum-box">
-              <span>الضريبة</span>
-              <strong id="sum_tax" dir="ltr">0.000</strong>
-            </div>
-            <div class="si-sum-box si-sum-box--grand">
-              <span>الإجمالي</span>
-              <strong id="sum_grand" dir="ltr">0.000</strong>
-            </div>
-          </div>
           <div class="si-doc-foot">
             <label class="si-notes">ملاحظات
               <textarea id="inv_notes" rows="3" ${
@@ -582,6 +594,9 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 )}"
                        placeholder="10 أو 10% أو 1.000" ${initial.is_posted ? 'readonly' : ''}>
               </label>
+              <div class="si-tot-row"><span>بدون ضريبة</span><strong id="sum_sub" dir="ltr">0.000</strong></div>
+              <div class="si-tot-row"><span>الضريبة</span><strong id="sum_tax" dir="ltr">0.000</strong></div>
+              <div class="si-tot-row si-tot-grand"><span>الإجمالي</span><strong id="sum_grand" dir="ltr">0.000</strong></div>
             </div>
           </div>
         </section>
