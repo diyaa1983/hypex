@@ -312,15 +312,32 @@ async function renderStandalonePrintPage({
     }
     .inv-v1-sign-label{font-size:10pt;font-weight:700;color:#1e3a5f;margin-bottom:1.8rem;text-align:center;width:12rem}
     .inv-v1-sign-line{border-bottom:1px solid #0f172a;width:12rem;margin:0}
-    /* تاريخ الطباعة + المستخدم — أسفل يسار الصفحة بخط صغير */
+    /* تاريخ الطباعة + المستخدم — زاوية الصفحة السفلية اليسرى (ليس تحت المحتوى) */
     .inv-v1-printmeta{
-      margin-top:1.6rem;padding-top:2px;
-      font:500 6.5pt Arial,Helvetica,sans-serif;color:#94a3b8;
-      text-align:left;direction:rtl;width:100%
+      font:500 6.5pt/1.2 Arial,Helvetica,sans-serif;color:#64748b;
+      direction:rtl;text-align:left;white-space:nowrap;
+      pointer-events:none;z-index:5
     }
     .inv-v1-printmeta span[dir="ltr"]{unicode-bidi:embed}
+    /* معاينة الشاشة: أسفل يسار ورقة A4 */
+    .hx-doc-sheet{position:relative;min-height:277mm;padding-bottom:14mm}
+    .hx-doc-sheet > .inv-v1-printmeta{
+      position:absolute;left:8mm;bottom:6mm;margin:0;width:auto
+    }
     @media print{
       .inv-v1-table thead th{background:#5b6b7c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      /* الطباعة: زاوية الورقة السفلية اليسرى ثابتاً */
+      .hx-doc-sheet{min-height:0;padding-bottom:10mm}
+      .hx-doc-sheet > .inv-v1-printmeta,
+      .inv-v1-printmeta{
+        position:fixed!important;
+        left:7mm!important;
+        bottom:4mm!important;
+        right:auto!important;
+        margin:0!important;
+        width:auto!important;
+        text-align:left!important
+      }
     }
     @media (max-width:720px){
       .inv-v1-top{grid-template-columns:1fr;text-align:center}
@@ -330,7 +347,7 @@ async function renderStandalonePrintPage({
     }`
     : '';
 
-  // طابع صغير في أسفل الصفحة لفاتورة المبيعات
+  // طابع صغير — زاوية سفلية يسرى للصفحة
   const printStamp = (() => {
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
@@ -367,7 +384,7 @@ async function renderStandalonePrintPage({
       border:0;border-radius:8px;padding:.45rem .85rem;text-decoration:none;cursor:pointer}
     .hx-doc-btn--pri{background:linear-gradient(180deg,#0ea5e9 0%,#0369a1 100%);color:#fff}
     .hx-doc-sheet{max-width:210mm;margin:1rem auto 2rem;background:#fff;padding:10mm 8mm;
-      box-shadow:0 8px 28px rgba(15,23,42,.1)}
+      box-shadow:0 8px 28px rgba(15,23,42,.1);position:relative}
     .hx-doc-head{margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid #222}
     .hx-doc-head__row{display:flex;direction:ltr;align-items:center;justify-content:space-between;gap:16px;width:100%}
     .hx-doc-logo-wrap{flex:0 0 auto;max-width:140px;max-height:120px;overflow:visible}
@@ -384,7 +401,7 @@ async function renderStandalonePrintPage({
       body{background:#fff}
       .no-print,.hx-doc-bar{display:none!important}
       .hx-doc-sheet{max-width:none;margin:0;padding:0;box-shadow:none;position:relative}
-      @page{size:A4 portrait;margin:8mm 7mm 12mm 7mm}
+      @page{size:A4 portrait;margin:8mm 7mm 14mm 7mm}
     }
   </style>
 </head>
