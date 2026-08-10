@@ -11,6 +11,7 @@
   var tbody = document.getElementById('co-lines-body');
   var custTimer = null;
   var itemTimers = {};
+  var busy = false;
 
   function r3(n) {
     return Math.round((Number(n) || 0) * 1000) / 1000;
@@ -27,6 +28,37 @@
     if (!msgEl) return;
     msgEl.textContent = text || '';
     msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : type === 'ok' ? ' is-ok' : '');
+  }
+
+  function setBusy(on) {
+    busy = !!on;
+    document.querySelectorAll('#co-doc-bar .si-tb').forEach(function (btn) {
+      if (!btn) return;
+      if (on) {
+        if (!btn.hasAttribute('data-was-disabled')) {
+          btn.setAttribute('data-was-disabled', btn.disabled ? '1' : '0');
+        }
+        btn.disabled = true;
+      } else {
+        var was = btn.getAttribute('data-was-disabled');
+        if (was != null) {
+          btn.disabled = was === '1';
+          btn.removeAttribute('data-was-disabled');
+        }
+      }
+    });
+  }
+
+  function hxConfirm(msg, opts) {
+    opts = opts || {};
+    if (window.HypexUI && window.HypexUI.confirm) {
+      return window.HypexUI.confirm(msg, {
+        title: opts.title || 'تأكيد',
+        okLabel: opts.okLabel || 'موافق',
+        cancelLabel: opts.cancelLabel || 'إلغاء',
+      });
+    }
+    return Promise.resolve(window.confirm(msg));
   }
 
   function lineTotals(ln) {
@@ -88,18 +120,34 @@
       .replace(/</g, '&lt;');
   }
 
+  function syncLinesFromDom() {
+    if (!tbody) return;
+    tbody.querySelectorAll('tr').forEach(function (tr) {
+      readLineFromRow(tr);
+    });
+  }
+
   function readLineFromRow(tr) {
     var idx = Number(tr.getAttribute('data-idx'));
     var ln = state.lines[idx] || {};
-    ln.qty = tr.querySelector('.js-qty').value;
-    ln.qty_extra = tr.querySelector('.js-qty-extra').value;
-    ln.unit_price = tr.querySelector('.js-price').value;
-    ln.discount_pct = tr.querySelector('.js-disc').value;
-    ln.tax_rate_percent = tr.querySelector('.js-tax').value;
+    var qtyEl = tr.querySelector('.js-qty');
+    var qtyExtraEl = tr.querySelector('.js-qty-extra');
+    var priceEl = tr.querySelector('.js-price');
+    var discEl = tr.querySelector('.js-disc');
+    var taxEl = tr.querySelector('.js-tax');
+    if (qtyEl) ln.qty = qtyEl.value;
+    if (qtyExtraEl) ln.qty_extra = qtyExtraEl.value;
+    if (priceEl) ln.unit_price = priceEl.value;
+    if (discEl) ln.discount_pct = discEl.value;
+    if (taxEl) ln.tax_rate_percent = taxEl.value;
+    var hid = tr.querySelector('.js-item-id');
+    if (hid && hid.value) ln.item_id = Number(hid.value) || 0;
     state.lines[idx] = ln;
     var t = lineTotals(ln);
-    tr.querySelector('.js-sub').textContent = fmt(t.sub);
-    tr.querySelector('.js-gross').textContent = fmt(t.gross);
+    var subEl = tr.querySelector('.js-sub');
+    var grossEl = tr.querySelector('.js-gross');
+    if (subEl) subEl.textContent = fmt(t.sub);
+    if (grossEl) grossEl.textContent = fmt(t.gross);
     recomputeFooter();
   }
 
@@ -173,29 +221,34 @@
           readLineFromRow(tr);
         });
     });
-    var del = tr.querySelector('.js-del');
-    if (del) {
-      del.addEventListener('click', function () {
-        var idx = Number(tr.getAttribute('data-idx'));
-        state.lines.splice(idx, 1);
-        if (!state.lines.length) addEmptyLine();
-        else renderLines();
-      });
-    }
     var itemInput = tr.querySelector('.js-item');
     var suggest = tr.querySelector('.js-item-suggest');
     if (itemInput && suggest && !locked) {
       itemInput.addEventListener('input', function () {
         var idx = Number(tr.getAttribute('data-idx'));
+        var hid = tr.querySelector('.js-item-id');
+        if (hid) hid.value = '';
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
           searchItems(itemInput.value, suggest, tr);
         }, 220);
       });
       itemInput.addEventListener('focus', function () {
-        if (itemInput.value.length < 1) searchItems('', suggest, tr);
+        searchItems(itemInput.value || '', suggest, tr);
       });
     }
+  }
+
+  function removeLineAt(idx) {
+    if (locked) return;
+    idx = Number(idx);
+    if (!Number.isFinite(idx) || idx < 0) return;
+    syncLinesFromDom();
+    if (!state.lines || !state.lines[idx]) return;
+    state.lines.splice(idx, 1);
+    if (!state.lines.length) addEmptyLine();
+    else renderLines();
+    setMsg('تم حذف البند من الجدول.', 'ok');
   }
 
   function searchItems(q, box, tr) {
@@ -234,6 +287,7 @@
   }
 
   function addEmptyLine() {
+    if (locked) return;
     state.lines = state.lines || [];
     state.lines.push({
       item_id: 0,
@@ -285,7 +339,7 @@
   });
 
   document.addEventListener('hx:add-line', function (e) {
-    if (locked || !document.getElementById('co-add-line')) return;
+    if (locked || !document.getElementById('co-doc-bar')) return;
     e.preventDefault();
     addEmptyLine();
   });
@@ -327,16 +381,11 @@
     });
   }
 
-  var addBtn = document.getElementById('co-add-line');
-  if (addBtn) addBtn.addEventListener('click', addEmptyLine);
-
   var disc = document.getElementById('co_discount');
   if (disc) disc.addEventListener('input', recomputeFooter);
 
   function collectPayload() {
-    tbody.querySelectorAll('tr').forEach(function (tr) {
-      readLineFromRow(tr);
-    });
+    syncLinesFromDom();
     return {
       id: state.id || 0,
       order_date: (document.getElementById('co_date') || {}).value || '',
@@ -351,62 +400,83 @@
     };
   }
 
-  var saveBtn = document.getElementById('co-save');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', function () {
-      if (locked) return;
-      var payload = collectPayload();
-      if (!payload.customer_id) {
-        setMsg('اختر العميل.', 'error');
-        return;
-      }
-      if (!payload.warehouse_id) {
-        setMsg('اختر المستودع.', 'error');
-        return;
-      }
-      if (!payload.lines.length) {
-        setMsg('أضف بنداً واحداً على الأقل.', 'error');
-        return;
-      }
-      setMsg('جاري الحفظ…');
-      saveBtn.disabled = true;
-      fetch('/api/sales/customer-orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (data) {
-          saveBtn.disabled = false;
-          if (!data.ok) {
-            setMsg(data.error || 'تعذر الحفظ', 'error');
-            return;
-          }
-          setMsg('تم الحفظ · ' + (data.order_no || ''), 'ok');
-          if (data.id && Number(data.id) !== Number(state.id)) {
-            window.location.href = '/sales/orders/' + data.id;
-          } else {
-            state.id = data.id;
-            var noEl = document.getElementById('co_no');
-            if (noEl && data.order_no) noEl.value = data.order_no;
-          }
-        })
-        .catch(function () {
-          saveBtn.disabled = false;
-          setMsg('تعذر الاتصال بالخادم', 'error');
-        });
-    });
-  }
-
-  function postAction(url, okRedirect) {
-    setMsg('جاري التنفيذ…');
-    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+  function saveOrder() {
+    if (locked || busy) return Promise.resolve(null);
+    var payload = collectPayload();
+    if (!payload.customer_id) {
+      setMsg('اختر العميل.', 'error');
+      return Promise.resolve(null);
+    }
+    if (!payload.warehouse_id) {
+      setMsg('اختر المستودع.', 'error');
+      return Promise.resolve(null);
+    }
+    if (!payload.lines.length) {
+      setMsg('أضف بنداً واحداً على الأقل.', 'error');
+      return Promise.resolve(null);
+    }
+    setMsg('جاري الحفظ…');
+    setBusy(true);
+    return fetch('/api/sales/customer-orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
       .then(function (r) {
         return r.json();
       })
       .then(function (data) {
+        setBusy(false);
+        if (!data.ok) {
+          setMsg(data.error || 'تعذر الحفظ', 'error');
+          return null;
+        }
+        setMsg('تم الحفظ · ' + (data.order_no || ''), 'ok');
+        if (data.id && Number(data.id) !== Number(state.id || 0)) {
+          if (window.history && window.history.replaceState) {
+            state.id = data.id;
+            state.order_no = data.order_no || '';
+            var noEl = document.getElementById('co_no');
+            if (noEl && data.order_no) noEl.value = data.order_no;
+            window.history.replaceState({}, '', '/sales/orders/' + data.id);
+            var bar = document.getElementById('co-doc-bar');
+            if (bar) bar.setAttribute('data-order-id', String(data.id));
+            // تفعيل أزرار الطباعة/الاعتماد بعد أول حفظ
+            ['co-print', 'co-pdf', 'co-excel'].forEach(function (id) {
+              var el = document.getElementById(id);
+              if (el) el.disabled = false;
+            });
+            var appr = document.getElementById('co-approve');
+            if (appr && state.can_approve) appr.disabled = false;
+            var del = document.getElementById('co-delete');
+            if (del && state.can_approve) del.disabled = false;
+          } else {
+            window.location.href = '/sales/orders/' + data.id;
+          }
+        } else {
+          state.id = data.id;
+          var noEl2 = document.getElementById('co_no');
+          if (noEl2 && data.order_no) noEl2.value = data.order_no;
+          state.order_no = data.order_no || state.order_no;
+        }
+        return data;
+      })
+      .catch(function () {
+        setBusy(false);
+        setMsg('تعذر الاتصال بالخادم', 'error');
+        return null;
+      });
+  }
+
+  function postAction(url, okRedirect) {
+    setMsg('جاري التنفيذ…');
+    setBusy(true);
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        setBusy(false);
         if (!data.ok) {
           setMsg(data.error || 'فشل الإجراء', 'error');
           return;
@@ -415,37 +485,141 @@
         else window.location.reload();
       })
       .catch(function () {
+        setBusy(false);
         setMsg('تعذر الاتصال بالخادم', 'error');
       });
+  }
+
+  function exportExcel() {
+    if (!state.id) {
+      setMsg('احفظ الطلب أولاً.', 'error');
+      return;
+    }
+    syncLinesFromDom();
+    var rows = [
+      ['#', 'رمز', 'مادة', 'كمية', 'إضافية', 'سعر', 'خصم%', 'ضريبة%', 'صافي', 'إجمالي'],
+    ];
+    (state.lines || []).forEach(function (ln, i) {
+      if (!ln.item_id) return;
+      var t = lineTotals(ln);
+      rows.push([
+        i + 1,
+        ln.item_code || '',
+        ln.name_ar || '',
+        ln.qty,
+        ln.qty_extra || 0,
+        ln.unit_price,
+        ln.discount_pct || 0,
+        ln.tax_rate_percent || 0,
+        t.sub,
+        t.gross,
+      ]);
+    });
+    var csv = rows
+      .map(function (r) {
+        return r
+          .map(function (c) {
+            var s = String(c == null ? '' : c).replace(/"/g, '""');
+            return '"' + s + '"';
+          })
+          .join(',');
+      })
+      .join('\r\n');
+    var bom = '\uFEFF';
+    var blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'order_' + (state.order_no || state.id) + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setMsg('تم تصدير Excel (CSV).', 'ok');
+  }
+
+  function openPrint() {
+    if (!state.id) {
+      setMsg('احفظ الطلب أولاً.', 'error');
+      return;
+    }
+    window.open('/sales/orders/' + state.id + '/print', '_blank');
+  }
+
+  if (tbody && !tbody._hxDelBound) {
+    tbody._hxDelBound = true;
+    tbody.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.js-del') : null;
+      if (!btn || locked) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var tr = btn.closest('tr');
+      if (!tr) return;
+      removeLineAt(Number(tr.getAttribute('data-idx')));
+    });
+  }
+
+  var saveBtn = document.getElementById('co-save');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', function () {
+      if (locked || busy) return;
+      saveOrder();
+    });
   }
 
   var approveBtn = document.getElementById('co-approve');
   if (approveBtn) {
     approveBtn.addEventListener('click', function () {
+      if (busy || locked) return;
       if (!state.id) {
         setMsg('احفظ الطلب أولاً ثم اعتمد.', 'error');
         return;
       }
-      if (!confirm('اعتماد هذا الطلب؟')) return;
-      postAction('/api/sales/customer-orders/' + state.id + '/approve', '/sales/orders/' + state.id);
+      hxConfirm('اعتماد هذا الطلب؟', { title: 'اعتماد', okLabel: 'اعتماد' }).then(function (ok) {
+        if (!ok) return;
+        postAction('/api/sales/customer-orders/' + state.id + '/approve', '/sales/orders/' + state.id);
+      });
     });
   }
 
   var unapproveBtn = document.getElementById('co-unapprove');
   if (unapproveBtn) {
     unapproveBtn.addEventListener('click', function () {
-      if (!state.id) return;
-      if (!confirm('فك اعتماد الطلب وإعادته لمسودة؟')) return;
-      postAction('/api/sales/customer-orders/' + state.id + '/unapprove', '/sales/orders/' + state.id);
+      if (busy || !state.id) return;
+      hxConfirm('فك اعتماد الطلب وإعادته لمسودة؟', {
+        title: 'فك الاعتماد',
+        okLabel: 'فك الاعتماد',
+      }).then(function (ok) {
+        if (!ok) return;
+        postAction(
+          '/api/sales/customer-orders/' + state.id + '/unapprove',
+          '/sales/orders/' + state.id
+        );
+      });
     });
   }
 
   var delBtn = document.getElementById('co-delete');
   if (delBtn) {
     delBtn.addEventListener('click', function () {
-      if (!state.id || locked) return;
-      if (!confirm('حذف هذا الطلب نهائياً؟')) return;
-      postAction('/api/sales/customer-orders/' + state.id + '/delete', '/sales/orders');
+      if (busy || !state.id || locked) return;
+      hxConfirm('حذف هذا الطلب نهائياً؟', { title: 'حذف', okLabel: 'حذف' }).then(function (ok) {
+        if (!ok) return;
+        postAction('/api/sales/customer-orders/' + state.id + '/delete', '/sales/orders');
+      });
+    });
+  }
+
+  var printBtn = document.getElementById('co-print');
+  if (printBtn) printBtn.addEventListener('click', openPrint);
+
+  var pdfBtn = document.getElementById('co-pdf');
+  if (pdfBtn) pdfBtn.addEventListener('click', openPrint);
+
+  var excelBtn = document.getElementById('co-excel');
+  if (excelBtn) excelBtn.addEventListener('click', exportExcel);
+
+  var searchBtn = document.getElementById('co-search');
+  if (searchBtn) {
+    searchBtn.addEventListener('click', function () {
+      window.location.href = '/sales/orders';
     });
   }
 

@@ -51,6 +51,8 @@ async function getOrder(id) {
       `SELECT l.*,
               COALESCE(NULLIF(TRIM(i.barcode), ''), i.sku) AS item_code,
               i.sku AS item_sku,
+              COALESCE(NULLIF(TRIM(l.item_name), ''), i.name_ar, '') AS item_name_resolved,
+              COALESCE(NULLIF(TRIM(l.unit_name), ''), NULLIF(TRIM(i.unit_name), ''), 'قطعة') AS unit_name_resolved,
               COALESCE(i.default_sale, 0) AS item_default_sale
        FROM sal_customer_order_line l
        LEFT JOIN inv_item i ON i.id = l.item_id
@@ -61,6 +63,8 @@ async function getOrder(id) {
   } catch {
     lines = await db.query(
       `SELECT l.*, i.sku AS item_code, i.sku AS item_sku,
+              COALESCE(NULLIF(TRIM(l.item_name), ''), i.name_ar, '') AS item_name_resolved,
+              COALESCE(NULLIF(TRIM(l.unit_name), ''), 'قطعة') AS unit_name_resolved,
               COALESCE(i.default_sale, 0) AS item_default_sale
        FROM sal_customer_order_line l
        LEFT JOIN inv_item i ON i.id = l.item_id
@@ -94,7 +98,7 @@ async function getOrder(id) {
     lines: lines.map((ln) => ({
       item_id: Number(ln.item_id),
       item_code: ln.item_code || ln.item_sku || '',
-      name_ar: ln.item_name || '',
+      name_ar: ln.item_name_resolved || ln.item_name || '',
       qty: Number(ln.qty || 0),
       qty_extra: Number(ln.qty_extra || 0),
       unit_price: Number(ln.unit_price || 0),
@@ -105,7 +109,7 @@ async function getOrder(id) {
       line_total: Number(ln.line_total || 0),
       line_gross: Number(ln.line_gross || 0),
       unit_id: ln.unit_id != null ? Number(ln.unit_id) : null,
-      unit_name: ln.unit_name || '',
+      unit_name: ln.unit_name_resolved || ln.unit_name || 'قطعة',
       unit_factor: Number(ln.unit_factor || 1),
       qty_base: Number(ln.qty_base || ln.qty || 0),
     })),

@@ -5,7 +5,8 @@ const auth = require('../auth');
 const svc = require('./customerOrdersService');
 const invSvc = require('./invoicesService');
 const { renderApp } = require('../lib/layout');
-const { esc, todayIso } = require('../lib/html');
+const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
+const { ensurePrintBrand, renderStandalonePrintPage } = require('../lib/printBrand');
 
 const router = express.Router();
 
@@ -63,6 +64,210 @@ function isoDate(v) {
   return todayIso();
 }
 
+function toolbarCaps(user, order) {
+  const locked = !!(order && order.is_approved);
+  const hasId = !!(order && order.id);
+  const canAppr = canApprove(user);
+  const edit = canEdit(user);
+  return {
+    canSave: edit && !locked,
+    canApprove: canAppr && hasId && !locked,
+    canUnapprove: canAppr && locked,
+    canDelete: hasId && !locked && (canAppr || user.is_admin),
+    canPrint: hasId,
+    canPdf: hasId,
+    canExcel: hasId,
+  };
+}
+
+function toolbarHtml(caps, order) {
+  const id = order && order.id ? Number(order.id) : 0;
+  const locked = !!(order && order.is_approved);
+  const b = (idAttr, label, cls, disabled, extra = '') =>
+    `<button type="button" class="si-tb ${cls || ''}" id="${idAttr}" ${
+      disabled ? 'disabled' : ''
+    }${extra}>${esc(label)}</button>`;
+
+  return `
+    <div class="si-cmd si-doc-toolbar" id="co-doc-bar" role="toolbar" aria-label="إجراءات طلب الشراء"
+         data-order-id="${id}" data-approved="${locked ? '1' : '0'}">
+      <div class="si-tb-group si-tb-group--core">
+        ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="F10 حفظ"')}
+        ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove)}
+      </div>
+      <div class="si-tb-group">
+        ${b('co-search', 'بحث', 'si-tb--ghost', false)}
+        ${b('co-pdf', 'PDF', '', !caps.canPdf)}
+        ${b('co-print', 'طباعة', '', !caps.canPrint)}
+        ${b('co-excel', 'Excel', '', !caps.canExcel)}
+      </div>
+      <div class="si-tb-group si-tb-group--risk">
+        ${b('co-unapprove', 'فك الاعتماد', '', !caps.canUnapprove)}
+        ${b('co-delete', 'حذف', 'si-tb--danger', !caps.canDelete)}
+      </div>
+      <div class="si-tb-group si-tb-group--status">
+        <span class="si-msg" id="co-msg"></span>
+      </div>
+    </div>`;
+}
+
+/** طباعة طلب شراء عميل — نفس شكل فاتورة المبيعات مع محتوى الطلب */
+async function renderOrderPrint(req, res, orderId) {
+  await ensurePrintBrand();
+  const order = await svc.getOrder(orderId);
+  if (!order) return res.status(404).send('الطلب غير موجود');
+
+  const custLabel = String(order.customer_name || '').trim() || '—';
+  const lines = Array.isArray(order.lines) ? order.lines : [];
+  const showExtra = lines.some((ln) => (Number(ln.qty_extra) || 0) > 0.000001);
+  const discLinesTotal = lines.reduce((a, ln) => a + (Number(ln.discount_amount) || 0), 0);
+  const hasLineDisc = lines.some(
+    (ln) =>
+      (Number(ln.discount_pct) || 0) > 0.000001 || (Number(ln.discount_amount) || 0) > 0.000001
+  );
+  const invDiscRaw = String(order.invoice_discount_input || '').trim();
+  let hasInvDisc = false;
+  if (invDiscRaw) {
+    const stripped = invDiscRaw.replace(/%/g, '').replace(/,/g, '').trim();
+    const n = Number(stripped);
+    hasInvDisc = Number.isFinite(n) ? Math.abs(n) > 0.000001 : invDiscRaw !== '0' && invDiscRaw !== '0.000';
+  }
+  const showDisc = hasLineDisc || hasInvDisc || discLinesTotal > 0.000001;
+  const invDiscLabel = invDiscRaw || fmtAmt(0);
+  const colCount = 11 + (showExtra ? 1 : 0) + (showDisc ? 1 : 0);
+  const statusLabel = order.is_approved ? 'معتمد' : 'مسودة';
+
+  const bodyRows =
+    lines
+      .map((ln, i) => {
+        const qty = Number(ln.qty) || 0;
+        const qtyExtra = Number(ln.qty_extra) || 0;
+        const discPct = Number(ln.discount_pct) || 0;
+        const discAmt = Number(ln.discount_amount) || 0;
+        const taxPct = Number(ln.tax_rate_percent) || 0;
+        const unitNet = Number(ln.unit_price) || 0;
+        const unitGross = unitNet * (1 + taxPct / 100);
+        const discCell = discPct > 0.000001 ? `${fmtAmt(discPct)}%` : fmtAmt(discAmt);
+        return `<tr>
+            <td class="c-idx" dir="ltr">${i + 1}</td>
+            <td class="c-code" dir="ltr">${esc(ln.item_code || '')}</td>
+            <td class="c-name">${esc(ln.name_ar || '')}</td>
+            <td class="c-unit">${esc(ln.unit_name || 'قطعة')}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(qty))}</td>
+            ${
+              showExtra
+                ? `<td class="c-num" dir="ltr">${esc(fmtAmt(qtyExtra))}</td>`
+                : ''
+            }
+            <td class="c-num" dir="ltr">${esc(fmtAmt(unitNet))}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(unitGross))}</td>
+            ${
+              showDisc
+                ? `<td class="c-num c-disc" dir="ltr">${esc(discCell)}</td>`
+                : ''
+            }
+            <td class="c-num" dir="ltr">${esc(fmtAmt(ln.line_total))}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(ln.tax_amount))}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(taxPct))}%</td>
+            <td class="c-num c-gross" dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
+          </tr>`;
+      })
+      .join('') ||
+    `<tr><td colspan="${colCount}" class="empty">لا بنود</td></tr>`;
+
+  const discSumRows = showDisc
+    ? `<tr>
+                <td class="lbl">خصم الطلب</td>
+                <td class="val" dir="ltr">${esc(invDiscLabel)}</td>
+              </tr>
+              <tr>
+                <td class="lbl">مجموع الخصم</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(discLinesTotal))}</td>
+              </tr>`
+    : '';
+
+  const sumsBlock = `<div class="inv-v1-sumwrap">
+            <table class="inv-v1-sum">
+              ${discSumRows}
+              <tr>
+                <td class="lbl">المجموع بدون ضريبة</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(order.subtotal))}</td>
+              </tr>
+              <tr>
+                <td class="lbl">مجموع الضريبة</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(order.tax_amount))}</td>
+              </tr>
+              <tr class="grand">
+                <td class="lbl">الإجمالي</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(order.total))}</td>
+              </tr>
+            </table>
+            ${
+              order.notes
+                ? `<div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(order.notes)}</div>`
+                : ''
+            }
+          </div>`;
+
+  const contentHtml = `
+      <div class="inv-v1 inv-v1--draft" dir="rtl">
+        <div class="inv-v1-top">
+          <div class="inv-v1-meta">
+            <div><span>رقم الطلب:</span> <strong dir="ltr">${esc(order.order_no || '—')}</strong></div>
+            <div><span>التاريخ:</span> <strong dir="ltr">${esc(isoToDmy(order.order_date))}</strong></div>
+            <div><span>العميل:</span> <strong>${esc(custLabel)}</strong></div>
+            <div><span>الحالة:</span> <strong>${esc(statusLabel)}</strong></div>
+            <div><span>المندوب:</span> <strong>${esc(order.sales_rep_name || '—')}</strong></div>
+            <div><span>المستودع:</span> <strong>${esc(order.warehouse_name || '—')}</strong></div>
+          </div>
+          <div class="inv-v1-title-block">
+            <h1 class="inv-v1-title">طلب شراء عميل</h1>
+          </div>
+        </div>
+
+        <table class="inv-v1-table">
+          <thead>
+            <tr>
+              <th>تسلسل</th>
+              <th>رقم المادة</th>
+              <th>اسم المادة</th>
+              <th>الوحدة</th>
+              <th>الكمية</th>
+              ${showExtra ? '<th>الكمية الإضافية</th>' : ''}
+              <th>الافرادي غ.ش</th>
+              <th>الافرادي ش.</th>
+              ${showDisc ? '<th>الخصم</th>' : ''}
+              <th>السعر الإجمالي</th>
+              <th>مبلغ الضريبة</th>
+              <th>نسبة الضريبة</th>
+              <th>الإجمالي مع الضريبة</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+
+        <div class="inv-v1-foot">
+          ${sumsBlock}
+          <div class="inv-v1-sign">
+            <div class="inv-v1-sign-label">توقيع المستلم</div>
+            <div class="inv-v1-sign-line"></div>
+          </div>
+        </div>
+      </div>`;
+
+  res.send(
+    await renderStandalonePrintPage({
+      user: req.session.user,
+      documentTitle: 'طلب شراء عميل',
+      backHref: `/sales/orders/${order.id}`,
+      contentHtml,
+      autoPrint: false,
+      printMode: 'sheet',
+      theme: 'invoice-v1',
+    })
+  );
+}
+
 async function renderForm(req, res, orderId) {
   const user = req.session.user;
   if (!canEdit(user) && (!orderId || !canView(user))) {
@@ -86,8 +291,7 @@ async function renderForm(req, res, orderId) {
 
   const isNew = !order;
   const locked = !!(order && order.is_approved);
-  const canAppr = canApprove(user);
-  const canDel = canAppr || user.is_admin;
+  const caps = toolbarCaps(user, order || { id: 0, is_approved: false });
 
   const initial = {
     id: order ? order.id : 0,
@@ -123,8 +327,9 @@ async function renderForm(req, res, orderId) {
       warehouses: lookups.warehouses,
       sales_reps: lookups.sales_reps,
     },
-    can_approve: canAppr,
-    can_delete: canDel && !locked && !isNew,
+    caps,
+    can_approve: canApprove(user),
+    can_delete: caps.canDelete,
   };
 
   const whOpts = (lookups.warehouses || [])
@@ -151,19 +356,6 @@ async function renderForm(req, res, orderId) {
     ? `طلب ${esc(initial.order_no)}`
     : 'طلب شراء عميل جديد';
 
-  const approveBtn =
-    canAppr && initial.id && !locked
-      ? `<button type="button" class="si-btn si-btn--primary" id="co-approve">اعتماد</button>`
-      : '';
-  const unapproveBtn =
-    canAppr && locked
-      ? `<button type="button" class="si-btn" id="co-unapprove">فك الاعتماد</button>`
-      : '';
-  const deleteBtn =
-    initial.can_delete
-      ? `<button type="button" class="si-btn" id="co-delete" style="color:#b42318">حذف</button>`
-      : '';
-
   const bodyHtml = `
     <div class="si-stage">
       <header class="si-hero">
@@ -175,30 +367,22 @@ async function renderForm(req, res, orderId) {
         </div>
         <div class="si-hero-actions">
           <a class="si-btn" href="/sales/orders">القائمة</a>
-          <a class="si-btn si-btn--primary" href="/sales/orders/new">طلب جديد</a>
-          <a class="si-btn" href="/hub/sales">لوحة المبيعات</a>
+          <a class="si-btn" href="/sales/orders/new">جديد</a>
         </div>
       </header>
 
-      <div class="si-cmd" id="co-doc-bar">
-        <button type="button" class="si-btn si-btn--primary" id="co-save" data-hx-save="1" title="F10 حفظ" ${locked || !canEdit(user) ? 'disabled' : ''}>حفظ</button>
-        <button type="button" class="si-btn" id="co-add-line" data-hx-add-line="1" title="F2 سطر جديد" ${locked || !canEdit(user) ? 'disabled' : ''}>＋ سطر</button>
-        ${approveBtn}
-        ${unapproveBtn}
-        ${deleteBtn}
-        <span class="si-msg" id="co-msg"></span>
-      </div>
+      ${toolbarHtml(caps, initial)}
 
       <section class="si-surface">
         <div class="si-surface-head">
-          <h2>بيانات السند</h2>
+          <h2>بيانات المستند</h2>
           <span class="si-count">${esc(initial.status_label)}</span>
         </div>
         <div class="si-meta">
-          <label>رقم السند
+          <label>رقم الطلب
             <input class="si-field si-field--mono" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="—" dir="ltr">
           </label>
-          <label>تاريخ السند
+          <label>التاريخ
             <input class="si-field si-field--mono" id="co_date" type="date" value="${esc(initial.order_date)}" ${locked ? 'readonly' : ''}>
           </label>
           <label class="si-span-2">العميل
@@ -223,7 +407,7 @@ async function renderForm(req, res, orderId) {
 
       <section class="si-surface">
         <div class="si-surface-head">
-          <h2>تفاصيل المواد</h2>
+          <h2>بنود الطلب</h2>
           <span class="si-count">line items</span>
         </div>
         <div class="si-lines-wrap">
@@ -250,7 +434,7 @@ async function renderForm(req, res, orderId) {
             <textarea id="co_notes" rows="3" ${locked ? 'readonly' : ''} placeholder="اختياري…">${esc(initial.notes)}</textarea>
           </label>
           <div class="si-totals">
-            <label>خصم الطلب
+            <label>خصم مستوى الطلب
               <input class="si-field" id="co_discount" type="text" value="${esc(initial.invoice_discount)}"
                      placeholder="10 أو 10% أو 1.000" ${locked ? 'readonly' : ''}>
             </label>
@@ -292,6 +476,17 @@ router.get('/sales/orders/new', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).send('Error: ' + e.message);
+  }
+});
+
+router.get('/sales/orders/:id/print', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(404).send('الطلب غير موجود');
+    await renderOrderPrint(req, res, id);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send(e.message || 'خطأ');
   }
 });
 
