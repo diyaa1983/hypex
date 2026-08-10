@@ -37,6 +37,28 @@ function money(n) {
 function dmy(iso) {
   return esc(isoToDmy(String(iso || '').slice(0, 10)));
 }
+function numPlain(n) {
+  const x = Number(n) || 0;
+  return x.toFixed(3);
+}
+function csvCell(v) {
+  return `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+}
+function csvRow(cells) {
+  return cells.map(csvCell).join(',');
+}
+/** CSV (BOM) يفتحه Excel مباشرة */
+function sendExcelCsv(res, filename, rows) {
+  const bom = '\uFEFF';
+  const body = bom + rows.map(csvRow).join('\r\n') + '\r\n';
+  const safe = String(filename || 'export')
+    .replace(/[^\w.\-]+/g, '_')
+    .slice(0, 80);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safe}.csv"`);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.send(body);
+}
 
 function pathOk(p) {
   return (
@@ -741,6 +763,7 @@ router.get(
     .replace(/\D+/g, '');
   let customerId = Number(req.query.customer_id || 0) || 0;
   const run = String(req.query.run || '') === '1';
+  const wantExcel = String(req.query.excel || '') === '1';
 
   let customers = [];
   try {
@@ -797,6 +820,86 @@ router.get(
     : accountNo
       ? accountNo
       : '';
+
+  // ── تصدير Excel (CSV) ──
+  if (wantExcel) {
+    if (!accountNo) {
+      return res.status(400).send('اختر عميلاً أو رقم الحساب قبل تصدير Excel.');
+    }
+    const data = await svc.run('oracle_statement', uid(req), {
+      from,
+      to,
+      account_no: accountNo,
+    });
+    if (!data || data.ok === false) {
+      return res
+        .status(502)
+        .send(String(data?.error || data?.message || 'تعذر جلب كشف الحساب من Oracle.'));
+    }
+    const lines = Array.isArray(data.lines)
+      ? data.lines
+      : Array.isArray(data.rows)
+        ? data.rows
+        : [];
+    const name =
+      String(data.name || '').trim() ||
+      (selectedParty ? String(selectedParty.name_ar || '') : '') ||
+      '';
+    const partyCode = String(
+      (selectedParty && (selectedParty.code || selectedParty.acc_no)) || data.account || accountNo
+    );
+    const rows = [
+      ['كشف حساب عميل'],
+      ['اسم العميل', name || '—'],
+      ['رقم الحساب', partyCode],
+      ['من تاريخ', isoToDmy(from)],
+      ['إلى تاريخ', isoToDmy(to)],
+      [],
+      ['التاريخ', 'المستند', 'البيان', 'مدين', 'دائن', 'الرصيد'],
+    ];
+    for (const r of lines) {
+      const isOpen = !!r.is_opening;
+      const docLabel = isOpen
+        ? 'رصيد افتتاحي'
+        : [r.doc_type, r.doc_no].filter(Boolean).join(' · ') || String(r.doc_no || '');
+      rows.push([
+        isoToDmy(r.trn_date),
+        docLabel,
+        String(r.description || ''),
+        isOpen && !Number(r.debit) ? '' : numPlain(r.debit),
+        isOpen && !Number(r.credit) ? '' : numPlain(r.credit),
+        numPlain(r.balance),
+      ]);
+    }
+    rows.push([]);
+    rows.push([
+      'الإجمالي',
+      '',
+      '',
+      numPlain(data.total_debit),
+      numPlain(data.total_credit),
+      numPlain(data.balance),
+    ]);
+
+    const cheques = Array.isArray(data.cheques) ? data.cheques : [];
+    if (cheques.length) {
+      rows.push([]);
+      rows.push(['الشيكات قيد التحصيل']);
+      rows.push(['الشيك', 'التاريخ', 'قيمة الشيك', 'تاريخ القبض']);
+      for (const c of cheques) {
+        rows.push([
+          String(c.chq_no || ''),
+          isoToDmy(c.chq_date),
+          numPlain(c.amount),
+          isoToDmy(c.receipt_date || c.recv_date || c.chq_recv_date || '') || '',
+        ]);
+      }
+      rows.push(['مجموع الشيكات قيد التحصيل', '', numPlain(data.cheque_total), '']);
+    }
+
+    const fname = `statement_${partyCode || 'x'}_${String(from).slice(0, 10)}_${String(to).slice(0, 10)}`;
+    return sendExcelCsv(res, fname, rows);
+  }
 
   let result = `
     <div class="ora-empty no-print">
@@ -927,7 +1030,7 @@ router.get(
         ${head}
         <div class="si-surface sh-section ora-stmt-body">
           <div class="si-table-wrap">
-            <table class="si-table ora-table">
+            <table class="si-table ora-table" id="ora-stmt-table">
               <thead><tr>
                 <th class="ora-c-date">التاريخ</th>
                 <th class="ora-c-doc">المستند</th>
@@ -956,6 +1059,17 @@ router.get(
       name: String(c.name_ar || ''),
     }))
   ).replace(/</g, '\\u003c');
+
+  const excelQs = new URLSearchParams({
+    run: '1',
+    excel: '1',
+    from: String(from || ''),
+    to: String(to || ''),
+    account_no: String(accountNo || ''),
+    customer_id: String(customerId || 0),
+  }).toString();
+  const excelHref = `/accounting/reports/oracle-statement?${excelQs}`;
+  const hasReport = !!(run && accountNo);
 
   const filters = `
     <form class="ora-filters no-print" method="get" action="/accounting/reports/oracle-statement" id="ora-stmt-form" autocomplete="off">
@@ -991,6 +1105,12 @@ router.get(
 
         <div class="ora-field ora-field--actions">
           <button class="si-btn si-btn--primary ora-run-btn" type="submit">عرض التقرير</button>
+          ${
+            hasReport
+              ? `<a class="si-btn no-print" href="${esc(excelHref)}" id="ora-excel-btn">Excel</a>
+                 <button type="button" class="si-btn si-btn--print no-print" data-print="1">طباعة</button>`
+              : ''
+          }
         </div>
       </div>
     </form>
@@ -1118,6 +1238,10 @@ router.get(
       })();
     </script>`;
 
+  const extraActions = hasReport
+    ? [{ label: 'Excel', href: excelHref, className: 'si-btn--excel' }]
+    : [];
+
   sendPage(
     res,
     req,
@@ -1126,7 +1250,8 @@ router.get(
       'كشف حساب تفصيلي Oracle',
       'بحث ذكي بالاسم أو رقم الحساب · بيانات من Oracle',
       filters,
-      result
+      result,
+      extraActions
     )
   );
 });
