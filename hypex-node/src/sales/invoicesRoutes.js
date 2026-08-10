@@ -124,8 +124,7 @@ function toolbarHtml(caps, inv) {
           'حذف',
           'si-tb--danger',
           !caps.canDelete,
-          ' data-hx-delete="1" title="حذف الفاتورة — F4"',
-          'F4'
+          ' data-hx-delete="1" title="حذف الفاتورة"'
         )}
       </div>
       <div class="si-tb-group si-tb-group--status">
@@ -604,6 +603,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
             <span class="si-count si-count--keys">
               <kbd class="si-field-key" title="سطر جديد">F2</kbd>
               <kbd class="si-field-key" title="قائمة المواد">F3</kbd>
+              <kbd class="si-field-key" title="حذف بند المادة">F4</kbd>
             </span>
           </div>
           <div class="si-lines-wrap">

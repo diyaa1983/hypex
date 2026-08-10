@@ -31,3 +31,9 @@
 # ملاحظة: .env و node_modules لا يُرفعان إلى GitHub — يُبنيان على السيرفر فقط.
 #
 # آخر تحقق من الربط مع GitHub: 2026-08-03 (push test OK)
+#
+# الوصول من الإنترنت / خارج الشبكة (Windows + XAMPP):
+#   deploy\EXTERNAL-ACCESS.txt
+#   deploy\check-external-access.cmd
+#   deploy\open-external-firewall.cmd  (Run as Administrator)
+#   الرابط العام: http://PUBLIC_IP/hypex  (فقط المنفذ 80 عبر Apache)

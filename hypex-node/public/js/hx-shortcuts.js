@@ -2,6 +2,7 @@
  * اختصارات النظام (كل الشاشات)
  * F2  — إضافة سطر مادة
  * F3  — قائمة المواد
+ * F4  — حذف بند المادة الحالي (ليس حذف المستند)
  * F7  — قائمة العملاء (أو الموردين في المشتريات)
  * F10 — حفظ
  */
@@ -132,28 +133,52 @@
     return false;
   }
 
-  function doDelete() {
-    var ev = new CustomEvent('hx:delete', { bubbles: true, cancelable: true });
+  function doDeleteLine() {
+    // السماح للنماذج باعتراض الحدث (حذف بند فقط — لا حذف الفاتورة/المستند)
+    var ev = new CustomEvent('hx:delete-line', { bubbles: true, cancelable: true });
     document.dispatchEvent(ev);
     if (ev.defaultPrevented) return true;
-    if (
-      clickFirst([
-        '[data-hx-delete]:not([disabled])',
-        '#si-delete:not([disabled])',
-        '#co-delete:not([disabled])',
-        '#df-delete:not([disabled])',
-        '#sr-delete:not([disabled])',
-        'button.si-tb--danger:not([disabled])',
-      ])
-    ) {
+
+    function lineFrom(el) {
+      if (!el || !el.closest) return null;
+      return el.closest(
+        '#si-lines-body tr, #co-lines-body tr, #df-lines-body tr, #dl-lines-body tr, table.si-lines tbody tr, tr[data-idx]'
+      );
+    }
+
+    var tr = lineFrom(document.activeElement);
+    if (!tr) tr = lineFrom(lastFocusItem);
+
+    if (!tr) {
+      var bodies = [
+        '#si-lines-body tr',
+        '#co-lines-body tr',
+        '#df-lines-body tr',
+        '#dl-lines-body tr',
+        'table.si-lines tbody tr',
+      ];
+      for (var i = 0; i < bodies.length; i++) {
+        var rows = document.querySelectorAll(bodies[i]);
+        if (rows.length) {
+          tr = rows[rows.length - 1];
+          break;
+        }
+      }
+    }
+
+    if (!tr) {
+      toast('لا يوجد بند مادة للحذف');
+      return false;
+    }
+
+    var del = tr.querySelector('.js-del, button.si-del, [data-hx-del-line]');
+    if (del && !del.disabled) {
+      del.click();
       return true;
     }
-    var byText = findBtnByText(/^حذف/);
-    if (byText && !byText.disabled) {
-      byText.click();
-      return true;
-    }
-    toast('لا يوجد زر حذف متاح في هذه الشاشة');
+
+    // صف بدون زر حذف (مقفل) أو بنية مختلفة
+    toast('لا يمكن حذف هذا البند حالياً');
     return false;
   }
 
@@ -244,7 +269,7 @@
       '</div>' +
       '<div class="hx-lk__list" id="hx-lk-list"></div>' +
       '<footer class="hx-lk__foot">' +
-      '<span dir="ltr">F2 سطر · F3 مواد · F4 حذف · F7 أطراف · F10 حفظ · Esc</span>' +
+      '<span dir="ltr">F2 سطر · F3 مواد · F4 حذف بند · F7 أطراف · F10 حفظ · Esc</span>' +
       '<a class="hx-lk__link" id="hx-lk-open-full" href="#">فتح القائمة الكاملة</a>' +
       '</footer></div>';
     document.body.appendChild(modal);
@@ -618,7 +643,7 @@
       return;
     }
     if (k === 'F4') {
-      doDelete();
+      doDeleteLine();
       return;
     }
     if (k === 'F7') {
@@ -647,7 +672,9 @@
   window.HypexShortcuts = {
     save: doSave,
     addLine: doAddLine,
-    deleteDoc: doDelete,
+    deleteLine: doDeleteLine,
+    /** @deprecated استخدم deleteLine — F4 لا يحذف المستند */
+    deleteDoc: doDeleteLine,
     customers: openPartyList,
     items: openItems,
     close: closeModal,
