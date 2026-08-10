@@ -108,11 +108,13 @@ async function reportCustomers({ activeOnly = false } = {}) {
     `SELECT c.code AS customer_code, c.name_ar AS customer_name,
             COALESCE(c.phone,'') AS phone, COALESCE(c.email,'') AS email,
             COALESCE(c.tax_number,'') AS tax_number, COALESCE(c.address_ar,'') AS address_ar,
-            COALESCE(r.name_ar,'') AS sales_rep_name, c.is_active,
-            rg.name_ar AS region_name
+            COALESCE(NULLIF(TRIM(r.name_ar), ''), '') AS sales_rep_name, c.is_active,
+            COALESCE(NULLIF(TRIM(rg.name_ar), ''), '') AS region_name,
+            COALESCE(NULLIF(TRIM(ra.name_ar), ''), '') AS region_address_name
      FROM crm_customer c
      LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
      LEFT JOIN crm_region rg ON rg.id = c.region_id
+     LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id
      ${where}
      ORDER BY c.name_ar ASC, c.code ASC
      LIMIT 2000`
@@ -121,14 +123,14 @@ async function reportCustomers({ activeOnly = false } = {}) {
 
 async function reportCustomersByRep({ activeOnly = false, salesRepId = 0 } = {}) {
   const params = [];
-  let activeSql = activeOnly ? ' AND c.is_active = 1' : '';
+  const activeSql = activeOnly ? ' AND c.is_active = 1' : '';
   let repSql = '';
   if (salesRepId > 0) {
     repSql = ' AND COALESCE(r.id, 0) = ?';
     params.push(salesRepId);
   }
   return safeQuery(
-    `SELECT DISTINCT
+    `SELECT
         c.id AS customer_id,
         c.code AS customer_code,
         c.name_ar AS customer_name,
@@ -139,20 +141,30 @@ async function reportCustomersByRep({ activeOnly = false, salesRepId = 0 } = {})
         c.is_active,
         COALESCE(r.id, 0) AS rep_id,
         COALESCE(NULLIF(TRIM(r.name_ar), ''), '— بدون مندوب —') AS rep_name,
-        COALESCE(r.code, '') AS rep_code
+        COALESCE(r.code, '') AS rep_code,
+        COALESCE(NULLIF(TRIM(rg.name_ar), ''), '') AS region_name,
+        COALESCE(NULLIF(TRIM(ra.name_ar), ''), '') AS region_address_name
      FROM crm_customer c
      LEFT JOIN (
-         SELECT customer_id, sales_rep_id FROM crm_customer_sales_rep
-         UNION
-         SELECT id AS customer_id, sales_rep_id
-         FROM crm_customer
-         WHERE sales_rep_id IS NOT NULL AND sales_rep_id > 0
+         SELECT customer_id, MIN(sales_rep_id) AS sales_rep_id
+         FROM (
+           SELECT customer_id, sales_rep_id FROM crm_customer_sales_rep
+           UNION ALL
+           SELECT id AS customer_id, sales_rep_id
+           FROM crm_customer
+           WHERE sales_rep_id IS NOT NULL AND sales_rep_id > 0
+         ) u
+         GROUP BY customer_id
      ) map ON map.customer_id = c.id
-     LEFT JOIN crm_sales_rep r ON r.id = map.sales_rep_id
+     LEFT JOIN crm_sales_rep r ON r.id = COALESCE(map.sales_rep_id, c.sales_rep_id)
+     LEFT JOIN crm_region rg ON rg.id = c.region_id
+     LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id
      WHERE 1=1${activeSql}${repSql}
      ORDER BY
        rep_id ASC,
        rep_name ASC,
+       region_name ASC,
+       region_address_name ASC,
        customer_name ASC,
        customer_code ASC
      LIMIT 3000`,

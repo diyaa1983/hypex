@@ -651,11 +651,12 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
       <td>${dash(r.email)}</td>
       <td class="si-num" dir="ltr">${dash(r.tax_number)}</td>
       <td>${dash(r.region_name)}</td>
+      <td>${dash(r.region_address_name)}</td>
       <td>${dash(r.sales_rep_name)}</td>
       <td>${Number(r.is_active) === 1 ? 'نشط' : 'موقوف'}</td>
     </tr>`
       )
-      .join('') || ui.emptyRow(9);
+      .join('') || ui.emptyRow(10);
 
   const body = `
     <div class="si-stage si-report-page">
@@ -674,7 +675,7 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
         ${ui.tableSurface(
           'تقرير العملاء',
           `${rows.length} عميل`,
-          ['#', 'الرمز', 'الاسم', 'الهاتف', 'البريد', 'ضريبي', 'المنطقة', 'المندوب', 'الحالة'],
+          ['#', 'الرمز', 'الاسم', 'الهاتف', 'البريد', 'ضريبي', 'المنطقة', 'العنوان', 'المندوب', 'الحالة'],
           rowsHtml
         )}
       </div>
@@ -747,9 +748,11 @@ router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async 
           <td class="si-num" dir="ltr">${i + 1}</td>
           <td class="si-num" dir="ltr">${ui.esc(r.customer_code || '')}</td>
           <td>${ui.esc(r.customer_name || '')}</td>
+          <td>${dash(r.region_name)}</td>
+          <td>${dash(r.region_address_name)}</td>
+          <td>${dash(r.rep_name)}</td>
           <td class="si-num" dir="ltr">${dash(r.phone)}</td>
           <td>${dash(r.email)}</td>
-          <td class="si-num" dir="ltr">${dash(r.tax_number)}</td>
           <td>${Number(r.is_active) === 1 ? 'نشط' : 'موقوف'}</td>
         </tr>`
         )
@@ -758,7 +761,7 @@ router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async 
       blocks += `<div style="margin-top:.75rem">${ui.tableSurface(
         title,
         `${g.rows.length} عميل · نشط ${g.active}`,
-        ['#', 'الرمز', 'الاسم', 'الهاتف', 'البريد', 'ضريبي', 'الحالة'],
+        ['#', 'الرمز', 'الاسم', 'المنطقة', 'العنوان', 'المندوب', 'الهاتف', 'البريد', 'الحالة'],
         html
       )}</div>`;
     }
