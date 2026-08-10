@@ -20,6 +20,16 @@
     return Math.abs(Number(a) - Number(b)) < 0.0001;
   }
 
+  function taxRateLabel(t, rate) {
+    var pct =
+      rate.toLocaleString('en-US', { maximumFractionDigits: 3 }) + '%';
+    var name = String((t && t.name_ar) || '').trim();
+    if (!name) return pct;
+    var nameBare = name.replace(/%/g, '').replace(/,/g, '').replace(/\s+/g, '').trim();
+    if (nameBare === '' || rateClose(nameBare, rate)) return pct;
+    return pct + ' — ' + name;
+  }
+
   function taxSelectHtml(selected, disabled) {
     var cur = Number(selected != null && selected !== '' ? selected : defaultTax);
     if (!Number.isFinite(cur)) cur = defaultTax;
@@ -31,10 +41,7 @@
       if (!Number.isFinite(rate)) continue;
       var sel = rateClose(rate, cur);
       if (sel) found = true;
-      var label =
-        (t.name_ar ? String(t.name_ar) + ' — ' : '') +
-        rate.toLocaleString('en-US', { maximumFractionDigits: 3 }) +
-        '%';
+      var label = taxRateLabel(t, rate);
       opts +=
         '<option value="' +
         escAttr(String(rate)) +
