@@ -94,6 +94,7 @@ app.get('/api/print-brand', async (req, res) => {
       ok: true,
       companyName: brand.companyName || 'Hypex',
       logoUrl: brand.logoUrl || '',
+      watermarkEnabled: brand.watermarkEnabled !== false,
     });
   } catch (e) {
     const b = getPrintBrand();
@@ -101,6 +102,7 @@ app.get('/api/print-brand', async (req, res) => {
       ok: true,
       companyName: b.companyName || 'Hypex',
       logoUrl: b.logoUrl || '',
+      watermarkEnabled: b.watermarkEnabled !== false,
     });
   }
 });

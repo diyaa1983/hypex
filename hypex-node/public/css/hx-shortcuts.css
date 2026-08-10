@@ -49,7 +49,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #0f6e6a;
+  color: #0284c7;
 }
 
 .hx-lk__head h2 {
@@ -90,8 +90,8 @@
 }
 
 .hx-lk__input:focus {
-  outline: 2px solid rgba(15, 110, 106, 0.35);
-  border-color: #0f6e6a;
+  outline: 2px solid rgba(3, 105, 161, 0.35);
+  border-color: #0284c7;
 }
 
 .hx-lk__list {
@@ -130,7 +130,7 @@
 
 .hx-lk__row:hover,
 .hx-lk__row:focus {
-  background: rgba(15, 110, 106, 0.08);
+  background: rgba(3, 105, 161, 0.08);
   outline: none;
 }
 
@@ -160,7 +160,7 @@
 }
 
 .hx-lk__link {
-  color: #0f6e6a;
+  color: #0284c7;
   font-weight: 700;
   text-decoration: none;
 }

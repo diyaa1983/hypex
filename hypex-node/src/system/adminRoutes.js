@@ -685,6 +685,15 @@ router.get('/system/settings', async (req, res) => {
               ? `<div class="ss-logo"><span class="ss-hint">الشعار الحالي:</span><img src="${esc(logoUrl)}" alt="logo"></div>`
               : ''
           }
+          <label class="ss-check" style="margin-top:.75rem">
+            <input type="checkbox" name="print_watermark_enabled" value="1" ${
+              row.print_watermark_enabled == null || Number(row.print_watermark_enabled) === 1
+                ? 'checked'
+                : ''
+            }>
+            <span>إظهار شعار الشركة كعلامة مائية عند الطباعة</span>
+          </label>
+          <p class="ss-hint">إن ألغيت التحديد لن تظهر العلامة المائية في الفواتير والتقارير المطبوعة. الشعار في الترويسة يبقى ظاهراً.</p>
         </section>
 
         <section class="ss-panel">

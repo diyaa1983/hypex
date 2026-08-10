@@ -11,6 +11,8 @@ const basePath = require('./basePath');
 const DEFAULT = {
   companyName: 'Hypex',
   logoUrl: '',
+  /** إظهار علامة مائية عند الطباعة — افتراضي مفعّل */
+  watermarkEnabled: true,
 };
 
 let cache = { ...DEFAULT };
@@ -40,17 +42,32 @@ function normalizeName(raw) {
   return companyName;
 }
 
+function parseWatermarkEnabled(v) {
+  if (v == null || v === '') return true;
+  if (v === false || v === 0 || v === '0' || v === 'false' || v === 'off') return false;
+  return !(Number(v) === 0);
+}
+
 async function refreshBrand(force = false) {
   if (loadPromise && !force) return loadPromise;
   loadPromise = (async () => {
     try {
-      const rows = await db.query(
-        `SELECT company_name_ar, logo_path FROM sys_company_settings WHERE id = 1 LIMIT 1`
-      );
+      let rows;
+      try {
+        rows = await db.query(
+          `SELECT company_name_ar, logo_path, print_watermark_enabled
+           FROM sys_company_settings WHERE id = 1 LIMIT 1`
+        );
+      } catch {
+        rows = await db.query(
+          `SELECT company_name_ar, logo_path FROM sys_company_settings WHERE id = 1 LIMIT 1`
+        );
+      }
       const r = rows[0] || {};
       cache = {
         companyName: normalizeName(r.company_name_ar),
         logoUrl: logoUrlFromPath(r.logo_path),
+        watermarkEnabled: parseWatermarkEnabled(r.print_watermark_enabled),
       };
       lastLoad = Date.now();
     } catch (e) {
@@ -94,6 +111,12 @@ function invalidatePrintBrand(snapshot = null) {
           : snapshot.logo_path != null
             ? logoUrlFromPath(snapshot.logo_path)
             : cache.logoUrl,
+      watermarkEnabled:
+        snapshot.watermarkEnabled != null
+          ? !!snapshot.watermarkEnabled
+          : snapshot.print_watermark_enabled != null
+            ? parseWatermarkEnabled(snapshot.print_watermark_enabled)
+            : cache.watermarkEnabled,
     };
     lastLoad = Date.now();
   } else {
@@ -125,8 +148,9 @@ function assetVersion(relFromPublic) {
 }
 
 function wrapPrintShell(bodyHtml) {
-  const logo = getPrintBrand().logoUrl || '';
-  const wm = watermarkMarkup(logo);
+  const brand = getPrintBrand();
+  const logo = brand.logoUrl || '';
+  const wm = brand.watermarkEnabled !== false ? watermarkMarkup(logo) : '';
   return `<div class="hx-print-content" data-hx-print-shell="standalone-v3">${wm}${bodyHtml}</div>`;
 }
 
@@ -138,7 +162,7 @@ function watermarkCss() {
     @media print{
       .hx-logo-wm{
         display:flex!important;position:fixed!important;inset:0!important;
-        align-items:center;justify-content:center;pointer-events:none;z-index:0;opacity:.12;
+        align-items:center;justify-content:center;pointer-events:none;z-index:0;opacity:.05;
         -webkit-print-color-adjust:exact!important;print-color-adjust:exact!important
       }
       .hx-logo-wm img{
@@ -178,6 +202,7 @@ function printDataAttrs(opts = {}) {
     logo: brand.logoUrl || '',
     user: userLine,
     title,
+    watermarkEnabled: brand.watermarkEnabled !== false,
   };
 }
 
@@ -188,7 +213,8 @@ function bodyPrintDataHtml(opts = {}) {
     ` data-hx-company="${escapeAttr(d.company)}"` +
     ` data-hx-logo="${escapeAttr(d.logo)}"` +
     ` data-hx-user="${escapeAttr(d.user)}"` +
-    ` data-hx-print-title="${escapeAttr(d.title)}"`
+    ` data-hx-print-title="${escapeAttr(d.title)}"` +
+    ` data-hx-watermark="${d.watermarkEnabled ? '1' : '0'}"`
   );
 }
 
@@ -215,7 +241,8 @@ async function renderStandalonePrintPage({
   const logoHtml = brand.logo
     ? `<img src="${escapeAttr(brand.logo)}" alt="" class="hx-doc-logo">`
     : `<span class="hx-doc-logo-fallback">H</span>`;
-  const wmHtml = watermarkMarkup(brand.logo);
+  const wmHtml =
+    brand.watermarkEnabled !== false ? watermarkMarkup(brand.logo) : '';
 
   const back = backHref
     ? `<a class="hx-doc-btn" href="${escapeAttr(basePath.ensurePrefixed(backHref))}">عودة</a>`
@@ -312,7 +339,7 @@ async function renderStandalonePrintPage({
       padding:.65rem 1rem;background:#0f172a;color:#f8fafc}
     .hx-doc-bar a,.hx-doc-btn{font:700 .88rem Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;
       border:0;border-radius:8px;padding:.45rem .85rem;text-decoration:none;cursor:pointer}
-    .hx-doc-btn--pri{background:#0f6e6a;color:#fff}
+    .hx-doc-btn--pri{background:linear-gradient(180deg,#0ea5e9 0%,#0369a1 100%);color:#fff}
     .hx-doc-sheet{max-width:210mm;margin:1rem auto 2rem;background:#fff;padding:10mm 8mm;
       box-shadow:0 8px 28px rgba(15,23,42,.1)}
     .hx-doc-head{margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid #222}

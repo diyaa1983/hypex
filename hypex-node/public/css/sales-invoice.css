@@ -6,15 +6,15 @@
 body.app-body.si-2027 {
   --si-ink: #0b1220;
   --si-ink-2: #162033;
-  --si-paper: #f3f1eb;
-  --si-paper-2: #ebe7de;
-  --si-surface: rgba(255, 252, 247, 0.86);
+  --si-paper: #f0f6fc;
+  --si-paper-2: #e4edf7;
+  --si-surface: rgba(248, 252, 255, 0.86);
   --si-line: rgba(15, 23, 42, 0.1);
   --si-line-strong: rgba(15, 23, 42, 0.18);
   --si-muted: #5c6578;
   --si-text: #101826;
-  --si-accent: #0f6e6a;
-  --si-accent-2: #0a4f4c;
+  --si-accent: #0284c7;
+  --si-accent-2: #0369a1;
   --si-copper: #b45309;
   --si-ok: #167a3c;
   --si-warn: #9a6700;
@@ -27,9 +27,9 @@ body.app-body.si-2027 {
   font-family: var(--si-body);
   color: var(--si-text);
   background:
-    radial-gradient(1200px 600px at 100% -10%, rgba(15, 110, 106, 0.18), transparent 55%),
-    radial-gradient(900px 500px at -10% 100%, rgba(180, 83, 9, 0.1), transparent 50%),
-    linear-gradient(160deg, #e7e4dc 0%, #f3f1eb 42%, #dde8e7 100%) !important;
+    radial-gradient(1200px 600px at 100% -10%, rgba(14, 165, 233, 0.16), transparent 55%),
+    radial-gradient(900px 500px at -10% 100%, rgba(37, 99, 235, 0.1), transparent 50%),
+    linear-gradient(160deg, #e4edf7 0%, #f0f6fc 42%, #dceaf8 100%) !important;
 }
 
 body.si-2027 .app-shell {
@@ -115,9 +115,9 @@ body.si-2027 .si-main::before {
   letter-spacing: -0.03em;
   color: #f8fafc;
   background:
-    linear-gradient(145deg, #148f89 0%, #0a4f4c 55%, #0b1220 120%);
+    linear-gradient(145deg, #0ea5e9 0%, #0369a1 55%, #0b1220 120%);
   box-shadow:
-    0 10px 24px rgba(15, 110, 106, 0.28),
+    0 10px 24px rgba(3, 105, 161, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
   flex-shrink: 0;
 }
@@ -157,7 +157,7 @@ body.si-2027 .si-main::before {
 
 /* Command buttons */
 .si-btn {
-  --_bg: rgba(255, 252, 247, 0.9);
+  --_bg: rgba(248, 252, 255, 0.9);
   --_fg: var(--si-ink);
   --_bd: var(--si-line-strong);
   display: inline-flex;
@@ -194,11 +194,11 @@ body.si-2027 .si-main::before {
 }
 
 .si-btn--primary {
-  --_bg: linear-gradient(180deg, #14958e 0%, #0f6e6a 55%, #0a4f4c 100%);
+  --_bg: linear-gradient(180deg, #0ea5e9 0%, #0284c7 55%, #0369a1 100%);
   --_fg: #fff;
-  --_bd: #0a4f4c;
+  --_bd: #0369a1;
   color: #fff !important;
-  box-shadow: 0 10px 22px rgba(15, 110, 106, 0.28);
+  box-shadow: 0 10px 22px rgba(3, 105, 161, 0.28);
 }
 
 .si-btn--ghost {
@@ -267,7 +267,7 @@ body.si-2027 .si-main::before {
   margin-bottom: 0.9rem;
   padding: 0.45rem;
   border-radius: 999px;
-  background: rgba(255, 252, 247, 0.55);
+  background: rgba(248, 252, 255, 0.55);
   border: 1px solid var(--si-line);
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 30px rgba(11, 18, 32, 0.04);
@@ -355,7 +355,7 @@ body.si-2027 .si-main::before {
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--si-line);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 252, 247, 0.2));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(248, 252, 255, 0.2));
 }
 
 .si-surface-head h2 {
@@ -432,7 +432,7 @@ body.si-2027 .si-main::before {
 }
 
 .si-table tbody tr:hover td {
-  background: rgba(15, 110, 106, 0.06);
+  background: rgba(3, 105, 161, 0.06);
 }
 
 .si-table .empty {
@@ -453,7 +453,7 @@ body.si-2027 .si-main::before {
   font-weight: 700;
   color: var(--si-accent-2) !important;
   text-decoration: none !important;
-  border-bottom: 1px dashed rgba(15, 110, 106, 0.35);
+  border-bottom: 1px dashed rgba(3, 105, 161, 0.35);
 }
 
 .si-inv-no:hover {
@@ -516,10 +516,10 @@ body.si-2027 .si-main::before {
 }
 
 .si-cmd .si-btn--primary {
-  --_bg: linear-gradient(180deg, #1bb0a8 0%, #0f6e6a 100%);
+  --_bg: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
   --_bd: transparent;
   color: #fff !important;
-  box-shadow: 0 8px 20px rgba(15, 110, 106, 0.4);
+  box-shadow: 0 8px 20px rgba(3, 105, 161, 0.4);
 }
 
 .si-msg {
@@ -598,7 +598,7 @@ body.si-2027 .si-main::before {
 .si-field:focus {
   outline: none;
   border-color: var(--si-accent);
-  box-shadow: 0 0 0 3px rgba(15, 110, 106, 0.15);
+  box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.15);
 }
 
 .si-field[readonly],
@@ -650,7 +650,7 @@ body.si-2027 .si-main::before {
 }
 
 .si-suggest button:hover {
-  background: rgba(15, 110, 106, 0.08);
+  background: rgba(3, 105, 161, 0.08);
 }
 
 /* Lines grid */
@@ -677,7 +677,7 @@ body.si-2027 .si-main::before {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--si-muted);
-  background: rgba(15, 110, 106, 0.06);
+  background: rgba(3, 105, 161, 0.06);
   border-bottom: 1px solid var(--si-line);
   white-space: nowrap;
 }
@@ -690,7 +690,7 @@ body.si-2027 .si-main::before {
 }
 
 .si-lines tbody tr:hover td {
-  background: rgba(15, 110, 106, 0.04);
+  background: rgba(3, 105, 161, 0.04);
 }
 
 .si-lines input,
@@ -712,7 +712,7 @@ body.si-2027 .si-main::before {
   outline: none;
   border-color: var(--si-accent);
   background: #fff;
-  box-shadow: 0 0 0 2px rgba(15, 110, 106, 0.12);
+  box-shadow: 0 0 0 2px rgba(3, 105, 161, 0.12);
 }
 
 .si-lines .si-num-out {
@@ -775,7 +775,7 @@ body.si-2027 .si-main::before {
   gap: 0;
   border-top: 1px solid var(--si-line);
   background:
-    linear-gradient(180deg, rgba(243, 241, 235, 0.4), rgba(255, 252, 247, 0.9));
+    linear-gradient(180deg, rgba(243, 241, 235, 0.4), rgba(248, 252, 255, 0.9));
 }
 
 @media (max-width: 840px) {
@@ -861,7 +861,7 @@ body.si-2027 .si-main::before {
   font-size: 1.35rem;
   font-weight: 700;
   color: var(--si-accent-2);
-  background: linear-gradient(90deg, transparent, rgba(15, 110, 106, 0.08));
+  background: linear-gradient(90deg, transparent, rgba(3, 105, 161, 0.08));
   padding: 0.15rem 0.4rem;
   border-radius: 6px;
   border-bottom: 2px solid var(--si-accent);

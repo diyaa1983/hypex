@@ -23,7 +23,7 @@
   line-height: 1.55;
 }
 .att-empty a {
-  color: #0f766e;
+  color: #0284c7;
   font-weight: 700;
 }
 .att-muted {
@@ -99,12 +99,12 @@
   text-decoration: none;
 }
 .att-tab:hover {
-  border-color: #0f766e;
-  color: #0f766e;
+  border-color: #0284c7;
+  color: #0284c7;
 }
 .att-tab.is-active {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: #0284c7;
+  border-color: #0284c7;
   color: #fff;
 }
 

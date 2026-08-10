@@ -71,11 +71,11 @@
   user-select: none;
 }
 .coa-tree-row:hover {
-  background: rgba(15, 110, 106, 0.06);
+  background: rgba(3, 105, 161, 0.06);
 }
 .coa-tree-row.is-selected {
-  background: rgba(15, 110, 106, 0.12);
-  border-color: rgba(15, 110, 106, 0.25);
+  background: rgba(3, 105, 161, 0.12);
+  border-color: rgba(3, 105, 161, 0.25);
 }
 .coa-tree-li.is-inactive > .coa-tree-row {
   opacity: 0.55;

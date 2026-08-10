@@ -1,27 +1,38 @@
 /**
  * Hypex Node shell — واجهة أساسية (RTL)
+ * الألوان متناسقة مع صفحة الدخول (كحلي + أزرق سماوي)
  */
 
 :root {
+  /* نفس عائلة صفحة الدخول */
+  --navy: #0f172a;
+  --navy-mid: #1e3a5f;
+  --navy-soft: #1a2a44;
+  --sky: #0ea5e9;
+  --sky-bright: #38bdf8;
+  --sky-deep: #0369a1;
+  --sky-mid: #0284c7;
+
   --bg: #0f172a;
-  --bg-soft: #1e293b;
+  --bg-soft: #1e3a5f;
   --panel: #ffffff;
-  --panel-2: #f8fafc;
-  --line: #e2e8f0;
+  --panel-2: #f4f8fd;
+  --line: #d4e0ef;
   --text: #0f172a;
-  --muted: #64748b;
-  --brand: #0f6e6a;
-  --brand-2: #0a4f4c;
+  --muted: #5b6b80;
+  --brand: #0284c7;
+  --brand-2: #0369a1;
+  --brand-soft: #e0f2fe;
+  --brand-glow: rgba(14, 165, 233, 0.22);
   --ok: #0b6a0b;
   --warn: #a16207;
   --danger: #c50f1f;
   --sidebar-w: 16.75rem;
-  /* خط موحّد للنظام والتقارير */
   --font: Arial, Helvetica, sans-serif;
   --font-display: Arial, Helvetica, sans-serif;
   --font-mono: Arial, Helvetica, sans-serif;
   --radius: 10px;
-  --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.1);
 }
 
 * {
@@ -43,7 +54,9 @@ body {
   font-weight: 400;
   letter-spacing: 0;
   color: var(--text);
-  background: #e8eef5;
+  background:
+    radial-gradient(1000px 480px at 100% 0%, rgba(14, 165, 233, 0.08), transparent 55%),
+    linear-gradient(180deg, #e8eef8 0%, #eef3f9 45%, #e6edf6 100%);
 }
 
 button,
@@ -80,7 +93,7 @@ label,
     justify-content: center !important;
     pointer-events: none !important;
     z-index: 0 !important;
-    opacity: 0.12 !important;
+    opacity: 0.05 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -270,7 +283,9 @@ a:hover {
 }
 
 .sidebar {
-  background: linear-gradient(180deg, #0b1220 0%, #111827 100%);
+  background:
+    radial-gradient(500px 320px at 100% 0%, rgba(14, 165, 233, 0.18), transparent 58%),
+    linear-gradient(168deg, #0f172a 0%, #1e3a5f 48%, #0b1220 100%);
   color: #e2e8f0;
   display: flex;
   flex-direction: column;
@@ -387,14 +402,14 @@ a:hover {
 
 /* ─── Sidebar 2027 ─── */
 .sidebar.sidebar--2027 {
-  --sb-ink: #0b1220;
-  --sb-ink-2: #141c2e;
+  --sb-ink: #0f172a;
+  --sb-ink-2: #1e3a5f;
   --sb-text: #e8ebf2;
   --sb-muted: #94a0b8;
-  --sb-accent: #1aa79f;
-  --sb-accent-deep: #0f6e6a;
+  --sb-accent: #38bdf8;
+  --sb-accent-deep: #0369a1;
   --sb-hover: rgba(255, 255, 255, 0.055);
-  --sb-active-bg: linear-gradient(90deg, rgba(26, 167, 159, 0.22) 0%, rgba(26, 167, 159, 0.08) 100%);
+  --sb-active-bg: linear-gradient(90deg, rgba(14, 165, 233, 0.24) 0%, rgba(14, 165, 233, 0.08) 100%);
   --sb-line: rgba(255, 255, 255, 0.08);
   --sb-font: Arial, Helvetica, sans-serif;
   position: sticky;
@@ -404,9 +419,9 @@ a:hover {
   max-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(420px 280px at 100% 0%, rgba(26, 167, 159, 0.14), transparent 60%),
-    radial-gradient(360px 240px at 0% 100%, rgba(180, 120, 40, 0.07), transparent 55%),
-    linear-gradient(168deg, var(--sb-ink) 0%, var(--sb-ink-2) 55%, #0f1729 100%);
+    radial-gradient(420px 280px at 100% 0%, rgba(14, 165, 233, 0.22), transparent 60%),
+    radial-gradient(360px 240px at 0% 100%, rgba(37, 99, 235, 0.14), transparent 55%),
+    linear-gradient(168deg, var(--sb-ink) 0%, var(--sb-ink-2) 55%, #0b1220 100%);
   color: var(--sb-text);
   border-inline-end: 1px solid var(--sb-line);
   font-family: var(--sb-font);
@@ -437,10 +452,10 @@ a:hover {
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #fff;
-  background: linear-gradient(145deg, #2dd4bf 0%, var(--sb-accent-deep) 100%);
+  background: linear-gradient(145deg, #38bdf8 0%, var(--sb-accent-deep) 100%);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.12) inset,
-    0 8px 20px rgba(15, 110, 106, 0.35);
+    0 8px 20px rgba(3, 105, 161, 0.35);
   overflow: hidden;
 }
 
@@ -572,23 +587,23 @@ a:hover {
 }
 
 .nav-domain-link:hover .nav-domain-link__icon {
-  color: #e6fffb;
-  border-color: rgba(45, 212, 191, 0.3);
-  background: rgba(26, 167, 159, 0.12);
+  color: #e0f2fe;
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(14, 165, 233, 0.14);
 }
 
 .nav-domain-link.is-active {
   background: var(--sb-active-bg);
-  color: #f0fffe !important;
-  box-shadow: inset 0 0 0 1px rgba(26, 167, 159, 0.22);
+  color: #f0f9ff !important;
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.28);
   font-weight: 700;
 }
 
 .nav-domain-link.is-active .nav-domain-link__icon {
-  color: #5eead4;
-  background: rgba(15, 110, 106, 0.45);
-  border-color: rgba(45, 212, 191, 0.4);
-  box-shadow: 0 4px 12px rgba(15, 110, 106, 0.25);
+  color: #7dd3fc;
+  background: rgba(3, 105, 161, 0.5);
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.28);
 }
 
 .nav-domain-link.is-active .nav-domain-link__rail {
@@ -621,8 +636,8 @@ a:hover {
   font-weight: 700;
   font-size: 0.95rem;
   color: #ecfeff;
-  background: linear-gradient(145deg, #0f766e, #134e4a);
-  border: 1px solid rgba(94, 234, 212, 0.25);
+  background: linear-gradient(145deg, #0ea5e9, #0369a1);
+  border: 1px solid rgba(125, 211, 252, 0.3);
   flex-shrink: 0;
 }
 

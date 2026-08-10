@@ -38,8 +38,8 @@
   text-decoration: none;
 }
 .sch-tab.is-active {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: #0284c7;
+  border-color: #0284c7;
   color: #fff;
 }
 
@@ -64,9 +64,9 @@
   direction: ltr;
 }
 .sch-period-list li.is-active a {
-  border-color: #0f766e;
+  border-color: #0284c7;
   background: rgba(15, 118, 110, 0.1);
-  color: #0f766e;
+  color: #0284c7;
 }
 
 .sch-range {

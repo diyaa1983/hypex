@@ -29,11 +29,13 @@
 
   function brandFromDom() {
     var b = document.body || {};
+    var wm = b.getAttribute('data-hx-watermark');
     return {
       company: b.getAttribute('data-hx-company') || 'Hypex',
       logo: b.getAttribute('data-hx-logo') || '',
       user: b.getAttribute('data-hx-user') || '—',
       title: b.getAttribute('data-hx-print-title') || document.title || 'تقرير',
+      watermarkEnabled: wm !== '0' && wm !== 'false',
     };
   }
 
@@ -49,7 +51,13 @@
     );
   }
 
-  function ensureWatermarkOnPage(logo) {
+  function ensureWatermarkOnPage(logo, enabled) {
+    if (enabled === false) {
+      document.querySelectorAll('.hx-logo-wm').forEach(function (el) {
+        el.remove();
+      });
+      return;
+    }
     var src = String(logo || '').trim();
     if (!src) return;
     var shells = document.querySelectorAll(
@@ -80,8 +88,15 @@
         if (data && data.ok) {
           if (data.companyName) fallback.company = String(data.companyName);
           if (data.logoUrl != null) fallback.logo = String(data.logoUrl || '');
+          if (data.watermarkEnabled != null) {
+            fallback.watermarkEnabled = !!data.watermarkEnabled;
+          }
           if (document.body) {
             document.body.setAttribute('data-hx-company', fallback.company);
+            document.body.setAttribute(
+              'data-hx-watermark',
+              fallback.watermarkEnabled ? '1' : '0'
+            );
             if (fallback.logo) document.body.setAttribute('data-hx-logo', fallback.logo);
             else document.body.removeAttribute('data-hx-logo');
           }
@@ -237,8 +252,8 @@
       '.ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:4px 6px;background:#fff}' +
       '.ora-stat span{font-size:7.5pt;color:#64748b;font-weight:700}' +
       '.ora-stat strong{font-size:9pt;font-weight:800;font-variant-numeric:tabular-nums}' +
-      '.ora-stat--balance{background:#e8f5f4!important;border:2px solid #0f6e6a!important}' +
-      '.ora-stat--balance span,.ora-stat--balance strong{color:#0a4f4c!important}' +
+      '.ora-stat--balance{background:#e0f2fe!important;border:2px solid #0369a1!important}' +
+      '.ora-stat--balance span,.ora-stat--balance strong{color:#0c4a6e!important}' +
       '.ora-stmt-cheques{margin-top:10px;padding:6px 0 4px;border-top:1px dashed #000;border-bottom:1px dashed #000;background:transparent;color:#000}' +
       '.ora-stmt-cheques__title{margin:0 0 6px;font:800 10pt Arial,Helvetica,sans-serif;text-decoration:underline;text-align:right;color:#000;border:0}' +
       '.ora-stmt-chq-wrap{max-width:420px}' +
@@ -253,7 +268,7 @@
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
       '.si-table-wrap,.ora-stmt,.hx-print-doc,.inv-print-doc{overflow:visible!important;position:relative}' +
       '.hx-logo-wm{display:none!important}' +
-      '@media print{.hx-logo-wm{display:flex!important;position:fixed;inset:0;align-items:center;justify-content:center;pointer-events:none;z-index:0;opacity:.12;-webkit-print-color-adjust:exact;print-color-adjust:exact}.hx-logo-wm img{width:min(58%,380px)!important;max-width:380px!important;max-height:380px!important;height:auto!important;object-fit:contain}}' +
+      '@media print{.hx-logo-wm{display:flex!important;position:fixed;inset:0;align-items:center;justify-content:center;pointer-events:none;z-index:0;opacity:.05;-webkit-print-color-adjust:exact;print-color-adjust:exact}.hx-logo-wm img{width:min(58%,380px)!important;max-width:380px!important;max-height:380px!important;height:auto!important;object-fit:contain}}' +
       '@page{size:A4 portrait;margin:10mm 8mm 12mm 8mm}' +
       'html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#fff}' +
       '.hx-print-doc{padding-bottom:2mm;margin:0;position:relative;z-index:1}' +
@@ -276,7 +291,7 @@
       '</title><style>' +
       tableCss() +
       '</style></head><body>' +
-      watermarkHtml(b.logo) +
+      (b.watermarkEnabled !== false ? watermarkHtml(b.logo) : '') +
       buildHeader(b, when) +
       '<div class="hx-print-doc">' +
       content +
@@ -356,7 +371,7 @@
   /** طباعة صفحة الفاتورة كما تظهر — المجاميع تبقى تحت الجدول */
   function printCurrentSheet() {
     ensureInvoiceTotalsAfterTable(document);
-    ensureWatermarkOnPage(brandFromDom().logo);
+    ensureWatermarkOnPage(brandFromDom().logo, brandFromDom().watermarkEnabled);
     try {
       window.focus();
       window.print();
@@ -378,9 +393,9 @@
         runPrint();
       });
     });
-    // علامة مائية عند العرض (تقارير / فواتير)
+    // علامة مائية عند العرض (إن مفعّلة في الإعدادات)
     fetchBrandThen(function (b) {
-      ensureWatermarkOnPage(b.logo);
+      ensureWatermarkOnPage(b.logo, b.watermarkEnabled !== false);
     });
     if (document.body && document.body.getAttribute('data-hx-auto-print') === '1') {
       setTimeout(runPrint, 400);

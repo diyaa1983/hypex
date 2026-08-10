@@ -280,8 +280,26 @@ function isValidEmail(s) {
 }
 
 async function getCompanySettings() {
+  await ensurePrintWatermarkColumn();
   const rows = await q(`SELECT * FROM sys_company_settings WHERE id = 1 LIMIT 1`);
   return rows[0] || null;
+}
+
+/** عمود إعداد العلامة المائية عند الطباعة */
+async function ensurePrintWatermarkColumn() {
+  try {
+    await q(`SELECT print_watermark_enabled FROM sys_company_settings LIMIT 1`);
+  } catch {
+    try {
+      await q(
+        `ALTER TABLE sys_company_settings
+         ADD COLUMN print_watermark_enabled TINYINT(1) NOT NULL DEFAULT 1
+         COMMENT 'إظهار علامة الشعار المائية عند الطباعة'`
+      );
+    } catch {
+      /* ignore race / privilege */
+    }
+  }
 }
 
 async function listActiveTaxRates() {
@@ -428,6 +446,16 @@ async function saveCompanySettings(payload, logoFile) {
 
   // النموذج الكامل يرسل company_name_ar دائماً — عندها checkbox الغائب = غير مفعّل
   const formComplete = has('company_name_ar') || has('decimal_places') || has('currency_code');
+
+  const printWatermarkEnabled = formComplete
+    ? !!(
+        payload.print_watermark_enabled === '1' ||
+        payload.print_watermark_enabled === 'on' ||
+        payload.print_watermark_enabled === true
+      )
+    : row.print_watermark_enabled == null
+      ? true
+      : Number(row.print_watermark_enabled) === 1;
 
   let loginRecaptchaEnabled = formComplete
     ? !!(
@@ -689,9 +717,24 @@ async function saveCompanySettings(payload, logoFile) {
       invalidatePrintBrand({
         company_name_ar: after.company_name_ar,
         logo_path: after.logo_path,
+        print_watermark_enabled: after.print_watermark_enabled,
       });
     } catch {
       /* ignore */
+    }
+    try {
+      await ensurePrintWatermarkColumn();
+      await q(`UPDATE sys_company_settings SET print_watermark_enabled = ? WHERE id = 1`, [
+        printWatermarkEnabled ? 1 : 0,
+      ]);
+      const { invalidatePrintBrand } = require('../lib/printBrand');
+      invalidatePrintBrand({
+        company_name_ar: after.company_name_ar,
+        logo_path: after.logo_path,
+        print_watermark_enabled: printWatermarkEnabled ? 1 : 0,
+      });
+    } catch {
+      /* عمود قديم غير موجود */
     }
     return {
       ok: true,
