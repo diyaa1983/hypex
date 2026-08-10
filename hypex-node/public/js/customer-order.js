@@ -128,10 +128,12 @@
     customerUsesWholesale = !!(c && (Number(c.use_wholesale_price) === 1 || c.use_wholesale_price === true));
     var hint = document.getElementById('co_price_mode_hint');
     if (hint) {
-      hint.textContent = customerUsesWholesale
+      hint.textContent = customerUsesWholesale ? 'سعر الجملة' : 'سعر البيع';
+      hint.title = customerUsesWholesale
         ? 'تسعير العميل: سعر الجملة'
         : 'تسعير العميل: سعر البيع';
       hint.hidden = false;
+      hint.classList.toggle('is-wholesale', customerUsesWholesale);
     }
     if (opts.reprice === false || locked) return;
     repriceOpenLines();

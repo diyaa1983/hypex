@@ -393,35 +393,43 @@ async function renderForm(req, res, orderId) {
           <h2>بيانات المستند</h2>
           <span class="si-count">${esc(initial.status_label)}</span>
         </div>
-        <div class="si-meta">
-          <label>رقم الطلب
-            <div class="si-docno-row">
+        <div class="si-meta si-meta--invoice si-meta--order">
+          <label class="si-f si-f--docno">
+            <span class="si-f-head">رقم الطلب</span>
+            <div class="si-docno-row" dir="ltr">
               <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق">‹</button>
-              <input class="si-field si-field--mono" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="Enter للانتقال" dir="ltr"
+              <input class="si-field si-field--mono si-docno-input" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="رقم — Enter" dir="ltr"
                      title="Enter للانتقال · ↑ السابق · ↓ التالي">
               <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي">›</button>
             </div>
           </label>
-          <label>التاريخ
+          <label class="si-f si-f--date">
+            <span class="si-f-head">التاريخ</span>
             <input class="si-field si-field--mono" id="co_date" type="date" value="${esc(initial.order_date)}" ${locked ? 'readonly' : ''}>
           </label>
-          <label class="si-span-2">العميل <kbd class="si-field-key" title="F7">F7</kbd>
+          <label class="si-f si-f--pay si-f--rep">
+            <span class="si-f-head">المندوب</span>
+            <select class="si-field" id="co_rep" ${locked ? 'disabled' : ''}>${repOpts}</select>
+          </label>
+          <label class="si-f si-f--wh">
+            <span class="si-f-head">المستودع</span>
+            <select class="si-field" id="co_wh" ${locked ? 'disabled' : ''}>
+              <option value="">—</option>
+              ${whOpts}
+            </select>
+          </label>
+          <label class="si-f si-f--cust">
+            <span class="si-f-head">
+              العميل
+              <kbd class="si-field-key" title="F7">F7</kbd>
+              <span id="co_price_mode_hint" class="si-price-mode" hidden></span>
+            </span>
             <div class="si-cust-wrap">
               <input type="hidden" id="co_customer_id" value="${initial.customer_id || ''}">
               <input class="si-field" id="co_customer" type="search" placeholder="ابحث بالاسم أو الرمز… (F7)"
                      value="${esc(initial.customer_label)}" autocomplete="off" ${locked ? 'readonly' : ''}>
               <div class="si-suggest" id="cust_suggest" hidden></div>
             </div>
-            <span id="co_price_mode_hint" class="muted" style="display:block;font-size:.78rem;margin-top:.25rem" hidden></span>
-          </label>
-          <label>المندوب
-            <select class="si-field" id="co_rep" ${locked ? 'disabled' : ''}>${repOpts}</select>
-          </label>
-          <label>المستودع
-            <select class="si-field" id="co_wh" ${locked ? 'disabled' : ''}>
-              <option value="">—</option>
-              ${whOpts}
-            </select>
           </label>
         </div>
       </section>
