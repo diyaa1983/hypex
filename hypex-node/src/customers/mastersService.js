@@ -14,7 +14,44 @@ async function safeQuery(sql, params = []) {
   }
 }
 
+let wholesalePriceColReady = false;
+
+/** عمود: تسعير بالتجزئة أم بالجملة عند الفاتورة/طلب العميل */
+async function ensureCustomerWholesalePriceColumn() {
+  if (wholesalePriceColReady) return true;
+  try {
+    await safeQuery(`SELECT use_wholesale_price FROM crm_customer LIMIT 1`);
+    wholesalePriceColReady = true;
+    return true;
+  } catch {
+    try {
+      await safeQuery(
+        `ALTER TABLE crm_customer
+         ADD COLUMN use_wholesale_price TINYINT(1) NOT NULL DEFAULT 0
+         COMMENT '1=سعر الجملة، 0=سعر البيع'`
+      );
+      wholesalePriceColReady = true;
+      return true;
+    } catch (e) {
+      console.error('ensureCustomerWholesalePriceColumn', e.message);
+      return false;
+    }
+  }
+}
+
+function parseUseWholesalePrice(payload) {
+  return (
+    payload.use_wholesale_price === '1' ||
+    payload.use_wholesale_price === 1 ||
+    payload.use_wholesale_price === true ||
+    payload.use_wholesale_price === 'on'
+  )
+    ? 1
+    : 0;
+}
+
 async function getCustomer(id) {
+  await ensureCustomerWholesalePriceColumn();
   const rows = await safeQuery(`SELECT * FROM crm_customer WHERE id = ? LIMIT 1`, [Number(id)]);
   if (!rows[0]) return null;
   const c = rows[0];
@@ -28,7 +65,11 @@ async function getCustomer(id) {
   } catch {
     if (c.sales_rep_id) repIds = [Number(c.sales_rep_id)];
   }
-  return { ...c, rep_ids: repIds };
+  return {
+    ...c,
+    use_wholesale_price: Number(c.use_wholesale_price) === 1 ? 1 : 0,
+    rep_ids: repIds,
+  };
 }
 
 async function nextCustomerCode() {
@@ -82,6 +123,7 @@ function parseCustomerGps(payload) {
 }
 
 async function saveCustomer(payload) {
+  await ensureCustomerWholesalePriceColumn();
   const id = Number(payload.id || 0);
   const name = String(payload.name_ar || '').trim();
   if (!name) return { ok: false, error: 'اسم العميل مطلوب.' };
@@ -90,6 +132,7 @@ async function saveCustomer(payload) {
   const email = nullIfEmpty(payload.email);
   const tax = nullIfEmpty(payload.tax_number);
   const addr = nullIfEmpty(payload.address_ar);
+  const useWholesale = parseUseWholesalePrice(payload);
   const regionId = Number(payload.region_id || 0) || null;
   const regionAddressId = Number(payload.region_address_id || 0) || null;
   const gps = parseCustomerGps(payload);
@@ -117,6 +160,7 @@ async function saveCustomer(payload) {
     try {
       await safeQuery(
         `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+         use_wholesale_price=?,
          region_id=?, region_address_id=?, sales_rep_id=?,
          latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?`,
         [
@@ -125,6 +169,7 @@ async function saveCustomer(payload) {
           email,
           tax,
           addr,
+          useWholesale,
           regionId,
           regionAddressId,
           repIds[0] || null,
@@ -139,14 +184,34 @@ async function saveCustomer(payload) {
       try {
         await safeQuery(
           `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+           use_wholesale_price=?,
            region_id=?, region_address_id=?, sales_rep_id=? WHERE id=?`,
-          [finalName, phone, email, tax, addr, regionId, regionAddressId, repIds[0] || null, id]
+          [
+            finalName,
+            phone,
+            email,
+            tax,
+            addr,
+            useWholesale,
+            regionId,
+            regionAddressId,
+            repIds[0] || null,
+            id,
+          ]
         );
       } catch {
-        await safeQuery(
-          `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?, sales_rep_id=? WHERE id=?`,
-          [finalName, phone, email, tax, addr, repIds[0] || null, id]
-        );
+        try {
+          await safeQuery(
+            `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+             use_wholesale_price=?, sales_rep_id=? WHERE id=?`,
+            [finalName, phone, email, tax, addr, useWholesale, repIds[0] || null, id]
+          );
+        } catch {
+          await safeQuery(
+            `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?, sales_rep_id=? WHERE id=?`,
+            [finalName, phone, email, tax, addr, repIds[0] || null, id]
+          );
+        }
       }
       if (!String(e1.message || '').includes('Unknown column')) {
         console.error('saveCustomer gps/region', e1.message);
@@ -166,9 +231,10 @@ async function saveCustomer(payload) {
   try {
     const [result] = await db.getPool().execute(
       `INSERT INTO crm_customer
-       (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id,
+       (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price,
+        region_id, region_address_id,
         latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
       [
         code,
         name,
@@ -176,6 +242,7 @@ async function saveCustomer(payload) {
         email,
         tax,
         addr,
+        useWholesale,
         regionId,
         regionAddressId,
         gps.latitude,
@@ -192,23 +259,55 @@ async function saveCustomer(payload) {
     try {
       const [result] = await db.getPool().execute(
         `INSERT INTO crm_customer
-         (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id, sales_rep_id, is_active)
-         VALUES (?,?,?,?,?,?,?,?,?,1)`,
-        [code, name, phone, email, tax, addr, regionId, regionAddressId, repIds[0] || null]
+         (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price,
+          region_id, region_address_id, sales_rep_id, is_active)
+         VALUES (?,?,?,?,?,?,?,?,?,?,1)`,
+        [
+          code,
+          name,
+          phone,
+          email,
+          tax,
+          addr,
+          useWholesale,
+          regionId,
+          regionAddressId,
+          repIds[0] || null,
+        ]
       );
       const newId = Number(result.insertId);
       await saveCustomerReps(newId, repIds);
       return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
     } catch {
-      const [result] = await db.getPool().execute(
-        `INSERT INTO crm_customer
-         (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active)
-         VALUES (?,?,?,?,?,?,?,1)`,
-        [code, name, phone, email, tax, addr, repIds[0] || null]
-      );
-      const newId = Number(result.insertId);
-      await saveCustomerReps(newId, repIds);
-      return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
+      try {
+        const [result] = await db.getPool().execute(
+          `INSERT INTO crm_customer
+           (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, sales_rep_id, is_active)
+           VALUES (?,?,?,?,?,?,?,?,1)`,
+          [code, name, phone, email, tax, addr, useWholesale, repIds[0] || null]
+        );
+        const newId = Number(result.insertId);
+        await saveCustomerReps(newId, repIds);
+        return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
+      } catch {
+        const [result] = await db.getPool().execute(
+          `INSERT INTO crm_customer
+           (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active)
+           VALUES (?,?,?,?,?,?,?,1)`,
+          [code, name, phone, email, tax, addr, repIds[0] || null]
+        );
+        const newId = Number(result.insertId);
+        await saveCustomerReps(newId, repIds);
+        try {
+          await safeQuery(`UPDATE crm_customer SET use_wholesale_price=? WHERE id=?`, [
+            useWholesale,
+            newId,
+          ]);
+        } catch {
+          /* column missing */
+        }
+        return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
+      }
     }
   }
 }
@@ -413,6 +512,7 @@ function importRegionCustomerExcel(userId, filePath, { replaceReps = true } = {}
 module.exports = {
   getCustomer,
   saveCustomer,
+  ensureCustomerWholesalePriceColumn,
   nextCustomerCode,
   getRegion,
   saveRegion,

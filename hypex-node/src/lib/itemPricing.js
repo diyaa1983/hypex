@@ -224,9 +224,19 @@ async function attachUnitsToSearchRows(items) {
 
 /**
  * يفرض سعر البند من بطاقة المادة × معامل الوحدة (لا يقبل سعر يدوي).
- * @returns {{ unit_price:number, unit_factor:number, unit_id:number|null, unit_name:string|null, tax_rate_percent:?number, base_sale:number }}
+ * @param {object} raw
+ * @param {{ priceMode?: 'sale'|'wholesale', useWholesale?: boolean }} [opts]
+ * @returns {Promise<{ unit_price:number, unit_factor:number, unit_id:number|null, unit_name:string|null, tax_rate_percent:?number, base_sale:number, base_wholesale:number, price_mode:string }>}
  */
-async function resolveDocLinePricing(raw) {
+async function resolveDocLinePricing(raw, opts = {}) {
+  const useWholesale =
+    opts.useWholesale === true ||
+    opts.priceMode === 'wholesale' ||
+    raw.use_wholesale === 1 ||
+    raw.use_wholesale === true ||
+    raw.price_mode === 'wholesale';
+  const priceMode = useWholesale ? 'wholesale' : 'sale';
+
   const itemId = Number(raw.item_id || 0);
   if (!itemId) {
     return {
@@ -236,6 +246,8 @@ async function resolveDocLinePricing(raw) {
       unit_name: null,
       tax_rate_percent: null,
       base_sale: 0,
+      base_wholesale: 0,
+      price_mode: priceMode,
     };
   }
   const pricing = await getItemPricing(itemId);
@@ -247,6 +259,8 @@ async function resolveDocLinePricing(raw) {
       unit_name: String(raw.unit_name || '').trim() || null,
       tax_rate_percent: null,
       base_sale: 0,
+      base_wholesale: 0,
+      price_mode: priceMode,
     };
   }
 
@@ -278,7 +292,8 @@ async function resolveDocLinePricing(raw) {
     if (!unitName) unitName = 'قطعة';
   }
 
-  const unitPrice = unitPriceFromBase(pricing.base_sale, factor);
+  const basePrice = useWholesale ? pricing.base_wholesale : pricing.base_sale;
+  const unitPrice = unitPriceFromBase(basePrice, factor);
 
   return {
     unit_price: unitPrice,
@@ -287,7 +302,33 @@ async function resolveDocLinePricing(raw) {
     unit_name: unitName || null,
     tax_rate_percent: pricing.tax_rate_percent,
     base_sale: pricing.base_sale,
+    base_wholesale: pricing.base_wholesale,
+    price_mode: priceMode,
   };
+}
+
+/** هل العميل مسعّر بسعر الجملة؟ */
+async function customerUsesWholesale(customerId) {
+  const id = Number(customerId);
+  if (!id) return false;
+  try {
+    // إنشاء العمود تلقائياً إن لزم
+    const masters = require('../customers/mastersService');
+    if (masters.ensureCustomerWholesalePriceColumn) {
+      await masters.ensureCustomerWholesalePriceColumn();
+    }
+  } catch {
+    /* */
+  }
+  try {
+    const rows = await db.query(
+      `SELECT use_wholesale_price FROM crm_customer WHERE id = ? LIMIT 1`,
+      [id]
+    );
+    return Number(rows[0]?.use_wholesale_price) === 1;
+  } catch {
+    return false;
+  }
 }
 
 module.exports = {
@@ -297,5 +338,6 @@ module.exports = {
   getItemPricing,
   attachUnitsToSearchRows,
   resolveDocLinePricing,
+  customerUsesWholesale,
   fetchItemUnits,
 };

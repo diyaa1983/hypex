@@ -35,6 +35,7 @@ async function getOrder(id) {
   if (!orderId) return null;
   const headers = await db.query(
     `SELECT o.*, c.name_ar AS customer_name, c.code AS customer_code,
+            COALESCE(c.use_wholesale_price, 0) AS use_wholesale_price,
             w.name_ar AS warehouse_name,
             COALESCE(r.name_ar, '') AS sales_rep_name
      FROM sal_customer_order o
@@ -83,9 +84,15 @@ async function getOrder(id) {
   for (const ln of lines) {
     const itemId = Number(ln.item_id);
     let units = [];
+    let baseSale = Number(ln.item_default_sale || 0);
+    let baseWholesale = 0;
     try {
       const pricing = await itemPricing.getItemPricing(itemId);
-      if (pricing) units = pricing.units || [];
+      if (pricing) {
+        units = pricing.units || [];
+        baseSale = Number(pricing.base_sale || 0);
+        baseWholesale = Number(pricing.base_wholesale || 0);
+      }
     } catch {
       units = [];
     }
@@ -96,7 +103,9 @@ async function getOrder(id) {
       qty: Number(ln.qty || 0),
       qty_extra: Number(ln.qty_extra || 0),
       unit_price: Number(ln.unit_price || 0),
-      base_sale: Number(ln.item_default_sale || 0),
+      base_sale: baseSale,
+      base_list_sale: baseSale,
+      base_wholesale: baseWholesale,
       discount_pct: Number(ln.discount_pct || 0),
       discount_amount: Number(ln.discount_amount || 0),
       tax_rate_percent: Number(ln.tax_rate_percent || 0),
@@ -118,6 +127,7 @@ async function getOrder(id) {
     customer_id: Number(h.customer_id),
     customer_name: h.customer_name,
     customer_code: h.customer_code,
+    use_wholesale_price: Number(h.use_wholesale_price) === 1 ? 1 : 0,
     sales_rep_id: h.sales_rep_id != null ? Number(h.sales_rep_id) : null,
     sales_rep_name: h.sales_rep_name || '',
     warehouse_id: Number(h.warehouse_id),
@@ -249,6 +259,8 @@ async function saveOrder(payload, userId) {
   const notes = String(payload.notes || '').trim() || null;
   const discountInput = String(payload.invoice_discount || payload.invoice_discount_input || '').trim();
   const orderId = Number(payload.id || 0);
+  const useWholesale = await itemPricing.customerUsesWholesale(customerId);
+  const priceLabel = useWholesale ? 'سعر الجملة' : 'سعر البيع';
 
   let defaultTax = 16;
   try {
@@ -263,11 +275,11 @@ async function saveOrder(payload, userId) {
   for (const ln of rawLines) {
     if (!ln || !Number(ln.item_id)) continue;
     if (Number(ln.qty) < 1) continue;
-    const priced = await itemPricing.resolveDocLinePricing(ln);
+    const priced = await itemPricing.resolveDocLinePricing(ln, { useWholesale });
     if (!(priced.unit_price > 0)) {
       return {
         ok: false,
-        error: 'لا يمكن حفظ الطلب: سعر المادة في البطاقة صفر. عدّل السعر من شاشة الأسعار.',
+        error: `لا يمكن حفظ الطلب: ${priceLabel} للمادة صفر في البطاقة. عدّل السعر من بطاقة المادة.`,
       };
     }
     const taxFromItem =

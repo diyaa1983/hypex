@@ -1172,6 +1172,17 @@ async function customerForm(req, res, id) {
                 <label>الرقم الضريبي
                   <input class="si-field" name="tax_number" value="${esc(row?.tax_number || '')}" dir="ltr" autocomplete="off">
                 </label>
+                <label class="cf-span-3" style="display:flex;align-items:flex-start;gap:.55rem;font-weight:700;color:#0f172a;cursor:pointer">
+                  <input type="checkbox" name="use_wholesale_price" value="1" style="margin-top:.2rem;width:1.05rem;height:1.05rem"
+                    ${Number(row?.use_wholesale_price) === 1 ? 'checked' : ''}>
+                  <span>
+                    تسعير بسعر الجملة
+                    <span class="cf-field-note" style="display:block;font-weight:600;margin-top:.15rem">
+                      إن وُضِع الخيار: تُسحَب أسعار المواد من «سعر الجملة» في بطاقة المادة عند فاتورة البيع وطلب العميل.
+                      بدون الخيار: يُستخدم «سعر البيع».
+                    </span>
+                  </span>
+                </label>
               </div>
             </div>
 

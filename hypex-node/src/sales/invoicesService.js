@@ -96,6 +96,7 @@ async function getInvoice(id) {
 
   const headers = await db.query(
     `SELECT i.*, c.name_ar AS customer_name, c.code AS customer_code,
+            COALESCE(c.use_wholesale_price, 0) AS use_wholesale_price,
             w.name_ar AS warehouse_name,
             COALESCE(r.name_ar, '') AS sales_rep_name,
             (${POSTED_SQL}) AS is_posted
@@ -124,9 +125,15 @@ async function getInvoice(id) {
   for (const ln of lines) {
     const itemId = Number(ln.item_id);
     let units = [];
+    let baseSale = Number(ln.base_sale || 0);
+    let baseWholesale = 0;
     try {
       const pricing = await itemPricing.getItemPricing(itemId);
-      if (pricing) units = pricing.units || [];
+      if (pricing) {
+        units = pricing.units || [];
+        baseSale = Number(pricing.base_sale || 0);
+        baseWholesale = Number(pricing.base_wholesale || 0);
+      }
     } catch {
       units = [];
     }
@@ -137,7 +144,9 @@ async function getInvoice(id) {
       qty: Number(ln.qty || 0),
       qty_extra: Number(ln.qty_extra || 0),
       unit_price: Number(ln.unit_price || 0),
-      base_sale: Number(ln.base_sale || 0),
+      base_sale: baseSale,
+      base_list_sale: baseSale,
+      base_wholesale: baseWholesale,
       discount_pct: Number(ln.discount_pct || 0),
       discount_amount: Number(ln.discount_amount || 0),
       tax_rate_percent: Number(ln.tax_rate_percent || 0),
@@ -159,6 +168,7 @@ async function getInvoice(id) {
     customer_id: Number(h.customer_id),
     customer_name: h.customer_name,
     customer_code: h.customer_code,
+    use_wholesale_price: Number(h.use_wholesale_price) === 1 ? 1 : 0,
     sales_rep_id: h.sales_rep_id != null ? Number(h.sales_rep_id) : null,
     sales_rep_name: h.sales_rep_name || '',
     warehouse_id: h.warehouse_id != null ? Number(h.warehouse_id) : null,
@@ -430,18 +440,20 @@ async function saveInvoice(payload, userId) {
   const notes = String(payload.notes || '').trim() || null;
   const discountInput = String(payload.invoice_discount || '').trim();
   const invoiceId = Number(payload.id || 0);
+  const useWholesale = await itemPricing.customerUsesWholesale(customerId);
+  const priceLabel = useWholesale ? 'سعر الجملة' : 'سعر البيع';
 
   const rawLines = Array.isArray(payload.lines) ? payload.lines : [];
   const normalized = [];
   for (const ln of rawLines) {
     if (!ln || !Number(ln.item_id)) continue;
     if (Number(ln.qty) <= 0 && Number(ln.qty_extra) <= 0) continue;
-    // السعر دائماً من بطاقة المادة × معامل الوحدة — غير قابل للتعديل من الفاتورة
-    const priced = await itemPricing.resolveDocLinePricing(ln);
+    // السعر من بطاقة المادة (بيع أو جملة حسب العميل) × معامل الوحدة
+    const priced = await itemPricing.resolveDocLinePricing(ln, { useWholesale });
     if (!(priced.unit_price > 0)) {
       return {
         ok: false,
-        error: 'لا يمكن حفظ فاتورة: سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة الأسعار أولاً.',
+        error: `لا يمكن حفظ فاتورة: ${priceLabel} للمادة صفر في البطاقة. حدّد السعر من بطاقة المادة أولاً.`,
       };
     }
     const taxFromItem =
@@ -574,18 +586,34 @@ async function insertLine(conn, invoiceId, ln) {
 
 async function searchCustomers(q, limit = 30) {
   const like = `%${String(q || '').trim()}%`;
-  if (String(q || '').trim() === '') {
+  const cols = `id, code, name_ar, phone, COALESCE(use_wholesale_price, 0) AS use_wholesale_price`;
+  try {
+    if (String(q || '').trim() === '') {
+      return db.query(
+        `SELECT ${cols} FROM crm_customer
+         WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`
+      );
+    }
+    return db.query(
+      `SELECT ${cols} FROM crm_customer
+       WHERE is_active = 1 AND (name_ar LIKE ? OR code LIKE ? OR IFNULL(phone,'') LIKE ?)
+       ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`,
+      [like, like, like]
+    );
+  } catch {
+    if (String(q || '').trim() === '') {
+      return db.query(
+        `SELECT id, code, name_ar, phone FROM crm_customer
+         WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`
+      );
+    }
     return db.query(
       `SELECT id, code, name_ar, phone FROM crm_customer
-       WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`
+       WHERE is_active = 1 AND (name_ar LIKE ? OR code LIKE ? OR IFNULL(phone,'') LIKE ?)
+       ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`,
+      [like, like, like]
     );
   }
-  return db.query(
-    `SELECT id, code, name_ar, phone FROM crm_customer
-     WHERE is_active = 1 AND (name_ar LIKE ? OR code LIKE ? OR IFNULL(phone,'') LIKE ?)
-     ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`,
-    [like, like, like]
-  );
 }
 
 async function searchItems(q, limit = 30) {

@@ -14,6 +14,17 @@ require_once app_path('includes/oracle_sync_service.php');
 require_once app_path('includes/crm_region.php');
 crm_sales_rep_ensure_customer_invoice_links($pdo);
 crm_customer_ensure_gps_columns($pdo);
+try {
+    $pdo->query('SELECT use_wholesale_price FROM crm_customer LIMIT 1');
+} catch (Throwable $e) {
+    try {
+        $pdo->exec(
+            'ALTER TABLE crm_customer ADD COLUMN use_wholesale_price TINYINT(1) NOT NULL DEFAULT 0 AFTER tax_number'
+        );
+    } catch (Throwable $e2) {
+        // ignore
+    }
+}
 oracle_customer_schema_ensure($pdo);
 oracle_customer_account_schema_ensure($pdo);
 crm_region_ensure_schema($pdo);
@@ -68,6 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tax = trim((string) ($_POST['tax_number'] ?? ''));
             $addr = trim((string) ($_POST['address_ar'] ?? ''));
             $gps = crm_customer_gps_parse_input($_POST);
+            $useWholesale = !empty($_POST['use_wholesale_price']) ? 1 : 0;
             $repIdsRaw = $_POST['sales_rep_ids'] ?? [];
             if (!is_array($repIdsRaw)) {
                 $repIdsRaw = [];
@@ -117,24 +129,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($id > 0) {
                 // الاسم: من Oracle يُثبَّت؛ الرقم لا يُحدَّث من النموذج أصلاً
-                $st = $pdo->prepare(
-                    'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
-                        region_id=?, region_address_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
-                );
-                $st->execute([
-                    $name,
-                    $phone !== '' ? $phone : null,
-                    $email !== '' ? $email : null,
-                    $tax !== '' ? $tax : null,
-                    $addr !== '' ? $addr : null,
-                    $regionIdDb,
-                    $regionAddressIdDb,
-                    $gps['latitude'],
-                    $gps['longitude'],
-                    $gps['gps_accuracy'],
-                    $gps['clear'] ? null : date('Y-m-d H:i:s'),
-                    $id,
-                ]);
+                try {
+                    $st = $pdo->prepare(
+                        'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+                            use_wholesale_price=?,
+                            region_id=?, region_address_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
+                    );
+                    $st->execute([
+                        $name,
+                        $phone !== '' ? $phone : null,
+                        $email !== '' ? $email : null,
+                        $tax !== '' ? $tax : null,
+                        $addr !== '' ? $addr : null,
+                        $useWholesale,
+                        $regionIdDb,
+                        $regionAddressIdDb,
+                        $gps['latitude'],
+                        $gps['longitude'],
+                        $gps['gps_accuracy'],
+                        $gps['clear'] ? null : date('Y-m-d H:i:s'),
+                        $id,
+                    ]);
+                } catch (Throwable $eCol) {
+                    $st = $pdo->prepare(
+                        'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+                            region_id=?, region_address_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
+                    );
+                    $st->execute([
+                        $name,
+                        $phone !== '' ? $phone : null,
+                        $email !== '' ? $email : null,
+                        $tax !== '' ? $tax : null,
+                        $addr !== '' ? $addr : null,
+                        $regionIdDb,
+                        $regionAddressIdDb,
+                        $gps['latitude'],
+                        $gps['longitude'],
+                        $gps['gps_accuracy'],
+                        $gps['clear'] ? null : date('Y-m-d H:i:s'),
+                        $id,
+                    ]);
+                }
                 crm_customer_save_sales_reps($pdo, $id, $repIdsRaw);
                 flash_set(
                     'success',
@@ -144,25 +179,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
             } else {
                 $code = crm_customer_generate_code($pdo);
-                $st = $pdo->prepare(
-                    'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
-                );
-                $st->execute([
-                    $code,
-                    $name,
-                    $phone !== '' ? $phone : null,
-                    $email !== '' ? $email : null,
-                    $tax !== '' ? $tax : null,
-                    $addr !== '' ? $addr : null,
-                    $regionIdDb,
-                    $regionAddressIdDb,
-                    $gps['latitude'],
-                    $gps['longitude'],
-                    $gps['gps_accuracy'],
-                    $gps['clear'] ? null : date('Y-m-d H:i:s'),
-                    null,
-                ]);
+                try {
+                    $st = $pdo->prepare(
+                        'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
+                    );
+                    $st->execute([
+                        $code,
+                        $name,
+                        $phone !== '' ? $phone : null,
+                        $email !== '' ? $email : null,
+                        $tax !== '' ? $tax : null,
+                        $addr !== '' ? $addr : null,
+                        $useWholesale,
+                        $regionIdDb,
+                        $regionAddressIdDb,
+                        $gps['latitude'],
+                        $gps['longitude'],
+                        $gps['gps_accuracy'],
+                        $gps['clear'] ? null : date('Y-m-d H:i:s'),
+                        null,
+                    ]);
+                } catch (Throwable $eCol) {
+                    $st = $pdo->prepare(
+                        'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
+                    );
+                    $st->execute([
+                        $code,
+                        $name,
+                        $phone !== '' ? $phone : null,
+                        $email !== '' ? $email : null,
+                        $tax !== '' ? $tax : null,
+                        $addr !== '' ? $addr : null,
+                        $regionIdDb,
+                        $regionAddressIdDb,
+                        $gps['latitude'],
+                        $gps['longitude'],
+                        $gps['gps_accuracy'],
+                        $gps['clear'] ? null : date('Y-m-d H:i:s'),
+                        null,
+                    ]);
+                }
                 $newId = (int) $pdo->lastInsertId();
                 crm_customer_save_sales_reps($pdo, $newId, $repIdsRaw);
                 flash_set('success', 'تم إضافة العميل.');
@@ -377,6 +435,16 @@ if ($action === 'add' || $action === 'edit') {
                     <button type="button" class="btn btn-secondary" id="cust-gps-clear" <?= $hasGps ? '' : 'disabled' ?>>مسح الموقع</button>
                 </div>
             </fieldset>
+            <label class="field customers-wholesale-field" style="display:flex;align-items:flex-start;gap:.5rem;margin:.75rem 0;">
+                <input type="checkbox" name="use_wholesale_price" value="1" <?= !empty($row['use_wholesale_price']) ? ' checked' : '' ?> style="margin-top:.2rem">
+                <span>
+                    <strong>تسعير بسعر الجملة</strong>
+                    <span class="muted" style="display:block;font-size:.85rem;margin-top:.15rem">
+                        مفعّل: تُسحب أسعار المواد من «سعر الجملة» في بطاقة المادة عند فاتورة البيع وطلب العميل.
+                        غير مفعّل: يُستخدم «سعر البيع».
+                    </span>
+                </span>
+            </label>
             <div>
                 <button class="btn btn-primary" type="submit">حفظ</button>
             </div>

@@ -312,6 +312,7 @@ async function renderForm(req, res, orderId) {
     customer_label: order
       ? `${order.customer_code || ''} — ${order.customer_name || ''}`.replace(/^ — /, '')
       : '',
+    use_wholesale_price: order ? (Number(order.use_wholesale_price) === 1 ? 1 : 0) : 0,
     sales_rep_id: order ? order.sales_rep_id : null,
     warehouse_id: order ? order.warehouse_id : lookups.warehouses[0]?.id || '',
     notes: order ? order.notes : '',
@@ -411,6 +412,7 @@ async function renderForm(req, res, orderId) {
                      value="${esc(initial.customer_label)}" autocomplete="off" ${locked ? 'readonly' : ''}>
               <div class="si-suggest" id="cust_suggest" hidden></div>
             </div>
+            <span id="co_price_mode_hint" class="muted" style="display:block;font-size:.78rem;margin-top:.25rem" hidden></span>
           </label>
           <label>المندوب
             <select class="si-field" id="co_rep" ${locked ? 'disabled' : ''}>${repOpts}</select>

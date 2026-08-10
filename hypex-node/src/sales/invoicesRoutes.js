@@ -482,6 +482,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
       customer_id: inv ? inv.customer_id : 0,
       customer_label: inv ? `${inv.customer_code || ''} — ${inv.customer_name}` : '',
       customer_email: inv ? inv.customer_email || '' : '',
+      use_wholesale_price: inv ? Number(inv.use_wholesale_price) === 1 ? 1 : 0 : 0,
       sales_rep_id: inv ? inv.sales_rep_id : null,
       warehouse_id: inv ? inv.warehouse_id : lookups.warehouses[0]?.id || null,
       payment_type: inv ? inv.payment_type : 'credit',
@@ -594,6 +595,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                        }>
                 <div class="si-suggest" id="cust_suggest" hidden></div>
               </div>
+              <span id="inv_price_mode_hint" class="muted" style="display:block;font-size:.78rem;margin-top:.25rem" hidden></span>
             </label>
             <label class="si-f si-f--wh">المستودع
               <select class="si-field" id="inv_wh" ${initial.is_posted ? 'disabled' : ''}>
