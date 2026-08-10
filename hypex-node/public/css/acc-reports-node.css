@@ -165,26 +165,60 @@ tr.is-locked td {
 
 .ora-stmt-head {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 0.75rem 1.25rem;
   background: linear-gradient(135deg, #f3faf9 0%, #fff 55%, #f8fafc 100%);
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 1.15rem 1.3rem 1.25rem;
   margin-bottom: 0.9rem;
 }
-.ora-stmt-head__main {
+.ora-stmt-head__party {
   min-width: 0;
+  text-align: right;
+}
+.ora-stmt-head__period {
+  justify-self: center;
+  align-self: center;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem 0.55rem;
+  font-size: 0.95rem;
+  color: #334155;
+  font-weight: 700;
+}
+.ora-stmt-head__period strong {
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.ora-stmt-label {
+  color: #64748b;
+  font-weight: 700;
 }
 .ora-stmt-kicker {
   display: none !important;
 }
 .ora-stmt-name {
-  margin: 0 0 0.45rem;
+  margin: 0 0 0.35rem;
   font-size: clamp(1.15rem, 1.8vw, 1.45rem);
   font-weight: 800;
   color: #0f172a;
   line-height: 1.35;
+}
+.ora-stmt-name .ora-stmt-label {
+  font-size: 0.92em;
+  margin-inline-end: 0.25rem;
+}
+.ora-stmt-count {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #475569;
 }
 .ora-stmt-meta {
   margin: 0;
@@ -319,13 +353,13 @@ tr.is-locked td {
 
 .ora-stmt-chq-wrap {
   overflow-x: auto;
-  max-width: 28rem;
+  max-width: 36rem;
   margin: 0;
 }
 
 .ora-stmt-chq-table {
   width: 100%;
-  max-width: 28rem;
+  max-width: 36rem;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 0.92rem;
@@ -334,10 +368,10 @@ tr.is-locked td {
   background: transparent;
 }
 
-.ora-stmt-chq-table col.col-chq-no { width: 18%; }
-.ora-stmt-chq-table col.col-chq-date { width: 28%; }
-.ora-stmt-chq-table col.col-chq-amt { width: 26%; }
-.ora-stmt-chq-table col.col-chq-recv { width: 28%; }
+.ora-stmt-chq-table col.col-chq-no { width: 14%; }
+.ora-stmt-chq-table col.col-chq-date { width: 26%; }
+.ora-stmt-chq-table col.col-chq-amt { width: 28%; }
+.ora-stmt-chq-table col.col-chq-recv { width: 32%; }
 
 .ora-stmt-chq-table thead th {
   background: transparent !important;
@@ -366,6 +400,12 @@ tr.is-locked td {
   text-align: right;
   padding: 0.22rem 0.35rem;
   vertical-align: middle;
+}
+
+.ora-stmt-chq-table tbody td.col-chq-date,
+.ora-stmt-chq-table tbody td.col-chq-recv,
+.ora-stmt-chq-table tbody td[dir="ltr"] {
+  white-space: nowrap;
 }
 
 .ora-stmt-chq-table tbody td.col-money {
@@ -505,7 +545,8 @@ tr.is-locked td {
   }
 
   .ora-stmt-head {
-    display: block !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
     background: #fff !important;
     border: 1px solid #333 !important;
     border-radius: 0 !important;
@@ -517,19 +558,33 @@ tr.is-locked td {
     page-break-inside: avoid;
   }
 
-  .ora-stmt-head__main {
-    margin-bottom: 0.4rem;
+  .ora-stmt-head__party {
+    text-align: right !important;
+  }
+
+  .ora-stmt-head__period {
+    grid-column: 1 !important;
+    justify-self: center !important;
+    text-align: center !important;
+    font-size: 10pt !important;
+    color: #000 !important;
+    margin-top: 0.25rem !important;
   }
 
   .ora-stmt-kicker {
-    font-size: 8pt !important;
-    color: #000 !important;
+    display: none !important;
   }
 
   .ora-stmt-name {
     font-size: 13pt !important;
     margin: 0.1rem 0 !important;
     color: #000 !important;
+  }
+
+  .ora-stmt-count {
+    font-size: 10pt !important;
+    color: #222 !important;
+    margin: 0 !important;
   }
 
   .ora-stmt-meta {
@@ -676,6 +731,11 @@ tr.is-locked td {
 
   .ora-stmt-chq-table thead th {
     text-decoration: underline !important;
+  }
+
+  .ora-stmt-chq-table td.col-chq-date,
+  .ora-stmt-chq-table td.col-chq-recv {
+    white-space: nowrap !important;
   }
 
   .ora-stmt-chq-table tfoot .ora-stmt-chq-total td {

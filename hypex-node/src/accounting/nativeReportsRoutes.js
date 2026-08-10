@@ -834,16 +834,15 @@ router.get(
 
       const head = `
         <header class="ora-stmt-head print-area">
-          <div class="ora-stmt-head__main">
-            <p class="ora-stmt-kicker">كشف حساب تفصيلي · Oracle</p>
-            <h2 class="ora-stmt-name">${esc(name || '—')}</h2>
-            <p class="ora-stmt-meta">
-              رقم الحساب: <strong dir="ltr">${esc(partyCode)}</strong>
-              <span class="ora-dot" aria-hidden="true">·</span>
-              الفترة: <span dir="ltr">${dmy(from)} — ${dmy(to)}</span>
-              <span class="ora-dot" aria-hidden="true">·</span>
-              ${nTrans} حركة
-            </p>
+          <div class="ora-stmt-head__party">
+            <h2 class="ora-stmt-name"><span class="ora-stmt-label">اسم العميل:</span> ${esc(name || '—')}</h2>
+            <p class="ora-stmt-count">${nTrans} حركة</p>
+          </div>
+          <div class="ora-stmt-head__period">
+            <span class="ora-stmt-label">من</span>
+            <strong dir="ltr">${dmy(from)}</strong>
+            <span class="ora-stmt-label">إلى</span>
+            <strong dir="ltr">${dmy(to)}</strong>
           </div>
         </header>`;
 
@@ -908,9 +907,9 @@ router.get(
                     .map(
                       (c) => `<tr>
                     <td dir="ltr">${esc(String(c.chq_no || ''))}</td>
-                    <td dir="ltr">${dmy(c.chq_date)}</td>
+                    <td class="col-chq-date" dir="ltr">${dmy(c.chq_date)}</td>
                     <td class="col-money" dir="ltr">${money(c.amount)}</td>
-                    <td dir="ltr">${dmy(c.receipt_date || c.recv_date || c.chq_recv_date || '')}</td>
+                    <td class="col-chq-recv" dir="ltr">${dmy(c.receipt_date || c.recv_date || c.chq_recv_date || '')}</td>
                   </tr>`
                     )
                     .join('')}
