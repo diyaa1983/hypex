@@ -124,9 +124,45 @@ function assetVersion(relFromPublic) {
   }
 }
 
-/** غلاف محتوى الطباعة — بدون صورة شعار في DOM الشاشة */
 function wrapPrintShell(bodyHtml) {
-  return `<div class="hx-print-content" data-hx-print-shell="standalone-v3">${bodyHtml}</div>`;
+  const logo = getPrintBrand().logoUrl || '';
+  const wm = watermarkMarkup(logo);
+  return `<div class="hx-print-content" data-hx-print-shell="standalone-v3">${wm}${bodyHtml}</div>`;
+}
+
+/** CSS علامة مائية — تظهر عند الطباعة فقط */
+function watermarkCss() {
+  return `
+    .hx-logo-wm{display:none!important}
+    .hx-doc-sheet,.hx-print-content,.si-print-area,.ora-stmt,.hx-print-doc{position:relative}
+    @media print{
+      .hx-logo-wm{
+        display:flex!important;position:fixed!important;inset:0!important;
+        align-items:center;justify-content:center;pointer-events:none;z-index:0;opacity:.12;
+        -webkit-print-color-adjust:exact!important;print-color-adjust:exact!important
+      }
+      .hx-logo-wm img{
+        width:min(58%,380px)!important;max-width:380px!important;max-height:380px!important;
+        height:auto!important;object-fit:contain;filter:grayscale(.15)
+      }
+      .hx-doc-sheet > *:not(.hx-logo-wm),
+      .hx-print-content > *:not(.hx-logo-wm),
+      .si-print-area > *:not(.hx-logo-wm),
+      .hx-print-doc > *:not(.hx-logo-wm){
+        position:relative;z-index:1
+      }
+    }
+  `;
+}
+
+function watermarkMarkup(logoUrl) {
+  const src = String(logoUrl || '').trim();
+  if (!src) return '';
+  return (
+    `<div class="hx-logo-wm hx-logo-wm--sheet" aria-hidden="true">` +
+    `<img src="${escapeAttr(src)}" alt="">` +
+    `</div>`
+  );
 }
 
 function printDataAttrs(opts = {}) {
@@ -179,6 +215,7 @@ async function renderStandalonePrintPage({
   const logoHtml = brand.logo
     ? `<img src="${escapeAttr(brand.logo)}" alt="" class="hx-doc-logo">`
     : `<span class="hx-doc-logo-fallback">H</span>`;
+  const wmHtml = watermarkMarkup(brand.logo);
 
   const back = backHref
     ? `<a class="hx-doc-btn" href="${escapeAttr(basePath.ensurePrefixed(backHref))}">عودة</a>`
@@ -279,19 +316,21 @@ async function renderStandalonePrintPage({
     .hx-doc-sheet{max-width:210mm;margin:1rem auto 2rem;background:#fff;padding:10mm 8mm;
       box-shadow:0 8px 28px rgba(15,23,42,.1)}
     .hx-doc-head{margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid #222}
-    .hx-doc-head__row{display:flex;direction:ltr;align-items:center;justify-content:space-between;gap:14px;width:100%}
-    .hx-doc-logo{display:block;max-width:72px;max-height:72px;width:auto;height:auto;object-fit:contain}
-    .hx-doc-logo-fallback{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;
-      border:1px solid #333;font:800 14px Arial,sans-serif}
-    .hx-doc-company{flex:1 1 auto;text-align:right;font:800 15pt/1.3 Arial,Helvetica,sans-serif;color:#0f172a;direction:rtl}
+    .hx-doc-head__row{display:flex;direction:ltr;align-items:center;justify-content:space-between;gap:16px;width:100%}
+    .hx-doc-logo-wrap{flex:0 0 auto;max-width:140px;max-height:120px;overflow:visible}
+    .hx-doc-logo{display:block;max-width:120px;max-height:120px;width:auto;height:auto;object-fit:contain}
+    .hx-doc-logo-fallback{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;
+      border:1px solid #333;font:800 22px Arial,sans-serif}
+    .hx-doc-company{flex:1 1 auto;text-align:right;font:800 16pt/1.3 Arial,Helvetica,sans-serif;color:#0f172a;direction:rtl}
     .hx-doc-title{text-align:center;font:700 12pt/1.3 Arial,Helvetica,sans-serif;margin-top:10px;color:#1e293b}
     .hx-doc-stamp{text-align:center;font:500 7.5pt Arial,Helvetica,sans-serif;color:#64748b;margin-top:4px}
     .empty{color:#64748b;text-align:center;padding:.75rem}
+    ${watermarkCss()}
     ${invCss}
     @media print{
       body{background:#fff}
       .no-print,.hx-doc-bar{display:none!important}
-      .hx-doc-sheet{max-width:none;margin:0;padding:0;box-shadow:none}
+      .hx-doc-sheet{max-width:none;margin:0;padding:0;box-shadow:none;position:relative}
       @page{size:A4 portrait;margin:8mm 7mm 10mm 7mm}
     }
   </style>
@@ -305,9 +344,10 @@ async function renderStandalonePrintPage({
     </div>
   </div>
   <div class="hx-doc-sheet" id="hx-print-sheet">
+    ${wmHtml}
     <header class="hx-doc-head" aria-label="ترويسة الشركة">
       <div class="hx-doc-head__row">
-        <div style="flex:0 0 auto;max-width:90px;max-height:72px;overflow:hidden">${logoHtml}</div>
+        <div class="hx-doc-logo-wrap">${logoHtml}</div>
         <div class="hx-doc-company">${escapeHtml(brand.company)}</div>
       </div>
       ${
@@ -336,6 +376,8 @@ module.exports = {
   printDataAttrs,
   bodyPrintDataHtml,
   renderStandalonePrintPage,
+  watermarkCss,
+  watermarkMarkup,
   assetVersion,
   escapeHtml,
   escapeAttr,

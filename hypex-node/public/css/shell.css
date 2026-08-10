@@ -67,6 +67,48 @@ label,
   }
 }
 
+/* علامة مائية — عند الطباعة فقط */
+.hx-logo-wm {
+  display: none !important;
+}
+@media print {
+  .hx-logo-wm {
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+    opacity: 0.12 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .hx-logo-wm img {
+    width: min(58%, 380px) !important;
+    max-width: 380px !important;
+    max-height: 380px !important;
+    height: auto !important;
+    object-fit: contain !important;
+    filter: grayscale(0.12);
+  }
+  .hx-print-content,
+  .si-print-area,
+  .hx-doc-sheet,
+  .ora-stmt {
+    position: relative;
+  }
+  .hx-print-content > *:not(.hx-logo-wm),
+  .si-print-area > *:not(.hx-logo-wm),
+  .hx-doc-sheet > *:not(.hx-logo-wm) {
+    position: relative;
+    z-index: 1;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
 a {
   color: var(--brand);
   text-decoration: none;

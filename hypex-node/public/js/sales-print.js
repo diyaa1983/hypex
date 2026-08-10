@@ -2,11 +2,12 @@
  * طباعة Node 2027
  * - sheet: طباعة الصفحة كما هي (فواتير — ترتيب DOM محفوظ)
  * - iframe: ترويسة + محتوى منفصل (التقارير)
+ * - شعار أكبر في الترويسة + علامة مائية على كل الطباعات
  */
 (function () {
   'use strict';
 
-  var LOGO_MAX = 72;
+  var LOGO_MAX = 120;
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -34,6 +35,37 @@
       user: b.getAttribute('data-hx-user') || '—',
       title: b.getAttribute('data-hx-print-title') || document.title || 'تقرير',
     };
+  }
+
+  function watermarkHtml(logo) {
+    var src = String(logo || '').trim();
+    if (!src) return '';
+    return (
+      '<div class="hx-logo-wm" aria-hidden="true">' +
+      '<img src="' +
+      esc(src) +
+      '" alt="">' +
+      '</div>'
+    );
+  }
+
+  function ensureWatermarkOnPage(logo) {
+    var src = String(logo || '').trim();
+    if (!src) return;
+    var shells = document.querySelectorAll(
+      '.hx-doc-sheet, .hx-print-content, .si-print-area, .ora-stmt'
+    );
+    if (!shells.length) shells = [document.body];
+    shells.forEach(function (el) {
+      if (!el || el.querySelector('.hx-logo-wm')) return;
+      var style = window.getComputedStyle(el);
+      if (style.position === 'static') el.style.position = 'relative';
+      var wrap = document.createElement('div');
+      wrap.className = 'hx-logo-wm hx-logo-wm--sheet';
+      wrap.setAttribute('aria-hidden', 'true');
+      wrap.innerHTML = '<img src="' + esc(src) + '" alt="">';
+      el.insertBefore(wrap, el.firstChild);
+    });
   }
 
   function fetchBrandThen(cb) {
@@ -127,7 +159,7 @@
     var clone = area.cloneNode(true);
     clone
       .querySelectorAll(
-        '.no-print, .si-rail, .ora-filters, script, style, .si-hero, .sidebar, .hx-doc-bar, .hx-doc-head'
+        '.no-print, .si-rail, .ora-filters, script, style, .si-hero, .sidebar, .hx-doc-bar, .hx-doc-head, .hx-logo-wm'
       )
       .forEach(function (el) {
         el.remove();
@@ -140,7 +172,7 @@
   function buildHeader(b, when) {
     var logo =
       b.logo !== ''
-        ? '<img src="' +
+        ? '<img class="hx-print-logo" src="' +
           esc(b.logo) +
           '" alt="" width="' +
           LOGO_MAX +
@@ -151,7 +183,7 @@
           'px;max-height:' +
           LOGO_MAX +
           'px;width:auto;height:auto;object-fit:contain">'
-        : '<span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid #333;font:800 14px Arial,sans-serif">H</span>';
+        : '<span style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border:1px solid #333;font:800 22px Arial,sans-serif">H</span>';
 
     var userLine =
       b.user && b.user !== '—'
@@ -160,11 +192,11 @@
 
     return (
       '<header class="hx-print-head" style="margin:0 0 12px 0;padding:0 0 10px 0;border-bottom:1px solid #222">' +
-      '<div style="display:flex;direction:ltr;align-items:center;justify-content:space-between;width:100%;gap:14px">' +
-      '<div style="flex:0 0 auto;max-width:90px;max-height:72px;overflow:hidden">' +
+      '<div style="display:flex;direction:ltr;align-items:center;justify-content:space-between;width:100%;gap:16px">' +
+      '<div style="flex:0 0 auto;max-width:140px;max-height:120px;overflow:visible">' +
       logo +
       '</div>' +
-      '<div dir="rtl" style="flex:1 1 auto;text-align:right;font:800 15pt/1.3 Arial,Helvetica,sans-serif;color:#0f172a">' +
+      '<div dir="rtl" style="flex:1 1 auto;text-align:right;font:800 16pt/1.3 Arial,Helvetica,sans-serif;color:#0f172a">' +
       esc(b.company) +
       '</div>' +
       '</div>' +
@@ -219,13 +251,19 @@
       '.ora-stmt-chq-table tfoot strong{font-weight:800;text-decoration:underline}' +
       '.si-surface,.ora-stmt-body,.inv-print-lines{border:1px solid #bbb;padding:0;margin:0 0 8px;overflow:visible!important}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
-      '.si-table-wrap,.ora-stmt,.hx-print-doc,.inv-print-doc{overflow:visible!important}' +
+      '.si-table-wrap,.ora-stmt,.hx-print-doc,.inv-print-doc{overflow:visible!important;position:relative}' +
+      '.hx-logo-wm{display:none!important}' +
+      '@media print{.hx-logo-wm{display:flex!important;position:fixed;inset:0;align-items:center;justify-content:center;pointer-events:none;z-index:0;opacity:.12;-webkit-print-color-adjust:exact;print-color-adjust:exact}.hx-logo-wm img{width:min(58%,380px)!important;max-width:380px!important;max-height:380px!important;height:auto!important;object-fit:contain}}' +
       '@page{size:A4 portrait;margin:10mm 8mm 12mm 8mm}' +
       'html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#fff}' +
-      '.hx-print-doc{padding-bottom:2mm;margin:0}' +
-      '.hx-print-head{page-break-after:avoid}' +
+      '.hx-print-doc{padding-bottom:2mm;margin:0;position:relative;z-index:1}' +
+      '.hx-print-head{page-break-after:avoid;position:relative;z-index:1}' +
       '.si-hero,.sidebar,.no-print,.si-rail,.ora-filters,.si-btn{display:none!important}' +
-      'img{max-width:72px!important;max-height:72px!important;width:auto!important;height:auto!important;object-fit:contain!important}'
+      'img.hx-print-logo{max-width:' +
+      LOGO_MAX +
+      'px!important;max-height:' +
+      LOGO_MAX +
+      'px!important;width:auto!important;height:auto!important;object-fit:contain!important}'
     );
   }
 
@@ -238,6 +276,7 @@
       '</title><style>' +
       tableCss() +
       '</style></head><body>' +
+      watermarkHtml(b.logo) +
       buildHeader(b, when) +
       '<div class="hx-print-doc">' +
       content +
@@ -317,6 +356,7 @@
   /** طباعة صفحة الفاتورة كما تظهر — المجاميع تبقى تحت الجدول */
   function printCurrentSheet() {
     ensureInvoiceTotalsAfterTable(document);
+    ensureWatermarkOnPage(brandFromDom().logo);
     try {
       window.focus();
       window.print();
@@ -337,6 +377,10 @@
         e.stopPropagation();
         runPrint();
       });
+    });
+    // علامة مائية عند العرض (تقارير / فواتير)
+    fetchBrandThen(function (b) {
+      ensureWatermarkOnPage(b.logo);
     });
     if (document.body && document.body.getAttribute('data-hx-auto-print') === '1') {
       setTimeout(runPrint, 400);

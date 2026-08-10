@@ -826,9 +826,6 @@ router.get(
         String(data.name || '').trim() ||
         (selectedParty ? String(selectedParty.name_ar || '') : '') ||
         '';
-      const partyCode = String(
-        (selectedParty && (selectedParty.code || selectedParty.acc_no)) || data.account || accountNo
-      );
       const cheques = Array.isArray(data.cheques) ? data.cheques : [];
       const nTrans = lines.filter((r) => !r.is_opening).length;
 
