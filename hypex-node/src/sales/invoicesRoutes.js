@@ -269,17 +269,27 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
       inv.lines
         .map((ln, i) => {
           const qty = Number(ln.qty) || 0;
+          const qtyExtra = Number(ln.qty_extra) || 0;
+          const discPct = Number(ln.discount_pct) || 0;
+          const discAmt = Number(ln.discount_amount) || 0;
           const taxPct = Number(ln.tax_rate_percent) || 0;
           const unitNet = Number(ln.unit_price) || 0;
           const unitGross = unitNet * (1 + taxPct / 100);
+          // عرض الخصم: النسبة إن وُجدت، وإلا مبلغ الخصم (يبقى العمود دائماً)
+          const discCell =
+            discPct > 0.000001
+              ? `${fmtAmt(discPct)}%`
+              : fmtAmt(discAmt);
           return `<tr>
             <td class="c-idx" dir="ltr">${i + 1}</td>
             <td class="c-code" dir="ltr">${esc(ln.item_code || '')}</td>
             <td class="c-name">${esc(ln.name_ar || '')}</td>
             <td class="c-unit">${esc(ln.unit_name || 'قطعة')}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(qty))}</td>
+            <td class="c-num" dir="ltr">${esc(fmtAmt(qtyExtra))}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(unitNet))}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(unitGross))}</td>
+            <td class="c-num c-disc" dir="ltr">${esc(discCell)}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(ln.line_total))}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(ln.tax_amount))}</td>
             <td class="c-num" dir="ltr">${esc(fmtAmt(taxPct))}%</td>
@@ -287,7 +297,13 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
           </tr>`;
         })
         .join('') ||
-      `<tr><td colspan="11" class="empty">لا بنود</td></tr>`;
+      `<tr><td colspan="13" class="empty">لا بنود</td></tr>`;
+
+    const discLinesTotal = inv.lines.reduce(
+      (a, ln) => a + (Number(ln.discount_amount) || 0),
+      0
+    );
+    const invDiscLabel = String(inv.invoice_discount_input || '').trim() || fmtAmt(0);
 
     const qrBlock =
       qrSrc
@@ -297,6 +313,14 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
     // المجاميع دائماً ظاهرة تحت الجدول؛ QR فقط إن وُجدت بعد الإرسال
     const sumsBlock = `<div class="inv-v1-sumwrap">
             <table class="inv-v1-sum">
+              <tr>
+                <td class="lbl">خصم الفاتورة</td>
+                <td class="val" dir="ltr">${esc(invDiscLabel)}</td>
+              </tr>
+              <tr>
+                <td class="lbl">مجموع الخصم</td>
+                <td class="val" dir="ltr">${esc(fmtAmt(discLinesTotal))}</td>
+              </tr>
               <tr>
                 <td class="lbl">المجموع بدون ضريبة</td>
                 <td class="val" dir="ltr">${esc(fmtAmt(inv.subtotal))}</td>
@@ -342,8 +366,10 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
               <th>اسم المادة</th>
               <th>الوحدة</th>
               <th>الكمية</th>
+              <th>الكمية الإضافية</th>
               <th>الافرادي غ.ش</th>
               <th>الافرادي ش.</th>
+              <th>الخصم</th>
               <th>السعر الإجمالي</th>
               <th>مبلغ الضريبة</th>
               <th>نسبة الضريبة</th>

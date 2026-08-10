@@ -845,24 +845,6 @@ router.get(
               ${nTrans} حركة
             </p>
           </div>
-          <div class="ora-stmt-totals" aria-label="ملخص الأرصدة">
-            <div class="ora-stat">
-              <span>افتتاحي</span>
-              <strong dir="ltr">${money(data.opening)}</strong>
-            </div>
-            <div class="ora-stat">
-              <span>مدين</span>
-              <strong dir="ltr">${money(data.total_debit)}</strong>
-            </div>
-            <div class="ora-stat">
-              <span>دائن</span>
-              <strong dir="ltr">${money(data.total_credit)}</strong>
-            </div>
-            <div class="ora-stat ora-stat--balance">
-              <span>الرصيد الختامي</span>
-              <strong dir="ltr">${money(data.balance)}</strong>
-            </div>
-          </div>
         </header>`;
 
       const bodyRows =

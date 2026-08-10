@@ -216,15 +216,16 @@ async function renderStandalonePrintPage({
     .inv-v1-meta div{margin:0}
     .inv-v1-meta span{color:#475569;font-weight:600}
     .inv-v1-meta strong{color:#0f172a;font-weight:700}
-    .inv-v1-table{width:100%;border-collapse:collapse;font-size:8pt;margin:0 0 6px}
+    .inv-v1-table{width:100%;border-collapse:collapse;font-size:7.5pt;margin:0 0 6px}
     .inv-v1-table thead th{
-      background:#5b6b7c;color:#fff;font-weight:700;font-size:7.5pt;
-      border:1px solid #4a5568;padding:5px 3px;text-align:center;white-space:nowrap
+      background:#5b6b7c;color:#fff;font-weight:700;font-size:7pt;
+      border:1px solid #4a5568;padding:4px 2px;text-align:center;white-space:nowrap
     }
-    .inv-v1-table tbody td{border:1px solid #94a3b8;padding:4px 3px;vertical-align:middle;background:#fff}
+    .inv-v1-table tbody td{border:1px solid #94a3b8;padding:3px 2px;vertical-align:middle;background:#fff}
     .inv-v1-table .c-idx,.inv-v1-table .c-code,.inv-v1-table .c-num{text-align:center;font-variant-numeric:tabular-nums}
     .inv-v1-table .c-name{text-align:right;font-weight:600}
     .inv-v1-table .c-unit{text-align:center}
+    .inv-v1-table .c-disc{color:#b45309;font-weight:700}
     .inv-v1-table .c-gross{font-weight:800}
     .inv-v1-table .empty{text-align:center;color:#64748b;padding:12px}
     /* مجاميع على اليمين، التوقيع أسفلها في الأسفل */
