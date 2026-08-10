@@ -341,26 +341,24 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
               </label>
             </div>
             <div class="srr-form__row">
-              <label class="srr-field">
+              <label class="srr-field srr-field--full">
                 <span>العنوان</span>
                 <select class="si-field" id="srr-address" ${isPosted ? 'disabled' : ''}>
                   <option value="0">— اختر المنطقة أولاً —</option>
                 </select>
               </label>
-              <div class="srr-form__row srr-form__row--inline">
-                <label class="srr-field">
-                  <span>من تاريخ <em>*</em></span>
-                  <input class="si-field si-field--mono" type="date" name="date_from" id="srr-from" required value="${esc(
-                    dateFrom
-                  )}" ${isPosted ? 'readonly' : ''}>
-                </label>
-                <label class="srr-field">
-                  <span>إلى تاريخ <em>*</em></span>
-                  <input class="si-field si-field--mono" type="date" name="date_to" id="srr-to" required value="${esc(
-                    dateTo
-                  )}" ${isPosted ? 'readonly' : ''}>
-                </label>
-              </div>
+            </div>
+            <div class="srr-form__row srr-form__row--dates">
+              <label class="srr-field srr-field--date">
+                <span>من تاريخ <em>*</em></span>
+                <input class="si-field si-field--mono srr-date" type="date" name="date_from" id="srr-from"
+                       required value="${esc(dateFrom)}" dir="ltr" ${isPosted ? 'readonly' : ''}>
+              </label>
+              <label class="srr-field srr-field--date">
+                <span>إلى تاريخ <em>*</em></span>
+                <input class="si-field si-field--mono srr-date" type="date" name="date_to" id="srr-to"
+                       required value="${esc(dateTo)}" dir="ltr" ${isPosted ? 'readonly' : ''}>
+              </label>
             </div>
             <label class="srr-field srr-field--full">
               <span>ملاحظات</span>
