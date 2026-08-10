@@ -44,11 +44,24 @@ function cli_login(int $userId): void
     if ($userId < 1) {
         cli_out(['ok' => false, 'error' => 'user_id مطلوب.'], 1);
     }
-    $st = db()->prepare(
-        'SELECT id, username, full_name FROM sys_user WHERE id = ? AND is_active = 1 LIMIT 1'
-    );
-    $st->execute([$userId]);
-    $u = $st->fetch(PDO::FETCH_ASSOC);
+    $u = null;
+    $queries = [
+        'SELECT id, username, full_name_ar AS full_name FROM sys_user WHERE id = ? AND is_active = 1 LIMIT 1',
+        'SELECT id, username, username AS full_name FROM sys_user WHERE id = ? AND is_active = 1 LIMIT 1',
+    ];
+    foreach ($queries as $sql) {
+        try {
+            $st = db()->prepare($sql);
+            $st->execute([$userId]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                $u = $row;
+                break;
+            }
+        } catch (Throwable $e) {
+            continue;
+        }
+    }
     if (!$u) {
         cli_out(['ok' => false, 'error' => 'المستخدم غير موجود.'], 1);
     }
@@ -57,6 +70,7 @@ function cli_login(int $userId): void
         'username' => (string) ($u['username'] ?? ''),
         'name' => (string) ($u['full_name'] ?? $u['username'] ?? ''),
         'full_name' => (string) ($u['full_name'] ?? ''),
+        'full_name_ar' => (string) ($u['full_name'] ?? ''),
     ];
     $_SESSION['is_system_admin'] = user_is_system_admin((int) $u['id']);
     $_SESSION['permissions'] = load_user_permissions((int) $u['id']);
