@@ -139,6 +139,154 @@
     repriceOpenLines();
   }
 
+  /* ─── رصيد العميل + الشيكات قيد التحصيل (Oracle) ─── */
+  var oraLoadSeq = 0;
+
+  function fmtArAmt(n) {
+    var x = Number(n);
+    if (!Number.isFinite(x)) x = 0;
+    if (window.HxDec && typeof window.HxDec.fmt === 'function') {
+      return window.HxDec.fmt(x);
+    }
+    if (window.AppFormat && typeof AppFormat.fmt === 'function') {
+      return AppFormat.fmt(x);
+    }
+    try {
+      return x.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    } catch (e) {
+      return String(Math.round(x * 1000) / 1000);
+    }
+  }
+
+  function fmtArDate(iso) {
+    iso = String(iso || '').trim();
+    if (!iso) return '—';
+    if (window.AppFormat && AppFormat.formatDateDmY) {
+      var d = AppFormat.formatDateDmY(iso);
+      if (d) return d;
+    }
+    if (window.AppDatePicker && AppDatePicker.formatIsoToDmY) {
+      var d2 = AppDatePicker.formatIsoToDmY(iso.slice(0, 10));
+      if (d2) return d2;
+    }
+    var m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    return iso;
+  }
+
+  function setOraStatus(text, kind) {
+    var el = document.getElementById('co-ora-ar-status');
+    if (!el) return;
+    el.hidden = !text;
+    el.textContent = text || '';
+    el.classList.remove('is-error');
+    if (kind === 'error') el.classList.add('is-error');
+  }
+
+  function renderOraCheques(list) {
+    var tbody = document.getElementById('co-ora-ar-chq-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!list || !list.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="4" class="muted">لا شيكات قيد التحصيل لهذا العميل.</td></tr>';
+      return;
+    }
+    list.forEach(function (ch) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td dir="ltr"></td><td dir="ltr"></td><td dir="ltr" class="col-money"></td><td dir="ltr"></td>';
+      tr.cells[0].textContent = ch.chq_no || ch.check_no || '—';
+      tr.cells[1].textContent = fmtArDate(ch.chq_date || ch.due_date || ch.check_date);
+      tr.cells[2].textContent = fmtArAmt(ch.amount || ch.check_amount);
+      tr.cells[3].textContent = fmtArDate(ch.receipt_date || ch.capture_date);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function loadCustomerAr(customerId) {
+    var panel = document.getElementById('co-ora-ar-panel');
+    var summary = document.getElementById('co-ora-ar-summary');
+    if (!panel) return;
+    customerId = parseInt(customerId, 10) || 0;
+    if (!(customerId > 0)) {
+      panel.hidden = true;
+      if (summary) summary.hidden = true;
+      setOraStatus('اختر عميلاً لعرض الرصيد (مدين / دائن) والشيكات قيد التحصيل.', null);
+      return;
+    }
+    panel.hidden = false;
+    if (summary) summary.hidden = true;
+    setOraStatus('جاري جلب رصيد العميل والشيكات…', null);
+
+    var seq = ++oraLoadSeq;
+    fetch('/api/sales/customer-orders/customer-ar?customer_id=' + encodeURIComponent(String(customerId)), {
+      credentials: 'same-origin',
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (x) {
+        if (seq !== oraLoadSeq) return;
+        if (!x || !x.ok) {
+          setOraStatus((x && (x.message || x.error)) || 'تعذر جلب رصيد العميل.', 'error');
+          if (summary) summary.hidden = true;
+          return;
+        }
+        setOraStatus('', null);
+        if (summary) summary.hidden = false;
+        var nameEl = document.getElementById('co-ora-ar-name');
+        var balEl = document.getElementById('co-ora-ar-balance');
+        var debEl = document.getElementById('co-ora-ar-debit');
+        var creEl = document.getElementById('co-ora-ar-credit');
+        var totEl = document.getElementById('co-ora-ar-chq-total');
+        var metaEl = document.getElementById('co-ora-ar-meta');
+        var linkEl = document.getElementById('co-ora-ar-full-link');
+        if (nameEl) nameEl.textContent = x.name || x.account || '—';
+        if (debEl) debEl.textContent = fmtArAmt(x.total_debit);
+        if (creEl) creEl.textContent = fmtArAmt(x.total_credit);
+        if (balEl) balEl.textContent = fmtArAmt(x.balance);
+        if (totEl) totEl.textContent = fmtArAmt(x.cheque_total);
+        if (metaEl) {
+          metaEl.textContent =
+            (x.account ? 'الحساب: ' + x.account + ' · ' : '') +
+            'الفترة: ' +
+            fmtArDate(x.from) +
+            ' — ' +
+            fmtArDate(x.to) +
+            (x.cheque_count != null ? ' · شيكات: ' + String(x.cheque_count) : '');
+        }
+        if (linkEl) {
+          if (x.statement_url) {
+            linkEl.href = x.statement_url;
+            linkEl.hidden = false;
+          } else {
+            linkEl.hidden = true;
+          }
+        }
+        renderOraCheques(x.cheques || []);
+        try {
+          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (e) {
+          /* ignore */
+        }
+      })
+      .catch(function () {
+        if (seq !== oraLoadSeq) return;
+        setOraStatus('فشل الاتصال أثناء جلب رصيد العميل.', 'error');
+        if (summary) summary.hidden = true;
+      });
+  }
+
+  function onCustomerSelected(c) {
+    if (!c || !c.id) return;
+    if (custId) custId.value = c.id;
+    if (custInput) custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
+    setCustomerPriceMode(c);
+    if (custBox) custBox.hidden = true;
+    loadCustomerAr(c.id);
+  }
+
   function priceStep() {
     return window.HxDec && window.HxDec.unitStep ? window.HxDec.unitStep() : '0.001';
   }
@@ -586,10 +734,7 @@
     var c = e.detail;
     if (!c || !c.id) return;
     e.preventDefault();
-    if (custId) custId.value = c.id;
-    if (custInput) custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
-    setCustomerPriceMode(c);
-    if (custBox) custBox.hidden = true;
+    onCustomerSelected(c);
   });
 
   document.addEventListener('hx:add-line', function (e) {
@@ -617,10 +762,7 @@
               b.type = 'button';
               b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
               b.addEventListener('click', function () {
-                custId.value = c.id;
-                custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
-                setCustomerPriceMode(c);
-                custBox.hidden = true;
+                onCustomerSelected(c);
               });
               custBox.appendChild(b);
             });
@@ -889,6 +1031,21 @@
 
   renderLines();
   setCustomerPriceMode({ use_wholesale_price: state.use_wholesale_price }, { reprice: false });
+
+  var initialCustomerId =
+    Number((document.getElementById('co_customer_id') || {}).value || state.customer_id || 0) || 0;
+  if (initialCustomerId > 0) {
+    loadCustomerAr(initialCustomerId);
+  }
+
+  var refreshArBtn = document.getElementById('co-ora-ar-refresh');
+  if (refreshArBtn) {
+    refreshArBtn.addEventListener('click', function () {
+      var cid =
+        Number((document.getElementById('co_customer_id') || {}).value || 0) || 0;
+      loadCustomerAr(cid);
+    });
+  }
 
   if (window.HypexDocNav) {
     window.HypexDocNav.bind({

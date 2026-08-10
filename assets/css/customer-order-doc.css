@@ -363,10 +363,162 @@
   }
 }
 
-/* كشف حساب Oracle تحت الطلب */
-.co-doc .co-ora-ar-panel .dashboard-ora-panel__body {
-  background: #f7fafc;
+/* كشف رصيد العميل — يعمل أيضاً من شاشة Node (بدون .co-doc) */
+.co-ora-ar-panel .co-ora-ar-status,
+.si-surface.co-ora-ar-panel .co-ora-ar-status {
+  margin: 0 0 0.65rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #5c6578;
 }
+
+.co-ora-ar-panel .co-ora-ar-status.is-error {
+  color: #b91c1c;
+}
+
+.co-ora-ar-panel .co-ora-ar-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .co-ora-ar-panel .co-ora-ar-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+
+.co-ora-ar-panel .co-ora-ar-kpi {
+  background: #fff;
+  border: 1px solid #c5d0db;
+  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.co-ora-ar-panel .co-ora-ar-kpi span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #5a6a7a;
+}
+
+.co-ora-ar-panel .co-ora-ar-kpi strong {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.co-ora-ar-panel .co-ora-ar-kpi--debit {
+  border-color: #f0c4a8;
+  background: linear-gradient(180deg, #fffaf5 0%, #fff3e8 100%);
+}
+
+.co-ora-ar-panel .co-ora-ar-kpi--debit strong {
+  color: #9a3412;
+}
+
+.co-ora-ar-panel .co-ora-ar-kpi--credit {
+  border-color: #a8d4b8;
+  background: linear-gradient(180deg, #f4fbf6 0%, #e8f6ec 100%);
+}
+
+.co-ora-ar-panel .co-ora-ar-kpi--credit strong {
+  color: #166534;
+}
+
+.co-ora-ar-panel .co-ora-ar-kpi--due {
+  border-color: #7eb0d8;
+  background: linear-gradient(180deg, #f0f7fc 0%, #e4f0f9 100%);
+}
+
+.co-ora-ar-panel .co-ora-ar-kpi--due strong {
+  color: #0f3f6a;
+  font-size: 1.2rem;
+}
+
+.co-ora-ar-panel .co-ora-ar-meta {
+  margin: 0 0 0.65rem;
+  font-size: 0.8rem;
+}
+
+.co-ora-ar-panel .co-ora-ar-chq-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #1e3a5f;
+}
+
+.co-ora-ar-panel .co-ora-ar-table-wrap {
+  border: 1px solid #c5d0db;
+  border-radius: 4px;
+  overflow: auto;
+  max-height: 16rem;
+  background: #fff;
+  margin-bottom: 0.45rem;
+}
+
+.co-ora-ar-panel .co-ora-ar-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.co-ora-ar-panel .co-ora-ar-table th,
+.co-ora-ar-panel .co-ora-ar-table td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px dashed #c5d0db;
+  text-align: right;
+}
+
+.co-ora-ar-panel .co-ora-ar-table th {
+  background: #eef3f8;
+  font-weight: 800;
+  color: #1e3a5f;
+  position: sticky;
+  top: 0;
+}
+
+.co-ora-ar-panel .co-ora-ar-table .col-money {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.co-ora-ar-panel .co-ora-ar-chq-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.55rem;
+  border-top: 2px solid #1e3a5f;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.co-ora-ar-panel .co-ora-ar-chq-total strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  color: #0f3f6a;
+}
+
+.co-ora-ar-panel .co-ora-ar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0;
+}
+
+@media print {
+  .co-ora-ar-panel .co-ora-ar-actions {
+    display: none !important;
+  }
+}
+
 
 .co-doc .co-ora-ar-status {
   margin: 0 0 0.5rem;

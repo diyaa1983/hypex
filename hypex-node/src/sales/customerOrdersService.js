@@ -609,6 +609,68 @@ async function findOrderIdByNo(no) {
   return findIdByNo('sal_customer_order', 'order_no', no);
 }
 
+/**
+ * ملخص رصيد العميل (مدين/دائن) + الشيكات قيد التحصيل من Oracle.
+ */
+function getCustomerArSummary(customerId) {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  const fs = require('fs');
+  const cid = Number(customerId) || 0;
+
+  return new Promise((resolve) => {
+    if (cid < 1) {
+      return resolve({ ok: false, message: 'اختر العميل أولاً.' });
+    }
+    const script = path.join(__dirname, '..', '..', 'cli', 'oracle_customer_ar_summary.php');
+    if (!fs.existsSync(script)) {
+      return resolve({ ok: false, message: 'سكربت Oracle غير موجود.' });
+    }
+    let phpBin = process.env.PHP_BIN || 'php';
+    for (const c of [process.env.PHP_BIN, 'C:\\xampp\\php\\php.exe', 'C:\\xampp\\php\\php', 'php']) {
+      if (!c) continue;
+      if (c === 'php' || fs.existsSync(c)) {
+        phpBin = c;
+        break;
+      }
+    }
+    const args = [];
+    const ini = process.env.PHP_INI || 'C:\\xampp\\php\\php.ini';
+    if (fs.existsSync(ini)) args.push('-c', ini);
+    args.push(script, String(cid));
+
+    const root = path.resolve(__dirname, '..', '..', '..');
+    const child = spawn(phpBin, args, { cwd: root, windowsHide: true });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => {
+      out += String(d);
+    });
+    child.stderr.on('data', (d) => {
+      err += String(d);
+    });
+    child.on('error', (e) => resolve({ ok: false, message: e.message }));
+    child.on('close', () => {
+      const line = out
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .pop();
+      if (!line) {
+        return resolve({
+          ok: false,
+          message: err.trim() || 'لا استجابة من Oracle/PHP.',
+        });
+      }
+      try {
+        resolve(JSON.parse(line));
+      } catch {
+        resolve({ ok: false, message: line.slice(0, 280) });
+      }
+    });
+  });
+}
+
 module.exports = {
   getOrder,
   saveOrder,
@@ -618,4 +680,5 @@ module.exports = {
   lookups,
   browseNeighbors,
   findOrderIdByNo,
+  getCustomerArSummary,
 };
