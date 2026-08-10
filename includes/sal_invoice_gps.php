@@ -160,6 +160,7 @@ function sal_invoice_gps_coords_valid(?float $lat, ?float $lng): bool
 
 /**
  * مسح إحداثيات الترحيل عند فك الترحيل ليُحفظ موقع جديد عند إعادة الترحيل.
+ * لا نستدعي ensure_schema إن الأعمدة موجودة مسبقاً (تجنّب DDL وسط transaction في MySQL).
  */
 function sal_invoice_gps_clear_on_unpost(PDO $pdo, int $invoiceId): void
 {
@@ -167,7 +168,9 @@ function sal_invoice_gps_clear_on_unpost(PDO $pdo, int $invoiceId): void
         return;
     }
 
-    sal_invoice_gps_ensure_schema($pdo);
+    if (!sal_invoice_column_exists($pdo, 'sal_invoice', 'post_latitude')) {
+        sal_invoice_gps_ensure_schema($pdo);
+    }
     if (!sal_invoice_column_exists($pdo, 'sal_invoice', 'post_latitude')) {
         return;
     }

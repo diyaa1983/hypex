@@ -660,6 +660,7 @@ async function customerForm(req, res, id) {
   const addresses = regionId ? await masters.listAddressesForRegion(regionId) : [];
   const selectedReps = new Set((row?.rep_ids || []).map(Number));
   if (row?.sales_rep_id) selectedReps.add(Number(row.sales_rep_id));
+  const primaryRepId = [...selectedReps][0] || Number(row?.sales_rep_id || 0) || 0;
   const oracleLocked = !isNew && String(row.oracle_key || '').trim() !== '';
 
   const regionOpts = regions
@@ -676,109 +677,220 @@ async function customerForm(req, res, id) {
         )}</option>`
     )
     .join('');
-  const repChecks =
-    reps
-      .map(
-        (r) => `<label style="display:flex;align-items:center;gap:.4rem;font-weight:600;font-size:.88rem">
-          <input type="checkbox" name="rep_ids" value="${r.id}" ${selectedReps.has(Number(r.id)) ? 'checked' : ''}>
-          ${esc(r.name_ar)}${r.code ? ` <span class="muted" dir="ltr">(${esc(r.code)})</span>` : ''}
-        </label>`
-      )
-      .join('') ||
-    `<p class="muted" style="margin:0">لا يوجد مندوبون نشطون — أضف من شاشة المندوبين.</p>`;
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${primaryRepId === Number(r.id) ? 'selected' : ''}>${esc(r.name_ar)}${
+          r.code ? ' — ' + esc(r.code) : ''
+        }</option>`
+    )
+    .join('');
 
   const body = `
+    <style>
+      .cf-form{padding:0!important;display:block!important}
+      .cf-body{padding:1rem 1.1rem 1.15rem;display:grid;gap:1rem}
+      .cf-sec{border:1px solid #e6ebf2;border-radius:14px;background:#fbfcfe;overflow:hidden}
+      .cf-sec-h{display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+        padding:.7rem 1rem;background:#fff;border-bottom:1px solid #eef1f6}
+      .cf-sec-h h3{margin:0;font-size:.95rem;font-weight:800;color:#0f172a}
+      .cf-sec-h span{font-size:.75rem;font-weight:700;color:#64748b}
+      .cf-sec-b{padding:.9rem 1rem 1rem;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem .85rem}
+      @media (max-width:900px){.cf-sec-b{grid-template-columns:1fr 1fr}}
+      @media (max-width:560px){.cf-sec-b{grid-template-columns:1fr}}
+      .cf-sec-b label{display:grid;gap:.32rem;font-size:.72rem;font-weight:700;letter-spacing:.03em;color:#64748b}
+      .cf-sec-b .cf-span-2{grid-column:span 2}
+      .cf-sec-b .cf-span-3{grid-column:1/-1}
+      @media (max-width:560px){.cf-sec-b .cf-span-2{grid-column:1/-1}}
+      .cf-chain{display:grid;grid-template-columns:1fr auto 1fr;gap:.55rem;align-items:end;grid-column:1/-1}
+      @media (max-width:720px){.cf-chain{grid-template-columns:1fr}}
+      .cf-chain-arrow{display:flex;align-items:center;justify-content:center;padding-bottom: .55rem;
+        color:#94a3b8;font-weight:800;font-size:1.1rem;user-select:none}
+      @media (max-width:720px){.cf-chain-arrow{display:none}}
+      .cf-field-note{margin:.15rem 0 0;font-size:.75rem;font-weight:600;color:#94a3b8;line-height:1.4}
+      .cf-foot{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.15rem 0 .25rem}
+      .cf-hint-line{margin:0;font-size:.8rem;color:#64748b;flex:1;min-width:10rem;line-height:1.45}
+      select#cust-region-addr:disabled{opacity:.65;cursor:not-allowed;background:#f1f5f9}
+    </style>
     <div class="si-stage">
       ${ui.hero({
         mark: 'Cl',
         kicker: KICKER,
-        title: isNew ? 'إضافة عميل' : 'تعديل عميل',
+        title: isNew ? 'إضافة عميل' : 'تعريف العميل',
         subtitle: isNew
-          ? 'الرمز يُولَّد تلقائياً عند الحفظ'
+          ? 'بيانات العميل ← المنطقة ← العنوان ← المندوب'
           : oracleLocked
-            ? 'عميل مربوط بـ Oracle — الاسم مقفل'
-            : esc(row.code || ''),
-        actions: [{ label: 'رجوع للقائمة', href: '/customers/list' }],
+            ? 'عميل مربوط بـ Oracle — الاسم مقفل · ' + esc(row.code || '')
+            : esc(row.code || '') + ' — اختر المنطقة ثم العنوان ثم المندوب',
+        actions: [
+          { label: 'القائمة', href: '/customers/list' },
+          { label: 'تعريف المناطق', href: '/customers/regions' },
+        ],
       })}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
       <section class="si-surface">
-        <div class="si-surface-head"><h2>${isNew ? 'بيانات العميل' : esc(row.name_ar || '')}</h2></div>
-        <form method="post" action="${isNew ? '/customers/new' : '/customers/' + id}" class="si-meta" style="padding:1rem 1.1rem 1.25rem">
+        <div class="si-surface-head">
+          <h2>${isNew ? 'بيانات العميل' : esc(row.name_ar || 'تعديل عميل')}</h2>
+          ${!isNew && Number(row.is_active) === 1 ? '<span class="si-pill si-pill--ok">نشط</span>' : ''}
+        </div>
+        <form method="post" action="${isNew ? '/customers/new' : '/customers/' + id}" class="si-meta cf-form">
           <input type="hidden" name="id" value="${row ? row.id : 0}">
-          <label>رمز العميل
-            <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" readonly placeholder="يولد تلقائياً عند الحفظ">
-          </label>
-          <label>اسم العميل *
-            <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" ${
-              oracleLocked ? 'readonly' : ''
-            } autocomplete="off">
-          </label>
-          <label>الهاتف
-            <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr" autocomplete="off">
-          </label>
-          <label>البريد
-            <input class="si-field" name="email" type="email" value="${esc(row?.email || '')}" dir="ltr" autocomplete="off">
-          </label>
-          <label>الرقم الضريبي
-            <input class="si-field" name="tax_number" value="${esc(row?.tax_number || '')}" dir="ltr" autocomplete="off">
-          </label>
-          <label>المنطقة
-            <select class="si-field" name="region_id" id="cust-region">
-              <option value="0">— بدون منطقة —</option>
-              ${regionOpts}
-            </select>
-          </label>
-          <label>العنوان ضمن المنطقة
-            <select class="si-field" name="region_address_id" id="cust-region-addr">
-              <option value="0">— اختر —</option>
-              ${addrOpts}
-            </select>
-          </label>
-          <label class="si-span-2">العنوان
-            <textarea class="si-field" name="address_ar" rows="2" style="min-height:4rem">${esc(
-              row?.address_ar || ''
-            )}</textarea>
-          </label>
-          <div class="si-span-full" style="border:1px solid #e4e8f0;border-radius:12px;padding:.75rem 1rem;margin-top:.25rem">
-            <div style="font-weight:800;font-size:.9rem;margin-bottom:.45rem">المندوب / مندوبو المبيعات</div>
-            <div style="display:flex;flex-direction:column;gap:.35rem">${repChecks}</div>
-          </div>
-          <div class="si-form-actions">
-            <button class="si-btn si-btn--primary" type="submit">حفظ</button>
-            <a class="si-btn" href="/customers/list">إلغاء</a>
+          <div class="cf-body">
+
+            <div class="cf-sec">
+              <div class="cf-sec-h">
+                <h3>1 · بيانات العميل</h3>
+                <span>التعريف والاتصال</span>
+              </div>
+              <div class="cf-sec-b">
+                <label>رمز العميل
+                  <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" readonly placeholder="يُولَّد تلقائياً عند الحفظ">
+                </label>
+                <label class="cf-span-2">اسم العميل *
+                  <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" ${
+                    oracleLocked ? 'readonly' : ''
+                  } autocomplete="off" placeholder="الاسم كما يظهر في الفواتير">
+                </label>
+                <label>الهاتف
+                  <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr" autocomplete="off" placeholder="07xxxxxxxx">
+                </label>
+                <label>البريد الإلكتروني
+                  <input class="si-field" name="email" type="email" value="${esc(row?.email || '')}" dir="ltr" autocomplete="off" placeholder="name@example.com">
+                </label>
+                <label>الرقم الضريبي
+                  <input class="si-field" name="tax_number" value="${esc(row?.tax_number || '')}" dir="ltr" autocomplete="off">
+                </label>
+              </div>
+            </div>
+
+            <div class="cf-sec">
+              <div class="cf-sec-h">
+                <h3>2 · المنطقة والعنوان</h3>
+                <span>المنطقة أولاً ثم العنوان داخلها</span>
+              </div>
+              <div class="cf-sec-b">
+                <div class="cf-chain">
+                  <label>المنطقة
+                    <select class="si-field" name="region_id" id="cust-region">
+                      <option value="0">— اختر المنطقة —</option>
+                      ${regionOpts}
+                    </select>
+                  </label>
+                  <div class="cf-chain-arrow" aria-hidden="true">←</div>
+                  <label>العنوان ضمن المنطقة
+                    <select class="si-field" name="region_address_id" id="cust-region-addr" ${
+                      regionId < 1 ? 'disabled' : ''
+                    }>
+                      <option value="0">${regionId < 1 ? '— اختر المنطقة أولاً —' : '— اختر العنوان —'}</option>
+                      ${addrOpts}
+                    </select>
+                  </label>
+                </div>
+                <label class="cf-span-3">تفاصيل العنوان (اختياري)
+                  <textarea class="si-field" name="address_ar" rows="2" style="min-height:3.4rem" placeholder="شارع، مبنى، ملاحظات توصيل…">${esc(
+                    row?.address_ar || ''
+                  )}</textarea>
+                  <p class="cf-field-note">تُعرَّف المناطق وعناوينها من شاشة «تعريف المناطق». يتحدّث عنوان القائمة تلقائياً عند تغيير المنطقة.</p>
+                </label>
+              </div>
+            </div>
+
+            <div class="cf-sec">
+              <div class="cf-sec-h">
+                <h3>3 · المندوب</h3>
+                <span>مندوب المبيعات المسؤول عن العميل</span>
+              </div>
+              <div class="cf-sec-b">
+                <label class="cf-span-2">المندوب
+                  <select class="si-field" name="sales_rep_id" id="cust-sales-rep">
+                    <option value="0">— بدون مندوب —</option>
+                    ${repOpts}
+                  </select>
+                </label>
+                <label>
+                  <span style="visibility:hidden">.</span>
+                  <a class="si-btn" href="/sales-reps/list" style="justify-content:center;width:100%">إدارة المندوبين</a>
+                </label>
+                <p class="cf-field-note cf-span-3">يُحفظ المندوب المختار مع العميل ويظهر في القوائم والتقارير.</p>
+              </div>
+            </div>
+
+            <div class="cf-foot">
+              <button class="si-btn si-btn--primary" type="submit">حفظ العميل</button>
+              <a class="si-btn" href="/customers/list">إلغاء</a>
+              <p class="cf-hint-line">التسلسل: العميل → المنطقة → العنوان → المندوب ثم الحفظ.</p>
+            </div>
           </div>
         </form>
       </section>
     </div>
     <script>
-      (function(){
+      (function () {
         var reg = document.getElementById('cust-region');
         var addr = document.getElementById('cust-region-addr');
         if (!reg || !addr) return;
-        reg.addEventListener('change', function(){
-          var id = reg.value;
-          addr.innerHTML = '<option value="0">…</option>';
-          if (!id || id === '0') { addr.innerHTML = '<option value="0">— اختر المنطقة أولاً —</option>'; return; }
-          fetch('/api/customers/region-addresses?region_id=' + encodeURIComponent(id), {credentials:'same-origin'})
-            .then(function(r){ return r.json(); })
-            .then(function(data){
-              var opts = '<option value="0">— اختر —</option>';
-              (data.rows || []).forEach(function(a){
-                opts += '<option value="'+a.id+'">'+String(a.name_ar||'').replace(/</g,'&lt;')+'</option>';
+
+        function setAddrBusy(busy, text) {
+          addr.disabled = !!busy || !reg.value || reg.value === '0' || reg.value === '';
+          if (text != null) addr.innerHTML = '<option value="0">' + text + '</option>';
+        }
+
+        function loadAddresses(regionId, keepId) {
+          if (!regionId || regionId === '0') {
+            setAddrBusy(true, '— اختر المنطقة أولاً —');
+            return;
+          }
+          setAddrBusy(true, 'جاري التحميل…');
+          fetch('/api/customers/region-addresses?region_id=' + encodeURIComponent(regionId), {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              var rows = data.rows || [];
+              var opts = '<option value="0">— اختر العنوان —</option>';
+              rows.forEach(function (a) {
+                var id = String(a.id);
+                var name = String(a.name_ar || '')
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/"/g, '&quot;');
+                var sel = keepId && String(keepId) === id ? ' selected' : '';
+                opts += '<option value="' + id + '"' + sel + '>' + name + '</option>';
               });
+              if (!rows.length) {
+                opts = '<option value="0">— لا عناوين لهذه المنطقة —</option>';
+              }
               addr.innerHTML = opts;
-            }).catch(function(){ addr.innerHTML = '<option value="0">—</option>'; });
+              addr.disabled = false;
+            })
+            .catch(function () {
+              setAddrBusy(false, '— تعذر التحميل —');
+              addr.disabled = false;
+            });
+        }
+
+        reg.addEventListener('change', function () {
+          loadAddresses(reg.value, null);
         });
       })();
     </script>`;
-  res.send(ui.salesPage({ user: req.session.user, title: isNew ? 'إضافة عميل' : 'تعديل عميل', bodyHtml: body }));
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: isNew ? 'إضافة عميل' : 'تعريف العميل',
+      bodyHtml: body,
+    })
+  );
 }
 
 router.get('/customers/new', (req, res) => customerForm(req, res, 0));
 router.post('/customers/new', async (req, res) => {
   if (!can(req.session.user, 'customers')) return res.status(403).send('ممنوع');
   const body = req.body || {};
-  body.rep_ids = [].concat(body.rep_ids || []).filter(Boolean);
+  const repId = Number(body.sales_rep_id || 0);
+  body.rep_ids = repId > 0 ? [repId] : [].concat(body.rep_ids || []).filter(Boolean);
+  body.sales_rep_id = repId > 0 ? repId : null;
   const result = await masters.saveCustomer(body);
   if (!result.ok) return res.redirect('/customers/new?err=' + encodeURIComponent(result.error));
   res.redirect('/customers/list?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
@@ -801,7 +913,9 @@ router.post('/customers/:id', async (req, res, next) => {
   if (!Number.isFinite(id) || id < 1) return next();
   if (!can(req.session.user, 'customers')) return res.status(403).send('ممنوع');
   const body = { ...(req.body || {}), id };
-  body.rep_ids = [].concat(body.rep_ids || []).filter(Boolean);
+  const repId = Number(body.sales_rep_id || 0);
+  body.rep_ids = repId > 0 ? [repId] : [].concat(body.rep_ids || []).filter(Boolean);
+  body.sales_rep_id = repId > 0 ? repId : null;
   const result = await masters.saveCustomer(body);
   if (!result.ok) return res.redirect('/customers/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect('/customers/list?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));

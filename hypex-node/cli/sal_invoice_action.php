@@ -91,6 +91,53 @@ try {
         // post may accept invoice_ids
     }
 
+    /**
+     * DDL (CREATE/ALTER) في MySQL يُنهي أي transaction مفتوحة ضمنياً.
+     * يجب تدفئة الجداول قبل beginTransaction لتجنّب "There is no active transaction" عند commit.
+     */
+    $warmUnpostSchemas = static function (PDO $pdo): void {
+        try {
+            require_once app_path('includes/sal_invoice_gps.php');
+            sal_invoice_gps_ensure_schema($pdo);
+        } catch (Throwable $e) {
+            error_log('sal_invoice_action warm gps: ' . $e->getMessage());
+        }
+        try {
+            require_once app_path('includes/acc_gl.php');
+            acc_gl_ensure_schema($pdo);
+        } catch (Throwable $e) {
+            error_log('sal_invoice_action warm gl: ' . $e->getMessage());
+        }
+        try {
+            require_once app_path('includes/sys_audit_log.php');
+            sys_audit_log_ensure_schema($pdo);
+        } catch (Throwable $e) {
+            error_log('sal_invoice_action warm audit: ' . $e->getMessage());
+        }
+        try {
+            require_once app_path('includes/doc_number_pool.php');
+            doc_number_pool_ensure_table($pdo);
+        } catch (Throwable $e) {
+            error_log('sal_invoice_action warm pool: ' . $e->getMessage());
+        }
+        try {
+            require_once app_path('includes/einvoice_schema.php');
+            if (function_exists('einvoice_ensure_schema')) {
+                einvoice_ensure_schema($pdo);
+            }
+        } catch (Throwable $e) {
+            error_log('sal_invoice_action warm einvoice: ' . $e->getMessage());
+        }
+        try {
+            require_once app_path('includes/sal_return_schema.php');
+            if (function_exists('sal_return_ensure_schema')) {
+                sal_return_ensure_schema($pdo);
+            }
+        } catch (Throwable $e) {
+            // optional
+        }
+    };
+
     if ($action === 'post') {
         if (!user_can_sales_invoices() || !user_can_action('action_post_sales_invoice')) {
             cli_out(['ok' => false, 'error' => 'لا صلاحية ترحيل الفاتورة.'], 1);
@@ -148,24 +195,63 @@ try {
         if ($invoiceId < 1) {
             cli_out(['ok' => false, 'error' => 'لم تُحدَّد الفاتورة.'], 1);
         }
-        $pdo->beginTransaction();
-        $res = sal_invoice_unpost_by_id($pdo, $invoiceId);
-        if (empty($res['ok'])) {
+
+        $warmUnpostSchemas($pdo);
+
+        try {
+            $pdo->beginTransaction();
+            $res = sal_invoice_unpost_by_id($pdo, $invoiceId);
+            if (empty($res['ok'])) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                cli_out([
+                    'ok' => false,
+                    'error' => (string) ($res['error'] ?? 'تعذر فك الترحيل.'),
+                    'message' => (string) ($res['error'] ?? 'تعذر فك الترحيل.'),
+                ], 1);
+            }
             if ($pdo->inTransaction()) {
-                $pdo->rollBack();
+                $pdo->commit();
             }
             cli_out([
-                'ok' => false,
-                'error' => (string) ($res['error'] ?? 'تعذر فك الترحيل.'),
-                'message' => (string) ($res['error'] ?? 'تعذر فك الترحيل.'),
-            ], 1);
+                'ok' => true,
+                'message' => (string) ($res['message'] ?? 'تم فك ترحيل الفاتورة.'),
+                'invoice_id' => $invoiceId,
+            ]);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                try {
+                    $pdo->rollBack();
+                } catch (Throwable $rb) {
+                    // ignore
+                }
+            }
+            $msg = $e->getMessage();
+            // إن انتهى الـDDL بالـcommit الضمني فقد اكتمل فك الترحيل فعلياً
+            if (stripos($msg, 'no active transaction') !== false) {
+                $stillPosted = false;
+                try {
+                    $stillPosted = sal_invoice_has_posting_artifacts($pdo, $invoiceId)
+                        || sal_invoice_is_fully_posted($pdo, $invoiceId);
+                } catch (Throwable $checkE) {
+                    $stillPosted = true;
+                }
+                if (!$stillPosted) {
+                    cli_out([
+                        'ok' => true,
+                        'message' => 'تم فك ترحيل الفاتورة.',
+                        'invoice_id' => $invoiceId,
+                    ]);
+                }
+                cli_out([
+                    'ok' => false,
+                    'error' => 'تعذر إتمام فك الترحيل. حدّث الصفحة وتحقق من حالة الفاتورة ثم أعد المحاولة.',
+                    'message' => 'تعذر إتمام فك الترحيل. حدّث الصفحة وتحقق من حالة الفاتورة ثم أعد المحاولة.',
+                ], 1);
+            }
+            throw $e;
         }
-        $pdo->commit();
-        cli_out([
-            'ok' => true,
-            'message' => (string) ($res['message'] ?? 'تم فك ترحيل الفاتورة.'),
-            'invoice_id' => $invoiceId,
-        ]);
     }
 
     if ($action === 'delete') {
@@ -231,5 +317,9 @@ try {
     cli_out(['ok' => false, 'error' => 'إجراء غير معروف: ' . $action], 1);
 } catch (Throwable $e) {
     error_log('sal_invoice_action: ' . $e->getMessage());
-    cli_out(['ok' => false, 'error' => $e->getMessage() ?: 'فشل التنفيذ.'], 1);
+    $msg = trim($e->getMessage());
+    if ($msg === '' || stripos($msg, 'no active transaction') !== false) {
+        $msg = 'تعذر إتمام العملية. حدّث الصفحة وتحقق من الحالة ثم أعد المحاولة.';
+    }
+    cli_out(['ok' => false, 'error' => $msg], 1);
 }

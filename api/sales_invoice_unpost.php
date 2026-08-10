@@ -48,6 +48,18 @@ try {
 } catch (Throwable $e) {
     error_log('sales_invoice_unpost warm audit: ' . $e->getMessage());
 }
+try {
+    require_once app_path('includes/sal_invoice_gps.php');
+    sal_invoice_gps_ensure_schema($pdo);
+} catch (Throwable $e) {
+    error_log('sales_invoice_unpost warm gps: ' . $e->getMessage());
+}
+try {
+    require_once app_path('includes/acc_gl.php');
+    acc_gl_ensure_schema($pdo);
+} catch (Throwable $e) {
+    error_log('sales_invoice_unpost warm gl: ' . $e->getMessage());
+}
 
 try {
     $pdo->beginTransaction();
