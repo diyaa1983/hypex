@@ -537,6 +537,11 @@ return [
         'permission' => 'report_customers_by_rep',
         'title' => 'تقرير العملاء حسب المندوب',
     ],
+    'report_customers_region_addresses' => [
+        'file' => 'modules/reports/customers_region_addresses.php',
+        'permission' => 'report_customers_region_addresses',
+        'title' => 'تقرير العناوين والمنطقة',
+    ],
     'report_suppliers' => [
         'file' => 'modules/reports/suppliers.php',
         'permission' => 'report_suppliers',

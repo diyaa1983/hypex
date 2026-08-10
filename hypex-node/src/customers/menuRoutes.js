@@ -875,6 +875,148 @@ router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async 
   );
 });
 
+router.get('/customers/reports/region-addresses', guard('report_customers_region_addresses'), async (req, res) => {
+  const activeOnly = String(req.query.active_only || '') === '1';
+  const regionId = Number(req.query.region_id || 0) || 0;
+  const wantExcel = String(req.query.excel || '') === '1';
+  const regions = await q.regionOptions();
+  const rows = await q.reportRegionAddresses({ activeOnly, regionId });
+
+  if (wantExcel) {
+    const table = [['#', 'رمز المنطقة', 'المنطقة', 'العنوان', 'المندوب', 'عدد العملاء', 'حالة المنطقة', 'حالة العنوان']];
+    rows.forEach((r, i) => {
+      table.push([
+        i + 1,
+        plainDash(r.region_code),
+        plainDash(r.region_name),
+        plainDash(r.address_name) || '— بدون عنوان —',
+        plainDash(r.sales_rep_name),
+        Number(r.customer_count || 0),
+        Number(r.region_active) === 1 ? 'نشط' : 'موقوف',
+        Number(r.address_id) > 0 ? (Number(r.address_active) === 1 ? 'نشط' : 'موقوف') : '',
+      ]);
+    });
+    const fname = regionId > 0 ? 'region_addresses_' + regionId : 'region_addresses';
+    return sendExcelCsv(res, fname, table);
+  }
+
+  const groups = new Map();
+  for (const r of rows) {
+    const key = String(r.region_id || 0);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        region_id: Number(r.region_id || 0),
+        region_name: r.region_name || '—',
+        region_code: r.region_code || '',
+        region_active: Number(r.region_active) === 1,
+        rows: [],
+        withRep: 0,
+      });
+    }
+    const g = groups.get(key);
+    g.rows.push(r);
+    if (String(r.sales_rep_name || '').trim()) g.withRep += 1;
+  }
+
+  const regionOpts = regions
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${regionId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar)}${
+          r.code ? ' (' + ui.esc(r.code) + ')' : ''
+        }</option>`
+    )
+    .join('');
+
+  const excelQs = new URLSearchParams();
+  if (regionId > 0) excelQs.set('region_id', String(regionId));
+  if (activeOnly) excelQs.set('active_only', '1');
+  excelQs.set('excel', '1');
+  const excelHref = '/customers/reports/region-addresses?' + excelQs.toString();
+
+  const filtersHtml = `
+    <div class="si-rail no-print">
+      <form class="si-search" method="get" action="/customers/reports/region-addresses" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.35rem">المنطقة
+          <select name="region_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:12rem">
+            <option value="0">كل المناطق</option>
+            ${regionOpts}
+          </select>
+        </label>
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+          <input type="checkbox" name="active_only" value="1" ${activeOnly ? 'checked' : ''}> النشطة فقط
+        </label>
+        <button class="si-btn si-btn--primary" type="submit">عرض</button>
+        <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+        <a class="si-btn" href="${ui.esc(excelHref)}">Excel</a>
+      </form>
+    </div>
+    <div class="si-print-meta print-only">
+      <strong>تقرير العناوين والمنطقة</strong>
+      · ${groups.size} منطقة · ${rows.length} عنوان/صف
+      · طُبع: <span class="si-print-when" dir="ltr"></span>
+    </div>`;
+
+  let blocks = '';
+  if (groups.size === 0) {
+    blocks = ui.tableSurface('النتيجة', '0', ['—'], ui.emptyRow(1, 'لا توجد مناطق مطابقة'));
+  } else {
+    for (const g of groups.values()) {
+      const html = g.rows
+        .map(
+          (r, i) => `<tr>
+          <td class="si-num" dir="ltr">${i + 1}</td>
+          <td>${dash(r.address_name) === '—' ? '<span class="muted">— بدون عنوان —</span>' : dash(r.address_name)}</td>
+          <td>${dash(r.sales_rep_name)}</td>
+          <td class="si-num" dir="ltr">${Number(r.customer_count || 0)}</td>
+          <td>${
+            Number(r.address_id) > 0
+              ? Number(r.address_active) === 1
+                ? 'نشط'
+                : 'موقوف'
+              : '—'
+          }</td>
+        </tr>`
+        )
+        .join('');
+      const codePart = g.region_code ? ` (${g.region_code})` : '';
+      const statusPart = g.region_active ? '' : ' · موقوف';
+      const title = `المنطقة: ${g.region_name}${codePart}${statusPart}`;
+      blocks += `<div style="margin-top:.75rem">${ui.tableSurface(
+        title,
+        `${g.rows.length} عنوان · بمندوب ${g.withRep}`,
+        ['#', 'العنوان', 'المندوب', 'عملاء', 'حالة العنوان'],
+        html
+      )}</div>`;
+    }
+  }
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '🗺️',
+        kicker: KICKER,
+        title: 'تقرير العناوين والمنطقة',
+        subtitle: `${groups.size} منطقة · ${rows.length} صف · يعرض العناوين والمندوبين المربوطين`,
+        actions: [
+          { label: '🖨 طباعة', primary: true, print: true },
+          { label: 'Excel', href: excelHref },
+          { label: 'تعريف المناطق', href: '/customers/regions' },
+          { label: 'لوحة العملاء', href: HUB },
+        ],
+      })}
+      ${filtersHtml}
+      <div class="si-print-area">${blocks}</div>
+    </div>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تقرير العناوين والمنطقة',
+      bodyHtml: body,
+      js: ['/assets/js/sales-print.js'],
+    })
+  );
+});
+
 /* ── Customer form (بعد المسارات الثابتة) ── */
 async function customerForm(req, res, id) {
   if (!can(req.session.user, 'customers')) return res.status(403).send('ممنوع');

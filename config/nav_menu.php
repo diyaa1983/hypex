@@ -125,6 +125,7 @@ return [
                         ['r' => 'report_sales_between_dates', 'label' => 'تقرير المبيعات بين تاريخين', 'icon' => '📆'],
                         ['r' => 'report_sales_by_item', 'label' => 'تقرير المبيعات حسب المادة', 'icon' => '📦'],
                         ['r' => 'report_sales_by_region', 'label' => 'تقرير المبيعات حسب المنطقة', 'icon' => '🗺️'],
+                        ['r' => 'report_sales_by_rep', 'label' => 'تقرير المبيعات حسب المندوب', 'icon' => '📊'],
                         ['r' => 'report_sales_qty_extra', 'label' => 'تقرير الكميات الإضافية على الفواتير', 'icon' => '➕'],
                         ['r' => 'report_sales_invoice_discount', 'label' => 'الخصم على الفواتير', 'icon' => '🏷️'],
                     ],
@@ -150,6 +151,7 @@ return [
                     'items' => [
                         ['r' => 'report_customers', 'label' => 'تقرير العملاء', 'icon' => '👥'],
                         ['r' => 'report_customers_by_rep', 'label' => 'تقرير العملاء حسب المندوب', 'icon' => '👤'],
+                        ['r' => 'report_customers_region_addresses', 'label' => 'تقرير العناوين والمنطقة', 'icon' => '🗺️'],
                     ],
                 ],
             ],
@@ -184,14 +186,6 @@ return [
                     'items' => [
                         ['r' => 'sales_reps', 'label' => 'المندوبين', 'icon' => '🧑‍💼'],
                         ['r' => 'sales_rep_route', 'label' => 'خط سير المندوب', 'icon' => '🗺️'],
-                    ],
-                ],
-                [
-                    'id' => 'reports',
-                    'title' => 'تقارير المندوبين',
-                    'items' => [
-                        ['r' => 'report_sales_by_rep', 'label' => 'تقرير المبيعات حسب المندوب', 'icon' => '📊'],
-                        ['r' => 'report_sales_by_region', 'label' => 'تقرير المبيعات حسب المنطقة', 'icon' => '🗺️'],
                     ],
                 ],
             ],

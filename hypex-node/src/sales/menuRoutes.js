@@ -437,28 +437,197 @@ router.get('/sales/reports/by-item', guard('report_sales_by_item'), (req, res) =
   })
 );
 
-router.get('/sales/reports/by-region', guard('report_sales_by_region'), (req, res) =>
-  stdReport(req, res, {
-    title: 'تقرير المبيعات حسب المنطقة',
-    mark: 'R4',
-    subtitle: 'حسب منطقة العميل',
-    path: '/sales/reports/by-region',
-    phpRoute: 'report_sales_by_region',
-    headers: ['المنطقة', 'عدد', 'الإجمالي'],
-    colspan: 3,
-    fetch: q.reportSalesByRegion,
-    mapRows: (rows) =>
-      rows
+function dash(v) {
+  const s = v == null || v === '' ? '' : String(v);
+  return s === '' ? '—' : ui.esc(s);
+}
+
+router.get('/sales/reports/by-region', guard('report_sales_by_region'), async (req, res) => {
+  const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
+  const rows = await q.reportSalesByRegion(range.from, range.to);
+  let sumCnt = 0;
+  let sumTot = 0;
+  for (const r of rows) {
+    sumCnt += Number(r.cnt || 0);
+    sumTot += Number(r.total || 0);
+  }
+  const rowsHtml =
+    rows
+      .map(
+        (r) => `<tr>
+      <td>${ui.esc(r.label)}</td>
+      <td class="si-num" dir="ltr">${Number(r.cnt || 0)}</td>
+      <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.subtotal))}</td>
+      <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.total))}</td>
+    </tr>`
+      )
+      .join('') || ui.emptyRow(4);
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '🗺️',
+        kicker: 'Hypex Sales · Node',
+        title: 'تقرير المبيعات حسب المنطقة',
+        subtitle: `من ${range.from} إلى ${range.to} · ${sumCnt} فاتورة · إجمالي ${ui.esc(ui.fmtAmt(sumTot))}`,
+        actions: [
+          { label: '🖨 طباعة', primary: true, print: true },
+          { label: 'لوحة المبيعات', href: '/sales' },
+        ],
+      })}
+      ${ui.dateFilters('/sales/reports/by-region', range.from, range.to)}
+      <div class="si-print-area">
+        ${ui.tableSurface(
+          'حسب منطقة العميل',
+          `${rows.length} منطقة`,
+          ['المنطقة', 'فواتير', 'قبل الضريبة', 'الإجمالي'],
+          rowsHtml
+        )}
+      </div>
+    </div>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تقرير المبيعات حسب المنطقة',
+      bodyHtml: body,
+      js: ['/assets/js/sales-print.js'],
+    })
+  );
+});
+
+router.get('/sales/reports/by-rep', guard('report_sales_by_rep'), async (req, res) => {
+  const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const run = String(req.query.run || '') === '1' || salesRepId > 0;
+  const reps = await q.listRepsSimple();
+  let err = '';
+  let detail = [];
+  let summary = [];
+  let repName = '';
+
+  if (run && salesRepId > 0) {
+    const rep = reps.find((r) => Number(r.id) === salesRepId);
+    if (!rep) err = 'المندوب غير موجود.';
+    else {
+      repName = rep.name_ar || '';
+      detail = await q.reportSalesByRepDetail(salesRepId, range.from, range.to);
+    }
+  } else if (!salesRepId) {
+    summary = await q.reportSalesByRepSummary(range.from, range.to);
+  }
+
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar)}${
+          r.code ? ' (' + ui.esc(r.code) + ')' : ''
+        }</option>`
+    )
+    .join('');
+
+  let tableBlock = '';
+  if (err) {
+    tableBlock = `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>`;
+  } else if (salesRepId > 0) {
+    let sumSub = 0;
+    let sumTot = 0;
+    for (const r of detail) {
+      sumSub += Number(r.subtotal || 0);
+      sumTot += Number(r.total || 0);
+    }
+    const rowsHtml =
+      detail
         .map(
           (r) => `<tr>
-        <td>${ui.esc(r.label)}</td>
-        <td class="si-num" dir="ltr">${r.cnt}</td>
+        <td class="si-num" dir="ltr">${dash(r.invoice_no)}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.invoice_date))}</td>
+        <td>${ui.esc(r.customer_name || '')}</td>
+        <td class="si-num" dir="ltr">${dash(r.customer_code)}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.subtotal))}</td>
         <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.total))}</td>
       </tr>`
         )
-        .join(''),
-  })
-);
+        .join('') || ui.emptyRow(6, 'لا فواتير في الفترة');
+    tableBlock = ui.tableSurface(
+      `فواتير: ${ui.esc(repName)}`,
+      `${detail.length} · مجموع ${ui.esc(ui.fmtAmt(sumTot))}`,
+      ['فاتورة', 'التاريخ', 'العميل', 'رمز', 'قبل الضريبة', 'الإجمالي'],
+      rowsHtml +
+        (detail.length
+          ? `<tr><td colspan="4" style="font-weight:800">المجموع</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${ui.esc(ui.fmtAmt(sumSub))}</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${ui.esc(ui.fmtAmt(sumTot))}</td></tr>`
+          : '')
+    );
+  } else {
+    const rowsHtml =
+      summary
+        .map(
+          (r) => `<tr>
+        <td>${ui.esc(r.label)}</td>
+        <td class="si-num" dir="ltr">${dash(r.code)}</td>
+        <td class="si-num" dir="ltr">${Number(r.cnt || 0)}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.subtotal))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.total))}</td>
+        <td>${
+          Number(r.rep_id) > 0
+            ? `<a class="si-btn" href="/sales/reports/by-rep?run=1&sales_rep_id=${r.rep_id}&from=${encodeURIComponent(
+                range.from
+              )}&to=${encodeURIComponent(range.to)}">تفصيل</a>`
+            : '—'
+        }</td>
+      </tr>`
+        )
+        .join('') || ui.emptyRow(6);
+    tableBlock = ui.tableSurface(
+      'ملخص حسب المندوب',
+      `${summary.length} مندوب`,
+      ['المندوب', 'الرمز', 'فواتير', 'قبل الضريبة', 'الإجمالي', ''],
+      rowsHtml
+    );
+  }
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '📊',
+        kicker: 'Hypex Sales · Node',
+        title: 'تقرير المبيعات حسب المندوب',
+        subtitle: `من ${range.from} إلى ${range.to}`,
+        actions: [
+          { label: '🖨 طباعة', primary: true, print: true },
+          { label: 'لوحة المبيعات', href: '/sales' },
+        ],
+      })}
+      <div class="si-rail no-print">
+        <form method="get" action="/sales/reports/by-rep" class="si-search" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end">
+          <input type="hidden" name="run" value="1">
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المندوب
+            <select name="sales_rep_id" class="si-field" style="min-width:12rem">
+              <option value="0">— ملخص الكل —</option>
+              ${repOpts}
+            </select>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">من
+            <input class="si-field" type="date" name="from" value="${ui.esc(range.from)}">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى
+            <input class="si-field" type="date" name="to" value="${ui.esc(range.to)}">
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض</button>
+        </form>
+      </div>
+      <div class="si-print-area">${tableBlock}</div>
+    </div>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تقرير المبيعات حسب المندوب',
+      bodyHtml: body,
+      js: ['/assets/js/sales-print.js'],
+    })
+  );
+});
 
 router.get('/sales/reports/qty-extra', guard('report_sales_qty_extra'), (req, res) =>
   stdReport(req, res, {

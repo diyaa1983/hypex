@@ -19,6 +19,13 @@ const customersCatalog = [
     items: [
       { r: 'report_customers', label: 'تقرير العملاء', icon: '👥', path: '/customers/reports/list', kind: 'report' },
       { r: 'report_customers_by_rep', label: 'تقرير العملاء حسب المندوب', icon: '👤', path: '/customers/reports/by-rep', kind: 'report' },
+      {
+        r: 'report_customers_region_addresses',
+        label: 'تقرير العناوين والمنطقة',
+        icon: '🗺️',
+        path: '/customers/reports/region-addresses',
+        kind: 'report',
+      },
     ],
   },
 ];

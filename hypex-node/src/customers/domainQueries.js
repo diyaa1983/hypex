@@ -180,6 +180,68 @@ async function oracleLinkedCount() {
   return Number(rows[0]?.c || 0);
 }
 
+/**
+ * تقرير العناوين والمنطقة: كل منطقة + عناوينها + المندوب/المندوبين المربوطين
+ * (على مستوى العنوان، وإلا تغطية المنطقة كاحتياطي).
+ */
+async function reportRegionAddresses({ activeOnly = false, regionId = 0 } = {}) {
+  const params = [];
+  const where = ['1=1'];
+  if (activeOnly) {
+    where.push('rg.is_active = 1');
+    where.push('(a.id IS NULL OR a.is_active = 1)');
+  }
+  if (regionId > 0) {
+    where.push('rg.id = ?');
+    params.push(regionId);
+  }
+  return safeQuery(
+    `SELECT
+        rg.id AS region_id,
+        COALESCE(rg.code, '') AS region_code,
+        rg.name_ar AS region_name,
+        rg.is_active AS region_active,
+        COALESCE(a.id, 0) AS address_id,
+        COALESCE(a.name_ar, '') AS address_name,
+        COALESCE(a.is_active, 0) AS address_active,
+        COALESCE(
+          NULLIF(TRIM((
+            SELECT GROUP_CONCAT(DISTINCT sr.name_ar ORDER BY sr.name_ar SEPARATOR '، ')
+            FROM crm_sales_rep_region_address sra
+            INNER JOIN crm_sales_rep sr ON sr.id = sra.sales_rep_id AND sr.is_active = 1
+            WHERE sra.region_address_id = a.id
+          )), ''),
+          NULLIF(TRIM((
+            SELECT GROUP_CONCAT(DISTINCT sr.name_ar ORDER BY sr.name_ar SEPARATOR '، ')
+            FROM crm_sales_rep_region srr
+            INNER JOIN crm_sales_rep sr ON sr.id = srr.sales_rep_id AND sr.is_active = 1
+            WHERE srr.region_id = rg.id
+          )), ''),
+          ''
+        ) AS sales_rep_name,
+        CASE
+          WHEN a.id IS NOT NULL THEN (
+            SELECT COUNT(*) FROM crm_customer c WHERE c.region_address_id = a.id
+          )
+          ELSE (
+            SELECT COUNT(*) FROM crm_customer c
+            WHERE c.region_id = rg.id
+              AND (c.region_address_id IS NULL OR c.region_address_id = 0)
+          )
+        END AS customer_count
+     FROM crm_region rg
+     LEFT JOIN crm_region_address a ON a.region_id = rg.id
+     WHERE ${where.join(' AND ')}
+     ORDER BY
+       COALESCE(rg.sort_order, 0) ASC,
+       rg.name_ar ASC,
+       COALESCE(a.sort_order, 0) ASC,
+       a.name_ar ASC,
+       rg.id ASC`,
+    params
+  );
+}
+
 module.exports = {
   listCustomers,
   listRegions,
@@ -188,5 +250,6 @@ module.exports = {
   salesRepOptions,
   reportCustomers,
   reportCustomersByRep,
+  reportRegionAddresses,
   oracleLinkedCount,
 };
