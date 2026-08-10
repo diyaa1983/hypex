@@ -153,6 +153,27 @@ function dash(v) {
   return s === '' ? '—' : ui.esc(s);
 }
 
+/** CSV بترميز UTF-8 مع BOM ليفتحه Excel بالعربية */
+function sendExcelCsv(res, filename, tableRows) {
+  const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const body =
+    '\uFEFF' +
+    tableRows.map((row) => row.map(csvCell).join(',')).join('\r\n') +
+    '\r\n';
+  const safe = String(filename || 'export')
+    .replace(/[^\w.\-]+/g, '_')
+    .slice(0, 80);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safe}.csv"`);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.send(body);
+}
+
+function plainDash(v) {
+  const s = v == null || v === '' ? '' : String(v).trim();
+  return s === '' ? '' : s;
+}
+
 /* ── Customers list ── */
 router.get('/customers/list', guard('customers'), async (req, res) => {
   const qv = String(req.query.q || '');
@@ -620,9 +641,36 @@ router.get('/customers/oracle-sync', guard('oracle_customers_sync'), async (req,
 /* ── Reports ── */
 router.get('/customers/reports/list', guard('report_customers'), async (req, res) => {
   const activeOnly = String(req.query.active_only || '') === '1';
+  const wantExcel = String(req.query.excel || '') === '1';
   const rows = await q.reportCustomers({ activeOnly });
   const active = rows.filter((r) => Number(r.is_active) === 1).length;
   const inactive = rows.length - active;
+
+  if (wantExcel) {
+    const table = [
+      ['#', 'الرمز', 'الاسم', 'الهاتف', 'البريد', 'ضريبي', 'المنطقة', 'العنوان', 'المندوب', 'الحالة'],
+    ];
+    rows.forEach((r, i) => {
+      table.push([
+        i + 1,
+        plainDash(r.customer_code),
+        plainDash(r.customer_name),
+        plainDash(r.phone),
+        plainDash(r.email),
+        plainDash(r.tax_number),
+        plainDash(r.region_name),
+        plainDash(r.region_address_name),
+        plainDash(r.sales_rep_name),
+        Number(r.is_active) === 1 ? 'نشط' : 'موقوف',
+      ]);
+    });
+    return sendExcelCsv(res, 'customers_report', table);
+  }
+
+  const excelQs = new URLSearchParams();
+  if (activeOnly) excelQs.set('active_only', '1');
+  excelQs.set('excel', '1');
+  const excelHref = '/customers/reports/list?' + excelQs.toString();
 
   const filtersHtml = `
     <div class="si-rail no-print">
@@ -632,6 +680,7 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
         </label>
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
         <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+        <a class="si-btn" href="${ui.esc(excelHref)}">Excel</a>
       </form>
     </div>
     <div class="si-print-meta print-only">
@@ -667,6 +716,7 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
         subtitle: `${rows.length} عميل · نشط ${active} · موقوف ${inactive}`,
         actions: [
           { label: '🖨 طباعة', primary: true, print: true },
+          { label: 'Excel', href: excelHref },
           { label: 'لوحة العملاء', href: HUB },
         ],
       })}
@@ -693,8 +743,32 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
 router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async (req, res) => {
   const activeOnly = String(req.query.active_only || '') === '1';
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const wantExcel = String(req.query.excel || '') === '1';
   const reps = await q.salesRepOptions();
   const rows = await q.reportCustomersByRep({ activeOnly, salesRepId });
+
+  if (wantExcel) {
+    const table = [
+      ['#', 'رمز المندوب', 'المندوب', 'رمز العميل', 'اسم العميل', 'المنطقة', 'العنوان', 'الهاتف', 'البريد', 'الحالة'],
+    ];
+    rows.forEach((r, i) => {
+      table.push([
+        i + 1,
+        plainDash(r.rep_code),
+        plainDash(r.rep_name),
+        plainDash(r.customer_code),
+        plainDash(r.customer_name),
+        plainDash(r.region_name),
+        plainDash(r.region_address_name),
+        plainDash(r.phone),
+        plainDash(r.email),
+        Number(r.is_active) === 1 ? 'نشط' : 'موقوف',
+      ]);
+    });
+    const fname =
+      salesRepId > 0 ? 'customers_by_rep_' + salesRepId : 'customers_by_rep';
+    return sendExcelCsv(res, fname, table);
+  }
 
   const groups = new Map();
   for (const r of rows) {
@@ -720,6 +794,12 @@ router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async 
     )
     .join('');
 
+  const excelQs = new URLSearchParams();
+  if (salesRepId > 0) excelQs.set('sales_rep_id', String(salesRepId));
+  if (activeOnly) excelQs.set('active_only', '1');
+  excelQs.set('excel', '1');
+  const excelHref = '/customers/reports/by-rep?' + excelQs.toString();
+
   const filtersHtml = `
     <div class="si-rail no-print">
       <form class="si-search" method="get" action="/customers/reports/by-rep" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
@@ -734,6 +814,7 @@ router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async 
         </label>
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
         <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+        <a class="si-btn" href="${ui.esc(excelHref)}">Excel</a>
       </form>
     </div>`;
 
@@ -776,6 +857,7 @@ router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async 
         subtitle: `${groups.size} مجموعة · ${rows.length} صف عميل`,
         actions: [
           { label: '🖨 طباعة', primary: true, print: true },
+          { label: 'Excel', href: excelHref },
           { label: 'لوحة العملاء', href: HUB },
           { label: 'تقرير كامل', href: ui.embedUrl('report_customers_by_rep') },
         ],
