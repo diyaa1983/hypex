@@ -5,13 +5,14 @@
  * سعر وحدة الصرف = سعر الحبة × factor_to_base
  */
 const db = require('../db');
+const companyDecimals = require('./companyDecimals');
 
 function r6(n) {
-  return Math.round((Number(n) || 0) * 1e6) / 1e6;
+  return companyDecimals.roundUnit(n);
 }
 
 function r3(n) {
-  return Math.round((Number(n) || 0) * 1000) / 1000;
+  return companyDecimals.roundAmount(n);
 }
 
 /** سعر وحدة الصرف من سعر أقل وحدة (غير شامل الضريبة) */

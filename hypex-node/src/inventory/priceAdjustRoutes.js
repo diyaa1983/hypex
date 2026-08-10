@@ -249,7 +249,13 @@ async function renderForm(req, res, id) {
         return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
       }
       function fmt(n){
+        if (window.HxDec && typeof window.HxDec.fmt === 'function') {
+          return window.HxDec.fmt(n, window.HxDec.unitPlaces ? window.HxDec.unitPlaces() : undefined);
+        }
         return (Math.round((Number(n)||0)*1000)/1000).toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3});
+      }
+      function priceStep(){
+        return window.HxDec && window.HxDec.unitStep ? window.HxDec.unitStep() : '0.001';
       }
 
       function emptyLine(){
@@ -282,11 +288,11 @@ async function renderForm(req, res, id) {
               '<div class="si-suggest js-suggest" hidden></div>'+
             '</td>'+
             '<td class="si-num" dir="ltr"><span class="js-old-sale">'+fmt(ln.old_sale_price)+'</span></td>'+
-            '<td><input class="si-field si-field--mono js-new-sale" type="number" step="0.001" min="0" dir="ltr" '+
+            '<td><input class="si-field si-field--mono js-new-sale" type="number" step="'+priceStep()+'" min="0" dir="ltr" '+
               'value="'+escAttr(ln.new_sale_price===''||ln.new_sale_price==null?'':ln.new_sale_price)+'" '+
               (posted?'readonly':'')+' placeholder="جديد"></td>'+
             '<td class="si-num" dir="ltr"><span class="js-old-wh">'+fmt(ln.old_wholesale)+'</span></td>'+
-            '<td><input class="si-field si-field--mono js-new-wh" type="number" step="0.001" min="0" dir="ltr" '+
+            '<td><input class="si-field si-field--mono js-new-wh" type="number" step="'+priceStep()+'" min="0" dir="ltr" '+
               'value="'+escAttr(ln.new_wholesale===''||ln.new_wholesale==null?'':ln.new_wholesale)+'" '+
               (posted?'readonly':'')+' placeholder="جديد"></td>'+
             '<td>'+(posted?'':'<button type="button" class="si-btn js-del" title="حذف">×</button>')+'</td>';

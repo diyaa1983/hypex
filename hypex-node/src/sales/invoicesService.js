@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const db = require('../db');
 const { parseDateToIso, todayIso } = require('../lib/html');
 const itemPricing = require('../lib/itemPricing');
+const companyDecimals = require('../lib/companyDecimals');
 
 const POSTED_SQL = `(
   EXISTS (SELECT 1 FROM crm_customer_ledger l WHERE l.txn_type = 'sale_invoice' AND l.ref_id = i.id)
@@ -13,11 +14,11 @@ const POSTED_SQL = `(
 )`;
 
 function r3(n) {
-  return Math.round((Number(n) || 0) * 1000) / 1000;
+  return companyDecimals.roundAmount(n);
 }
 
 function r6(n) {
-  return Math.round((Number(n) || 0) * 1e6) / 1e6;
+  return companyDecimals.roundUnit(n);
 }
 
 async function nextInvoiceNo(invoiceDate) {

@@ -618,7 +618,7 @@ if ($action === 'add' || $action === 'edit') {
                     <option value="">— بدون ضريبة مخصصة —</option>
                     <?php foreach ($taxRates as $tr): ?>
                         <option value="<?= (int) $tr['id'] ?>" <?= (int) ($row['tax_rate_id'] ?? 0) === (int) $tr['id'] ? 'selected' : '' ?>>
-                            <?= esc((string) $tr['name_ar']) ?> (<?= esc((string) $tr['rate_percent']) ?>%)
+                            <?= esc((string) $tr['name_ar']) ?> (<?= esc(format_amount((float) $tr['rate_percent'], min(3, $amountDp), false)) ?>%)
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -810,8 +810,8 @@ if ($expirySchemaOk) {
                         <td><?php if ($issueName !== ''): ?><?= esc($issueName) ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
                         <td dir="ltr"><?php if ($issueFactorDisp !== ''): ?><?= esc($issueFactorDisp) ?><?php else: ?><span class="muted">—</span><?php endif; ?></td>
                     <?php endif; ?>
-                    <td><?= esc(format_money((float) $it['default_cost'])) ?></td>
-                    <td><?= esc(format_money((float) $it['default_sale'])) ?></td>
+                    <td><?= esc(format_amount((float) $it['default_cost'], null, true)) ?></td>
+                    <td><?= esc(format_amount((float) $it['default_sale'], company_invoice_unit_price_decimal_places($pdo), true)) ?></td>
                     <td class="col-qty" dir="ltr">
                         <?php if ($hasStockTable): ?>
                             <?= esc(format_amount((float) ($stockQtyMap[$itemId] ?? 0.0))) ?>

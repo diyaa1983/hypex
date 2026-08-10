@@ -5,6 +5,7 @@
  * save = مسودة · post = اعتماد على بطاقة المادة
  */
 const db = require('../db');
+const companyDecimals = require('../lib/companyDecimals');
 
 async function safeQuery(sql, params = []) {
   try {
@@ -103,7 +104,7 @@ async function ensureSchema() {
 }
 
 function r6(n) {
-  return Math.round((Number(n) || 0) * 1e6) / 1e6;
+  return companyDecimals.roundUnit(n);
 }
 
 function todayIso() {

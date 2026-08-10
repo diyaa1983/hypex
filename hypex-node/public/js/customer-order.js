@@ -70,12 +70,30 @@
   }
 
   function r3(n) {
+    if (window.HxDec && typeof window.HxDec.roundAmount === 'function') {
+      return window.HxDec.roundAmount(n);
+    }
     return Math.round((Number(n) || 0) * 1000) / 1000;
+  }
+
+  function rUnit(n) {
+    if (window.HxDec && typeof window.HxDec.roundUnit === 'function') {
+      return window.HxDec.roundUnit(n);
+    }
+    return r3(n);
   }
 
   function unitSalePrice(baseSale, factor) {
     var f = Number(factor) > 0 ? Number(factor) : 1;
-    return r3((Number(baseSale) || 0) * f);
+    return rUnit((Number(baseSale) || 0) * f);
+  }
+
+  function priceStep() {
+    return window.HxDec && window.HxDec.unitStep ? window.HxDec.unitStep() : '0.001';
+  }
+
+  function qtyStep() {
+    return window.HxDec && window.HxDec.amountStep ? window.HxDec.amountStep() : '0.001';
   }
 
   function defaultUnitOf(it) {
@@ -162,6 +180,9 @@
   }
 
   function fmt(n) {
+    if (window.HxDec && typeof window.HxDec.fmt === 'function') {
+      return window.HxDec.fmt(n);
+    }
     return r3(n).toLocaleString('en-US', {
       minimumFractionDigits: 3,
       maximumFractionDigits: 3,
@@ -345,11 +366,15 @@
         '" ' +
         (locked ? 'readonly' : '') +
         '></td>' +
-        '<td><input class="js-price" type="number" step="0.001" min="0" value="' +
+        '<td><input class="js-price" type="number" step="' +
+        priceStep() +
+        '" min="0" value="' +
         escAttr(ln.unit_price) +
         '" readonly title="من بطاقة المادة (أقل وحدة × التعبئة)">' +
         '</td>' +
-        '<td><input class="js-disc" type="number" step="0.001" min="0" max="100" value="' +
+        '<td><input class="js-disc" type="number" step="' +
+        qtyStep() +
+        '" min="0" max="100" value="' +
         escAttr(ln.discount_pct || 0) +
         '" ' +
         (locked ? 'readonly' : '') +
