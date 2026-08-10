@@ -241,15 +241,16 @@ router.get('/inventory/items', async (req, res) => {
 async function itemForm(req, res, id) {
   if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
   const lookups = await svc.itemLookups();
-  await companyDecimals.load(true);
-  const unitDp = companyDecimals.unitPlaces();
+  const decSnap = await companyDecimals.load(true);
+  const unitDp = decSnap.unit;
+  const amountDp = decSnap.amount;
   const unitStep = companyDecimals.unitStep();
-  const fmtPrice = (v) => companyDecimals.formatUnitInput(v);
+  const fmtPrice = (v) => companyDecimals.formatInput(v, unitDp);
   const fmtTaxPct = (v) => {
-    // نسب الضريبة: بلا أصفار زائدة (16 بدل 16.000) مع احترام حدّ الخانات
+    // نسب الضريبة: بلا أصفار زائدة (16 بدل 16.000)
     const n = Number(v);
     if (!Number.isFinite(n)) return '0';
-    const fixed = n.toFixed(Math.min(unitDp, companyDecimals.amountPlaces()));
+    const fixed = n.toFixed(Math.min(6, amountDp));
     return fixed.replace(/\.?0+$/, '') || '0';
   };
   const item = id ? await svc.getItem(id) : null;
@@ -428,24 +429,25 @@ async function itemForm(req, res, id) {
             <p class="muted" style="margin:0 0 .65rem;font-size:.8rem;line-height:1.45">
               أدخل <b>سعر الحبة / أقل وحدة</b> فقط. عند البيع بالكرتون (مثلاً 12) يحسب النظام السعر تلقائياً =
               سعر الحبة × 12 في الفاتورة وطلب العميل.
-              · الخانات العشرية حسب الإعدادات: <b dir="ltr">${unitDp}</b>
+              · خانات الأسعار (إعداد «سعر الوحدة»): <b dir="ltr">${unitDp}</b>
+              · خانات النظام: <b dir="ltr">${amountDp}</b>
             </p>
-            <div class="si-meta">
+            <div class="si-meta" data-hx-price-fields="1" data-unit-dp="${unitDp}" data-amount-dp="${amountDp}">
               <label>سعر الكلفة
-                <input class="si-field si-field--mono" name="default_cost" type="text" inputmode="decimal"
-                       step="${esc(unitStep)}" min="0"
+                <input class="si-field si-field--mono js-hx-unit-price" name="default_cost" type="text" inputmode="decimal"
+                       step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
                        value="${esc(fmtPrice(item?.default_cost != null ? item.default_cost : 0))}" dir="ltr" ${ro}
                        pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
               </label>
               <label>سعر البيع
-                <input class="si-field si-field--mono" name="default_sale" type="text" inputmode="decimal"
-                       step="${esc(unitStep)}" min="0"
+                <input class="si-field si-field--mono js-hx-unit-price" name="default_sale" type="text" inputmode="decimal"
+                       step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
                        value="${esc(fmtPrice(item?.default_sale != null ? item.default_sale : 0))}" dir="ltr" ${ro}
                        pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
               </label>
               <label>سعر الجملة
-                <input class="si-field si-field--mono" name="default_wholesale" type="text" inputmode="decimal"
-                       step="${esc(unitStep)}" min="0"
+                <input class="si-field si-field--mono js-hx-unit-price" name="default_wholesale" type="text" inputmode="decimal"
+                       step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
                        value="${esc(fmtPrice(item?.default_wholesale != null ? item.default_wholesale : 0))}" dir="ltr" ${ro}
                        pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
               </label>
@@ -545,6 +547,33 @@ async function itemForm(req, res, id) {
         }
         row.remove();
       });
+
+      // أسعار البطاقة: قص حسب إعدادات الشركة فوراً (حتى قبل تحميل HxDec)
+      function unitDp() {
+        if (window.HxDec && typeof window.HxDec.unitPlaces === 'function') return window.HxDec.unitPlaces();
+        var c = window.__HYPEX_DECIMALS__ || {};
+        var u = Number(c.unit);
+        if (!Number.isFinite(u) || u < 0) u = 3;
+        return Math.max(0, Math.min(6, Math.floor(u)));
+      }
+      function fmtPriceInput(v) {
+        var d = unitDp();
+        var n = Number(String(v == null ? '' : v).replace(/,/g, '').trim());
+        if (!Number.isFinite(n)) n = 0;
+        var f = Math.pow(10, d);
+        n = Math.round((n + Number.EPSILON) * f) / f;
+        return n.toFixed(d);
+      }
+      function applyPriceDp() {
+        document.querySelectorAll('input.js-hx-unit-price, input[name="default_cost"], input[name="default_sale"], input[name="default_wholesale"]').forEach(function(el){
+          el.value = fmtPriceInput(el.value);
+        });
+      }
+      applyPriceDp();
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyPriceDp);
+      }
+      window.addEventListener('load', applyPriceDp);
     })();
     </script>`;
   res.send(page(req.session.user, isNew ? 'مادة جديدة' : 'بطاقة المادة', body));

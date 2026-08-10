@@ -105,12 +105,12 @@ function roundUnit(n) {
   return roundTo(n, unitPlaces());
 }
 
-/** قيمة number input بدون فواصل آلاف */
+/** قيمة number/text input بدون فواصل آلاف — تقرّب ثم تثبّت لعدد الخانات */
 function formatInput(n, dp) {
   const d = clampDp(dp, amountPlaces());
-  const x = Number(n);
-  if (!Number.isFinite(x)) return (0).toFixed(d);
-  return x.toFixed(d);
+  const raw = Number(String(n ?? '').replace(/,/g, '').trim());
+  if (!Number.isFinite(raw)) return (0).toFixed(d);
+  return roundTo(raw, d).toFixed(d);
 }
 
 function formatAmountInput(n) {

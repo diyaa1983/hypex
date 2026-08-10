@@ -564,29 +564,57 @@ if ($action === 'add' || $action === 'edit') {
                     (الكلفة والجملة عبر الشاشات الخاصة لاحقاً).
                 </div>
             <?php endif; ?>
-            <div class="form-row">
+            <p class="muted" style="font-size:.8rem;margin:0 0 .5rem">
+                خانات الأسعار حسب إعداد «سعر الوحدة في الفواتير»: <b dir="ltr"><?= (int) $unitPriceDp ?></b>
+                · خانات النظام: <b dir="ltr"><?= (int) $amountDp ?></b>
+            </p>
+            <div class="form-row" data-hx-price-fields="1" data-unit-dp="<?= (int) $unitPriceDp ?>">
                 <label class="field">
                     <span class="field-label">سعر الكلفة</span>
-                    <input class="input" name="default_cost" type="text" inputmode="decimal" step="<?= esc($unitPriceStep) ?>" min="0"
+                    <input class="input js-hx-unit-price" name="default_cost" type="text" inputmode="decimal" step="<?= esc($unitPriceStep) ?>" min="0"
                            value="<?= esc(format_amount((float) $row['default_cost'], $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>
+                           data-dp="<?= (int) $unitPriceDp ?>"
                            pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
-                    <span class="muted" style="font-size:.75rem">خانات: <?= (int) $unitPriceDp ?></span>
                 </label>
                 <label class="field">
                     <span class="field-label">سعر البيع</span>
-                    <input class="input" name="default_sale" type="text" inputmode="decimal" step="<?= esc($unitPriceStep) ?>" min="0"
+                    <input class="input js-hx-unit-price" name="default_sale" type="text" inputmode="decimal" step="<?= esc($unitPriceStep) ?>" min="0"
                            value="<?= esc(format_amount((float) $row['default_sale'], $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>
+                           data-dp="<?= (int) $unitPriceDp ?>"
                            pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
                 </label>
                 <?php if ($hasWholesale): ?>
                 <label class="field">
                     <span class="field-label">سعر الجملة</span>
-                    <input class="input" name="default_wholesale" type="text" inputmode="decimal" step="<?= esc($unitPriceStep) ?>" min="0"
+                    <input class="input js-hx-unit-price" name="default_wholesale" type="text" inputmode="decimal" step="<?= esc($unitPriceStep) ?>" min="0"
                            value="<?= esc(format_amount((float) ($row['default_wholesale'] ?? 0), $unitPriceDp, false)) ?>" dir="ltr" <?= $priceRo ?>
+                           data-dp="<?= (int) $unitPriceDp ?>"
                            pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
                 </label>
                 <?php endif; ?>
             </div>
+            <script>
+            (function () {
+              var dp = <?= (int) $unitPriceDp ?>;
+              function fmt(v) {
+                var n = Number(String(v == null ? '' : v).replace(/,/g, '').trim());
+                if (!isFinite(n)) n = 0;
+                var f = Math.pow(10, dp);
+                n = Math.round((n + Number.EPSILON) * f) / f;
+                return n.toFixed(dp);
+              }
+              function apply() {
+                document.querySelectorAll('#item-def-form input.js-hx-unit-price').forEach(function (el) {
+                  el.value = fmt(el.value);
+                  if (el.dataset.hxBlurBound === '1') return;
+                  el.dataset.hxBlurBound = '1';
+                  el.addEventListener('blur', function () { el.value = fmt(el.value); });
+                });
+              }
+              if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+              else apply();
+            })();
+            </script>
             <?php if ($isItemEdit): ?>
                 <div class="form-row item-stock-qty-readonly">
                     <label class="field">

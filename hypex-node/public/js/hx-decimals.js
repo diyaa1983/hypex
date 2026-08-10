@@ -42,7 +42,25 @@
   function fmtInput(n, dp) {
     var d = dp != null ? dp : conf().amount;
     d = Math.max(0, Math.min(6, Number(d) || 0));
-    return (Number(n) || 0).toFixed(d);
+    var raw = Number(String(n == null ? '' : n).replace(/,/g, '').trim());
+    if (!Number.isFinite(raw)) raw = 0;
+    return roundTo(raw, d).toFixed(d);
+  }
+
+  /** حقول أسعار بطاقة المادة (كلفة / بيع / جملة) */
+  function bindItemPriceInputs(root) {
+    var scope = root || document;
+    var names = ['default_cost', 'default_sale', 'default_wholesale'];
+    var dp = conf().unit;
+    names.forEach(function (name) {
+      var el = scope.querySelector('input[name="' + name + '"]');
+      if (!el || el.dataset.hxDecBound === '1') return;
+      el.dataset.hxDecBound = '1';
+      el.value = fmtInput(el.value, dp);
+      el.addEventListener('blur', function () {
+        el.value = fmtInput(el.value, conf().unit);
+      });
+    });
   }
 
   w.HxDec = {
@@ -69,5 +87,15 @@
     step: step,
     fmt: fmt,
     fmtInput: fmtInput,
+    bindItemPriceInputs: bindItemPriceInputs,
   };
+
+  function autoBind() {
+    bindItemPriceInputs(document);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autoBind);
+  } else {
+    autoBind();
+  }
 })(typeof window !== 'undefined' ? window : globalThis);
