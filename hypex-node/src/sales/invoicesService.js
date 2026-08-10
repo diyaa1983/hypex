@@ -610,6 +610,16 @@ async function sendEinvoice(invoiceId, userId) {
   return phpAction('einvoice', userId, { invoice_id: id });
 }
 
+const { neighbors, findIdByNo } = require('../lib/docBrowse');
+
+async function browseNeighbors(id) {
+  return neighbors('sal_invoice', id);
+}
+
+async function findInvoiceIdByNo(no) {
+  return findIdByNo('sal_invoice', 'invoice_no', no);
+}
+
 module.exports = {
   listInvoices,
   getInvoice,
@@ -625,4 +635,6 @@ module.exports = {
   nextInvoiceNo,
   POSTED_SQL,
   phpAction,
+  browseNeighbors,
+  findInvoiceIdByNo,
 };

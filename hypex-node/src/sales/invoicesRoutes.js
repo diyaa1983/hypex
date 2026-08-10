@@ -459,6 +459,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
 
     const lookups = await svc.lookups();
     const caps = toolbarCaps(req.session.user, inv || { id: 0, is_posted: false });
+    const nav = inv ? await svc.browseNeighbors(inv.id) : { prev_id: 0, next_id: 0 };
     const initial = {
       id: inv ? inv.id : 0,
       invoice_no: inv ? inv.invoice_no : '',
@@ -471,6 +472,8 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
       notes: inv ? inv.notes : '',
       invoice_discount: inv ? inv.invoice_discount_input : '',
       is_posted: inv ? inv.is_posted : false,
+      prev_id: nav.prev_id || 0,
+      next_id: nav.next_id || 0,
       caps,
       lines:
         inv && inv.lines.length
@@ -538,9 +541,14 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
           </div>
           <div class="si-meta">
             <label>رقم الفاتورة
-              <input class="si-field si-field--mono" id="inv_no" type="text" value="${esc(
-                initial.invoice_no
-              )}" readonly placeholder="—" dir="ltr">
+              <div class="si-docno-row">
+                <button type="button" class="si-btn si-docno-btn" id="inv_prev" title="السابق">‹</button>
+                <input class="si-field si-field--mono" id="inv_no" type="text" value="${esc(
+                  initial.invoice_no
+                )}" readonly placeholder="Enter للانتقال" dir="ltr"
+                       title="Enter للانتقال · ↑ السابق · ↓ التالي">
+                <button type="button" class="si-btn si-docno-btn" id="inv_next" title="التالي">›</button>
+              </div>
             </label>
             <label>التاريخ
               <input class="si-field si-field--mono" id="inv_date" type="date" value="${esc(
@@ -637,7 +645,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
         bodyClass: 'si-2027',
         mainClass: 'main si-main',
         css: ['/assets/css/sales-2027.css'],
-        js: ['/assets/js/sales-invoice.js'],
+        js: ['/assets/js/doc-nav.js', '/assets/js/sales-invoice.js'],
       })
     );
   } catch (e) {
@@ -655,6 +663,16 @@ router.get('/api/sales/invoices', async (req, res) => {
       page: Number(req.query.page || 1),
     });
     res.json({ ok: true, ...data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.get('/api/sales/invoices/by-no', async (req, res) => {
+  try {
+    const id = await svc.findInvoiceIdByNo(req.query.no);
+    if (!id) return res.status(404).json({ ok: false, error: 'لم يُعثر على فاتورة بهذا الرقم' });
+    res.json({ ok: true, id });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

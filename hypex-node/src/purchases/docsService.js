@@ -428,6 +428,24 @@ async function lookups() {
   return base;
 }
 
+const { neighbors, findIdByNo } = require('../lib/docBrowse');
+
+async function browseOrderNeighbors(id) {
+  return neighbors('pur_order', id);
+}
+
+async function findOrderIdByNo(no) {
+  return findIdByNo('pur_order', 'order_no', no);
+}
+
+async function browseInvoiceNeighbors(id) {
+  return neighbors('pur_invoice', id);
+}
+
+async function findInvoiceIdByNo(no) {
+  return findIdByNo('pur_invoice', 'invoice_no', no);
+}
+
 module.exports = {
   searchSuppliers,
   getOrder,
@@ -436,4 +454,8 @@ module.exports = {
   saveInvoice,
   lookups,
   isInvoicePosted,
+  browseOrderNeighbors,
+  findOrderIdByNo,
+  browseInvoiceNeighbors,
+  findInvoiceIdByNo,
 };

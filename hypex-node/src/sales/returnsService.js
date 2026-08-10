@@ -302,6 +302,16 @@ async function searchCustomers(q, limit = 30) {
   );
 }
 
+const { neighbors, findIdByNo } = require('../lib/docBrowse');
+
+async function browseNeighbors(id) {
+  return neighbors('sal_return', id);
+}
+
+async function findReturnIdByNo(no) {
+  return findIdByNo('sal_return', 'return_no', no);
+}
+
 module.exports = {
   listReturns,
   getReturn,
@@ -316,4 +326,6 @@ module.exports = {
   isPosted,
   POSTED_SQL,
   phpAction,
+  browseNeighbors,
+  findReturnIdByNo,
 };

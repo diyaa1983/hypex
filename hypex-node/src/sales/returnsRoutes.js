@@ -202,6 +202,7 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
       if (!doc) return res.status(404).send('المرتجع غير موجود');
     }
     const cs = caps(req.session.user, doc || { id: 0, is_posted: false });
+    const nav = doc ? await svc.browseNeighbors(doc.id) : { prev_id: 0, next_id: 0 };
     const initial = {
       id: doc ? doc.id : 0,
       return_no: doc ? doc.return_no : '',
@@ -216,6 +217,8 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
       reason_return: doc ? doc.reason_return : '',
       is_posted: doc ? doc.is_posted : false,
       lines: doc ? doc.lines : [],
+      prev_id: nav.prev_id || 0,
+      next_id: nav.next_id || 0,
       caps: cs,
       archiveUrl: doc ? embedUrl('sales_returns', 'id=' + doc.id) : '',
     };
@@ -242,9 +245,14 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
           <div class="si-surface-head"><h2>بيانات المرتجع</h2></div>
           <div class="si-meta">
             <label>رقم الإرجاع
-              <input class="si-field si-field--mono" id="ret_no" value="${esc(
-                initial.return_no
-              )}" readonly dir="ltr" placeholder="—">
+              <div class="si-docno-row">
+                <button type="button" class="si-btn si-docno-btn" id="ret_prev" title="السابق">‹</button>
+                <input class="si-field si-field--mono" id="ret_no" value="${esc(
+                  initial.return_no
+                )}" readonly dir="ltr" placeholder="Enter للانتقال"
+                       title="Enter للانتقال · ↑ السابق · ↓ التالي">
+                <button type="button" class="si-btn si-docno-btn" id="ret_next" title="التالي">›</button>
+              </div>
             </label>
             <label>تاريخ الإرجاع
               <input class="si-field si-field--mono" id="ret_date" type="date" value="${esc(
@@ -327,7 +335,7 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
         bodyClass: 'si-2027',
         mainClass: 'main si-main',
         css: ['/assets/css/sales-2027.css'],
-        js: ['/assets/js/sales-return-node.js'],
+        js: ['/assets/js/doc-nav.js', '/assets/js/sales-return-node.js'],
       })
     );
   } catch (e) {
@@ -417,6 +425,16 @@ router.get('/sales/returns/:id/print', async (req, res) => {
 });
 
 /* APIs */
+router.get('/api/sales/returns/by-no', async (req, res) => {
+  try {
+    const id = await svc.findReturnIdByNo(req.query.no);
+    if (!id) return res.status(404).json({ ok: false, error: 'لم يُعثر على مرتجع بهذا الرقم' });
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 router.post('/api/sales/returns', async (req, res) => {
   try {
     const r = await svc.saveReturn(req.body || {}, req.session.user.id);

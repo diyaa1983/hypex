@@ -539,4 +539,17 @@
   } else {
     renderLines();
   }
+
+  if (window.HypexDocNav) {
+    window.HypexDocNav.bind({
+      input: 'ret_no',
+      prevBtn: 'ret_prev',
+      nextBtn: 'ret_next',
+      prevId: state.prev_id,
+      nextId: state.next_id,
+      openPath: '/sales/returns/form',
+      findApi: '/api/sales/returns/by-no',
+      currentNo: state.return_no || '',
+    });
+  }
 })();

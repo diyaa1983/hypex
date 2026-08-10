@@ -986,4 +986,17 @@
   }
 
   renderLines();
+
+  if (window.HypexDocNav) {
+    window.HypexDocNav.bind({
+      input: 'inv_no',
+      prevBtn: 'inv_prev',
+      nextBtn: 'inv_next',
+      prevId: state.prev_id,
+      nextId: state.next_id,
+      openPath: '/sales/invoices',
+      findApi: '/api/sales/invoices/by-no',
+      currentNo: state.invoice_no || '',
+    });
+  }
 })();

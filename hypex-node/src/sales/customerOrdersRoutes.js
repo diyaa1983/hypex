@@ -303,6 +303,7 @@ async function renderForm(req, res, orderId) {
   const isNew = !order;
   const locked = !!(order && order.is_approved);
   const caps = toolbarCaps(user, order || { id: 0, is_approved: false });
+  const nav = order ? await svc.browseNeighbors(order.id) : { prev_id: 0, next_id: 0 };
 
   const initial = {
     id: order ? order.id : 0,
@@ -318,6 +319,8 @@ async function renderForm(req, res, orderId) {
     invoice_discount: order ? order.invoice_discount_input : '',
     is_approved: locked,
     status_label: order ? order.status_label : 'مسودة',
+    prev_id: nav.prev_id || 0,
+    next_id: nav.next_id || 0,
     lines:
       order && order.lines.length
         ? order.lines
@@ -391,7 +394,12 @@ async function renderForm(req, res, orderId) {
         </div>
         <div class="si-meta">
           <label>رقم الطلب
-            <input class="si-field si-field--mono" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="—" dir="ltr">
+            <div class="si-docno-row">
+              <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق">‹</button>
+              <input class="si-field si-field--mono" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="Enter للانتقال" dir="ltr"
+                     title="Enter للانتقال · ↑ السابق · ↓ التالي">
+              <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي">›</button>
+            </div>
           </label>
           <label>التاريخ
             <input class="si-field si-field--mono" id="co_date" type="date" value="${esc(initial.order_date)}" ${locked ? 'readonly' : ''}>
@@ -470,7 +478,7 @@ async function renderForm(req, res, orderId) {
       bodyClass: 'si-2027',
       mainClass: 'main si-main',
       css: ['/assets/css/sales-2027.css'],
-      js: ['/assets/js/customer-order.js'],
+      js: ['/assets/js/doc-nav.js', '/assets/js/customer-order.js'],
     })
   );
 }
@@ -516,6 +524,16 @@ router.get('/sales/orders/:id', async (req, res) => {
 });
 
 /* ── APIs ── */
+router.get('/api/sales/customer-orders/by-no', async (req, res) => {
+  try {
+    const id = await svc.findOrderIdByNo(req.query.no);
+    if (!id) return res.status(404).json({ ok: false, error: 'لم يُعثر على طلب بهذا الرقم' });
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 router.get('/api/sales/customer-orders/customers', async (req, res) => {
   try {
     const rows = await invSvc.searchCustomers(String(req.query.q || ''));

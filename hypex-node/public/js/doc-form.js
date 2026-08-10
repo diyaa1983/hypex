@@ -366,4 +366,17 @@
   }
 
   renderLines();
+
+  if (window.HypexDocNav) {
+    window.HypexDocNav.bind({
+      input: 'df_no',
+      prevBtn: 'df_prev',
+      nextBtn: 'df_next',
+      prevId: state.prev_id,
+      nextId: state.next_id,
+      openPath: state.openPath || (state.kind === 'pur_invoice' ? '/purchases/invoices' : '/purchases/orders'),
+      findApi: state.findApi || (state.kind === 'pur_invoice' ? '/api/purchases/invoices/by-no' : '/api/purchases/orders/by-no'),
+      currentNo: state.doc_no || '',
+    });
+  }
 })();

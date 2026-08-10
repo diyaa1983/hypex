@@ -912,6 +912,31 @@ label .si-field-key {
   grid-column: span 2;
 }
 
+/* ???? ??? ???????: ?????? | ????? | ?????? */
+.si-docno-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.si-docno-row .si-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.si-docno-row .si-docno-btn {
+  flex: 0 0 auto;
+  min-width: 2.35rem;
+  width: 2.35rem;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  font-weight: 700;
+}
+.si-docno-row .si-docno-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .si-meta .si-span-full,
 .si-meta .si-form-actions {
   grid-column: 1 / -1;

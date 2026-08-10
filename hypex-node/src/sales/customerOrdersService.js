@@ -553,6 +553,16 @@ async function lookups() {
   return { ...base, sales_reps: reps };
 }
 
+const { neighbors, findIdByNo } = require('../lib/docBrowse');
+
+async function browseNeighbors(id) {
+  return neighbors('sal_customer_order', id);
+}
+
+async function findOrderIdByNo(no) {
+  return findIdByNo('sal_customer_order', 'order_no', no);
+}
+
 module.exports = {
   getOrder,
   saveOrder,
@@ -560,4 +570,6 @@ module.exports = {
   deleteOrder,
   nextOrderNo,
   lookups,
+  browseNeighbors,
+  findOrderIdByNo,
 };

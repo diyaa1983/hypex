@@ -53,10 +53,22 @@ async function renderDocForm(req, res, conf) {
   }
 
   const locked = !!(doc && doc.is_locked);
+  const nav =
+    doc && conf.browseNeighbors
+      ? await conf.browseNeighbors(doc.id)
+      : { prev_id: 0, next_id: 0 };
+  const openPath =
+    conf.kind === 'pur_invoice' ? '/purchases/invoices' : '/purchases/orders';
+  const findApi =
+    conf.kind === 'pur_invoice'
+      ? '/api/purchases/invoices/by-no'
+      : '/api/purchases/orders/by-no';
   const initial = {
     kind: conf.kind,
     apiSave: conf.apiSave,
     listHref: conf.listHref,
+    openPath,
+    findApi,
     id: doc ? doc.id : 0,
     doc_no: doc ? doc.doc_no : '',
     doc_date: isoDate(doc ? doc.doc_date : todayIso()),
@@ -75,6 +87,8 @@ async function renderDocForm(req, res, conf) {
     show_expected: !!conf.showExpected,
     party_role: 'supplier',
     party_placeholder: 'ابحث عن المورد…',
+    prev_id: nav.prev_id || 0,
+    next_id: nav.next_id || 0,
     lines:
       doc && doc.lines.length
         ? doc.lines
@@ -132,7 +146,12 @@ async function renderDocForm(req, res, conf) {
         <div class="si-surface-head"><h2>بيانات المستند</h2><span class="si-count">${esc(initial.status_label)}</span></div>
         <div class="si-meta">
           <label>الرقم
-            <input class="si-field si-field--mono" id="df_no" type="text" value="${esc(initial.doc_no)}" readonly dir="ltr" placeholder="—">
+            <div class="si-docno-row">
+              <button type="button" class="si-btn si-docno-btn" id="df_prev" title="السابق">‹</button>
+              <input class="si-field si-field--mono" id="df_no" type="text" value="${esc(initial.doc_no)}" readonly dir="ltr" placeholder="Enter للانتقال"
+                     title="Enter للانتقال · ↑ السابق · ↓ التالي">
+              <button type="button" class="si-btn si-docno-btn" id="df_next" title="التالي">›</button>
+            </div>
           </label>
           <label>التاريخ
             <input class="si-field si-field--mono" id="df_date" type="date" value="${esc(initial.doc_date)}" ${locked ? 'readonly' : ''}>
@@ -215,7 +234,7 @@ async function renderDocForm(req, res, conf) {
       bodyClass: 'si-2027',
       mainClass: 'main si-main',
       css: ['/assets/css/sales-2027.css'],
-      js: ['/assets/js/doc-form.js'],
+      js: ['/assets/js/doc-nav.js', '/assets/js/doc-form.js'],
       activePath: conf.listHref,
     })
   );
@@ -241,6 +260,7 @@ router.get('/purchases/orders/new', async (req, res) => {
       showExpected: true,
       id: 0,
       load: svc.getOrder,
+      browseNeighbors: svc.browseOrderNeighbors,
     });
   } catch (e) {
     console.error(e);
@@ -264,6 +284,7 @@ router.get('/purchases/orders/:id', async (req, res) => {
       showExpected: true,
       id,
       load: svc.getOrder,
+      browseNeighbors: svc.browseOrderNeighbors,
     });
   } catch (e) {
     console.error(e);
@@ -291,6 +312,7 @@ router.get('/purchases/invoices/new', async (req, res) => {
       showExpected: false,
       id: 0,
       load: svc.getInvoice,
+      browseNeighbors: svc.browseInvoiceNeighbors,
     });
   } catch (e) {
     console.error(e);
@@ -314,6 +336,7 @@ router.get('/purchases/invoices/:id', async (req, res) => {
       showExpected: false,
       id,
       load: svc.getInvoice,
+      browseNeighbors: svc.browseInvoiceNeighbors,
     });
   } catch (e) {
     console.error(e);
@@ -322,6 +345,26 @@ router.get('/purchases/invoices/:id', async (req, res) => {
 });
 
 /* APIs */
+router.get('/api/purchases/orders/by-no', async (req, res) => {
+  try {
+    const id = await svc.findOrderIdByNo(req.query.no);
+    if (!id) return res.status(404).json({ ok: false, error: 'لم يُعثر على طلب شراء بهذا الرقم' });
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.get('/api/purchases/invoices/by-no', async (req, res) => {
+  try {
+    const id = await svc.findInvoiceIdByNo(req.query.no);
+    if (!id) return res.status(404).json({ ok: false, error: 'لم يُعثر على فاتورة شراء بهذا الرقم' });
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 router.get('/api/purchases/suppliers', async (req, res) => {
   try {
     const rows = await svc.searchSuppliers(String(req.query.q || ''));

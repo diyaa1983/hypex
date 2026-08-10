@@ -486,6 +486,16 @@ async function deleteReturn(returnId) {
   return { ok: true, message: 'تم حذف المردود.' };
 }
 
+const { neighbors, findIdByNo } = require('../lib/docBrowse');
+
+async function browseNeighbors(id) {
+  return neighbors('pur_return', id);
+}
+
+async function findReturnIdByNo(no) {
+  return findIdByNo('pur_return', 'return_no', no);
+}
+
 module.exports = {
   listSuppliers,
   invoicesForSupplier,
@@ -495,4 +505,6 @@ module.exports = {
   postReturn,
   deleteReturn,
   isReturnPosted,
+  browseNeighbors,
+  findReturnIdByNo,
 };

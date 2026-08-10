@@ -633,4 +633,17 @@
   }
 
   renderLines();
+
+  if (window.HypexDocNav) {
+    window.HypexDocNav.bind({
+      input: 'co_no',
+      prevBtn: 'co_prev',
+      nextBtn: 'co_next',
+      prevId: state.prev_id,
+      nextId: state.next_id,
+      openPath: '/sales/orders',
+      findApi: '/api/sales/customer-orders/by-no',
+      currentNo: state.order_no || '',
+    });
+  }
 })();

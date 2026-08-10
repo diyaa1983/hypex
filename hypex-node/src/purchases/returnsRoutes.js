@@ -269,6 +269,7 @@ router.get('/purchases/returns/:id', async (req, res, next) => {
   if (!doc) return res.status(404).send('غير موجود');
   const flash = String(req.query.msg || '');
   const err = String(req.query.err || '');
+  const nav = await svc.browseNeighbors(id);
 
   const rowsHtml =
     doc.lines
@@ -301,18 +302,29 @@ router.get('/purchases/returns/:id', async (req, res, next) => {
       })}
       ${flash ? `<p class="si-pill si-pill--ok" style="display:inline-block">${esc(flash)}</p>` : ''}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
-      <div class="si-meta" style="padding:.5rem 0 1rem;display:flex;flex-wrap:wrap;gap:.75rem">
-        <span>التاريخ: <strong dir="ltr">${esc(ui.isoToDmy(doc.return_date))}</strong></span>
-        <span>الإجمالي: <strong dir="ltr">${esc(fmt(doc.total))}</strong></span>
+      <div class="si-meta" style="padding:.5rem 0 1rem">
+        <label>رقم المردود
+          <div class="si-docno-row">
+            <button type="button" class="si-btn si-docno-btn" id="pr_prev" title="السابق">‹</button>
+            <input class="si-field si-field--mono" id="pr_no" type="text" value="${esc(doc.return_no || '')}"
+                   readonly dir="ltr" placeholder="Enter للانتقال"
+                   title="Enter للانتقال · ↑ السابق · ↓ التالي">
+            <button type="button" class="si-btn si-docno-btn" id="pr_next" title="التالي">›</button>
+          </div>
+        </label>
+        <span style="align-self:end;padding-bottom:.35rem">التاريخ: <strong dir="ltr">${esc(ui.isoToDmy(doc.return_date))}</strong></span>
+        <span style="align-self:end;padding-bottom:.35rem">الإجمالي: <strong dir="ltr">${esc(fmt(doc.total))}</strong></span>
         ${
           !doc.is_posted
-            ? `<form method="post" action="/purchases/returns/${id}/post" style="display:inline">
-                <button type="submit" class="si-btn si-btn--primary">ترحيل</button>
-              </form>
-              <form method="post" action="/purchases/returns/${id}/delete" style="display:inline" onsubmit="return confirm('حذف المردود؟');">
-                <button type="submit" class="si-btn" style="color:#b42318">حذف</button>
-              </form>`
-            : '<span class="si-pill si-pill--ok">مرحّل</span>'
+            ? `<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-self:end">
+                <form method="post" action="/purchases/returns/${id}/post" style="display:inline">
+                  <button type="submit" class="si-btn si-btn--primary">ترحيل</button>
+                </form>
+                <form method="post" action="/purchases/returns/${id}/delete" style="display:inline" onsubmit="return confirm('حذف المردود؟');">
+                  <button type="submit" class="si-btn" style="color:#b42318">حذف</button>
+                </form>
+              </div>`
+            : '<span class="si-pill si-pill--ok" style="align-self:end">مرحّل</span>'
         }
       </div>
       ${ui.tableSurface(
@@ -322,8 +334,40 @@ router.get('/purchases/returns/:id', async (req, res, next) => {
         rowsHtml
       )}
       ${doc.notes ? `<p class="muted" style="margin-top:.75rem">ملاحظات: ${esc(doc.notes)}</p>` : ''}
+      <script>
+        document.addEventListener('DOMContentLoaded', function () {
+          if (!window.HypexDocNav) return;
+          window.HypexDocNav.bind({
+            input: 'pr_no',
+            prevBtn: 'pr_prev',
+            nextBtn: 'pr_next',
+            prevId: ${Number(nav.prev_id) || 0},
+            nextId: ${Number(nav.next_id) || 0},
+            openPath: '/purchases/returns',
+            findApi: '/api/purchases/returns/by-no',
+            currentNo: ${JSON.stringify(String(doc.return_no || ''))}
+          });
+        });
+      </script>
     </div>`;
-  res.send(ui.salesPage({ user: req.session.user, title: 'مردود ' + doc.return_no, bodyHtml: body }));
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'مردود ' + doc.return_no,
+      bodyHtml: body,
+      js: ['/assets/js/doc-nav.js'],
+    })
+  );
+});
+
+router.get('/api/purchases/returns/by-no', async (req, res) => {
+  try {
+    const id = await svc.findReturnIdByNo(req.query.no);
+    if (!id) return res.status(404).json({ ok: false, error: 'لم يُعثر على مردود بهذا الرقم' });
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 router.post('/purchases/returns/:id/post', async (req, res, next) => {
