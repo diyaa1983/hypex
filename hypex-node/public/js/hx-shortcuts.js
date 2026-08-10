@@ -582,6 +582,7 @@
     var n = e.keyCode || e.which || 0;
     if (k === 'F2' || c === 'F2' || n === 113) return 'F2';
     if (k === 'F3' || c === 'F3' || n === 114) return 'F3';
+    if (k === 'F4' || c === 'F4' || n === 115) return 'F4';
     if (k === 'F7' || c === 'F7' || n === 118) return 'F7';
     if (k === 'F10' || c === 'F10' || n === 121) return 'F10';
     if (k === 'Escape' || c === 'Escape' || n === 27) return 'Escape';
@@ -616,6 +617,10 @@
       doAddLine();
       return;
     }
+    if (k === 'F4') {
+      doDelete();
+      return;
+    }
     if (k === 'F7') {
       openPartyList();
       return;
@@ -626,37 +631,7 @@
   }
 
   // capture — قبل مستمعات الحقول واحتجاز F10
-  function ensureKeysHint() {
-    if (document.querySelector('.si-keys, .hx-sc-keys')) return;
-    var host =
-      document.querySelector('.si-doc-toolbar') ||
-      document.querySelector('.si-cmd') ||
-      document.querySelector('.si-stage');
-    if (!host) return;
-    var bar = document.createElement('p');
-    bar.className = 'si-keys hx-sc-keys';
-    bar.setAttribute('dir', 'rtl');
-    bar.setAttribute('aria-label', 'اختصارات');
-    bar.innerHTML =
-      '<span><kbd>F2</kbd> سطر</span>' +
-      '<span><kbd>F3</kbd> مواد</span>' +
-      '<span><kbd>F4</kbd> حذف</span>' +
-      '<span><kbd>F7</kbd> أطراف</span>' +
-      '<span><kbd>F10</kbd> حفظ</span>' +
-      '<span><kbd>Esc</kbd></span>';
-    if (host.classList.contains('si-doc-toolbar') || host.classList.contains('si-cmd')) {
-      host.insertAdjacentElement('afterend', bar);
-    } else {
-      host.insertBefore(bar, host.firstChild);
-    }
-  }
-
   document.addEventListener('keydown', onKey, true);
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', ensureKeysHint);
-  } else {
-    ensureKeysHint();
-  }
 
   document.addEventListener(
     'focusin',
@@ -672,6 +647,7 @@
   window.HypexShortcuts = {
     save: doSave,
     addLine: doAddLine,
+    deleteDoc: doDelete,
     customers: openPartyList,
     items: openItems,
     close: closeModal,

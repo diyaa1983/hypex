@@ -613,84 +613,90 @@ body.si-2027 .si-main::before {
   outline-offset: 2px;
 }
 
-/* ?????? ??????? ??? ???? */
-.si-tb-key {
+/* ?????? ??????? ????? ???? — ?? ???? ???? */
+.si-tb-lbl {
   display: inline-block;
-  margin-inline-start: 0.15rem;
-  padding: 0.05rem 0.28rem;
-  border-radius: 4px;
-  font-size: 0.62rem;
+}
+
+.si-tb-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-inline-start: 0.35rem;
+  min-width: 1.45rem;
+  height: 1.05rem;
+  padding: 0 0.28rem;
+  border-radius: 5px;
+  font-size: 0.58rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
-  font-family: Consolas, 'Courier New', monospace;
-  line-height: 1.2;
-  color: inherit;
-  opacity: 0.72;
-  border: 1px solid currentColor;
-  border-color: rgba(255, 255, 255, 0.28);
+  letter-spacing: 0.03em;
+  font-family: ui-monospace, Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
   vertical-align: middle;
+  opacity: 0.9;
+}
+
+.si-tb--ghost .si-tb-key,
+.si-tb:not(.si-tb--save):not(.si-tb--post):not(.si-tb--danger):not(.si-tb--accent) .si-tb-key {
+  color: rgba(226, 232, 240, 0.95);
+  background: rgba(15, 23, 42, 0.28);
+  border-color: rgba(148, 163, 184, 0.28);
 }
 
 .si-tb--save .si-tb-key,
-.si-tb--post .si-tb-key {
-  border-color: rgba(255, 255, 255, 0.35);
+.si-tb--post .si-tb-key,
+.si-tb--danger .si-tb-key,
+.si-tb--accent .si-tb-key {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
-.si-tb--danger .si-tb-key {
-  border-color: rgba(255, 200, 200, 0.45);
-  opacity: 0.85;
-}
-
-/* ???? ???????? ???? — ?? ???? ??? ???? ??????? */
-.si-keys {
-  display: flex;
-  flex-wrap: wrap;
+/* ????? ????? ????? ??? / ??? */
+.si-field-key {
+  display: inline-flex;
   align-items: center;
-  gap: 0.35rem 0.75rem;
-  margin: 0.15rem 0 0.65rem;
-  padding: 0.28rem 0.55rem;
-  font-size: 0.68rem;
-  font-weight: 600;
-  line-height: 1.35;
+  justify-content: center;
+  margin-inline-start: 0.35rem;
+  min-width: 1.35rem;
+  height: 1rem;
+  padding: 0 0.28rem;
+  border-radius: 4px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-family: ui-monospace, Consolas, 'Cascadia Mono', 'Courier New', monospace;
+  line-height: 1;
   color: #64748b;
-  background: rgba(248, 250, 252, 0.92);
+  background: #f1f5f9;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  vertical-align: middle;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
 }
 
-.si-keys span {
+.si-count--keys {
   display: inline-flex;
   align-items: center;
   gap: 0.28rem;
-  white-space: nowrap;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  letter-spacing: normal;
 }
 
-.si-keys kbd {
-  display: inline-block;
-  min-width: 1.4rem;
-  padding: 0.08rem 0.32rem;
-  border-radius: 4px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 0.62rem;
+label .si-field-key {
   font-weight: 700;
-  color: #0f172a;
-  text-align: center;
-  box-shadow: 0 1px 0 #e2e8f0;
 }
 
-body.si-2027 .si-keys {
-  color: rgba(226, 232, 240, 0.78);
-  background: rgba(15, 23, 42, 0.35);
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-body.si-2027 .si-keys kbd {
-  background: rgba(15, 23, 42, 0.55);
-  border-color: rgba(148, 163, 184, 0.35);
-  color: #e2e8f0;
-  box-shadow: none;
+/* ????? ?????? ?????? ?? ???? ?? ??? */
+.si-keys,
+.hx-sc-keys {
+  display: none !important;
 }
 
 

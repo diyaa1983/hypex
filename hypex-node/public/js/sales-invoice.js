@@ -276,13 +276,9 @@
     state.lines.splice(idx, 1);
     if (!state.lines.length) addEmptyLine();
     else renderLines();
-    // تثبيت الحذف في قاعدة البيانات (بدون اشتراط بند)
+    // حذف البند دون رسالة — تثبيت صامت في القاعدة إن وُجدت فاتورة
     if (state.id) {
-      saveInvoice(null, { allowEmptyLines: true }).then(function (data) {
-        if (data) setMsg('تم حذف البند وحفظ الفاتورة.', 'ok');
-      });
-    } else {
-      setMsg('تم حذف البند من الجدول.', 'ok');
+      saveInvoice(null, { allowEmptyLines: true, silent: true });
     }
   }
 
@@ -604,12 +600,12 @@
   function saveInvoice(then, opts) {
     opts = opts || {};
     if (posted) {
-      setMsg('الفاتورة مرحّلة — الحفظ غير متاح.', 'error');
+      if (!opts.silent) setMsg('الفاتورة مرحّلة — الحفظ غير متاح.', 'error');
       return Promise.resolve(null);
     }
     var payload = buildPayload();
     if (!validatePayload(payload, opts)) return Promise.resolve(null);
-    setMsg('جاري الحفظ…');
+    if (!opts.silent) setMsg('جاري الحفظ…');
     setBusy(true);
     return fetch('/api/sales/invoices', {
       method: 'POST',
@@ -625,7 +621,12 @@
           setMsg(data.error || 'تعذر الحفظ', 'error');
           return null;
         }
-        setMsg(data.message || 'تم الحفظ بدون قيود محاسبية · ' + (data.invoice_no || ''), 'ok');
+        if (!opts.silent) {
+          setMsg(data.message || 'تم الحفظ بدون قيود محاسبية · ' + (data.invoice_no || ''), 'ok');
+        } else if (msgEl) {
+          msgEl.textContent = '';
+          msgEl.className = 'si-msg';
+        }
         state.id = data.id;
         if (data.invoice_no) {
           var noEl = document.getElementById('inv_no');

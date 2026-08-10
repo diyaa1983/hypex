@@ -80,11 +80,11 @@ function toolbarHtml(caps, inv) {
   const posted = !!(inv && inv.is_posted);
   const b = (idAttr, label, cls, disabled, extra = '', key = '') => {
     const keyHtml = key
-      ? ` <span class="si-tb-key" aria-hidden="true">${esc(key)}</span>`
+      ? `<kbd class="si-tb-key" title="${esc(key)}">${esc(key)}</kbd>`
       : '';
     return `<button type="button" class="si-tb ${cls || ''}" id="${idAttr}" ${
       disabled ? 'disabled' : ''
-    }${extra}>${esc(label)}${keyHtml}</button>`;
+    }${extra}><span class="si-tb-lbl">${esc(label)}</span>${keyHtml}</button>`;
   };
 
   return `
@@ -110,22 +110,14 @@ function toolbarHtml(caps, inv) {
           'حذف',
           'si-tb--danger',
           !caps.canDelete,
-          ' data-hx-delete="1" title="حذف الفاتورة — F4 (يحذف البنود ثم الفاتورة)"',
+          ' data-hx-delete="1" title="حذف الفاتورة — F4"',
           'F4'
         )}
       </div>
       <div class="si-tb-group si-tb-group--status">
         <span class="si-msg" id="si-msg"></span>
       </div>
-    </div>
-    <p class="si-keys" dir="rtl" aria-label="اختصارات لوحة المفاتيح">
-      <span><kbd>F2</kbd> سطر مادة</span>
-      <span><kbd>F3</kbd> قائمة المواد</span>
-      <span><kbd>F4</kbd> حذف الفاتورة</span>
-      <span><kbd>F7</kbd> العملاء</span>
-      <span><kbd>F10</kbd> حفظ</span>
-      <span><kbd>Esc</kbd> إغلاق</span>
-    </p>`;
+    </div>`;
 }
 
 /** قائمة الفواتير */
@@ -565,10 +557,10 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 }>نقدي</option>
               </select>
             </label>
-            <label class="si-span-2">العميل
+            <label class="si-span-2">العميل <kbd class="si-field-key" title="F7">F7</kbd>
               <div class="si-cust-wrap">
                 <input type="hidden" id="inv_customer_id" value="${initial.customer_id || ''}">
-                <input class="si-field" id="inv_customer" type="search" placeholder="ابحث بالاسم أو الرمز…"
+                <input class="si-field" id="inv_customer" type="search" placeholder="ابحث بالاسم أو الرمز… (F7)"
                        value="${esc(initial.customer_label)}" autocomplete="off" ${
                          initial.is_posted ? 'readonly' : ''
                        }>
@@ -587,7 +579,10 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
         <section class="si-surface">
           <div class="si-surface-head">
             <h2>بنود الفاتورة</h2>
-            <span class="si-count">line items</span>
+            <span class="si-count si-count--keys">
+              <kbd class="si-field-key" title="سطر جديد">F2</kbd>
+              <kbd class="si-field-key" title="قائمة المواد">F3</kbd>
+            </span>
           </div>
           <div class="si-lines-wrap">
             <table class="si-lines" id="si-lines">

@@ -606,7 +606,10 @@
   if (delBtn) {
     delBtn.addEventListener('click', function () {
       if (busy || !state.id || locked) return;
-      hxConfirm('حذف هذا الطلب نهائياً؟', { title: 'حذف', okLabel: 'حذف' }).then(function (ok) {
+      hxConfirm(
+        'تحذير: سيتم حذف بنود الطلب ثم حذف الطلب نهائياً.\nلا يمكن التراجع.',
+        { title: 'حذف الطلب', okLabel: 'حذف نهائياً', danger: true }
+      ).then(function (ok) {
         if (!ok) return;
         postAction('/api/sales/customer-orders/' + state.id + '/delete', '/sales/orders');
       });
