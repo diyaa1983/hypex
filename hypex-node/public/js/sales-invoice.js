@@ -443,7 +443,7 @@
 
   document.addEventListener('hx:add-line', function (e) {
     if (posted) return;
-    if (!document.getElementById('si-add-line') && !document.getElementById('si-lines-body')) return;
+    if (!document.getElementById('si-lines-body')) return;
     e.preventDefault();
     addEmptyLine();
   });

@@ -89,7 +89,6 @@ function toolbarHtml(caps, inv) {
       <div class="si-tb-group si-tb-group--core">
         ${b('si-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="F10 حفظ"')}
         ${b('si-post', 'ترحيل', 'si-tb--post', !caps.canPost && !(caps.canSave && !id))}
-        ${b('si-add-line', '＋ سطر', 'si-tb--accent', !caps.canSave, ' data-hx-add-line="1" title="F2 سطر جديد"')}
       </div>
       <div class="si-tb-group">
         ${b('si-search', 'بحث', 'si-tb--ghost', false)}

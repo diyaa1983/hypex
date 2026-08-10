@@ -217,7 +217,7 @@ tr.is-locked td {
   display: none !important;
 }
 .ora-stmt-name {
-  margin: 0 0 0.35rem;
+  margin: 0 0 0.25rem;
   font-size: clamp(1.15rem, 1.8vw, 1.45rem);
   font-weight: 800;
   color: #0f172a;
@@ -226,6 +226,16 @@ tr.is-locked td {
 .ora-stmt-name .ora-stmt-label {
   font-size: 0.92em;
   margin-inline-end: 0.25rem;
+}
+.ora-stmt-rep {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.4;
+}
+.ora-stmt-rep .ora-stmt-label {
+  margin-inline-end: 0.2rem;
 }
 .ora-stmt-count {
   margin: 0;
@@ -594,6 +604,13 @@ tr.is-locked td {
     font-size: 13pt !important;
     margin: 0.1rem 0 !important;
     color: #000 !important;
+  }
+
+  .ora-stmt-rep {
+    font-size: 10pt !important;
+    font-weight: 600 !important;
+    color: #222 !important;
+    margin: 0.05rem 0 !important;
   }
 
   .ora-stmt-count {

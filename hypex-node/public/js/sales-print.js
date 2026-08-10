@@ -184,7 +184,7 @@
     return clone.innerHTML;
   }
 
-  function buildHeader(b, when) {
+  function buildHeader(b) {
     var logo =
       b.logo !== ''
         ? '<img class="hx-print-logo" src="' +
@@ -200,11 +200,6 @@
           'px;width:auto;height:auto;object-fit:contain">'
         : '<span style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border:1px solid #333;font:800 22px Arial,sans-serif">H</span>';
 
-    var userLine =
-      b.user && b.user !== '—'
-        ? ' · <span style="font-weight:600">' + esc(b.user) + '</span>'
-        : '';
-
     return (
       '<header class="hx-print-head" style="margin:0 0 12px 0;padding:0 0 10px 0;border-bottom:1px solid #222">' +
       '<div style="display:flex;direction:ltr;align-items:center;justify-content:space-between;width:100%;gap:16px">' +
@@ -218,13 +213,23 @@
       '<div style="text-align:center;font:700 12pt/1.3 Arial,Helvetica,sans-serif;margin-top:10px;color:#1e293b">' +
       esc(b.title) +
       '</div>' +
-      '<div dir="rtl" style="text-align:center;font:500 7.5pt Arial,Helvetica,sans-serif;color:#64748b;margin-top:4px">' +
+      '</header>'
+    );
+  }
+
+  /** تاريخ الطباعة + اسم المستخدم — أسفل الصفحة بخط صغير */
+  function buildPrintFoot(b, when) {
+    var userPart =
+      b.user && b.user !== '—'
+        ? ' · ' + esc(b.user)
+        : '';
+    return (
+      '<footer class="hx-print-foot" dir="rtl">' +
       'طُبع <span dir="ltr">' +
       esc(when) +
       '</span>' +
-      userLine +
-      '</div>' +
-      '</header>'
+      userPart +
+      '</footer>'
     );
   }
 
@@ -243,10 +248,13 @@
       '.ora-stmt-head,.inv-print-meta{display:block;margin:0 0 10px;padding:0 0 8px;border-bottom:1px solid #ccc}' +
       '.ora-stmt-head__party{margin:0 0 4px;text-align:right}' +
       '.ora-stmt-name{font:800 12pt Arial,Helvetica,sans-serif;margin:2px 0}' +
+      '.ora-stmt-rep{font:600 9pt Arial,Helvetica,sans-serif;margin:2px 0 0;color:#222}' +
+      '.ora-stmt-rep .ora-stmt-label{font-weight:700;color:#555}' +
       '.ora-stmt-count{font:700 9pt Arial,Helvetica,sans-serif;margin:2px 0 0;color:#222}' +
       '.ora-stmt-kicker{display:none!important}' +
       '.ora-stmt-head__period{text-align:center;font:700 9.5pt Arial,Helvetica,sans-serif;margin:6px 0 0}' +
       '.ora-stmt-meta{font-size:9pt;color:#334155;margin:2px 0 0}' +
+      '.hx-print-foot{margin:10px 0 0;padding:4px 0 0;border-top:0;font:500 6.5pt Arial,Helvetica,sans-serif;color:#94a3b8;text-align:left;direction:rtl}' +
       '.inv-print-lines{display:block;margin:0 0 8px}' +
       '.inv-print-totals,.ora-stmt-totals.inv-print-totals{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:12px 0 0!important;width:100%;page-break-inside:avoid}' +
       '.ora-stat{display:flex;flex-direction:column;gap:2px;border:1px solid #cbd5e1;padding:4px 6px;background:#fff}' +
@@ -292,10 +300,11 @@
       tableCss() +
       '</style></head><body>' +
       (b.watermarkEnabled !== false ? watermarkHtml(b.logo) : '') +
-      buildHeader(b, when) +
+      buildHeader(b) +
       '<div class="hx-print-doc">' +
       content +
       '</div>' +
+      buildPrintFoot(b, when) +
       '</body></html>'
     );
   }

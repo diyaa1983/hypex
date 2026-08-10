@@ -813,6 +813,35 @@ router.get(
     accountNo = String(selectedParty.acc_no || selectedParty.code || '').replace(/\D+/g, '');
   }
 
+  /** مندوب مرتبط بالعميل (الحقل الرئيسي ثم جدول الربط المتعدد) */
+  let salesRepName = '';
+  if (customerId > 0) {
+    try {
+      const repRows = await db.query(
+        `SELECT COALESCE(r.name_ar, '') AS sales_rep_name
+         FROM crm_customer c
+         LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
+         WHERE c.id = ?
+         LIMIT 1`,
+        [customerId]
+      );
+      salesRepName = String(repRows[0]?.sales_rep_name || '').trim();
+      if (!salesRepName) {
+        const multi = await db.query(
+          `SELECT GROUP_CONCAT(r.name_ar ORDER BY ccsr.sort_order SEPARATOR '، ') AS names
+           FROM crm_customer_sales_rep ccsr
+           INNER JOIN crm_sales_rep r ON r.id = ccsr.sales_rep_id
+           WHERE ccsr.customer_id = ?
+           GROUP BY ccsr.customer_id`,
+          [customerId]
+        );
+        salesRepName = String(multi[0]?.names || '').trim();
+      }
+    } catch {
+      salesRepName = '';
+    }
+  }
+
   const searchLabel = selectedParty
     ? `${String(selectedParty.code || selectedParty.acc_no || '')} — ${String(
         selectedParty.name_ar || ''
@@ -936,6 +965,7 @@ router.get(
         <header class="ora-stmt-head print-area">
           <div class="ora-stmt-head__party">
             <h2 class="ora-stmt-name"><span class="ora-stmt-label">اسم العميل:</span> ${esc(name || '—')}</h2>
+            <p class="ora-stmt-rep"><span class="ora-stmt-label">المندوب:</span> ${esc(salesRepName || '—')}</p>
             <p class="ora-stmt-count">${nTrans} حركة</p>
           </div>
           <div class="ora-stmt-head__period">
