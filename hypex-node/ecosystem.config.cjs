@@ -1,9 +1,12 @@
 /**
- * PM2 — Hypex Node
+ * PM2 — Hypex Node (إنتاج / خدمة Windows)
  *
- * - watch: يعيد التشغيل تلقائياً عند حفظ ملفات src/
- * - الجلسات في MySQL → لا يُفقد تسجيل الدخول بعد reload
- * - public/css و public/js تُقرأ مباشرة (بدون restart)
+ * - بدون watch: لا إعادة تشغيل عند حفظ الملفات (خفّض الحمل والاضطراب)
+ * - autorestart: يعيد التشغيل فقط إذا تعطل العملية
+ * - التعديلات على src تتطلب: pm2 restart hypex-node
+ * - public/css و public/js تُقرأ مباشرة (Ctrl+F5) بدون restart
+ *
+ * للتطوير مع إعادة تحميل تلقائية: npm run pm2:dev
  */
 module.exports = {
   apps: [
@@ -13,22 +16,13 @@ module.exports = {
       cwd: __dirname,
       instances: 1,
       exec_mode: 'fork',
-      // إعادة تحميل تلقائية عند تعديل كود السيرفر
-      watch: ['src'],
-      ignore_watch: [
-        'node_modules',
-        'public',
-        'logs',
-        '.env',
-        '*.log',
-        '**/*.md',
-      ],
-      watch_delay: 1000,
-      max_memory_restart: '400M',
-      // لو تعطّل Node لأي سبب — أعد تشغيله
+      watch: false,
+      max_memory_restart: '350M',
       autorestart: true,
-      max_restarts: 50,
-      min_uptime: '5s',
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 2000,
+      kill_timeout: 5000,
       env: {
         NODE_ENV: 'production',
       },

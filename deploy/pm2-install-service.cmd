@@ -2,10 +2,13 @@
 setlocal EnableExtensions
 chcp 65001 >nul
 REM =============================================================================
-REM  تثبيت Hypex Node كخدمة دائمة على Windows
-REM  - يعمل دائماً (حتى بعد إعادة تشغيل الجهاز)
-REM  - عند تعديل ملفات src/ يعيد التحميل تلقائياً (بدون إيقاف يدوي)
-REM  - الجلسات تبقى في MySQL — المستخدمون لا يُطردون
+REM  تثبيت Hypex Node ليقلع مع Windows (مثل Apache/MySQL في XAMPP)
+REM
+REM  - بدون watch: لا حمل من مراقبة الملفات
+REM  - يعمل في الخلفية دائماً
+REM  - بعد إعادة تشغيل الجهاز يعمل تلقائياً
+REM
+REM  شغّل هذا الملف مرة واحدة: كليك يمين → Run as administrator
 REM =============================================================================
 
 cd /d "%~dp0..\hypex-node"
@@ -17,67 +20,96 @@ if not exist "src\server.js" (
 
 where node >nul 2>nul
 if errorlevel 1 (
-  echo ERROR: Node.js غير مثبت. ثبّت Node 18+ ثم أعد المحاولة.
+  echo ERROR: Node.js غير مثبت. ثبّت Node 18+ من https://nodejs.org ثم أعد المحاولة.
   pause
   exit /b 1
 )
 
-echo [1/5] تثبيت pm2...
+echo.
+echo === تثبيت Hypex Node كخدمة تلقائية ===
+echo المجلد: %cd%
+echo.
+
+echo [1/6] تثبيت pm2 عالمياً...
 call npm install -g pm2
 if errorlevel 1 (
-  echo ERROR: فشل تثبيت pm2
+  echo ERROR: فشل تثبيت pm2 — شغّل كـ Administrator
   pause
   exit /b 1
 )
 
-echo [2/5] تثبيت اعتماديات المشروع...
+echo [2/6] تثبيت اعتماديات المشروع...
 call npm install --omit=dev
+if errorlevel 1 (
+  echo ERROR: فشل npm install
+  pause
+  exit /b 1
+)
 
-echo [3/5] تشغيل hypex-node (مع watch على src/)...
+echo [3/6] إيقاف أي نسخة قديمة...
 pm2 delete hypex-node 2>nul
+
+echo [4/6] تشغيل hypex-node (إنتاج — بدون watch)...
 pm2 start ecosystem.config.cjs
 if errorlevel 1 (
   echo ERROR: فشل pm2 start
   pause
   exit /b 1
 )
+pm2 save --force
 
-echo [4/5] حفظ قائمة العمليات...
-pm2 save
-
-echo [5/5] تسجيل مهمة Windows للتشغيل عند الإقلاع...
-set "TASK_NAME=HypexNodePM2"
+echo [5/6] تسجيل الإقلاع التلقائي مع Windows...
+set "TASK_NAME=HypexNode"
 set "RESURRECT=%~dp0pm2-resurrect.cmd"
+set "STARTUP_CMD=%~dp0start-hypex-autostart.cmd"
 
+REM مهمة عند تسجيل الدخول (موثوقة مع PM2 لكل مستخدم)
 schtasks /Delete /TN "%TASK_NAME%" /F >nul 2>nul
-schtasks /Create /TN "%TASK_NAME%" /TR "\"%RESURRECT%\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
+schtasks /Delete /TN "HypexNodePM2" /F >nul 2>nul
+
+schtasks /Create /TN "%TASK_NAME%" /TR "cmd /c \"\"%STARTUP_CMD%\"\"" /SC ONLOGON /RL HIGHEST /F
 if errorlevel 1 (
   echo.
-  echo تحذير: تعذر إنشاء مهمة ONSTART ^(SYSTEM^). جرّب عند تسجيل الدخول...
-  schtasks /Create /TN "%TASK_NAME%" /TR "\"%RESURRECT%\"" /SC ONLOGON /RL HIGHEST /F
+  echo تحذير: فشل إنشاء المهمة بدون صلاحيات أعلى. جرّب ONSTART كـ SYSTEM...
+  schtasks /Create /TN "%TASK_NAME%" /TR "cmd /c \"\"%STARTUP_CMD%\"\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /DELAY 0001:00 /F
   if errorlevel 1 (
-    echo ERROR: فشل تسجيل Scheduled Task — شغّل هذا الملف كـ Administrator
+    echo ERROR: فشل تسجيل Scheduled Task.
+    echo شغّل هذا الملف: كليك يمين → Run as administrator
     pause
     exit /b 1
   )
 )
 
-echo.
-echo ========== الحالة ==========
+REM اختصار في Startup folder (احتياطي إضافي عند دخول المستخدم)
+set "STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+if exist "%STARTUP_DIR%" (
+  (
+    echo @echo off
+    echo call "%STARTUP_CMD%"
+  ) > "%STARTUP_DIR%\HypexNode.cmd"
+)
+
+echo [6/6] التحقق...
 pm2 status
+schtasks /Query /TN "%TASK_NAME%" /FO LIST 2>nul | findstr /I "TaskName Status"
+
 echo.
-echo تمت التهيئة بنجاح.
+echo ========== تم ==========
 echo.
-echo  الرابط:  http://localhost/hypex
+echo  Hypex Node يعمل الآن مثل خدمة XAMPP:
+echo    - يقلع مع تسجيل الدخول / الإقلاع
+echo    - بدون مراقبة ملفات (load منخفض)
+echo    - الرابط: http://localhost/hypex
 echo.
-echo  تعديلات src/*.js     → إعادة تحميل تلقائية (watch)
-echo  تعديلات public/css,js → Ctrl+F5 فقط
-echo  تعديلات .env         → نفّذ: pm2 restart hypex-node
+echo  أوامر يومية:
+echo    حالة   :  pm2 status
+echo    سجلات  :  pm2 logs hypex-node
+echo    إيقاف  :  deploy\HypexNode-Stop.cmd
+echo    تشغيل  :  deploy\HypexNode-Start.cmd
+echo    إزالة  :  deploy\uninstall-hypex-service.cmd
 echo.
-echo  الحالة:  pm2 status
-echo  السجلات: pm2 logs hypex-node
-echo  إيقاف:   pm2 stop hypex-node
-echo  تشغيل:   pm2 start hypex-node
+echo  بعد تعديل كود src\ :  pm2 restart hypex-node
+echo  بعد public/css,js  :  Ctrl+F5 فقط
 echo.
 pause
 endlocal

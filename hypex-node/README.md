@@ -2,52 +2,68 @@
 
 الرابط: **http://localhost/hypex**
 
-## جلسة لا تُفقد عند إعادة التشغيل
+## مثل XAMPP — يعمل مع بدء النظام
 
-الجلسات مخزّنة في **MySQL** (جدول `hypex_node_sessions`) وليس في ذاكرة Node.
-بعد `pm2 restart` أو تحديث الكود **المستخدم لا يحتاج إعادة تسجيل الدخول** (طالما الكوكي لم تنتهِ و`SESSION_SECRET` لم يتغيّر).
+Node ليس جزءاً من أباتشي XAMPP؛ لذلك يُشغَّل ك**خدمة مستقلة** تقلع تلقائياً.
 
-## تشغيل ثابت كخدمة (مستحسن — مرة واحدة)
+### مرة واحدة (مستحسن)
 
-شغّل **كـ Administrator**:
+كليك يمين على:
 
-```bat
+```text
 deploy\pm2-install-service.cmd
 ```
 
-ماذا يفعل؟
-1. يثبت **PM2**
-2. يشغّل `hypex-node` في الخلفية
-3. **watch** على مجلد `src/` → أي تعديل في كود السيرفر = reload تلقائي (بدون start/stop يدوي)
-4. يسجّل مهمة Windows **HypexNodePM2** لتعيد الخدمة بعد إعادة تشغيل الجهاز
+→ **Run as administrator**
 
-لا حاجة لإبقاء نافذة CMD مفتوحة، ولا لتشغيل يدوي كل مرة.
+ماذا يفعل؟
+1. يثبت PM2
+2. يشغّل `hypex-node` في الخلفية **بدون مراقبة الملفات** (حمل منخفض)
+3. يسجّل مهمة Windows **HypexNode** لتعمل بعد تسجيل الدخول / الإقلاع
+
+لا حاجة لإبقاء نافذة CMD مفتوحة.
+
+### أزرار يومية (مثل لوحة XAMPP)
+
+| | الملف |
+|--|--|
+| تشغيل | `deploy\HypexNode-Start.cmd` |
+| إيقاف | `deploy\HypexNode-Stop.cmd` |
+| حالة | `deploy\HypexNode-Status.cmd` |
+| إلغاء الإقلاع التلقائي | `deploy\uninstall-hypex-service.cmd` |
 
 | | |
 |--|--|
 | حالة | `pm2 status` |
 | سجلات | `pm2 logs hypex-node` |
-| إيقاف مؤقت | `pm2 stop hypex-node` |
-| تشغيل بعد الإيقاف | `pm2 start hypex-node` |
+| إعادة تشغيل بعد تعديل `src/` | `pm2 restart hypex-node` |
 
-## أنواع الملفات — ماذا تحتاج؟
+## لماذا كان يبدو «عبئاً»؟
+
+سابقاً كان **watch** مفعّلاً: كل حفظ في `src/` يعيد تشغيل Node → استهلاك CPU و148+ إعادة تشغيل.
+الوضع الإنتاجي الآن: **watch مغلق** — العملية ثابتة مثل Apache.
+
+## جلسة لا تُفقد
+
+الجلسات في **MySQL** (`hypex_node_sessions`).
+بعد `pm2 restart` لا يلزم تسجيل دخول من جديد (طالما `SESSION_SECRET` ثابت).
+
+## أنواع الملفات
 
 | التعديل | ماذا تفعل؟ |
 |---------|------------|
-| `public/css` أو `public/js` | **Ctrl+F5** فقط — بدون أي restart |
-| `src/*.js` | **لا شيء** — PM2 watch يعيد التحميل وحده |
-| `.env` | `pm2 restart hypex-node` مرة واحدة |
+| `public/css` أو `public/js` | **Ctrl+F5** فقط |
+| `src/*.js` | `pm2 restart hypex-node` |
+| `.env` | `pm2 restart hypex-node` |
 | PHP | لا شيء |
 
-**ملاحظة:** بعد reload التلقائي **الجلسات لا تُفقد** (مخزّنة في MySQL).
-
-## تطوير محلي بدون PM2
+## تطوير (اختياري — ليس خدمة)
 
 ```bat
 deploy\start-hypex-node-watch.cmd
 ```
 
-أو `npm run dev` — يحتاج نافذة مفتوحة.
+أو: `npm run dev` / `npm run pm2:dev` — يعيد التحميل عند الحفظ (لجلسة تطوير فقط).
 
 ## إعداد `.env`
 
@@ -60,8 +76,6 @@ DB_PORT=3306
 DB_NAME=...
 DB_USER=...
 DB_PASS=...
-SESSION_SECRET=لا-تغيّره-عشوائياً-بعد-الإنتاج
+SESSION_SECRET=لا-تغيّره-بعد-الإنتاج
 SESSION_MAX_AGE_HOURS=12
 ```
-
-**مهم:** لا تغيّر `SESSION_SECRET` بعد تسجيل دخول المستخدمين وإلا تُلغى كل الجلسات.

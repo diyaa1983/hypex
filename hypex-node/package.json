@@ -8,7 +8,9 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "pm2": "pm2 start ecosystem.config.cjs",
-    "pm2:reload": "pm2 reload hypex-node"
+    "pm2:dev": "pm2 start ecosystem.dev.cjs",
+    "pm2:reload": "pm2 reload hypex-node",
+    "pm2:restart": "pm2 restart hypex-node"
   },
   "engines": {
     "node": ">=18"
