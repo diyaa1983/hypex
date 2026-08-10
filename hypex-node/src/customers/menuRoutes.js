@@ -797,10 +797,30 @@ async function customerForm(req, res, id) {
   if (id && !row) return res.status(404).send('غير موجود');
   const isNew = !row;
   const err = String(req.query.err || '');
-  const regions = await q.regionOptions();
+  let regions = await q.regionOptions();
   const reps = await q.salesRepOptions();
   const regionId = Number(row?.region_id || 0);
-  const addresses = regionId ? await masters.listAddressesForRegion(regionId) : [];
+  const regionAddressId = Number(row?.region_address_id || 0);
+  let addresses = regionId ? await masters.listAddressesForRegion(regionId, { activeOnly: false }) : [];
+  // إن كانت المنطقة الحالية موقوفة أضفها للقائمة حتى تظهر مختارة
+  if (regionId > 0 && !regions.some((r) => Number(r.id) === regionId)) {
+    const curReg = await masters.getRegion(regionId);
+    if (curReg) {
+      regions = [{ id: curReg.id, code: curReg.code, name_ar: curReg.name_ar }, ...regions];
+    }
+  }
+  if (
+    regionAddressId > 0 &&
+    !addresses.some((a) => Number(a.id) === regionAddressId)
+  ) {
+    try {
+      const one = await q.listRegionAddresses(regionId);
+      const hit = one.find((a) => Number(a.id) === regionAddressId);
+      if (hit) addresses = [hit, ...addresses];
+    } catch {
+      /* */
+    }
+  }
   const selectedReps = new Set((row?.rep_ids || []).map(Number));
   if (row?.sales_rep_id) selectedReps.add(Number(row.sales_rep_id));
   const primaryRepId = [...selectedReps][0] || Number(row?.sales_rep_id || 0) || 0;
@@ -813,9 +833,10 @@ async function customerForm(req, res, id) {
     )
     .join('');
   const addrOpts = addresses
+    .filter((a) => Number(a.is_active) === 1 || Number(a.id) === regionAddressId)
     .map(
       (a) =>
-        `<option value="${a.id}" ${Number(row?.region_address_id) === Number(a.id) ? 'selected' : ''}>${esc(
+        `<option value="${a.id}" ${regionAddressId === Number(a.id) ? 'selected' : ''}>${esc(
           a.name_ar
         )}</option>`
     )

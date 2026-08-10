@@ -165,6 +165,8 @@ function crm_region_excel_normalize_code(string $code): string
             return sprintf('%.0f', (float) $code);
         }
     }
+    // إزالة فواصل آلاف شائعة
+    $code = str_replace([',', ' ', "\xC2\xA0"], '', $code);
 
     return $code;
 }
@@ -273,12 +275,21 @@ function crm_customer_link_sales_rep(PDO $pdo, int $customerId, int $repId, bool
 }
 
 /**
- * إيجاد عميل بالرمز أو الاسم.
+ * إيجاد عميل بالرمز / oracle_key / الاسم.
  */
 function crm_customer_find_for_import(PDO $pdo, string $code, string $name): ?int
 {
-    $code = trim($code);
+    $code = crm_region_excel_normalize_code($code);
     $name = trim($name);
+
+    $hasOracleKey = false;
+    try {
+        $stCol = $pdo->query("SHOW COLUMNS FROM crm_customer LIKE 'oracle_key'");
+        $hasOracleKey = (bool) $stCol->fetch();
+    } catch (Throwable $e) {
+        $hasOracleKey = false;
+    }
+
     if ($code !== '') {
         $st = $pdo->prepare('SELECT id FROM crm_customer WHERE code = ? LIMIT 1');
         $st->execute([$code]);
@@ -286,16 +297,47 @@ function crm_customer_find_for_import(PDO $pdo, string $code, string $name): ?in
         if ($id > 0) {
             return $id;
         }
-        // مطابقة جزئية لرمز Oracle الطويل
-        $st = $pdo->prepare('SELECT id FROM crm_customer WHERE code LIKE ? ORDER BY id ASC LIMIT 1');
-        $st->execute(['%' . $code]);
+
+        if ($hasOracleKey) {
+            $st = $pdo->prepare('SELECT id FROM crm_customer WHERE oracle_key = ? LIMIT 1');
+            $st->execute([$code]);
+            $id = (int) $st->fetchColumn();
+            if ($id > 0) {
+                return $id;
+            }
+            // مفتاح طويل ينتهي برقم الحساب
+            $st = $pdo->prepare(
+                'SELECT id FROM crm_customer WHERE oracle_key LIKE ? OR oracle_key LIKE ? ORDER BY id ASC LIMIT 1'
+            );
+            $st->execute(['%' . $code, '%/' . $code]);
+            $id = (int) $st->fetchColumn();
+            if ($id > 0) {
+                return $id;
+            }
+        }
+
+        // مطابقة جزئية لرمز في قاعدة البيانات
+        $st = $pdo->prepare(
+            'SELECT id FROM crm_customer WHERE code LIKE ? OR code LIKE ? ORDER BY CHAR_LENGTH(code) ASC, id ASC LIMIT 1'
+        );
+        $st->execute([$code . '%', '%' . $code]);
         $id = (int) $st->fetchColumn();
         if ($id > 0) {
             return $id;
         }
     }
+
     if ($name !== '') {
         $st = $pdo->prepare('SELECT id FROM crm_customer WHERE name_ar = ? LIMIT 1');
+        $st->execute([$name]);
+        $id = (int) $st->fetchColumn();
+        if ($id > 0) {
+            return $id;
+        }
+        // مطابقة مع تجاهل المسافات الزائدة في الوسط
+        $st = $pdo->prepare(
+            'SELECT id FROM crm_customer WHERE REPLACE(name_ar, " ", "") = REPLACE(?, " ", "") LIMIT 1'
+        );
         $st->execute([$name]);
         $id = (int) $st->fetchColumn();
         if ($id > 0) {
@@ -324,6 +366,10 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
     crm_sales_rep_ensure_schema($pdo);
     crm_sales_rep_region_ensure_schema($pdo);
     crm_sales_rep_ensure_customer_invoice_links($pdo);
+    // تهيئة روابط مندوب-عميل قبل المعاملة (DDL في MySQL ينهي transaction)
+    if (function_exists('crm_customer_sales_rep_ensure_schema')) {
+        crm_customer_sales_rep_ensure_schema($pdo);
+    }
 
     $resolved = crm_region_excel_resolve_path($path);
     if ($resolved === null) {
@@ -471,38 +517,51 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
                 }
             }
 
-            // ربط العميل بالمندوب حسب رقم العميل
+            // ربط العميل بالمنطقة/العنوان/المندوب
             if ($custCode !== '' || $custName !== '') {
                 $customerId = crm_customer_find_for_import($pdo, $custCode, $custName);
                 if ($customerId === null) {
                     $stats['customers_missing']++;
-                    if (count($warnings) < 30) {
+                    if (count($warnings) < 40) {
                         $warnings[] = 'عميل غير موجود: ' . ($custCode !== '' ? $custCode . ' ' : '') . $custName;
                     }
                 } else {
-                    if ($regionId > 0) {
-                        $pdo->prepare(
-                            'UPDATE crm_customer SET region_id = ?, region_address_id = ? WHERE id = ?'
-                        )->execute([
-                            $regionId,
-                            $addressId > 0 ? $addressId : null,
-                            $customerId,
-                        ]);
+                    // تحديث حقول الربط على crm_customer (شاشة العميل تقرأ منها)
+                    if ($regionId > 0 || $repId > 0 || $addressId > 0 || $address !== '') {
+                        $sets = [];
+                        $params = [];
+                        if ($regionId > 0) {
+                            $sets[] = 'region_id = ?';
+                            $params[] = $regionId;
+                            $sets[] = 'region_address_id = ?';
+                            $params[] = $addressId > 0 ? $addressId : null;
+                        }
+                        if ($repId > 0) {
+                            $sets[] = 'sales_rep_id = ?';
+                            $params[] = $repId;
+                        }
+                        if ($address !== '') {
+                            $sets[] = 'address_ar = COALESCE(NULLIF(TRIM(address_ar), \'\'), ?)';
+                            $params[] = $address;
+                        }
+                        if ($sets !== []) {
+                            $params[] = $customerId;
+                            $pdo->prepare(
+                                'UPDATE crm_customer SET ' . implode(', ', $sets) . ' WHERE id = ?'
+                            )->execute($params);
+                        }
                     }
                     if ($repId > 0) {
                         crm_customer_link_sales_rep($pdo, $customerId, $repId, $replaceCustomerReps);
-                    }
-                    if ($address !== '') {
-                        $pdo->prepare(
-                            'UPDATE crm_customer SET address_ar = COALESCE(NULLIF(TRIM(address_ar), \'\'), ?) WHERE id = ?'
-                        )->execute([$address, $customerId]);
                     }
                     $stats['customers_linked']++;
                 }
             }
         }
 
-        $pdo->commit();
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -510,15 +569,33 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
         throw $e;
     }
 
+    // تحقق فعلي بعد الحفظ (ما يظهر في شاشة العميل)
+    $verifiedRegion = 0;
+    $verifiedRep = 0;
+    try {
+        $verifiedRegion = (int) $pdo->query(
+            'SELECT COUNT(*) FROM crm_customer WHERE region_id IS NOT NULL AND region_id > 0'
+        )->fetchColumn();
+        $verifiedRep = (int) $pdo->query(
+            'SELECT COUNT(*) FROM crm_customer WHERE sales_rep_id IS NOT NULL AND sales_rep_id > 0'
+        )->fetchColumn();
+    } catch (Throwable $e) {
+        //
+    }
+    $stats['verified_with_region'] = $verifiedRegion;
+    $stats['verified_with_rep'] = $verifiedRep;
+
     $msg = sprintf(
-        'تم الاستيراد من «%s»: صفوف %d — مندوبون جدد %d — مناطق جديدة %d — عناوين جديدة %d — عملاء مربوطون بالمندوب %d — عملاء غير موجودين %d.',
+        'تم الاستيراد من «%s»: صفوف %d — عملاء رُبطوا في الملف %d — بدون مطابقة %d — مندوبون جدد %d — مناطق/عناوين جديدة %d/%d. في قاعدة البيانات الآن: %d عميل بمنطقة · %d عميل بمندوب.',
         basename($resolved),
         $stats['rows'],
+        $stats['customers_linked'],
+        $stats['customers_missing'],
         $stats['reps_created'],
         $stats['regions_created'],
         $stats['addresses_created'],
-        $stats['customers_linked'],
-        $stats['customers_missing']
+        $verifiedRegion,
+        $verifiedRep
     );
 
     return [
