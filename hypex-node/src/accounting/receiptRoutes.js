@@ -498,7 +498,7 @@ router.post(BASE + '/save', async (req, res) => {
   const result = await svc.phpAction('save', uid(req), {
     voucher_id: id,
     voucher_no: body.voucher_no,
-    voucher_date: body.voucher_date,
+    voucher_date: parseDateToIso(body.voucher_date || '', todayIso()),
     customer_id: body.customer_id,
     pay_method: body.pay_method,
     amount: body.amount,

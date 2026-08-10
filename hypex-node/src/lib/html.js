@@ -44,15 +44,36 @@ function isoToDmy(iso) {
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
-/** DD-MM-YYYY or YYYY-MM-DD → YYYY-MM-DD */
-function parseDateToIso(v) {
+/**
+ * DD-MM-YYYY أو YYYY-MM-DD → YYYY-MM-DD.
+ * إن فشل التحليل: إن وُجد fallback يُعاد، وإلا تاريخ اليوم (توافق مع حفظ المستندات).
+ */
+function parseDateToIso(v, fallback) {
   const s = String(v || '').trim();
+  if (!s) {
+    return arguments.length >= 2 ? fallback : todayIso();
+  }
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
   if (m) {
-    return `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
+    const d = Number(m[1]);
+    const mo = Number(m[2]);
+    const y = Number(m[3]);
+    if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 1900 && y <= 2100) {
+      return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
   }
-  return todayIso();
+  return arguments.length >= 2 ? fallback : todayIso();
 }
 
-module.exports = { esc, fmtAmt, fmtUnitPrice, todayIso, isoToDmy, parseDateToIso };
+/** فلاتر التقارير: من/إلى بصيغة ISO مع قبول d-m-Y من الواجهة */
+function dateRange(from, to) {
+  const d = new Date();
+  const monthStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  return {
+    from: parseDateToIso(from || '', monthStart),
+    to: parseDateToIso(to || '', todayIso()),
+  };
+}
+
+module.exports = { esc, fmtAmt, fmtUnitPrice, todayIso, isoToDmy, parseDateToIso, dateRange };

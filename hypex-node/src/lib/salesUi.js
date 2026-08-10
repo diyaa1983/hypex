@@ -81,10 +81,10 @@ function dateFilters(action, from, to, extra = '') {
     <div class="si-rail no-print">
       <form class="si-search" method="get" action="${esc(action)}" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center">
         <label style="display:flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;color:#5c6578">من
-          <input class="si-field si-field--mono" type="date" name="from" value="${esc(f)}" style="min-height:2.1rem;width:auto">
+          <input class="si-field si-field--mono" type="date" name="from" value="${esc(f)}" style="min-height:2.1rem;width:auto" title="يوم-شهر-سنة">
         </label>
         <label style="display:flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:700;color:#5c6578">إلى
-          <input class="si-field si-field--mono" type="date" name="to" value="${esc(t)}" style="min-height:2.1rem;width:auto">
+          <input class="si-field si-field--mono" type="date" name="to" value="${esc(t)}" style="min-height:2.1rem;width:auto" title="يوم-شهر-سنة">
         </label>
         ${extra}
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
@@ -92,7 +92,7 @@ function dateFilters(action, from, to, extra = '') {
       </form>
     </div>
     <div class="si-print-meta print-only">
-      <strong>الفترة:</strong> <span dir="ltr">${esc(f)}</span> — <span dir="ltr">${esc(t)}</span>
+      <strong>الفترة:</strong> <span dir="ltr">${esc(isoToDmy(f))}</span> — <span dir="ltr">${esc(isoToDmy(t))}</span>
       · طُبع: <span class="si-print-when" dir="ltr"></span>
     </div>`;
 }

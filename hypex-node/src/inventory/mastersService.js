@@ -426,8 +426,11 @@ async function saveItem(payload) {
       : payload.is_active === '1' || payload.is_active === 1 || payload.is_active === true || payload.is_active === 'on'
         ? 1
         : 0;
-  let expiryDate = String(payload.expiry_date || '').trim().slice(0, 10);
-  if (expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) expiryDate = null;
+  let expiryDate = String(payload.expiry_date || '').trim();
+  if (expiryDate) {
+    const { parseDateToIso } = require('../lib/html');
+    expiryDate = parseDateToIso(expiryDate, null);
+  }
   if (!expiryDate) expiryDate = null;
   const notifyExpiry =
     payload.notify_on_expiry === '1' || payload.notify_on_expiry === 1 || payload.notify_on_expiry === 'on' ? 1 : 0;

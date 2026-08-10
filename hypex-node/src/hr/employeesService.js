@@ -216,7 +216,10 @@ function nullIfEmpty(s) {
 
 function dateOrNull(s) {
   const t = String(s || '').trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+  if (!t) return null;
+  const { parseDateToIso } = require('../lib/html');
+  const iso = parseDateToIso(t, null);
+  return iso || null;
 }
 
 async function saveEmployee(payload) {
@@ -247,7 +250,8 @@ async function saveEmployee(payload) {
   const addressCity = String(payload.address_city || '').trim();
   const addressDistrict = String(payload.address_district || '').trim();
   const { deptId, jobTitleId, dept, job } = await resolveDeptJob(payload);
-  const hire = String(payload.hire_date || '').trim();
+  const hireRaw = String(payload.hire_date || '').trim();
+  const hire = dateOrNull(hireRaw) || '';
   const baseSalary = Number(payload.base_salary || 0) || 0;
   const ssn = String(payload.social_security_no || '').trim();
   const subjectToSs =
@@ -265,7 +269,8 @@ async function saveEmployee(payload) {
   const isMarried =
     payload.is_married === '1' || payload.is_married === 1 || payload.is_married === true ? 1 : 0;
   const notes = String(payload.notes || '').trim();
-  const resignDate = String(payload.resignation_date || '').trim();
+  const resignDateRaw = String(payload.resignation_date || '').trim();
+  const resignDate = dateOrNull(resignDateRaw) || '';
   const isResigned =
     payload.is_resigned === '1' ||
     payload.is_resigned === 1 ||
@@ -278,15 +283,15 @@ async function saveEmployee(payload) {
     return { ok: false, error: 'صيغة البريد الإلكتروني غير صحيحة.' };
   }
   if (baseSalary < 0) return { ok: false, error: 'الراتب الأساسي يجب ألا يكون سالباً.' };
-  if (!hire || !/^\d{4}-\d{2}-\d{2}$/.test(hire)) {
-    return { ok: false, error: 'تاريخ التعيين مطلوب.' };
+  if (!hire) {
+    return { ok: false, error: 'تاريخ التعيين مطلوب (يوم-شهر-سنة).' };
   }
 
   let isActive = 1;
   let resignDateVal = null;
   if (isResigned || resignDate) {
-    if (!resignDate || !/^\d{4}-\d{2}-\d{2}$/.test(resignDate)) {
-      return { ok: false, error: 'أدخل تاريخ الاستقالة.' };
+    if (!resignDate) {
+      return { ok: false, error: 'أدخل تاريخ الاستقالة (يوم-شهر-سنة).' };
     }
     isActive = 0;
     resignDateVal = resignDate;

@@ -139,12 +139,21 @@ function escapeAttr(s) {
 }
 
 function assetVersion(relFromPublic) {
-  try {
-    const file = path.join(__dirname, '..', '..', 'public', relFromPublic.replace(/^\/+/, ''));
-    return String(Math.floor(fs.statSync(file).mtimeMs));
-  } catch {
-    return String(Date.now());
+  const rel = String(relFromPublic || '')
+    .replace(/^\/+/, '')
+    .replace(/^assets\//, '');
+  const candidates = [
+    path.join(__dirname, '..', '..', 'public', rel),
+    path.join(__dirname, '..', '..', '..', 'assets', rel),
+  ];
+  for (const file of candidates) {
+    try {
+      return String(Math.floor(fs.statSync(file).mtimeMs));
+    } catch {
+      /* try next */
+    }
   }
+  return String(Date.now());
 }
 
 function wrapPrintShell(bodyHtml) {

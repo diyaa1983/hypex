@@ -79,10 +79,9 @@ function yearStart() {
 }
 
 function range(from, to) {
-  let f = String(from || '').trim();
-  let t = String(to || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) f = yearStart();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) t = todayIso();
+  const { parseDateToIso } = require('../lib/html');
+  let f = parseDateToIso(String(from || '').trim(), yearStart());
+  let t = parseDateToIso(String(to || '').trim(), todayIso());
   if (f > t) [f, t] = [t, f];
   return { from: f, to: t };
 }

@@ -3,7 +3,7 @@
 const express = require('express');
 const auth = require('../auth');
 const ui = require('../lib/salesUi');
-const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
+const { esc, fmtAmt, isoToDmy, todayIso, parseDateToIso } = require('../lib/html');
 const svc = require('./journalVoucherService');
 
 const router = express.Router();
@@ -435,7 +435,7 @@ router.post(BASE + '/save', async (req, res) => {
   const result = await svc.phpAction('save', uid(req), {
     entry_id: id,
     entry_no: body.entry_no,
-    entry_date: body.entry_date,
+    entry_date: parseDateToIso(body.entry_date || '', todayIso()),
     description_ar: body.description_ar,
     lines: parseLines(body),
     post_now: postNow,

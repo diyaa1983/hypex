@@ -1,7 +1,7 @@
 'use strict';
 
 const db = require('../db');
-const { todayIso } = require('../lib/html');
+const { todayIso, parseDateToIso } = require('../lib/html');
 
 function monthStart() {
   const d = new Date();
@@ -9,10 +9,8 @@ function monthStart() {
 }
 
 function parseRange(fromIn, toIn) {
-  let from = String(fromIn || '').trim();
-  let to = String(toIn || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) from = monthStart();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(to)) to = todayIso();
+  let from = parseDateToIso(String(fromIn || '').trim(), monthStart());
+  let to = parseDateToIso(String(toIn || '').trim(), todayIso());
   if (from > to) [from, to] = [to, from];
   return { from, to };
 }

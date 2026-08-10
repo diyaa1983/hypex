@@ -1,7 +1,7 @@
 'use strict';
 
 const db = require('../db');
-const { todayIso } = require('../lib/html');
+const { todayIso, parseDateToIso } = require('../lib/html');
 
 /** المعرّف الظاهر: الباركود (رقم المادة/sku فقط في بطاقة المادة) */
 function ITEM_CODE_SQL(alias = 'i') {
@@ -23,7 +23,10 @@ async function safeQuery(sql, params = []) {
 }
 
 function dateRange(from, to) {
-  return { from: from || monthStart(), to: to || todayIso() };
+  return {
+    from: parseDateToIso(from || '', monthStart()),
+    to: parseDateToIso(to || '', todayIso()),
+  };
 }
 
 async function listWarehouses({ q = '', activeOnly = true } = {}) {

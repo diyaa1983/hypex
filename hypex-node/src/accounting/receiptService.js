@@ -200,6 +200,12 @@ async function listUnposted({ q = '', limit = 120 } = {}) {
 }
 
 function parseChecksFromBody(body) {
+  const { parseDateToIso } = require('../lib/html');
+  const mapDue = (d) => {
+    const s = String(d || '').trim();
+    if (!s) return '';
+    return parseDateToIso(s, null) || s;
+  };
   const checks = [];
   const raw = body.checks;
   if (Array.isArray(raw)) {
@@ -209,7 +215,7 @@ function parseChecksFromBody(body) {
         check_no: c.check_no,
         bank_name: c.bank_name,
         check_amount: c.check_amount,
-        due_date: c.due_date,
+        due_date: mapDue(c.due_date),
         notes: c.notes,
       });
     }
@@ -223,7 +229,7 @@ function parseChecksFromBody(body) {
         check_no: c.check_no,
         bank_name: c.bank_name,
         check_amount: c.check_amount,
-        due_date: c.due_date,
+        due_date: mapDue(c.due_date),
         notes: c.notes,
       });
     }
@@ -245,7 +251,7 @@ function parseChecksFromBody(body) {
       check_no: c.check_no,
       bank_name: c.bank_name,
       check_amount: c.check_amount,
-      due_date: c.due_date,
+      due_date: mapDue(c.due_date),
       notes: c.notes,
     });
   }

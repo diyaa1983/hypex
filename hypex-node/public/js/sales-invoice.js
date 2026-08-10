@@ -1398,7 +1398,37 @@
     if (!v) return '';
     var s = String(v);
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    if (window.AppFormat && AppFormat.parseDateToIso) {
+      return AppFormat.parseDateToIso(s) || s;
+    }
+    if (window.AppDatePicker && AppDatePicker.parseDmYToIso) {
+      return AppDatePicker.parseDmYToIso(s) || s;
+    }
     return s;
+  }
+
+  /** عرض تاريخ يوم-شهر-سنة في الحقول */
+  function dateDisplay(v) {
+    var iso = dateIso(v);
+    if (!iso) return '';
+    if (window.AppFormat && AppFormat.formatDateDmY) return AppFormat.formatDateDmY(iso);
+    if (window.AppDatePicker && AppDatePicker.formatIsoToDmY) {
+      return AppDatePicker.formatIsoToDmY(iso) || iso;
+    }
+    var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    return iso;
+  }
+
+  function setDateField(el, v) {
+    if (!el) return;
+    el.value = dateDisplay(v);
+    try {
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   function setLockedField(el, lock) {
@@ -1470,7 +1500,7 @@
     var noEl = document.getElementById('inv_no');
     if (noEl) noEl.value = state.invoice_no;
     var dateEl = document.getElementById('inv_date');
-    if (dateEl) dateEl.value = dateIso(inv.invoice_date);
+    if (dateEl) setDateField(dateEl, inv.invoice_date);
     var payEl = document.getElementById('inv_pay');
     if (payEl) payEl.value = inv.payment_type || 'credit';
     var cid = document.getElementById('inv_customer_id');

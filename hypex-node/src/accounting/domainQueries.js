@@ -1,7 +1,7 @@
 'use strict';
 
 const db = require('../db');
-const { todayIso } = require('../lib/html');
+const { todayIso, parseDateToIso } = require('../lib/html');
 
 function monthStart() {
   const d = new Date();
@@ -18,7 +18,10 @@ async function safeQuery(sql, params = []) {
 }
 
 function dateRange(from, to) {
-  return { from: from || monthStart(), to: to || todayIso() };
+  return {
+    from: parseDateToIso(from || '', monthStart()),
+    to: parseDateToIso(to || '', todayIso()),
+  };
 }
 
 async function listAccounts({ q = '', activeOnly = true } = {}) {

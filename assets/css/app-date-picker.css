@@ -8,7 +8,17 @@
   vertical-align: middle;
 }
 
-.date-dmy-field .js-date-dmy {
+/* حقول si-meta / si-search ضيقة */
+.si-meta .date-dmy-field,
+.si-search .date-dmy-field,
+.si-f .date-dmy-field,
+label .date-dmy-field {
+  width: 100%;
+  min-width: 9.5rem;
+}
+
+.date-dmy-field .js-date-dmy,
+.date-dmy-field .si-field {
   flex: 1 1 auto;
   min-width: 0;
   border-start-end-radius: 0;

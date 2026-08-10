@@ -117,13 +117,16 @@ function renderApp({
   const uiVer = assetVersion('js/hx-ui.js');
   const uiCssVer = assetVersion('css/hx-ui.css');
   const decVer = assetVersion('js/hx-decimals.js');
+  const fmtVer = assetVersion('js/app-format.js');
+  const dateJsVer = assetVersion('js/app-date-picker.js');
+  const dateCssVer = assetVersion('css/app-date-picker.css');
   const allCss = [...css];
   const allJs = [...js];
   if (printChrome && user) {
     const hasPrint = allJs.some((j) => String(j).indexOf('sales-print.js') !== -1);
     if (!hasPrint) allJs.push(`/assets/js/sales-print.js?v=${spVer}`);
   }
-  // واجهة تنبيهات/تأكيد + اختصارات لكل الشاشات
+  // واجهة تنبيهات/تأكيد + اختصارات + تواريخ يوم-شهر-سنة لكل الشاشات
   if (user) {
     const hasDec = allJs.some((j) => String(j).indexOf('hx-decimals.js') !== -1);
     if (!hasDec) allJs.unshift(`/assets/js/hx-decimals.js?v=${decVer}`);
@@ -135,6 +138,13 @@ function renderApp({
     if (!hasSc) allJs.push(`/assets/js/hx-shortcuts.js?v=${scVer}`);
     const hasScCss = allCss.some((c) => String(c).indexOf('hx-shortcuts.css') !== -1);
     if (!hasScCss) allCss.unshift(`/assets/css/hx-shortcuts.css?v=${scCssVer}`);
+    // تاريخ: يوم-شهر-سنة (عرض وإدخال) — قبل سكربتات الصفحات
+    const hasDateCss = allCss.some((c) => String(c).indexOf('app-date-picker.css') !== -1);
+    if (!hasDateCss) allCss.unshift(`/assets/css/app-date-picker.css?v=${dateCssVer}`);
+    const hasDateJs = allJs.some((j) => String(j).indexOf('app-date-picker.js') !== -1);
+    const hasFmt = allJs.some((j) => String(j).indexOf('app-format.js') !== -1);
+    if (!hasDateJs) allJs.unshift(`/assets/js/app-date-picker.js?v=${dateJsVer}`);
+    if (!hasFmt) allJs.unshift(`/assets/js/app-format.js?v=${fmtVer}`);
   }
 
   const cssLinks = allCss

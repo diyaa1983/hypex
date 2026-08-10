@@ -659,17 +659,82 @@
     });
   }
 
+  /**
+   * تحويل input[type=date] (ISO المتصفح) → نص يوم-شهر-سنة + منتقي.
+   * يطبّق على كل النظام (Node + PHP) بدون تعديل كل قالب على حدة.
+   */
+  function upgradeNativeDateInputs(scope) {
+    var root = scope && scope.querySelectorAll ? scope : document;
+    root.querySelectorAll('input[type="date"]').forEach(function (inp) {
+      if (!inp || inp.dataset.datePickerBound === '1') return;
+      if (inp.classList.contains('date-dmy-native')) return;
+      if (inp.closest && inp.closest('.date-dmy-field')) return;
+
+      var iso = String(inp.value || '').trim();
+      var dmy = formatIsoToDmY(iso);
+      if (!dmy) {
+        var asIso = parseDmYToIso(iso);
+        if (asIso) dmy = formatIsoToDmY(asIso);
+        else dmy = tryFormatLooseDmY(iso);
+      }
+
+      try {
+        inp.type = 'text';
+      } catch (e) {
+        /* بعض المتصفحات القديمة */
+        inp.setAttribute('type', 'text');
+      }
+      inp.classList.add('js-date-dmy');
+      if (dmy) {
+        inp.value = dmy;
+      } else if (/^\d{4}-\d{2}-\d{2}/.test(iso)) {
+        inp.value = formatIsoToDmY(iso.slice(0, 10));
+      }
+      if (!inp.getAttribute('placeholder')) {
+        inp.setAttribute('placeholder', 'يوم-شهر-سنة');
+      }
+      if (!inp.getAttribute('dir')) {
+        inp.setAttribute('dir', 'ltr');
+      }
+      inp.setAttribute('autocomplete', 'off');
+      inp.setAttribute('inputmode', 'numeric');
+
+      if (inp.readOnly || inp.disabled) {
+        // عرض فقط d-m-Y بدون منتقي
+        return;
+      }
+      bindDateField(inp);
+    });
+  }
+
   function initDatePickers(root) {
     var scope = root && root.querySelectorAll ? root : document;
+    upgradeNativeDateInputs(scope);
     scope.querySelectorAll('.js-date-dmy').forEach(bindDateField);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-      initDatePickers(document);
+  function watchDynamicDates() {
+    if (typeof MutationObserver === 'undefined' || !document.body) return;
+    var timer = null;
+    var obs = new MutationObserver(function () {
+      if (timer) return;
+      timer = window.setTimeout(function () {
+        timer = null;
+        initDatePickers(document);
+      }, 80);
     });
-  } else {
+    obs.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function boot() {
     initDatePickers(document);
+    watchDynamicDates();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
   }
 
   window.AppDatePicker = {

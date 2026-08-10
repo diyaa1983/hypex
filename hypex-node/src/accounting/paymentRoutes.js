@@ -3,7 +3,7 @@
 const express = require('express');
 const auth = require('../auth');
 const ui = require('../lib/salesUi');
-const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
+const { esc, fmtAmt, isoToDmy, todayIso, parseDateToIso } = require('../lib/html');
 const svc = require('./paymentService');
 const advSvc = require('./advancesService');
 
@@ -569,7 +569,7 @@ router.post(BASE + '/save', async (req, res) => {
   const result = await svc.phpAction('save', uid(req), {
     voucher_id: id,
     voucher_no: body.voucher_no,
-    voucher_date: body.voucher_date,
+    voucher_date: parseDateToIso(body.voucher_date || '', todayIso()),
     party_type: body.party_type,
     supplier_id: body.supplier_id,
     customer_id: body.customer_id,
@@ -581,7 +581,9 @@ router.post(BASE + '/save', async (req, res) => {
     check_no: body.check_no,
     check_amount: body.check_amount || body.amount,
     bank_name: body.bank_name,
-    check_due_date: body.check_due_date,
+    check_due_date: body.check_due_date
+      ? parseDateToIso(body.check_due_date, null) || body.check_due_date
+      : body.check_due_date,
     notes: body.notes,
     hr_advance_id: hrAdvanceId,
   });

@@ -1,7 +1,7 @@
 'use strict';
 
 const db = require('../db');
-const { todayIso } = require('../lib/html');
+const { todayIso, parseDateToIso } = require('../lib/html');
 
 function monthStart() {
   const d = new Date();
@@ -127,9 +127,10 @@ async function listReturns({ q = '', limit = 80 } = {}) {
 }
 
 function dateRange(from, to) {
-  const f = from || monthStart();
-  const t = to || todayIso();
-  return { from: f, to: t };
+  return {
+    from: parseDateToIso(from || '', monthStart()),
+    to: parseDateToIso(to || '', todayIso()),
+  };
 }
 
 async function reportSalesByCustomer(from, to) {
