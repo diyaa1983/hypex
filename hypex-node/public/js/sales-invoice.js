@@ -152,23 +152,85 @@
     return true;
   }
 
+  function setBtn(id, enabled) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !enabled;
+  }
+
+  /** تفعيل/تعطيل أزرار الشريط حسب الحالة الحالية (بعد الحفظ دون reload) */
+  function applyToolbarState() {
+    var hasId = !!(Number(state.id) > 0);
+    var bar = document.getElementById('si-doc-bar');
+    var c = state.caps || {};
+
+    function allowFlag(capKey, dataName, defaultOn) {
+      if (c[capKey] != null) return !!c[capKey];
+      if (bar && bar.hasAttribute('data-allow-' + dataName)) {
+        return bar.getAttribute('data-allow-' + dataName) === '1';
+      }
+      return defaultOn !== false;
+    }
+
+    var allowPost = allowFlag('allowPost', 'post', true);
+    var allowUnpost = allowFlag('allowUnpost', 'unpost', true);
+    var allowDelete = allowFlag('allowDelete', 'delete', true);
+    var allowArchive = allowFlag('allowArchive', 'archive', true);
+    var allowEinvoice = allowFlag('allowEinvoice', 'einvoice', true);
+
+    setBtn('si-save', !posted);
+    setBtn('si-post', !posted && (hasId ? allowPost : true));
+    setBtn('si-unpost', posted && allowUnpost);
+    setBtn('si-delete', hasId && !posted && allowDelete);
+    setBtn('si-print', hasId);
+    setBtn('si-pdf', hasId);
+    setBtn('si-excel', hasId);
+    setBtn('si-email', hasId);
+    setBtn('si-archive', hasId && allowArchive);
+    setBtn('si-einvoice', posted && allowEinvoice);
+
+    if (bar) {
+      bar.setAttribute('data-invoice-id', String(state.id || 0));
+      bar.setAttribute('data-posted', posted ? '1' : '0');
+    }
+
+    state.caps = Object.assign({}, c, {
+      canSave: !posted,
+      canPost: !posted && hasId && allowPost,
+      canUnpost: posted && allowUnpost,
+      canDelete: hasId && !posted && allowDelete,
+      canPrint: hasId,
+      canPdf: hasId,
+      canExcel: hasId,
+      canEmail: hasId,
+      canArchive: hasId && allowArchive,
+      canEinvoice: posted && allowEinvoice,
+      allowPost: allowPost,
+      allowUnpost: allowUnpost,
+      allowDelete: allowDelete,
+      allowArchive: allowArchive,
+      allowEinvoice: allowEinvoice,
+    });
+  }
+
   function setBusy(on) {
     busy = !!on;
-    ['si-save', 'si-post', 'si-unpost', 'si-delete', 'si-einvoice', 'si-add-line'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      if (on) {
-        if (el.dataset.hxBusyPrev == null) {
-          el.dataset.hxBusyPrev = el.disabled ? '1' : '0';
+    ['si-save', 'si-post', 'si-unpost', 'si-delete', 'si-einvoice', 'si-add-line', 'si-print', 'si-pdf', 'si-excel', 'si-email', 'si-archive'].forEach(
+      function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (on) {
+          if (el.dataset.hxBusyPrev == null) {
+            el.dataset.hxBusyPrev = el.disabled ? '1' : '0';
+          }
+          el.disabled = true;
+        } else {
+          delete el.dataset.hxBusyPrev;
         }
-        el.disabled = true;
-      } else {
-        // أعد الحالة كما كانت قبل القفل — حتى يمكن الحفظ مرة أخرى
-        if (el.dataset.hxBusyPrev === '1') el.disabled = true;
-        else el.disabled = false;
-        delete el.dataset.hxBusyPrev;
       }
-    });
+    );
+    // بعد انتهاء العملية أعد الحالة الصحيحة (طباعة/حذف… حسب وجود id)
+    if (!on) applyToolbarState();
   }
 
   function renderLines() {
@@ -616,25 +678,38 @@
         return r.json();
       })
       .then(function (data) {
-        setBusy(false);
         if (!data.ok) {
+          setBusy(false);
           setMsg(data.error || 'تعذر الحفظ', 'error');
           return null;
         }
-        if (!opts.silent) {
-          setMsg(data.message || 'تم الحفظ بدون قيود محاسبية · ' + (data.invoice_no || ''), 'ok');
-        } else if (msgEl) {
-          msgEl.textContent = '';
-          msgEl.className = 'si-msg';
-        }
+        // حدّث id قبل فك القفل حتى applyToolbarState تُفعّل الطباعة فوراً
         state.id = data.id;
         if (data.invoice_no) {
           var noEl = document.getElementById('inv_no');
           if (noEl) noEl.value = data.invoice_no;
           state.invoice_no = data.invoice_no;
         }
-        var bar = document.getElementById('si-doc-bar');
-        if (bar) bar.setAttribute('data-invoice-id', String(data.id));
+        setBusy(false);
+        if (!opts.silent) {
+          setMsg(data.message || 'تم الحفظ بدون قيود محاسبية · ' + (data.invoice_no || ''), 'ok');
+        } else if (msgEl) {
+          msgEl.textContent = '';
+          msgEl.className = 'si-msg';
+        }
+        // عنوان الصفحة + الرابط
+        if (data.invoice_no) {
+          try {
+            document.title = document.title.replace(
+              /^فاتورة مبيعات جديدة|^فاتورة\s+\S+/,
+              'فاتورة ' + data.invoice_no
+            );
+            var h1 = document.querySelector('.si-hero h1');
+            if (h1) h1.textContent = 'فاتورة ' + data.invoice_no;
+          } catch (e) {
+            /* ignore */
+          }
+        }
         if (typeof then === 'function') return then(data);
         // فاتورة جديدة: حدّث الرابط دون إعادة تحميل كاملة (لتبقى التعديلات متاحة فوراً)
         if (data.id && /\/sales\/invoices\/new\/?$/.test(location.pathname)) {

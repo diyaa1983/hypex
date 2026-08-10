@@ -59,19 +59,29 @@ router.use((req, res, next) => {
 function toolbarCaps(user, inv) {
   const posted = !!(inv && inv.is_posted);
   const hasId = !!(inv && inv.id);
+  const allowPost = canAction(user, 'action_post_sales_invoice');
+  const allowUnpost = canAction(user, 'action_unpost_sales_invoice');
+  const allowDelete = canAction(user, 'action_delete_sales_invoice');
+  const allowArchive = canAction(user, 'action_archive_sales_invoice');
+  const allowEinvoice =
+    canAction(user, 'sales_send_einvoice') || canAction(user, 'action_post_sales_invoice');
   return {
     canSave: !posted,
-    canPost: !posted && hasId && canAction(user, 'action_post_sales_invoice'),
-    canUnpost: posted && canAction(user, 'action_unpost_sales_invoice'),
-    canDelete: hasId && !posted && canAction(user, 'action_delete_sales_invoice'),
-    canEinvoice:
-      posted &&
-      (canAction(user, 'sales_send_einvoice') || canAction(user, 'action_post_sales_invoice')),
-    canArchive: hasId && canAction(user, 'action_archive_sales_invoice'),
+    canPost: !posted && hasId && allowPost,
+    canUnpost: posted && allowUnpost,
+    canDelete: hasId && !posted && allowDelete,
+    canEinvoice: posted && allowEinvoice,
+    canArchive: hasId && allowArchive,
     canPrint: hasId,
     canPdf: hasId,
     canExcel: hasId,
     canEmail: hasId,
+    // صلاحيات مستقلة عن وجود id — لتفعيل الأزرار فوراً بعد الحفظ بدون إعادة تحميل
+    allowPost,
+    allowUnpost,
+    allowDelete,
+    allowArchive,
+    allowEinvoice,
   };
 }
 
@@ -86,10 +96,14 @@ function toolbarHtml(caps, inv) {
       disabled ? 'disabled' : ''
     }${extra}><span class="si-tb-lbl">${esc(label)}</span>${keyHtml}</button>`;
   };
+  const d = (on) => (on ? '1' : '0');
 
   return `
     <div class="si-cmd si-doc-toolbar" id="si-doc-bar" role="toolbar" aria-label="إجراءات الفاتورة"
-         data-invoice-id="${id}" data-posted="${posted ? '1' : '0'}">
+         data-invoice-id="${id}" data-posted="${posted ? '1' : '0'}"
+         data-allow-post="${d(caps.allowPost)}" data-allow-unpost="${d(caps.allowUnpost)}"
+         data-allow-delete="${d(caps.allowDelete)}" data-allow-archive="${d(caps.allowArchive)}"
+         data-allow-einvoice="${d(caps.allowEinvoice)}">
       <div class="si-tb-group si-tb-group--core">
         ${b('si-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10')}
         ${b('si-post', 'ترحيل', 'si-tb--post', !caps.canPost && !(caps.canSave && !id), ' title="ترحيل"')}
