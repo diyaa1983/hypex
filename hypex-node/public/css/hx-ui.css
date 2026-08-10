@@ -126,6 +126,9 @@
   color: #0f172a;
   font: 700 0.88rem Arial, Helvetica, sans-serif;
   cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
 }
 
 .hx-ui__btn:hover {
@@ -147,10 +150,24 @@
   filter: brightness(1.05);
 }
 
-.hx-ui__btn--danger {
+.hx-ui__btn--danger,
+.hx-ui__btn--primary.hx-ui__btn--danger {
   border-color: transparent;
   background: linear-gradient(180deg, #f87171 0%, #b91c1c 100%);
   color: #fff;
+}
+
+.hx-ui__btn--danger:hover,
+.hx-ui__btn--primary.hx-ui__btn--danger:hover {
+  filter: brightness(1.05);
+}
+
+.hx-ui__panel {
+  pointer-events: auto;
+}
+
+.hx-ui__actions {
+  pointer-events: auto;
 }
 
 /* توست أعلى وسط */
