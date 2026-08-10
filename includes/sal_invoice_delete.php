@@ -190,13 +190,7 @@ function sal_invoice_can_delete(PDO $pdo, int $invoiceId): array
 
 
 
-    if (!sal_invoice_is_fully_posted($pdo, $invoiceId) && sal_invoice_line_count($pdo, $invoiceId) > 0) {
-        $out['error'] = SAL_INVOICE_DELETE_REQUIRES_EMPTY_LINES_MSG;
-
-        return $out;
-    }
-
-
+    // لا نطلب تفريغ البنود مسبقاً — تُحذف مع الفاتورة إن كانت غير مرحّلة
 
     $out['ok'] = true;
 
@@ -305,6 +299,13 @@ function sal_invoice_delete_by_id(PDO $pdo, int $invoiceId, bool $unpostFirst = 
 
         require_once app_path('includes/sys_audit_log.php');
         sys_audit_log_sal_invoice($pdo, 'delete', $invoiceId);
+
+        // حذف البنود أولاً (حماية إن لم يكن هناك CASCADE)
+        try {
+            $pdo->prepare('DELETE FROM sal_invoice_line WHERE invoice_id = ?')->execute([$invoiceId]);
+        } catch (Throwable $e) {
+            // ignore
+        }
 
         $st = $pdo->prepare('DELETE FROM sal_invoice WHERE id = ?');
 

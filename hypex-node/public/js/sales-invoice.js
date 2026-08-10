@@ -130,12 +130,14 @@
     };
   }
 
-  function validatePayload(payload) {
+  function validatePayload(payload, opts) {
+    opts = opts || {};
     if (!payload.customer_id) {
       setMsg('اختر العميل.', 'error');
       return false;
     }
-    if (!payload.lines.length) {
+    // السماح بحفظ بدون بنود لفاتورة مسجّلة (تفريغ البنود) — ليس للفواتير الجديدة
+    if (!payload.lines.length && !(opts.allowEmptyLines && payload.id > 0)) {
       setMsg('أضف بنداً واحداً على الأقل.', 'error');
       return false;
     }
@@ -257,6 +259,25 @@
     if (cell) cell.classList.remove('is-open');
   }
 
+  function removeLineAt(idx) {
+    if (posted) return;
+    idx = Number(idx);
+    if (!Number.isFinite(idx) || idx < 0) return;
+    syncLinesFromDom();
+    if (!state.lines || !state.lines[idx]) return;
+    state.lines.splice(idx, 1);
+    if (!state.lines.length) addEmptyLine();
+    else renderLines();
+    // تثبيت الحذف في قاعدة البيانات (بدون اشتراط بند)
+    if (state.id) {
+      saveInvoice(null, { allowEmptyLines: true }).then(function (data) {
+        if (data) setMsg('تم حذف البند وحفظ الفاتورة.', 'ok');
+      });
+    } else {
+      setMsg('تم حذف البند من الجدول.', 'ok');
+    }
+  }
+
   function bindRow(tr) {
     ['js-qty', 'js-qty-extra', 'js-price', 'js-disc', 'js-tax'].forEach(function (cls) {
       var el = tr.querySelector('.' + cls);
@@ -265,15 +286,7 @@
           readLineFromRow(tr);
         });
     });
-    var del = tr.querySelector('.js-del');
-    if (del) {
-      del.addEventListener('click', function () {
-        var idx = Number(tr.getAttribute('data-idx'));
-        state.lines.splice(idx, 1);
-        if (!state.lines.length) addEmptyLine();
-        else renderLines();
-      });
-    }
+    // حذف البند — التفويض العام على tbody أدناه
     var itemInput = tr.querySelector('.js-item');
     var suggest = tr.querySelector('.js-item-suggest');
     if (itemInput && suggest && !posted) {
@@ -580,13 +593,14 @@
   var disc = document.getElementById('inv_discount');
   if (disc) disc.addEventListener('input', recomputeFooter);
 
-  function saveInvoice(then) {
+  function saveInvoice(then, opts) {
+    opts = opts || {};
     if (posted) {
       setMsg('الفاتورة مرحّلة — الحفظ غير متاح.', 'error');
       return Promise.resolve(null);
     }
     var payload = buildPayload();
-    if (!validatePayload(payload)) return Promise.resolve(null);
+    if (!validatePayload(payload, opts)) return Promise.resolve(null);
     setMsg('جاري الحفظ…');
     setBusy(true);
     return fetch('/api/sales/invoices', {
@@ -871,6 +885,19 @@
   }
 
   // toolbar bindings
+  if (tbody && !tbody._hxDelBound) {
+    tbody._hxDelBound = true;
+    tbody.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.js-del') : null;
+      if (!btn || posted) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var tr = btn.closest('tr');
+      if (!tr) return;
+      removeLineAt(Number(tr.getAttribute('data-idx')));
+    });
+  }
+
   var saveBtn = document.getElementById('si-save');
   if (saveBtn) saveBtn.addEventListener('click', function () {
     if (busy || posted) return;

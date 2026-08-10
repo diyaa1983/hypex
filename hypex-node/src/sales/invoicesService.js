@@ -299,10 +299,6 @@ async function saveInvoice(payload, userId) {
     if (Number(ln.qty) <= 0 && Number(ln.qty_extra) <= 0) continue;
     normalized.push(computeLine(ln));
   }
-  if (!normalized.length) {
-    return { ok: false, error: 'أضف بند مادة واحداً على الأقل.' };
-  }
-
   const totals = applyHeaderDiscount(normalized, discountInput);
 
   const pool = db.getPool();
@@ -316,6 +312,7 @@ async function saveInvoice(payload, userId) {
         await conn.rollback();
         return { ok: false, error: 'لا يمكن تعديل فاتورة مرحّلة.' };
       }
+      // السماح بحفظ بدون بنود (تفريغ) لمسودة — يُحذف رأس السطور
       await conn.execute(
         `UPDATE sal_invoice
          SET invoice_date=?, customer_id=?, sales_rep_id=?, warehouse_id=?, payment_type=?,
@@ -341,6 +338,11 @@ async function saveInvoice(payload, userId) {
       }
       await conn.commit();
       return { ok: true, id: invoiceId, invoice_no: payload.invoice_no || '' };
+    }
+
+    if (!normalized.length) {
+      await conn.rollback();
+      return { ok: false, error: 'أضف بند مادة واحداً على الأقل.' };
     }
 
     const invoiceNo = await nextInvoiceNo(invoiceDate);
