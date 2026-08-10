@@ -13,6 +13,7 @@ $extendedSchemaOk = inv_item_ensure_extended_schema($pdo);
 $barcodeSchemaOk = inv_item_ensure_barcode_schema($pdo);
 $expirySchemaOk = inv_item_ensure_expiry_schema($pdo);
 $itemUnitsOk = inv_item_units_ensure_schema($pdo);
+inv_item_ensure_card_columns($pdo);
 oracle_item_schema_ensure($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -45,20 +46,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sku = trim((string) ($_POST['sku'] ?? ''));
             $barcodeInput = trim((string) ($_POST['barcode'] ?? ''));
             $name = trim((string) ($_POST['name_ar'] ?? ''));
+            $nameEn = trim((string) ($_POST['name_en'] ?? ''));
             $categoryId = (int) ($_POST['category_id'] ?? 0);
             $unitId = (int) ($_POST['unit_id'] ?? 0);
             $warehouseId = (int) ($_POST['default_warehouse_id'] ?? 0);
+            $taxRateId = (int) ($_POST['tax_rate_id'] ?? 0);
             $unit = $extendedSchemaOk && $unitId > 0
                 ? inv_item_unit_name_by_id($pdo, $unitId)
                 : (trim((string) ($_POST['unit_name'] ?? '')) ?: 'قطعة');
             $cost = (string) ($_POST['default_cost'] ?? '0');
             $sale = (string) ($_POST['default_sale'] ?? '0');
+            $wholesale = (string) ($_POST['default_wholesale'] ?? '0');
             $track = 1;
             $isEdit = $id > 0;
+            $isActive = isset($_POST['is_active']) ? 1 : 0;
             $openingQty = max(0, (float) str_replace(',', '.', (string) ($_POST['opening_qty'] ?? '0')));
+            $pricesLocked = $isEdit && inv_item_has_any_movements($pdo, $id);
+            $hasNameEn = inv_item_column_exists($pdo, 'name_en');
+            $hasWholesale = inv_item_column_exists($pdo, 'default_wholesale');
+            $hasTax = inv_item_column_exists($pdo, 'tax_rate_id');
 
             if ($name === '') {
-                throw new RuntimeException('اسم المادة مطلوب.');
+                throw new RuntimeException('اسم المادة بالعربي مطلوب.');
             }
 
             if ($extendedSchemaOk && $unitId < 1) {
@@ -71,27 +80,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($isEdit) {
-                $stPrices = $pdo->prepare('SELECT default_sale FROM inv_item WHERE id = ? LIMIT 1');
+                $stPrices = $pdo->prepare(
+                    'SELECT default_cost, default_sale'
+                    . ($hasWholesale ? ', default_wholesale' : '')
+                    . ', is_active FROM inv_item WHERE id = ? LIMIT 1'
+                );
                 $stPrices->execute([$id]);
                 $priceRow = $stPrices->fetch(PDO::FETCH_ASSOC);
                 if (!$priceRow) {
                     throw new RuntimeException('المادة غير موجودة.');
                 }
-                $costF = (float) str_replace(',', '.', $cost);
-                $saleF = (float) ($priceRow['default_sale'] ?? 0);
-                if ($costF < 0) {
-                    throw new RuntimeException('سعر التكلفة يجب أن يكون أكبر أو يساوي صفرًا.');
+                if ($pricesLocked) {
+                    $costF = (float) ($priceRow['default_cost'] ?? 0);
+                    $saleF = (float) ($priceRow['default_sale'] ?? 0);
+                    $wholesaleF = $hasWholesale ? (float) ($priceRow['default_wholesale'] ?? 0) : 0.0;
+                } else {
+                    $costF = (float) str_replace(',', '.', $cost);
+                    $saleF = (float) str_replace(',', '.', $sale);
+                    $wholesaleF = (float) str_replace(',', '.', $wholesale);
+                    if ($costF < 0 || $saleF < 0 || $wholesaleF < 0) {
+                        throw new RuntimeException('الأسعار يجب أن تكون أكبر أو تساوي صفرًا.');
+                    }
                 }
             } else {
                 $costF = (float) str_replace(',', '.', $cost);
                 $saleF = (float) str_replace(',', '.', $sale);
-                if ($costF < 0 || $saleF < 0) {
+                $wholesaleF = (float) str_replace(',', '.', $wholesale);
+                if ($costF < 0 || $saleF < 0 || $wholesaleF < 0) {
                     throw new RuntimeException('الأسعار يجب أن تكون أكبر أو تساوي صفرًا.');
                 }
             }
 
             if (!$autoSku && inv_item_sku_exists($pdo, $sku, $id)) {
-                throw new RuntimeException('رمز SKU مستخدم مسبقًا.');
+                throw new RuntimeException('رقم المادة مستخدم مسبقًا.');
             }
 
             if ($barcodeSchemaOk) {
@@ -106,11 +127,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $catVal = $extendedSchemaOk && $categoryId > 0 ? $categoryId : null;
             $whVal = $extendedSchemaOk && $warehouseId > 0 ? $warehouseId : null;
+            $taxVal = $hasTax && $taxRateId > 0 ? $taxRateId : null;
 
             $normalizedIssue = null;
-            if ($itemUnitsOk && $extendedSchemaOk && $unitId > 0) {
-                $issueUnitIds = $_POST['issue_unit_id'] ?? [];
-                $issueFactors = $_POST['issue_factor'] ?? [];
+            if ($itemUnitsOk && $extendedSchemaOk && $unitId > 0 && !$pricesLocked) {
+                $issueUnitIds = $_POST['issue_unit_id'] ?? ($_POST['pack_unit_id'] ?? []);
+                $issueFactors = $_POST['issue_factor'] ?? ($_POST['pack_factor'] ?? []);
                 if (!is_array($issueUnitIds)) {
                     $issueUnitIds = [$issueUnitIds];
                     $issueFactors = is_array($issueFactors) ? $issueFactors : [$issueFactors];
@@ -140,32 +162,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($id > 0) {
-                if ($barcodeSchemaOk && $extendedSchemaOk) {
-                    $st = $pdo->prepare(
-                        'UPDATE inv_item SET sku=?, barcode=?, name_ar=?, category_id=?, unit_id=?, default_warehouse_id=?, unit_name=?, default_cost=?, default_sale=?, track_inventory=? WHERE id=?'
-                    );
-                    $st->execute([$sku, $barcode, $name, $catVal, $unitVal, $whVal, $unit, $costF, $saleF, $track, $id]);
-                } elseif ($barcodeSchemaOk) {
-                    $st = $pdo->prepare('UPDATE inv_item SET sku=?, barcode=?, name_ar=?, unit_name=?, default_cost=?, default_sale=?, track_inventory=? WHERE id=?');
-                    $st->execute([$sku, $barcode, $name, $unit, $costF, $saleF, $track, $id]);
-                } else {
-                    $st = $pdo->prepare('UPDATE inv_item SET sku=?, name_ar=?, unit_name=?, default_cost=?, default_sale=?, track_inventory=? WHERE id=?');
-                    $st->execute([$sku, $name, $unit, $costF, $saleF, $track, $id]);
+                // dynamic update
+                $sets = ['sku=?', 'name_ar=?', 'unit_name=?', 'default_cost=?', 'default_sale=?', 'track_inventory=?', 'is_active=?'];
+                $params = [$sku, $name, $unit, $costF, $saleF, $track, (int) $isActive];
+                if ($barcodeSchemaOk) {
+                    $sets[] = 'barcode=?';
+                    $params[] = $barcode;
                 }
-                flash_set('success', 'تم تحديث المادة.');
+                if ($hasNameEn) {
+                    $sets[] = 'name_en=?';
+                    $params[] = $nameEn !== '' ? $nameEn : null;
+                }
+                if ($extendedSchemaOk) {
+                    $sets[] = 'category_id=?';
+                    $params[] = $catVal;
+                    if (!$pricesLocked) {
+                        $sets[] = 'unit_id=?';
+                        $params[] = $unitVal;
+                    }
+                    $sets[] = 'default_warehouse_id=?';
+                    $params[] = $whVal;
+                }
+                if ($hasWholesale) {
+                    $sets[] = 'default_wholesale=?';
+                    $params[] = $wholesaleF;
+                }
+                if ($hasTax) {
+                    $sets[] = 'tax_rate_id=?';
+                    $params[] = $taxVal;
+                }
+                $params[] = $id;
+                $pdo->prepare('UPDATE inv_item SET ' . implode(', ', $sets) . ' WHERE id=?')->execute($params);
+                flash_set(
+                    'success',
+                    $pricesLocked
+                        ? 'تم تحديث المادة (الأسعار مقفلة بعد الحركات).'
+                        : 'تم تحديث المادة.'
+                );
             } else {
-                if ($barcodeSchemaOk && $extendedSchemaOk) {
-                    $st = $pdo->prepare(
-                        'INSERT INTO inv_item (sku, barcode, name_ar, category_id, unit_id, default_warehouse_id, unit_name, default_cost, default_sale, track_inventory, is_active) VALUES (?,?,?,?,?,?,?,?,?,?,1)'
-                    );
-                    $st->execute([$sku, $barcode, $name, $catVal, $unitVal, $whVal, $unit, $costF, $saleF, $track]);
-                } elseif ($barcodeSchemaOk) {
-                    $st = $pdo->prepare('INSERT INTO inv_item (sku, barcode, name_ar, unit_name, default_cost, default_sale, track_inventory, is_active) VALUES (?,?,?,?,?,?,?,1)');
-                    $st->execute([$sku, $barcode, $name, $unit, $costF, $saleF, $track]);
-                } else {
-                    $st = $pdo->prepare('INSERT INTO inv_item (sku, name_ar, unit_name, default_cost, default_sale, track_inventory, is_active) VALUES (?,?,?,?,?,?,1)');
-                    $st->execute([$sku, $name, $unit, $costF, $saleF, $track]);
+                $cols = ['sku', 'name_ar', 'unit_name', 'default_cost', 'default_sale', 'track_inventory', 'is_active'];
+                $vals = [$sku, $name, $unit, $costF, $saleF, $track, 1];
+                if ($barcodeSchemaOk) {
+                    $cols[] = 'barcode';
+                    $vals[] = $barcode;
                 }
+                if ($hasNameEn) {
+                    $cols[] = 'name_en';
+                    $vals[] = $nameEn !== '' ? $nameEn : null;
+                }
+                if ($extendedSchemaOk) {
+                    $cols[] = 'category_id';
+                    $vals[] = $catVal;
+                    $cols[] = 'unit_id';
+                    $vals[] = $unitVal;
+                    $cols[] = 'default_warehouse_id';
+                    $vals[] = $whVal;
+                }
+                if ($hasWholesale) {
+                    $cols[] = 'default_wholesale';
+                    $vals[] = $wholesaleF;
+                }
+                if ($hasTax) {
+                    $cols[] = 'tax_rate_id';
+                    $vals[] = $taxVal;
+                }
+                $ph = implode(',', array_fill(0, count($cols), '?'));
+                $pdo->prepare('INSERT INTO inv_item (' . implode(',', $cols) . ') VALUES (' . $ph . ')')->execute($vals);
                 $savedId = (int) $pdo->lastInsertId();
                 if ($autoSku && $savedId > 0) {
                     $finalSku = inv_item_allocate_sku($pdo, $savedId);
@@ -208,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($savedId < 1) {
                 $savedId = (int) $pdo->lastInsertId();
             }
-            if ($itemUnitsOk && $extendedSchemaOk && $savedId > 0 && $unitId > 0) {
+            if ($itemUnitsOk && $extendedSchemaOk && $savedId > 0 && $unitId > 0 && !$pricesLocked) {
                 $extraUnits = $normalizedIssue ? [$normalizedIssue] : [];
                 inv_item_units_save($pdo, $savedId, $unitId, $extraUnits);
             }
@@ -269,12 +331,15 @@ if ($action === 'add' || $action === 'edit') {
         'sku' => '',
         'barcode' => '',
         'name_ar' => '',
+        'name_en' => '',
         'category_id' => 0,
         'unit_id' => 0,
         'default_warehouse_id' => 0,
+        'tax_rate_id' => 0,
         'unit_name' => 'قطعة',
         'default_cost' => 0,
         'default_sale' => 0,
+        'default_wholesale' => 0,
         'track_inventory' => 1,
         'expiry_date' => '',
         'notify_on_expiry' => 0,
@@ -307,6 +372,11 @@ if ($action === 'add' || $action === 'edit') {
     $categories = $extendedSchemaOk ? inv_item_load_categories($pdo) : [];
     $units = $extendedSchemaOk ? inv_item_load_units($pdo) : [];
     $warehouses = inv_item_load_warehouses($pdo);
+    $taxRates = inv_item_load_tax_rates($pdo);
+    $pricesLocked = $action === 'edit' && (int) ($row['id'] ?? 0) > 0 && inv_item_has_any_movements($pdo, (int) $row['id']);
+    $hasNameEn = inv_item_column_exists($pdo, 'name_en');
+    $hasWholesale = inv_item_column_exists($pdo, 'default_wholesale');
+    $hasTax = inv_item_column_exists($pdo, 'tax_rate_id');
 
     if ($extendedSchemaOk && $action === 'add' && (int) ($row['unit_id'] ?? 0) < 1 && $units !== []) {
         $row['unit_id'] = (int) $units[0]['id'];
@@ -354,27 +424,41 @@ if ($action === 'add' || $action === 'edit') {
             <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
             <input type="hidden" name="_action" value="save">
             <input type="hidden" name="id" value="<?= (int) $row['id'] ?>">
-            <input type="hidden" name="sku" value="<?= esc((string) $row['sku']) ?>">
+
+            <label class="field">
+                <span class="field-label">رقم المادة</span>
+                <input class="input" name="sku" value="<?= esc((string) $row['sku']) ?>" dir="ltr" maxlength="64"
+                       placeholder="<?= $action === 'add' ? 'تلقائي إن تُرك فارغاً' : '' ?>"
+                       title="رقم داخلي — لا يظهر في الفواتير">
+                <span class="muted" style="font-size:0.78rem;">داخلي فقط · المعرّف الظاهر هو الباركود</span>
+            </label>
 
             <?php if ($barcodeSchemaOk): ?>
             <label class="field">
-                <span class="field-label">Barcode</span>
-                <input class="input" name="barcode" value="<?= esc((string) ($row['barcode'] ?? '')) ?>" maxlength="14" inputmode="numeric" pattern="[0-9]*" autocomplete="off" title="أرقام فقط، حتى 14 رقمًا">
-                <span class="muted" style="font-size:0.78rem;">أرقام فقط (حتى 14 رقمًا) — فارغ عند الحفظ = تلقائي 6 أرقام</span>
+                <span class="field-label">باركود المادة *</span>
+                <input class="input" name="barcode" value="<?= esc((string) ($row['barcode'] ?? '')) ?>" maxlength="14" inputmode="numeric" pattern="[0-9]*" autocomplete="off" title="يظهر في الفواتير والتقارير" required>
+                <span class="muted" style="font-size:0.78rem;">أرقام فقط (حتى 14 رقمًا) — فارغ عند الحفظ = تلقائي 6 أرقام · يظهر في الفواتير والتقارير</span>
             </label>
             <?php endif; ?>
 
             <label class="field">
-                <span class="field-label">اسم المادة *</span>
+                <span class="field-label">اسم المادة بالعربي *</span>
                 <input class="input" name="name_ar" required value="<?= esc((string) $row['name_ar']) ?>">
                 <?php if ($action === 'add' && $nextListSeq > 0): ?>
-                    <span class="muted" style="font-size:0.78rem;">التسلسل في القائمة: <?= (int) $nextListSeq ?> (يُرتّب حسب تاريخ الإضافة)</span>
+                    <span class="muted" style="font-size:0.78rem;">التسلسل في القائمة: <?= (int) $nextListSeq ?></span>
                 <?php endif; ?>
             </label>
 
+            <?php if ($hasNameEn): ?>
+            <label class="field">
+                <span class="field-label">اسم المادة بالإنجليزي</span>
+                <input class="input" name="name_en" value="<?= esc((string) ($row['name_en'] ?? '')) ?>" dir="ltr">
+            </label>
+            <?php endif; ?>
+
             <?php if ($extendedSchemaOk): ?>
             <label class="field">
-                <span class="field-label">الفئة</span>
+                <span class="field-label">فئة المادة</span>
                 <select class="input" name="category_id">
                     <option value="">— بدون فئة —</option>
                     <?php foreach ($categories as $cat): ?>
@@ -388,7 +472,7 @@ if ($action === 'add' || $action === 'edit') {
 
             <label class="field">
                 <span class="field-label">الوحدة الأساسية *</span>
-                <select class="input" name="unit_id" id="item-base-unit-id" required>
+                <select class="input" name="unit_id" id="item-base-unit-id" required <?= $pricesLocked ? 'disabled' : '' ?>>
                     <option value="">— اختر الوحدة —</option>
                     <?php foreach ($units as $u): ?>
                         <option value="<?= (int) $u['id'] ?>" <?= (int) ($row['unit_id'] ?? 0) === (int) $u['id'] ? 'selected' : '' ?>>
@@ -396,7 +480,10 @@ if ($action === 'add' || $action === 'edit') {
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <span class="muted" style="font-size:0.78rem;">مثل قطعة — السعر في البطاقة لهذه الوحدة. <a href="<?= esc(app_url('index.php?r=item_units')) ?>">إدارة الوحدات</a></span>
+                <?php if ($pricesLocked): ?>
+                    <input type="hidden" name="unit_id" value="<?= (int) ($row['unit_id'] ?? 0) ?>">
+                <?php endif; ?>
+                <span class="muted" style="font-size:0.78rem;">مثل قطعة — العدد في الحقل المجاور يكون 1</span>
             </label>
             <?php
             $itemIssueUnit = null;
@@ -410,16 +497,16 @@ if ($action === 'add' || $action === 'edit') {
             ?>
             <?php if ($itemUnitsOk): ?>
             <div class="card" style="padding:0.75rem 1rem;margin:0.5rem 0 1rem;background:#f8fafc;" id="item-issue-units-box">
-                <strong style="display:block;margin-bottom:0.5rem;">وحدة الصرف والتعبئة (اختيارية — واحدة فقط)</strong>
+                <strong style="display:block;margin-bottom:0.5rem;">وحدات الصرف والتعبئة</strong>
                 <p class="muted" style="font-size:0.8rem;margin:0 0 0.75rem;line-height:1.55;">
-                    اختيارية: يمكن تركها <b>لا يوجد</b> أو الضغط على <b>حذف</b> لعدم استخدام وحدة صرف.
-                    إذا كانت الوحدة فوق <b>كرتون</b>: اختر أيضاً <b>كرتون</b> هنا وأدخل عدد القطع (مثال 24).
-                    عند الحفظ تُثبَّت <b>القطعة</b> كوحدة مخزون والكرتون كوحدة صرف.
+                    الوحدة الأساسية (قطعة) عددها 1. أضف وحدة أخرى دون تكرار (مثال: <b>كرتون</b> والعدد 24).
+                    تُلتزم في فواتير المبيعات/المشتريات وطلبات الشراء.
+                    <?php if ($pricesLocked): ?><b>مقفلة بعد حركات المادة.</b><?php endif; ?>
                 </p>
                 <div class="form-row" style="align-items:flex-end;gap:0.75rem;flex-wrap:wrap;margin:0;">
                     <label class="field" style="flex:1.2;min-width:180px;margin:0;">
-                        <span class="field-label">وحدة الصرف</span>
-                        <select class="input js-issue-unit-sel" name="issue_unit_id[]" id="item-issue-unit-id">
+                        <span class="field-label">وحدة إضافية (كرتونة…)</span>
+                        <select class="input js-issue-unit-sel" name="issue_unit_id[]" id="item-issue-unit-id" <?= $pricesLocked ? 'disabled' : '' ?>>
                             <option value="">— لا يوجد —</option>
                             <?php foreach ($units as $u): ?>
                                 <option value="<?= (int) $u['id'] ?>" <?= $itemIssueUnit && (int) $itemIssueUnit['unit_id'] === (int) $u['id'] ? 'selected' : '' ?>><?= esc((string) $u['name_ar']) ?></option>
@@ -427,50 +514,30 @@ if ($action === 'add' || $action === 'edit') {
                         </select>
                     </label>
                     <label class="field" style="flex:1;min-width:160px;margin:0;">
-                        <span class="field-label">العدد في وحدة الصرف (تعبئة)</span>
-                        <input class="input" type="number" name="issue_factor[]" id="item-issue-factor" min="0" step="1" value="<?= esc($issueFactorDisp) ?>" placeholder="مثال: 24" dir="ltr" title="اتركه فارغاً أو 0 إذا لم تستخدم وحدة صرف">
+                        <span class="field-label">العدد في الوحدة</span>
+                        <input class="input" type="number" name="issue_factor[]" id="item-issue-factor" min="0" step="1" value="<?= esc($issueFactorDisp) ?>" placeholder="مثال: 24" dir="ltr" <?= $pricesLocked ? 'readonly' : '' ?>>
                     </label>
+                    <?php if (!$pricesLocked): ?>
                     <div class="field" style="flex:0 0 auto;margin:0;">
                         <span class="field-label" style="visibility:hidden;">حذف</span>
-                        <button type="button" class="btn btn-secondary btn-sm" id="js-clear-issue-unit" title="حذف وحدة الصرف وعدم استخدامها">حذف / بدون صرف</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="js-clear-issue-unit">حذف / بدون صرف</button>
                     </div>
+                    <?php endif; ?>
                 </div>
             </div>
+            <?php if (!$pricesLocked): ?>
             <script>
             (function () {
-              var baseSel = document.getElementById('item-base-unit-id');
               var issueSel = document.getElementById('item-issue-unit-id');
               var factorInp = document.getElementById('item-issue-factor');
               var clearBtn = document.getElementById('js-clear-issue-unit');
-              function clearIssueUnit() {
+              if (clearBtn) clearBtn.addEventListener('click', function () {
                 if (issueSel) issueSel.value = '';
                 if (factorInp) factorInp.value = '';
-              }
-              if (clearBtn) {
-                clearBtn.addEventListener('click', clearIssueUnit);
-              }
-              if (issueSel) {
-                issueSel.addEventListener('change', function () {
-                  if (!issueSel.value) {
-                    if (factorInp) factorInp.value = '';
-                  }
-                });
-              }
-              function suggestIssueFromBase() {
-                if (!baseSel || !issueSel) return;
-                var baseId = String(baseSel.value || '');
-                if (!baseId) return;
-                // اقتراح فقط إن لم يختر المستخدم «لا يوجد» عمداً ولم تُعبَّأ وحدة صرف بعد
-                if (!issueSel.value && factorInp && !factorInp.value) {
-                  issueSel.value = baseId;
-                  factorInp.focus();
-                }
-              }
-              if (baseSel) {
-                baseSel.addEventListener('change', suggestIssueFromBase);
-              }
+              });
             })();
             </script>
+            <?php endif; ?>
             <?php endif; ?>
 
             <?php else: ?>
@@ -483,34 +550,35 @@ if ($action === 'add' || $action === 'edit') {
             <?php
             $isItemEdit = (int) ($row['id'] ?? 0) > 0;
             $priceAdjustUrl = app_url('index.php?r=item_sale_price_adjust&item_id=' . (int) ($row['id'] ?? 0));
+            $priceRo = $pricesLocked ? 'readonly' : '';
             ?>
+            <?php if ($pricesLocked): ?>
+                <div class="alert" style="background:#fef3c7;border:1px solid #f59e0b;color:#92400e;padding:.65rem .9rem;border-radius:8px;margin-bottom:.75rem;font-size:.88rem;">
+                    الأسعار مقفلة بعد حركات على المادة. عدّل سعر البيع من
+                    <a href="<?= esc($priceAdjustUrl) ?>">شاشة تعديل أسعار المواد</a>
+                    (الكلفة والجملة عبر الشاشات الخاصة لاحقاً).
+                </div>
+            <?php endif; ?>
             <div class="form-row">
-                <?php if ($isItemEdit): ?>
-                    <label class="field">
-                        <span class="field-label">سعر التكلفة</span>
-                        <input class="input" name="default_cost" type="number" step="0.000001" min="0"
-                               value="<?= esc((string) $row['default_cost']) ?>" dir="ltr">
-                    </label>
-                    <label class="field">
-                        <span class="field-label">سعر البيع</span>
-                        <input class="input" type="text" readonly dir="ltr" value="<?= esc(format_money((float) $row['default_sale'])) ?>">
-                    </label>
-                <?php else: ?>
-                    <label class="field">
-                        <span class="field-label">سعر التكلفة</span>
-                        <input class="input" name="default_cost" type="number" step="0.000001" min="0" value="<?= esc((string) $row['default_cost']) ?>">
-                    </label>
-                    <label class="field">
-                        <span class="field-label">سعر البيع</span>
-                        <input class="input" name="default_sale" type="number" step="0.000001" min="0" value="<?= esc((string) $row['default_sale']) ?>">
-                    </label>
+                <label class="field">
+                    <span class="field-label">سعر الكلفة</span>
+                    <input class="input" name="default_cost" type="number" step="0.000001" min="0"
+                           value="<?= esc((string) $row['default_cost']) ?>" dir="ltr" <?= $priceRo ?>>
+                </label>
+                <label class="field">
+                    <span class="field-label">سعر البيع</span>
+                    <input class="input" name="default_sale" type="number" step="0.000001" min="0"
+                           value="<?= esc((string) $row['default_sale']) ?>" dir="ltr" <?= $priceRo ?>>
+                </label>
+                <?php if ($hasWholesale): ?>
+                <label class="field">
+                    <span class="field-label">سعر الجملة</span>
+                    <input class="input" name="default_wholesale" type="number" step="0.000001" min="0"
+                           value="<?= esc((string) ($row['default_wholesale'] ?? 0)) ?>" dir="ltr" <?= $priceRo ?>>
+                </label>
                 <?php endif; ?>
             </div>
             <?php if ($isItemEdit): ?>
-                <p class="muted" style="font-size:0.85rem;margin:0 0 0.75rem;">
-                    يُحدَّث سعر التكلفة تلقائيًا من آخر فاتورة شراء مرحّلة (سعر الوحدة قبل الضريبة)، ويمكن تعديله يدويًا هنا.
-                    <a href="<?= esc($priceAdjustUrl) ?>">تعديل سعر البيع من شاشة تعديل الأسعار</a>
-                </p>
                 <div class="form-row item-stock-qty-readonly">
                     <label class="field">
                         <span class="field-label">الكمية المتوفرة (كل المستودعات)</span>
@@ -527,7 +595,7 @@ if ($action === 'add' || $action === 'edit') {
 
             <?php if ($extendedSchemaOk): ?>
             <label class="field">
-                <span class="field-label">المستودع الافتراضي</span>
+                <span class="field-label">المستودع</span>
                 <select class="input" name="default_warehouse_id">
                     <option value="">— بدون مستودع —</option>
                     <?php foreach ($warehouses as $wh): ?>
@@ -538,11 +606,23 @@ if ($action === 'add' || $action === 'edit') {
                 </select>
                 <span class="muted" style="font-size:0.78rem;"><a href="<?= esc(app_url('index.php?r=warehouses')) ?>">إدارة المستودعات</a></span>
             </label>
+            <?php if ($hasTax): ?>
+            <label class="field">
+                <span class="field-label">ضريبة المادة</span>
+                <select class="input" name="tax_rate_id">
+                    <option value="">— بدون ضريبة مخصصة —</option>
+                    <?php foreach ($taxRates as $tr): ?>
+                        <option value="<?= (int) $tr['id'] ?>" <?= (int) ($row['tax_rate_id'] ?? 0) === (int) $tr['id'] ? 'selected' : '' ?>>
+                            <?= esc((string) $tr['name_ar']) ?> (<?= esc((string) $tr['rate_percent']) ?>%)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <?php endif; ?>
             <?php if ((int) ($row['id'] ?? 0) < 1): ?>
             <label class="field">
                 <span class="field-label">رصيد افتتاحي (اختياري)</span>
                 <input class="input" name="opening_qty" type="number" step="any" min="0" value="" placeholder="0">
-                <span class="muted" style="font-size:0.78rem;">يُضاف للمستودع الافتراضي ويُغطّي أي عجز سابق لنفس المادة.</span>
             </label>
             <?php endif; ?>
             <?php endif; ?>
@@ -559,6 +639,11 @@ if ($action === 'add' || $action === 'edit') {
                 </label>
             </div>
             <?php endif; ?>
+
+            <label class="perm-item" style="margin:0.5rem 0 1rem;">
+                <input type="checkbox" name="is_active" value="1" <?= !empty($row['is_active']) || (int) ($row['id'] ?? 0) < 1 ? 'checked' : '' ?>>
+                <span>المادة نشطة (ألغِ التفعيل لإيقاف المادة)</span>
+            </label>
 
             <div>
                 <button class="btn btn-primary" type="submit" id="item-def-form-submit">حفظ</button>

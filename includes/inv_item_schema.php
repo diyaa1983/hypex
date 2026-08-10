@@ -760,3 +760,94 @@ function inv_item_fetch_list(PDO $pdo, ?int $limit = null, ?int $offset = null, 
 
     return $st->fetchAll() ?: [];
 }
+
+/** أعمدة بطاقة المادة الموسّعة (اسم إنجليزي / جملة / ضريبة). */
+function inv_item_ensure_card_columns(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    $cols = [
+        'name_en' => 'VARCHAR(200) NULL DEFAULT NULL',
+        'default_wholesale' => 'DECIMAL(18,6) NOT NULL DEFAULT 0',
+        'tax_rate_id' => 'INT UNSIGNED NULL DEFAULT NULL',
+    ];
+    foreach ($cols as $col => $def) {
+        try {
+            $pdo->query('SELECT `' . $col . '` FROM inv_item LIMIT 1');
+        } catch (Throwable $e) {
+            if (strpos($e->getMessage(), 'Unknown column') === false) {
+                continue;
+            }
+            try {
+                $pdo->exec('ALTER TABLE inv_item ADD COLUMN `' . $col . '` ' . $def);
+            } catch (Throwable $e2) {
+                error_log('inv_item_ensure_card_columns: ' . $e2->getMessage());
+            }
+        }
+    }
+}
+
+function inv_item_column_exists(PDO $pdo, string $column): bool
+{
+    static $cache = [];
+    if (array_key_exists($column, $cache)) {
+        return $cache[$column];
+    }
+    $column = preg_replace('/[^a-zA-Z0-9_]/', '', $column) ?? '';
+    if ($column === '') {
+        return $cache[$column] = false;
+    }
+    try {
+        $pdo->query('SELECT `' . $column . '` FROM inv_item LIMIT 1');
+        $cache[$column] = true;
+    } catch (Throwable $e) {
+        $cache[$column] = false;
+    }
+
+    return $cache[$column];
+}
+
+/** true إذا وُجدت حركات مخزون أو بنود مستندات على المادة. */
+function inv_item_has_any_movements(PDO $pdo, int $itemId): bool
+{
+    if ($itemId < 1) {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare('SELECT 1 FROM inv_stock_move WHERE item_id = ? LIMIT 1');
+        $st->execute([$itemId]);
+        if ($st->fetchColumn()) {
+            return true;
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+    foreach (['sal_invoice_line', 'pur_invoice_line', 'sal_customer_order_line', 'pur_order_line'] as $t) {
+        try {
+            $st = $pdo->prepare('SELECT 1 FROM `' . $t . '` WHERE item_id = ? LIMIT 1');
+            $st->execute([$itemId]);
+            if ($st->fetchColumn()) {
+                return true;
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+
+    return false;
+}
+
+/** @return list<array{id:int,name_ar:string,rate_percent:float|string}> */
+function inv_item_load_tax_rates(PDO $pdo): array
+{
+    try {
+        return $pdo->query(
+            'SELECT id, name_ar, rate_percent FROM sys_tax_rate WHERE is_active = 1 ORDER BY sort_order, id'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+}

@@ -619,6 +619,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 <tr>
                   <th style="width:2.2rem">#</th>
                   <th>المادة</th>
+                  <th style="width:7.5rem">الوحدة</th>
                   <th style="width:6.2rem">الكمية</th>
                   <th style="width:6.2rem">إضافية</th>
                   <th style="width:7rem">السعر</th>

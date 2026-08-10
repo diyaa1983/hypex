@@ -164,7 +164,7 @@ async function getReturn(id) {
   if (!headers[0]) return null;
   const h = headers[0];
   const lines = await db.query(
-    `SELECT rl.*, it.sku AS item_code, it.barcode, it.name_ar AS item_name,
+    `SELECT rl.*, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS item_code, it.barcode, it.name_ar AS item_name,
             il.qty AS qty_sold, COALESCE(il.qty_extra, 0) AS qty_extra_sold, il.line_desc
      FROM sal_return_line rl
      INNER JOIN inv_item it ON it.id = rl.item_id

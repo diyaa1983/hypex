@@ -2,6 +2,7 @@
 
 const db = require('../db');
 const { parseDateToIso, todayIso } = require('../lib/html');
+const itemPricing = require('../lib/itemPricing');
 
 function r3(n) {
   return Math.round((Number(n) || 0) * 1000) / 1000;
@@ -75,6 +76,38 @@ async function getOrder(id) {
   }
 
   const status = String(h.status || 'draft');
+  const mappedLines = [];
+  for (const ln of lines) {
+    const itemId = Number(ln.item_id);
+    let units = [];
+    try {
+      const pricing = await itemPricing.getItemPricing(itemId);
+      if (pricing) units = pricing.units || [];
+    } catch {
+      units = [];
+    }
+    mappedLines.push({
+      item_id: itemId,
+      item_code: ln.item_code || ln.item_sku || '',
+      name_ar: ln.item_name_resolved || ln.item_name || '',
+      qty: Number(ln.qty || 0),
+      qty_extra: Number(ln.qty_extra || 0),
+      unit_price: Number(ln.unit_price || 0),
+      base_sale: Number(ln.item_default_sale || 0),
+      discount_pct: Number(ln.discount_pct || 0),
+      discount_amount: Number(ln.discount_amount || 0),
+      tax_rate_percent: Number(ln.tax_rate_percent || 0),
+      tax_amount: Number(ln.tax_amount || 0),
+      line_total: Number(ln.line_total || 0),
+      line_gross: Number(ln.line_gross || 0),
+      unit_id: ln.unit_id != null ? Number(ln.unit_id) : null,
+      unit_name: ln.unit_name_resolved || ln.unit_name || 'قطعة',
+      unit_factor: Number(ln.unit_factor || 1),
+      qty_base: Number(ln.qty_base || ln.qty || 0),
+      units,
+    });
+  }
+
   return {
     id: Number(h.id),
     order_no: h.order_no,
@@ -95,24 +128,7 @@ async function getOrder(id) {
     tax_amount: Number(h.tax_amount || 0),
     total: Number(h.total || 0),
     invoice_discount_input: h.invoice_discount_input || '',
-    lines: lines.map((ln) => ({
-      item_id: Number(ln.item_id),
-      item_code: ln.item_code || ln.item_sku || '',
-      name_ar: ln.item_name_resolved || ln.item_name || '',
-      qty: Number(ln.qty || 0),
-      qty_extra: Number(ln.qty_extra || 0),
-      unit_price: Number(ln.unit_price || 0),
-      discount_pct: Number(ln.discount_pct || 0),
-      discount_amount: Number(ln.discount_amount || 0),
-      tax_rate_percent: Number(ln.tax_rate_percent || 0),
-      tax_amount: Number(ln.tax_amount || 0),
-      line_total: Number(ln.line_total || 0),
-      line_gross: Number(ln.line_gross || 0),
-      unit_id: ln.unit_id != null ? Number(ln.unit_id) : null,
-      unit_name: ln.unit_name_resolved || ln.unit_name || 'قطعة',
-      unit_factor: Number(ln.unit_factor || 1),
-      qty_base: Number(ln.qty_base || ln.qty || 0),
-    })),
+    lines: mappedLines,
   };
 }
 
@@ -244,13 +260,28 @@ async function saveOrder(payload, userId) {
   for (const ln of rawLines) {
     if (!ln || !Number(ln.item_id)) continue;
     if (Number(ln.qty) < 1) continue;
-    if (!(Number(ln.unit_price) > 0)) {
+    const priced = await itemPricing.resolveDocLinePricing(ln);
+    if (!(priced.unit_price > 0)) {
       return {
         ok: false,
-        error: 'أدخل السعر لكل بند مادة. لا يمكن حفظ الطلب بدون سعر.',
+        error: 'لا يمكن حفظ الطلب: سعر المادة في البطاقة صفر. عدّل السعر من شاشة الأسعار.',
       };
     }
-    const computed = computeLine(ln, defaultTax);
+    const taxFromItem =
+      priced.tax_rate_percent != null && priced.tax_rate_percent !== ''
+        ? priced.tax_rate_percent
+        : ln.tax_rate_percent;
+    const computed = computeLine(
+      {
+        ...ln,
+        unit_price: priced.unit_price,
+        unit_factor: priced.unit_factor,
+        unit_id: priced.unit_id,
+        unit_name: priced.unit_name,
+        tax_rate_percent: taxFromItem,
+      },
+      defaultTax
+    );
     if (!computed.name_ar) {
       const rows = await db.query(`SELECT name_ar FROM inv_item WHERE id = ? LIMIT 1`, [computed.item_id]);
       computed.name_ar = String(rows[0]?.name_ar || '');

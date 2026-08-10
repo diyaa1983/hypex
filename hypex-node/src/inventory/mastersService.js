@@ -101,21 +101,84 @@ async function deleteWarehouse(id) {
 }
 
 /* ── Items ── */
-async function listItems({ q = '', activeOnly = true } = {}) {
+
+async function ensureItemCardColumns() {
+  const alters = [
+    ['name_en', 'VARCHAR(200) NULL DEFAULT NULL'],
+    ['default_wholesale', 'DECIMAL(18,6) NOT NULL DEFAULT 0'],
+    ['tax_rate_id', 'INT UNSIGNED NULL DEFAULT NULL'],
+    ['expiry_date', 'DATE NULL DEFAULT NULL'],
+    ['notify_on_expiry', 'TINYINT(1) NOT NULL DEFAULT 0'],
+  ];
+  for (const [col, def] of alters) {
+    if (!(await tableHasColumn('inv_item', col))) {
+      try {
+        await db.query(`ALTER TABLE inv_item ADD COLUMN \`${col}\` ${def}`);
+      } catch (e) {
+        console.error('ensureItemCardColumns', col, e.message);
+      }
+    }
+  }
+}
+
+/** رقم العرض على الشاشات: الباركود أولاً ثم رقم المادة (sku) */
+function itemDisplayCode(row) {
+  const bc = String(row?.barcode || '').trim();
+  if (bc) return bc;
+  return String(row?.sku || '').trim();
+}
+
+async function itemHasMovements(itemId) {
+  const id = Number(itemId);
+  if (!id) return false;
+  try {
+    const m = await safeQuery(
+      `SELECT COUNT(*) AS c FROM inv_stock_move WHERE item_id = ? LIMIT 1`,
+      [id]
+    );
+    if (Number(m[0]?.c || 0) > 0) return true;
+  } catch {
+    /* */
+  }
+  const tables = [
+    'sal_invoice_line',
+    'pur_invoice_line',
+    'sal_customer_order_line',
+    'pur_order_line',
+  ];
+  for (const t of tables) {
+    try {
+      const r = await safeQuery(`SELECT COUNT(*) AS c FROM \`${t}\` WHERE item_id = ? LIMIT 1`, [id]);
+      if (Number(r[0]?.c || 0) > 0) return true;
+    } catch {
+      /* */
+    }
+  }
+  return false;
+}
+
+async function listItems({ q = '', activeOnly = false } = {}) {
+  await ensureItemCardColumns();
   const where = ['1=1'];
   const params = [];
   if (activeOnly) where.push('i.is_active = 1');
   if (q) {
     const like = `%${q}%`;
-    where.push(`(i.name_ar LIKE ? OR IFNULL(i.sku,'') LIKE ? OR IFNULL(i.barcode,'') LIKE ?)`);
-    params.push(like, like, like);
+    where.push(
+      `(i.name_ar LIKE ? OR IFNULL(i.name_en,'') LIKE ? OR IFNULL(i.sku,'') LIKE ? OR IFNULL(i.barcode,'') LIKE ?)`
+    );
+    params.push(like, like, like, like);
   }
+  const hasWholesale = await tableHasColumn('inv_item', 'default_wholesale');
+  const wholesaleSel = hasWholesale ? 'i.default_wholesale' : '0 AS default_wholesale';
   return safeQuery(
-    `SELECT i.id, i.sku, i.barcode, i.name_ar, i.default_cost, i.default_sale, i.is_active,
-            c.name_ar AS category_name, u.name_ar AS unit_name
+    `SELECT i.id, i.sku, i.barcode, i.name_ar, i.name_en, i.default_cost, i.default_sale,
+            ${wholesaleSel}, i.is_active, i.expiry_date,
+            c.name_ar AS category_name, u.name_ar AS unit_name, w.name_ar AS warehouse_name
      FROM inv_item i
      LEFT JOIN inv_item_category c ON c.id = i.category_id
      LEFT JOIN inv_unit u ON u.id = i.unit_id
+     LEFT JOIN inv_warehouse w ON w.id = i.default_warehouse_id
      WHERE ${where.join(' AND ')}
      ORDER BY i.id DESC LIMIT 300`,
     params
@@ -123,17 +186,39 @@ async function listItems({ q = '', activeOnly = true } = {}) {
 }
 
 async function getItem(id) {
-  const rows = await safeQuery(
-    `SELECT i.* FROM inv_item i WHERE i.id = ? LIMIT 1`,
-    [Number(id)]
-  );
-  return rows[0] || null;
+  await ensureItemCardColumns();
+  const rows = await safeQuery(`SELECT i.* FROM inv_item i WHERE i.id = ? LIMIT 1`, [Number(id)]);
+  const item = rows[0] || null;
+  if (!item) return null;
+  item.item_units = await getItemUnits(Number(id));
+  item.prices_locked = await itemHasMovements(Number(id));
+  item.units_locked = item.prices_locked;
+  return item;
+}
+
+async function getItemUnits(itemId) {
+  const id = Number(itemId);
+  if (!id) return [];
+  try {
+    return await safeQuery(
+      `SELECT iu.id, iu.unit_id, iu.factor_to_base, iu.is_base, iu.is_default_issue,
+              u.name_ar AS unit_name, u.code AS unit_code
+       FROM inv_item_unit iu
+       INNER JOIN inv_unit u ON u.id = iu.unit_id
+       WHERE iu.item_id = ?
+       ORDER BY iu.is_base DESC, iu.is_default_issue DESC, iu.id ASC`,
+      [id]
+    );
+  } catch {
+    return [];
+  }
 }
 
 async function itemLookups() {
   let categories = [];
   let units = [];
   let warehouses = [];
+  let taxRates = [];
   try {
     categories = await safeQuery(
       `SELECT id, code, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar LIMIT 300`
@@ -144,7 +229,11 @@ async function itemLookups() {
   try {
     units = await safeQuery(`SELECT id, code, name_ar FROM inv_unit WHERE is_active = 1 ORDER BY name_ar LIMIT 300`);
   } catch {
-    units = await safeQuery(`SELECT id, code, name_ar FROM inv_unit ORDER BY name_ar LIMIT 300`);
+    try {
+      units = await safeQuery(`SELECT id, code, name_ar FROM inv_unit ORDER BY name_ar LIMIT 300`);
+    } catch {
+      units = [];
+    }
   }
   try {
     warehouses = await safeQuery(
@@ -153,7 +242,14 @@ async function itemLookups() {
   } catch {
     warehouses = [];
   }
-  return { categories, units, warehouses };
+  try {
+    taxRates = await safeQuery(
+      `SELECT id, name_ar, rate_percent FROM sys_tax_rate WHERE is_active = 1 ORDER BY sort_order, id LIMIT 100`
+    );
+  } catch {
+    taxRates = [];
+  }
+  return { categories, units, warehouses, taxRates };
 }
 
 async function nextBarcode() {
@@ -174,26 +270,201 @@ async function allocateSku(itemId) {
   return 'I' + String(itemId).padStart(6, '0');
 }
 
+/**
+ * Parse multi-unit rows: no duplicate unit_id; one base (factor 1).
+ * payload:
+ *  - unit_id (base)
+ *  - pack_unit_id[] + pack_factor[] additional issue units
+ */
+function parsePackUnits(payload, baseUnitId) {
+  const baseId = Number(baseUnitId) || 0;
+  const seen = new Set();
+  if (baseId > 0) seen.add(baseId);
+
+  const rawIds = payload.pack_unit_id;
+  const rawFactors = payload.pack_factor;
+  const ids = Array.isArray(rawIds) ? rawIds : rawIds != null && rawIds !== '' ? [rawIds] : [];
+  const factors = Array.isArray(rawFactors)
+    ? rawFactors
+    : rawFactors != null && rawFactors !== ''
+      ? [rawFactors]
+      : [];
+
+  // legacy single issue_unit_id
+  if (!ids.length && Number(payload.issue_unit_id || 0) > 0) {
+    ids.push(payload.issue_unit_id);
+    factors.push(payload.issue_factor || 1);
+  }
+
+  const extras = [];
+  for (let i = 0; i < ids.length; i++) {
+    const uid = Number(ids[i] || 0);
+    if (!uid || seen.has(uid)) continue;
+    let factor = Number(String(factors[i] ?? '1').replace(',', '.')) || 0;
+    if (factor <= 0) continue;
+    // base unit pack row → factor stays 1
+    if (uid === baseId) {
+      factor = 1;
+      continue;
+    }
+    seen.add(uid);
+    extras.push({ unit_id: uid, factor });
+  }
+  return { baseUnitId: baseId, extras };
+}
+
+async function findPieceUnitId() {
+  try {
+    const rows = await safeQuery(
+      `SELECT id FROM inv_unit
+       WHERE code = 'PCS' OR name_ar IN ('قطعة','حبة','pcs','PCS')
+       ORDER BY id LIMIT 1`
+    );
+    return Number(rows[0]?.id || 0) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * If pack unit is carton with factor>1 and base is same carton, force base = piece.
+ */
+async function normalizeBaseAndPacks(baseUnitId, extras) {
+  let baseId = Number(baseUnitId) || 0;
+  let packList = extras.slice();
+  if (!baseId) return { baseUnitId: baseId, extras: packList };
+
+  const baseRow = await safeQuery(`SELECT id, code, name_ar FROM inv_unit WHERE id = ? LIMIT 1`, [baseId]);
+  const baseName = String(baseRow[0]?.name_ar || '').trim();
+  const baseCode = String(baseRow[0]?.code || '').trim().toUpperCase();
+
+  const isCartonLike = (name, code) => {
+    const n = String(name || '').toLowerCase();
+    const c = String(code || '').toUpperCase();
+    return (
+      n.includes('كرتون') ||
+      n.includes('كرتونة') ||
+      n.includes('carton') ||
+      n.includes('box') ||
+      c === 'BOX' ||
+      c === 'CTN'
+    );
+  };
+
+  // if user put carton as "base" with a pack factor on same, convert
+  const selfPack = packList.find((p) => p.unit_id === baseId && p.factor > 1);
+  if (selfPack || (isCartonLike(baseName, baseCode) && packList.some((p) => p.factor > 1 && p.unit_id === baseId))) {
+    const pcs = await findPieceUnitId();
+    if (pcs && pcs !== baseId) {
+      const cartFactor = selfPack?.factor || packList.find((p) => p.unit_id === baseId)?.factor || 1;
+      packList = packList.filter((p) => p.unit_id !== baseId && p.unit_id !== pcs);
+      packList.unshift({ unit_id: baseId, factor: cartFactor > 1 ? cartFactor : 1 });
+      baseId = pcs;
+    }
+  }
+
+  // remove duplicates again
+  const seen = new Set([baseId]);
+  packList = packList.filter((p) => {
+    if (!p.unit_id || seen.has(p.unit_id) || p.factor <= 0) return false;
+    seen.add(p.unit_id);
+    return true;
+  });
+
+  return { baseUnitId: baseId, extras: packList };
+}
+
+async function saveItemUnits(itemId, baseUnitId, extras, locked) {
+  if (locked) return;
+  const id = Number(itemId);
+  if (!id || !baseUnitId) return;
+  try {
+    await safeQuery(`DELETE FROM inv_item_unit WHERE item_id = ?`, [id]);
+    await safeQuery(
+      `INSERT INTO inv_item_unit (item_id, unit_id, factor_to_base, is_base, is_default_issue)
+       VALUES (?,?,1,1,?)`,
+      [id, baseUnitId, extras.length ? 0 : 1]
+    );
+    let first = true;
+    for (const ex of extras) {
+      await safeQuery(
+        `INSERT INTO inv_item_unit (item_id, unit_id, factor_to_base, is_base, is_default_issue)
+         VALUES (?,?,?,0,?)`,
+        [id, ex.unit_id, ex.factor, first ? 1 : 0]
+      );
+      first = false;
+    }
+  } catch (e) {
+    console.error('saveItemUnits', e.message);
+  }
+}
+
 async function saveItem(payload) {
+  await ensureItemCardColumns();
   const id = Number(payload.id || 0);
   let sku = String(payload.sku || '').trim();
   let barcode = String(payload.barcode || '').trim();
   const name = String(payload.name_ar || '').trim();
+  const nameEn = String(payload.name_en || '').trim();
   const categoryId = Number(payload.category_id || 0) || null;
-  const unitId = Number(payload.unit_id || 0) || null;
+  let unitId = Number(payload.unit_id || 0) || null;
   const warehouseId = Number(payload.default_warehouse_id || 0) || null;
-  const cost = Number(String(payload.default_cost || '0').replace(',', '.')) || 0;
-  const sale = Number(String(payload.default_sale || '0').replace(',', '.')) || 0;
+  const taxRateId = Number(payload.tax_rate_id || 0) || null;
+  let cost = Number(String(payload.default_cost || '0').replace(',', '.')) || 0;
+  let sale = Number(String(payload.default_sale || '0').replace(',', '.')) || 0;
+  let wholesale = Number(String(payload.default_wholesale || '0').replace(',', '.')) || 0;
+  const isActive =
+    payload.is_active === undefined || payload.is_active === null || payload.is_active === ''
+      ? 1
+      : payload.is_active === '1' || payload.is_active === 1 || payload.is_active === true || payload.is_active === 'on'
+        ? 1
+        : 0;
+  let expiryDate = String(payload.expiry_date || '').trim().slice(0, 10);
+  if (expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) expiryDate = null;
+  if (!expiryDate) expiryDate = null;
+  const notifyExpiry =
+    payload.notify_on_expiry === '1' || payload.notify_on_expiry === 1 || payload.notify_on_expiry === 'on' ? 1 : 0;
 
-  if (!name) return { ok: false, error: 'اسم المادة مطلوب.' };
-  if (cost < 0 || sale < 0) return { ok: false, error: 'الأسعار يجب أن تكون ≥ 0.' };
+  if (!name) return { ok: false, error: 'اسم المادة بالعربي مطلوب.' };
+  if (cost < 0 || sale < 0 || wholesale < 0) return { ok: false, error: 'الأسعار يجب أن تكون ≥ 0.' };
 
   const hasBarcode = await tableHasColumn('inv_item', 'barcode');
   const hasCategory = await tableHasColumn('inv_item', 'category_id');
   const hasUnitId = await tableHasColumn('inv_item', 'unit_id');
   const hasWh = await tableHasColumn('inv_item', 'default_warehouse_id');
+  const hasNameEn = await tableHasColumn('inv_item', 'name_en');
+  const hasWholesale = await tableHasColumn('inv_item', 'default_wholesale');
+  const hasTax = await tableHasColumn('inv_item', 'tax_rate_id');
+  const hasExpiry = await tableHasColumn('inv_item', 'expiry_date');
 
-  if (hasUnitId && !unitId) return { ok: false, error: 'اختر الوحدة الأساسية.' };
+  if (hasUnitId && !unitId) return { ok: false, error: 'اختر الوحدة الأساسية (مثال: قطعة).' };
+
+  const pricesLocked = id > 0 ? await itemHasMovements(id) : false;
+  const unitsLocked = pricesLocked;
+
+  if (pricesLocked) {
+    const cur = await safeQuery(
+      `SELECT default_cost, default_sale${hasWholesale ? ', default_wholesale' : ''} FROM inv_item WHERE id = ? LIMIT 1`,
+      [id]
+    );
+    if (!cur[0]) return { ok: false, error: 'المادة غير موجودة.' };
+    cost = Number(cur[0].default_cost || 0);
+    sale = Number(cur[0].default_sale || 0);
+    wholesale = hasWholesale ? Number(cur[0].default_wholesale || 0) : wholesale;
+  }
+
+  // multi unit normalize
+  let packExtras = [];
+  if (unitId && !unitsLocked) {
+    const parsed = parsePackUnits(payload, unitId);
+    const norm = await normalizeBaseAndPacks(parsed.baseUnitId, parsed.extras);
+    unitId = norm.baseUnitId || unitId;
+    packExtras = norm.extras;
+  } else if (unitId && unitsLocked) {
+    // keep existing base
+    const curU = await safeQuery(`SELECT unit_id FROM inv_item WHERE id = ? LIMIT 1`, [id]);
+    if (curU[0]?.unit_id) unitId = Number(curU[0].unit_id);
+  }
 
   let unitName = 'قطعة';
   if (unitId) {
@@ -223,84 +494,136 @@ async function saveItem(payload) {
     const dupSku = id
       ? await safeQuery(`SELECT id FROM inv_item WHERE sku = ? AND id <> ? LIMIT 1`, [sku, id])
       : await safeQuery(`SELECT id FROM inv_item WHERE sku = ? LIMIT 1`, [sku]);
-    if (dupSku[0]) return { ok: false, error: 'رمز SKU مستخدم مسبقاً.' };
+    if (dupSku[0]) return { ok: false, error: 'رقم المادة مستخدم مسبقاً.' };
   }
 
+  // build dynamic update/insert
   if (id > 0) {
-    // on edit keep sale price from DB if not provided? use provided
-    if (hasBarcode && hasCategory) {
-      await safeQuery(
-        `UPDATE inv_item SET sku=?, barcode=?, name_ar=?, category_id=?, unit_id=?,
-         default_warehouse_id=?, unit_name=?, default_cost=?, default_sale=?, track_inventory=1
-         WHERE id=?`,
-        [sku, barcode || null, name, categoryId, unitId, warehouseId, unitName, cost, sale, id]
-      );
-    } else if (hasBarcode) {
-      await safeQuery(
-        `UPDATE inv_item SET sku=?, barcode=?, name_ar=?, unit_name=?, default_cost=?, default_sale=?, track_inventory=1
-         WHERE id=?`,
-        [sku, barcode || null, name, unitName, cost, sale, id]
-      );
-    } else {
-      await safeQuery(
-        `UPDATE inv_item SET sku=?, name_ar=?, unit_name=?, default_cost=?, default_sale=?, track_inventory=1
-         WHERE id=?`,
-        [sku, name, unitName, cost, sale, id]
-      );
+    const sets = [
+      'sku=?',
+      'name_ar=?',
+      'unit_name=?',
+      'default_cost=?',
+      'default_sale=?',
+      'track_inventory=1',
+      'is_active=?',
+    ];
+    const params = [sku, name, unitName, cost, sale, isActive];
+
+    if (hasBarcode) {
+      sets.push('barcode=?');
+      params.push(barcode || null);
     }
-    return { ok: true, id, message: 'تم تحديث المادة.' };
+    if (hasNameEn) {
+      sets.push('name_en=?');
+      params.push(nameEn || null);
+    }
+    if (hasCategory) {
+      sets.push('category_id=?');
+      params.push(categoryId);
+    }
+    if (hasUnitId && !unitsLocked) {
+      sets.push('unit_id=?');
+      params.push(unitId);
+    }
+    if (hasWh) {
+      sets.push('default_warehouse_id=?');
+      params.push(warehouseId);
+    }
+    if (hasWholesale) {
+      sets.push('default_wholesale=?');
+      params.push(wholesale);
+    }
+    if (hasTax) {
+      sets.push('tax_rate_id=?');
+      params.push(taxRateId);
+    }
+    if (hasExpiry) {
+      sets.push('expiry_date=?', 'notify_on_expiry=?');
+      params.push(expiryDate, notifyExpiry);
+    }
+    params.push(id);
+    await safeQuery(`UPDATE inv_item SET ${sets.join(', ')} WHERE id=?`, params);
+    await saveItemUnits(id, unitId, packExtras, unitsLocked);
+    return {
+      ok: true,
+      id,
+      message: pricesLocked
+        ? 'تم تحديث المادة (الأسعار مقفلة بعد الحركات — عدّلها من شاشات الأسعار).'
+        : 'تم تحديث المادة.',
+    };
   }
 
-  let newId;
-  if (hasBarcode && hasCategory && hasUnitId && hasWh) {
-    const [result] = await db.getPool().execute(
-      `INSERT INTO inv_item
-       (sku, barcode, name_ar, category_id, unit_id, default_warehouse_id, unit_name,
-        default_cost, default_sale, track_inventory, is_active)
-       VALUES (?,?,?,?,?,?,?,?,?,1,1)`,
-      [sku, barcode || null, name, categoryId, unitId, warehouseId, unitName, cost, sale]
-    );
-    newId = Number(result.insertId);
-  } else if (hasBarcode) {
-    const [result] = await db.getPool().execute(
-      `INSERT INTO inv_item (sku, barcode, name_ar, unit_name, default_cost, default_sale, track_inventory, is_active)
-       VALUES (?,?,?,?,?,?,1,1)`,
-      [sku, barcode || null, name, unitName, cost, sale]
-    );
-    newId = Number(result.insertId);
-  } else {
-    const [result] = await db.getPool().execute(
-      `INSERT INTO inv_item (sku, name_ar, unit_name, default_cost, default_sale, track_inventory, is_active)
-       VALUES (?,?,?,?,?,1,1)`,
-      [sku, name, unitName, cost, sale]
-    );
-    newId = Number(result.insertId);
+  // insert
+  const cols = ['sku', 'name_ar', 'unit_name', 'default_cost', 'default_sale', 'track_inventory', 'is_active'];
+  const vals = [sku, name, unitName, cost, sale, 1, isActive];
+  if (hasBarcode) {
+    cols.push('barcode');
+    vals.push(barcode || null);
   }
+  if (hasNameEn) {
+    cols.push('name_en');
+    vals.push(nameEn || null);
+  }
+  if (hasCategory) {
+    cols.push('category_id');
+    vals.push(categoryId);
+  }
+  if (hasUnitId) {
+    cols.push('unit_id');
+    vals.push(unitId);
+  }
+  if (hasWh) {
+    cols.push('default_warehouse_id');
+    vals.push(warehouseId);
+  }
+  if (hasWholesale) {
+    cols.push('default_wholesale');
+    vals.push(wholesale);
+  }
+  if (hasTax) {
+    cols.push('tax_rate_id');
+    vals.push(taxRateId);
+  }
+  if (hasExpiry) {
+    cols.push('expiry_date', 'notify_on_expiry');
+    vals.push(expiryDate, notifyExpiry);
+  }
+
+  const placeholders = cols.map(() => '?').join(',');
+  const [result] = await db.getPool().execute(
+    `INSERT INTO inv_item (${cols.join(',')}) VALUES (${placeholders})`,
+    vals
+  );
+  const newId = Number(result.insertId);
 
   if (autoSku && newId) {
     const finalSku = await allocateSku(newId);
     await safeQuery(`UPDATE inv_item SET sku = ? WHERE id = ?`, [finalSku, newId]);
   }
 
-  // optional issue unit (one packing unit)
-  const issueUnitId = Number(payload.issue_unit_id || 0);
-  const issueFactor = Number(String(payload.issue_factor || '0').replace(',', '.')) || 0;
-  if (newId && unitId && issueUnitId > 0 && issueFactor > 0) {
+  await saveItemUnits(newId, unitId, packExtras, false);
+
+  const openingQty = Number(String(payload.opening_qty || '0').replace(',', '.')) || 0;
+  if (openingQty > 0 && warehouseId && newId) {
     try {
       await safeQuery(
-        `INSERT INTO inv_item_unit (item_id, unit_id, factor_to_base, is_base, is_default_issue)
-         VALUES (?,?,1,1,0)
-         ON DUPLICATE KEY UPDATE factor_to_base=1, is_base=1`,
-        [newId, unitId]
-      );
-      await safeQuery(
-        `INSERT INTO inv_item_unit (item_id, unit_id, factor_to_base, is_base, is_default_issue)
-         VALUES (?,?,?,0,1)
-         ON DUPLICATE KEY UPDATE factor_to_base=VALUES(factor_to_base), is_default_issue=1`,
-        [newId, issueUnitId, issueFactor]
+        `INSERT INTO inv_stock_move
+         (move_date, warehouse_id, item_id, qty_in, qty_out, ref_type, ref_id, notes)
+         VALUES (CURDATE(), ?, ?, ?, 0, 'item_opening', ?, ?)`,
+        [warehouseId, newId, openingQty, newId, 'رصيد افتتاحي — ' + name]
       );
     } catch (e) {
-      console.error('issue unit', e.message);
+      // alternate schema
+      try {
+        await safeQuery(
+          `INSERT INTO inv_stock_move (move_date, warehouse_id, item_id, qty, direction, ref_type, ref_id, notes)
+           VALUES (CURDATE(),?,?,?,'in','item_opening',?,?)`,
+          [warehouseId, newId, openingQty, newId, 'رصيد افتتاحي — ' + name]
+        );
+      } catch (e2) {
+        console.error('opening stock', e2.message);
+      }
     }
   }
 
@@ -310,19 +633,25 @@ async function saveItem(payload) {
 async function deleteItem(id) {
   const itemId = Number(id);
   if (!itemId) return { ok: false, error: 'معرّف غير صالح.' };
+  if (await itemHasMovements(itemId)) {
+    return { ok: false, error: 'لا يمكن حذف مادة لها حركات. أوقفها من بطاقة المادة بدلاً من ذلك.' };
+  }
   try {
-    const m = await safeQuery(
-      `SELECT COUNT(*) AS c FROM inv_stock_move WHERE item_id = ? LIMIT 1`,
-      [itemId]
-    );
-    if (Number(m[0]?.c || 0) > 0) {
-      return { ok: false, error: 'لا يمكن حذف مادة لها حركات مخزون. أوقفها بدلاً من ذلك.' };
-    }
+    await safeQuery(`DELETE FROM inv_item_unit WHERE item_id = ?`, [itemId]);
   } catch {
     /* */
   }
   await safeQuery(`DELETE FROM inv_item WHERE id = ?`, [itemId]);
   return { ok: true, message: 'تم حذف المادة.' };
+}
+
+async function toggleItemActive(id) {
+  const itemId = Number(id);
+  if (!itemId) return { ok: false, error: 'معرّف غير صالح.' };
+  await safeQuery(`UPDATE inv_item SET is_active = 1 - is_active WHERE id = ?`, [itemId]);
+  const rows = await safeQuery(`SELECT is_active FROM inv_item WHERE id = ? LIMIT 1`, [itemId]);
+  const on = Number(rows[0]?.is_active) === 1;
+  return { ok: true, message: on ? 'تم تفعيل المادة.' : 'تم إيقاف المادة.' };
 }
 
 /* ── Units ── */
@@ -592,9 +921,13 @@ module.exports = {
   deleteWarehouse,
   listItems,
   getItem,
+  getItemUnits,
   itemLookups,
   saveItem,
   deleteItem,
+  toggleItemActive,
+  itemHasMovements,
+  itemDisplayCode,
   nextBarcode,
   listUnits,
   getUnit,

@@ -139,7 +139,7 @@ async function reportOrders(from, to) {
 async function reportOrdersByItem(from, to) {
   const r = dateRange(from, to);
   return safeQuery(
-    `SELECT COALESCE(ol.line_desc, it.name_ar) AS label, it.sku AS code,
+    `SELECT COALESCE(ol.line_desc, it.name_ar) AS label, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS code,
             SUM(ol.qty) AS qty, COALESCE(SUM(ol.line_total),0) AS total
      FROM pur_order_line ol
      INNER JOIN pur_order o ON o.id = ol.order_id
@@ -167,7 +167,7 @@ async function reportPurchasesBetween(from, to) {
 async function reportPurchasesByItem(from, to) {
   const r = dateRange(from, to);
   return safeQuery(
-    `SELECT COALESCE(il.line_desc, it.name_ar) AS label, it.sku AS code,
+    `SELECT COALESCE(il.line_desc, it.name_ar) AS label, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS code,
             SUM(il.qty) AS qty, COALESCE(SUM(COALESCE(il.line_total, il.line_gross, 0)),0) AS total
      FROM pur_invoice_line il
      INNER JOIN pur_invoice i ON i.id = il.invoice_id

@@ -279,13 +279,19 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         <a class="si-btn" href="/sales-reps/route/${r.id}/print" target="_blank">طباعة</a>
         ${
           String(r.status) === 'posted'
-            ? `<form method="post" action="/sales-reps/route/${r.id}/unpost" style="display:inline">
+            ? `<form method="post" action="/sales-reps/route" style="display:inline">
+                <input type="hidden" name="tour_action" value="unpost">
+                <input type="hidden" name="id" value="${r.id}">
                 <button type="submit" class="si-btn">فك ترحيل</button>
               </form>`
-            : `<form method="post" action="/sales-reps/route/${r.id}/post" style="display:inline">
+            : `<form method="post" action="/sales-reps/route" style="display:inline">
+                <input type="hidden" name="tour_action" value="post">
+                <input type="hidden" name="id" value="${r.id}">
                 <button type="submit" class="si-btn si-btn--primary">ترحيل</button>
               </form>
-              <form method="post" action="/sales-reps/route/${r.id}/delete" style="display:inline" onsubmit="return confirm('حذف الجولة؟');">
+              <form method="post" action="/sales-reps/route" style="display:inline" onsubmit="return confirm('حذف الجولة؟');">
+                <input type="hidden" name="tour_action" value="delete">
+                <input type="hidden" name="id" value="${r.id}">
                 <button type="submit" class="si-btn si-btn--danger-text">حذف</button>
               </form>`
         }
@@ -393,13 +399,13 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
             <div class="srr-form__actions">
               ${
                 isPosted
-                  ? `<button class="si-btn" type="submit" formaction="/sales-reps/route/${edit.id}/unpost" formmethod="post">فك ترحيل</button>
+                  ? `<button class="si-btn" type="submit" name="tour_action" value="unpost">فك ترحيل</button>
                     <a class="si-btn si-btn--primary" href="/sales-reps/route/${edit.id}/print" target="_blank">طباعة الجولة</a>`
                   : `<button class="si-btn si-btn--primary" type="submit" data-hx-save="1" title="F10">حفظ</button>
                     <button class="si-btn" type="submit" name="and_post" value="1">حفظ وترحيل</button>
                     ${
                       edit
-                        ? `<button class="si-btn" type="submit" formaction="/sales-reps/route/${edit.id}/post" formmethod="post">ترحيل</button>`
+                        ? `<button class="si-btn" type="submit" name="tour_action" value="post">ترحيل</button>`
                         : ''
                     }`
               }
@@ -678,6 +684,22 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
 
 router.post('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
   const body = req.body || {};
+  const tourAction = String(body.tour_action || '').trim().toLowerCase();
+  const tourId = Number(body.id || 0);
+
+  if (tourAction === 'post' || tourAction === 'unpost' || tourAction === 'delete') {
+    let result;
+    if (tourAction === 'post') result = await masters.postTour(tourId, req.session.user?.id);
+    else if (tourAction === 'unpost') result = await masters.unpostTour(tourId, req.session.user?.id);
+    else result = await masters.deleteTour(tourId);
+    const key = result.ok ? 'msg' : 'err';
+    const qs =
+      tourAction === 'delete'
+        ? `${key}=${encodeURIComponent(result.message || result.error || '')}`
+        : `id=${tourId}&${key}=${encodeURIComponent(result.message || result.error || '')}`;
+    return res.redirect('/sales-reps/route?' + qs);
+  }
+
   try {
     if (body.lines_json) {
       const parsed = JSON.parse(String(body.lines_json || '[]'));

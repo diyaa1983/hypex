@@ -162,7 +162,7 @@ async function reportSalesBetweenDates(from, to) {
 async function reportSalesByItem(from, to) {
   const r = dateRange(from, to);
   return safeQuery(
-    `SELECT COALESCE(il.line_desc, it.name_ar) AS label, it.sku AS code,
+    `SELECT COALESCE(il.line_desc, it.name_ar) AS label, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS code,
             SUM(il.qty) AS qty, COALESCE(SUM(il.line_gross), SUM(il.line_total),0) AS total
      FROM sal_invoice_line il
      INNER JOIN sal_invoice i ON i.id = il.invoice_id

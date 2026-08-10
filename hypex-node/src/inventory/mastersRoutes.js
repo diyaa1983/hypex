@@ -177,28 +177,36 @@ router.get('/inventory/items', async (req, res) => {
     if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
     const qv = String(req.query.q || '');
     const flash = String(req.query.msg || '');
-    const rows = await svc.listItems({ q: qv });
+    const rows = await svc.listItems({ q: qv, activeOnly: false });
     const rowsHtml =
       rows
         .map(
           (r) => `<tr>
-        <td class="si-num" dir="ltr">${esc(r.sku || '')}</td>
         <td class="si-num" dir="ltr">${esc(r.barcode || '—')}</td>
-        <td>${esc(r.name_ar || '')}</td>
+        <td class="si-num" dir="ltr" style="opacity:.65">${esc(r.sku || '—')}</td>
+        <td>
+          <strong>${esc(r.name_ar || '')}</strong>
+          ${r.name_en ? `<div class="muted" style="font-size:.78rem;font-weight:500" dir="ltr">${esc(r.name_en)}</div>` : ''}
+        </td>
         <td>${esc(r.category_name || '—')}</td>
-        <td class="si-num" dir="ltr">${esc(ui.fmtAmt(r.default_cost))}</td>
+        <td>${esc(r.unit_name || '—')}</td>
         <td class="si-num" dir="ltr">${esc(ui.fmtAmt(r.default_sale))}</td>
+        <td>${
+          Number(r.is_active) === 1
+            ? ui.statusPill('ok', 'نشط')
+            : ui.statusPill('lock', 'موقوف')
+        }</td>
         <td>
           <div class="si-act">
-            <a class="si-btn" href="/inventory/items/${r.id}">تعديل</a>
-            <form method="post" action="/inventory/items/${r.id}/delete" style="display:inline" onsubmit="return confirm('حذف هذه المادة؟');">
-              <button type="submit" class="si-btn" style="color:#b42318">حذف</button>
+            <a class="si-btn" href="/inventory/items/${r.id}">بطاقة</a>
+            <form method="post" action="/inventory/items/${r.id}/toggle" style="display:inline">
+              <button type="submit" class="si-btn">${Number(r.is_active) === 1 ? 'إيقاف' : 'تفعيل'}</button>
             </form>
           </div>
         </td>
       </tr>`
         )
-        .join('') || ui.emptyRow(7);
+        .join('') || ui.emptyRow(8);
 
     const body = `
       <div class="si-stage">
@@ -206,7 +214,7 @@ router.get('/inventory/items', async (req, res) => {
           mark: 'It',
           kicker: KICKER,
           title: 'المواد والأصناف',
-          subtitle: 'قائمة المواد — إضافة وتعديل أصلي على Node',
+          subtitle: 'بطاقة المادة — الباركود هو المعرّف الظاهر في الفواتير والتقارير',
           actions: [
             { label: '＋ مادة جديدة', href: '/inventory/items/new', primary: true },
             { label: 'الفئات', href: '/inventory/categories' },
@@ -219,7 +227,7 @@ router.get('/inventory/items', async (req, res) => {
         ${ui.tableSurface(
           'المواد',
           `${rows.length} صف`,
-          ['SKU', 'Barcode', 'الاسم', 'الفئة', 'التكلفة', 'البيع', 'إجراءات'],
+          ['الباركود', 'رقم المادة', 'الاسم', 'الفئة', 'الوحدة', 'سعر البيع', 'الحالة', 'إجراءات'],
           rowsHtml
         )}
       </div>`;
@@ -238,6 +246,9 @@ async function itemForm(req, res, id) {
   const isNew = !item;
   const err = String(req.query.err || '');
   const flash = String(req.query.msg || '');
+  const pricesLocked = !!(item && item.prices_locked);
+  const unitsLocked = !!(item && item.units_locked);
+  const isActive = item ? Number(item.is_active) === 1 : true;
 
   let defaultBarcode = '';
   if (isNew) {
@@ -267,7 +278,7 @@ async function itemForm(req, res, id) {
       .join('');
 
   const whOpts =
-    `<option value="">—</option>` +
+    `<option value="">— بدون مستودع —</option>` +
     (lookups.warehouses || [])
       .map(
         (w) =>
@@ -275,19 +286,83 @@ async function itemForm(req, res, id) {
       )
       .join('');
 
-  const issueUnitOpts =
-    `<option value="">لا يوجد</option>` +
-    (lookups.units || [])
-      .map((u) => `<option value="${u.id}">${esc(u.name_ar)}</option>`)
+  const taxOpts =
+    `<option value="">— بدون ضريبة مخصصة —</option>` +
+    (lookups.taxRates || [])
+      .map(
+        (t) =>
+          `<option value="${t.id}"${Number(item?.tax_rate_id) === Number(t.id) ? ' selected' : ''}>${esc(t.name_ar)} (${esc(String(t.rate_percent))}%)</option>`
+      )
       .join('');
+
+  const unitOptionsHtml = (lookups.units || [])
+    .map((u) => `<option value="${u.id}">${esc(u.name_ar)}</option>`)
+    .join('');
+
+  // packing rows (non-base)
+  const packUnits = (item?.item_units || []).filter((u) => !Number(u.is_base));
+  const packRowsHtml =
+    packUnits.length > 0
+      ? packUnits
+          .map((pu) => {
+            const fac = Number(pu.factor_to_base || 1);
+            const facStr = Number.isFinite(fac) ? String(fac).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1') : '1';
+            const opts = (lookups.units || [])
+              .map(
+                (u) =>
+                  `<option value="${u.id}"${Number(pu.unit_id) === Number(u.id) ? ' selected' : ''}>${esc(u.name_ar)}</option>`
+              )
+              .join('');
+            return `<div class="inv-pack-row" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
+              <label style="flex:1.2;min-width:9rem">الوحدة
+                <select class="si-field" name="pack_unit_id[]" ${unitsLocked ? 'disabled' : ''}>
+                  <option value="">—</option>${opts}
+                </select>
+              </label>
+              <label style="flex:1;min-width:7rem">العدد في الوحدة
+                <input class="si-field si-field--mono" name="pack_factor[]" type="number" step="1" min="1"
+                       value="${esc(facStr)}" dir="ltr" ${unitsLocked ? 'readonly' : ''} placeholder="مثال: 24">
+              </label>
+              ${
+                unitsLocked
+                  ? ''
+                  : `<button type="button" class="si-btn js-pack-remove" style="margin-bottom:.1rem">حذف</button>`
+              }
+            </div>`;
+          })
+          .join('')
+      : `<div class="inv-pack-row" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
+          <label style="flex:1.2;min-width:9rem">الوحدة
+            <select class="si-field" name="pack_unit_id[]" ${unitsLocked ? 'disabled' : ''}>
+              <option value="">— إضافة وحدة إضافية —</option>${unitOptionsHtml}
+            </select>
+          </label>
+          <label style="flex:1;min-width:7rem">العدد في الوحدة
+            <input class="si-field si-field--mono" name="pack_factor[]" type="number" step="1" min="1" value="" dir="ltr"
+                   ${unitsLocked ? 'readonly' : ''} placeholder="قطعة=1 · كرتون=24">
+          </label>
+          ${unitsLocked ? '' : `<button type="button" class="si-btn js-pack-remove" style="margin-bottom:.1rem">حذف</button>`}
+        </div>`;
+
+  const lockNote = pricesLocked
+    ? `<p class="si-pill si-pill--lock" style="display:inline-block;margin:0 0 .75rem">
+         الأسعار مقفلة بعد حركات على المادة. عدّل سعر الكلفة/البيع/الجملة من الشاشات الخاصة لاحقاً.
+       </p>`
+    : `<p class="muted" style="margin:0 0 .75rem;font-size:.82rem;line-height:1.5">
+         عند أول تعريف تُدخل الأسعار هنا. بعد أي حركة مخزون/فاتورة تُقفل ولا تُعدَّل من هذه البطاقة.
+       </p>`;
+
+  const ro = pricesLocked ? 'readonly' : '';
+  const expiryVal =
+    item?.expiry_date != null ? String(item.expiry_date).slice(0, 10) : '';
 
   const body = `
     <div class="si-stage">
       ${ui.hero({
         mark: 'It',
         kicker: KICKER,
-        title: isNew ? 'مادة جديدة' : `تعديل: ${esc(item.name_ar || '')}`,
-        subtitle: 'بطاقة المادة — Node',
+        title: isNew ? 'بطاقة مادة جديدة' : `بطاقة المادة: ${esc(item.name_ar || '')}`,
+        subtitle: 'رقم المادة للأغراض الداخلية · الباركود هو الظاهر في الفواتير والتقارير',
         actions: [{ label: 'رجوع للقائمة', href: '/inventory/items' }],
       })}
       ${err ? alertHtml('err', err) : ''}
@@ -299,61 +374,162 @@ async function itemForm(req, res, id) {
         </div>
         <form id="item-form" method="post" action="${isNew ? '/inventory/items/new' : '/inventory/items/' + id}" style="padding:1rem 1.1rem 1.25rem">
           <input type="hidden" name="id" value="${item ? item.id : 0}">
+
           <div class="si-meta">
-            <label>Barcode
-              <input class="si-field si-field--mono" name="barcode" value="${esc(item?.barcode || defaultBarcode)}" dir="ltr" autocomplete="off" inputmode="numeric">
+            <label>رقم المادة
+              <input class="si-field si-field--mono" name="sku" value="${esc(item?.sku || '')}" dir="ltr"
+                     placeholder="${isNew ? 'تلقائي إن تُرك فارغاً' : ''}" autocomplete="off"
+                     title="رقم داخلي — لا يظهر في الفواتير">
             </label>
-            <p class="si-span-2" style="margin:0;color:#5c6578;font-size:.8rem">أرقام فقط (حتى 14 رقماً) — فارغ عند الحفظ = تلقائي 6 أرقام</p>
-            <label class="si-span-2">اسم المادة *
+            <label>باركود المادة *
+              <input class="si-field si-field--mono" name="barcode" value="${esc(item?.barcode || defaultBarcode)}"
+                     dir="ltr" autocomplete="off" inputmode="numeric" maxlength="14" required
+                     title="المعرّف الظاهر في الشاشات والفواتير والتقارير">
+            </label>
+            <p class="si-span-2 muted" style="margin:0;font-size:.8rem">
+              <strong>الباركود</strong> هو ما يظهر في الفواتير والتقارير. <strong>رقم المادة</strong> داخلي فقط.
+            </p>
+
+            <label class="si-span-2">اسم المادة بالعربي *
               <input class="si-field" name="name_ar" required value="${esc(item?.name_ar || '')}" autocomplete="off">
             </label>
-            <label>SKU
-              <input class="si-field si-field--mono" name="sku" value="${esc(item?.sku || '')}" dir="ltr" placeholder="${isNew ? 'تلقائي إن تُرك فارغاً' : ''}" autocomplete="off">
+            <label class="si-span-2">اسم المادة بالإنجليزي
+              <input class="si-field" name="name_en" value="${esc(item?.name_en || '')}" dir="ltr" autocomplete="off">
             </label>
-            <label>الفئة
+
+            <label>فئة المادة
               <select class="si-field" name="category_id">${catOpts}</select>
             </label>
-            <label>الوحدة الأساسية *
-              <select class="si-field" name="unit_id" ${lookups.units.length ? 'required' : ''}>${unitOpts}</select>
-            </label>
-            <label>المستودع الافتراضي
+            <label>المستودع
               <select class="si-field" name="default_warehouse_id">${whOpts}</select>
             </label>
-            <label>سعر التكلفة
-              <input class="si-field si-field--mono" name="default_cost" type="number" step="0.001" min="0" value="${esc(item?.default_cost != null ? item.default_cost : 0)}" dir="ltr">
+            <label>ضريبة المادة
+              <select class="si-field" name="tax_rate_id">${taxOpts}</select>
             </label>
-            <label>سعر البيع
-              <input class="si-field si-field--mono" name="default_sale" type="number" step="0.001" min="0" value="${esc(item?.default_sale != null ? item.default_sale : 0)}" dir="ltr">
+            <label>تاريخ الانتهاء
+              <input class="si-field si-field--mono" type="date" name="expiry_date" value="${esc(expiryVal)}" dir="ltr">
             </label>
           </div>
 
-          ${
-            isNew
-              ? `<div style="margin-top:1.1rem;padding-top:1rem;border-top:1px solid rgba(15,23,42,.08)">
-            <h3 style="margin:0 0 .5rem;font-size:.95rem">وحدة الصرف والتعبئة (اختيارية)</h3>
-            <p style="margin:0 0 .75rem;color:#5c6578;font-size:.82rem;line-height:1.5">
-              اختيارية: إن كانت المادة تُباع بالكرتون ضع الوحدة وعدد القطع في الوحدة الأساسية (مثال 24).
+          <div style="margin-top:1.15rem;padding-top:1rem;border-top:1px solid rgba(15,23,42,.08)">
+            <h3 style="margin:0 0 .45rem;font-size:.95rem">الأسعار (لأقل وحدة — غير شامل الضريبة)</h3>
+            ${lockNote}
+            <p class="muted" style="margin:0 0 .65rem;font-size:.8rem;line-height:1.45">
+              أدخل <b>سعر الحبة / أقل وحدة</b> فقط. عند البيع بالكرتون (مثلاً 12) يحسب النظام السعر تلقائياً =
+              سعر الحبة × 12 في الفاتورة وطلب العميل.
             </p>
             <div class="si-meta">
-              <label>وحدة الصرف
-                <select class="si-field" name="issue_unit_id">${issueUnitOpts}</select>
+              <label>سعر الكلفة
+                <input class="si-field si-field--mono" name="default_cost" type="number" step="0.001" min="0"
+                       value="${esc(item?.default_cost != null ? item.default_cost : 0)}" dir="ltr" ${ro}>
               </label>
-              <label>معامل التحويل (عدد الوحدات الأساسية)
-                <input class="si-field si-field--mono" name="issue_factor" type="number" step="0.001" min="0" value="" dir="ltr" placeholder="مثال 24">
+              <label>سعر البيع
+                <input class="si-field si-field--mono" name="default_sale" type="number" step="0.001" min="0"
+                       value="${esc(item?.default_sale != null ? item.default_sale : 0)}" dir="ltr" ${ro}>
+              </label>
+              <label>سعر الجملة
+                <input class="si-field si-field--mono" name="default_wholesale" type="number" step="0.001" min="0"
+                       value="${esc(item?.default_wholesale != null ? item.default_wholesale : 0)}" dir="ltr" ${ro}>
               </label>
             </div>
-          </div>`
-              : ''
-          }
+          </div>
 
-          <div style="display:flex;gap:.5rem;margin-top:1rem">
-            <button class="si-btn si-btn--primary" type="submit">حفظ</button>
-            <a class="si-btn" href="/inventory/items">رجوع للقائمة</a>
+          <div style="margin-top:1.15rem;padding-top:1rem;border-top:1px solid rgba(15,23,42,.08)">
+            <h3 style="margin:0 0 .45rem;font-size:.95rem">وحدات الصرف والتعبئة</h3>
+            <p class="muted" style="margin:0 0 .75rem;font-size:.82rem;line-height:1.5">
+              الوحدة الأساسية (مثل <b>قطعة</b>) عددها دائماً 1. أضف وحدة أخرى دون تكرار (مثال: <b>كرتون</b> والعدد 24).
+              في الفواتير وطلبات الشراء/المبيعات تُستخدم هذه الوحدات فقط.
+              ${unitsLocked ? ' <b>الوحدات مقفلة بعد الحركات.</b>' : ''}
+            </p>
+            <div class="si-meta" style="margin-bottom:.65rem">
+              <label>الوحدة الأساسية *
+                <select class="si-field" name="unit_id" id="inv-base-unit" ${lookups.units.length ? 'required' : ''} ${
+                  unitsLocked ? 'disabled' : ''
+                }>${unitOpts}</select>
+              </label>
+              <label>العدد بالوحدة الأساسية
+                <input class="si-field si-field--mono" type="number" value="1" dir="ltr" readonly>
+              </label>
+            </div>
+            ${unitsLocked ? `<input type="hidden" name="unit_id" value="${esc(String(item?.unit_id || ''))}">` : ''}
+            <div id="inv-pack-list">${packRowsHtml}</div>
+            ${
+              unitsLocked
+                ? ''
+                : `<button type="button" class="si-btn" id="inv-pack-add" style="margin-top:.25rem">＋ إضافة وحدة أخرى</button>
+                   <template id="inv-pack-tpl">
+                     <div class="inv-pack-row" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
+                       <label style="flex:1.2;min-width:9rem">الوحدة
+                         <select class="si-field" name="pack_unit_id[]">
+                           <option value="">—</option>${unitOptionsHtml}
+                         </select>
+                       </label>
+                       <label style="flex:1;min-width:7rem">العدد في الوحدة
+                         <input class="si-field si-field--mono" name="pack_factor[]" type="number" step="1" min="1" value="" dir="ltr" placeholder="مثال: 24">
+                       </label>
+                       <button type="button" class="si-btn js-pack-remove" style="margin-bottom:.1rem">حذف</button>
+                     </div>
+                   </template>`
+            }
+          </div>
+
+          <div style="margin-top:1.15rem;padding-top:1rem;border-top:1px solid rgba(15,23,42,.08)">
+            <label style="display:flex;align-items:center;gap:.5rem;font-weight:700;cursor:pointer">
+              <input type="checkbox" name="is_active" value="1" ${isActive ? 'checked' : ''}>
+              <span>المادة نشطة (إلغاء التفعيل يوقف المادة عن البيع والشراء)</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;font-weight:600;margin-top:.65rem;cursor:pointer">
+              <input type="checkbox" name="notify_on_expiry" value="1" ${
+                item && Number(item.notify_on_expiry) === 1 ? 'checked' : ''
+              }>
+              <span>تنبيه عند اقتراب/انتهاء الصلاحية</span>
+            </label>
+            ${
+              isNew
+                ? `<div class="si-meta" style="margin-top:.85rem">
+              <label>رصيد افتتاحي (اختياري)
+                <input class="si-field si-field--mono" name="opening_qty" type="number" step="any" min="0" value="" dir="ltr" placeholder="0">
+              </label>
+            </div>`
+                : ''
+            }
+          </div>
+
+          <div style="display:flex;gap:.5rem;margin-top:1.1rem;flex-wrap:wrap">
+            <button class="si-btn si-btn--primary" type="submit">حفظ البطاقة</button>
+            <a class="si-btn" href="/inventory/items">القائمة</a>
           </div>
         </form>
       </section>
-    </div>`;
-  res.send(page(req.session.user, isNew ? 'مادة جديدة' : 'تعديل مادة', body));
+    </div>
+    <script>
+    (function(){
+      var list = document.getElementById('inv-pack-list');
+      var addBtn = document.getElementById('inv-pack-add');
+      var tpl = document.getElementById('inv-pack-tpl');
+      if (addBtn && tpl && list) {
+        addBtn.addEventListener('click', function(){
+          var node = tpl.content.cloneNode(true);
+          list.appendChild(node);
+        });
+      }
+      document.addEventListener('click', function(e){
+        var btn = e.target && e.target.closest && e.target.closest('.js-pack-remove');
+        if (!btn) return;
+        var row = btn.closest('.inv-pack-row');
+        if (!row || !list) return;
+        if (list.querySelectorAll('.inv-pack-row').length <= 1) {
+          var sel = row.querySelector('select');
+          var inp = row.querySelector('input[name="pack_factor[]"]');
+          if (sel) sel.value = '';
+          if (inp) inp.value = '';
+          return;
+        }
+        row.remove();
+      });
+    })();
+    </script>`;
+  res.send(page(req.session.user, isNew ? 'مادة جديدة' : 'بطاقة المادة', body));
 }
 
 router.get('/inventory/items/new', (req, res) => itemForm(req, res, 0));
@@ -373,9 +549,12 @@ router.post('/inventory/items/new', async (req, res) => {
 router.post('/inventory/items/:id', async (req, res) => {
   if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
   const id = Number(req.params.id);
-  const result = await svc.saveItem({ ...(req.body || {}), id });
+  const body = { ...(req.body || {}), id };
+  // unchecked checkbox = inactive
+  if (body.is_active === undefined) body.is_active = '0';
+  const result = await svc.saveItem(body);
   if (!result.ok) return res.redirect('/inventory/items/' + id + '?err=' + encodeURIComponent(result.error));
-  res.redirect('/inventory/items?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
+  res.redirect('/inventory/items/' + id + '?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
 
 router.post('/inventory/items/:id/delete', async (req, res) => {
@@ -383,6 +562,12 @@ router.post('/inventory/items/:id/delete', async (req, res) => {
   const result = await svc.deleteItem(req.params.id);
   const msg = result.ok ? result.message : result.error;
   res.redirect('/inventory/items?msg=' + encodeURIComponent(msg || ''));
+});
+
+router.post('/inventory/items/:id/toggle', async (req, res) => {
+  if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
+  const result = await svc.toggleItemActive(req.params.id);
+  res.redirect('/inventory/items?msg=' + encodeURIComponent(result.message || result.error || ''));
 });
 
 /* ═══════════ Units ═══════════ */

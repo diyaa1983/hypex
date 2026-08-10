@@ -47,7 +47,7 @@ function ensurePrefixed(href) {
 function rewriteHtml(html) {
   if (!hasBase() || typeof html !== 'string') return html;
   return html.replace(
-    /\b(href|src|action)=("|')(\/[^"']*)\2/gi,
+    /\b(href|src|action|formaction)=("|')(\/[^"']*)\2/gi,
     (full, attr, q, path) => {
       if (path.startsWith('//')) return full;
       return `${attr}=${q}${ensurePrefixed(path)}${q}`;

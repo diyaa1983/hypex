@@ -5,6 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const db = require('../db');
 const { parseDateToIso, todayIso } = require('../lib/html');
+const itemPricing = require('../lib/itemPricing');
 
 const POSTED_SQL = `(
   EXISTS (SELECT 1 FROM crm_customer_ledger l WHERE l.txn_type = 'sale_invoice' AND l.ref_id = i.id)
@@ -108,14 +109,47 @@ async function getInvoice(id) {
   if (!headers[0]) return null;
   const h = headers[0];
   const lines = await db.query(
-    `SELECT il.*, it.sku AS item_code, it.name_ar AS item_name,
-            COALESCE(NULLIF(TRIM(il.unit_name), ''), NULLIF(TRIM(it.unit_name), ''), 'قطعة') AS unit_name
+    `SELECT il.*, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS item_code, it.name_ar AS item_name,
+            COALESCE(NULLIF(TRIM(il.unit_name), ''), NULLIF(TRIM(it.unit_name), ''), 'قطعة') AS unit_name,
+            COALESCE(it.default_sale, 0) AS base_sale
      FROM sal_invoice_line il
      INNER JOIN inv_item it ON it.id = il.item_id
      WHERE il.invoice_id = ?
      ORDER BY il.id`,
     [invId]
   );
+
+  const mappedLines = [];
+  for (const ln of lines) {
+    const itemId = Number(ln.item_id);
+    let units = [];
+    try {
+      const pricing = await itemPricing.getItemPricing(itemId);
+      if (pricing) units = pricing.units || [];
+    } catch {
+      units = [];
+    }
+    mappedLines.push({
+      item_id: itemId,
+      item_code: ln.item_code,
+      name_ar: ln.line_desc || ln.item_name,
+      qty: Number(ln.qty || 0),
+      qty_extra: Number(ln.qty_extra || 0),
+      unit_price: Number(ln.unit_price || 0),
+      base_sale: Number(ln.base_sale || 0),
+      discount_pct: Number(ln.discount_pct || 0),
+      discount_amount: Number(ln.discount_amount || 0),
+      tax_rate_percent: Number(ln.tax_rate_percent || 0),
+      tax_amount: Number(ln.tax_amount || 0),
+      line_total: Number(ln.line_total || 0),
+      line_gross: Number(ln.line_gross || 0),
+      unit_id: ln.unit_id != null ? Number(ln.unit_id) : null,
+      unit_name: ln.unit_name || 'قطعة',
+      unit_factor: Number(ln.unit_factor || 1),
+      qty_base: Number(ln.qty_base || ln.qty || 0),
+      units,
+    });
+  }
 
   return {
     id: Number(h.id),
@@ -144,24 +178,7 @@ async function getInvoice(id) {
     /** مرسلة للفوترة = وجود EINV_QR (نفس منطق PHP) */
     einv_sent: !!(h.einv_qr != null && String(h.einv_qr).trim() !== ''),
     customer_email: await getCustomerEmail(h.customer_id),
-    lines: lines.map((ln) => ({
-      item_id: Number(ln.item_id),
-      item_code: ln.item_code,
-      name_ar: ln.line_desc || ln.item_name,
-      qty: Number(ln.qty || 0),
-      qty_extra: Number(ln.qty_extra || 0),
-      unit_price: Number(ln.unit_price || 0),
-      discount_pct: Number(ln.discount_pct || 0),
-      discount_amount: Number(ln.discount_amount || 0),
-      tax_rate_percent: Number(ln.tax_rate_percent || 0),
-      tax_amount: Number(ln.tax_amount || 0),
-      line_total: Number(ln.line_total || 0),
-      line_gross: Number(ln.line_gross || 0),
-      unit_id: ln.unit_id != null ? Number(ln.unit_id) : null,
-      unit_name: ln.unit_name || 'قطعة',
-      unit_factor: Number(ln.unit_factor || 1),
-      qty_base: Number(ln.qty_base || ln.qty || 0),
-    })),
+    lines: mappedLines,
   };
 }
 
@@ -418,13 +435,28 @@ async function saveInvoice(payload, userId) {
   for (const ln of rawLines) {
     if (!ln || !Number(ln.item_id)) continue;
     if (Number(ln.qty) <= 0 && Number(ln.qty_extra) <= 0) continue;
-    if (!(Number(ln.unit_price) > 0)) {
+    // السعر دائماً من بطاقة المادة × معامل الوحدة — غير قابل للتعديل من الفاتورة
+    const priced = await itemPricing.resolveDocLinePricing(ln);
+    if (!(priced.unit_price > 0)) {
       return {
         ok: false,
-        error: 'أدخل السعر لكل بند مادة. لا يمكن حفظ الفاتورة بدون سعر.',
+        error: 'لا يمكن حفظ فاتورة: سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة الأسعار أولاً.',
       };
     }
-    normalized.push(computeLine(ln));
+    const taxFromItem =
+      priced.tax_rate_percent != null && priced.tax_rate_percent !== ''
+        ? priced.tax_rate_percent
+        : ln.tax_rate_percent;
+    normalized.push(
+      computeLine({
+        ...ln,
+        unit_price: priced.unit_price,
+        unit_factor: priced.unit_factor,
+        unit_id: priced.unit_id,
+        unit_name: priced.unit_name,
+        tax_rate_percent: taxFromItem,
+      })
+    );
   }
   const totals = applyHeaderDiscount(normalized, discountInput);
 
@@ -557,22 +589,49 @@ async function searchCustomers(q, limit = 30) {
 
 async function searchItems(q, limit = 30) {
   const like = `%${String(q || '').trim()}%`;
-  // inv_item: sku as code, default_sale as price
+  // code المعروض = الباركود (ثم رقم المادة) · sale_price = أقل وحدة (غير شامل)
+  const codeExpr = `COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code`;
+  let rows;
   if (String(q || '').trim() === '') {
-    return db.query(
-      `SELECT id, sku AS code, barcode, name_ar,
-              COALESCE(default_sale, 0) AS sale_price
-       FROM inv_item WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(40, limit)}`
-    );
+    try {
+      rows = await db.query(
+        `SELECT id, ${codeExpr}, barcode, sku, name_ar, name_en, unit_id, unit_name,
+                COALESCE(default_sale, 0) AS sale_price,
+                COALESCE(default_wholesale, 0) AS wholesale_price,
+                tax_rate_id
+         FROM inv_item WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(40, limit)}`
+      );
+    } catch {
+      rows = await db.query(
+        `SELECT id, COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code, barcode, sku, name_ar, unit_id, unit_name,
+                COALESCE(default_sale, 0) AS sale_price
+         FROM inv_item WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(40, limit)}`
+      );
+    }
+  } else {
+    try {
+      rows = await db.query(
+        `SELECT id, ${codeExpr}, barcode, sku, name_ar, name_en, unit_id, unit_name,
+                COALESCE(default_sale, 0) AS sale_price,
+                COALESCE(default_wholesale, 0) AS wholesale_price,
+                tax_rate_id
+         FROM inv_item
+         WHERE is_active = 1 AND (name_ar LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR barcode LIKE ? OR IFNULL(oracle_key,'') LIKE ?)
+         ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
+        [like, like, like, like, like]
+      );
+    } catch {
+      rows = await db.query(
+        `SELECT id, COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code, barcode, sku, name_ar, unit_id, unit_name,
+                COALESCE(default_sale, 0) AS sale_price
+         FROM inv_item
+         WHERE is_active = 1 AND (name_ar LIKE ? OR sku LIKE ? OR barcode LIKE ?)
+         ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
+        [like, like, like]
+      );
+    }
   }
-  return db.query(
-    `SELECT id, sku AS code, barcode, name_ar,
-            COALESCE(default_sale, 0) AS sale_price
-     FROM inv_item
-     WHERE is_active = 1 AND (name_ar LIKE ? OR sku LIKE ? OR barcode LIKE ? OR oracle_key LIKE ?)
-     ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
-    [like, like, like, like]
-  );
+  return itemPricing.attachUnitsToSearchRows(rows || []);
 }
 
 async function lookups() {

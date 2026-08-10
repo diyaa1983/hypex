@@ -30,7 +30,7 @@ async function getDelivery(id) {
   if (!headers[0]) return null;
   const h = headers[0];
   const lines = await db.query(
-    `SELECT l.*, it.sku AS item_code, it.name_ar AS item_name
+    `SELECT l.*, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS item_code, it.name_ar AS item_name
      FROM sal_delivery_line l
      LEFT JOIN inv_item it ON it.id = l.item_id
      WHERE l.delivery_id = ?

@@ -73,6 +73,94 @@
     return Math.round((Number(n) || 0) * 1000) / 1000;
   }
 
+  function unitSalePrice(baseSale, factor) {
+    var f = Number(factor) > 0 ? Number(factor) : 1;
+    return r3((Number(baseSale) || 0) * f);
+  }
+
+  function defaultUnitOf(it) {
+    var units = (it && it.units) || [];
+    if (!units.length) {
+      return {
+        unit_id: 0,
+        name: 'قطعة',
+        factor: 1,
+        sale_price: Number(it && it.sale_price) || 0,
+      };
+    }
+    return (
+      units.find(function (u) {
+        return u.is_default;
+      }) ||
+      units.find(function (u) {
+        return u.is_base;
+      }) ||
+      units[0]
+    );
+  }
+
+  function applyItemToLine(ln, it) {
+    ln = ln || {};
+    ln.item_id = it.id;
+    ln.item_code = it.code || it.sku || '';
+    ln.name_ar = it.name_ar || '';
+    ln.base_sale = Number(it.base_sale != null ? it.base_sale : it.sale_price) || 0;
+    ln.units = Array.isArray(it.units) ? it.units : [];
+    var du = defaultUnitOf(it);
+    ln.unit_id = du.unit_id || 0;
+    ln.unit_name = du.name || 'قطعة';
+    ln.unit_factor = Number(du.factor) > 0 ? Number(du.factor) : 1;
+    ln.unit_price = unitSalePrice(ln.base_sale, ln.unit_factor);
+    if (!ln.qty) ln.qty = 1;
+    if (it.tax_rate_percent != null && it.tax_rate_percent !== '') {
+      ln.tax_rate_percent = Number(it.tax_rate_percent);
+    } else if (ln.tax_rate_percent == null) {
+      ln.tax_rate_percent = defaultTax;
+    }
+    return ln;
+  }
+
+  function unitSelectHtml(ln, disabled) {
+    var units = Array.isArray(ln.units) && ln.units.length
+      ? ln.units
+      : [
+          {
+            unit_id: ln.unit_id || 0,
+            name: ln.unit_name || 'قطعة',
+            factor: ln.unit_factor || 1,
+          },
+        ];
+    var curId = Number(ln.unit_id) || 0;
+    var opts = units
+      .map(function (u) {
+        var uid = Number(u.unit_id) || 0;
+        var fac = Number(u.factor) > 0 ? Number(u.factor) : 1;
+        var label = (u.name || 'وحدة') + (fac > 1 ? ' × ' + fac : '');
+        var sel = curId ? uid === curId : Number(ln.unit_factor || 1) === fac;
+        return (
+          '<option value="' +
+          uid +
+          '" data-factor="' +
+          fac +
+          '" data-name="' +
+          escAttr(u.name || '') +
+          '"' +
+          (sel ? ' selected' : '') +
+          '>' +
+          escAttr(label) +
+          '</option>'
+        );
+      })
+      .join('');
+    return (
+      '<select class="js-unit" title="وحدة الصرف"' +
+      (disabled || !ln.item_id ? ' disabled' : '') +
+      '>' +
+      opts +
+      '</select>'
+    );
+  }
+
   function fmt(n) {
     return r3(n).toLocaleString('en-US', {
       minimumFractionDigits: 3,
@@ -188,12 +276,24 @@
     var ln = state.lines[idx] || {};
     var qtyEl = tr.querySelector('.js-qty');
     var qtyExtraEl = tr.querySelector('.js-qty-extra');
-    var priceEl = tr.querySelector('.js-price');
     var discEl = tr.querySelector('.js-disc');
     var taxEl = tr.querySelector('.js-tax');
     if (qtyEl) ln.qty = qtyEl.value;
     if (qtyExtraEl) ln.qty_extra = qtyExtraEl.value;
-    if (priceEl) ln.unit_price = priceEl.value;
+    var unitSel = tr.querySelector('.js-unit');
+    if (unitSel && unitSel.selectedOptions && unitSel.selectedOptions[0]) {
+      var opt = unitSel.selectedOptions[0];
+      ln.unit_id = Number(unitSel.value) || 0;
+      ln.unit_factor = Number(opt.getAttribute('data-factor')) || 1;
+      ln.unit_name = opt.getAttribute('data-name') || opt.textContent || '';
+    }
+    var baseEl = tr.querySelector('.js-base-sale');
+    if (baseEl && baseEl.value !== '') ln.base_sale = Number(baseEl.value) || 0;
+    if (ln.base_sale != null && ln.unit_factor) {
+      ln.unit_price = unitSalePrice(ln.base_sale, ln.unit_factor);
+      var priceEl = tr.querySelector('.js-price');
+      if (priceEl) priceEl.value = String(ln.unit_price);
+    }
     if (discEl) ln.discount_pct = discEl.value;
     if (taxEl) ln.tax_rate_percent = taxEl.value;
     var hid = tr.querySelector('.js-item-id');
@@ -222,12 +322,18 @@
         '<input type="hidden" class="js-item-id" value="' +
         (ln.item_id || '') +
         '">' +
-        '<input class="js-item" type="search" placeholder="رمز / باركود / اسم" value="' +
+        '<input type="hidden" class="js-base-sale" value="' +
+        escAttr(ln.base_sale != null ? ln.base_sale : '') +
+        '">' +
+        '<input class="js-item" type="search" placeholder="باركود / اسم" value="' +
         escAttr((ln.item_code ? ln.item_code + ' — ' : '') + (ln.name_ar || '')) +
         '" ' +
         (locked ? 'readonly' : '') +
         '>' +
         '<div class="si-suggest js-item-suggest" hidden></div>' +
+        '</td>' +
+        '<td>' +
+        unitSelectHtml(ln, locked) +
         '</td>' +
         '<td><input class="js-qty" type="number" step="1" min="0" value="' +
         escAttr(ln.qty) +
@@ -241,9 +347,8 @@
         '></td>' +
         '<td><input class="js-price" type="number" step="0.001" min="0" value="' +
         escAttr(ln.unit_price) +
-        '" ' +
-        (locked ? 'readonly' : '') +
-        '></td>' +
+        '" readonly title="من بطاقة المادة (أقل وحدة × التعبئة)">' +
+        '</td>' +
         '<td><input class="js-disc" type="number" step="0.001" min="0" max="100" value="' +
         escAttr(ln.discount_pct || 0) +
         '" ' +
@@ -268,7 +373,7 @@
   }
 
   function bindRow(tr) {
-    ['js-qty', 'js-qty-extra', 'js-price', 'js-disc', 'js-tax'].forEach(function (cls) {
+    ['js-qty', 'js-qty-extra', 'js-disc', 'js-tax'].forEach(function (cls) {
       var el = tr.querySelector('.' + cls);
       if (!el) return;
       var ev = el.tagName === 'SELECT' ? 'change' : 'input';
@@ -276,6 +381,24 @@
         readLineFromRow(tr);
       });
     });
+    var unitEl = tr.querySelector('.js-unit');
+    if (unitEl) {
+      unitEl.addEventListener('change', function () {
+        var idx = Number(tr.getAttribute('data-idx'));
+        var ln = state.lines[idx] || {};
+        var opt = unitEl.selectedOptions && unitEl.selectedOptions[0];
+        if (opt) {
+          ln.unit_id = Number(unitEl.value) || 0;
+          ln.unit_factor = Number(opt.getAttribute('data-factor')) || 1;
+          ln.unit_name = opt.getAttribute('data-name') || '';
+          ln.unit_price = unitSalePrice(ln.base_sale, ln.unit_factor);
+          state.lines[idx] = ln;
+          var pe = tr.querySelector('.js-price');
+          if (pe) pe.value = String(ln.unit_price);
+        }
+        readLineFromRow(tr);
+      });
+    }
     var itemInput = tr.querySelector('.js-item');
     var suggest = tr.querySelector('.js-item-suggest');
     if (itemInput && suggest && !locked) {
@@ -320,15 +443,7 @@
           b.textContent = (it.code || '') + ' — ' + (it.name_ar || '') + ' · ' + fmt(it.sale_price);
           b.addEventListener('click', function () {
             var idx = Number(tr.getAttribute('data-idx'));
-            state.lines[idx] = state.lines[idx] || {};
-            state.lines[idx].item_id = it.id;
-            state.lines[idx].item_code = it.code;
-            state.lines[idx].name_ar = it.name_ar;
-            state.lines[idx].unit_price = Number(it.sale_price) || 0;
-            if (!state.lines[idx].qty) state.lines[idx].qty = 1;
-            if (state.lines[idx].tax_rate_percent == null) {
-              state.lines[idx].tax_rate_percent = defaultTax;
-            }
+            state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
             box.hidden = true;
             renderLines();
           });
@@ -351,6 +466,11 @@
       qty: 1,
       qty_extra: 0,
       unit_price: 0,
+      base_sale: 0,
+      unit_id: 0,
+      unit_name: 'قطعة',
+      unit_factor: 1,
+      units: [],
       discount_pct: 0,
       tax_rate_percent: defaultTax,
     });
@@ -373,13 +493,7 @@
       addEmptyLine();
       idx = state.lines.length - 1;
     }
-    state.lines[idx] = state.lines[idx] || {};
-    state.lines[idx].item_id = it.id;
-    state.lines[idx].item_code = it.code || it.sku || '';
-    state.lines[idx].name_ar = it.name_ar || '';
-    state.lines[idx].unit_price = Number(it.sale_price) || 0;
-    if (!state.lines[idx].qty) state.lines[idx].qty = 1;
-    if (state.lines[idx].tax_rate_percent == null) state.lines[idx].tax_rate_percent = defaultTax;
+    state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
     renderLines();
   });
 
@@ -472,7 +586,7 @@
     }
     for (var pi = 0; pi < payload.lines.length; pi++) {
       if (!(Number(payload.lines[pi].unit_price) > 0)) {
-        setMsg('أدخل السعر لكل بند مادة. لا يمكن الحفظ بدون سعر.', 'error');
+        setMsg('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', 'error');
         return Promise.resolve(null);
       }
     }
