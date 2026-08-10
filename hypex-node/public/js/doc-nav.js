@@ -1,8 +1,7 @@
 /**
  * تنقل المستندات: أول / سابق / رقم / تالٍ / آخر
- * window.HypexDocNav.bind({...})
- *
- * السهم الأيمن (» أو ArrowRight عند عدم وجود تالي مخصّص) = آخر مستند (أكبر id)
+ * يدعم onOpen(id) لتنقل سلس بدون reload كامل.
+ * window.HypexDocNav.bind({...}) → { setState, go... }
  */
 (function () {
   'use strict';
@@ -20,26 +19,10 @@
     return typeof ref === 'string' ? document.getElementById(ref) : ref;
   }
 
-  /**
-   * @param {object} o
-   * @param {string|HTMLElement} o.input
-   * @param {string|HTMLElement} [o.firstBtn]
-   * @param {string|HTMLElement} [o.prevBtn]
-   * @param {string|HTMLElement} [o.nextBtn]
-   * @param {string|HTMLElement} [o.lastBtn]
-   * @param {number} [o.firstId]
-   * @param {number} [o.prevId]
-   * @param {number} [o.nextId]
-   * @param {number} [o.lastId]
-   * @param {number} [o.currentId]
-   * @param {string} o.openPath
-   * @param {string} o.findApi
-   * @param {string} [o.currentNo]
-   */
   function bind(o) {
     o = o || {};
     var input = el(o.input);
-    if (!input) return;
+    if (!input) return null;
 
     var firstBtn = el(o.firstBtn);
     var prevBtn = el(o.prevBtn);
@@ -55,11 +38,36 @@
     var openPath = String(o.openPath || '');
     var findApi = String(o.findApi || '').split('?')[0];
     var currentNo = String(o.currentNo != null ? o.currentNo : input.value || '');
+    var navBusy = false;
+    var onOpen = typeof o.onOpen === 'function' ? o.onOpen : null;
 
     function openId(id) {
       id = Number(id);
-      if (!id) return;
+      if (!id || navBusy) return;
       if (currentId && id === currentId) return;
+
+      if (onOpen) {
+        navBusy = true;
+        setDisabled(firstBtn, true);
+        setDisabled(prevBtn, true);
+        setDisabled(nextBtn, true);
+        setDisabled(lastBtn, true);
+        Promise.resolve()
+          .then(function () {
+            return onOpen(id);
+          })
+          .then(function () {
+            navBusy = false;
+            syncBtns();
+          })
+          .catch(function (err) {
+            navBusy = false;
+            syncBtns();
+            toast((err && err.message) || 'تعذر فتح المستند', 'error');
+          });
+        return;
+      }
+
       var base = openPath.replace(/\/?$/, '/');
       window.location.href = base + id;
     }
@@ -71,13 +79,26 @@
     }
 
     function syncBtns() {
-      // أول/آخر: لا نفعّل إذا كان المستند الحالي هو نفسه
+      if (navBusy) return;
       setDisabled(firstBtn, !(firstId > 0) || (currentId > 0 && currentId === firstId));
       setDisabled(prevBtn, !(prevId > 0));
       setDisabled(nextBtn, !(nextId > 0));
       setDisabled(lastBtn, !(lastId > 0) || (currentId > 0 && currentId === lastId));
     }
-    syncBtns();
+
+    function setState(s) {
+      s = s || {};
+      if (s.firstId != null) firstId = Number(s.firstId) || 0;
+      if (s.prevId != null) prevId = Number(s.prevId) || 0;
+      if (s.nextId != null) nextId = Number(s.nextId) || 0;
+      if (s.lastId != null) lastId = Number(s.lastId) || 0;
+      if (s.currentId != null) currentId = Number(s.currentId) || 0;
+      if (s.currentNo != null) {
+        currentNo = String(s.currentNo || '');
+        input.value = currentNo;
+      }
+      syncBtns();
+    }
 
     function goFirst() {
       if (firstId > 0 && firstId !== currentId) openId(firstId);
@@ -91,57 +112,94 @@
       if (nextId > 0) openId(nextId);
       else toast('لا يوجد مستند تالٍ', 'error');
     }
-    /** السهم الأيمن / آخر = أكبر رقم (آخر مستند) */
     function goLast() {
       if (lastId > 0 && lastId !== currentId) openId(lastId);
       else if (!lastId) toast('لا توجد مستندات', 'error');
       else toast('أنت على آخر مستند', 'error');
     }
 
-    if (firstBtn) {
+    if (firstBtn && !firstBtn._hxNavBound) {
+      firstBtn._hxNavBound = true;
       firstBtn.addEventListener('click', function (e) {
         e.preventDefault();
         goFirst();
       });
     }
-    if (prevBtn) {
+    if (prevBtn && !prevBtn._hxNavBound) {
+      prevBtn._hxNavBound = true;
       prevBtn.addEventListener('click', function (e) {
         e.preventDefault();
         goPrev();
       });
     }
-    if (nextBtn) {
+    if (nextBtn && !nextBtn._hxNavBound) {
+      nextBtn._hxNavBound = true;
       nextBtn.addEventListener('click', function (e) {
         e.preventDefault();
         goNext();
       });
     }
-    if (lastBtn) {
+    if (lastBtn && !lastBtn._hxNavBound) {
+      lastBtn._hxNavBound = true;
       lastBtn.addEventListener('click', function (e) {
         e.preventDefault();
         goLast();
       });
     }
 
-    input.addEventListener('focus', function () {
-      if (input.readOnly) {
-        input.dataset.hxWasReadonly = '1';
-        input.readOnly = false;
-      }
-      try {
-        input.select();
-      } catch (e) {
-        /* ignore */
-      }
-    });
-    input.addEventListener('blur', function () {
-      if (input.dataset.hxNavLock === '1') return;
-      if (currentNo) input.value = currentNo;
-      else input.value = '';
-      if (input.dataset.hxWasReadonly === '1') {
-        input.readOnly = true;
-      }
-    });
+    if (!input._hxNavBound) {
+      input._hxNavBound = true;
+      input.addEventListener('focus', function () {
+        if (input.readOnly) {
+          input.dataset.hxWasReadonly = '1';
+          input.readOnly = false;
+        }
+        try {
+          input.select();
+        } catch (e) {
+          /* ignore */
+        }
+      });
+      input.addEventListener('blur', function () {
+        if (input.dataset.hxNavLock === '1') return;
+        if (currentNo) input.value = currentNo;
+        else input.value = '';
+        if (input.dataset.hxWasReadonly === '1') {
+          input.readOnly = true;
+        }
+      });
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          goByNo();
+          return;
+        }
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+          e.preventDefault();
+          goPrev();
+          return;
+        }
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          goLast();
+          return;
+        }
+        if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+          e.preventDefault();
+          goNext();
+          return;
+        }
+        if (e.key === 'Home') {
+          e.preventDefault();
+          goFirst();
+          return;
+        }
+        if (e.key === 'End') {
+          e.preventDefault();
+          goLast();
+        }
+      });
+    }
 
     function goByNo() {
       var no = String(input.value || '').trim();
@@ -158,8 +216,8 @@
           return r.json();
         })
         .then(function (data) {
+          input.dataset.hxNavLock = '';
           if (!data || !data.ok || !data.id) {
-            input.dataset.hxNavLock = '';
             toast((data && data.error) || 'لم يُعثر على المستند', 'error');
             if (currentNo) input.value = currentNo;
             else input.value = '';
@@ -173,40 +231,15 @@
         });
     }
 
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        goByNo();
-        return;
-      }
-      // يسار / أعلى / PageUp = السابق
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
-        e.preventDefault();
-        goPrev();
-        return;
-      }
-      // يمين (→) = آخر فاتورة (أكبر رقم) — كما طُلب
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        goLast();
-        return;
-      }
-      // أسفل / PageDown = التالي واحداً
-      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-        e.preventDefault();
-        goNext();
-        return;
-      }
-      if (e.key === 'Home') {
-        e.preventDefault();
-        goFirst();
-        return;
-      }
-      if (e.key === 'End') {
-        e.preventDefault();
-        goLast();
-      }
-    });
+    syncBtns();
+    return {
+      setState: setState,
+      openId: openId,
+      goFirst: goFirst,
+      goPrev: goPrev,
+      goNext: goNext,
+      goLast: goLast,
+    };
   }
 
   window.HypexDocNav = { bind: bind };

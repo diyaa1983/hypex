@@ -1060,10 +1060,172 @@
     });
   }
 
+  function dateIso(v) {
+    if (!v) return '';
+    var s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    return s;
+  }
+
+  function setLockedField(el, lock) {
+    if (!el) return;
+    if (el.tagName === 'SELECT' || el.tagName === 'BUTTON') {
+      el.disabled = !!lock;
+    } else {
+      el.readOnly = !!lock;
+    }
+  }
+
+  function updateHero(inv) {
+    var h1 = document.querySelector('.si-hero h1');
+    var no = inv.invoice_no || '';
+    if (h1) h1.textContent = no ? 'فاتورة ' + no : 'فاتورة مبيعات';
+    try {
+      document.title = (no ? 'فاتورة ' + no : 'فاتورة') + ' · Hypex';
+    } catch (e) {
+      /* ignore */
+    }
+    var badge = document.querySelector('.si-hero-badge');
+    if (badge) {
+      if (inv.is_posted) {
+        badge.innerHTML = '<span class="si-pill si-pill--lock">مرحّلة — قراءة فقط</span>';
+      } else {
+        badge.innerHTML = '<span class="si-pill si-pill--wait">مسودة</span>';
+      }
+    }
+  }
+
+  function applyInvoiceToForm(inv, nav, caps) {
+    posted = !!inv.is_posted;
+    state.id = Number(inv.id) || 0;
+    state.invoice_no = inv.invoice_no || '';
+    state.is_posted = posted;
+    state.customer_id = Number(inv.customer_id) || 0;
+    state.lines =
+      inv.lines && inv.lines.length
+        ? inv.lines
+        : [
+            {
+              item_id: 0,
+              item_code: '',
+              name_ar: '',
+              qty: 1,
+              qty_extra: 0,
+              unit_price: 0,
+              discount_pct: 0,
+              tax_rate_percent: defaultTax,
+            },
+          ];
+    if (nav) {
+      state.prev_id = nav.prev_id || 0;
+      state.next_id = nav.next_id || 0;
+      state.first_id = nav.first_id || 0;
+      state.last_id = nav.last_id || 0;
+    }
+    if (caps) {
+      state.caps = Object.assign({}, state.caps || {}, caps);
+    }
+    if (state.defaults) {
+      state.defaults.archiveUrl = state.id ? state.defaults.archiveUrl || '' : '';
+      if (state.id && state.defaults.phpBase) {
+        /* keep */
+      }
+    }
+
+    var noEl = document.getElementById('inv_no');
+    if (noEl) noEl.value = state.invoice_no;
+    var dateEl = document.getElementById('inv_date');
+    if (dateEl) dateEl.value = dateIso(inv.invoice_date);
+    var payEl = document.getElementById('inv_pay');
+    if (payEl) payEl.value = inv.payment_type || 'credit';
+    var cid = document.getElementById('inv_customer_id');
+    if (cid) cid.value = inv.customer_id || '';
+    var cust = document.getElementById('inv_customer');
+    if (cust) {
+      var label =
+        (inv.customer_code ? inv.customer_code + ' — ' : '') + (inv.customer_name || '');
+      cust.value = label;
+    }
+    var wh = document.getElementById('inv_wh');
+    if (wh) wh.value = inv.warehouse_id != null ? String(inv.warehouse_id) : '';
+    var notes = document.getElementById('inv_notes');
+    if (notes) notes.value = inv.notes || '';
+    var disc = document.getElementById('inv_discount');
+    if (disc) disc.value = inv.invoice_discount_input || '';
+
+    setLockedField(dateEl, posted);
+    setLockedField(payEl, posted);
+    setLockedField(cust, posted);
+    setLockedField(wh, posted);
+    setLockedField(notes, posted);
+    setLockedField(disc, posted);
+
+    updateHero(inv);
+    renderLines();
+    applyToolbarState();
+
+    if (docNavApi) {
+      docNavApi.setState({
+        firstId: state.first_id,
+        prevId: state.prev_id,
+        nextId: state.next_id,
+        lastId: state.last_id,
+        currentId: state.id,
+        currentNo: state.invoice_no || '',
+      });
+    }
+
+    try {
+      history.replaceState({ invoiceId: state.id }, '', '/sales/invoices/' + state.id);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  var docNavApi = null;
+  var navLoading = false;
+
+  function loadInvoiceSoft(id) {
+    id = Number(id);
+    if (!id || navLoading) return Promise.resolve();
+    if (Number(state.id) === id) return Promise.resolve();
+    navLoading = true;
+    var stage = document.querySelector('.si-stage');
+    if (stage) {
+      stage.classList.add('is-nav-loading');
+      stage.classList.remove('is-nav-flash');
+    }
+    return fetch('/api/sales/invoices/' + id, { headers: { Accept: 'application/json' } })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok || !data.invoice) {
+          throw new Error((data && data.error) || 'الفاتورة غير موجودة');
+        }
+        applyInvoiceToForm(data.invoice, data.nav, data.caps);
+        if (stage) {
+          stage.classList.remove('is-nav-loading');
+          stage.classList.add('is-nav-flash');
+          setTimeout(function () {
+            stage.classList.remove('is-nav-flash');
+          }, 240);
+        }
+        setMsg('', '');
+      })
+      .catch(function (err) {
+        if (stage) stage.classList.remove('is-nav-loading');
+        throw err;
+      })
+      .finally(function () {
+        navLoading = false;
+      });
+  }
+
   renderLines();
 
   if (window.HypexDocNav) {
-    window.HypexDocNav.bind({
+    docNavApi = window.HypexDocNav.bind({
       input: 'inv_no',
       firstBtn: 'inv_first',
       prevBtn: 'inv_prev',
@@ -1077,6 +1239,9 @@
       openPath: '/sales/invoices',
       findApi: '/api/sales/invoices/by-no',
       currentNo: state.invoice_no || '',
+      onOpen: function (id) {
+        return loadInvoiceSoft(id);
+      },
     });
   }
 })();
