@@ -85,6 +85,47 @@
   word-break: break-word;
 }
 
+.hx-ui__msg[hidden] {
+  display: none !important;
+}
+
+.hx-ui__field {
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.hx-ui__field[hidden] {
+  display: none !important;
+}
+
+.hx-ui__field-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.hx-ui__input {
+  width: 100%;
+  min-height: 2.45rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.45rem 0.7rem;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: #f8fafc;
+  box-sizing: border-box;
+}
+
+.hx-ui__input:focus {
+  outline: none;
+  border-color: #0b6bcb;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(11, 107, 203, 0.15);
+}
+
 .hx-ui--warn .hx-ui__kicker {
   color: #a16207;
 }

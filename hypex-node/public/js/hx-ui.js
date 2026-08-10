@@ -23,6 +23,10 @@
       '<p class="hx-ui__kicker" id="hx-ui-kicker">تنبيه النظام</p>' +
       '<h2 class="hx-ui__title" id="hx-ui-title"></h2>' +
       '<p class="hx-ui__msg" id="hx-ui-msg"></p>' +
+      '<div class="hx-ui__field" id="hx-ui-field" hidden>' +
+      '<label class="hx-ui__field-label" id="hx-ui-field-label" for="hx-ui-input"></label>' +
+      '<input class="hx-ui__input" id="hx-ui-input" type="text" dir="ltr" autocomplete="email">' +
+      '</div>' +
       '<div class="hx-ui__actions" id="hx-ui-actions"></div>' +
       '</div>';
     document.body.appendChild(root);
@@ -71,6 +75,10 @@
           var panel = el.querySelector('.hx-ui__panel');
           var backdrop = el.querySelector('.hx-ui__backdrop');
           var actions = el.querySelector('#hx-ui-actions');
+          var fieldWrap = el.querySelector('#hx-ui-field');
+          var fieldLabel = el.querySelector('#hx-ui-field-label');
+          var fieldInput = el.querySelector('#hx-ui-input');
+          var isPrompt = !!opts.prompt;
 
           el.hidden = false;
           el.classList.remove('hx-ui--warn', 'hx-ui--error', 'hx-ui--ok', 'hx-ui--info');
@@ -84,8 +92,25 @@
           };
           el.querySelector('#hx-ui-kicker').textContent = kickers[kind] || kickers.info;
           el.querySelector('#hx-ui-title').textContent =
-            title || (kind === 'warn' ? 'هل أنت متأكد؟' : 'رسالة');
+            title || (isPrompt ? 'إدخال' : kind === 'warn' ? 'هل أنت متأكد؟' : 'رسالة');
           el.querySelector('#hx-ui-msg').textContent = message;
+          el.querySelector('#hx-ui-msg').hidden = !message;
+
+          if (fieldWrap && fieldInput) {
+            if (isPrompt) {
+              fieldWrap.hidden = false;
+              if (fieldLabel) {
+                fieldLabel.textContent = opts.inputLabel || 'البريد الإلكتروني';
+              }
+              fieldInput.type = opts.inputType || 'email';
+              fieldInput.placeholder = opts.placeholder || 'name@example.com';
+              fieldInput.value = opts.defaultValue != null ? String(opts.defaultValue) : '';
+              fieldInput.dir = opts.dir || 'ltr';
+            } else {
+              fieldWrap.hidden = true;
+              fieldInput.value = '';
+            }
+          }
 
           actions.innerHTML = '';
 
@@ -106,10 +131,16 @@
           }
 
           function cancelValue() {
+            if (isPrompt) return null;
             var cancel = buttons.find(function (x) {
               return x.value === false;
             });
             return cancel ? false : buttons[0] ? buttons[0].value : false;
+          }
+
+          function okValue() {
+            if (isPrompt && fieldInput) return String(fieldInput.value || '');
+            return true;
           }
 
           buttons.forEach(function (b, i) {
@@ -124,7 +155,8 @@
             btn.addEventListener('click', function (e) {
               e.preventDefault();
               e.stopPropagation();
-              finish(b.value);
+              if (b.value === false || b.cancel) finish(cancelValue());
+              else finish(isPrompt ? okValue() : b.value);
             });
             actions.appendChild(btn);
           });
@@ -136,7 +168,9 @@
             if (!Number.isFinite(i) || !buttons[i]) return;
             e.preventDefault();
             e.stopPropagation();
-            finish(buttons[i].value);
+            var b = buttons[i];
+            if (b.value === false || b.cancel) finish(cancelValue());
+            else finish(isPrompt ? okValue() : b.value);
           };
 
           function onKey(e) {
@@ -148,13 +182,21 @@
               return;
             }
             if (e.key === 'Enter') {
+              if (isPrompt && fieldInput && e.target === fieldInput) {
+                e.preventDefault();
+                e.stopPropagation();
+                finish(okValue());
+                return;
+              }
               var tgt = e.target;
               if (tgt && tgt.classList && tgt.classList.contains('hx-ui__btn')) {
                 e.preventDefault();
                 e.stopPropagation();
                 var idx = Number(tgt.getAttribute('data-hx-ui-idx'));
                 if (Number.isFinite(idx) && buttons[idx]) {
-                  finish(buttons[idx].value);
+                  var bb = buttons[idx];
+                  if (bb.value === false || bb.cancel) finish(cancelValue());
+                  else finish(isPrompt ? okValue() : bb.value);
                 }
               }
             }
@@ -175,9 +217,21 @@
             if (e.target === el || e.target === backdrop) tryBackdropClose(e);
           };
 
-          // ركّز زر الإلغاء أولاً في التأكيد الخطِر — أقل عرضة للنقر بالخطأ
           setTimeout(function () {
             if (finished) return;
+            if (isPrompt && fieldInput) {
+              try {
+                fieldInput.focus({ preventScroll: true });
+                fieldInput.select();
+              } catch (err) {
+                try {
+                  fieldInput.focus();
+                } catch (e2) {
+                  /* ignore */
+                }
+              }
+              return;
+            }
             var cancelBtn = actions.querySelector('.hx-ui__btn:not(.hx-ui__btn--primary)');
             var focusBtn =
               kind === 'warn' || kind === 'error'
@@ -221,6 +275,31 @@
           primary: true,
           danger: !!opts.danger,
         },
+      ],
+    });
+  }
+
+  /**
+   * @param {string} message
+   * @param {{ title?: string, defaultValue?: string, placeholder?: string, inputLabel?: string, okLabel?: string, cancelLabel?: string }} [opts]
+   * @returns {Promise<string|null>} النص أو null عند الإلغاء
+   */
+  function prompt(message, opts) {
+    opts = opts || {};
+    return showDialog({
+      message: message || '',
+      kind: 'info',
+      title: opts.title || 'إدخال',
+      prompt: true,
+      defaultValue: opts.defaultValue || '',
+      placeholder: opts.placeholder || '',
+      inputLabel: opts.inputLabel || '',
+      inputType: opts.inputType || 'email',
+      dir: opts.dir || 'ltr',
+      closeOnBackdrop: false,
+      buttons: [
+        { label: opts.cancelLabel || 'إلغاء', value: false, cancel: true },
+        { label: opts.okLabel || 'إرسال', value: true, primary: true },
       ],
     });
   }
@@ -323,6 +402,7 @@
   window.HypexUI = {
     alert: alert,
     confirm: confirm,
+    prompt: prompt,
     toast: toast,
     dialog: showDialog,
   };

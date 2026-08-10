@@ -1104,8 +1104,74 @@
         setMsg('احفظ الفاتورة أولاً.', 'error');
         return;
       }
-      openPrint(true);
-      setMsg('اطبع/احفظ PDF من النافذة ثم أرفقه يدوياً بالبريد إن لزم.', 'ok');
+      if (busy) return;
+
+      function defaultToEmail() {
+        if (state.customer_email) return String(state.customer_email).trim();
+        var el = document.getElementById('inv_customer_email');
+        return el && el.value ? String(el.value).trim() : '';
+      }
+
+      function askEmail() {
+        var def = defaultToEmail();
+        if (window.HypexUI && typeof window.HypexUI.prompt === 'function') {
+          return window.HypexUI.prompt(
+            'أدخل البريد الإلكتروني للمستلم. سيُرسل من إعدادات SMTP في شاشة الإعدادات.',
+            {
+              title: 'إرسال الفاتورة بالبريد',
+              defaultValue: def,
+              placeholder: 'name@example.com',
+              inputLabel: 'بريد المستلم',
+              okLabel: 'إرسال',
+              cancelLabel: 'إلغاء',
+            }
+          );
+        }
+        var typed = window.prompt('بريد المستلم:', def);
+        return Promise.resolve(typed == null ? null : typed);
+      }
+
+      askEmail().then(function (to) {
+        if (to == null) return;
+        to = String(to || '').trim();
+        if (!to) {
+          setMsg('أدخل بريداً إلكترونياً صالحاً.', 'error');
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+          setMsg('صيغة البريد الإلكتروني غير صالحة.', 'error');
+          return;
+        }
+        setMsg('جاري إرسال البريد…');
+        setBusy(true);
+        fetch('/api/sales/invoices/' + state.id + '/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ to_email: to }),
+        })
+          .then(function (r) {
+            return r.json().then(function (data) {
+              return { status: r.status, data: data };
+            });
+          })
+          .then(function (res) {
+            setBusy(false);
+            var data = res.data || {};
+            if (!data.ok) {
+              setMsg(data.error || 'تعذر إرسال البريد.', 'error');
+              return;
+            }
+            state.customer_email = to;
+            setMsg(data.message || 'تم إرسال البريد بنجاح.', 'ok');
+            if (window.HypexUI && window.HypexUI.toast) {
+              window.HypexUI.toast(data.message || 'تم الإرسال', 'ok');
+            }
+          })
+          .catch(function () {
+            setBusy(false);
+            setMsg('تعذر الاتصال بالخادم لإرسال البريد.', 'error');
+          });
+      });
     });
   }
 
@@ -1150,6 +1216,7 @@
     state.invoice_no = inv.invoice_no || '';
     state.is_posted = posted;
     state.customer_id = Number(inv.customer_id) || 0;
+    state.customer_email = inv.customer_email != null ? String(inv.customer_email) : '';
     state.lines =
       inv.lines && inv.lines.length
         ? inv.lines

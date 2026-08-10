@@ -143,6 +143,7 @@ async function getInvoice(id) {
     einv_sent_at: h.einv_sent_at || null,
     /** مرسلة للفوترة = وجود EINV_QR (نفس منطق PHP) */
     einv_sent: !!(h.einv_qr != null && String(h.einv_qr).trim() !== ''),
+    customer_email: await getCustomerEmail(h.customer_id),
     lines: lines.map((ln) => ({
       item_id: Number(ln.item_id),
       item_code: ln.item_code,
@@ -162,6 +163,126 @@ async function getInvoice(id) {
       qty_base: Number(ln.qty_base || ln.qty || 0),
     })),
   };
+}
+
+async function getCustomerEmail(customerId) {
+  const cid = Number(customerId) || 0;
+  if (!cid) return '';
+  try {
+    const rows = await db.query(
+      `SELECT email FROM crm_customer WHERE id = ? LIMIT 1`,
+      [cid]
+    );
+    return rows[0] && rows[0].email ? String(rows[0].email).trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+function escMail(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fmtMail(n) {
+  return (Math.round((Number(n) || 0) * 1000) / 1000).toLocaleString('en-US', {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  });
+}
+
+function buildInvoiceEmailHtml(inv, companyName) {
+  const lines = (inv.lines || [])
+    .map(
+      (ln, i) => `<tr>
+      <td style="padding:6px;border:1px solid #e2e8f0;text-align:center">${i + 1}</td>
+      <td style="padding:6px;border:1px solid #e2e8f0">${escMail(ln.name_ar || '')}</td>
+      <td style="padding:6px;border:1px solid #e2e8f0;text-align:center" dir="ltr">${escMail(fmtMail(ln.qty))}</td>
+      <td style="padding:6px;border:1px solid #e2e8f0;text-align:left" dir="ltr">${escMail(fmtMail(ln.unit_price))}</td>
+      <td style="padding:6px;border:1px solid #e2e8f0;text-align:left" dir="ltr"><strong>${escMail(fmtMail(ln.line_gross))}</strong></td>
+    </tr>`
+    )
+    .join('');
+  const invDate = String(inv.invoice_date || '').slice(0, 10);
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;direction:rtl;color:#0f172a;line-height:1.5">
+  <h2 style="margin:0 0 8px">فاتورة مبيعات ${escMail(inv.invoice_no || '')}</h2>
+  <p style="margin:0 0 12px;color:#64748b">
+    التاريخ: <strong dir="ltr">${escMail(invDate)}</strong>
+    · العميل: <strong>${escMail(inv.customer_name || '')}</strong>
+    ${inv.customer_code ? ' · الرمز: <strong dir="ltr">' + escMail(inv.customer_code) + '</strong>' : ''}
+  </p>
+  <table style="width:100%;border-collapse:collapse;margin:0 0 14px">
+    <thead>
+      <tr style="background:#f1f5f9">
+        <th style="padding:6px;border:1px solid #e2e8f0">#</th>
+        <th style="padding:6px;border:1px solid #e2e8f0">المادة</th>
+        <th style="padding:6px;border:1px solid #e2e8f0">الكمية</th>
+        <th style="padding:6px;border:1px solid #e2e8f0">السعر</th>
+        <th style="padding:6px;border:1px solid #e2e8f0">الإجمالي</th>
+      </tr>
+    </thead>
+    <tbody>${lines || '<tr><td colspan="5" style="padding:10px;border:1px solid #e2e8f0;text-align:center">لا بنود</td></tr>'}</tbody>
+  </table>
+  <p style="margin:0;text-align:left" dir="ltr">
+    <span>Subtotal: ${escMail(fmtMail(inv.subtotal))}</span><br>
+    <span>Tax: ${escMail(fmtMail(inv.tax_amount))}</span><br>
+    <strong>Total: ${escMail(fmtMail(inv.total))}</strong>
+  </p>
+  ${inv.notes ? '<p style="margin:12px 0 0;color:#475569">ملاحظات: ' + escMail(inv.notes) + '</p>' : ''}
+  ${companyName ? '<p style="margin:16px 0 0;color:#94a3b8;font-size:12px">' + escMail(companyName) + '</p>' : ''}
+  <p style="margin:10px 0 0;color:#94a3b8;font-size:12px">يمكنك طباعة PDF من النظام عبر رابط الفاتورة.</p>
+</div>`;
+}
+
+async function companyNameAr() {
+  try {
+    const rows = await db.query(
+      `SELECT company_name_ar FROM sys_company_settings ORDER BY id LIMIT 1`
+    );
+    return rows[0] && rows[0].company_name_ar ? String(rows[0].company_name_ar) : 'Hypex';
+  } catch {
+    return 'Hypex';
+  }
+}
+
+async function sendInvoiceEmail(invoiceId, toEmail, userId) {
+  const id = Number(invoiceId);
+  if (id < 1) return { ok: false, error: 'فاتورة غير صالحة.' };
+  const to = String(toEmail || '').trim();
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    return { ok: false, error: 'البريد الإلكتروني للمستلم غير صالح.' };
+  }
+  const inv = await getInvoice(id);
+  if (!inv) return { ok: false, error: 'الفاتورة غير موجودة.' };
+
+  let company = 'Hypex';
+  try {
+    company = await companyNameAr();
+  } catch {
+    /* */
+  }
+  const subject =
+    'فاتورة مبيعات ' +
+    (inv.invoice_no || id) +
+    (company ? ' — ' + company : '');
+  const bodyHtml = buildInvoiceEmailHtml(inv, company);
+  const bodyText =
+    'فاتورة مبيعات ' +
+    (inv.invoice_no || id) +
+    ' — العميل: ' +
+    (inv.customer_name || '') +
+    ' — الإجمالي: ' +
+    fmtMail(inv.total);
+
+  return phpEmailSend(userId, {
+    to_email: to,
+    subject,
+    body_html: bodyHtml,
+    body_text: bodyText,
+  });
 }
 
 function computeLine(raw) {
@@ -554,6 +675,57 @@ function phpAction(action, userId, payload = {}) {
   });
 }
 
+/** CLI: document_email_send.php <userId> + stdin JSON */
+function phpEmailSend(userId, payload) {
+  return new Promise((resolve) => {
+    const script = path.join(__dirname, '..', '..', 'cli', 'document_email_send.php');
+    if (!fs.existsSync(script)) {
+      return resolve({ ok: false, error: 'سكربت إرسال البريد غير موجود.' });
+    }
+    const args = [];
+    const ini = process.env.PHP_INI || 'C:\\xampp\\php\\php.ini';
+    if (fs.existsSync(ini)) {
+      args.push('-c', ini);
+    }
+    args.push(script, String(userId || 0));
+    const child = spawn(phpBin(), args, {
+      cwd: hypexRoot(),
+      windowsHide: true,
+    });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => {
+      out += String(d);
+    });
+    child.stderr.on('data', (d) => {
+      err += String(d);
+    });
+    child.on('error', (e) => {
+      resolve({ ok: false, error: 'تعذر تشغيل PHP: ' + (e.message || '') });
+    });
+    child.on('close', () => {
+      const line = out
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .pop();
+      if (!line) {
+        return resolve({
+          ok: false,
+          error: err.trim() || 'لا استجابة من خادم البريد.',
+        });
+      }
+      try {
+        resolve(JSON.parse(line));
+      } catch {
+        resolve({ ok: false, error: 'استجابة غير صالحة: ' + line.slice(0, 200) });
+      }
+    });
+    child.stdin.write(JSON.stringify(payload || {}));
+    child.stdin.end();
+  });
+}
+
 /**
  * ترحيل: قيود محاسبية + خصم مستودعي، ثم إرسال للفوترة (اختياري افتراضي true).
  */
@@ -628,6 +800,8 @@ module.exports = {
   unpostInvoice,
   deleteInvoice,
   sendEinvoice,
+  sendInvoiceEmail,
+  getCustomerEmail,
   searchCustomers,
   searchItems,
   lookups,

@@ -481,6 +481,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
       invoice_date: inv ? inv.invoice_date : todayIso(),
       customer_id: inv ? inv.customer_id : 0,
       customer_label: inv ? `${inv.customer_code || ''} — ${inv.customer_name}` : '',
+      customer_email: inv ? inv.customer_email || '' : '',
       sales_rep_id: inv ? inv.sales_rep_id : null,
       warehouse_id: inv ? inv.warehouse_id : lookups.warehouses[0]?.id || null,
       payment_type: inv ? inv.payment_type : 'credit',
@@ -786,6 +787,20 @@ router.post('/api/sales/invoices/:id/einvoice', async (req, res) => {
       return res.status(403).json({ ok: false, error: 'لا صلاحية إرسال الفوترة.' });
     }
     const result = await svc.sendEinvoice(req.params.id, u.id);
+    if (!result.ok) return res.status(400).json(result);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.post('/api/sales/invoices/:id/email', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (id < 1) return res.status(400).json({ ok: false, error: 'فاتورة غير صالحة.' });
+    const body = req.body || {};
+    const to = String(body.to_email || body.email || '').trim();
+    const result = await svc.sendInvoiceEmail(id, to, req.session.user.id);
     if (!result.ok) return res.status(400).json(result);
     res.json(result);
   } catch (e) {
