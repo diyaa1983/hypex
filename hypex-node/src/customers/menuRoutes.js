@@ -190,144 +190,203 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
   });
 });
 
-/* ── Regions ── */
+/* ── تعريف المناطق: منطقة + عناوين متعددة بداخلها ── */
 router.get('/customers/regions', guard('customer_regions'), async (req, res) => {
   const qv = String(req.query.q || '');
   const showAll = String(req.query.all || '') === '1';
+  const wantsNew = String(req.query.new || '') === '1';
   const rows = await q.listRegions({ q: qv, activeOnly: !showAll });
-  const focusId = Number(req.query.id || 0) || 0;
+  let focusId = Number(req.query.id || 0) || 0;
+  if (!wantsNew && !focusId && rows[0]) focusId = Number(rows[0].id);
+  const focus = focusId ? rows.find((r) => Number(r.id) === focusId) || (await masters.getRegion(focusId)) : null;
+  if (focusId && !focus) focusId = 0;
   let addressRows = [];
   if (focusId > 0) addressRows = await q.listRegionAddresses(focusId);
 
-  const filtersHtml = `
-    <div class="si-rail">
-      <form class="si-search" method="get" action="/customers/regions" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;flex:1">
-        <input type="search" name="q" value="${ui.esc(qv)}" placeholder="بحث في المناطق…" autocomplete="off" style="flex:1;min-width:10rem">
-        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
-          <input type="checkbox" name="all" value="1" ${showAll ? 'checked' : ''}> عرض الموقوفة
-        </label>
-        <button class="si-btn si-btn--primary" type="submit">عرض</button>
-      </form>
-    </div>`;
+  const flash = String(req.query.msg || '');
+  const err = String(req.query.err || '');
+  const qsKeep = `${qv ? '&q=' + encodeURIComponent(qv) : ''}${showAll ? '&all=1' : ''}`;
 
-  const rowsHtml =
+  const regionNav =
     rows
-      .map(
-        (r) => `<tr>
-      <td class="si-num" dir="ltr">${dash(r.code)}</td>
-      <td>${ui.esc(r.name_ar || '')}</td>
-      <td class="si-num" dir="ltr">${Number(r.address_count || 0)}</td>
-      <td class="si-num" dir="ltr">${Number(r.customer_count || 0)}</td>
-      <td>${ui.statusPill(Number(r.is_active) === 1 ? 'ok' : 'lock', Number(r.is_active) === 1 ? 'نشط' : 'موقوف')}</td>
-      <td>
-        <a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/customers/regions?id=${r.id}${qv ? '&q=' + encodeURIComponent(qv) : ''}${showAll ? '&all=1' : ''}">عناوين</a>
-        <a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/customers/regions/${r.id}/edit">تعديل</a>
-      </td>
-    </tr>`
-      )
-      .join('') || ui.emptyRow(6);
+      .map((r) => {
+        const active = !wantsNew && Number(r.id) === focusId;
+        return `<a class="rg-nav-item${active ? ' is-active' : ''}${Number(r.is_active) !== 1 ? ' is-off' : ''}"
+          href="/customers/regions?id=${r.id}${qsKeep}">
+          <span class="rg-nav-name">${ui.esc(r.name_ar || '')}</span>
+          <span class="rg-nav-meta" dir="ltr">${Number(r.address_count || 0)} عنوان · ${Number(r.customer_count || 0)} عميل</span>
+        </a>`;
+      })
+      .join('') || `<p class="rg-empty">لا مناطق بعد — أضف منطقة من الزر أعلاه.</p>`;
 
-  let addressesBlock = '';
-  if (focusId > 0) {
-    const focus = rows.find((r) => Number(r.id) === focusId);
-    const aHtml =
+  let detailHtml = '';
+  if (wantsNew) {
+    detailHtml = `
+      <section class="si-surface rg-detail">
+        <div class="si-surface-head"><h2>تعريف منطقة جديدة</h2></div>
+        <form method="post" action="/customers/regions/new" class="si-meta" style="padding:1rem">
+          <label>الرمز
+            <input class="si-field si-field--mono" name="code" dir="ltr" placeholder="تلقائي إن فارغ">
+          </label>
+          <label>الترتيب
+            <input class="si-field" type="number" name="sort_order" value="0" dir="ltr">
+          </label>
+          <label class="si-span-2">اسم المنطقة *
+            <input class="si-field" name="name_ar" required autofocus placeholder="مثال: عمان الغربية">
+          </label>
+          <div class="si-form-actions si-span-2">
+            <button class="si-btn si-btn--primary" type="submit">حفظ المنطقة</button>
+            <a class="si-btn" href="/customers/regions${qsKeep ? '?' + qsKeep.slice(1) : ''}">إلغاء</a>
+          </div>
+        </form>
+        <p class="rg-hint">بعد الحفظ يمكنك إضافة أكثر من عنوان داخل المنطقة.</p>
+      </section>`;
+  } else if (focus) {
+    const aRows =
       addressRows
         .map(
           (a) => `<tr>
-        <td>${ui.esc(a.name_ar || '')}</td>
+        <td>
+          <form method="post" action="/customers/regions/${focusId}/addresses/${a.id}/edit" class="rg-addr-edit">
+            <input type="hidden" name="sort_order" value="${Number(a.sort_order || 0)}">
+            <input class="si-field" name="name_ar" required value="${ui.esc(a.name_ar || '')}" aria-label="اسم العنوان">
+            <label class="rg-check">
+              <input type="checkbox" name="is_active" value="1" ${Number(a.is_active) === 1 ? 'checked' : ''}>
+              نشط
+            </label>
+            <button class="si-btn si-btn--primary" type="submit" style="min-height:1.85rem;padding:.25rem .65rem;font-size:.78rem">حفظ</button>
+          </form>
+        </td>
         <td class="si-num" dir="ltr">${Number(a.customer_count || 0)}</td>
         <td>${ui.statusPill(Number(a.is_active) === 1 ? 'ok' : 'lock', Number(a.is_active) === 1 ? 'نشط' : 'موقوف')}</td>
       </tr>`
         )
-        .join('') || ui.emptyRow(3, 'لا عناوين لهذه المنطقة');
-    addressesBlock = `
-      <div style="margin-top:.85rem">
-        ${ui.tableSurface(
-          `عناوين: ${focus ? focus.name_ar : '#' + focusId}`,
-          `${addressRows.length} عنوان`,
-          ['العنوان', 'العملاء', 'الحالة'],
-          aHtml
-        )}
-        <section class="si-surface" style="margin-top:.65rem">
-          <div class="si-surface-head"><h2>＋ عنوان جديد</h2></div>
-          <form method="post" action="/customers/regions/${focusId}/addresses" class="si-meta" style="padding:1rem">
-            <label class="si-span-2">اسم العنوان (حي / شارع)
-              <input class="si-field" name="name_ar" required placeholder="مثال: الدوار السابع" autocomplete="off">
-            </label>
-            <div class="si-form-actions"><button class="si-btn si-btn--primary" type="submit">إضافة العنوان</button></div>
-          </form>
-        </section>
-      </div>`;
+        .join('') || ui.emptyRow(3, 'لا عناوين بعد — أضف عنواناً أو أكثر أدناه');
+
+    detailHtml = `
+      <section class="si-surface rg-detail">
+        <div class="si-surface-head">
+          <h2>تعريف المنطقة</h2>
+          <span class="si-count" dir="ltr">${ui.esc(focus.code || '')}</span>
+        </div>
+        <form method="post" action="/customers/regions/${focusId}/edit" class="si-meta" style="padding:1rem">
+          <input type="hidden" name="id" value="${focusId}">
+          <label>الرمز
+            <input class="si-field si-field--mono" name="code" value="${ui.esc(focus.code || '')}" dir="ltr">
+          </label>
+          <label>الترتيب
+            <input class="si-field" type="number" name="sort_order" value="${Number(focus.sort_order || 0)}" dir="ltr">
+          </label>
+          <label class="si-span-2">اسم المنطقة *
+            <input class="si-field" name="name_ar" required value="${ui.esc(focus.name_ar || '')}">
+          </label>
+          <label class="rg-check-row si-span-2">
+            <input type="checkbox" name="is_active" value="1" ${Number(focus.is_active) === 1 ? 'checked' : ''}>
+            المنطقة مفعّلة
+          </label>
+          <div class="si-form-actions si-span-2">
+            <button class="si-btn si-btn--primary" type="submit">حفظ تعريف المنطقة</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="si-surface rg-detail" style="margin-top:.75rem">
+        <div class="si-surface-head">
+          <h2>عناوين داخل «${ui.esc(focus.name_ar || '')}»</h2>
+          <span class="si-count">${addressRows.length} عنوان</span>
+        </div>
+        <div class="si-lines-wrap" style="padding:0 .85rem .85rem">
+          <table class="si-table" style="width:100%;margin:0">
+            <thead>
+              <tr>
+                <th>العنوان (حي / شارع)</th>
+                <th style="width:5rem">عملاء</th>
+                <th style="width:5.5rem">الحالة</th>
+              </tr>
+            </thead>
+            <tbody>${aRows}</tbody>
+          </table>
+        </div>
+        <form method="post" action="/customers/regions/${focusId}/addresses" class="si-meta" style="padding:0 1rem 1rem;border-top:1px solid #e8edf5">
+          <div class="si-surface-head" style="padding:.75rem 0 .35rem"><h2 style="font-size:.95rem">＋ إضافة عنوان آخر</h2></div>
+          <label class="si-span-2">اسم العنوان *
+            <input class="si-field" name="name_ar" required placeholder="مثال: الدوار السابع · خلدا · الجبيهة" autocomplete="off">
+          </label>
+          <label>الترتيب
+            <input class="si-field" type="number" name="sort_order" value="${addressRows.length * 10}" dir="ltr">
+          </label>
+          <div class="si-form-actions">
+            <button class="si-btn si-btn--primary" type="submit">إضافة العنوان للمنطقة</button>
+          </div>
+          <p class="rg-hint si-span-2">يمكن إضافة أكثر من عنوان لنفس المنطقة — كل عنوان على حدة.</p>
+        </form>
+      </section>`;
+  } else {
+    detailHtml = `
+      <section class="si-surface rg-detail">
+        <div class="si-surface-head"><h2>تعريف المنطقة</h2></div>
+        <p class="rg-empty" style="padding:1.25rem">اختر منطقة من القائمة أو أضف منطقة جديدة.</p>
+      </section>`;
   }
 
-  const flash = String(req.query.msg || '');
-  const err = String(req.query.err || '');
   const body = `
+    <style>
+      .rg-layout{display:grid;grid-template-columns:minmax(14rem,18rem) minmax(0,1fr);gap:.85rem;align-items:start}
+      @media (max-width:900px){.rg-layout{grid-template-columns:1fr}}
+      .rg-nav{display:flex;flex-direction:column;gap:.35rem;padding:.55rem;max-height:min(70vh,36rem);overflow:auto}
+      .rg-nav-item{display:flex;flex-direction:column;gap:.15rem;padding:.55rem .65rem;border-radius:10px;border:1px solid transparent;text-decoration:none;color:inherit;background:#f8fafc}
+      .rg-nav-item:hover{border-color:#cbd5e1;background:#fff}
+      .rg-nav-item.is-active{border-color:#0b6bcb;background:#eff6ff;box-shadow:0 0 0 1px rgba(11,107,203,.12)}
+      .rg-nav-item.is-off{opacity:.72}
+      .rg-nav-name{font-weight:700;font-size:.92rem}
+      .rg-nav-meta{font-size:.72rem;color:#64748b;font-weight:600}
+      .rg-empty{margin:0;padding:.75rem;color:#64748b;font-size:.88rem}
+      .rg-hint{margin:.35rem 0 0;font-size:.8rem;color:#64748b;line-height:1.45}
+      .rg-addr-edit{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+      .rg-addr-edit .si-field{flex:1;min-width:10rem;min-height:2rem}
+      .rg-check,.rg-check-row{display:flex;align-items:center;gap:.35rem;font-size:.82rem;font-weight:700;color:#475569;flex-direction:row}
+      .rg-filters{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;flex:1}
+    </style>
     <div class="si-stage">
       ${ui.hero({
         mark: 'Rg',
         kicker: KICKER,
-        title: 'مناطق العملاء',
-        subtitle: 'إضافة مناطق وعناوين مرتبطة بالعملاء — أصلية على Node',
+        title: 'تعريف المناطق',
+        subtitle: 'عرّف المنطقة ثم أضف بداخلها العناوين (حي / شارع) — ويمكن أكثر من عنوان لكل منطقة',
         actions: [
-          { label: '＋ منطقة', href: '/customers/regions/new', primary: true },
+          { label: '＋ منطقة جديدة', href: '/customers/regions?new=1' + qsKeep, primary: true },
           { label: 'العملاء', href: '/customers/list' },
           { label: 'لوحة العملاء', href: HUB },
         ],
       })}
       ${flash ? `<p class="si-pill si-pill--ok" style="display:inline-block">${ui.esc(flash)}</p>` : ''}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>` : ''}
-      ${filtersHtml}
-      ${ui.tableSurface('المناطق', `${rows.length} منطقة`, ['الرمز', 'الاسم', 'عناوين', 'عملاء', 'الحالة', ''], rowsHtml)}
-      ${addressesBlock}
+      <div class="si-rail">
+        <form class="si-search rg-filters" method="get" action="/customers/regions" style="max-width:100%;margin:0">
+          ${focusId && !wantsNew ? `<input type="hidden" name="id" value="${focusId}">` : ''}
+          <input type="search" name="q" value="${ui.esc(qv)}" placeholder="بحث منطقة أو عنوان…" autocomplete="off" style="flex:1;min-width:10rem">
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+            <input type="checkbox" name="all" value="1" ${showAll ? 'checked' : ''}> عرض الموقوفة
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض</button>
+        </form>
+      </div>
+      <div class="rg-layout">
+        <section class="si-surface">
+          <div class="si-surface-head"><h2>المناطق</h2><span class="si-count">${rows.length}</span></div>
+          <nav class="rg-nav" aria-label="قائمة المناطق">${regionNav}</nav>
+        </section>
+        <div class="rg-detail-col">${detailHtml}</div>
+      </div>
     </div>`;
-  res.send(ui.salesPage({ user: req.session.user, title: 'مناطق العملاء', bodyHtml: body }));
+  res.send(ui.salesPage({ user: req.session.user, title: 'تعريف المناطق', bodyHtml: body }));
 });
 
 async function regionForm(req, res, id) {
-  if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
-  const row = id ? await masters.getRegion(id) : null;
-  if (id && !row) return res.status(404).send('غير موجود');
-  const isNew = !row;
-  const err = String(req.query.err || '');
-  const body = `
-    <div class="si-stage">
-      ${ui.hero({
-        mark: 'Rg',
-        kicker: KICKER,
-        title: isNew ? 'إضافة منطقة' : 'تعديل منطقة',
-        subtitle: 'crm_region',
-        actions: [{ label: 'رجوع', href: '/customers/regions' }],
-      })}
-      ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
-      <section class="si-surface">
-        <form method="post" action="${isNew ? '/customers/regions/new' : '/customers/regions/' + id + '/edit'}" class="si-meta" style="padding:1rem">
-          <input type="hidden" name="id" value="${row ? row.id : 0}">
-          <label>الرمز
-            <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="تلقائي إن فارغ">
-          </label>
-          <label>الترتيب
-            <input class="si-field" type="number" name="sort_order" value="${Number(row?.sort_order || 0)}" dir="ltr">
-          </label>
-          <label class="si-span-2">اسم المنطقة *
-            <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" placeholder="مثال: عمان الغربية">
-          </label>
-          ${
-            isNew
-              ? ''
-              : `<label style="display:flex;align-items:center;gap:.4rem;flex-direction:row">
-            <input type="checkbox" name="is_active" value="1" ${Number(row.is_active) === 1 ? 'checked' : ''}>
-            مفعّلة
-          </label>`
-          }
-          <div class="si-form-actions">
-            <button class="si-btn si-btn--primary" type="submit">حفظ</button>
-            <a class="si-btn" href="/customers/regions">إلغاء</a>
-          </div>
-        </form>
-      </section>
-    </div>`;
-  res.send(ui.salesPage({ user: req.session.user, title: isNew ? 'منطقة جديدة' : 'تعديل منطقة', bodyHtml: body }));
+  /* نموذج منفصل لم يعد مستخدماً كشاشة رئيسية — إعادة توجيه للواجهة الموحدة */
+  const isNew = !id;
+  if (isNew) return res.redirect('/customers/regions?new=1');
+  return res.redirect('/customers/regions?id=' + Number(id));
 }
 
 router.get('/customers/regions/new', (req, res) => regionForm(req, res, 0));
@@ -339,20 +398,42 @@ router.get('/customers/regions/:id/edit', async (req, res) => {
 router.post('/customers/regions/new', async (req, res) => {
   if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
   const result = await masters.saveRegion({ ...(req.body || {}), is_active: 1 });
-  if (!result.ok) return res.redirect('/customers/regions/new?err=' + encodeURIComponent(result.error));
-  res.redirect('/customers/regions?msg=' + encodeURIComponent(result.message || 'تم') + (result.id ? '&id=' + result.id : ''));
+  if (!result.ok) return res.redirect('/customers/regions?new=1&err=' + encodeURIComponent(result.error));
+  res.redirect(
+    '/customers/regions?msg=' +
+      encodeURIComponent(result.message || 'تم') +
+      (result.id ? '&id=' + result.id : '')
+  );
 });
 router.post('/customers/regions/:id/edit', async (req, res) => {
   if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
   const id = Number(req.params.id);
   const result = await masters.saveRegion({ ...(req.body || {}), id });
-  if (!result.ok) return res.redirect('/customers/regions/' + id + '/edit?err=' + encodeURIComponent(result.error));
-  res.redirect('/customers/regions?msg=' + encodeURIComponent(result.message || 'تم') + '&id=' + id);
+  if (!result.ok) {
+    return res.redirect('/customers/regions?id=' + id + '&err=' + encodeURIComponent(result.error));
+  }
+  res.redirect('/customers/regions?id=' + id + '&msg=' + encodeURIComponent(result.message || 'تم'));
 });
 router.post('/customers/regions/:id/addresses', async (req, res) => {
   if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
   const regionId = Number(req.params.id);
   const result = await masters.saveRegionAddress({ ...(req.body || {}), region_id: regionId });
+  const key = result.ok ? 'msg' : 'err';
+  res.redirect(
+    '/customers/regions?id=' + regionId + '&' + key + '=' + encodeURIComponent(result.message || result.error || '')
+  );
+});
+router.post('/customers/regions/:regionId/addresses/:addrId/edit', async (req, res) => {
+  if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
+  const regionId = Number(req.params.regionId);
+  const addrId = Number(req.params.addrId);
+  const body = req.body || {};
+  const result = await masters.saveRegionAddress({
+    ...body,
+    id: addrId,
+    region_id: regionId,
+    is_active: body.is_active ? 1 : 0,
+  });
   const key = result.ok ? 'msg' : 'err';
   res.redirect(
     '/customers/regions?id=' + regionId + '&' + key + '=' + encodeURIComponent(result.message || result.error || '')

@@ -57,11 +57,17 @@ async function listRegions({ q = '', activeOnly = true, limit = 200 } = {}) {
   if (activeOnly) where.push('r.is_active = 1');
   if (q) {
     const like = `%${q}%`;
-    where.push(`(r.name_ar LIKE ? OR IFNULL(r.code,'') LIKE ? OR IFNULL(r.address_ar,'') LIKE ?)`);
+    where.push(
+      `(r.name_ar LIKE ? OR IFNULL(r.code,'') LIKE ?
+        OR EXISTS (
+          SELECT 1 FROM crm_region_address a
+          WHERE a.region_id = r.id AND a.name_ar LIKE ?
+        ))`
+    );
     params.push(like, like, like);
   }
   return safeQuery(
-    `SELECT r.id, r.code, r.name_ar, r.address_ar, r.is_active, r.sort_order,
+    `SELECT r.id, r.code, r.name_ar, r.is_active, r.sort_order,
             (SELECT COUNT(*) FROM crm_customer c WHERE c.region_id = r.id) AS customer_count,
             (SELECT COUNT(*) FROM crm_region_address a WHERE a.region_id = r.id) AS address_count
      FROM crm_region r

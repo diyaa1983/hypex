@@ -278,7 +278,7 @@ $repsUrl = app_url('index.php?r=sales_reps');
 
 <div class="dashboard-ora sales-ora12-screen rg-ssms" data-exit-guard="custom">
     <header class="dashboard-ora-screen-title no-print" role="banner">
-        <h1 class="dashboard-ora-screen-title__text">مناطق العملاء</h1>
+        <h1 class="dashboard-ora-screen-title__text">تعريف المناطق</h1>
         <span class="dashboard-ora-screen-title__meta"><?= count($regions) ?> منطقة</span>
         <?php nav_render_screen_close($GLOBALS['activeRoute'] ?? 'customer_regions'); ?>
     </header>

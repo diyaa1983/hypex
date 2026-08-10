@@ -199,11 +199,44 @@ async function saveRegion(payload) {
 }
 
 async function saveRegionAddress(payload) {
+  const id = Number(payload.id || 0);
   const regionId = Number(payload.region_id || 0);
   const name = String(payload.name_ar || '').trim();
   if (regionId < 1) return { ok: false, error: 'اختر المنطقة.' };
   if (!name) return { ok: false, error: 'اسم العنوان مطلوب.' };
   const sortOrder = Number(payload.sort_order || 0) || 0;
+  const isActive =
+    payload.is_active === '1' ||
+    payload.is_active === 1 ||
+    payload.is_active === true ||
+    payload.is_active === 'on' ||
+    payload.is_active === undefined
+      ? 1
+      : 0;
+
+  if (id > 0) {
+    const cur = await safeQuery(`SELECT id, region_id FROM crm_region_address WHERE id = ? LIMIT 1`, [id]);
+    if (!cur[0] || Number(cur[0].region_id) !== regionId) {
+      return { ok: false, error: 'العنوان غير موجود في هذه المنطقة.' };
+    }
+    const dup = await safeQuery(
+      `SELECT id FROM crm_region_address WHERE region_id = ? AND name_ar = ? AND id <> ? LIMIT 1`,
+      [regionId, name, id]
+    );
+    if (dup[0]) return { ok: false, error: 'يوجد عنوان بنفس الاسم في هذه المنطقة.' };
+    await safeQuery(
+      `UPDATE crm_region_address SET name_ar=?, sort_order=?, is_active=? WHERE id=? AND region_id=?`,
+      [name, sortOrder, isActive, id, regionId]
+    );
+    return { ok: true, id, message: 'تم تحديث العنوان.' };
+  }
+
+  const dup = await safeQuery(
+    `SELECT id FROM crm_region_address WHERE region_id = ? AND name_ar = ? LIMIT 1`,
+    [regionId, name]
+  );
+  if (dup[0]) return { ok: false, error: 'يوجد عنوان بنفس الاسم في هذه المنطقة.' };
+
   const [result] = await db.getPool().execute(
     `INSERT INTO crm_region_address (region_id, name_ar, sort_order, is_active) VALUES (?,?,?,1)`,
     [regionId, name, sortOrder]
@@ -211,10 +244,13 @@ async function saveRegionAddress(payload) {
   return { ok: true, id: Number(result.insertId), message: 'تم إضافة العنوان.' };
 }
 
-async function listAddressesForRegion(regionId) {
+async function listAddressesForRegion(regionId, { activeOnly = true } = {}) {
   if (!regionId) return [];
+  const activeSql = activeOnly ? 'AND is_active = 1' : '';
   return safeQuery(
-    `SELECT id, name_ar FROM crm_region_address WHERE region_id = ? AND is_active = 1 ORDER BY sort_order, name_ar`,
+    `SELECT id, name_ar, is_active, sort_order FROM crm_region_address
+     WHERE region_id = ? ${activeSql}
+     ORDER BY sort_order, name_ar`,
     [Number(regionId)]
   );
 }

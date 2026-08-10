@@ -195,7 +195,7 @@ return [
     'customer_regions' => [
         'file' => 'modules/master/regions.php',
         'permission' => 'customer_regions',
-        'title' => 'مناطق العملاء',
+        'title' => 'تعريف المناطق',
         'hide_screen_title' => true,
     ],
     'oracle_customers_sync' => [

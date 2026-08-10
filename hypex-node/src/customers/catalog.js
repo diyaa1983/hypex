@@ -9,7 +9,7 @@ const customersCatalog = [
     title: 'العملاء',
     items: [
       { r: 'customers', label: 'العملاء', icon: '👤', path: '/customers/list', kind: 'list' },
-      { r: 'customer_regions', label: 'مناطق العملاء', icon: '🗺️', path: '/customers/regions', kind: 'list' },
+      { r: 'customer_regions', label: 'تعريف المناطق', icon: '🗺️', path: '/customers/regions', kind: 'list' },
       { r: 'oracle_customers_sync', label: 'تكامل Oracle — العملاء', icon: '🔗', path: '/customers/oracle-sync', kind: 'list' },
     ],
   },
