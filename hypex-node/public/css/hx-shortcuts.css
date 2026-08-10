@@ -194,9 +194,45 @@
   transform: translateX(-50%) translateY(0);
 }
 
+/* شريط الاختصارات العام (إن وُجد بدون sales-2027) */
+.hx-sc-keys.si-keys,
+.si-keys.hx-sc-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  margin: 0.2rem 0 0.65rem;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.si-keys kbd,
+.hx-sc-keys kbd {
+  display: inline-block;
+  min-width: 1.4rem;
+  padding: 0.08rem 0.32rem;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  box-shadow: 0 1px 0 #e2e8f0;
+}
+
 @media print {
   .hx-lk,
-  .hx-sc-toast {
+  .hx-sc-toast,
+  .si-keys,
+  .hx-sc-keys {
     display: none !important;
   }
 }

@@ -613,6 +613,87 @@ body.si-2027 .si-main::before {
   outline-offset: 2px;
 }
 
+/* ?????? ??????? ??? ???? */
+.si-tb-key {
+  display: inline-block;
+  margin-inline-start: 0.15rem;
+  padding: 0.05rem 0.28rem;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-family: Consolas, 'Courier New', monospace;
+  line-height: 1.2;
+  color: inherit;
+  opacity: 0.72;
+  border: 1px solid currentColor;
+  border-color: rgba(255, 255, 255, 0.28);
+  vertical-align: middle;
+}
+
+.si-tb--save .si-tb-key,
+.si-tb--post .si-tb-key {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.si-tb--danger .si-tb-key {
+  border-color: rgba(255, 200, 200, 0.45);
+  opacity: 0.85;
+}
+
+/* ???? ???????? ???? — ?? ???? ??? ???? ??????? */
+.si-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  margin: 0.15rem 0 0.65rem;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #64748b;
+  background: rgba(248, 250, 252, 0.92);
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.si-keys span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  white-space: nowrap;
+}
+
+.si-keys kbd {
+  display: inline-block;
+  min-width: 1.4rem;
+  padding: 0.08rem 0.32rem;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  box-shadow: 0 1px 0 #e2e8f0;
+}
+
+body.si-2027 .si-keys {
+  color: rgba(226, 232, 240, 0.78);
+  background: rgba(15, 23, 42, 0.35);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body.si-2027 .si-keys kbd {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+  box-shadow: none;
+}
+
+
 .si-tb:disabled {
   opacity: 0.36;
   cursor: not-allowed;

@@ -83,17 +83,21 @@ function toolbarCaps(user, order) {
 function toolbarHtml(caps, order) {
   const id = order && order.id ? Number(order.id) : 0;
   const locked = !!(order && order.is_approved);
-  const b = (idAttr, label, cls, disabled, extra = '') =>
-    `<button type="button" class="si-tb ${cls || ''}" id="${idAttr}" ${
+  const b = (idAttr, label, cls, disabled, extra = '', key = '') => {
+    const keyHtml = key
+      ? ` <span class="si-tb-key" aria-hidden="true">${esc(key)}</span>`
+      : '';
+    return `<button type="button" class="si-tb ${cls || ''}" id="${idAttr}" ${
       disabled ? 'disabled' : ''
-    }${extra}>${esc(label)}</button>`;
+    }${extra}>${esc(label)}${keyHtml}</button>`;
+  };
 
   return `
     <div class="si-cmd si-doc-toolbar" id="co-doc-bar" role="toolbar" aria-label="إجراءات طلب الشراء"
          data-order-id="${id}" data-approved="${locked ? '1' : '0'}">
       <div class="si-tb-group si-tb-group--core">
-        ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="F10 حفظ"')}
-        ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove)}
+        ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10')}
+        ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove, ' title="اعتماد"')}
       </div>
       <div class="si-tb-group">
         ${b('co-search', 'بحث', 'si-tb--ghost', false)}
@@ -103,12 +107,27 @@ function toolbarHtml(caps, order) {
       </div>
       <div class="si-tb-group si-tb-group--risk">
         ${b('co-unapprove', 'فك الاعتماد', '', !caps.canUnapprove)}
-        ${b('co-delete', 'حذف', 'si-tb--danger', !caps.canDelete)}
+        ${b(
+          'co-delete',
+          'حذف',
+          'si-tb--danger',
+          !caps.canDelete,
+          ' data-hx-delete="1" title="حذف الطلب — F4"',
+          'F4'
+        )}
       </div>
       <div class="si-tb-group si-tb-group--status">
         <span class="si-msg" id="co-msg"></span>
       </div>
-    </div>`;
+    </div>
+    <p class="si-keys" dir="rtl" aria-label="اختصارات لوحة المفاتيح">
+      <span><kbd>F2</kbd> سطر مادة</span>
+      <span><kbd>F3</kbd> قائمة المواد</span>
+      <span><kbd>F4</kbd> حذف</span>
+      <span><kbd>F7</kbd> العملاء</span>
+      <span><kbd>F10</kbd> حفظ</span>
+      <span><kbd>Esc</kbd> إغلاق</span>
+    </p>`;
 }
 
 /** طباعة طلب شراء عميل — نفس شكل فاتورة المبيعات مع محتوى الطلب */

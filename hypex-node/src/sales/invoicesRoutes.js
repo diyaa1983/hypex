@@ -78,20 +78,24 @@ function toolbarCaps(user, inv) {
 function toolbarHtml(caps, inv) {
   const id = inv && inv.id ? Number(inv.id) : 0;
   const posted = !!(inv && inv.is_posted);
-  const b = (idAttr, label, cls, disabled, extra = '') =>
-    `<button type="button" class="si-tb ${cls || ''}" id="${idAttr}" ${
+  const b = (idAttr, label, cls, disabled, extra = '', key = '') => {
+    const keyHtml = key
+      ? ` <span class="si-tb-key" aria-hidden="true">${esc(key)}</span>`
+      : '';
+    return `<button type="button" class="si-tb ${cls || ''}" id="${idAttr}" ${
       disabled ? 'disabled' : ''
-    }${extra}>${esc(label)}</button>`;
+    }${extra}>${esc(label)}${keyHtml}</button>`;
+  };
 
   return `
     <div class="si-cmd si-doc-toolbar" id="si-doc-bar" role="toolbar" aria-label="إجراءات الفاتورة"
          data-invoice-id="${id}" data-posted="${posted ? '1' : '0'}">
       <div class="si-tb-group si-tb-group--core">
-        ${b('si-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="F10 حفظ"')}
-        ${b('si-post', 'ترحيل', 'si-tb--post', !caps.canPost && !(caps.canSave && !id))}
+        ${b('si-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10')}
+        ${b('si-post', 'ترحيل', 'si-tb--post', !caps.canPost && !(caps.canSave && !id), ' title="ترحيل"')}
       </div>
       <div class="si-tb-group">
-        ${b('si-search', 'بحث', 'si-tb--ghost', false)}
+        ${b('si-search', 'بحث', 'si-tb--ghost', false, ' title="قائمة الفواتير"')}
         ${b('si-pdf', 'PDF', '', !caps.canPdf)}
         ${b('si-print', 'طباعة', '', !caps.canPrint)}
         ${b('si-excel', 'Excel', '', !caps.canExcel)}
@@ -101,12 +105,27 @@ function toolbarHtml(caps, inv) {
       </div>
       <div class="si-tb-group si-tb-group--risk">
         ${b('si-unpost', 'فك الترحيل', '', !caps.canUnpost)}
-        ${b('si-delete', 'حذف', 'si-tb--danger', !caps.canDelete)}
+        ${b(
+          'si-delete',
+          'حذف',
+          'si-tb--danger',
+          !caps.canDelete,
+          ' data-hx-delete="1" title="حذف الفاتورة — F4 (يحذف البنود ثم الفاتورة)"',
+          'F4'
+        )}
       </div>
       <div class="si-tb-group si-tb-group--status">
         <span class="si-msg" id="si-msg"></span>
       </div>
-    </div>`;
+    </div>
+    <p class="si-keys" dir="rtl" aria-label="اختصارات لوحة المفاتيح">
+      <span><kbd>F2</kbd> سطر مادة</span>
+      <span><kbd>F3</kbd> قائمة المواد</span>
+      <span><kbd>F4</kbd> حذف الفاتورة</span>
+      <span><kbd>F7</kbd> العملاء</span>
+      <span><kbd>F10</kbd> حفظ</span>
+      <span><kbd>Esc</kbd> إغلاق</span>
+    </p>`;
 }
 
 /** قائمة الفواتير */

@@ -763,18 +763,27 @@
       setMsg(posted ? 'لا يمكن حذف فاتورة مرحّلة.' : 'احفظ الفاتورة أولاً.', 'error');
       return;
     }
+    var invNo = state.invoice_no || String(state.id);
+    var warnMsg =
+      'تحذير: سيتم أولاً حذف جميع بنود المواد من الفاتورة، ثم حذف الفاتورة نفسها نهائياً.\n\n' +
+      'رقم الفاتورة: ' +
+      invNo +
+      '\n\n' +
+      'لا يمكن التراجع عن هذه العملية.';
     var ask =
       window.HypexUI && window.HypexUI.confirm
-        ? window.HypexUI.confirm('حذف الفاتورة نهائياً؟', {
-            title: 'حذف',
-            okLabel: 'حذف',
+        ? window.HypexUI.confirm(warnMsg, {
+            title: 'حذف الفاتورة',
+            okLabel: 'حذف نهائياً',
             cancelLabel: 'إلغاء',
             danger: true,
+            kind: 'warn',
           })
-        : Promise.resolve(window.confirm('حذف الفاتورة نهائياً؟'));
+        : Promise.resolve(window.confirm(warnMsg));
     ask.then(function (ok) {
       if (!ok) return;
       setBusy(true);
+      setMsg('جاري حذف البنود ثم الفاتورة…');
       fetch('/api/sales/invoices/' + state.id + '/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -788,6 +797,9 @@
           if (!data.ok) {
             setMsg(data.error || data.message || 'تعذر الحذف', 'error');
             return;
+          }
+          if (window.HypexUI && window.HypexUI.toast) {
+            window.HypexUI.toast(data.message || 'تم حذف الفاتورة', 'ok', 2500);
           }
           window.location.href = '/sales/invoices';
         })
