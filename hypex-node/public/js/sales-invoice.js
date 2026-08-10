@@ -563,9 +563,6 @@
     true
   );
 
-  var addBtn = document.getElementById('si-add-line');
-  if (addBtn) addBtn.addEventListener('click', addEmptyLine);
-
   var disc = document.getElementById('inv_discount');
   if (disc) disc.addEventListener('input', recomputeFooter);
 

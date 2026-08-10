@@ -60,6 +60,159 @@ function sendExcelCsv(res, filename, rows) {
   return res.send(body);
 }
 
+/**
+ * تصدير Excel كجدول HTML (.xls) — يحفظ شكل التقرير (ترويسة + أعمدة + مجاميع).
+ * Excel يفتحه مع دعم عربي واتجاه RTL.
+ */
+function sendExcelHtml(res, filename, innerHtml, sheetName) {
+  const safe = String(filename || 'export')
+    .replace(/[^\w.\-]+/g, '_')
+    .slice(0, 80);
+  const sheet = String(sheetName || 'تقرير')
+    .replace(/[<>&'"]/g, '')
+    .slice(0, 31);
+  const bom = '\uFEFF';
+  const html =
+    bom +
+    `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40" lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!--[if gte mso 9]>
+<xml>
+ <x:ExcelWorkbook>
+  <x:ExcelWorksheets>
+   <x:ExcelWorksheet>
+    <x:Name>${sheet}</x:Name>
+    <x:WorksheetOptions>
+     <x:DisplayRightToLeft/>
+    </x:WorksheetOptions>
+   </x:ExcelWorksheet>
+  </x:ExcelWorksheets>
+ </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<style>
+  body, table {
+    font-family: Arial, Tahoma, sans-serif;
+    font-size: 11pt;
+    color: #0f172a;
+    direction: rtl;
+  }
+  .ora-xl-title {
+    font-size: 15pt;
+    font-weight: 800;
+    text-align: center;
+    padding: 6px 4px 10px;
+    color: #1e3a5f;
+  }
+  .ora-xl-meta td {
+    border: 0 !important;
+    padding: 2px 4px;
+    font-size: 11pt;
+  }
+  .ora-xl-meta .lbl { color: #64748b; font-weight: 700; }
+  .ora-xl-meta .val { font-weight: 700; color: #0f172a; }
+  .ora-xl-period {
+    text-align: center;
+    font-weight: 800;
+    font-size: 12pt;
+    padding: 6px 4px 12px !important;
+    border: 0 !important;
+  }
+  table.ora-xl-data {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  table.ora-xl-data th {
+    background: #5b6b7c;
+    color: #fff;
+    font-weight: 700;
+    border: 1px solid #4a5568;
+    padding: 6px 5px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  table.ora-xl-data td {
+    border: 1px solid #94a3b8;
+    padding: 4px 5px;
+    vertical-align: middle;
+    background: #fff;
+  }
+  table.ora-xl-data td.num {
+    mso-number-format: "0.000";
+    text-align: left;
+    direction: ltr;
+    font-variant-numeric: tabular-nums;
+  }
+  table.ora-xl-data td.date {
+    mso-number-format: "\\@";
+    text-align: center;
+    direction: ltr;
+    white-space: nowrap;
+  }
+  table.ora-xl-data td.desc { text-align: right; }
+  table.ora-xl-data tr.open td { background: #f1f5f9; font-weight: 700; }
+  table.ora-xl-data tr.foot td {
+    background: #e2e8f0;
+    font-weight: 800;
+    border-top: 2px solid #0f172a;
+  }
+  .ora-xl-chq-title {
+    font-size: 12pt;
+    font-weight: 800;
+    text-decoration: underline;
+    padding: 16px 4px 6px !important;
+    border: 0 !important;
+    text-align: right;
+  }
+  table.ora-xl-chq {
+    border-collapse: collapse;
+    width: auto;
+    min-width: 420px;
+  }
+  table.ora-xl-chq th {
+    border: 0;
+    border-bottom: 1px solid #000;
+    text-decoration: underline;
+    font-weight: 800;
+    padding: 3px 8px;
+    text-align: right;
+    background: transparent;
+    color: #000;
+  }
+  table.ora-xl-chq td {
+    border: 0;
+    font-weight: 700;
+    padding: 2px 8px;
+    text-align: right;
+  }
+  table.ora-xl-chq td.num {
+    mso-number-format: "0.000";
+    text-align: left;
+    direction: ltr;
+  }
+  table.ora-xl-chq tr.foot td {
+    border-top: 1px dashed #000;
+    text-decoration: underline;
+    padding-top: 6px;
+  }
+  .spacer td { border: 0 !important; height: 8px; }
+</style>
+</head>
+<body dir="rtl">
+${innerHtml}
+</body>
+</html>`;
+  res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safe}.xls"`);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.send(html);
+}
+
 function pathOk(p) {
   return (
     p.startsWith('/accounting/reports/') ||
@@ -850,7 +1003,7 @@ router.get(
       ? accountNo
       : '';
 
-  // ── تصدير Excel (CSV) ──
+  // ── تصدير Excel بنفس شكل التقرير ──
   if (wantExcel) {
     if (!accountNo) {
       return res.status(400).send('اختر عميلاً أو رقم الحساب قبل تصدير Excel.');
@@ -877,57 +1030,128 @@ router.get(
     const partyCode = String(
       (selectedParty && (selectedParty.code || selectedParty.acc_no)) || data.account || accountNo
     );
-    const rows = [
-      ['كشف حساب عميل'],
-      ['اسم العميل', name || '—'],
-      ['رقم الحساب', partyCode],
-      ['من تاريخ', isoToDmy(from)],
-      ['إلى تاريخ', isoToDmy(to)],
-      [],
-      ['التاريخ', 'المستند', 'البيان', 'مدين', 'دائن', 'الرصيد'],
-    ];
-    for (const r of lines) {
-      const isOpen = !!r.is_opening;
-      const docLabel = isOpen
-        ? 'رصيد افتتاحي'
-        : [r.doc_type, r.doc_no].filter(Boolean).join(' · ') || String(r.doc_no || '');
-      rows.push([
-        isoToDmy(r.trn_date),
-        docLabel,
-        String(r.description || ''),
-        isOpen && !Number(r.debit) ? '' : numPlain(r.debit),
-        isOpen && !Number(r.credit) ? '' : numPlain(r.credit),
-        numPlain(r.balance),
-      ]);
-    }
-    rows.push([]);
-    rows.push([
-      'الإجمالي',
-      '',
-      '',
-      numPlain(data.total_debit),
-      numPlain(data.total_credit),
-      numPlain(data.balance),
-    ]);
+    const nTrans = lines.filter((r) => !r.is_opening).length;
+    const fromLabel = isoToDmy(from);
+    const toLabel = isoToDmy(to);
+
+    const bodyRowsHtml =
+      lines
+        .map((r) => {
+          const isOpen = !!r.is_opening;
+          const docLabel = isOpen
+            ? '—'
+            : [r.doc_type, r.doc_no].filter(Boolean).join(' · ') || String(r.doc_no || '—');
+          const debit =
+            isOpen && !Number(r.debit) ? '—' : numPlain(r.debit);
+          const credit =
+            isOpen && !Number(r.credit) ? '—' : numPlain(r.credit);
+          const debitCls = debit === '—' ? '' : ' class="num"';
+          const creditCls = credit === '—' ? '' : ' class="num"';
+          return `<tr class="${isOpen ? 'open' : ''}">
+            <td class="date">${esc(isoToDmy(r.trn_date))}</td>
+            <td class="desc">${esc(docLabel)}</td>
+            <td class="desc">${esc(String(r.description || ''))}</td>
+            <td${debitCls}>${esc(debit)}</td>
+            <td${creditCls}>${esc(credit)}</td>
+            <td class="num"><strong>${esc(numPlain(r.balance))}</strong></td>
+          </tr>`;
+        })
+        .join('') ||
+      `<tr><td colspan="6" style="text-align:center;color:#64748b">${esc(
+        data.message || 'لا توجد حركات في هذه الفترة.'
+      )}</td></tr>`;
 
     const cheques = Array.isArray(data.cheques) ? data.cheques : [];
+    let chequesHtml = '';
     if (cheques.length) {
-      rows.push([]);
-      rows.push(['الشيكات قيد التحصيل']);
-      rows.push(['الشيك', 'التاريخ', 'قيمة الشيك', 'تاريخ القبض']);
-      for (const c of cheques) {
-        rows.push([
-          String(c.chq_no || ''),
-          isoToDmy(c.chq_date),
-          numPlain(c.amount),
-          isoToDmy(c.receipt_date || c.recv_date || c.chq_recv_date || '') || '',
-        ]);
-      }
-      rows.push(['مجموع الشيكات قيد التحصيل', '', numPlain(data.cheque_total), '']);
+      chequesHtml = `
+        <table class="ora-xl-meta" style="width:100%"><tr>
+          <td class="ora-xl-chq-title" colspan="4">الشيكات قيد التحصيل</td>
+        </tr></table>
+        <table class="ora-xl-chq">
+          <thead>
+            <tr>
+              <th>الشيك</th>
+              <th>التاريخ</th>
+              <th>قيمة الشيك</th>
+              <th>تاريخ القبض</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${cheques
+              .map(
+                (c) => `<tr>
+              <td dir="ltr">${esc(String(c.chq_no || ''))}</td>
+              <td class="date" dir="ltr">${esc(isoToDmy(c.chq_date))}</td>
+              <td class="num">${esc(numPlain(c.amount))}</td>
+              <td class="date" dir="ltr">${esc(
+                isoToDmy(c.receipt_date || c.recv_date || c.chq_recv_date || '') || ''
+              )}</td>
+            </tr>`
+              )
+              .join('')}
+            <tr class="foot">
+              <td colspan="2">مجموع الشيكات قيد التحصيل</td>
+              <td class="num"><strong>${esc(numPlain(data.cheque_total))}</strong></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>`;
     }
 
+    const inner = `
+      <div class="ora-xl-title">كشف حساب تفصيلي Oracle</div>
+      <table class="ora-xl-meta" style="width:100%">
+        <tr>
+          <td>
+            <span class="lbl">اسم العميل:</span>
+            <span class="val">${esc(name || '—')}</span>
+          </td>
+          <td class="ora-xl-period" rowspan="3">
+            من ${esc(fromLabel)} إلى ${esc(toLabel)}
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="lbl">المندوب:</span>
+            <span class="val">${esc(salesRepName || '—')}</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="lbl">رقم الحساب:</span>
+            <span class="val" dir="ltr">${esc(partyCode || '—')}</span>
+            &nbsp;&nbsp;
+            <span class="val">${nTrans} حركة</span>
+          </td>
+        </tr>
+      </table>
+      <table class="spacer"><tr><td></td></tr></table>
+      <table class="ora-xl-data">
+        <thead>
+          <tr>
+            <th>التاريخ</th>
+            <th>المستند</th>
+            <th>البيان</th>
+            <th>مدين</th>
+            <th>دائن</th>
+            <th>الرصيد</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${bodyRowsHtml}
+          <tr class="foot">
+            <td colspan="3">الإجمالي</td>
+            <td class="num">${esc(numPlain(data.total_debit))}</td>
+            <td class="num">${esc(numPlain(data.total_credit))}</td>
+            <td class="num"><strong>${esc(numPlain(data.balance))}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      ${chequesHtml}`;
+
     const fname = `statement_${partyCode || 'x'}_${String(from).slice(0, 10)}_${String(to).slice(0, 10)}`;
-    return sendExcelCsv(res, fname, rows);
+    return sendExcelHtml(res, fname, inner, 'كشف حساب');
   }
 
   let result = `

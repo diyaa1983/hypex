@@ -292,34 +292,68 @@ async function renderStandalonePrintPage({
     .inv-v1-table .c-disc{color:#b45309;font-weight:700}
     .inv-v1-table .c-gross{font-weight:800}
     .inv-v1-table .empty{text-align:center;color:#64748b;padding:12px}
-    /* مجاميع على اليمين، التوقيع أسفلها في الأسفل */
+    /* مجاميع بنفس شكل شاشة الفاتورة */
     .inv-v1-foot{
-      display:flex;flex-direction:column;align-items:flex-start;
-      gap:0;margin-top:12px
+      display:flex;flex-direction:column;align-items:stretch;
+      gap:0;margin-top:10px
     }
-    .inv-v1-sumwrap{min-width:14rem;align-self:flex-start}
-    .inv-v1-sum{width:auto;min-width:14rem;border-collapse:collapse;font-size:10pt}
-    .inv-v1-sum td{border:0!important;padding:3px 6px;background:transparent!important}
-    .inv-v1-sum .lbl{text-align:right;font-weight:700;color:#1e3a5f;white-space:nowrap}
-    .inv-v1-sum .val{text-align:left;font-weight:700;font-variant-numeric:tabular-nums;min-width:5.5rem;color:#0f172a}
-    .inv-v1-sum tr.grand td{font-size:12pt;font-weight:800;color:#1e3a5f;padding-top:7px;
-      border-top:1px solid #1e3a5f!important}
-    .inv-v1-notes{margin-top:10px;font-size:9.5pt;text-align:right;color:#334155}
-    .inv-v1-notes span{font-weight:700;color:#1e3a5f}
+    .inv-v1-sumwrap{
+      width:100%;align-self:stretch;
+      border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;background:#fafbfc
+    }
+    .inv-v1-sum-strip{
+      display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;
+      padding:10px 12px;border-bottom:1px solid #e2e8f0;background:#f8fafc
+    }
+    .inv-v1-sum-box{
+      display:flex;flex-direction:column;gap:4px;
+      padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;min-width:0
+    }
+    .inv-v1-sum-box span{font-size:8pt;font-weight:700;color:#64748b}
+    .inv-v1-sum-box strong{
+      font-size:12pt;font-weight:800;color:#0f172a;
+      font-variant-numeric:tabular-nums;direction:ltr;text-align:start
+    }
+    .inv-v1-sum-box--grand{
+      border:2px solid #0284c7;background:linear-gradient(180deg,rgba(3,105,161,.06),#fff)
+    }
+    .inv-v1-sum-box--grand span{color:#0284c7;font-weight:800}
+    .inv-v1-sum-box--grand strong{color:#0369a1;font-size:13pt}
+    .inv-v1-doc-foot{
+      display:grid;grid-template-columns:1.2fr .9fr;gap:0;background:#fff
+    }
+    .inv-v1-foot-field{
+      padding:10px 12px;display:flex;flex-direction:column;gap:5px;min-width:0
+    }
+    .inv-v1-foot-notes{border-inline-end:1px solid #e2e8f0}
+    .inv-v1-foot-field .lbl{
+      font-size:8pt;font-weight:700;color:#64748b;letter-spacing:.02em
+    }
+    .inv-v1-foot-field .val{
+      border:1px solid #cbd5e1;border-radius:8px;padding:7px 9px;min-height:2.1rem;
+      font-size:10pt;font-weight:700;color:#0f172a;background:#fff;
+      font-variant-numeric:tabular-nums;white-space:pre-wrap;word-break:break-word
+    }
+    .inv-v1-foot-notes .val{min-height:3.4rem;font-weight:600;color:#334155}
+    .inv-v1-foot-field .val .muted{color:#94a3b8;font-weight:500}
     .inv-v1-sign{
-      margin-top:2.8rem;width:100%;
+      margin-top:2.2rem;width:100%;
       display:flex;flex-direction:column;align-items:flex-end
     }
     .inv-v1-sign-label{font-size:10pt;font-weight:700;color:#1e3a5f;margin-bottom:1.8rem;text-align:center;width:12rem}
     .inv-v1-sign-line{border-bottom:1px solid #0f172a;width:12rem;margin:0}
     @media print{
       .inv-v1-table thead th{background:#5b6b7c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .inv-v1-sum-box--grand{border-color:#0284c7!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     }
     @media (max-width:720px){
       .inv-v1-top{grid-template-columns:1fr;text-align:center}
       .inv-v1-meta,.inv-v1-title-block,.inv-v1-qr{grid-column:1}
       .inv-v1-meta{text-align:right}
       .inv-v1-qr{justify-self:center}
+      .inv-v1-sum-strip{grid-template-columns:1fr}
+      .inv-v1-doc-foot{grid-template-columns:1fr}
+      .inv-v1-foot-notes{border-inline-end:0;border-bottom:1px solid #e2e8f0}
     }`
     : '';
 

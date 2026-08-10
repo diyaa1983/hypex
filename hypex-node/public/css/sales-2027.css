@@ -504,13 +504,16 @@ body.si-2027 .si-main::before {
   margin-bottom: 1rem;
   padding: 0.42rem 0.48rem;
   border-radius: 18px;
+  /* ?????? ?? ????? ??????? ???????? .sidebar--2027 */
   background:
-    linear-gradient(135deg, rgba(15, 26, 42, 0.94) 0%, rgba(11, 18, 32, 0.92) 55%, rgba(10, 42, 40, 0.9) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+    radial-gradient(420px 180px at 100% 0%, rgba(14, 165, 233, 0.2), transparent 60%),
+    radial-gradient(320px 160px at 0% 100%, rgba(37, 99, 235, 0.12), transparent 55%),
+    linear-gradient(168deg, #0f172a 0%, #1e3a5f 55%, #0b1220 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
-    0 20px 48px rgba(11, 18, 32, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(18px) saturate(1.2);
+    0 16px 40px rgba(15, 23, 42, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) saturate(1.15);
   animation: si-cmd-in 0.5s 0.08s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -543,8 +546,8 @@ body.si-2027 .si-main::before {
 }
 
 .si-tb-group--core {
-  background: rgba(3, 105, 161, 0.12);
-  border-color: rgba(27, 176, 168, 0.22);
+  background: rgba(14, 165, 233, 0.1);
+  border-color: rgba(56, 189, 248, 0.2);
 }
 
 .si-tb-group--risk {

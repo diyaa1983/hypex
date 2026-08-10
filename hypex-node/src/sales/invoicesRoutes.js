@@ -298,10 +298,6 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         .join('') ||
       `<tr><td colspan="13" class="empty">لا بنود</td></tr>`;
 
-    const discLinesTotal = inv.lines.reduce(
-      (a, ln) => a + (Number(ln.discount_amount) || 0),
-      0
-    );
     const invDiscLabel = String(inv.invoice_discount_input || '').trim() || fmtAmt(0);
 
     const qrBlock =
@@ -309,35 +305,32 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         ? `<div class="inv-v1-qr"><img src="${esc(qrSrc)}" width="120" height="120" alt="QR الفوترة"></div>`
         : '';
 
-    // المجاميع دائماً ظاهرة تحت الجدول؛ QR فقط إن وُجدت بعد الإرسال
+    // المجاميع بنفس شكل شاشة الفاتورة: بطاقات + خصم/ملاحظات
     const sumsBlock = `<div class="inv-v1-sumwrap">
-            <table class="inv-v1-sum">
-              <tr>
-                <td class="lbl">خصم الفاتورة</td>
-                <td class="val" dir="ltr">${esc(invDiscLabel)}</td>
-              </tr>
-              <tr>
-                <td class="lbl">مجموع الخصم</td>
-                <td class="val" dir="ltr">${esc(fmtAmt(discLinesTotal))}</td>
-              </tr>
-              <tr>
-                <td class="lbl">المجموع بدون ضريبة</td>
-                <td class="val" dir="ltr">${esc(fmtAmt(inv.subtotal))}</td>
-              </tr>
-              <tr>
-                <td class="lbl">مجموع الضريبة</td>
-                <td class="val" dir="ltr">${esc(fmtAmt(inv.tax_amount))}</td>
-              </tr>
-              <tr class="grand">
-                <td class="lbl">الإجمالي</td>
-                <td class="val" dir="ltr">${esc(fmtAmt(inv.total))}</td>
-              </tr>
-            </table>
-            ${
-              inv.notes
-                ? `<div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(inv.notes)}</div>`
-                : ''
-            }
+            <div class="inv-v1-sum-strip" aria-label="ملخص الفاتورة">
+              <div class="inv-v1-sum-box">
+                <span>بدون ضريبة</span>
+                <strong dir="ltr">${esc(fmtAmt(inv.subtotal))}</strong>
+              </div>
+              <div class="inv-v1-sum-box">
+                <span>الضريبة</span>
+                <strong dir="ltr">${esc(fmtAmt(inv.tax_amount))}</strong>
+              </div>
+              <div class="inv-v1-sum-box inv-v1-sum-box--grand">
+                <span>الإجمالي</span>
+                <strong dir="ltr">${esc(fmtAmt(inv.total))}</strong>
+              </div>
+            </div>
+            <div class="inv-v1-doc-foot">
+              <div class="inv-v1-foot-field inv-v1-foot-notes">
+                <span class="lbl">ملاحظات</span>
+                <div class="val">${inv.notes ? esc(inv.notes) : '<span class="muted">—</span>'}</div>
+              </div>
+              <div class="inv-v1-foot-field inv-v1-foot-disc">
+                <span class="lbl">خصم مستوى الفاتورة</span>
+                <div class="val" dir="ltr">${esc(invDiscLabel)}</div>
+              </div>
+            </div>
           </div>`;
 
     const contentHtml = `

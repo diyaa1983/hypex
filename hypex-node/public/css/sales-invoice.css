@@ -485,9 +485,13 @@ body.si-2027 .si-main::before {
   margin-bottom: 0.95rem;
   padding: 0.45rem 0.5rem;
   border-radius: 999px;
-  background: rgba(11, 18, 32, 0.88);
+  /* متناسق مع خلفية القائمة الجانبية .sidebar--2027 */
+  background:
+    radial-gradient(420px 180px at 100% 0%, rgba(14, 165, 233, 0.2), transparent 60%),
+    radial-gradient(320px 160px at 0% 100%, rgba(37, 99, 235, 0.12), transparent 55%),
+    linear-gradient(168deg, #0f172a 0%, #1e3a5f 55%, #0b1220 100%);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 16px 40px rgba(11, 18, 32, 0.28);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.28);
   backdrop-filter: blur(16px);
   animation: si-cmd-in 0.5s 0.1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
