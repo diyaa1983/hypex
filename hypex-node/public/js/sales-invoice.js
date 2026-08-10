@@ -1065,10 +1065,15 @@
   if (window.HypexDocNav) {
     window.HypexDocNav.bind({
       input: 'inv_no',
+      firstBtn: 'inv_first',
       prevBtn: 'inv_prev',
       nextBtn: 'inv_next',
+      lastBtn: 'inv_last',
+      firstId: state.first_id,
       prevId: state.prev_id,
       nextId: state.next_id,
+      lastId: state.last_id,
+      currentId: state.id,
       openPath: '/sales/invoices',
       findApi: '/api/sales/invoices/by-no',
       currentNo: state.invoice_no || '',

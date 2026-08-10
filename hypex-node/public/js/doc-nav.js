@@ -1,6 +1,8 @@
 /**
- * تنقل المستندات برقم السند / السابق / التالي
+ * تنقل المستندات: أول / سابق / رقم / تالٍ / آخر
  * window.HypexDocNav.bind({...})
+ *
+ * السهم الأيمن (» أو ArrowRight عند عدم وجود تالي مخصّص) = آخر مستند (أكبر id)
  */
 (function () {
   'use strict';
@@ -13,26 +15,43 @@
     if (msg) alert(msg);
   }
 
+  function el(ref) {
+    if (!ref) return null;
+    return typeof ref === 'string' ? document.getElementById(ref) : ref;
+  }
+
   /**
    * @param {object} o
-   * @param {string|HTMLElement} o.input - حقل الرقم
+   * @param {string|HTMLElement} o.input
+   * @param {string|HTMLElement} [o.firstBtn]
    * @param {string|HTMLElement} [o.prevBtn]
    * @param {string|HTMLElement} [o.nextBtn]
+   * @param {string|HTMLElement} [o.lastBtn]
+   * @param {number} [o.firstId]
    * @param {number} [o.prevId]
    * @param {number} [o.nextId]
-   * @param {string} o.openPath - bas path مثل /sales/invoices/
-   * @param {string} o.findApi - مثل /api/sales/invoices/by-no
+   * @param {number} [o.lastId]
+   * @param {number} [o.currentId]
+   * @param {string} o.openPath
+   * @param {string} o.findApi
    * @param {string} [o.currentNo]
    */
   function bind(o) {
     o = o || {};
-    var input = typeof o.input === 'string' ? document.getElementById(o.input) : o.input;
+    var input = el(o.input);
     if (!input) return;
 
-    var prevBtn = typeof o.prevBtn === 'string' ? document.getElementById(o.prevBtn) : o.prevBtn;
-    var nextBtn = typeof o.nextBtn === 'string' ? document.getElementById(o.nextBtn) : o.nextBtn;
+    var firstBtn = el(o.firstBtn);
+    var prevBtn = el(o.prevBtn);
+    var nextBtn = el(o.nextBtn);
+    var lastBtn = el(o.lastBtn);
+
+    var firstId = Number(o.firstId || 0) || 0;
     var prevId = Number(o.prevId || 0) || 0;
     var nextId = Number(o.nextId || 0) || 0;
+    var lastId = Number(o.lastId || 0) || 0;
+    var currentId = Number(o.currentId || 0) || 0;
+
     var openPath = String(o.openPath || '');
     var findApi = String(o.findApi || '').split('?')[0];
     var currentNo = String(o.currentNo != null ? o.currentNo : input.value || '');
@@ -40,34 +59,67 @@
     function openId(id) {
       id = Number(id);
       if (!id) return;
+      if (currentId && id === currentId) return;
       var base = openPath.replace(/\/?$/, '/');
       window.location.href = base + id;
     }
 
+    function setDisabled(btn, off) {
+      if (!btn) return;
+      btn.disabled = !!off;
+      btn.setAttribute('aria-disabled', off ? 'true' : 'false');
+    }
+
     function syncBtns() {
-      if (prevBtn) {
-        prevBtn.disabled = !(prevId > 0);
-        prevBtn.setAttribute('aria-disabled', prevId > 0 ? 'false' : 'true');
-      }
-      if (nextBtn) {
-        nextBtn.disabled = !(nextId > 0);
-        nextBtn.setAttribute('aria-disabled', nextId > 0 ? 'false' : 'true');
-      }
+      // أول/آخر: لا نفعّل إذا كان المستند الحالي هو نفسه
+      setDisabled(firstBtn, !(firstId > 0) || (currentId > 0 && currentId === firstId));
+      setDisabled(prevBtn, !(prevId > 0));
+      setDisabled(nextBtn, !(nextId > 0));
+      setDisabled(lastBtn, !(lastId > 0) || (currentId > 0 && currentId === lastId));
     }
     syncBtns();
 
+    function goFirst() {
+      if (firstId > 0 && firstId !== currentId) openId(firstId);
+      else toast('أنت على أول مستند', 'error');
+    }
+    function goPrev() {
+      if (prevId > 0) openId(prevId);
+      else toast('لا يوجد مستند سابق', 'error');
+    }
+    function goNext() {
+      if (nextId > 0) openId(nextId);
+      else toast('لا يوجد مستند تالٍ', 'error');
+    }
+    /** السهم الأيمن / آخر = أكبر رقم (آخر مستند) */
+    function goLast() {
+      if (lastId > 0 && lastId !== currentId) openId(lastId);
+      else if (!lastId) toast('لا توجد مستندات', 'error');
+      else toast('أنت على آخر مستند', 'error');
+    }
+
+    if (firstBtn) {
+      firstBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        goFirst();
+      });
+    }
     if (prevBtn) {
       prevBtn.addEventListener('click', function (e) {
         e.preventDefault();
-        if (prevId > 0) openId(prevId);
-        else toast('لا يوجد مستند سابق', 'error');
+        goPrev();
       });
     }
     if (nextBtn) {
       nextBtn.addEventListener('click', function (e) {
         e.preventDefault();
-        if (nextId > 0) openId(nextId);
-        else toast('لا يوجد مستند تالٍ', 'error');
+        goNext();
+      });
+    }
+    if (lastBtn) {
+      lastBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        goLast();
       });
     }
 
@@ -83,7 +135,6 @@
       }
     });
     input.addEventListener('blur', function () {
-      // لا تُبقِ رقماً مؤقتاً يفسد الحفظ — أعد الرقم الحالي إن لم يُنتقل
       if (input.dataset.hxNavLock === '1') return;
       if (currentNo) input.value = currentNo;
       else input.value = '';
@@ -128,14 +179,32 @@
         goByNo();
         return;
       }
-      if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+      // يسار / أعلى / PageUp = السابق
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
         e.preventDefault();
-        if (prevId > 0) openId(prevId);
+        goPrev();
         return;
       }
+      // يمين (→) = آخر فاتورة (أكبر رقم) — كما طُلب
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goLast();
+        return;
+      }
+      // أسفل / PageDown = التالي واحداً
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
         e.preventDefault();
-        if (nextId > 0) openId(nextId);
+        goNext();
+        return;
+      }
+      if (e.key === 'Home') {
+        e.preventDefault();
+        goFirst();
+        return;
+      }
+      if (e.key === 'End') {
+        e.preventDefault();
+        goLast();
       }
     });
   }

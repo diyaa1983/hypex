@@ -3,27 +3,46 @@
 const db = require('../db');
 
 /**
- * جار المستند السابق/التالي بالـ id
+ * جيران المستند + الأول والأخير بالـ id
  * @param {string} table
  * @param {number} id
  * @param {{ whereSql?: string, params?: any[] }} [opts]
  */
 async function neighbors(table, id, opts = {}) {
   const n = Number(id) || 0;
-  if (n < 1) return { prev_id: 0, next_id: 0 };
-  const where = opts.whereSql ? ` AND (${opts.whereSql})` : '';
+  const where = opts.whereSql ? ` WHERE (${opts.whereSql})` : '';
+  const andWhere = opts.whereSql ? ` AND (${opts.whereSql})` : '';
   const params = Array.isArray(opts.params) ? opts.params : [];
+
+  const firstRows = await db.query(
+    `SELECT id FROM \`${table}\`${where} ORDER BY id ASC LIMIT 1`,
+    params
+  );
+  const lastRows = await db.query(
+    `SELECT id FROM \`${table}\`${where} ORDER BY id DESC LIMIT 1`,
+    params
+  );
+  const first_id = firstRows[0] ? Number(firstRows[0].id) : 0;
+  const last_id = lastRows[0] ? Number(lastRows[0].id) : 0;
+
+  if (n < 1) {
+    return { prev_id: 0, next_id: 0, first_id, last_id };
+  }
+
   const prev = await db.query(
-    `SELECT id FROM \`${table}\` WHERE id < ?${where} ORDER BY id DESC LIMIT 1`,
+    `SELECT id FROM \`${table}\` WHERE id < ?${andWhere} ORDER BY id DESC LIMIT 1`,
     [n, ...params]
   );
   const next = await db.query(
-    `SELECT id FROM \`${table}\` WHERE id > ?${where} ORDER BY id ASC LIMIT 1`,
+    `SELECT id FROM \`${table}\` WHERE id > ?${andWhere} ORDER BY id ASC LIMIT 1`,
     [n, ...params]
   );
+
   return {
     prev_id: prev[0] ? Number(prev[0].id) : 0,
     next_id: next[0] ? Number(next[0].id) : 0,
+    first_id,
+    last_id,
   };
 }
 

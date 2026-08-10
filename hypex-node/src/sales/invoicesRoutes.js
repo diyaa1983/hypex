@@ -472,7 +472,9 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
 
     const lookups = await svc.lookups();
     const caps = toolbarCaps(req.session.user, inv || { id: 0, is_posted: false });
-    const nav = inv ? await svc.browseNeighbors(inv.id) : { prev_id: 0, next_id: 0 };
+    const nav = inv
+      ? await svc.browseNeighbors(inv.id)
+      : await svc.browseNeighbors(0);
     const initial = {
       id: inv ? inv.id : 0,
       invoice_no: inv ? inv.invoice_no : '',
@@ -487,6 +489,8 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
       is_posted: inv ? inv.is_posted : false,
       prev_id: nav.prev_id || 0,
       next_id: nav.next_id || 0,
+      first_id: nav.first_id || 0,
+      last_id: nav.last_id || 0,
       caps,
       lines:
         inv && inv.lines.length
@@ -552,15 +556,17 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
             <h2>بيانات المستند</h2>
             <span class="si-count">header</span>
           </div>
-          <div class="si-meta">
-            <label>رقم الفاتورة
-              <div class="si-docno-row">
-                <button type="button" class="si-btn si-docno-btn" id="inv_prev" title="السابق">‹</button>
-                <input class="si-field si-field--mono" id="inv_no" type="text" value="${esc(
+          <div class="si-meta si-meta--invoice">
+            <label class="si-span-2 si-docno-label">رقم الفاتورة
+              <div class="si-docno-row" dir="ltr">
+                <button type="button" class="si-btn si-docno-btn" id="inv_first" title="أول فاتورة">«</button>
+                <button type="button" class="si-btn si-docno-btn" id="inv_prev" title="السابق ←">‹</button>
+                <input class="si-field si-field--mono si-docno-input" id="inv_no" type="text" value="${esc(
                   initial.invoice_no
-                )}" readonly placeholder="Enter للانتقال" dir="ltr"
-                       title="Enter للانتقال · ↑ السابق · ↓ التالي">
+                )}" readonly placeholder="رقم — Enter" dir="ltr"
+                       title="← سابق · → آخر فاتورة · ↑↓ سابق/تالٍ · Enter بحث · End آخر">
                 <button type="button" class="si-btn si-docno-btn" id="inv_next" title="التالي">›</button>
+                <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="inv_last" title="آخر فاتورة (أكبر رقم) →">»</button>
               </div>
             </label>
             <label>التاريخ
@@ -578,7 +584,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 }>نقدي</option>
               </select>
             </label>
-            <label class="si-span-2">العميل <kbd class="si-field-key" title="F7">F7</kbd>
+            <label class="si-span-3">العميل <kbd class="si-field-key" title="F7">F7</kbd>
               <div class="si-cust-wrap">
                 <input type="hidden" id="inv_customer_id" value="${initial.customer_id || ''}">
                 <input class="si-field" id="inv_customer" type="search" placeholder="ابحث بالاسم أو الرمز… (F7)"
@@ -588,7 +594,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 <div class="si-suggest" id="cust_suggest" hidden></div>
               </div>
             </label>
-            <label>المستودع
+            <label class="si-span-2">المستودع
               <select class="si-field" id="inv_wh" ${initial.is_posted ? 'disabled' : ''}>
                 <option value="">—</option>
                 ${whOpts}
