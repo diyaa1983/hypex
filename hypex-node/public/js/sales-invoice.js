@@ -133,10 +133,12 @@
     customerUsesWholesale = !!(c && (Number(c.use_wholesale_price) === 1 || c.use_wholesale_price === true));
     var hint = document.getElementById('inv_price_mode_hint');
     if (hint) {
-      hint.textContent = customerUsesWholesale
+      hint.textContent = customerUsesWholesale ? 'سعر الجملة' : 'سعر البيع';
+      hint.title = customerUsesWholesale
         ? 'تسعير العميل: سعر الجملة'
         : 'تسعير العميل: سعر البيع';
       hint.hidden = false;
+      hint.classList.toggle('is-wholesale', customerUsesWholesale);
     }
     if (opts.reprice === false || posted) return;
     repriceOpenLines();
@@ -1480,17 +1482,6 @@
       cust.value = label;
     }
     setCustomerPriceMode({ use_wholesale_price: inv.use_wholesale_price }, { reprice: false });
-    // عند فتح فاتورة مرحّلة لا نعيد تسعير البنود من الإعداد
-    if (posted) {
-      customerUsesWholesale = Number(inv.use_wholesale_price) === 1;
-      var hintPosted = document.getElementById('inv_price_mode_hint');
-      if (hintPosted) {
-        hintPosted.textContent = customerUsesWholesale
-          ? 'تسعير العميل: سعر الجملة'
-          : 'تسعير العميل: سعر البيع';
-        hintPosted.hidden = false;
-      }
-    }
     var wh = document.getElementById('inv_wh');
     if (wh) wh.value = inv.warehouse_id != null ? String(inv.warehouse_id) : '';
     var notes = document.getElementById('inv_notes');

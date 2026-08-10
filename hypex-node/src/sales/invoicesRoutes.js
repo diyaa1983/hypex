@@ -559,7 +559,8 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
             <span class="si-count">header</span>
           </div>
           <div class="si-meta si-meta--invoice">
-            <label class="si-f si-f--docno">رقم الفاتورة
+            <label class="si-f si-f--docno">
+              <span class="si-f-head">رقم الفاتورة</span>
               <div class="si-docno-row" dir="ltr">
                 <button type="button" class="si-btn si-docno-btn" id="inv_first" title="أول فاتورة">«</button>
                 <button type="button" class="si-btn si-docno-btn" id="inv_prev" title="السابق">‹</button>
@@ -571,12 +572,14 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="inv_last" title="آخر فاتورة (أكبر رقم)">»</button>
               </div>
             </label>
-            <label class="si-f si-f--date">التاريخ
+            <label class="si-f si-f--date">
+              <span class="si-f-head">التاريخ</span>
               <input class="si-field si-field--mono" id="inv_date" type="date" value="${esc(
                 String(initial.invoice_date).slice(0, 10)
               )}" ${initial.is_posted ? 'readonly' : ''}>
             </label>
-            <label class="si-f si-f--pay">النوع
+            <label class="si-f si-f--pay">
+              <span class="si-f-head">النوع</span>
               <select class="si-field" id="inv_pay" ${initial.is_posted ? 'disabled' : ''}>
                 <option value="credit"${
                   initial.payment_type === 'credit' ? ' selected' : ''
@@ -586,7 +589,19 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 }>نقدي</option>
               </select>
             </label>
-            <label class="si-f si-f--cust">العميل <kbd class="si-field-key" title="F7">F7</kbd>
+            <label class="si-f si-f--wh">
+              <span class="si-f-head">المستودع</span>
+              <select class="si-field" id="inv_wh" ${initial.is_posted ? 'disabled' : ''}>
+                <option value="">—</option>
+                ${whOpts}
+              </select>
+            </label>
+            <label class="si-f si-f--cust">
+              <span class="si-f-head">
+                العميل
+                <kbd class="si-field-key" title="F7">F7</kbd>
+                <span id="inv_price_mode_hint" class="si-price-mode" hidden></span>
+              </span>
               <div class="si-cust-wrap">
                 <input type="hidden" id="inv_customer_id" value="${initial.customer_id || ''}">
                 <input class="si-field" id="inv_customer" type="search" placeholder="ابحث بالاسم أو الرمز… (F7)"
@@ -595,13 +610,6 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                        }>
                 <div class="si-suggest" id="cust_suggest" hidden></div>
               </div>
-              <span id="inv_price_mode_hint" class="muted" style="display:block;font-size:.78rem;margin-top:.25rem" hidden></span>
-            </label>
-            <label class="si-f si-f--wh">المستودع
-              <select class="si-field" id="inv_wh" ${initial.is_posted ? 'disabled' : ''}>
-                <option value="">—</option>
-                ${whOpts}
-              </select>
             </label>
           </div>
         </section>
