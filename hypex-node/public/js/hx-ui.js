@@ -9,14 +9,8 @@
   var root = null;
   var queue = Promise.resolve();
   var toastHost = null;
-
-  function esc(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
+  /** يمنع إغلاق الحوار بضغطة الزر التي فتحته (ghost click) */
+  var GUARD_MS = 450;
 
   function ensureRoot() {
     if (root && document.body.contains(root)) return root;
@@ -26,7 +20,7 @@
     root.hidden = true;
     root.setAttribute('role', 'presentation');
     root.innerHTML =
-      '<div class="hx-ui__backdrop" data-hx-ui-close="1"></div>' +
+      '<div class="hx-ui__backdrop" tabindex="-1" aria-hidden="true"></div>' +
       '<div class="hx-ui__panel" role="dialog" aria-modal="true" aria-labelledby="hx-ui-title">' +
       '<p class="hx-ui__kicker" id="hx-ui-kicker">تنبيه النظام</p>' +
       '<h2 class="hx-ui__title" id="hx-ui-title"></h2>' +
@@ -34,6 +28,20 @@
       '<div class="hx-ui__actions" id="hx-ui-actions"></div>' +
       '</div>';
     document.body.appendChild(root);
+
+    // لا تصل أحداث اللوحة للخلفية/الجذر
+    var panel = root.querySelector('.hx-ui__panel');
+    if (panel) {
+      ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup'].forEach(function (ev) {
+        panel.addEventListener(
+          ev,
+          function (e) {
+            e.stopPropagation();
+          },
+          true
+        );
+      });
+    }
     return root;
   }
 
@@ -49,7 +57,7 @@
   function closeDialog() {
     if (!root) return;
     root.hidden = true;
-    root.classList.remove('hx-ui--warn', 'hx-ui--error', 'hx-ui--ok', 'hx-ui--info');
+    root.classList.remove('hx-ui--warn', 'hx-ui--error', 'hx-ui--ok', 'hx-ui--info', 'hx-ui--open');
   }
 
   /**
@@ -57,6 +65,7 @@
    * @param {string} opts.message
    * @param {string} [opts.title]
    * @param {string} [opts.kind] info|warn|error|ok
+   * @param {boolean} [opts.closeOnBackdrop] — افتراضياً: مغلق لتأكيد (warn) حتى لا يختفي بالخطأ
    * @param {Array<{label:string,value:*,primary?:boolean,danger?:boolean}>} opts.buttons
    * @returns {Promise<*>}
    */
@@ -65,17 +74,27 @@
     var message = String(opts.message == null ? '' : opts.message);
     var title = String(opts.title || '');
     var kind = String(opts.kind || 'info');
-    var buttons = Array.isArray(opts.buttons) && opts.buttons.length
-      ? opts.buttons
-      : [{ label: 'حسناً', value: true, primary: true }];
+    var buttons =
+      Array.isArray(opts.buttons) && opts.buttons.length
+        ? opts.buttons
+        : [{ label: 'حسناً', value: true, primary: true }];
+    var closeOnBackdrop =
+      typeof opts.closeOnBackdrop === 'boolean'
+        ? opts.closeOnBackdrop
+        : kind !== 'warn' && kind !== 'error' && kind !== 'danger';
 
     return new Promise(function (resolve) {
       queue = queue.then(function () {
         return new Promise(function (done) {
           var el = ensureRoot();
+          var openedAt = Date.now();
+          var finished = false;
+          var panel = el.querySelector('.hx-ui__panel');
+          var backdrop = el.querySelector('.hx-ui__backdrop');
+
           el.hidden = false;
           el.classList.remove('hx-ui--warn', 'hx-ui--error', 'hx-ui--ok', 'hx-ui--info');
-          el.classList.add('hx-ui--' + (kind === 'danger' ? 'error' : kind));
+          el.classList.add('hx-ui--' + (kind === 'danger' ? 'error' : kind), 'hx-ui--open');
 
           var kickers = {
             info: 'تنبيه النظام',
@@ -84,13 +103,23 @@
             ok: 'نجاح',
           };
           el.querySelector('#hx-ui-kicker').textContent = kickers[kind] || kickers.info;
-          el.querySelector('#hx-ui-title').textContent = title || (kind === 'warn' ? 'هل أنت متأكد؟' : 'رسالة');
+          el.querySelector('#hx-ui-title').textContent =
+            title || (kind === 'warn' ? 'هل أنت متأكد؟' : 'رسالة');
           el.querySelector('#hx-ui-msg').textContent = message;
 
           var actions = el.querySelector('#hx-ui-actions');
           actions.innerHTML = '';
 
+          function cleanup() {
+            document.removeEventListener('keydown', onKey, true);
+            if (backdrop) backdrop.onclick = null;
+            if (el) el.onclick = null;
+          }
+
           function finish(val) {
+            if (finished) return;
+            finished = true;
+            cleanup();
             closeDialog();
             resolve(val);
             done();
@@ -104,45 +133,76 @@
               (b.primary ? ' hx-ui__btn--primary' : '') +
               (b.danger ? ' hx-ui__btn--danger' : '');
             btn.textContent = b.label || 'حسناً';
-            btn.addEventListener('click', function () {
+            btn.addEventListener('click', function (e) {
+              e.preventDefault();
+              e.stopPropagation();
               finish(b.value);
             });
             actions.appendChild(btn);
           });
 
+          function cancelValue() {
+            var cancel = buttons.find(function (x) {
+              return x.value === false;
+            });
+            return cancel ? false : buttons[0] ? buttons[0].value : false;
+          }
+
+          function primaryValue() {
+            var primary = buttons.find(function (x) {
+              return x.primary;
+            });
+            return primary ? primary.value : buttons[0] && buttons[0].value;
+          }
+
           function onKey(e) {
             if (e.key === 'Escape') {
-              document.removeEventListener('keydown', onKey, true);
-              finish(buttons[0] ? buttons[0].value : false);
+              e.preventDefault();
+              e.stopPropagation();
+              finish(cancelValue());
+              return;
             }
-            if (e.key === 'Enter') {
-              var primary = buttons.find(function (x) {
-                return x.primary;
-              });
-              if (primary) {
-                e.preventDefault();
-                document.removeEventListener('keydown', onKey, true);
-                finish(primary.value);
+            // Enter فقط عند التركيز على زر — لا يُغلق الحوار تلقائياً
+            if (e.key === 'Enter' && e.target && e.target.classList && e.target.classList.contains('hx-ui__btn')) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (e.target.classList.contains('hx-ui__btn--primary')) {
+                finish(primaryValue());
+              } else {
+                // زر إلغاء أو ثانوي
+                var idx = Array.prototype.indexOf.call(actions.children, e.target);
+                if (idx >= 0 && buttons[idx]) finish(buttons[idx].value);
               }
             }
           }
           document.addEventListener('keydown', onKey, true);
 
-          var backdrop = el.querySelector('.hx-ui__backdrop');
-          backdrop.onclick = function () {
-            document.removeEventListener('keydown', onKey, true);
-            // إلغاء عند الإغلاق بالنقر على الخلفية إذا تأكيد
-            var cancel = buttons.find(function (x) {
-              return x.value === false;
-            });
-            finish(cancel ? false : buttons[0] && buttons[0].value);
-          };
+          function tryBackdropClose(e) {
+            if (!closeOnBackdrop) return;
+            if (finished) return;
+            if (Date.now() - openedAt < GUARD_MS) return;
+            // فقط الخلفية أو الجذر — ليس اللوحة
+            var t = e && e.target;
+            if (t !== backdrop && t !== el) return;
+            if (panel && panel.contains(t)) return;
+            finish(cancelValue());
+          }
+
+          if (backdrop) backdrop.onclick = tryBackdropClose;
+          el.onclick = tryBackdropClose;
 
           setTimeout(function () {
+            if (finished) return;
             var focusBtn =
               actions.querySelector('.hx-ui__btn--primary') || actions.querySelector('.hx-ui__btn');
-            if (focusBtn) focusBtn.focus();
-          }, 30);
+            if (focusBtn) {
+              try {
+                focusBtn.focus({ preventScroll: true });
+              } catch (err) {
+                focusBtn.focus();
+              }
+            }
+          }, 50);
         });
       });
     });
@@ -153,6 +213,7 @@
       message: message,
       kind: kind || 'info',
       title: kind === 'error' ? 'تعذّر الإكمال' : kind === 'ok' ? 'تم' : 'تنبيه',
+      closeOnBackdrop: true,
       buttons: [{ label: 'حسناً', value: true, primary: true }],
     });
   }
@@ -163,6 +224,8 @@
       message: message,
       kind: opts.kind || 'warn',
       title: opts.title || 'تأكيد',
+      // التأكيد لا يُغلق بالنقر على الخلفية — فقط إلغاء / ترحيل
+      closeOnBackdrop: opts.closeOnBackdrop === true ? true : false,
       buttons: [
         { label: opts.cancelLabel || 'إلغاء', value: false },
         {

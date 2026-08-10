@@ -10,22 +10,28 @@
   justify-content: center;
   padding: 1.25rem;
   font-family: Arial, Helvetica, sans-serif;
+  /* طبقة مستقلة تمنع اختفاء الحوار عند hover (مشاكل GPU مع blur) */
+  isolation: isolate;
+  pointer-events: auto;
 }
 
 .hx-ui[hidden] {
   display: none !important;
+  pointer-events: none !important;
 }
 
 .hx-ui__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, 0.48);
-  backdrop-filter: blur(3px);
+  z-index: 0;
+  background: rgba(15, 23, 42, 0.5);
+  /* لا backdrop-filter — يسبب اختفاء اللوحة على بعض المتصفحات/الـ GPU */
+  pointer-events: auto;
 }
 
 .hx-ui__panel {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   width: min(420px, 100%);
   background: #fff;
   border: 1px solid #d4e0ef;
@@ -35,6 +41,11 @@
   animation: hx-ui-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
   direction: rtl;
   text-align: right;
+  pointer-events: auto;
+  /* تفادي اختفاء الطبقة عند مرور الماوس */
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 @keyframes hx-ui-in {
@@ -44,7 +55,7 @@
   }
   to {
     opacity: 1;
-    transform: none;
+    transform: translateZ(0);
   }
 }
 
@@ -119,6 +130,11 @@
 
 .hx-ui__btn:hover {
   background: #f1f5f9;
+}
+
+.hx-ui__btn:focus {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
 }
 
 .hx-ui__btn--primary {
