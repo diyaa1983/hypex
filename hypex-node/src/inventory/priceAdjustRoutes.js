@@ -15,15 +15,17 @@ const HUB = '/inventory';
 const SCREEN = 'item_sale_price_adjust';
 const REPORT = 'report_item_price_adjustments';
 const PA_JS_PATH = path.join(__dirname, '..', '..', 'public', 'js', 'price-adjust.js');
-/** مسار السكربت + ?v=mtime — نفس أسلوب طلب الشراء (rewriteJs تحت /hypex) */
-function priceAdjustJsSrc() {
-  let v = String(Date.now());
+const basePath = require('../lib/basePath');
+
+/** سكربت الصفحة مضمّن + rewrite تحت /hypex — لا يعتمد على كاش /assets */
+function priceAdjustClientScript() {
   try {
-    v = String(fs.statSync(PA_JS_PATH).mtimeMs | 0);
-  } catch {
-    /* keep now */
+    const raw = fs.readFileSync(PA_JS_PATH, 'utf8');
+    return basePath.rewriteJs(raw);
+  } catch (e) {
+    console.error('price-adjust.js missing', e.message);
+    return 'console.error("price-adjust.js missing");';
   }
-  return '/assets/js/price-adjust.js?v=' + v;
 }
 
 function can(user, code) {
@@ -285,14 +287,17 @@ async function renderForm(req, res, id) {
         </section>
       </form>
     </div>
-    <script type="application/json" id="pa-initial">${linesJson}</script>`;
+    <script type="application/json" id="pa-initial">${linesJson}</script>
+    <script>
+    /* مضمّن بعد #pa-root — يعمل فوراً بدون defer/كاش */
+    ${priceAdjustClientScript()}
+    </script>`;
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.setHeader('Pragma', 'no-cache');
   res.send(
     page(req.session.user, isNew ? 'تعديل أسعار جديد' : 'تعديل أسعار', body, {
-      // خارجي مثل customer-order.js حتى يمرّ rewriteJs لمسارات /api تحت /hypex
-      js: [priceAdjustJsSrc()],
+      js: [],
     })
   );
 }

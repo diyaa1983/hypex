@@ -335,7 +335,7 @@
 
   function pickItemIntoRow(tr, it) {
     var idx = Number(tr.getAttribute('data-idx'));
-    fetch(apiUrl('/api/inventory/price-adjust/item/' + it.id), { credentials: 'same-origin' })
+    fetch('/api/inventory/price-adjust/item/' + it.id, { credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -364,12 +364,15 @@
       });
   }
 
-  /* ── اقتراحات المواد ── */
+  /* ── اقتراحات المواد — نفس سلوك طلب الشراء ── */
   function openSuggestForRow(tr) {
     if (!tr) return null;
     var idx = tr.getAttribute('data-idx');
+    // بعد إخراج القائمة إلى body تبقى مربوطة بـ data-pa-row
     if (idx != null) {
-      var floated = document.querySelector('.js-item-suggest[data-pa-row="' + idx + '"]');
+      var floated = document.querySelector(
+        'body > .js-item-suggest[data-pa-row="' + idx + '"], .js-item-suggest[data-pa-row="' + idx + '"]'
+      );
       if (floated) return floated;
     }
     return tr.querySelector('.js-item-suggest');
@@ -428,38 +431,51 @@
     return true;
   }
 
-  function attachSuggestToBody(box, tr) {
+  /** القائمة تُعلَّق على body حتى لا تُقصّ من overflow في الجدول/.si-main */
+  function ensureSuggestOnBody(box, tr) {
     if (!box) return;
     if (tr) box.setAttribute('data-pa-row', String(tr.getAttribute('data-idx') || ''));
-    if (box.parentElement !== document.body) {
+    if (box.parentNode !== document.body) {
       document.body.appendChild(box);
     }
   }
 
   function placeFloatSuggest(box, anchor) {
     if (!box || !anchor) return;
-    attachSuggestToBody(box, anchor.closest ? anchor.closest('tr[data-idx]') : null);
+    var tr = anchor.closest ? anchor.closest('tr[data-idx]') : null;
+    ensureSuggestOnBody(box, tr);
+
     var r = anchor.getBoundingClientRect();
     var mode = box.getAttribute('data-mode') || 'barcode';
     var minW = mode === 'name' ? 280 : 200;
-    var width = Math.max(r.width + 8, minW);
-    if (mode === 'name') width = Math.min(Math.max(width, 300), Math.min(440, window.innerWidth - 16));
-    else width = Math.min(Math.max(width, 180), Math.min(320, window.innerWidth - 16));
+    var width = Math.max(r.width + 12, minW);
+    if (mode === 'name') width = Math.min(Math.max(width, 300), Math.min(480, window.innerWidth - 16));
+    else width = Math.min(Math.max(width, 220), Math.min(420, window.innerWidth - 16));
 
-    // أقصى اليمين بمحاذاة الحقل
+    // محاذاة RTL: حافة القائمة اليمنى مع حافة الحقل
     var left = r.right - width;
     if (left < 8) left = 8;
     if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
 
-    box.classList.add('si-suggest--float', 'si-suggest--pa');
-    box.style.position = 'fixed';
-    box.style.zIndex = '50000';
-    box.style.width = width + 'px';
-    box.style.left = left + 'px';
-    box.style.right = 'auto';
-    box.style.top = r.bottom + 4 + 'px';
-    box.style.maxHeight = 'min(16.5rem, 48vh)';
-    box.style.display = 'block';
+    var top = r.bottom + 4;
+    if (top + 120 > window.innerHeight && r.top > 160) {
+      top = Math.max(8, r.top - 4 - Math.min(280, window.innerHeight * 0.4));
+    }
+
+    box.classList.add('si-suggest', 'si-suggest--float', 'si-suggest--pa');
+    box.classList.remove('si-suggest--barcode', 'si-suggest--name');
+    box.classList.add(mode === 'name' ? 'si-suggest--name' : 'si-suggest--barcode');
+    box.style.cssText =
+      'position:fixed!important;z-index:99999!important;display:block!important;' +
+      'left:' +
+      left +
+      'px;right:auto;top:' +
+      top +
+      'px;width:' +
+      width +
+      'px;max-height:min(16.5rem,48vh);overflow-x:hidden;overflow-y:auto;' +
+      'direction:rtl;text-align:right;background:#fff;border:1px solid rgba(15,23,42,.12);' +
+      'border-radius:10px;box-shadow:0 12px 40px rgba(15,23,42,.18);padding:.28rem;margin:0;';
     box.hidden = false;
     box.removeAttribute('hidden');
   }
@@ -468,14 +484,8 @@
     if (!box) return;
     box.hidden = true;
     box.setAttribute('hidden', '');
-    box.style.display = 'none';
+    box.style.cssText = 'display:none!important';
     box.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name', 'si-suggest--pa');
-    box.style.left = '';
-    box.style.right = '';
-    box.style.top = '';
-    box.style.width = '';
-    box.style.position = '';
-    box.style.zIndex = '';
     box.removeAttribute('data-mode');
     box.dataset.hxUserNav = '';
     box.querySelectorAll('button.is-active').forEach(function (b) {
@@ -483,56 +493,55 @@
     });
   }
 
-  function apiUrl(path) {
-    if (typeof window.__hypexUrl === 'function') return window.__hypexUrl(path);
-    var b =
-      typeof window.__HYPEX_BASE__ === 'string' && window.__HYPEX_BASE__
-        ? window.__HYPEX_BASE__
-        : '';
-    if (b && b.charAt(b.length - 1) === '/') b = b.slice(0, -1);
-    if (!path || path.charAt(0) !== '/') path = '/' + (path || '');
-    if (b && (path === b || path.indexOf(b + '/') === 0)) return path;
-    return b + path;
+  function resolveItemRows(data) {
+    if (!data) return [];
+    if (Array.isArray(data.rows)) return data.rows;
+    if (Array.isArray(data.items)) return data.items;
+    if (Array.isArray(data)) return data;
+    return [];
   }
 
   function searchItems(q, box, tr, anchor) {
-    if (!box) return;
+    if (!box || !tr) return;
     var token = String((searchItems._seq = (searchItems._seq || 0) + 1));
     box._paSearchToken = token;
     var mode =
       anchor && anchor.classList && anchor.classList.contains('js-item-name') ? 'name' : 'barcode';
-    box.classList.remove('si-suggest--barcode', 'si-suggest--name');
-    box.classList.add(mode === 'name' ? 'si-suggest--name' : 'si-suggest--barcode');
     box.setAttribute('data-mode', mode);
     box.dataset.hxUserNav = '';
-    attachSuggestToBody(box, tr);
+    ensureSuggestOnBody(box, tr);
 
-    // مؤشر تحميل فوري حتى لا يبدو أن القائمة معطّلة
     box.innerHTML = '';
     var loading = document.createElement('div');
     loading.className = 'si-suggest-empty';
+    loading.style.cssText = 'padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right';
     loading.textContent = 'جاري التحميل…';
     box.appendChild(loading);
-    placeFloatSuggest(box, anchor || (tr && tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code')));
+    placeFloatSuggest(box, anchor || tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code'));
 
-    // المسار الأول خاص بهذه الشاشة (صلاحية تعديل الأسعار / المواد) — لا يعتمد على شاشات المبيعات
     var qEnc = encodeURIComponent(q || '');
+    // نفس مصدر طلب الشراء أولاً ثم واجهات عامة
     var urls = [
-      apiUrl('/api/inventory/price-adjust/items?q=') + qEnc,
-      apiUrl('/api/lookup/items?q=') + qEnc,
-      apiUrl('/api/items?q=') + qEnc,
+      '/api/inventory/price-adjust/items?q=' + qEnc,
+      '/api/lookup/items?q=' + qEnc,
+      '/api/sales/customer-orders/items?q=' + qEnc,
     ];
+
+    function failAll(msg) {
+      if (box._paSearchToken !== token) return;
+      box.innerHTML = '';
+      var err = document.createElement('div');
+      err.className = 'si-suggest-empty';
+      err.style.cssText = 'padding:.55rem .75rem;color:#b91c1c;font-size:.82rem;text-align:right';
+      err.textContent = msg || 'تعذر تحميل قائمة المواد';
+      box.appendChild(err);
+      placeFloatSuggest(box, anchor || tr.querySelector('.js-item-code'));
+      setMsg(msg || 'تعذر تحميل قائمة المواد — تحقق من صلاحيتك أو حدّث الصفحة.', 'error');
+    }
 
     function tryFetch(i) {
       if (i >= urls.length) {
-        showSuggest(
-          { ok: false, error: 'تعذر تحميل قائمة المواد', rows: [] },
-          box,
-          tr,
-          anchor,
-          mode,
-          q
-        );
+        failAll('تعذر تحميل قائمة المواد');
         return;
       }
       fetch(urls[i], { credentials: 'same-origin', headers: { Accept: 'application/json' } })
@@ -554,54 +563,41 @@
   }
 
   function showSuggest(data, box, tr, anchor, mode, q) {
+    if (!box || !tr) return;
     box.innerHTML = '';
     box.dataset.hxUserNav = '';
-    var rows = [];
-    if (data) {
-      if (Array.isArray(data.rows)) rows = data.rows;
-      else if (Array.isArray(data.items)) rows = data.items;
-      else if (Array.isArray(data)) rows = data;
-    }
-
-    if (data && data.ok === false && !rows.length) {
-      var err = document.createElement('div');
-      err.className = 'si-suggest-empty';
-      err.style.color = '#b91c1c';
-      err.textContent = data.error || 'تعذر تحميل قائمة المواد';
-      box.appendChild(err);
-      placeFloatSuggest(box, anchor || (tr && tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code')));
-      return;
-    }
+    var rows = resolveItemRows(data);
 
     if (!rows.length) {
       var empty = document.createElement('div');
       empty.className = 'si-suggest-empty';
+      empty.style.cssText = 'padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right';
       empty.textContent = q
         ? 'لا توجد نتائج مطابقة'
         : mode === 'name'
-          ? 'اكتب للبحث أو اختر من القائمة (F3)…'
-          : 'ابدأ الكتابة أو F3 لعرض المواد…';
+          ? 'اكتب اسم المادة…'
+          : 'اكتب الباركود…';
       box.appendChild(empty);
-      placeFloatSuggest(box, anchor || (tr && tr.querySelector('.js-item-code')));
+      placeFloatSuggest(box, anchor || tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code'));
       return;
     }
 
-    rows.slice(0, 30).forEach(function (it) {
+    rows.slice(0, 40).forEach(function (it) {
       var b = document.createElement('button');
       b.type = 'button';
       b.tabIndex = -1;
       var code = itemBarcodeOnly(it);
       var nm = itemNameOnly(it);
-      // قائمة الباركود = باركود (+ اسم في العنوان) · قائمة الاسم = اسم
       if (mode === 'name') {
         b.textContent = nm || code || 'مادة';
         b.title = code ? 'باركود: ' + code : nm;
       } else {
-        // أظهر الباركود والاسم معاً لسهولة الاختيار
-        b.textContent = code ? code + (nm ? ' — ' + nm : '') : nm || 'مادة';
-        b.title = nm || code;
+        b.textContent = code || nm || 'مادة';
+        b.title = nm ? 'المادة: ' + nm : code;
       }
+      b.setAttribute('data-item-id', String(it.id || ''));
       b.addEventListener('mousedown', function (e) {
+        // يمنع blur قبل click
         e.preventDefault();
       });
       b.addEventListener('click', function () {
@@ -611,10 +607,7 @@
       });
       box.appendChild(b);
     });
-    placeFloatSuggest(
-      box,
-      anchor || (tr && tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code'))
-    );
+    placeFloatSuggest(box, anchor || tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code'));
   }
 
   var LINE_NAV = ['.js-item-code', '.js-item-name', '.js-new-sale', '.js-new-wh'];
@@ -714,13 +707,18 @@
     if (posted) return;
     ['js-new-sale', 'js-new-wh'].forEach(function (cls) {
       var el = tr.querySelector('.' + cls);
-      if (el) el.addEventListener('input', function () {
-        readRow(tr);
-      });
+      if (el)
+        el.addEventListener('input', function () {
+          readRow(tr);
+        });
     });
     var codeInput = tr.querySelector('.js-item-code');
     var nameInput = tr.querySelector('.js-item-name');
-    var suggest = tr.querySelector('.js-item-suggest');
+    // always resolve suggest from openSuggestForRow (body or cell)
+    function resolveSuggest() {
+      return openSuggestForRow(tr) || tr.querySelector('.js-item-suggest');
+    }
+    var suggest = resolveSuggest() || tr.querySelector('.js-item-suggest');
     if (codeInput && suggest) {
       codeInput.addEventListener('input', function () {
         fitFieldToContent(codeInput, { min: 100, max: 240, pad: 24 });
@@ -745,16 +743,17 @@
         if (oldW) oldW.textContent = fmt(0);
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
-          searchItems(codeInput.value, suggest, tr, codeInput);
+          searchItems(codeInput.value, resolveSuggest(), tr, codeInput);
         }, 160);
         syncJson();
       });
       codeInput.addEventListener('focus', function () {
-        searchItems(codeInput.value || '', suggest, tr, codeInput);
+        searchItems(codeInput.value || '', resolveSuggest(), tr, codeInput);
       });
       codeInput.addEventListener('click', function () {
-        if (!suggest.hidden) placeFloatSuggest(suggest, codeInput);
-        else searchItems(codeInput.value || '', suggest, tr, codeInput);
+        var box = resolveSuggest();
+        if (box && !box.hidden) placeFloatSuggest(box, codeInput);
+        else searchItems(codeInput.value || '', box || resolveSuggest(), tr, codeInput);
       });
     }
     if (nameInput && suggest) {
@@ -770,18 +769,19 @@
         }
         clearTimeout(itemTimers['n' + idx]);
         itemTimers['n' + idx] = setTimeout(function () {
-          searchItems(nameInput.value, suggest, tr, nameInput);
+          searchItems(nameInput.value, resolveSuggest(), tr, nameInput);
         }, 160);
         syncJson();
       });
       nameInput.addEventListener('focus', function () {
         if (nameInput.readOnly) return;
-        searchItems(nameInput.value || '', suggest, tr, nameInput);
+        searchItems(nameInput.value || '', resolveSuggest(), tr, nameInput);
       });
       nameInput.addEventListener('click', function () {
         if (nameInput.readOnly) return;
-        if (!suggest.hidden) placeFloatSuggest(suggest, nameInput);
-        else searchItems(nameInput.value || '', suggest, tr, nameInput);
+        var box = resolveSuggest();
+        if (box && !box.hidden) placeFloatSuggest(box, nameInput);
+        else searchItems(nameInput.value || '', box || resolveSuggest(), tr, nameInput);
       });
     }
     var del = tr.querySelector('.js-del');
@@ -790,6 +790,14 @@
         var idx = Number(tr.getAttribute('data-idx'));
         lines.splice(idx, 1);
         if (!lines.length) lines.push(emptyLine());
+        // تنظيف قوائم عالقة على body
+        document.querySelectorAll('body > .js-item-suggest[data-pa-row]').forEach(function (b) {
+          try {
+            b.remove();
+          } catch (e) {
+            /* ignore */
+          }
+        });
         render();
         setMsg('تم حذف السطر.', 'ok');
       });
@@ -797,17 +805,23 @@
     fitRowFields(tr);
   }
 
-  document.addEventListener('click', function (e) {
-    document.querySelectorAll('.js-item-suggest[data-pa-row], #pa-tbody .js-item-suggest').forEach(function (box) {
+  document.addEventListener('mousedown', function (e) {
+    if (!document.getElementById('pa-root')) return;
+    document.querySelectorAll('.js-item-suggest[data-pa-row]').forEach(function (box) {
       if (box.hidden || box.style.display === 'none') return;
       var rowIdx = box.getAttribute('data-pa-row');
       var tr =
-        (rowIdx != null && tbody && tbody.querySelector('tr[data-idx="' + rowIdx + '"]')) ||
-        box.closest('tr[data-idx]');
+        (rowIdx != null && tbody && tbody.querySelector('tr[data-idx="' + rowIdx + '"]')) || null;
       var codeEl = tr && tr.querySelector('.js-item-code');
       var nameEl = tr && tr.querySelector('.js-item-name');
       if (box.contains(e.target) || e.target === codeEl || e.target === nameEl) return;
-      closeItemSuggest(box);
+      // تأخير بسيط حتى يكتمل focus/click على الحقل نفسه
+      window.setTimeout(function () {
+        if (box.hidden) return;
+        var ae = document.activeElement;
+        if (ae === codeEl || ae === nameEl || box.contains(ae)) return;
+        closeItemSuggest(box);
+      }, 10);
     });
   });
 
