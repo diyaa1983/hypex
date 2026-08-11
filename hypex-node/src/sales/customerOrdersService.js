@@ -99,6 +99,7 @@ async function getOrder(id) {
     mappedLines.push({
       item_id: itemId,
       item_code: ln.item_code || ln.item_sku || '',
+      item_barcode: ln.item_code || ln.item_sku || '',
       name_ar: ln.item_name_resolved || ln.item_name || '',
       qty: Number(ln.qty || 0),
       qty_extra: Number(ln.qty_extra || 0),

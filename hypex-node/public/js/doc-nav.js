@@ -179,12 +179,7 @@
           goPrev();
           return;
         }
-        if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          goLast();
-          return;
-        }
-        if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown') {
           e.preventDefault();
           goNext();
           return;

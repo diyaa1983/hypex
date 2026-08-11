@@ -83,9 +83,11 @@ function toolbarCaps(user, order) {
 function toolbarHtml(caps, order) {
   const id = order && order.id ? Number(order.id) : 0;
   const locked = !!(order && order.is_approved);
-  const b = (idAttr, label, cls, disabled, extra = '', key = '') => {
+  const b = (idAttr, label, cls, disabled, extra = '', key = '', keyDesc = '') => {
     const keyHtml = key
-      ? `<kbd class="si-tb-key" title="${esc(key)}">${esc(key)}</kbd>`
+      ? `<span class="si-tb-keywrap" title="${esc(keyDesc || key)}"><kbd class="si-tb-key">${esc(key)}</kbd>${
+          keyDesc ? `<span class="si-tb-keydesc">${esc(keyDesc)}</span>` : ''
+        }</span>`
       : '';
     return `<button type="button" class="si-tb ${cls || ''}" id="${idAttr}" ${
       disabled ? 'disabled' : ''
@@ -96,11 +98,11 @@ function toolbarHtml(caps, order) {
     <div class="si-cmd si-doc-toolbar" id="co-doc-bar" role="toolbar" aria-label="إجراءات طلب الشراء"
          data-order-id="${id}" data-approved="${locked ? '1' : '0'}">
       <div class="si-tb-group si-tb-group--core">
-        ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10')}
-        ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove, ' title="اعتماد"')}
+        ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10', 'حفظ')}
+        ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove, ' title="اعتماد / ترحيل الطلب"', '', 'ترحيل')}
       </div>
       <div class="si-tb-group">
-        ${b('co-search', 'بحث', 'si-tb--ghost', false)}
+        ${b('co-search', 'بحث', 'si-tb--ghost', false, ' title="قائمة الطلبات"')}
         ${b('co-pdf', 'PDF', '', !caps.canPdf)}
         ${b('co-print', 'طباعة', '', !caps.canPrint)}
         ${b('co-excel', 'Excel', '', !caps.canExcel)}
@@ -397,23 +399,25 @@ async function renderForm(req, res, orderId) {
           <label class="si-f si-f--docno">
             <span class="si-f-head">رقم الطلب</span>
             <div class="si-docno-row" dir="ltr">
-              <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق">‹</button>
-              <input class="si-field si-field--mono si-docno-input" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="رقم — Enter" dir="ltr"
-                     title="Enter للانتقال · ↑ السابق · ↓ التالي">
-              <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي">›</button>
+              <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق — ↑ / ←">‹</button>
+              <input class="si-field si-field--mono si-docno-input ${
+                locked ? 'is-approved' : initial.order_no || initial.id ? 'is-saved' : ''
+              }" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="رقم — Enter" dir="ltr"
+                     title="↑/← سابق · ↓/→ تالٍ · Enter بحث برقم">
+              <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي — ↓ / →">›</button>
             </div>
           </label>
           <label class="si-f si-f--date">
             <span class="si-f-head">التاريخ</span>
-            <input class="si-field si-field--mono" id="co_date" type="date" value="${esc(initial.order_date)}" ${locked ? 'readonly' : ''}>
+            <input class="si-field si-field--mono" id="co_date" type="date" value="${esc(initial.order_date)}" ${locked ? 'readonly' : ''} data-nav="1">
           </label>
           <label class="si-f si-f--pay si-f--rep">
             <span class="si-f-head">المندوب</span>
-            <select class="si-field" id="co_rep" ${locked ? 'disabled' : ''}>${repOpts}</select>
+            <select class="si-field" id="co_rep" ${locked ? 'disabled' : ''} data-nav="1">${repOpts}</select>
           </label>
           <label class="si-f si-f--wh">
             <span class="si-f-head">المستودع</span>
-            <select class="si-field" id="co_wh" ${locked ? 'disabled' : ''}>
+            <select class="si-field" id="co_wh" ${locked ? 'disabled' : ''} data-nav="1">
               <option value="">—</option>
               ${whOpts}
             </select>
@@ -421,13 +425,13 @@ async function renderForm(req, res, orderId) {
           <label class="si-f si-f--cust">
             <span class="si-f-head">
               العميل
-              <kbd class="si-field-key" title="F7">F7</kbd>
+              <span class="si-key-hint" title="اختيار عميل"><kbd class="si-field-key">F7</kbd><span class="si-key-desc">بحث عميل</span></span>
               <span id="co_price_mode_hint" class="si-price-mode" hidden></span>
             </span>
             <div class="si-cust-wrap">
               <input type="hidden" id="co_customer_id" value="${initial.customer_id || ''}">
-              <input class="si-field" id="co_customer" type="search" placeholder="ابحث بالاسم أو الرمز… (F7)"
-                     value="${esc(initial.customer_label)}" autocomplete="off" ${locked ? 'readonly' : ''}>
+              <input class="si-field" id="co_customer" type="search" placeholder="ابحث بالاسم أو الرمز…"
+                     value="${esc(initial.customer_label)}" autocomplete="off" ${locked ? 'readonly' : ''} data-nav="1">
               <div class="si-suggest" id="cust_suggest" hidden></div>
             </div>
           </label>
@@ -438,26 +442,28 @@ async function renderForm(req, res, orderId) {
         <div class="si-surface-head">
           <h2>بنود الطلب</h2>
           <span class="si-count si-count--keys">
-            <kbd class="si-field-key" title="سطر جديد">F2</kbd>
-            <kbd class="si-field-key" title="قائمة المواد">F3</kbd>
-            <kbd class="si-field-key" title="حذف بند المادة">F4</kbd>
+            <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
+            <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
+            <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
+            <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
           </span>
         </div>
         <div class="si-lines-wrap">
-          <table class="si-lines" id="co-lines">
+          <table class="si-lines si-lines--co" id="co-lines">
             <thead>
               <tr>
-                <th style="width:2.2rem">#</th>
-                <th>المادة</th>
-                <th style="width:7.5rem">الوحدة</th>
-                <th style="width:6.2rem">الكمية</th>
-                <th style="width:6.2rem">إضافية</th>
-                <th style="width:7rem">السعر</th>
-                <th style="width:5.2rem">خصم %</th>
-                <th style="width:5.2rem">ضريبة %</th>
-                <th style="width:7rem">الصافي</th>
-                <th style="width:7rem">الإجمالي</th>
-                <th style="width:2.6rem"></th>
+                <th style="width:2rem">#</th>
+                <th>الباركود</th>
+                <th>اسم المادة</th>
+                <th>الوحدة</th>
+                <th style="width:5.5rem">الكمية</th>
+                <th style="width:5.2rem">إضافية</th>
+                <th style="width:6.2rem">السعر</th>
+                <th style="width:4.8rem">خصم %</th>
+                <th style="width:5rem">ضريبة %</th>
+                <th style="width:6.2rem">الصافي</th>
+                <th style="width:6.2rem">الإجمالي</th>
+                <th style="width:2.4rem"></th>
               </tr>
             </thead>
             <tbody id="co-lines-body"></tbody>

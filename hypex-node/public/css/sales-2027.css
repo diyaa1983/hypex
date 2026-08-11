@@ -1,6 +1,6 @@
 /**
- * ?????? ???????? ù ????? 2027
- * ?????: "Financial Instrument" ù ????? ?????? + ???? ????? ???? purple / SaaS ???
+ * ?????? ???????? ? ????? 2027
+ * ?????: "Financial Instrument" ? ????? ?????? + ???? ????? ???? purple / SaaS ???
  */
 
 body.app-body.si-2027 {
@@ -130,7 +130,7 @@ body.si-2027 .si-main::before {
   min-width: 0;
 }
 
-/* ????? ??????/?????? ?????? ??? ???????? (Hypex ù Node ??????) */
+/* ????? ??????/?????? ?????? ??? ???????? (Hypex ? Node ??????) */
 .si-kicker,
 .si-brand-mark,
 .embed-kicker {
@@ -346,7 +346,7 @@ body.si-2027 .si-main::before {
   padding-inline: 0.9rem;
 }
 
-/* Surfaces ù overflow:visible ??? ?? ???? ????? ???????/?????? */
+/* Surfaces ? overflow:visible ??? ?? ???? ????? ???????/?????? */
 .si-surface {
   background: var(--si-surface);
   border: 1px solid var(--si-line);
@@ -613,7 +613,7 @@ body.si-2027 .si-main::before {
   outline-offset: 2px;
 }
 
-/* ?????? ??????? ????? ???? ó ?? ???? ???? */
+/* ?????? ??????? ????? ???? ? ?? ???? ???? */
 .si-tb-lbl {
   display: inline-block;
 }
@@ -950,6 +950,165 @@ label .si-field-key {
   cursor: not-allowed;
 }
 
+/* ??? ???????: ???? ??? ????? ? ???? ??? ????????/??????? */
+.si-docno-input.is-saved,
+#co_no.is-saved {
+  background: #ecfdf5 !important;
+  border-color: #22c55e !important;
+  color: #047857 !important;
+  font-weight: 800;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.18);
+}
+.si-docno-input.is-approved,
+#co_no.is-approved {
+  background: #fef2f2 !important;
+  border-color: #ef4444 !important;
+  color: #b91c1c !important;
+  font-weight: 800;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18);
+}
+
+/* ????????: ????? + ??? ??? ???? ???? */
+.si-key-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  margin-inline-start: 0.25rem;
+  vertical-align: middle;
+  line-height: 1;
+}
+.si-key-hint .si-field-key {
+  margin-inline-start: 0;
+}
+.si-key-desc {
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #94a3b8;
+  text-transform: none;
+  white-space: nowrap;
+  opacity: 0.95;
+}
+.si-count--keys {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.si-count--keys .si-key-hint {
+  margin-inline-start: 0;
+  padding: 0.12rem 0.3rem 0.12rem 0.22rem;
+  border-radius: 6px;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+.si-tb-keywrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
+  margin-inline-start: 0.28rem;
+  vertical-align: middle;
+  line-height: 1;
+}
+.si-tb-keywrap .si-tb-key {
+  margin-inline-start: 0;
+}
+.si-tb-keydesc {
+  font-size: 0.48rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.72);
+  text-transform: none;
+  white-space: nowrap;
+  max-width: 3.2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.1;
+}
+.si-tb--ghost .si-tb-keydesc,
+.si-tb:not(.si-tb--save):not(.si-tb--post):not(.si-tb--danger):not(.si-tb--accent) .si-tb-keydesc {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+/* ?????? + ??? ???? ? ????? ?????? ??? ???? */
+.si-lines .si-item-code-cell,
+.si-lines .si-item-name-cell {
+  position: relative;
+  vertical-align: middle;
+  overflow: visible;
+  white-space: nowrap;
+}
+.si-lines .si-item-code-cell {
+  width: 1%;
+}
+.si-lines .si-item-name-cell {
+  min-width: 10rem;
+}
+.si-lines .si-item-code-cell input.js-item-code,
+.si-lines .si-item-name-cell input.js-item-name {
+  display: inline-block;
+  width: auto;
+  min-width: 5.5rem;
+  max-width: none;
+  box-sizing: content-box;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: normal;
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: plaintext;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+.si-lines .si-item-name-cell input.js-item-name {
+  min-width: 9rem;
+}
+.si-lines .si-item-name-cell input.js-item-name[readonly] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--si-ink, #0f172a);
+  cursor: default;
+  padding-inline: 0.35rem;
+}
+.si-lines select.js-unit {
+  display: inline-block;
+  width: auto;
+  min-width: 5.5rem;
+  max-width: none;
+  box-sizing: content-box;
+  white-space: nowrap;
+}
+/* ???? ??? ??????: ????? ?? ??????? + ????? ???? ??? ?????? */
+.si-lines-wrap:has(.si-lines--co),
+.si-lines-wrap:has(#co-lines) {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+}
+.si-lines.si-lines--co {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+.si-lines.si-lines--co thead th {
+  white-space: nowrap;
+}
+.si-lines.si-lines--co tbody td {
+  overflow: visible;
+}
+.si-lines .si-item-code-cell .si-suggest,
+.si-lines .js-item-suggest {
+  min-width: 12rem;
+}
+
 /* ?????: ??? | ????? | ??? | ?????? | ???? (??????) */
 .si-meta--invoice {
   display: grid;
@@ -1100,7 +1259,7 @@ label .si-field-key {
   grid-column: 1 / -1;
 }
 
-/* Form footer actions ù compact horizontal pills (never stretch in the meta grid) */
+/* Form footer actions ? compact horizontal pills (never stretch in the meta grid) */
 .si-form-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1177,47 +1336,166 @@ label .si-field-key {
 .si-suggest {
   position: absolute;
   inset-inline: 0;
-  top: calc(100% + 4px);
+  top: calc(100% + 5px);
   z-index: 80;
-  max-height: min(18rem, 50vh);
-  overflow: auto;
-  border-radius: 12px;
-  background: #fffefb;
-  border: 1px solid var(--si-line-strong);
-  box-shadow: 0 18px 40px rgba(11, 18, 32, 0.16);
+  max-height: min(16.5rem, 48vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  direction: rtl;
+  text-align: right;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow:
+    0 4px 6px rgba(15, 23, 42, 0.04),
+    0 16px 36px rgba(15, 23, 42, 0.12);
+  padding: 0.28rem;
 }
 
 .si-suggest[hidden] {
   display: none !important;
 }
 
-.si-suggest button {
-  display: block;
-  width: 100%;
-  text-align: start;
-  border: 0;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+/* ???? ????? ???? */
+.si-suggest::-webkit-scrollbar {
+  width: 7px;
+}
+.si-suggest::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 8px;
+}
+.si-suggest::-webkit-scrollbar-track {
   background: transparent;
-  padding: 0.65rem 0.8rem;
+}
+
+.si-suggest button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start; /* ?? RTL: ????? = ?????? */
+  width: 100%;
+  min-height: 2.15rem;
+  margin: 0;
+  border: 0;
+  border-radius: 7px;
+  border-bottom: none;
+  background: transparent;
+  padding: 0.48rem 0.75rem;
   font: inherit;
   font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.35;
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+  direction: rtl;
+  text-align: right;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-suggest button + button {
+  margin-top: 1px;
 }
 
 .si-suggest button:hover {
   background: rgba(3, 105, 161, 0.08);
+  color: #0c4a6e;
 }
 
-/* Lines grid ù ????? ?????? ?? ???? ???? ?????? */
+.si-suggest button.is-active {
+  background: rgba(3, 105, 161, 0.14);
+  color: #075985;
+  box-shadow: inset -3px 0 0 0 #0284c7;
+  font-weight: 700;
+}
+
+.si-suggest button:focus-visible {
+  outline: 2px solid rgba(2, 132, 199, 0.45);
+  outline-offset: -1px;
+}
+
+/* ?????? + ???: ??????? ?????? ???? ?????? */
+.si-suggest.si-suggest--barcode,
+.si-suggest.si-suggest--name {
+  min-width: min(18rem, 90vw);
+  direction: rtl;
+  text-align: right;
+}
+.si-suggest.si-suggest--barcode {
+  min-width: min(13rem, 88vw);
+}
+.si-suggest.si-suggest--name {
+  min-width: min(20rem, 92vw);
+}
+
+.si-suggest.si-suggest--barcode button,
+.si-suggest.si-suggest--name button {
+  direction: rtl !important;
+  text-align: right !important;
+  justify-content: flex-start !important;
+  unicode-bidi: plaintext;
+}
+
+.si-suggest.si-suggest--barcode button {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  font-size: 0.9rem;
+}
+
+.si-suggest.si-suggest--name button {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.si-suggest .si-suggest-empty {
+  padding: 0.7rem 0.85rem !important;
+  text-align: right !important;
+  direction: rtl;
+  color: #64748b !important;
+  font-size: 0.82rem !important;
+  font-weight: 600;
+}
+
+/* Lines grid ? ????? ?????? ?? ???? ???? ?????? */
 .si-lines-wrap {
   overflow: visible;
   max-height: none;
 }
 
+/* ??? ??????: ????? ???? ??? ????? ??? ?????? ???????? */
+.si-lines-wrap:has(.si-lines--co),
+.si-lines-wrap:has(#co-lines) {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
 .si-lines-wrap.is-scroll {
   overflow: auto;
   max-height: min(46vh, 480px);
+}
+
+.si-lines.si-lines--co {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.si-lines.si-lines--co thead th {
+  white-space: nowrap;
+}
+
+.si-lines.si-lines--co tbody td {
+  overflow: visible;
+}
+
+.si-lines.si-lines--co input.js-item-code,
+.si-lines.si-lines--co input.js-item-name,
+.si-lines.si-lines--co select.js-unit {
+  width: auto !important;
+  max-width: none !important;
 }
 
 .si-lines {
@@ -1303,38 +1581,97 @@ label .si-field-key {
   z-index: 90;
 }
 
-/* ????? ????? ??? ?????? */
+/* ????? ????? ??? ????? */
 .si-suggest.si-suggest--float {
   position: fixed !important;
   inset: auto !important;
-  top: 0;
-  left: 0;
   z-index: 12000;
-  max-height: min(16rem, 40vh);
-  overflow: auto;
-  box-shadow: 0 18px 40px rgba(11, 18, 32, 0.18);
-  background: #fffefb;
-  border: 1px solid var(--si-line-strong);
-  border-radius: 12px;
+  max-height: min(16.5rem, 48vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  direction: rtl !important;
+  text-align: right !important;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 6px rgba(15, 23, 42, 0.04),
+    0 18px 40px rgba(15, 23, 42, 0.14);
+  padding: 0.28rem;
+}
+
+/* ????? ??????? ? ????? ??? ?????? + ???? */
+.si-suggest.si-suggest--pa.si-suggest--float {
+  z-index: 50000 !important;
+  display: block !important;
+  background: #fff !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18) !important;
+}
+.si-suggest.si-suggest--pa.si-suggest--float[hidden] {
+  display: none !important;
+}
+.si-suggest.si-suggest--pa button {
+  direction: rtl !important;
+  text-align: right !important;
+  justify-content: flex-start !important;
+}
+.si-lines--pa .si-item-code-cell,
+.si-lines--pa .si-item-name-cell {
+  overflow: visible !important;
+  position: relative;
+  z-index: 2;
+}
+.si-lines-wrap:has(.si-lines--pa) {
+  overflow: visible !important;
 }
 
 .si-del {
-  width: 1.85rem;
-  height: 1.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
   border-radius: 8px;
-  border: 1px solid rgba(180, 35, 24, 0.2);
-  background: rgba(254, 242, 242, 0.9);
-  color: var(--si-danger);
-  font-weight: 800;
+  border: 1px solid rgba(185, 28, 28, 0.18);
+  background: #fef2f2;
+  color: #dc2626;
+  line-height: 0;
   cursor: pointer;
-  transition: transform 0.12s ease;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.12s ease,
+    box-shadow 0.12s ease;
+  vertical-align: middle;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.si-del .si-del-ico {
+  display: block;
+  width: 0.88rem;
+  height: 0.88rem;
+  pointer-events: none;
+  flex-shrink: 0;
 }
 
 .si-del:hover {
-  transform: scale(1.05);
+  background: #fee2e2;
+  border-color: rgba(185, 28, 28, 0.32);
+  color: #b91c1c;
+  transform: scale(1.06);
+  box-shadow: 0 2px 6px rgba(185, 28, 28, 0.12);
 }
 
-/* ???? ???????? ù ???? ?????? ?????? */
+.si-del:active {
+  transform: scale(0.96);
+  background: #fecaca;
+}
+
+.si-del:focus-visible {
+  outline: 2px solid rgba(220, 38, 38, 0.45);
+  outline-offset: 2px;
+}
+
+/* ???? ???????? ? ???? ?????? ?????? */
 .si-sum-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1517,7 +1854,7 @@ body.si-2027 .main.si-main .topbar {
   }
 }
 
-/* Hub tiles ù ???? ???????? */
+/* Hub tiles ? ???? ???????? */
 body.si-2027 .si-tiles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
@@ -1622,7 +1959,7 @@ body.si-2027 .si-tile-kind {
     border: 1px solid #ccc !important;
     background: #fff !important;
     backdrop-filter: none !important;
-    /* avoid ??? ??????? ??????? ???? ??? ?????? ?????? ù ????? ???????? */
+    /* avoid ??? ??????? ??????? ???? ??? ?????? ?????? ? ????? ???????? */
     break-inside: auto;
     page-break-inside: auto;
   }
