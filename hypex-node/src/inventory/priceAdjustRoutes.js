@@ -78,6 +78,17 @@ router.use((req, res, next) => {
   });
 });
 
+/* ── API: بحث مواد (مستقل عن صلاحيات المبيعات) ── */
+router.get('/api/inventory/price-adjust/items', guard, async (req, res) => {
+  try {
+    const inv = require('../sales/invoicesService');
+    const rows = await inv.searchItems(String(req.query.q || ''), 50);
+    res.json({ ok: true, rows: rows || [] });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message || 'خطأ في البحث' });
+  }
+});
+
 /* ── API item prices ── */
 router.get('/api/inventory/price-adjust/item/:id', guard, async (req, res) => {
   try {

@@ -335,7 +335,7 @@
 
   function pickItemIntoRow(tr, it) {
     var idx = Number(tr.getAttribute('data-idx'));
-    fetch('/api/inventory/price-adjust/item/' + it.id, { credentials: 'same-origin' })
+    fetch(apiUrl('/api/inventory/price-adjust/item/' + it.id), { credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
@@ -483,6 +483,18 @@
     });
   }
 
+  function apiUrl(path) {
+    if (typeof window.__hypexUrl === 'function') return window.__hypexUrl(path);
+    var b =
+      typeof window.__HYPEX_BASE__ === 'string' && window.__HYPEX_BASE__
+        ? window.__HYPEX_BASE__
+        : '';
+    if (b && b.charAt(b.length - 1) === '/') b = b.slice(0, -1);
+    if (!path || path.charAt(0) !== '/') path = '/' + (path || '');
+    if (b && (path === b || path.indexOf(b + '/') === 0)) return path;
+    return b + path;
+  }
+
   function searchItems(q, box, tr, anchor) {
     if (!box) return;
     var token = String((searchItems._seq = (searchItems._seq || 0) + 1));
@@ -495,27 +507,46 @@
     box.dataset.hxUserNav = '';
     attachSuggestToBody(box, tr);
 
+    // مؤشر تحميل فوري حتى لا يبدو أن القائمة معطّلة
+    box.innerHTML = '';
+    var loading = document.createElement('div');
+    loading.className = 'si-suggest-empty';
+    loading.textContent = 'جاري التحميل…';
+    box.appendChild(loading);
+    placeFloatSuggest(box, anchor || (tr && tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code')));
+
+    // المسار الأول خاص بهذه الشاشة (صلاحية تعديل الأسعار / المواد) — لا يعتمد على شاشات المبيعات
+    var qEnc = encodeURIComponent(q || '');
     var urls = [
-      '/api/lookup/items?q=' + encodeURIComponent(q || ''),
-      '/api/items?q=' + encodeURIComponent(q || ''),
-      '/api/sales/customer-orders/items?q=' + encodeURIComponent(q || ''),
+      apiUrl('/api/inventory/price-adjust/items?q=') + qEnc,
+      apiUrl('/api/lookup/items?q=') + qEnc,
+      apiUrl('/api/items?q=') + qEnc,
     ];
 
     function tryFetch(i) {
       if (i >= urls.length) {
-        showSuggest({ ok: true, rows: [] }, box, tr, anchor, mode, q);
+        showSuggest(
+          { ok: false, error: 'تعذر تحميل قائمة المواد', rows: [] },
+          box,
+          tr,
+          anchor,
+          mode,
+          q
+        );
         return;
       }
       fetch(urls[i], { credentials: 'same-origin', headers: { Accept: 'application/json' } })
         .then(function (r) {
-          if (!r.ok) throw new Error('http');
+          if (!r.ok) throw new Error('http ' + r.status);
           return r.json();
         })
         .then(function (data) {
           if (box._paSearchToken !== token) return;
+          if (data && data.ok === false) throw new Error(data.error || 'fail');
           showSuggest(data || {}, box, tr, anchor, mode, q);
         })
         .catch(function () {
+          if (box._paSearchToken !== token) return;
           tryFetch(i + 1);
         });
     }
@@ -531,9 +562,14 @@
       else if (Array.isArray(data.items)) rows = data.items;
       else if (Array.isArray(data)) rows = data;
     }
-    // قبول حتى إذا لم يصل ok
+
     if (data && data.ok === false && !rows.length) {
-      closeItemSuggest(box);
+      var err = document.createElement('div');
+      err.className = 'si-suggest-empty';
+      err.style.color = '#b91c1c';
+      err.textContent = data.error || 'تعذر تحميل قائمة المواد';
+      box.appendChild(err);
+      placeFloatSuggest(box, anchor || (tr && tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code')));
       return;
     }
 
@@ -543,8 +579,8 @@
       empty.textContent = q
         ? 'لا توجد نتائج مطابقة'
         : mode === 'name'
-          ? 'اكتب اسم المادة…'
-          : 'اكتب الباركود…';
+          ? 'اكتب للبحث أو اختر من القائمة (F3)…'
+          : 'ابدأ الكتابة أو F3 لعرض المواد…';
       box.appendChild(empty);
       placeFloatSuggest(box, anchor || (tr && tr.querySelector('.js-item-code')));
       return;
@@ -556,13 +592,14 @@
       b.tabIndex = -1;
       var code = itemBarcodeOnly(it);
       var nm = itemNameOnly(it);
-      // قائمة الباركود = باركود فقط · قائمة الاسم = اسم فقط
+      // قائمة الباركود = باركود (+ اسم في العنوان) · قائمة الاسم = اسم
       if (mode === 'name') {
-        b.textContent = nm || code;
+        b.textContent = nm || code || 'مادة';
         b.title = code ? 'باركود: ' + code : nm;
       } else {
-        b.textContent = code || nm;
-        b.title = nm ? 'المادة: ' + nm : code;
+        // أظهر الباركود والاسم معاً لسهولة الاختيار
+        b.textContent = code ? code + (nm ? ' — ' + nm : '') : nm || 'مادة';
+        b.title = nm || code;
       }
       b.addEventListener('mousedown', function (e) {
         e.preventDefault();
@@ -574,7 +611,10 @@
       });
       box.appendChild(b);
     });
-    placeFloatSuggest(box, anchor || (tr && tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code')));
+    placeFloatSuggest(
+      box,
+      anchor || (tr && tr.querySelector(mode === 'name' ? '.js-item-name' : '.js-item-code'))
+    );
   }
 
   var LINE_NAV = ['.js-item-code', '.js-item-name', '.js-new-sale', '.js-new-wh'];
