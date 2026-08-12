@@ -62,6 +62,8 @@ return [
         'credit_side' => 2,
         'cheque_table' => 'GLCHEQF',
         'cheque_cus' => 'CHQ_CUS_NUM',
+        // اختياري: عمود تاريخ القبض إن اختلف الاسم (يُكتشف تلقائياً عادةً)
+        // 'cheque_receipt' => 'CHQ_RDATE',
     ],
 
     /**

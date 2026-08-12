@@ -38,6 +38,8 @@ function oracle_statement_cfg(): array
         'credit_side' => (int) ($s['credit_side'] ?? 2),
         'cheque_table' => strtoupper(trim((string) ($s['cheque_table'] ?? 'GLCHEQF'))) ?: 'GLCHEQF',
         'cheque_cus' => strtoupper(trim((string) ($s['cheque_cus'] ?? 'CHQ_CUS_NUM'))) ?: 'CHQ_CUS_NUM',
+        // عمود تاريخ القبض في GLCHEQF (اختياري — يُكتشف تلقائياً إن تُرك فارغاً)
+        'cheque_receipt' => strtoupper(trim((string) ($s['cheque_receipt'] ?? ''))),
     ];
 }
 
@@ -108,8 +110,82 @@ function oracle_statement_row_val(array $r, string $key): string
             return oracle_statement_cell_str($r[$k]);
         }
     }
+    $want = strtoupper($key);
+    foreach ($r as $k => $v) {
+        if (!is_string($k)) {
+            continue;
+        }
+        if (strtoupper($k) === $want) {
+            return oracle_statement_cell_str($v);
+        }
+    }
 
     return '';
+}
+
+/**
+ * أسماء أعمدة جدول Oracle (بأحرف كبيرة) — مع تخزين مؤقت.
+ *
+ * @return list<string>
+ */
+function oracle_statement_table_columns(array $conn, string $owner, string $table): array
+{
+    static $cache = [];
+    $key = strtoupper($owner) . '.' . strtoupper($table);
+    if (isset($cache[$key])) {
+        return $cache[$key];
+    }
+    $names = [];
+    try {
+        foreach (oracle_describe_table($conn, $owner, $table) as $c) {
+            $n = strtoupper(trim((string) ($c['column_name'] ?? '')));
+            if ($n !== '') {
+                $names[] = $n;
+            }
+        }
+    } catch (Throwable $e) {
+        $names = [];
+    }
+    $cache[$key] = $names;
+
+    return $names;
+}
+
+/**
+ * مرشّحو عمود «تاريخ القبض» في جدول الشيكات (بالأولوية).
+ *
+ * @return list<string>
+ */
+function oracle_cheque_receipt_col_candidates(): array
+{
+    return [
+        'CHQ_RDATE',
+        'CHQ_R_DATE',
+        'CHQ_RECDATE',
+        'CHQ_REC_DATE',
+        'CHQ_RECV_DATE',
+        'CHQ_RECEIVE_DATE',
+        'CHQ_IN_DATE',
+        'CHQ_IDATE',
+        'CHQ_GDATE',
+        'CHQ_VDATE',
+        'CHQ_CDATE',
+        'CHQ_BDATE',
+    ];
+}
+
+/** @param list<string> $have @param list<string> $candidates */
+function oracle_first_existing_column(array $have, array $candidates): ?string
+{
+    $set = array_fill_keys($have, true);
+    foreach ($candidates as $c) {
+        $c = strtoupper(trim((string) $c));
+        if ($c !== '' && isset($set[$c])) {
+            return $c;
+        }
+    }
+
+    return null;
 }
 
 /** تطبيع تاريخ Oracle إلى Y-m-d عند الإمكان. */
@@ -128,9 +204,9 @@ function oracle_statement_normalize_date(string $raw): string
     if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})/', $raw, $m)) {
         return $m[3] . '-' . $m[2] . '-' . $m[1];
     }
-    // 08-AUG-26 / 08-AUG-2026
-    if (preg_match('/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})$/', $raw, $m)) {
-        $ts = strtotime($raw);
+    // 08-AUG-26 / 08-AUG-2026 (+ وقت اختياري)
+    if (preg_match('/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})(?:\s|$)/', $raw, $m)) {
+        $ts = strtotime(substr($raw, 0, 20));
         if ($ts !== false) {
             return date('Y-m-d', $ts);
         }
@@ -372,40 +448,97 @@ function oracle_fetch_customer_statement(string $accountNo, string $dateFrom, st
     }
 
     // الشيكات قيد التحصيل (GLCHEQF)
+    // تاريخ القبض: عمود الشيك إن وُجد، وإلا تاريخ سند القبض من GLVODMF عبر CHQ_V_NUM
     $cheques = [];
     $chequeTotal = 0.0;
     try {
         $cq = oracle_stmt_q($sc['cheque_table']);
         $ccus = oracle_stmt_q($sc['cheque_cus']);
-        // CHQ_DATE = تاريخ الاستحقاق، CHQ_R_DATE أو مشابه = تاريخ القبض إن وُجد
-        $chqSql = 'SELECT CHQ_NUM, CHQ_DATE, CHQ_AMOUNT, CHQ_V_NUM, CHQ_NAME, CHQ_STATUS,
-                          CHQ_BDATE, CHQ_RDATE
-                   FROM ' . $own . '.' . $cq . '
-                   WHERE ' . $ccus . ' = :acc
-                   ORDER BY CHQ_DATE, CHQ_NUM';
+        $chCols = oracle_statement_table_columns($conn, $sc['owner'], $sc['cheque_table']);
+        $configuredRecv = (string) ($sc['cheque_receipt'] ?? '');
+        $recvCol = null;
+        if ($configuredRecv !== '' && ($chCols === [] || in_array($configuredRecv, $chCols, true))) {
+            $recvCol = $configuredRecv;
+        } else {
+            $recvCol = oracle_first_existing_column($chCols, oracle_cheque_receipt_col_candidates());
+        }
+
+        $hasVNum = $chCols === [] || in_array('CHQ_V_NUM', $chCols, true);
+        $recvExpr = 'NULL';
+        if ($recvCol !== null && $hasVNum) {
+            $recvExpr = 'NVL(c.' . oracle_stmt_q($recvCol)
+                . ', (SELECT MIN(d.' . $dt . ') FROM ' . $fromTbl . ' d WHERE d.' . $num
+                . ' = c.' . oracle_stmt_q('CHQ_V_NUM') . '))';
+        } elseif ($recvCol !== null) {
+            $recvExpr = 'c.' . oracle_stmt_q($recvCol);
+        } elseif ($hasVNum) {
+            $recvExpr = '(SELECT MIN(d.' . $dt . ') FROM ' . $fromTbl . ' d WHERE d.' . $num
+                . ' = c.' . oracle_stmt_q('CHQ_V_NUM') . ')';
+        }
+
+        $chqSql = 'SELECT c.' . oracle_stmt_q('CHQ_NUM') . ' AS CHQ_NUM,
+                          c.' . oracle_stmt_q('CHQ_DATE') . ' AS CHQ_DATE,
+                          c.' . oracle_stmt_q('CHQ_AMOUNT') . ' AS CHQ_AMOUNT,
+                          c.' . oracle_stmt_q('CHQ_V_NUM') . ' AS CHQ_V_NUM,
+                          c.' . oracle_stmt_q('CHQ_NAME') . ' AS CHQ_NAME,
+                          c.' . oracle_stmt_q('CHQ_STATUS') . ' AS CHQ_STATUS,
+                          ' . $recvExpr . ' AS RECEIPT_DATE
+                   FROM ' . $own . '.' . $cq . ' c
+                   WHERE c.' . $ccus . ' = :acc
+                   ORDER BY c.' . oracle_stmt_q('CHQ_DATE') . ', c.' . oracle_stmt_q('CHQ_NUM');
         try {
             $chRows = oracle_query_all($conn, $chqSql, ['acc' => $accNum]);
         } catch (Throwable $eCols) {
-            $chqSql = 'SELECT CHQ_NUM, CHQ_DATE, CHQ_AMOUNT, CHQ_V_NUM, CHQ_NAME, CHQ_STATUS
-                       FROM ' . $own . '.' . $cq . '
-                       WHERE ' . $ccus . ' = :acc
-                       ORDER BY CHQ_DATE, CHQ_NUM';
+            // استعلام مبسّط إن فشل تعبير تاريخ القبض أو أعمدة اختيارية
+            $chqSql = 'SELECT c.' . oracle_stmt_q('CHQ_NUM') . ' AS CHQ_NUM,
+                              c.' . oracle_stmt_q('CHQ_DATE') . ' AS CHQ_DATE,
+                              c.' . oracle_stmt_q('CHQ_AMOUNT') . ' AS CHQ_AMOUNT,
+                              c.' . oracle_stmt_q('CHQ_V_NUM') . ' AS CHQ_V_NUM,
+                              c.' . oracle_stmt_q('CHQ_NAME') . ' AS CHQ_NAME,
+                              c.' . oracle_stmt_q('CHQ_STATUS') . ' AS CHQ_STATUS
+                       FROM ' . $own . '.' . $cq . ' c
+                       WHERE c.' . $ccus . ' = :acc
+                       ORDER BY c.' . oracle_stmt_q('CHQ_DATE') . ', c.' . oracle_stmt_q('CHQ_NUM');
             $chRows = oracle_query_all($conn, $chqSql, ['acc' => $accNum]);
         }
 
         foreach ($chRows as $ch) {
             $val = abs((float) oracle_statement_row_val($ch, 'CHQ_AMOUNT'));
             $status = (int) (float) oracle_statement_row_val($ch, 'CHQ_STATUS');
-            // نعرض شيكات غير المصفّاة/المحصّلة إن وُجدت حالات معروفة؛ وإلا الكل
             // STATUS شائع: 0/1 قيد التحصيل، أرقام أعلى = محصّل/مرتجع
             if ($status > 1) {
                 continue;
             }
-            $receiptDate = oracle_statement_normalize_date(
-                oracle_statement_row_val($ch, 'CHQ_RDATE') !== ''
-                    ? oracle_statement_row_val($ch, 'CHQ_RDATE')
-                    : oracle_statement_row_val($ch, 'CHQ_BDATE')
-            );
+            $receiptRaw = oracle_statement_row_val($ch, 'RECEIPT_DATE');
+            if ($receiptRaw === '' && $recvCol !== null) {
+                $receiptRaw = oracle_statement_row_val($ch, $recvCol);
+            }
+            if ($receiptRaw === '') {
+                $receiptRaw = oracle_statement_row_val($ch, 'CHQ_RDATE');
+            }
+            if ($receiptRaw === '') {
+                $receiptRaw = oracle_statement_row_val($ch, 'CHQ_BDATE');
+            }
+            // إن بقي فارغاً: تاريخ سند القبض من حركات نفس رقم السند (إن وُجدت في نتيجة مبسّطة لاحقاً)
+            if ($receiptRaw === '') {
+                $vNum = oracle_statement_row_val($ch, 'CHQ_V_NUM');
+                if ($vNum !== '') {
+                    try {
+                        $vd = oracle_query_all(
+                            $conn,
+                            'SELECT MIN(' . $dt . ') AS RD FROM ' . $fromTbl
+                            . ' WHERE ' . $num . ' = :vn',
+                            ['vn' => $vNum]
+                        );
+                        if ($vd) {
+                            $receiptRaw = oracle_statement_row_val($vd[0], 'RD');
+                        }
+                    } catch (Throwable $eV) {
+                        // تجاهل
+                    }
+                }
+            }
+            $receiptDate = oracle_statement_normalize_date($receiptRaw);
             $cheques[] = [
                 'chq_no' => oracle_statement_row_val($ch, 'CHQ_NUM'),
                 'chq_date' => oracle_statement_normalize_date(oracle_statement_row_val($ch, 'CHQ_DATE')),
