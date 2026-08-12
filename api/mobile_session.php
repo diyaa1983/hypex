@@ -149,25 +149,17 @@ if ($missing !== null) {
 $username = trim((string) ($_POST['username'] ?? ''));
 $password = (string) ($_POST['password'] ?? '');
 
-if ($username === '' || $password === '') {
-    http_response_code(400);
-    echo json_encode([
-        'ok' => false,
-        'error' => 'missing_credentials',
-        'message' => 'أدخل اسم المستخدم وكلمة المرور.',
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
-}
-
-if (!mobile_attempt_login($username, $password)) {
+$login = mobile_attempt_login_result($username, $password);
+if (!($login['ok'] ?? false)) {
     if (is_logged_in()) {
         logout();
     }
-    http_response_code(401);
+    $code = (string) ($login['error'] ?? 'invalid_credentials');
+    http_response_code($code === 'missing_credentials' ? 400 : 401);
     echo json_encode([
         'ok' => false,
-        'error' => 'invalid_credentials',
-        'message' => 'بيانات الدخول غير صحيحة، أو حسابك غير مضاف لمجموعة «هاتف».',
+        'error' => $code,
+        'message' => (string) ($login['message'] ?? 'تعذّر تسجيل الدخول.'),
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }

@@ -111,7 +111,7 @@ class LocationTrackingService {
 
   /// نص إرشادي للآيفون عند غياب إذن Always.
   static const String iosAlwaysHint =
-      'لتثبيت التتبّع في الخلفية على الآيفون: الإعدادات ← النماء ← الموقع ← دائماً';
+      'لتثبيت التتبّع في الخلفية على الآيفون: الإعدادات ← Hypex ← الموقع ← دائماً';
 
   /// حفظ بيانات الاتصال ليستخدمها isolate الخدمة في تسجيل الدخول والإرسال.
   static Future<void> saveCredentials({
@@ -205,7 +205,7 @@ class LocationTrackingService {
     }
     if (perm == LocationPermission.deniedForever) {
       return Platform.isIOS
-          ? 'إذن الموقع مرفوض. افتح إعدادات الآيفون ← النماء ← الموقع ← دائماً.'
+          ? 'إذن الموقع مرفوض. افتح إعدادات الآيفون ← Hypex ← الموقع ← دائماً.'
           : 'إذن الموقع مرفوض نهائياً. افتح إعدادات التطبيق وامنح إذن الموقع.';
     }
 

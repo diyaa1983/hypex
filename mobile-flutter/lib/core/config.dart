@@ -3,7 +3,23 @@ class AppConfig {
   AppConfig._();
 
   /// عنوان السيرفر الافتراضي (يمكن للمستخدم تغييره من شاشة الإعداد).
-  static const String defaultServerBase = 'https://www.biodev.gppjo.com';
+  static const String defaultServerBase = 'http://176.29.176.192/hypex';
+
+  /// عناوين قديمة كانت افتراضية — تُستبدل تلقائياً بالعنوان الجديد عند التشغيل.
+  static const List<String> legacyDefaultServerBases = [
+    'https://www.biodev.gppjo.com',
+    'https://biodev.gppjo.com',
+    'http://www.biodev.gppjo.com',
+    'http://biodev.gppjo.com',
+  ];
+
+  static bool isLegacyDefaultServer(String base) {
+    final b = base.trim().replaceAll(RegExp(r'/+$'), '');
+    for (final legacy in legacyDefaultServerBases) {
+      if (b == legacy) return true;
+    }
+    return false;
+  }
 
   /// المسارات على السيرفر.
   static const String sessionPath = 'api/mobile_session.php';
@@ -44,6 +60,10 @@ class AppConfig {
   static const String partyStatementPath = 'api/mobile_party_statement.php';
   static const String partyStatementPdfPath =
       'api/mobile_party_statement_pdf.php';
+  static const String oracleCustomerStatementPath =
+      'api/mobile_oracle_customer_statement.php';
+  static const String oracleCustomerArSummaryPath =
+      'api/oracle_customer_ar_summary.php';
   static const String partiesPath = 'api/mobile_parties.php';
   static const String customerSavePath = 'api/mobile_customer_save.php';
 

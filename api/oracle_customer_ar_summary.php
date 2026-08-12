@@ -24,6 +24,9 @@ if (!(
     || user_can('sales_customer_orders_approved')
     || user_can('report_oracle_customer_statement')
     || user_can('customers')
+    || user_can('m_customer_orders')
+    || user_can('m_party_statement')
+    || user_can('m_sales_invoices')
     || user_can_sales_invoices()
 )) {
     http_response_code(403);

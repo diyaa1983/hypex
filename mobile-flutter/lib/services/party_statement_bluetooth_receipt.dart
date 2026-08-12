@@ -100,12 +100,12 @@ class PartyStatementBluetoothReceipt {
     final to = Fmt.dmy(Fmt.str(data['to_dmy'] ?? data['to']));
     final totalDebit = Fmt.toDouble(data['total_debit']);
     final totalCredit = Fmt.toDouble(data['total_credit']);
-    final closing = Fmt.toDouble(data['closing_balance']);
+    final closing = Fmt.toDouble(data['closing_balance'] ?? data['balance']);
     final salesRep =
         Fmt.str(data['sales_rep_name'] ?? data['sales_rep_names']);
 
     final rows = <Map<String, dynamic>>[];
-    final raw = data['rows'];
+    final raw = data['rows'] ?? data['lines'];
     if (raw is List) {
       for (final e in raw) {
         if (e is Map) rows.add(e.cast<String, dynamic>());
@@ -233,7 +233,11 @@ class PartyStatementBluetoothReceipt {
       for (final row in rows) {
         final date = Fmt.dmy(Fmt.str(row['date'] ?? row['doc_date']));
         final desc = Fmt.str(
-          row['description'] ?? row['doc_type'] ?? row['type'],
+          row['description'] ??
+              row['remark'] ??
+              row['doc_no'] ??
+              row['doc_type'] ??
+              row['type'],
         );
         final debit = Fmt.toDouble(row['debit']);
         final credit = Fmt.toDouble(row['credit']);

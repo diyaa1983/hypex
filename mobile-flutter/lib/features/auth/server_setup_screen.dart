@@ -118,7 +118,7 @@ class _ServerSetupScreenState extends State<ServerSetupScreen> {
                           keyboardType: TextInputType.url,
                           decoration: const InputDecoration(
                             labelText: 'عنوان النظام',
-                            hintText: 'https://www.biodev.gppjo.com',
+                            hintText: 'http://176.29.176.192/hypex',
                             prefixIcon: Icon(Icons.link_rounded, size: 20),
                           ),
                         ),

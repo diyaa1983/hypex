@@ -317,8 +317,23 @@
     return 'customers';
   }
 
+  function closeFloatingSuggests() {
+    document.querySelectorAll('#pa-global-suggest, .js-item-suggest, .si-suggest--float').forEach(function (el) {
+      try {
+        el.hidden = true;
+        el.setAttribute('hidden', '');
+        el.style.display = 'none';
+        el.innerHTML = '';
+        el.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name', 'si-suggest--pa');
+      } catch (e) {
+        /* ignore */
+      }
+    });
+  }
+
   function openModal(kind) {
     ensureModal();
+    closeFloatingSuggests();
     mode = kind;
     var title =
       kind === 'customers'
@@ -599,7 +614,7 @@
   }
 
   function openItems() {
-    focusLastItemInput();
+    // openModal يغلق أي قائمة منسدلة تحت الحقل — لا تُفتح قائمتان معاً
     openModal('items');
   }
 
@@ -616,6 +631,74 @@
     return '';
   }
 
+  function hasVisible(selList) {
+    for (var i = 0; i < selList.length; i++) {
+      var nodes = document.querySelectorAll(selList[i]);
+      for (var j = 0; j < nodes.length; j++) {
+        if (isVisible(nodes[j])) return true;
+      }
+    }
+    return false;
+  }
+
+  /** F3 — شاشات عليها حقل مادة / أسطر بنود فقط */
+  function hasItemContext() {
+    if (document.getElementById('pa-root')) return true;
+    if (document.getElementById('co-doc-bar') || document.getElementById('co-lines-body')) return true;
+    if (document.getElementById('si-doc-bar') || document.getElementById('si-lines-body')) return true;
+    if (document.getElementById('dl-lines-body') || document.getElementById('df_party')) {
+      // طلب شراء/مرتجع/تسليم: إذا يوجد جدول بنود
+      if (hasVisible(['input.js-item-code', 'input.js-item', 'input[data-hx-item-input]'])) return true;
+    }
+    return hasVisible([
+      'input.js-item-code:not([readonly])',
+      'input.js-item-name:not([readonly])',
+      'input.js-item:not([readonly])',
+      'input[data-hx-item-input]:not([readonly])',
+    ]);
+  }
+
+  /** F7 — شاشات عليها عميل أو مورد فقط */
+  function hasPartyContext() {
+    if (document.getElementById('co_customer')) return true;
+    if (document.getElementById('inv_customer')) return true;
+    if (document.getElementById('ret_customer')) return true;
+    if (document.getElementById('dl_customer')) return true;
+    if (document.getElementById('df_party')) return true;
+    return hasVisible(['[data-hx-customer-input]', '[data-hx-party-input]', '#df_party', '#co_customer']);
+  }
+
+  /** F2/F4 — شاشات بنود فقط */
+  function hasLineContext() {
+    if (document.getElementById('pa-root')) return true;
+    if (document.getElementById('co-doc-bar')) return true;
+    if (document.getElementById('si-doc-bar')) return true;
+    if (document.getElementById('pa-add-line')) return true;
+    return hasVisible([
+      '#pa-add-line',
+      '#co-add-line',
+      '#si-add-line',
+      '#dl-add-line',
+      '[data-hx-add-line]',
+      'tbody#pa-tbody',
+      'tbody#co-lines-body',
+      'tbody#si-lines-body',
+    ]);
+  }
+
+  function hasSaveContext() {
+    return hasVisible([
+      '[data-hx-save]',
+      'button.si-tb--save',
+      '#co-save',
+      '#si-save',
+      '#dl-save',
+      '#pa-form button[type="submit"]',
+      'button[name="action"][value="save"]',
+      'button[form][data-hx-save]',
+    ]);
+  }
+
   function onKey(e) {
     var k = resolveKey(e);
     if (!k) return;
@@ -629,6 +712,13 @@
       closeModal();
       return;
     }
+
+    // لا تُفعَّل الاختصارات إلا في السياق الصحيح — لا تمنع السلوك الافتراضي للصفحة
+    if (k === 'F3' && !hasItemContext()) return;
+    if (k === 'F7' && !hasPartyContext()) return;
+    if (k === 'F2' && !hasLineContext()) return;
+    if (k === 'F4' && !hasLineContext()) return;
+    if (k === 'F10' && !hasSaveContext()) return;
 
     if (k === 'F2' || k === 'F3' || k === 'F4' || k === 'F7' || k === 'F10') {
       e.preventDefault();
@@ -664,7 +754,11 @@
     'focusin',
     function (e) {
       var t = e.target;
-      if (t && t.matches && t.matches('input.js-item, input[data-hx-item-input], input.js-item-code')) {
+      if (
+        t &&
+        t.matches &&
+        t.matches('input.js-item, input[data-hx-item-input], input.js-item-code, input.js-item-name')
+      ) {
         lastFocusItem = t;
       }
     },

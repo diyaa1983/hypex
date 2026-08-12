@@ -65,19 +65,37 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
       _error = null;
     });
     try {
-      final res = await context.read<ApiClient>().getJson(
-        AppConfig.partyStatementPath,
-        query: {
-          'party_type': _type,
-          'party_id': _party!.id,
-          'from': _iso(_from),
-          'to': _iso(_to),
-        },
-      );
+      final api = context.read<ApiClient>();
+      final Map<String, dynamic> res;
+      if (_type == 'customer') {
+        res = await api.getJson(
+          AppConfig.oracleCustomerStatementPath,
+          query: {
+            'customer_id': _party!.id,
+            'from': _iso(_from),
+            'to': _iso(_to),
+          },
+        );
+      } else {
+        res = await api.getJson(
+          AppConfig.partyStatementPath,
+          query: {
+            'party_type': _type,
+            'party_id': _party!.id,
+            'from': _iso(_from),
+            'to': _iso(_to),
+          },
+        );
+      }
       if (!mounted) return;
       setState(() {
         _result = res;
         _loading = false;
+        if (res['ok'] == false) {
+          _error = Fmt.str(res['message']).isEmpty
+              ? 'تعذر جلب الكشف'
+              : Fmt.str(res['message']);
+        }
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -157,14 +175,18 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final rows = (_result?['rows'] as List? ?? [])
+    final rows = (_result?['rows'] as List? ??
+            _result?['lines'] as List? ??
+            const [])
         .whereType<Map>()
         .map((e) => e.cast<String, dynamic>())
         .toList();
-    final hasResult = _result != null && _party != null;
+    final hasResult = _result != null &&
+        _party != null &&
+        (_result!['ok'] != false);
 
     return MobileScaffold(
-      title: const Text('كشف حساب'),
+      title: Text(_type == 'customer' ? 'كشف حساب عميل (Oracle)' : 'كشف حساب'),
       body: Column(
         children: [
           Card(
@@ -176,12 +198,13 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                   Row(
                     children: [
                       ChoiceChip(
-                        label: const Text('عميل'),
+                        label: const Text('عميل Oracle'),
                         selected: _type == 'customer',
                         onSelected: (_) => setState(() {
                           _type = 'customer';
                           _party = null;
                           _result = null;
+                          _error = null;
                         }),
                       ),
                       const SizedBox(width: 8),
@@ -192,10 +215,26 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                           _type = 'supplier';
                           _party = null;
                           _result = null;
+                          _error = null;
                         }),
                       ),
                     ],
                   ),
+                  if (_type == 'customer')
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 6),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'نفس بيانات كشف الحساب في تقرير Oracle على النظام',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textSoft,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.badge_outlined),
@@ -313,7 +352,11 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
               _stat('دائن', Fmt.money(Fmt.toDouble(r['total_credit']))),
               _stat(
                 'الرصيد',
-                Fmt.money(Fmt.toDouble(r['closing_balance'])),
+                Fmt.money(
+                  Fmt.toDouble(
+                    r['balance'] ?? r['closing_balance'],
+                  ),
+                ),
                 bold: true,
               ),
             ],
@@ -341,7 +384,13 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
   }
 
   Widget _rowTile(Map<String, dynamic> row) {
-    final desc = Fmt.str(row['description'] ?? row['doc_type'] ?? row['type']);
+    final desc = Fmt.str(
+      row['description'] ??
+          row['remark'] ??
+          row['doc_type'] ??
+          row['doc_no'] ??
+          row['type'],
+    );
     final date = Fmt.dmy(Fmt.str(row['date'] ?? row['doc_date']));
     final debit = Fmt.toDouble(row['debit']);
     final credit = Fmt.toDouble(row['credit']);

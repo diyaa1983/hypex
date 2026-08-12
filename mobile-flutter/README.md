@@ -1,4 +1,4 @@
-# النماء — تطبيق موبايل أصلي (Flutter)
+# Hypex — تطبيق موبايل أصلي (Flutter)
 
 تطبيق Flutter مستقل (ليس WebView) يتصل بسيرفر النظام الحالي عبر واجهات JSON تحت `/api/`،
 ويستخدم **جلسة الكوكيز** نفسها التي تستخدمها واجهة `/m/`. يعمل **أونلاين فقط**.
@@ -21,7 +21,7 @@
 1. **Flutter SDK** (نسخة 3.3 أو أحدث): https://docs.flutter.dev/get-started/install
    - Android: Android Studio + Android SDK.
    - iOS: جهاز Mac + Xcode (والرفع إلى App Store يتطلب اشتراك Apple Developer).
-2. سيرفر النظام يعمل عبر HTTPS (مثل `https://www.biodev.gppjo.com`).
+2. سيرفر النظام يعمل على العنوان المعتمد (مثل `http://176.29.176.192/hypex`).
 
 ## الإعداد لأول مرة
 
@@ -52,7 +52,7 @@ flutter build appbundle         # AAB لمتجر Google Play
 flutter build ipa               # iOS (على Mac؛ الرفع للمتجر يتطلب اشتراك Apple)
 ```
 
-عند أول تشغيل: أدخل عنوان السيرفر (افتراضياً `https://www.biodev.gppjo.com`) ثم سجّل الدخول
+عند أول تشغيل: أدخل عنوان السيرفر (افتراضياً `http://176.29.176.192/hypex`) ثم سجّل الدخول
 بحساب ضمن مجموعة **هاتف (MOBILE)** في النظام.
 
 ## الأذونات

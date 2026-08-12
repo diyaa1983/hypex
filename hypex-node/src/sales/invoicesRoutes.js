@@ -677,7 +677,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
         bodyClass: 'si-2027',
         mainClass: 'main si-main',
         css: ['/assets/css/sales-2027.css'],
-        js: ['/assets/js/doc-nav.js', '/assets/js/sales-invoice.js'],
+        js: ['/assets/js/doc-nav.js', '/assets/js/hx-offers-client.js', '/assets/js/sales-invoice.js'],
       })
     );
   } catch (e) {

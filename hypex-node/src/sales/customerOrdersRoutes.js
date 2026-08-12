@@ -551,7 +551,7 @@ async function renderForm(req, res, orderId) {
       bodyClass: 'si-2027',
       mainClass: 'main si-main',
       css: ['/assets/css/sales-2027.css', '/assets/css/customer-order-doc.css'],
-      js: ['/assets/js/doc-nav.js', '/assets/js/customer-order.js'],
+      js: ['/assets/js/doc-nav.js', '/assets/js/hx-offers-client.js', '/assets/js/customer-order.js'],
     })
   );
 }

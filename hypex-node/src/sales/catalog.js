@@ -46,6 +46,14 @@ const salesCatalog = [
     ],
   },
   {
+    group: 'offers',
+    title: 'العروض',
+    items: [
+      { r: 'sales_offers', label: 'شاشة العرض', icon: '🎁', path: '/sales/offers', kind: 'list' },
+      { r: 'report_sales_offers', label: 'تقرير العروض', icon: '📋', path: '/sales/reports/offers', kind: 'report' },
+    ],
+  },
+  {
     group: 'reports',
     title: 'تقارير المبيعات',
     items: [

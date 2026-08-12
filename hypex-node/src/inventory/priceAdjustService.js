@@ -450,26 +450,26 @@ async function postDoc(id, userId) {
 }
 
 /**
- * تقرير الأسعار المعدّلة (المرحّلة فقط) — تفصيلي
+ * تقرير الأسعار المعدّلة (المرحّلة فقط) — تفصيلي لكل مادة
  */
 async function reportAdjustments({ from = '', to = '', q = '', limit = 500 } = {}) {
   await ensureSchema();
   const where = [`l.status = 'posted'`];
   const params = [];
   if (from) {
-    where.push(`DATE(COALESCE(l.posted_at, d.posted_at, l.created_at)) >= ?`);
+    where.push(`DATE(COALESCE(d.posted_at, l.posted_at, l.created_at)) >= ?`);
     params.push(from);
   }
   if (to) {
-    where.push(`DATE(COALESCE(l.posted_at, d.posted_at, l.created_at)) <= ?`);
+    where.push(`DATE(COALESCE(d.posted_at, l.posted_at, l.created_at)) <= ?`);
     params.push(to);
   }
   if (q) {
     where.push(
-      `(IFNULL(d.adj_no,'') LIKE ? OR IFNULL(i.name_ar,'') LIKE ? OR IFNULL(i.barcode,'') LIKE ? OR IFNULL(i.sku,'') LIKE ?)`
+      `(IFNULL(d.adj_no,'') LIKE ? OR IFNULL(i.name_ar,'') LIKE ? OR IFNULL(i.barcode,'') LIKE ? OR IFNULL(i.sku,'') LIKE ? OR IFNULL(p.full_name_ar,'') LIKE ? OR IFNULL(c.full_name_ar,'') LIKE ? OR IFNULL(p.username,'') LIKE ? OR IFNULL(c.username,'') LIKE ?)`
     );
     const like = `%${q}%`;
-    params.push(like, like, like, like);
+    params.push(like, like, like, like, like, like, like, like);
   }
 
   const hasWh = await colExists('inv_item_sale_price_adj', 'old_wholesale');
@@ -481,17 +481,18 @@ async function reportAdjustments({ from = '', to = '', q = '', limit = 500 } = {
     `SELECT l.id, l.item_id, l.old_sale_price, l.new_sale_price${whCols},
             l.posted_at, l.created_at,
             d.adj_no, d.adj_date, d.posted_at AS doc_posted_at,
+            COALESCE(d.posted_at, l.posted_at, l.created_at) AS adjusted_at,
             COALESCE(NULLIF(TRIM(i.barcode),''), i.sku) AS item_code,
             i.name_ar AS item_name,
-            COALESCE(p.full_name_ar, c.full_name_ar, '') AS employee_name,
-            COALESCE(p.username, c.username, '') AS employee_user
+            COALESCE(NULLIF(TRIM(p.full_name_ar),''), NULLIF(TRIM(c.full_name_ar),''), '') AS employee_name,
+            COALESCE(NULLIF(TRIM(p.username),''), NULLIF(TRIM(c.username),''), '') AS employee_user
      FROM inv_item_sale_price_adj l
      LEFT JOIN inv_price_adj_doc d ON d.id = l.doc_id
      INNER JOIN inv_item i ON i.id = l.item_id
      LEFT JOIN sys_user p ON p.id = d.posted_by
      LEFT JOIN sys_user c ON c.id = COALESCE(d.created_by, l.created_by)
      WHERE ${where.join(' AND ')}
-     ORDER BY COALESCE(l.posted_at, d.posted_at, l.created_at) DESC, l.id DESC
+     ORDER BY COALESCE(d.posted_at, l.posted_at, l.created_at) DESC, l.id DESC
      LIMIT ${Math.min(1000, Number(limit) || 500)}`,
     params
   );

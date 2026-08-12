@@ -1,5571 +1,1638 @@
 (function () {
   'use strict';
 
-  var global = typeof window !== 'undefined' ? window : self;
+  var root = document.getElementById('si-initial');
+  if (!root) return;
 
-  var form = document.getElementById('sales-inv-form');
-  if (!form) return;
+  var state = JSON.parse(root.textContent || '{}');
+  var posted = !!state.is_posted;
+  var defaultTax = Number((state.defaults && state.defaults.tax) || 16);
+  var taxRates = Array.isArray(state.defaults && state.defaults.tax_rates)
+    ? state.defaults.tax_rates
+    : [];
+  var msgEl = document.getElementById('si-msg');
+  var tbody = document.getElementById('si-lines-body');
+  var custTimer = null;
+  var itemTimers = {};
+  var busy = false;
 
-  var ledgerView = form.getAttribute('data-ledger-view') === '1';
-  var headerDiscountMode = false;
-
-  var tbody = document.getElementById('sales-inv-lines-body');
-  var tpl = document.getElementById('sales-inv-line-template');
-  if (!tbody) {
-    console.error('sales-invoice: missing table body');
-    return;
+  function rateClose(a, b) {
+    return Math.abs(Number(a) - Number(b)) < 0.0001;
   }
-  if (!tpl) {
-    console.warn('sales-invoice: line template missing');
-  }
-  var linesJson = document.getElementById('sales-inv-lines-json');
-  var apiUrl = form.getAttribute('data-api-items') || '';
-  var apiInvoiceUrl = form.getAttribute('data-api-invoice') || '';
-  var deliveryPickUrl = form.getAttribute('data-delivery-pick-url') || '';
-  var linkDeliveryUrl = form.getAttribute('data-link-delivery-url') || '';
-  var unlinkDeliveryUrl = form.getAttribute('data-unlink-delivery-url') || '';
-  var invoicePostUrl = form.getAttribute('data-invoice-post-url') || '';
-  var invoiceUnpostUrl = form.getAttribute('data-invoice-unpost-url') || '';
-  var canUnpostByPermission = form.getAttribute('data-can-unpost') === '1';
-  var einvoiceSendUrl = form.getAttribute('data-einvoice-send-url') || '';
-  var sendEmailUrl = form.getAttribute('data-send-email-url') || '';
-  var canSendEinvoice = form.getAttribute('data-can-send-einvoice') === '1';
-  var newInvoiceUrl = form.getAttribute('data-new-url') || '';
-  var initialInvoiceId = parseInt(form.getAttribute('data-initial-id') || '0', 10);
-  var currentInvoiceId = 0;
-  var linkedDeliveryId = 0;
-  /** سحب سند في هذه الجلسة ولم يُرحَّل بعد — عند الخروج بدون إكمال يُعاد السند للقائمة. */
-  var deliveryPullActive = false;
-  var browseNavPrevId = 0;
-  var browseNavNextId = 0;
-  var docNoSearch = window.DocumentNoNav ? DocumentNoNav.createSearchState() : { matchIds: [], matchIndex: -1, query: '', currentDocNo: '' };
-  var DOC_NO_SEARCH_UI = {
-    noInputId: 'inv_no',
-    prevBtnId: 'inv_no_prev',
-    nextBtnId: 'inv_no_next',
-    defaultNoTitle: 'يُولَّد الرقم تلقائياً عند الحفظ — للبحث اكتب جزءاً من رقم الفاتورة واضغط Enter',
-  };
-  var invoiceIsPosted = false;
-  var invoiceIsCancelled = false;
-  var invoiceEinvQr = '';
-  var invoiceEinvTrackingRequired = true;
-  var invoiceEinvStatus = '';
-  var invoiceEinvNum = '';
-  var einvQrDataUrl = '';
-  var isSavedMode = false;
-  var formDirty = false;
-  var formSubmitting = false;
-  var suppressDirtyMark = 0;
-  var draftPersistTimer = null;
-  var draftKey = form.getAttribute('data-draft-key') || 'sales_invoices';
 
-  function setSaveBusy(busy, message) {
-    if (global.AppBusy && AppBusy.setSaveBusy) {
-      AppBusy.setSaveBusy(busy, message || 'جاري حفظ الفاتورة...');
-      return;
+  /** نص خيار الضريبة: 16% فقط، أو 0% — معفى إن كان الاسم وصفياً */
+  function taxRateLabel(t, rate) {
+    var pct =
+      rate.toLocaleString('en-US', { maximumFractionDigits: 3 }) + '%';
+    var name = String((t && t.name_ar) || '').trim();
+    if (!name) return pct;
+    var nameBare = name.replace(/%/g, '').replace(/,/g, '').replace(/\s+/g, '').trim();
+    if (nameBare === '' || rateClose(nameBare, rate)) return pct;
+    if (nameBare === pct.replace(/%/g, '').replace(/,/g, '').replace(/\s+/g, '')) return pct;
+    return pct + ' — ' + name;
+  }
+
+  /** قائمة الضريبة من الإعدادات (sys_tax_rate) */
+  function taxSelectHtml(selected, disabled) {
+    var cur = Number(selected != null && selected !== '' ? selected : defaultTax);
+    if (!Number.isFinite(cur)) cur = defaultTax;
+    var opts = '';
+    var found = false;
+    for (var i = 0; i < taxRates.length; i++) {
+      var t = taxRates[i];
+      var rate = Number(t.rate_percent);
+      if (!Number.isFinite(rate)) continue;
+      var sel = rateClose(rate, cur);
+      if (sel) found = true;
+      var label = taxRateLabel(t, rate);
+      opts +=
+        '<option value="' +
+        escAttr(String(rate)) +
+        '"' +
+        (sel ? ' selected' : '') +
+        '>' +
+        escAttr(label) +
+        '</option>';
     }
-    var saveBtn = document.querySelector('#master-toolbar [data-master-action="save"]');
-    if (saveBtn) saveBtn.disabled = !!busy;
-  }
-
-  function fmtDate(value) {
-    return global.AppFormat && AppFormat.formatDateDmY
-      ? AppFormat.formatDateDmY(value)
-      : String(value == null ? '' : value);
-  }
-
-  var customersList = [];
-  var customersById = {};
-  var customerPickerApi = null;
-  var custPickerOpen = document.getElementById('inv_customer_open');
-
-  function loadCustomersCatalog() {
-    var el = document.getElementById('sales-inv-customers-json');
-    if (!el) return;
-    try {
-      customersList = JSON.parse(el.textContent || '[]');
-      customersById = {};
-      customersList.forEach(function (c) {
-        var id = parseInt(c.id, 10);
-        if (id > 0) customersById[id] = c;
-      });
-    } catch (e) {
-      customersList = [];
-      customersById = {};
-    }
-  }
-
-  function getCustomerSalesReps(c) {
-    if (!c) return [];
-    if (c.sales_reps && c.sales_reps.length) {
-      return c.sales_reps.filter(function (r) {
-        return r && parseInt(r.id, 10) > 0;
-      });
-    }
-    var repId = c.sales_rep_id ? parseInt(c.sales_rep_id, 10) : 0;
-    if (repId > 0) {
-      return [{ id: repId, name_ar: (c.sales_rep_name || '').trim() }];
-    }
-    return [];
-  }
-
-  function salesRepOptionEl(value, label) {
-    var opt = document.createElement('option');
-    opt.value = value;
-    opt.textContent = label;
-    return opt;
-  }
-
-  function syncSalesRepSelectLock() {
-    var sel = document.getElementById('inv_sales_rep');
-    if (!sel) return;
-    var locked = ledgerView || (currentInvoiceId > 0 && !!invoiceIsPosted) || !!invoiceEinvQr;
-    var custHidden = document.getElementById('inv_customer');
-    var custId = custHidden ? parseInt(custHidden.value, 10) : 0;
-    var reps = getCustomerSalesReps(custId > 0 ? customersById[custId] : null);
-    if (reps.length > 1) {
-      sel.disabled = locked;
-    } else {
-      sel.disabled = true;
-    }
-  }
-
-  function getSalesRepDisplayName() {
-    var sel = document.getElementById('inv_sales_rep');
-    if (!sel || !sel.value) return '';
-    var opt = sel.options[sel.selectedIndex];
-    return opt ? String(opt.textContent || '').trim() : '';
-  }
-
-  function applyCustomerSalesRepFromRecord(c, preferredRepId) {
-    var sel = document.getElementById('inv_sales_rep');
-    if (!sel) return;
-    var reps = getCustomerSalesReps(c);
-    sel.innerHTML = '';
-    if (reps.length === 0) {
-      sel.appendChild(salesRepOptionEl('', '— بدون مندوب —'));
-      sel.value = '';
-      sel.disabled = true;
-      return;
-    }
-    if (reps.length === 1) {
-      var only = reps[0];
-      sel.appendChild(salesRepOptionEl(String(only.id), only.name_ar || '—'));
-      sel.value = String(only.id);
-      sel.disabled = true;
-      return;
-    }
-    sel.appendChild(salesRepOptionEl('', '— اختر المندوب —'));
-    reps.forEach(function (r) {
-      var id = String(r.id);
-      var name = (r.name_ar || '').trim() || 'مندوب #' + id;
-      sel.appendChild(salesRepOptionEl(id, name));
-    });
-    var pick = preferredRepId ? String(preferredRepId) : '';
-    if (pick && reps.some(function (r) {
-      return String(r.id) === pick;
-    })) {
-      sel.value = pick;
-    } else {
-      sel.value = '';
-    }
-    syncSalesRepSelectLock();
-  }
-
-  function applyCustomerSalesRep() {
-    var hidden = document.getElementById('inv_customer');
-    var id = hidden ? parseInt(hidden.value, 10) : 0;
-    applyCustomerSalesRepFromRecord(id > 0 ? customersById[id] : null);
-  }
-
-  function setCustomerById(id, silent) {
-    if (customerPickerApi) {
-      customerPickerApi.setById(id, silent);
-    }
-    applyCustomerSalesRepFromRecord(customersById[parseInt(id, 10) || 0] || null);
-    if (!silent) markFormDirty();
-  }
-
-  function getCustomerDisplayName() {
-    if (customerPickerApi) return customerPickerApi.getName();
-    return global.CustomerPickerModal ? CustomerPickerModal.getLabel('inv_customer') : '';
-  }
-
-  function initCustomerPicker() {
-    loadCustomersCatalog();
-    if (!global.CustomerPickerModal) {
-      setTimeout(initCustomerPicker, 40);
-      return;
-    }
-    if (customerPickerApi) return;
-    customerPickerApi = CustomerPickerModal.bind({
-      hidden: 'inv_customer',
-      open: 'inv_customer_open',
-      display: 'inv_customer_display',
-      jsonId: 'sales-inv-customers-json',
-      customers: customersList,
-      getDisabled: function () {
-        return invoiceIsPosted;
-      },
-      onSelect: function (c) {
-        applyCustomerSalesRepFromRecord(c);
-        if (!suppressDirtyMark && !invoiceIsPosted) markFormDirty();
-      },
-    });
-  }
-
-  /** حقول البحث بالرقم لا تُعتبر تعديلاً على المستند. */
-  function isSearchOnlyField(el) {
-    if (!el || !el.id) return false;
-    return el.id === 'inv_no';
-  }
-
-  function markFormDirty() {
-    if (suppressDirtyMark > 0) return;
-    formDirty = true;
-    schedulePersistDraft();
-  }
-
-  function markFormDirtyFromEvent(e) {
-    if (e && e.target && isSearchOnlyField(e.target)) return;
-    markFormDirty();
-  }
-
-  function clearFormDirty() {
-    formDirty = false;
-  }
-
-  function runWithoutDirtyMark(fn) {
-    suppressDirtyMark++;
-    try {
-      fn();
-    } finally {
-      suppressDirtyMark--;
-    }
-    clearFormDirty();
-  }
-
-  function syncInvoiceIdField() {
-    var rec = document.getElementById('inv_record_id');
-    if (!rec) return;
-    rec.value = currentInvoiceId > 0 ? String(currentInvoiceId) : '';
-  }
-
-  /** رقم الفاتورة يظهر فقط بعد الحفظ (عند وجود سجل محفوظ). */
-  function syncInvoiceNoDisplay(invoiceNo) {
-    var invNo = document.getElementById('inv_no');
-    if (!invNo) return;
-    if (currentInvoiceId > 0) {
-      var no =
-        invoiceNo !== undefined && invoiceNo !== null
-          ? String(invoiceNo)
-          : invNo.value;
-      invNo.value = no.trim();
-    } else {
-      invNo.value = '';
-    }
-    invNo.placeholder = '';
-    updateInvoiceNoPostedStyle();
-  }
-
-  function invoiceIsCancelledFrom(inv) {
-    if (!inv) return false;
-    if (inv.is_cancelled === true || inv.is_cancelled === 1 || inv.is_cancelled === '1') return true;
-    return String(inv.status || '') === 'cancelled';
-  }
-
-  function refreshInvoiceEditState() {
-    var locked =
-      ledgerView ||
-      invoiceIsCancelled ||
-      (currentInvoiceId > 0 && !!invoiceIsPosted) ||
-      !!invoiceEinvQr;
-    isSavedMode = locked;
-    form.classList.toggle('sales-inv-form-is-posted', locked && !ledgerView);
-    form.classList.toggle('sales-inv-form-is-cancelled', invoiceIsCancelled);
-    form.classList.toggle('sales-inv-form-is-ledger-view', ledgerView);
-    form.classList.toggle('sales-inv-form-is-locked', locked);
-    var fields = form.querySelectorAll(
-      '#inv_date, #inv_payment_type, #inv_sales_rep, #inv_wh, #inv_notes'
-    );
-    fields.forEach(function (el) {
-      if (!el) return;
-      if (locked) {
-        el.setAttribute('readonly', 'readonly');
-        if (el.tagName === 'SELECT') el.disabled = true;
-      } else {
-        el.removeAttribute('readonly');
-        if (el.tagName === 'SELECT') el.disabled = false;
-      }
-    });
-    if (custPickerOpen) {
-      custPickerOpen.disabled = locked;
-      custPickerOpen.classList.toggle('is-disabled', locked);
-    }
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      var pick = tr.querySelector('.js-pick-open');
-      var rm = tr.querySelector('.js-remove');
-      tr.querySelectorAll('.js-qty, .js-qty-extra, .js-price, .js-price-incl, .js-line-sub, .js-line-gross, .js-discount, .js-tax, .js-unit, .js-barcode-inp').forEach(function (inp) {
-        if (locked) {
-          inp.setAttribute('readonly', 'readonly');
-          if (inp.tagName === 'SELECT') inp.disabled = true;
-        } else {
-          inp.removeAttribute('readonly');
-          if (inp.tagName === 'SELECT') inp.disabled = false;
-        }
-      });
-      if (pick) {
-        if (locked) {
-          pick.disabled = true;
-          pick.setAttribute('aria-disabled', 'true');
-          pick.classList.add('is-readonly-display');
-        } else {
-          pick.disabled = false;
-          pick.removeAttribute('aria-disabled');
-          pick.classList.remove('is-readonly-display');
-        }
-      }
-      if (rm) rm.style.display = locked ? 'none' : '';
-      if (!locked) applyRowItemPickLock(tr);
-    });
-    if (!locked) ensureEntryRow();
-    syncSalesRepSelectLock();
-    if (global.FinVoucherArchive) {
-      global.FinVoucherArchive.syncToolbar();
-    }
-  }
-
-  function invoiceArchiveState(id) {
-    id = parseInt(String(id), 10) || 0;
-    if (id < 1) {
-      return { allowed: false, reason: 'not_saved' };
-    }
-    if (invoiceIsPosted) {
-      return { allowed: true, readOnly: true, reason: '' };
-    }
-    return { allowed: true, readOnly: false, reason: '' };
-  }
-
-  function buildDraftSnapshot() {
-    syncJson();
-    var invDate = document.getElementById('inv_date');
-    var cust = document.getElementById('inv_customer');
-    var pay = document.getElementById('inv_payment_type');
-    var wh = document.getElementById('inv_wh');
-    var notes = document.getElementById('inv_notes');
-    var invNo = document.getElementById('inv_no');
-    var repHidden = document.getElementById('inv_sales_rep');
-    return {
-      v: 1,
-      currentInvoiceId: currentInvoiceId,
-      invoiceIsPosted: invoiceIsPosted,
-      invoice_no: invNo ? invNo.value : '',
-      invoice_date: invDate ? invDate.value : '',
-      customer_id: cust ? cust.value : '',
-      sales_rep_id: repHidden ? repHidden.value : '',
-      payment_type: pay ? pay.value : 'credit',
-      warehouse_id: wh ? wh.value : '',
-      notes: notes ? notes.value : '',
-      lines: JSON.parse(linesJson.value || '[]'),
-    };
-  }
-
-  function clearPersistedDraft() {
-    try {
-      sessionStorage.removeItem('manager:inv_draft:' + draftKey);
-    } catch (e) {}
-  }
-
-  function persistDraft() {
-    if (invoiceIsPosted) {
-      clearPersistedDraft();
-      return;
-    }
-    if (!hasDraftContent() && currentInvoiceId < 1) {
-      clearPersistedDraft();
-      return;
-    }
-    try {
-      sessionStorage.setItem('manager:inv_draft:' + draftKey, JSON.stringify(buildDraftSnapshot()));
-    } catch (e) {}
-  }
-
-  function schedulePersistDraft() {
-    if (suppressDirtyMark > 0 || invoiceIsPosted) return;
-    clearTimeout(draftPersistTimer);
-    draftPersistTimer = setTimeout(persistDraft, 350);
-  }
-
-  function applyDraftSnapshot(draft) {
-    runWithoutDirtyMark(function () {
-      tbody.innerHTML = '';
-      ensureEntryRow();
-      var invDate = document.getElementById('inv_date');
-      if (invDate && draft.invoice_date) invDate.value = fmtDate(draft.invoice_date);
-      var paySel = document.getElementById('inv_payment_type');
-      if (paySel && draft.payment_type) paySel.value = draft.payment_type;
-      if (draft.customer_id !== undefined) {
-        setCustomerById(draft.customer_id, true);
-      }
-      if (draft.sales_rep_id !== undefined) {
-        var draftCust = customersById[parseInt(draft.customer_id, 10) || 0];
-        if (draftCust) {
-          applyCustomerSalesRepFromRecord(draftCust, draft.sales_rep_id);
-        } else {
-          var repSelDraft = document.getElementById('inv_sales_rep');
-          if (repSelDraft) repSelDraft.value = String(draft.sales_rep_id);
-        }
-      }
-      var wh = document.getElementById('inv_wh');
-      if (wh && draft.warehouse_id !== undefined) {
-        wh.value = draft.warehouse_id ? String(draft.warehouse_id) : '';
-        if (!wh.value) applyDefaultWarehouse();
-      }
-      var notes = document.getElementById('inv_notes');
-      if (notes) notes.value = draft.notes || '';
-      currentInvoiceId = parseInt(draft.currentInvoiceId, 10) || 0;
-      invoiceIsPosted = currentInvoiceId > 0 && !!draft.invoiceIsPosted;
-      syncInvoiceNoDisplay(
-        currentInvoiceId > 0 ? draft.invoice_no || '' : ''
-      );
-      syncInvoiceIdField();
-      (draft.lines || []).forEach(function (ln) {
-        addLineFromData(ln);
-      });
-      if (currentInvoiceId < 1) ensureEntryRow();
-      refreshInvoiceEditState();
-      updatePostedBadge();
-      renumberRows();
-      applyDecimalPlacesToInvoiceScreen();
-    });
-  }
-
-  function tryRestoreDraft() {
-    try {
-      var raw = sessionStorage.getItem('manager:inv_draft:' + draftKey);
-      if (!raw) return false;
-      var draft = JSON.parse(raw);
-      if (!draft || draft.v !== 1) return false;
-      var draftId = parseInt(draft.currentInvoiceId, 10) || 0;
-      if (initialInvoiceId > 0) {
-        if (draftId !== initialInvoiceId) return false;
-      } else if (draftId > 0) {
-        clearPersistedDraft();
-        return false;
-      }
-      applyDraftSnapshot(draft);
-      return true;
-    } catch (e) {
-      clearPersistedDraft();
-      return false;
-    }
-  }
-
-  function bootstrapExistingRows() {
-    if (!tbody) return;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (!tr.dataset.itemId) tr.dataset.itemId = '';
-      if (!tr.dataset.lineId) tr.dataset.lineId = newLineId();
-      applyQtyPriceInputAttrs(tr);
-      bindRow(tr);
-      if (getRowItemId(tr) > 0) {
-        recalcRow(tr);
-      } else {
-        clearRowAmounts(tr);
-      }
-    });
-  }
-
-  function safeEnsureEntryRow() {
-    try {
-      return ensureEntryRow();
-    } catch (e) {
-      console.error('sales-invoice: ensureEntryRow failed', e);
-      return null;
-    }
-  }
-
-  function discardChangesAndProceed(onProceed) {
-    formSubmitting = false;
-    clearFormDirty();
-    clearPersistedDraft();
-    releaseDeliveryPullOnLeave(function () {
-      if (onProceed) {
-        setTimeout(onProceed, 0);
-      }
-    });
-  }
-
-  function confirmUnsavedChanges(onProceed, onCancel) {
-    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.confirmSaveDiscardLeave === 'function') {
-      global.ScreenExitGuard.confirmSaveDiscardLeave({
-        when: function () {
-          return (formDirty && !invoiceIsPosted) || needsReleaseDeliveryPull();
-        },
-        onSave: function (proceed) {
-          trySave(proceed);
-        },
-        onDiscard: function (proceed) {
-          discardChangesAndProceed(proceed);
-        },
-        onProceed: onProceed,
-        onCancel: onCancel,
-      });
-      return;
-    }
-    if ((!formDirty || invoiceIsPosted) && !needsReleaseDeliveryPull()) {
-      if (onProceed) onProceed();
-      return;
-    }
-    if (needsReleaseDeliveryPull() && (!formDirty || invoiceIsPosted)) {
-      discardChangesAndProceed(onProceed);
-      return;
-    }
-    if (onProceed) onProceed();
-  }
-
-  function parseInvoiceIdFromUrl(urlStr) {
-    try {
-      var u = new URL(urlStr, window.location.href);
-      return parseInt(u.searchParams.get('id') || '0', 10) || 0;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  function loadSavedInvoiceAfterSubmit(invoiceId, pageUrl, onDone) {
-    fetchInvoiceResponse({ id: invoiceId })
-      .then(function (data) {
-        formSubmitting = false;
-        if (data && data.ok && data.invoice) {
-          applyInvoiceData(data.invoice);
-          if (pageUrl) {
-            window.history.replaceState({ invoiceId: invoiceId }, '', pageUrl);
-          } else {
-            updateHistory(invoiceId);
-          }
-          clearFormDirty();
-          if (onDone) {
-            onDone();
-          } else if (global.AppDialog) {
-            AppDialog.success('تم حفظ الفاتورة بنجاح.');
-          }
-          return;
-        }
-        window.location.href = pageUrl || window.location.href;
-      })
-      .catch(function () {
-        formSubmitting = false;
-        window.location.href = pageUrl || window.location.href;
-      })
-      .finally(function () {
-        setSaveBusy(false);
-      });
-  }
-
-  var decimals = parseInt(form.getAttribute('data-decimals') || '', 10);
-  if (isNaN(decimals) || decimals < 0) {
-    decimals = global.AppFormat ? AppFormat.decimals() : 2;
-  }
-  var unitPriceDecimals = parseInt(form.getAttribute('data-unit-price-decimals') || '', 10);
-  if (isNaN(unitPriceDecimals) || unitPriceDecimals < 0) {
-    unitPriceDecimals = global.AppFormat && AppFormat.invoiceUnitPriceDecimals
-      ? AppFormat.invoiceUnitPriceDecimals()
-      : decimals;
-  }
-  var printDecimals = parseInt(form.getAttribute('data-print-decimals') || '', 10);
-  if (isNaN(printDecimals) || printDecimals < 0) {
-    printDecimals = decimals;
-  }
-  var printUnitPriceDecimals = parseInt(form.getAttribute('data-print-unit-price-decimals') || '', 10);
-  if (isNaN(printUnitPriceDecimals) || printUnitPriceDecimals < 0) {
-    printUnitPriceDecimals = unitPriceDecimals;
-  }
-  var exitUrl = form.getAttribute('data-exit-url') || '';
-  var companyName = form.getAttribute('data-company-name') || '';
-  var companyLogoUrl = form.getAttribute('data-company-logo') || '';
-
-  function buildRecipientSignatureBlock() {
-    if (window.DocumentHeader && typeof window.DocumentHeader.buildRecipientSignature === 'function') {
-      return window.DocumentHeader.buildRecipientSignature();
+    if (!opts || !found) {
+      opts =
+        '<option value="' +
+        escAttr(String(cur)) +
+        '" selected>' +
+        escAttr(cur + '%') +
+        '</option>' +
+        opts;
     }
     return (
-      '<div class="doc-print-signature-block">' +
-      '<span class="doc-print-signature-label">توقيع المستلم</span>' +
-      '<span class="doc-print-signature-line" aria-hidden="true"></span>' +
-      '</div>'
+      '<select class="js-tax"' +
+      (disabled ? ' disabled' : '') +
+      ' title="نسبة الضريبة">' +
+      opts +
+      '</select>'
     );
   }
 
-  function buildDocPrintHeader(title) {
-    if (window.DocumentHeader && typeof window.DocumentHeader.build === 'function') {
-      return window.DocumentHeader.build({
-        companyName: companyName,
-        logoUrl: companyLogoUrl,
-        title: title || '',
-      });
+  function r3(n) {
+    if (window.HxDec && typeof window.HxDec.roundAmount === 'function') {
+      return window.HxDec.roundAmount(n);
     }
-    return (
-      '<header class="doc-print-header"><div class="doc-print-header-top"><div class="doc-print-header-brand"><div class="doc-print-header-co">' +
-      escapeHtml(companyName) +
-      '</div><div class="doc-print-header-logo"></div></div></div><div class="doc-print-header-title">' +
-      escapeHtml(title || '') +
-      '</div></header>'
-    );
+    return Math.round((Number(n) || 0) * 1000) / 1000;
   }
-  var defaultDate = form.getAttribute('data-default-date') || '';
-  var defaultWarehouseId = parseInt(form.getAttribute('data-default-warehouse-id') || '0', 10) || 0;
 
-  function applyDefaultWarehouse() {
-    var wh = document.getElementById('inv_wh');
-    if (!wh || defaultWarehouseId < 1) return;
-    wh.value = String(defaultWarehouseId);
-  }
-  var activePickRow = null;
-
-  tbody.addEventListener(
-    'keydown',
-    function (e) {
-      if (e.key !== 'Enter') return;
-      var inp = e.target.closest('.js-barcode-inp');
-      if (!inp || !tbody.contains(inp)) return;
-      if (handleTableArrowKey(e, inp.closest('tr[data-line-id]'), inp)) return;
-      var tr = inp.closest('tr[data-line-id]');
-      if (!tr) return;
-      e.preventDefault();
-      e.stopPropagation();
-      resolveBarcodeOnRow(tr);
-    },
-    true
-  );
-
-  form.addEventListener('input', markFormDirtyFromEvent);
-  form.addEventListener('change', function (e) {
-    if (!e.target || !isSearchOnlyField(e.target)) {
-      markFormDirty();
+  function rUnit(n) {
+    if (window.HxDec && typeof window.HxDec.roundUnit === 'function') {
+      return window.HxDec.roundUnit(n);
     }
-  });
-
-  form.addEventListener(
-    'click',
-    function (e) {
-      var pickBtn = e.target.closest('.js-pick-open');
-      if (pickBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        var trPick = pickBtn.closest('tr[data-line-id]');
-        if (trPick) openPickerForRow(trPick);
-        return;
-      }
-      var itemCell = e.target.closest('.sales-inv-item-cell');
-      if (itemCell) {
-        var trCell = itemCell.closest('tr[data-line-id]');
-        if (trCell && !e.target.closest('.js-pick-open')) {
-          e.preventDefault();
-          e.stopPropagation();
-          openPickerForRow(trCell);
-        }
-      }
-    },
-    true
-  );
-
-  function fmtAmount(n) {
-    return global.AppFormat && AppFormat.fmtInvoiceAmount
-      ? AppFormat.fmtInvoiceAmount(n)
-      : String(n);
+    return r3(n);
   }
 
-  function fmtPrintAmount(n) {
-    return global.AppFormat && AppFormat.fmt
-      ? AppFormat.fmt(n, printDecimals)
-      : String(n);
+  /** سعر أقل وحدة × معامل وحدة الصرف (غير شامل ضريبة) */
+  function unitSalePrice(baseSale, factor) {
+    var f = Number(factor) > 0 ? Number(factor) : 1;
+    return rUnit((Number(baseSale) || 0) * f);
   }
 
-  function fmtPrintUnitPrice(n) {
-    return global.AppFormat && AppFormat.fmt
-      ? AppFormat.fmt(n, printUnitPriceDecimals)
-      : fmtPrintAmount(n);
-  }
+  /** سعر العميل: بيع (افتراضي) أو جملة حسب بطاقة العميل */
+  var customerUsesWholesale = false;
 
-  function getLineSubPrintDisplay(tr) {
-    var subInp = tr.querySelector('input.js-line-sub');
-    var n = subInp ? parseNum(subInp.value) : parseNum(tr.dataset.sub || 0);
-    return fmtPrintAmount(n);
-  }
-
-  function getLineGrossPrintDisplay(tr) {
-    var el = tr.querySelector('.js-line-gross');
-    var n = 0;
-    if (el) {
-      n = el.tagName === 'INPUT' ? parseNum(el.value) : parseNum(tr.dataset.gross || el.textContent);
-    } else {
-      n = parseNum(tr.dataset.gross || 0);
+  function itemListPrice(it) {
+    if (!it) return 0;
+    if (customerUsesWholesale) {
+      return Number(it.base_wholesale != null ? it.base_wholesale : it.wholesale_price) || 0;
     }
-    return fmtPrintAmount(n);
+    return Number(it.base_sale != null ? it.base_sale : it.sale_price) || 0;
   }
 
-  function getLineTaxPrintDisplay(tr) {
-    var el = tr.querySelector('.js-tax-amt');
-    return fmtPrintAmount(el ? parseNum(el.textContent) : 0);
-  }
-
-  function getLinePricePrintDisplay(tr) {
-    var el = tr.querySelector('.js-price');
-    return fmtPrintUnitPrice(el ? parseNum(el.value) : 0);
-  }
-
-  function getLinePriceInclPrintDisplay(tr) {
-    var el = tr.querySelector('.js-price-incl');
-    if (!el) return '';
-    return fmtPrintUnitPrice(parseNum(el.value));
-  }
-
-  var salesInvoicePrintLayoutOpts = {
-    showUnitPriceIncl: true,
-  };
-
-  function invoicePrintLineCtx() {
-    return {
-      escapeHtml: escapeHtml,
-      getBarcodeFromRow: getBarcodeFromRow,
-      getLineSubDisplay: getLineSubPrintDisplay,
-      getLineGrossDisplay: getLineGrossPrintDisplay,
-      fmtUnitPrice: getLinePricePrintDisplay,
-      fmtUnitPriceIncl: getLinePriceInclPrintDisplay,
-      getTaxAmtDisplay: getLineTaxPrintDisplay,
-      fmtAmount: fmtPrintAmount,
-    };
-  }
-
-  function parseNum(v) {
-    if (global.AppFormat && AppFormat.parseInvoiceDecimalInput) {
-      return AppFormat.parseInvoiceDecimalInput(v);
+  function activeBaseOfLine(ln) {
+    if (!ln) return 0;
+    if (customerUsesWholesale) {
+      return Number(ln.base_wholesale != null ? ln.base_wholesale : ln.base_sale) || 0;
     }
-    if (v === '' || v === null || v === undefined) return 0;
-    var s = String(v).replace(/,/g, '.');
-    var x = parseFloat(s);
-    return isFinite(x) ? x : 0;
+    return Number(ln.base_list_sale != null ? ln.base_list_sale : ln.base_sale) || 0;
   }
 
-  function roundMoney(x) {
-    return global.AppFormat && AppFormat.roundInvoiceAmount
-      ? AppFormat.roundInvoiceAmount(x)
-      : Number(x);
-  }
-
-  function roundUnitPrice(x) {
-    return global.AppFormat && AppFormat.roundInvoiceUnitPrice
-      ? AppFormat.roundInvoiceUnitPrice(x)
-      : roundMoney(x);
-  }
-
-  /** السعر شامل الضريبة — تقريب محاسبي بخانات المبالغ (مثل 6.000). */
-  function roundUnitPriceIncl(x) {
-    return global.AppFormat && AppFormat.roundInvoiceUnitPriceIncl
-      ? AppFormat.roundInvoiceUnitPriceIncl(x)
-      : roundMoney(x);
-  }
-
-  /** إجمالي وضريبة السطر من قبل الضريبة: gross = round(sub×(1+rate)) ثم tax = gross−sub. */
-  function lineTaxAndGrossFromSub(sub, rate) {
-    var taxFactor = 1 + rate / 100;
-    var gross = roundMoney(sub * taxFactor);
-    var tax = roundMoney(gross - sub);
-    return { gross: gross, tax: tax };
-  }
-
-  var unitPriceStep =
-    global.AppFormat && AppFormat.invoiceUnitPriceInputStep
-      ? AppFormat.invoiceUnitPriceInputStep()
-      : '0.000001';
-  var amountStep =
-    global.AppFormat && AppFormat.invoicePriceInputStep
-      ? AppFormat.invoicePriceInputStep()
-      : '0.000001';
-
-  function refreshInvoiceDecimalsFromSettings() {
-    if (global.AppFormat && AppFormat.decimals) {
-      decimals = AppFormat.decimals();
-    } else {
-      decimals = parseInt(form.getAttribute('data-decimals') || '', 10);
-      if (isNaN(decimals) || decimals < 0) decimals = 2;
-    }
-    if (global.AppFormat && AppFormat.invoiceUnitPriceDecimals) {
-      unitPriceDecimals = AppFormat.invoiceUnitPriceDecimals();
-    } else {
-      unitPriceDecimals = parseInt(form.getAttribute('data-unit-price-decimals') || '', 10);
-      if (isNaN(unitPriceDecimals) || unitPriceDecimals < 0) unitPriceDecimals = decimals;
-    }
-    form.setAttribute('data-decimals', String(decimals));
-    form.setAttribute('data-unit-price-decimals', String(unitPriceDecimals));
-    printDecimals = parseInt(form.getAttribute('data-print-decimals') || '', 10);
-    if (isNaN(printDecimals) || printDecimals < 0) {
-      printDecimals = decimals;
-    }
-    printUnitPriceDecimals = parseInt(form.getAttribute('data-print-unit-price-decimals') || '', 10);
-    if (isNaN(printUnitPriceDecimals) || printUnitPriceDecimals < 0) {
-      printUnitPriceDecimals = unitPriceDecimals;
-    }
-    unitPriceStep =
-      global.AppFormat && AppFormat.invoiceUnitPriceInputStep
-        ? AppFormat.invoiceUnitPriceInputStep()
-        : unitPriceDecimals > 0
-          ? '0.' + '0'.repeat(Math.max(0, unitPriceDecimals - 1)) + '1'
-          : '1';
-    amountStep =
-      global.AppFormat && AppFormat.invoicePriceInputStep
-        ? AppFormat.invoicePriceInputStep()
-        : decimals > 0
-          ? '0.' + '0'.repeat(Math.max(0, decimals - 1)) + '1'
-          : '1';
-  }
-
-  function applyDecimalPlacesToInvoiceScreen() {
-    if (invoiceIsPosted && currentInvoiceId > 0) {
-      var locked = parseInt(form.getAttribute('data-decimals') || '', 10);
-      if (!isNaN(locked) && locked >= 0) {
-        decimals = locked;
-      }
-      if (global.AppFormat && AppFormat.setDecimalPlaces) {
-        global.AppFormat.setDecimalPlaces(decimals, { persist: false, silent: true });
-      }
-    } else {
-      refreshInvoiceDecimalsFromSettings();
-      if (global.AppFormat && AppFormat.setDecimalPlaces) {
-        global.AppFormat.setDecimalPlaces(decimals, { persist: false, silent: true });
-      }
-      if (global.AppFormat && AppFormat.setInvoiceUnitPriceDecimals) {
-        global.AppFormat.setInvoiceUnitPriceDecimals(unitPriceDecimals, { persist: false, silent: true });
-      }
-    }
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      applyQtyPriceInputAttrs(tr);
-      if (getRowItemId(tr) > 0) {
-        recalcRow(tr, rowAmountSource(tr), { normalizeStored: true });
-      } else {
-        clearRowAmounts(tr);
-      }
+  function repriceOpenLines() {
+    if (!state || !Array.isArray(state.lines)) return;
+    state.lines.forEach(function (ln) {
+      if (!ln || !ln.item_id) return;
+      var base = activeBaseOfLine(ln);
+      ln.base_sale = base;
+      ln.unit_price = unitSalePrice(base, ln.unit_factor);
     });
-    recalcFooter();
-    syncJson();
-  }
-
-  window.addEventListener('app:decimal-places', function () {
-    if (invoiceIsPosted && currentInvoiceId > 0) {
-      return;
-    }
-    applyDecimalPlacesToInvoiceScreen();
-  });
-
-  window.addEventListener('app:invoice-unit-price-decimals', function () {
-    if (invoiceIsPosted && currentInvoiceId > 0) {
-      return;
-    }
-    applyDecimalPlacesToInvoiceScreen();
-  });
-
-  var LINE_NAV_AFTER_ITEM_SELECTORS = [
-    '.js-qty',
-    '.js-qty-extra',
-    '.js-price',
-    '.js-price-incl',
-    '.js-discount',
-    '.js-line-sub',
-    '.js-tax',
-    'input.js-line-gross',
-  ];
-
-  var ROW_QTY_LOCK_SELECTORS =
-    '.js-price, .js-price-incl, .js-discount, .js-line-sub, .js-tax, .js-unit, input.js-line-gross';
-
-  function formatAmountValue(n, rawStr) {
-    if (global.AppFormat && AppFormat.formatInvoiceDecimalInput) {
-      return AppFormat.formatInvoiceDecimalInput(n, rawStr);
-    }
-    return String(n);
-  }
-
-  function formatUnitPriceValue(n, rawStr) {
-    if (global.AppFormat && AppFormat.formatInvoiceUnitPriceInput) {
-      return AppFormat.formatInvoiceUnitPriceInput(n, rawStr);
-    }
-    return formatAmountValue(n, rawStr);
-  }
-
-  function formatUnitPriceInclValue(n, rawStr) {
-    if (global.AppFormat && AppFormat.formatInvoiceUnitPriceInclInput) {
-      return AppFormat.formatInvoiceUnitPriceInclInput(n, rawStr);
-    }
-    return formatAmountValue(n, rawStr);
-  }
-
-  function formatPriceValue(n, rawStr) {
-    return formatUnitPriceValue(n, rawStr);
-  }
-
-  function formatQtyValue(n, rawStr) {
-    if (global.AppFormat && AppFormat.formatInvoiceQtyInput) {
-      return AppFormat.formatInvoiceQtyInput(n, rawStr);
-    }
-    var x = Number(n);
-    if (!isFinite(x) || Math.abs(x) < 1e-12) return '';
-    if (Math.abs(x - Math.round(x)) < 1e-9) return String(Math.round(x));
-    var out = String(x).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
-    return out === '' ? '' : out;
-  }
-
-  function applyQtyPriceInputAttrs(tr) {
-    var qty = tr.querySelector('.js-qty');
-    var qtyExtra = tr.querySelector('.js-qty-extra');
-    var price = tr.querySelector('.js-price');
-    var sub = tr.querySelector('input.js-line-sub');
-    if (qty) {
-      qty.setAttribute('step', '1');
-      qty.setAttribute('inputmode', 'decimal');
-    }
-    if (qtyExtra) {
-      qtyExtra.setAttribute('step', '1');
-      qtyExtra.setAttribute('inputmode', 'decimal');
-    }
-    if (price) {
-      price.setAttribute('step', unitPriceStep);
-      price.setAttribute('inputmode', 'decimal');
-    }
-    var priceIncl = tr.querySelector('.js-price-incl');
-    if (priceIncl) {
-      priceIncl.setAttribute('step', amountStep);
-      priceIncl.setAttribute('inputmode', 'decimal');
-    }
-    if (sub) {
-      sub.setAttribute('step', amountStep);
-      sub.setAttribute('inputmode', 'decimal');
-    }
-    var gross = tr.querySelector('input.js-line-gross');
-    if (gross) {
-      gross.setAttribute('step', amountStep);
-      gross.setAttribute('inputmode', 'decimal');
-    }
-  }
-
-  function normalizeQtyInput(inp) {
-    if (!inp) return;
-    var tr = inp.closest('tr[data-line-id]');
-    var hasItem = tr && getRowItemId(tr) > 0;
-    if (String(inp.value).trim() === '') {
-      inp.value = hasItem ? '0' : '';
-      return;
-    }
-    var n = parseNum(inp.value);
-    if (n <= 0) {
-      inp.value = hasItem ? '0' : '';
-      return;
-    }
-    inp.value = formatQtyValue(n, inp.value);
-  }
-
-  function normalizeQtyExtraInput(inp) {
-    if (!inp) return;
-    var tr = inp.closest('tr[data-line-id]');
-    var hasItem = tr && getRowItemId(tr) > 0;
-    if (String(inp.value).trim() === '') {
-      inp.value = hasItem ? '0' : '';
-      return;
-    }
-    var n = parseNum(inp.value);
-    if (n < 0) n = 0;
-    if (n <= 0 && hasItem) {
-      inp.value = '0';
-      return;
-    }
-    inp.value = formatQtyValue(n, inp.value);
-  }
-
-  /** صف فيه مادة — لا يُترك أي حقل مبلغ/كمية فارغاً */
-  function applyItemRowZeroDefaults(tr) {
-    if (!getRowItemId(tr)) return;
-    var qtyEl = tr.querySelector('.js-qty');
-    if (qtyEl && document.activeElement !== qtyEl && String(qtyEl.value).trim() === '') {
-      qtyEl.value = '0';
-    }
-    var qtyExtraEl = tr.querySelector('.js-qty-extra');
-    if (qtyExtraEl && document.activeElement !== qtyExtraEl && String(qtyExtraEl.value).trim() === '') {
-      qtyExtraEl.value = '0';
-    }
-    var priceEl = tr.querySelector('.js-price');
-    if (priceEl && document.activeElement !== priceEl && String(priceEl.value).trim() === '') {
-      priceEl.value = formatUnitPriceValue(0, '');
-    }
-    var priceInclEl = tr.querySelector('.js-price-incl');
-    if (priceInclEl && document.activeElement !== priceInclEl && String(priceInclEl.value).trim() === '') {
-      priceInclEl.value = formatUnitPriceInclValue(0, '');
-    }
-    var subInp = tr.querySelector('input.js-line-sub');
-    if (subInp && document.activeElement !== subInp && String(subInp.value).trim() === '') {
-      subInp.value = formatAmountValue(0, '');
-    }
-    var grossInp = tr.querySelector('input.js-line-gross');
-    if (grossInp && document.activeElement !== grossInp && String(grossInp.value).trim() === '') {
-      grossInp.value = formatAmountValue(0, '');
-    }
-    var taxAmtEl = tr.querySelector('.js-tax-amt');
-    if (taxAmtEl && taxAmtEl.tagName !== 'INPUT') {
-      var taxTxt = (taxAmtEl.textContent || '').trim();
-      if (!taxTxt) {
-        setAmtDisplayCell(taxAmtEl, fmtAmount(0), false);
+    if (typeof renderLines === 'function') {
+      try {
+        renderLines();
+      } catch (e) {
+        /* */
       }
     }
   }
 
-  function normalizeUnitPriceInput(inp) {
-    if (!inp) return;
-    inp.value = formatUnitPriceValue(parseNum(inp.value), inp.value);
-  }
-
-  function normalizePriceInput(inp) {
-    normalizeUnitPriceInput(inp);
-  }
-
-  function normalizePriceInclInput(inp) {
-    if (!inp) return;
-    inp.value = formatUnitPriceInclValue(parseNum(inp.value), inp.value);
-  }
-
-  function normalizeSubInput(inp) {
-    if (!inp) return;
-    inp.value = formatAmountValue(parseNum(inp.value), inp.value);
-  }
-
-  function normalizeGrossInput(inp) {
-    normalizeSubInput(inp);
-  }
-
-  function getLineSubDisplay(tr) {
-    var el = tr.querySelector('input.js-line-sub') || tr.querySelector('.js-line-sub');
-    if (!el) return '';
-    return el.tagName === 'INPUT' ? el.value : el.textContent || '';
-  }
-
-  function getLineGrossDisplay(tr) {
-    var el = tr.querySelector('.js-line-gross');
-    if (!el) return '';
-    if (el.tagName === 'INPUT') return el.value;
-    var span = el.querySelector('.sales-inv-amt-display');
-    return span ? span.textContent || '' : el.textContent || '';
-  }
-
-  function setAmtDisplayCell(el, txt, isGross) {
-    if (!el) return;
-    if (el.tagName === 'INPUT') {
-      el.value = txt;
-      return;
-    }
-    if (!txt) {
-      el.textContent = '';
-      el.innerHTML = '';
-      return;
-    }
-    el.innerHTML =
-      '<span class="sales-inv-amt-display' +
-      (isGross ? ' sales-inv-amt-display--gross' : '') +
-      '">' +
-      escapeHtml(txt) +
-      '</span>';
-  }
-
-  function setLineGrossDisplay(tr, gross) {
-    var el = tr.querySelector('.js-line-gross');
-    if (!el) return;
-    if (el.tagName === 'INPUT' && document.activeElement === el) return;
-    var txt = fmtAmount(gross);
-    if (el.tagName === 'INPUT') {
-      el.value = formatAmountValue(gross, '');
-    } else {
-      setAmtDisplayCell(el, txt, true);
-    }
-  }
-
-  function rowAmountSource(tr) {
-    var d = tr.dataset.amountDriver || 'unit';
-    if (d === 'gross' || d === 'subtotal' || d === 'unit' || d === 'unit_incl') return d;
-    return 'unit';
-  }
-
-  function unitPriceInclFromExcl(priceExcl, taxFactor) {
-    if (!(priceExcl > 0)) return 0;
-    return roundUnitPrice(priceExcl * taxFactor);
-  }
-
-  function syncUnitPriceInclField(tr, priceExcl, rate, opts) {
-    var priceInclEl = tr.querySelector('.js-price-incl');
-    if (!priceInclEl) return;
-    if (rowAmountSource(tr) === 'unit_incl') {
-      if (opts && opts.normalizeStored && document.activeElement !== priceInclEl) {
-        var keepIncl = roundUnitPriceIncl(parseNum(priceInclEl.value));
-        priceInclEl.value = formatUnitPriceInclValue(keepIncl, priceInclEl.value);
-      }
-      return;
-    }
-    if (document.activeElement === priceInclEl && !(opts && opts.normalizeStored)) return;
-    var qtyEl = tr.querySelector('.js-qty');
-    var qty = parseNum(qtyEl ? qtyEl.value : 0);
-    var gross = parseNum(tr.dataset.gross);
-    if (qty > 0 && gross > 0) {
-      var inclFromGross = roundUnitPriceIncl(gross / qty);
-      priceInclEl.value = formatUnitPriceInclValue(inclFromGross, '');
-      return;
-    }
-    var taxFactor = 1 + rate / 100;
-    var incl = unitPriceInclFromExcl(priceExcl, taxFactor);
-    priceInclEl.value = formatUnitPriceInclValue(incl, '');
-  }
-
-  /** إعادة حساب السطر والفاتورة حسب الحقل الذي يُحرَّر (أثناء الكتابة). */
-  function recalcRowLiveFromField(tr, el) {
-    if (!tr || !el) return;
-    if (!getRowItemId(tr)) {
-      clearRowAmounts(tr);
-      return;
-    }
-
-    if (el.classList.contains('js-qty-extra')) {
-      syncJson();
-      return;
-    }
-    if (el.classList.contains('js-discount')) {
-      onLineDiscountEdited(tr);
-      return;
-    }
-
-    if ((el.classList.contains('js-qty') || el.classList.contains('js-price') || el.classList.contains('js-price-incl')) && headerDiscountMode) {
-      applyHeaderDiscount();
-      return;
-    }
-
-    if (el.classList.contains('js-line-sub')) {
-      tr.dataset.amountDriver = 'subtotal';
-      recalcRow(tr, 'subtotal');
-    } else if (el.classList.contains('js-line-gross')) {
-      tr.dataset.amountDriver = 'gross';
-      recalcRow(tr, 'gross');
-    } else if (el.classList.contains('js-price-incl')) {
-      tr.dataset.amountDriver = 'unit_incl';
-      recalcRow(tr, 'unit_incl');
-    } else if (el.classList.contains('js-price')) {
-      tr.dataset.amountDriver = 'unit';
-      recalcRow(tr, 'unit');
-    } else if (el.classList.contains('js-qty')) {
-      if (rowAmountSource(tr) === 'gross') {
-        recalcRow(tr, 'gross');
-      } else if (rowAmountSource(tr) === 'unit_incl') {
-        recalcRow(tr, 'unit_incl');
-      } else {
-        tr.dataset.amountDriver = 'unit';
-        recalcRow(tr, 'unit');
-      }
-    } else if (el.classList.contains('js-tax')) {
-      recalcRow(tr, rowAmountSource(tr));
-    } else {
-      recalcRow(tr, 'unit');
-    }
-    recalcFooter();
-    syncJson();
-  }
-
-  /** عند Enter أو blur: تطبيع الحقل ثم إعادة الحساب. */
-  function commitAmountFieldAndRecalc(tr, el) {
-    if (!tr || !el) return;
-    if (el.classList.contains('js-qty-extra')) {
-      normalizeQtyExtraInput(el);
-      syncJson();
-      return;
-    }
-    if (el.classList.contains('js-qty')) normalizeQtyInput(el);
-    else if (el.classList.contains('js-price')) normalizePriceInput(el);
-    else if (el.classList.contains('js-price-incl')) normalizePriceInclInput(el);
-    else if (el.classList.contains('js-line-sub')) normalizeSubInput(el);
-    else if (el.classList.contains('js-line-gross')) normalizeGrossInput(el);
-
-    if (el.classList.contains('js-discount')) {
-      onLineDiscountEdited(tr);
-      return;
-    }
-
-    if ((el.classList.contains('js-qty') || el.classList.contains('js-price') || el.classList.contains('js-price-incl')) && headerDiscountMode) {
-      applyHeaderDiscount();
-      return;
-    }
-
-    var source = 'unit';
-    if (el.classList.contains('js-line-sub')) {
-      source = 'subtotal';
-      tr.dataset.amountDriver = 'subtotal';
-    } else if (el.classList.contains('js-line-gross')) {
-      source = 'gross';
-      tr.dataset.amountDriver = 'gross';
-    } else if (el.classList.contains('js-price-incl')) {
-      source = 'unit_incl';
-      tr.dataset.amountDriver = 'unit_incl';
-    } else if (el.classList.contains('js-qty') && rowAmountSource(tr) === 'gross') {
-      source = 'gross';
-    } else if (el.classList.contains('js-qty') && rowAmountSource(tr) === 'unit_incl') {
-      source = 'unit_incl';
-    } else if (el.classList.contains('js-qty') && rowAmountSource(tr) === 'subtotal') {
-      source = 'subtotal';
-    } else if (el.classList.contains('js-price')) {
-      tr.dataset.amountDriver = 'unit';
-    } else {
-      tr.dataset.amountDriver = 'unit';
-    }
-
-    recalcRow(tr, source, { normalizeStored: true });
-    recalcFooter();
-    syncJson();
-  }
-
-  function isAmountFieldEnterCommit(el) {
-    return (
-      el.classList.contains('js-qty') ||
-      el.classList.contains('js-qty-extra') ||
-      el.classList.contains('js-price') ||
-      el.classList.contains('js-price-incl') ||
-      el.classList.contains('js-discount') ||
-      el.classList.contains('js-line-sub') ||
-      el.classList.contains('js-line-gross')
-    );
-  }
-
-  function inferLineAmountDriver(ln) {
-    if (!ln) return 'unit';
-    var d = String(ln.amount_driver || '').toLowerCase();
-    if (d === 'gross' || d === 'subtotal' || d === 'unit' || d === 'unit_incl') return d;
-    var qty = parseNum(ln.qty);
-    var up = parseNum(ln.unit_price);
-    var sub = parseNum(ln.line_subtotal != null ? ln.line_subtotal : ln.line_total);
-    var tax = parseNum(ln.tax_amount);
-    var gross = parseNum(ln.line_gross != null ? ln.line_gross : sub + tax);
-    var rate = parseNum(ln.tax_rate_percent);
-    var tol = Math.pow(10, -decimals) * 0.51;
-    var base = qty > 0 && up > 0 ? roundMoney(qty * up) : 0;
-    var fromUnitLine = lineTaxAndGrossFromSub(base, rate);
-    var fromUnitGross = fromUnitLine.gross;
-    if (gross > 0 && Math.abs(gross - fromUnitGross) >= tol) {
-      return 'gross';
-    }
-    if (qty > 0 && up > 0 && Math.abs(sub - base) >= tol) {
-      return 'subtotal';
-    }
-    return 'unit';
-  }
-
-  function listNavRows() {
-    return Array.prototype.slice.call(tbody.querySelectorAll('tr[data-line-id]')).filter(function (tr) {
-      if (tr.classList.contains('is-entry-row')) return true;
-      return parseInt(tr.dataset.itemId, 10) > 0;
-    });
-  }
-
-  function getRowNavFields(tr) {
-    if (!rowHasItem(tr)) return [];
-    return LINE_NAV_AFTER_ITEM_SELECTORS.map(function (sel) {
-      return tr.querySelector(sel);
-    }).filter(function (el) {
-      if (!el || el.disabled || el.readOnly || el.offsetParent === null) return false;
-      if (el.classList.contains('is-item-pick-locked') || el.classList.contains('is-qty-required-locked')) {
-        return false;
-      }
-      var tag = el.tagName;
-      return tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
-    });
-  }
-
-  function focusRowQtyField(tr) {
-    if (!tr) return;
-    var run = function () {
-      var qtyEl = tr.querySelector('.js-qty');
-      if (!qtyEl || qtyEl.disabled || qtyEl.classList.contains('is-item-pick-locked')) return;
-      qtyEl.focus();
-      if (qtyEl.select) qtyEl.select();
-    };
-    if (window.requestAnimationFrame) {
-      window.requestAnimationFrame(function () {
-        window.setTimeout(run, 0);
-      });
-    } else {
-      window.setTimeout(run, 0);
-    }
-  }
-
-  function rowNeedsQtyInput(tr) {
-    return rowHasItem(tr) && rowStockQty(tr) <= 0;
-  }
-
-  function findFirstRowMissingQty() {
-    var found = null;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (found) return;
-      if (rowNeedsQtyInput(tr)) found = tr;
-    });
-    return found;
-  }
-
-  function alertQtyRequired(tr, actionLabel) {
-    if (!tr || !global.AppDialog) return;
-    var name = tr.dataset.nameAr || 'المادة';
-    AppDialog.alert(
-      'أدخل الكمية أو الكمية الإضافية قبل ' + (actionLabel || 'المتابعة') + '.\n\nالمادة: ' + name,
-      { type: 'warning', title: 'الكمية مطلوبة' }
-    );
-  }
-
-  /** يمنع اختيار/تغيير مادة حتى إدخال الكمية في السطر الحالي أو أي سطر سابق ناقص. */
-  function blockItemPickUntilQty(tr, opts) {
+  function setCustomerPriceMode(c, opts) {
     opts = opts || {};
-    if (invoiceIsPosted || ledgerView) return false;
-
-    if (tr && rowNeedsQtyInput(tr)) {
-      if (opts.alert !== false) {
-        alertQtyRequired(tr, opts.actionLabel || 'اختيار مادة أخرى');
-      }
-      focusRowQtyField(tr);
-      return true;
+    customerUsesWholesale = !!(c && (Number(c.use_wholesale_price) === 1 || c.use_wholesale_price === true));
+    var hint = document.getElementById('inv_price_mode_hint');
+    if (hint) {
+      hint.textContent = customerUsesWholesale ? 'سعر الجملة' : 'سعر البيع';
+      hint.title = customerUsesWholesale
+        ? 'تسعير العميل: سعر الجملة'
+        : 'تسعير العميل: سعر البيع';
+      hint.hidden = false;
+      hint.classList.toggle('is-wholesale', customerUsesWholesale);
     }
-
-    var pending = findFirstRowMissingQty();
-    if (pending && (!tr || pending !== tr)) {
-      if (opts.alert !== false) {
-        alertQtyRequired(pending, opts.actionLabel || 'اختيار مادة أخرى');
-      }
-      focusRowQtyField(pending);
-      return true;
-    }
-
-    return false;
+    if (opts.reprice === false || posted) return;
+    repriceOpenLines();
   }
 
-  function blockLineNavIfQtyMissing(tr, current) {
-    if (!current || !rowNeedsQtyInput(tr)) return false;
-    if (
-      current.classList.contains('js-qty') ||
-      current.classList.contains('js-qty-extra') ||
-      current.classList.contains('js-barcode-inp')
-    ) {
+  function priceStep() {
+    return window.HxDec && window.HxDec.unitStep ? window.HxDec.unitStep() : '0.001';
+  }
+
+  function qtyStep() {
+    return window.HxDec && window.HxDec.amountStep ? window.HxDec.amountStep() : '0.001';
+  }
+
+  function defaultUnitOf(it) {
+    var units = (it && it.units) || [];
+    if (!units.length) {
+      return {
+        unit_id: 0,
+        name: 'قطعة',
+        factor: 1,
+        sale_price: Number(it && it.sale_price) || 0,
+      };
+    }
+    return (
+      units.find(function (u) {
+        return u.is_default;
+      }) ||
+      units.find(function (u) {
+        return u.is_base;
+      }) ||
+      units[0]
+    );
+  }
+
+  function applyItemToLine(ln, it) {
+    ln = ln || {};
+    ln.item_id = it.id;
+    ln.item_code = it.code || it.sku || '';
+    ln.name_ar = it.name_ar || '';
+    ln.base_list_sale = Number(it.base_sale != null ? it.base_sale : it.sale_price) || 0;
+    ln.base_wholesale = Number(it.base_wholesale != null ? it.base_wholesale : it.wholesale_price) || 0;
+    ln.base_sale = itemListPrice(it);
+    ln.units = Array.isArray(it.units) ? it.units : [];
+    var du = defaultUnitOf(it);
+    ln.unit_id = du.unit_id || 0;
+    ln.unit_name = du.name || 'قطعة';
+    ln.unit_factor = Number(du.factor) > 0 ? Number(du.factor) : 1;
+    if (customerUsesWholesale && du.wholesale_price != null) {
+      ln.unit_price = rUnit(Number(du.wholesale_price) || 0);
+    } else if (!customerUsesWholesale && du.sale_price != null) {
+      ln.unit_price = rUnit(Number(du.sale_price) || 0);
+    } else {
+      ln.unit_price = unitSalePrice(ln.base_sale, ln.unit_factor);
+    }
+    if (!ln.qty) ln.qty = 1;
+    if (it.tax_rate_percent != null && it.tax_rate_percent !== '') {
+      ln.tax_rate_percent = Number(it.tax_rate_percent);
+    } else if (ln.tax_rate_percent == null) {
+      ln.tax_rate_percent = defaultTax;
+    }
+    if (window.HxOffers && typeof window.HxOffers.refreshLine === 'function') {
+      window.HxOffers.refreshLine({
+        ln: ln,
+        onDone: function (updated) {
+          if (updated) {
+            ln.qty_extra = updated.qty_extra;
+            ln.discount_pct = updated.discount_pct;
+          }
+          if (typeof renderLines === 'function') renderLines();
+        },
+      });
+    }
+    return ln;
+  }
+
+  function unitSelectHtml(ln, disabled) {
+    var units = Array.isArray(ln.units) && ln.units.length
+      ? ln.units
+      : [
+          {
+            unit_id: ln.unit_id || 0,
+            name: ln.unit_name || 'قطعة',
+            factor: ln.unit_factor || 1,
+          },
+        ];
+    var curId = Number(ln.unit_id) || 0;
+    var opts = units
+      .map(function (u) {
+        var uid = Number(u.unit_id) || 0;
+        var fac = Number(u.factor) > 0 ? Number(u.factor) : 1;
+        var label = (u.name || 'وحدة') + (fac > 1 ? ' × ' + fac : '');
+        var sel = curId ? uid === curId : Number(ln.unit_factor || 1) === fac;
+        return (
+          '<option value="' +
+          uid +
+          '" data-factor="' +
+          fac +
+          '" data-name="' +
+          escAttr(u.name || '') +
+          '"' +
+          (sel ? ' selected' : '') +
+          '>' +
+          escAttr(label) +
+          '</option>'
+        );
+      })
+      .join('');
+    return (
+      '<select class="js-unit" title="وحدة الصرف"' +
+      (disabled || !ln.item_id ? ' disabled' : '') +
+      '>' +
+      opts +
+      '</select>'
+    );
+  }
+
+  function fmt(n) {
+    if (window.HxDec && typeof window.HxDec.fmt === 'function') {
+      return window.HxDec.fmt(n);
+    }
+    return r3(n).toLocaleString('en-US', {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    });
+  }
+
+  function setMsg(text, type) {
+    if (!msgEl) return;
+    msgEl.textContent = text || '';
+    msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : type === 'ok' ? ' is-ok' : '');
+    if (text && window.HypexUI && typeof window.HypexUI.toast === 'function') {
+      if (type === 'error' || type === 'ok') {
+        window.HypexUI.toast(text, type === 'error' ? 'error' : 'ok', type === 'error' ? 4200 : 2800);
+      }
+    }
+  }
+
+  function lineTotals(ln) {
+    var qty = Number(ln.qty) || 0;
+    var price = Number(ln.unit_price) || 0;
+    var discPct = Number(ln.discount_pct) || 0;
+    var taxRate = Number(ln.tax_rate_percent) || 0;
+    var sub = qty * price;
+    var disc = discPct > 0 ? r3((sub * discPct) / 100) : 0;
+    sub = r3(sub - disc);
+    var tax = r3((sub * taxRate) / 100);
+    return { sub: sub, tax: tax, gross: r3(sub + tax), disc: disc };
+  }
+
+  function headerDiscountAmount(sumSub, raw) {
+    raw = String(raw || '').trim();
+    if (!raw || sumSub <= 0) return 0;
+    var d = 0;
+    if (raw.endsWith('%')) {
+      d = r3((sumSub * (parseFloat(raw) || 0)) / 100);
+    } else if (raw.indexOf('.') === -1 && Number(raw) >= 1 && Number(raw) <= 100) {
+      d = r3((sumSub * Number(raw)) / 100);
+    } else {
+      d = r3(parseFloat(raw) || 0);
+    }
+    return Math.min(d, sumSub);
+  }
+
+  function recomputeFooter() {
+    var sumSub = 0;
+    var sumTax = 0;
+    var sumGross = 0;
+    (state.lines || []).forEach(function (ln) {
+      if (!ln.item_id) return;
+      var t = lineTotals(ln);
+      sumSub += t.sub;
+      sumTax += t.tax;
+      sumGross += t.gross;
+    });
+    sumSub = r3(sumSub);
+    sumTax = r3(sumTax);
+    sumGross = r3(sumGross);
+    var discInput = document.getElementById('inv_discount');
+    var hDisc = headerDiscountAmount(sumSub, discInput ? discInput.value : '');
+    if (hDisc > 0 && sumSub > 0) {
+      var ratio = (sumSub - hDisc) / sumSub;
+      sumTax = r3(sumTax * ratio);
+      sumSub = r3(sumSub - hDisc);
+      sumGross = r3(sumSub + sumTax);
+    }
+    var elSub = document.getElementById('sum_sub');
+    var elTax = document.getElementById('sum_tax');
+    var elGrand = document.getElementById('sum_grand');
+    if (elSub) elSub.textContent = fmt(sumSub);
+    if (elTax) elTax.textContent = fmt(sumTax);
+    if (elGrand) elGrand.textContent = fmt(sumGross);
+  }
+
+  function readLineFromRow(tr) {
+    var idx = Number(tr.getAttribute('data-idx'));
+    var ln = state.lines[idx] || {};
+    ln.qty = tr.querySelector('.js-qty').value;
+    ln.qty_extra = tr.querySelector('.js-qty-extra').value;
+    var unitSel = tr.querySelector('.js-unit');
+    if (unitSel && unitSel.selectedOptions && unitSel.selectedOptions[0]) {
+      var opt = unitSel.selectedOptions[0];
+      ln.unit_id = Number(unitSel.value) || 0;
+      ln.unit_factor = Number(opt.getAttribute('data-factor')) || 1;
+      ln.unit_name = opt.getAttribute('data-name') || opt.textContent || '';
+    }
+    var baseEl = tr.querySelector('.js-base-sale');
+    if (baseEl && baseEl.value !== '') ln.base_sale = Number(baseEl.value) || 0;
+    // السعر محسوب دائماً — لا يُقرأ يدوياً
+    if (ln.base_sale != null && Number(ln.base_sale) >= 0 && ln.unit_factor) {
+      ln.unit_price = unitSalePrice(ln.base_sale, ln.unit_factor);
+      var priceEl = tr.querySelector('.js-price');
+      if (priceEl) priceEl.value = String(ln.unit_price);
+    } else {
+      ln.unit_price = tr.querySelector('.js-price') ? tr.querySelector('.js-price').value : ln.unit_price;
+    }
+    ln.discount_pct = tr.querySelector('.js-disc').value;
+    ln.tax_rate_percent = tr.querySelector('.js-tax').value;
+    var hid = tr.querySelector('.js-item-id');
+    if (hid && hid.value) ln.item_id = Number(hid.value) || 0;
+    state.lines[idx] = ln;
+    var t = lineTotals(ln);
+    tr.querySelector('.js-sub').textContent = fmt(t.sub);
+    tr.querySelector('.js-gross').textContent = fmt(t.gross);
+    recomputeFooter();
+  }
+
+  function syncLinesFromDom() {
+    if (!tbody) return;
+    tbody.querySelectorAll('tr').forEach(function (tr) {
+      readLineFromRow(tr);
+    });
+  }
+
+  function buildPayload() {
+    syncLinesFromDom();
+    return {
+      id: state.id || 0,
+      invoice_no: (document.getElementById('inv_no') || {}).value || '',
+      invoice_date: (document.getElementById('inv_date') || {}).value || '',
+      customer_id: Number((document.getElementById('inv_customer_id') || {}).value || 0),
+      payment_type: (document.getElementById('inv_pay') || {}).value || 'credit',
+      warehouse_id: Number((document.getElementById('inv_wh') || {}).value || 0) || null,
+      notes: (document.getElementById('inv_notes') || {}).value || '',
+      invoice_discount: (document.getElementById('inv_discount') || {}).value || '',
+      lines: (state.lines || []).filter(function (ln) {
+        return ln && ln.item_id;
+      }),
+    };
+  }
+
+  function validatePayload(payload, opts) {
+    opts = opts || {};
+    if (!payload.customer_id) {
+      setMsg('اختر العميل.', 'error');
       return false;
     }
-    focusRowQtyField(tr);
+    // السماح بحفظ بدون بنود لفاتورة مسجّلة (تفريغ البنود) — ليس للفواتير الجديدة
+    if (!payload.lines.length && !(opts.allowEmptyLines && payload.id > 0)) {
+      setMsg('أضف بنداً واحداً على الأقل.', 'error');
+      return false;
+    }
+    for (var i = 0; i < (payload.lines || []).length; i++) {
+      var ln = payload.lines[i];
+      if (!ln || !ln.item_id) continue;
+      if (!(Number(ln.unit_price) > 0)) {
+        setMsg('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', 'error');
+        return false;
+      }
+    }
     return true;
   }
 
-  function focusFieldEl(el) {
+  function setBtn(id, enabled) {
+    var el = document.getElementById(id);
     if (!el) return;
-    el.focus();
-    if (el.select && el.tagName !== 'SELECT') el.select();
+    el.disabled = !enabled;
   }
 
-  function handleTableArrowKey(e, tr, el) {
-    var key = e.key;
-    if (key !== 'ArrowUp' && key !== 'ArrowDown' && key !== 'ArrowLeft' && key !== 'ArrowRight') {
-      return false;
+  /** تفعيل/تعطيل أزرار الشريط حسب الحالة الحالية (بعد الحفظ دون reload) */
+  function applyToolbarState() {
+    var hasId = !!(Number(state.id) > 0);
+    var bar = document.getElementById('si-doc-bar');
+    var c = state.caps || {};
+
+    function allowFlag(capKey, dataName, defaultOn) {
+      if (c[capKey] != null) return !!c[capKey];
+      if (bar && bar.hasAttribute('data-allow-' + dataName)) {
+        return bar.getAttribute('data-allow-' + dataName) === '1';
+      }
+      return defaultOn !== false;
+    }
+
+    var allowPost = allowFlag('allowPost', 'post', true);
+    var allowUnpost = allowFlag('allowUnpost', 'unpost', true);
+    var allowDelete = allowFlag('allowDelete', 'delete', true);
+    var allowArchive = allowFlag('allowArchive', 'archive', true);
+    var allowEinvoice = allowFlag('allowEinvoice', 'einvoice', true);
+
+    setBtn('si-save', !posted);
+    setBtn('si-post', !posted && (hasId ? allowPost : true));
+    setBtn('si-unpost', posted && allowUnpost);
+    setBtn('si-delete', hasId && !posted && allowDelete);
+    setBtn('si-print', hasId);
+    setBtn('si-pdf', hasId);
+    setBtn('si-excel', hasId);
+    setBtn('si-email', hasId);
+    setBtn('si-archive', hasId && allowArchive);
+    setBtn('si-einvoice', posted && allowEinvoice);
+
+    if (bar) {
+      bar.setAttribute('data-invoice-id', String(state.id || 0));
+      bar.setAttribute('data-posted', posted ? '1' : '0');
+    }
+
+    state.caps = Object.assign({}, c, {
+      canSave: !posted,
+      canPost: !posted && hasId && allowPost,
+      canUnpost: posted && allowUnpost,
+      canDelete: hasId && !posted && allowDelete,
+      canPrint: hasId,
+      canPdf: hasId,
+      canExcel: hasId,
+      canEmail: hasId,
+      canArchive: hasId && allowArchive,
+      canEinvoice: posted && allowEinvoice,
+      allowPost: allowPost,
+      allowUnpost: allowUnpost,
+      allowDelete: allowDelete,
+      allowArchive: allowArchive,
+      allowEinvoice: allowEinvoice,
+    });
+  }
+
+  function setBusy(on) {
+    busy = !!on;
+    ['si-save', 'si-post', 'si-unpost', 'si-delete', 'si-einvoice', 'si-add-line', 'si-print', 'si-pdf', 'si-excel', 'si-email', 'si-archive'].forEach(
+      function (id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        if (on) {
+          if (el.dataset.hxBusyPrev == null) {
+            el.dataset.hxBusyPrev = el.disabled ? '1' : '0';
+          }
+          el.disabled = true;
+        } else {
+          delete el.dataset.hxBusyPrev;
+        }
+      }
+    );
+    // بعد انتهاء العملية أعد الحالة الصحيحة (طباعة/حذف… حسب وجود id)
+    if (!on) applyToolbarState();
+  }
+
+  function renderLines() {
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    (state.lines || []).forEach(function (ln, idx) {
+      var t = lineTotals(ln);
+      var tr = document.createElement('tr');
+      tr.setAttribute('data-idx', String(idx));
+      tr.innerHTML =
+        '<td dir="ltr">' +
+        (idx + 1) +
+        '</td>' +
+        '<td class="si-item-cell">' +
+        '<input type="hidden" class="js-item-id" value="' +
+        (ln.item_id || '') +
+        '">' +
+        '<input type="hidden" class="js-base-sale" value="' +
+        escAttr(ln.base_sale != null ? ln.base_sale : '') +
+        '">' +
+        '<input class="js-item" type="search" placeholder="باركود / اسم" value="' +
+        escAttr((ln.item_code ? ln.item_code + ' — ' : '') + (ln.name_ar || '')) +
+        '" ' +
+        (posted ? 'readonly' : '') +
+        '>' +
+        '<div class="si-suggest js-item-suggest" hidden></div>' +
+        '</td>' +
+        '<td>' +
+        unitSelectHtml(ln, posted) +
+        '</td>' +
+        '<td><input class="js-qty" type="number" step="' +
+        qtyStep() +
+        '" min="0" value="' +
+        escAttr(ln.qty) +
+        '" ' +
+        (posted ? 'readonly' : '') +
+        '></td>' +
+        '<td><input class="js-qty-extra" type="number" step="' +
+        qtyStep() +
+        '" min="0" value="' +
+        escAttr(ln.qty_extra || 0) +
+        '" ' +
+        (posted ? 'readonly' : '') +
+        '></td>' +
+        '<td><input class="js-price" type="number" step="' +
+        priceStep() +
+        '" min="0" value="' +
+        escAttr(ln.unit_price) +
+        '" readonly title="من بطاقة المادة (أقل وحدة × التعبئة) — غير قابل للتعديل">' +
+        '</td>' +
+        '<td><input class="js-disc" type="number" step="' +
+        qtyStep() +
+        '" min="0" max="100" value="' +
+        escAttr(ln.discount_pct || 0) +
+        '" ' +
+        (posted ? 'readonly' : '') +
+        '></td>' +
+        '<td>' +
+        taxSelectHtml(ln.tax_rate_percent != null ? ln.tax_rate_percent : defaultTax, posted) +
+        '</td>' +
+        '<td class="js-sub si-num-out" dir="ltr">' +
+        fmt(t.sub) +
+        '</td>' +
+        '<td class="js-gross si-num-out" dir="ltr">' +
+        fmt(t.gross) +
+        '</td>' +
+        '<td>' +
+        (posted ? '' : '<button type="button" class="si-del js-del" title="حذف">×</button>') +
+        '</td>';
+      tbody.appendChild(tr);
+      bindRow(tr);
+    });
+    recomputeFooter();
+  }
+
+  function escAttr(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  function placeFloatSuggest(box, anchor) {
+    if (!box || !anchor) return;
+    var r = anchor.getBoundingClientRect();
+    var width = Math.max(r.width, 280);
+    var left = r.left;
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8);
+    }
+    box.classList.add('si-suggest--float');
+    box.style.width = width + 'px';
+    box.style.left = left + 'px';
+    box.style.top = r.bottom + 3 + 'px';
+    box.style.right = 'auto';
+  }
+
+  function closeFloatSuggest(box) {
+    if (!box) return;
+    box.hidden = true;
+    box.setAttribute('hidden', '');
+    box.classList.remove('si-suggest--float');
+    box.style.left = '';
+    box.style.top = '';
+    box.style.width = '';
+    var cell = box.closest('.si-item-cell');
+    if (cell) cell.classList.remove('is-open');
+  }
+
+  function removeLineAt(idx) {
+    if (posted) return;
+    idx = Number(idx);
+    if (!Number.isFinite(idx) || idx < 0) return;
+    syncLinesFromDom();
+    if (!state.lines || !state.lines[idx]) return;
+    state.lines.splice(idx, 1);
+    if (!state.lines.length) addEmptyLine();
+    else renderLines();
+    // حذف البند دون رسالة — تثبيت صامت في القاعدة إن وُجدت فاتورة
+    if (state.id) {
+      saveInvoice(null, { allowEmptyLines: true, silent: true });
+    }
+  }
+
+  function bindRow(tr) {
+    ['js-qty', 'js-qty-extra', 'js-disc', 'js-tax'].forEach(function (cls) {
+      var el = tr.querySelector('.' + cls);
+      if (!el) return;
+      var ev = el.tagName === 'SELECT' ? 'change' : 'input';
+      el.addEventListener(ev, function () {
+        readLineFromRow(tr);
+        if (cls === 'js-qty' && window.HxOffers) {
+          var idx = Number(tr.getAttribute('data-idx'));
+          var ln = state.lines[idx];
+          window.HxOffers.refreshLine({
+            idx: idx,
+            ln: ln,
+            tr: tr,
+            onDone: function () {
+              readLineFromRow(tr);
+            },
+          });
+        }
+      });
+    });
+    var unitEl = tr.querySelector('.js-unit');
+    if (unitEl) {
+      unitEl.addEventListener('change', function () {
+        var idx = Number(tr.getAttribute('data-idx'));
+        var ln = state.lines[idx] || {};
+        var opt = unitEl.selectedOptions && unitEl.selectedOptions[0];
+        if (opt) {
+          ln.unit_id = Number(unitEl.value) || 0;
+          ln.unit_factor = Number(opt.getAttribute('data-factor')) || 1;
+          ln.unit_name = opt.getAttribute('data-name') || '';
+          ln.unit_price = unitSalePrice(activeBaseOfLine(ln), ln.unit_factor);
+          state.lines[idx] = ln;
+          var priceEl = tr.querySelector('.js-price');
+          if (priceEl) priceEl.value = String(ln.unit_price);
+        }
+        readLineFromRow(tr);
+      });
+    }
+    // حذف البند — التفويض العام على tbody أدناه
+    var itemInput = tr.querySelector('.js-item');
+    var suggest = tr.querySelector('.js-item-suggest');
+    if (itemInput && suggest && !posted) {
+      itemInput.addEventListener('input', function () {
+        var idx = Number(tr.getAttribute('data-idx'));
+        // مسح اختيار المادة عند التعديل اليدوي
+        var hid = tr.querySelector('.js-item-id');
+        if (hid) hid.value = '';
+        clearTimeout(itemTimers[idx]);
+        itemTimers[idx] = setTimeout(function () {
+          searchItems(itemInput.value, suggest, tr, itemInput);
+        }, 200);
+      });
+      itemInput.addEventListener('focus', function () {
+        searchItems(itemInput.value || '', suggest, tr, itemInput);
+      });
+      itemInput.addEventListener('click', function () {
+        searchItems(itemInput.value || '', suggest, tr, itemInput);
+      });
+    }
+  }
+
+  function searchItems(q, box, tr, anchor) {
+    var urls = [
+      '/api/items?q=' + encodeURIComponent(q || ''),
+      '/api/lookup/items?q=' + encodeURIComponent(q || ''),
+    ];
+    function tryFetch(i) {
+      if (i >= urls.length) {
+        showItemSuggest(box, anchor, tr, {
+          ok: false,
+          error: 'تعذر تحميل المواد',
+        });
+        return;
+      }
+      fetch(urls[i], {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          showItemSuggest(box, anchor, tr, data || { ok: false });
+        })
+        .catch(function () {
+          tryFetch(i + 1);
+        });
+    }
+    tryFetch(0);
+  }
+
+  function showItemSuggest(box, anchor, tr, data) {
+    if (!box) return;
+    box.innerHTML = '';
+    var cell = box.closest('.si-item-cell');
+    if (cell) cell.classList.add('is-open');
+
+    if (!data || !data.ok) {
+      var err = document.createElement('div');
+      err.className = 'si-suggest-empty';
+      err.style.cssText = 'padding:.65rem .8rem;color:#b91c1c;font-size:.85rem';
+      err.textContent = (data && data.error) || 'تعذر تحميل المواد';
+      box.appendChild(err);
+      box.hidden = false;
+      box.removeAttribute('hidden');
+      placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+      return;
+    }
+
+    var rows = data.rows || [];
+    if (!rows.length) {
+      var empty = document.createElement('div');
+      empty.className = 'si-suggest-empty';
+      empty.style.cssText = 'padding:.65rem .8rem;color:#64748b;font-size:.85rem';
+      empty.textContent = 'لا توجد مواد. أضف أصنافاً من المخزون → المواد والأصناف.';
+      box.appendChild(empty);
+      box.hidden = false;
+      box.removeAttribute('hidden');
+      placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+      return;
+    }
+
+    rows.slice(0, 40).forEach(function (it) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent =
+        (it.code || it.sku || '') +
+        ' — ' +
+        (it.name_ar || '') +
+        ' · ' +
+        fmt(it.sale_price);
+      b.addEventListener('mousedown', function (e) {
+        // قبل blur حتى لا تُغلق القائمة قبل الاختيار
+        e.preventDefault();
+      });
+      b.addEventListener('click', function () {
+        var idx = Number(tr.getAttribute('data-idx'));
+        state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
+        closeFloatSuggest(box);
+        renderLines();
+      });
+      box.appendChild(b);
+    });
+    box.hidden = false;
+    box.removeAttribute('hidden');
+    placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+  }
+
+  function addEmptyLine() {
+    state.lines = state.lines || [];
+    state.lines.push({
+      item_id: 0,
+      item_code: '',
+      name_ar: '',
+      qty: 1,
+      qty_extra: 0,
+      unit_price: 0,
+      base_sale: 0,
+      unit_id: 0,
+      unit_name: 'قطعة',
+      unit_factor: 1,
+      units: [],
+      discount_pct: 0,
+      tax_rate_percent: defaultTax,
+    });
+    renderLines();
+  }
+
+  document.addEventListener('hx:item-picked', function (e) {
+    if (posted || !document.getElementById('si-lines-body')) return;
+    var it = e.detail;
+    if (!it || !it.id) return;
+    e.preventDefault();
+    var idx = -1;
+    for (var i = 0; i < (state.lines || []).length; i++) {
+      if (!state.lines[i] || !state.lines[i].item_id) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) {
+      addEmptyLine();
+      idx = state.lines.length - 1;
+    }
+    state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
+    renderLines();
+    setTimeout(function () {
+      var tr = tbody && tbody.querySelector('tr[data-idx="' + idx + '"]');
+      var q = tr && tr.querySelector('.js-qty');
+      if (q) q.focus();
+    }, 40);
+  });
+
+  document.addEventListener('hx:customer-picked', function (e) {
+    if (posted || !document.getElementById('inv_customer')) return;
+    var c = e.detail;
+    if (!c || !c.id) return;
+    if (custInput) {
+      custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
+    }
+    if (custId) custId.value = c.id;
+    if (custBox) {
+      custBox.hidden = true;
+      custBox.setAttribute('hidden', '');
     }
     e.preventDefault();
+  });
 
-    var rows = listNavRows();
-    var rowIdx = rows.indexOf(tr);
-    if (rowIdx < 0) return true;
+  document.addEventListener('hx:add-line', function (e) {
+    if (posted) return;
+    if (!document.getElementById('si-lines-body')) return;
+    e.preventDefault();
+    addEmptyLine();
+  });
 
-    var fields = getRowNavFields(tr);
-    var colIdx = fields.indexOf(el);
-    if (colIdx < 0) {
-      if (!rowHasItem(tr)) {
-        focusRowItemPick(tr);
-      }
-      return true;
-    }
+  document.addEventListener('hx:save', function (e) {
+    if (!document.getElementById('si-save')) return;
+    e.preventDefault();
+    saveInvoice();
+  });
 
-    var isRtl = document.documentElement.getAttribute('dir') === 'rtl';
-    var dRow = 0;
-    var dCol = 0;
-    if (key === 'ArrowUp') dRow = -1;
-    else if (key === 'ArrowDown') dRow = 1;
-    else if (key === 'ArrowRight') dCol = isRtl ? -1 : 1;
-    else if (key === 'ArrowLeft') dCol = isRtl ? 1 : -1;
+  // customer search
+  var custInput = document.getElementById('inv_customer');
+  var custId = document.getElementById('inv_customer_id');
+  var custBox = document.getElementById('cust_suggest');
 
-    if (dCol !== 0) {
-      var newCol = colIdx + dCol;
-      if (newCol >= 0 && newCol < fields.length) {
-        focusFieldEl(fields[newCol]);
-      }
-      return true;
-    }
-
-    if (dRow !== 0) {
-      if (rowNeedsQtyInput(tr)) {
-        focusRowQtyField(tr);
-        return true;
-      }
-      var newRowIdx = rowIdx + dRow;
-      while (newRowIdx >= 0 && newRowIdx < rows.length) {
-        var targetRow = rows[newRowIdx];
-        if (!rowHasItem(targetRow)) {
-          if (blockItemPickUntilQty(targetRow, { alert: false, actionLabel: 'الانتقال لسطر جديد' })) {
-            return true;
-          }
-          focusRowItemPick(targetRow);
-          return true;
-        }
-        var targetFields = getRowNavFields(targetRow);
-        if (targetFields.length) {
-          var pickCol = Math.min(colIdx, targetFields.length - 1);
-          focusFieldEl(targetFields[pickCol]);
-          return true;
-        }
-        newRowIdx += dRow;
-      }
-    }
-    return true;
-  }
-
-  function escapeHtml(s) {
-    var d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
-  }
-
-  function newLineId() {
-    return 'L' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
-  }
-
-  function clearHeaderDiscountMode(clearLineDiscountInputs) {
-    headerDiscountMode = false;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      delete tr.dataset.headerDiscShare;
-      var dEl = tr.querySelector('.js-discount');
-      if (dEl) {
-        dEl.readOnly = false;
-        if (clearLineDiscountInputs || dEl.classList.contains('is-header-discount')) {
-          dEl.value = '';
-        }
-        dEl.classList.remove('is-header-discount');
-      }
-    });
-  }
-
-  function isDiscountInputEmpty(tr) {
-    var el = tr.querySelector('.js-discount');
-    if (!el) return true;
-    return String(el.value || '').trim() === '';
-  }
-
-  function getLineDiscountAmount(tr, lineBase) {
-    if (!(lineBase > 0)) {
-      return 0;
-    }
-    if (headerDiscountMode && tr.dataset.headerDiscShare != null && tr.dataset.headerDiscShare !== '') {
-      return roundMoney(parseNum(tr.dataset.headerDiscShare));
-    }
-    var el = tr.querySelector('.js-discount');
-    if (!el || !global.InvDiscount) {
-      return 0;
-    }
-    return global.InvDiscount.amountForBase(lineBase, el.value, roundMoney);
-  }
-
-  function recalcAllItemRows(forceUnitDriver) {
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (!getRowItemId(tr)) return;
-      var src = forceUnitDriver ? 'unit' : rowAmountSource(tr);
-      if (forceUnitDriver) tr.dataset.amountDriver = 'unit';
-      recalcRow(tr, src);
-    });
-  }
-
-  function getLineMerchandiseBeforeTax(tr) {
-    var q = parseNum(tr.querySelector('.js-qty') ? tr.querySelector('.js-qty').value : 0);
-    if (!(q > 0)) return 0;
-    var p = parseNum(tr.querySelector('.js-price') ? tr.querySelector('.js-price').value : 0);
-    var fromPrice = roundMoney(q * p);
-    var listUp = parseNum(tr.dataset.listUnitPrice);
-    var fromList = listUp > 0 ? roundMoney(q * listUp) : 0;
-    var fromParts = roundMoney(parseNum(tr.dataset.sub) + parseNum(tr.dataset.disc));
-    return Math.max(fromPrice, fromList, fromParts);
-  }
-
-  function applyHeaderDiscount() {
-    var inpEl = document.getElementById('inv-invoice-discount');
-    if (!inpEl || !global.InvDiscount) {
+  function renderCustomerSuggestions(data) {
+    if (!custBox) return;
+    custBox.innerHTML = '';
+    var rows = (data && data.rows) || [];
+    if (!data || !data.ok) {
+      var err = document.createElement('div');
+      err.className = 'si-suggest-empty';
+      err.textContent = (data && data.error) || 'تعذر تحميل العملاء';
+      err.style.cssText = 'padding:.65rem .8rem;color:#b91c1c;font-size:.85rem';
+      custBox.appendChild(err);
+      custBox.hidden = false;
       return;
     }
-    var raw = String(inpEl.value || '').trim();
-    if (!raw) {
-      clearHeaderDiscountMode(true);
-      recalcAllItemRows(true);
-      recalcFooter();
-      syncJson();
-      return;
-    }
-    headerDiscountMode = false;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      delete tr.dataset.headerDiscShare;
-    });
-    var bases = [];
-    var rows = [];
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (!getRowItemId(tr)) return;
-      recalcRow(tr, rowAmountSource(tr));
-      rows.push(tr);
-      bases.push(getLineMerchandiseBeforeTax(tr));
-    });
     if (!rows.length) {
+      var empty = document.createElement('div');
+      empty.className = 'si-suggest-empty';
+      empty.textContent = 'لا يوجد عملاء مطابقون. أضف عميلاً من قائمة العملاء.';
+      empty.style.cssText = 'padding:.65rem .8rem;color:#64748b;font-size:.85rem';
+      custBox.appendChild(empty);
+      custBox.hidden = false;
       return;
     }
-    var sumPreTax = 0;
-    rows.forEach(function (tr) {
-      sumPreTax += roundMoney(parseNum(tr.dataset.sub));
+    rows.slice(0, 25).forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
+      b.addEventListener('click', function () {
+        if (custId) custId.value = c.id;
+        custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
+        setCustomerPriceMode(c);
+        custBox.hidden = true;
+      });
+      custBox.appendChild(b);
     });
-    if (!(sumPreTax > 0)) {
-      sumPreTax = bases.reduce(function (a, b) {
-        return a + b;
-      }, 0);
-    }
-    var totalDisc = global.InvDiscount.amountForHeaderBase
-      ? InvDiscount.amountForHeaderBase(sumPreTax, raw, roundMoney)
-      : InvDiscount.amountForBase(sumPreTax, raw, roundMoney);
-    var parts = global.InvDiscount.distribute(totalDisc, bases, roundMoney);
-    headerDiscountMode = true;
-    rows.forEach(function (tr, i) {
-      tr.dataset.headerDiscShare = String(parts[i] || 0);
-      var dEl = tr.querySelector('.js-discount');
-      if (dEl) {
-        dEl.readOnly = true;
-        dEl.classList.add('is-header-discount');
-        var amt = parts[i] || 0;
-        dEl.value = formatAmountValue(amt, '');
+    custBox.hidden = false;
+  }
+
+  function searchCustomers(q) {
+    return fetch('/api/customers?q=' + encodeURIComponent(q || ''), {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('http ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        renderCustomerSuggestions(data);
+        if (custBox) {
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+        }
+      })
+      .catch(function () {
+        renderCustomerSuggestions({ ok: false, error: 'تعذر الاتصال بخدمة العملاء' });
+        if (custBox) {
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+        }
+      });
+  }
+
+  if (custInput && custBox && !posted) {
+    custInput.addEventListener('focus', function () {
+      searchCustomers(custInput.value || '');
+    });
+    custInput.addEventListener('click', function () {
+      if (custBox.hidden) searchCustomers(custInput.value || '');
+    });
+    custInput.addEventListener('input', function () {
+      if (custId) custId.value = '';
+      setCustomerPriceMode({ use_wholesale_price: 0 });
+      clearTimeout(custTimer);
+      custTimer = setTimeout(function () {
+        searchCustomers(custInput.value || '');
+      }, 220);
+    });
+    document.addEventListener('click', function (e) {
+      if (!custBox.contains(e.target) && e.target !== custInput) {
+        custBox.hidden = true;
+        custBox.setAttribute('hidden', '');
       }
     });
-    recalcAllItemRows();
-    recalcFooter();
-    syncJson();
   }
 
-  /** تطبيق خصم الفاتورة وتحديث البنود قبل الطباعة أو المعاينة. */
-  function ensureDiscountsBeforePrint() {
-    var hdr = document.getElementById('inv-invoice-discount');
-    var hdrRaw = hdr ? String(hdr.value || '').trim() : '';
-    if (hdrRaw || headerDiscountMode) {
-      applyHeaderDiscount();
-      return;
-    }
-    recalcAllItemRows();
-    recalcFooter();
-  }
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('.js-item-suggest').forEach(function (box) {
+      var cell = box.closest('.si-item-cell') || box.parentElement;
+      var inp = cell ? cell.querySelector('.js-item') : null;
+      if (!box.contains(e.target) && e.target !== inp && !(cell && cell.contains(e.target))) {
+        closeFloatSuggest(box);
+      }
+    });
+  });
+  window.addEventListener(
+    'scroll',
+    function () {
+      document.querySelectorAll('.js-item-suggest:not([hidden])').forEach(function (box) {
+        var cell = box.closest('.si-item-cell');
+        var inp = cell && cell.querySelector('.js-item');
+        if (inp && !box.hidden) placeFloatSuggest(box, inp);
+      });
+    },
+    true
+  );
 
-  function onLineDiscountEdited(tr) {
-    clearHeaderDiscountMode(false);
-    var hdr = document.getElementById('inv-invoice-discount');
-    if (hdr) hdr.value = '';
-    tr.dataset.amountDriver = 'unit';
-    recalcRow(tr, 'unit');
-    recalcFooter();
-    syncJson();
-  }
+  var disc = document.getElementById('inv_discount');
+  if (disc) disc.addEventListener('input', recomputeFooter);
 
-  function hasExplicitLineDiscount(tr) {
-    if (headerDiscountMode) return true;
-    return !isDiscountInputEmpty(tr);
-  }
-
-  function resolveLineBaseFromNetSub(tr, sub) {
-    if (!(sub > 0)) return 0;
-    if (isDiscountInputEmpty(tr)) return sub;
-    var discEl = tr.querySelector('.js-discount');
-    if (!discEl || !global.InvDiscount) return sub;
-    var p = global.InvDiscount.parseInput(discEl.value);
-    if (!p) return sub;
-    if (p.type === 'percent') {
-      var factor = 1 - p.value / 100;
-      if (factor <= 0) return sub;
-      return roundMoney(sub / factor);
-    }
-    return roundMoney(sub + p.value);
-  }
-
-  function recalcRow(tr, source, opts) {
+  function saveInvoice(then, opts) {
     opts = opts || {};
-    if (!getRowItemId(tr)) {
-      clearRowAmounts(tr);
-      return;
+    if (posted) {
+      if (!opts.silent) setMsg('الفاتورة مرحّلة — الحفظ غير متاح.', 'error');
+      return Promise.resolve(null);
     }
-    source = source || rowAmountSource(tr);
-    var qtyEl = tr.querySelector('.js-qty');
-    var priceEl = tr.querySelector('.js-price');
-    var subInp = tr.querySelector('input.js-line-sub');
-    var grossInp = tr.querySelector('input.js-line-gross') || tr.querySelector('.js-line-gross');
-    var taxAmtEl = tr.querySelector('.js-tax-amt');
-    if (!taxAmtEl) return;
-    var qty = parseNum(qtyEl ? qtyEl.value : 0);
-    if (qty <= 0) qty = 0;
-    var taxSel = tr.querySelector('.js-tax');
-    var rate = 0;
-    if (taxSel && taxSel.options && taxSel.options.length > 0) {
-      var tIdx = taxSel.selectedIndex >= 0 ? taxSel.selectedIndex : 0;
-      rate = parseNum(taxSel.options[tIdx].getAttribute('data-rate'));
-    }
-    var sub;
-    var price;
-    var lineBase;
-    var discountAmt;
-    var taxAmt;
-    var gross;
-    var taxFactor = 1 + rate / 100;
-
-    if (source === 'gross') {
-      gross = roundMoney(parseNum(grossInp ? grossInp.value : tr.dataset.gross));
-      if (!hasExplicitLineDiscount(tr)) {
-        sub = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
-        price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
-        lineBase = sub;
-        discountAmt = 0;
-        taxAmt = roundMoney(gross - sub);
-      } else {
-        sub = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
-        taxAmt = roundMoney(gross - sub);
-        lineBase = resolveLineBaseFromNetSub(tr, sub);
-        discountAmt = roundMoney(Math.max(0, lineBase - sub));
-        price = qty > 0 ? roundUnitPrice(lineBase / qty) : 0;
-      }
-      tr.dataset.lineBase = String(lineBase);
-      tr.dataset.lineMerch = String(lineBase);
-      if (priceEl && document.activeElement !== priceEl) {
-        priceEl.value = formatUnitPriceValue(price, String(price));
-      }
-      if (subInp && document.activeElement !== subInp) {
-        subInp.value = formatAmountValue(sub, subInp.value);
-      }
-      if (grossInp && (opts.normalizeStored || document.activeElement !== grossInp)) {
-        grossInp.value = formatAmountValue(gross, grossInp.value);
-      }
-      tr.dataset.amountDriver = 'gross';
-    } else if (source === 'unit_incl') {
-      var priceInclEl = tr.querySelector('.js-price-incl');
-      if (!priceInclEl) {
-        source = 'unit';
-      } else {
-        var priceInclVal = parseNum(priceInclEl.value);
-        if (opts.normalizeStored) {
-          priceInclVal = roundUnitPriceIncl(priceInclVal);
-          if (document.activeElement !== priceInclEl) {
-            priceInclEl.value =
-              formatUnitPriceInclValue(priceInclVal, priceInclEl.value);
+    var payload = buildPayload();
+    if (!validatePayload(payload, opts)) return Promise.resolve(null);
+    if (!opts.silent) setMsg('جاري الحفظ…');
+    setBusy(true);
+    return fetch('/api/sales/invoices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data.ok) {
+          setBusy(false);
+          setMsg(data.error || 'تعذر الحفظ', 'error');
+          return null;
+        }
+        // حدّث id قبل فك القفل حتى applyToolbarState تُفعّل الطباعة فوراً
+        state.id = data.id;
+        if (data.invoice_no) {
+          var noEl = document.getElementById('inv_no');
+          if (noEl) noEl.value = data.invoice_no;
+          state.invoice_no = data.invoice_no;
+        }
+        setBusy(false);
+        if (!opts.silent) {
+          setMsg(data.message || 'تم الحفظ بدون قيود محاسبية · ' + (data.invoice_no || ''), 'ok');
+        } else if (msgEl) {
+          msgEl.textContent = '';
+          msgEl.className = 'si-msg';
+        }
+        // عنوان الصفحة + الرابط
+        if (data.invoice_no) {
+          try {
+            document.title = document.title.replace(
+              /^فاتورة مبيعات جديدة|^فاتورة\s+\S+/,
+              'فاتورة ' + data.invoice_no
+            );
+            var h1 = document.querySelector('.si-hero h1');
+            if (h1) h1.textContent = 'فاتورة ' + data.invoice_no;
+          } catch (e) {
+            /* ignore */
           }
         }
-        gross = roundMoney(qty * priceInclVal);
-        if (!hasExplicitLineDiscount(tr)) {
-          sub = taxFactor > 0 ? roundMoney(gross / taxFactor) : gross;
-          price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
-          lineBase = sub;
-          discountAmt = 0;
-          taxAmt = roundMoney(gross - sub);
-        } else {
-          price = taxFactor > 0 ? roundUnitPrice(priceInclVal / taxFactor) : 0;
-          lineBase = qty > 0 ? roundMoney(qty * price) : 0;
-          discountAmt = getLineDiscountAmount(tr, lineBase);
-          sub = roundMoney(Math.max(0, lineBase - discountAmt));
-          var inclDiscTax = lineTaxAndGrossFromSub(sub, rate);
-          taxAmt = inclDiscTax.tax;
-          gross = inclDiscTax.gross;
-          price = qty > 0 ? roundUnitPrice(lineBase / qty) : 0;
+        if (typeof then === 'function') return then(data);
+        // فاتورة جديدة: حدّث الرابط دون إعادة تحميل كاملة (لتبقى التعديلات متاحة فوراً)
+        if (data.id && /\/sales\/invoices\/new\/?$/.test(location.pathname)) {
+          try {
+            history.replaceState({}, '', '/sales/invoices/' + data.id);
+          } catch (e) {
+            /* ignore */
+          }
         }
-        tr.dataset.lineBase = String(lineBase);
-        tr.dataset.lineMerch = String(lineBase);
-        if (priceEl && document.activeElement !== priceEl) {
-          priceEl.value = formatUnitPriceValue(price, String(price));
-        }
-        if (subInp && document.activeElement !== subInp) {
-          subInp.value = formatAmountValue(sub, subInp.value);
-        }
-        if (grossInp && (opts.normalizeStored || document.activeElement !== grossInp)) {
-          grossInp.value = formatAmountValue(gross, grossInp.value);
-        }
-        tr.dataset.amountDriver = 'unit_incl';
-      }
-    }
+        return data;
+      })
+      .catch(function () {
+        setBusy(false);
+        setMsg('تعذر الاتصال بالخادم', 'error');
+        return null;
+      });
+  }
 
-    if (source !== 'gross' && source !== 'unit_incl') {
-      if (rowAmountSource(tr) === 'gross') {
-        recalcRow(tr, 'gross', opts);
+  function postInvoice() {
+    if (posted) {
+      setMsg('الفاتورة مرحّلة مسبقاً.', 'error');
+      return;
+    }
+    var payload = buildPayload();
+    if (!validatePayload(payload)) return;
+    var ask =
+      window.HypexUI && window.HypexUI.confirm
+        ? window.HypexUI.confirm(
+            'سيتم: إنشاء القيود المحاسبية + خصم المستودع، ثم الإرسال إلى الفوترة الإلكترونية.',
+            { title: 'ترحيل الفاتورة؟', okLabel: 'ترحيل', cancelLabel: 'إلغاء' }
+          )
+        : Promise.resolve(
+            window.confirm(
+              'ترحيل الفاتورة؟\nسيتم: إنشاء القيود المحاسبية + خصم المستودع، ثم الإرسال إلى الفوترة الإلكترونية.'
+            )
+          );
+    ask.then(function (ok) {
+      if (!ok) return;
+      setMsg('جاري الحفظ ثم الترحيل…');
+      setBusy(true);
+      fetch('/api/sales/invoices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (saved) {
+          if (!saved.ok) {
+            setBusy(false);
+            setMsg(saved.error || 'تعذر الحفظ قبل الترحيل', 'error');
+            return null;
+          }
+          state.id = saved.id;
+          setMsg('تم الحفظ — جاري الترحيل والفوترة…');
+          return fetch('/api/sales/invoices/' + saved.id + '/post', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auto_einvoice: true }),
+          }).then(function (r) {
+            return r.json();
+          });
+        })
+        .then(function (data) {
+          setBusy(false);
+          if (!data) return;
+          if (!data.ok) {
+            setMsg(data.error || data.message || 'تعذر الترحيل', 'error');
+            return;
+          }
+          setMsg(data.message || 'تم الترحيل.', 'ok');
+          setTimeout(function () {
+            window.location.href = '/sales/invoices/' + (data.invoice_id || state.id);
+          }, 600);
+        })
+        .catch(function () {
+          setBusy(false);
+          setMsg('تعذر الاتصال بالخادم', 'error');
+        });
+    });
+  }
+
+  function unpostInvoice() {
+    if (!state.id || !posted) return;
+    var ask =
+      window.HypexUI && window.HypexUI.confirm
+        ? window.HypexUI.confirm('فك ترحيل الفاتورة؟ (عكس القيود وإرجاع المخزون)', {
+            title: 'فك الترحيل',
+            okLabel: 'فك الترحيل',
+            cancelLabel: 'إلغاء',
+            danger: true,
+          })
+        : Promise.resolve(window.confirm('فك ترحيل الفاتورة؟ (عكس القيود وإرجاع المخزون)'));
+    ask.then(function (ok) {
+      if (!ok) return;
+      setBusy(true);
+      setMsg('جاري فك الترحيل…');
+      fetch('/api/sales/invoices/' + state.id + '/unpost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          setBusy(false);
+          if (!data.ok) {
+            setMsg(data.error || data.message || 'تعذر فك الترحيل', 'error');
+            return;
+          }
+          setMsg(data.message || 'تم فك الترحيل', 'ok');
+          setTimeout(function () {
+            location.reload();
+          }, 500);
+        })
+        .catch(function () {
+          setBusy(false);
+          setMsg('تعذر الاتصال', 'error');
+        });
+    });
+  }
+
+  function deleteInvoice() {
+    if (!state.id || posted) {
+      setMsg(posted ? 'لا يمكن حذف فاتورة مرحّلة.' : 'احفظ الفاتورة أولاً.', 'error');
+      return;
+    }
+    var invNo = state.invoice_no || String(state.id);
+    var warnMsg =
+      'تحذير: سيتم أولاً حذف جميع بنود المواد من الفاتورة، ثم حذف الفاتورة نفسها نهائياً.\n\n' +
+      'رقم الفاتورة: ' +
+      invNo +
+      '\n\n' +
+      'لا يمكن التراجع عن هذه العملية.';
+    var ask =
+      window.HypexUI && window.HypexUI.confirm
+        ? window.HypexUI.confirm(warnMsg, {
+            title: 'حذف الفاتورة',
+            okLabel: 'حذف نهائياً',
+            cancelLabel: 'إلغاء',
+            danger: true,
+            kind: 'warn',
+          })
+        : Promise.resolve(window.confirm(warnMsg));
+    ask.then(function (ok) {
+      if (!ok) return;
+      setBusy(true);
+      setMsg('جاري حذف البنود ثم الفاتورة…');
+      fetch('/api/sales/invoices/' + state.id + '/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          setBusy(false);
+          if (!data.ok) {
+            setMsg(data.error || data.message || 'تعذر الحذف', 'error');
+            return;
+          }
+          if (window.HypexUI && window.HypexUI.toast) {
+            window.HypexUI.toast(data.message || 'تم حذف الفاتورة', 'ok', 2500);
+          }
+          window.location.href = '/sales/invoices';
+        })
+        .catch(function () {
+          setBusy(false);
+          setMsg('تعذر الاتصال', 'error');
+        });
+    });
+  }
+
+  function sendEinvoice() {
+    if (!state.id || !posted) {
+      setMsg('يجب ترحيل الفاتورة قبل الإرسال إلى الفوترة.', 'error');
+      return;
+    }
+    var ask =
+      window.HypexUI && window.HypexUI.confirm
+        ? window.HypexUI.confirm('إرسال الفاتورة إلى الفوترة الإلكترونية؟', {
+            title: 'الفوترة',
+            okLabel: 'إرسال',
+            cancelLabel: 'إلغاء',
+          })
+        : Promise.resolve(window.confirm('إرسال الفاتورة إلى الفوترة الإلكترونية؟'));
+    ask.then(function (ok) {
+      if (!ok) return;
+      setBusy(true);
+      setMsg('جاري الإرسال للفوترة…');
+      fetch('/api/sales/invoices/' + state.id + '/einvoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          setBusy(false);
+          if (!data.ok) {
+            setMsg(data.error || data.message || 'فشل الإرسال', 'error');
+            return;
+          }
+          setMsg(data.message || 'تم الإرسال', 'ok');
+        })
+        .catch(function () {
+          setBusy(false);
+          setMsg('تعذر الاتصال', 'error');
+        });
+    });
+  }
+
+  function exportExcel() {
+    if (!state.id) {
+      setMsg('احفظ الفاتورة أولاً.', 'error');
+      return;
+    }
+    syncLinesFromDom();
+    var rows = [
+      ['#', 'رمز', 'مادة', 'كمية', 'إضافية', 'سعر', 'خصم%', 'ضريبة%', 'صافي', 'إجمالي'],
+    ];
+    (state.lines || []).forEach(function (ln, i) {
+      if (!ln.item_id) return;
+      var t = lineTotals(ln);
+      rows.push([
+        i + 1,
+        ln.item_code || '',
+        ln.name_ar || '',
+        ln.qty,
+        ln.qty_extra || 0,
+        ln.unit_price,
+        ln.discount_pct || 0,
+        ln.tax_rate_percent || 0,
+        t.sub,
+        t.gross,
+      ]);
+    });
+    var csv = rows
+      .map(function (r) {
+        return r
+          .map(function (c) {
+            var s = String(c == null ? '' : c).replace(/"/g, '""');
+            return '"' + s + '"';
+          })
+          .join(',');
+      })
+      .join('\r\n');
+    var bom = '\uFEFF';
+    var blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'invoice_' + (state.invoice_no || state.id) + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setMsg('تم تصدير Excel (CSV).', 'ok');
+  }
+
+  function openPrint(pdf) {
+    if (!state.id) {
+      setMsg('احفظ الفاتورة أولاً.', 'error');
+      return;
+    }
+    // معاينة الطباعة — حوار النظام يُفتح فقط بعد الضغط على «طباعة» في صفحة المعاينة
+    window.open('/sales/invoices/' + state.id + '/print', '_blank');
+  }
+
+  // toolbar bindings
+  if (tbody && !tbody._hxDelBound) {
+    tbody._hxDelBound = true;
+    tbody.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.js-del') : null;
+      if (!btn || posted) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var tr = btn.closest('tr');
+      if (!tr) return;
+      removeLineAt(Number(tr.getAttribute('data-idx')));
+    });
+  }
+
+  var saveBtn = document.getElementById('si-save');
+  if (saveBtn) saveBtn.addEventListener('click', function () {
+    if (busy || posted) return;
+    saveInvoice();
+  });
+
+  var postBtn = document.getElementById('si-post');
+  if (postBtn) postBtn.addEventListener('click', function () {
+    if (busy || posted) return;
+    postInvoice();
+  });
+
+  var unpostBtn = document.getElementById('si-unpost');
+  if (unpostBtn) unpostBtn.addEventListener('click', unpostInvoice);
+
+  var delBtn = document.getElementById('si-delete');
+  if (delBtn) delBtn.addEventListener('click', deleteInvoice);
+
+  var einvBtn = document.getElementById('si-einvoice');
+  if (einvBtn) einvBtn.addEventListener('click', sendEinvoice);
+
+  var printBtn = document.getElementById('si-print');
+  if (printBtn) printBtn.addEventListener('click', function () {
+    openPrint(false);
+  });
+
+  var pdfBtn = document.getElementById('si-pdf');
+  if (pdfBtn) pdfBtn.addEventListener('click', function () {
+    openPrint(true);
+  });
+
+  var excelBtn = document.getElementById('si-excel');
+  if (excelBtn) excelBtn.addEventListener('click', exportExcel);
+
+  var searchBtn = document.getElementById('si-search');
+  if (searchBtn) {
+    searchBtn.addEventListener('click', function () {
+      window.location.href = '/sales/invoices';
+    });
+  }
+
+  var archiveBtn = document.getElementById('si-archive');
+  if (archiveBtn) {
+    archiveBtn.addEventListener('click', function () {
+      if (!state.id) {
+        setMsg('احفظ الفاتورة أولاً.', 'error');
         return;
       }
-      price = parseNum(priceEl ? priceEl.value : 0);
-      if (opts.normalizeStored) price = roundUnitPrice(price);
-      lineBase = qty > 0 ? roundMoney(qty * price) : 0;
-      tr.dataset.lineBase = String(lineBase);
-      tr.dataset.lineMerch = String(lineBase);
-
-      if (source === 'subtotal' && subInp) {
-        if (!hasExplicitLineDiscount(tr)) {
-          sub = roundMoney(parseNum(subInp.value));
-          price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
-          lineBase = sub;
-          discountAmt = 0;
-          if (priceEl && document.activeElement !== priceEl) {
-            priceEl.value = formatUnitPriceValue(price, String(price));
-          }
-          if (opts.normalizeStored || document.activeElement !== subInp) {
-            subInp.value = formatAmountValue(sub, subInp.value);
-          }
-          var subNoDiscTax = lineTaxAndGrossFromSub(sub, rate);
-          gross = subNoDiscTax.gross;
-          taxAmt = subNoDiscTax.tax;
-        } else {
-          discountAmt = getLineDiscountAmount(tr, lineBase);
-          if (document.activeElement === subInp && isDiscountInputEmpty(tr)) {
-            sub = roundMoney(parseNum(subInp.value));
-            discountAmt = roundMoney(Math.max(0, lineBase - sub));
-          } else {
-            sub = roundMoney(Math.max(0, lineBase - discountAmt));
-          }
-          price = qty > 0 ? roundUnitPrice(sub / qty) : 0;
-          if (priceEl && document.activeElement !== priceEl) {
-            priceEl.value = formatUnitPriceValue(price, String(price));
-          }
-          if (opts.normalizeStored || document.activeElement !== subInp) {
-            subInp.value = formatAmountValue(sub, subInp.value);
-          }
-          var subDiscTax = lineTaxAndGrossFromSub(sub, rate);
-          gross = subDiscTax.gross;
-          taxAmt = subDiscTax.tax;
-        }
-        tr.dataset.amountDriver = 'subtotal';
-      } else {
-        discountAmt = getLineDiscountAmount(tr, lineBase);
-        sub = roundMoney(Math.max(0, lineBase - discountAmt));
-        var unitLineTax = lineTaxAndGrossFromSub(sub, rate);
-        gross = unitLineTax.gross;
-        taxAmt = unitLineTax.tax;
-        if (priceEl && (opts.normalizeStored || document.activeElement !== priceEl)) {
-          priceEl.value = formatUnitPriceValue(price, String(price));
-        }
-        if (subInp && document.activeElement !== subInp) {
-          subInp.value = formatAmountValue(sub, subInp.value);
-        }
-        tr.dataset.amountDriver = 'unit';
-      }
-    }
-    setAmtDisplayCell(
-      taxAmtEl,
-      fmtAmount(taxAmt),
-      false
-    );
-    setLineGrossDisplay(tr, gross);
-    syncUnitPriceInclField(tr, price, rate, opts);
-    applyItemRowZeroDefaults(tr);
-    tr.dataset.disc = String(discountAmt);
-    tr.dataset.sub = String(sub);
-    tr.dataset.tax = String(taxAmt);
-    tr.dataset.gross = String(gross);
-  }
-
-  function recalcFooter() {
-    var sub = 0;
-    var tax = 0;
-    var gross = 0;
-    var disc = 0;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (!getRowItemId(tr)) return;
-      sub += parseNum(tr.dataset.sub);
-      tax += parseNum(tr.dataset.tax);
-      gross += parseNum(tr.dataset.gross);
-      disc += parseNum(tr.dataset.disc);
+      var url = (state.defaults && state.defaults.archiveUrl) || '';
+      if (url) window.open(url, '_blank');
+      else setMsg('الأرشيف متاح من واجهة PHP عند الحاجة.', 'error');
     });
-    var elDisc = document.getElementById('sales-inv-sum-disc');
-    if (elDisc) elDisc.textContent = fmtAmount(disc);
-    var elSub = document.getElementById('sales-inv-sum-sub');
-    if (elSub) elSub.textContent = fmtAmount(sub);
-    var elTax = document.getElementById('sales-inv-sum-tax');
-    if (elTax) elTax.textContent = fmtAmount(tax);
-    var elGrand = document.getElementById('sales-inv-sum-grand');
-    if (elGrand) elGrand.textContent = fmtAmount(gross);
-
-    var hdrRow = document.getElementById('sales-inv-header-disc-row');
-    var hdrSum = document.getElementById('sales-inv-sum-header-disc');
-    var hdrInp = document.getElementById('inv-invoice-discount');
-    var hdrRaw = hdrInp ? String(hdrInp.value || '').trim() : '';
-    var showHdr = !!(headerDiscountMode && hdrRaw && disc > 0);
-    if (hdrRow) {
-      if (showHdr) {
-        hdrRow.hidden = false;
-        hdrRow.removeAttribute('hidden');
-      } else {
-        hdrRow.hidden = true;
-        hdrRow.setAttribute('hidden', '');
-      }
-    }
-    if (hdrSum) {
-      hdrSum.textContent = fmtAmount(showHdr ? disc : 0);
-    }
   }
 
-  function syncJson() {
-    var lines = [];
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      var itemId = getRowItemId(tr);
-      if (!itemId) return;
-      var qtyEl = tr.querySelector('.js-qty');
-      var priceEl = tr.querySelector('.js-price');
-      var taxSel = tr.querySelector('.js-tax');
-      var taxRate = 0;
-      if (taxSel && taxSel.options && taxSel.options.length > 0) {
-        var idx = taxSel.selectedIndex >= 0 ? taxSel.selectedIndex : 0;
-        taxRate = parseNum(taxSel.options[idx].getAttribute('data-rate'));
+  var emailBtn = document.getElementById('si-email');
+  if (emailBtn) {
+    emailBtn.addEventListener('click', function () {
+      if (!state.id) {
+        setMsg('احفظ الفاتورة أولاً.', 'error');
+        return;
       }
-      var driver = rowAmountSource(tr);
-      var grossVal = parseNum(tr.dataset.gross);
-      var qtyExtraEl = tr.querySelector('.js-qty-extra');
-      var discEl = tr.querySelector('.js-discount');
-      var lineDiscInp = '';
-      if (!headerDiscountMode && discEl) {
-        lineDiscInp = String(discEl.value || '').trim();
+      if (busy) return;
+
+      function defaultToEmail() {
+        if (state.customer_email) return String(state.customer_email).trim();
+        var el = document.getElementById('inv_customer_email');
+        return el && el.value ? String(el.value).trim() : '';
       }
-      var priceInclEl = tr.querySelector('.js-price-incl');
-      var unitSel = tr.querySelector('.js-unit');
-      var unitFactorEl = tr.querySelector('.js-unit-factor');
-      var unitId = unitSel ? parseInt(unitSel.value, 10) || 0 : 0;
-      var unitName = '';
-      if (unitSel && unitSel.selectedIndex >= 0 && unitSel.options[unitSel.selectedIndex]) {
-        var uoptSave = unitSel.options[unitSel.selectedIndex];
-        unitName = String(uoptSave.getAttribute('data-name') || uoptSave.textContent || '').trim()
-          .replace(/\s*×\s*[\d.]+$/, '').trim();
+
+      function askEmail() {
+        var def = defaultToEmail();
+        if (window.HypexUI && typeof window.HypexUI.prompt === 'function') {
+          return window.HypexUI.prompt(
+            'أدخل البريد الإلكتروني للمستلم. سيُرسل من إعدادات SMTP في شاشة الإعدادات.',
+            {
+              title: 'إرسال الفاتورة بالبريد',
+              defaultValue: def,
+              placeholder: 'name@example.com',
+              inputLabel: 'بريد المستلم',
+              okLabel: 'إرسال',
+              cancelLabel: 'إلغاء',
+            }
+          );
+        }
+        var typed = window.prompt('بريد المستلم:', def);
+        return Promise.resolve(typed == null ? null : typed);
       }
-      var unitFactor = parseNum(unitFactorEl ? unitFactorEl.value : 1) || 1;
-      var qtyVal = parseNum(qtyEl ? qtyEl.value : 0);
-      lines.push({
-        item_id: itemId,
-        name_ar: tr.dataset.nameAr || '',
-        barcode: tr.dataset.itemBarcode || '',
-        sku: tr.dataset.itemSku || '',
-        material_number: tr.dataset.materialNumber || '',
-        qty: qtyVal,
-        qty_extra: parseNum(qtyExtraEl ? qtyExtraEl.value : 0),
-        unit_id: unitId,
-        unit_name: unitName,
-        unit_factor: unitFactor,
-        qty_base: qtyVal * unitFactor,
-        unit_price: roundUnitPrice(parseNum(priceEl ? priceEl.value : 0)),
-        unit_price_incl: priceInclEl ? roundUnitPriceIncl(parseNum(priceInclEl.value)) : 0,
-        line_discount_input: lineDiscInp,
-        discount_amount: roundMoney(parseNum(tr.dataset.disc)),
-        tax_rate_percent: taxRate,
-        amount_driver: driver,
-        line_subtotal: roundMoney(parseNum(tr.dataset.sub)),
-        tax_amount: roundMoney(parseNum(tr.dataset.tax)),
-        line_gross: roundMoney(grossVal),
+
+      askEmail().then(function (to) {
+        if (to == null) return;
+        to = String(to || '').trim();
+        if (!to) {
+          setMsg('أدخل بريداً إلكترونياً صالحاً.', 'error');
+          return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+          setMsg('صيغة البريد الإلكتروني غير صالحة.', 'error');
+          return;
+        }
+        setMsg('جاري إرسال البريد…');
+        setBusy(true);
+        fetch('/api/sales/invoices/' + state.id + '/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ to_email: to }),
+        })
+          .then(function (r) {
+            return r.json().then(function (data) {
+              return { status: r.status, data: data };
+            });
+          })
+          .then(function (res) {
+            setBusy(false);
+            var data = res.data || {};
+            if (!data.ok) {
+              setMsg(data.error || 'تعذر إرسال البريد.', 'error');
+              return;
+            }
+            state.customer_email = to;
+            setMsg(data.message || 'تم إرسال البريد بنجاح.', 'ok');
+            if (window.HypexUI && window.HypexUI.toast) {
+              window.HypexUI.toast(data.message || 'تم الإرسال', 'ok');
+            }
+          })
+          .catch(function () {
+            setBusy(false);
+            setMsg('تعذر الاتصال بالخادم لإرسال البريد.', 'error');
+          });
       });
     });
-    if (linesJson) linesJson.value = JSON.stringify(lines);
   }
 
-  var MSG_DELETE_INVOICE_NEEDS_EMPTY_LINES =
-    'لا يمكن حذف الفاتورة قبل حذف جميع بنود المواد. احذف البنود من الجدول (سلة المهملات) ثم احفظ الفاتورة، وبعدها احذف الفاتورة.';
-
-  function invoiceGrandTotalFromFooter() {
-    var el = document.getElementById('sales-inv-sum-grand');
-    return el ? parseNum(el.textContent) : 0;
+  function dateIso(v) {
+    if (!v) return '';
+    var s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    if (window.AppFormat && AppFormat.parseDateToIso) {
+      return AppFormat.parseDateToIso(s) || s;
+    }
+    if (window.AppDatePicker && AppDatePicker.parseDmYToIso) {
+      return AppDatePicker.parseDmYToIso(s) || s;
+    }
+    return s;
   }
 
-  function invoiceHasBonusStockLines() {
-    var has = false;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (!getRowItemId(tr)) return;
-      if (rowStockQty(tr) > 0) has = true;
-    });
-    return has;
+  /** عرض تاريخ يوم-شهر-سنة في الحقول */
+  function dateDisplay(v) {
+    var iso = dateIso(v);
+    if (!iso) return '';
+    if (window.AppFormat && AppFormat.formatDateDmY) return AppFormat.formatDateDmY(iso);
+    if (window.AppDatePicker && AppDatePicker.formatIsoToDmY) {
+      return AppDatePicker.formatIsoToDmY(iso) || iso;
+    }
+    var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    return iso;
   }
 
-  function validateInvoiceBeforePost() {
-    recalcAllItemRows();
-    recalcFooter();
-    syncJson();
-    var qtyCheck = validateInvoiceLineQuantities();
-    if (!qtyCheck.ok) {
-      AppDialog.alert(qtyCheck.msg, { type: 'warning' });
-      if (qtyCheck.tr) {
-        var focusEl = qtyCheck.tr.querySelector('.js-qty-extra') || qtyCheck.tr.querySelector('.js-qty');
-        if (focusEl) focusEl.focus();
-      }
-      return false;
-    }
-    if (invoiceGrandTotalFromFooter() <= 0 && !invoiceHasBonusStockLines()) {
-      AppDialog.alert(
-        'لا يمكن الترحيل لأن إجمالي الفاتورة صفر ولا توجد كمية إضافية على البنود.\n\n' +
-          'عند كمية صفر أدخل كمية إضافية (هدايا/عينات) ثم احفظ الفاتورة ثم رحّلها.',
-        { type: 'warning', title: 'إجمالي غير صالح' }
-      );
-      return false;
-    }
-    return true;
-  }
-
-  function validateInvoiceBeforeSave(opts) {
-    opts = opts || {};
-    var cust = document.getElementById('inv_customer');
-    if (!cust || !cust.value) {
-      AppDialog.alert('اختر العميل قبل الحفظ.', { type: 'warning' });
-      if (custPickerOpen && !custPickerOpen.disabled) custPickerOpen.focus();
-      return false;
-    }
-    if (form.getAttribute('data-warehouse-required') === '1') {
-      var wh = document.getElementById('inv_wh');
-      if (wh && !wh.value) {
-        AppDialog.alert('اختر المستودع قبل الحفظ.', { type: 'warning' });
-        wh.focus();
-        return false;
-      }
-    }
-    var invDate = document.getElementById('inv_date');
-    if (invDate && !invDate.value.trim()) {
-      AppDialog.alert('أدخل تاريخ الفاتورة.', { type: 'warning' });
-      invDate.focus();
-      return false;
-    }
-    if (invDate && global.AppFormat && AppFormat.parseDateToIso) {
-      if (!AppFormat.parseDateToIso(invDate.value)) {
-        AppDialog.alert('تاريخ الفاتورة غير صالح. استخدم يوم-شهر-سنة (مثل 16-05-2026).', {
-          type: 'warning',
-        });
-        invDate.focus();
-        return false;
-      }
-    }
-    if (!opts.allowEmptyLines && !invoiceHasLines()) {
-      AppDialog.alert('أضف سطرًا واحدًا على الأقل للمواد.', { type: 'warning' });
-      return false;
-    }
-    if (!opts.allowEmptyLines) {
-      recalcAllItemRows();
-      var qtyCheck = validateInvoiceLineQuantities();
-      if (!qtyCheck.ok) {
-        AppDialog.alert(qtyCheck.msg, { type: 'warning' });
-        if (qtyCheck.tr) {
-          var qtyEl = qtyCheck.tr.querySelector('.js-qty');
-          if (qtyEl) qtyEl.focus();
-        }
-        return false;
-      }
-    }
-    var repSel = document.getElementById('inv_sales_rep');
-    if (repSel && !repSel.disabled && !repSel.value) {
-      AppDialog.alert('اختر مندوب المبيعات لهذا العميل.', { type: 'warning' });
-      repSel.focus();
-      return false;
-    }
-    return true;
-  }
-
-  function getRowItemId(tr) {
-    if (!tr) return 0;
-    var id = parseInt(tr.dataset.itemId, 10);
-    if (id > 0) return id;
-    id = parseInt(tr.getAttribute('data-item-id') || '', 10);
-    return id > 0 ? id : 0;
-  }
-
-  function rowHasItem(tr) {
-    return getRowItemId(tr) > 0;
-  }
-
-  var ROW_ITEM_LOCK_SELECTORS =
-    '.js-qty, .js-qty-extra, .js-price, .js-price-incl, .js-discount, .js-line-sub, .js-tax, .js-unit, input.js-line-gross';
-
-  function applyRowItemPickLock(tr) {
-    if (!tr) return;
-    var formLocked = ledgerView || (currentInvoiceId > 0 && !!invoiceIsPosted) || !!invoiceEinvQr;
-    if (formLocked) return;
-    var needsPick = !rowHasItem(tr);
-    tr.querySelectorAll(ROW_ITEM_LOCK_SELECTORS).forEach(function (el) {
-      if (needsPick) {
-        el.setAttribute('readonly', 'readonly');
-        el.setAttribute('tabindex', '-1');
-        el.classList.add('is-item-pick-locked');
-        if (el.tagName === 'SELECT') el.disabled = true;
-      } else {
-        el.removeAttribute('readonly');
-        el.removeAttribute('tabindex');
-        el.classList.remove('is-item-pick-locked');
-        if (el.tagName === 'SELECT') el.disabled = false;
-      }
-    });
-    var pick = tr.querySelector('.js-pick-open');
-    if (pick && needsPick) {
-      pick.tabIndex = 0;
-    } else if (pick) {
-      pick.removeAttribute('tabindex');
-    }
-    if (needsPick) {
-      var barcodeInp = tr.querySelector('.js-barcode-inp');
-      if (barcodeInp) {
-        barcodeInp.removeAttribute('readonly');
-        barcodeInp.removeAttribute('tabindex');
-        barcodeInp.classList.remove('is-item-pick-locked');
-      }
-    }
-    applyRowQtyLock(tr);
-  }
-
-  function applyRowQtyLock(tr) {
-    if (!tr) return;
-    var formLocked = ledgerView || (currentInvoiceId > 0 && !!invoiceIsPosted) || !!invoiceEinvQr;
-    if (formLocked || !rowHasItem(tr)) {
-      tr.querySelectorAll('.js-qty').forEach(function (el) {
-        el.classList.remove('is-qty-required');
-      });
-      return;
-    }
-    var needsQty = rowStockQty(tr) <= 0;
-    tr.querySelectorAll(ROW_QTY_LOCK_SELECTORS).forEach(function (el) {
-      if (needsQty) {
-        el.setAttribute('readonly', 'readonly');
-        el.setAttribute('tabindex', '-1');
-        el.classList.add('is-qty-required-locked');
-        if (el.tagName === 'SELECT') el.disabled = true;
-      } else if (el.classList.contains('is-qty-required-locked')) {
-        el.removeAttribute('readonly');
-        el.removeAttribute('tabindex');
-        el.classList.remove('is-qty-required-locked');
-        if (el.tagName === 'SELECT') el.disabled = false;
-      }
-    });
-    var pick = tr.querySelector('.js-pick-open');
-    if (pick) {
-      pick.classList.toggle('is-qty-required-locked', needsQty);
-      pick.disabled = !!needsQty;
-    }
-    var itemCell = tr.querySelector('.sales-inv-item-cell');
-    if (itemCell) {
-      itemCell.classList.toggle('is-qty-required-locked', needsQty);
-    }
-    var barcodeInpLock = tr.querySelector('.js-barcode-inp');
-    if (barcodeInpLock && rowHasItem(tr)) {
-      if (needsQty) {
-        barcodeInpLock.setAttribute('readonly', 'readonly');
-        barcodeInpLock.classList.add('is-qty-required-locked');
-      } else if (barcodeInpLock.classList.contains('is-qty-required-locked')) {
-        barcodeInpLock.removeAttribute('readonly');
-        barcodeInpLock.classList.remove('is-qty-required-locked');
-      }
-    }
-    var qtyEl = tr.querySelector('.js-qty');
-    var qtyExtraEl = tr.querySelector('.js-qty-extra');
-    if (qtyEl) {
-      qtyEl.classList.toggle('is-qty-required', needsQty);
-      qtyEl.removeAttribute('readonly');
-      qtyEl.removeAttribute('tabindex');
-      qtyEl.classList.remove('is-item-pick-locked');
-    }
-    if (qtyExtraEl) {
-      qtyExtraEl.classList.toggle('is-qty-required', needsQty);
-      qtyExtraEl.removeAttribute('readonly');
-      qtyExtraEl.removeAttribute('tabindex');
-      qtyExtraEl.classList.remove('is-qty-required-locked', 'is-item-pick-locked');
-      if (qtyExtraEl.tagName === 'SELECT') qtyExtraEl.disabled = false;
-    }
-  }
-
-  function focusRowMaterialCodeField(tr) {
-    if (!tr) return;
-    if (blockItemPickUntilQty(tr, { alert: false, actionLabel: 'إدخال مادة' })) return;
-    var bc = tr.querySelector('.js-barcode-inp');
-    if (bc && !bc.disabled) {
-      bc.focus();
-      if (bc.select) bc.select();
-      return;
-    }
-    openPickerForRow(tr);
-  }
-
-  function focusRowItemPick(tr) {
-    if (!tr) return;
-    if (!rowHasItem(tr) && !invoiceIsPosted) {
-      focusRowMaterialCodeField(tr);
-      return;
-    }
-    var pick = tr.querySelector('.js-pick-open');
-    if (pick && !pick.disabled) {
-      pick.focus();
-      return;
-    }
-    openPickerForRow(tr);
-  }
-
-  function clearRowAmounts(tr) {
-    if (!tr) return;
-    tr.dataset.sub = '0';
-    tr.dataset.tax = '0';
-    tr.dataset.gross = '0';
-    tr.dataset.disc = '0';
-    tr.dataset.lineBase = '0';
-    tr.dataset.lineMerch = '0';
-    delete tr.dataset.amountDriver;
-    var qtyEl = tr.querySelector('.js-qty');
-    var qtyExtraEl = tr.querySelector('.js-qty-extra');
-    var priceEl = tr.querySelector('.js-price');
-    var priceInclEl = tr.querySelector('.js-price-incl');
-    var subInp = tr.querySelector('input.js-line-sub');
-    var grossEl = tr.querySelector('input.js-line-gross') || tr.querySelector('.js-line-gross');
-    var taxAmtEl = tr.querySelector('.js-tax-amt');
-    var discEl = tr.querySelector('.js-discount');
-    if (qtyEl && document.activeElement !== qtyEl) qtyEl.value = '';
-    if (qtyExtraEl && document.activeElement !== qtyExtraEl) qtyExtraEl.value = '';
-    if (priceEl && document.activeElement !== priceEl) priceEl.value = formatUnitPriceValue(0, '');
-    if (priceInclEl && document.activeElement !== priceInclEl) {
-      priceInclEl.value = formatUnitPriceInclValue(0, '');
-    }
-    if (subInp && document.activeElement !== subInp) subInp.value = formatAmountValue(0, '');
-    if (grossEl && document.activeElement !== grossEl) {
-      if (grossEl.tagName === 'INPUT') {
-        grossEl.value = formatAmountValue(0, '');
-      } else {
-        setAmtDisplayCell(grossEl, fmtAmount(0), true);
-      }
-    }
-    if (taxAmtEl) setAmtDisplayCell(taxAmtEl, fmtAmount(0), false);
-    if (discEl && document.activeElement !== discEl && !discEl.readOnly) discEl.value = '';
-  }
-
-  function invoiceHasLines() {
-    var hasLine = false;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (getRowItemId(tr) > 0) hasLine = true;
-    });
-    return hasLine;
-  }
-
-  function rowStockQty(tr) {
-    var qty = parseNum(tr.querySelector('.js-qty') ? tr.querySelector('.js-qty').value : 0);
-    var qtyExtra = parseNum(tr.querySelector('.js-qty-extra') ? tr.querySelector('.js-qty-extra').value : 0);
-    return qty + qtyExtra;
-  }
-
-  function validateInvoiceLineQuantities() {
-    var firstBad = null;
-    var needsExtra = false;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (!getRowItemId(tr)) return;
-      var qty = parseNum(tr.querySelector('.js-qty') ? tr.querySelector('.js-qty').value : 0);
-      var qtyExtra = parseNum(
-        tr.querySelector('.js-qty-extra') ? tr.querySelector('.js-qty-extra').value : 0
-      );
-      if (qty <= 0 && qtyExtra <= 0 && !firstBad) {
-        firstBad = tr;
-        needsExtra = qty <= 0;
-      }
-    });
-    if (!firstBad) {
-      return { ok: true };
-    }
-    var name = firstBad.dataset.nameAr || 'مادة بدون اسم';
-    return {
-      ok: false,
-      msg: needsExtra
-        ? 'عند كمية صفر يجب إدخال كمية إضافية.\n\nالمادة: ' + name
-        : 'أدخل كمية لكل مادة في الفاتورة.\n\nالمادة: ' + name,
-      tr: firstBad,
-    };
-  }
-
-  function setInvoiceBusy(busy, message) {
-    if (global.AppBusy) {
-      if (busy) {
-        AppBusy.show(message || 'جاري التنفيذ...');
-      } else {
-        AppBusy.hide();
-      }
-    }
+  function setDateField(el, v) {
+    if (!el) return;
+    el.value = dateDisplay(v);
     try {
-      document.dispatchEvent(
-        new CustomEvent('manager:invoice-busy', { detail: { busy: !!busy } })
-      );
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
     } catch (e) {
       /* ignore */
     }
   }
 
-  var pendingAfterSave = null;
-  var pendingDeliveryPullSave = false;
-
-  function finishSaveFromJson(data, leaveAfterSave, onDone) {
-    formSubmitting = false;
-    clearPersistedDraft();
-    clearFormDirty();
-    pendingDeliveryPullSave = false;
-
-    var savedId = parseInt(data.invoice_id, 10) || 0;
-    if (savedId > 0) {
-      currentInvoiceId = savedId;
-      var recId = document.getElementById('inv_record_id');
-      if (recId) recId.value = String(savedId);
-      syncInvoiceIdField();
-    }
-
-    if (leaveAfterSave && onDone) {
-      setSaveBusy(false);
-      onDone();
-      return;
-    }
-
-    if (savedId > 0) {
-      if (global.AppBusy && AppBusy.setMessage) {
-        AppBusy.setMessage('جاري تحميل الفاتورة...');
-      }
-      loadSavedInvoiceAfterSubmit(savedId, null, null);
-      return;
-    }
-
-    setSaveBusy(false);
-    window.location.reload();
-  }
-
-  function normalizeAllLinesBeforeSave() {
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (getRowItemId(tr) < 1) return;
-      recalcRow(tr, rowAmountSource(tr), { normalizeStored: true });
-    });
-    recalcFooter();
-  }
-
-  function submitInvoiceForm() {
-    formSubmitting = true;
-    normalizeAllLinesBeforeSave();
-    syncJson();
-    syncInvoiceIdField();
-    setSaveBusy(true, 'جاري حفظ الفاتورة...');
-
-    var actionUrl = form.getAttribute('action') || window.location.href;
-    var fd = new FormData(form);
-    fd.set('_action', 'save_invoice');
-    if (linesJson) fd.set('lines_json', linesJson.value);
-    if (linkedDeliveryId > 0) {
-      fd.set('delivery_id', String(linkedDeliveryId));
-    } else {
-      fd.set('delivery_id', '');
-    }
-    var onDone = pendingAfterSave;
-    var leaveAfterSave = !!onDone;
-    pendingAfterSave = null;
-
-    fetch(actionUrl, {
-      method: 'POST',
-      body: fd,
-      credentials: 'same-origin',
-      headers: {
-        Accept: 'application/json',
-        'X-Invoice-Save': '1',
-      },
-    })
-      .then(function (res) {
-        return res.text().then(function (text) {
-          var data = null;
-          if (text) {
-            try {
-              data = JSON.parse(text);
-            } catch (parseErr) {
-              console.error('sales-invoice save: invalid JSON', parseErr, text.slice(0, 500));
-            }
-          }
-          if (data && typeof data.ok === 'boolean') {
-            if (!data.ok) {
-              formSubmitting = false;
-              setSaveBusy(false);
-              if (pendingDeliveryPullSave) {
-                pendingDeliveryPullSave = false;
-                clearPendingDeliveryPull();
-              }
-              var msg = data.message || 'تعذر حفظ الفاتورة.';
-              if (pendingAfterSave) {
-                pendingAfterSave = null;
-                if (global.AppDialog) {
-                  AppDialog.error(
-                    msg +
-                      '\n\nسند التسليم لم يُربط بالفاتورة وما زال متاحاً للسحب.'
-                  );
-                } else {
-                  alert(msg);
-                }
-                return;
-              }
-              if (global.AppDialog) AppDialog.error(msg);
-              else alert(msg);
-              return;
-            }
-            finishSaveFromJson(data, leaveAfterSave, onDone);
-            return;
-          }
-          if (leaveAfterSave && onDone && res.status >= 300 && res.status < 400) {
-            clearPersistedDraft();
-            formSubmitting = false;
-            setSaveBusy(false);
-            clearFormDirty();
-            onDone();
-            return;
-          }
-          if (res.status >= 300 && res.status < 400) {
-            var loc = res.headers.get('Location');
-            if (loc) {
-              window.location.href = new URL(loc, window.location.href).href;
-              return;
-            }
-          }
-          formSubmitting = false;
-          setSaveBusy(false);
-          var fallback =
-            'تعذر حفظ الفاتورة.' +
-            (res.status ? ' (HTTP ' + res.status + ')' : '') +
-            (text && text.indexOf('Fatal error') >= 0
-              ? '\n\nخطأ من الخادم — راجع سجل PHP أو حدّث الصفحة.'
-              : '');
-          if (global.AppDialog) AppDialog.error(fallback);
-          else alert(fallback);
-        });
-      })
-      .catch(function (err) {
-        console.error('sales-invoice save', err);
-        formSubmitting = false;
-        setSaveBusy(false);
-        if (global.AppDialog) {
-          AppDialog.error('تعذر حفظ الفاتورة. تحقق من الاتصال وحاول مرة أخرى.');
-        } else {
-          alert('تعذر حفظ الفاتورة.');
-        }
-      });
-  }
-
-  function getBarcodeFromRow(tr) {
-    var inp = tr.querySelector('.js-barcode-inp');
-    if (inp) {
-      return String(inp.value || '').trim();
-    }
-    var span = tr.querySelector('.js-barcode');
-    return span ? String(span.textContent || '').trim() : '';
-  }
-
-  function itemMaterialNumber(barcode, sku) {
-    if (window.InvItemDisplay && typeof window.InvItemDisplay.materialNumber === 'function') {
-      return window.InvItemDisplay.materialNumber(barcode, sku);
-    }
-    var bc = String(barcode == null ? '' : barcode).trim();
-    if (bc) return bc;
-    return String(sku == null ? '' : sku).trim();
-  }
-
-  function resolveLineItemCodes(source) {
-    var o = source || {};
-    var barcode = String(o.barcode == null ? '' : o.barcode).trim();
-    var sku = String((o.sku == null ? '' : o.sku) || (o.code == null ? '' : o.code)).trim();
-    var material = String(o.material_number == null ? '' : o.material_number).trim();
-    var itemId = parseInt(o.item_id != null ? o.item_id : o.id, 10) || 0;
-
-    if (!barcode && !sku && material) {
-      barcode = material;
-    }
-
-    if (!barcode && !sku && itemId > 0 && global.ItemPickerModal && typeof ItemPickerModal.getCachedItem === 'function') {
-      var cached = ItemPickerModal.getCachedItem(itemId);
-      if (cached) {
-        barcode = String(cached.barcode || '').trim();
-        sku = String(cached.sku || '').trim();
-      }
-    }
-
-    return { barcode: barcode, sku: sku, material_number: material, item_id: itemId };
-  }
-
-  function setRowItemDisplay(tr, name, barcode, sku) {
-    var nameEl = tr.querySelector('.js-name');
-    if (nameEl) {
-      nameEl.textContent = name || '';
-      nameEl.classList.toggle('is-placeholder', !name);
-    }
-    tr.querySelectorAll('.js-pick-open').forEach(function (pickBtn) {
-      pickBtn.classList.remove('is-empty');
-    });
-    var lovWrap = tr.querySelector('.sales-inv-item-lov');
-    if (lovWrap) {
-      lovWrap.classList.toggle('is-empty', !name);
-    }
-    var codes = resolveLineItemCodes({
-      barcode: barcode,
-      sku: sku,
-      material_number: tr.dataset.materialNumber || '',
-      item_id: tr.dataset.itemId || 0,
-    });
-    var materialNo = codes.material_number || itemMaterialNumber(codes.barcode, codes.sku);
-    var skuEl = tr.querySelector('.js-sku');
-    if (skuEl) {
-      skuEl.textContent = materialNo;
-    }
-    if (materialNo) {
-      tr.dataset.materialNumber = materialNo;
-    } else {
-      delete tr.dataset.materialNumber;
-    }
-    if (codes.barcode) tr.dataset.itemBarcode = codes.barcode;
-    else delete tr.dataset.itemBarcode;
-    if (codes.sku) tr.dataset.itemSku = codes.sku;
-    else delete tr.dataset.itemSku;
-    applyRowItemPickLock(tr);
-    var barcodeInp = tr.querySelector('.js-barcode-inp');
-    if (barcodeInp) {
-      barcodeInp.value = String(codes.barcode || '').trim();
-    } else {
-      var barcodeEl = tr.querySelector('.js-barcode');
-      if (barcodeEl) {
-        barcodeEl.textContent = materialNo;
-      }
-    }
-  }
-
-  function normalizePickerItem(item) {
-    if (!item) return null;
-    var id = parseInt(item.id != null ? item.id : item.item_id, 10);
-    if (!id) return null;
-    var barcode = String(item.barcode || item.material_number || '').trim();
-    var sku = String(item.sku || item.code || '').trim();
-    var units = Array.isArray(item.units) ? item.units : [];
-    return {
-      id: id,
-      name_ar: item.name_ar || item.name || '',
-      barcode: barcode,
-      sku: sku,
-      material_number: String(item.material_number || itemMaterialNumber(barcode, sku)).trim(),
-      default_sale:
-        item.default_sale != null
-          ? item.default_sale
-          : item.default_cost != null
-            ? item.default_cost
-            : 0,
-      default_cost: item.default_cost,
-      units: units,
-    };
-  }
-
-  function fillRowUnits(tr, units, selectedUnitId) {
-    var sel = tr.querySelector('.js-unit');
-    var factorEl = tr.querySelector('.js-unit-factor');
-    var basePriceEl = tr.querySelector('.js-base-price');
-    if (!sel) return;
-    sel.innerHTML = '';
-    var list = Array.isArray(units) && units.length
-      ? units
-      : [{
-          unit_id: parseInt(tr.dataset.unitId, 10) || 0,
-          name: tr.dataset.unitName || 'قطعة',
-          factor: 1,
-          is_default: true,
-          is_base: true,
-        }];
-    var pick = null;
-    list.forEach(function (u) {
-      var opt = document.createElement('option');
-      var uid = parseInt(u.unit_id != null ? u.unit_id : u.id, 10) || 0;
-      var uname = String(u.name || u.unit_name || 'قطعة');
-      var ufactor = parseNum(u.factor != null ? u.factor : u.factor_to_base != null ? u.factor_to_base : 1) || 1;
-      opt.value = String(uid);
-      opt.setAttribute('data-name', uname);
-      opt.setAttribute('data-factor', String(ufactor));
-      opt.textContent = uname;
-      sel.appendChild(opt);
-      if (selectedUnitId && uid === selectedUnitId) pick = opt;
-      else if (!pick && (u.is_default || u.is_default_issue)) pick = opt;
-      else if (!pick && u.is_base) pick = opt;
-    });
-    if (!pick && sel.options.length) pick = sel.options[0];
-    if (pick) sel.value = pick.value;
-    sel.disabled = !!invoiceIsPosted || list.length < 2;
-    if (list.length > 1) sel.disabled = !!invoiceIsPosted;
-    var factor = parseNum(sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].getAttribute('data-factor') : 1) || 1;
-    if (factorEl) factorEl.value = String(factor);
-    syncQtyBaseDisplay(tr);
-    return factor;
-  }
-
-  /** حفظ qty_base للمخزون + عرض التعبئة بجانب اسم المادة. */
-  function syncQtyBaseDisplay(tr) {
-    if (!tr) return;
-    var qtyEl = tr.querySelector('.js-qty');
-    var factorEl = tr.querySelector('.js-unit-factor');
-    var baseEl = tr.querySelector('.js-qty-base');
-    var packEl = tr.querySelector('.js-pack-hint');
-    var qty = parseNum(qtyEl ? qtyEl.value : 0);
-    var factor = parseNum(factorEl ? factorEl.value : 1) || 1;
-    if (baseEl) {
-      baseEl.value = qty > 0 ? formatQtyValue(qty * factor) : '';
-    }
-    if (packEl) {
-      if (factor > 1.0000001) {
-        var fTxt = Math.abs(factor - Math.round(factor)) < 1e-9
-          ? String(Math.round(factor))
-          : String(Math.round(factor * 1e6) / 1e6);
-        packEl.textContent = 'تعبئة × ' + fTxt;
-        packEl.hidden = false;
-      } else {
-        packEl.textContent = '';
-        packEl.hidden = true;
-      }
-    }
-  }
-
-  function applyUnitPriceFromBase(tr) {
-    var basePriceEl = tr.querySelector('.js-base-price');
-    var factorEl = tr.querySelector('.js-unit-factor');
-    var priceEl = tr.querySelector('.js-price');
-    if (!basePriceEl || !priceEl) return;
-    var base = parseNum(basePriceEl.value);
-    var factor = parseNum(factorEl ? factorEl.value : 1) || 1;
-    if (base > 0) {
-      priceEl.value = formatPriceValue(base * factor, '');
-      tr.dataset.listUnitPrice = String(base * factor);
-    }
-  }
-
-  function pickFromSearchResults(items, code, opts) {
-    opts = opts || {};
-    if (!items || !items.length) return null;
-    if (code) {
-      for (var i = 0; i < items.length; i++) {
-        if (itemMatchesCode(items[i], code)) return items[i];
-      }
-    }
-    if (opts.exactLookup && items.length > 0) return items[0];
-    if (items.length === 1) return items[0];
-    return null;
-  }
-
-  function applyBarcodeItemToRow(tr, item) {
-    var normalized = normalizePickerItem(item);
-    if (!normalized || !tr) return false;
-    if (blockItemPickUntilQty(tr, { actionLabel: 'إدخال مادة' })) return false;
-
-    var wasEntry = tr.classList.contains('is-entry-row');
-    var emptyLine = !parseInt(tr.dataset.itemId, 10);
-    var focusTr = null;
-
-    if (wasEntry) {
-      focusTr = appendItemsToInvoice([normalized]);
-      var entry = getEntryRow();
-      var bc = entry && entry.querySelector('.js-barcode-inp');
-      if (bc) bc.value = '';
-    } else if (emptyLine) {
-      fillRowFromItem(tr, normalized);
-      focusTr = tr;
-    } else {
-      focusTr = appendItemsToInvoice([normalized]);
-    }
-
-    renumberRows();
-    recalcFooter();
-    syncJson();
-
-    if (focusTr) {
-      focusRowQtyField(focusTr);
-    }
-    return true;
-  }
-
-  function resolveBarcodeOnRow(tr) {
-    if (!tr) return;
-    var code = getBarcodeFromRow(tr);
-    if (!code) {
-      openPickerForRow(tr);
-      return;
-    }
-    fetch(buildItemsApiUrl('', false, { exactCode: code }), { credentials: 'same-origin' })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (data) {
-        if (data && data.ok && data.items && data.items.length) {
-          var pick = pickFromSearchResults(data.items, code, { exactLookup: !!data.exact });
-          if (pick && applyBarcodeItemToRow(tr, pick)) return;
-        }
-        return fetch(buildItemsApiUrl(code, false, { ignoreWarehouse: true }), {
-          credentials: 'same-origin',
-        })
-          .then(function (r2) {
-            return r2.json();
-          })
-          .then(function (data2) {
-            if (!data2 || !data2.ok || !data2.items || !data2.items.length) {
-              if (global.AppDialog) {
-                AppDialog.alert('لم يُعثر على مادة بهذا الباركود أو الرمز.', {
-                  type: 'warning',
-                });
-              }
-              return;
-            }
-            var pick2 = pickFromSearchResults(data2.items, code, { exactLookup: false });
-            if (pick2 && applyBarcodeItemToRow(tr, pick2)) return;
-            openPickerForRow(tr, { initialSearch: code });
-          });
-      })
-      .catch(function () {
-        if (global.AppDialog) AppDialog.error('تعذر البحث عن المادة.');
-      });
-  }
-
-  function renumberRows() {
-    var n = 1;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      var seq = tr.querySelector('.js-seq');
-      var itemId = parseInt(tr.dataset.itemId, 10);
-      if (!seq) return;
-      if (itemId > 0) {
-        seq.textContent = String(n);
-        n += 1;
-      } else {
-        seq.textContent = '';
-      }
-    });
-  }
-
-  function applyDefaultTax(tr) {
-    var taxSel = tr.querySelector('.js-tax');
-    if (!taxSel) return;
-    var defRate = form.getAttribute('data-default-tax-rate') || '0';
-    for (var i = 0; i < taxSel.options.length; i++) {
-      if (parseNum(taxSel.options[i].getAttribute('data-rate')) === parseNum(defRate)) {
-        taxSel.selectedIndex = i;
-        break;
-      }
-    }
-  }
-
-  function createRow(isEntry) {
-    var tr;
-    if (tpl && tpl.content && tpl.content.firstElementChild) {
-      tr = tpl.content.firstElementChild.cloneNode(true);
-      delete tr.dataset.rowBound;
-    } else {
-      var seed = getEntryRow();
-      if (!seed) {
-        throw new Error('قالب سطر الفاتورة غير موجود');
-      }
-      tr = seed.cloneNode(true);
-      tr.classList.remove('is-picker-active');
-      delete tr.dataset.rowBound;
-    }
-    tr.dataset.lineId = newLineId();
-    tr.dataset.itemId = '';
-    tr.dataset.nameAr = '';
-    tr.dataset.sub = '0';
-    tr.dataset.tax = '0';
-    tr.dataset.gross = '0';
-    setRowItemDisplay(tr, '', '');
-    tr.querySelector('.js-qty').value = '';
-    var qtyExtraReset = tr.querySelector('.js-qty-extra');
-    if (qtyExtraReset) qtyExtraReset.value = '';
-    tr.querySelector('.js-price').value = formatUnitPriceValue(0, '');
-    var priceInclReset = tr.querySelector('.js-price-incl');
-    if (priceInclReset) priceInclReset.value = formatUnitPriceInclValue(0, '');
-    applyDefaultTax(tr);
-    if (isEntry) {
-      tr.classList.add('is-entry-row');
-    } else {
-      tr.classList.remove('is-entry-row');
-      tr.hidden = false;
-    }
-    applyQtyPriceInputAttrs(tr);
-    bindRow(tr);
-    recalcRow(tr);
-    return tr;
-  }
-
-  function getEntryRow() {
-    return tbody.querySelector('tr.is-entry-row');
-  }
-
-  /** إدراج سطر بيانات قبل صف الإدخال (التسلسل 1، 2، 3… من أعلى الجدول). */
-  function insertDataRowBeforeEntry(tr) {
-    var entry = getEntryRow();
-    if (entry) {
-      tbody.insertBefore(tr, entry);
-      return;
-    }
-    tbody.appendChild(tr);
-  }
-
-  function countInvoiceLineRows() {
-    var n = 0;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (parseInt(tr.dataset.itemId, 10) > 0) n += 1;
-    });
-    return n;
-  }
-
-  function appendLineFromPickerItem(item) {
-    var normalized = normalizePickerItem(item);
-    if (!normalized) return null;
-    ensureEntryRow();
-    var row = createRow(false);
-    insertDataRowBeforeEntry(row);
-    if (!fillRowFromItem(row, normalized)) {
-      row.remove();
-      return null;
-    }
-    return row;
-  }
-
-  function appendItemsToInvoice(items) {
-    if (!items || !items.length) return null;
-    if (blockItemPickUntilQty(null, { actionLabel: 'إضافة مادة' })) return null;
-    var firstFocus = null;
-    items.forEach(function (raw) {
-      var row = appendLineFromPickerItem(raw);
-      if (row && !firstFocus) firstFocus = row;
-    });
-    ensureEntryRow();
-    renumberRows();
-    recalcFooter();
-    syncJson();
-    if (!invoiceIsPosted) markFormDirty();
-    return firstFocus;
-  }
-
-  function ensureEntryRow() {
-    var entry = getEntryRow();
-    if (entry) {
-      if (entry !== tbody.lastElementChild) {
-        tbody.appendChild(entry);
-      }
-      entry.hidden = false;
-      return entry;
-    }
-    entry = createRow(true);
-    tbody.appendChild(entry);
-    return entry;
-  }
-
-  function finalizeEntryRow(tr) {
-    if (!tr.classList.contains('is-entry-row')) return;
-    tr.classList.remove('is-entry-row');
-    tr.hidden = false;
-    var removeBtn = tr.querySelector('.js-remove');
-    if (removeBtn) removeBtn.style.visibility = 'visible';
-  }
-
-  function fillRowFromItem(tr, item) {
-    var normalized = normalizePickerItem(item);
-    if (!tr || !normalized) return false;
-    var qtyEl = tr.querySelector('.js-qty');
-    var priceEl = tr.querySelector('.js-price');
-    if (!qtyEl || !priceEl) return false;
-
-    tr.dataset.itemId = String(normalized.id);
-    tr.dataset.nameAr = normalized.name_ar || '';
-    if (normalized.material_number) {
-      tr.dataset.materialNumber = normalized.material_number;
-    }
-    setRowItemDisplay(tr, normalized.name_ar || '', normalized.barcode, normalized.sku);
-    qtyEl.value = '0';
-    var qtyExtraEl = tr.querySelector('.js-qty-extra');
-    if (qtyExtraEl) qtyExtraEl.value = '0';
-    var salePrice =
-      normalized.default_sale != null ? parseNum(normalized.default_sale) : 0;
-    var basePriceEl = tr.querySelector('.js-base-price');
-    if (basePriceEl) basePriceEl.value = salePrice > 0 ? String(salePrice) : '';
-    var factor = fillRowUnits(tr, normalized.units || [], 0) || 1;
-    if (salePrice > 0) {
-      tr.dataset.listUnitPrice = String(salePrice * factor);
-    } else {
-      delete tr.dataset.listUnitPrice;
-    }
-    priceEl.value = formatPriceValue(salePrice * factor, '');
-    applyDefaultTax(tr);
-    recalcRow(tr);
-    if (!invoiceIsPosted) markFormDirty();
-    return true;
-  }
-
-  function getWarehouseId() {
-    var wh = document.getElementById('inv_wh');
-    if (!wh) return 0;
-    return parseInt(wh.value, 10) || 0;
-  }
-
-  function normalizeItemCode(s) {
-    return String(s || '')
-      .trim()
-      .toLowerCase();
-  }
-
-  function itemMatchesCode(item, code) {
-    var c = normalizeItemCode(code);
-    if (!c || !item) return false;
-    var material = normalizeItemCode(
-      item.material_number || itemMaterialNumber(item.barcode, item.sku)
-    );
-    return (
-      normalizeItemCode(item.barcode) === c ||
-      normalizeItemCode(item.sku) === c ||
-      (material !== '' && material === c)
-    );
-  }
-
-  function buildItemsApiUrl(q, listAll, opts) {
-    opts = opts || {};
-    var url = apiUrl;
-    var parts = [];
-    if (opts.exactCode) {
-      parts.push('code=' + encodeURIComponent(String(opts.exactCode).trim()));
-    } else {
-      if (listAll || q === '') parts.push('list=1');
-      else if (q) parts.push('q=' + encodeURIComponent(q));
-    }
-    var whId = opts.ignoreWarehouse ? 0 : getWarehouseId();
-    if (whId > 0) parts.push('warehouse_id=' + encodeURIComponent(String(whId)));
-    if (parts.length) url += (apiUrl.indexOf('?') >= 0 ? '&' : '?') + parts.join('&');
-    return url;
-  }
-
-  function addPickerItems(items) {
-    if (!items || !items.length) return;
-    if (blockItemPickUntilQty(activePickRow, { actionLabel: 'اختيار مادة' })) {
-      closePicker();
-      return;
-    }
-    var focusTr = null;
-    var queue = items.slice();
-    if (activePickRow && !parseInt(activePickRow.dataset.itemId, 10)) {
-      var first = queue.shift();
-      if (first && fillRowFromItem(activePickRow, first)) {
-        focusTr = activePickRow;
-        if (activePickRow.classList.contains('is-entry-row')) {
-          finalizeEntryRow(activePickRow);
-          ensureEntryRow();
-        }
-      }
-    }
-    if (queue.length) {
-      var appended = appendItemsToInvoice(queue);
-      if (!focusTr) focusTr = appended;
-    }
-    if (focusTr) {
-      focusRowQtyField(focusTr);
-    }
-  }
-
-  function addPickerItemImmediate(item) {
-    if (!item) return;
-    addPickerItems([item]);
-  }
-
-  function isPickerOpen() {
-    return global.ItemPickerModal && ItemPickerModal.isOpen();
-  }
-
-  function closePicker() {
-    if (global.ItemPickerModal) {
-      ItemPickerModal.close();
-    }
-  }
-
-  function openPickerForRow(tr, opts) {
-    opts = opts || {};
-    if (invoiceIsPosted) return;
-    if (blockItemPickUntilQty(tr, { actionLabel: 'اختيار مادة' })) return;
-    if (global.CustomerPickerModal) {
-      CustomerPickerModal.close();
-    }
-    if (!tr) return;
-    if (!global.ItemPickerModal) {
-      if (global.AppDialog) {
-        AppDialog.alert('نافذة اختيار المواد غير متوفرة في الصفحة.', { type: 'warning' });
-      }
-      return;
-    }
-    if (!apiUrl) {
-      AppDialog.alert('تعذر تحميل قائمة المواد: رابط البحث غير مضبوط.', { type: 'warning' });
-      return;
-    }
-    ItemPickerModal.open({
-      screenCenter: true,
-      buildItemsUrl: function (q, listAll) {
-        return buildItemsApiUrl(q, listAll);
-      },
-      getWarehouseId: getWarehouseId,
-      initialSearch: opts.initialSearch || '',
-      emptyMessage:
-        getWarehouseId() > 0 ? 'لا توجد مواد في هذا المستودع' : 'لا توجد مواد مطابقة',
-      onOpen: function () {
-        tbody.querySelectorAll('tr.is-picker-active').forEach(function (r) {
-          r.classList.remove('is-picker-active');
-        });
-        tr.classList.add('is-picker-active');
-        activePickRow = tr;
-      },
-      onClose: function () {
-        if (activePickRow) {
-          activePickRow.classList.remove('is-picker-active');
-          activePickRow = null;
-        }
-      },
-      onConfirm: function (items) {
-        addPickerItems(items);
-      },
-    });
-  }
-
-  function focusNextField(tr, current) {
-    if (blockLineNavIfQtyMissing(tr, current)) return;
-
-    var rows = listNavRows();
-    var rowIdx = rows.indexOf(tr);
-    if (rowIdx < 0) return;
-
-    var fields = getRowNavFields(tr);
-    var colIdx = fields.indexOf(current);
-    if (colIdx < 0) {
-      if (rowHasItem(tr)) {
-        focusRowQtyField(tr);
-        return;
-      }
-      if (!rowHasItem(tr)) {
-        openPickerForRow(tr);
-      }
-      return;
-    }
-
-    if (colIdx < fields.length - 1) {
-      var nextField = fields[colIdx + 1];
-      if (blockLineNavIfQtyMissing(tr, current)) return;
-      focusFieldEl(nextField);
-      return;
-    }
-
-    if (rowNeedsQtyInput(tr)) {
-      var qtyExtraEl = tr.querySelector('.js-qty-extra');
-      if (current && current.classList.contains('js-qty-extra') && qtyExtraEl) {
-        focusFieldEl(qtyExtraEl);
-      } else if (current && current.classList.contains('js-qty') && qtyExtraEl) {
-        focusFieldEl(qtyExtraEl);
-      } else {
-        focusRowQtyField(tr);
-      }
-      return;
-    }
-
-    if (rowIdx < rows.length - 1) {
-      var nextTr = rows[rowIdx + 1];
-      if (!rowHasItem(nextTr)) {
-        focusRowMaterialCodeField(nextTr);
-        return;
-      }
-      var nextFields = getRowNavFields(nextTr);
-      if (nextFields.length) {
-        focusFieldEl(nextFields[0]);
-      }
-      return;
-    }
-
-    if (getRowItemId(tr) > 0) {
-      recalcRow(tr, rowAmountSource(tr), { normalizeStored: true });
-      if (tr.classList.contains('is-entry-row')) {
-        finalizeEntryRow(tr);
-      }
-      recalcFooter();
-      syncJson();
-    }
-    focusEntryMaterialCodeField();
-  }
-
-  function focusEntryMaterialCodeField() {
-    var entry = ensureEntryRow();
-    focusRowMaterialCodeField(entry);
-  }
-
-  function completeLineAndNext(tr) {
-    focusNextField(tr, tr.querySelector('input.js-line-gross') || tr.querySelector('.js-line-gross') || tr.querySelector('.js-tax') || tr.querySelector('.js-qty'));
-  }
-
-  function bindRow(tr) {
-    if (tr.dataset.rowBound === '1') return;
-    tr.dataset.rowBound = '1';
-
-    tr.querySelectorAll('.js-pick-open').forEach(function (pickBtn) {
-      pickBtn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        openPickerForRow(tr);
-      });
-      pickBtn.addEventListener('keydown', function (e) {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        openPickerForRow(tr);
-      });
-    });
-
-    var itemCell = tr.querySelector('.sales-inv-item-cell');
-    if (itemCell) {
-      itemCell.addEventListener('click', function (e) {
-        if (e.target.closest('.js-pick-open')) return;
-        e.preventDefault();
-        e.stopPropagation();
-        openPickerForRow(tr);
-      });
-      itemCell.addEventListener('mousedown', function (e) {
-        if (e.target.closest('.js-pick-open')) return;
-        if (itemCell.classList.contains('is-qty-required-locked')) {
-          e.preventDefault();
-          alertQtyRequired(tr, 'اختيار مادة أخرى');
-          focusRowQtyField(tr);
-        }
-      });
-    }
-
-    applyQtyPriceInputAttrs(tr);
-    applyRowItemPickLock(tr);
-
-    tr.querySelectorAll(ROW_ITEM_LOCK_SELECTORS + ',' + ROW_QTY_LOCK_SELECTORS).forEach(function (lockEl) {
-      lockEl.addEventListener('mousedown', function (e) {
-        if (lockEl.classList.contains('is-qty-required-locked')) {
-          e.preventDefault();
-          focusRowQtyField(tr);
-          return;
-        }
-        if (!rowHasItem(tr) && !invoiceIsPosted) {
-          e.preventDefault();
-          focusRowItemPick(tr);
-        }
-      });
-      lockEl.addEventListener('focus', function () {
-        if (lockEl.classList.contains('is-qty-required-locked')) {
-          lockEl.blur();
-          focusRowQtyField(tr);
-          return;
-        }
-        if (!rowHasItem(tr) && !invoiceIsPosted) {
-          lockEl.blur();
-          focusRowItemPick(tr);
-        }
-      });
-    });
-
-    var barcodeInp = tr.querySelector('.js-barcode-inp');
-    if (barcodeInp) {
-      barcodeInp.addEventListener('keydown', function (e) {
-        if (handleTableArrowKey(e, tr, barcodeInp)) return;
-        if (e.key !== 'Enter') return;
-        if (rowHasItem(tr) && String(barcodeInp.value || '').trim() === '') {
-          e.preventDefault();
-          focusNextField(tr, barcodeInp);
-        }
-      });
-      barcodeInp.addEventListener('blur', function () {
-        var code = String(barcodeInp.value || '').trim();
-        if (!rowHasItem(tr) && code) {
-          resolveBarcodeOnRow(tr);
-        }
-      });
-    }
-
-    var skuCell = tr.querySelector('.sales-inv-col-sku');
-    if (skuCell) {
-      skuCell.addEventListener('click', function (e) {
-        if (e.target.closest('.js-barcode-inp')) return;
-        if (!rowHasItem(tr) && barcodeInp && !invoiceIsPosted) {
-          e.preventDefault();
-          focusRowMaterialCodeField(tr);
-        }
-      });
-    }
-
-    var unitSel = tr.querySelector('.js-unit');
-    if (unitSel) {
-      unitSel.addEventListener('change', function () {
-        var opt = unitSel.options[unitSel.selectedIndex];
-        var newFactor = parseNum(opt ? opt.getAttribute('data-factor') : 1) || 1;
-        var factorEl = tr.querySelector('.js-unit-factor');
-        // الكمية تبقى كما أدخلها المستخدم بالوحدة الجديدة؛ العدد = كمية × معامل
-        if (factorEl) factorEl.value = String(newFactor);
-        applyUnitPriceFromBase(tr);
-        syncQtyBaseDisplay(tr);
-        recalcRow(tr);
-        if (!invoiceIsPosted) markFormDirty();
-      });
-    }
-
-    tr
-      .querySelectorAll(
-        '.js-qty, .js-qty-extra, .js-price, .js-price-incl, .js-discount, .js-line-sub, .js-line-gross, .js-tax'
-      )
-      .forEach(function (el) {
-      el.addEventListener('input', function () {
-        recalcRowLiveFromField(tr, el);
-        if (el.classList.contains('js-qty') || el.classList.contains('js-qty-extra')) {
-          applyRowQtyLock(tr);
-        }
-        if (el.classList.contains('js-qty')) {
-          syncQtyBaseDisplay(tr);
-        }
-      });
-      el.addEventListener('change', function () {
-        if (el.classList.contains('js-qty')) normalizeQtyInput(el);
-        if (el.classList.contains('js-qty-extra')) normalizeQtyExtraInput(el);
-        if (el.classList.contains('js-price')) normalizePriceInput(el);
-        if (el.classList.contains('js-price-incl')) normalizePriceInclInput(el);
-        if (el.classList.contains('js-line-sub')) normalizeSubInput(el);
-        if (el.classList.contains('js-line-gross')) normalizeGrossInput(el);
-        recalcRowLiveFromField(tr, el);
-        if (el.classList.contains('js-qty') || el.classList.contains('js-qty-extra')) {
-          applyRowQtyLock(tr);
-        }
-        if (el.classList.contains('js-qty')) {
-          syncQtyBaseDisplay(tr);
-        }
-      });
-      el.addEventListener('blur', function () {
-        if (
-          el.classList.contains('js-qty') ||
-          el.classList.contains('js-price') ||
-          el.classList.contains('js-price-incl') ||
-          el.classList.contains('js-discount') ||
-          el.classList.contains('js-line-sub') ||
-          el.classList.contains('js-line-gross')
-        ) {
-          commitAmountFieldAndRecalc(tr, el);
-        } else if (el.classList.contains('js-qty-extra')) {
-          normalizeQtyExtraInput(el);
-          syncJson();
-        }
-        if (el.classList.contains('js-qty') || el.classList.contains('js-qty-extra')) {
-          applyRowQtyLock(tr);
-        }
-        if (el.classList.contains('js-qty')) {
-          syncQtyBaseDisplay(tr);
-        }
-      });
-      el.addEventListener('keydown', function (e) {
-        if (handleTableArrowKey(e, tr, el)) return;
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        if (el.classList.contains('js-tax')) {
-          recalcRow(tr, rowAmountSource(tr), { normalizeStored: true });
-          recalcFooter();
-          syncJson();
-          focusNextField(tr, el);
-          return;
-        }
-        if (isAmountFieldEnterCommit(el)) {
-          commitAmountFieldAndRecalc(tr, el);
-        }
-        if (blockLineNavIfQtyMissing(tr, el)) return;
-        focusNextField(tr, el);
-      });
-    });
-
-    var removeBtn = tr.querySelector('.js-remove');
-    if (removeBtn) {
-      removeBtn.addEventListener('click', function () {
-        var wasEntry = tr.classList.contains('is-entry-row');
-        tr.remove();
-        if (wasEntry || !getEntryRow()) {
-          ensureEntryRow();
-        }
-        renumberRows();
-        recalcFooter();
-        syncJson();
-      });
-      if (tr.classList.contains('is-entry-row')) {
-        removeBtn.style.visibility = 'hidden';
-      }
-    }
-  }
-
-
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    if (ledgerView || invoiceIsPosted) return;
-    trySave();
-  });
-
-  function hasDraftContent() {
-    var hasLine = false;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (parseInt(tr.dataset.itemId, 10) > 0) hasLine = true;
-    });
-    if (hasLine) return true;
-    var notes = document.getElementById('inv_notes');
-    if (notes && String(notes.value).trim() !== '') return true;
-    var cust = document.getElementById('inv_customer');
-    if (cust && cust.value !== '') return true;
-    return false;
-  }
-
-  function focusInvoiceNoField() {
-    var invNo = document.getElementById('inv_no');
-    if (!invNo) return;
-    setTimeout(function () {
-      invNo.focus();
-      if (invNo.select) invNo.select();
-    }, 80);
-  }
-
-  function syncDeliveryLinkHint(deliveryNo) {
-    var el = document.getElementById('inv_delivery_link_hint');
-    var unlinkBtn = document.getElementById('inv_unlink_delivery_btn');
-    var delField = document.getElementById('inv_delivery_id');
-    if (delField) {
-      delField.value = linkedDeliveryId > 0 ? String(linkedDeliveryId) : '';
-    }
-    if (linkedDeliveryId > 0) {
-      var hintText =
-        'مرتبط بسند تسليم' +
-        (deliveryNo ? ' «' + deliveryNo + '»' : '') +
-        ' — المخزون مُخصَم من السند.';
-      if (invoiceEinvQr) {
-        hintText += ' لإزالة الربط الخاطئ اضغط زر «فك ربط السند» أعلى الشاشة (بجانب سحب سند تسليم).';
-      }
-      if (el) {
-        el.hidden = false;
-        el.textContent = hintText;
-      }
-      if (unlinkBtn) unlinkBtn.hidden = false;
-    } else {
-      if (el) {
-        el.hidden = true;
-        el.textContent = '';
-      }
-      if (unlinkBtn) unlinkBtn.hidden = true;
-    }
-  }
-
-  function unlinkDeliveryFromInvoice() {
-    if (!unlinkDeliveryUrl || currentInvoiceId < 1 || linkedDeliveryId < 1) return;
-    var csrfInput = form.querySelector('[name="_csrf"]');
-    AppDialog.confirm(
-      'فك ربط هذه الفاتورة عن سند التسليم؟\nلن يُلغى ترحيل الفاتورة ولا يتأثر إرسال الضريبة.',
-      { title: 'فك ربط السند' }
-    ).then(function (ok) {
-      if (!ok) return;
-      var fd = new FormData();
-      fd.append('_csrf', csrfInput ? csrfInput.value : '');
-      fd.append('invoice_id', String(currentInvoiceId));
-      fetch(unlinkDeliveryUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (data) {
-          if (!data || !data.ok) {
-            AppDialog.error((data && data.error) || 'تعذر فك الربط.');
-            return;
-          }
-          linkedDeliveryId = 0;
-          syncDeliveryLinkHint('');
-          AppDialog.success(data.message || 'تم فك الربط.');
-        })
-        .catch(function () {
-          AppDialog.error('تعذر الاتصال بالخادم.');
-        });
-    });
-  }
-
-  function resetInvoiceForm() {
-    runWithoutDirtyMark(function () {
-      form.reset();
-      linkedDeliveryId = 0;
-      syncDeliveryLinkHint('');
-      var invDate = document.getElementById('inv_date');
-      if (invDate && defaultDate) invDate.value = defaultDate;
-      var paySel = document.getElementById('inv_payment_type');
-      if (paySel) paySel.value = 'credit';
-      applyDefaultWarehouse();
-      setCustomerById(0, true);
-      syncInvoiceNoDisplay('');
-      tbody.innerHTML = '';
-      closePicker();
-      ensureEntryRow();
-      renumberRows();
-      recalcFooter();
-      syncJson();
-    });
-  }
-
-  function buildInvoicePrintInnerHtml() {
-    ensureDiscountsBeforePrint();
-    var hdrDiscInp = document.getElementById('inv-invoice-discount');
-    var invoiceDiscountLabel =
-      hdrDiscInp && String(hdrDiscInp.value || '').trim() !== ''
-        ? String(hdrDiscInp.value).trim()
-        : '';
-
-    var dateEl = document.getElementById('inv_date');
-    var date = fmtDate(dateEl ? dateEl.value : '');
-    var cust = getCustomerDisplayName();
-    var paySel = document.getElementById('inv_payment_type');
-    var payLabel = paySel && paySel.value === 'credit' ? 'ذمم' : 'نقدي';
-    var repName = getSalesRepDisplayName();
-    var repLine = '';
-    if (repName && repName.indexOf('بدون') === -1 && repName.indexOf('اختر') === -1) {
-      repLine =
-        '<tr><td style="padding:0.2rem 0;direction:rtl;unicode-bidi:isolate;"><strong>المندوب:\u200F</strong> <bdi>' +
-        escapeHtml(repName) +
-        '</bdi></td></tr>';
-    }
-    var invNoEl = document.getElementById('inv_no');
-    var invNo = invNoEl && invNoEl.value ? invNoEl.value : '—';
-    var wh = document.getElementById('inv_wh');
-    var whLine = '';
-    var notes = document.getElementById('inv_notes');
-    var notesVal = notes ? String(notes.value).trim() : '';
-    var notesBlock = notesVal
-      ? '<p style="margin:0.75rem 0 0;font-size:0.88rem;direction:rtl;unicode-bidi:isolate;"><strong>ملاحظات:\u200F</strong> <bdi>' +
-        escapeHtml(notesVal) +
-        '</bdi></p>'
-      : '';
-
-    var sub = document.getElementById('sales-inv-sum-sub');
-    var tax = document.getElementById('sales-inv-sum-tax');
-    var grand = document.getElementById('sales-inv-sum-grand');
-    var disc = document.getElementById('sales-inv-sum-disc');
-    var subT = fmtPrintAmount(parseNum(sub ? sub.textContent : 0));
-    var taxT = fmtPrintAmount(parseNum(tax ? tax.textContent : 0));
-    var grandT = fmtPrintAmount(parseNum(grand ? grand.textContent : 0));
-    var discT = fmtPrintAmount(parseNum(disc ? disc.textContent : 0));
-
-    var ipp = window.InvInvoicePrint;
-    var layout = ipp
-      ? ipp.getLayout(tbody, salesInvoicePrintLayoutOpts)
-      : {
-          showQtyExtra: false,
-          showDiscount: false,
-          showUnitPriceIncl: true,
-        };
-    var lineCols = ipp ? ipp.lineColCount(layout) : 12;
-    var rowHtml = '';
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      var itemId = parseInt(tr.dataset.itemId, 10);
-      if (!itemId) return;
-      if (ipp) {
-        rowHtml += ipp.buildLineRow(tr, layout, invoicePrintLineCtx());
-      }
-    });
-
-    if (!rowHtml) {
-      rowHtml =
-        '<tr><td colspan="' +
-        lineCols +
-        '" style="padding:1rem;text-align:center;color:#64748b;">لا توجد بنود</td></tr>';
-    }
-
-    if (wh) {
-      var wopt = wh.options[wh.selectedIndex];
-      if (wopt && wh.value) {
-        whLine =
-          '<tr><td colspan="' +
-          lineCols +
-          '" style="padding:0.35rem 0;border-bottom:1px solid #e2e8f0;direction:rtl;unicode-bidi:isolate;"><strong>المستودع:\u200F</strong> <bdi>' +
-          escapeHtml(wopt.text) +
-          '</bdi></td></tr>';
-      }
-    }
-
-    var showDiscTotal =
-      (layout.showDiscount || invoiceDiscountLabel !== '') && parseNum(disc ? disc.textContent : 0) > 0.000001;
-    var printTotals =
-      ipp && ipp.buildPrintTotals
-        ? ipp.buildPrintTotals({
-            escapeHtml: escapeHtml,
-            invoiceDiscountLabel: invoiceDiscountLabel,
-            showDiscountTotal: showDiscTotal,
-            discTotalText: discT,
-            subTotalText: subT,
-            taxTotalText: taxT,
-            grandTotalText: grandT,
-          })
-        : '';
-
-    var metaRows = [
-      { label: 'رقم الفاتورة', value: invNo },
-      { label: 'التاريخ', value: date },
-      { label: 'العميل', value: cust },
-      { label: 'النوع', value: payLabel },
-    ];
-    var metaTable =
-      window.DocumentHeader && typeof window.DocumentHeader.buildMetaTable === 'function'
-        ? window.DocumentHeader.buildMetaTable(metaRows)
-        : '<table><tr><td style="padding:0.2rem 0;"><strong>رقم الفاتورة:</strong> ' +
-          escapeHtml(invNo) +
-          '</td></tr></table>';
-    if (repLine || whLine) {
-      metaTable = metaTable.replace('</table>', repLine + whLine + '</table>');
-    }
-
-    var einvBox = buildEinvoiceQrBox();
-    var headerBlock = einvBox
-      ? '<table class="inv-print-header-row" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0.3rem 0 0.6rem;direction:rtl;table-layout:fixed;">' +
-          '<tr>' +
-          '<td class="inv-print-header-meta" style="border:none;padding:0;vertical-align:top;">' + metaTable + '</td>' +
-          '<td class="inv-print-header-qr" style="border:none;padding:0;vertical-align:top;width:' +
-          (window.InvInvoicePrint ? window.InvInvoicePrint.EINV_QR_HEADER_COL_PX : 158) +
-          'px;text-align:center;">' + einvBox + '</td>' +
-        '</tr></table>'
-      : metaTable;
-
-    var inner =
-      '<div class="inv-print-doc">' +
-      buildDocPrintHeader('فاتورة مبيعات') +
-      headerBlock +
-      '<table class="inv-print-lines"><thead><tr>' +
-      (ipp ? ipp.theadRow(layout) : '') +
-      '</tr></thead><tbody>' +
-      rowHtml +
-      '</tbody></table>' +
-      printTotals +
-      notesBlock +
-      buildRecipientSignatureBlock() +
-      '</div>';
-    return window.DocumentHeader && window.DocumentHeader.wrapPrintContent
-      ? window.DocumentHeader.wrapPrintContent(inner, companyLogoUrl)
-      : inner;
-  }
-
-  function docPrintWatermarkStyles() {
-    var dh = window.DocumentHeader;
-    return dh && companyLogoUrl && dh.buildPrintWatermarkStyles
-      ? dh.buildPrintWatermarkStyles(companyLogoUrl)
-      : '';
-  }
-
-  function getPrintFrameStyles() {
-    var hdr =
-      window.DocumentHeader && window.DocumentHeader.css ? window.DocumentHeader.css : '';
-    var bold =
-      window.DocumentHeader && window.DocumentHeader.printBoldCss
-        ? window.DocumentHeader.printBoldCss
-        : '';
-    var invTbl =
-      window.InvInvoicePrint && window.InvInvoicePrint.tablePrintCss
-        ? window.InvInvoicePrint.tablePrintCss()
-        : '';
-    return (
-    docPrintWatermarkStyles() +
-    hdr +
-    bold +
-    invTbl +
-    '.doc-print-meta{text-align:start;direction:rtl;}.doc-print-meta table{width:100%;border-collapse:collapse;}' +
-    '.doc-print-meta td{border:none!important;padding:0.2rem 0!important;text-align:start!important;}' +
-    '.doc-print-meta-value--party{font-weight:800;font-size:1.12em;color:#0f172a;}' +
-    (window.InvInvoicePrint && window.InvInvoicePrint.einvQrPrintCss
-      ? window.InvInvoicePrint.einvQrPrintCss()
-      : '') +
-    '.inv-print-header-row{width:100%;border-collapse:collapse;margin:0.3rem 0 0.6rem;direction:rtl;}' +
-    '.inv-print-header-row td{border:none!important;padding:0!important;vertical-align:top;}' +
-    '.inv-print-header-row td.inv-print-header-meta{width:auto;}' +
-    '.sales-inv-print-tot{margin-top:0.75rem;text-align:left;max-width:280px;margin-right:0;margin-left:auto;}' +
-    '.sales-inv-print-tot div{display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid #e2e8f0;font-weight:700;}' +
-    '.sales-inv-print-tot .g{font-weight:800;font-size:1.05rem;border-top:2px solid #334155;margin-top:0.35rem;padding-top:0.45rem;}'
-    );
-  }
-
-  function buildEinvoiceQrBox() {
-    if (!einvQrDataUrl && !invoiceEinvQr) return '';
-    if (einvQrDataUrl && window.InvInvoicePrint && window.InvInvoicePrint.buildEinvQrBoxHtml) {
-      return window.InvInvoicePrint.buildEinvQrBoxHtml(einvQrDataUrl);
-    }
-    return '';
-  }
-
-  // الإبقاء على الاسم القديم لأي استدعاء خارجي.
-  function buildEinvoicePrintBlock() {
-    return '';
-  }
-
-  function buildStandaloneInvoiceHtml() {
-    var bodyAttrs =
-      window.DocumentHeader && window.DocumentHeader.bodyPrintAttrs
-        ? window.DocumentHeader.bodyPrintAttrs(companyLogoUrl, true)
-        : '';
-    return (
-      '<!DOCTYPE html><html ' + (typeof appPrintHtmlLangAttrs === 'function' ? appPrintHtmlLangAttrs() : 'lang="ar" dir="rtl"') + '><head><meta charset="utf-8"><title>' + (typeof __ === 'function' ? __('فاتورة مبيعات') : 'فاتورة مبيعات') + '</title>' +
-      '<style>' +
-      getPrintFrameStyles() +
-      '</style></head><body' +
-      bodyAttrs +
-      '>' +
-      buildInvoicePrintInnerHtml() +
-      '</body></html>'
-    );
-  }
-
-  function getPrintFrame() {
-    var frame = document.getElementById('sales-inv-print-frame');
-    if (!frame) {
-      frame = document.createElement('iframe');
-      frame.id = 'sales-inv-print-frame';
-      frame.className = 'sales-inv-print-frame';
-      frame.setAttribute('aria-hidden', 'true');
-      frame.setAttribute('tabindex', '-1');
-      document.body.appendChild(frame);
-    }
-    return frame;
-  }
-
-  function printHtmlInFrame(fullHtml) {
-    var frame = getPrintFrame();
-    if (window.PrintOrientation) {
-      fullHtml = PrintOrientation.prepareHtml(fullHtml);
-    }
-    // تخطيط A4 ظاهر لمحرّك الطباعة — visibility:hidden كانت تسبب 3 صفحات
-    frame.style.cssText =
-      'position:fixed;left:0;top:0;width:210mm;height:297mm;border:0;margin:0;padding:0;' +
-      'opacity:0;pointer-events:none;z-index:-1;';
-    if (window.PrintOrientation) {
-      PrintOrientation.sizeFrame(frame);
-    }
-    var win = frame.contentWindow;
-    win.document.open();
-    win.document.write(fullHtml);
-    win.document.close();
-    var triggerPrint = function () {
-      try {
-        win.focus();
-        win.print();
-      } catch (e) {}
-    };
-        // انتظر تحميل/فك ترميز QR (data URL) قبل الطباعة.
-    var waitForImages = function () {
-      try {
-        var doc = win.document;
-        var imgs = doc.images ? Array.prototype.slice.call(doc.images) : [];
-        var pending = imgs.filter(function (im) { return im && !im.complete; });
-        var trigger = function () {
-          setTimeout(triggerPrint, 350);
-        };
-        if (pending.length === 0) {
-          trigger();
-          return;
-        }
-        var remaining = pending.length;
-        var done = function () {
-          remaining--;
-          if (remaining <= 0) trigger();
-        };
-        pending.forEach(function (im) {
-          im.addEventListener('load', done, { once: true });
-          im.addEventListener('error', done, { once: true });
-        });
-        setTimeout(trigger, 5000);
-      } catch (e) {
-        setTimeout(triggerPrint, 350);
-      }
-    };
-    setTimeout(waitForImages, 250);
-  }
-
-  function fillPrintPreviewPaper(preview, innerHtml) {
-    if (!preview) return;
-    preview.innerHTML = '<div class="sales-inv-print-paper">' + innerHtml + '</div>';
-    var overlay = preview.closest ? preview.closest('.sales-inv-print-overlay') : document.getElementById('sales-inv-print-overlay');
-    if (overlay && window.PrintOrientation) {
-      PrintOrientation.markActive(overlay);
-    }
-  }
-
-  function closePrintPreview() {
-    var overlay = document.getElementById('sales-inv-print-overlay');
-    if (overlay) {
-      overlay.hidden = true;
-      overlay.setAttribute('hidden', '');
-      overlay.style.display = 'none';
-    }
-  }
-
-  function openPrintPreview(forPdf) {
-    syncJson();
-    var preview = document.getElementById('sales-inv-print-preview');
-    var overlay = document.getElementById('sales-inv-print-overlay');
-    var title = document.querySelector('.sales-inv-print-overlay-title');
-    function showPreview() {
-      if (!preview || !overlay) {
-        printHtmlInFrame(buildStandaloneInvoiceHtml());
-        return;
-      }
-      if (overlay.parentNode !== document.body) {
-        document.body.appendChild(overlay);
-      }
-      fillPrintPreviewPaper(preview, buildInvoicePrintInnerHtml());
-      if (title) {
-        title.textContent = forPdf
-          ? 'معاينة شكل الورقة — اختر «حفظ كـ PDF» من نافذة الطباعة'
-          : 'معاينة شكل الورقة';
-      }
-      overlay.removeAttribute('hidden');
-      overlay.hidden = false;
-      overlay.style.display = 'flex';
-      overlay.style.zIndex = '10050';
-    }
-    if (invoiceEinvQr && !einvQrDataUrl) {
-      refreshEinvQrDataUrl(showPreview);
-    } else {
-      showPreview();
-    }
-  }
-
-  function runPrintFromPreview() {
-    var go = function () {
-      printHtmlInFrame(buildStandaloneInvoiceHtml());
-    };
-    if (invoiceEinvQr && !einvQrDataUrl) {
-      refreshEinvQrDataUrl(go);
-    } else {
-      go();
-    }
-  }
-
-  /** معاينة من الشريط العلوي؛ إن كانت المعاينة مفتوحة يُنفَّذ الطباعة مباشرة. */
-  function handleToolbarPrint() {
-    var overlay = document.getElementById('sales-inv-print-overlay');
-    var previewOpen = overlay && !overlay.hidden;
-    if (previewOpen) {
-      runPrintFromPreview();
-      return;
-    }
-    openPrintPreview(false);
-  }
-
-  function getInvoiceFileBase() {
-    var invNoEl = document.getElementById('inv_no');
-    var no = invNoEl && invNoEl.value ? String(invNoEl.value).trim() : '';
-    if (!no) no = 'draft';
-    return 'invoice-' + no.replace(/[^\w\u0600-\u06FF\-]+/g, '_');
-  }
-
-  function getExportHost() {
-    var host = document.getElementById('sales-inv-export-host');
-    if (!host) {
-      host = document.createElement('div');
-      host.id = 'sales-inv-export-host';
-      host.className = 'sales-inv-export-host';
-      host.setAttribute('aria-hidden', 'true');
-      document.body.appendChild(host);
-    }
-    return host;
-  }
-
-  function downloadInvoicePdf() {
-    syncJson();
-    if (typeof html2pdf === 'undefined') {
-      AppDialog.error('تعذر تحميل مكتبة PDF. تحقق من الاتصال بالإنترنت ثم أعد تحميل الصفحة.');
-      return;
-    }
-    var go = function () {
-      var fname = getInvoiceFileBase() + '.pdf';
-      // نهج موثوق: نفتح preview overlay مرئياً (CSS مصمَّمة للعمل داخل overlay panel)
-      // ثم نأخذ html2pdf من الـ preview body، ثم نُغلقه. المستخدم سيرى وميض المعاينة.
-      var overlay = document.getElementById('sales-inv-print-overlay');
-      var preview = document.getElementById('sales-inv-print-preview');
-      if (!overlay || !preview) {
-        AppDialog.error('عنصر المعاينة غير متاح. أعد تحميل الصفحة.');
-        return;
-      }
-      var wasHidden = overlay.hidden;
-      // اضمن أن overlay في document.body (وليس داخل element مخفي).
-      if (overlay.parentNode !== document.body) {
-        document.body.appendChild(overlay);
-      }
-      fillPrintPreviewPaper(preview, buildInvoicePrintInnerHtml());
-      // اعرض overlay مؤقتاً لكن مع تقليل ظهور المحتوى المرئي للمستخدم.
-      overlay.removeAttribute('hidden');
-      overlay.hidden = false;
-      overlay.style.display = 'flex';
-      overlay.style.zIndex = '99999';
-      overlay.style.opacity = '0.001';
-      var cleanup = function () {
-        setTimeout(function () {
-          try {
-            overlay.style.opacity = '';
-            overlay.style.zIndex = '';
-            overlay.style.display = '';
-            if (wasHidden) {
-              overlay.hidden = true;
-              overlay.setAttribute('hidden', '');
-            }
-          } catch (_e) {}
-        }, 100);
-      };
-      var waitForImages = function (cb) {
-        var imgs = preview.querySelectorAll('img');
-        if (!imgs.length) { cb(); return; }
-        var pending = imgs.length;
-        var done = false;
-        var finish = function () { if (!done) { done = true; cb(); } };
-        var safety = setTimeout(finish, 5000);
-        Array.prototype.forEach.call(imgs, function (img) {
-          if (img.complete && img.naturalWidth > 0) {
-            if (--pending <= 0) { clearTimeout(safety); finish(); }
-          } else {
-            img.addEventListener('load', function () { if (--pending <= 0) { clearTimeout(safety); finish(); } });
-            img.addEventListener('error', function () { if (--pending <= 0) { clearTimeout(safety); finish(); } });
-          }
-        });
-      };
-      // ننتظر frame واحدة لضمان أن CSS طُبِّقت بعد إظهار overlay.
-      requestAnimationFrame(function () {
-        waitForImages(function () {
-          try {
-            var pdfTarget = preview.querySelector('.sales-inv-print-paper') || preview;
-            html2pdf()
-              .set({
-                margin: [10, 10, 10, 10],
-                filename: fname,
-                image: { type: 'jpeg', quality: 0.95 },
-                html2canvas: { scale: 2, logging: false, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: ['css', 'legacy'] },
-              })
-              .from(pdfTarget)
-              .save()
-              .then(cleanup)
-              .catch(function (err) {
-                try { console.error('[pdf] export failed', err); } catch (_e) {}
-                cleanup();
-                AppDialog.error('تعذر إنشاء ملف PDF.');
-              });
-          } catch (err) {
-            try { console.error('[pdf] sync error', err); } catch (_e) {}
-            cleanup();
-            AppDialog.error('تعذر إنشاء ملف PDF.');
-          }
-        });
-      });
-    };
-    if (invoiceEinvQr && !einvQrDataUrl) {
-      refreshEinvQrDataUrl(go);
-    } else {
-      go();
-    }
-  }
-
-  function sendInvoiceByEmail() {
-    if (!sendEmailUrl) {
-      AppDialog.error('خدمة إرسال البريد غير مهيأة.');
-      return;
-    }
-    if (!window.DocSendEmail) {
-      AppDialog.error('مكتبة الإرسال غير محمّلة.');
-      return;
-    }
-    syncJson();
-    var go = function () {
-      var csrfInp = form.querySelector('input[name="_csrf"]');
-      var invNoEl = document.getElementById('inv_no');
-      var docNo = invNoEl && invNoEl.value ? String(invNoEl.value).trim() : '';
-      window.DocSendEmail.send({
-        url: sendEmailUrl,
-        docType: 'sales_invoice',
-        docNo: docNo,
-        fileBase: getInvoiceFileBase(),
-        csrfToken: csrfInp ? csrfInp.value : '',
-        buildHtml: buildInvoicePrintInnerHtml,
-        overlayId: 'sales-inv-print-overlay',
-        previewId: 'sales-inv-print-preview',
-      });
-    };
-    if (invoiceEinvQr && !einvQrDataUrl) {
-      refreshEinvQrDataUrl(go);
-    } else {
-      go();
-    }
-  }
-
-  function downloadInvoiceExcel() {
-    syncJson();
-    var html = buildStandaloneInvoiceHtml();
-    var blob = new Blob(['\uFEFF' + html], {
-      type: 'application/vnd.ms-excel;charset=utf-8',
-    });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = getInvoiceFileBase() + '.xls';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function () {
-      URL.revokeObjectURL(url);
-      a.remove();
-    }, 200);
-  }
-
-  function trySave(onSuccess, saveOpts) {
-    saveOpts = saveOpts || {};
-    if (formSubmitting) return;
-    if (invoiceEinvQr) {
-      if (pendingDeliveryPullSave) {
-        pendingDeliveryPullSave = false;
-        clearPendingDeliveryPull();
-      }
-      AppDialog.alert('لا يمكن تعديل فاتورة أُرسلت إلى نظام الفوترة.', { type: 'warning' });
-      return;
-    }
-    if (invoiceIsPosted) {
-      if (pendingDeliveryPullSave) {
-        pendingDeliveryPullSave = false;
-        clearPendingDeliveryPull();
-      }
-      AppDialog.alert('لا يمكن تعديل فاتورة مرحّلة.', { type: 'warning' });
-      return;
-    }
-    if (!validateInvoiceBeforeSave({ allowEmptyLines: !!saveOpts.allowEmptyLines })) {
-      if (pendingDeliveryPullSave) {
-        pendingDeliveryPullSave = false;
-        clearPendingDeliveryPull();
-      }
-      return;
-    }
-    pendingAfterSave = typeof onSuccess === 'function' ? onSuccess : null;
-    try {
-      submitInvoiceForm();
-    } catch (err) {
-      pendingAfterSave = null;
-      if (pendingDeliveryPullSave) {
-        pendingDeliveryPullSave = false;
-        clearPendingDeliveryPull();
-      }
-      console.error('trySave', err);
-      formSubmitting = false;
-      setSaveBusy(false);
-      if (window.AppDialog) {
-        AppDialog.error('تعذر حفظ الفاتورة: ' + (err.message || 'خطأ غير معروف'));
-      }
-    }
-  }
-
-  function requestDeleteUnpostedInvoice(invId, invNoLabel, deleteUrl) {
-    AppDialog.confirm(
-      'حذف الفاتورة «' +
-        invNoLabel +
-        '»؟\n\nسيُعاد رقمها إلى التسلسل ويُستخدم تلقائياً عند إنشاء فاتورة جديدة (إن وُجد رقم فارغ).',
-      { title: 'حذف الفاتورة', danger: true, okText: 'حذف' }
-    ).then(function (ok) {
-      if (!ok) return;
-      var fd = new FormData();
-      var csrfInp = form.querySelector('input[name="_csrf"]');
-      fd.append('_csrf', csrfInp ? csrfInp.value : '');
-      fd.append('invoice_id', String(invId));
-      fetch(deleteUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (data) {
-          if (!data.ok) {
-            var errMsg =
-              data.error ||
-              (data.errors && data.errors.length ? data.errors.join('؛ ') : '') ||
-              data.message ||
-              'تعذر حذف الفاتورة.';
-            AppDialog.error(errMsg);
-            return;
-          }
-          AppDialog.success(data.message || 'تم حذف الفاتورة.');
-          formSubmitting = false;
-          initNewInvoice(true);
-        })
-        .catch(function () {
-          AppDialog.error('تعذر الاتصال بالخادم.');
-        });
-    });
-  }
-
-  function selectTaxByRate(tr, rate) {
-    var taxSel = tr.querySelector('.js-tax');
-    if (!taxSel) return;
-    var target = parseNum(rate);
-    for (var i = 0; i < taxSel.options.length; i++) {
-      if (parseNum(taxSel.options[i].getAttribute('data-rate')) === target) {
-        taxSel.selectedIndex = i;
-        return;
-      }
-    }
-  }
-
-  function addLineFromData(ln) {
-    var tr = createRow(false);
-    tr.dataset.itemId = String(ln.item_id);
-    tr.dataset.nameAr = ln.name_ar || ln.line_desc || '';
-    if (ln.material_number) {
-      tr.dataset.materialNumber = String(ln.material_number);
-    }
-    var codes = resolveLineItemCodes(ln);
-    setRowItemDisplay(tr, tr.dataset.nameAr, codes.barcode, codes.sku);
-    tr.dataset.sub = String(ln.line_subtotal != null ? ln.line_subtotal : ln.line_total || 0);
-    tr.dataset.tax = String(ln.tax_amount || 0);
-    tr.dataset.gross = String(ln.line_gross != null ? ln.line_gross : ln.line_total || 0);
-    var qtyLoaded = parseNum(ln.qty);
-    tr.querySelector('.js-qty').value = qtyLoaded > 0 ? formatQtyValue(ln.qty) : '0';
-    var qtyExtraEl = tr.querySelector('.js-qty-extra');
-    if (qtyExtraEl) {
-      var qeLoaded = parseNum(ln.qty_extra != null ? ln.qty_extra : 0);
-      qtyExtraEl.value = qeLoaded > 0 ? formatQtyValue(ln.qty_extra) : '0';
-    }
-    tr.querySelector('.js-price').value = formatUnitPriceValue(
-      ln.unit_price,
-      ln.unit_price != null ? String(ln.unit_price) : ''
-    );
-    var loadedUp = parseNum(ln.unit_price);
-    var loadedFactor = parseNum(ln.unit_factor != null ? ln.unit_factor : 1) || 1;
-    var basePriceEl = tr.querySelector('.js-base-price');
-    if (basePriceEl && loadedFactor > 0 && loadedUp > 0) {
-      basePriceEl.value = String(loadedUp / loadedFactor);
-    }
-    fillRowUnits(tr, ln.units || [{ unit_id: ln.unit_id || 0, name: ln.unit_name || '—', factor: loadedFactor, is_default: true }], parseInt(ln.unit_id, 10) || 0);
-    if (loadedUp > 0) {
-      tr.dataset.listUnitPrice = String(loadedUp);
-    } else {
-      delete tr.dataset.listUnitPrice;
-    }
-    applyQtyPriceInputAttrs(tr);
-    selectTaxByRate(tr, ln.tax_rate_percent || 0);
-    var discEl = tr.querySelector('.js-discount');
-    if (discEl) {
-      discEl.value = ln.line_discount_input || '';
-      discEl.readOnly = false;
-      discEl.classList.remove('is-header-discount');
-    }
-    var subInp = tr.querySelector('input.js-line-sub');
-    if (subInp) {
-      subInp.value = formatAmountValue(parseNum(tr.dataset.sub), String(tr.dataset.sub));
-    }
-    setLineGrossDisplay(tr, parseNum(tr.dataset.gross));
-    var loadDriver = ln.amount_driver || inferLineAmountDriver(ln);
-    tr.dataset.amountDriver = loadDriver;
-    recalcRow(tr, loadDriver, { normalizeStored: true });
-    insertDataRowBeforeEntry(tr);
-    return tr;
-  }
-
-  function applyBrowseNavFromPayload(payload) {
-    if (window.DocumentNoNav && DocumentNoNav.applyBrowseNav) {
-      DocumentNoNav.applyBrowseNav(docNoSearch, payload, setBrowseNav, DOC_NO_SEARCH_UI);
-      return;
-    }
-    setBrowseNav(payload.prev_id || 0, payload.next_id || 0);
-  }
-
-  function setBrowseNav(prevId, nextId) {
-    browseNavPrevId = prevId > 0 ? prevId : 0;
-    browseNavNextId = nextId > 0 ? nextId : 0;
-    updateNavButtons(browseNavPrevId, browseNavNextId);
-  }
-
-  function updateNavButtons(prevId, nextId) {
-    if (window.DocumentNoNav) {
-      DocumentNoNav.updateButtons('inv_no_prev', 'inv_no_next', prevId, nextId, {
-        onEmpty: currentInvoiceId < 1,
-        prevTitle: 'الفاتورة السابقة',
-        nextTitle: 'الفاتورة التالية',
-        prevBeforeLatestTitle: 'الفاتورة قبل الأخيرة',
-        latestTitle: 'آخر فاتورة بيع',
-      });
-      return;
-    }
-    var prevBtn = document.getElementById('inv_no_prev');
-    var nextBtn = document.getElementById('inv_no_next');
-    if (prevBtn) prevBtn.disabled = !(prevId > 0);
-    if (nextBtn) nextBtn.disabled = !(nextId > 0);
-  }
-
-  function navigateEmptyInvoice(dir) {
-    var opts = {
-      browseNavPrevId: browseNavPrevId,
-      browseNavNextId: browseNavNextId,
-      fetchById: function (id) {
-        return fetchInvoiceResponse({ id: id });
-      },
-      fetchLatest: function () {
-        return fetchInvoiceResponse({ filter: 'all', edge: 'first' });
-      },
-      isOk: function (data) {
-        return !!(data && data.ok && data.invoice);
-      },
-      getPayload: function (data) {
-        return data.invoice;
-      },
-      apply: applyInvoiceData,
-      emptyMessage: 'لا توجد فواتير محفوظة بعد.',
-      loadLatestError: 'تعذر تحميل آخر فاتورة.',
-      loadError: 'تعذر تحميل الفاتورة.',
-    };
-    if (window.DocumentNoNav) {
-      return DocumentNoNav.navigateEmpty(dir, opts);
-    }
-    return opts.fetchLatest().then(function (data) {
-      if (opts.isOk(data)) opts.apply(opts.getPayload(data));
-      else AppDialog.alert(opts.emptyMessage, { type: 'info' });
-    });
-  }
-
-  /** تفعيل أسهم التنقل عند فاتورة جديدة فارغة (بعد الحذف أو فتح الشاشة). */
-  function refreshEmptyBrowseNav() {
-    if (!apiInvoiceUrl) {
-      setBrowseNav(0, 0);
-      return;
-    }
-    fetchInvoiceResponse({ filter: 'all', edge: 'first' }).then(function (data) {
-      if (!data || !data.ok || !data.invoice) {
-        setBrowseNav(0, 0);
-        return;
-      }
-      var inv = data.invoice;
-      var newestId = parseInt(inv.id, 10) || 0;
-      setBrowseNav(inv.prev_id || 0, newestId);
-    });
-  }
-
-  function ledgerReturnQs() {
-    return form.getAttribute('data-ledger-return-qs') || '';
-  }
-
-  function appendLedgerReturnQs(url) {
-    var qs = ledgerReturnQs();
-    if (!qs) return url;
-    return url + (url.indexOf('?') >= 0 ? '&' : '?') + qs;
-  }
-
-  function updateHistory(id) {
-    if (!window.history || !window.history.replaceState) return;
-    var base = newInvoiceUrl || window.location.pathname + '?r=sales_invoices';
-    var url = id > 0 ? base + (base.indexOf('?') >= 0 ? '&' : '?') + 'id=' + id : base;
-    url = appendLedgerReturnQs(url);
-    window.history.replaceState({ invoiceId: id }, '', url);
-  }
-
-  function updateInvoiceNoPostedStyle() {
-    var invNo = document.getElementById('inv_no');
-    if (!invNo) return;
-    invNo.classList.remove('is-posted', 'is-unposted', 'is-cancelled');
-    if (currentInvoiceId < 1) return;
-    if (invoiceIsCancelled) {
-      invNo.classList.add('is-cancelled');
-    } else if (invoiceIsPosted) {
-      invNo.classList.add('is-posted');
-    } else {
-      invNo.classList.add('is-unposted');
-    }
-  }
-
-  function updatePostedBadge() {
-    var el = document.getElementById('inv_posted_badge');
-    if (currentInvoiceId < 1) {
-      if (el) el.hidden = true;
-      updateInvoiceNoPostedStyle();
-      return;
-    }
-    if (el) {
-      el.hidden = false;
-      if (invoiceIsCancelled) {
-        el.textContent = 'ملغاة';
-        el.className = 'sales-inv-posted-badge badge badge-cancelled-voucher';
-      } else if (invoiceIsPosted) {
-        el.textContent = 'مرحّلة';
-        el.className = 'sales-inv-posted-badge badge badge-posted';
-      } else {
-        el.textContent = 'غير مرحّلة';
-        el.className = 'sales-inv-posted-badge badge badge-warn';
-      }
-    }
-    updateInvoiceNoPostedStyle();
-    updateEinvoiceBadge();
-    updateInvoiceToolbarUnpostButton();
-    updateEinvoiceButtonState();
-  }
-
-  function updateEinvoiceButtonState() {
-    var btn = document.querySelector('#master-toolbar [data-master-action="send_einvoice"]');
-    if (!btn) return;
-    var disable = false;
-    var tooltip = '';
-    if (currentInvoiceId < 1) {
-      disable = true;
-      tooltip = 'احفظ الفاتورة أولاً.';
-    } else if (invoiceEinvQr) {
-      disable = true;
-      tooltip = 'تم إرسال هذه الفاتورة للفوترة مسبقًا.';
-    } else if (!invoiceIsPosted) {
-      disable = true;
-      tooltip = 'يجب ترحيل الفاتورة قبل إرسالها للفوترة.';
-    } else if (!invoiceEinvTrackingRequired) {
-      disable = true;
-      tooltip = 'فاتورة قبل تاريخ متابعة الفوترة في النظام (01-06-2026).';
-    }
-    if (disable) {
-      btn.disabled = true;
-      btn.setAttribute('title', tooltip);
-      btn.style.opacity = '0.55';
-      btn.style.cursor = 'not-allowed';
-    } else {
-      btn.disabled = false;
-      btn.removeAttribute('title');
-      btn.style.opacity = '';
-      btn.style.cursor = '';
-    }
-  }
-
-  function updateInvoiceToolbarUnpostButton() {
-    var unpostBtn = document.querySelector('#master-toolbar [data-master-action="unpost"]');
-    if (!unpostBtn) return;
-    var canUnpost = canUnpostByPermission && currentInvoiceId > 0 && invoiceIsPosted && !invoiceEinvQr;
-    unpostBtn.disabled = !canUnpost;
-    unpostBtn.classList.toggle('is-inactive', !canUnpost);
-    if (invoiceEinvQr) {
-      unpostBtn.title = 'لا يمكن فك ترحيل فاتورة أُرسلت إلى نظام الفوترة.';
-    } else if (canUnpost) {
-      unpostBtn.title = 'فك ترحيل الفاتورة (عكس القيود والمستودع وذمة العميل)';
-    } else if (currentInvoiceId < 1) {
-      unpostBtn.title = 'احفظ الفاتورة أولاً.';
-    } else {
-      unpostBtn.title = 'الفاتورة غير مرحّلة.';
-    }
-  }
-
-  function updateEinvoiceBadge() {
-    var el = document.getElementById('inv_einv_badge');
+  function setLockedField(el, lock) {
     if (!el) return;
-    if (currentInvoiceId < 1) {
-      el.hidden = true;
-      return;
-    }
-    el.hidden = false;
-    if (!invoiceEinvTrackingRequired) {
-      el.textContent = 'قبل نطاق الفوترة';
-      el.className = 'sales-inv-posted-badge badge badge-off';
-      return;
-    }
-    if (invoiceEinvQr) {
-      el.textContent = 'مُرسلة للفوترة';
-      el.className = 'sales-inv-posted-badge badge badge-einv-sent';
-    } else if (invoiceEinvStatus) {
-      el.textContent = 'فوترة: ' + invoiceEinvStatus;
-      el.className = 'sales-inv-posted-badge badge badge-warn';
+    if (el.tagName === 'SELECT' || el.tagName === 'BUTTON') {
+      el.disabled = !!lock;
     } else {
-      el.textContent = 'لم تُرسل للفوترة';
-      el.className = 'sales-inv-posted-badge badge badge-warn';
+      el.readOnly = !!lock;
     }
   }
 
-  function refreshEinvQrDataUrl(cb) {
-    if (!invoiceEinvQr) {
-      einvQrDataUrl = '';
-      if (cb) cb();
-      return;
-    }
-    var ipp = window.InvInvoicePrint;
-    if (ipp && ipp.einvQrResolveDataUrl) {
-      ipp.einvQrResolveDataUrl(invoiceEinvQr, function (url) {
-        einvQrDataUrl = url || '';
-        if (cb) cb();
-      });
-      return;
-    }
-    einvQrDataUrl = '';
-    if (cb) cb();
-  }
-
-  function applyEinvoiceFromInvoice(inv) {
-    invoiceEinvQr = (inv && inv.einv_qr) ? String(inv.einv_qr) : '';
-    invoiceEinvStatus = (inv && inv.einv_status) ? String(inv.einv_status) : '';
-    invoiceEinvNum = (inv && inv.einv_num) ? String(inv.einv_num) : '';
-    invoiceEinvTrackingRequired =
-      !inv || inv.einv_tracking_required === undefined || inv.einv_tracking_required === null
-        ? true
-        : !!inv.einv_tracking_required;
-    einvQrDataUrl = '';
-    if (invoiceEinvQr) {
-      refreshEinvQrDataUrl(updateEinvoiceBadge);
-    } else {
-      updateEinvoiceBadge();
-    }
-    updateInvoiceToolbarUnpostButton();
-  }
-
-  function parsePostInvoiceJsonResponse(r) {
-    return r.text().then(function (text) {
-      var data = null;
-      if (text) {
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          data = null;
-        }
-      }
-      return { data: data };
-    });
-  }
-
-  function refreshInvoiceAfterPostAttempt(errMsg) {
-    if (currentInvoiceId < 1) {
-      if (errMsg) AppDialog.error(errMsg);
-      return Promise.resolve(false);
-    }
-    return fetchInvoiceResponse({ id: currentInvoiceId }).then(function (data) {
-      if (data && data.ok && data.invoice) {
-        applyInvoiceData(data.invoice);
-        updatePostedBadge();
-        if (invoiceIsPosted) {
-          var msg = 'تم ترحيل الفاتورة.';
-          if (errMsg) {
-            msg += '\n\n' + errMsg;
-          }
-          AppDialog.success(msg);
-          return true;
-        }
-      }
-      if (errMsg) AppDialog.error(errMsg);
-      return false;
-    });
-  }
-
-  function postInvoiceQuietly(opts) {
-    opts = opts || {};
-    var onSuccess = typeof opts.onSuccess === 'function' ? opts.onSuccess : null;
-    var onError = typeof opts.onError === 'function' ? opts.onError : null;
-    if (!invoicePostUrl) {
-      if (onError) onError('الترحيل غير متاح.');
-      return;
-    }
-    if (currentInvoiceId < 1) {
-      if (onError) onError('احفظ الفاتورة أولًا قبل الترحيل.');
-      return;
-    }
-    if (invoiceIsPosted) {
-      if (onSuccess) onSuccess({ ok: true, already_posted: true });
-      return;
-    }
-    if (!validateInvoiceBeforePost()) {
-      if (onError) onError('تعذر التحقق من الفاتورة قبل الترحيل.');
-      return;
-    }
-
-    var csrfInput = form.querySelector('[name="_csrf"]');
-
-    function handlePostResult(res) {
-      var data = res && res.data;
-      if (!data) {
-        if (onError) onError('تعذر قراءة رد الخادم بعد الترحيل.');
-        return;
-      }
-      if (!data.ok) {
-        if (onError) onError(data.error || data.message || 'تعذر الترحيل.');
-        return;
-      }
-      invoiceIsPosted = true;
-      updatePostedBadge();
-      if (onSuccess) onSuccess(data);
-    }
-
-    function runPost(gps) {
-      var fd = new FormData();
-      fd.append('_csrf', csrfInput ? csrfInput.value : '');
-      fd.append('invoice_id', String(currentInvoiceId));
-      if (linkedDeliveryId > 0) {
-        fd.append('delivery_id', String(linkedDeliveryId));
-      }
-      if (window.AppGeo && AppGeo.appendToFormData && gps) {
-        AppGeo.appendToFormData(fd, gps, 'desktop');
-      }
-      if (window.AppBusy) AppBusy.show(opts.busyMessage || 'جاري ترحيل الفاتورة...');
-      fetch(invoicePostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(parsePostInvoiceJsonResponse)
-        .then(handlePostResult)
-        .catch(function () {
-          if (onError) onError('تعذر الاتصال بالخادم أثناء الترحيل.');
-        })
-        .finally(function () {
-          if (window.AppBusy) AppBusy.hide();
-        });
-    }
-
-    if (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost) {
-      AppGeo.withGpsForPost('desktop', function (gps) {
-        if (gps === undefined) {
-          if (onError) onError('تم إلغاء تحديد الموقع.');
-          return;
-        }
-        runPost(gps);
-      });
-      return;
-    }
-    runPost(null);
-  }
-
-  function clearPendingDeliveryPull() {
-    linkedDeliveryId = 0;
-    deliveryPullActive = false;
-    syncDeliveryLinkHint('');
-    var delField = document.getElementById('inv_delivery_id');
-    if (delField) delField.value = '';
-    refreshInvoiceEditState();
-  }
-
-  function needsReleaseDeliveryPull() {
-    return !!deliveryPullActive && !invoiceIsPosted && linkedDeliveryId > 0;
-  }
-
-  function releaseDeliveryPullOnLeave(done) {
-    if (!deliveryPullActive || invoiceIsPosted) {
-      deliveryPullActive = false;
-      if (typeof done === 'function') done();
-      return;
-    }
-    var invId = currentInvoiceId;
-    var shouldUnlink = invId > 0 && linkedDeliveryId > 0 && !!unlinkDeliveryUrl;
-    deliveryPullActive = false;
-    clearPendingDeliveryPull();
-    if (!shouldUnlink) {
-      if (typeof done === 'function') done();
-      return;
-    }
-    var csrfInput = form.querySelector('[name="_csrf"]');
-    var fd = new FormData();
-    fd.append('_csrf', csrfInput ? csrfInput.value : '');
-    fd.append('invoice_id', String(invId));
-    var finished = false;
-    function finish() {
-      if (finished) return;
-      finished = true;
-      if (typeof done === 'function') done();
-    }
+  function updateHero(inv) {
+    var h1 = document.querySelector('.si-hero h1');
+    var no = inv.invoice_no || '';
+    if (h1) h1.textContent = no ? 'فاتورة ' + no : 'فاتورة مبيعات';
     try {
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(unlinkDeliveryUrl, fd);
-        finish();
-        return;
-      }
+      document.title = (no ? 'فاتورة ' + no : 'فاتورة') + ' · Hypex';
     } catch (e) {
-      /* fall through */
+      /* ignore */
     }
-    fetch(unlinkDeliveryUrl, {
-      method: 'POST',
-      body: fd,
-      credentials: 'same-origin',
-      keepalive: true,
-    })
-      .catch(function () {})
-      .then(finish);
-    setTimeout(finish, 800);
-  }
-
-  function openCustomerPickerHotkey() {
-    if (ledgerView || invoiceIsPosted) return;
-    initCustomerPicker();
-    var openBtn = document.getElementById('inv_customer_open');
-    if (openBtn && !openBtn.disabled) {
-      openBtn.click();
-      return;
-    }
-    if (customerPickerApi && typeof customerPickerApi.open === 'function') {
-      customerPickerApi.open();
-    }
-  }
-
-  function openItemsPickerHotkey() {
-    if (ledgerView || invoiceIsPosted) return;
-    var entry = ensureEntryRow();
-    if (!entry) {
-      var rows = tbody ? tbody.querySelectorAll('tr[data-line-id]') : [];
-      entry = rows.length ? rows[rows.length - 1] : null;
-    }
-    if (entry) {
-      openPickerForRow(entry);
-    }
-  }
-
-  function postCurrentInvoice() {
-    if (postDialogBusy) return;
-    if (!invoicePostUrl) {
-      AppDialog.alert('الترحيل غير متاح.', { type: 'warning' });
-      return;
-    }
-    if (currentInvoiceId < 1) {
-      AppDialog.alert('احفظ الفاتورة أولًا قبل الترحيل.', { type: 'warning' });
-      return;
-    }
-    if (invoiceIsPosted) {
-      AppDialog.alert('هذه الفاتورة مرحّلة مسبقًا.', { type: 'info' });
-      return;
-    }
-    var csrfInput = form.querySelector('[name="_csrf"]');
-    postDialogBusy = true;
-    AppDialog.confirm(
-      'ترحيل هذه الفاتورة (صرف مخزون + حساب العميل)؟\n\nيُسمح بالصرف حتى لو أصبح الرصيد سالبًا؛ يُصحَّح لاحقًا عند إدخال شراء أو رصيد للمادة.',
-      { title: 'ترحيل' }
-    ).then(function (ok) {
-      postDialogBusy = false;
-      if (!ok) return;
-      if (!validateInvoiceBeforePost()) return;
-
-      function runPost() {
-        var fd = new FormData();
-        fd.append('_csrf', csrfInput ? csrfInput.value : '');
-        fd.append('invoice_id', String(currentInvoiceId));
-        if (linkedDeliveryId > 0) {
-          fd.append('delivery_id', String(linkedDeliveryId));
-        }
-        if (window.AppBusy) AppBusy.show('جاري ترحيل الفاتورة...');
-        fetch(invoicePostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-          .then(parsePostInvoiceJsonResponse)
-          .then(function (res) {
-            var data = res.data;
-            if (!data) {
-              return refreshInvoiceAfterPostAttempt('تعذر قراءة رد الخادم. جارٍ التحقق من حالة الفاتورة…');
-            }
-            if (!data.ok) {
-              var errText = data.error || data.message || 'تعذر الترحيل.';
-              return refreshInvoiceAfterPostAttempt(errText);
-            }
-            invoiceIsPosted = true;
-            updatePostedBadge();
-            var successMsg = AppDialog.formatActionMessage
-              ? AppDialog.formatActionMessage(data, { fallback: 'تم الترحيل.' })
-              : data.message || 'تم الترحيل.';
-            AppDialog.success(successMsg);
-          })
-          .catch(function () {
-            refreshInvoiceAfterPostAttempt('تعذر الاتصال بالخادم. جارٍ التحقق من حالة الفاتورة…');
-          })
-          .finally(function () {
-            if (window.AppBusy) AppBusy.hide();
-          });
-      }
-
-      function runPostWithGps(gps) {
-        var fd = new FormData();
-        fd.append('_csrf', csrfInput ? csrfInput.value : '');
-        fd.append('invoice_id', String(currentInvoiceId));
-        if (linkedDeliveryId > 0) {
-          fd.append('delivery_id', String(linkedDeliveryId));
-        }
-        if (window.AppGeo && AppGeo.appendToFormData && gps) {
-          AppGeo.appendToFormData(fd, gps, 'desktop');
-        }
-        if (window.AppBusy) AppBusy.show('جاري ترحيل الفاتورة...');
-        fetch(invoicePostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-          .then(parsePostInvoiceJsonResponse)
-          .then(function (res) {
-            var data = res.data;
-            if (!data) {
-              return refreshInvoiceAfterPostAttempt('تعذر قراءة رد الخادم. جارٍ التحقق من حالة الفاتورة…');
-            }
-            if (!data.ok) {
-              var errText = data.error || data.message || 'تعذر الترحيل.';
-              return refreshInvoiceAfterPostAttempt(errText);
-            }
-            invoiceIsPosted = true;
-            updatePostedBadge();
-            var successMsg = AppDialog.formatActionMessage
-              ? AppDialog.formatActionMessage(data, { fallback: 'تم الترحيل.' })
-              : data.message || 'تم الترحيل.';
-            AppDialog.success(successMsg);
-          })
-          .catch(function () {
-            refreshInvoiceAfterPostAttempt('تعذر الاتصال بالخادم. جارٍ التحقق من حالة الفاتورة…');
-          })
-          .finally(function () {
-            if (window.AppBusy) AppBusy.hide();
-          });
-      }
-
-      function startPost() {
-        if (window.APP_GPS_ENABLED && window.AppGeo && AppGeo.withGpsForPost) {
-          AppGeo.withGpsForPost('desktop', function (gps) {
-            if (gps === undefined) {
-              return;
-            }
-            runPostWithGps(gps);
-          });
-          return;
-        }
-        runPost();
-      }
-
-      if (formDirty) {
-        trySave(startPost);
-        return;
-      }
-      startPost();
-    });
-  }
-
-  var postDialogBusy = false;
-
-  function showEinvoiceErrorDialog(data) {
-    var errMsg = (data && (data.error || data.message)) || 'تعذر الإرسال للفوترة.';
-    var httpCode = data && data.http_code ? ' (HTTP ' + data.http_code + ')' : '';
-    AppDialog.error(errMsg + httpCode, { title: 'فشل الإرسال للفوترة' });
-    var raw = data && data.response ? String(data.response) : '';
-    if (raw) {
-      try {
-        console.warn('[JoFotara error]', raw);
-      } catch (e) {}
-    }
-  }
-
-  function performEinvoiceResend() {
-    if (!einvoiceSendUrl) return;
-    if (!invoiceIsPosted) {
-      AppDialog.alert('يجب ترحيل الفاتورة قبل إرسالها للفوترة.', { type: 'warning' });
-      return;
-    }
-    var csrfInput = form.querySelector('[name="_csrf"]');
-    var fd = new FormData();
-    fd.append('_csrf', csrfInput ? csrfInput.value : '');
-    fd.append('invoice_id', String(currentInvoiceId));
-    if (window.AppBusy) AppBusy.show('جاري إرسال الفاتورة للفوترة...');
-    fetch(einvoiceSendUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (data) {
-        if (!data || !data.ok) {
-          showEinvoiceErrorDialog(data || {});
-          return;
-        }
-        AppDialog.success(data.message || 'تم الإرسال للفوترة بنجاح بقيم مطابقة لما يَعرضه النظام.');
-        if (currentInvoiceId > 0) loadInvoiceById(currentInvoiceId);
-      })
-      .catch(function () {
-        AppDialog.error('تعذر الاتصال بالخادم.');
-      })
-      .finally(function () {
-        if (window.AppBusy) AppBusy.hide();
-      });
-  }
-
-  var unpostDialogBusy = false;
-  var unpostInFlight = false;
-
-  function unpostCurrentInvoice() {
-    if (!canUnpostByPermission) {
-      AppDialog.alert('ليس لديك صلاحية فك ترحيل فاتورة المبيعات.', { type: 'warning' });
-      return;
-    }
-    if (unpostDialogBusy) return;
-    if (!invoiceUnpostUrl) {
-      AppDialog.alert('فك الترحيل غير متاح.', { type: 'warning' });
-      return;
-    }
-    if (currentInvoiceId < 1) {
-      AppDialog.alert('احفظ الفاتورة أولًا.', { type: 'warning' });
-      return;
-    }
-    if (invoiceEinvQr) {
-      AppDialog.alert('لا يمكن فك ترحيل فاتورة أُرسلت إلى نظام الفوترة.', { type: 'warning' });
-      return;
-    }
-    if (!invoiceIsPosted) {
-      AppDialog.alert('هذه الفاتورة غير مرحّلة.', { type: 'info' });
-      return;
-    }
-    var csrfInput = form.querySelector('[name="_csrf"]');
-    var msg =
-      '<p><strong>سيتم فك ترحيل الفاتورة:</strong></p>' +
-      '<ul>' +
-      '<li>إلغاء القيد المحاسبي تلقائياً (يَختفي من تقارير الأستاذ وميزان المراجعة).</li>' +
-      '<li>إعادة الأرصدة المخزنية للمواد (إلغاء حركات الصرف).</li>' +
-      '<li>إلغاء أثر حساب العميل (الذمم المدينة).</li>' +
-      '</ul>' +
-      '<p>بعد فك الترحيل يمكنك تعديل الفاتورة وإعادة ترحيلها.</p>' +
-      '<p class="ui-dialog-question">متابعة؟</p>';
-    unpostDialogBusy = true;
-    AppDialog.confirm(msg, {
-      title: 'فك الترحيل',
-      okText: 'فك الترحيل',
-      html: true,
-    }).then(function (ok) {
-      unpostDialogBusy = false;
-      if (!ok) return;
-      if (unpostInFlight) return;
-      unpostInFlight = true;
-      setInvoiceBusy(true, 'جاري فك ترحيل الفاتورة...');
-      var fd = new FormData();
-      fd.append('_csrf', csrfInput ? csrfInput.value : '');
-      fd.append('invoice_id', String(currentInvoiceId));
-      fetch(invoiceUnpostUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(parsePostInvoiceJsonResponse)
-        .then(function (res) {
-          var data = res.data;
-          if (!data) {
-            AppDialog.error('تعذر قراءة رد الخادم أثناء فك الترحيل.');
-            if (currentInvoiceId > 0) loadInvoiceById(currentInvoiceId);
-            return;
-          }
-          if (!data.ok) {
-            var errMsg = data.error || data.message || 'تعذر فك الترحيل.';
-            AppDialog.error(errMsg);
-            return;
-          }
-          invoiceIsPosted = false;
-          updatePostedBadge();
-          AppDialog.success(data.message || 'تم فك الترحيل.');
-          if (currentInvoiceId > 0) {
-            fetchInvoiceResponse({ id: currentInvoiceId }).then(function (invData) {
-              if (invData && invData.ok && invData.invoice) {
-                applyInvoiceData(invData.invoice);
-              }
-            });
-          }
-        })
-        .catch(function () {
-          AppDialog.error('تعذر الاتصال بالخادم أثناء فك الترحيل.');
-          if (currentInvoiceId > 0) loadInvoiceById(currentInvoiceId);
-        })
-        .finally(function () {
-          unpostInFlight = false;
-          setInvoiceBusy(false);
-        });
-    });
-  }
-
-  function sendCurrentInvoiceToEinvoice() {
-    if (!canSendEinvoice || !einvoiceSendUrl) {
-      AppDialog.alert('ليس لديك صلاحية إرسال الفوترة.', { type: 'warning' });
-      return;
-    }
-    if (currentInvoiceId < 1) {
-      AppDialog.alert('احفظ الفاتورة أولًا.', { type: 'warning' });
-      return;
-    }
-    if (!invoiceIsPosted) {
-      AppDialog.alert('يجب ترحيل الفاتورة قبل إرسالها للفوترة.', { type: 'warning' });
-      return;
-    }
-    if (invoiceEinvQr) {
-      AppDialog.alert('تم إرسال هذه الفاتورة للفوترة مسبقًا.', { type: 'info' });
-      return;
-    }
-    var csrfInput = form.querySelector('[name="_csrf"]');
-    AppDialog.confirm('إرسال هذه الفاتورة إلى نظام الفوترة الأردني؟', {
-      title: 'إرسال للفوترة',
-      okText: 'إرسال',
-    }).then(
-      function (ok) {
-        if (!ok) return;
-        var fd = new FormData();
-        fd.append('_csrf', csrfInput ? csrfInput.value : '');
-        fd.append('invoice_id', String(currentInvoiceId));
-        if (window.AppBusy) AppBusy.show('جاري إرسال الفاتورة للفوترة...');
-        fetch(einvoiceSendUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (data) {
-            if (!data.ok) {
-              showEinvoiceErrorDialog(data);
-              return;
-            }
-            AppDialog.success(data.message || 'تمت العملية.');
-            if (currentInvoiceId > 0) loadInvoiceById(currentInvoiceId);
-          })
-          .catch(function () {
-            AppDialog.error('تعذر الاتصال بالخادم.');
-          })
-          .finally(function () {
-            if (window.AppBusy) AppBusy.hide();
-          });
-      }
-    );
-  }
-
-  function applyInvoiceData(inv) {
-    runWithoutDirtyMark(function () {
-    currentInvoiceId = parseInt(inv.id, 10) || 0;
-    invoiceIsPosted = !!inv.is_posted;
-    invoiceIsCancelled = invoiceIsCancelledFrom(inv);
-    if (invoiceIsPosted) {
-      var invDp = parseInt(inv.amount_decimals, 10);
-      if (!isNaN(invDp) && invDp >= 0) {
-        form.setAttribute('data-decimals', String(invDp));
-        decimals = invDp;
+    var badge = document.querySelector('.si-hero-badge');
+    if (badge) {
+      if (inv.is_posted) {
+        badge.innerHTML = '<span class="si-pill si-pill--lock">مرحّلة — قراءة فقط</span>';
+      } else {
+        badge.innerHTML = '<span class="si-pill si-pill--wait">مسودة</span>';
       }
     }
-    applyEinvoiceFromInvoice(inv);
-    var recId = document.getElementById('inv_record_id');
-    if (recId) recId.value = currentInvoiceId > 0 ? String(currentInvoiceId) : '';
-    syncInvoiceNoDisplay(inv.invoice_no || '');
+  }
 
-    var invDate = document.getElementById('inv_date');
-    if (invDate) {
-      invDate.value = fmtDate(inv.invoice_date || '') || defaultDate;
+  function applyInvoiceToForm(inv, nav, caps) {
+    posted = !!inv.is_posted;
+    state.id = Number(inv.id) || 0;
+    state.invoice_no = inv.invoice_no || '';
+    state.is_posted = posted;
+    state.customer_id = Number(inv.customer_id) || 0;
+    state.customer_email = inv.customer_email != null ? String(inv.customer_email) : '';
+    state.lines =
+      inv.lines && inv.lines.length
+        ? inv.lines
+        : [
+            {
+              item_id: 0,
+              item_code: '',
+              name_ar: '',
+              qty: 1,
+              qty_extra: 0,
+              unit_price: 0,
+              discount_pct: 0,
+              tax_rate_percent: defaultTax,
+            },
+          ];
+    if (nav) {
+      state.prev_id = nav.prev_id || 0;
+      state.next_id = nav.next_id || 0;
+      state.first_id = nav.first_id || 0;
+      state.last_id = nav.last_id || 0;
+    }
+    if (caps) {
+      state.caps = Object.assign({}, state.caps || {}, caps);
+    }
+    if (state.defaults) {
+      state.defaults.archiveUrl = state.id ? state.defaults.archiveUrl || '' : '';
+      if (state.id && state.defaults.phpBase) {
+        /* keep */
+      }
     }
 
-    var paySel = document.getElementById('inv_payment_type');
-    if (paySel && inv.payment_type) paySel.value = inv.payment_type;
-
-    setCustomerById(inv.customer_id || 0, true);
-    setSalesRepFromInvoice(inv);
-
+    var noEl = document.getElementById('inv_no');
+    if (noEl) noEl.value = state.invoice_no;
+    var dateEl = document.getElementById('inv_date');
+    if (dateEl) setDateField(dateEl, inv.invoice_date);
+    var payEl = document.getElementById('inv_pay');
+    if (payEl) payEl.value = inv.payment_type || 'credit';
+    var cid = document.getElementById('inv_customer_id');
+    if (cid) cid.value = inv.customer_id || '';
+    var cust = document.getElementById('inv_customer');
+    if (cust) {
+      var label =
+        (inv.customer_code ? inv.customer_code + ' — ' : '') + (inv.customer_name || '');
+      cust.value = label;
+    }
+    setCustomerPriceMode({ use_wholesale_price: inv.use_wholesale_price }, { reprice: false });
     var wh = document.getElementById('inv_wh');
-    if (wh) wh.value = inv.warehouse_id ? String(inv.warehouse_id) : '';
-
+    if (wh) wh.value = inv.warehouse_id != null ? String(inv.warehouse_id) : '';
     var notes = document.getElementById('inv_notes');
     if (notes) notes.value = inv.notes || '';
+    var disc = document.getElementById('inv_discount');
+    if (disc) disc.value = inv.invoice_discount_input || '';
 
-    linkedDeliveryId = parseInt(inv.delivery_id, 10) || 0;
-    deliveryPullActive = false;
-    syncDeliveryLinkHint(inv.delivery_no || '');
+    setLockedField(dateEl, posted);
+    setLockedField(payEl, posted);
+    setLockedField(cust, posted);
+    setLockedField(wh, posted);
+    setLockedField(notes, posted);
+    setLockedField(disc, posted);
 
-    var invDisc = document.getElementById('inv-invoice-discount');
-    if (invDisc) {
-      invDisc.value = inv.invoice_discount_input || '';
-      headerDiscountMode = !!(inv.invoice_discount_input && String(inv.invoice_discount_input).trim());
-    } else {
-      headerDiscountMode = false;
-    }
+    updateHero(inv);
+    renderLines();
+    applyToolbarState();
 
-    tbody.innerHTML = '';
-    ensureEntryRow();
-    (inv.lines || []).forEach(function (ln) {
-      addLineFromData(ln);
-    });
-
-    renumberRows();
-    if (headerDiscountMode) {
-      applyHeaderDiscount();
-    } else {
-      recalcAllItemRows();
-      recalcFooter();
-    }
-    applyDecimalPlacesToInvoiceScreen();
-    syncInvoiceIdField();
-    refreshInvoiceEditState();
-    clearPersistedDraft();
-    applyBrowseNavFromPayload(inv);
-    updateHistory(currentInvoiceId);
-    updatePostedBadge();
-    closePicker();
-    });
-  }
-
-  function fetchInvoiceResponse(query) {
-    if (!apiInvoiceUrl) return Promise.resolve(null);
-    var qs = Object.keys(query)
-      .map(function (k) {
-        return encodeURIComponent(k) + '=' + encodeURIComponent(query[k]);
-      })
-      .join('&');
-    return fetch(apiInvoiceUrl + '?' + qs, { credentials: 'same-origin' })
-      .then(function (r) {
-        return r.json();
-      })
-      .catch(function () {
-        return null;
-      });
-  }
-
-  function loadInvoiceById(id) {
-    if (id < 1) return;
-    confirmUnsavedChanges(function () {
-      fetchInvoiceResponse({ id: id }).then(function (data) {
-        if (!data || !data.ok || !data.invoice) {
-          AppDialog.error((data && data.message) || 'تعذر تحميل الفاتورة.');
-          return;
-        }
-        applyInvoiceData(data.invoice);
-      });
-    });
-  }
-
-  function loadInvoiceByNo(no) {
-    no = String(no || '').trim();
-    if (!no) return;
-    confirmUnsavedChanges(function () {
-      fetchInvoiceResponse({ no: no }).then(function (data) {
-        if (!data || !data.ok || !data.invoice) {
-          AppDialog.error((data && data.message) || 'لم يتم العثور على فاتورة تحتوي على هذا الرقم.');
-          return;
-        }
-        // عدة نتائج: التنقل بالأسهم فقط (تلميح الحقل) — بدون رسالة «معلومة».
-        applyInvoiceData(data.invoice);
-      });
-    });
-  }
-
-  function runToolbarInvoiceSearch() {
-    var invNoEl = document.getElementById('inv_no');
-    var no = invNoEl ? String(invNoEl.value || '').trim() : '';
-    if (!no) {
-      AppDialog.alert('أدخل رقم الفاتورة في الحقل أعلاه ثم اضغط بحث.', { type: 'warning' });
-      if (invNoEl) invNoEl.focus();
-      return;
-    }
-    loadInvoiceByNo(no);
-  }
-
-  function navigateInvoice(dir) {
-    confirmUnsavedChanges(function () {
-      navigateInvoiceCore(dir);
-    });
-  }
-
-  function navigateInvoiceCore(dir) {
-    if (currentInvoiceId < 1) {
-      navigateEmptyInvoice(dir);
-      return;
-    }
-    if (window.DocumentNoNav && DocumentNoNav.isSearchActive(docNoSearch)) {
-      DocumentNoNav.navigateSearchMatch(dir, docNoSearch, {
-        fetchById: function (id) {
-          return fetchInvoiceResponse({ id: id });
-        },
-        isOk: function (data) {
-          return !!(data && data.ok && data.invoice);
-        },
-        getPayload: function (data) {
-          return data.invoice;
-        },
-        apply: applyInvoiceData,
-        loadError: 'تعذر تحميل الفاتورة.',
-      });
-      return;
-    }
-    fetchInvoiceResponse({ id: currentInvoiceId, dir: dir }).then(function (data) {
-      if (!data || !data.ok || !data.invoice) {
-        AppDialog.alert(
-          (data && data.message) ||
-            (dir === 'prev' ? 'لا توجد فاتورة أقدم.' : 'لا توجد فاتورة أحدث.'),
-          { type: 'info' }
-        );
-        return;
-      }
-      applyInvoiceData(data.invoice);
-    });
-  }
-
-  function initNewInvoice(keepBrowseNav) {
-    releaseDeliveryPullOnLeave();
-    deliveryPullActive = false;
-    if (window.DocumentNoNav) DocumentNoNav.clearSearch(docNoSearch);
-    currentInvoiceId = 0;
-    invoiceIsPosted = false;
-    invoiceIsCancelled = false;
-    applyEinvoiceFromInvoice(null);
-    updatePostedBadge();
-    refreshInvoiceEditState();
-    clearPersistedDraft();
-    if (keepBrowseNav && (browseNavPrevId > 0 || browseNavNextId > 0)) {
-      updateNavButtons(browseNavPrevId, browseNavNextId);
-    } else {
-      refreshEmptyBrowseNav();
-    }
-    var recId = document.getElementById('inv_record_id');
-    if (recId) recId.value = '';
-    syncInvoiceNoDisplay('');
-    resetInvoiceForm();
-    focusInvoiceNoField();
-    updateHistory(0);
-  }
-
-  document.addEventListener('master-toolbar', function (e) {
-    if (!form || !e.detail) return;
-    var action = e.detail.action;
-
-    if (ledgerView && action !== 'exit' && action !== 'print' && action !== 'pdf' && action !== 'excel') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      return;
-    }
-
-    if (action === 'search') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      runToolbarInvoiceSearch();
-      return;
-    }
-    if (action === 'save') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      trySave();
-      return;
-    }
-    if (action === 'post') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      postCurrentInvoice();
-      return;
-    }
-    if (action === 'print') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      handleToolbarPrint();
-      return;
-    }
-    if (action === 'pdf') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      downloadInvoicePdf();
-      return;
-    }
-    if (action === 'excel') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      downloadInvoiceExcel();
-      return;
-    }
-    if (action === 'send_einvoice') {
-      e.preventDefault();
-      sendCurrentInvoiceToEinvoice();
-      return;
-    }
-    if (action === 'unpost') {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      unpostCurrentInvoice();
-      return;
-    }
-    if (action === 'send_email') {
-      e.preventDefault();
-      sendInvoiceByEmail();
-      return;
-    }
-    if (action === 'delete') {
-      e.preventDefault();
-      if (currentInvoiceId > 0) {
-        var recIdEl = document.getElementById('inv_record_id');
-        var invId = currentInvoiceId > 0 ? currentInvoiceId : recIdEl ? parseInt(recIdEl.value, 10) : 0;
-        if (invId < 1) {
-          if (newInvoiceUrl) window.location.href = newInvoiceUrl;
-          else initNewInvoice();
-          return;
-        }
-        if (invoiceEinvQr) {
-          AppDialog.alert('لا يمكن حذف فاتورة أُرسلت إلى نظام الفوترة.', { type: 'warning' });
-          return;
-        }
-        if (invoiceIsPosted) {
-          AppDialog.alert(
-            'لا يمكن حذف فاتورة مرحّلة.\n\nللحذف: ألغِ الترحيل أولاً، ثم احذف جميع بنود المواد واحفظ، ثم احذف الفاتورة.',
-            { type: 'warning' }
-          );
-          return;
-        }
-        if (invoiceHasLines()) {
-          AppDialog.alert(MSG_DELETE_INVOICE_NEEDS_EMPTY_LINES, { type: 'warning' });
-          return;
-        }
-        var invNoEl = document.getElementById('inv_no');
-        var invNoLabel = invNoEl && invNoEl.value ? invNoEl.value : String(invId);
-        var deleteUrl = form.getAttribute('data-invoice-delete-url') || '';
-        if (!deleteUrl) {
-          AppDialog.error('حذف الفاتورة غير متاح.');
-          return;
-        }
-        trySave(
-          function () {
-            requestDeleteUnpostedInvoice(invId, invNoLabel, deleteUrl);
-          },
-          { allowEmptyLines: true }
-        );
-        return;
-      }
-      if (!hasDraftContent()) {
-        resetInvoiceForm();
-        return;
-      }
-      if (invoiceHasLines()) {
-        AppDialog.alert(MSG_DELETE_INVOICE_NEEDS_EMPTY_LINES, { type: 'warning' });
-        return;
-      }
-      AppDialog.confirm('مسح بيانات الفاتورة الحالية (البنود والحقول)؟', {
-        title: 'مسح الفاتورة',
-        danger: true,
-        okText: 'مسح',
-      }).then(function (ok) {
-        if (ok) resetInvoiceForm();
-      });
-      return;
-    }
-    if (action === 'exit') {
-      e.preventDefault();
-      confirmUnsavedChanges(function () {
-        if (exitUrl) {
-          window.location.href = exitUrl;
-        } else {
-          var bar = document.getElementById('master-toolbar');
-          var url = bar ? bar.getAttribute('data-exit-url') : '';
-          if (url) window.location.href = url;
-          else window.history.back();
-        }
+    if (docNavApi) {
+      docNavApi.setState({
+        firstId: state.first_id,
+        prevId: state.prev_id,
+        nextId: state.next_id,
+        lastId: state.last_id,
+        currentId: state.id,
+        currentNo: state.invoice_no || '',
       });
     }
-  });
 
-  var newInvBtn = document.querySelector('.sales-inv-btn-new');
-  if (newInvBtn) {
-    newInvBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      confirmUnsavedChanges(function () {
-        if (newInvoiceUrl) {
-          window.location.href = newInvoiceUrl;
-        } else {
-          initNewInvoice();
-        }
-      });
-    });
-  }
-
-  var oraCloseBtn = document.querySelector('.sales-inv-wrap .ora12-title-bar__close');
-  if (oraCloseBtn) {
-    oraCloseBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      var closeUrl = (document.getElementById('master-toolbar') || {}).getAttribute?.('data-close-url') || exitUrl;
-      var href = oraCloseBtn.getAttribute('href') || closeUrl;
-      confirmUnsavedChanges(function () {
-        if (window.ScreenExitGuard && typeof window.ScreenExitGuard.navigateExit === 'function') {
-          window.ScreenExitGuard.navigateExit(href || '');
-          return;
-        }
-        if (href) {
-          window.location.href = href;
-        } else {
-          window.history.back();
-        }
-      });
-    }, true);
-  }
-
-  function setSalesRepFromInvoice(inv) {
-    var custId = inv.customer_id ? parseInt(inv.customer_id, 10) : 0;
-    var c = custId > 0 ? customersById[custId] : null;
-    if (c) {
-      applyCustomerSalesRepFromRecord(c, inv.sales_rep_id);
-      return;
-    }
-    var sel = document.getElementById('inv_sales_rep');
-    if (!sel) return;
-    if (inv.sales_rep_id) {
-      sel.innerHTML = '';
-      sel.appendChild(
-        salesRepOptionEl(String(inv.sales_rep_id), (inv.sales_rep_name || '').trim() || '—')
-      );
-      sel.value = String(inv.sales_rep_id);
-      sel.disabled = true;
-    } else {
-      applyCustomerSalesRepFromRecord(null);
+    try {
+      history.replaceState({ invoiceId: state.id }, '', '/sales/invoices/' + state.id);
+    } catch (e) {
+      /* ignore */
     }
   }
 
-  var prevBtn = document.getElementById('inv_no_prev');
-  var nextBtn = document.getElementById('inv_no_next');
-  var invNoInput = document.getElementById('inv_no');
-  if (prevBtn) {
-    prevBtn.addEventListener('click', function () {
-      navigateInvoice('prev');
-    });
-  }
-  if (nextBtn) {
-    nextBtn.addEventListener('click', function () {
-      navigateInvoice('next');
-    });
-  }
-  if (invNoInput) {
-    invNoInput.addEventListener('keydown', function (e) {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      runToolbarInvoiceSearch();
-    });
-    invNoInput.addEventListener('blur', function () {
-      var no = invNoInput.value.trim();
-      if (window.DocumentNoNav && DocumentNoNav.shouldSkipBlurSearch(docNoSearch, currentInvoiceId, no)) {
-        return;
-      }
-      loadInvoiceByNo(no);
-    });
-  }
+  var docNavApi = null;
+  var navLoading = false;
 
-  var printCloseBtn = document.getElementById('sales-inv-print-close');
-  var printRunBtn = document.getElementById('sales-inv-print-run');
-  var printOverlay = document.getElementById('sales-inv-print-overlay');
-  if (printRunBtn) {
-    printRunBtn.addEventListener('click', function () {
-      runPrintFromPreview();
-    });
-  }
-  if (printCloseBtn) {
-    printCloseBtn.addEventListener('click', closePrintPreview);
-  }
-  if (printOverlay) {
-    printOverlay.addEventListener('click', function (e) {
-      if (e.target === printOverlay) closePrintPreview();
-    });
-  }
-  var invHdrDisc = document.getElementById('inv-invoice-discount');
-  var headerDiscTimer = null;
-  if (invHdrDisc) {
-    invHdrDisc.addEventListener('input', function () {
-      clearTimeout(headerDiscTimer);
-      headerDiscTimer = setTimeout(applyHeaderDiscount, 100);
-    });
-    invHdrDisc.addEventListener('change', applyHeaderDiscount);
-    invHdrDisc.addEventListener('blur', applyHeaderDiscount);
-  }
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') {
-      var overlay = document.getElementById('sales-inv-print-overlay');
-      if (overlay && !overlay.hidden) closePrintPreview();
+  function loadInvoiceSoft(id) {
+    id = Number(id);
+    if (!id || navLoading) return Promise.resolve();
+    if (Number(state.id) === id) return Promise.resolve();
+    navLoading = true;
+    var stage = document.querySelector('.si-stage');
+    if (stage) {
+      stage.classList.add('is-nav-loading');
+      stage.classList.remove('is-nav-flash');
     }
-  });
-
-  if (global.DocumentHotkeys && typeof global.DocumentHotkeys.register === 'function') {
-    global.DocumentHotkeys.register({
-      f10: function () {
-        if (ledgerView || formSubmitting || invoiceIsPosted || invoiceEinvQr) return;
-        trySave();
-      },
-      f7: function () {
-        if (ledgerView || invoiceIsPosted) return;
-        openCustomerPickerHotkey();
-      },
-      f3: function () {
-        if (ledgerView || invoiceIsPosted) return;
-        openItemsPickerHotkey();
-      },
-    });
-  }
-
-  function bootInvoicePage() {
-    if (global.FinVoucherArchive && form) {
-      global.FinVoucherArchive.init({
-        apiUrl: form.getAttribute('data-archive-api') || '',
-        csrf: (form.querySelector('input[name="_csrf"]') || {}).value || '',
-        kind: form.getAttribute('data-archive-kind') || 'sales_invoice',
-        title: 'فاتورة مبيعات',
-        canArchive: form.getAttribute('data-can-archive') === '1',
-        getVoucherId: function () {
-          return currentInvoiceId;
-        },
-        getVoucherLabel: function () {
-          return {
-            no: (document.getElementById('inv_no') || {}).value || '',
-            date: (document.getElementById('inv_date') || {}).value || '',
-          };
-        },
-        companyName: form.getAttribute('data-company-name') || '',
-        isArchiveAllowed: invoiceArchiveState,
-      });
-    }
-    refreshInvoiceDecimalsFromSettings();
-    if (global.AppFormat && AppFormat.setDecimalPlaces) {
-      AppFormat.setDecimalPlaces(decimals, { persist: false, silent: true });
-    }
-    if (global.AppFormat && AppFormat.setInvoiceUnitPriceDecimals) {
-      AppFormat.setInvoiceUnitPriceDecimals(unitPriceDecimals, { persist: false, silent: true });
-    }
-    loadCustomersCatalog();
-    initCustomerPicker();
-    if (global.ItemPickerModal && typeof ItemPickerModal.prefetch === 'function' && apiUrl) {
-      ItemPickerModal.prefetch({
-        buildItemsUrl: function (q, listAll) {
-          return buildItemsApiUrl(q, listAll);
-        },
-      });
-    }
-    var whSelect = document.getElementById('inv_wh');
-    if (whSelect && global.ItemPickerModal) {
-      whSelect.addEventListener('change', function () {
-        ItemPickerModal.invalidateCache();
-        if (ItemPickerModal.isOpen()) {
-          ItemPickerModal.reload();
-        }
-      });
-    }
-    bootstrapExistingRows();
-
-    if (initialInvoiceId > 0) {
-      var restoredSaved = false;
-      try {
-        var rawInit = sessionStorage.getItem('manager:inv_draft:' + draftKey);
-        if (rawInit) {
-          var draftInit = JSON.parse(rawInit);
-          if (
-            draftInit &&
-            draftInit.v === 1 &&
-            parseInt(draftInit.currentInvoiceId, 10) === initialInvoiceId &&
-            draftInit.lines &&
-            draftInit.lines.length
-          ) {
-            applyDraftSnapshot(draftInit);
-            restoredSaved = true;
-          }
-        }
-      } catch (eInit) {
-        clearPersistedDraft();
-      }
-      if (!restoredSaved) {
-        clearPersistedDraft();
-        fetchInvoiceResponse({ id: initialInvoiceId }).then(function (data) {
-          if (data && data.ok && data.invoice) {
-            applyInvoiceData(data.invoice);
-          }
-        });
-      }
-      safeEnsureEntryRow();
-      return;
-    }
-
-    runWithoutDirtyMark(function () {
-      var restored = tryRestoreDraft();
-      if (!restored) {
-        applyDefaultWarehouse();
-      }
-      if (!restored && !getEntryRow()) {
-        tbody.innerHTML = '';
-      }
-      bootstrapExistingRows();
-      safeEnsureEntryRow();
-      renumberRows();
-      recalcFooter();
-      syncJson();
-      refreshInvoiceEditState();
-      refreshEmptyBrowseNav();
-    });
-  }
-
-  function invoiceHasMaterialLines() {
-    var has = false;
-    tbody.querySelectorAll('tr[data-line-id]').forEach(function (tr) {
-      if (parseInt(tr.dataset.itemId, 10) > 0) has = true;
-    });
-    return has;
-  }
-
-  function closeDeliveryPickModal() {
-    var modal = document.getElementById('inv-delivery-pick-modal');
-    if (modal) modal.hidden = true;
-  }
-
-  function applyDeliveryToInvoice(data) {
-    var d = data.delivery;
-    var lines = data.lines || [];
-    if (!d) return;
-    runWithoutDirtyMark(function () {
-      linkedDeliveryId = parseInt(d.id, 10) || 0;
-      deliveryPullActive = linkedDeliveryId > 0;
-      syncDeliveryLinkHint(d.delivery_no || '');
-      setCustomerById(d.customer_id || 0, true);
-      var wh = document.getElementById('inv_wh');
-      if (wh && d.warehouse_id) wh.value = String(d.warehouse_id);
-      var notes = document.getElementById('inv_notes');
-      if (notes && d.notes) notes.value = d.notes;
-      tbody.innerHTML = '';
-      ensureEntryRow();
-      lines.forEach(function (ln) {
-        addLineFromData(ln);
-      });
-      renumberRows();
-      recalcAllItemRows();
-      recalcFooter();
-      syncJson();
-      markFormDirty();
-      refreshInvoiceEditState();
-    });
-  }
-
-  function linkDeliveryToInvoice(deliveryId, deliveryNo, onDone) {
-    if (!linkDeliveryUrl || currentInvoiceId < 1 || deliveryId < 1) {
-      if (onDone) onDone(false);
-      return;
-    }
-    var csrfInput = form.querySelector('[name="_csrf"]');
-    var fd = new FormData();
-    fd.append('_csrf', csrfInput ? csrfInput.value : '');
-    fd.append('invoice_id', String(currentInvoiceId));
-    fd.append('delivery_id', String(deliveryId));
-    fetch(linkDeliveryUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+    return fetch('/api/sales/invoices/' + id, { headers: { Accept: 'application/json' } })
       .then(function (r) {
         return r.json();
       })
       .then(function (data) {
-        if (!data || !data.ok) {
-          AppDialog.error((data && data.error) || 'تعذر ربط السند.');
-          if (onDone) onDone(false);
-          return;
+        if (!data || !data.ok || !data.invoice) {
+          throw new Error((data && data.error) || 'الفاتورة غير موجودة');
         }
-        linkedDeliveryId = deliveryId;
-        syncDeliveryLinkHint(deliveryNo || data.delivery_no || '');
-        if (onDone) onDone(true);
+        applyInvoiceToForm(data.invoice, data.nav, data.caps);
+        if (stage) {
+          stage.classList.remove('is-nav-loading');
+          stage.classList.add('is-nav-flash');
+          setTimeout(function () {
+            stage.classList.remove('is-nav-flash');
+          }, 240);
+        }
+        setMsg('', '');
       })
-      .catch(function () {
-        AppDialog.error('تعذر الاتصال بالخادم.');
-        if (onDone) onDone(false);
+      .catch(function (err) {
+        if (stage) stage.classList.remove('is-nav-loading');
+        throw err;
+      })
+      .finally(function () {
+        navLoading = false;
       });
   }
 
-  function pickDeliveryById(deliveryId) {
-    if (!deliveryPickUrl || deliveryId < 1) return;
-    fetch(deliveryPickUrl + '?id=' + encodeURIComponent(String(deliveryId)), {
-      credentials: 'same-origin',
-    })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (data) {
-        if (!data || !data.ok) {
-          AppDialog.error((data && data.error) || 'تعذر تحميل السند.');
-          return;
-        }
-        closeDeliveryPickModal();
-        var dNo = data.delivery.delivery_no || '';
-        var pickedId = parseInt(data.delivery.id, 10) || deliveryId;
+  renderLines();
+  setCustomerPriceMode({ use_wholesale_price: state.use_wholesale_price }, { reprice: false });
 
-        if (invoiceIsPosted && currentInvoiceId > 0) {
-          linkDeliveryToInvoice(pickedId, dNo, function (ok) {
-            if (ok) {
-              AppDialog.success(
-                'تم ربط الفاتورة بسند «' + dNo + '». حدّث الصفحة ليختفي التنبيه.'
-              );
-            }
-          });
-          return;
-        }
-
-        var pulledLines = data.lines || [];
-        if (!pulledLines.length) {
-          AppDialog.error('سند «' + dNo + '» لا يحتوي على مواد. أضف بنودًا للسند ثم أعد المحاولة.');
-          return;
-        }
-
-        applyDeliveryToInvoice(data);
-
-        function afterPullPosted() {
-          deliveryPullActive = false;
-          AppDialog.success(
-            'تم سحب سند «' +
-              dNo +
-              '» وحفظ الفاتورة وترحيلها. السند لم يعد متاحاً للسحب مرة أخرى.'
-          ).then(function () {
-            if (currentInvoiceId > 0) {
-              loadInvoiceById(currentInvoiceId);
-            }
-          });
-        }
-
-        function afterPullSavedThenPost() {
-          postInvoiceQuietly({
-            busyMessage: 'جاري ترحيل فاتورة السند...',
-            onSuccess: function () {
-              afterPullPosted();
-            },
-            onError: function (errMsg) {
-              AppDialog.alert(
-                'تم حفظ الفاتورة وربط سند «' +
-                  dNo +
-                  '».\nتعذر الترحيل التلقائي: ' +
-                  (errMsg || 'خطأ غير معروف') +
-                  '\n\nاضغط «ترحيل» يدوياً لإتمام العملية.',
-                { type: 'warning', title: 'تم الحفظ — بانتظار الترحيل' }
-              ).then(function () {
-                if (currentInvoiceId > 0) {
-                  loadInvoiceById(currentInvoiceId);
-                }
-              });
-            },
-          });
-        }
-
-        if (!validateInvoiceBeforeSave({ allowEmptyLines: false })) {
-          AppDialog.alert(
-            'تم تعبئة بيانات السند لكن الحفظ التلقائي لم يكتمل (حقول ناقصة).\n\nأكمل البيانات ثم اضغط «حفظ» ثم «ترحيل».\nلن يُربط السند ويختفي من قائمة السحب إلا بعد نجاح الحفظ.',
-            { type: 'warning', title: 'أكمل الحفظ والترحيل' }
-          );
-          return;
-        }
-
-        pendingDeliveryPullSave = true;
-        trySave(afterPullSavedThenPost);
-      })
-      .catch(function () {
-        AppDialog.error('تعذر الاتصال بالخادم.');
-      });
-  }
-
-  function openDeliveryPickDialog() {
-    if (ledgerView) return;
-    if (linkedDeliveryId > 0) {
-      AppDialog.alert('الفاتورة مربوطة بسند تسليم مسبقاً.', { type: 'warning' });
-      return;
-    }
-    if (!deliveryPickUrl) {
-      AppDialog.alert('سحب سند التسليم غير متاح.', { type: 'warning' });
-      return;
-    }
-    function loadList() {
-      var custEl = document.getElementById('inv_customer');
-      var customerId = custEl ? parseInt(custEl.value, 10) || 0 : 0;
-      var url =
-        deliveryPickUrl +
-        (customerId > 0 ? '?customer_id=' + encodeURIComponent(String(customerId)) : '');
-      fetch(url, { credentials: 'same-origin' })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (data) {
-          if (!data || !data.ok) {
-            AppDialog.error('تعذر تحميل قائمة السندات.');
-            return;
-          }
-          var list = data.deliveries || [];
-          var modal = document.getElementById('inv-delivery-pick-modal');
-          var ul = document.getElementById('inv_delivery_pick_list');
-          var empty = document.getElementById('inv_delivery_pick_empty');
-          if (!modal || !ul) return;
-          ul.innerHTML = '';
-          if (!list.length) {
-            if (empty) empty.hidden = false;
-          } else if (empty) {
-            empty.hidden = true;
-          }
-          list.forEach(function (row) {
-            var li = document.createElement('li');
-            var btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'sales-inv-dlv-pick-item';
-            var no = String(row.delivery_no || '—');
-            var customer = String(row.customer_name || '—');
-            var date = String(row.delivery_date_dmy || '—');
-            btn.setAttribute('aria-label', 'سند ' + no + ' — ' + customer + ' — ' + date);
-
-            var badge = document.createElement('span');
-            badge.className = 'sales-inv-dlv-pick-item__badge';
-            badge.setAttribute('aria-hidden', 'true');
-            badge.textContent = 'سند';
-
-            var noEl = document.createElement('span');
-            noEl.className = 'sales-inv-dlv-pick-item__no';
-            noEl.textContent = no;
-
-            var meta = document.createElement('span');
-            meta.className = 'sales-inv-dlv-pick-item__meta';
-
-            var custEl = document.createElement('span');
-            custEl.className = 'sales-inv-dlv-pick-item__customer';
-            custEl.textContent = customer;
-
-            var dateEl = document.createElement('span');
-            dateEl.className = 'sales-inv-dlv-pick-item__date';
-            dateEl.textContent = date;
-
-            meta.appendChild(custEl);
-            meta.appendChild(dateEl);
-            btn.appendChild(badge);
-            btn.appendChild(noEl);
-            btn.appendChild(meta);
-
-            btn.addEventListener('click', function () {
-              var proceed = function () {
-                pickDeliveryById(parseInt(row.id, 10) || 0);
-              };
-              if (invoiceHasMaterialLines() || currentInvoiceId > 0) {
-                AppDialog.confirm(
-                  'سيتم استبدال بيانات الفاتورة الحالية ببيانات السند. متابعة؟',
-                  { title: 'سحب سند تسليم' }
-                ).then(function (ok) {
-                  if (ok) proceed();
-                });
-              } else {
-                proceed();
-              }
-            });
-            li.appendChild(btn);
-            ul.appendChild(li);
-          });
-          modal.hidden = false;
-        })
-        .catch(function () {
-          AppDialog.error('تعذر الاتصال بالخادم.');
-        });
-    }
-    if (invoiceHasMaterialLines() && currentInvoiceId < 1 && linkedDeliveryId < 1) {
-      AppDialog.confirm('سيتم استبدال الأسطر الحالية ببيانات السند. متابعة؟', {
-        title: 'سحب سند تسليم',
-      }).then(function (ok) {
-        if (ok) loadList();
-      });
-      return;
-    }
-    loadList();
-  }
-
-  var pullDeliveryBtn = document.getElementById('inv_pull_delivery_btn');
-  if (pullDeliveryBtn) {
-    pullDeliveryBtn.addEventListener('click', openDeliveryPickDialog);
-  }
-  var unlinkDeliveryBtn = document.getElementById('inv_unlink_delivery_btn');
-  if (unlinkDeliveryBtn) {
-    unlinkDeliveryBtn.addEventListener('click', function (e) {
-      e.preventDefault();
-      unlinkDeliveryFromInvoice();
-    });
-  }
-  var deliveryPickClose = document.getElementById('inv_delivery_pick_close');
-  if (deliveryPickClose) {
-    deliveryPickClose.addEventListener('click', closeDeliveryPickModal);
-  }
-  var deliveryPickModal = document.getElementById('inv-delivery-pick-modal');
-  if (deliveryPickModal) {
-    deliveryPickModal.addEventListener('click', function (e) {
-      if (e.target && e.target.getAttribute('data-close') === '1') {
-        closeDeliveryPickModal();
-      }
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bootInvoicePage);
-  } else {
-    bootInvoicePage();
-  }
-
-  window.addEventListener('beforeunload', function (e) {
-    if (window.__managerAllowUnload) return;
-    if (formSubmitting || !formDirty || invoiceIsPosted) return;
-    persistDraft();
-    e.preventDefault();
-    e.returnValue = '';
-  });
-
-  /* pagehide فقط — لا نفك الربط في beforeunload لأن المستخدم قد يلغي المغادرة */
-  window.addEventListener('pagehide', function () {
-    if (needsReleaseDeliveryPull()) {
-      releaseDeliveryPullOnLeave();
-    }
-  });
-
-  function registerInvoiceExitGuard() {
-    var api = {
-      hasUnsaved: function () {
-        return (formDirty && !invoiceIsPosted) || needsReleaseDeliveryPull();
+  if (window.HypexDocNav) {
+    docNavApi = window.HypexDocNav.bind({
+      input: 'inv_no',
+      firstBtn: 'inv_first',
+      prevBtn: 'inv_prev',
+      nextBtn: 'inv_next',
+      lastBtn: 'inv_last',
+      firstId: state.first_id,
+      prevId: state.prev_id,
+      nextId: state.next_id,
+      lastId: state.last_id,
+      currentId: state.id,
+      openPath: '/sales/invoices',
+      findApi: '/api/sales/invoices/by-no',
+      currentNo: state.invoice_no || '',
+      onOpen: function (id) {
+        return loadInvoiceSoft(id);
       },
-      confirmLeave: confirmUnsavedChanges,
-    };
-    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExitDeferred === 'function') {
-      global.ScreenExitGuard.registerScreenExitDeferred(api);
-      return;
-    }
-    if (global.ScreenExitGuard && typeof global.ScreenExitGuard.registerScreenExit === 'function') {
-      global.ScreenExitGuard.registerScreenExit(api);
-    } else {
-      global.ManagerScreenExit = api;
-    }
+    });
   }
-
-  registerInvoiceExitGuard();
-
-  window.ManagerSalesInvoice = {
-    openPicker: function (el) {
-      var tr = el && el.closest ? el.closest('tr[data-line-id]') : null;
-      if (tr) openPickerForRow(tr);
-      else openPickerForRow(ensureEntryRow());
-    },
-    refreshCustomerRep: applyCustomerSalesRep,
-    closeItemPicker: closePicker,
-  };
 })();

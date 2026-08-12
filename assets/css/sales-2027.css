@@ -1631,7 +1631,145 @@ label .si-field-key {
 .si-lines-wrap:has(.si-lines--pa) {
   overflow: visible !important;
 }
-/* ?? ????? ??????? ???? ????? ?????? ??????? */
+
+/* ??? ????? ???????: ??? ????? + ????? ???/???? ??? */
+.si-surface--pa-lines .pa-lines-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.si-surface--pa-lines .pa-lines-head h2 {
+  margin: 0;
+}
+.si-surface--pa-lines .pa-lines-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
+.si-lines--pa thead .pa-th-group th,
+.si-lines--pa thead .pa-th-sub th {
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.si-lines--pa thead .pa-th-idx {
+  width: 2.1rem;
+}
+.si-lines--pa thead .pa-th-code {
+  width: 8.5rem;
+  text-align: start;
+}
+.si-lines--pa thead .pa-th-name {
+  min-width: 12rem;
+  text-align: start;
+}
+.si-lines--pa thead .pa-th-act {
+  width: 2.6rem;
+}
+.si-lines--pa thead .pa-th-grp {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  font-weight: 800;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+.si-lines--pa thead .pa-th-grp--sale {
+  background: rgba(15, 110, 106, 0.1);
+  color: #0f5c58;
+}
+.si-lines--pa thead .pa-th-grp--wh {
+  background: rgba(30, 64, 175, 0.09);
+  color: #1e3a8a;
+}
+.si-lines--pa thead .pa-th-sub th {
+  font-size: 0.68rem;
+  font-weight: 700;
+  width: 7.2rem;
+}
+.si-lines--pa thead .pa-col-sale-old,
+.si-lines--pa thead .pa-col-sale-new {
+  background: rgba(15, 110, 106, 0.05);
+}
+.si-lines--pa thead .pa-col-wh-old,
+.si-lines--pa thead .pa-col-wh-new {
+  background: rgba(30, 64, 175, 0.05);
+}
+.si-lines--pa thead .pa-th-sub--new {
+  color: #0f172a;
+}
+
+.si-lines--pa tbody td.pa-col-sale-old,
+.si-lines--pa tbody td.pa-col-sale-new {
+  background: rgba(15, 110, 106, 0.035);
+}
+.si-lines--pa tbody td.pa-col-wh-old,
+.si-lines--pa tbody td.pa-col-wh-new {
+  background: rgba(30, 64, 175, 0.035);
+}
+
+.si-lines--pa tbody td.pa-col-sale-old,
+.si-lines--pa tbody td.pa-col-wh-old {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #475569;
+  padding-inline: 0.45rem;
+}
+
+.si-lines--pa tbody td.pa-col-sale-new,
+.si-lines--pa tbody td.pa-col-wh-new {
+  padding: 0.28rem 0.35rem;
+  vertical-align: middle;
+}
+
+.si-lines--pa .pa-input-new {
+  width: 100%;
+  min-width: 5.5rem;
+  max-width: 8rem;
+  margin-inline: auto;
+  display: block;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+  min-height: 2.05rem;
+  padding: 0.25rem 0.4rem;
+}
+.si-lines--pa .pa-col-sale-new .pa-input-new:focus {
+  outline: 2px solid rgba(15, 110, 106, 0.35);
+  outline-offset: 1px;
+  border-color: rgba(15, 110, 106, 0.45);
+}
+.si-lines--pa .pa-col-wh-new .pa-input-new:focus {
+  outline: 2px solid rgba(30, 64, 175, 0.35);
+  outline-offset: 1px;
+  border-color: rgba(30, 64, 175, 0.45);
+}
+.si-lines--pa tbody td.pa-col-act {
+  text-align: center;
+  vertical-align: middle;
+}
+
+@media (max-width: 900px) {
+  .si-lines--pa thead .pa-th-sub th,
+  .si-lines--pa tbody td.pa-col-sale-old,
+  .si-lines--pa tbody td.pa-col-sale-new,
+  .si-lines--pa tbody td.pa-col-wh-old,
+  .si-lines--pa tbody td.pa-col-wh-new {
+    width: 6.2rem;
+  }
+  .si-lines--pa .pa-input-new {
+    min-width: 4.8rem;
+    max-width: 6.5rem;
+  }
+}
+
+/* ?? ???? ????? ?????? ??? ????? */
 body.si-2027:has(#pa-root) .main.si-main {
   overflow-x: auto;
   overflow-y: auto;
@@ -2017,5 +2155,148 @@ body.si-2027 .si-tile-kind {
 
   body.si-2027 .si-surface-head .si-count {
     font-family: Arial, Helvetica, sans-serif;
+  }
+}
+
+/* ??? ?????? ???? ?????? ?????? (???? ?????) ??? */
+.ic-pick-stage {
+  position: relative;
+  min-height: min(70vh, 640px);
+}
+
+.ic-pick-backdrop {
+  position: absolute;
+  inset: 0;
+  border-radius: 1.1rem;
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 20%, rgba(15, 110, 106, 0.12), transparent 55%),
+    linear-gradient(160deg, rgba(15, 23, 42, 0.06), rgba(15, 23, 42, 0.02));
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ic-pick {
+  position: relative;
+  z-index: 1;
+  width: min(520px, 94vw);
+  margin: 1.25rem auto 2rem;
+  background: rgba(255, 252, 250, 0.97);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 1rem;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.14);
+  display: flex;
+  flex-direction: column;
+  max-height: min(72vh, 560px);
+  overflow: hidden;
+}
+
+.ic-pick__head {
+  padding: 1rem 1.1rem 0.65rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.ic-pick__head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.ic-pick__head p {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+}
+
+.ic-pick__search {
+  padding: 0.75rem 1.1rem 0.35rem;
+}
+
+.ic-pick__search .si-field {
+  width: 100%;
+  min-height: 2.45rem;
+  font-size: 0.95rem;
+}
+
+.ic-pick__hint {
+  padding: 0.2rem 1.1rem 0.45rem;
+  font-size: 0.78rem;
+  min-height: 1.2rem;
+}
+
+.ic-pick__list {
+  flex: 1;
+  overflow: auto;
+  padding: 0.15rem 0.55rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.ic-pick__row {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr auto;
+  gap: 0.55rem;
+  align-items: center;
+  text-align: start;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.ic-pick__row:hover,
+.ic-pick__row.is-active {
+  background: rgba(15, 110, 106, 0.08);
+  border-color: rgba(15, 110, 106, 0.22);
+}
+
+.ic-pick__code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f6e6a;
+}
+
+.ic-pick__name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+  min-width: 0;
+}
+
+.ic-pick__name small {
+  font-weight: 500;
+  font-size: 0.72rem;
+}
+
+.ic-pick__meta {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.ic-pick__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 1.1rem 0.85rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(15, 23, 42, 0.02);
+}
+
+@media (max-width: 560px) {
+  .ic-pick__row {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+  .ic-pick__meta {
+    justify-self: start;
   }
 }

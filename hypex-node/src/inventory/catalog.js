@@ -7,7 +7,7 @@ const inventoryCatalog = [
     items: [
       { r: 'warehouses', label: 'المستودعات', icon: '📦', path: '/inventory/warehouses', kind: 'list' },
       { r: 'inv_movement_types_settings', label: 'إعداد أنواع الحركات', icon: '⚙', path: '/inventory/movement-types', kind: 'list' },
-      { r: 'items', label: 'المواد والأصناف', icon: '🏷', path: '/inventory/items', kind: 'list' },
+      { r: 'items', label: 'بطاقة المادة', icon: '🏷', path: '/inventory/items', kind: 'list' },
       { r: 'item_categories', label: 'فئات المواد', icon: '📦', path: '/inventory/categories', kind: 'list' },
       { r: 'item_units', label: 'وحدات القياس', icon: '📐', path: '/inventory/units', kind: 'list' },
       { r: 'warehouse_moves', label: 'حركات المستودع', icon: '🔄', path: '/inventory/moves', kind: 'list' },
@@ -39,7 +39,7 @@ const inventoryCatalog = [
       },
       {
         r: 'report_item_price_adjustments',
-        label: 'تقرير الأسعار المعدّلة',
+        label: 'تقرير المواد المعدّلة الأسعار',
         icon: '📋',
         path: '/inventory/reports/price-adjustments',
         kind: 'report',

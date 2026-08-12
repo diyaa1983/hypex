@@ -88,8 +88,12 @@ class SessionController extends ChangeNotifier {
   /// تحميل العنوان المحفوظ ومحاولة استرجاع الجلسة.
   Future<void> boot() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_kServer) ?? '';
-    api.setBase(saved.isEmpty ? AppConfig.defaultServerBase : saved);
+    var saved = (prefs.getString(_kServer) ?? '').trim();
+    if (saved.isEmpty || AppConfig.isLegacyDefaultServer(saved)) {
+      saved = AppConfig.defaultServerBase;
+      await prefs.setString(_kServer, saved);
+    }
+    api.setBase(saved);
     final device = await _deviceFields();
     api.setDevice(device['device_id']!, label: device['device_label']!);
     await LocationTrackingService.saveDeviceId(
@@ -290,13 +294,19 @@ class SessionController extends ChangeNotifier {
       minDistanceM: gpsConfig.minDistanceM,
     );
 
-    // أول تثبيت / لم يُوقف المدير التتبّع صراحةً → تشغيل تلقائي.
+    // إذا مُنع إيقاف التتبّع من النظام — فرض التشغيل دائماً عند auto_enable.
     final explicit = await LocationTrackingService.enabledFlagOrNull;
-    final shouldAutoStart = gpsConfig.autoEnable
-        ? explicit != false
-        : (explicit == true || explicit == null);
+    final forceOn = gpsConfig.autoEnable && !gpsConfig.userCanDisable;
+    final shouldAutoStart = forceOn
+        ? true
+        : (gpsConfig.autoEnable
+            ? explicit != false
+            : (explicit == true || explicit == null));
 
     if (shouldAutoStart) {
+      if (forceOn) {
+        await LocationTrackingService.setEnabledFlag(true);
+      }
       final err = await LocationTrackingService.start();
       if (err == null) {
         await LocationPresenceService.start(

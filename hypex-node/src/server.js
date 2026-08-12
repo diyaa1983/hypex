@@ -13,6 +13,7 @@ const { esc, fmtAmt, isoToDmy } = require('./lib/html');
 const salesInvoices = require('./sales/invoicesRoutes');
 const salesReturns = require('./sales/returnsRoutes');
 const customerOrders = require('./sales/customerOrdersRoutes');
+const salesOffers = require('./sales/offersRoutes');
 const salesDelivery = require('./sales/deliveryRoutes');
 const purchasesDocs = require('./purchases/docsRoutes');
 const purchasesReturns = require('./purchases/returnsRoutes');
@@ -441,6 +442,7 @@ app.get('/embed/:code', auth.requireAuth, (req, res) => {
 
 app.use(salesReturns);
 app.use(customerOrders);
+app.use(salesOffers);
 app.use(salesDelivery);
 app.use(purchasesDocs);
 app.use(purchasesReturns);

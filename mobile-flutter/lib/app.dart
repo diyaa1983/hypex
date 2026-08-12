@@ -40,7 +40,7 @@ class NammaApp extends StatelessWidget {
     final router = _buildRouter(session);
 
     return MaterialApp.router(
-      title: 'النماء',
+      title: 'Hypex',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.build(),
       routerConfig: router,
@@ -65,11 +65,14 @@ class NammaApp extends StatelessWidget {
       redirect: (context, state) {
         if (session.booting) return null;
         final loc = state.matchedLocation;
-        final onAuth = loc == '/server' || loc == '/login';
+        final onLogin = loc == '/login';
+        final onServer = loc == '/server';
         if (!session.authenticated) {
-          return onAuth ? null : '/login';
+          return (onLogin || onServer) ? null : '/login';
         }
-        if (onAuth) return '/home';
+        if (onLogin) return '/home';
+        // تعديل عنوان السيرفر للمستخدم الرئيسي فقط بعد فك القفل
+        if (onServer && !session.settingsUnlocked) return '/settings';
         return null;
       },
       routes: [

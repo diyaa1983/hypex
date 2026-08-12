@@ -1,6 +1,8 @@
 'use strict';
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const auth = require('../auth');
 const svc = require('./mastersService');
 const ui = require('../lib/salesUi');
@@ -10,6 +12,17 @@ const companyDecimals = require('../lib/companyDecimals');
 const router = express.Router();
 const KICKER = 'Hypex Inventory · Node';
 const HUB = '/hub/inventory';
+const ITEM_CARD_PICKER_JS = path.join(__dirname, '..', '..', 'public', 'js', 'item-card-picker.js');
+
+function itemCardPickerJsSrc() {
+  let v = String(Date.now());
+  try {
+    v = String(Math.floor(fs.statSync(ITEM_CARD_PICKER_JS).mtimeMs));
+  } catch {
+    /* keep */
+  }
+  return '/assets/js/item-card-picker.js?v=' + v;
+}
 
 function canWh(user) {
   return user.is_admin || auth.userCan(user, 'warehouses');
@@ -47,8 +60,16 @@ router.use((req, res, next) => {
   return auth.requireAuth(req, res, next);
 });
 
-function page(user, title, bodyHtml) {
-  return ui.salesPage({ user, title, bodyHtml, activePath: '/hub/inventory' });
+function page(user, title, bodyHtml, opts) {
+  opts = opts || {};
+  return ui.salesPage({
+    user,
+    title,
+    bodyHtml,
+    activePath: '/hub/inventory',
+    js: opts.js || [],
+    css: opts.css || [],
+  });
 }
 
 function alertHtml(type, msg) {
@@ -178,6 +199,50 @@ router.get('/inventory/items', async (req, res) => {
     if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
     const qv = String(req.query.q || '');
     const flash = String(req.query.msg || '');
+    const viewList = String(req.query.view || '') === 'list';
+
+    if (!viewList) {
+      const body = `
+      <div class="si-stage ic-pick-stage">
+        ${ui.hero({
+          mark: 'It',
+          kicker: KICKER,
+          title: 'بطاقة المادة',
+          subtitle: 'اختر المادة من الشاشة الصغيرة لفتح بطاقتها',
+          actions: [
+            { label: '＋ مادة جديدة', href: '/inventory/items/new', primary: true },
+            { label: 'القائمة الكاملة', href: '/inventory/items?view=list' },
+            { label: 'الفئات', href: '/inventory/categories' },
+            { label: 'الوحدات', href: '/inventory/units' },
+            { label: 'لوحة المستودعات', href: HUB },
+          ],
+        })}
+        ${flash ? alertHtml('ok', flash) : ''}
+        <div class="ic-pick-backdrop" aria-hidden="true"></div>
+        <section class="ic-pick" id="ic-pick" role="dialog" aria-modal="true" aria-labelledby="ic-pick-title">
+          <header class="ic-pick__head">
+            <h2 id="ic-pick-title">اختيار المادة</h2>
+            <p class="muted">ابحث بالباركود أو الاسم ثم اختر لفتح البطاقة</p>
+          </header>
+          <div class="ic-pick__search">
+            <input type="search" id="ic-pick-q" class="si-field" placeholder="باركود / اسم المادة…"
+                   autocomplete="off" autofocus>
+          </div>
+          <div class="ic-pick__hint muted" id="ic-pick-hint">جاري التحميل…</div>
+          <div class="ic-pick__list" id="ic-pick-list" role="listbox" aria-label="نتائج المواد"></div>
+          <footer class="ic-pick__foot">
+            <span class="muted">↑↓ للتنقل · Enter لفتح البطاقة</span>
+            <a class="si-btn" href="/inventory/items/new">مادة جديدة</a>
+          </footer>
+        </section>
+      </div>`;
+      return res.send(
+        page(req.session.user, 'بطاقة المادة', body, {
+          js: [itemCardPickerJsSrc()],
+        })
+      );
+    }
+
     const rows = await svc.listItems({ q: qv, activeOnly: false });
     const rowsHtml =
       rows
@@ -216,14 +281,15 @@ router.get('/inventory/items', async (req, res) => {
           title: 'المواد والأصناف',
           subtitle: 'الباركود هو المعرّف الظاهر في النظام · رقم المادة داخلي في بطاقة المادة فقط',
           actions: [
-            { label: '＋ مادة جديدة', href: '/inventory/items/new', primary: true },
+            { label: 'اختيار مادة', href: '/inventory/items', primary: true },
+            { label: '＋ مادة جديدة', href: '/inventory/items/new' },
             { label: 'الفئات', href: '/inventory/categories' },
             { label: 'الوحدات', href: '/inventory/units' },
             { label: 'لوحة المستودعات', href: HUB },
           ],
         })}
         ${flash ? alertHtml('ok', flash) : ''}
-        ${ui.railSearch('/inventory/items', qv)}
+        ${ui.railSearch('/inventory/items', qv, { view: 'list' })}
         ${ui.tableSurface(
           'المواد',
           `${rows.length} صف`,
@@ -376,7 +442,10 @@ async function itemForm(req, res, id) {
         kicker: KICKER,
         title: isNew ? 'بطاقة مادة جديدة' : `بطاقة المادة: ${esc(item.name_ar || '')}`,
         subtitle: 'رقم المادة للأغراض الداخلية · الباركود هو الظاهر في الفواتير والتقارير',
-        actions: [{ label: 'رجوع للقائمة', href: '/inventory/items' }],
+        actions: [
+          { label: 'اختيار مادة', href: '/inventory/items' },
+          { label: 'القائمة الكاملة', href: '/inventory/items?view=list' },
+        ],
       })}
       ${err ? alertHtml('err', err) : ''}
       ${flash ? alertHtml('ok', flash) : ''}

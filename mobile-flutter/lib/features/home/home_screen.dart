@@ -250,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           _Header(
-            company: _company.isEmpty ? 'النماء' : _company,
+            company: _company.isEmpty ? 'Hypex' : _company,
             user: s.userName ?? '',
             tracking: _tracking,
             trackingOk: _trackingOk,
@@ -328,14 +328,14 @@ class _Header extends StatelessWidget {
               Container(
                 width: 42,
                 height: 42,
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: const Icon(
-                  Icons.storefront_rounded,
-                  color: Colors.white,
-                  size: 22,
+                child: Image.asset(
+                  'assets/branding/logo.png',
+                  fit: BoxFit.contain,
                 ),
               ),
               const SizedBox(width: 12),

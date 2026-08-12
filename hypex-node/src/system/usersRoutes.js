@@ -199,7 +199,7 @@ router.get('/system/users', async (req, res) => {
             <div class="su-groups">
               <h3>المجموعات (الصلاحيات)</h3>
               <p class="muted" style="margin:0 0 .5rem;font-size:.8rem;font-weight:500">
-                الصلاحيات تُحدَّد على مستوى المجموعة (الشاشات والتقارير). لتطبيق الهاتف أضف المستخدم لمجموعة «هاتف» (MOBILE).
+                الصلاحيات تُحدَّد على مستوى المجموعة. <strong>لتطبيق الهاتف (APK) يجب تفعيل مجموعة «هاتف» (MOBILE)</strong> — إنشاء مستخدم فقط دون هذه المجموعة لن يسمح بالدخول من التطبيق.
               </p>
               ${
                 groups.length

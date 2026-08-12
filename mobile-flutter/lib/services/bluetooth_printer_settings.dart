@@ -13,7 +13,7 @@ class BluetoothPrinterSettings {
     return BluetoothPrinterConfig(
       mac: (p.getString(_kMac) ?? '').trim(),
       name: (p.getString(_kName) ?? '').trim(),
-      paperMm: p.getInt(_kPaper) == 80 ? 80 : 58,
+      paperMm: p.getInt(_kPaper) == 58 ? 58 : 80,
     );
   }
 
@@ -35,7 +35,7 @@ class BluetoothPrinterConfig {
   const BluetoothPrinterConfig({
     required this.mac,
     required this.name,
-    this.paperMm = 58,
+    this.paperMm = 80,
   });
 
   final String mac;

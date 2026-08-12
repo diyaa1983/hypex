@@ -1,5 +1,5 @@
 name: namma_mobile
-description: تطبيق النماء الأصلي (Flutter) — يتصل بالسيرفر عبر واجهات JSON.
+description: تطبيق Hypex للمبيعات والمندوبين (Flutter) — يتصل بالسيرفر عبر واجهات JSON.
 publish_to: "none"
 version: 1.0.0+1
 
@@ -45,7 +45,7 @@ flutter:
   uses-material-design: true
   # ملفات assets/icon تُستخدم لتوليد أيقونة التطبيق فقط ولا تُحزَّم داخل التطبيق.
   assets:
-    - assets/
+    - assets/branding/
     - assets/fonts/
 
 flutter_launcher_icons:
@@ -53,6 +53,6 @@ flutter_launcher_icons:
   ios: true
   remove_alpha_ios: true
   image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#0B63CE"
+  adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/icon/app_icon_fg.png"
   min_sdk_android: 23

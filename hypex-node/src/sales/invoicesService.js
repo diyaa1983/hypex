@@ -444,8 +444,11 @@ async function saveInvoice(payload, userId) {
   const priceLabel = useWholesale ? 'سعر الجملة' : 'سعر البيع';
 
   const rawLines = Array.isArray(payload.lines) ? payload.lines : [];
+  const offerApply = require('./offerApply');
+  const offersSvc = require('./offersService');
+  const offered = await offerApply.applyOffersToRawLines(rawLines, invoiceDate);
   const normalized = [];
-  for (const ln of rawLines) {
+  for (const ln of offered.lines) {
     if (!ln || !Number(ln.item_id)) continue;
     if (Number(ln.qty) <= 0 && Number(ln.qty_extra) <= 0) continue;
     // السعر من بطاقة المادة (بيع أو جملة حسب العميل) × معامل الوحدة
@@ -472,6 +475,7 @@ async function saveInvoice(payload, userId) {
     );
   }
   const totals = applyHeaderDiscount(normalized, discountInput);
+  const pendingOfferApps = offered.applications || [];
 
   const pool = db.getPool();
   const conn = await pool.getConnection();
@@ -509,6 +513,22 @@ async function saveInvoice(payload, userId) {
         await insertLine(conn, invoiceId, ln);
       }
       await conn.commit();
+      try {
+        await offersSvc.clearApplications('invoice', invoiceId);
+        if (pendingOfferApps.length) {
+          await offersSvc.logApplications(
+            pendingOfferApps.map((a) => ({
+              ...a,
+              doc_type: 'invoice',
+              doc_id: invoiceId,
+              doc_no: payload.invoice_no || '',
+              doc_date: invoiceDate,
+            }))
+          );
+        }
+      } catch (e) {
+        console.error('offer log invoice', e.message);
+      }
       return { ok: true, id: invoiceId, invoice_no: payload.invoice_no || '' };
     }
 
@@ -543,6 +563,21 @@ async function saveInvoice(payload, userId) {
       await insertLine(conn, newId, ln);
     }
     await conn.commit();
+    try {
+      if (pendingOfferApps.length) {
+        await offersSvc.logApplications(
+          pendingOfferApps.map((a) => ({
+            ...a,
+            doc_type: 'invoice',
+            doc_id: newId,
+            doc_no: invoiceNo,
+            doc_date: invoiceDate,
+          }))
+        );
+      }
+    } catch (e) {
+      console.error('offer log invoice new', e.message);
+    }
     return { ok: true, id: newId, invoice_no: invoiceNo };
   } catch (e) {
     try {

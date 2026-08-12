@@ -108,8 +108,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final session = context.read<SessionController>();
       if (!session.settingsUnlocked) {
-        showSnack(context, 'يلزم فتح الإعدادات بكلمة مرور المدير أولاً.',
+        showSnack(context, 'يلزم فتح الإعدادات بكلمة مرور المستخدم الرئيسي أولاً.',
             error: true);
+        return;
+      }
+      if (!on && !session.gpsConfig.userCanDisable) {
+        showSnack(
+          context,
+          'لا يمكن إيقاف تتبّع الموقع — مضبوط من إعدادات النظام.',
+          error: true,
+        );
         return;
       }
       if (on) {
@@ -207,13 +215,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SectionTitle('الطباعة', icon: Icons.print_rounded),
           const BluetoothPrinterSettingsCard(),
-          const SectionTitle('فتح الإعدادات', icon: Icons.lock_rounded),
+          const SectionTitle('حالة الموقع', icon: Icons.my_location_rounded),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                InfoRow(
+                  'التتبّع',
+                  running ? 'يعمل' : 'متوقف',
+                ),
+                InfoRow('مدة الإرسال', s.gpsConfig.intervalLabel),
+                InfoRow(
+                  'إيقاف يدوي',
+                  s.gpsConfig.userCanDisable
+                      ? 'مسموح للمستخدم الرئيسي'
+                      : 'ممنوع — من إعدادات النظام فقط',
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  s.gpsConfig.autoEnable
+                      ? 'يُشغَّل تلقائياً عند فتح التطبيق.'
+                      : 'التشغيل التلقائي معطّل من النظام.',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppTheme.textSoft,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SectionTitle('المستخدم الرئيسي', icon: Icons.lock_rounded),
           AppCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'تعديل تتبّع الموقع متاح لمدير النظام فقط. أدخل بيانات أي حساب ضمن مجموعة ADMINS.',
+                  'ربط السيرفر وتعديل تتبّع الموقع متاحان للمستخدم الرئيسي فقط. '
+                  'أدخل بيانات حساب ضمن مجموعة ADMINS.',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppTheme.textSoft,
@@ -225,7 +264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   controller: _adminUserCtrl,
                   textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
-                    labelText: 'اسم مستخدم المدير',
+                    labelText: 'اسم مستخدم المستخدم الرئيسي',
                     prefixIcon: Icon(Icons.admin_panel_settings_rounded),
                   ),
                 ),
@@ -236,7 +275,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _verifying ? null : _unlock(),
                   decoration: const InputDecoration(
-                    labelText: 'كلمة مرور المدير',
+                    labelText: 'كلمة مرور المستخدم الرئيسي',
                     prefixIcon: Icon(Icons.password_rounded),
                   ),
                 ),
@@ -264,7 +303,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         )
                       : const Icon(Icons.lock_open_rounded),
-                  label: Text(_verifying ? 'جاري التحقق...' : 'فتح الإعدادات'),
+                  label: Text(
+                    _verifying ? 'جاري التحقق...' : 'دخول المستخدم الرئيسي',
+                  ),
                 ),
               ],
             ),
@@ -369,7 +410,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   SwitchListTile(
                     value: running,
-                    onChanged: _busy ? null : _toggle,
+                    onChanged: (_busy || (!gps.userCanDisable && running))
+                        ? null
+                        : _toggle,
                     secondary: MiniIcon(
                       running
                           ? Icons.location_on_rounded
@@ -384,13 +427,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     subtitle: Text(
-                      running
-                          ? (!kIsWeb && Platform.isIOS
-                              ? (_iosNeedsAlways
-                                  ? 'تعمل — فعّل «دائماً» لاستمرار الخلفية'
-                                  : 'تعمل في الخلفية على الآيفون')
-                              : 'تعمل الآن وتستمر بعد إغلاق التطبيق')
-                          : 'متوقفة — لن يُرسل موقعك',
+                      !gps.userCanDisable
+                          ? (running
+                              ? 'مفعّل إجبارياً من إعدادات النظام · ${gps.intervalLabel}'
+                              : 'محاولة التشغيل… مضبوط من النظام')
+                          : (running
+                              ? (!kIsWeb && Platform.isIOS
+                                  ? (_iosNeedsAlways
+                                      ? 'تعمل — فعّل «دائماً» لاستمرار الخلفية'
+                                      : 'تعمل في الخلفية على الآيفون')
+                                  : 'تعمل الآن وتستمر بعد إغلاق التطبيق')
+                              : 'متوقفة — لن يُرسل موقعك'),
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppTheme.textSoft,
@@ -493,7 +540,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               final ok = await LocationPresenceService.pingNow(
                                 force: true,
                               );
-                              if (!context.mounted) return;
+                              if (!mounted) return;
                               showSnack(
                                 context,
                                 ok
@@ -558,7 +605,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onTap: () async {
                       final err =
                           await LocationTrackingService.requestPermissions();
-                      if (!context.mounted) return;
+                      if (!mounted) return;
                       showSnack(
                         context,
                         err ?? 'كل الأذونات ممنوحة.',
@@ -584,7 +631,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 18),
             const Center(
               child: Text(
-                'النماء • الإصدار 1.0.0',
+                'Hypex • الإصدار 1.0.0',
                 style: TextStyle(fontSize: 12, color: AppTheme.textSoft),
               ),
             ),

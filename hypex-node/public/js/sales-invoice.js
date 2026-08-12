@@ -199,6 +199,18 @@
     } else if (ln.tax_rate_percent == null) {
       ln.tax_rate_percent = defaultTax;
     }
+    if (window.HxOffers && typeof window.HxOffers.refreshLine === 'function') {
+      window.HxOffers.refreshLine({
+        ln: ln,
+        onDone: function (updated) {
+          if (updated) {
+            ln.qty_extra = updated.qty_extra;
+            ln.discount_pct = updated.discount_pct;
+          }
+          if (typeof renderLines === 'function') renderLines();
+        },
+      });
+    }
     return ln;
   }
 
@@ -609,6 +621,18 @@
       var ev = el.tagName === 'SELECT' ? 'change' : 'input';
       el.addEventListener(ev, function () {
         readLineFromRow(tr);
+        if (cls === 'js-qty' && window.HxOffers) {
+          var idx = Number(tr.getAttribute('data-idx'));
+          var ln = state.lines[idx];
+          window.HxOffers.refreshLine({
+            idx: idx,
+            ln: ln,
+            tr: tr,
+            onDone: function () {
+              readLineFromRow(tr);
+            },
+          });
+        }
       });
     });
     var unitEl = tr.querySelector('.js-unit');

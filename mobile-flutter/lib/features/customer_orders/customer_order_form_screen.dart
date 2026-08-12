@@ -57,6 +57,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   List<Map<String, dynamic>> _warehouses = [];
   Party? _customer;
   final _lines = <_OrderLine>[];
+  Map<String, dynamic>? _arSummary;
+  bool _arLoading = false;
+  String? _arError;
 
   bool get _editable => !_approved;
 
@@ -146,6 +149,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           ..addAll(loaded);
         _loading = false;
       });
+      if (_customer != null) {
+        await _loadArSummary(_customer!.id);
+      }
     } on ApiException catch (e) {
       if (mounted) {
         setState(() {
@@ -156,9 +162,57 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
   }
 
+  Future<void> _loadArSummary(int customerId) async {
+    if (customerId < 1) {
+      setState(() {
+        _arSummary = null;
+        _arError = null;
+        _arLoading = false;
+      });
+      return;
+    }
+    setState(() {
+      _arLoading = true;
+      _arError = null;
+    });
+    try {
+      final res = await context.read<ApiClient>().getJson(
+        AppConfig.oracleCustomerArSummaryPath,
+        query: {'customer_id': customerId},
+      );
+      if (!mounted) return;
+      setState(() {
+        _arSummary = res;
+        _arLoading = false;
+        _arError = res['ok'] == true
+            ? null
+            : (Fmt.str(res['message']).isEmpty
+                ? 'تعذر جلب ملخص الحساب'
+                : Fmt.str(res['message']));
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _arSummary = null;
+        _arLoading = false;
+        _arError = e.message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _arSummary = null;
+        _arLoading = false;
+        _arError = e.toString();
+      });
+    }
+  }
+
   Future<void> _pickCustomer() async {
     final party = await pickParty(context, type: 'customer');
-    if (party != null && mounted) setState(() => _customer = party);
+    if (party != null && mounted) {
+      setState(() => _customer = party);
+      await _loadArSummary(party.id);
+    }
   }
 
   Future<void> _addLine() async {
@@ -197,6 +251,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         body['gps_accuracy'] = gps.accuracy;
         body['gps_source'] = 'mobile';
       }
+      if (!mounted) return 0;
       final result = await context.read<ApiClient>().postJson(
         AppConfig.customerOrderSavePath,
         csrf: session.csrf,
@@ -309,6 +364,127 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                           subtitle: Text(_customer?.name ?? 'اضغط للاختيار'),
                           trailing: const Icon(Icons.chevron_left_rounded)),
                     ])),
+                if (_customer != null) ...[
+                  const DocumentSectionDivider('ملخص حساب العميل (Oracle)'),
+                  AppCard(
+                    child: _arLoading
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        : (_arError != null
+                            ? Text(
+                                _arError!,
+                                style: const TextStyle(
+                                  color: Color(0xFFB91C1C),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              )
+                            : Column(
+                                children: [
+                                  InfoRow(
+                                    'مدين',
+                                    Fmt.money(
+                                      Fmt.toDouble(_arSummary?['total_debit']),
+                                    ),
+                                    ltr: true,
+                                  ),
+                                  InfoRow(
+                                    'دائن',
+                                    Fmt.money(
+                                      Fmt.toDouble(_arSummary?['total_credit']),
+                                    ),
+                                    ltr: true,
+                                  ),
+                                  InfoRow(
+                                    'المبلغ المستحق',
+                                    Fmt.money(
+                                      Fmt.toDouble(_arSummary?['balance']),
+                                    ),
+                                    ltr: true,
+                                  ),
+                                  InfoRow(
+                                    'شيكات قيد التحصيل',
+                                    '${Fmt.toInt(_arSummary?['cheque_count'])} · ${Fmt.money(Fmt.toDouble(_arSummary?['cheque_total']))}',
+                                    ltr: true,
+                                  ),
+                                  if ((_arSummary?['cheques'] is List) &&
+                                      (_arSummary!['cheques'] as List)
+                                          .isNotEmpty) ...[
+                                    const Divider(),
+                                    const Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text(
+                                        'الشيكات المستحقة',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    ...((_arSummary!['cheques'] as List)
+                                        .whereType<Map>()
+                                        .take(8)
+                                        .map((c) {
+                                      final m = c.cast<String, dynamic>();
+                                      final no = Fmt.str(
+                                        m['cheque_no'] ??
+                                            m['check_no'] ??
+                                            m['num'] ??
+                                            m['doc_no'],
+                                      );
+                                      final amt = Fmt.money(
+                                        Fmt.toDouble(
+                                          m['amount'] ?? m['amt'] ?? m['value'],
+                                        ),
+                                      );
+                                      final due = Fmt.dmy(
+                                        Fmt.str(
+                                          m['due_date'] ??
+                                              m['date'] ??
+                                              m['cheque_date'],
+                                        ),
+                                      );
+                                      return Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 4),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                no.isEmpty ? 'شيك' : no,
+                                                style: const TextStyle(
+                                                  fontSize: 12.5,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                            Text(
+                                              due,
+                                              style: const TextStyle(
+                                                fontSize: 11.5,
+                                                color: Color(0xFF64748B),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              amt,
+                                              textDirection: TextDirection.ltr,
+                                              style: const TextStyle(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    })),
+                                  ],
+                                ],
+                              )),
+                  ),
+                ],
                 const DocumentSectionDivider('بنود الطلب'),
                 for (var i = 0; i < _lines.length; i++)
                   AppCard(

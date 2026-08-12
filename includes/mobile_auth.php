@@ -113,6 +113,69 @@ function mobile_attempt_login(string $username, string $password): bool
     return true;
 }
 
+/**
+ * نتيجة مفصّلة لمحاولة دخول الهاتف (للـ API).
+ *
+ * @return array{ok:bool, error?:string, message?:string}
+ */
+function mobile_attempt_login_result(string $username, string $password): array
+{
+    $username = trim($username);
+    if ($username === '' || $password === '') {
+        return [
+            'ok' => false,
+            'error' => 'missing_credentials',
+            'message' => 'أدخل اسم المستخدم وكلمة المرور.',
+        ];
+    }
+
+    $st = db()->prepare(
+        'SELECT id, username, password_hash, is_active FROM sys_user WHERE username = ? LIMIT 1'
+    );
+    $st->execute([$username]);
+    $row = $st->fetch();
+    if (!$row) {
+        return [
+            'ok' => false,
+            'error' => 'invalid_credentials',
+            'message' => 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+        ];
+    }
+    if (!(int) $row['is_active']) {
+        return [
+            'ok' => false,
+            'error' => 'inactive_user',
+            'message' => 'هذا الحساب غير نشط. فعّله من شاشة المستخدمين.',
+        ];
+    }
+    if (!password_verify($password, (string) $row['password_hash'])) {
+        return [
+            'ok' => false,
+            'error' => 'invalid_credentials',
+            'message' => 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+        ];
+    }
+
+    $uid = (int) $row['id'];
+    if (!user_in_mobile_group($uid)) {
+        return [
+            'ok' => false,
+            'error' => 'not_mobile_group',
+            'message' => 'الحساب صحيح لكنه غير مضاف لمجموعة «هاتف» (MOBILE). من النظام: المستخدمون ← اختر المستخدم ← فعّل مجموعة هاتف ثم احفظ.',
+        ];
+    }
+
+    if (!mobile_attempt_login($username, $password)) {
+        return [
+            'ok' => false,
+            'error' => 'login_failed',
+            'message' => 'تعذّر إكمال تسجيل الدخول.',
+        ];
+    }
+
+    return ['ok' => true];
+}
+
 function require_mobile_login(): void
 {
     if (!is_logged_in()) {

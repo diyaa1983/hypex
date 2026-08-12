@@ -272,8 +272,11 @@ async function saveOrder(payload, userId) {
   }
 
   const rawLines = Array.isArray(payload.lines) ? payload.lines : [];
+  const offerApply = require('./offerApply');
+  const offersSvc = require('./offersService');
+  const offered = await offerApply.applyOffersToRawLines(rawLines, orderDate);
   const normalized = [];
-  for (const ln of rawLines) {
+  for (const ln of offered.lines) {
     if (!ln || !Number(ln.item_id)) continue;
     if (Number(ln.qty) < 1) continue;
     const priced = await itemPricing.resolveDocLinePricing(ln, { useWholesale });
@@ -312,6 +315,7 @@ async function saveOrder(payload, userId) {
   }
 
   const totals = applyHeaderDiscount(normalized, discountInput);
+  const pendingOfferApps = offered.applications || [];
   const pool = db.getPool();
   const conn = await pool.getConnection();
   try {
@@ -364,6 +368,23 @@ async function saveOrder(payload, userId) {
       await conn.execute(`DELETE FROM sal_customer_order_line WHERE order_id = ?`, [orderId]);
       await insertLines(conn, orderId, totals.lines);
       await conn.commit();
+      try {
+        await offersSvc.clearApplications('order', orderId);
+        if (pendingOfferApps.length) {
+          const ordNo = (await getOrder(orderId))?.order_no || '';
+          await offersSvc.logApplications(
+            pendingOfferApps.map((a) => ({
+              ...a,
+              doc_type: 'order',
+              doc_id: orderId,
+              doc_no: ordNo,
+              doc_date: orderDate,
+            }))
+          );
+        }
+      } catch (e) {
+        console.error('offer log order', e.message);
+      }
       const ord = await getOrder(orderId);
       return { ok: true, id: orderId, order_no: ord?.order_no || payload.order_no || '', order: ord };
     }
@@ -413,6 +434,21 @@ async function saveOrder(payload, userId) {
     }
     await insertLines(conn, newId, totals.lines);
     await conn.commit();
+    try {
+      if (pendingOfferApps.length) {
+        await offersSvc.logApplications(
+          pendingOfferApps.map((a) => ({
+            ...a,
+            doc_type: 'order',
+            doc_id: newId,
+            doc_no: orderNo,
+            doc_date: orderDate,
+          }))
+        );
+      }
+    } catch (e) {
+      console.error('offer log order new', e.message);
+    }
     const ord = await getOrder(newId);
     return { ok: true, id: newId, order_no: orderNo, order: ord };
   } catch (e) {
