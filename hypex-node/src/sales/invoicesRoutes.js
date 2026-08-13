@@ -5,6 +5,7 @@ const auth = require('../auth');
 const svc = require('./invoicesService');
 const { renderApp, phpUrl, embedUrl } = require('../lib/layout');
 const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
+const ui = require('../lib/salesUi');
 const config = require('../config');
 const { ensurePrintBrand, renderStandalonePrintPage } = require('../lib/printBrand');
 
@@ -145,24 +146,21 @@ router.get('/sales/invoices', async (req, res) => {
     const canPost = canAction(req.session.user, 'action_post_sales_invoice');
 
     const rows = data.rows
-      .map((r, i) => {
-        const pay = r.payment_type === 'credit' ? 'ذمم' : 'نقدي';
-        const st = r.is_posted
-          ? '<span class="si-pill si-pill--live">مرحّلة</span>'
-          : '<span class="si-pill si-pill--wait">غير مرحّلة</span>';
-        return `<tr style="animation-delay:${Math.min(i, 12) * 0.03}s">
-          <td class="si-num" dir="ltr">${r.id}</td>
-          <td dir="ltr"><a class="si-inv-no" href="/sales/invoices/${r.id}">${esc(r.invoice_no)}</a></td>
+      .map((r) => {
+        const pay = r.payment_type === 'cash' ? 'نقدي' : 'ذمم';
+        const st = r.is_posted ? ui.statusPill('ok', 'مرحّلة') : ui.statusPill('wait', 'مسودة');
+        return `<tr>
+          <td class="si-num" dir="ltr">${esc(r.invoice_no)}</td>
           <td class="si-num" dir="ltr">${esc(isoToDmy(r.invoice_date))}</td>
-          <td>${esc(r.customer_name)}</td>
+          <td>${esc(r.customer_name || '—')}</td>
           <td>${esc(pay)}</td>
-          <td class="si-num" dir="ltr">${esc(fmtAmt(r.total))}</td>
           <td>${st}</td>
+          <td class="si-num" dir="ltr">${esc(fmtAmt(r.total))}</td>
           <td><div class="si-act">
-            <a class="si-btn" href="/sales/invoices/${r.id}">فتح</a>
+            <a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/sales/invoices/${r.id}">فتح</a>
             ${
               !r.is_posted && canPost
-                ? `<button type="button" class="si-btn js-list-post" data-id="${r.id}">ترحيل</button>`
+                ? `<button type="button" class="si-btn js-list-post" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" data-id="${r.id}">ترحيل</button>`
                 : ''
             }
           </div></td>
@@ -172,17 +170,16 @@ router.get('/sales/invoices', async (req, res) => {
 
     const bodyHtml = `
       <div class="si-stage">
-        <header class="si-hero">
-          <div class="si-brand-lockup">
-            <div class="si-brand-text">
-              <h1>فواتير المبيعات</h1>
-            </div>
-          </div>
-          <div class="si-hero-actions">
-            <a class="si-btn si-btn--ghost" href="/app">لوحة التحكم</a>
-            <a class="si-btn si-btn--primary" href="/sales/invoices/new">＋ فاتورة جديدة</a>
-          </div>
-        </header>
+        ${ui.hero({
+          mark: 'SI',
+          kicker: 'Hypex Sales · Node',
+          title: 'فواتير المبيعات',
+          subtitle: 'قائمة الفواتير — فتح وتعديل داخل Node',
+          actions: [
+            { label: '＋ فاتورة جديدة', href: '/sales/invoices/new', primary: true },
+            { label: 'لوحة المبيعات', href: '/sales' },
+          ],
+        })}
 
         <div class="si-rail">
           <div class="si-seg" role="tablist">
@@ -197,31 +194,12 @@ router.get('/sales/invoices', async (req, res) => {
           </form>
         </div>
 
-        <section class="si-surface">
-          <div class="si-surface-head">
-            <h2>سجل الفواتير</h2>
-            <span class="si-count" dir="ltr">${data.total} rows · p${data.page}</span>
-          </div>
-          <div class="si-table-wrap">
-            <table class="si-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>الرقم</th>
-                  <th>التاريخ</th>
-                  <th>العميل</th>
-                  <th>النوع</th>
-                  <th>الإجمالي</th>
-                  <th>الحالة</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                ${rows || '<tr><td colspan="8" class="empty">لا توجد فواتير بعد — أنشئ أول فاتورة</td></tr>'}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        ${ui.tableSurface(
+          'سجل الفواتير',
+          `${data.total} صف`,
+          ['الرقم', 'التاريخ', 'العميل', 'النوع', 'الحالة', 'الإجمالي', ''],
+          rows || ui.emptyRow(7, 'لا توجد فواتير بعد — أنشئ أول فاتورة')
+        )}
       </div>
       <script>
       (function(){
@@ -253,13 +231,10 @@ router.get('/sales/invoices', async (req, res) => {
     `;
 
     res.send(
-      renderApp({
+      ui.salesPage({
         user: req.session.user,
         title: 'فواتير المبيعات',
         bodyHtml,
-        bodyClass: 'si-2027',
-        mainClass: 'main si-main',
-        css: ['/assets/css/sales-2027.css'],
       })
     );
   } catch (e) {
@@ -599,15 +574,15 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
             <label class="si-f si-f--cust">
               <span class="si-f-head">
                 العميل
-                <kbd class="si-field-key" title="F7">F7</kbd>
+                <span class="si-key-hint" title="اختيار عميل"><kbd class="si-field-key">F7</kbd><span class="si-key-desc">بحث عميل</span></span>
                 <span id="inv_price_mode_hint" class="si-price-mode" hidden></span>
               </span>
               <div class="si-cust-wrap">
                 <input type="hidden" id="inv_customer_id" value="${initial.customer_id || ''}">
-                <input class="si-field" id="inv_customer" type="search" placeholder="ابحث بالاسم أو الرمز… (F7)"
+                <input class="si-field" id="inv_customer" type="search" placeholder="ابحث بالاسم أو الرمز…"
                        value="${esc(initial.customer_label)}" autocomplete="off" ${
                          initial.is_posted ? 'readonly' : ''
-                       }>
+                       } data-nav="1">
                 <div class="si-suggest" id="cust_suggest" hidden></div>
               </div>
             </label>
@@ -618,26 +593,28 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
           <div class="si-surface-head">
             <h2>بنود الفاتورة</h2>
             <span class="si-count si-count--keys">
-              <kbd class="si-field-key" title="سطر جديد">F2</kbd>
-              <kbd class="si-field-key" title="قائمة المواد">F3</kbd>
-              <kbd class="si-field-key" title="حذف بند المادة">F4</kbd>
+              <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
+              <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
+              <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
+              <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
             </span>
           </div>
           <div class="si-lines-wrap">
-            <table class="si-lines" id="si-lines">
+            <table class="si-lines si-lines--co" id="si-lines">
               <thead>
                 <tr>
-                  <th style="width:2.2rem">#</th>
-                  <th>المادة</th>
-                  <th style="width:7.5rem">الوحدة</th>
-                  <th style="width:6.2rem">الكمية</th>
-                  <th style="width:6.2rem">إضافية</th>
-                  <th style="width:7rem">السعر</th>
-                  <th style="width:5.2rem">خصم %</th>
-                  <th style="width:5.2rem">ضريبة %</th>
-                  <th style="width:7rem">الصافي</th>
-                  <th style="width:7rem">الإجمالي</th>
-                  <th style="width:2.6rem"></th>
+                  <th style="width:2rem">#</th>
+                  <th>الباركود</th>
+                  <th>اسم المادة</th>
+                  <th>الوحدة</th>
+                  <th style="width:5.5rem">الكمية</th>
+                  <th style="width:5.2rem">إضافية</th>
+                  <th style="width:6.2rem">السعر</th>
+                  <th style="width:4.8rem">خصم %</th>
+                  <th style="width:5rem">ضريبة %</th>
+                  <th style="width:6.2rem">الصافي</th>
+                  <th style="width:6.2rem">الإجمالي</th>
+                  <th style="width:2.4rem"></th>
                 </tr>
               </thead>
               <tbody id="si-lines-body"></tbody>
