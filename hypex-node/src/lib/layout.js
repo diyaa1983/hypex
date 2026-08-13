@@ -36,8 +36,17 @@ function faviconLinksHtml() {
 }
 
 function phpUrl(route, extra = '') {
-  if (!route) return config.phpBaseUrl;
-  return `${config.phpBaseUrl}/index.php?r=${encodeURIComponent(route)}${extra}`;
+  const extraStr = extra || '';
+  const rel = route
+    ? `/index.php?r=${encodeURIComponent(route)}${extraStr}`
+    : '/index.php';
+  const base = String(config.phpBaseUrl || '').replace(/\/$/, '');
+  const isLoopback = !base || /127\.0\.0\.1|localhost/i.test(base);
+  // من نطاق عام (مثل 176.x) لا نفتح iframe نحو localhost — Chrome يحظر Private Network Access
+  if (isLoopback) {
+    return basePath.ensurePrefixed(rel);
+  }
+  return `${base}${rel}`;
 }
 
 /** فتح شاشة داخل Node عبر /embed (بدون تبويب خارجي) */

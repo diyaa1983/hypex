@@ -997,30 +997,125 @@ function redirectSalesReport(basePath) {
 router.get('/sales-reps/reports/by-rep', redirectSalesReport('/sales/reports/by-rep'));
 router.get('/sales-reps/reports/by-region', redirectSalesReport('/sales/reports/by-region'));
 
-/** اعتماد خروج يدوي — تضمين شاشة PHP */
-router.get('/sales-reps/visit-checkout-approve', guard('sales_rep_visit_checkout_approve'), (req, res) => {
-  let route = 'sales_rep_visit_checkout_approve';
-  const extras = [];
-  if (req.query.status) extras.push('status=' + encodeURIComponent(String(req.query.status)));
-  if (req.query.id) extras.push('id=' + encodeURIComponent(String(req.query.id)));
-  const extraQs = extras.length ? '&' + extras.join('&') : '';
-  const { phpUrl } = require('../lib/layout');
+/** اعتماد خروج يدوي — شاشة Node أصلية (بدون iframe إلى localhost) */
+async function renderVisitCheckoutApprove(req, res, { flash = '', err = '' } = {}) {
+  const status = ['pending', 'approved', 'rejected', 'all'].includes(String(req.query.status || ''))
+    ? String(req.query.status)
+    : 'pending';
+  const focusId = Number(req.query.id || 0) || 0;
+  const rows = await masters.listVisitCheckoutRequests(status, 200);
+  const msg = flash || String(req.query.msg || '');
+  const error = err || String(req.query.err || '');
+
+  function stLbl(st) {
+    if (st === 'pending') return ui.statusPill('wait', 'معلّق');
+    if (st === 'approved') return ui.statusPill('ok', 'موافق عليه');
+    if (st === 'rejected') return ui.statusPill('lock', 'مرفوض');
+    return esc(st);
+  }
+  function distLabel(v) {
+    if (v == null || v === '') return '—';
+    const n = Number(v);
+    return Number.isFinite(n) ? `${Math.round(n)} م` : '—';
+  }
+
+  const tabs = [
+    ['pending', 'معلّق'],
+    ['approved', 'موافق عليه'],
+    ['rejected', 'مرفوض'],
+    ['all', 'الكل'],
+  ]
+    .map(
+      ([k, lab]) =>
+        `<a class="si-btn${status === k ? ' si-btn--primary' : ''}" href="/sales-reps/visit-checkout-approve?status=${k}">${esc(
+          lab
+        )}</a>`
+    )
+    .join(' ');
+
+  const rowsHtml =
+    rows
+      .map((r) => {
+        const id = Number(r.id) || 0;
+        const st = String(r.status || '');
+        const focus = focusId > 0 && focusId === id;
+        const actions =
+          st === 'pending'
+            ? `<form method="post" action="/sales-reps/visit-checkout-approve" style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center">
+                <input type="hidden" name="id" value="${id}">
+                <input type="hidden" name="status" value="${esc(status)}">
+                <input class="si-field" type="text" name="note" placeholder="ملاحظة" style="min-width:8rem">
+                <button class="si-btn si-btn--primary" type="submit" name="action" value="approve">موافقة</button>
+                <button class="si-btn" type="submit" name="action" value="reject">رفض</button>
+              </form>`
+            : `<span class="muted">${esc(r.decided_by_name || '')}</span>`;
+        return `<tr${focus ? ' style="background:#fff7ed"' : ''}>
+          <td class="si-num" dir="ltr">${id}</td>
+          <td>${esc(r.sales_rep_name || '—')}</td>
+          <td>${esc(r.customer_name || '—')}<div class="muted" dir="ltr">${esc(r.customer_code || '')}</div></td>
+          <td>${esc(r.reason || '—')}</td>
+          <td class="si-num" dir="ltr">${distLabel(r.request_distance_m)}</td>
+          <td class="si-num" dir="ltr">${esc(r.created_at || '')}</td>
+          <td>${stLbl(st)}</td>
+          <td>${actions}</td>
+        </tr>`;
+      })
+      .join('') || ui.emptyRow(8, status === 'pending' ? 'لا توجد طلبات معلّقة.' : 'لا توجد طلبات.');
+
   const body = `
-    <div class="si-stage">
+    <div class="si-stage si-report-page">
       ${ui.hero({
-        mark: 'Vc',
+        mark: '🚪',
         kicker: KICKER,
         title: 'اعتماد خروج يدوي من الزيارة',
         subtitle: 'طلبات المندوبين الذين دخلوا بـ GPS ونسوا الخروج من موقع العميل',
         actions: [
           { label: 'الجولات', href: '/sales-reps/route' },
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
-          { label: 'تقرير الزيارات', href: '/sales-reps/reports/visits' },
+          { label: 'تقرير الزيارات', href: '/sales-reps/reports/visits', primary: true },
         ],
       })}
-      <iframe class="php-embed-frame" src="${esc(phpUrl(route, extraQs))}" title="اعتماد خروج يدوي"></iframe>
+      ${msg ? `<p class="si-pill si-pill--ok" style="display:inline-block">${esc(msg)}</p>` : ''}
+      ${error ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(error)}</p>` : ''}
+      <section class="si-surface no-print" style="padding:.85rem 1rem;margin-bottom:.75rem">
+        <div class="si-meta" style="align-items:center;gap:.4rem">${tabs}</div>
+        <p class="muted" style="margin:.65rem 0 0;font-size:.82rem">${rows.length} طلب</p>
+      </section>
+      ${ui.tableSurface(
+        'طلبات الخروج اليدوي',
+        `${rows.length} صف`,
+        ['#', 'المندوب', 'العميل', 'السبب', 'المسافة', 'وقت الطلب', 'الحالة', ''],
+        rowsHtml
+      )}
     </div>`;
-  res.send(ui.salesPage({ user: req.session.user, title: 'اعتماد خروج يدوي', bodyHtml: body }));
+
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'اعتماد خروج يدوي',
+      bodyHtml: body,
+    })
+  );
+}
+
+router.get('/sales-reps/visit-checkout-approve', guard('sales_rep_visit_checkout_approve'), (req, res) => {
+  return renderVisitCheckoutApprove(req, res);
+});
+
+router.post('/sales-reps/visit-checkout-approve', guard('sales_rep_visit_checkout_approve'), async (req, res) => {
+  const body = req.body || {};
+  const result = await masters.decideVisitCheckoutRequest({
+    id: body.id,
+    approve: String(body.action || '') === 'approve',
+    userId: req.session.user && req.session.user.id,
+    note: body.note || null,
+  });
+  const status = String(body.status || req.query.status || 'pending');
+  const q = new URLSearchParams();
+  q.set('status', status);
+  if (result.ok) q.set('msg', result.message || 'تم');
+  else q.set('err', result.message || 'تعذّر التنفيذ');
+  res.redirect('/sales-reps/visit-checkout-approve?' + q.toString());
 });
 
 /* ── تقرير الجولات ── */

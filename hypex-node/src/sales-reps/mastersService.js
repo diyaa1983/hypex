@@ -1021,6 +1021,106 @@ async function reportVisits({ from = '', to = '', salesRepId = 0, method = '', s
   }
 }
 
+async function listVisitCheckoutRequests(status = 'pending', limit = 200) {
+  const st = ['pending', 'approved', 'rejected', 'all'].includes(String(status))
+    ? String(status)
+    : 'pending';
+  const lim = Math.min(300, Math.max(1, Number(limit) || 200));
+  const where = st === 'all' ? '' : 'WHERE q.status = ?';
+  const params = st === 'all' ? [] : [st];
+  try {
+    return await safeQuery(
+      `SELECT q.*, c.name_ar AS customer_name, c.code AS customer_code,
+              COALESCE(sr.name_ar,'') AS sales_rep_name,
+              COALESCE(u.username,'') AS requested_by_name,
+              COALESCE(du.username,'') AS decided_by_name
+       FROM sal_rep_visit_checkout_request q
+       INNER JOIN crm_customer c ON c.id = q.customer_id
+       LEFT JOIN crm_sales_rep sr ON sr.id = q.sales_rep_id
+       LEFT JOIN sys_user u ON u.id = q.requested_by
+       LEFT JOIN sys_user du ON du.id = q.decided_by
+       ${where}
+       ORDER BY q.id DESC
+       LIMIT ${lim}`,
+      params
+    );
+  } catch (e) {
+    console.error('listVisitCheckoutRequests', e.message);
+    return [];
+  }
+}
+
+async function decideVisitCheckoutRequest({ id, approve, userId, note = null }) {
+  const db = require('../db');
+  const reqId = Number(id) || 0;
+  const uid = Number(userId) || 0;
+  if (reqId < 1) return { ok: false, message: 'طلب غير صالح.' };
+  let rows;
+  try {
+    rows = await db.query('SELECT * FROM sal_rep_visit_checkout_request WHERE id=? LIMIT 1', [reqId]);
+  } catch (e) {
+    return { ok: false, message: 'جدول طلبات الخروج غير جاهز بعد.' };
+  }
+  const req = rows && rows[0];
+  if (!req) return { ok: false, message: 'الطلب غير موجود.' };
+  if (String(req.status || '') !== 'pending') {
+    return { ok: false, message: 'تمت معالجة هذا الطلب مسبقاً.' };
+  }
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  if (!approve) {
+    await db.query(
+      `UPDATE sal_rep_visit_checkout_request
+       SET status='rejected', decided_by=?, decided_at=?, decision_note=? WHERE id=?`,
+      [uid, now, note, reqId]
+    );
+    return { ok: true, message: 'تم رفض طلب الخروج اليدوي.' };
+  }
+  const lineId = Number(req.route_line_id) || 0;
+  let lineRows = [];
+  try {
+    lineRows = await db.query(
+      `SELECT l.*, r.sales_rep_id, r.route_date
+       FROM sal_rep_route_line l
+       INNER JOIN sal_rep_route r ON r.id = l.route_id
+       WHERE l.id=? LIMIT 1`,
+      [lineId]
+    );
+  } catch (e) {
+    lineRows = [];
+  }
+  const line = lineRows[0];
+  if (!line || !line.visit_checkin_at) {
+    await db.query(
+      `UPDATE sal_rep_visit_checkout_request
+       SET status='rejected', decided_by=?, decided_at=?, decision_note=? WHERE id=?`,
+      [uid, now, 'لا يوجد دخول مفتوح', reqId]
+    );
+    return { ok: false, message: 'لا يوجد دخول مفتوح مرتبط بالطلب.' };
+  }
+  if (!line.visit_checkout_at) {
+    await db.query(
+      `UPDATE sal_rep_route_line SET
+          visit_checkout_at=?, checkout_method='MANUAL',
+          checkout_lat=?, checkout_lng=?, checkout_accuracy=?, checkout_distance_m=?
+       WHERE id=? AND visit_checkout_at IS NULL`,
+      [
+        now,
+        req.request_lat,
+        req.request_lng,
+        req.request_accuracy,
+        req.request_distance_m,
+        lineId,
+      ]
+    );
+  }
+  await db.query(
+    `UPDATE sal_rep_visit_checkout_request
+     SET status='approved', decided_by=?, decided_at=?, decision_note=? WHERE id=?`,
+    [uid, now, note, reqId]
+  );
+  return { ok: true, message: 'تمت الموافقة وتسجيل الخروج اليدوي.' };
+}
+
 /* توافق خلفي لأسماء قديمة */
 const listRoutes = listTours;
 const getRoute = getTour;
@@ -1046,6 +1146,8 @@ module.exports = {
   getTourPrintRows,
   reportTours,
   reportVisits,
+  listVisitCheckoutRequests,
+  decideVisitCheckoutRequest,
   ensureTourSchema,
   monthBoundsIso,
   WEEKDAY_LABELS,
