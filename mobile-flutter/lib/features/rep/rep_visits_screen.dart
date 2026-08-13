@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
@@ -287,6 +288,11 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       backgroundColor: const Color(0xFFF0F4F8),
       actions: [
         IconButton(
+          tooltip: 'تقرير الزيارات',
+          onPressed: _busy ? null : () => context.push('/rep/visit-report'),
+          icon: const Icon(Icons.assignment_rounded),
+        ),
+        IconButton(
           onPressed: _busy
               ? null
               : () => _load(keepCustomerId: Fmt.toInt(_selected?['customer_id'])),
@@ -395,6 +401,21 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppTheme.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: _busy ? null : () => context.push('/rep/visit-report'),
+                icon: const Icon(Icons.assignment_rounded),
+                label: const Text('تقرير الزيارات'),
+                style: OutlinedButton.styleFrom(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
