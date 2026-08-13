@@ -264,6 +264,19 @@ function mobile_home_launcher_tiles(): array
         } elseif (!user_can($perm)) {
             continue;
         }
+        // تجنّب بلاطتين لنفس شاشة الجولات
+        if ($code === 'm_rep_visits') {
+            $hasRouteToday = false;
+            foreach ($tiles as $t) {
+                if (($t['code'] ?? '') === 'm_rep_route_today') {
+                    $hasRouteToday = true;
+                    break;
+                }
+            }
+            if ($hasRouteToday) {
+                continue;
+            }
+        }
         $tiles[] = [
             'code' => (string) $code,
             'label' => (string) ($route['home_label'] ?? $route['title'] ?? $code),

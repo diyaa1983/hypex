@@ -29,7 +29,7 @@ $radius = (int) sal_rep_visit_radius_m();
 <div class="m-ora12 m-ora12-invoice">
 <div class="m-ora12-workspace">
     <div class="m-card" style="margin-bottom:0.75rem;">
-        <h2 style="margin:0 0 0.35rem;font-size:1.05rem;">عملاء الزيارة</h2>
+        <h2 style="margin:0 0 0.35rem;font-size:1.05rem;">جولات المندوبين</h2>
         <p class="muted" style="margin:0;">
             التاريخ: <strong dir="ltr"><?= esc(format_date_dmY($date)) ?></strong>
             — عدد العملاء: <strong><?= count($customers) ?></strong>

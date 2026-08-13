@@ -46,15 +46,21 @@ function sal_rep_visit_ensure_mobile_screen(PDO $pdo): void
     try {
         $pdo->exec(
             "INSERT IGNORE INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES
-             ('m_rep_visits', 'هاتف — تسجيل زيارة العميل', 'screen', 9045),
+             ('m_rep_route_today', 'هاتف — جولات المندوبين', 'screen', 9044),
+             ('m_rep_visits', 'هاتف — جولات المندوبين', 'screen', 9045),
              ('m_rep_visit_report', 'هاتف — تقرير الزيارات', 'screen', 9046)"
+        );
+        $pdo->exec(
+            "UPDATE sys_screen SET name_ar = 'هاتف — جولات المندوبين'
+             WHERE code IN ('m_rep_route_today', 'm_rep_visits')"
         );
         $pdo->exec(
             "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
              SELECT g.id, s.id, 1
              FROM sys_group g
              CROSS JOIN sys_screen s
-             WHERE g.code IN ('MOBILE', 'ADMINS') AND s.code IN ('m_rep_visits', 'm_rep_visit_report')"
+             WHERE g.code IN ('MOBILE', 'ADMINS')
+               AND s.code IN ('m_rep_route_today', 'm_rep_visits', 'm_rep_visit_report')"
         );
     } catch (Throwable $e) {
         error_log('sal_rep_visit_ensure_mobile_screen: ' . $e->getMessage());
@@ -177,11 +183,18 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
         }
     }
 
-    // أضف العملاء المربوطين بالمندوب حتى لو لم يكونوا في خط السير بعد
+    // عملاء خطة الجولة من مدير المبيعات (قبل إضافة أي زيارات اختيارية)
+    $plannedIds = [];
     $seen = [];
     foreach ($data['customers'] as $c) {
-        $seen[(int) ($c['id'] ?? 0)] = true;
+        $cid = (int) ($c['id'] ?? 0);
+        if ($cid > 0) {
+            $plannedIds[$cid] = true;
+            $seen[$cid] = true;
+        }
     }
+
+    // أضف العملاء المربوطين بالمندوب حتى لو لم يكونوا في الجولة (زيارة اختيارية)
     try {
         [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $salesRepId);
         $st = $pdo->prepare(
@@ -227,6 +240,9 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
     } catch (Throwable $e) {
     }
     $radius = (int) sal_rep_visit_radius_m($pdo);
+    $wd = (int) date('w', strtotime($date)); // 0=أحد … 6=سبت
+    $weekdayLabels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    $weekdayLabel = $weekdayLabels[$wd] ?? '';
     $out = [];
     foreach ($data['customers'] as $c) {
         $cid = (int) ($c['id'] ?? 0);
@@ -256,6 +272,11 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
             'checkout_method' => $ln['checkout_method'] ?? null,
             'pending_request_id' => $pending ? (int) $pending['id'] : null,
             'visit_radius_m' => $radius,
+            'in_plan' => !empty($plannedIds[$cid]),
+            'sort_order' => (int) ($c['sort_order'] ?? 0),
+            'weekday' => $wd,
+            'weekday_label' => $weekdayLabel,
+            'route_date' => $date,
         ];
     }
     return $out;

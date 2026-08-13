@@ -86,8 +86,8 @@ return [
     'm_rep_route_today' => [
         'file' => 'modules/mobile/rep_route_today.php',
         'permission' => 'm_rep_route_today',
-        'title' => 'خط سير اليوم',
-        'home_label' => 'خط سير اليوم',
+        'title' => 'جولات المندوبين',
+        'home_label' => 'جولات المندوبين',
         'icon' => 'map-pin',
         'tile_kind' => 'list',
         'home_tile' => true,
@@ -96,8 +96,8 @@ return [
     'm_rep_visits' => [
         'file' => 'modules/mobile/rep_visits.php',
         'permission' => 'm_rep_visits',
-        'title' => 'تسجيل زيارة العميل',
-        'home_label' => 'دخول / خروج زيارة',
+        'title' => 'جولات المندوبين',
+        'home_label' => 'جولات المندوبين',
         'icon' => 'map-pin',
         'tile_kind' => 'doc',
         'home_tile' => true,

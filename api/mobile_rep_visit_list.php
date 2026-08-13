@@ -34,12 +34,24 @@ if ($date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
     $date = '';
 }
 
-$visits = sal_rep_visit_list_for_rep($pdo, $repId, $date !== '' ? $date : null);
+$routeDate = $date !== '' ? $date : date('Y-m-d');
+$visits = sal_rep_visit_list_for_rep($pdo, $repId, $routeDate);
+$wd = (int) date('w', strtotime($routeDate));
+$weekdayLabels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+$plannedCount = 0;
+foreach ($visits as $v) {
+    if (!empty($v['in_plan'])) {
+        $plannedCount++;
+    }
+}
 echo json_encode([
     'ok' => true,
-    'route_date' => $date !== '' ? $date : date('Y-m-d'),
+    'route_date' => $routeDate,
+    'weekday' => $wd,
+    'weekday_label' => $weekdayLabels[$wd] ?? '',
     'visit_radius_m' => (int) sal_rep_visit_radius_m($pdo),
     'geofence_required' => sal_rep_visit_geofence_setting_enabled($pdo),
     'visits' => $visits,
     'count' => count($visits),
+    'planned_count' => $plannedCount,
 ], JSON_UNESCAPED_UNICODE);

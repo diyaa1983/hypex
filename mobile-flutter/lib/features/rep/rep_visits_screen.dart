@@ -23,16 +23,25 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   bool _loading = true;
   String? _error;
   String _routeDate = '';
+  String _weekdayLabel = '';
   int _radiusM = 200;
   List<Map<String, dynamic>> _visits = [];
   Map<String, dynamic>? _selected;
   bool _busy = false;
+  final _dateCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _routeDate = Fmt.todayIso();
+    _dateCtrl.text = _routeDate;
     _load();
+  }
+
+  @override
+  void dispose() {
+    _dateCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load({int? keepCustomerId}) async {
@@ -51,6 +60,12 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
           .whereType<Map>()
           .map((e) => e.cast<String, dynamic>())
           .toList();
+      visits.sort((a, b) {
+        final ap = a['in_plan'] == true ? 0 : 1;
+        final bp = b['in_plan'] == true ? 0 : 1;
+        if (ap != bp) return ap - bp;
+        return Fmt.toInt(a['sort_order']).compareTo(Fmt.toInt(b['sort_order']));
+      });
       Map<String, dynamic>? selected;
       if (keepId > 0) {
         for (final v in visits) {
@@ -75,6 +90,11 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
         _routeDate = Fmt.str(res['route_date']).isEmpty
             ? _routeDate
             : Fmt.str(res['route_date']);
+        _dateCtrl.text = _routeDate;
+        _weekdayLabel = Fmt.str(res['weekday_label']);
+        if (_weekdayLabel.isEmpty && visits.isNotEmpty) {
+          _weekdayLabel = Fmt.str(visits.first['weekday_label']);
+        }
         _radiusM = Fmt.toInt(res['visit_radius_m']);
         if (_radiusM < 1) _radiusM = 200;
         _loading = false;
@@ -93,6 +113,36 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       });
     }
   }
+
+  Future<void> _pickDate() async {
+    if (_busy) return;
+    final initial = DateTime.tryParse(_routeDate) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(initial.year - 1),
+      lastDate: DateTime(initial.year + 1),
+    );
+    if (picked == null) return;
+    setState(() {
+      _routeDate =
+          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      _dateCtrl.text = _routeDate;
+      _selected = null;
+    });
+    await _load();
+  }
+
+  List<Map<String, dynamic>> get _plannedVisits =>
+      _visits.where((v) => v['in_plan'] == true).toList();
+
+  List<Map<String, dynamic>> get _extraOpenOrDone => _visits.where((v) {
+        if (v['in_plan'] == true) return false;
+        final s = Fmt.str(v['status']);
+        return s == 'checked_in' ||
+            s == 'pending_manual_checkout' ||
+            s == 'checked_out';
+      }).toList();
 
   String _statusOf(Map<String, dynamic>? v) => Fmt.str(v?['status']);
 
@@ -145,14 +195,17 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     };
   }
 
-  Future<void> _pickCustomer() async {
+  Future<void> _pickCustomer({bool outsidePlanOnly = false}) async {
     if (_busy) return;
-    if (_visits.isNotEmpty) {
+    if (!outsidePlanOnly && _visits.isNotEmpty) {
+      final list = outsidePlanOnly
+          ? _visits.where((v) => v['in_plan'] != true).toList()
+          : _visits;
       final picked = await showModalBottomSheet<Map<String, dynamic>>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (ctx) => _CustomerPickSheet(visits: _visits),
+        builder: (ctx) => _CustomerPickSheet(visits: list),
       );
       if (picked != null && mounted) {
         setState(() => _selected = picked);
@@ -161,15 +214,24 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     }
     final party = await pickParty(context);
     if (party == null || !mounted) return;
+    Map<String, dynamic>? existing;
+    for (final v in _visits) {
+      if (Fmt.toInt(v['customer_id']) == party.id) {
+        existing = v;
+        break;
+      }
+    }
     setState(() {
-      _selected = {
-        'customer_id': party.id,
-        'name': party.name,
-        'code': party.code,
-        'status': 'idle',
-        'checkin_method': '',
-        'checkout_method': '',
-      };
+      _selected = existing ??
+          {
+            'customer_id': party.id,
+            'name': party.name,
+            'code': party.code,
+            'status': 'idle',
+            'in_plan': false,
+            'checkin_method': '',
+            'checkout_method': '',
+          };
     });
   }
 
@@ -335,7 +397,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
-      title: const Text('تسجيل زيارة'),
+      title: const Text('جولات المندوبين'),
       backgroundColor: const Color(0xFFF0F4F8),
       actions: [
         IconButton(
@@ -392,135 +454,190 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
 
   Widget _buildHome() {
     final open = _openVisits;
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
-        child: Column(
-          children: [
-            if (open.isNotEmpty) ...[
-              Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'زيارات مفتوحة (${open.length})',
+    final planned = _plannedVisits;
+    final extras = _extraOpenOrDone;
+    return RefreshIndicator(
+      onRefresh: () => _load(),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppTheme.border),
+              boxShadow: AppTheme.softShadow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _weekdayLabel.isEmpty
+                      ? 'خطة الجولة من مدير المبيعات'
+                      : '$_weekdayLabel · خطة الجولة',
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: 15,
+                    fontSize: 15.5,
                     color: AppTheme.textMain,
                   ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              const Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'الزيارة تبقى مفتوحة حتى تسجّل الخروج.',
-                  style: TextStyle(color: AppTheme.textSoft, fontSize: 12.5),
+                const SizedBox(height: 4),
+                const Text(
+                  'سجّل الدخول/الخروج GPS أو يدوياً حسب الشروط المعتادة. يمكنك أيضاً زيارة عميل خارج الخطة.',
+                  style: TextStyle(color: AppTheme.textSoft, fontSize: 12.5, height: 1.45),
                 ),
-              ),
-              const SizedBox(height: 10),
-              ...open.map(
-                (v) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _OpenVisitTile(
-                    name: Fmt.str(v['name']),
-                    code: Fmt.str(v['code']),
-                    status: _statusLabel(_statusOf(v)),
-                    color: _statusColor(_statusOf(v)),
-                    checkinAt: Fmt.str(v['visit_checkin_at']),
-                    onTap: _busy ? null : () => setState(() => _selected = v),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _dateCtrl,
+                  readOnly: true,
+                  onTap: _pickDate,
+                  decoration: const InputDecoration(
+                    labelText: 'تاريخ الجولة',
+                    suffixIcon: Icon(Icons.calendar_month_rounded),
+                    isDense: true,
                   ),
                 ),
-              ),
-              const SizedBox(height: 18),
-            ] else ...[
-              const SizedBox(height: 12),
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topRight,
-                    end: Alignment.bottomLeft,
-                    colors: [
-                      AppTheme.primary.withValues(alpha: 0.14),
-                      AppTheme.teal.withValues(alpha: 0.12),
-                    ],
-                  ),
-                  boxShadow: AppTheme.softShadow,
-                ),
-                child: const Icon(
-                  Icons.person_search_rounded,
-                  size: 54,
-                  color: AppTheme.primary,
-                ),
-              ),
-              const SizedBox(height: 28),
-              const Text(
-                'تسجيل زيارة عميل',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                  color: AppTheme.textMain,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'اختر العميل من القائمة ثم سجّل الدخول\nبـ GPS أو يدوياً.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14.5,
-                  height: 1.55,
-                  color: AppTheme.textSoft,
-                ),
-              ),
-              const SizedBox(height: 32),
-            ],
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: FilledButton.icon(
-                onPressed: _busy ? null : _pickCustomer,
-                icon: const Icon(Icons.list_alt_rounded),
-                label: Text(
-                  open.isEmpty ? 'اختيار العميل' : 'زيارة عميل جديد',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                const SizedBox(height: 8),
+                Text(
+                  'نصف القطر المسموح حول العميل: $_radiusM م',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textSoft.withValues(alpha: 0.9),
                   ),
                 ),
-              ),
+              ],
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton.icon(
-                onPressed: _busy ? null : () => context.push('/rep/visit-report'),
-                icon: const Icon(Icons.assignment_rounded),
-                label: const Text('تقرير الزيارات'),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
+          ),
+          if (open.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'زيارات مفتوحة',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
             ),
-            const SizedBox(height: 14),
-            Text(
-              'نصف القطر المسموح حول العميل: $_radiusM م',
-              style: TextStyle(
-                fontSize: 12.5,
-                color: AppTheme.textSoft.withValues(alpha: 0.9),
+            const SizedBox(height: 8),
+            ...open.map(
+              (v) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _OpenVisitTile(
+                  name: Fmt.str(v['name']),
+                  code: Fmt.str(v['code']),
+                  status: _statusLabel(_statusOf(v)),
+                  color: _statusColor(_statusOf(v)),
+                  checkinAt: Fmt.str(v['visit_checkin_at']),
+                  onTap: _busy ? null : () => setState(() => _selected = v),
+                ),
               ),
             ),
           ],
-        ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'عملاء الجولة',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
+                ),
+              ),
+              Text(
+                '${planned.length}',
+                style: const TextStyle(color: AppTheme.textSoft, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (planned.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.border),
+              ),
+              child: const Text(
+                'لا توجد جولة مخططة لهذا اليوم من مدير المبيعات.',
+                style: TextStyle(color: AppTheme.textSoft, height: 1.4),
+              ),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.border),
+                boxShadow: AppTheme.softShadow,
+              ),
+              child: Column(
+                children: [
+                  for (var i = 0; i < planned.length; i++) ...[
+                    if (i > 0) const Divider(height: 1),
+                    _PlanCustomerTile(
+                      index: i + 1,
+                      name: Fmt.str(planned[i]['name']),
+                      code: Fmt.str(planned[i]['code']),
+                      status: _statusOf(planned[i]),
+                      statusLabel: _statusLabel(_statusOf(planned[i])),
+                      statusColor: _statusColor(_statusOf(planned[i])),
+                      statusIcon: _statusIcon(_statusOf(planned[i])),
+                      hasGps: planned[i]['has_gps'] == true,
+                      onTap: _busy
+                          ? null
+                          : () => setState(() => _selected = planned[i]),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          if (extras.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'زيارات خارج الجولة',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
+            ),
+            const SizedBox(height: 8),
+            ...extras.map(
+              (v) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _OpenVisitTile(
+                  name: Fmt.str(v['name']),
+                  code: Fmt.str(v['code']),
+                  status: _statusLabel(_statusOf(v)),
+                  color: _statusColor(_statusOf(v)),
+                  checkinAt: Fmt.str(v['visit_checkin_at']),
+                  onTap: _busy ? null : () => setState(() => _selected = v),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton.icon(
+              onPressed: _busy ? null : () => _pickCustomer(outsidePlanOnly: true),
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: const Text(
+                'زيارة عميل خارج الجولة',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: TextButton.icon(
+              onPressed: _busy ? null : () => context.push('/rep/visit-report'),
+              icon: const Icon(Icons.assignment_rounded),
+              label: const Text('تقرير الزيارات'),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -540,6 +657,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
           _CustomerChip(
             name: Fmt.str(v['name']),
             code: Fmt.str(v['code']),
+            badge: v['in_plan'] == true ? 'ضمن الجولة' : 'خارج الجولة',
             onChange: _busy
                 ? null
                 : () {
@@ -665,6 +783,65 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   }
 }
 
+class _PlanCustomerTile extends StatelessWidget {
+  const _PlanCustomerTile({
+    required this.index,
+    required this.name,
+    required this.code,
+    required this.status,
+    required this.statusLabel,
+    required this.statusColor,
+    required this.statusIcon,
+    required this.hasGps,
+    this.onTap,
+  });
+
+  final int index;
+  final String name;
+  final String code;
+  final String status;
+  final String statusLabel;
+  final Color statusColor;
+  final IconData statusIcon;
+  final bool hasGps;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      leading: CircleAvatar(
+        radius: 18,
+        backgroundColor: statusColor.withValues(alpha: 0.12),
+        child: Text(
+          '$index',
+          style: TextStyle(
+            color: statusColor,
+            fontWeight: FontWeight.w800,
+            fontSize: 12,
+          ),
+        ),
+      ),
+      title: Text(
+        name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
+      ),
+      subtitle: Text(
+        [
+          if (code.isNotEmpty) code,
+          statusLabel,
+          hasGps ? 'GPS' : 'بدون موقع',
+        ].join(' · '),
+        style: const TextStyle(color: AppTheme.textSoft, fontSize: 12),
+      ),
+      trailing: Icon(statusIcon, color: statusColor, size: 22),
+    );
+  }
+}
+
 class _OpenVisitTile extends StatelessWidget {
   const _OpenVisitTile({
     required this.name,
@@ -743,12 +920,14 @@ class _CustomerChip extends StatelessWidget {
   const _CustomerChip({
     required this.name,
     required this.code,
+    this.badge,
     this.onChange,
     this.onClear,
   });
 
   final String name;
   final String code;
+  final String? badge;
   final VoidCallback? onChange;
   final VoidCallback? onClear;
 
@@ -784,11 +963,13 @@ class _CustomerChip extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5),
                 ),
-                if (code.isNotEmpty)
-                  Text(
-                    code,
-                    style: const TextStyle(color: AppTheme.textSoft, fontSize: 12.5),
-                  ),
+                Text(
+                  [
+                    if (code.isNotEmpty) code,
+                    if (badge != null && badge!.isNotEmpty) badge!,
+                  ].join(' · '),
+                  style: const TextStyle(color: AppTheme.textSoft, fontSize: 12.5),
+                ),
               ],
             ),
           ),
