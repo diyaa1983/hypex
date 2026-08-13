@@ -240,6 +240,16 @@ function mobile_home_launcher_tiles(): array
             ) {
                 continue;
             }
+        } elseif ($code === 'm_rep_visits') {
+            if (
+                !user_can('m_rep_visits')
+                && !user_can('m_rep_route_today')
+                && !user_can('m_customer_orders')
+                && !user_can('m_sales_invoices')
+                && !user_is_system_admin()
+            ) {
+                continue;
+            }
         } elseif (!user_can($perm)) {
             continue;
         }

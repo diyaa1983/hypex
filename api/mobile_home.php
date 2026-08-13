@@ -8,6 +8,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/document_header.php');
+require_once app_path('includes/sal_rep_visit.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -24,6 +25,7 @@ if (!is_logged_in() || !mobile_is_context() || !user_in_mobile_group()) {
 
 try {
     $pdo = db();
+    sal_rep_visit_ensure_schema($pdo);
     $user = current_user();
     $uid = (int) ($user['id'] ?? 0);
 

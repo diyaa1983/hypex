@@ -34,7 +34,30 @@ function sal_rep_visit_ensure_schema(PDO $pdo): bool
             $ok = false;
         }
     }
+    if ($ok) {
+        sal_rep_visit_ensure_mobile_screen($pdo);
+    }
     return $ok;
+}
+
+/** تسجيل شاشة الموبايل ومنحها لمجموعة هاتف حتى تظهر في الرئيسية. */
+function sal_rep_visit_ensure_mobile_screen(PDO $pdo): void
+{
+    try {
+        $pdo->exec(
+            "INSERT IGNORE INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES
+             ('m_rep_visits', 'هاتف — تسجيل زيارة العميل', 'screen', 9045)"
+        );
+        $pdo->exec(
+            "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+             SELECT g.id, s.id, 1
+             FROM sys_group g
+             CROSS JOIN sys_screen s
+             WHERE g.code IN ('MOBILE', 'ADMINS') AND s.code = 'm_rep_visits'"
+        );
+    } catch (Throwable $e) {
+        error_log('sal_rep_visit_ensure_mobile_screen: ' . $e->getMessage());
+    }
 }
 
 /** @return array{lat:?float,lng:?float,accuracy:?float} */
