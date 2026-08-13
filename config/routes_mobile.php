@@ -103,6 +103,16 @@ return [
         'home_tile' => true,
     ],
 
+    'm_rep_visit_report' => [
+        'file' => 'modules/mobile/rep_visit_report.php',
+        'permission' => 'm_rep_visit_report',
+        'title' => 'تقرير الزيارات',
+        'home_label' => 'تقرير الزيارات',
+        'icon' => 'list',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+
     'm_sales_invoice_gps' => [
 
         'file' => 'modules/mobile/sales_invoice_gps_list.php',

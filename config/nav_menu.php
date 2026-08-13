@@ -193,6 +193,7 @@ return [
                     'title' => 'تقارير المندوبين',
                     'items' => [
                         ['r' => 'report_sales_rep_tours', 'label' => 'تقرير الجولات', 'icon' => '📋'],
+                        ['r' => 'report_sales_rep_visits', 'label' => 'تقرير زيارات العملاء', 'icon' => '📍'],
                     ],
                 ],
             ],
@@ -578,6 +579,7 @@ return [
                         ['r' => 'm_user_gps_locations', 'label' => 'مواقع المستخدمين', 'icon' => '📍'],
                         ['r' => 'm_user_gps_tracker', 'label' => 'تتبّع المواقع الحية', 'icon' => '📡'],
                         ['r' => 'm_rep_visits', 'label' => 'تسجيل زيارة العميل', 'icon' => '🗺'],
+                        ['r' => 'm_rep_visit_report', 'label' => 'تقرير الزيارات', 'icon' => '📋'],
                         ['r' => 'm_rep_load', 'label' => 'تحميل عهدة', 'icon' => '📦'],
                         ['r' => 'm_rep_return', 'label' => 'إرجاع عهدة', 'icon' => '↩'],
                         ['r' => 'm_rep_stock', 'label' => 'رصيد المستودع', 'icon' => '📊'],

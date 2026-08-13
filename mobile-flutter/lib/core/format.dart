@@ -44,6 +44,17 @@ class Fmt {
     }
   }
 
+  static String dmyHm(String? iso) {
+    final v = (iso ?? '').trim();
+    if (v.isEmpty) return '—';
+    try {
+      final d = DateTime.parse(v.contains('T') ? v : v.replaceFirst(' ', 'T'));
+      return DateFormat('dd/MM/yyyy HH:mm').format(d);
+    } catch (_) {
+      return v;
+    }
+  }
+
   /// اليوم بصيغة ISO.
   static String todayIso() => DateFormat('yyyy-MM-dd').format(DateTime.now());
 

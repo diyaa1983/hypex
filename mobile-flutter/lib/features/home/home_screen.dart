@@ -60,6 +60,12 @@ const Map<String, TileSpec> kTileSpecs = {
     AppTheme.teal,
     'المبيعات',
   ),
+  'm_rep_visit_report': TileSpec(
+    '/rep/visit-report',
+    Icons.assignment_rounded,
+    AppTheme.primarySoft,
+    'المبيعات',
+  ),
   'm_sales_returns': TileSpec(
     '/returns/new',
     Icons.keyboard_return_rounded,

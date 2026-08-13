@@ -46,14 +46,15 @@ function sal_rep_visit_ensure_mobile_screen(PDO $pdo): void
     try {
         $pdo->exec(
             "INSERT IGNORE INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES
-             ('m_rep_visits', 'هاتف — تسجيل زيارة العميل', 'screen', 9045)"
+             ('m_rep_visits', 'هاتف — تسجيل زيارة العميل', 'screen', 9045),
+             ('m_rep_visit_report', 'هاتف — تقرير الزيارات', 'screen', 9046)"
         );
         $pdo->exec(
             "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
              SELECT g.id, s.id, 1
              FROM sys_group g
              CROSS JOIN sys_screen s
-             WHERE g.code IN ('MOBILE', 'ADMINS') AND s.code = 'm_rep_visits'"
+             WHERE g.code IN ('MOBILE', 'ADMINS') AND s.code IN ('m_rep_visits', 'm_rep_visit_report')"
         );
     } catch (Throwable $e) {
         error_log('sal_rep_visit_ensure_mobile_screen: ' . $e->getMessage());
@@ -706,4 +707,192 @@ function sal_rep_visit_pending_checkout_list(PDO $pdo, string $status = 'pending
     $st = $pdo->prepare($sql);
     $st->execute($params);
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+function sal_rep_visit_method_label(?string $method): string
+{
+    $m = strtoupper(trim((string) $method));
+    if ($m === '') {
+        return '—';
+    }
+    if ($m === 'GPS') {
+        return 'GPS';
+    }
+    if ($m === 'MANUAL') {
+        return 'يدوي';
+    }
+
+    return (string) $method;
+}
+
+function sal_rep_visit_fmt_ts($v): string
+{
+    $s = trim((string) $v);
+    if ($s === '') {
+        return '—';
+    }
+    $iso = substr($s, 0, 10);
+    $t = strlen($s) >= 16 ? substr($s, 11, 5) : '';
+    $date = function_exists('format_date_dmY') ? format_date_dmY($iso) : $iso;
+
+    return $date . ($t !== '' ? ' ' . $t : '');
+}
+
+function sal_rep_visit_duration_label(?string $checkinAt, ?string $checkoutAt): string
+{
+    $a = strtotime((string) $checkinAt);
+    $b = strtotime((string) $checkoutAt);
+    if ($a === false || $b === false || $b < $a) {
+        return '—';
+    }
+    $mins = (int) floor(($b - $a) / 60);
+    $h = intdiv($mins, 60);
+    $m = $mins % 60;
+    if ($h > 0) {
+        return $h . 'س ' . $m . 'د';
+    }
+
+    return $m . ' د';
+}
+
+/**
+ * تقرير تسجيلات الدخول/الخروج الفعلية من خط السير اليومي.
+ *
+ * @param array{from?:?string,to?:?string,sales_rep_id?:int,customer_id?:int,method?:string,status?:string,limit?:int} $filters
+ * @return list<array<string,mixed>>
+ */
+function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
+{
+    sal_rep_visit_ensure_schema($pdo);
+    $from = (string) ($filters['from'] ?? '');
+    $to = (string) ($filters['to'] ?? '');
+    if ($from !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
+        $from = '';
+    }
+    if ($to !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
+        $to = '';
+    }
+    $salesRepId = (int) ($filters['sales_rep_id'] ?? 0);
+    $customerId = (int) ($filters['customer_id'] ?? 0);
+    $method = strtoupper(trim((string) ($filters['method'] ?? '')));
+    $status = trim((string) ($filters['status'] ?? ''));
+    $limit = max(1, min(2000, (int) ($filters['limit'] ?? 800)));
+
+    $where = ['l.visit_checkin_at IS NOT NULL'];
+    $params = [];
+    if ($from !== '') {
+        $where[] = 'r.route_date >= ?';
+        $params[] = $from;
+    }
+    if ($to !== '') {
+        $where[] = 'r.route_date <= ?';
+        $params[] = $to;
+    }
+    if ($salesRepId > 0) {
+        $where[] = 'r.sales_rep_id = ?';
+        $params[] = $salesRepId;
+    }
+    if ($customerId > 0) {
+        $where[] = 'l.customer_id = ?';
+        $params[] = $customerId;
+    }
+    if ($method === 'GPS' || $method === 'MANUAL') {
+        $where[] = '(UPPER(IFNULL(l.checkin_method,\'\')) = ? OR UPPER(IFNULL(l.checkout_method,\'\')) = ?)';
+        $params[] = $method;
+        $params[] = $method;
+    }
+    if ($status === 'open') {
+        $where[] = 'l.visit_checkout_at IS NULL';
+        $where[] = 'q.id IS NULL';
+    } elseif ($status === 'closed') {
+        $where[] = 'l.visit_checkout_at IS NOT NULL';
+    } elseif ($status === 'pending') {
+        $where[] = 'q.id IS NOT NULL';
+        $where[] = 'l.visit_checkout_at IS NULL';
+    }
+
+    $sql = "SELECT l.id AS line_id, r.route_date, r.sales_rep_id,
+                   COALESCE(sr.name_ar,'') AS sales_rep_name, COALESCE(sr.code,'') AS sales_rep_code,
+                   l.customer_id, c.code AS customer_code, c.name_ar AS customer_name,
+                   COALESCE(rg.name_ar,'') AS region_name,
+                   COALESCE(ra.name_ar,'') AS address_name,
+                   l.visit_checkin_at, l.visit_checkout_at,
+                   l.checkin_method, l.checkout_method,
+                   l.checkin_lat, l.checkin_lng, l.checkin_accuracy, l.checkin_distance_m,
+                   l.checkout_lat, l.checkout_lng, l.checkout_accuracy, l.checkout_distance_m,
+                   q.id AS pending_request_id, q.status AS checkout_request_status, q.reason AS checkout_reason
+            FROM sal_rep_route_line l
+            INNER JOIN sal_rep_route r ON r.id = l.route_id
+            INNER JOIN crm_customer c ON c.id = l.customer_id
+            LEFT JOIN crm_sales_rep sr ON sr.id = r.sales_rep_id
+            LEFT JOIN crm_region rg ON rg.id = c.region_id
+            LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id
+            LEFT JOIN (
+                SELECT route_line_id, MAX(id) AS id
+                FROM sal_rep_visit_checkout_request
+                WHERE status = 'pending'
+                GROUP BY route_line_id
+            ) qp ON qp.route_line_id = l.id
+            LEFT JOIN sal_rep_visit_checkout_request q ON q.id = qp.id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY r.route_date DESC, l.visit_checkin_at DESC, l.id DESC
+            LIMIT " . $limit;
+    try {
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('sal_rep_visit_report_rows: ' . $e->getMessage());
+        return [];
+    }
+
+    $out = [];
+    foreach ($rows as $r) {
+        $checkinAt = (string) ($r['visit_checkin_at'] ?? '');
+        $checkoutAt = (string) ($r['visit_checkout_at'] ?? '');
+        $pending = !empty($r['pending_request_id']) && $checkoutAt === '';
+        if ($pending) {
+            $stLabel = 'pending';
+            $stText = 'بانتظار موافقة';
+        } elseif ($checkoutAt !== '') {
+            $stLabel = 'closed';
+            $stText = 'مكتملة';
+        } else {
+            $stLabel = 'open';
+            $stText = 'داخل الزيارة';
+        }
+        $out[] = [
+            'line_id' => (int) ($r['line_id'] ?? 0),
+            'route_date' => (string) ($r['route_date'] ?? ''),
+            'sales_rep_id' => (int) ($r['sales_rep_id'] ?? 0),
+            'sales_rep_name' => (string) ($r['sales_rep_name'] ?? ''),
+            'sales_rep_code' => (string) ($r['sales_rep_code'] ?? ''),
+            'customer_id' => (int) ($r['customer_id'] ?? 0),
+            'customer_code' => (string) ($r['customer_code'] ?? ''),
+            'customer_name' => (string) ($r['customer_name'] ?? ''),
+            'region_name' => (string) ($r['region_name'] ?? ''),
+            'address_name' => (string) ($r['address_name'] ?? ''),
+            'visit_checkin_at' => $checkinAt !== '' ? $checkinAt : null,
+            'visit_checkout_at' => $checkoutAt !== '' ? $checkoutAt : null,
+            'checkin_method' => $r['checkin_method'] ?? null,
+            'checkout_method' => $r['checkout_method'] ?? null,
+            'checkin_method_label' => sal_rep_visit_method_label($r['checkin_method'] ?? null),
+            'checkout_method_label' => sal_rep_visit_method_label($r['checkout_method'] ?? null),
+            'checkin_lat' => $r['checkin_lat'] ?? null,
+            'checkin_lng' => $r['checkin_lng'] ?? null,
+            'checkin_accuracy' => $r['checkin_accuracy'] ?? null,
+            'checkin_distance_m' => $r['checkin_distance_m'] ?? null,
+            'checkout_lat' => $r['checkout_lat'] ?? null,
+            'checkout_lng' => $r['checkout_lng'] ?? null,
+            'checkout_accuracy' => $r['checkout_accuracy'] ?? null,
+            'checkout_distance_m' => $r['checkout_distance_m'] ?? null,
+            'duration_label' => sal_rep_visit_duration_label($checkinAt !== '' ? $checkinAt : null, $checkoutAt !== '' ? $checkoutAt : null),
+            'status' => $stLabel,
+            'status_label' => $stText,
+            'pending_request_id' => $pending ? (int) $r['pending_request_id'] : null,
+            'checkout_reason' => $r['checkout_reason'] ?? null,
+        ];
+    }
+
+    return $out;
 }

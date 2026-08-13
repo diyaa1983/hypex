@@ -955,6 +955,72 @@ async function reportTours({ from = '', to = '', salesRepId = 0, status = '', li
   }
 }
 
+async function reportVisits({ from = '', to = '', salesRepId = 0, method = '', status = '', limit = 1500 } = {}) {
+  await ensureTourSchema();
+  const where = ['l.visit_checkin_at IS NOT NULL'];
+  const params = [];
+  if (from) {
+    where.push('r.route_date >= ?');
+    params.push(from);
+  }
+  if (to) {
+    where.push('r.route_date <= ?');
+    params.push(to);
+  }
+  if (Number(salesRepId) > 0) {
+    where.push('r.sales_rep_id = ?');
+    params.push(Number(salesRepId));
+  }
+  const m = String(method || '').trim().toUpperCase();
+  if (m === 'GPS' || m === 'MANUAL') {
+    where.push('(UPPER(IFNULL(l.checkin_method,\'\')) = ? OR UPPER(IFNULL(l.checkout_method,\'\')) = ?)');
+    params.push(m, m);
+  }
+  if (status === 'open') {
+    where.push('l.visit_checkout_at IS NULL');
+    where.push('q.id IS NULL');
+  } else if (status === 'closed') {
+    where.push('l.visit_checkout_at IS NOT NULL');
+  } else if (status === 'pending') {
+    where.push('q.id IS NOT NULL');
+    where.push('l.visit_checkout_at IS NULL');
+  }
+  try {
+    return await safeQuery(
+      `SELECT l.id AS line_id, r.route_date, r.sales_rep_id,
+              COALESCE(sr.name_ar,'') AS sales_rep_name, COALESCE(sr.code,'') AS sales_rep_code,
+              l.customer_id, c.code AS customer_code, c.name_ar AS customer_name,
+              COALESCE(rg.name_ar,'') AS region_name,
+              COALESCE(ra.name_ar,'') AS address_name,
+              l.visit_checkin_at, l.visit_checkout_at,
+              l.checkin_method, l.checkout_method,
+              l.checkin_lat, l.checkin_lng, l.checkin_accuracy, l.checkin_distance_m,
+              l.checkout_lat, l.checkout_lng, l.checkout_accuracy, l.checkout_distance_m,
+              q.id AS pending_request_id, q.reason AS checkout_reason
+       FROM sal_rep_route_line l
+       INNER JOIN sal_rep_route r ON r.id = l.route_id
+       INNER JOIN crm_customer c ON c.id = l.customer_id
+       LEFT JOIN crm_sales_rep sr ON sr.id = r.sales_rep_id
+       LEFT JOIN crm_region rg ON rg.id = c.region_id
+       LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id
+       LEFT JOIN (
+         SELECT route_line_id, MAX(id) AS id
+         FROM sal_rep_visit_checkout_request
+         WHERE status = 'pending'
+         GROUP BY route_line_id
+       ) qp ON qp.route_line_id = l.id
+       LEFT JOIN sal_rep_visit_checkout_request q ON q.id = qp.id
+       WHERE ${where.join(' AND ')}
+       ORDER BY r.route_date DESC, l.visit_checkin_at DESC, l.id DESC
+       LIMIT ${Math.min(2000, Number(limit) || 1500)}`,
+      params
+    );
+  } catch (e) {
+    console.error('reportVisits', e.message);
+    return [];
+  }
+}
+
 /* توافق خلفي لأسماء قديمة */
 const listRoutes = listTours;
 const getRoute = getTour;
@@ -979,6 +1045,7 @@ module.exports = {
   deleteTour,
   getTourPrintRows,
   reportTours,
+  reportVisits,
   ensureTourSchema,
   monthBoundsIso,
   WEEKDAY_LABELS,

@@ -92,7 +92,7 @@ function _tour_report_method($v): string
 {
     $m = strtoupper(trim((string) $v));
 
-    return $m === '' ? '—' : ($m === 'GPS' ? 'GPS' : (string) $v);
+    return $m === '' ? '—' : ($m === 'GPS' ? 'GPS' : ($m === 'MANUAL' ? 'يدوي' : (string) $v));
 }
 
 $cssPath = app_path('assets/css/report-sales.css');

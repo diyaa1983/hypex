@@ -28,6 +28,7 @@ function requireAny(req, res, next) {
     (can(u, 'report_sales_by_rep') ||
       can(u, 'report_sales_by_region') ||
       can(u, 'report_sales_rep_tours') ||
+      can(u, 'report_sales_rep_visits') ||
       can(u, 'sales_rep_route'));
   if (!any && !reportOk) return res.status(403).send('ممنوع');
   next();
@@ -284,6 +285,7 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         actions: [
           { label: '＋ جولة جديدة', href: '/sales-reps/route?new=1', primary: true },
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
+          { label: 'تقرير الزيارات', href: '/sales-reps/reports/visits' },
           { label: 'المندوبين', href: '/sales-reps/list' },
           { label: 'لوحة المندوبين', href: HUB },
         ],
@@ -1013,6 +1015,7 @@ router.get('/sales-reps/visit-checkout-approve', guard('sales_rep_visit_checkout
         actions: [
           { label: 'الجولات', href: '/sales-reps/route' },
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
+          { label: 'تقرير الزيارات', href: '/sales-reps/reports/visits' },
         ],
       })}
       <iframe class="php-embed-frame" src="${esc(phpUrl(route, extraQs))}" title="اعتماد خروج يدوي"></iframe>
@@ -1057,6 +1060,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
     const m = String(v || '').trim().toUpperCase();
     if (!m) return '—';
     if (m === 'GPS') return 'GPS';
+    if (m === 'MANUAL') return 'يدوي';
     return esc(v);
   }
   function statusLbl(st) {
@@ -1127,6 +1131,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
         subtitle: 'الجولات المُنشأة: بداية/نهاية · المندوب · المناطق والعناوين — وأوقات الزيارة عند الربط مع الآيباد',
         actions: [
           { label: '🖨 طباعة', print: true },
+          { label: 'تقرير الزيارات', href: '/sales-reps/reports/visits' },
           { label: 'الجولات', href: '/sales-reps/route', primary: true },
           { label: 'لوحة المندوبين', href: HUB },
         ],
@@ -1194,6 +1199,188 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
       title: 'تقرير الجولات',
       bodyHtml: body,
       printTitle: 'تقرير الجولات',
+    })
+  );
+});
+
+/* ── تقرير زيارات العملاء ── */
+router.get('/sales-reps/reports/visits', async (req, res) => {
+  if (
+    !can(req.session.user, 'report_sales_rep_visits') &&
+    !can(req.session.user, 'report_sales_rep_tours') &&
+    !can(req.session.user, 'sales_rep_route') &&
+    !can(req.session.user, 'sales_reps')
+  ) {
+    return res.status(403).send('ممنوع');
+  }
+
+  await masters.ensureTourSchema();
+  const from =
+    String(req.query.from || '').slice(0, 10) ||
+    (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    })();
+  const to = String(req.query.to || '').slice(0, 10) || todayIso();
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const method = String(req.query.method || '').toUpperCase();
+  const status = String(req.query.status || '');
+  const reps = await q.listRepsSimple();
+  const rows = await masters.reportVisits({ from, to, salesRepId, method, status });
+
+  function fmtTs(v) {
+    if (!v) return '—';
+    const s = String(v);
+    if (s.length >= 16) {
+      return ui.isoToDmy(s.slice(0, 10)) + ' ' + s.slice(11, 16);
+    }
+    return esc(s);
+  }
+  function methodLabel(v) {
+    const m = String(v || '').trim().toUpperCase();
+    if (!m) return '—';
+    if (m === 'GPS') return 'GPS';
+    if (m === 'MANUAL') return 'يدوي';
+    return esc(v);
+  }
+  function distLabel(v) {
+    if (v == null || v === '') return '—';
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '—';
+    return `${Math.round(n)} م`;
+  }
+  function durationLabel(a, b) {
+    if (!a || !b) return '—';
+    const t1 = Date.parse(String(a).replace(' ', 'T'));
+    const t2 = Date.parse(String(b).replace(' ', 'T'));
+    if (!Number.isFinite(t1) || !Number.isFinite(t2) || t2 < t1) return '—';
+    const mins = Math.floor((t2 - t1) / 60000);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}س ${m}د` : `${m} د`;
+  }
+  function statusLbl(r) {
+    if (r.pending_request_id && !r.visit_checkout_at) return ui.statusPill('wait', 'بانتظار موافقة');
+    if (r.visit_checkout_at) return ui.statusPill('ok', 'مكتملة');
+    return ui.statusPill('info', 'داخل الزيارة');
+  }
+
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${esc(
+          r.name_ar || ''
+        )}${r.code ? ' (' + esc(r.code) + ')' : ''}</option>`
+    )
+    .join('');
+
+  const rowsHtml =
+    rows
+      .map(
+        (r, i) => `<tr>
+      <td class="si-num" dir="ltr">${i + 1}</td>
+      <td class="si-num" dir="ltr">${esc(ui.isoToDmy(r.route_date))}</td>
+      <td>${esc(r.sales_rep_name || '—')}${
+          r.sales_rep_code ? ` <span class="muted" dir="ltr">(${esc(r.sales_rep_code)})</span>` : ''
+        }</td>
+      <td>${esc(r.customer_name || '—')}</td>
+      <td class="si-num" dir="ltr">${esc(r.customer_code || '')}</td>
+      <td>${esc(r.region_name || '—')}</td>
+      <td>${esc(r.address_name || '—')}</td>
+      <td class="si-num" dir="ltr">${fmtTs(r.visit_checkin_at)}</td>
+      <td>${methodLabel(r.checkin_method)}</td>
+      <td class="si-num" dir="ltr">${distLabel(r.checkin_distance_m)}</td>
+      <td class="si-num" dir="ltr">${fmtTs(r.visit_checkout_at)}</td>
+      <td>${methodLabel(r.checkout_method)}</td>
+      <td class="si-num" dir="ltr">${distLabel(r.checkout_distance_m)}</td>
+      <td class="si-num" dir="ltr">${durationLabel(r.visit_checkin_at, r.visit_checkout_at)}</td>
+      <td>${statusLbl(r)}</td>
+    </tr>`
+      )
+      .join('') || ui.emptyRow(15, 'لا تسجيلات زيارة في الفترة المحددة');
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '📍',
+        kicker: KICKER,
+        title: 'تقرير زيارات العملاء',
+        subtitle: 'تفاصيل دخول/خروج المندوب عند العميل: الوقت · GPS أو يدوي · المسافة · مدة الزيارة',
+        actions: [
+          { label: '🖨 طباعة', print: true },
+          { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
+          { label: 'اعتماد خروج يدوي', href: '/sales-reps/visit-checkout-approve' },
+          { label: 'لوحة المندوبين', href: HUB, primary: true },
+        ],
+      })}
+      <section class="si-surface no-print" style="padding:0.85rem 1rem;margin-bottom:.75rem">
+        <form method="get" action="/sales-reps/reports/visits" class="si-meta" style="align-items:end">
+          <label>من تاريخ
+            <input class="si-field si-field--mono" type="date" name="from" value="${esc(from)}" dir="ltr">
+          </label>
+          <label>إلى تاريخ
+            <input class="si-field si-field--mono" type="date" name="to" value="${esc(to)}" dir="ltr">
+          </label>
+          <label>المندوب
+            <select class="si-field" name="sales_rep_id">
+              <option value="0">— الكل —</option>
+              ${repOpts}
+            </select>
+          </label>
+          <label>النوع
+            <select class="si-field" name="method">
+              <option value="" ${method === '' ? 'selected' : ''}>— الكل —</option>
+              <option value="GPS" ${method === 'GPS' ? 'selected' : ''}>GPS</option>
+              <option value="MANUAL" ${method === 'MANUAL' ? 'selected' : ''}>يدوي</option>
+            </select>
+          </label>
+          <label>الحالة
+            <select class="si-field" name="status">
+              <option value="" ${status === '' ? 'selected' : ''}>— الكل —</option>
+              <option value="open" ${status === 'open' ? 'selected' : ''}>داخل الزيارة</option>
+              <option value="closed" ${status === 'closed' ? 'selected' : ''}>مكتملة</option>
+              <option value="pending" ${status === 'pending' ? 'selected' : ''}>بانتظار موافقة</option>
+            </select>
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض</button>
+          <button type="button" class="si-btn si-btn--print no-print" data-print="1">🖨 طباعة</button>
+        </form>
+        <p class="muted" style="margin:.65rem 0 0;font-size:.82rem;line-height:1.45">
+          ${rows.length} زيارة مسجّلة من تطبيق الهاتف في الفترة المحددة.
+        </p>
+      </section>
+      <div class="si-print-area">
+      ${ui.tableSurface(
+        'تفاصيل الزيارات',
+        `${rows.length} صف`,
+        [
+          '#',
+          'التاريخ',
+          'المندوب',
+          'العميل',
+          'الرمز',
+          'المنطقة',
+          'العنوان',
+          'وقت الدخول',
+          'نوع الدخول',
+          'مسافة الدخول',
+          'وقت الخروج',
+          'نوع الخروج',
+          'مسافة الخروج',
+          'المدة',
+          'الحالة',
+        ],
+        rowsHtml
+      )}
+      </div>
+    </div>`;
+
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تقرير زيارات العملاء',
+      bodyHtml: body,
+      printTitle: 'تقرير زيارات العملاء',
     })
   );
 });

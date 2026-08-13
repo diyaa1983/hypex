@@ -28,6 +28,13 @@ const salesRepsCatalog = [
         path: '/sales-reps/reports/tours',
         kind: 'report',
       },
+      {
+        r: 'report_sales_rep_visits',
+        label: 'تقرير زيارات العملاء',
+        icon: '📍',
+        path: '/sales-reps/reports/visits',
+        kind: 'report',
+      },
     ],
   },
 ];

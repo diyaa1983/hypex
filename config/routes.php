@@ -95,6 +95,11 @@ return [
         'permission' => 'report_sales_rep_tours',
         'title' => 'تقرير الجولات',
     ],
+    'report_sales_rep_visits' => [
+        'file' => 'modules/reports/sales_rep_visits.php',
+        'permission' => 'report_sales_rep_visits',
+        'title' => 'تقرير زيارات العملاء',
+    ],
     'report_customer_orders' => [
         'file' => 'modules/reports/customer_orders.php',
         'permission' => 'report_customer_orders',
