@@ -1776,6 +1776,35 @@ router.post('/accounting/period-close/save', async (req, res) => {
 });
 
 /* ═══════════════ Opening balance ═══════════════ */
+function obPartyRowsHtml(rows, prefix, posted) {
+  return (rows || [])
+    .map((r) => {
+      const id = Number(r.party_id || 0);
+      const d = Number(r.debit || 0);
+      const c = Number(r.credit || 0);
+      const label =
+        (r.party_code ? String(r.party_code) + ' — ' : '') + String(r.party_name || '');
+      return `<tr class="ob-party-row" data-party-id="${id}">
+        <td class="si-num" dir="ltr">${esc(r.party_code || id)}</td>
+        <td>${esc(r.party_name || '')}
+          <input type="hidden" name="${prefix}_id[]" value="${id}">
+          <input type="hidden" name="${prefix}_name[]" value="${esc(r.party_name || '')}">
+          <input type="hidden" name="${prefix}_code[]" value="${esc(r.party_code || '')}">
+        </td>
+        <td><input class="si-field si-field--mono ob-d" name="${prefix}_d[]" dir="ltr"
+                   value="${d > 0 ? d : ''}" ${posted ? 'readonly' : ''}></td>
+        <td><input class="si-field si-field--mono ob-c" name="${prefix}_c[]" dir="ltr"
+                   value="${c > 0 ? c : ''}" ${posted ? 'readonly' : ''}></td>
+        <td class="no-print">${
+          posted
+            ? ''
+            : `<button type="button" class="si-btn ob-party-del" title="حذف">حذف</button>`
+        }</td>
+      </tr>`;
+    })
+    .join('');
+}
+
 router.get('/accounting/opening-balance', async (req, res) => {
   if (!can(req.session.user, 'acc_opening_balance')) return forbid(res);
   const year = Number(req.query.year || new Date().getFullYear());
@@ -1791,13 +1820,18 @@ router.get('/accounting/opening-balance', async (req, res) => {
   const grid = data.grid || [];
   const status = data.status || {};
   const posted = !!data.is_posted;
+  const parties = data.parties || { customers: [], suppliers: [], ar_account_id: 0, ap_account_id: 0 };
   const entryDate = String(req.query.entry_date || status.entry_date || `${year}-01-01`).slice(
     0,
     10
   );
   let withBal = 0;
-  let sumD = 0;
-  let sumC = 0;
+  let sumD = Number(status.total_debit || 0);
+  let sumC = Number(status.total_credit || 0);
+  if (!sumD && !sumC) {
+    sumD = 0;
+    sumC = 0;
+  }
   const typeLabel = {
     asset: 'أصل',
     liability: 'خصم',
@@ -1809,11 +1843,7 @@ router.get('/accounting/opening-balance', async (req, res) => {
     .map((r) => {
       const d = Number(r.debit || 0);
       const c = Number(r.credit || 0);
-      if (d > 0 || c > 0) {
-        withBal++;
-        sumD += d;
-        sumC += c;
-      }
+      if (d > 0 || c > 0) withBal++;
       return `<tr data-code="${esc(r.code || '')}" data-name="${esc(r.name_ar || '')}">
         <td class="si-num" dir="ltr"><a href="/accounting/chart">${esc(r.code || '')}</a></td>
         <td>${esc(r.name_ar || '')}</td>
@@ -1825,11 +1855,39 @@ router.get('/accounting/opening-balance', async (req, res) => {
       </tr>`;
     })
     .join('');
+
+  /* إعادة حساب الفرق من الشبكة + الأطراف المعروضة */
+  sumD = 0;
+  sumC = 0;
+  withBal = 0;
+  for (const r of grid) {
+    const d = Number(r.debit || 0);
+    const c = Number(r.credit || 0);
+    sumD += d;
+    sumC += c;
+    if (d || c) withBal++;
+  }
+  for (const r of parties.customers || []) {
+    sumD += Number(r.debit || 0);
+    sumC += Number(r.credit || 0);
+    if (Number(r.debit || 0) || Number(r.credit || 0)) withBal++;
+  }
+  for (const r of parties.suppliers || []) {
+    sumD += Number(r.debit || 0);
+    sumC += Number(r.credit || 0);
+    if (Number(r.debit || 0) || Number(r.credit || 0)) withBal++;
+  }
+
+  const custRows = obPartyRowsHtml(parties.customers || [], 'pc', posted);
+  const supRows = obPartyRowsHtml(parties.suppliers || [], 'ps', posted);
+  const arOk = Number(parties.ar_account_id || 0) > 0;
+  const apOk = Number(parties.ap_account_id || 0) > 0;
+
   const curY = new Date().getFullYear();
   const years = [];
   for (let y = curY + 1; y >= curY - 10; y--) years.push(y);
   const body = `
-    <div class="si-stage sh-page" id="ob-page">
+    <div class="si-stage sh-page" id="ob-page" data-posted="${posted ? '1' : '0'}">
       ${ui.hero({
         mark: 'Ac',
         kicker: KICKER,
@@ -1837,13 +1895,16 @@ router.get('/accounting/opening-balance', async (req, res) => {
         subtitle: 'سنة ' + year + (posted ? ' · مرحّل' : ' · مسودة'),
         actions: [
           { label: 'شجرة الحسابات', href: '/accounting/chart' },
+          { label: 'ربط الحسابات', href: '/accounting/account-mapping' },
           { label: 'لوحة المحاسبة', href: HUB },
         ],
       })}
       ${flash(req)}
       <p class="si-pill" style="display:block;padding:.75rem 1rem;background:#f1f5f9;line-height:1.6">
-        إدخال رصيد افتتاحي لكل حساب نهائي لبدء النظام أو الانتقال من نظام سابق.
-        يُنشأ قيد افتتاحي واحد بتاريخ بداية السنة. 1) اختر السنة 2) أدخل الأرصدة 3) حفظ وترحيل.
+        أدخل أرصدة الحسابات و/أو أرصدة العملاء والموردين. يُنشأ قيد افتتاحي واحد متوازن بتاريخ بداية السنة.
+        عميل مدين = عليه رصيد · مورد دائن = له رصيد.
+        ${!arOk ? ' ⚠️ عرّف حساب ذمم العملاء في ربط الحسابات.' : ''}
+        ${!apOk ? ' ⚠️ عرّف حساب ذمم الموردين في ربط الحسابات.' : ''}
       </p>
       <form method="get" class="si-search ar-filters no-print" action="/accounting/opening-balance">
         <label>السنة
@@ -1872,41 +1933,128 @@ router.get('/accounting/opening-balance', async (req, res) => {
                 entryDate
               )}" ${posted ? 'readonly' : ''}>
             </label>
-            <label class="no-print">بحث حساب
-              <input class="si-field" type="search" id="ob-filter" placeholder="كود أو اسم الحساب…">
-            </label>
-            <p id="ob-stats" class="muted">${grid.length} حساب — ${withBal} برصيد — فرق:
-              <strong dir="ltr" id="ob-diff">${money(sumD - sumC)}</strong></p>
+            <p id="ob-stats" class="muted">${withBal} سطر برصيد — فرق:
+              <strong dir="ltr" id="ob-diff">${money(sumD - sumC)}</strong>
+              · مدين <strong dir="ltr" id="ob-sum-d">${money(sumD)}</strong>
+              · دائن <strong dir="ltr" id="ob-sum-c">${money(sumC)}</strong>
+            </p>
           </div>
-          <div class="si-table-wrap" style="max-height:65vh;overflow:auto">
-            <table class="si-table" id="ob-table">
-              <thead><tr>
-                <th>الكود</th><th>الحساب</th><th>النوع</th><th>مدين</th><th>دائن</th>
-              </tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
+
+          <div class="ob-tabs no-print" role="tablist">
+            <button type="button" class="si-btn is-active" data-ob-tab="accounts">الحسابات</button>
+            <button type="button" class="si-btn" data-ob-tab="customers">العملاء (${(parties.customers || []).length})</button>
+            <button type="button" class="si-btn" data-ob-tab="suppliers">الموردون (${(parties.suppliers || []).length})</button>
+          </div>
+
+          <div class="ob-pane" data-ob-pane="accounts">
+            <div class="sh-form ar-filters no-print" style="margin:.5rem 0">
+              <label>بحث حساب
+                <input class="si-field" type="search" id="ob-filter" placeholder="كود أو اسم الحساب…">
+              </label>
+            </div>
+            <div class="si-table-wrap" style="max-height:55vh;overflow:auto">
+              <table class="si-table" id="ob-table">
+                <thead><tr>
+                  <th>الكود</th><th>الحساب</th><th>النوع</th><th>مدين</th><th>دائن</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="ob-pane" data-ob-pane="customers" hidden>
+            ${
+              !posted
+                ? `<div class="ob-party-add no-print">
+              <div class="si-cust-wrap" style="flex:1;min-width:14rem;position:relative">
+                <input type="search" class="si-field" id="ob-cust-search" placeholder="ابحث عن عميل لإضافته…" autocomplete="off">
+              </div>
+              <span class="muted">مدين = رصيد عليه · دائن = رصيد له</span>
+            </div>`
+                : ''
+            }
+            <div class="si-table-wrap" style="max-height:55vh;overflow:auto">
+              <table class="si-table" id="ob-cust-table">
+                <thead><tr><th>الكود</th><th>العميل</th><th>مدين</th><th>دائن</th><th class="no-print"></th></tr></thead>
+                <tbody>${custRows || `<tr class="ob-empty"><td colspan="5" class="empty">لا أرصدة عملاء بعد</td></tr>`}</tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="ob-pane" data-ob-pane="suppliers" hidden>
+            ${
+              !posted
+                ? `<div class="ob-party-add no-print">
+              <div class="si-cust-wrap" style="flex:1;min-width:14rem;position:relative">
+                <input type="search" class="si-field" id="ob-sup-search" placeholder="ابحث عن مورد لإضافته…" autocomplete="off">
+              </div>
+              <span class="muted">دائن = رصيد له علينا · مدين = رصيد عليه لنا</span>
+            </div>`
+                : ''
+            }
+            <div class="si-table-wrap" style="max-height:55vh;overflow:auto">
+              <table class="si-table" id="ob-sup-table">
+                <thead><tr><th>الكود</th><th>المورد</th><th>مدين</th><th>دائن</th><th class="no-print"></th></tr></thead>
+                <tbody>${supRows || `<tr class="ob-empty"><td colspan="5" class="empty">لا أرصدة موردين بعد</td></tr>`}</tbody>
+              </table>
+            </div>
           </div>
         </div>
       </form>
     </div>
+    <style>
+      .ob-tabs{display:flex;flex-wrap:wrap;gap:.35rem;margin:0 0 .75rem}
+      .ob-tabs .si-btn.is-active{background:#0284c7;color:#fff;border-color:#0284c7}
+      .ob-party-add{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0 .75rem}
+      .ob-sug{position:fixed;z-index:99999;max-height:16rem;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.15);padding:.25rem}
+      .ob-sug button{display:block;width:100%;text-align:right;border:0;background:transparent;padding:.45rem .7rem;font:inherit;cursor:pointer}
+      .ob-sug button:hover,.ob-sug button.is-active{background:#e0f2fe}
+    </style>
     <script>
     (function(){
-      var tb = document.getElementById('ob-table');
-      var filter = document.getElementById('ob-filter');
-      var diffEl = document.getElementById('ob-diff');
-      function num(v){ var n=parseFloat(String(v||'').replace(/,/g,'')); return isFinite(n)?n:0; }
+      var page=document.getElementById('ob-page');
+      var posted=page&&page.getAttribute('data-posted')==='1';
+      var form=document.getElementById('ob-form');
+      var tb=document.getElementById('ob-table');
+      var custTb=document.getElementById('ob-cust-table');
+      var supTb=document.getElementById('ob-sup-table');
+      var filter=document.getElementById('ob-filter');
+      var diffEl=document.getElementById('ob-diff');
+      var sumDEl=document.getElementById('ob-sum-d');
+      var sumCEl=document.getElementById('ob-sum-c');
+      function baseUrl(path){
+        var b=(window.__HYPEX_BASE__||'').replace(/\\/$/,'');
+        return b&&path.charAt(0)==='/'?b+path:path;
+      }
+      function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+      function num(v){var n=parseFloat(String(v||'').replace(/,/g,''));return isFinite(n)?n:0;}
+      function money(n){return (Number(n)||0).toFixed(3);}
       function recompute(){
         var d=0,c=0,n=0;
-        tb.querySelectorAll('tbody tr').forEach(function(tr){
-          if(tr.style.display==='none') return;
+        document.querySelectorAll('#ob-form .ob-d,#ob-form .ob-c').forEach(function(inp){
+          /* skip hidden filter rows? still count all for balance */
+        });
+        document.querySelectorAll('#ob-form tbody tr').forEach(function(tr){
+          if(tr.classList.contains('ob-empty')) return;
           var di=tr.querySelector('.ob-d');
           var ci=tr.querySelector('.ob-c');
           var dv=num(di&&di.value), cv=num(ci&&ci.value);
           d+=dv; c+=cv; if(dv||cv) n++;
         });
-        if(diffEl) diffEl.textContent = (d-c).toFixed(3);
+        if(diffEl) diffEl.textContent=money(d-c);
+        if(sumDEl) sumDEl.textContent=money(d);
+        if(sumCEl) sumCEl.textContent=money(c);
       }
-      if(filter){ filter.addEventListener('input', function(){
+      document.querySelectorAll('[data-ob-tab]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var tab=btn.getAttribute('data-ob-tab');
+          document.querySelectorAll('[data-ob-tab]').forEach(function(b){b.classList.toggle('is-active', b===btn);});
+          document.querySelectorAll('[data-ob-pane]').forEach(function(p){
+            p.hidden = p.getAttribute('data-ob-pane') !== tab;
+          });
+        });
+      });
+      if(filter&&tb){ filter.addEventListener('input', function(){
         var q=filter.value.trim().toLowerCase();
         tb.querySelectorAll('tbody tr').forEach(function(tr){
           var code=(tr.getAttribute('data-code')||'').toLowerCase();
@@ -1914,18 +2062,138 @@ router.get('/accounting/opening-balance', async (req, res) => {
           tr.style.display = (!q||code.indexOf(q)>=0||name.indexOf(q)>=0) ? '' : 'none';
         });
       });}
-      tb.querySelectorAll('.ob-d,.ob-c').forEach(function(inp){
-        inp.addEventListener('input', function(){
-          var tr=inp.closest('tr');
-          if(inp.classList.contains('ob-d') && num(inp.value)>0){
-            var o=tr.querySelector('.ob-c'); if(o) o.value='';
-          }
-          if(inp.classList.contains('ob-c') && num(inp.value)>0){
-            var o=tr.querySelector('.ob-d'); if(o) o.value='';
-          }
-          recompute();
+      function bindAmountInputs(root){
+        (root||document).querySelectorAll('.ob-d,.ob-c').forEach(function(inp){
+          if(inp._obBound) return;
+          inp._obBound=true;
+          inp.addEventListener('input', function(){
+            var tr=inp.closest('tr');
+            if(inp.classList.contains('ob-d') && num(inp.value)>0){
+              var o=tr.querySelector('.ob-c'); if(o) o.value='';
+            }
+            if(inp.classList.contains('ob-c') && num(inp.value)>0){
+              var o=tr.querySelector('.ob-d'); if(o) o.value='';
+            }
+            recompute();
+          });
         });
+      }
+      bindAmountInputs(document);
+      document.addEventListener('click', function(e){
+        var btn=e.target.closest('.ob-party-del');
+        if(!btn) return;
+        var tr=btn.closest('tr');
+        if(tr) tr.remove();
+        recompute();
       });
+
+      function ensureTbody(table){
+        var tbod=table.querySelector('tbody');
+        var empty=tbod.querySelector('.ob-empty');
+        if(empty) empty.remove();
+        return tbod;
+      }
+      function hasParty(table, id){
+        return !!table.querySelector('tr[data-party-id="'+id+'"]');
+      }
+      function addPartyRow(table, prefix, party){
+        if(!table||!party||!party.id) return;
+        if(hasParty(table, party.id)){
+          if(window.HypexUI&&HypexUI.toast) HypexUI.toast('مضاف مسبقاً','warn');
+          return;
+        }
+        var tbod=ensureTbody(table);
+        var tr=document.createElement('tr');
+        tr.className='ob-party-row';
+        tr.setAttribute('data-party-id', String(party.id));
+        tr.innerHTML=
+          '<td class="si-num" dir="ltr">'+escHtml(party.code||party.id)+'</td>'+
+          '<td>'+escHtml(party.name_ar||party.name||'')+
+            '<input type="hidden" name="'+prefix+'_id[]" value="'+party.id+'">'+
+            '<input type="hidden" name="'+prefix+'_name[]" value="'+escHtml(party.name_ar||party.name||'')+'">'+
+            '<input type="hidden" name="'+prefix+'_code[]" value="'+escHtml(party.code||'')+'">'+
+          '</td>'+
+          '<td><input class="si-field si-field--mono ob-d" name="'+prefix+'_d[]" dir="ltr" value=""></td>'+
+          '<td><input class="si-field si-field--mono ob-c" name="'+prefix+'_c[]" dir="ltr" value=""></td>'+
+          '<td class="no-print"><button type="button" class="si-btn ob-party-del">حذف</button></td>';
+        tbod.appendChild(tr);
+        bindAmountInputs(tr);
+        var focus=tr.querySelector(prefix==='ps'?'.ob-c':'.ob-d');
+        if(focus) focus.focus();
+        recompute();
+      }
+
+      var sug=document.createElement('div');
+      sug.className='ob-sug si-suggest';
+      sug.hidden=true;
+      document.body.appendChild(sug);
+      var sugTimer=null, sugCtx=null;
+      function closeSug(){ sug.hidden=true; sug.innerHTML=''; sugCtx=null; }
+      function placeSug(anchor){
+        var r=anchor.getBoundingClientRect();
+        sug.style.left=Math.max(8,r.left)+'px';
+        sug.style.top=(r.bottom+4)+'px';
+        sug.style.width=Math.max(280,r.width)+'px';
+        sug.hidden=false;
+      }
+      function bindPartySearch(input, apiPath, table, prefix){
+        if(!input||posted) return;
+        input.addEventListener('input', function(){
+          clearTimeout(sugTimer);
+          sugTimer=setTimeout(function(){
+            var q=String(input.value||'').trim();
+            fetch(baseUrl(apiPath+'?q='+encodeURIComponent(q)), {credentials:'same-origin'})
+              .then(function(r){return r.json();})
+              .then(function(d){
+                var rows=(d&&d.ok?d.rows:[])||[];
+                if(!rows.length){
+                  sug.innerHTML='<div style="padding:.6rem;color:#64748b">لا نتائج</div>';
+                  placeSug(input); sugCtx={input:input,table:table,prefix:prefix,rows:[]}; return;
+                }
+                sug.innerHTML=rows.map(function(r){
+                  return '<button type="button" data-id="'+r.id+'"><span dir="ltr">'
+                    +escHtml(r.code||'')+'</span> — '+escHtml(r.name_ar||'')+'</button>';
+                }).join('');
+                placeSug(input);
+                sugCtx={input:input,table:table,prefix:prefix,rows:rows};
+                sug.querySelectorAll('button').forEach(function(btn){
+                  btn.addEventListener('mousedown', function(e){e.preventDefault();});
+                  btn.addEventListener('click', function(){
+                    var id=Number(btn.getAttribute('data-id'));
+                    var p=rows.find(function(x){return Number(x.id)===id;});
+                    if(p){ addPartyRow(table, prefix, p); input.value=''; closeSug(); }
+                  });
+                });
+              })
+              .catch(function(){});
+          }, 160);
+        });
+        input.addEventListener('focus', function(){ input.dispatchEvent(new Event('input')); });
+        input.addEventListener('keydown', function(e){
+          if(e.key==='Escape'){ closeSug(); return; }
+          var btns=Array.prototype.slice.call(sug.querySelectorAll('button[data-id]'));
+          if(!btns.length||sug.hidden) return;
+          var cur=btns.findIndex(function(b){return b.classList.contains('is-active');});
+          if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+            e.preventDefault();
+            var next=e.key==='ArrowDown'?(cur<btns.length-1?cur+1:0):(cur>0?cur-1:btns.length-1);
+            btns.forEach(function(b,i){b.classList.toggle('is-active',i===next);});
+            return;
+          }
+          if(e.key==='Enter'){
+            var active=sug.querySelector('button.is-active')||btns[0];
+            if(active){ e.preventDefault(); active.click(); }
+          }
+        });
+      }
+      bindPartySearch(document.getElementById('ob-cust-search'), '/api/lookup/customers', custTb, 'pc');
+      bindPartySearch(document.getElementById('ob-sup-search'), '/api/lookup/suppliers', supTb, 'ps');
+      document.addEventListener('mousedown', function(e){
+        if(sug.contains(e.target)) return;
+        if(e.target&&(e.target.id==='ob-cust-search'||e.target.id==='ob-sup-search')) return;
+        closeSug();
+      });
+      recompute();
     })();
     </script>`;
   sendPage(res, req, 'الأرصدة الافتتاحية', body);
@@ -1947,10 +2215,31 @@ router.post('/accounting/opening-balance/save', async (req, res) => {
       amounts[id].credit = String(v || '');
     }
   }
+
+  function collectParties(prefix, partyType) {
+    const ids = [].concat(req.body[prefix + '_id'] || []);
+    const debits = [].concat(req.body[prefix + '_d'] || []);
+    const credits = [].concat(req.body[prefix + '_c'] || []);
+    const out = [];
+    for (let i = 0; i < ids.length; i++) {
+      const partyId = Number(ids[i] || 0);
+      if (partyId < 1) continue;
+      out.push({
+        party_type: partyType,
+        party_id: partyId,
+        debit: String(debits[i] || ''),
+        credit: String(credits[i] || ''),
+      });
+    }
+    return out;
+  }
+  const parties = [...collectParties('pc', 'customer'), ...collectParties('ps', 'supplier')];
+
   const data = await svc.run('opening_save', uid(req), {
     year,
     entry_date: req.body.entry_date,
     amounts,
+    parties,
   });
   res.redirect(
     '/accounting/opening-balance?year=' +

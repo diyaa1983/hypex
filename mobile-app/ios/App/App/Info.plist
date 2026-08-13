@@ -51,5 +51,12 @@
 	<string>يُستخدم الموقع لتسجيل موقع المندوب مع الفواتير والسندات.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

@@ -267,16 +267,16 @@ async function renderForm(req, res, id) {
         <input type="hidden" name="id" id="so-id" value="${doc ? doc.id : 0}">
         <input type="hidden" name="lines_json" id="so-lines-json" value="">
 
-        <section class="si-surface">
+        <section class="si-surface so-head-card">
           <div class="si-surface-head">
             <h2>بيانات العرض</h2>
-            <label class="si-count" style="display:inline-flex;align-items:center;gap:.4rem;cursor:pointer">
+            <label class="so-active">
               <input type="checkbox" name="is_active" value="1" ${activeChecked}>
-              نشط
+              <span>نشط</span>
             </label>
           </div>
-          <div class="si-meta" style="grid-template-columns:minmax(11rem,.9fr) minmax(12rem,1.4fr) minmax(8rem,.8fr) minmax(8rem,.8fr) minmax(10rem,1.2fr);">
-            <label class="si-f si-f--docno">
+          <div class="si-meta si-meta--offer">
+            <label class="si-f so-f-docno">
               <span class="si-f-head">رقم السند</span>
               <div class="si-docno-row" dir="ltr">
                 <button type="button" class="si-btn si-docno-btn" id="so_first" title="أول سند">«</button>
@@ -288,39 +288,39 @@ async function renderForm(req, res, id) {
                 <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="so_last" title="آخر سند">»</button>
               </div>
             </label>
-            <label class="si-f">
+            <label class="si-f so-f-name">
               <span class="si-f-head">اسم العرض *</span>
               <input class="si-field" name="name_ar" id="so-name" required value="${esc(doc?.name_ar || '')}"
                      placeholder="مثال: عرض رمضان" autocomplete="off">
             </label>
-            <label class="si-f">
+            <label class="si-f so-f-from">
               <span class="si-f-head">بداية العرض *</span>
               <input class="si-field si-field--mono" type="date" name="date_from" id="so-from"
                      value="${esc(dateFrom)}" required dir="ltr">
             </label>
-            <label class="si-f">
+            <label class="si-f so-f-to">
               <span class="si-f-head">نهاية العرض *</span>
               <input class="si-field si-field--mono" type="date" name="date_to" id="so-to"
                      value="${esc(dateTo)}" required dir="ltr">
             </label>
-            <label class="si-f">
+            <label class="si-f so-f-notes">
               <span class="si-f-head">ملاحظات</span>
               <input class="si-field" name="notes" value="${esc(doc?.notes || '')}" maxlength="500" placeholder="اختياري…">
             </label>
           </div>
         </section>
 
-        <section class="si-surface">
+        <section class="si-surface so-lines-card">
           <div class="si-surface-head">
             <div>
               <h2>مواد العرض</h2>
-              <p class="muted" style="margin:.2rem 0 0;font-size:.78rem;font-weight:500">
+              <p class="muted so-lines-hint">
                 لكل مادة: الكمية المحددة للعرض · ثم إما كمية إضافية مجانية أو خصم بنسبة مئوية
               </p>
             </div>
-            <button type="button" class="si-btn" id="so-add-line">＋ إضافة مادة</button>
+            <button type="button" class="si-btn si-btn--primary" id="so-add-line">＋ إضافة مادة</button>
           </div>
-          <div class="si-lines-wrap">
+          <div class="si-lines-wrap so-lines-wrap">
             <table class="si-lines si-lines--co si-lines--so" id="so-table">
               <thead>
                 <tr>
@@ -331,7 +331,7 @@ async function renderForm(req, res, id) {
                   <th style="width:6.5rem">كمية العرض</th>
                   <th style="width:6.5rem">كمية إضافية</th>
                   <th style="width:6.5rem">خصم %</th>
-                  <th style="width:2.4rem"></th>
+                  <th class="si-col-del" style="width:2.6rem" title="حذف">حذف</th>
                 </tr>
               </thead>
               <tbody id="so-tbody"></tbody>

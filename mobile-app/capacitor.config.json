@@ -5,13 +5,15 @@
   "server": {
     "androidScheme": "https",
     "allowNavigation": [
-      "https://www.biodev.gppjo.com",
-      "https://biodev.gppjo.com",
-      "https://*.gppjo.com",
-      "http://10.0.2.2",
-      "http://192.168.*.*",
-      "http://localhost",
-      "https://localhost"
+      "www.biodev.gppjo.com",
+      "biodev.gppjo.com",
+      "*.gppjo.com",
+      "176.29.176.192",
+      "10.0.2.2",
+      "192.168.*.*",
+      "10.*.*.*",
+      "172.*.*.*",
+      "localhost"
     ]
   },
   "ios": {
@@ -21,7 +23,7 @@
     "preferredContentMode": "mobile"
   },
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": true
   },
   "plugins": {
     "SplashScreen": {

@@ -12,6 +12,7 @@
   var linesInput = document.getElementById('so-lines-json');
   var lines = [];
   var itemTimers = {};
+  var suggestSeq = 0;
 
   function emptyLine() {
     return {
@@ -30,6 +31,12 @@
     if (!s) return '';
     if (s.indexOf(' — ') >= 0) s = s.split(' — ')[0].trim();
     return s;
+  }
+
+  function apiUrl(path) {
+    if (typeof window.__hypexUrl === 'function') return window.__hypexUrl(path);
+    var b = String(window.__HYPEX_BASE__ || '').replace(/\/$/, '');
+    return b && path.charAt(0) === '/' ? b + path : path;
   }
 
   try {
@@ -108,15 +115,12 @@
         'placeholder="باركود" data-nav="1" value="' +
         escAttr(ln.item_code || '') +
         '">' +
-        '<div class="si-suggest js-item-suggest" hidden></div>' +
         '</td>' +
         '<td class="si-item-name-cell">' +
         '<input class="js-item-name" type="text" autocomplete="off" spellcheck="false" dir="rtl" ' +
-        'placeholder="اسم المادة" data-nav="1" value="' +
+        'placeholder="اضغط للبحث عن المادة…" data-nav="1" value="' +
         escAttr(ln.item_name || '') +
-        '" ' +
-        (ln.item_id ? 'readonly' : '') +
-        '>' +
+        '">' +
         '</td>' +
         '<td>' +
         typeSelectHtml(ln) +
@@ -134,7 +138,7 @@
         '" ' +
         (isBonus ? 'disabled' : '') +
         '></td>' +
-        '<td>' +
+        '<td class="si-col-del">' +
         trashBtnHtml() +
         '</td>';
       tbody.appendChild(tr);
@@ -187,6 +191,7 @@
     lines[idx].item_id = it.id;
     lines[idx].item_code = cleanBarcodeText(it.barcode || it.code || it.sku || '');
     lines[idx].item_name = String(it.name_ar || it.name || '').trim();
+    hideSuggest();
     render({ idx: idx, cls: '.js-offer-type', select: false });
   }
 
@@ -195,7 +200,7 @@
     if (!el) {
       el = document.createElement('div');
       el.id = 'so-global-suggest';
-      el.className = 'pa-global-suggest';
+      el.className = 'pa-global-suggest si-suggest si-suggest--pa si-suggest--float so-suggest';
       el.hidden = true;
       document.body.appendChild(el);
     }
@@ -205,64 +210,201 @@
   function hideSuggest() {
     var box = getSuggestBox();
     box.hidden = true;
+    box.setAttribute('hidden', '');
     box.innerHTML = '';
     box.style.display = 'none';
+    box.classList.remove('so-suggest--open');
   }
 
-  function showSuggest(anchor, rows, onPick) {
+  function placeSuggest(anchor) {
+    var box = getSuggestBox();
+    var rect = anchor.getBoundingClientRect();
+    var width = Math.max(320, rect.width + 80);
+    var left = rect.left;
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8);
+    }
+    box.className = 'pa-global-suggest si-suggest si-suggest--pa si-suggest--float so-suggest so-suggest--open';
+    box.style.position = 'fixed';
+    box.style.zIndex = '99999';
+    box.style.left = left + 'px';
+    box.style.right = 'auto';
+    box.style.top = rect.bottom + 4 + 'px';
+    box.style.minWidth = width + 'px';
+    box.style.width = width + 'px';
+    box.style.maxHeight = 'min(18rem, 50vh)';
+    box.style.overflow = 'auto';
+    box.style.display = 'block';
+    box.hidden = false;
+    box.removeAttribute('hidden');
+  }
+
+  function showSuggest(anchor, rows, onPick, emptyMsg) {
     var box = getSuggestBox();
     if (!rows || !rows.length) {
-      hideSuggest();
+      box.innerHTML =
+        '<div class="si-suggest-empty">' + escAttr(emptyMsg || 'لا نتائج مطابقة') + '</div>';
+      placeSuggest(anchor);
       return;
     }
     box.innerHTML = rows
       .map(function (r) {
+        var code = r.code || r.barcode || r.sku || '';
+        var name = r.name_ar || r.name || '';
         return (
           '<button type="button" data-id="' +
           escAttr(r.id) +
-          '"><span dir="ltr">' +
-          escAttr(r.code || r.barcode || '') +
-          '</span> — ' +
-          escAttr(r.name_ar || '') +
+          '">' +
+          '<span class="so-sug-code" dir="ltr">' +
+          escAttr(code || '—') +
+          '</span>' +
+          '<span class="so-sug-name">' +
+          escAttr(name || '—') +
+          '</span>' +
           '</button>'
         );
       })
       .join('');
-    box.hidden = false;
-    box.style.display = 'block';
-    box.className = 'pa-global-suggest si-suggest si-suggest--pa si-suggest--float';
-    var rect = anchor.getBoundingClientRect();
-    box.style.position = 'fixed';
-    box.style.zIndex = '99999';
-    box.style.left = Math.max(8, rect.left) + 'px';
-    box.style.top = rect.bottom + 4 + 'px';
-    box.style.minWidth = Math.max(260, rect.width) + 'px';
-    box.style.maxHeight = '240px';
-    box.style.overflow = 'auto';
-    box.querySelectorAll('button').forEach(function (btn) {
+    placeSuggest(anchor);
+    box.querySelectorAll('button[data-id]').forEach(function (btn) {
       btn.addEventListener('mousedown', function (e) {
         e.preventDefault();
+      });
+      btn.addEventListener('click', function () {
         var id = Number(btn.getAttribute('data-id'));
         var it = rows.find(function (x) {
           return Number(x.id) === id;
         });
         if (it) onPick(it);
-        hideSuggest();
       });
     });
   }
 
   function searchItems(q, cb) {
-    fetch('/api/lookup/items?q=' + encodeURIComponent(q || ''), { credentials: 'same-origin' })
+    var url = apiUrl('/api/lookup/items') + '?q=' + encodeURIComponent(q || '') + '&limit=60';
+    fetch(url, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
       .then(function (r) {
+        if (!r.ok) throw new Error('http');
         return r.json();
       })
       .then(function (d) {
         cb(d && d.ok ? d.rows || [] : []);
       })
       .catch(function () {
-        cb([]);
+        cb(null);
       });
+  }
+
+  function openItemList(fromEl, idx, qOverride) {
+    var q = qOverride != null ? qOverride : String(fromEl.value || '').trim();
+    /* إذا المادة مختارة والنص يحتوي فاصل قديم — اعرض القائمة كاملة */
+    if (Number(lines[idx] && lines[idx].item_id) > 0 && q && fromEl.classList.contains('js-item-name')) {
+      /* ابقِ النص لكن ابحث بالاسم الحالي أو أظهر الكل عند التركيز الفارغ المنطقي */
+    }
+    var seq = ++suggestSeq;
+    var box = getSuggestBox();
+    box.innerHTML = '<div class="si-suggest-empty">جاري البحث…</div>';
+    placeSuggest(fromEl);
+    searchItems(q, function (rows) {
+      if (seq !== suggestSeq) return;
+      if (rows == null) {
+        showSuggest(fromEl, [], function () {}, 'تعذر تحميل المواد');
+        return;
+      }
+      showSuggest(fromEl, rows, function (it) {
+        applyItem(idx, it);
+      });
+    });
+  }
+
+  function moveSuggest(dir) {
+    var box = getSuggestBox();
+    if (box.hidden) return false;
+    var btns = Array.prototype.slice.call(box.querySelectorAll('button[data-id]'));
+    if (!btns.length) return false;
+    var cur = -1;
+    for (var i = 0; i < btns.length; i++) {
+      if (btns[i].classList.contains('is-active')) {
+        cur = i;
+        break;
+      }
+    }
+    if (cur < 0) cur = dir > 0 ? -1 : 0;
+    var next = cur + dir;
+    if (next < 0) next = btns.length - 1;
+    if (next >= btns.length) next = 0;
+    btns.forEach(function (b, i) {
+      b.classList.toggle('is-active', i === next);
+    });
+    try {
+      btns[next].scrollIntoView({ block: 'nearest' });
+    } catch (e) {
+      /* ignore */
+    }
+    return true;
+  }
+
+  function bindItemField(el, tr, idx) {
+    if (!el) return;
+
+    el.addEventListener('focus', function () {
+      openItemList(el, idx);
+    });
+    el.addEventListener('click', function () {
+      openItemList(el, idx);
+    });
+    el.addEventListener('input', function () {
+      var hid = tr.querySelector('.js-item-id');
+      if (hid) hid.value = '';
+      lines[idx].item_id = 0;
+      clearTimeout(itemTimers[idx]);
+      itemTimers[idx] = setTimeout(function () {
+        openItemList(el, idx, String(el.value || '').trim());
+      }, 160);
+    });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        hideSuggest();
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        e.stopPropagation();
+        var box = getSuggestBox();
+        if (box.hidden) openItemList(el, idx);
+        else moveSuggest(1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (getSuggestBox().hidden) openItemList(el, idx);
+        else moveSuggest(-1);
+        return;
+      }
+      if (e.key === 'Enter') {
+        var box2 = getSuggestBox();
+        var active = box2.querySelector('button.is-active');
+        var first = box2.querySelector('button[data-id]');
+        if (!box2.hidden && (active || first)) {
+          e.preventDefault();
+          (active || first).click();
+          return;
+        }
+        e.preventDefault();
+        var q = el.value;
+        searchItems(q, function (rows) {
+          if (!rows) return;
+          if (rows.length === 1) applyItem(idx, rows[0]);
+          else showSuggest(el, rows, function (it) {
+            applyItem(idx, it);
+          });
+        });
+      }
+    });
   }
 
   function bindRow(tr) {
@@ -273,6 +415,7 @@
         syncFromDom();
         lines.splice(idx, 1);
         if (!lines.length) lines.push(emptyLine());
+        hideSuggest();
         render();
       });
 
@@ -286,65 +429,14 @@
 
     ['.js-trigger', '.js-bonus', '.js-disc'].forEach(function (sel) {
       var el = tr.querySelector(sel);
-      if (el) el.addEventListener('change', function () {
-        readRow(tr);
-      });
+      if (el)
+        el.addEventListener('change', function () {
+          readRow(tr);
+        });
     });
 
-    var codeEl = tr.querySelector('.js-item-code');
-    var nameEl = tr.querySelector('.js-item-name');
-
-    function scheduleSearch(fromEl) {
-      clearTimeout(itemTimers[idx]);
-      itemTimers[idx] = setTimeout(function () {
-        var q = fromEl.value;
-        if (!String(q || '').trim()) {
-          hideSuggest();
-          return;
-        }
-        searchItems(q, function (rows) {
-          showSuggest(fromEl, rows, function (it) {
-            applyItem(idx, it);
-          });
-        });
-      }, 180);
-    }
-
-    if (codeEl) {
-      codeEl.addEventListener('input', function () {
-        var hid = tr.querySelector('.js-item-id');
-        if (hid) hid.value = '';
-        lines[idx].item_id = 0;
-        scheduleSearch(codeEl);
-      });
-      codeEl.addEventListener('blur', function () {
-        setTimeout(hideSuggest, 180);
-      });
-      codeEl.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          var q = codeEl.value;
-          searchItems(q, function (rows) {
-            if (rows.length === 1) applyItem(idx, rows[0]);
-            else showSuggest(codeEl, rows, function (it) {
-              applyItem(idx, it);
-            });
-          });
-        }
-      });
-    }
-    if (nameEl) {
-      nameEl.addEventListener('input', function () {
-        if (nameEl.readOnly) return;
-        var hid = tr.querySelector('.js-item-id');
-        if (hid) hid.value = '';
-        lines[idx].item_id = 0;
-        scheduleSearch(nameEl);
-      });
-      nameEl.addEventListener('blur', function () {
-        setTimeout(hideSuggest, 180);
-      });
-    }
+    bindItemField(tr.querySelector('.js-item-code'), tr, idx);
+    bindItemField(tr.querySelector('.js-item-name'), tr, idx);
   }
 
   var addBtn = document.getElementById('so-add-line');
@@ -353,12 +445,22 @@
       syncFromDom();
       for (var i = 0; i < lines.length; i++) {
         if (!Number(lines[i].item_id)) {
-          focusLineField(i, '.js-item-code', true);
+          focusLineField(i, '.js-item-name', true);
+          openItemList(
+            tbody.querySelector('tr[data-idx="' + i + '"] .js-item-name'),
+            i
+          );
           return;
         }
       }
       lines.push(emptyLine());
-      render({ idx: lines.length - 1, cls: '.js-item-code', select: true });
+      render({ idx: lines.length - 1, cls: '.js-item-name', select: true });
+      window.setTimeout(function () {
+        var el = tbody.querySelector(
+          'tr[data-idx="' + (lines.length - 1) + '"] .js-item-name'
+        );
+        if (el) openItemList(el, lines.length - 1);
+      }, 30);
     });
   }
 
@@ -368,6 +470,27 @@
       syncJson();
     });
   }
+
+  document.addEventListener('mousedown', function (e) {
+    var box = document.getElementById('so-global-suggest');
+    if (!box || box.hidden) return;
+    if (box.contains(e.target)) return;
+    if (e.target && e.target.closest && e.target.closest('.js-item-code, .js-item-name')) return;
+    hideSuggest();
+  });
+
+  window.addEventListener(
+    'scroll',
+    function () {
+      var box = document.getElementById('so-global-suggest');
+      if (!box || box.hidden) return;
+      var active = document.activeElement;
+      if (active && (active.classList.contains('js-item-code') || active.classList.contains('js-item-name'))) {
+        placeSuggest(active);
+      }
+    },
+    true
+  );
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'F10') {

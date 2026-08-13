@@ -494,9 +494,17 @@ function acc_gl_post_entry(
             'credit' => $credit,
             'memo' => trim((string) ($ln['memo'] ?? '')),
         ];
+        $partyType = strtolower(trim((string) ($ln['party_type'] ?? '')));
+        $partyId = (int) ($ln['party_id'] ?? 0);
+        if ($partyType !== '' && $partyId > 0) {
+            $resolved[array_key_last($resolved)]['party_type'] = $partyType;
+            $resolved[array_key_last($resolved)]['party_id'] = $partyId;
+        }
     }
 
     $normalized = acc_journal_normalize_lines($resolved);
+    require_once app_path('includes/acc_journal_party.php');
+    $normalized['lines'] = acc_journal_party_normalize_lines($pdo, $normalized['lines']);
     $entryNo = acc_gl_next_auto_entry_no($pdo, $refType, $refId);
     $uid = (int) (current_user()['id'] ?? 0) ?: null;
 
@@ -528,6 +536,7 @@ function acc_gl_post_entry(
     ]);
     $journalId = (int) $pdo->lastInsertId();
     acc_journal_replace_lines($pdo, $journalId, $normalized['lines']);
+    acc_journal_party_ledger_sync($pdo, $journalId, true);
 
     return $journalId;
 }

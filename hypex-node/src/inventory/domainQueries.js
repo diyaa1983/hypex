@@ -47,6 +47,17 @@ async function listWarehouses({ q = '', activeOnly = true } = {}) {
   );
 }
 
+/** المستودع الافتراضي: MAIN ثم اسم يحتوي «رئيس» ثم أول مستودع. */
+function resolveDefaultWarehouseId(warehouses) {
+  const list = Array.isArray(warehouses) ? warehouses : [];
+  if (!list.length) return 0;
+  const byMain = list.find((w) => String(w.code || '').trim().toUpperCase() === 'MAIN');
+  if (byMain) return Number(byMain.id) || 0;
+  const byName = list.find((w) => String(w.name_ar || '').includes('رئيس'));
+  if (byName) return Number(byName.id) || 0;
+  return Number(list[0].id) || 0;
+}
+
 async function listItems({ q = '', activeOnly = true, limit = 200 } = {}) {
   const where = ['1=1'];
   const params = [];
@@ -395,6 +406,7 @@ async function listCustomersForPicker(q = '', limit = 80) {
 
 module.exports = {
   listWarehouses,
+  resolveDefaultWarehouseId,
   listItems,
   listCategories,
   listUnits,

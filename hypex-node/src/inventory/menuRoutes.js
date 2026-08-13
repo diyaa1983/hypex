@@ -173,7 +173,10 @@ module.exports = createDomainRouter({
     '/inventory/reports/item-moves': async (req, { ui }) => {
       const warehouses = await q.listWarehouses({ activeOnly: true });
       const itemId = Number(req.query.item_id || 0) || 0;
-      const warehouseId = Number(req.query.warehouse_id || 0) || 0;
+      let warehouseId = Number(req.query.warehouse_id || 0) || 0;
+      if (warehouseId < 1) {
+        warehouseId = q.resolveDefaultWarehouseId(warehouses);
+      }
       const run = String(req.query.run || '') === '1';
       let err = '';
       let onHand = null;
@@ -244,7 +247,7 @@ module.exports = createDomainRouter({
           .join('') ||
         (run && !err
           ? ui.emptyRow(7, 'لا حركات لهذه المادة في المستودع')
-          : ui.emptyRow(7, 'اختر المادة والمستودع ثم ابحث'));
+          : ui.emptyRow(7, 'اختر المستودع والمادة ثم ابحث'));
 
       const summaryHtml =
         run && item && !err
@@ -284,7 +287,7 @@ module.exports = createDomainRouter({
             subtitle:
               run && item && !err
                 ? `${ui.esc(item.name_ar || '')} · ${ui.esc(whLabel)}`
-                : 'اختر المادة والمستودع لعرض سجل الحركات والرصيد',
+                : 'اختر المستودع ثم المادة لعرض سجل الحركات والرصيد',
             actions: [
               { label: '🖨 طباعة', primary: true, print: true },
               { label: 'لوحة المستودعات', href: '/inventory' },
@@ -294,30 +297,33 @@ module.exports = createDomainRouter({
           <section class="si-surface imv-filters no-print">
             <div class="si-surface-head">
               <h2>معايير البحث</h2>
-              <span class="si-count">مادة + مستودع</span>
+              <span class="si-count">مستودع ثم مادة</span>
             </div>
             <form method="get" action="/inventory/reports/item-moves" class="imv-form" id="imv-form" autocomplete="off">
               <input type="hidden" name="run" value="1">
               <input type="hidden" name="item_id" id="imv-item-id" value="${itemId || 0}">
+              <label class="imv-field imv-field--wh">
+                <span class="imv-field__lab">المستودع *</span>
+                <select name="warehouse_id" id="imv-warehouse" class="si-field" required>
+                  <option value="">— اختر المستودع —</option>
+                  ${whOpts}
+                </select>
+              </label>
               <label class="imv-field imv-field--item">
                 <span class="imv-field__lab">المادة *</span>
                 <div class="si-cust-wrap imv-item-wrap">
                   <input type="search" class="si-field" id="imv-item-search"
                          value="${ui.esc(selectedItemLabel)}"
                          placeholder="ابحث بالباركود أو اسم المادة…"
-                         autocomplete="off" spellcheck="false">
+                         autocomplete="off" spellcheck="false"
+                         aria-autocomplete="list" aria-controls="imv-item-suggest">
+                  <button type="button" class="imv-item-open" id="imv-item-open" title="عرض قائمة المواد" aria-label="عرض قائمة المواد">▾</button>
+                  <div id="imv-item-suggest" class="si-suggest si-suggest--name imv-suggest" hidden></div>
                 </div>
-              </label>
-              <label class="imv-field imv-field--wh">
-                <span class="imv-field__lab">المستودع *</span>
-                <select name="warehouse_id" class="si-field" required>
-                  <option value="">— اختر المستودع —</option>
-                  ${whOpts}
-                </select>
               </label>
               <label class="imv-field imv-field--bal">
                 <span class="imv-field__lab">الرصيد الحالي</span>
-                <input class="si-field si-field--mono" readonly
+                <input class="si-field si-field--mono" readonly tabindex="-1"
                        value="${onHand == null ? '—' : ui.esc(ui.fmtAmt(onHand))}" dir="ltr">
               </label>
               <div class="imv-field imv-field--actions">
@@ -334,232 +340,13 @@ module.exports = createDomainRouter({
               rowsHtml
             )}
           </div>
-          <script>
-          (function () {
-            var search = document.getElementById('imv-item-search');
-            var itemId = document.getElementById('imv-item-id');
-            var form = document.getElementById('imv-form');
-            if (!search || !itemId) return;
-
-            var suggest = document.getElementById('imv-item-suggest');
-            if (!suggest) {
-              suggest = document.createElement('div');
-              suggest.id = 'imv-item-suggest';
-              suggest.className = 'si-suggest si-suggest--float si-suggest--name imv-suggest';
-              suggest.hidden = true;
-              suggest.setAttribute('hidden', '');
-              document.body.appendChild(suggest);
-            }
-
-            var lastRows = [];
-            var reqSeq = 0;
-            var timer = null;
-
-            function escHtml(s) {
-              return String(s || '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
-            }
-            function labelOf(c) {
-              var code = c.code || c.barcode || c.sku || '';
-              var name = c.name || c.name_ar || '';
-              return code + (code && name ? ' — ' : '') + name;
-            }
-            function baseUrl(path) {
-              var b = (window.__HYPEX_BASE__ || '').replace(/\\/$/, '');
-              return b && path.charAt(0) === '/' ? b + path : path;
-            }
-            function placeFloat() {
-              var r = search.getBoundingClientRect();
-              var width = Math.max(r.width, 340);
-              var left = r.left;
-              if (left + width > window.innerWidth - 8) {
-                left = Math.max(8, window.innerWidth - width - 8);
-              }
-              suggest.classList.add('si-suggest--float', 'si-suggest--name', 'imv-suggest');
-              suggest.style.position = 'fixed';
-              suggest.style.left = left + 'px';
-              suggest.style.right = 'auto';
-              suggest.style.top = (r.bottom + 4) + 'px';
-              suggest.style.width = width + 'px';
-              suggest.style.maxHeight = 'min(22rem, 55vh)';
-              suggest.style.zIndex = '99999';
-              suggest.style.display = 'block';
-            }
-            function closeList() {
-              suggest.hidden = true;
-              suggest.setAttribute('hidden', '');
-              suggest.style.display = 'none';
-              suggest.innerHTML = '';
-              suggest.dataset.hxUserNav = '';
-            }
-            function pick(c) {
-              itemId.value = String(c.id || 0);
-              search.value = labelOf(c);
-              closeList();
-            }
-            function render(list) {
-              lastRows = list || [];
-              if (!lastRows.length) {
-                suggest.innerHTML = '<div class="si-suggest-empty">لا نتائج مطابقة</div>';
-              } else {
-                suggest.innerHTML = lastRows
-                  .map(function (c) {
-                    var code = c.code || c.barcode || c.sku || '';
-                    var name = c.name || c.name_ar || '';
-                    return (
-                      '<button type="button" data-id="' +
-                      c.id +
-                      '">' +
-                      '<span class="imv-sug-code" dir="ltr">' +
-                      escHtml(code || '—') +
-                      '</span>' +
-                      '<span class="imv-sug-name">' +
-                      escHtml(name || '—') +
-                      '</span>' +
-                      '</button>'
-                    );
-                  })
-                  .join('');
-              }
-              suggest.hidden = false;
-              suggest.removeAttribute('hidden');
-              placeFloat();
-              suggest.querySelectorAll('button[data-id]').forEach(function (btn) {
-                btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
-                btn.addEventListener('click', function () {
-                  var id = Number(btn.getAttribute('data-id') || 0);
-                  var c = lastRows.find(function (x) { return Number(x.id) === id; });
-                  if (c) pick(c);
-                });
-              });
-            }
-            function queryText() {
-              var q = String(search.value || '').trim();
-              if (Number(itemId.value) > 0 && q.indexOf(' — ') >= 0) return '';
-              return q;
-            }
-            function fetchList(q) {
-              var seq = ++reqSeq;
-              suggest.innerHTML = '<div class="si-suggest-empty">جاري البحث…</div>';
-              suggest.hidden = false;
-              suggest.removeAttribute('hidden');
-              placeFloat();
-              fetch(baseUrl('/api/lookup/items?q=' + encodeURIComponent(q || '') + '&limit=60'), {
-                credentials: 'same-origin',
-                headers: { Accept: 'application/json' },
-              })
-                .then(function (r) { return r.json(); })
-                .then(function (d) {
-                  if (seq !== reqSeq) return;
-                  var rows = d && d.ok ? d.rows || [] : [];
-                  render(
-                    rows.map(function (r) {
-                      return {
-                        id: Number(r.id),
-                        code: r.code || r.barcode || r.sku || '',
-                        name: r.name_ar || r.name || '',
-                        name_ar: r.name_ar || '',
-                        barcode: r.barcode || '',
-                        sku: r.sku || '',
-                      };
-                    })
-                  );
-                })
-                .catch(function () {
-                  if (seq !== reqSeq) return;
-                  suggest.innerHTML = '<div class="si-suggest-empty">تعذر تحميل المواد</div>';
-                  placeFloat();
-                });
-            }
-            function openList() {
-              fetchList(queryText());
-            }
-            function moveActive(dir) {
-              var btns = Array.prototype.slice.call(suggest.querySelectorAll('button[data-id]'));
-              if (!btns.length || suggest.hidden) return false;
-              var cur = -1;
-              for (var i = 0; i < btns.length; i++) {
-                if (btns[i].classList.contains('is-active')) { cur = i; break; }
-              }
-              if (cur < 0) cur = dir > 0 ? -1 : 0;
-              var next = cur + dir;
-              if (next < 0) next = btns.length - 1;
-              if (next >= btns.length) next = 0;
-              btns.forEach(function (b, i) {
-                if (i === next) b.classList.add('is-active');
-                else b.classList.remove('is-active');
-              });
-              suggest.dataset.hxUserNav = '1';
-              try { btns[next].scrollIntoView({ block: 'nearest' }); } catch (e) {}
-              return true;
-            }
-
-            search.addEventListener('input', function () {
-              itemId.value = '0';
-              clearTimeout(timer);
-              timer = setTimeout(function () { fetchList(String(search.value || '').trim()); }, 160);
-            });
-            search.addEventListener('focus', openList);
-            search.addEventListener('click', openList);
-            search.addEventListener('keydown', function (e) {
-              if (e.key === 'Escape') { closeList(); return; }
-              if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (suggest.hidden) openList();
-                moveActive(1);
-                return;
-              }
-              if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                if (suggest.hidden) openList();
-                moveActive(-1);
-                return;
-              }
-              if (e.key === 'Enter') {
-                var active = suggest.querySelector('button.is-active');
-                var first = suggest.querySelector('button[data-id]');
-                if (!suggest.hidden && (active || first)) {
-                  e.preventDefault();
-                  (active || first).click();
-                }
-              }
-            });
-            document.addEventListener('mousedown', function (e) {
-              if (e.target === search || suggest.contains(e.target)) return;
-              closeList();
-            });
-            window.addEventListener('scroll', function () {
-              if (!suggest.hidden) placeFloat();
-            }, true);
-            window.addEventListener('resize', function () {
-              if (!suggest.hidden) placeFloat();
-            });
-            if (form) {
-              form.addEventListener('submit', function (e) {
-                if (!(Number(itemId.value) > 0)) {
-                  e.preventDefault();
-                  openList();
-                  search.focus();
-                  if (window.HypexUI && window.HypexUI.alert) {
-                    window.HypexUI.alert('اختر المادة من القائمة.', 'error');
-                  } else {
-                    alert('اختر المادة من القائمة.');
-                  }
-                }
-              });
-            }
-          })();
-          </script>
         </div>`;
       return {
         __raw: ui.salesPage({
           user: req.session.user,
           title: 'كشف حركات مادة',
           bodyHtml: body,
-          js: ['/assets/js/sales-print.js'],
+          js: ['/assets/js/sales-print.js', '/assets/js/item-moves.js'],
         }),
       };
     },

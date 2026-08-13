@@ -137,6 +137,16 @@ app.get('/api/lookup/items', auth.requireAuth, async (req, res) => {
   }
 });
 
+app.get('/api/lookup/suppliers', auth.requireAuth, async (req, res) => {
+  try {
+    const docs = require('./purchases/docsService');
+    const rows = await docs.searchSuppliers(String(req.query.q || ''), 50);
+    res.json({ ok: true, rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message || 'خطأ' });
+  }
+});
+
 /** أيقونة التبويب — شعار الشركة بدل افتراضي XAMPP */
 app.get(['/favicon.ico', '/favicon.png', '/favicon'], async (req, res) => {
   try {

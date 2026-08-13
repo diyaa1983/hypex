@@ -2,7 +2,7 @@
   'use strict';
 
   var STORAGE_KEY = 'namma_mobile_server_base';
-  var DEFAULT_BASE = 'https://www.biodev.gppjo.com';
+  var DEFAULT_BASE = 'http://176.29.176.192/hypex';
 
   var input = document.getElementById('server-url');
   var statusEl = document.getElementById('status');

@@ -556,7 +556,7 @@
         '<td class="js-gross si-num-out" dir="ltr">' +
         fmt(t.gross) +
         '</td>' +
-        '<td>' +
+        '<td class="si-col-del">' +
         (posted ? '' : '<button type="button" class="si-del js-del" title="حذف">×</button>') +
         '</td>';
       tbody.appendChild(tr);

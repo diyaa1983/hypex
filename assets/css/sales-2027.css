@@ -912,6 +912,143 @@ label .si-field-key {
   grid-column: span 2;
 }
 
+/* —— شاشة العرض —— */
+#so-root .so-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  user-select: none;
+}
+
+#so-root .so-active input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #0284c7;
+}
+
+#so-root .si-meta--offer {
+  display: grid;
+  grid-template-columns:
+    minmax(13rem, 1.05fr)
+    minmax(14rem, 1.45fr)
+    minmax(9rem, 0.85fr)
+    minmax(9rem, 0.85fr)
+    minmax(12rem, 1.15fr);
+  gap: 0.85rem 1rem;
+  padding: 1rem 1.15rem 1.2rem;
+  align-items: end;
+}
+
+#so-root .si-meta--offer .si-f {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+#so-root .si-meta--offer .si-f-head {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+
+#so-root .so-lines-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  max-width: 42rem;
+  line-height: 1.45;
+}
+
+#so-root .so-lines-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0.35rem 0.85rem;
+}
+
+#so-root .si-lines--so .si-item-name-cell input.js-item-name {
+  cursor: pointer;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+#so-root .si-lines--so .si-item-name-cell input.js-item-name:focus {
+  background: #fff;
+  cursor: text;
+}
+
+.so-suggest.si-suggest--float {
+  z-index: 99999 !important;
+  display: block !important;
+  background: #fff !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.16) !important;
+  padding: 0.3rem !important;
+}
+
+.so-suggest button {
+  display: grid !important;
+  grid-template-columns: minmax(6rem, auto) 1fr;
+  gap: 0.4rem 0.65rem;
+  align-items: center;
+  width: 100%;
+  text-align: right !important;
+  border: 0;
+  background: transparent;
+  padding: 0.5rem 0.7rem !important;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.so-suggest button:hover,
+.so-suggest button.is-active {
+  background: #e0f2fe !important;
+}
+
+.so-sug-code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0369a1;
+  white-space: nowrap;
+}
+
+.so-sug-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1100px) {
+  #so-root .si-meta--offer {
+    grid-template-columns: 1fr 1fr;
+  }
+  #so-root .so-f-name,
+  #so-root .so-f-notes {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  #so-root .si-meta--offer {
+    grid-template-columns: 1fr;
+  }
+  #so-root .so-f-docno,
+  #so-root .so-f-name,
+  #so-root .so-f-notes {
+    grid-column: auto;
+  }
+}
+
 /* ?????? ?????? ???????? ? ?? ???? ??????? */
 .si-docno-row {
   display: flex;
@@ -1826,6 +1963,40 @@ body.si-2027:has(#pa-root) .si-surface:has(.js-item-name:focus) {
 .si-del:focus-visible {
   outline: 2px solid rgba(220, 38, 38, 0.45);
   outline-offset: 2px;
+}
+
+/* عمود الحذف ثابت على حافة الجدول — يظهر دون تمرير أفقي */
+.si-lines th.si-col-del,
+.si-lines td.si-col-del {
+  position: sticky;
+  inset-inline-end: 0;
+  left: 0;
+  z-index: 6;
+  width: 2.7rem;
+  min-width: 2.7rem;
+  max-width: 2.9rem;
+  text-align: center;
+  vertical-align: middle;
+  background: #fff;
+  box-shadow: 6px 0 12px -8px rgba(15, 23, 42, 0.28);
+}
+
+.si-lines thead th.si-col-del {
+  z-index: 8;
+  background: rgba(3, 105, 161, 0.1);
+  color: var(--si-muted);
+  font-size: 0.65rem;
+}
+
+.si-lines tbody tr:hover td.si-col-del {
+  background: rgba(3, 105, 161, 0.06);
+}
+
+.si-lines-wrap:has(#si-lines) {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ???? ???????? ? ???? ?????? ?????? */

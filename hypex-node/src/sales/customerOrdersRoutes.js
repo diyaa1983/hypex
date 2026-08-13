@@ -463,7 +463,7 @@ async function renderForm(req, res, orderId) {
                 <th style="width:5rem">ضريبة %</th>
                 <th style="width:6.2rem">الصافي</th>
                 <th style="width:6.2rem">الإجمالي</th>
-                <th style="width:2.4rem"></th>
+                <th class="si-col-del" style="width:2.6rem" title="حذف">حذف</th>
               </tr>
             </thead>
             <tbody id="co-lines-body"></tbody>

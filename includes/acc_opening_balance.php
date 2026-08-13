@@ -49,23 +49,106 @@ function acc_opening_balance_amounts_from_journal(PDO $pdo, int $journalId): arr
         return [];
     }
 
-    $st = $pdo->prepare(
-        'SELECT account_id, debit, credit FROM acc_journal_line WHERE journal_id = ? ORDER BY id ASC'
-    );
+    require_once app_path('includes/acc_journal_party.php');
+    $hasParty = acc_journal_party_has_columns($pdo);
+    $sql = $hasParty
+        ? 'SELECT account_id, debit, credit, party_type, party_id
+           FROM acc_journal_line WHERE journal_id = ? ORDER BY id ASC'
+        : 'SELECT account_id, debit, credit FROM acc_journal_line WHERE journal_id = ? ORDER BY id ASC';
+
+    $st = $pdo->prepare($sql);
     $st->execute([$journalId]);
     $out = [];
     while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+        /* أسطر العملاء/الموردين تُعرض في قسم منفصل — لا تُجمَّع في شبكة الحسابات */
+        if ($hasParty) {
+            $partyType = strtolower(trim((string) ($row['party_type'] ?? '')));
+            $partyId = (int) ($row['party_id'] ?? 0);
+            if ($partyId > 0 && in_array($partyType, ['customer', 'supplier'], true)) {
+                continue;
+            }
+        }
         $aid = (int) ($row['account_id'] ?? 0);
         if ($aid < 1) {
             continue;
         }
-        $out[$aid] = [
-            'debit' => round((float) ($row['debit'] ?? 0), 6),
-            'credit' => round((float) ($row['credit'] ?? 0), 6),
-        ];
+        if (!isset($out[$aid])) {
+            $out[$aid] = ['debit' => 0.0, 'credit' => 0.0];
+        }
+        $out[$aid]['debit'] = round($out[$aid]['debit'] + (float) ($row['debit'] ?? 0), 6);
+        $out[$aid]['credit'] = round($out[$aid]['credit'] + (float) ($row['credit'] ?? 0), 6);
     }
 
     return $out;
+}
+
+/**
+ * أرصدة افتتاحية مربوطة بعملاء/موردين من قيد الافتتاح.
+ *
+ * @return array{customers:list<array<string,mixed>>, suppliers:list<array<string,mixed>>, ar_account_id:int, ap_account_id:int}
+ */
+function acc_opening_balance_parties_from_journal(PDO $pdo, int $journalId): array
+{
+    require_once app_path('includes/acc_journal_party.php');
+    $ids = acc_journal_party_ar_ap_ids($pdo);
+    $empty = [
+        'customers' => [],
+        'suppliers' => [],
+        'ar_account_id' => (int) ($ids['ar'] ?? 0),
+        'ap_account_id' => (int) ($ids['ap'] ?? 0),
+    ];
+    if ($journalId < 1 || !acc_journal_party_has_columns($pdo)) {
+        return $empty;
+    }
+
+    $st = $pdo->prepare(
+        "SELECT l.party_type, l.party_id, l.debit, l.credit, l.memo,
+                CASE l.party_type
+                  WHEN 'customer' THEN c.code
+                  WHEN 'supplier' THEN s.code
+                  ELSE ''
+                END AS party_code,
+                CASE l.party_type
+                  WHEN 'customer' THEN c.name_ar
+                  WHEN 'supplier' THEN s.name_ar
+                  ELSE ''
+                END AS party_name
+         FROM acc_journal_line l
+         LEFT JOIN crm_customer c ON l.party_type = 'customer' AND c.id = l.party_id
+         LEFT JOIN crm_supplier s ON l.party_type = 'supplier' AND s.id = l.party_id
+         WHERE l.journal_id = ?
+           AND l.party_id IS NOT NULL AND l.party_id > 0
+           AND l.party_type IN ('customer','supplier')
+         ORDER BY l.id ASC"
+    );
+    $st->execute([$journalId]);
+    $customers = [];
+    $suppliers = [];
+    while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+        $item = [
+            'party_id' => (int) ($row['party_id'] ?? 0),
+            'party_code' => (string) ($row['party_code'] ?? ''),
+            'party_name' => (string) ($row['party_name'] ?? ''),
+            'debit' => round((float) ($row['debit'] ?? 0), 6),
+            'credit' => round((float) ($row['credit'] ?? 0), 6),
+            'memo' => (string) ($row['memo'] ?? ''),
+        ];
+        if ($item['party_id'] < 1) {
+            continue;
+        }
+        if ((string) ($row['party_type'] ?? '') === 'customer') {
+            $customers[] = $item;
+        } else {
+            $suppliers[] = $item;
+        }
+    }
+
+    return [
+        'customers' => $customers,
+        'suppliers' => $suppliers,
+        'ar_account_id' => (int) ($ids['ar'] ?? 0),
+        'ap_account_id' => (int) ($ids['ap'] ?? 0),
+    ];
 }
 
 /**
@@ -100,6 +183,26 @@ function acc_opening_balance_grid(PDO $pdo, int $year): array
 }
 
 /**
+ * @return array{customers:list<array<string,mixed>>, suppliers:list<array<string,mixed>>, ar_account_id:int, ap_account_id:int}
+ */
+function acc_opening_balance_parties(PDO $pdo, int $year): array
+{
+    require_once app_path('includes/acc_journal_party.php');
+    $ids = acc_journal_party_ar_ap_ids($pdo);
+    $journal = acc_opening_balance_journal_row($pdo, $year);
+    if ($journal === null) {
+        return [
+            'customers' => [],
+            'suppliers' => [],
+            'ar_account_id' => (int) ($ids['ar'] ?? 0),
+            'ap_account_id' => (int) ($ids['ap'] ?? 0),
+        ];
+    }
+
+    return acc_opening_balance_parties_from_journal($pdo, (int) ($journal['id'] ?? 0));
+}
+
+/**
  * @return array{journal_id:int, entry_date:string, entry_no:string, total_debit:float, total_credit:float, line_count:int}
  */
 function acc_opening_balance_status(PDO $pdo, int $year): array
@@ -118,11 +221,21 @@ function acc_opening_balance_status(PDO $pdo, int $year): array
 
     $jid = (int) ($journal['id'] ?? 0);
     $amounts = acc_opening_balance_amounts_from_journal($pdo, $jid);
+    $parties = acc_opening_balance_parties_from_journal($pdo, $jid);
     $totalDebit = 0.0;
     $totalCredit = 0.0;
+    $lineCount = 0;
     foreach ($amounts as $amt) {
         $totalDebit += (float) $amt['debit'];
         $totalCredit += (float) $amt['credit'];
+        if ((float) $amt['debit'] > 0 || (float) $amt['credit'] > 0) {
+            $lineCount++;
+        }
+    }
+    foreach (array_merge($parties['customers'], $parties['suppliers']) as $p) {
+        $totalDebit += (float) ($p['debit'] ?? 0);
+        $totalCredit += (float) ($p['credit'] ?? 0);
+        $lineCount++;
     }
 
     return [
@@ -131,7 +244,7 @@ function acc_opening_balance_status(PDO $pdo, int $year): array
         'entry_no' => (string) ($journal['entry_no'] ?? ''),
         'total_debit' => round($totalDebit, 6),
         'total_credit' => round($totalCredit, 6),
-        'line_count' => count($amounts),
+        'line_count' => $lineCount,
     ];
 }
 
@@ -167,9 +280,82 @@ function acc_opening_balance_normalize_posted_lines(array $posted): array
 }
 
 /**
+ * @param list<array{party_type?:string, party_id?:mixed, debit?:mixed, credit?:mixed, memo?:string}> $parties
+ * @return list<array{account_id:int, debit:float, credit:float, memo:string, party_type:string, party_id:int}>
+ */
+function acc_opening_balance_normalize_party_lines(PDO $pdo, array $parties): array
+{
+    require_once app_path('includes/acc_journal_party.php');
+    acc_journal_party_ensure_schema($pdo);
+    $ids = acc_journal_party_ar_ap_ids($pdo);
+    $arId = (int) ($ids['ar'] ?? 0);
+    $apId = (int) ($ids['ap'] ?? 0);
+
+    $lines = [];
+    $seen = [];
+    foreach ($parties as $raw) {
+        if (!is_array($raw)) {
+            continue;
+        }
+        $partyType = strtolower(trim((string) ($raw['party_type'] ?? '')));
+        $partyId = (int) ($raw['party_id'] ?? 0);
+        if ($partyId < 1 || !in_array($partyType, ['customer', 'supplier'], true)) {
+            continue;
+        }
+        $debit = round(max(0, (float) str_replace(',', '.', (string) ($raw['debit'] ?? '0'))), 6);
+        $credit = round(max(0, (float) str_replace(',', '.', (string) ($raw['credit'] ?? '0'))), 6);
+        if ($debit <= 0 && $credit <= 0) {
+            continue;
+        }
+        if ($debit > 0 && $credit > 0) {
+            throw new RuntimeException('لا يمكن إدخال مدين ودائن معاً لنفس العميل/المورد.');
+        }
+
+        $key = $partyType . ':' . $partyId;
+        if (isset($seen[$key])) {
+            throw new RuntimeException('تكرار في أرصدة ' . ($partyType === 'customer' ? 'العملاء' : 'الموردين') . '.');
+        }
+        $seen[$key] = true;
+
+        if ($partyType === 'customer') {
+            if ($arId < 1) {
+                throw new RuntimeException('عرّف حساب ذمم العملاء في ربط الحسابات قبل إدخال أرصدة العملاء.');
+            }
+            $accountId = $arId;
+            $name = acc_journal_party_display_name($pdo, 'customer', $partyId);
+            if ($name === '') {
+                throw new RuntimeException('عميل غير موجود (#' . $partyId . ').');
+            }
+            $memo = 'رصيد افتتاحي — عميل: ' . $name;
+        } else {
+            if ($apId < 1) {
+                throw new RuntimeException('عرّف حساب ذمم الموردين في ربط الحسابات قبل إدخال أرصدة الموردين.');
+            }
+            $accountId = $apId;
+            $name = acc_journal_party_display_name($pdo, 'supplier', $partyId);
+            if ($name === '') {
+                throw new RuntimeException('مورد غير موجود (#' . $partyId . ').');
+            }
+            $memo = 'رصيد افتتاحي — مورد: ' . $name;
+        }
+
+        $lines[] = [
+            'account_id' => $accountId,
+            'debit' => $debit,
+            'credit' => $credit,
+            'memo' => $memo,
+            'party_type' => $partyType,
+            'party_id' => $partyId,
+        ];
+    }
+
+    return $lines;
+}
+
+/**
  * @return array{ok:bool, errors:list<string>, warnings:list<string>, totals:array{debit:float, credit:float, diff:float}, line_count:int}
  */
-function acc_opening_balance_preflight(PDO $pdo, int $year, string $entryDate, array $posted): array
+function acc_opening_balance_preflight(PDO $pdo, int $year, string $entryDate, array $posted, array $parties = []): array
 {
     $errors = [];
     $warnings = [];
@@ -209,6 +395,8 @@ function acc_opening_balance_preflight(PDO $pdo, int $year, string $entryDate, a
 
     try {
         $lines = acc_opening_balance_normalize_posted_lines($posted);
+        $partyLines = acc_opening_balance_normalize_party_lines($pdo, $parties);
+        $lines = array_merge($lines, $partyLines);
     } catch (RuntimeException $e) {
         $errors[] = $e->getMessage();
 
@@ -222,7 +410,7 @@ function acc_opening_balance_preflight(PDO $pdo, int $year, string $entryDate, a
     }
 
     if ($lines === []) {
-        $errors[] = 'أدخل رصيداً افتتاحياً لحساب واحد على الأقل.';
+        $errors[] = 'أدخل رصيداً افتتاحياً لحساب أو عميل أو مورد واحد على الأقل.';
     }
 
     $totalDebit = 0.0;
@@ -277,15 +465,18 @@ function acc_opening_balance_preflight(PDO $pdo, int $year, string $entryDate, a
  * @param array<int, array{debit?:mixed, credit?:mixed}> $posted
  * @return array{journal_id:int, replaced:bool}
  */
-function acc_opening_balance_save_and_post(PDO $pdo, int $year, string $entryDate, array $posted, ?int $userId): array
+function acc_opening_balance_save_and_post(PDO $pdo, int $year, string $entryDate, array $posted, ?int $userId, array $parties = []): array
 {
-    $check = acc_opening_balance_preflight($pdo, $year, $entryDate, $posted);
+    $check = acc_opening_balance_preflight($pdo, $year, $entryDate, $posted, $parties);
     if (!$check['ok']) {
         throw new RuntimeException(implode(' ', $check['errors']));
     }
 
     $entryDate = parse_date_to_iso(trim($entryDate)) ?? acc_opening_balance_default_date($year);
-    $lines = acc_opening_balance_normalize_posted_lines($posted);
+    $lines = array_merge(
+        acc_opening_balance_normalize_posted_lines($posted),
+        acc_opening_balance_normalize_party_lines($pdo, $parties)
+    );
     $replaced = acc_opening_balance_is_posted($pdo, $year);
 
     $pdo->beginTransaction();

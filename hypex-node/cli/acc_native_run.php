@@ -390,12 +390,14 @@ try {
             $grid = acc_opening_balance_grid($pdo, $year);
             $status = acc_opening_balance_status($pdo, $year);
             $posted = acc_opening_balance_is_posted($pdo, $year);
+            $parties = acc_opening_balance_parties($pdo, $year);
             cli_out([
                 'ok' => true,
                 'year' => $year,
                 'grid' => $grid,
                 'status' => $status,
                 'is_posted' => $posted,
+                'parties' => $parties,
             ]);
         }
         if ($action === 'opening_save') {
@@ -404,7 +406,11 @@ try {
             if (!is_array($amounts)) {
                 $amounts = [];
             }
-            $result = acc_opening_balance_save_and_post($pdo, $year, $entryDate, $amounts, $userId);
+            $parties = $payload['parties'] ?? [];
+            if (!is_array($parties)) {
+                $parties = [];
+            }
+            $result = acc_opening_balance_save_and_post($pdo, $year, $entryDate, $amounts, $userId, $parties);
             cli_out([
                 'ok' => true,
                 'message' => 'تم حفظ وترحيل الأرصدة الافتتاحية لسنة ' . $year . '.',
