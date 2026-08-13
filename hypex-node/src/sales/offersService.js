@@ -5,6 +5,7 @@
  */
 const db = require('../db');
 const { neighbors, findIdByNo } = require('../lib/docBrowse');
+const { parseDateToIso, todayIso: htmlTodayIso } = require('../lib/html');
 
 async function safeQuery(sql, params = []) {
   try {
@@ -133,11 +134,7 @@ async function ensureSchema() {
 }
 
 function todayIso() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return htmlTodayIso();
 }
 
 function r3(n) {
@@ -231,13 +228,13 @@ async function saveOffer(payload, userId) {
   await ensureSchema();
   const id = Number(payload.id || 0);
   const nameAr = String(payload.name_ar || '').trim();
-  const dateFrom = String(payload.date_from || '').slice(0, 10);
-  const dateTo = String(payload.date_to || '').slice(0, 10);
+  const dateFrom = parseDateToIso(payload.date_from || '', '');
+  const dateTo = parseDateToIso(payload.date_to || '', '');
   const notes = String(payload.notes || '').trim() || null;
   const isActive = payload.is_active === 0 || payload.is_active === '0' || payload.is_active === false ? 0 : 1;
 
   if (!nameAr) return { ok: false, error: 'اسم العرض مطلوب.' };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+  if (!dateFrom || !dateTo || !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
     return { ok: false, error: 'تاريخ بداية ونهاية العرض مطلوبان.' };
   }
   if (dateTo < dateFrom) return { ok: false, error: 'تاريخ النهاية يجب أن يكون بعد البداية أو مساوياً له.' };
