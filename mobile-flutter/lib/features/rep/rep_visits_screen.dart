@@ -60,6 +60,15 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
           }
         }
       }
+      if (selected == null) {
+        final open = visits.where((v) {
+          final s = Fmt.str(v['status']);
+          return s == 'checked_in' || s == 'pending_manual_checkout';
+        }).toList();
+        if (open.length == 1) {
+          selected = open.first;
+        }
+      }
       setState(() {
         _visits = visits;
         _selected = selected;
@@ -164,9 +173,43 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     });
   }
 
+  List<Map<String, dynamic>> get _openVisits => _visits.where((v) {
+        final s = Fmt.str(v['status']);
+        return s == 'checked_in' || s == 'pending_manual_checkout';
+      }).toList();
+
+  Future<bool> _confirm(String title, String body) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(body, style: const TextStyle(height: 1.45)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _checkin({required bool manual}) async {
     final v = _selected;
     if (v == null || _busy) return;
+    final name = Fmt.str(v['name']);
+    final ok = await _confirm(
+      'تأكيد تسجيل الدخول',
+      manual
+          ? 'تأكيد الدخول اليدوي إلى «$name»؟\nستبقى الزيارة مفتوحة حتى تسجّل الخروج.'
+          : 'تأكيد الدخول بـ GPS إلى «$name»؟\nستبقى الزيارة مفتوحة حتى تسجّل الخروج.',
+    );
+    if (!ok || !mounted) return;
     final api = context.read<ApiClient>();
     final csrf = context.read<SessionController>().csrf;
     setState(() => _busy = true);
@@ -195,7 +238,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       if (!mounted) return;
       showSnack(
         context,
-        Fmt.str(res['message']).isEmpty ? 'تم تسجيل الدخول' : Fmt.str(res['message']),
+        Fmt.str(res['message']).isEmpty ? 'تم تسجيل الدخول. الزيارة مفتوحة.' : Fmt.str(res['message']),
       );
       await _load(keepCustomerId: Fmt.toInt(v['customer_id']));
     } on ApiException catch (e) {
@@ -209,6 +252,14 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   Future<void> _checkout({required bool manual}) async {
     final v = _selected;
     if (v == null || _busy) return;
+    final name = Fmt.str(v['name']);
+    final ok = await _confirm(
+      'تأكيد تسجيل الخروج',
+      manual
+          ? 'تأكيد الخروج اليدوي من عند «$name»؟'
+          : 'تأكيد الخروج بـ GPS من عند «$name»؟',
+    );
+    if (!ok || !mounted) return;
     final api = context.read<ApiClient>();
     final csrf = context.read<SessionController>().csrf;
     String? reason;
@@ -269,10 +320,10 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       showSnack(
         context,
         msg.isEmpty
-            ? (needsApproval ? 'بانتظار موافقة المدير' : 'تم تسجيل الخروج')
+            ? (needsApproval ? 'بانتظار موافقة المدير' : 'تم تسجيل الخروج وإغلاق الزيارة')
             : msg,
       );
-      await _load(keepCustomerId: Fmt.toInt(v['customer_id']));
+      await _load(keepCustomerId: needsApproval ? Fmt.toInt(v['customer_id']) : 0);
     } on ApiException catch (e) {
       if (!mounted) return;
       showSnack(context, e.message, error: true);
@@ -315,7 +366,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
               right: -50,
               child: _blob(200, AppTheme.teal.withValues(alpha: 0.07)),
             ),
-            if (_selected == null) _buildEmpty() else _buildVisit(),
+            if (_selected == null) _buildHome() else _buildVisit(),
             if (_busy)
               const Positioned(
                 left: 0,
@@ -339,65 +390,103 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildHome() {
+    final open = _openVisits;
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: [
-                    AppTheme.primary.withValues(alpha: 0.14),
-                    AppTheme.teal.withValues(alpha: 0.12),
-                  ],
+            if (open.isNotEmpty) ...[
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'زيارات مفتوحة (${open.length})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: AppTheme.textMain,
+                  ),
                 ),
-                boxShadow: AppTheme.softShadow,
               ),
-              child: const Icon(
-                Icons.person_search_rounded,
-                size: 54,
-                color: AppTheme.primary,
+              const SizedBox(height: 4),
+              const Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'الزيارة تبقى مفتوحة حتى تسجّل الخروج.',
+                  style: TextStyle(color: AppTheme.textSoft, fontSize: 12.5),
+                ),
               ),
-            ),
-            const SizedBox(height: 28),
-            const Text(
-              'تسجيل زيارة عميل',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.3,
-                color: AppTheme.textMain,
+              const SizedBox(height: 10),
+              ...open.map(
+                (v) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _OpenVisitTile(
+                    name: Fmt.str(v['name']),
+                    code: Fmt.str(v['code']),
+                    status: _statusLabel(_statusOf(v)),
+                    color: _statusColor(_statusOf(v)),
+                    checkinAt: Fmt.str(v['visit_checkin_at']),
+                    onTap: _busy ? null : () => setState(() => _selected = v),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'اختر العميل من القائمة ثم سجّل الدخول\nبـ GPS أو يدوياً.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14.5,
-                height: 1.55,
-                color: AppTheme.textSoft,
+              const SizedBox(height: 18),
+            ] else ...[
+              const SizedBox(height: 12),
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topRight,
+                    end: Alignment.bottomLeft,
+                    colors: [
+                      AppTheme.primary.withValues(alpha: 0.14),
+                      AppTheme.teal.withValues(alpha: 0.12),
+                    ],
+                  ),
+                  boxShadow: AppTheme.softShadow,
+                ),
+                child: const Icon(
+                  Icons.person_search_rounded,
+                  size: 54,
+                  color: AppTheme.primary,
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
+              const SizedBox(height: 28),
+              const Text(
+                'تسجيل زيارة عميل',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                  color: AppTheme.textMain,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'اختر العميل من القائمة ثم سجّل الدخول\nبـ GPS أو يدوياً.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  height: 1.55,
+                  color: AppTheme.textSoft,
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
             SizedBox(
               width: double.infinity,
               height: 54,
               child: FilledButton.icon(
                 onPressed: _busy ? null : _pickCustomer,
                 icon: const Icon(Icons.list_alt_rounded),
-                label: const Text(
-                  'اختيار العميل',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                label: Text(
+                  open.isEmpty ? 'اختيار العميل' : 'زيارة عميل جديد',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppTheme.primary,
@@ -573,6 +662,80 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       return 'لن تُغلق الزيارة قبل اعتماد المدير';
     }
     return 'اضغط دخول GPS وأنت عند العميل';
+  }
+}
+
+class _OpenVisitTile extends StatelessWidget {
+  const _OpenVisitTile({
+    required this.name,
+    required this.code,
+    required this.status,
+    required this.color,
+    required this.checkinAt,
+    this.onTap,
+  });
+
+  final String name;
+  final String code;
+  final String status;
+  final Color color;
+  final String checkinAt;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+            boxShadow: AppTheme.softShadow,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(Icons.login_rounded, color: color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                    ),
+                    Text(
+                      [
+                        if (code.isNotEmpty) code,
+                        status,
+                        if (checkinAt.isNotEmpty) checkinAt,
+                      ].join(' · '),
+                      style: const TextStyle(color: AppTheme.textSoft, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_left_rounded, color: color),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -977,10 +1140,17 @@ class _CustomerPickSheetState extends State<_CustomerPickSheet> {
                                       style: const TextStyle(fontWeight: FontWeight.w700),
                                     ),
                                     Text(
-                                      Fmt.str(v['code']),
-                                      style: const TextStyle(
-                                        color: AppTheme.textSoft,
+                                      [
+                                        Fmt.str(v['code']),
+                                        if (status == 'checked_in') 'مفتوحة',
+                                        if (status == 'pending_manual_checkout') 'بانتظار موافقة',
+                                      ].where((s) => s.isNotEmpty).join(' · '),
+                                      style: TextStyle(
+                                        color: status == 'checked_in' || status == 'pending_manual_checkout'
+                                            ? color
+                                            : AppTheme.textSoft,
                                         fontSize: 12.5,
+                                        fontWeight: status == 'checked_in' ? FontWeight.w700 : FontWeight.w400,
                                       ),
                                     ),
                                   ],
