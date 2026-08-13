@@ -13,6 +13,7 @@
   var lines = [];
   var itemTimers = {};
   var suggestSeq = 0;
+  var posted = root.getAttribute('data-posted') === '1';
 
   function emptyLine() {
     return {
@@ -116,6 +117,7 @@
   }
 
   function trashBtnHtml() {
+    if (posted) return '<span class="muted">—</span>';
     return (
       '<button type="button" class="si-del js-del" title="حذف" aria-label="حذف">' +
       '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" d="M4 7h16M9 7V5h6v2M18.5 7l-.7 12.2a1.5 1.5 0 0 1-1.5 1.4H7.7a1.5 1.5 0 0 1-1.5-1.4L5.5 7M10 11v6M14 11v6"/></svg>' +
@@ -126,7 +128,9 @@
   function typeSelectHtml(ln) {
     var t = ln.offer_type === 'discount_pct' ? 'discount_pct' : 'bonus';
     return (
-      '<select class="js-offer-type si-field" data-nav="1">' +
+      '<select class="js-offer-type si-field" data-nav="1"' +
+      (posted ? ' disabled' : '') +
+      '>' +
       '<option value="bonus"' +
       (t === 'bonus' ? ' selected' : '') +
       '>كمية إضافية</option>' +
@@ -142,12 +146,13 @@
     var cur =
       which === 'bonus' ? Number(ln.bonus_unit_id) || 0 : Number(ln.unit_id) || 0;
     var cls = which === 'bonus' ? 'js-bonus-unit' : 'js-unit';
+    var dis = disabled || posted;
     if (!units.length) {
       return (
         '<select class="' +
         cls +
         ' si-field" data-nav="1"' +
-        (disabled ? ' disabled' : '') +
+        (dis ? ' disabled' : '') +
         '>' +
         '<option value="0">قطعة</option></select>'
       );
@@ -175,7 +180,7 @@
       '<select class="' +
       cls +
       ' si-field" data-nav="1"' +
-      (disabled ? ' disabled' : '') +
+      (dis ? ' disabled' : '') +
       '>' +
       opts +
       '</select>'
@@ -200,27 +205,33 @@
         '<input class="js-item-code" type="text" autocomplete="off" spellcheck="false" dir="rtl" ' +
         'placeholder="باركود" data-nav="1" value="' +
         escAttr(ln.item_code || '') +
-        '">' +
+        '"' +
+        (posted ? ' readonly' : '') +
+        '>' +
         '</td>' +
         '<td class="si-item-name-cell so-col-name">' +
         '<input class="js-item-name" type="text" autocomplete="off" spellcheck="false" dir="rtl" ' +
         'placeholder="اضغط للبحث عن المادة…" data-nav="1" value="' +
         escAttr(ln.item_name || '') +
-        '">' +
+        '"' +
+        (posted ? ' readonly' : '') +
+        '>' +
         '</td>' +
         '<td class="so-col-unit">' +
         unitSelectHtml(ln, 'trigger', false) +
         '</td>' +
         '<td class="so-col-qty"><input class="js-trigger" type="number" min="0.001" step="0.001" data-nav="1" dir="ltr" value="' +
         escAttr(ln.trigger_qty) +
-        '" title="كمية العرض بوحدة المادة"></td>' +
+        '" title="كمية العرض بوحدة المادة"' +
+        (posted ? ' readonly' : '') +
+        '></td>' +
         '<td class="so-col-type">' +
         typeSelectHtml(ln) +
         '</td>' +
         '<td class="so-col-bonus"><input class="js-bonus" type="number" min="0" step="0.001" data-nav="1" dir="ltr" value="' +
         escAttr(ln.bonus_qty) +
         '" ' +
-        (isBonus ? '' : 'disabled') +
+        (isBonus && !posted ? '' : 'disabled') +
         ' title="كمية إضافية مجانية"></td>' +
         '<td class="so-col-bunit">' +
         unitSelectHtml(ln, 'bonus', !isBonus) +
@@ -228,7 +239,7 @@
         '<td class="so-col-disc"><input class="js-disc" type="number" min="0" max="100" step="0.001" data-nav="1" dir="ltr" value="' +
         escAttr(ln.discount_pct) +
         '" ' +
-        (isBonus ? 'disabled' : '') +
+        (isBonus || posted ? 'disabled' : '') +
         '></td>' +
         '<td class="si-col-del">' +
         trashBtnHtml() +
@@ -299,13 +310,13 @@
     lines[idx].item_name = String(it.name_ar || it.name || '').trim();
     lines[idx].units = Array.isArray(it.units) ? it.units : [];
     var du = defaultUnitOf(lines[idx].units);
-    var bu = baseUnitOf(lines[idx].units);
     lines[idx].unit_id = du.unit_id || 0;
     lines[idx].unit_factor = Number(du.factor) > 0 ? Number(du.factor) : 1;
     lines[idx].unit_name = du.name || '';
-    lines[idx].bonus_unit_id = bu.unit_id || 0;
-    lines[idx].bonus_unit_factor = Number(bu.factor) > 0 ? Number(bu.factor) : 1;
-    lines[idx].bonus_unit_name = bu.name || '';
+    // افتراضياً نفس وحدة العرض حتى تكون الكمية الإضافية صحيحة (مثلاً 10+1 كرتون)
+    lines[idx].bonus_unit_id = du.unit_id || 0;
+    lines[idx].bonus_unit_factor = Number(du.factor) > 0 ? Number(du.factor) : 1;
+    lines[idx].bonus_unit_name = du.name || '';
     hideSuggest();
     render({ idx: idx, cls: '.js-unit', select: false });
   }
@@ -523,6 +534,7 @@
   }
 
   function bindRow(tr) {
+    if (posted) return;
     var idx = Number(tr.getAttribute('data-idx'));
 
     tr.querySelector('.js-del') &&
@@ -557,6 +569,7 @@
   var addBtn = document.getElementById('so-add-line');
   if (addBtn) {
     addBtn.addEventListener('click', function () {
+      if (posted) return;
       syncFromDom();
       for (var i = 0; i < lines.length; i++) {
         if (!Number(lines[i].item_id)) {
@@ -610,6 +623,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'F10') {
       e.preventDefault();
+      if (posted) return;
       if (form) {
         syncFromDom();
         syncJson();

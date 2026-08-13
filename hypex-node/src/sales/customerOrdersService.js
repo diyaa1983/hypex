@@ -147,8 +147,8 @@ async function getOrder(id) {
 }
 
 function computeLine(raw, defaultTax) {
-  const qty = Math.max(0, Math.round(Number(raw.qty) || 0));
-  const qtyExtra = Math.max(0, Math.round(Number(raw.qty_extra) || 0));
+  const qty = Math.max(0, r6(raw.qty));
+  const qtyExtra = Math.max(0, r6(raw.qty_extra));
   const unitPrice = r6(raw.unit_price);
   const discountPct = r6(raw.discount_pct);
   const taxRate =

@@ -7,6 +7,8 @@
 
   function docDate() {
     var el =
+      document.getElementById('inv_date') ||
+      document.getElementById('co_date') ||
       document.getElementById('order_date') ||
       document.getElementById('invoice_date') ||
       document.querySelector('input[name="order_date"]') ||
@@ -53,20 +55,49 @@
       });
   }
 
+  function clearOfferFields(ln, tr) {
+    if (!ln) return;
+    if (ln._offer_driven) {
+      if (ln._offer_driven_type === 'bonus') {
+        ln.qty_extra = '';
+        if (tr) {
+          var qe = tr.querySelector('.js-qty-extra');
+          if (qe) qe.value = '';
+        }
+      } else if (ln._offer_driven_type === 'discount_pct') {
+        ln.discount_pct = '';
+        if (tr) {
+          var d = tr.querySelector('.js-disc');
+          if (d) d.value = '';
+        }
+      }
+    }
+    ln._offer_driven = false;
+    ln._offer_driven_type = '';
+    ln._offer_hint = '';
+  }
+
   /**
    * يحدّث كائن البند + حقول الصف إن وُجدت
    */
   function applyEffectToLine(ln, effect, tr) {
     if (!ln) return ln;
-    if (!effect) return ln;
+    if (!effect) {
+      clearOfferFields(ln, tr);
+      return ln;
+    }
     if (effect.offer_type === 'bonus') {
       ln.qty_extra = effect.bonus_qty;
+      ln._offer_driven = true;
+      ln._offer_driven_type = 'bonus';
       if (tr) {
         var qe = tr.querySelector('.js-qty-extra');
         if (qe) qe.value = String(effect.bonus_qty);
       }
     } else if (effect.offer_type === 'discount_pct') {
       ln.discount_pct = effect.discount_pct;
+      ln._offer_driven = true;
+      ln._offer_driven_type = 'discount_pct';
       if (tr) {
         var d = tr.querySelector('.js-disc');
         if (d) d.value = String(effect.discount_pct);

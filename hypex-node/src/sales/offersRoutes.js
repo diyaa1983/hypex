@@ -156,11 +156,13 @@ router.get('/sales/offers', async (req, res) => {
           const from = String(r.date_from || '').slice(0, 10);
           const to = String(r.date_to || '').slice(0, 10);
           const inRange = from <= today && to >= today;
-          const st = !Number(r.is_active)
-            ? ui.statusPill('lock', 'موقوف')
-            : inRange
-              ? ui.statusPill('ok', 'ساري')
-              : ui.statusPill('wait', 'خارج الفترة');
+          const posted = Number(r.is_posted) === 1;
+          const active = Number(r.is_active) === 1;
+          let st;
+          if (!active) st = ui.statusPill('lock', 'موقوف');
+          else if (!posted) st = ui.statusPill('wait', 'مسودة');
+          else if (inRange) st = ui.statusPill('ok', 'مرحّل · ساري');
+          else st = ui.statusPill('wait', 'مرحّل · خارج الفترة');
           return `<tr>
             <td class="si-num" dir="ltr">${esc(r.offer_no || '')}</td>
             <td><strong>${esc(r.name_ar || '')}</strong></td>
@@ -170,10 +172,7 @@ router.get('/sales/offers', async (req, res) => {
             <td>${st}</td>
             <td>
               <div class="si-act">
-                <a class="si-btn" href="/sales/offers/${r.id}">تعديل</a>
-                <form method="post" action="/sales/offers/${r.id}/toggle" style="display:inline">
-                  <button type="submit" class="si-btn">${Number(r.is_active) ? 'إيقاف' : 'تفعيل'}</button>
-                </form>
+                <a class="si-btn" href="/sales/offers/${r.id}">فتح</a>
               </div>
             </td>
           </tr>`;
@@ -222,10 +221,27 @@ async function renderForm(req, res, id) {
   const dateTo = doc ? String(doc.date_to).slice(0, 10) : svc.todayIso();
   const linesJson = JSON.stringify(doc?.lines || []).replace(/</g, '\\u003c');
   const activeChecked = !doc || Number(doc.is_active) === 1 ? 'checked' : '';
+  const isPosted = !!(doc && Number(doc.is_posted) === 1);
+  const isActive = !doc || Number(doc.is_active) === 1;
+  const canPost = !!(doc && doc.id && !isPosted && isActive);
+  const canUnpost = !!(doc && doc.id && isPosted);
+  const canStop = !!(doc && doc.id && isActive);
+  const lockedAttr = isPosted ? 'readonly' : '';
+  const lockedDis = isPosted ? 'disabled' : '';
   const nav = await svc.browseNeighbors(doc ? doc.id : 0);
   const offerNo = doc?.offer_no || '';
   const offerName = doc?.name_ar || '';
   const docNoClass = offerNo || (doc && doc.id) ? 'is-saved' : '';
+  const statusBadge = !doc
+    ? ''
+    : !isActive
+      ? ui.statusPill('lock', 'موقوف')
+      : isPosted
+        ? ui.statusPill('ok', 'مرحّل')
+        : ui.statusPill('wait', 'مسودة');
+  const subtitle = isNew
+    ? 'عرض جديد — حدد الفترة والمواد ثم احفظ ورحّل'
+    : `سند ${esc(offerNo)}${offerName ? ' · ' + esc(offerName) : ''}`;
 
   const body = `
     <div class="si-stage" id="so-root" data-so-ux="1"
@@ -234,14 +250,13 @@ async function renderForm(req, res, id) {
          data-first-id="${Number(nav.first_id) || 0}"
          data-last-id="${Number(nav.last_id) || 0}"
          data-current-id="${doc ? Number(doc.id) : 0}"
-         data-offer-no="${esc(offerNo)}">
+         data-offer-no="${esc(offerNo)}"
+         data-posted="${isPosted ? '1' : '0'}">
       ${ui.hero({
         mark: '🎁',
         kicker: KICKER,
         title: 'شاشة العرض',
-        subtitle: isNew
-          ? 'عرض جديد — حدد الفترة والمواد'
-          : `سند ${esc(offerNo)}${offerName ? ' · ' + esc(offerName) : ''}`,
+        subtitle: subtitle + (statusBadge ? ' · ' + statusBadge : ''),
         actions: [
           { label: 'القائمة', href: '/sales/offers' },
           { label: 'تقرير العروض', href: '/sales/reports/offers' },
@@ -253,10 +268,27 @@ async function renderForm(req, res, id) {
 
       <div class="si-cmd si-doc-toolbar" role="toolbar">
         <div class="si-tb-group si-tb-group--core">
-          <button type="submit" form="so-form" class="si-tb si-tb--save" name="action" value="save" data-hx-save="1">
+          <button type="submit" form="so-form" class="si-tb si-tb--save" name="action" value="save" data-hx-save="1"
+                  ${isPosted ? 'disabled' : ''}>
             <span class="si-tb-lbl">حفظ</span>
             <span class="si-tb-keywrap"><kbd class="si-tb-key">F10</kbd></span>
           </button>
+          <form method="post" action="/sales/offers/${doc ? doc.id : 0}/post" style="display:inline">
+            <button type="submit" class="si-tb si-tb--post" ${canPost ? '' : 'disabled'}>
+              <span class="si-tb-lbl">ترحيل</span>
+            </button>
+          </form>
+          <form method="post" action="/sales/offers/${doc ? doc.id : 0}/unpost" style="display:inline">
+            <button type="submit" class="si-tb" ${canUnpost ? '' : 'disabled'}>
+              <span class="si-tb-lbl">فك الترحيل</span>
+            </button>
+          </form>
+          <form method="post" action="/sales/offers/${doc ? doc.id : 0}/stop" style="display:inline"
+                onsubmit="return confirm('إيقاف العرض؟ لن يُطبَّق على الفواتير والطلبات.');">
+            <button type="submit" class="si-tb si-tb--danger" ${canStop ? '' : 'disabled'}>
+              <span class="si-tb-lbl">إيقاف العرض</span>
+            </button>
+          </form>
         </div>
         <div class="si-tb-group">
           <a class="si-tb si-tb--ghost" href="/sales/offers"><span class="si-tb-lbl">إلغاء</span></a>
@@ -272,7 +304,7 @@ async function renderForm(req, res, id) {
           <div class="si-surface-head">
             <h2>بيانات العرض</h2>
             <label class="so-active">
-              <input type="checkbox" name="is_active" value="1" ${activeChecked}>
+              <input type="checkbox" name="is_active" value="1" ${activeChecked} ${lockedDis}>
               <span>نشط</span>
             </label>
           </div>
@@ -292,21 +324,22 @@ async function renderForm(req, res, id) {
             <label class="si-f so-f-name">
               <span class="si-f-head">اسم العرض *</span>
               <input class="si-field" name="name_ar" id="so-name" required value="${esc(doc?.name_ar || '')}"
-                     placeholder="مثال: عرض رمضان" autocomplete="off">
+                     placeholder="مثال: عرض رمضان" autocomplete="off" ${lockedAttr}>
             </label>
             <label class="si-f so-f-from">
               <span class="si-f-head">بداية العرض *</span>
               <input class="si-field si-field--mono" type="date" name="date_from" id="so-from"
-                     value="${esc(dateFrom)}" required dir="ltr">
+                     value="${esc(dateFrom)}" required ${lockedAttr}>
             </label>
             <label class="si-f so-f-to">
               <span class="si-f-head">نهاية العرض *</span>
               <input class="si-field si-field--mono" type="date" name="date_to" id="so-to"
-                     value="${esc(dateTo)}" required dir="ltr">
+                     value="${esc(dateTo)}" required ${lockedAttr}>
             </label>
             <label class="si-f so-f-notes">
               <span class="si-f-head">ملاحظات</span>
-              <input class="si-field" name="notes" value="${esc(doc?.notes || '')}" maxlength="500" placeholder="اختياري…">
+              <input class="si-field" name="notes" id="so-notes" value="${esc(doc?.notes || '')}"
+                     placeholder="اختياري" ${lockedAttr}>
             </label>
           </div>
         </section>
@@ -316,10 +349,11 @@ async function renderForm(req, res, id) {
             <div>
               <h2>مواد العرض</h2>
               <p class="muted so-lines-hint">
-                اختر المادة ثم وحدة كمية العرض (قطعة / كرتونة) · للكمية الإضافية اختر وحدتها بشكل مستقل · أو استخدم خصم %
+                اختر المادة ثم وحدة كمية العرض (قطعة / كرتونة) · للكمية الإضافية يُفضَّل نفس الوحدة · أو استخدم خصم %
+                ${isPosted ? ' · <strong>العرض مرحّل — افك الترحيل للتعديل</strong>' : ''}
               </p>
             </div>
-            <button type="button" class="si-btn si-btn--primary" id="so-add-line">＋ إضافة مادة</button>
+            <button type="button" class="si-btn si-btn--primary" id="so-add-line" ${isPosted ? 'disabled' : ''}>＋ إضافة مادة</button>
           </div>
           <div class="si-lines-wrap so-lines-wrap">
             <table class="si-lines si-lines--co si-lines--so" id="so-table">
@@ -402,6 +436,36 @@ router.post('/sales/offers/:id/toggle', async (req, res) => {
   );
 });
 
+router.post('/sales/offers/:id/post', async (req, res) => {
+  if (!canOffers(req.session.user)) return forbid(res);
+  const id = Number(req.params.id);
+  const result = await svc.postOffer(id);
+  const q = result.ok ? 'msg' : 'err';
+  res.redirect(
+    '/sales/offers/' + id + '?' + q + '=' + encodeURIComponent(result.message || result.error || '')
+  );
+});
+
+router.post('/sales/offers/:id/unpost', async (req, res) => {
+  if (!canOffers(req.session.user)) return forbid(res);
+  const id = Number(req.params.id);
+  const result = await svc.unpostOffer(id);
+  const q = result.ok ? 'msg' : 'err';
+  res.redirect(
+    '/sales/offers/' + id + '?' + q + '=' + encodeURIComponent(result.message || result.error || '')
+  );
+});
+
+router.post('/sales/offers/:id/stop', async (req, res) => {
+  if (!canOffers(req.session.user)) return forbid(res);
+  const id = Number(req.params.id);
+  const result = await svc.stopOffer(id);
+  const q = result.ok ? 'msg' : 'err';
+  res.redirect(
+    '/sales/offers/' + id + '?' + q + '=' + encodeURIComponent(result.message || result.error || '')
+  );
+});
+
 /* ── Report ── */
 router.get('/sales/reports/offers', async (req, res) => {
   try {
@@ -450,7 +514,7 @@ router.get('/sales/reports/offers', async (req, res) => {
               <td>${esc(r.name_ar || '')}</td>
               <td class="si-num" dir="ltr">${esc(ui.isoToDmy(String(r.date_from).slice(0, 10)))}</td>
               <td class="si-num" dir="ltr">${esc(ui.isoToDmy(String(r.date_to).slice(0, 10)))}</td>
-              <td>${Number(r.is_active) ? 'نشط' : 'موقوف'}</td>
+              <td>${Number(r.is_active) ? (Number(r.is_posted) ? 'مرحّل' : 'مسودة') : 'موقوف'}</td>
               <td class="si-num" dir="ltr">${esc(r.item_code || '')}</td>
               <td>${esc(r.item_name || '')}</td>
               <td>${esc(typ)}</td>

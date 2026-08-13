@@ -246,6 +246,9 @@
           if (updated) {
             ln.qty_extra = updated.qty_extra;
             ln.discount_pct = updated.discount_pct;
+            ln._offer_driven = updated._offer_driven;
+            ln._offer_driven_type = updated._offer_driven_type;
+            ln._offer_hint = updated._offer_hint;
           }
           if (typeof renderLines === 'function') renderLines();
         },
@@ -736,6 +739,16 @@
           if (priceEl) priceEl.value = String(ln.unit_price);
         }
         readLineFromRow(tr);
+        if (window.HxOffers && Number(ln.item_id)) {
+          window.HxOffers.refreshLine({
+            idx: idx,
+            ln: state.lines[idx],
+            tr: tr,
+            onDone: function () {
+              readLineFromRow(tr);
+            },
+          });
+        }
       });
     }
     // حذف البند — التفويض العام على tbody أدناه
@@ -1203,6 +1216,26 @@
 
   var disc = document.getElementById('inv_discount');
   if (disc) disc.addEventListener('input', recomputeFooter);
+
+  var invDateEl = document.getElementById('inv_date');
+  if (invDateEl && window.HxOffers) {
+    invDateEl.addEventListener('change', function () {
+      state.lines.forEach(function (ln, idx) {
+        if (!ln || !Number(ln.item_id)) return;
+        var tr = document.querySelector('#si-lines-body tr[data-idx="' + idx + '"]') ||
+          document.querySelector('tr[data-idx="' + idx + '"]');
+        window.HxOffers.refreshLine({
+          idx: idx,
+          ln: ln,
+          tr: tr,
+          onDone: function () {
+            if (tr) readLineFromRow(tr);
+            else if (typeof renderLines === 'function') renderLines();
+          },
+        });
+      });
+    });
+  }
 
   function saveInvoice(then, opts) {
     opts = opts || {};

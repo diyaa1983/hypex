@@ -965,3 +965,14 @@ a:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* إخفاء أسهم الزيادة/النقصان في حقول number بكل النظام */
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

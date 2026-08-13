@@ -393,6 +393,9 @@
           if (updated) {
             ln.qty_extra = updated.qty_extra;
             ln.discount_pct = updated.discount_pct;
+            ln._offer_driven = updated._offer_driven;
+            ln._offer_driven_type = updated._offer_driven_type;
+            ln._offer_hint = updated._offer_hint;
           }
           if (typeof renderLines === 'function') renderLines();
         },
@@ -1133,6 +1136,16 @@
         }
         readLineFromRow(tr);
         fitRowFields(tr);
+        if (window.HxOffers && Number((state.lines[idx] || {}).item_id)) {
+          window.HxOffers.refreshLine({
+            idx: idx,
+            ln: state.lines[idx],
+            tr: tr,
+            onDone: function () {
+              readLineFromRow(tr);
+            },
+          });
+        }
       });
     }
     var codeInput = tr.querySelector('.js-item-code');
@@ -1595,6 +1608,26 @@
 
   var disc = document.getElementById('co_discount');
   if (disc) disc.addEventListener('input', recomputeFooter);
+
+  var coDateEl = document.getElementById('co_date');
+  if (coDateEl && window.HxOffers) {
+    coDateEl.addEventListener('change', function () {
+      state.lines.forEach(function (ln, idx) {
+        if (!ln || !Number(ln.item_id)) return;
+        var tr = document.querySelector('#co-lines-body tr[data-idx="' + idx + '"]') ||
+          document.querySelector('tr[data-idx="' + idx + '"]');
+        window.HxOffers.refreshLine({
+          idx: idx,
+          ln: ln,
+          tr: tr,
+          onDone: function () {
+            if (tr) readLineFromRow(tr);
+            else if (typeof renderLines === 'function') renderLines();
+          },
+        });
+      });
+    });
+  }
 
   function collectPayload() {
     syncLinesFromDom();

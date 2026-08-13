@@ -44,6 +44,7 @@ async function ensureSchema() {
         date_from DATE NOT NULL,
         date_to DATE NOT NULL,
         is_active TINYINT(1) NOT NULL DEFAULT 1,
+        is_posted TINYINT(1) NOT NULL DEFAULT 0,
         notes VARCHAR(500) NULL,
         created_by INT UNSIGNED NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -91,6 +92,15 @@ async function ensureSchema() {
       await db.query(
         `ALTER TABLE sal_offer_line ADD COLUMN bonus_unit_factor DECIMAL(18,6) NOT NULL DEFAULT 1 AFTER bonus_unit_id`
       );
+    }
+  }
+  if (await tableExists('sal_offer')) {
+    if (!(await columnExists('sal_offer', 'is_posted'))) {
+      await db.query(
+        `ALTER TABLE sal_offer ADD COLUMN is_posted TINYINT(1) NOT NULL DEFAULT 0 AFTER is_active`
+      );
+      // العروض السابقة النشطة تُعتبر مرحّلة حتى لا تتوقف فجأة
+      await db.query(`UPDATE sal_offer SET is_posted = 1 WHERE is_active = 1`);
     }
   }
   if (!(await tableExists('sal_offer_application'))) {
@@ -165,7 +175,7 @@ async function listOffers({ q = '' } = {}) {
     params.push(like, like, like);
   }
   return safeQuery(
-    `SELECT o.id, o.offer_no, o.name_ar, o.date_from, o.date_to, o.is_active, o.notes, o.created_at,
+    `SELECT o.id, o.offer_no, o.name_ar, o.date_from, o.date_to, o.is_active, o.is_posted, o.notes, o.created_at,
             (SELECT COUNT(*) FROM sal_offer_line l WHERE l.offer_id = o.id) AS lines_count
      FROM sal_offer o
      WHERE ${where}
@@ -232,6 +242,13 @@ async function saveOffer(payload, userId) {
   const dateTo = parseDateToIso(payload.date_to || '', '');
   const notes = String(payload.notes || '').trim() || null;
   const isActive = payload.is_active === 0 || payload.is_active === '0' || payload.is_active === false ? 0 : 1;
+
+  if (id > 0) {
+    const cur = await safeQuery(`SELECT is_posted FROM sal_offer WHERE id = ? LIMIT 1`, [id]);
+    if (cur[0] && Number(cur[0].is_posted) === 1) {
+      return { ok: false, error: 'العرض مرحّل — افك الترحيل أولاً للتعديل.' };
+    }
+  }
 
   if (!nameAr) return { ok: false, error: 'اسم العرض مطلوب.' };
   if (!dateFrom || !dateTo || !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
@@ -309,8 +326,8 @@ async function saveOffer(payload, userId) {
     } else {
       const offerNo = await nextOfferNo();
       const [ins] = await conn.execute(
-        `INSERT INTO sal_offer (offer_no, name_ar, date_from, date_to, is_active, notes, created_by)
-         VALUES (?,?,?,?,?,?,?)`,
+        `INSERT INTO sal_offer (offer_no, name_ar, date_from, date_to, is_active, is_posted, notes, created_by)
+         VALUES (?,?,?,?,?,0,?,?)`,
         [offerNo, nameAr, dateFrom, dateTo, isActive, notes, userId || null]
       );
       offerId = Number(ins.insertId);
@@ -362,8 +379,45 @@ async function toggleOffer(id) {
   return { ok: true, message: 'تم تحديث حالة العرض.' };
 }
 
+async function postOffer(id) {
+  await ensureSchema();
+  const oid = Number(id);
+  if (!oid) return { ok: false, error: 'معرّف غير صالح.' };
+  const rows = await safeQuery(`SELECT id, is_active, is_posted FROM sal_offer WHERE id = ? LIMIT 1`, [oid]);
+  const row = rows[0];
+  if (!row) return { ok: false, error: 'العرض غير موجود.' };
+  if (Number(row.is_posted) === 1) return { ok: true, message: 'العرض مرحّل مسبقاً.' };
+  if (Number(row.is_active) !== 1) return { ok: false, error: 'لا يمكن ترحيل عرض موقوف — فعّله أولاً.' };
+  const lines = await safeQuery(`SELECT id FROM sal_offer_line WHERE offer_id = ? LIMIT 1`, [oid]);
+  if (!lines.length) return { ok: false, error: 'أضف مواداً للعرض قبل الترحيل.' };
+  await safeQuery(`UPDATE sal_offer SET is_posted = 1, updated_at=NOW() WHERE id = ?`, [oid]);
+  return { ok: true, message: 'تم ترحيل العرض — سيُطبَّق على الفواتير والطلبات.' };
+}
+
+async function unpostOffer(id) {
+  await ensureSchema();
+  const oid = Number(id);
+  if (!oid) return { ok: false, error: 'معرّف غير صالح.' };
+  const rows = await safeQuery(`SELECT id, is_posted FROM sal_offer WHERE id = ? LIMIT 1`, [oid]);
+  if (!rows[0]) return { ok: false, error: 'العرض غير موجود.' };
+  if (Number(rows[0].is_posted) !== 1) return { ok: true, message: 'العرض غير مرحّل.' };
+  await safeQuery(`UPDATE sal_offer SET is_posted = 0, updated_at=NOW() WHERE id = ?`, [oid]);
+  return { ok: true, message: 'تم فك ترحيل العرض.' };
+}
+
+async function stopOffer(id) {
+  await ensureSchema();
+  const oid = Number(id);
+  if (!oid) return { ok: false, error: 'معرّف غير صالح.' };
+  const rows = await safeQuery(`SELECT id, is_active FROM sal_offer WHERE id = ? LIMIT 1`, [oid]);
+  if (!rows[0]) return { ok: false, error: 'العرض غير موجود.' };
+  if (Number(rows[0].is_active) !== 1) return { ok: true, message: 'العرض موقوف مسبقاً.' };
+  await safeQuery(`UPDATE sal_offer SET is_active = 0, updated_at=NOW() WHERE id = ?`, [oid]);
+  return { ok: true, message: 'تم إيقاف العرض.' };
+}
+
 /**
- * عروض نشطة لتاريخ مستند — مفهرسة حسب item_id
+ * عروض نشطة مرحّلة لتاريخ مستند — مفهرسة حسب item_id
  * عند تعدد عروض لنفس المادة يُفضَّل الأحدث date_from ثم أكبر id
  */
 async function activeOfferMapForDate(docDate) {
@@ -379,6 +433,7 @@ async function activeOfferMapForDate(docDate) {
      FROM sal_offer o
      INNER JOIN sal_offer_line l ON l.offer_id = o.id
      WHERE o.is_active = 1
+       AND o.is_posted = 1
        AND o.date_from <= ?
        AND o.date_to >= ?
      ORDER BY o.date_from DESC, o.id DESC, l.id ASC`,
@@ -427,7 +482,9 @@ function computeOfferEffect(qty, offer, opts = {}) {
     const times = Math.floor(qtyBase / triggerBase + 1e-9);
     if (!(times > 0)) return out;
     out.applied = true;
-    out.bonus_qty = r3((times * bonusEachBase) / lineFactor);
+    // كمية إضافية بوحدة بند الفاتورة/الطلب (قد تكون كسراً إن اختلفت وحدة البونص)
+    const rawBonus = (times * bonusEachBase) / lineFactor;
+    out.bonus_qty = Math.round(rawBonus * 1e6) / 1e6;
     out.offer = offer;
     return out;
   }
@@ -519,7 +576,7 @@ async function reportOfferDefinitions({ q = '' } = {}) {
     params.push(like, like, like, like);
   }
   return safeQuery(
-    `SELECT o.offer_no, o.name_ar, o.date_from, o.date_to, o.is_active,
+    `SELECT o.offer_no, o.name_ar, o.date_from, o.date_to, o.is_active, o.is_posted,
             COALESCE(NULLIF(TRIM(i.barcode),''), i.sku) AS item_code,
             i.name_ar AS item_name,
             l.offer_type, l.trigger_qty, l.bonus_qty, l.discount_pct
@@ -540,6 +597,9 @@ module.exports = {
   getOffer,
   saveOffer,
   toggleOffer,
+  postOffer,
+  unpostOffer,
+  stopOffer,
   activeOfferMapForDate,
   computeOfferEffect,
   logApplications,
