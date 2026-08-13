@@ -348,6 +348,14 @@
     return n;
   }
 
+  /** عرض حقل رقمي يُدخلها المستخدم — فارغ بدل صفر تلقائي */
+  function userNumAttr(v) {
+    if (v === '' || v == null) return '';
+    var n = Number(v);
+    if (!Number.isFinite(n) || n === 0) return '';
+    return String(v);
+  }
+
   function applyItemToLine(ln, it) {
     ln = ln || {};
     ln.item_id = it.id;
@@ -370,7 +378,9 @@
     } else {
       ln.unit_price = unitSalePrice(ln.base_sale, ln.unit_factor);
     }
-    if (!ln.qty) ln.qty = 1;
+    if (ln.qty == null) ln.qty = '';
+    if (ln.qty_extra == null) ln.qty_extra = '';
+    if (ln.discount_pct == null) ln.discount_pct = '';
     if (it.tax_rate_percent != null && it.tax_rate_percent !== '') {
       ln.tax_rate_percent = Number(it.tax_rate_percent);
     } else if (ln.tax_rate_percent == null) {
@@ -697,13 +707,13 @@
         '<td class="si-unit-cell">' +
         unitSelectHtml(ln, locked).replace('<select class="js-unit"', '<select class="js-unit" data-nav="1"') +
         '</td>' +
-        '<td><input class="js-qty" type="number" step="1" min="0" data-nav="1" value="' +
-        escAttr(ln.qty) +
+        '<td><input class="js-qty" type="number" step="1" min="0" data-nav="1" placeholder="كمية" value="' +
+        escAttr(userNumAttr(ln.qty)) +
         '" ' +
         (locked ? 'readonly' : '') +
         '></td>' +
-        '<td><input class="js-qty-extra" type="number" step="1" min="0" data-nav="1" value="' +
-        escAttr(ln.qty_extra || 0) +
+        '<td><input class="js-qty-extra" type="number" step="1" min="0" data-nav="1" placeholder="إضافية" value="' +
+        escAttr(userNumAttr(ln.qty_extra)) +
         '" ' +
         (locked ? 'readonly' : '') +
         '></td>' +
@@ -715,8 +725,8 @@
         '</td>' +
         '<td><input class="js-disc" type="number" step="' +
         qtyStep() +
-        '" min="0" max="100" data-nav="1" value="' +
-        escAttr(ln.discount_pct || 0) +
+        '" min="0" max="100" data-nav="1" placeholder="خصم %" value="' +
+        escAttr(userNumAttr(ln.discount_pct)) +
         '" ' +
         (locked ? 'readonly' : '') +
         '></td>' +
@@ -1333,15 +1343,15 @@
       item_code: '',
       item_barcode: '',
       name_ar: '',
-      qty: 1,
-      qty_extra: 0,
+      qty: '',
+      qty_extra: '',
       unit_price: 0,
       base_sale: 0,
       unit_id: 0,
       unit_name: 'قطعة',
       unit_factor: 1,
       units: [],
-      discount_pct: 0,
+      discount_pct: '',
       tax_rate_percent: defaultTax,
     });
     renderLines();
