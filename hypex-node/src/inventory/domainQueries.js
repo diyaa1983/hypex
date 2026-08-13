@@ -47,7 +47,7 @@ async function listWarehouses({ q = '', activeOnly = true } = {}) {
   );
 }
 
-async function listItems({ q = '', activeOnly = true } = {}) {
+async function listItems({ q = '', activeOnly = true, limit = 200 } = {}) {
   const where = ['1=1'];
   const params = [];
   if (activeOnly) where.push('i.is_active = 1');
@@ -56,6 +56,7 @@ async function listItems({ q = '', activeOnly = true } = {}) {
     where.push(`(i.name_ar LIKE ? OR IFNULL(i.sku,'') LIKE ? OR IFNULL(i.barcode,'') LIKE ?)`);
     params.push(like, like, like);
   }
+  const lim = Math.min(5000, Math.max(50, Number(limit) || 200));
   return safeQuery(
     `SELECT i.id, i.sku, i.barcode, i.name_ar, i.default_cost, i.default_sale, i.is_active,
             c.name_ar AS category_name, w.name_ar AS warehouse_name
@@ -63,7 +64,8 @@ async function listItems({ q = '', activeOnly = true } = {}) {
      LEFT JOIN inv_item_category c ON c.id = i.category_id
      LEFT JOIN inv_warehouse w ON w.id = i.default_warehouse_id
      WHERE ${where.join(' AND ')}
-     ORDER BY i.id DESC LIMIT 200`,
+     ORDER BY i.name_ar, i.id
+     LIMIT ${lim}`,
     params
   );
 }

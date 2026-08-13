@@ -172,7 +172,7 @@ module.exports = createDomainRouter({
     },
     '/inventory/reports/item-moves': async (req, { ui }) => {
       const warehouses = await q.listWarehouses({ activeOnly: true });
-      const items = await q.listItems({ activeOnly: true });
+      const items = await q.listItems({ activeOnly: true, limit: 3000 });
       const itemId = Number(req.query.item_id || 0) || 0;
       const warehouseId = Number(req.query.warehouse_id || 0) || 0;
       const run = String(req.query.run || '') === '1';
@@ -255,12 +255,12 @@ module.exports = createDomainRouter({
               ? `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>`
               : ''
           }
-          <div class="si-rail no-print">
-            <form method="get" action="/inventory/reports/item-moves" class="si-search" id="imv-form" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%" autocomplete="off">
+          <div class="si-rail no-print" style="overflow:visible;border-radius:16px">
+            <form method="get" action="/inventory/reports/item-moves" class="si-search" id="imv-form" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%;overflow:visible" autocomplete="off">
               <input type="hidden" name="run" value="1">
               <input type="hidden" name="item_id" id="imv-item-id" value="${itemId || 0}">
-              <label style="font-size:.8rem;font-weight:700;color:#5c6578;position:relative;min-width:16rem;flex:1 1 16rem">المادة *
-                <div class="si-cust-wrap" style="position:relative">
+              <label style="font-size:.8rem;font-weight:700;color:#5c6578;position:relative;min-width:18rem;flex:1 1 18rem;z-index:30">المادة *
+                <div class="si-cust-wrap" style="position:relative;z-index:30">
                   <input type="search" class="si-field" id="imv-item-search"
                          value="${ui.esc(selectedItemLabel)}"
                          placeholder="ابحث بالباركود أو اسم المادة…"
@@ -303,6 +303,13 @@ module.exports = createDomainRouter({
             var form = document.getElementById('imv-form');
             if (!search || !suggest || !itemId) return;
 
+            function escHtml(s) {
+              return String(s || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+            }
             function norm(s) {
               return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim();
             }
@@ -312,18 +319,46 @@ module.exports = createDomainRouter({
             function labelOf(c) {
               return (c.code || '') + (c.code && c.name ? ' — ' : '') + (c.name || '');
             }
+            function placeFloat() {
+              var r = search.getBoundingClientRect();
+              var width = Math.max(r.width, 320);
+              var left = r.left;
+              if (left + width > window.innerWidth - 8) {
+                left = Math.max(8, window.innerWidth - width - 8);
+              }
+              suggest.classList.add('si-suggest--float');
+              suggest.style.position = 'fixed';
+              suggest.style.left = left + 'px';
+              suggest.style.right = 'auto';
+              suggest.style.top = r.bottom + 4 + 'px';
+              suggest.style.width = width + 'px';
+              suggest.style.maxHeight = 'min(22rem, 55vh)';
+              suggest.style.zIndex = '4000';
+            }
+            function closeList() {
+              suggest.hidden = true;
+              suggest.setAttribute('hidden', '');
+              suggest.classList.remove('si-suggest--float');
+              suggest.style.left = '';
+              suggest.style.top = '';
+              suggest.style.width = '';
+              suggest.style.position = '';
+              suggest.dataset.hxUserNav = '';
+              suggest.querySelectorAll('button.is-active').forEach(function (b) {
+                b.classList.remove('is-active');
+              });
+            }
             function pick(c) {
               itemId.value = String(c.id || 0);
               search.value = labelOf(c);
-              suggest.hidden = true;
-              suggest.setAttribute('hidden', '');
-              suggest.innerHTML = '';
+              closeList();
             }
             function render(list) {
               if (!list.length) {
                 suggest.innerHTML = '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#64748b;font-size:.85rem">لا نتائج مطابقة</div>';
                 suggest.hidden = false;
                 suggest.removeAttribute('hidden');
+                placeFloat();
                 return;
               }
               suggest.innerHTML = list
@@ -332,14 +367,16 @@ module.exports = createDomainRouter({
                     '<button type="button" data-id="' +
                     c.id +
                     '">' +
-                    String(labelOf(c)).replace(/</g, '&lt;') +
+                    escHtml(labelOf(c)) +
                     '</button>'
                   );
                 })
                 .join('');
               suggest.hidden = false;
               suggest.removeAttribute('hidden');
+              placeFloat();
               suggest.querySelectorAll('button[data-id]').forEach(function (btn) {
+                btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
                 btn.addEventListener('click', function () {
                   var id = Number(btn.getAttribute('data-id') || 0);
                   var c = catalog.find(function (x) { return Number(x.id) === id; });
@@ -349,8 +386,10 @@ module.exports = createDomainRouter({
             }
             function filter(q) {
               q = norm(q);
+              /* إن كان النص هو اختيار سابق (باركود — اسم) خذ الباركود فقط للفلترة */
+              if (q.indexOf(' — ') >= 0) q = norm(q.split(' — ')[0]);
               var qd = digits(q);
-              if (!q) return catalog.slice(0, 50);
+              if (!q) return catalog.slice(0, 80);
               return catalog
                 .filter(function (c) {
                   var name = norm(c.name);
@@ -360,47 +399,92 @@ module.exports = createDomainRouter({
                   if (qd && a.indexOf(qd) !== -1) return true;
                   return false;
                 })
-                .slice(0, 50);
+                .slice(0, 80);
             }
-            function openList(q) {
-              render(filter(q || ''));
+            function openList(opts) {
+              opts = opts || {};
+              /* عند الضغط/التركيز مع مادة مختارة: اعرض كل القائمة لتغيير الاختيار */
+              if (opts.all || Number(itemId.value) > 0) {
+                render(catalog.slice(0, 80));
+                return;
+              }
+              render(filter(search.value || ''));
+            }
+            function moveActive(dir) {
+              var btns = Array.prototype.slice.call(suggest.querySelectorAll('button[data-id]'));
+              if (!btns.length || suggest.hidden) return false;
+              var cur = -1;
+              for (var i = 0; i < btns.length; i++) {
+                if (btns[i].classList.contains('is-active')) { cur = i; break; }
+              }
+              if (cur < 0) cur = dir > 0 ? -1 : 0;
+              var next = cur + dir;
+              if (next < 0) next = btns.length - 1;
+              if (next >= btns.length) next = 0;
+              btns.forEach(function (b, i) {
+                if (i === next) b.classList.add('is-active');
+                else b.classList.remove('is-active');
+              });
+              suggest.dataset.hxUserNav = '1';
+              try { btns[next].scrollIntoView({ block: 'nearest' }); } catch (e) {}
+              return true;
             }
             var t = null;
             search.addEventListener('input', function () {
               itemId.value = '0';
               clearTimeout(t);
-              t = setTimeout(function () { openList(search.value); }, 120);
+              t = setTimeout(function () {
+                render(filter(search.value || ''));
+              }, 120);
             });
-            search.addEventListener('focus', function () { openList(search.value); });
-            search.addEventListener('click', function () {
-              if (suggest.hidden) openList(search.value);
-            });
+            search.addEventListener('focus', function () { openList({ all: true }); });
+            search.addEventListener('click', function () { openList({ all: true }); });
             search.addEventListener('keydown', function (e) {
               if (e.key === 'Escape') {
-                suggest.hidden = true;
-                suggest.setAttribute('hidden', '');
+                closeList();
+                return;
+              }
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (suggest.hidden) openList({ all: true });
+                moveActive(1);
+                return;
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (suggest.hidden) openList({ all: true });
+                moveActive(-1);
+                return;
               }
               if (e.key === 'Enter') {
+                var active = suggest.querySelector('button.is-active');
                 var first = suggest.querySelector('button[data-id]');
-                if (first && !suggest.hidden) {
+                if (!suggest.hidden && (active || first)) {
                   e.preventDefault();
-                  first.click();
+                  (active || first).click();
                 }
               }
             });
             document.addEventListener('click', function (e) {
-              if (!suggest.contains(e.target) && e.target !== search) {
-                suggest.hidden = true;
-                suggest.setAttribute('hidden', '');
-              }
+              if (!suggest.contains(e.target) && e.target !== search) closeList();
+            });
+            window.addEventListener('scroll', function () {
+              if (!suggest.hidden) placeFloat();
+            }, true);
+            window.addEventListener('resize', function () {
+              if (!suggest.hidden) placeFloat();
             });
             if (form) {
               form.addEventListener('submit', function (e) {
                 if (!(Number(itemId.value) > 0)) {
                   e.preventDefault();
-                  openList(search.value);
+                  openList({ all: true });
                   search.focus();
-                  alert('اختر المادة من القائمة.');
+                  if (window.HypexUI && window.HypexUI.alert) {
+                    window.HypexUI.alert('اختر المادة من القائمة.', 'error');
+                  } else {
+                    alert('اختر المادة من القائمة.');
+                  }
                 }
               });
             }
