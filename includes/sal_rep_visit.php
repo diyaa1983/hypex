@@ -740,10 +740,31 @@ function sal_rep_visit_method_label(?string $method): string
         return 'GPS';
     }
     if ($m === 'MANUAL') {
-        return 'يدوي';
+        return 'Manual';
     }
 
     return (string) $method;
+}
+
+/** يوم الأسبوع بالعربية لتاريخ ISO Y-m-d */
+function sal_rep_visit_weekday_ar(?string $isoDate): string
+{
+    $iso = trim((string) $isoDate);
+    if ($iso === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $iso)) {
+        return '';
+    }
+    $wd = (int) date('w', strtotime($iso));
+    $labels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+    return $labels[$wd] ?? '';
+}
+
+function sal_rep_visit_date_with_weekday(?string $isoDate): string
+{
+    $dmy = function_exists('format_date_dmY') ? format_date_dmY((string) $isoDate) : (string) $isoDate;
+    $day = sal_rep_visit_weekday_ar($isoDate);
+
+    return $day !== '' ? ($day . ' ' . $dmy) : $dmy;
 }
 
 function sal_rep_visit_fmt_ts($v): string

@@ -1336,14 +1336,20 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     const m = String(v || '').trim().toUpperCase();
     if (!m) return '—';
     if (m === 'GPS') return 'GPS';
-    if (m === 'MANUAL') return 'يدوي';
+    if (m === 'MANUAL') return 'Manual';
     return esc(v);
   }
-  function distLabel(v) {
-    if (v == null || v === '') return '—';
-    const n = Number(v);
-    if (!Number.isFinite(n)) return '—';
-    return `${Math.round(n)} م`;
+  function weekdayAr(iso) {
+    const s = String(iso || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+    const d = new Date(s + 'T12:00:00');
+    if (Number.isNaN(d.getTime())) return '';
+    return ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][d.getDay()] || '';
+  }
+  function dateWithWeekday(iso) {
+    const dmy = ui.isoToDmy(iso);
+    const day = weekdayAr(iso);
+    return day ? `${day} ${dmy}` : dmy;
   }
   function durationLabel(a, b) {
     if (!a || !b) return '—';
@@ -1366,62 +1372,108 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       (r) =>
         `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${esc(
           r.name_ar || ''
-        )}${r.code ? ' (' + esc(r.code) + ')' : ''}</option>`
+        )}</option>`
     )
     .join('');
 
-  const rowsHtml =
-    rows
-      .map(
-        (r, i) => `<tr>
-      <td class="si-num" dir="ltr">${i + 1}</td>
-      <td class="si-num" dir="ltr">${esc(ui.isoToDmy(r.route_date))}</td>
-      <td>${esc(r.sales_rep_name || '—')}${
-          r.sales_rep_code ? ` <span class="muted" dir="ltr">(${esc(r.sales_rep_code)})</span>` : ''
-        }</td>
+  const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
+  const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
+  const colCount = groupByRep ? 12 : 13;
+
+  function visitDataCells(r, seq, includeRep) {
+    return `<td class="si-num" dir="ltr">${seq}</td>
+      <td>${esc(dateWithWeekday(r.route_date))}</td>
+      ${includeRep ? `<td>${esc(r.sales_rep_name || '—')}</td>` : ''}
       <td>${esc(r.customer_name || '—')}</td>
       <td class="si-num" dir="ltr">${esc(r.customer_code || '')}</td>
       <td>${esc(r.region_name || '—')}</td>
       <td>${esc(r.address_name || '—')}</td>
       <td class="si-num" dir="ltr">${fmtTs(r.visit_checkin_at)}</td>
       <td>${methodLabel(r.checkin_method)}</td>
-      <td class="si-num" dir="ltr">${distLabel(r.checkin_distance_m)}</td>
       <td class="si-num" dir="ltr">${fmtTs(r.visit_checkout_at)}</td>
       <td>${methodLabel(r.checkout_method)}</td>
-      <td class="si-num" dir="ltr">${distLabel(r.checkout_distance_m)}</td>
       <td class="si-num" dir="ltr">${durationLabel(r.visit_checkin_at, r.visit_checkout_at)}</td>
-      <td>${statusLbl(r)}</td>
-    </tr>`
-      )
-      .join('') || ui.emptyRow(15, 'لا تسجيلات زيارة في الفترة المحددة');
+      <td>${statusLbl(r)}</td>`;
+  }
 
-  // shorter headers for single-line layout
-  const visitHeaders = [
-    '#',
-    'التاريخ',
-    'المندوب',
-    'العميل',
-    'الرمز',
-    'المنطقة',
-    'العنوان',
-    'دخول',
-    'نوع',
-    'مسافة',
-    'خروج',
-    'نوع',
-    'مسافة',
-    'المدة',
-    'الحالة',
-  ];
+  let rowsHtml = '';
+  if (!rows.length) {
+    rowsHtml = ui.emptyRow(colCount, 'لا تسجيلات زيارة في الفترة المحددة');
+  } else if (groupByRep) {
+    const groups = new Map();
+    for (const r of rows) {
+      const id = Number(r.sales_rep_id || 0);
+      const key = id > 0 ? String(id) : '0';
+      if (!groups.has(key)) {
+        groups.set(key, {
+          name: r.sales_rep_name || 'مندوب',
+          rows: [],
+        });
+      }
+      groups.get(key).rows.push(r);
+    }
+    let seq = 0;
+    for (const g of groups.values()) {
+      rowsHtml += `<tr class="si-rep-group-row"><td colspan="${colCount}"><strong>المندوب: ${esc(
+        g.name
+      )}</strong> <span class="muted">(${g.rows.length} زيارة)</span></td></tr>`;
+      for (const r of g.rows) {
+        seq += 1;
+        rowsHtml += `<tr>${visitDataCells(r, seq, false)}</tr>`;
+      }
+    }
+  } else {
+    rowsHtml = rows.map((r, i) => `<tr>${visitDataCells(r, i + 1, true)}</tr>`).join('');
+  }
+
+  const visitHeaders = groupByRep
+    ? [
+        '#',
+        'التاريخ',
+        'العميل',
+        'رقم العميل',
+        'المنطقة',
+        'العنوان',
+        'دخول',
+        'نوع',
+        'خروج',
+        'نوع',
+        'مدة الزيارة',
+        'الحالة',
+      ]
+    : [
+        '#',
+        'التاريخ',
+        'المندوب',
+        'العميل',
+        'رقم العميل',
+        'المنطقة',
+        'العنوان',
+        'دخول',
+        'نوع',
+        'خروج',
+        'نوع',
+        'مدة الزيارة',
+        'الحالة',
+      ];
 
   const body = `
-    <style>@media print { @page { size: A4 landscape; margin: 6mm 5mm; } }</style>
+    <style>
+      @media print { @page { size: A4 landscape; margin: 6mm 5mm; } }
+      .si-report-page .si-rep-group-row td {
+        background: #e2e8f0 !important;
+        text-align: start !important;
+        font-weight: 700;
+        white-space: nowrap;
+        padding: 0.5rem 0.65rem !important;
+      }
+    </style>
     <div class="si-stage si-report-page">
       ${ui.hero({
         mark: '📍',
         kicker: KICKER,
         title: 'تقرير زيارات العملاء',
-        subtitle: 'تفاصيل دخول/خروج المندوب عند العميل: الوقت · GPS أو يدوي · المسافة · مدة الزيارة',
+        subtitle: 'تفاصيل دخول/خروج المندوب عند العميل: الوقت · GPS أو Manual · مدة الزيارة',
         actions: [
           { label: '🖨 طباعة', print: true },
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
@@ -1447,7 +1499,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             <select class="si-field" name="method">
               <option value="" ${method === '' ? 'selected' : ''}>— الكل —</option>
               <option value="GPS" ${method === 'GPS' ? 'selected' : ''}>GPS</option>
-              <option value="MANUAL" ${method === 'MANUAL' ? 'selected' : ''}>يدوي</option>
+              <option value="MANUAL" ${method === 'MANUAL' ? 'selected' : ''}>Manual</option>
             </select>
           </label>
           <label>الحالة
@@ -1462,7 +1514,9 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           <button type="button" class="si-btn si-btn--print no-print" data-print="1">🖨 طباعة</button>
         </form>
         <p class="muted" style="margin:.65rem 0 0;font-size:.82rem;line-height:1.45">
-          ${rows.length} زيارة مسجّلة من تطبيق الهاتف في الفترة المحددة.
+          ${rows.length} زيارة مسجّلة من تطبيق الهاتف في الفترة المحددة${
+            groupByRep ? ' · مجمّعة حسب المندوب' : ''
+          }.
         </p>
       </section>
       <div class="si-print-area">

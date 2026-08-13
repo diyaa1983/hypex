@@ -32,17 +32,33 @@ $rows = sal_rep_visit_report_rows($pdo, [
     'limit' => 1500,
 ]);
 
+$uniqueRepIds = [];
+foreach ($rows as $r) {
+    $rid = (int) ($r['sales_rep_id'] ?? 0);
+    if ($rid > 0) {
+        $uniqueRepIds[$rid] = true;
+    }
+}
+$groupByRep = $salesRepId < 1 && count($uniqueRepIds) > 1;
+$colCount = $groupByRep ? 12 : 13;
+
+$grouped = [];
+if ($groupByRep) {
+    foreach ($rows as $r) {
+        $rid = (int) ($r['sales_rep_id'] ?? 0);
+        $key = $rid > 0 ? (string) $rid : '0';
+        if (!isset($grouped[$key])) {
+            $grouped[$key] = [
+                'name' => (string) ($r['sales_rep_name'] ?? 'مندوب'),
+                'rows' => [],
+            ];
+        }
+        $grouped[$key]['rows'][] = $r;
+    }
+}
+
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
-
-function _visit_dist($v): string
-{
-    if ($v === null || $v === '') {
-        return '—';
-    }
-
-    return number_format((float) $v, 0) . ' م';
-}
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <style>
@@ -63,6 +79,11 @@ function _visit_dist($v): string
   vertical-align: middle;
   line-height: 1.25;
 }
+.report-sales-page.report-visits-page .report-visits-group td {
+  background: #e2e8f0;
+  text-align: start !important;
+  font-weight: 700;
+}
 @media print {
   @page { size: A4 landscape; margin: 6mm 5mm; }
   .report-sales-page.report-visits-page .report-sales-header { display: none !important; }
@@ -82,7 +103,7 @@ function _visit_dist($v): string
 <div class="card report-sales-page report-visits-page">
     <header class="report-sales-header no-print">
         <h2>تقرير زيارات العملاء</h2>
-        <p class="muted">تسجيلات دخول/خروج المندوب عند العميل — الوقت والنوع (GPS أو يدوي) والمسافة ومدة الزيارة</p>
+        <p class="muted">تسجيلات دخول/خروج المندوب عند العميل — الوقت والنوع (GPS أو Manual) ومدة الزيارة</p>
         <form method="get" class="report-filters" action="<?= esc(app_url('index.php')) ?>">
             <input type="hidden" name="r" value="report_sales_rep_visits">
             <label>من
@@ -97,7 +118,6 @@ function _visit_dist($v): string
                     <?php foreach ($reps as $rep): ?>
                         <option value="<?= (int) $rep['id'] ?>" <?= $salesRepId === (int) $rep['id'] ? 'selected' : '' ?>>
                             <?= esc((string) ($rep['name_ar'] ?? '')) ?>
-                            <?php if (!empty($rep['code'])): ?>(<?= esc((string) $rep['code']) ?>)<?php endif; ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -106,7 +126,7 @@ function _visit_dist($v): string
                 <select name="method">
                     <option value="" <?= $method === '' ? 'selected' : '' ?>>— الكل —</option>
                     <option value="GPS" <?= $method === 'GPS' ? 'selected' : '' ?>>GPS</option>
-                    <option value="MANUAL" <?= $method === 'MANUAL' ? 'selected' : '' ?>>يدوي</option>
+                    <option value="MANUAL" <?= $method === 'MANUAL' ? 'selected' : '' ?>>Manual</option>
                 </select>
             </label>
             <label>الحالة
@@ -128,40 +148,63 @@ function _visit_dist($v): string
             <tr>
                 <th>#</th>
                 <th>التاريخ</th>
-                <th>المندوب</th>
+                <?php if (!$groupByRep): ?><th>المندوب</th><?php endif; ?>
                 <th>العميل</th>
-                <th>الرمز</th>
+                <th>رقم العميل</th>
                 <th>المنطقة</th>
                 <th>العنوان</th>
                 <th>دخول</th>
                 <th>نوع</th>
-                <th>مسافة</th>
                 <th>خروج</th>
                 <th>نوع</th>
-                <th>مسافة</th>
-                <th>المدة</th>
+                <th>مدة الزيارة</th>
                 <th>الحالة</th>
             </tr>
             </thead>
             <tbody>
             <?php if ($rows === []): ?>
-                <tr><td colspan="15" class="muted">لا تسجيلات زيارة في الفترة المحددة.</td></tr>
+                <tr><td colspan="<?= (int) $colCount ?>" class="muted">لا تسجيلات زيارة في الفترة المحددة.</td></tr>
+            <?php elseif ($groupByRep): ?>
+                <?php $seq = 0; ?>
+                <?php foreach ($grouped as $g): ?>
+                    <tr class="report-visits-group">
+                        <td colspan="<?= (int) $colCount ?>">
+                            المندوب: <?= esc((string) $g['name']) ?>
+                            <span class="muted">(<?= count($g['rows']) ?> زيارة)</span>
+                        </td>
+                    </tr>
+                    <?php foreach ($g['rows'] as $r): ?>
+                        <?php $seq++; ?>
+                        <tr>
+                            <td dir="ltr"><?= $seq ?></td>
+                            <td><?= esc(sal_rep_visit_date_with_weekday((string) ($r['route_date'] ?? ''))) ?></td>
+                            <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
+                            <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
+                            <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>
+                            <td><?= esc((string) (($r['address_name'] ?? '') !== '' ? $r['address_name'] : '—')) ?></td>
+                            <td dir="ltr"><?= esc(sal_rep_visit_fmt_ts($r['visit_checkin_at'] ?? null)) ?></td>
+                            <td><?= esc((string) ($r['checkin_method_label'] ?? '—')) ?></td>
+                            <td dir="ltr"><?= esc(sal_rep_visit_fmt_ts($r['visit_checkout_at'] ?? null)) ?></td>
+                            <td><?= esc((string) ($r['checkout_method_label'] ?? '—')) ?></td>
+                            <td dir="ltr"><?= esc((string) ($r['duration_label'] ?? '—')) ?></td>
+                            <td><?= esc((string) ($r['status_label'] ?? '')) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endforeach; ?>
             <?php else: ?>
                 <?php foreach ($rows as $i => $r): ?>
                     <tr>
                         <td dir="ltr"><?= $i + 1 ?></td>
-                        <td dir="ltr"><?= esc(format_date_dmY((string) ($r['route_date'] ?? ''))) ?></td>
-                        <td><?= esc((string) ($r['sales_rep_name'] ?? '')) ?><?php if (!empty($r['sales_rep_code'])): ?> <span class="muted" dir="ltr">(<?= esc((string) $r['sales_rep_code']) ?>)</span><?php endif; ?></td>
+                        <td><?= esc(sal_rep_visit_date_with_weekday((string) ($r['route_date'] ?? ''))) ?></td>
+                        <td><?= esc((string) ($r['sales_rep_name'] ?? '')) ?></td>
                         <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
                         <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
                         <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>
                         <td><?= esc((string) (($r['address_name'] ?? '') !== '' ? $r['address_name'] : '—')) ?></td>
                         <td dir="ltr"><?= esc(sal_rep_visit_fmt_ts($r['visit_checkin_at'] ?? null)) ?></td>
                         <td><?= esc((string) ($r['checkin_method_label'] ?? '—')) ?></td>
-                        <td dir="ltr"><?= esc(_visit_dist($r['checkin_distance_m'] ?? null)) ?></td>
                         <td dir="ltr"><?= esc(sal_rep_visit_fmt_ts($r['visit_checkout_at'] ?? null)) ?></td>
                         <td><?= esc((string) ($r['checkout_method_label'] ?? '—')) ?></td>
-                        <td dir="ltr"><?= esc(_visit_dist($r['checkout_distance_m'] ?? null)) ?></td>
                         <td dir="ltr"><?= esc((string) ($r['duration_label'] ?? '—')) ?></td>
                         <td><?= esc((string) ($r['status_label'] ?? '')) ?></td>
                     </tr>

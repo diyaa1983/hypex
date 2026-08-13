@@ -2105,6 +2105,14 @@ body.si-2027 .si-tile-kind {
   text-align: center;
 }
 
+.si-report-page .si-rep-group-row td {
+  background: #e2e8f0 !important;
+  text-align: start !important;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 0.5rem 0.65rem !important;
+}
+
 /* -- طباعة -- */
 .print-only { display: none !important; }
 
