@@ -14,6 +14,7 @@ const mobileCatalog = [
       { r: 'm_sales_returns', label: 'مرتجع مبيعات', icon: '↩', path: '/mobile/sales-returns', kind: 'bridge' },
       { r: 'm_user_gps_locations', label: 'مواقع المستخدمين', icon: '📍', path: '/mobile/user-locations', kind: 'list' },
       { r: 'm_user_gps_tracker', label: 'تتبّع المواقع الحية', icon: '📡', path: '/mobile/gps-tracker', kind: 'list' },
+      { r: 'm_rep_visits', label: 'تسجيل زيارة العميل', icon: '🗺', path: '/mobile/rep-visits', kind: 'bridge' },
       { r: 'm_rep_load', label: 'تحميل عهدة', icon: '📦', path: '/mobile/rep-load', kind: 'bridge' },
       { r: 'm_rep_return', label: 'إرجاع عهدة', icon: '↩', path: '/mobile/rep-return', kind: 'bridge' },
       { r: 'm_rep_stock', label: 'رصيد المستودع', icon: '📊', path: '/mobile/rep-stock', kind: 'list' },

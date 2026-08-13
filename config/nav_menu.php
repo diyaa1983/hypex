@@ -577,6 +577,7 @@ return [
                         ['r' => 'm_sales_returns', 'label' => 'مرتجع مبيعات', 'icon' => '↩'],
                         ['r' => 'm_user_gps_locations', 'label' => 'مواقع المستخدمين', 'icon' => '📍'],
                         ['r' => 'm_user_gps_tracker', 'label' => 'تتبّع المواقع الحية', 'icon' => '📡'],
+                        ['r' => 'm_rep_visits', 'label' => 'تسجيل زيارة العميل', 'icon' => '🗺'],
                         ['r' => 'm_rep_load', 'label' => 'تحميل عهدة', 'icon' => '📦'],
                         ['r' => 'm_rep_return', 'label' => 'إرجاع عهدة', 'icon' => '↩'],
                         ['r' => 'm_rep_stock', 'label' => 'رصيد المستودع', 'icon' => '📊'],
