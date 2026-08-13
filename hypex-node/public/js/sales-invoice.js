@@ -15,6 +15,7 @@
   var custTimer = null;
   var itemTimers = {};
   var busy = false;
+  var oraLoadSeq = 0;
 
   function rateClose(a, b) {
     return Math.abs(Number(a) - Number(b)) < 0.0001;
@@ -933,14 +934,7 @@
     if (posted || !document.getElementById('inv_customer')) return;
     var c = e.detail;
     if (!c || !c.id) return;
-    if (custInput) {
-      custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
-    }
-    if (custId) custId.value = c.id;
-    if (custBox) {
-      custBox.hidden = true;
-      custBox.setAttribute('hidden', '');
-    }
+    onCustomerSelected(c);
     e.preventDefault();
   });
 
@@ -961,6 +955,134 @@
   var custInput = document.getElementById('inv_customer');
   var custId = document.getElementById('inv_customer_id');
   var custBox = document.getElementById('cust_suggest');
+
+  function fmtArAmt(n) {
+    var x = Number(n) || 0;
+    return x.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  }
+
+  function fmtArDate(iso) {
+    iso = String(iso || '').trim();
+    if (!iso) return '—';
+    var m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    return iso;
+  }
+
+  function setOraStatus(text, kind) {
+    var el = document.getElementById('inv-ora-ar-status');
+    if (!el) return;
+    el.hidden = !text;
+    el.textContent = text || '';
+    el.classList.remove('is-error');
+    if (kind === 'error') el.classList.add('is-error');
+  }
+
+  function renderOraCheques(list) {
+    var tb = document.getElementById('inv-ora-ar-chq-body');
+    if (!tb) return;
+    tb.innerHTML = '';
+    if (!list || !list.length) {
+      tb.innerHTML =
+        '<tr><td colspan="4" class="muted">لا شيكات قيد التحصيل لهذا العميل.</td></tr>';
+      return;
+    }
+    list.forEach(function (ch) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td dir="ltr"></td><td dir="ltr"></td><td dir="ltr" class="col-money"></td><td dir="ltr"></td>';
+      tr.cells[0].textContent = ch.chq_no || ch.check_no || '—';
+      tr.cells[1].textContent = fmtArDate(ch.chq_date || ch.due_date || ch.check_date);
+      tr.cells[2].textContent = fmtArAmt(ch.amount || ch.check_amount);
+      tr.cells[3].textContent = fmtArDate(ch.receipt_date || ch.capture_date);
+      tb.appendChild(tr);
+    });
+  }
+
+  function loadCustomerAr(customerId) {
+    var panel = document.getElementById('inv-ora-ar-panel');
+    var summary = document.getElementById('inv-ora-ar-summary');
+    if (!panel) return;
+    customerId = parseInt(customerId, 10) || 0;
+    if (!(customerId > 0)) {
+      panel.hidden = true;
+      if (summary) summary.hidden = true;
+      setOraStatus('اختر عميلاً لعرض الرصيد (مدين / دائن) والشيكات قيد التحصيل.', null);
+      return;
+    }
+    panel.hidden = false;
+    if (summary) summary.hidden = true;
+    setOraStatus('جاري جلب رصيد العميل والشيكات…', null);
+    var seq = ++oraLoadSeq;
+    fetch('/api/sales/invoices/customer-ar?customer_id=' + encodeURIComponent(String(customerId)), {
+      credentials: 'same-origin',
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (x) {
+        if (seq !== oraLoadSeq) return;
+        if (!x || !x.ok) {
+          setOraStatus((x && (x.message || x.error)) || 'تعذر جلب رصيد العميل.', 'error');
+          if (summary) summary.hidden = true;
+          return;
+        }
+        setOraStatus('', null);
+        if (summary) summary.hidden = false;
+        var nameEl = document.getElementById('inv-ora-ar-name');
+        var balEl = document.getElementById('inv-ora-ar-balance');
+        var debEl = document.getElementById('inv-ora-ar-debit');
+        var creEl = document.getElementById('inv-ora-ar-credit');
+        var totEl = document.getElementById('inv-ora-ar-chq-total');
+        var metaEl = document.getElementById('inv-ora-ar-meta');
+        var linkEl = document.getElementById('inv-ora-ar-full-link');
+        if (nameEl) nameEl.textContent = x.name || x.account || '—';
+        if (debEl) debEl.textContent = fmtArAmt(x.total_debit);
+        if (creEl) creEl.textContent = fmtArAmt(x.total_credit);
+        if (balEl) balEl.textContent = fmtArAmt(x.balance);
+        if (totEl) totEl.textContent = fmtArAmt(x.cheque_total);
+        if (metaEl) {
+          metaEl.textContent =
+            (x.account ? 'الحساب: ' + x.account + ' · ' : '') +
+            'الفترة: ' +
+            fmtArDate(x.from) +
+            ' — ' +
+            fmtArDate(x.to) +
+            (x.cheque_count != null ? ' · شيكات: ' + String(x.cheque_count) : '');
+        }
+        if (linkEl) {
+          if (x.statement_url) {
+            linkEl.href = x.statement_url;
+            linkEl.hidden = false;
+          } else {
+            linkEl.hidden = true;
+          }
+        }
+        renderOraCheques(x.cheques || []);
+        try {
+          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (e) {
+          /* ignore */
+        }
+      })
+      .catch(function () {
+        if (seq !== oraLoadSeq) return;
+        setOraStatus('فشل الاتصال أثناء جلب رصيد العميل.', 'error');
+        if (summary) summary.hidden = true;
+      });
+  }
+
+  function onCustomerSelected(c) {
+    if (!c || !c.id) return;
+    if (custId) custId.value = c.id;
+    if (custInput) custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
+    setCustomerPriceMode(c);
+    if (custBox) {
+      custBox.hidden = true;
+      custBox.setAttribute('hidden', '');
+    }
+    loadCustomerAr(c.id);
+  }
 
   function renderCustomerSuggestions(data) {
     if (!custBox) return;
@@ -989,10 +1111,7 @@
       b.type = 'button';
       b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
       b.addEventListener('click', function () {
-        if (custId) custId.value = c.id;
-        custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
-        setCustomerPriceMode(c);
-        custBox.hidden = true;
+        onCustomerSelected(c);
       });
       custBox.appendChild(b);
     });
@@ -1034,6 +1153,7 @@
     custInput.addEventListener('input', function () {
       if (custId) custId.value = '';
       setCustomerPriceMode({ use_wholesale_price: 0 });
+      loadCustomerAr(0);
       clearTimeout(custTimer);
       custTimer = setTimeout(function () {
         searchCustomers(custInput.value || '');
@@ -1717,6 +1837,8 @@
     } catch (e) {
       /* ignore */
     }
+
+    loadCustomerAr(state.customer_id);
   }
 
   var docNavApi = null;
@@ -1761,6 +1883,338 @@
 
   renderLines();
   setCustomerPriceMode({ use_wholesale_price: state.use_wholesale_price }, { reprice: false });
+
+  var initialCustomerId =
+    Number((document.getElementById('inv_customer_id') || {}).value || state.customer_id || 0) || 0;
+  if (initialCustomerId > 0) {
+    loadCustomerAr(initialCustomerId);
+  }
+  var refreshArBtn = document.getElementById('inv-ora-ar-refresh');
+  if (refreshArBtn) {
+    refreshArBtn.addEventListener('click', function () {
+      var cid = Number((document.getElementById('inv_customer_id') || {}).value || 0) || 0;
+      loadCustomerAr(cid);
+    });
+  }
+
+  function lineHasItem(ln) {
+    return !!(ln && Number(ln.item_id) > 0);
+  }
+
+  function focusLineField(idx, cls, doSelect) {
+    if (!tbody) return;
+    var tr = tbody.querySelector('tr[data-idx="' + idx + '"]');
+    if (!tr) return;
+    var el = tr.querySelector(cls || '.js-item-code');
+    if (!el) return;
+    try {
+      el.focus();
+      if (doSelect && typeof el.select === 'function') el.select();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  var LINE_NAV = ['.js-item-code', '.js-item-name', '.js-unit', '.js-qty', '.js-qty-extra', '.js-disc', '.js-tax'];
+
+  function lineNavEls(tr) {
+    var list = [];
+    LINE_NAV.forEach(function (sel) {
+      var el = tr.querySelector(sel);
+      if (!el || el.disabled) return;
+      if (el.readOnly && !el.classList.contains('js-item-name')) return;
+      if (el.classList.contains('js-item-name') && el.readOnly) return;
+      list.push(el);
+    });
+    return list;
+  }
+
+  function headerNavEls() {
+    var ids = ['inv_date', 'inv_pay', 'inv_wh', 'inv_customer'];
+    var list = [];
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el || el.disabled) return;
+      list.push(el);
+    });
+    return list;
+  }
+
+  function focusElement(el, doSelect) {
+    if (!el) return;
+    try {
+      el.focus();
+      if (doSelect && typeof el.select === 'function' && el.tagName === 'INPUT') el.select();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function getOpenSuggest(fromEl) {
+    if (!fromEl) return null;
+    var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
+    var box = tr && tr.querySelector('.js-item-suggest');
+    if (box && !box.hidden && box.querySelector('button')) return box;
+    if (fromEl.id === 'inv_customer') {
+      var cs = document.getElementById('cust_suggest');
+      if (cs && !cs.hidden && cs.querySelector('button')) return cs;
+    }
+    return null;
+  }
+
+  function suggestButtons(box) {
+    return box ? Array.prototype.slice.call(box.querySelectorAll('button')) : [];
+  }
+
+  function setSuggestActive(box, idx) {
+    var btns = suggestButtons(box);
+    if (!btns.length) return;
+    if (idx < 0) idx = btns.length - 1;
+    if (idx >= btns.length) idx = 0;
+    btns.forEach(function (b, i) {
+      if (i === idx) b.classList.add('is-active');
+      else b.classList.remove('is-active');
+    });
+    box.dataset.hxUserNav = '1';
+    try {
+      btns[idx].scrollIntoView({ block: 'nearest' });
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function moveSuggestActive(box, dir) {
+    var btns = suggestButtons(box);
+    if (!btns.length) return false;
+    var cur = -1;
+    for (var i = 0; i < btns.length; i++) {
+      if (btns[i].classList.contains('is-active')) {
+        cur = i;
+        break;
+      }
+    }
+    if (cur < 0) cur = dir > 0 ? -1 : 0;
+    setSuggestActive(box, cur + dir);
+    return true;
+  }
+
+  function pickActiveSuggest(box) {
+    if (!box || box.hidden) return false;
+    if (box.dataset.hxUserNav !== '1') return false;
+    var active = box.querySelector('button.is-active');
+    if (!active) return false;
+    active.click();
+    return true;
+  }
+
+  function goNextField(fromEl) {
+    if (posted || !fromEl) return;
+    var itemSug =
+      fromEl.closest && fromEl.closest('tr[data-idx]')
+        ? fromEl.closest('tr[data-idx]').querySelector('.js-item-suggest')
+        : null;
+    if (
+      itemSug &&
+      !itemSug.hidden &&
+      itemSug.querySelector('button') &&
+      (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-name'))
+    ) {
+      if (pickActiveSuggest(itemSug)) return;
+      closeFloatSuggest(itemSug);
+    } else if (fromEl.id === 'inv_customer') {
+      var cs = document.getElementById('cust_suggest');
+      if (cs && !cs.hidden && cs.querySelector('button')) {
+        if (pickActiveSuggest(cs) || cs.querySelector('button')) {
+          var btn = cs.querySelector('button.is-active') || cs.querySelector('button');
+          if (btn) {
+            btn.click();
+            return;
+          }
+        }
+      }
+    }
+
+    var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
+    if (tr && tbody && tbody.contains(tr)) {
+      var rowEls = lineNavEls(tr);
+      var i = rowEls.indexOf(fromEl);
+      if (i >= 0 && i < rowEls.length - 1) {
+        focusElement(rowEls[i + 1], true);
+        return;
+      }
+      var idx = Number(tr.getAttribute('data-idx'));
+      var curLn = state.lines[idx];
+      if (!lineHasItem(curLn)) {
+        focusLineField(idx, '.js-item-code', true);
+        setMsg('اختر المادة أولاً قبل الانتقال لسطر جديد.', 'error');
+        return;
+      }
+      var nextIdx = idx + 1;
+      if (nextIdx < (state.lines || []).length) {
+        focusLineField(nextIdx, '.js-item-code', true);
+      } else {
+        addEmptyLine();
+        focusLineField((state.lines || []).length - 1, '.js-item-code', true);
+      }
+      return;
+    }
+
+    var headers = headerNavEls();
+    var hi = headers.indexOf(fromEl);
+    if (hi >= 0 && hi < headers.length - 1) {
+      focusElement(headers[hi + 1], true);
+      return;
+    }
+    if (hi === headers.length - 1 || fromEl.id === 'inv_customer') {
+      if (!(state.lines || []).length) addEmptyLine();
+      focusLineField(0, '.js-item-code', true);
+    }
+  }
+
+  function goPrevField(fromEl) {
+    if (posted || !fromEl) return;
+    var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
+    if (tr && tbody && tbody.contains(tr)) {
+      var rowEls = lineNavEls(tr);
+      var i = rowEls.indexOf(fromEl);
+      if (i > 0) {
+        focusElement(rowEls[i - 1], true);
+        return;
+      }
+      var idx = Number(tr.getAttribute('data-idx'));
+      if (idx > 0) {
+        var prevTr = tbody.querySelector('tr[data-idx="' + (idx - 1) + '"]');
+        var prevEls = prevTr ? lineNavEls(prevTr) : [];
+        if (prevEls.length) focusElement(prevEls[prevEls.length - 1], true);
+      } else {
+        var headers = headerNavEls();
+        if (headers.length) focusElement(headers[headers.length - 1], true);
+      }
+      return;
+    }
+    var headers2 = headerNavEls();
+    var hi = headers2.indexOf(fromEl);
+    if (hi > 0) focusElement(headers2[hi - 1], true);
+  }
+
+  function goVerticalField(fromEl, dir) {
+    if (posted || !fromEl || !tbody) return;
+    var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
+    if (!tr || !tbody.contains(tr)) return;
+    var idx = Number(tr.getAttribute('data-idx'));
+    var nextIdx = idx + (dir > 0 ? 1 : -1);
+    if (nextIdx < 0) return;
+    if (nextIdx >= (state.lines || []).length) {
+      if (dir > 0) {
+        if (!lineHasItem(state.lines[idx])) {
+          setMsg('اختر المادة أولاً قبل إضافة سطر جديد.', 'error');
+          return;
+        }
+        addEmptyLine();
+        nextIdx = (state.lines || []).length - 1;
+      } else return;
+    }
+    var cls = null;
+    LINE_NAV.forEach(function (sel) {
+      if (fromEl.matches && fromEl.matches(sel)) cls = sel;
+      else if (fromEl.classList && fromEl.classList.contains(sel.slice(1))) cls = sel;
+    });
+    focusLineField(nextIdx, cls || '.js-item-code', true);
+  }
+
+  if (!document._siFieldNavBound) {
+    document._siFieldNavBound = true;
+    document.addEventListener(
+      'keydown',
+      function (e) {
+        if (!document.getElementById('si-doc-bar')) return;
+        var t = e.target;
+        if (!t || !t.closest) return;
+        if (!t.closest('.si-stage')) return;
+        if (t.id === 'inv_no') return;
+        if (t.tagName === 'TEXTAREA') return;
+        if (posted) return;
+
+        var openSug = getOpenSuggest(t);
+
+        if (e.key === 'Escape' && openSug) {
+          e.preventDefault();
+          if (openSug.id === 'cust_suggest') {
+            openSug.hidden = true;
+            openSug.setAttribute('hidden', '');
+          } else {
+            closeFloatSuggest(openSug);
+          }
+          return;
+        }
+
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+          if (t.tagName === 'BUTTON') return;
+          e.preventDefault();
+          goNextField(t);
+          return;
+        }
+        if (e.key === 'ArrowDown' && !e.altKey && !e.ctrlKey) {
+          if (openSug && moveSuggestActive(openSug, 1)) {
+            e.preventDefault();
+            return;
+          }
+          if (t.closest && t.closest('tr[data-idx]')) {
+            e.preventDefault();
+            goVerticalField(t, 1);
+          }
+          return;
+        }
+        if (e.key === 'ArrowUp' && !e.altKey && !e.ctrlKey) {
+          if (openSug && moveSuggestActive(openSug, -1)) {
+            e.preventDefault();
+            return;
+          }
+          if (t.closest && t.closest('tr[data-idx]')) {
+            e.preventDefault();
+            goVerticalField(t, -1);
+          }
+          return;
+        }
+        if (e.key === 'ArrowLeft' && !e.altKey && !e.ctrlKey) {
+          var inLineL = t.closest && t.closest('tr[data-idx]');
+          var inHeadL = t.getAttribute && t.getAttribute('data-nav') === '1';
+          if (!inLineL && !inHeadL) return;
+          if (
+            (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') &&
+            t.type !== 'number' &&
+            t.type !== 'date' &&
+            typeof t.selectionStart === 'number' &&
+            t.selectionStart > 0 &&
+            t.selectionStart === t.selectionEnd
+          ) {
+            return;
+          }
+          e.preventDefault();
+          goPrevField(t);
+          return;
+        }
+        if (e.key === 'ArrowRight' && !e.altKey && !e.ctrlKey) {
+          var inLineR = t.closest && t.closest('tr[data-idx]');
+          var inHeadR = t.getAttribute && t.getAttribute('data-nav') === '1';
+          if (!inLineR && !inHeadR) return;
+          if (
+            (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') &&
+            t.type !== 'number' &&
+            t.type !== 'date' &&
+            typeof t.selectionStart === 'number' &&
+            t.selectionEnd < String(t.value || '').length &&
+            t.selectionStart === t.selectionEnd
+          ) {
+            return;
+          }
+          e.preventDefault();
+          goNextField(t);
+        }
+      },
+      true
+    );
+  }
 
   if (window.HypexDocNav) {
     docNavApi = window.HypexDocNav.bind({

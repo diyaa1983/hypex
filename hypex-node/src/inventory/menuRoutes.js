@@ -198,14 +198,20 @@ module.exports = createDomainRouter({
         }
       }
 
-      const itemOpts = items
-        .map(
-          (it) =>
-            `<option value="${it.id}" ${itemId === Number(it.id) ? 'selected' : ''}>${ui.esc(
-              ((it.barcode || it.sku) ? (it.barcode || it.sku) + ' — ' : '') + (it.name_ar || '')
-            )}</option>`
-        )
-        .join('');
+      const selectedItem = itemId > 0 ? items.find((it) => Number(it.id) === itemId) : null;
+      const selectedItemLabel = selectedItem
+        ? ((selectedItem.barcode || selectedItem.sku) ? (selectedItem.barcode || selectedItem.sku) + ' — ' : '') +
+          (selectedItem.name_ar || '')
+        : '';
+
+      const itemCatalogJson = JSON.stringify(
+        items.map((it) => ({
+          id: Number(it.id),
+          code: String(it.barcode || it.sku || ''),
+          name: String(it.name_ar || ''),
+        }))
+      ).replace(/</g, '\\u003c');
+
       const whOpts = warehouses
         .map(
           (w) =>
@@ -250,13 +256,17 @@ module.exports = createDomainRouter({
               : ''
           }
           <div class="si-rail no-print">
-            <form method="get" action="/inventory/reports/item-moves" class="si-search" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%">
+            <form method="get" action="/inventory/reports/item-moves" class="si-search" id="imv-form" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%" autocomplete="off">
               <input type="hidden" name="run" value="1">
-              <label style="font-size:.8rem;font-weight:700;color:#5c6578">المادة *
-                <select name="item_id" class="si-field" required style="min-width:14rem">
-                  <option value="">— اختر المادة —</option>
-                  ${itemOpts}
-                </select>
+              <input type="hidden" name="item_id" id="imv-item-id" value="${itemId || 0}">
+              <label style="font-size:.8rem;font-weight:700;color:#5c6578;position:relative;min-width:16rem;flex:1 1 16rem">المادة *
+                <div class="si-cust-wrap" style="position:relative">
+                  <input type="search" class="si-field" id="imv-item-search"
+                         value="${ui.esc(selectedItemLabel)}"
+                         placeholder="ابحث بالباركود أو اسم المادة…"
+                         autocomplete="off" spellcheck="false">
+                  <div class="si-suggest" id="imv-item-suggest" hidden></div>
+                </div>
               </label>
               <label style="font-size:.8rem;font-weight:700;color:#5c6578">المستودع *
                 <select name="warehouse_id" class="si-field" required style="min-width:11rem">
@@ -280,6 +290,122 @@ module.exports = createDomainRouter({
               rowsHtml
             )}
           </div>
+          <script type="application/json" id="imv-catalog">${itemCatalogJson}</script>
+          <script>
+          (function () {
+            var catalog = [];
+            try {
+              catalog = JSON.parse(document.getElementById('imv-catalog').textContent || '[]');
+            } catch (e) { catalog = []; }
+            var search = document.getElementById('imv-item-search');
+            var suggest = document.getElementById('imv-item-suggest');
+            var itemId = document.getElementById('imv-item-id');
+            var form = document.getElementById('imv-form');
+            if (!search || !suggest || !itemId) return;
+
+            function norm(s) {
+              return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim();
+            }
+            function digits(s) {
+              return String(s || '').replace(/\\D+/g, '');
+            }
+            function labelOf(c) {
+              return (c.code || '') + (c.code && c.name ? ' — ' : '') + (c.name || '');
+            }
+            function pick(c) {
+              itemId.value = String(c.id || 0);
+              search.value = labelOf(c);
+              suggest.hidden = true;
+              suggest.setAttribute('hidden', '');
+              suggest.innerHTML = '';
+            }
+            function render(list) {
+              if (!list.length) {
+                suggest.innerHTML = '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#64748b;font-size:.85rem">لا نتائج مطابقة</div>';
+                suggest.hidden = false;
+                suggest.removeAttribute('hidden');
+                return;
+              }
+              suggest.innerHTML = list
+                .map(function (c) {
+                  return (
+                    '<button type="button" data-id="' +
+                    c.id +
+                    '">' +
+                    String(labelOf(c)).replace(/</g, '&lt;') +
+                    '</button>'
+                  );
+                })
+                .join('');
+              suggest.hidden = false;
+              suggest.removeAttribute('hidden');
+              suggest.querySelectorAll('button[data-id]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                  var id = Number(btn.getAttribute('data-id') || 0);
+                  var c = catalog.find(function (x) { return Number(x.id) === id; });
+                  if (c) pick(c);
+                });
+              });
+            }
+            function filter(q) {
+              q = norm(q);
+              var qd = digits(q);
+              if (!q) return catalog.slice(0, 50);
+              return catalog
+                .filter(function (c) {
+                  var name = norm(c.name);
+                  var code = norm(c.code);
+                  var a = digits(c.code);
+                  if (name.indexOf(q) !== -1 || code.indexOf(q) !== -1) return true;
+                  if (qd && a.indexOf(qd) !== -1) return true;
+                  return false;
+                })
+                .slice(0, 50);
+            }
+            function openList(q) {
+              render(filter(q || ''));
+            }
+            var t = null;
+            search.addEventListener('input', function () {
+              itemId.value = '0';
+              clearTimeout(t);
+              t = setTimeout(function () { openList(search.value); }, 120);
+            });
+            search.addEventListener('focus', function () { openList(search.value); });
+            search.addEventListener('click', function () {
+              if (suggest.hidden) openList(search.value);
+            });
+            search.addEventListener('keydown', function (e) {
+              if (e.key === 'Escape') {
+                suggest.hidden = true;
+                suggest.setAttribute('hidden', '');
+              }
+              if (e.key === 'Enter') {
+                var first = suggest.querySelector('button[data-id]');
+                if (first && !suggest.hidden) {
+                  e.preventDefault();
+                  first.click();
+                }
+              }
+            });
+            document.addEventListener('click', function (e) {
+              if (!suggest.contains(e.target) && e.target !== search) {
+                suggest.hidden = true;
+                suggest.setAttribute('hidden', '');
+              }
+            });
+            if (form) {
+              form.addEventListener('submit', function (e) {
+                if (!(Number(itemId.value) > 0)) {
+                  e.preventDefault();
+                  openList(search.value);
+                  search.focus();
+                  alert('اختر المادة من القائمة.');
+                }
+              });
+            }
+          })();
+          </script>
         </div>`;
       return {
         __raw: ui.salesPage({

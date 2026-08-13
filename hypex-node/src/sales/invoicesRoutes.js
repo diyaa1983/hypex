@@ -551,11 +551,11 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
               <span class="si-f-head">التاريخ</span>
               <input class="si-field si-field--mono" id="inv_date" type="date" value="${esc(
                 String(initial.invoice_date).slice(0, 10)
-              )}" ${initial.is_posted ? 'readonly' : ''}>
+              )}" ${initial.is_posted ? 'readonly' : ''} data-nav="1">
             </label>
             <label class="si-f si-f--pay">
               <span class="si-f-head">النوع</span>
-              <select class="si-field" id="inv_pay" ${initial.is_posted ? 'disabled' : ''}>
+              <select class="si-field" id="inv_pay" ${initial.is_posted ? 'disabled' : ''} data-nav="1">
                 <option value="credit"${
                   initial.payment_type === 'credit' ? ' selected' : ''
                 }>ذمم</option>
@@ -566,7 +566,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
             </label>
             <label class="si-f si-f--wh">
               <span class="si-f-head">المستودع</span>
-              <select class="si-field" id="inv_wh" ${initial.is_posted ? 'disabled' : ''}>
+              <select class="si-field" id="inv_wh" ${initial.is_posted ? 'disabled' : ''} data-nav="1">
                 <option value="">—</option>
                 ${whOpts}
               </select>
@@ -639,6 +639,61 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
             </div>
           </div>
         </section>
+
+      <section class="si-surface co-ora-ar-panel" id="inv-ora-ar-panel" ${
+        initial.customer_id ? '' : 'hidden'
+      }>
+        <div class="si-surface-head">
+          <h2>رصيد العميل والشيكات</h2>
+          <span class="si-count" id="inv-ora-ar-name">—</span>
+        </div>
+        <p class="co-ora-ar-status muted" id="inv-ora-ar-status">
+          اختر عميلاً لعرض الرصيد (مدين / دائن) والشيكات قيد التحصيل.
+        </p>
+        <div class="co-ora-ar-summary" id="inv-ora-ar-summary" hidden>
+          <div class="co-ora-ar-kpis">
+            <div class="co-ora-ar-kpi co-ora-ar-kpi--debit">
+              <span>مجموع المدين</span>
+              <strong id="inv-ora-ar-debit" dir="ltr">0</strong>
+            </div>
+            <div class="co-ora-ar-kpi co-ora-ar-kpi--credit">
+              <span>مجموع الدائن</span>
+              <strong id="inv-ora-ar-credit" dir="ltr">0</strong>
+            </div>
+            <div class="co-ora-ar-kpi co-ora-ar-kpi--due">
+              <span>الرصيد المستحق</span>
+              <strong id="inv-ora-ar-balance" dir="ltr">0</strong>
+            </div>
+          </div>
+          <p class="co-ora-ar-meta muted" id="inv-ora-ar-meta"></p>
+          <div class="co-ora-ar-chq-wrap">
+            <h3 class="co-ora-ar-chq-title">الشيكات قيد التحصيل</h3>
+            <div class="co-ora-ar-table-wrap">
+              <table class="co-ora-ar-table">
+                <thead>
+                  <tr>
+                    <th>الشيك</th>
+                    <th>التاريخ</th>
+                    <th>قيمة الشيك</th>
+                    <th>تاريخ القبض</th>
+                  </tr>
+                </thead>
+                <tbody id="inv-ora-ar-chq-body">
+                  <tr><td colspan="4" class="muted">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="co-ora-ar-chq-total">
+              <span>مجموع الشيكات قيد التحصيل</span>
+              <strong id="inv-ora-ar-chq-total" dir="ltr">0</strong>
+            </div>
+          </div>
+          <p class="co-ora-ar-actions">
+            <a class="si-btn" id="inv-ora-ar-full-link" href="#" target="_blank" rel="noopener" hidden>فتح الكشف التفصيلي</a>
+            <button type="button" class="si-btn" id="inv-ora-ar-refresh">تحديث</button>
+          </p>
+        </div>
+      </section>
       </div>
       <script type="application/json" id="si-initial">${JSON.stringify(initial).replace(
         /</g,
@@ -653,7 +708,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
         bodyHtml,
         bodyClass: 'si-2027',
         mainClass: 'main si-main',
-        css: ['/assets/css/sales-2027.css'],
+        css: ['/assets/css/sales-2027.css', '/assets/css/customer-order-doc.css'],
         js: ['/assets/js/doc-nav.js', '/assets/js/hx-offers-client.js', '/assets/js/sales-invoice.js'],
       })
     );
@@ -684,6 +739,21 @@ router.get('/api/sales/invoices/by-no', async (req, res) => {
     res.json({ ok: true, id });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+/** رصيد المدين/الدائن + الشيكات قيد التحصيل عند اختيار العميل */
+router.get('/api/sales/invoices/customer-ar', async (req, res) => {
+  try {
+    const ordersSvc = require('./customerOrdersService');
+    const customerId = Number(req.query.customer_id || req.query.id || 0);
+    const data = await ordersSvc.getCustomerArSummary(customerId);
+    if (data.statement_path) {
+      data.statement_url = config.phpBaseUrl + '/' + String(data.statement_path).replace(/^\//, '');
+    }
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ ok: false, message: e.message || 'خطأ' });
   }
 });
 

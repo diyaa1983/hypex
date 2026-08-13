@@ -1395,32 +1395,73 @@
   var custInput = document.getElementById('co_customer');
   var custId = document.getElementById('co_customer_id');
   var custBox = document.getElementById('cust_suggest');
+
+  function searchCustomers(q) {
+    if (!custBox || locked) return;
+    fetch('/api/sales/customer-orders/customers?q=' + encodeURIComponent(q || ''))
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          custBox.innerHTML =
+            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#b91c1c;font-size:.85rem">' +
+            ((data && (data.error || data.message)) || 'تعذر تحميل العملاء') +
+            '</div>';
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+          return;
+        }
+        custBox.innerHTML = '';
+        var rows = data.rows || [];
+        if (!rows.length) {
+          custBox.innerHTML =
+            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#64748b;font-size:.85rem">لا يوجد عملاء مطابقون.</div>';
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+          return;
+        }
+        rows.slice(0, 25).forEach(function (c) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
+          b.addEventListener('click', function () {
+            onCustomerSelected(c);
+          });
+          custBox.appendChild(b);
+        });
+        custBox.hidden = false;
+        custBox.removeAttribute('hidden');
+      })
+      .catch(function () {
+        custBox.innerHTML =
+          '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#b91c1c;font-size:.85rem">تعذر الاتصال بخدمة العملاء</div>';
+        custBox.hidden = false;
+        custBox.removeAttribute('hidden');
+      });
+  }
+
   if (custInput && custBox && !locked) {
+    custInput.addEventListener('focus', function () {
+      searchCustomers(custInput.value || '');
+    });
+    custInput.addEventListener('click', function () {
+      if (custBox.hidden) searchCustomers(custInput.value || '');
+    });
     custInput.addEventListener('input', function () {
+      if (custId) custId.value = '';
+      setCustomerPriceMode({ use_wholesale_price: 0 });
+      loadCustomerAr(0);
       clearTimeout(custTimer);
       custTimer = setTimeout(function () {
-        fetch('/api/sales/customer-orders/customers?q=' + encodeURIComponent(custInput.value || ''))
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (data) {
-            if (!data.ok) return;
-            custBox.innerHTML = '';
-            (data.rows || []).slice(0, 25).forEach(function (c) {
-              var b = document.createElement('button');
-              b.type = 'button';
-              b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
-              b.addEventListener('click', function () {
-                onCustomerSelected(c);
-              });
-              custBox.appendChild(b);
-            });
-            custBox.hidden = !(data.rows && data.rows.length);
-          });
+        searchCustomers(custInput.value || '');
       }, 220);
     });
     document.addEventListener('click', function (e) {
-      if (!custBox.contains(e.target) && e.target !== custInput) custBox.hidden = true;
+      if (!custBox.contains(e.target) && e.target !== custInput) {
+        custBox.hidden = true;
+        custBox.setAttribute('hidden', '');
+      }
       document.querySelectorAll('.js-item-suggest').forEach(function (box) {
         if (box.hidden) return;
         var tr = box.closest('tr[data-idx]');

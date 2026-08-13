@@ -1444,25 +1444,28 @@ router.get(
             .slice(0, 40);
         }
         var t = null;
+        function openList(q) {
+          render(filter(q || ''));
+          suggest.hidden = false;
+          suggest.removeAttribute('hidden');
+        }
         search.addEventListener('input', function () {
           cid.value = '0';
           clearTimeout(t);
           t = setTimeout(function () {
-            var q = search.value;
-            if (!String(q).trim()) {
-              suggest.hidden = true;
-              suggest.innerHTML = '';
-              return;
-            }
-            render(filter(q));
+            openList(search.value);
           }, 120);
         });
         search.addEventListener('focus', function () {
-          if (String(search.value || '').trim()) render(filter(search.value));
+          openList(search.value);
+        });
+        search.addEventListener('click', function () {
+          if (suggest.hidden) openList(search.value);
         });
         search.addEventListener('keydown', function (e) {
           if (e.key === 'Escape') {
             suggest.hidden = true;
+            suggest.setAttribute('hidden', '');
           }
           if (e.key === 'Enter') {
             var first = suggest.querySelector('.ora-suggest-item');
@@ -1475,6 +1478,7 @@ router.get(
         document.addEventListener('click', function (e) {
           if (!suggest.contains(e.target) && e.target !== search) {
             suggest.hidden = true;
+            suggest.setAttribute('hidden', '');
           }
         });
         acc.addEventListener('input', function () {
