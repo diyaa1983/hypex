@@ -1049,6 +1049,46 @@ label .si-field-key {
   }
 }
 
+#so-root .si-lines--so {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 64rem;
+}
+
+#so-root .si-lines--so .so-th-idx,
+#so-root .si-lines--so .si-row-num { width: 2.2rem; }
+#so-root .si-lines--so .so-th-code,
+#so-root .si-lines--so .so-col-code { width: 8.5rem; }
+#so-root .si-lines--so .so-th-name,
+#so-root .si-lines--so .so-col-name { width: auto; min-width: 11rem; }
+#so-root .si-lines--so .so-th-unit,
+#so-root .si-lines--so .so-col-unit,
+#so-root .si-lines--so .so-th-bunit,
+#so-root .si-lines--so .so-col-bunit { width: 7.2rem; }
+#so-root .si-lines--so .so-th-qty,
+#so-root .si-lines--so .so-col-qty,
+#so-root .si-lines--so .so-th-bonus,
+#so-root .si-lines--so .so-col-bonus,
+#so-root .si-lines--so .so-th-disc,
+#so-root .si-lines--so .so-col-disc { width: 6.2rem; }
+#so-root .si-lines--so .so-th-type,
+#so-root .si-lines--so .so-col-type { width: 7.5rem; }
+
+#so-root .si-lines--so .so-col-unit select,
+#so-root .si-lines--so .so-col-bunit select,
+#so-root .si-lines--so .so-col-type select {
+  min-width: 0;
+  width: 100%;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+#so-root .si-lines--so .so-col-qty input,
+#so-root .si-lines--so .so-col-bonus input,
+#so-root .si-lines--so .so-col-disc input {
+  text-align: center;
+}
+
 /* ?????? ?????? ???????? ? ?? ???? ??????? */
 .si-docno-row {
   display: flex;

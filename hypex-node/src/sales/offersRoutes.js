@@ -106,10 +106,11 @@ router.get('/api/sales/offers/for-item', async (req, res) => {
     const docDate = String(req.query.date || svc.todayIso()).slice(0, 10);
     const itemId = Number(req.query.item_id || 0);
     const qty = Number(req.query.qty || 0);
+    const unitFactor = Number(req.query.unit_factor || 0) > 0 ? Number(req.query.unit_factor) : 1;
     if (!itemId) return res.json({ ok: true, effect: null });
     const map = await svc.activeOfferMapForDate(docDate);
     const offer = map.get(itemId) || null;
-    const effect = svc.computeOfferEffect(qty, offer);
+    const effect = svc.computeOfferEffect(qty, offer, { unit_factor: unitFactor });
     res.json({
       ok: true,
       effect: effect.applied
@@ -315,7 +316,7 @@ async function renderForm(req, res, id) {
             <div>
               <h2>مواد العرض</h2>
               <p class="muted so-lines-hint">
-                لكل مادة: الكمية المحددة للعرض · ثم إما كمية إضافية مجانية أو خصم بنسبة مئوية
+                اختر المادة ثم وحدة كمية العرض (قطعة / كرتونة) · للكمية الإضافية اختر وحدتها بشكل مستقل · أو استخدم خصم %
               </p>
             </div>
             <button type="button" class="si-btn si-btn--primary" id="so-add-line">＋ إضافة مادة</button>
@@ -324,14 +325,16 @@ async function renderForm(req, res, id) {
             <table class="si-lines si-lines--co si-lines--so" id="so-table">
               <thead>
                 <tr>
-                  <th style="width:2rem">#</th>
-                  <th>الباركود</th>
-                  <th>اسم المادة</th>
-                  <th style="width:7.5rem">نوع العرض</th>
-                  <th style="width:6.5rem">كمية العرض</th>
-                  <th style="width:6.5rem">كمية إضافية</th>
-                  <th style="width:6.5rem">خصم %</th>
-                  <th class="si-col-del" style="width:2.6rem" title="حذف">حذف</th>
+                  <th class="so-th-idx">#</th>
+                  <th class="so-th-code">الباركود</th>
+                  <th class="so-th-name">اسم المادة</th>
+                  <th class="so-th-unit">الوحدة</th>
+                  <th class="so-th-qty">كمية العرض</th>
+                  <th class="so-th-type">نوع العرض</th>
+                  <th class="so-th-bonus">كمية إضافية</th>
+                  <th class="so-th-bunit">وحدة الإضافة</th>
+                  <th class="so-th-disc">خصم %</th>
+                  <th class="si-col-del" title="حذف">حذف</th>
                 </tr>
               </thead>
               <tbody id="so-tbody"></tbody>

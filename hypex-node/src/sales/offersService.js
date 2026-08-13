@@ -24,6 +24,15 @@ async function tableExists(name) {
   }
 }
 
+async function columnExists(table, column) {
+  try {
+    await db.query(`SELECT \`${column}\` FROM \`${table}\` LIMIT 1`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function ensureSchema() {
   if (!(await tableExists('sal_offer'))) {
     await db.query(`
@@ -55,10 +64,33 @@ async function ensureSchema() {
         trigger_qty DECIMAL(18,3) NOT NULL DEFAULT 1,
         bonus_qty DECIMAL(18,3) NOT NULL DEFAULT 0,
         discount_pct DECIMAL(8,3) NOT NULL DEFAULT 0,
+        unit_id INT UNSIGNED NULL,
+        unit_factor DECIMAL(18,6) NOT NULL DEFAULT 1,
+        bonus_unit_id INT UNSIGNED NULL,
+        bonus_unit_factor DECIMAL(18,6) NOT NULL DEFAULT 1,
         UNIQUE KEY uq_sal_offer_line_item (offer_id, item_id),
         KEY idx_sal_offer_line_item (item_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+  } else {
+    if (!(await columnExists('sal_offer_line', 'unit_id'))) {
+      await db.query(`ALTER TABLE sal_offer_line ADD COLUMN unit_id INT UNSIGNED NULL AFTER discount_pct`);
+    }
+    if (!(await columnExists('sal_offer_line', 'unit_factor'))) {
+      await db.query(
+        `ALTER TABLE sal_offer_line ADD COLUMN unit_factor DECIMAL(18,6) NOT NULL DEFAULT 1 AFTER unit_id`
+      );
+    }
+    if (!(await columnExists('sal_offer_line', 'bonus_unit_id'))) {
+      await db.query(
+        `ALTER TABLE sal_offer_line ADD COLUMN bonus_unit_id INT UNSIGNED NULL AFTER unit_factor`
+      );
+    }
+    if (!(await columnExists('sal_offer_line', 'bonus_unit_factor'))) {
+      await db.query(
+        `ALTER TABLE sal_offer_line ADD COLUMN bonus_unit_factor DECIMAL(18,6) NOT NULL DEFAULT 1 AFTER bonus_unit_id`
+      );
+    }
   }
   if (!(await tableExists('sal_offer_application'))) {
     await db.query(`
@@ -163,7 +195,36 @@ async function getOffer(id) {
      ORDER BY l.line_no, l.id`,
     [oid]
   );
-  return { ...doc, lines: lines || [] };
+  const itemPricing = require('../lib/itemPricing');
+  const outLines = [];
+  for (const ln of lines || []) {
+    const units = await itemPricing.fetchItemUnits(Number(ln.item_id));
+    const unitId = Number(ln.unit_id) || 0;
+    const bonusUnitId = Number(ln.bonus_unit_id) || 0;
+    const u =
+      units.find((x) => Number(x.unit_id) === unitId) ||
+      units.find((x) => x.is_default) ||
+      units.find((x) => x.is_base) ||
+      units[0] ||
+      null;
+    const bu =
+      units.find((x) => Number(x.unit_id) === bonusUnitId) ||
+      units.find((x) => x.is_base) ||
+      units.find((x) => x.is_default) ||
+      units[0] ||
+      null;
+    outLines.push({
+      ...ln,
+      units,
+      unit_id: u ? Number(u.unit_id) : unitId || 0,
+      unit_factor: u ? Number(u.factor) || 1 : Number(ln.unit_factor) || 1,
+      unit_name: u ? u.name : '',
+      bonus_unit_id: bu ? Number(bu.unit_id) : bonusUnitId || 0,
+      bonus_unit_factor: bu ? Number(bu.factor) || 1 : Number(ln.bonus_unit_factor) || 1,
+      bonus_unit_name: bu ? bu.name : '',
+    });
+  }
+  return { ...doc, lines: outLines };
 }
 
 async function saveOffer(payload, userId) {
@@ -184,6 +245,7 @@ async function saveOffer(payload, userId) {
   const rawLines = Array.isArray(payload.lines) ? payload.lines : [];
   const lines = [];
   const seen = new Set();
+  const itemPricing = require('../lib/itemPricing');
   for (const ln of rawLines) {
     const itemId = Number(ln.item_id || 0);
     if (!itemId) continue;
@@ -202,12 +264,29 @@ async function saveOffer(payload, userId) {
     if (offerType === 'discount_pct' && !(discountPct > 0 && discountPct <= 100)) {
       return { ok: false, error: 'نسبة الخصم يجب أن تكون بين 0 و 100.' };
     }
+    const units = await itemPricing.fetchItemUnits(itemId);
+    const pickUnit = (uid) => {
+      const id = Number(uid) || 0;
+      return (
+        units.find((x) => Number(x.unit_id) === id) ||
+        units.find((x) => x.is_default) ||
+        units.find((x) => x.is_base) ||
+        units[0] ||
+        null
+      );
+    };
+    const u = pickUnit(ln.unit_id);
+    const bu = pickUnit(ln.bonus_unit_id != null ? ln.bonus_unit_id : ln.unit_id);
     lines.push({
       item_id: itemId,
       offer_type: offerType,
       trigger_qty: triggerQty,
       bonus_qty: bonusQty,
       discount_pct: discountPct,
+      unit_id: u ? Number(u.unit_id) : null,
+      unit_factor: u ? Number(u.factor) || 1 : 1,
+      bonus_unit_id: bu ? Number(bu.unit_id) : null,
+      bonus_unit_factor: bu ? Number(bu.factor) || 1 : 1,
     });
   }
   if (!lines.length) return { ok: false, error: 'أضف مادة واحدةً على الأقل للعرض.' };
@@ -245,9 +324,22 @@ async function saveOffer(payload, userId) {
       n += 1;
       await conn.execute(
         `INSERT INTO sal_offer_line
-           (offer_id, line_no, item_id, offer_type, trigger_qty, bonus_qty, discount_pct)
-         VALUES (?,?,?,?,?,?,?)`,
-        [offerId, n, ln.item_id, ln.offer_type, ln.trigger_qty, ln.bonus_qty, ln.discount_pct]
+           (offer_id, line_no, item_id, offer_type, trigger_qty, bonus_qty, discount_pct,
+            unit_id, unit_factor, bonus_unit_id, bonus_unit_factor)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          offerId,
+          n,
+          ln.item_id,
+          ln.offer_type,
+          ln.trigger_qty,
+          ln.bonus_qty,
+          ln.discount_pct,
+          ln.unit_id,
+          ln.unit_factor,
+          ln.bonus_unit_id,
+          ln.bonus_unit_factor,
+        ]
       );
     }
     await conn.commit();
@@ -283,6 +375,9 @@ async function activeOfferMapForDate(docDate) {
   const rows = await safeQuery(
     `SELECT o.id AS offer_id, o.offer_no, o.name_ar AS offer_name,
             l.id AS offer_line_id, l.item_id, l.offer_type, l.trigger_qty, l.bonus_qty, l.discount_pct,
+            COALESCE(l.unit_factor, 1) AS unit_factor,
+            COALESCE(l.bonus_unit_factor, 1) AS bonus_unit_factor,
+            l.unit_id, l.bonus_unit_id,
             o.date_from
      FROM sal_offer o
      INNER JOIN sal_offer_line l ON l.offer_id = o.id
@@ -305,22 +400,37 @@ async function activeOfferMapForDate(docDate) {
       trigger_qty: r3(r.trigger_qty),
       bonus_qty: r3(r.bonus_qty),
       discount_pct: r3(r.discount_pct),
+      unit_id: Number(r.unit_id) || 0,
+      unit_factor: Number(r.unit_factor) > 0 ? Number(r.unit_factor) : 1,
+      bonus_unit_id: Number(r.bonus_unit_id) || 0,
+      bonus_unit_factor: Number(r.bonus_unit_factor) > 0 ? Number(r.bonus_unit_factor) : 1,
     });
   }
   return map;
 }
 
-function computeOfferEffect(qty, offer) {
-  const q = r3(qty);
+/**
+ * @param {number} qty كمية بند الفاتورة/الطلب بوحدة الصرف المختارة
+ * @param {object|null} offer
+ * @param {{ unit_factor?: number }} [opts] معامل وحدة بند الفاتورة إلى الحبة
+ */
+function computeOfferEffect(qty, offer, opts = {}) {
   const out = { applied: false, bonus_qty: 0, discount_pct: 0, offer: null };
-  if (!offer || !(q > 0)) return out;
-  const t = r3(offer.trigger_qty);
-  if (!(t > 0) || q < t) return out;
+  if (!offer) return out;
+  const lineFactor = Number(opts.unit_factor) > 0 ? Number(opts.unit_factor) : 1;
+  const triggerFactor = Number(offer.unit_factor) > 0 ? Number(offer.unit_factor) : 1;
+  const bonusFactor = Number(offer.bonus_unit_factor) > 0 ? Number(offer.bonus_unit_factor) : 1;
+  const qtyBase = r3(Number(qty) || 0) * lineFactor;
+  if (!(qtyBase > 0)) return out;
+  const triggerBase = r3(offer.trigger_qty) * triggerFactor;
+  if (!(triggerBase > 0) || qtyBase + 1e-9 < triggerBase) return out;
   if (offer.offer_type === 'bonus') {
-    const b = r3(offer.bonus_qty);
-    if (!(b > 0)) return out;
+    const bonusEachBase = r3(offer.bonus_qty) * bonusFactor;
+    if (!(bonusEachBase > 0)) return out;
+    const times = Math.floor(qtyBase / triggerBase + 1e-9);
+    if (!(times > 0)) return out;
     out.applied = true;
-    out.bonus_qty = Math.floor(q / t) * b;
+    out.bonus_qty = r3((times * bonusEachBase) / lineFactor);
     out.offer = offer;
     return out;
   }

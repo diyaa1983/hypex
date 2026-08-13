@@ -23,6 +23,13 @@
       trigger_qty: 10,
       bonus_qty: 1,
       discount_pct: '',
+      unit_id: 0,
+      unit_factor: 1,
+      unit_name: '',
+      bonus_unit_id: 0,
+      bonus_unit_factor: 1,
+      bonus_unit_name: '',
+      units: [],
     };
   }
 
@@ -39,6 +46,32 @@
     return b && path.charAt(0) === '/' ? b + path : path;
   }
 
+  function defaultUnitOf(units) {
+    units = Array.isArray(units) ? units : [];
+    if (!units.length) {
+      return { unit_id: 0, name: 'قطعة', factor: 1 };
+    }
+    return (
+      units.find(function (u) {
+        return u.is_default;
+      }) ||
+      units.find(function (u) {
+        return u.is_base;
+      }) ||
+      units[0]
+    );
+  }
+
+  function baseUnitOf(units) {
+    units = Array.isArray(units) ? units : [];
+    if (!units.length) return defaultUnitOf(units);
+    return (
+      units.find(function (u) {
+        return u.is_base;
+      }) || defaultUnitOf(units)
+    );
+  }
+
   try {
     lines = JSON.parse((document.getElementById('so-initial') || {}).textContent || '[]') || [];
   } catch (e) {
@@ -46,6 +79,7 @@
   }
   lines = (lines || []).map(function (ln) {
     ln = ln || emptyLine();
+    var units = Array.isArray(ln.units) ? ln.units : [];
     return {
       item_id: Number(ln.item_id) || 0,
       item_code: cleanBarcodeText(ln.item_code || ln.item_barcode || ''),
@@ -54,6 +88,13 @@
       trigger_qty: ln.trigger_qty != null && ln.trigger_qty !== '' ? ln.trigger_qty : 10,
       bonus_qty: ln.bonus_qty != null && ln.bonus_qty !== '' ? ln.bonus_qty : 1,
       discount_pct: ln.discount_pct != null && ln.discount_pct !== '' ? ln.discount_pct : '',
+      unit_id: Number(ln.unit_id) || 0,
+      unit_factor: Number(ln.unit_factor) > 0 ? Number(ln.unit_factor) : 1,
+      unit_name: String(ln.unit_name || ''),
+      bonus_unit_id: Number(ln.bonus_unit_id) || 0,
+      bonus_unit_factor: Number(ln.bonus_unit_factor) > 0 ? Number(ln.bonus_unit_factor) : 1,
+      bonus_unit_name: String(ln.bonus_unit_name || ''),
+      units: units,
     };
   });
   if (!lines.length) lines.push(emptyLine());
@@ -96,6 +137,51 @@
     );
   }
 
+  function unitSelectHtml(ln, which, disabled) {
+    var units = Array.isArray(ln.units) ? ln.units : [];
+    var cur =
+      which === 'bonus' ? Number(ln.bonus_unit_id) || 0 : Number(ln.unit_id) || 0;
+    var cls = which === 'bonus' ? 'js-bonus-unit' : 'js-unit';
+    if (!units.length) {
+      return (
+        '<select class="' +
+        cls +
+        ' si-field" data-nav="1"' +
+        (disabled ? ' disabled' : '') +
+        '>' +
+        '<option value="0">قطعة</option></select>'
+      );
+    }
+    var opts = units
+      .map(function (u) {
+        var uid = Number(u.unit_id) || 0;
+        var label = String(u.name || 'وحدة');
+        var f = Number(u.factor) > 0 ? Number(u.factor) : 1;
+        if (f !== 1) label += ' ×' + f;
+        return (
+          '<option value="' +
+          uid +
+          '"' +
+          (uid === cur ? ' selected' : '') +
+          ' data-factor="' +
+          f +
+          '">' +
+          escAttr(label) +
+          '</option>'
+        );
+      })
+      .join('');
+    return (
+      '<select class="' +
+      cls +
+      ' si-field" data-nav="1"' +
+      (disabled ? ' disabled' : '') +
+      '>' +
+      opts +
+      '</select>'
+    );
+  }
+
   function render(focusOpts) {
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -107,7 +193,7 @@
         '<td dir="ltr" class="si-row-num">' +
         (idx + 1) +
         '</td>' +
-        '<td class="si-item-code-cell">' +
+        '<td class="si-item-code-cell so-col-code">' +
         '<input type="hidden" class="js-item-id" value="' +
         (ln.item_id || '') +
         '">' +
@@ -116,24 +202,30 @@
         escAttr(ln.item_code || '') +
         '">' +
         '</td>' +
-        '<td class="si-item-name-cell">' +
+        '<td class="si-item-name-cell so-col-name">' +
         '<input class="js-item-name" type="text" autocomplete="off" spellcheck="false" dir="rtl" ' +
         'placeholder="اضغط للبحث عن المادة…" data-nav="1" value="' +
         escAttr(ln.item_name || '') +
         '">' +
         '</td>' +
-        '<td>' +
+        '<td class="so-col-unit">' +
+        unitSelectHtml(ln, 'trigger', false) +
+        '</td>' +
+        '<td class="so-col-qty"><input class="js-trigger" type="number" min="0.001" step="0.001" data-nav="1" dir="ltr" value="' +
+        escAttr(ln.trigger_qty) +
+        '" title="كمية العرض بوحدة المادة"></td>' +
+        '<td class="so-col-type">' +
         typeSelectHtml(ln) +
         '</td>' +
-        '<td><input class="js-trigger" type="number" min="0.001" step="0.001" data-nav="1" dir="ltr" value="' +
-        escAttr(ln.trigger_qty) +
-        '"></td>' +
-        '<td><input class="js-bonus" type="number" min="0" step="0.001" data-nav="1" dir="ltr" value="' +
+        '<td class="so-col-bonus"><input class="js-bonus" type="number" min="0" step="0.001" data-nav="1" dir="ltr" value="' +
         escAttr(ln.bonus_qty) +
         '" ' +
         (isBonus ? '' : 'disabled') +
-        '></td>' +
-        '<td><input class="js-disc" type="number" min="0" max="100" step="0.001" data-nav="1" dir="ltr" value="' +
+        ' title="كمية إضافية مجانية"></td>' +
+        '<td class="so-col-bunit">' +
+        unitSelectHtml(ln, 'bonus', !isBonus) +
+        '</td>' +
+        '<td class="so-col-disc"><input class="js-disc" type="number" min="0" max="100" step="0.001" data-nav="1" dir="ltr" value="' +
         escAttr(ln.discount_pct) +
         '" ' +
         (isBonus ? 'disabled' : '') +
@@ -182,6 +274,20 @@
     if (tg) ln.trigger_qty = tg.value;
     if (bn) ln.bonus_qty = bn.value;
     if (dc) ln.discount_pct = dc.value;
+    var unitEl = tr.querySelector('.js-unit');
+    if (unitEl) {
+      ln.unit_id = Number(unitEl.value) || 0;
+      var opt = unitEl.options[unitEl.selectedIndex];
+      ln.unit_factor = opt ? Number(opt.getAttribute('data-factor')) || 1 : 1;
+      ln.unit_name = opt ? String(opt.textContent || '').replace(/\s*×.*$/, '') : '';
+    }
+    var bUnitEl = tr.querySelector('.js-bonus-unit');
+    if (bUnitEl) {
+      ln.bonus_unit_id = Number(bUnitEl.value) || 0;
+      var bopt = bUnitEl.options[bUnitEl.selectedIndex];
+      ln.bonus_unit_factor = bopt ? Number(bopt.getAttribute('data-factor')) || 1 : 1;
+      ln.bonus_unit_name = bopt ? String(bopt.textContent || '').replace(/\s*×.*$/, '') : '';
+    }
     lines[idx] = ln;
     syncJson();
   }
@@ -191,8 +297,17 @@
     lines[idx].item_id = it.id;
     lines[idx].item_code = cleanBarcodeText(it.barcode || it.code || it.sku || '');
     lines[idx].item_name = String(it.name_ar || it.name || '').trim();
+    lines[idx].units = Array.isArray(it.units) ? it.units : [];
+    var du = defaultUnitOf(lines[idx].units);
+    var bu = baseUnitOf(lines[idx].units);
+    lines[idx].unit_id = du.unit_id || 0;
+    lines[idx].unit_factor = Number(du.factor) > 0 ? Number(du.factor) : 1;
+    lines[idx].unit_name = du.name || '';
+    lines[idx].bonus_unit_id = bu.unit_id || 0;
+    lines[idx].bonus_unit_factor = Number(bu.factor) > 0 ? Number(bu.factor) : 1;
+    lines[idx].bonus_unit_name = bu.name || '';
     hideSuggest();
-    render({ idx: idx, cls: '.js-offer-type', select: false });
+    render({ idx: idx, cls: '.js-unit', select: false });
   }
 
   function getSuggestBox() {
@@ -427,7 +542,7 @@
       });
     }
 
-    ['.js-trigger', '.js-bonus', '.js-disc'].forEach(function (sel) {
+    ['.js-trigger', '.js-bonus', '.js-disc', '.js-unit', '.js-bonus-unit'].forEach(function (sel) {
       var el = tr.querySelector(sel);
       if (el)
         el.addEventListener('change', function () {

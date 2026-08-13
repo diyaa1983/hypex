@@ -18,7 +18,9 @@ async function applyOffersToRawLines(rawLines, docDate) {
     if (!ln || !Number(ln.item_id)) return ln;
     const qty = Number(ln.qty) || 0;
     const offer = map.get(Number(ln.item_id));
-    const effect = offers.computeOfferEffect(qty, offer);
+    const effect = offers.computeOfferEffect(qty, offer, {
+      unit_factor: Number(ln.unit_factor) > 0 ? Number(ln.unit_factor) : 1,
+    });
     if (!effect.applied) return ln;
     const next = { ...ln };
     if (effect.offer.offer_type === 'bonus') {

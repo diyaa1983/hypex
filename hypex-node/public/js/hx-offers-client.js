@@ -28,12 +28,17 @@
     );
   }
 
-  function fetchEffect(itemId, qty, cb) {
+  function fetchEffect(itemId, qty, unitFactor, cb) {
     var url =
-      '/api/sales/offers/for-item?item_id=' +
+      (typeof window.__hypexUrl === 'function'
+        ? window.__hypexUrl('/api/sales/offers/for-item')
+        : '/api/sales/offers/for-item') +
+      '?item_id=' +
       encodeURIComponent(itemId) +
       '&qty=' +
       encodeURIComponent(qty) +
+      '&unit_factor=' +
+      encodeURIComponent(unitFactor > 0 ? unitFactor : 1) +
       '&date=' +
       encodeURIComponent(docDate());
     fetch(url, { credentials: 'same-origin' })
@@ -88,7 +93,7 @@
     var key = String(idx != null ? idx : ln.item_id);
     clearTimeout(timers[key]);
     timers[key] = setTimeout(function () {
-      fetchEffect(ln.item_id, ln.qty || 0, function (effect) {
+      fetchEffect(ln.item_id, ln.qty || 0, Number(ln.unit_factor) || 1, function (effect) {
         applyEffectToLine(ln, effect, tr);
         if (onDone) onDone(ln, effect);
       });
