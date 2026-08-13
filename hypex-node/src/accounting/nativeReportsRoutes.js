@@ -1887,7 +1887,7 @@ router.get('/accounting/opening-balance', async (req, res) => {
   const years = [];
   for (let y = curY + 1; y >= curY - 10; y--) years.push(y);
   const body = `
-    <div class="si-stage sh-page" id="ob-page" data-posted="${posted ? '1' : '0'}">
+    <div class="si-stage sh-page ob-page" id="ob-page" data-posted="${posted ? '1' : '0'}">
       ${ui.hero({
         mark: 'Ac',
         kicker: KICKER,
@@ -1900,25 +1900,24 @@ router.get('/accounting/opening-balance', async (req, res) => {
         ],
       })}
       ${flash(req)}
-      <p class="si-pill" style="display:block;padding:.75rem 1rem;background:#f1f5f9;line-height:1.6">
-        أدخل أرصدة الحسابات و/أو أرصدة العملاء والموردين. يُنشأ قيد افتتاحي واحد متوازن بتاريخ بداية السنة.
-        عميل مدين = عليه رصيد · مورد دائن = له رصيد.
-        ${!arOk ? ' ⚠️ عرّف حساب ذمم العملاء في ربط الحسابات.' : ''}
-        ${!apOk ? ' ⚠️ عرّف حساب ذمم الموردين في ربط الحسابات.' : ''}
-      </p>
-      <form method="get" class="si-search ar-filters no-print" action="/accounting/opening-balance">
-        <label>السنة
-          <select class="si-field" name="year" onchange="this.form.submit()">
-            ${years.map((y) => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}</option>`).join('')}
-          </select>
-        </label>
-      </form>
+      ${
+        !arOk || !apOk
+          ? `<p class="si-pill si-pill--lock" style="display:block;margin-bottom:.75rem">
+        ${!arOk ? 'عرّف حساب ذمم العملاء في ربط الحسابات. ' : ''}
+        ${!apOk ? 'عرّف حساب ذمم الموردين في ربط الحسابات.' : ''}
+      </p>`
+          : ''
+      }
+
       <form method="post" action="/accounting/opening-balance/save" id="ob-form">
         <input type="hidden" name="year" value="${year}">
-        <div class="si-surface sh-section">
-          <div class="si-surface-head">
-            <h2>إعدادات الافتتاح — ${year}</h2>
-            <div class="sh-actions">
+        <div class="si-surface ob-card">
+          <div class="si-surface-head ob-head">
+            <div>
+              <h2>إعدادات الافتتاح — ${year}</h2>
+              <p class="muted ob-head-hint">قيد افتتاحي واحد متوازن بتاريخ بداية السنة · عميل مدين = عليه · مورد دائن = له</p>
+            </div>
+            <div class="ob-head-actions no-print">
               ${
                 !posted
                   ? `<button class="si-btn si-btn--primary" type="submit">حفظ وترحيل</button>`
@@ -1927,35 +1926,51 @@ router.get('/accounting/opening-balance', async (req, res) => {
               }
             </div>
           </div>
-          <div class="sh-form ar-filters" style="margin-bottom:.75rem">
-            <label>تاريخ الافتتاح
+
+          <div class="ob-toolbar no-print">
+            <label class="ob-field">
+              <span class="ob-lab">السنة</span>
+              <select class="si-field" id="ob-year-jump"
+                onchange="location.href=this.dataset.base+'?year='+encodeURIComponent(this.value)"
+                data-base="/accounting/opening-balance">
+                ${years.map((y) => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}</option>`).join('')}
+              </select>
+            </label>
+            <label class="ob-field">
+              <span class="ob-lab">تاريخ الافتتاح</span>
               <input class="si-field si-field--mono" type="date" name="entry_date" value="${esc(
                 entryDate
               )}" ${posted ? 'readonly' : ''}>
             </label>
-            <p id="ob-stats" class="muted">${withBal} سطر برصيد — فرق:
-              <strong dir="ltr" id="ob-diff">${money(sumD - sumC)}</strong>
-              · مدين <strong dir="ltr" id="ob-sum-d">${money(sumD)}</strong>
-              · دائن <strong dir="ltr" id="ob-sum-c">${money(sumC)}</strong>
-            </p>
+            <div class="ob-summary" id="ob-stats">
+              <span><em id="ob-lines">${withBal}</em> سطر</span>
+              <span>مدين <strong dir="ltr" id="ob-sum-d">${money(sumD)}</strong></span>
+              <span>دائن <strong dir="ltr" id="ob-sum-c">${money(sumC)}</strong></span>
+              <span class="ob-summary__diff">فرق <strong dir="ltr" id="ob-diff">${money(sumD - sumC)}</strong></span>
+            </div>
           </div>
 
           <div class="ob-tabs no-print" role="tablist">
-            <button type="button" class="si-btn is-active" data-ob-tab="accounts">الحسابات</button>
-            <button type="button" class="si-btn" data-ob-tab="customers">العملاء (${(parties.customers || []).length})</button>
-            <button type="button" class="si-btn" data-ob-tab="suppliers">الموردون (${(parties.suppliers || []).length})</button>
+            <button type="button" class="ob-tab is-active" data-ob-tab="accounts">الحسابات</button>
+            <button type="button" class="ob-tab" data-ob-tab="customers">العملاء <b>${(parties.customers || []).length}</b></button>
+            <button type="button" class="ob-tab" data-ob-tab="suppliers">الموردون <b>${(parties.suppliers || []).length}</b></button>
           </div>
 
           <div class="ob-pane" data-ob-pane="accounts">
-            <div class="sh-form ar-filters no-print" style="margin:.5rem 0">
-              <label>بحث حساب
-                <input class="si-field" type="search" id="ob-filter" placeholder="كود أو اسم الحساب…">
+            <div class="ob-pane-bar no-print">
+              <label class="ob-field ob-field--grow">
+                <span class="ob-lab">بحث حساب</span>
+                <input class="si-field" type="search" id="ob-filter" placeholder="كود أو اسم الحساب…" autocomplete="off">
               </label>
             </div>
-            <div class="si-table-wrap" style="max-height:55vh;overflow:auto">
-              <table class="si-table" id="ob-table">
+            <div class="ob-table-wrap">
+              <table class="si-table ob-table" id="ob-table">
                 <thead><tr>
-                  <th>الكود</th><th>الحساب</th><th>النوع</th><th>مدين</th><th>دائن</th>
+                  <th class="ob-col-code">الكود</th>
+                  <th>الحساب</th>
+                  <th class="ob-col-type">النوع</th>
+                  <th class="ob-col-amt">مدين</th>
+                  <th class="ob-col-amt">دائن</th>
                 </tr></thead>
                 <tbody>${rows}</tbody>
               </table>
@@ -1965,18 +1980,25 @@ router.get('/accounting/opening-balance', async (req, res) => {
           <div class="ob-pane" data-ob-pane="customers" hidden>
             ${
               !posted
-                ? `<div class="ob-party-add no-print">
-              <div class="si-cust-wrap" style="flex:1;min-width:14rem;position:relative">
-                <input type="search" class="si-field" id="ob-cust-search" placeholder="ابحث عن عميل لإضافته…" autocomplete="off">
-              </div>
-              <span class="muted">مدين = رصيد عليه · دائن = رصيد له</span>
+                ? `<div class="ob-pane-bar no-print">
+              <label class="ob-field ob-field--grow ob-party-search-wrap">
+                <span class="ob-lab">إضافة عميل</span>
+                <input type="search" class="si-field" id="ob-cust-search" placeholder="ابحث بالكود أو الاسم ثم اختر من القائمة…" autocomplete="off">
+              </label>
+              <p class="ob-hint">مدين = رصيد عليه · دائن = رصيد له</p>
             </div>`
                 : ''
             }
-            <div class="si-table-wrap" style="max-height:55vh;overflow:auto">
-              <table class="si-table" id="ob-cust-table">
-                <thead><tr><th>الكود</th><th>العميل</th><th>مدين</th><th>دائن</th><th class="no-print"></th></tr></thead>
-                <tbody>${custRows || `<tr class="ob-empty"><td colspan="5" class="empty">لا أرصدة عملاء بعد</td></tr>`}</tbody>
+            <div class="ob-table-wrap">
+              <table class="si-table ob-table ob-table--party" id="ob-cust-table">
+                <thead><tr>
+                  <th class="ob-col-code">الكود</th>
+                  <th>العميل</th>
+                  <th class="ob-col-amt">مدين</th>
+                  <th class="ob-col-amt">دائن</th>
+                  <th class="ob-col-act no-print"></th>
+                </tr></thead>
+                <tbody>${custRows || `<tr class="ob-empty"><td colspan="5" class="empty">لا أرصدة عملاء بعد — ابحث أعلاه للإضافة</td></tr>`}</tbody>
               </table>
             </div>
           </div>
@@ -1984,18 +2006,25 @@ router.get('/accounting/opening-balance', async (req, res) => {
           <div class="ob-pane" data-ob-pane="suppliers" hidden>
             ${
               !posted
-                ? `<div class="ob-party-add no-print">
-              <div class="si-cust-wrap" style="flex:1;min-width:14rem;position:relative">
-                <input type="search" class="si-field" id="ob-sup-search" placeholder="ابحث عن مورد لإضافته…" autocomplete="off">
-              </div>
-              <span class="muted">دائن = رصيد له علينا · مدين = رصيد عليه لنا</span>
+                ? `<div class="ob-pane-bar no-print">
+              <label class="ob-field ob-field--grow ob-party-search-wrap">
+                <span class="ob-lab">إضافة مورد</span>
+                <input type="search" class="si-field" id="ob-sup-search" placeholder="ابحث بالكود أو الاسم ثم اختر من القائمة…" autocomplete="off">
+              </label>
+              <p class="ob-hint">دائن = رصيد له علينا · مدين = رصيد عليه لنا</p>
             </div>`
                 : ''
             }
-            <div class="si-table-wrap" style="max-height:55vh;overflow:auto">
-              <table class="si-table" id="ob-sup-table">
-                <thead><tr><th>الكود</th><th>المورد</th><th>مدين</th><th>دائن</th><th class="no-print"></th></tr></thead>
-                <tbody>${supRows || `<tr class="ob-empty"><td colspan="5" class="empty">لا أرصدة موردين بعد</td></tr>`}</tbody>
+            <div class="ob-table-wrap">
+              <table class="si-table ob-table ob-table--party" id="ob-sup-table">
+                <thead><tr>
+                  <th class="ob-col-code">الكود</th>
+                  <th>المورد</th>
+                  <th class="ob-col-amt">مدين</th>
+                  <th class="ob-col-amt">دائن</th>
+                  <th class="ob-col-act no-print"></th>
+                </tr></thead>
+                <tbody>${supRows || `<tr class="ob-empty"><td colspan="5" class="empty">لا أرصدة موردين بعد — ابحث أعلاه للإضافة</td></tr>`}</tbody>
               </table>
             </div>
           </div>
@@ -2003,12 +2032,58 @@ router.get('/accounting/opening-balance', async (req, res) => {
       </form>
     </div>
     <style>
-      .ob-tabs{display:flex;flex-wrap:wrap;gap:.35rem;margin:0 0 .75rem}
-      .ob-tabs .si-btn.is-active{background:#0284c7;color:#fff;border-color:#0284c7}
-      .ob-party-add{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0 .75rem}
-      .ob-sug{position:fixed;z-index:99999;max-height:16rem;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.15);padding:.25rem}
-      .ob-sug button{display:block;width:100%;text-align:right;border:0;background:transparent;padding:.45rem .7rem;font:inherit;cursor:pointer}
-      .ob-sug button:hover,.ob-sug button.is-active{background:#e0f2fe}
+      .ob-page .ob-card{overflow:visible}
+      .ob-head{align-items:flex-start;gap:1rem}
+      .ob-head-hint{margin:.25rem 0 0;font-size:.78rem;font-weight:500;max-width:36rem;line-height:1.45}
+      .ob-head-actions{display:flex;gap:.4rem;flex-shrink:0}
+      .ob-toolbar{display:grid;grid-template-columns:minmax(7rem,.7fr) minmax(9rem,.9fr) minmax(16rem,2fr);gap:.75rem 1rem;align-items:end;padding:.85rem 1.05rem;border-bottom:1px solid rgba(15,23,42,.06);background:linear-gradient(180deg,#f8fafc,#fff)}
+      .ob-field{display:grid;gap:.28rem;min-width:0}
+      .ob-field--grow{flex:1;min-width:14rem}
+      .ob-lab{font-size:.76rem;font-weight:700;color:#64748b}
+      .ob-summary{display:flex;flex-wrap:wrap;gap:.55rem .9rem;align-items:center;padding:.55rem .75rem;border-radius:10px;background:#fff;border:1px solid rgba(15,23,42,.08);font-size:.82rem;color:#475569}
+      .ob-summary strong{font-variant-numeric:tabular-nums;color:#0f172a}
+      .ob-summary__diff strong{color:#b45309}
+      .ob-summary em{font-style:normal;font-weight:800;color:#0369a1}
+      .ob-tabs{display:flex;flex-wrap:wrap;gap:.4rem;padding:.75rem 1.05rem .35rem;border-bottom:1px solid rgba(15,23,42,.06)}
+      .ob-tab{appearance:none;border:1px solid rgba(15,23,42,.1);background:#f8fafc;color:#334155;border-radius:999px;padding:.42rem .95rem;font:inherit;font-size:.86rem;font-weight:700;cursor:pointer}
+      .ob-tab b{display:inline-block;min-width:1.1rem;margin-inline-start:.25rem;font-weight:800;color:#0369a1}
+      .ob-tab.is-active{background:#0284c7;border-color:#0284c7;color:#fff}
+      .ob-tab.is-active b{color:#e0f2fe}
+      .ob-pane-bar{display:flex;flex-wrap:wrap;gap:.65rem 1rem;align-items:end;padding:.75rem 1.05rem}
+      .ob-hint{margin:0;font-size:.78rem;color:#64748b;padding-bottom:.35rem}
+      .ob-table-wrap{max-height:min(58vh,560px);overflow:auto;padding:0 .35rem .85rem;border-top:1px solid rgba(15,23,42,.04)}
+      .ob-table{width:100%;table-layout:fixed}
+      .ob-table th,.ob-table td{vertical-align:middle}
+      .ob-col-code{width:7.5rem}
+      .ob-col-type{width:5.5rem}
+      .ob-col-amt{width:8.5rem}
+      .ob-col-act{width:4.2rem}
+      .ob-table .ob-d,.ob-table .ob-c{width:100%;text-align:center}
+      .ob-table--party .ob-party-del{padding:.28rem .55rem;font-size:.78rem;color:#b91c1c;border-color:rgba(185,28,28,.25);background:#fef2f2}
+      .ob-sug{
+        position:fixed!important;z-index:99999!important;max-height:min(18rem,48vh);overflow:auto;
+        background:#fff!important;border:1px solid rgba(15,23,42,.14)!important;border-radius:12px!important;
+        box-shadow:0 14px 40px rgba(15,23,42,.18)!important;padding:.35rem!important;
+        display:none;
+      }
+      .ob-sug.ob-sug--open{display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important}
+      .ob-sug button{
+        display:grid!important;grid-template-columns:minmax(5.5rem,auto) 1fr;gap:.35rem .65rem;align-items:center;
+        width:100%;text-align:right!important;border:0;background:transparent;padding:.5rem .7rem!important;
+        font:inherit;cursor:pointer;border-radius:8px
+      }
+      .ob-sug button:hover,.ob-sug button.is-active{background:#e0f2fe!important}
+      .ob-sug-code{font-family:ui-monospace,Consolas,monospace;font-size:.8rem;font-weight:700;color:#0369a1;white-space:nowrap}
+      .ob-sug-name{font-size:.86rem;font-weight:600;color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .ob-sug-empty{padding:.7rem .85rem;color:#64748b;font-size:.85rem}
+      @media (max-width:900px){
+        .ob-toolbar{grid-template-columns:1fr 1fr}
+        .ob-summary{grid-column:1/-1}
+      }
+      @media (max-width:560px){
+        .ob-toolbar{grid-template-columns:1fr}
+        .ob-col-type{display:none}
+      }
     </style>
     <script>
     (function(){
@@ -2022,7 +2097,9 @@ router.get('/accounting/opening-balance', async (req, res) => {
       var diffEl=document.getElementById('ob-diff');
       var sumDEl=document.getElementById('ob-sum-d');
       var sumCEl=document.getElementById('ob-sum-c');
+      var linesEl=document.getElementById('ob-lines');
       function baseUrl(path){
+        if(typeof window.__hypexUrl==='function') return window.__hypexUrl(path);
         var b=(window.__HYPEX_BASE__||'').replace(/\\/$/,'');
         return b&&path.charAt(0)==='/'?b+path:path;
       }
@@ -2031,9 +2108,16 @@ router.get('/accounting/opening-balance', async (req, res) => {
       function money(n){return (Number(n)||0).toFixed(3);}
       function recompute(){
         var d=0,c=0,n=0;
-        document.querySelectorAll('#ob-form .ob-d,#ob-form .ob-c').forEach(function(inp){
-          /* skip hidden filter rows? still count all for balance */
+        document.querySelectorAll('#ob-form tbody tr').forEach(function(tr){
+          if(tr.classList.contains('ob-empty')) return;
+          if(tr.style.display==='none') return;
+          var di=tr.querySelector('.ob-d');
+          var ci=tr.querySelector('.ob-c');
+          var dv=num(di&&di.value), cv=num(ci&&ci.value);
+          d+=dv; c+=cv; if(dv||cv) n++;
         });
+        /* احتساب كل الصفوف حتى المخفية في فلتر الحسابات للفرق الحقيقي */
+        d=0;c=0;n=0;
         document.querySelectorAll('#ob-form tbody tr').forEach(function(tr){
           if(tr.classList.contains('ob-empty')) return;
           var di=tr.querySelector('.ob-d');
@@ -2044,6 +2128,7 @@ router.get('/accounting/opening-balance', async (req, res) => {
         if(diffEl) diffEl.textContent=money(d-c);
         if(sumDEl) sumDEl.textContent=money(d);
         if(sumCEl) sumCEl.textContent=money(c);
+        if(linesEl) linesEl.textContent=String(n);
       }
       document.querySelectorAll('[data-ob-tab]').forEach(function(btn){
         btn.addEventListener('click', function(){
@@ -2052,6 +2137,13 @@ router.get('/accounting/opening-balance', async (req, res) => {
           document.querySelectorAll('[data-ob-pane]').forEach(function(p){
             p.hidden = p.getAttribute('data-ob-pane') !== tab;
           });
+          closeSug();
+          if(tab==='customers'){
+            var c=document.getElementById('ob-cust-search'); if(c) c.focus();
+          }
+          if(tab==='suppliers'){
+            var s=document.getElementById('ob-sup-search'); if(s) s.focus();
+          }
         });
       });
       if(filter&&tb){ filter.addEventListener('input', function(){
@@ -2106,16 +2198,18 @@ router.get('/accounting/opening-balance', async (req, res) => {
         var tr=document.createElement('tr');
         tr.className='ob-party-row';
         tr.setAttribute('data-party-id', String(party.id));
+        var name=party.name_ar||party.name||'';
+        var code=party.code||'';
         tr.innerHTML=
-          '<td class="si-num" dir="ltr">'+escHtml(party.code||party.id)+'</td>'+
-          '<td>'+escHtml(party.name_ar||party.name||'')+
+          '<td class="si-num" dir="ltr">'+escHtml(code||party.id)+'</td>'+
+          '<td>'+escHtml(name)+
             '<input type="hidden" name="'+prefix+'_id[]" value="'+party.id+'">'+
-            '<input type="hidden" name="'+prefix+'_name[]" value="'+escHtml(party.name_ar||party.name||'')+'">'+
-            '<input type="hidden" name="'+prefix+'_code[]" value="'+escHtml(party.code||'')+'">'+
+            '<input type="hidden" name="'+prefix+'_name[]" value="'+escHtml(name)+'">'+
+            '<input type="hidden" name="'+prefix+'_code[]" value="'+escHtml(code)+'">'+
           '</td>'+
           '<td><input class="si-field si-field--mono ob-d" name="'+prefix+'_d[]" dir="ltr" value=""></td>'+
           '<td><input class="si-field si-field--mono ob-c" name="'+prefix+'_c[]" dir="ltr" value=""></td>'+
-          '<td class="no-print"><button type="button" class="si-btn ob-party-del">حذف</button></td>';
+          '<td class="no-print"><button type="button" class="si-btn ob-party-del" title="حذف">حذف</button></td>';
         tbod.appendChild(tr);
         bindAmountInputs(tr);
         var focus=tr.querySelector(prefix==='ps'?'.ob-c':'.ob-d');
@@ -2124,65 +2218,105 @@ router.get('/accounting/opening-balance', async (req, res) => {
       }
 
       var sug=document.createElement('div');
-      sug.className='ob-sug si-suggest';
+      sug.id='ob-party-suggest';
+      sug.className='ob-sug';
       sug.hidden=true;
       document.body.appendChild(sug);
-      var sugTimer=null, sugCtx=null;
-      function closeSug(){ sug.hidden=true; sug.innerHTML=''; sugCtx=null; }
+      var sugTimer=null, sugSeq=0, sugRows=[];
+      function closeSug(){
+        sug.hidden=true;
+        sug.setAttribute('hidden','');
+        sug.classList.remove('ob-sug--open');
+        sug.style.display='none';
+        sug.innerHTML='';
+        sugRows=[];
+      }
       function placeSug(anchor){
         var r=anchor.getBoundingClientRect();
-        sug.style.left=Math.max(8,r.left)+'px';
+        var width=Math.max(340, r.width);
+        var left=r.left;
+        if(left+width>window.innerWidth-8) left=Math.max(8, window.innerWidth-width-8);
+        sug.style.position='fixed';
+        sug.style.left=left+'px';
+        sug.style.right='auto';
         sug.style.top=(r.bottom+4)+'px';
-        sug.style.width=Math.max(280,r.width)+'px';
+        sug.style.width=width+'px';
+        sug.style.zIndex='99999';
         sug.hidden=false;
+        sug.removeAttribute('hidden');
+        sug.classList.add('ob-sug--open');
+        sug.style.display='block';
+      }
+      function renderSug(anchor, rows, emptyMsg){
+        sugRows=rows||[];
+        if(!sugRows.length){
+          sug.innerHTML='<div class="ob-sug-empty">'+escHtml(emptyMsg||'لا نتائج')+'</div>';
+        } else {
+          sug.innerHTML=sugRows.map(function(r){
+            return '<button type="button" data-id="'+r.id+'">'+
+              '<span class="ob-sug-code" dir="ltr">'+escHtml(r.code||'—')+'</span>'+
+              '<span class="ob-sug-name">'+escHtml(r.name_ar||r.name||'—')+'</span>'+
+              '</button>';
+          }).join('');
+        }
+        placeSug(anchor);
+        sug.querySelectorAll('button[data-id]').forEach(function(btn){
+          btn.addEventListener('mousedown', function(e){e.preventDefault();});
+          btn.addEventListener('click', function(){
+            var id=Number(btn.getAttribute('data-id'));
+            var p=sugRows.find(function(x){return Number(x.id)===id;});
+            if(!p||!sug._ctx) return;
+            addPartyRow(sug._ctx.table, sug._ctx.prefix, p);
+            if(sug._ctx.input) sug._ctx.input.value='';
+            closeSug();
+          });
+        });
+      }
+      function openPartyList(input, apiPath, table, prefix, q){
+        var seq=++sugSeq;
+        sug._ctx={input:input,table:table,prefix:prefix};
+        sug.innerHTML='<div class="ob-sug-empty">جاري البحث…</div>';
+        placeSug(input);
+        var url=baseUrl(apiPath)+'?q='+encodeURIComponent(q||'')+'&limit=60';
+        fetch(url,{credentials:'same-origin',headers:{Accept:'application/json'}})
+          .then(function(r){ if(!r.ok) throw new Error('http'); return r.json(); })
+          .then(function(d){
+            if(seq!==sugSeq) return;
+            var rows=(d&&d.ok?d.rows:[])||[];
+            renderSug(input, rows, rows.length?'':'لا نتائج مطابقة');
+          })
+          .catch(function(){
+            if(seq!==sugSeq) return;
+            renderSug(input, [], 'تعذر تحميل القائمة');
+          });
       }
       function bindPartySearch(input, apiPath, table, prefix){
         if(!input||posted) return;
-        input.addEventListener('input', function(){
+        function schedule(){
           clearTimeout(sugTimer);
           sugTimer=setTimeout(function(){
-            var q=String(input.value||'').trim();
-            fetch(baseUrl(apiPath+'?q='+encodeURIComponent(q)), {credentials:'same-origin'})
-              .then(function(r){return r.json();})
-              .then(function(d){
-                var rows=(d&&d.ok?d.rows:[])||[];
-                if(!rows.length){
-                  sug.innerHTML='<div style="padding:.6rem;color:#64748b">لا نتائج</div>';
-                  placeSug(input); sugCtx={input:input,table:table,prefix:prefix,rows:[]}; return;
-                }
-                sug.innerHTML=rows.map(function(r){
-                  return '<button type="button" data-id="'+r.id+'"><span dir="ltr">'
-                    +escHtml(r.code||'')+'</span> — '+escHtml(r.name_ar||'')+'</button>';
-                }).join('');
-                placeSug(input);
-                sugCtx={input:input,table:table,prefix:prefix,rows:rows};
-                sug.querySelectorAll('button').forEach(function(btn){
-                  btn.addEventListener('mousedown', function(e){e.preventDefault();});
-                  btn.addEventListener('click', function(){
-                    var id=Number(btn.getAttribute('data-id'));
-                    var p=rows.find(function(x){return Number(x.id)===id;});
-                    if(p){ addPartyRow(table, prefix, p); input.value=''; closeSug(); }
-                  });
-                });
-              })
-              .catch(function(){});
-          }, 160);
-        });
-        input.addEventListener('focus', function(){ input.dispatchEvent(new Event('input')); });
+            openPartyList(input, apiPath, table, prefix, String(input.value||'').trim());
+          }, 140);
+        }
+        input.addEventListener('input', schedule);
+        input.addEventListener('focus', function(){ openPartyList(input, apiPath, table, prefix, String(input.value||'').trim()); });
+        input.addEventListener('click', function(){ openPartyList(input, apiPath, table, prefix, String(input.value||'').trim()); });
         input.addEventListener('keydown', function(e){
           if(e.key==='Escape'){ closeSug(); return; }
           var btns=Array.prototype.slice.call(sug.querySelectorAll('button[data-id]'));
-          if(!btns.length||sug.hidden) return;
-          var cur=btns.findIndex(function(b){return b.classList.contains('is-active');});
           if(e.key==='ArrowDown'||e.key==='ArrowUp'){
             e.preventDefault();
+            e.stopPropagation();
+            if(sug.hidden||!btns.length){ openPartyList(input, apiPath, table, prefix, String(input.value||'').trim()); return; }
+            var cur=btns.findIndex(function(b){return b.classList.contains('is-active');});
             var next=e.key==='ArrowDown'?(cur<btns.length-1?cur+1:0):(cur>0?cur-1:btns.length-1);
             btns.forEach(function(b,i){b.classList.toggle('is-active',i===next);});
+            try{ btns[next].scrollIntoView({block:'nearest'}); }catch(err){}
             return;
           }
           if(e.key==='Enter'){
             var active=sug.querySelector('button.is-active')||btns[0];
-            if(active){ e.preventDefault(); active.click(); }
+            if(!sug.hidden&&active){ e.preventDefault(); active.click(); }
           }
         });
       }
@@ -2193,6 +2327,22 @@ router.get('/accounting/opening-balance', async (req, res) => {
         if(e.target&&(e.target.id==='ob-cust-search'||e.target.id==='ob-sup-search')) return;
         closeSug();
       });
+      window.addEventListener('scroll', function(){
+        if(sug.hidden) return;
+        var a=document.activeElement;
+        if(a&&(a.id==='ob-cust-search'||a.id==='ob-sup-search')) placeSug(a);
+      }, true);
+      window.addEventListener('resize', function(){
+        if(sug.hidden) return;
+        var a=document.activeElement;
+        if(a&&(a.id==='ob-cust-search'||a.id==='ob-sup-search')) placeSug(a);
+      });
+      /* إصلاح روابط السنة تحت /hypex */
+      var yj=document.getElementById('ob-year-jump');
+      if(yj){
+        var base=yj.getAttribute('data-base')||'/accounting/opening-balance';
+        yj.setAttribute('data-base', baseUrl(base));
+      }
       recompute();
     })();
     </script>`;
