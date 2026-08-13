@@ -267,7 +267,7 @@ router.get('/purchases/posting', guard('purchase_invoices_list'), async (req, re
       <td>${ui.esc(r.supplier_name)}</td>
       <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.total))}</td>
       <td>${ui.statusPill('wait', 'بانتظار الترحيل')}</td>
-      <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc(ui.embedUrl('purchase_invoices', 'id=' + r.id))}">ترحيل</a></td>
+      <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/purchases/invoices/${r.id}">ترحيل</a></td>
     </tr>`
       )
       .join('') || ui.emptyRow(6, 'لا فواتير بانتظار الترحيل');

@@ -1,7 +1,22 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * شاشة PHP القديمة لفاتورة المبيعات.
+ * الواجهة الأساسية أصبحت Node: /sales/invoices
+ * يبقى هذا الملف للـ POST/توافق؛ طلبات GET تُحوَّل إلى Node.
+ */
 require_once app_path('includes/sales_invoice_post.php');
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && empty($_GET['force_php'])) {
+    $id = (int) ($_GET['id'] ?? 0);
+    $base = defined('APP_URL_BASE') ? rtrim((string) APP_URL_BASE, '/') : '';
+    $target = $id > 0
+        ? ($base . '/sales/invoices/' . $id)
+        : ($base . '/sales/invoices/new');
+    header('Location: ' . $target, true, 302);
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_action'] ?? '') === 'save_invoice') {
     handle_sales_invoice_post();

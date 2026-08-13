@@ -201,6 +201,11 @@ app_boot_run($pdo, $appBootMigrations);
 $r = isset($_GET['r']) ? (string) $_GET['r'] : (isset($_POST['r']) ? (string) $_POST['r'] : 'dashboard');
 $routes = require app_path('config/routes.php');
 
+require_once app_path('includes/node_screen_redirect.php');
+if (node_try_redirect_desktop_screen($r)) {
+    exit;
+}
+
 if (!isset($routes[$r])) {
     http_response_code(404);
     exit('الصفحة غير موجودة');

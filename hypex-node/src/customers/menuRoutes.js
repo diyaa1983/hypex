@@ -622,7 +622,7 @@ router.get('/customers/oracle-sync', guard('oracle_customers_sync'), async (req,
         mark: 'Or',
         kicker: KICKER,
         title: 'مزامنة عملاء Oracle',
-        subtitle: 'عرض حالة الربط في Hypex. اتصال Oracle والمزامنة الفعلية عبر شاشة PHP (تحتاج Instant Client).',
+        subtitle: 'عرض حالة الربط في Hypex. الاتصال بـ Oracle يتم من إعدادات السيرفر دون فتح شاشات PHP القديمة.',
         actions: [{ label: 'لوحة العملاء', href: HUB }],
       })}
       <section class="si-surface">
@@ -630,8 +630,8 @@ router.get('/customers/oracle-sync', guard('oracle_customers_sync'), async (req,
         <div style="padding:1rem 1.1rem">
           <p style="margin:0 0 .5rem">إجمالي العملاء (في التقرير): <strong dir="ltr">${allCount}</strong></p>
           <p style="margin:0 0 .75rem">مربوطون بـ Oracle (رمز 112* + مفتاح): <strong dir="ltr">${linked}</strong></p>
-          <p class="muted" style="font-size:.88rem;margin:0 0 1rem">المزامنة والخرائط واختبار الاتصال ما زالت تحتاج وحدة PHP مع pdo_oci / oci8. من هنا تفتح الشاشة داخل Node.</p>
-          <a class="si-btn si-btn--primary" href="${ui.esc(ui.embedUrl('oracle_customers_sync'))}">فتح مزامنة Oracle</a>
+          <p class="muted" style="font-size:.88rem;margin:0 0 1rem">للاختبار والمزامنة استخدم واجهة النظام ضمن Node أو API المزامنة المستمرة — لن تُفتح شاشة PHP بعد الآن.</p>
+          <a class="si-btn si-btn--primary" href="/customers">قائمة العملاء</a>
         </div>
       </section>
     </div>`;
@@ -859,7 +859,7 @@ router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async 
           { label: '🖨 طباعة', primary: true, print: true },
           { label: 'Excel', href: excelHref },
           { label: 'لوحة العملاء', href: HUB },
-          { label: 'تقرير كامل', href: ui.embedUrl('report_customers_by_rep') },
+          { label: 'تقرير كامل', href: '/customers/reports/by-rep' },
         ],
       })}
       ${filtersHtml}

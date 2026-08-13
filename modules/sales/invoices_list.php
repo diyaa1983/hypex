@@ -1,6 +1,19 @@
 <?php
 declare(strict_types=1);
 
+/** قائمة ترحيل PHP → واجهة Node */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && empty($_GET['force_php'])) {
+    $base = defined('APP_URL_BASE') ? rtrim((string) APP_URL_BASE, '/') : '';
+    $filter = (string) ($_GET['filter'] ?? 'all');
+    $q = trim((string) ($_GET['q'] ?? ''));
+    $qs = http_build_query(array_filter([
+        'filter' => $filter !== 'all' ? $filter : null,
+        'q' => $q !== '' ? $q : null,
+    ]));
+    header('Location: ' . $base . '/sales/invoices' . ($qs !== '' ? '?' . $qs : ''), true, 302);
+    exit;
+}
+
 $pdo = db();
 require_once app_path('includes/sal_invoice_schema.php');
 require_once app_path('includes/crm_customer_ledger.php');

@@ -173,7 +173,14 @@ function createDomainRouter(conf) {
   }
 
   function renderBridge(req, res, it) {
-    // شاشة داخل غلاف Node مباشرة
+    // لا PHP — إن وُجد مسار Node نُحوِّل إليه، وإلا صفحة توضيح
+    if (it.path && it.kind !== 'bridge') {
+      return res.redirect(it.path);
+    }
+    if (it.path && it.kind === 'bridge') {
+      // جسر قديم: نفس المسار يبقى في Node ويُعرض كقائمة/stub عبر handlers إن وُجدت
+      return res.redirect(`/embed/${encodeURIComponent(it.r)}`);
+    }
     return res.redirect(`/embed/${encodeURIComponent(it.r)}`);
   }
 

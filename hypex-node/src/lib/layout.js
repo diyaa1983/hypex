@@ -229,29 +229,18 @@ function renderApp({
 </html>`;
 }
 
-/** تضمين شاشة PHP داخل غلاف Node */
+/** @deprecated لم يعد يضمّن PHP — يُعاد التوجيه عبر /embed */
 function phpEmbedPage({ user, title, phpRoute, extra = '', backHref = '/app' }) {
-  const src = phpUrl(phpRoute, extra);
-  const bodyHtml = `
-    <div class="embed-stage">
-      <header class="embed-bar no-print">
-        <div>
-          <strong class="embed-kicker">Hypex Node</strong>
-          <h1>${esc(title)}</h1>
-        </div>
-        <div class="embed-bar-actions">
-          <a class="btn" href="${esc(backHref)}">القسم</a>
-          <a class="btn" href="/app">لوحة التحكم</a>
-        </div>
-      </header>
-      <iframe class="php-embed-frame" src="${esc(src)}" title="${esc(title)}"></iframe>
-    </div>`;
+  const q = String(extra || '').replace(/^&/, '');
+  const loc = q ? `/embed/${encodeURIComponent(phpRoute)}?${q}` : `/embed/${encodeURIComponent(phpRoute)}`;
   return renderApp({
     user,
-    title,
-    bodyHtml,
-    bodyClass: 'embed-app',
-    mainClass: 'main main--embed',
+    title: title || phpRoute,
+    bodyHtml: `<div class="si-stage" style="padding:2rem"><p>جاري التحويل…</p><script>location.replace(${JSON.stringify(
+      loc
+    )})</script><a href="${esc(loc)}">متابعة</a> · <a href="${esc(backHref)}">رجوع</a></div>`,
+    bodyClass: 'si-2027',
+    mainClass: 'main si-main',
     printChrome: false,
   });
 }

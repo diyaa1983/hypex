@@ -515,7 +515,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
         tax_rates: lookups.tax_rates,
         phpPostUrl: inv ? phpUrl('sales_invoices', '&id=' + inv.id) : phpUrl('sales_invoices'),
         phpBase: config.phpBaseUrl,
-        archiveUrl: inv ? embedUrl('sales_invoices', 'id=' + inv.id) : '',
+        archiveUrl: inv ? '/sales/invoices/' + inv.id + '/print' : '',
       },
     };
 

@@ -19,7 +19,7 @@ function voucherRows(ui, rows, phpRoute) {
       <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.amount))}</td>
       <td>${dash(ui, r.description)}</td>
       <td>${ui.statusPill(Number(r.is_cancelled) === 1 ? 'lock' : Number(r.is_posted) === 1 ? 'ok' : 'wait', Number(r.is_cancelled) === 1 ? 'ملغى' : Number(r.is_posted) === 1 ? 'مرحّل' : 'مسودة')}</td>
-      <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc(ui.embedUrl(phpRoute, 'id=' + r.id))}">فتح</a></td>
+      <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc('/embed/' + encodeURIComponent(phpRoute) + '?id=' + r.id)}">فتح</a></td>
     </tr>`
       )
       .join('') || ui.emptyRow(6)
@@ -31,7 +31,7 @@ module.exports = createDomainRouter({
   mark: 'Ac',
   kicker: 'Hypex Accounting · Node',
   hubTitle: 'المحاسبة',
-  hubSubtitle: 'العمليات المالية، القيود، الشيكات والتقارير — تصميم 2027. التقارير الثقيلة تفتح على PHP.',
+  hubSubtitle: 'العمليات المالية، القيود، الشيكات والتقارير — تصميم 2027 على Node.',
   catalog: accountingCatalog,
   listHandlers: {
     // سند قبض + قائمة الترحيل: receiptRoutes.js
@@ -81,7 +81,7 @@ module.exports = createDomainRouter({
             <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.amount))}</td>
             <td class="si-num" dir="ltr">${dash(ui, r.check_no)}</td>
             <td>${dash(ui, r.bank_name)}</td>
-            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc(ui.embedUrl('fin_checks', 'id=' + r.id))}">فتح</a></td>
+            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc('/accounting/checks?id=' + r.id)}">فتح</a></td>
           </tr>`
             )
             .join('') || ui.emptyRow(6),
@@ -105,7 +105,7 @@ module.exports = createDomainRouter({
             <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.amount))}</td>
             <td class="si-num" dir="ltr">${dash(ui, r.check_no)}</td>
             <td>${dash(ui, r.bank_name)}</td>
-            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc(ui.embedUrl('fin_outgoing_checks'))}">فتح</a></td>
+            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc('/accounting/outgoing-checks')}">فتح</a></td>
           </tr>`
             )
             .join('') || ui.emptyRow(6),
@@ -160,7 +160,7 @@ module.exports = createDomainRouter({
             <td>${ui.esc(partyLabel(r))}</td>
             <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.total))}</td>
             <td>${dash(ui, r.reason)}</td>
-            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc(ui.embedUrl('debit_notes', 'id=' + r.id))}">فتح</a></td>
+            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc('/accounting/debit-notes?id=' + r.id)}">فتح</a></td>
           </tr>`
             )
             .join('') || ui.emptyRow(6, 'لا إشعارات مدينة — اضغط «+ إشعار مدين جديد»'),
@@ -173,7 +173,7 @@ module.exports = createDomainRouter({
             href: '/accounting/debit-notes/entry',
             primary: true,
           },
-          { label: 'فتح الشاشة الأصلية', href: ui.embedUrl('debit_notes') },
+          { label: 'قائمة الإشعارات المدينة', href: '/accounting/debit-notes' },
         ],
       };
     },
@@ -199,7 +199,7 @@ module.exports = createDomainRouter({
             <td>${ui.esc(partyLabel(r))}</td>
             <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.total))}</td>
             <td>${dash(ui, r.reason)}</td>
-            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc(ui.embedUrl('credit_notes', 'id=' + r.id))}">فتح</a></td>
+            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc('/accounting/credit-notes?id=' + r.id)}">فتح</a></td>
           </tr>`
             )
             .join('') || ui.emptyRow(6, 'لا إشعارات دائنة — اضغط «+ إشعار دائن جديد»'),
@@ -212,7 +212,7 @@ module.exports = createDomainRouter({
             href: '/accounting/credit-notes/entry',
             primary: true,
           },
-          { label: 'فتح الشاشة الأصلية', href: ui.embedUrl('credit_notes') },
+          { label: 'قائمة الإشعارات الدائنة', href: '/accounting/credit-notes' },
         ],
       };
     },

@@ -8,8 +8,10 @@ const db = require('./db');
 const auth = require('./auth');
 const nav = require('./nav');
 const dashboard = require('./dashboard');
-const { renderApp, phpUrl, faviconLinksHtml } = require('./lib/layout');
+const { renderApp, faviconLinksHtml } = require('./lib/layout');
 const { esc, fmtAmt, isoToDmy } = require('./lib/html');
+const { resolveNativeEmbedTarget } = require('./lib/nativeEmbed');
+const { resolveScreen } = require('./lib/screenMap');
 const salesInvoices = require('./sales/invoicesRoutes');
 const salesReturns = require('./sales/returnsRoutes');
 const customerOrders = require('./sales/customerOrdersRoutes');
@@ -50,8 +52,6 @@ const mobileMenu = require('./mobile/menuRoutes');
 const mainMenu = require('./main/menuRoutes');
 const menuAll = require('./menuAllRoutes');
 const hubRoutes = require('./hubRoutes');
-const { resolveScreen } = require('./lib/screenMap');
-const { phpEmbedPage } = require('./lib/layout');
 const basePath = require('./lib/basePath');
 const fs = require('fs');
 const { createSessionMiddleware } = require('./sessionStore');
@@ -315,127 +315,55 @@ app.get('/api/nav', auth.requireAuth, (req, res) => {
 
 app.use(hubRoutes);
 
-/** فتح أي شاشة PHP داخل الغلاف — لا يغادر المنفذ 3000 */
-const NATIVE_EMBED_REDIRECT = new Set([
-  'user_gps_tracker',
-  'm_user_gps_tracker',
-  'user_gps_locations',
-  'm_user_gps_locations',
-  'sales_invoice_gps',
-  'gps_tracking_settings',
-  'einvoice_settings',
-  'users',
-  'groups',
-  'permissions',
-  'open_sessions',
-  'settings',
-  'tax_rates_settings',
-  'dashboard_accounts_settings',
-  'system_backup',
-  // HR — شاشات Node الأصلية
-  'hr_employees',
-  'hr_employee_attendance',
-  'hr_attendance_sync_server',
-  'hr_attendance_sync_local',
-  'hr_employee_schedule',
-  'hr_attendance_settings',
-  'hr_departure_types',
-  'hr_employee_departures',
-  'report_hr_employee_departures',
-  'report_hr_employees_by_department',
-  'report_hr_employees_by_nationality',
-  // محاسبة
-  'chart_of_accounts',
-  'report_income_statement_comprehensive',
-  'cash_receipt',
-  'cash_receipts_list',
-  'cash_payment',
-  'cash_payments_list',
-  'account_mapping',
-  'fin_employee_advances',
-  'journal_voucher',
-  'journal_entries',
-  'acc_opening_balance',
-  'acc_period_close',
-  'acc_year_close',
-  'report_general_ledger',
-  'report_receivables',
-  'report_receivables_aging',
-  'report_incoming_checks',
-  'report_outgoing_checks',
-  'report_supplier_payables',
-  'report_party_statement',
-  'report_oracle_customer_statement',
-  'report_account_statement',
-  'report_trial_balance',
-  'report_trial_balance_detailed',
-  'report_income_statement',
-  'report_balance_sheet',
-  'report_tax_declaration',
-  'report_tax_ar3',
-  'report_vat_net_payable',
-  'report_invoice_tax',
-  // مبيعات — فواتير ومرتجعات Node
-  'sales_invoices',
-  'sales_invoices_list',
-  'sales_returns',
-  'sales_returns_list',
-  'sales_returns_documents_list',
-  'report_invoice_tax_purchase',
-  'report_vat_return_tax',
-  'report_vat_return_tax_purchase',
-]);
-
-function embedQueryString(query) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(query || {})) {
-    if (v == null) continue;
-    if (Array.isArray(v)) v.forEach((x) => qs.append(k, String(x)));
-    else qs.set(k, String(v));
-  }
-  const s = qs.toString();
-  return s ? `?${s}` : '';
-}
-
+/** فتح أي شاشة عبر رمزها — Node فقط (بدون iframe PHP) */
 app.get('/embed/:code', auth.requireAuth, (req, res) => {
   const code = String(req.params.code || '').trim();
   if (!code) return res.redirect('/app');
 
-  // القيود: دائماً داخل Node (لا iframe PHP → صفحة دخول)
-  if (code === 'journal_entries' || code === 'journal_voucher') {
-    const id = Number(req.query.id || 0) || 0;
-    if (id > 0) return res.redirect('/accounting/journal-voucher?id=' + id);
-    if (code === 'journal_voucher' || String(req.query.new || '') === '1') {
-      return res.redirect('/accounting/journal-voucher?new=1');
-    }
-    return res.redirect('/accounting/journals');
+  const target = resolveNativeEmbedTarget(code, req.query || {});
+  if (target.ok) {
+    return res.redirect(target.url);
   }
 
   const sc = resolveScreen(code);
-  // شاشات محوّلة لـ Node: لا تُفتح كـ PHP iframe
-  if (sc && sc.path && NATIVE_EMBED_REDIRECT.has(code)) {
-    return res.redirect(sc.path + embedQueryString(req.query));
-  }
-  if (sc && sc.path && !Object.keys(req.query || {}).length && sc.kind === 'doc') {
-    return res.redirect(sc.path);
-  }
-  let extra = '';
-  for (const [k, v] of Object.entries(req.query || {})) {
-    extra += `&${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`;
-  }
   const back =
     sc && sc.domain
       ? sc.domain === 'main'
         ? '/app'
         : `/hub/${sc.domain}`
       : '/app';
+  const title = sc?.label || code;
+  const bodyHtml = `
+    <div class="si-stage">
+      <header class="si-hero">
+        <div class="si-brand-lockup">
+          <div class="si-brand-text">
+            <h1>${esc(title)}</h1>
+          </div>
+        </div>
+        <div class="si-hero-actions">
+          <a class="si-btn" href="${esc(back)}">القسم</a>
+          <a class="si-btn si-btn--primary" href="/app">لوحة التحكم</a>
+        </div>
+      </header>
+      <section class="si-surface" style="padding:1.25rem 1.35rem">
+        <h2 style="margin:0 0 .5rem">هذه الشاشة داخل واجهة Node فقط</h2>
+        <p class="muted" style="margin:0;line-height:1.55;font-size:.92rem">
+          تم إيقاف فتح شاشات PHP القديمة من النظام.
+          الشاشة <code dir="ltr">${esc(code)}</code> لم تُربط بعد بمسار Node جاهز للتحرير —
+          استخدم القوائم من لوحة التحكم، أو راجع مدير النظام لإكمال التحويل.
+        </p>
+      </section>
+    </div>`;
   res.send(
-    phpEmbedPage({
+    renderApp({
       user: req.session.user,
-      title: sc?.label || code,
-      phpRoute: code,
-      extra,
-      backHref: back,
+      title,
+      bodyHtml,
+      bodyClass: 'si-2027',
+      mainClass: 'main si-main',
+      css: ['/assets/css/sales-2027.css'],
+      printChrome: false,
     })
   );
 });

@@ -35,13 +35,13 @@ module.exports = createDomainRouter({
             <td>${dash(ui, r.warehouse_name)}</td>
             <td>${dash(ui, r.warehouse_to_name)}</td>
             <td>${dash(ui, r.status)}</td>
-            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc(ui.embedUrl('warehouse_moves', 'id=' + r.id))}">فتح</a></td>
+            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc('/inventory/moves?id=' + r.id)}">فتح</a></td>
           </tr>`
             )
             .join('') || ui.emptyRow(7),
         count: rows.length,
         filtersHtml: ui.dateFilters('/inventory/moves', range.from, range.to),
-        extraActions: [{ label: 'حركة جديدة', href: ui.embedUrl('warehouse_moves'), primary: true }],
+        extraActions: [{ label: 'حركة جديدة', href: '/inventory/moves', primary: true }],
       };
     },
     '/inventory/stocktake': async (req, { ui }) => {
@@ -56,7 +56,7 @@ module.exports = createDomainRouter({
             <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.doc_date))}</td>
             <td>${dash(ui, r.warehouse_name)}</td>
             <td>${dash(ui, r.status)}</td>
-            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc(ui.embedUrl('inventory_stocktake', 'id=' + r.id))}">فتح</a></td>
+            <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="${ui.esc('/inventory/stocktake?id=' + r.id)}">فتح</a></td>
           </tr>`
             )
             .join('') || ui.emptyRow(5),
@@ -64,7 +64,7 @@ module.exports = createDomainRouter({
         searchPath: '/inventory/stocktake',
         qVal: String(req.query.q || ''),
         extraActions: [
-          { label: 'جرد جديد', href: ui.embedUrl('inventory_stocktake'), primary: true },
+          { label: 'جرد جديد', href: '/inventory/stocktake', primary: true },
         ],
       };
     },

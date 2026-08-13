@@ -154,21 +154,25 @@ function hubTiles(userCan, user, catalog = salesCatalog) {
 }
 
 function bridgeCard(title, phpRoute, desc, backHref = '/sales', backLabel = 'عودة') {
-  const src = phpUrl(phpRoute);
   return `
-    <section class="si-surface si-surface--embed">
+    <section class="si-surface">
       <div class="si-surface-head">
         <h2>${esc(title)}</h2>
         <a class="si-btn" href="${esc(backHref)}">${esc(backLabel)}</a>
       </div>
-      <p style="margin:0;padding:.5rem 1.1rem 0;color:#5c6578;font-size:.85rem;line-height:1.5">${esc(desc)}</p>
-      <iframe class="php-embed-frame php-embed-frame--in-card" src="${esc(src)}" title="${esc(title)}"></iframe>
+      <div style="padding:1rem 1.1rem 1.25rem">
+        <p style="margin:0 0 .75rem;color:#5c6578;font-size:.9rem;line-height:1.5">${esc(desc)}</p>
+        <p class="muted" style="margin:0 0 1rem;font-size:.85rem">تم إيقاف تضمين شاشات PHP. افتح النسخة من Node إن وُجدت.</p>
+        <a class="si-btn si-btn--primary" href="/embed/${encodeURIComponent(phpRoute)}">فتح في Node</a>
+      </div>
     </section>`;
 }
 
-/** تضمين PHP كامل داخل صفحة 2027 */
+/** لم يعد يضمّن PHP — يوجّه إلى /embed */
 function phpEmbedBlock(phpRoute, title = '') {
-  return `<iframe class="php-embed-frame" src="${esc(phpUrl(phpRoute))}" title="${esc(title || phpRoute)}"></iframe>`;
+  return `<div class="si-surface" style="padding:1rem"><a class="si-btn si-btn--primary" href="/embed/${encodeURIComponent(
+    phpRoute
+  )}">${esc(title || phpRoute)}</a></div>`;
 }
 
 module.exports = {

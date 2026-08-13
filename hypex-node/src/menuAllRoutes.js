@@ -89,7 +89,7 @@ router.get('/menu', (req, res) => {
         subtitle: `دليل كامل لواجهات النظام على Node.js — ${total} شاشة متاحة لحسابك.`,
         actions: [
           { label: 'لوحة التحكم', href: '/app', primary: true },
-          { label: 'فتح الشاشة', href: ui.embedUrl('menu_hub') },
+          { label: 'فتح الشاشة', href: '/app' },
         ],
       })}
       ${sections}

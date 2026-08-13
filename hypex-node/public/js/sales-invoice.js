@@ -1336,7 +1336,7 @@
       }
       var url = (state.defaults && state.defaults.archiveUrl) || '';
       if (url) window.open(url, '_blank');
-      else setMsg('الأرشيف متاح من واجهة PHP عند الحاجة.', 'error');
+      else setMsg('احفظ الفاتورة أولاً لفتح الأرشيف/الطباعة.', 'error');
     });
   }
 

@@ -220,7 +220,7 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
       prev_id: nav.prev_id || 0,
       next_id: nav.next_id || 0,
       caps: cs,
-      archiveUrl: doc ? embedUrl('sales_returns', 'id=' + doc.id) : '',
+      archiveUrl: doc ? '/sales/returns/' + doc.id : '',
     };
     const badge = initial.is_posted
       ? '<span class="si-pill si-pill--lock">مرحّل — قراءة فقط</span>'
