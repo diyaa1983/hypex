@@ -236,13 +236,16 @@ app.get('/app', auth.requireAuth, async (req, res) => {
     const user = req.session.user;
     const dash = await dashboard.collectDashboard();
     const kpis = (dash.kpis || [])
-      .map(
-        (k) => `<article class="kpi kpi--${esc(k.tone || 'primary')}">
+      .map((k) => {
+        const inner = `
         <span class="kpi-label">${esc(k.label)}</span>
         <span class="kpi-value" dir="ltr">${esc(k.value)}</span>
-        ${k.hint ? `<span class="kpi-hint">${esc(k.hint)}</span>` : ''}
-      </article>`
-      )
+        ${k.hint ? `<span class="kpi-hint">${esc(k.hint)}</span>` : ''}`;
+        if (k.href) {
+          return `<a class="kpi kpi--${esc(k.tone || 'primary')}" href="${esc(k.href)}" style="text-decoration:none;color:inherit">${inner}</a>`;
+        }
+        return `<article class="kpi kpi--${esc(k.tone || 'primary')}">${inner}</article>`;
+      })
       .join('');
     const rows = (dash.recent_sales || [])
       .map(
@@ -255,6 +258,17 @@ app.get('/app', auth.requireAuth, async (req, res) => {
       )
       .join('');
 
+    const orderRow = (r) => `<tr>
+        <td dir="ltr"><a href="/sales/orders/${r.id}">${esc(r.order_no)}</a></td>
+        <td dir="ltr">${esc(isoToDmy(r.order_date))}</td>
+        <td>${esc(r.customer_name)}</td>
+        <td>${esc(r.status_label || '')}</td>
+        <td dir="ltr">${esc(r.total)}</td>
+      </tr>`;
+    const openOrderRows = (dash.open_orders || []).map(orderRow).join('');
+    const approvedOrderRows = (dash.approved_orders || []).map(orderRow).join('');
+    const recentOrderRows = (dash.recent_orders || []).map(orderRow).join('');
+
     const bodyHtml = `
       <header class="topbar">
         <div>
@@ -263,6 +277,7 @@ app.get('/app', auth.requireAuth, async (req, res) => {
         </div>
         <div class="topbar-actions">
           <a class="btn btn-primary" href="/sales/invoices/new">＋ فاتورة مبيعات</a>
+          <a class="btn" href="/sales/orders/new">＋ طلب شراء عميل</a>
           <a class="btn" href="/hub/sales">المبيعات</a>
           <a class="btn" href="/hub/purchases">المشتريات</a>
           <a class="btn" href="/hub/customers">العملاء</a>
@@ -282,6 +297,63 @@ app.get('/app', auth.requireAuth, async (req, res) => {
             </thead>
             <tbody>
               ${rows || '<tr><td colspan="4" class="empty">لا توجد فواتير بعد</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>طلبات شراء العملاء</h2>
+          <a href="/sales/orders">عرض الكل</a>
+        </div>
+        <div class="table-wrap">
+          <table class="grid">
+            <thead>
+              <tr><th>رقم</th><th>التاريخ</th><th>العميل</th><th>الحالة</th><th>الإجمالي</th></tr>
+            </thead>
+            <tbody>
+              ${
+                recentOrderRows ||
+                '<tr><td colspan="5" class="empty">لا توجد طلبات بعد</td></tr>'
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>الطلبات المفتوحة</h2>
+          <a href="/sales/orders/approve">عرض الكل</a>
+        </div>
+        <div class="table-wrap">
+          <table class="grid">
+            <thead>
+              <tr><th>رقم</th><th>التاريخ</th><th>العميل</th><th>الحالة</th><th>الإجمالي</th></tr>
+            </thead>
+            <tbody>
+              ${
+                openOrderRows ||
+                '<tr><td colspan="5" class="empty">لا توجد طلبات مفتوحة</td></tr>'
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>الطلبات المعتمدة</h2>
+          <a href="/sales/orders/approved">عرض الكل</a>
+        </div>
+        <div class="table-wrap">
+          <table class="grid">
+            <thead>
+              <tr><th>رقم</th><th>التاريخ</th><th>العميل</th><th>الحالة</th><th>الإجمالي</th></tr>
+            </thead>
+            <tbody>
+              ${
+                approvedOrderRows ||
+                '<tr><td colspan="5" class="empty">لا توجد طلبات معتمدة</td></tr>'
+              }
             </tbody>
           </table>
         </div>
