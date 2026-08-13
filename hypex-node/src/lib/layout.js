@@ -56,7 +56,7 @@ function embedUrl(route, extra = '') {
   return e ? `/embed/${encodeURIComponent(route)}?${e}` : `/embed/${encodeURIComponent(route)}`;
 }
 
-function renderSidebar(user, activePath = '') {
+function renderSidebar(user, activePath = '', notifyBellHtml = '') {
   const sidebarItems = nav.buildSidebar(user);
   const itemsHtml = sidebarItems
     .map((it) => {
@@ -85,6 +85,7 @@ function renderSidebar(user, activePath = '') {
       <div class="sidebar-brand__text">
         <strong title="${esc(companyName)}">${esc(companyName)}</strong>
       </div>
+      ${notifyBellHtml || ''}
     </div>
     <p class="sidebar-section-label">الأقسام</p>
     <nav class="sidebar-nav sidebar-nav--domains" aria-label="القائمة الرئيسية">${itemsHtml}</nav>
@@ -116,9 +117,24 @@ function renderApp({
   /** ترويسة/تذييل الطباعة عبر iframe (افتراضي مفعّل) */
   printChrome = true,
   printTitle = '',
+  notifyBellHtml = '',
 }) {
   getPrintBrand();
 
+  let bellHtml = notifyBellHtml || '';
+  if (user && !bellHtml) {
+    try {
+      const { userCanSeeBell, emptyPayload } = require('../notifications/inboxService');
+      const { renderBellShell } = require('../notifications/bellHtml');
+      if (userCanSeeBell(user)) {
+        const shell = emptyPayload();
+        shell.enabled = true;
+        bellHtml = renderBellShell(shell);
+      }
+    } catch {
+      bellHtml = '';
+    }
+  }
   const base = basePath.basePath || '';
   const spVer = assetVersion('js/sales-print.js');
   const scVer = assetVersion('js/hx-shortcuts.js');
@@ -154,6 +170,16 @@ function renderApp({
     const hasFmt = allJs.some((j) => String(j).indexOf('app-format.js') !== -1);
     if (!hasDateJs) allJs.unshift(`/assets/js/app-date-picker.js?v=${dateJsVer}`);
     if (!hasFmt) allJs.unshift(`/assets/js/app-format.js?v=${fmtVer}`);
+    // جرس التنبيهات (طلبات اعتماد / مستندات غير مرحّلة / شيكات…)
+    if (bellHtml) {
+      const hasBellCss = allCss.some((c) => String(c).indexOf('header-check-notifications.css') !== -1);
+      if (!hasBellCss) {
+        allCss.push('/assets/css/check-alerts-modal.css');
+        allCss.push('/assets/css/header-check-notifications.css');
+      }
+      const hasBellJs = allJs.some((j) => String(j).indexOf('header-notifications.js') !== -1);
+      if (!hasBellJs) allJs.push('/assets/js/header-notifications.js');
+    }
   }
 
   const cssLinks = allCss
@@ -218,7 +244,7 @@ function renderApp({
 </head>
 <body class="${esc(bodyCls)}"${printAttrs}>
   <div class="app-shell">
-    ${user ? renderSidebar(user, activePath) : ''}
+    ${user ? renderSidebar(user, activePath, bellHtml) : ''}
     <main class="${esc(mainCls)}">
       ${mainBody}
     </main>

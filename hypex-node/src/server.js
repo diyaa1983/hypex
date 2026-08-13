@@ -52,6 +52,7 @@ const mobileMenu = require('./mobile/menuRoutes');
 const mainMenu = require('./main/menuRoutes');
 const menuAll = require('./menuAllRoutes');
 const hubRoutes = require('./hubRoutes');
+const notifications = require('./notifications/routes');
 const basePath = require('./lib/basePath');
 const fs = require('fs');
 const { createSessionMiddleware } = require('./sessionStore');
@@ -370,6 +371,8 @@ app.get('/app', auth.requireAuth, async (req, res) => {
 app.get('/api/me', auth.requireAuth, (req, res) => {
   res.json({ ok: true, user: req.session.user });
 });
+
+app.use(notifications.router);
 
 app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
   try {
