@@ -27,6 +27,10 @@ $q = trim((string) ($_GET['q'] ?? ''));
 try {
     $pdo = db();
     $scopedRepId = $type === 'customer' ? crm_mobile_scoped_sales_rep_id($pdo) : null;
+    // مدير النظام يرى كل العملاء
+    if ($type === 'customer' && user_is_system_admin()) {
+        $scopedRepId = null;
+    }
     $params = [];
 
     if ($type === 'customer') {
@@ -42,7 +46,7 @@ try {
             $params[] = $like;
             $params[] = $like;
         }
-        $sql .= ' ORDER BY c.name_ar LIMIT 800';
+        $sql .= ' ORDER BY c.name_ar LIMIT 2000';
     } else {
         $sql = 'SELECT id, name_ar, code FROM crm_supplier WHERE is_active = 1';
         if ($q !== '') {
@@ -51,7 +55,7 @@ try {
             $params[] = $like;
             $params[] = $like;
         }
-        $sql .= ' ORDER BY name_ar LIMIT 800';
+        $sql .= ' ORDER BY name_ar LIMIT 2000';
     }
 
     $st = $pdo->prepare($sql);
@@ -70,7 +74,9 @@ try {
         'ok' => true,
         'type' => $type,
         'scoped_to_sales_rep' => $scopedRepId !== null,
+        'sales_rep_id' => $scopedRepId,
         'parties' => $parties,
+        'count' => count($parties),
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     error_log('mobile_parties: ' . $e->getMessage());

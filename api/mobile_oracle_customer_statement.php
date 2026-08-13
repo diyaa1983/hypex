@@ -80,7 +80,7 @@ try {
     if ($repId !== null
         && function_exists('crm_customer_is_linked_to_sales_rep')
         && !crm_customer_is_linked_to_sales_rep($pdo, $customerId, (int) $repId)
-        && !user_is_admin()
+        && !user_is_system_admin()
     ) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'message' => 'هذا العميل غير مربوط بمندوبك.'], JSON_UNESCAPED_UNICODE);

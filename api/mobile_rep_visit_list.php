@@ -1,0 +1,45 @@
+<?php
+declare(strict_types=1);
+
+require_once dirname(__DIR__) . '/includes/bootstrap.php';
+require_once app_path('includes/mobile_auth.php');
+require_once app_path('includes/crm_sales_rep_schema.php');
+require_once app_path('includes/sal_rep_visit.php');
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+
+if (!is_logged_in() || !mobile_is_context() || !user_in_mobile_group()) {
+    http_response_code(401);
+    echo json_encode(['ok' => false, 'error' => 'unauthorized'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+if (!user_can('m_rep_visits') && !user_can('m_rep_route_today') && !user_is_system_admin()) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'forbidden', 'message' => 'لا توجد صلاحية.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$pdo = db();
+$uid = (int) (current_user()['id'] ?? 0);
+$repId = crm_sales_rep_id_for_user($pdo, $uid);
+if ($repId === null || $repId < 1) {
+    http_response_code(422);
+    echo json_encode(['ok' => false, 'message' => 'حسابك غير مربوط بمندوب مبيعات.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$date = trim((string) ($_GET['date'] ?? ''));
+if ($date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+    $date = '';
+}
+
+$visits = sal_rep_visit_list_for_rep($pdo, $repId, $date !== '' ? $date : null);
+echo json_encode([
+    'ok' => true,
+    'route_date' => $date !== '' ? $date : date('Y-m-d'),
+    'visit_radius_m' => (int) sal_rep_visit_radius_m($pdo),
+    'geofence_required' => sal_rep_visit_geofence_setting_enabled($pdo),
+    'visits' => $visits,
+    'count' => count($visits),
+], JSON_UNESCAPED_UNICODE);

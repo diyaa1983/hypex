@@ -93,6 +93,16 @@ return [
         'home_tile' => true,
     ],
 
+    'm_rep_visits' => [
+        'file' => 'modules/mobile/rep_visits.php',
+        'permission' => 'm_rep_visits',
+        'title' => 'تسجيل زيارة العميل',
+        'home_label' => 'دخول / خروج زيارة',
+        'icon' => 'map-pin',
+        'tile_kind' => 'doc',
+        'home_tile' => true,
+    ],
+
     'm_sales_invoice_gps' => [
 
         'file' => 'modules/mobile/sales_invoice_gps_list.php',

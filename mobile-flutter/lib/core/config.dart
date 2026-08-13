@@ -84,6 +84,9 @@ class AppConfig {
   static const String repCustodyListPath = 'api/mobile_rep_custody_list.php';
   static const String repTransferPath = 'api/mobile_rep_transfer.php';
   static const String repRouteTodayPath = 'api/mobile_rep_route_today.php';
+  static const String repVisitListPath = 'api/mobile_rep_visit_list.php';
+  static const String repVisitCheckinPath = 'api/mobile_rep_visit_checkin.php';
+  static const String repVisitCheckoutPath = 'api/mobile_rep_visit_checkout.php';
 
   static const String invoiceGpsListPath = 'api/sales_invoice_gps_list.php';
   static const String userGpsListPath = 'api/user_gps_locations_list.php';

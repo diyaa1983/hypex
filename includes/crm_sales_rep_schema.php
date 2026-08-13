@@ -585,6 +585,49 @@ function crm_customer_is_linked_to_sales_rep(PDO $pdo, int $customerId, int $sal
 }
 
 /**
+ * ضمان ربط العميل بالمندوب (إضافة دون حذف مندوبيّن آخرين).
+ */
+function crm_customer_ensure_linked_to_sales_rep(PDO $pdo, int $customerId, int $salesRepId): void
+{
+    if ($customerId < 1 || $salesRepId < 1) {
+        return;
+    }
+    if (crm_customer_is_linked_to_sales_rep($pdo, $customerId, $salesRepId)) {
+        return;
+    }
+    crm_sales_rep_ensure_customer_invoice_links($pdo);
+    crm_customer_sales_rep_ensure_schema($pdo);
+
+    if (crm_customer_sales_rep_has_table($pdo)) {
+        try {
+            $pdo->prepare(
+                'INSERT IGNORE INTO crm_customer_sales_rep (customer_id, sales_rep_id, sort_order)
+                 VALUES (?, ?, 99)'
+            )->execute([$customerId, $salesRepId]);
+        } catch (Throwable $e) {
+            // إن لم يدعم IGNORE: تجاهل التكرار
+            try {
+                $pdo->prepare(
+                    'INSERT INTO crm_customer_sales_rep (customer_id, sales_rep_id, sort_order)
+                     VALUES (?, ?, 99)'
+                )->execute([$customerId, $salesRepId]);
+            } catch (Throwable $e2) {
+            }
+        }
+    }
+
+    if (crm_sales_rep_customer_has_link($pdo)) {
+        $st = $pdo->prepare('SELECT sales_rep_id FROM crm_customer WHERE id = ? LIMIT 1');
+        $st->execute([$customerId]);
+        $cur = $st->fetchColumn();
+        if ($cur === false || $cur === null || (int) $cur < 1) {
+            $pdo->prepare('UPDATE crm_customer SET sales_rep_id = ? WHERE id = ?')
+                ->execute([$salesRepId, $customerId]);
+        }
+    }
+}
+
+/**
  * شرط SQL: العميل مربوط بالمندوب (alias جدول العميل مثل c).
  * @return array{0:string,1:list<int>} [sqlFragment, params]
  */

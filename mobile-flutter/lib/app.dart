@@ -23,6 +23,7 @@ import 'features/receipts/receipt_form_screen.dart';
 import 'features/receipts/receipt_list_screen.dart';
 import 'features/rep/rep_custody_list_screen.dart';
 import 'features/rep/rep_route_today_screen.dart';
+import 'features/rep/rep_visits_screen.dart';
 import 'features/rep/rep_stock_screen.dart';
 import 'features/rep/rep_transfer_screen.dart';
 import 'features/returns/return_form_screen.dart';
@@ -170,6 +171,10 @@ class NammaApp extends StatelessWidget {
         GoRoute(
           path: '/rep/route-today',
           builder: (_, __) => const RepRouteTodayScreen(),
+        ),
+        GoRoute(
+          path: '/rep/visits',
+          builder: (_, __) => const RepVisitsScreen(),
         ),
         GoRoute(
           path: '/gps/invoices',

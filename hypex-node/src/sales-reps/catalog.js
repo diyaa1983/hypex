@@ -8,6 +8,13 @@ const salesRepsCatalog = [
     items: [
       { r: 'sales_reps', label: 'المندوبين', icon: '🧑‍💼', path: '/sales-reps/list', kind: 'list' },
       { r: 'sales_rep_route', label: 'الجولات', icon: '🗺️', path: '/sales-reps/route', kind: 'list' },
+      {
+        r: 'sales_rep_visit_checkout_approve',
+        label: 'اعتماد خروج يدوي',
+        icon: '🚪',
+        path: '/sales-reps/visit-checkout-approve',
+        kind: 'list',
+      },
     ],
   },
   {

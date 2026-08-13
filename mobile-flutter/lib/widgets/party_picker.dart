@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -40,6 +42,8 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
   List<Party> _items = [];
   bool _loading = true;
   String? _error;
+  Timer? _debounce;
+  int _reqSeq = 0;
 
   @override
   void initState() {
@@ -49,11 +53,20 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _search.dispose();
     super.dispose();
   }
 
+  void _onSearchChanged(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 280), () {
+      _load(v.trim());
+    });
+  }
+
   Future<void> _load(String q) async {
+    final seq = ++_reqSeq;
     setState(() {
       _loading = true;
       _error = null;
@@ -63,6 +76,7 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
         AppConfig.partiesPath,
         query: {'type': widget.type, 'q': q},
       );
+      if (!mounted || seq != _reqSeq) return;
       final list = (res['parties'] as List? ?? [])
           .whereType<Map>()
           .map((e) => Party(
@@ -76,6 +90,7 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
         _loading = false;
       });
     } on ApiException catch (e) {
+      if (!mounted || seq != _reqSeq) return;
       setState(() {
         _error = e.message;
         _loading = false;
@@ -114,11 +129,12 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
               child: TextField(
                 controller: _search,
                 autofocus: true,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'بحث بالاسم أو الرمز...',
-                  prefixIcon: Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.search),
+                  suffixText: _loading ? null : '${_items.length}',
                 ),
-                onChanged: (v) => _load(v.trim()),
+                onChanged: _onSearchChanged,
               ),
             ),
             const SizedBox(height: 8),

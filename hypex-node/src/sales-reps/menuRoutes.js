@@ -995,6 +995,31 @@ function redirectSalesReport(basePath) {
 router.get('/sales-reps/reports/by-rep', redirectSalesReport('/sales/reports/by-rep'));
 router.get('/sales-reps/reports/by-region', redirectSalesReport('/sales/reports/by-region'));
 
+/** اعتماد خروج يدوي — تضمين شاشة PHP */
+router.get('/sales-reps/visit-checkout-approve', guard('sales_rep_visit_checkout_approve'), (req, res) => {
+  let route = 'sales_rep_visit_checkout_approve';
+  const extras = [];
+  if (req.query.status) extras.push('status=' + encodeURIComponent(String(req.query.status)));
+  if (req.query.id) extras.push('id=' + encodeURIComponent(String(req.query.id)));
+  const extraQs = extras.length ? '&' + extras.join('&') : '';
+  const { phpUrl } = require('../lib/layout');
+  const body = `
+    <div class="si-stage">
+      ${ui.hero({
+        mark: 'Vc',
+        kicker: KICKER,
+        title: 'اعتماد خروج يدوي من الزيارة',
+        subtitle: 'طلبات المندوبين الذين دخلوا بـ GPS ونسوا الخروج من موقع العميل',
+        actions: [
+          { label: 'الجولات', href: '/sales-reps/route' },
+          { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
+        ],
+      })}
+      <iframe class="php-embed-frame" src="${esc(phpUrl(route, extraQs))}" title="اعتماد خروج يدوي"></iframe>
+    </div>`;
+  res.send(ui.salesPage({ user: req.session.user, title: 'اعتماد خروج يدوي', bodyHtml: body }));
+});
+
 /* ── تقرير الجولات ── */
 router.get('/sales-reps/reports/tours', async (req, res) => {
   if (

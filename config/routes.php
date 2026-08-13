@@ -85,6 +85,11 @@ return [
         'title' => 'الجولات',
         'hide_screen_title' => true,
     ],
+    'sales_rep_visit_checkout_approve' => [
+        'file' => 'modules/sales/visit_checkout_approve.php',
+        'permission' => 'sales_rep_visit_checkout_approve',
+        'title' => 'اعتماد خروج يدوي من الزيارة',
+    ],
     'report_sales_rep_tours' => [
         'file' => 'modules/reports/sales_rep_tours.php',
         'permission' => 'report_sales_rep_tours',
