@@ -179,26 +179,114 @@ async function itemOnHand(itemId, warehouseId) {
   return Number(rows[0]?.bal || 0);
 }
 
+const REF_TYPE_LABELS = {
+  sale_invoice: 'فاتورة بيع',
+  sales_invoice: 'فاتورة بيع',
+  sale_return: 'مردود مبيعات',
+  sales_return: 'مردود مبيعات',
+  purchase_invoice: 'فاتورة شراء',
+  pur_invoice: 'فاتورة شراء',
+  purchase_return: 'مردود مشتريات',
+  pur_return: 'مردود مشتريات',
+  sales_delivery: 'سند تسليم',
+  sal_delivery: 'سند تسليم',
+  warehouse_move: 'حركة مستودع',
+  inv_wh_move: 'حركة مستودع',
+  wh_move: 'حركة مستودع',
+  stocktake: 'جرد مخزون',
+  inventory_stocktake: 'جرد مخزون',
+  item_opening: 'رصيد افتتاحي',
+  opening: 'رصيد افتتاحي',
+  opening_balance: 'رصيد افتتاحي',
+  adjustment: 'تسوية مخزون',
+  stock_adjust: 'تسوية مخزون',
+};
+
+function refTypeLabel(refType) {
+  const key = String(refType || '').trim();
+  if (!key) return '—';
+  return REF_TYPE_LABELS[key] || REF_TYPE_LABELS[key.toLowerCase()] || key;
+}
+
+function refDocUrl(refType, refId) {
+  const id = Number(refId || 0);
+  if (id < 1) return '';
+  const t = String(refType || '').toLowerCase();
+  if (t === 'sale_invoice' || t === 'sales_invoice') return `/sales/invoices/${id}`;
+  if (t === 'sale_return' || t === 'sales_return') return `/sales/returns/${id}`;
+  if (t === 'purchase_invoice' || t === 'pur_invoice') return `/purchases/invoices/${id}`;
+  if (t === 'purchase_return' || t === 'pur_return') return `/purchases/returns/${id}`;
+  if (t === 'sales_delivery' || t === 'sal_delivery') return `/sales/delivery/${id}`;
+  return '';
+}
+
 /** كشف حركات مادة في مستودع مع رصيد تراكمي */
 async function itemStockLedger(itemId, warehouseId) {
   const raw = await safeQuery(
-    `SELECT m.id AS move_id, m.move_date, m.created_at, m.qty_delta, m.ref_type, m.ref_id, m.note,
-            ${ITEM_CODE_SQL('it')} AS item_code, it.barcode, it.sku, it.name_ar AS item_name
+    `SELECT m.id AS move_id, m.move_date, m.created_at, m.qty_delta, m.ref_type, m.ref_id,
+            COALESCE(m.note, '') AS note,
+            ${ITEM_CODE_SQL('it')} AS item_code, it.barcode, it.sku, it.name_ar AS item_name,
+            COALESCE(
+              si.invoice_no,
+              sr.return_no,
+              pi.invoice_no,
+              pr.return_no,
+              sd.delivery_no,
+              NULLIF(CAST(m.ref_id AS CHAR), '0')
+            ) AS doc_no,
+            COALESCE(cust.name_ar, cust2.name_ar, sup.name_ar, '') AS party_name
      FROM inv_stock_move m
      INNER JOIN inv_item it ON it.id = m.item_id
+     LEFT JOIN sal_invoice si
+       ON m.ref_type IN ('sale_invoice','sales_invoice') AND si.id = m.ref_id
+     LEFT JOIN crm_customer cust ON cust.id = si.customer_id
+     LEFT JOIN sal_return sr
+       ON m.ref_type IN ('sale_return','sales_return') AND sr.id = m.ref_id
+     LEFT JOIN crm_customer cust2 ON cust2.id = sr.customer_id
+     LEFT JOIN pur_invoice pi
+       ON m.ref_type IN ('purchase_invoice','pur_invoice') AND pi.id = m.ref_id
+     LEFT JOIN crm_supplier sup ON sup.id = pi.supplier_id
+     LEFT JOIN pur_return pr
+       ON m.ref_type IN ('purchase_return','pur_return') AND pr.id = m.ref_id
+     LEFT JOIN sal_delivery sd
+       ON m.ref_type IN ('sales_delivery','sal_delivery') AND sd.id = m.ref_id
      WHERE m.item_id = ? AND m.warehouse_id = ?
-     ORDER BY m.created_at ASC, m.id ASC
+     ORDER BY COALESCE(m.move_date, DATE(m.created_at)) ASC, m.created_at ASC, m.id ASC
      LIMIT 5000`,
     [Number(itemId), Number(warehouseId)]
   );
+
+  let rows = raw;
+  if (!rows.length) {
+    /* إن فشل الاستعلام المعزّز (جدول ناقص) جرّب الاستعلام الأساسي */
+    rows = await safeQuery(
+      `SELECT m.id AS move_id, m.move_date, m.created_at, m.qty_delta, m.ref_type, m.ref_id,
+              COALESCE(m.note, '') AS note,
+              ${ITEM_CODE_SQL('it')} AS item_code, it.barcode, it.sku, it.name_ar AS item_name,
+              CAST(NULLIF(m.ref_id, 0) AS CHAR) AS doc_no,
+              '' AS party_name
+       FROM inv_stock_move m
+       INNER JOIN inv_item it ON it.id = m.item_id
+       WHERE m.item_id = ? AND m.warehouse_id = ?
+       ORDER BY m.created_at ASC, m.id ASC
+       LIMIT 5000`,
+      [Number(itemId), Number(warehouseId)]
+    );
+  }
+
   let bal = 0;
-  return raw.map((r) => {
-    bal += Number(r.qty_delta || 0);
+  return rows.map((r) => {
+    const qty = Number(r.qty_delta || 0);
+    bal += qty;
+    const refType = String(r.ref_type || '');
     return {
       ...r,
-      qty_delta: Number(r.qty_delta || 0),
+      qty_delta: qty,
       balance_after: bal,
-      mov_type_label: String(r.ref_type || '—'),
+      mov_type_label: refTypeLabel(refType),
+      doc_no: String(r.doc_no || r.ref_id || ''),
+      party_name: String(r.party_name || ''),
+      doc_url: refDocUrl(refType, r.ref_id),
     };
   });
 }

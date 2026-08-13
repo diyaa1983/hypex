@@ -2300,3 +2300,237 @@ body.si-2027 .si-tile-kind {
     justify-self: start;
   }
 }
+
+/* —— كشف حركات مادة —— */
+.imv-page .imv-filters {
+  margin-bottom: 0.85rem;
+  overflow: visible;
+}
+
+.imv-form {
+  display: grid;
+  grid-template-columns: minmax(16rem, 2.2fr) minmax(11rem, 1.1fr) minmax(7.5rem, 0.7fr) auto;
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+  padding: 0.85rem 1rem 1rem;
+}
+
+.imv-field {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.imv-field__lab {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+
+.imv-field--item {
+  position: relative;
+  z-index: 5;
+}
+
+.imv-item-wrap {
+  position: relative;
+  z-index: 5;
+}
+
+.imv-field--actions {
+  display: flex;
+  align-items: end;
+  padding-bottom: 1px;
+}
+
+.imv-field--actions .si-btn {
+  min-height: 2.35rem;
+  padding-inline: 1.15rem;
+  white-space: nowrap;
+}
+
+.imv-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.imv-summary__item {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(255, 252, 250, 0.95);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+
+.imv-summary__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.imv-summary__item strong {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.imv-summary__meta {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.imv-summary__item--in strong {
+  color: #047857;
+}
+
+.imv-summary__item--out strong {
+  color: #b91c1c;
+}
+
+.imv-summary__item--bal {
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.1), rgba(255, 255, 255, 0.95));
+  border-color: rgba(14, 165, 233, 0.28);
+}
+
+.imv-summary__item--bal strong {
+  color: #0369a1;
+  font-size: 1.05rem;
+}
+
+.imv-table-wrap .si-table td,
+.imv-table-wrap .si-table th {
+  vertical-align: middle;
+}
+
+.imv-type {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.imv-qty {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.imv-qty--in {
+  color: #047857;
+}
+
+.imv-qty--out {
+  color: #b91c1c;
+}
+
+.imv-bal {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.imv-doc-link {
+  color: #0369a1;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.imv-doc-link:hover {
+  text-decoration: underline;
+}
+
+.imv-party {
+  font-size: 0.72rem;
+  margin-top: 0.12rem;
+  max-width: 14rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.imv-suggest.si-suggest--float {
+  z-index: 99999 !important;
+  max-height: min(22rem, 55vh) !important;
+  padding: 0.35rem !important;
+}
+
+.imv-suggest button {
+  display: grid !important;
+  grid-template-columns: minmax(6.5rem, auto) 1fr;
+  gap: 0.45rem 0.65rem;
+  align-items: center;
+  text-align: right !important;
+  min-height: 2.45rem;
+  padding: 0.45rem 0.7rem !important;
+}
+
+.imv-sug-code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0369a1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.imv-sug-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .imv-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .imv-field--item {
+    grid-column: 1 / -1;
+  }
+  .imv-field--actions {
+    grid-column: 1 / -1;
+    justify-content: start;
+  }
+  .imv-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .imv-form {
+    grid-template-columns: 1fr;
+  }
+  .imv-summary {
+    grid-template-columns: 1fr;
+  }
+  .imv-suggest button {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+}
+
+@media print {
+  .imv-summary {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+  }
+  .imv-summary__item {
+    box-shadow: none;
+    border: 1px solid #ccc;
+    padding: 0.35rem 0.45rem;
+  }
+}

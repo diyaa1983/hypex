@@ -172,7 +172,6 @@ module.exports = createDomainRouter({
     },
     '/inventory/reports/item-moves': async (req, { ui }) => {
       const warehouses = await q.listWarehouses({ activeOnly: true });
-      const items = await q.listItems({ activeOnly: true, limit: 3000 });
       const itemId = Number(req.query.item_id || 0) || 0;
       const warehouseId = Number(req.query.warehouse_id || 0) || 0;
       const run = String(req.query.run || '') === '1';
@@ -181,6 +180,8 @@ module.exports = createDomainRouter({
       let rows = [];
       let item = null;
       let whLabel = '';
+      let inTotal = 0;
+      let outTotal = 0;
 
       if (run) {
         if (itemId < 1) err = 'اختر المادة.';
@@ -194,23 +195,20 @@ module.exports = createDomainRouter({
             whLabel = wh.name_ar || wh.code || '';
             onHand = await q.itemOnHand(itemId, warehouseId);
             rows = await q.itemStockLedger(itemId, warehouseId);
+            for (const r of rows) {
+              const qv = Number(r.qty_delta || 0);
+              if (qv > 0) inTotal += qv;
+              else if (qv < 0) outTotal += Math.abs(qv);
+            }
           }
         }
       }
 
-      const selectedItem = itemId > 0 ? items.find((it) => Number(it.id) === itemId) : null;
-      const selectedItemLabel = selectedItem
-        ? ((selectedItem.barcode || selectedItem.sku) ? (selectedItem.barcode || selectedItem.sku) + ' — ' : '') +
-          (selectedItem.name_ar || '')
+      const selectedItemLabel = item
+        ? ((item.barcode || item.sku || item.item_code)
+            ? (item.barcode || item.sku || item.item_code) + ' — '
+            : '') + (item.name_ar || '')
         : '';
-
-      const itemCatalogJson = JSON.stringify(
-        items.map((it) => ({
-          id: Number(it.id),
-          code: String(it.barcode || it.sku || ''),
-          name: String(it.name_ar || ''),
-        }))
-      ).replace(/</g, '\\u003c');
 
       const whOpts = warehouses
         .map(
@@ -223,85 +221,139 @@ module.exports = createDomainRouter({
 
       const rowsHtml =
         rows
-          .map(
-            (r, i) => `<tr>
+          .map((r, i) => {
+            const qty = Number(r.qty_delta || 0);
+            const qtyCls = qty > 0 ? 'imv-qty imv-qty--in' : qty < 0 ? 'imv-qty imv-qty--out' : 'imv-qty';
+            const qtyTxt = (qty > 0 ? '+' : '') + ui.fmtAmt(qty);
+            const docInner = r.doc_url
+              ? `<a class="imv-doc-link" href="${ui.esc(r.doc_url)}">${ui.esc(r.doc_no || '—')}</a>`
+              : ui.esc(r.doc_no || '—');
+            const party = r.party_name
+              ? `<div class="imv-party muted">${ui.esc(r.party_name)}</div>`
+              : '';
+            return `<tr>
           <td class="si-num" dir="ltr">${i + 1}</td>
           <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.move_date))}</td>
-          <td>${ui.esc(r.mov_type_label || r.ref_type || '—')}</td>
-          <td class="si-num" dir="ltr">${r.ref_id || '—'}</td>
-          <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty_delta))}</td>
-          <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.balance_after))}</td>
+          <td><span class="imv-type">${ui.esc(r.mov_type_label || r.ref_type || '—')}</span></td>
+          <td class="si-num" dir="ltr">${docInner}${party}</td>
+          <td class="si-num ${qtyCls}" dir="ltr">${ui.esc(qtyTxt)}</td>
+          <td class="si-num imv-bal" dir="ltr">${ui.esc(ui.fmtAmt(r.balance_after))}</td>
           <td>${dash(ui, r.note)}</td>
-        </tr>`
-          )
-          .join('') || (run && !err ? ui.emptyRow(7, 'لا حركات لهذه المادة في المستودع') : ui.emptyRow(7, 'اختر المادة والمستودع ثم ابحث'));
+        </tr>`;
+          })
+          .join('') ||
+        (run && !err
+          ? ui.emptyRow(7, 'لا حركات لهذه المادة في المستودع')
+          : ui.emptyRow(7, 'اختر المادة والمستودع ثم ابحث'));
+
+      const summaryHtml =
+        run && item && !err
+          ? `<div class="imv-summary si-print-area">
+              <div class="imv-summary__item">
+                <span class="imv-summary__label">المادة</span>
+                <strong>${ui.esc(item.name_ar || '')}</strong>
+                <span class="imv-summary__meta" dir="ltr">${ui.esc(
+                  item.barcode || item.sku || item.item_code || ''
+                )}</span>
+              </div>
+              <div class="imv-summary__item">
+                <span class="imv-summary__label">المستودع</span>
+                <strong>${ui.esc(whLabel)}</strong>
+              </div>
+              <div class="imv-summary__item imv-summary__item--in">
+                <span class="imv-summary__label">إجمالي وارد</span>
+                <strong dir="ltr">+${ui.esc(ui.fmtAmt(inTotal))}</strong>
+              </div>
+              <div class="imv-summary__item imv-summary__item--out">
+                <span class="imv-summary__label">إجمالي صادر</span>
+                <strong dir="ltr">−${ui.esc(ui.fmtAmt(outTotal))}</strong>
+              </div>
+              <div class="imv-summary__item imv-summary__item--bal">
+                <span class="imv-summary__label">الرصيد الحالي</span>
+                <strong dir="ltr">${ui.esc(ui.fmtAmt(onHand))}</strong>
+              </div>
+            </div>`
+          : '';
 
       const body = `
-        <div class="si-stage si-report-page">
+        <div class="si-stage si-report-page imv-page">
           ${ui.hero({
             mark: '📋',
             kicker: 'Hypex Inventory · Node',
             title: 'كشف حركات مادة',
-            subtitle: run && item && !err
-              ? `${ui.esc(item.name_ar || '')} · ${ui.esc(whLabel)} · رصيد: ${ui.esc(ui.fmtAmt(onHand))}`
-              : 'اختر المادة والمستودع لعرض سجل الحركات والرصيد',
+            subtitle:
+              run && item && !err
+                ? `${ui.esc(item.name_ar || '')} · ${ui.esc(whLabel)}`
+                : 'اختر المادة والمستودع لعرض سجل الحركات والرصيد',
             actions: [
               { label: '🖨 طباعة', primary: true, print: true },
               { label: 'لوحة المستودعات', href: '/inventory' },
             ],
           })}
-          ${
-            err
-              ? `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>`
-              : ''
-          }
-          <div class="si-rail no-print" style="overflow:visible;border-radius:16px">
-            <form method="get" action="/inventory/reports/item-moves" class="si-search" id="imv-form" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%;overflow:visible" autocomplete="off">
+          ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>` : ''}
+          <section class="si-surface imv-filters no-print">
+            <div class="si-surface-head">
+              <h2>معايير البحث</h2>
+              <span class="si-count">مادة + مستودع</span>
+            </div>
+            <form method="get" action="/inventory/reports/item-moves" class="imv-form" id="imv-form" autocomplete="off">
               <input type="hidden" name="run" value="1">
               <input type="hidden" name="item_id" id="imv-item-id" value="${itemId || 0}">
-              <label style="font-size:.8rem;font-weight:700;color:#5c6578;position:relative;min-width:18rem;flex:1 1 18rem;z-index:30">المادة *
-                <div class="si-cust-wrap" style="position:relative;z-index:30">
+              <label class="imv-field imv-field--item">
+                <span class="imv-field__lab">المادة *</span>
+                <div class="si-cust-wrap imv-item-wrap">
                   <input type="search" class="si-field" id="imv-item-search"
                          value="${ui.esc(selectedItemLabel)}"
                          placeholder="ابحث بالباركود أو اسم المادة…"
                          autocomplete="off" spellcheck="false">
-                  <div class="si-suggest" id="imv-item-suggest" hidden></div>
                 </div>
               </label>
-              <label style="font-size:.8rem;font-weight:700;color:#5c6578">المستودع *
-                <select name="warehouse_id" class="si-field" required style="min-width:11rem">
+              <label class="imv-field imv-field--wh">
+                <span class="imv-field__lab">المستودع *</span>
+                <select name="warehouse_id" class="si-field" required>
                   <option value="">— اختر المستودع —</option>
                   ${whOpts}
                 </select>
               </label>
-              <label style="font-size:.8rem;font-weight:700;color:#5c6578">الرصيد الحالي
-                <input class="si-field si-field--mono" readonly value="${
-                  onHand == null ? '—' : ui.esc(ui.fmtAmt(onHand))
-                }" style="min-width:7rem" dir="ltr">
+              <label class="imv-field imv-field--bal">
+                <span class="imv-field__lab">الرصيد الحالي</span>
+                <input class="si-field si-field--mono" readonly
+                       value="${onHand == null ? '—' : ui.esc(ui.fmtAmt(onHand))}" dir="ltr">
               </label>
-              <button class="si-btn si-btn--primary" type="submit">بحث</button>
+              <div class="imv-field imv-field--actions">
+                <button class="si-btn si-btn--primary" type="submit">بحث</button>
+              </div>
             </form>
-          </div>
-          <div class="si-print-area">
+          </section>
+          ${summaryHtml}
+          <div class="si-print-area imv-table-wrap">
             ${ui.tableSurface(
               'سجل الحركات',
               `${rows.length} حركة`,
-              ['#', 'التاريخ', 'نوع', 'مرجع', 'الكمية ±', 'الرصيد بعد', 'ملاحظة'],
+              ['#', 'التاريخ', 'النوع', 'المرجع', 'الكمية ±', 'الرصيد بعد', 'ملاحظة'],
               rowsHtml
             )}
           </div>
-          <script type="application/json" id="imv-catalog">${itemCatalogJson}</script>
           <script>
           (function () {
-            var catalog = [];
-            try {
-              catalog = JSON.parse(document.getElementById('imv-catalog').textContent || '[]');
-            } catch (e) { catalog = []; }
             var search = document.getElementById('imv-item-search');
-            var suggest = document.getElementById('imv-item-suggest');
             var itemId = document.getElementById('imv-item-id');
             var form = document.getElementById('imv-form');
-            if (!search || !suggest || !itemId) return;
+            if (!search || !itemId) return;
+
+            var suggest = document.getElementById('imv-item-suggest');
+            if (!suggest) {
+              suggest = document.createElement('div');
+              suggest.id = 'imv-item-suggest';
+              suggest.className = 'si-suggest si-suggest--float si-suggest--name imv-suggest';
+              suggest.hidden = true;
+              suggest.setAttribute('hidden', '');
+              document.body.appendChild(suggest);
+            }
+
+            var lastRows = [];
+            var reqSeq = 0;
+            var timer = null;
 
             function escHtml(s) {
               return String(s || '')
@@ -310,43 +362,38 @@ module.exports = createDomainRouter({
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;');
             }
-            function norm(s) {
-              return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim();
-            }
-            function digits(s) {
-              return String(s || '').replace(/\\D+/g, '');
-            }
             function labelOf(c) {
-              return (c.code || '') + (c.code && c.name ? ' — ' : '') + (c.name || '');
+              var code = c.code || c.barcode || c.sku || '';
+              var name = c.name || c.name_ar || '';
+              return code + (code && name ? ' — ' : '') + name;
+            }
+            function baseUrl(path) {
+              var b = (window.__HYPEX_BASE__ || '').replace(/\\/$/, '');
+              return b && path.charAt(0) === '/' ? b + path : path;
             }
             function placeFloat() {
               var r = search.getBoundingClientRect();
-              var width = Math.max(r.width, 320);
+              var width = Math.max(r.width, 340);
               var left = r.left;
               if (left + width > window.innerWidth - 8) {
                 left = Math.max(8, window.innerWidth - width - 8);
               }
-              suggest.classList.add('si-suggest--float');
+              suggest.classList.add('si-suggest--float', 'si-suggest--name', 'imv-suggest');
               suggest.style.position = 'fixed';
               suggest.style.left = left + 'px';
               suggest.style.right = 'auto';
-              suggest.style.top = r.bottom + 4 + 'px';
+              suggest.style.top = (r.bottom + 4) + 'px';
               suggest.style.width = width + 'px';
               suggest.style.maxHeight = 'min(22rem, 55vh)';
-              suggest.style.zIndex = '4000';
+              suggest.style.zIndex = '99999';
+              suggest.style.display = 'block';
             }
             function closeList() {
               suggest.hidden = true;
               suggest.setAttribute('hidden', '');
-              suggest.classList.remove('si-suggest--float');
-              suggest.style.left = '';
-              suggest.style.top = '';
-              suggest.style.width = '';
-              suggest.style.position = '';
+              suggest.style.display = 'none';
+              suggest.innerHTML = '';
               suggest.dataset.hxUserNav = '';
-              suggest.querySelectorAll('button.is-active').forEach(function (b) {
-                b.classList.remove('is-active');
-              });
             }
             function pick(c) {
               itemId.value = String(c.id || 0);
@@ -354,24 +401,29 @@ module.exports = createDomainRouter({
               closeList();
             }
             function render(list) {
-              if (!list.length) {
-                suggest.innerHTML = '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#64748b;font-size:.85rem">لا نتائج مطابقة</div>';
-                suggest.hidden = false;
-                suggest.removeAttribute('hidden');
-                placeFloat();
-                return;
+              lastRows = list || [];
+              if (!lastRows.length) {
+                suggest.innerHTML = '<div class="si-suggest-empty">لا نتائج مطابقة</div>';
+              } else {
+                suggest.innerHTML = lastRows
+                  .map(function (c) {
+                    var code = c.code || c.barcode || c.sku || '';
+                    var name = c.name || c.name_ar || '';
+                    return (
+                      '<button type="button" data-id="' +
+                      c.id +
+                      '">' +
+                      '<span class="imv-sug-code" dir="ltr">' +
+                      escHtml(code || '—') +
+                      '</span>' +
+                      '<span class="imv-sug-name">' +
+                      escHtml(name || '—') +
+                      '</span>' +
+                      '</button>'
+                    );
+                  })
+                  .join('');
               }
-              suggest.innerHTML = list
-                .map(function (c) {
-                  return (
-                    '<button type="button" data-id="' +
-                    c.id +
-                    '">' +
-                    escHtml(labelOf(c)) +
-                    '</button>'
-                  );
-                })
-                .join('');
               suggest.hidden = false;
               suggest.removeAttribute('hidden');
               placeFloat();
@@ -379,36 +431,51 @@ module.exports = createDomainRouter({
                 btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
                 btn.addEventListener('click', function () {
                   var id = Number(btn.getAttribute('data-id') || 0);
-                  var c = catalog.find(function (x) { return Number(x.id) === id; });
+                  var c = lastRows.find(function (x) { return Number(x.id) === id; });
                   if (c) pick(c);
                 });
               });
             }
-            function filter(q) {
-              q = norm(q);
-              /* إن كان النص هو اختيار سابق (باركود — اسم) خذ الباركود فقط للفلترة */
-              if (q.indexOf(' — ') >= 0) q = norm(q.split(' — ')[0]);
-              var qd = digits(q);
-              if (!q) return catalog.slice(0, 80);
-              return catalog
-                .filter(function (c) {
-                  var name = norm(c.name);
-                  var code = norm(c.code);
-                  var a = digits(c.code);
-                  if (name.indexOf(q) !== -1 || code.indexOf(q) !== -1) return true;
-                  if (qd && a.indexOf(qd) !== -1) return true;
-                  return false;
-                })
-                .slice(0, 80);
+            function queryText() {
+              var q = String(search.value || '').trim();
+              if (Number(itemId.value) > 0 && q.indexOf(' — ') >= 0) return '';
+              return q;
             }
-            function openList(opts) {
-              opts = opts || {};
-              /* عند الضغط/التركيز مع مادة مختارة: اعرض كل القائمة لتغيير الاختيار */
-              if (opts.all || Number(itemId.value) > 0) {
-                render(catalog.slice(0, 80));
-                return;
-              }
-              render(filter(search.value || ''));
+            function fetchList(q) {
+              var seq = ++reqSeq;
+              suggest.innerHTML = '<div class="si-suggest-empty">جاري البحث…</div>';
+              suggest.hidden = false;
+              suggest.removeAttribute('hidden');
+              placeFloat();
+              fetch(baseUrl('/api/lookup/items?q=' + encodeURIComponent(q || '') + '&limit=60'), {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+              })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                  if (seq !== reqSeq) return;
+                  var rows = d && d.ok ? d.rows || [] : [];
+                  render(
+                    rows.map(function (r) {
+                      return {
+                        id: Number(r.id),
+                        code: r.code || r.barcode || r.sku || '',
+                        name: r.name_ar || r.name || '',
+                        name_ar: r.name_ar || '',
+                        barcode: r.barcode || '',
+                        sku: r.sku || '',
+                      };
+                    })
+                  );
+                })
+                .catch(function () {
+                  if (seq !== reqSeq) return;
+                  suggest.innerHTML = '<div class="si-suggest-empty">تعذر تحميل المواد</div>';
+                  placeFloat();
+                });
+            }
+            function openList() {
+              fetchList(queryText());
             }
             function moveActive(dir) {
               var btns = Array.prototype.slice.call(suggest.querySelectorAll('button[data-id]'));
@@ -429,30 +496,25 @@ module.exports = createDomainRouter({
               try { btns[next].scrollIntoView({ block: 'nearest' }); } catch (e) {}
               return true;
             }
-            var t = null;
+
             search.addEventListener('input', function () {
               itemId.value = '0';
-              clearTimeout(t);
-              t = setTimeout(function () {
-                render(filter(search.value || ''));
-              }, 120);
+              clearTimeout(timer);
+              timer = setTimeout(function () { fetchList(String(search.value || '').trim()); }, 160);
             });
-            search.addEventListener('focus', function () { openList({ all: true }); });
-            search.addEventListener('click', function () { openList({ all: true }); });
+            search.addEventListener('focus', openList);
+            search.addEventListener('click', openList);
             search.addEventListener('keydown', function (e) {
-              if (e.key === 'Escape') {
-                closeList();
-                return;
-              }
+              if (e.key === 'Escape') { closeList(); return; }
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                if (suggest.hidden) openList({ all: true });
+                if (suggest.hidden) openList();
                 moveActive(1);
                 return;
               }
               if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                if (suggest.hidden) openList({ all: true });
+                if (suggest.hidden) openList();
                 moveActive(-1);
                 return;
               }
@@ -465,8 +527,9 @@ module.exports = createDomainRouter({
                 }
               }
             });
-            document.addEventListener('click', function (e) {
-              if (!suggest.contains(e.target) && e.target !== search) closeList();
+            document.addEventListener('mousedown', function (e) {
+              if (e.target === search || suggest.contains(e.target)) return;
+              closeList();
             });
             window.addEventListener('scroll', function () {
               if (!suggest.hidden) placeFloat();
@@ -478,7 +541,7 @@ module.exports = createDomainRouter({
               form.addEventListener('submit', function (e) {
                 if (!(Number(itemId.value) > 0)) {
                   e.preventDefault();
-                  openList({ all: true });
+                  openList();
                   search.focus();
                   if (window.HypexUI && window.HypexUI.alert) {
                     window.HypexUI.alert('اختر المادة من القائمة.', 'error');

@@ -170,6 +170,11 @@ function renderApp({
     const hasFmt = allJs.some((j) => String(j).indexOf('app-format.js') !== -1);
     if (!hasDateJs) allJs.unshift(`/assets/js/app-date-picker.js?v=${dateJsVer}`);
     if (!hasFmt) allJs.unshift(`/assets/js/app-format.js?v=${fmtVer}`);
+    // تنقّل Enter / الأسهم بين الحقول في كل الشاشات
+    const hasFieldNav = allJs.some((j) => String(j).indexOf('hx-field-nav.js') !== -1);
+    if (!hasFieldNav) allJs.push('/assets/js/hx-field-nav.js');
+    const hasListKb = allJs.some((j) => String(j).indexOf('app-list-keyboard.js') !== -1);
+    if (!hasListKb) allJs.push('/assets/js/app-list-keyboard.js');
     // جرس التنبيهات (طلبات اعتماد / مستندات غير مرحّلة / شيكات…)
     if (bellHtml) {
       const hasBellCss = allCss.some((c) => String(c).indexOf('header-check-notifications.css') !== -1);

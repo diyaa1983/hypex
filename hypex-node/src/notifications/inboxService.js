@@ -2,6 +2,7 @@
 
 const db = require('../db');
 const { userCan } = require('../auth');
+const basePath = require('../lib/basePath');
 const { invoicesService } = (() => {
   try {
     return { invoicesService: require('../sales/invoicesService') };
@@ -10,6 +11,9 @@ const { invoicesService } = (() => {
   }
 })();
 
+function href(path) {
+  return basePath.url(path || '/');
+}
 const SALE_INV_POSTED =
   invoicesService && invoicesService.POSTED_SQL
     ? invoicesService.POSTED_SQL
@@ -160,7 +164,7 @@ async function collectCustomerOrders(user) {
     order_date_fmt: fmtDate(row.order_date),
     customer_name: String(row.customer_name || ''),
     sales_rep_name: String(row.sales_rep_name || ''),
-    url: `/sales/orders/${Number(row.id)}`,
+    url: href(`/sales/orders/${Number(row.id)}`),
     urgency_label: 'بانتظار الاعتماد',
     type_label: 'طلب شراء عميل',
   }));
@@ -193,7 +197,7 @@ async function collectVisitCheckout(user) {
     sales_rep_name: String(row.sales_rep_name || ''),
     reason: String(row.reason || ''),
     created_at: String(row.created_at || ''),
-    url: `/sales-reps/visit-checkout-approve?status=pending`,
+    url: href(`/sales-reps/visit-checkout-approve?status=pending`),
     urgency_label: 'بانتظار اعتماد الخروج',
     type_label: 'خروج يدوي من زيارة',
   }));
@@ -214,7 +218,7 @@ async function collectUnposted(user) {
        ORDER BY i.invoice_date ASC, i.id ASC
        LIMIT ${PER_KIND}`
     );
-    items.push(...mapUnposted(rows, 'sale_invoice', 'فاتورة بيع', (id) => `/sales/invoices/${id}`));
+    items.push(...mapUnposted(rows, 'sale_invoice', 'فاتورة بيع', (id) => href(`/sales/invoices/${id}`)));
     count += await safeCount(
       `SELECT COUNT(*) AS c FROM sal_invoice i
        WHERE i.status = 'confirmed' AND NOT ${SALE_INV_POSTED}`
@@ -231,7 +235,7 @@ async function collectUnposted(user) {
        ORDER BY r.return_date ASC, r.id ASC
        LIMIT ${PER_KIND}`
     );
-    items.push(...mapUnposted(rows, 'sale_return', 'مردود مبيعات', (id) => `/sales/returns/${id}`));
+    items.push(...mapUnposted(rows, 'sale_return', 'مردود مبيعات', (id) => href(`/sales/returns/${id}`)));
     count += await safeCount(
       `SELECT COUNT(*) AS c FROM sal_return r
        WHERE r.status <> 'cancelled' AND NOT ${SALE_RET_POSTED}`
@@ -252,7 +256,7 @@ async function collectUnposted(user) {
        LIMIT ${PER_KIND}`
     );
     items.push(
-      ...mapUnposted(rows, 'purchase_invoice', 'فاتورة شراء', (id) => `/purchases/invoices/${id}`)
+      ...mapUnposted(rows, 'purchase_invoice', 'فاتورة شراء', (id) => href(`/purchases/invoices/${id}`))
     );
     count += await safeCount(
       `SELECT COUNT(*) AS c FROM pur_invoice i
@@ -274,7 +278,7 @@ async function collectUnposted(user) {
        LIMIT ${PER_KIND}`
     );
     items.push(
-      ...mapUnposted(rows, 'purchase_return', 'مردود مشتريات', (id) => `/purchases/returns/${id}`)
+      ...mapUnposted(rows, 'purchase_return', 'مردود مشتريات', (id) => href(`/purchases/returns/${id}`))
     );
     count += await safeCount(
       `SELECT COUNT(*) AS c FROM pur_return r
@@ -303,7 +307,7 @@ async function collectUnposted(user) {
         rows,
         'cash_receipt',
         'سند قبض',
-        (id) => `/accounting/receipts/entry?id=${id}`
+        (id) => href(`/accounting/receipts/entry?id=${id}`)
       )
     );
     count += await safeCount(
@@ -335,7 +339,7 @@ async function collectUnposted(user) {
         rows,
         'cash_payment',
         'سند صرف',
-        (id) => `/accounting/payments/entry?id=${id}`
+        (id) => href(`/accounting/payments/entry?id=${id}`)
       )
     );
     count += await safeCount(
@@ -356,7 +360,7 @@ async function collectUnposted(user) {
        LIMIT ${PER_KIND}`
     );
     items.push(
-      ...mapUnposted(rows, 'journal_entry', 'قيد يومية', (id) => `/accounting/journals?id=${id}`)
+      ...mapUnposted(rows, 'journal_entry', 'قيد يومية', (id) => href(`/accounting/journals?id=${id}`))
     );
     count += await safeCount(
       `SELECT COUNT(*) AS c FROM acc_journal_entry e
@@ -376,7 +380,7 @@ async function collectUnposted(user) {
        LIMIT ${PER_KIND}`
     );
     items.push(
-      ...mapUnposted(rows, 'sales_delivery', 'سند تسليم', (id) => `/sales/delivery/${id}`)
+      ...mapUnposted(rows, 'sales_delivery', 'سند تسليم', (id) => href(`/sales/delivery/${id}`))
     );
     count += await safeCount(
       `SELECT COUNT(*) AS c FROM sal_delivery d
@@ -464,7 +468,7 @@ async function collectDueChecks(user) {
       due_date_fmt: fmtDate(due),
       voucher_no: String(row.voucher_no || ''),
       party_name: String(row.party_name || ''),
-      url: `/accounting/checks-in`,
+      url: href(`/accounting/checks-in`),
       urgency,
       urgency_label: urgencyLabel,
     });
@@ -491,7 +495,7 @@ async function collectDeliveries(user) {
     delivery_date: String(r.delivery_date || '').slice(0, 10),
     delivery_date_fmt: fmtDate(r.delivery_date),
     customer_name: String(r.customer_name || ''),
-    url: `/sales/delivery/${Number(r.id)}`,
+    url: href(`/sales/delivery/${Number(r.id)}`),
     urgency_label: 'بلا فاتورة',
   }));
   return { items, count: items.length };

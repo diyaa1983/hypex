@@ -2,6 +2,7 @@
 
 const express = require('express');
 const auth = require('../auth');
+const basePath = require('../lib/basePath');
 const { collectInbox, userCanSeeBell, emptyPayload } = require('./inboxService');
 const { renderBellShell, renderPanelBody, badgeText } = require('./bellHtml');
 
@@ -15,12 +16,14 @@ router.get('/api/notifications', auth.requireAuth, async (req, res) => {
     }
     const data = await collectInbox(user);
     const alertCount = Number((data.summary && data.summary.alert_count) || 0);
+    // إعادة كتابة المسارات داخل HTML لأن JSON لا يمرّ عبر rewriteHtml للصفحة
+    const panelHtml = basePath.rewriteHtml(renderPanelBody(data));
     res.json({
       ok: true,
       enabled: true,
       alert_count: alertCount,
       badge: badgeText(alertCount),
-      panel_html: renderPanelBody(data),
+      panel_html: panelHtml,
       data,
     });
   } catch (e) {
@@ -33,7 +36,6 @@ module.exports = {
   renderBellForUser: async (user) => {
     if (!user || !userCanSeeBell(user)) return '';
     try {
-      // سريع للرسم: جرس فارغ ثم التحديث عبر API
       const shell = emptyPayload();
       shell.enabled = true;
       return renderBellShell(shell);

@@ -1,6 +1,11 @@
 'use strict';
 
 const { esc, fmtAmt } = require('../lib/html');
+const basePath = require('../lib/basePath');
+
+function href(path) {
+  return basePath.url(path || '/');
+}
 
 const BELL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`;
 
@@ -44,7 +49,7 @@ function renderPanelBody(data) {
     }</p><ul class="app-check-bell-list">`;
     for (const vc of visitCheckoutAlerts) {
       html += `<li>
-        <a class="app-check-bell-item app-check-bell-item--link" href="${esc(vc.url || '/sales-reps/visit-checkout-approve')}">
+        <a class="app-check-bell-item app-check-bell-item--link" href="${esc(vc.url || href('/sales-reps/visit-checkout-approve'))}">
           <span class="dashboard-check-status dashboard-check-status--pending">${esc(
             vc.urgency_label || 'بانتظار اعتماد الخروج'
           )}</span>
@@ -72,7 +77,7 @@ function renderPanelBody(data) {
     }</p><ul class="app-check-bell-list">`;
     for (const ord of customerOrderAlerts) {
       html += `<li>
-        <a class="app-check-bell-item app-check-bell-item--link" href="${esc(ord.url || '/sales/orders/approve')}">
+        <a class="app-check-bell-item app-check-bell-item--link" href="${esc(ord.url || href('/sales/orders/approve'))}">
           <span class="dashboard-check-status dashboard-check-status--pending">${esc(
             ord.urgency_label || 'بانتظار الاعتماد'
           )}</span>
@@ -136,7 +141,7 @@ function renderPanelBody(data) {
             ? 'dashboard-check-status--today'
             : 'dashboard-check-status--soon';
       html += `<li>
-        <a class="app-check-bell-item app-check-bell-item--link" href="${esc(chk.url || '/accounting/checks-in')}">
+        <a class="app-check-bell-item app-check-bell-item--link" href="${esc(chk.url || href('/accounting/checks-in'))}">
           <span class="dashboard-check-status ${statusClass}">${esc(chk.urgency_label || 'شيك')}</span>
           <span class="app-check-bell-item-main">
             <span class="app-check-bell-item-no">${esc(chk.check_no || chk.voucher_no || '—')}</span>
@@ -175,9 +180,9 @@ function renderPanelBody(data) {
   }
 
   html += `<footer class="app-check-bell-panel-foot">
-    <a href="/sales/orders/approve">اعتماد الطلبات</a>
-    <a href="/sales/posting">ترحيل المبيعات</a>
-    <a href="/accounting/receipts">سندات القبض</a>
+    <a href="${esc(href('/sales/orders/approve'))}">اعتماد الطلبات</a>
+    <a href="${esc(href('/sales/posting'))}">ترحيل المبيعات</a>
+    <a href="${esc(href('/accounting/receipts'))}">سندات القبض</a>
   </footer>`;
 
   return html;
@@ -192,7 +197,7 @@ function renderBellShell(data) {
 
   return `<div class="app-check-bell-wrap no-print"
        data-needs-refresh="1"
-       data-refresh-url="/api/notifications">
+       data-refresh-url="${esc(href('/api/notifications'))}">
     <button type="button"
             class="${esc(bellClass)}"
             aria-label="التنبيهات${alertCount > 0 ? ` — ${alertCount} تنبيه` : ''}"

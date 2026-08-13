@@ -358,6 +358,12 @@ $sysBackupJsV = is_file(app_path('assets/js/sys-backup.js'))
 <?php endif; ?>
 <script src="<?= esc(app_url('assets/js/master-toolbar.js')) ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-list-keyboard.js')) ?><?= $listKeyboardJsV !== '' ? '?v=' . esc($listKeyboardJsV) : '' ?>" defer></script>
+<?php
+$fieldNavJsV = is_file(app_path('assets/js/hx-field-nav.js'))
+    ? (string) filemtime(app_path('assets/js/hx-field-nav.js'))
+    : '';
+?>
+<script src="<?= esc(app_url('assets/js/hx-field-nav.js')) ?><?= $fieldNavJsV !== '' ? '?v=' . esc($fieldNavJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app.js')) ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/app-date-picker.js')) ?><?= $datePickerJsV !== '' ? '?v=' . esc($datePickerJsV) : '' ?>" defer></script>
 <script src="<?= esc(app_url('assets/js/nav-prefetch.js')) ?><?= $navPrefetchJsV !== '' ? '?v=' . esc($navPrefetchJsV) : '' ?>" defer></script>
