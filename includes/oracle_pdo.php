@@ -58,18 +58,24 @@ function oracle_write_local_config(array $input): string
     }
 
     $customers = is_array($existing['customers'] ?? null) ? $existing['customers'] : [];
-    $data = [
+    $passIn = (string) ($input['pass'] ?? '');
+    if ($passIn === '') {
+        $passIn = (string) ($existing['pass'] ?? '');
+    }
+    // الحفاظ على أقسام أخرى (statement / items …) عند حفظ الاتصال من الواجهة
+    $data = array_merge($existing, [
         'enabled' => !empty($input['enabled']),
         'host' => trim((string) ($input['host'] ?? '')),
         'port' => (int) ($input['port'] ?? 1521),
         'sid' => trim((string) ($input['sid'] ?? '')),
         'service_name' => trim((string) ($input['service_name'] ?? '')),
         'user' => trim((string) ($input['user'] ?? '')),
-        'pass' => (string) ($input['pass'] ?? ($existing['pass'] ?? '')),
+        'pass' => $passIn,
         'charset' => trim((string) ($input['charset'] ?? 'AL32UTF8')) ?: 'AL32UTF8',
         'odbc_dsn' => trim((string) ($input['odbc_dsn'] ?? ($existing['odbc_dsn'] ?? ''))),
         'customers' => $customers,
-    ];
+    ]);
+    unset($data['_path'], $data['_missing_file'], $data['_bad_file']);
 
     if ($data['host'] === '' || $data['user'] === '') {
         throw new InvalidArgumentException('host و user مطلوبان.');
@@ -102,7 +108,7 @@ function oracle_php_has_oracle_driver(): bool
 {
     $d = oracle_php_drivers_status();
 
-    return !empty($d['pdo_oci']) || !empty($d['oci8']);
+    return !empty($d['pdo_oci']) || !empty($d['oci8']) || !empty($d['pdo_odbc']);
 }
 
 function oracle_is_enabled(): bool
