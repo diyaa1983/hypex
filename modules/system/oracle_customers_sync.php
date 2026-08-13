@@ -207,7 +207,7 @@ $passPlaceholder = is_file($cfgPath) && trim((string) ($cfg['pass'] ?? '')) !== 
         <?php endif; ?>
     </div>
 
-    <div class="alert oracle-status-box <?= $cfgEnabled ? 'alert-success' : 'alert-error' ?>" style="white-space:pre-wrap;">
+    <div class="oracle-status-box <?= $cfgEnabled ? 'oracle-status-box--ok' : 'oracle-status-box--err' ?>" style="white-space:pre-wrap;padding:0.75rem 1rem;border-radius:10px;margin:0.75rem 0;border:1px solid <?= $cfgEnabled ? '#bbf7d0' : '#fecaca' ?>;background:<?= $cfgEnabled ? '#ecfdf5' : '#fef2f2' ?>;color:<?= $cfgEnabled ? '#166534' : '#991b1b' ?>;">
         <strong>1) ملف الإعداد</strong><br>
         المسار: <code><?= esc($cfgPath) ?></code><br>
         الحالة: <?= $cfgEnabled ? 'مفعّل' : 'غير مفعّل' ?><br>
@@ -218,7 +218,7 @@ $passPlaceholder = is_file($cfgPath) && trim((string) ($cfg['pass'] ?? '')) !== 
         <?php endif; ?>
     </div>
 
-    <div class="alert oracle-status-box <?= oracle_php_has_oracle_driver() ? 'alert-success' : 'alert-error' ?>" style="white-space:pre-wrap;">
+    <div class="oracle-status-box <?= oracle_php_has_oracle_driver() ? 'oracle-status-box--ok' : 'oracle-status-box--err' ?>" style="white-space:pre-wrap;padding:0.75rem 1rem;border-radius:10px;margin:0.75rem 0;border:1px solid <?= oracle_php_has_oracle_driver() ? '#bbf7d0' : '#fecaca' ?>;background:<?= oracle_php_has_oracle_driver() ? '#ecfdf5' : '#fef2f2' ?>;color:<?= oracle_php_has_oracle_driver() ? '#166534' : '#991b1b' ?>;">
         <strong>2) مشغّلات PHP على هذا الجهاز</strong><br>
         pdo_oci: <?= !empty($drivers['pdo_oci']) ? 'موجود' : 'غير محمّل' ?><br>
         oci8: <?= !empty($drivers['oci8']) ? 'موجود' : 'غير محمّل' ?><br>

@@ -723,6 +723,7 @@
     if (!el || !el.classList) return false;
     if (el.classList.contains('hr-ora-inline-msg')) return false;
     if (el.classList.contains('hr-pr-post-gate')) return false;
+    if (el.classList.contains('oracle-status-box')) return false;
     var cls = el.classList;
     for (var i = 0; i < cls.length; i++) {
       if (cls[i].indexOf('-flash') !== -1) return true;
