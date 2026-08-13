@@ -1349,7 +1349,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   function dateWithWeekday(iso) {
     const dmy = ui.isoToDmy(iso);
     const day = weekdayAr(iso);
-    return day ? `${day} ${dmy}` : dmy;
+    return day ? `${day}\u00A0${dmy}` : dmy;
   }
   function durationLabel(a, b) {
     if (!a || !b) return '—';
@@ -1460,11 +1460,28 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   const body = `
     <style>
       @media print { @page { size: A4 landscape; margin: 6mm 5mm; } }
+      .si-report-page .si-table-wrap { overflow-x: auto !important; }
+      .si-report-page .si-table {
+        width: max-content !important;
+        min-width: 100%;
+        table-layout: auto !important;
+      }
+      .si-report-page .si-table th,
+      .si-report-page .si-table td {
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        overflow-wrap: normal !important;
+        max-width: none !important;
+      }
+      .si-report-page .si-table .si-pill {
+        white-space: nowrap !important;
+        display: inline-flex !important;
+      }
       .si-report-page .si-rep-group-row td {
         background: #e2e8f0 !important;
         text-align: start !important;
         font-weight: 700;
-        white-space: nowrap;
+        white-space: nowrap !important;
         padding: 0.5rem 0.65rem !important;
       }
     </style>

@@ -2048,24 +2048,33 @@ body.si-2027 .si-tile-kind {
 
 /* تقارير المندوبين: جدول مضغوط — كل خلية سطر واحد */
 .si-report-page .si-table-wrap {
-  overflow-x: auto;
+  overflow-x: auto !important;
   max-height: min(70vh, 820px);
 }
 
 .si-report-page .si-table {
-  width: max-content;
+  width: max-content !important;
   min-width: 100%;
   border-collapse: collapse;
+  table-layout: auto !important;
   font-size: 0.78rem;
 }
 
 .si-report-page .si-table thead th,
-.si-report-page .si-table tbody td {
-  white-space: nowrap;
+.si-report-page .si-table tbody td,
+.si-report-page .si-table tbody td * {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
   padding: 0.42rem 0.55rem;
   vertical-align: middle;
   border: 1px solid rgba(15, 23, 42, 0.1);
   line-height: 1.25;
+}
+
+.si-report-page .si-table tbody td * {
+  padding: 0 !important;
+  border: none !important;
 }
 
 .si-report-page .si-table thead th {

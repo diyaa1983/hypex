@@ -63,17 +63,21 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <style>
 .report-sales-page.report-visits-page .report-sales-table-wrap {
-  overflow-x: auto;
+  overflow-x: auto !important;
 }
 .report-sales-page.report-visits-page .report-sales-table {
-  width: max-content;
+  width: max-content !important;
   min-width: 100%;
-  table-layout: auto;
+  table-layout: auto !important;
   font-size: 0.78rem;
 }
 .report-sales-page.report-visits-page .report-sales-table th,
-.report-sales-page.report-visits-page .report-sales-table td {
-  white-space: nowrap;
+.report-sales-page.report-visits-page .report-sales-table td,
+.report-sales-page.report-visits-page .report-sales-table td * {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  max-width: none !important;
   padding: 0.35rem 0.45rem;
   text-align: center;
   vertical-align: middle;

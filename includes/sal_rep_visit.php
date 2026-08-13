@@ -764,7 +764,7 @@ function sal_rep_visit_date_with_weekday(?string $isoDate): string
     $dmy = function_exists('format_date_dmY') ? format_date_dmY((string) $isoDate) : (string) $isoDate;
     $day = sal_rep_visit_weekday_ar($isoDate);
 
-    return $day !== '' ? ($day . ' ' . $dmy) : $dmy;
+    return $day !== '' ? ($day . "\u{00A0}" . $dmy) : $dmy;
 }
 
 function sal_rep_visit_fmt_ts($v): string
