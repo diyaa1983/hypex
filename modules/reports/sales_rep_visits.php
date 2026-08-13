@@ -45,7 +45,41 @@ function _visit_dist($v): string
 }
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
-<div class="card report-sales-page">
+<style>
+.report-sales-page.report-visits-page .report-sales-table-wrap {
+  overflow-x: auto;
+}
+.report-sales-page.report-visits-page .report-sales-table {
+  width: max-content;
+  min-width: 100%;
+  table-layout: auto;
+  font-size: 0.78rem;
+}
+.report-sales-page.report-visits-page .report-sales-table th,
+.report-sales-page.report-visits-page .report-sales-table td {
+  white-space: nowrap;
+  padding: 0.35rem 0.45rem;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.25;
+}
+@media print {
+  @page { size: A4 landscape; margin: 6mm 5mm; }
+  .report-sales-page.report-visits-page .report-sales-header { display: none !important; }
+  .report-sales-page.report-visits-page .report-sales-table {
+    width: 100% !important;
+    font-size: 7.5pt !important;
+  }
+  .report-sales-page.report-visits-page .report-sales-table th,
+  .report-sales-page.report-visits-page .report-sales-table td {
+    white-space: nowrap !important;
+    padding: 0.15rem 0.25rem !important;
+    font-size: 7.5pt !important;
+    border: 1px solid #94a3b8 !important;
+  }
+}
+</style>
+<div class="card report-sales-page report-visits-page">
     <header class="report-sales-header no-print">
         <h2>تقرير زيارات العملاء</h2>
         <p class="muted">تسجيلات دخول/خروج المندوب عند العميل — الوقت والنوع (GPS أو يدوي) والمسافة ومدة الزيارة</p>
@@ -99,12 +133,12 @@ function _visit_dist($v): string
                 <th>الرمز</th>
                 <th>المنطقة</th>
                 <th>العنوان</th>
-                <th>وقت الدخول</th>
-                <th>نوع الدخول</th>
-                <th>مسافة الدخول</th>
-                <th>وقت الخروج</th>
-                <th>نوع الخروج</th>
-                <th>مسافة الخروج</th>
+                <th>دخول</th>
+                <th>نوع</th>
+                <th>مسافة</th>
+                <th>خروج</th>
+                <th>نوع</th>
+                <th>مسافة</th>
                 <th>المدة</th>
                 <th>الحالة</th>
             </tr>
@@ -117,12 +151,7 @@ function _visit_dist($v): string
                     <tr>
                         <td dir="ltr"><?= $i + 1 ?></td>
                         <td dir="ltr"><?= esc(format_date_dmY((string) ($r['route_date'] ?? ''))) ?></td>
-                        <td>
-                            <?= esc((string) ($r['sales_rep_name'] ?? '')) ?>
-                            <?php if (!empty($r['sales_rep_code'])): ?>
-                                <span class="muted" dir="ltr">(<?= esc((string) $r['sales_rep_code']) ?>)</span>
-                            <?php endif; ?>
-                        </td>
+                        <td><?= esc((string) ($r['sales_rep_name'] ?? '')) ?><?php if (!empty($r['sales_rep_code'])): ?> <span class="muted" dir="ltr">(<?= esc((string) $r['sales_rep_code']) ?>)</span><?php endif; ?></td>
                         <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
                         <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
                         <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>

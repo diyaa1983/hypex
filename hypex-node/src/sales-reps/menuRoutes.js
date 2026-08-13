@@ -1218,6 +1218,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
       .join('') || ui.emptyRow(14, 'لا جولات في الفترة المحددة');
 
   const body = `
+    <style>@media print { @page { size: A4 landscape; margin: 6mm 5mm; } }</style>
     <div class="si-stage si-report-page">
       ${ui.hero({
         mark: '🗺️',
@@ -1269,19 +1270,19 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
         `${rows.length} صف`,
         [
           '#',
-          'رقم الجولة',
+          'الجولة',
           'المندوب',
-          'تاريخ البداية',
-          'تاريخ النهاية',
+          'من',
+          'إلى',
           'الحالة',
           'العميل',
           'الرمز',
           'المنطقة',
           'العنوان',
-          'وقت الدخول',
-          'وقت الخروج',
-          'طريقة الدخول',
-          'طريقة الخروج',
+          'دخول',
+          'خروج',
+          'نوع دخول',
+          'نوع خروج',
         ],
         rowsHtml
       )}
@@ -1394,7 +1395,27 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       )
       .join('') || ui.emptyRow(15, 'لا تسجيلات زيارة في الفترة المحددة');
 
+  // shorter headers for single-line layout
+  const visitHeaders = [
+    '#',
+    'التاريخ',
+    'المندوب',
+    'العميل',
+    'الرمز',
+    'المنطقة',
+    'العنوان',
+    'دخول',
+    'نوع',
+    'مسافة',
+    'خروج',
+    'نوع',
+    'مسافة',
+    'المدة',
+    'الحالة',
+  ];
+
   const body = `
+    <style>@media print { @page { size: A4 landscape; margin: 6mm 5mm; } }</style>
     <div class="si-stage si-report-page">
       ${ui.hero({
         mark: '📍',
@@ -1448,23 +1469,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       ${ui.tableSurface(
         'تفاصيل الزيارات',
         `${rows.length} صف`,
-        [
-          '#',
-          'التاريخ',
-          'المندوب',
-          'العميل',
-          'الرمز',
-          'المنطقة',
-          'العنوان',
-          'وقت الدخول',
-          'نوع الدخول',
-          'مسافة الدخول',
-          'وقت الخروج',
-          'نوع الخروج',
-          'مسافة الخروج',
-          'المدة',
-          'الحالة',
-        ],
+        visitHeaders,
         rowsHtml
       )}
       </div>

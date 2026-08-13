@@ -2046,7 +2046,66 @@ body.si-2027 .si-tile-kind {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* -- ????? ???????? -- */
+/* تقارير المندوبين: جدول مضغوط — كل خلية سطر واحد */
+.si-report-page .si-table-wrap {
+  overflow-x: auto;
+  max-height: min(70vh, 820px);
+}
+
+.si-report-page .si-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.si-report-page .si-table thead th,
+.si-report-page .si-table tbody td {
+  white-space: nowrap;
+  padding: 0.42rem 0.55rem;
+  vertical-align: middle;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  line-height: 1.25;
+}
+
+.si-report-page .si-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #eef2f7;
+  color: #334155;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: none;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.si-report-page .si-table tbody td {
+  text-align: center;
+  background: #fff;
+}
+
+.si-report-page .si-table tbody tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.si-report-page .si-table tbody tr:hover td {
+  background: rgba(3, 105, 161, 0.06);
+}
+
+.si-report-page .si-table .si-pill,
+.si-report-page .si-table .muted {
+  white-space: nowrap;
+  display: inline;
+}
+
+.si-report-page .si-table .empty {
+  white-space: normal;
+  text-align: center;
+}
+
+/* -- طباعة -- */
 .print-only { display: none !important; }
 
 @media print {
@@ -2155,6 +2214,39 @@ body.si-2027 .si-tile-kind {
 
   body.si-2027 .si-surface-head .si-count {
     font-family: Arial, Helvetica, sans-serif;
+  }
+
+  /* تقارير الجولات/الزيارات: سطر واحد + طباعة أفقية مضغوطة */
+  body.si-2027 .si-report-page .si-table {
+    width: 100% !important;
+    font-size: 7.5pt !important;
+  }
+
+  body.si-2027 .si-report-page .si-table thead th,
+  body.si-2027 .si-report-page .si-table tbody td {
+    white-space: nowrap !important;
+    padding: 0.18rem 0.28rem !important;
+    border: 1px solid #94a3b8 !important;
+    font-size: 7.5pt !important;
+    line-height: 1.2 !important;
+  }
+
+  body.si-2027 .si-report-page .si-table thead th {
+    background: #e2e8f0 !important;
+    font-weight: 800 !important;
+  }
+
+  body.si-2027 .si-report-page .si-pill {
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+    color: #000 !important;
+    font-size: 7.5pt !important;
+  }
+
+  body.si-2027 .si-report-page .si-hero-sub,
+  body.si-2027 .si-report-page .si-surface-head {
+    display: none !important;
   }
 }
 
