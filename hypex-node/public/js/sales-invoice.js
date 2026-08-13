@@ -173,11 +173,40 @@
     );
   }
 
+  function itemBarcodeOnly(it) {
+    if (!it) return '';
+    var b = String(it.barcode != null ? it.barcode : '').trim();
+    if (b) return cleanBarcodeText(b);
+    var c = String(it.code != null ? it.code : it.sku != null ? it.sku : '').trim();
+    return cleanBarcodeText(c);
+  }
+
+  function cleanBarcodeText(s) {
+    s = String(s || '').trim();
+    if (!s) return '';
+    if (s.indexOf(' — ') >= 0) s = s.split(' — ')[0].trim();
+    else if (s.indexOf(' - ') >= 0 && /^\d/.test(s)) s = s.split(' - ')[0].trim();
+    return s;
+  }
+
+  function itemNameOnly(it) {
+    if (!it) return '';
+    var n = String(it.name_ar != null ? it.name_ar : it.name != null ? it.name : '').trim();
+    if (!n) return '';
+    if (n.indexOf(' — ') >= 0) {
+      var parts = n.split(' — ');
+      n = (parts[1] || parts[0] || '').trim();
+    }
+    n = n.replace(/\s*·\s*[\d.,]+$/, '').trim();
+    return n;
+  }
+
   function applyItemToLine(ln, it) {
     ln = ln || {};
     ln.item_id = it.id;
-    ln.item_code = it.code || it.sku || '';
-    ln.name_ar = it.name_ar || '';
+    ln.item_barcode = itemBarcodeOnly(it);
+    ln.item_code = ln.item_barcode;
+    ln.name_ar = itemNameOnly(it);
     ln.base_list_sale = Number(it.base_sale != null ? it.base_sale : it.sale_price) || 0;
     ln.base_wholesale = Number(it.base_wholesale != null ? it.base_wholesale : it.wholesale_price) || 0;
     ln.base_sale = itemListPrice(it);
@@ -358,6 +387,13 @@
     ln.tax_rate_percent = tr.querySelector('.js-tax').value;
     var hid = tr.querySelector('.js-item-id');
     if (hid && hid.value) ln.item_id = Number(hid.value) || 0;
+    var codeEl = tr.querySelector('.js-item-code');
+    var nameEl = tr.querySelector('.js-item-name');
+    if (codeEl) {
+      ln.item_barcode = cleanBarcodeText(codeEl.value);
+      ln.item_code = ln.item_barcode;
+    }
+    if (nameEl) ln.name_ar = itemNameOnly({ name_ar: nameEl.value });
     state.lines[idx] = ln;
     var t = lineTotals(ln);
     tr.querySelector('.js-sub').textContent = fmt(t.sub);
@@ -497,39 +533,61 @@
     tbody.innerHTML = '';
     (state.lines || []).forEach(function (ln, idx) {
       var t = lineTotals(ln);
+      var barcode = cleanBarcodeText(ln.item_barcode || ln.item_code || '');
+      var nameOnly = itemNameOnly({ name_ar: ln.name_ar || '' });
+      if (!nameOnly && String(ln.item_code || '').indexOf(' — ') >= 0) {
+        var raw = String(ln.item_code);
+        barcode = cleanBarcodeText(raw);
+        nameOnly = itemNameOnly({ name_ar: raw.split(' — ')[1] || '' });
+      }
+      ln.item_barcode = barcode;
+      ln.item_code = barcode;
+      ln.name_ar = nameOnly;
       var tr = document.createElement('tr');
       tr.setAttribute('data-idx', String(idx));
       tr.innerHTML =
-        '<td dir="ltr">' +
+        '<td dir="ltr" class="si-row-num">' +
         (idx + 1) +
         '</td>' +
-        '<td class="si-item-cell">' +
+        '<td class="si-item-code-cell">' +
         '<input type="hidden" class="js-item-id" value="' +
         (ln.item_id || '') +
         '">' +
         '<input type="hidden" class="js-base-sale" value="' +
         escAttr(ln.base_sale != null ? ln.base_sale : '') +
         '">' +
-        '<input class="js-item" type="search" placeholder="باركود / اسم" value="' +
-        escAttr((ln.item_code ? ln.item_code + ' — ' : '') + (ln.name_ar || '')) +
+        '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="rtl" ' +
+        'placeholder="باركود" data-nav="1" title="' +
+        escAttr(barcode) +
+        '" value="' +
+        escAttr(barcode) +
         '" ' +
         (posted ? 'readonly' : '') +
         '>' +
         '<div class="si-suggest js-item-suggest" hidden></div>' +
         '</td>' +
-        '<td>' +
-        unitSelectHtml(ln, posted) +
+        '<td class="si-item-name-cell">' +
+        '<input class="js-item-name" type="text" autocomplete="off" spellcheck="false" dir="rtl" placeholder="اسم المادة" data-nav="1" title="' +
+        escAttr(nameOnly) +
+        '" value="' +
+        escAttr(nameOnly) +
+        '" ' +
+        (posted || ln.item_id ? 'readonly' : '') +
+        '>' +
+        '</td>' +
+        '<td class="si-unit-cell">' +
+        unitSelectHtml(ln, posted).replace('<select class="js-unit"', '<select class="js-unit" data-nav="1"') +
         '</td>' +
         '<td><input class="js-qty" type="number" step="' +
         qtyStep() +
-        '" min="0" value="' +
+        '" min="0" data-nav="1" value="' +
         escAttr(ln.qty) +
         '" ' +
         (posted ? 'readonly' : '') +
         '></td>' +
         '<td><input class="js-qty-extra" type="number" step="' +
         qtyStep() +
-        '" min="0" value="' +
+        '" min="0" data-nav="1" value="' +
         escAttr(ln.qty_extra || 0) +
         '" ' +
         (posted ? 'readonly' : '') +
@@ -538,17 +596,20 @@
         priceStep() +
         '" min="0" value="' +
         escAttr(ln.unit_price) +
-        '" readonly title="من بطاقة المادة (أقل وحدة × التعبئة) — غير قابل للتعديل">' +
+        '" readonly tabindex="-1" title="من بطاقة المادة (أقل وحدة × التعبئة)">' +
         '</td>' +
         '<td><input class="js-disc" type="number" step="' +
         qtyStep() +
-        '" min="0" max="100" value="' +
+        '" min="0" max="100" data-nav="1" value="' +
         escAttr(ln.discount_pct || 0) +
         '" ' +
         (posted ? 'readonly' : '') +
         '></td>' +
         '<td>' +
-        taxSelectHtml(ln.tax_rate_percent != null ? ln.tax_rate_percent : defaultTax, posted) +
+        taxSelectHtml(ln.tax_rate_percent != null ? ln.tax_rate_percent : defaultTax, posted).replace(
+          'class="js-tax"',
+          'class="js-tax" data-nav="1"'
+        ) +
         '</td>' +
         '<td class="js-sub si-num-out" dir="ltr">' +
         fmt(t.sub) +
@@ -557,7 +618,15 @@
         fmt(t.gross) +
         '</td>' +
         '<td>' +
-        (posted ? '' : '<button type="button" class="si-del js-del" title="حذف">×</button>') +
+        (posted
+          ? ''
+          : '<button type="button" class="si-del js-del" title="حذف البند" aria-label="حذف البند" tabindex="-1">' +
+            '<svg class="si-del-ico" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">' +
+            '<path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M4 7h16"/>' +
+            '<path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>' +
+            '<path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" d="M18.5 7l-.7 12.2a1.5 1.5 0 0 1-1.5 1.4H7.7a1.5 1.5 0 0 1-1.5-1.4L5.5 7"/>' +
+            '<path fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" d="M10 11v6M14 11v6"/>' +
+            '</svg></button>') +
         '</td>';
       tbody.appendChild(tr);
       bindRow(tr);
@@ -581,6 +650,11 @@
       left = Math.max(8, window.innerWidth - width - 8);
     }
     box.classList.add('si-suggest--float');
+    var mode =
+      anchor && anchor.classList && anchor.classList.contains('js-item-name') ? 'name' : 'barcode';
+    box.classList.remove('si-suggest--barcode', 'si-suggest--name');
+    box.classList.add(mode === 'name' ? 'si-suggest--name' : 'si-suggest--barcode');
+    box.setAttribute('data-mode', mode);
     box.style.width = width + 'px';
     box.style.left = left + 'px';
     box.style.top = r.bottom + 3 + 'px';
@@ -591,11 +665,11 @@
     if (!box) return;
     box.hidden = true;
     box.setAttribute('hidden', '');
-    box.classList.remove('si-suggest--float');
+    box.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name');
     box.style.left = '';
     box.style.top = '';
     box.style.width = '';
-    var cell = box.closest('.si-item-cell');
+    var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-cell');
     if (cell) cell.classList.remove('is-open');
   }
 
@@ -654,24 +728,50 @@
       });
     }
     // حذف البند — التفويض العام على tbody أدناه
-    var itemInput = tr.querySelector('.js-item');
+    var codeInput = tr.querySelector('.js-item-code');
+    var nameInput = tr.querySelector('.js-item-name');
     var suggest = tr.querySelector('.js-item-suggest');
-    if (itemInput && suggest && !posted) {
-      itemInput.addEventListener('input', function () {
+    if (codeInput && suggest && !posted) {
+      codeInput.addEventListener('input', function () {
         var idx = Number(tr.getAttribute('data-idx'));
-        // مسح اختيار المادة عند التعديل اليدوي
         var hid = tr.querySelector('.js-item-id');
         if (hid) hid.value = '';
+        if (state.lines[idx]) {
+          state.lines[idx].item_id = 0;
+          state.lines[idx].item_barcode = codeInput.value;
+          state.lines[idx].item_code = codeInput.value;
+        }
+        if (nameInput && !nameInput.readOnly) nameInput.value = '';
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
-          searchItems(itemInput.value, suggest, tr, itemInput);
+          searchItems(codeInput.value, suggest, tr, codeInput);
         }, 200);
       });
-      itemInput.addEventListener('focus', function () {
-        searchItems(itemInput.value || '', suggest, tr, itemInput);
+      codeInput.addEventListener('focus', function () {
+        searchItems(codeInput.value || '', suggest, tr, codeInput);
       });
-      itemInput.addEventListener('click', function () {
-        searchItems(itemInput.value || '', suggest, tr, itemInput);
+      codeInput.addEventListener('click', function () {
+        searchItems(codeInput.value || '', suggest, tr, codeInput);
+      });
+    }
+    if (nameInput && suggest && !posted) {
+      nameInput.addEventListener('input', function () {
+        if (nameInput.readOnly) return;
+        var idx = Number(tr.getAttribute('data-idx'));
+        var hid = tr.querySelector('.js-item-id');
+        if (hid) hid.value = '';
+        if (state.lines[idx]) {
+          state.lines[idx].item_id = 0;
+          state.lines[idx].name_ar = nameInput.value;
+        }
+        clearTimeout(itemTimers['n' + idx]);
+        itemTimers['n' + idx] = setTimeout(function () {
+          searchItems(nameInput.value, suggest, tr, nameInput);
+        }, 200);
+      });
+      nameInput.addEventListener('focus', function () {
+        if (nameInput.readOnly) return;
+        searchItems(nameInput.value || '', suggest, tr, nameInput);
       });
     }
   }
@@ -710,8 +810,10 @@
   function showItemSuggest(box, anchor, tr, data) {
     if (!box) return;
     box.innerHTML = '';
-    var cell = box.closest('.si-item-cell');
+    var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-cell');
     if (cell) cell.classList.add('is-open');
+    var fallback =
+      anchor || tr.querySelector('.js-item-code') || tr.querySelector('.js-item');
 
     if (!data || !data.ok) {
       var err = document.createElement('div');
@@ -721,7 +823,7 @@
       box.appendChild(err);
       box.hidden = false;
       box.removeAttribute('hidden');
-      placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+      placeFloatSuggest(box, fallback);
       return;
     }
 
@@ -734,21 +836,23 @@
       box.appendChild(empty);
       box.hidden = false;
       box.removeAttribute('hidden');
-      placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+      placeFloatSuggest(box, fallback);
       return;
     }
 
+    var mode =
+      anchor && anchor.classList && anchor.classList.contains('js-item-name') ? 'name' : 'barcode';
     rows.slice(0, 40).forEach(function (it) {
       var b = document.createElement('button');
       b.type = 'button';
+      var code = itemBarcodeOnly(it);
+      var name = itemNameOnly(it);
       b.textContent =
-        (it.code || it.sku || '') +
-        ' — ' +
-        (it.name_ar || '') +
-        ' · ' +
-        fmt(it.sale_price);
+        mode === 'name'
+          ? name + (code ? ' · ' + code : '') + ' · ' + fmt(it.sale_price)
+          : code + ' — ' + name + ' · ' + fmt(it.sale_price);
+      b.setAttribute('data-barcode', code);
       b.addEventListener('mousedown', function (e) {
-        // قبل blur حتى لا تُغلق القائمة قبل الاختيار
         e.preventDefault();
       });
       b.addEventListener('click', function () {
@@ -756,12 +860,17 @@
         state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
         closeFloatSuggest(box);
         renderLines();
+        window.setTimeout(function () {
+          var row = tbody && tbody.querySelector('tr[data-idx="' + idx + '"]');
+          var q = row && row.querySelector('.js-qty');
+          if (q) q.focus();
+        }, 40);
       });
       box.appendChild(b);
     });
     box.hidden = false;
     box.removeAttribute('hidden');
-    placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+    placeFloatSuggest(box, fallback);
   }
 
   function addEmptyLine() {
@@ -769,6 +878,7 @@
     state.lines.push({
       item_id: 0,
       item_code: '',
+      item_barcode: '',
       name_ar: '',
       qty: 1,
       qty_extra: 0,
@@ -929,9 +1039,17 @@
 
   document.addEventListener('click', function (e) {
     document.querySelectorAll('.js-item-suggest').forEach(function (box) {
-      var cell = box.closest('.si-item-cell') || box.parentElement;
-      var inp = cell ? cell.querySelector('.js-item') : null;
-      if (!box.contains(e.target) && e.target !== inp && !(cell && cell.contains(e.target))) {
+      var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-cell') || box.parentElement;
+      var inp =
+        (cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item'))) || null;
+      var nameInp = cell && cell.parentElement && cell.parentElement.querySelector('.js-item-name');
+      if (
+        !box.contains(e.target) &&
+        e.target !== inp &&
+        e.target !== nameInp &&
+        !(cell && cell.contains(e.target)) &&
+        !(nameInp && nameInp === e.target)
+      ) {
         closeFloatSuggest(box);
       }
     });
@@ -940,8 +1058,13 @@
     'scroll',
     function () {
       document.querySelectorAll('.js-item-suggest:not([hidden])').forEach(function (box) {
-        var cell = box.closest('.si-item-cell');
-        var inp = cell && cell.querySelector('.js-item');
+        var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-cell');
+        var mode = box.getAttribute('data-mode') || 'barcode';
+        var tr = box.closest('tr');
+        var inp =
+          mode === 'name'
+            ? tr && tr.querySelector('.js-item-name')
+            : cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item'));
         if (inp && !box.hidden) placeFloatSuggest(box, inp);
       });
     },
@@ -1492,11 +1615,25 @@
     state.customer_email = inv.customer_email != null ? String(inv.customer_email) : '';
     state.lines =
       inv.lines && inv.lines.length
-        ? inv.lines
+        ? inv.lines.map(function (ln) {
+            var barcode = cleanBarcodeText(ln.item_barcode || ln.item_code || '');
+            var nameOnly = itemNameOnly({ name_ar: ln.name_ar || '' });
+            if (!nameOnly && String(ln.item_code || '').indexOf(' — ') >= 0) {
+              var raw = String(ln.item_code);
+              barcode = cleanBarcodeText(raw);
+              nameOnly = itemNameOnly({ name_ar: raw.split(' — ')[1] || '' });
+            }
+            return Object.assign({}, ln, {
+              item_barcode: barcode,
+              item_code: barcode,
+              name_ar: nameOnly,
+            });
+          })
         : [
             {
               item_id: 0,
               item_code: '',
+              item_barcode: '',
               name_ar: '',
               qty: 1,
               qty_extra: 0,
