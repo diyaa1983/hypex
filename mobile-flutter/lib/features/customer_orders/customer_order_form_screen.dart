@@ -573,14 +573,26 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                     padding: EdgeInsets.zero,
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(minWidth: 760),
+                      child: DefaultTextStyle.merge(
+                        style: const TextStyle(fontSize: 11, height: 1.1),
+                        child: ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 700),
                         child: DataTable(
-                          headingRowHeight: 40,
-                          dataRowMinHeight: 56,
-                          dataRowMaxHeight: 72,
-                          columnSpacing: 12,
-                          horizontalMargin: 10,
+                          headingRowHeight: 30,
+                          dataRowMinHeight: 34,
+                          dataRowMaxHeight: 36,
+                          columnSpacing: 6,
+                          horizontalMargin: 6,
+                          headingTextStyle: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF475569),
+                          ),
+                          dataTextStyle: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                          ),
                           columns: const [
                             DataColumn(label: Text('الباركود')),
                             DataColumn(label: Text('المادة')),
@@ -597,14 +609,17 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                               DataRow(cells: [
                                 DataCell(
                                   SizedBox(
-                                    width: 110,
+                                    width: 96,
                                     child: Text(
                                       _lines[i].barcode.isEmpty
                                           ? '—'
                                           : _lines[i].barcode,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
                                       textDirection: TextDirection.ltr,
                                       style: const TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 10.5,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -612,25 +627,31 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 ),
                                 DataCell(
                                   SizedBox(
-                                    width: 150,
+                                    width: 130,
                                     child: Text(
                                       _lines[i].item.name,
-                                      maxLines: 2,
+                                      maxLines: 1,
+                                      softWrap: false,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
-                                        fontSize: 12.5,
+                                        fontSize: 11,
                                       ),
                                     ),
                                   ),
                                 ),
                                 DataCell(
                                   SizedBox(
-                                    width: 108,
+                                    width: 92,
                                     child: DropdownButtonFormField<int>(
                                       key: ValueKey(
                                           'unit-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
                                       isExpanded: true,
+                                      isDense: true,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF0F172A),
+                                      ),
                                       initialValue: _lines[i].unitId == 0
                                           ? (_lines[i].item.units.isEmpty
                                               ? null
@@ -643,8 +664,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                       decoration: const InputDecoration(
                                         isDense: true,
                                         contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 6,
+                                          horizontal: 4,
+                                          vertical: 2,
                                         ),
                                         border: OutlineInputBorder(),
                                       ),
@@ -654,14 +675,23 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                             value: u.unitId,
                                             child: Text(
                                               u.name,
+                                              maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
+                                              style:
+                                                  const TextStyle(fontSize: 11),
                                             ),
                                           ),
                                         if (_lines[i].item.units.isEmpty &&
                                             _lines[i].unitName.isNotEmpty)
                                           DropdownMenuItem(
                                             value: _lines[i].unitId,
-                                            child: Text(_lines[i].unitName),
+                                            child: Text(
+                                              _lines[i].unitName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style:
+                                                  const TextStyle(fontSize: 11),
+                                            ),
                                           ),
                                       ],
                                       onChanged: !_editable
@@ -683,12 +713,13 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 ),
                                 DataCell(
                                   SizedBox(
-                                    width: 72,
+                                    width: 58,
                                     child: TextFormField(
                                       key: ValueKey(
                                           'qty-${_lines[i].item.id}-$i'),
                                       initialValue: '${_lines[i].qty}',
                                       enabled: _editable,
+                                      style: const TextStyle(fontSize: 11),
                                       keyboardType: TextInputType.number,
                                       inputFormatters: [
                                         FilteringTextInputFormatter.digitsOnly
@@ -696,8 +727,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                       decoration: const InputDecoration(
                                         isDense: true,
                                         contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 6,
+                                          horizontal: 4,
+                                          vertical: 2,
                                         ),
                                         border: OutlineInputBorder(),
                                       ),
@@ -711,12 +742,13 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 ),
                                 DataCell(
                                   SizedBox(
-                                    width: 72,
+                                    width: 58,
                                     child: TextFormField(
                                       key: ValueKey(
                                           'extra-${_lines[i].item.id}-$i'),
                                       initialValue: '${_lines[i].qtyExtra}',
                                       enabled: _editable,
+                                      style: const TextStyle(fontSize: 11),
                                       keyboardType: TextInputType.number,
                                       inputFormatters: [
                                         FilteringTextInputFormatter.digitsOnly
@@ -724,8 +756,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                       decoration: const InputDecoration(
                                         isDense: true,
                                         contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 6,
+                                          horizontal: 4,
+                                          vertical: 2,
                                         ),
                                         border: OutlineInputBorder(),
                                       ),
@@ -739,13 +771,14 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 ),
                                 DataCell(
                                   SizedBox(
-                                    width: 88,
+                                    width: 72,
                                     child: TextFormField(
                                       key: ValueKey(
                                           'price-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
                                       initialValue:
                                           Fmt.trimNum(_lines[i].unitPrice),
                                       enabled: _editable,
+                                      style: const TextStyle(fontSize: 11),
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
                                         decimal: true,
@@ -753,8 +786,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                       decoration: const InputDecoration(
                                         isDense: true,
                                         contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 6,
+                                          horizontal: 4,
+                                          vertical: 2,
                                         ),
                                         border: OutlineInputBorder(),
                                       ),
@@ -774,7 +807,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 ),
                                 DataCell(
                                   SizedBox(
-                                    width: 72,
+                                    width: 56,
                                     child: TextFormField(
                                       key: ValueKey(
                                           'disc-${_lines[i].item.id}-$i'),
@@ -782,6 +815,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                           ? ''
                                           : Fmt.trimNum(_lines[i].discountPct),
                                       enabled: _editable,
+                                      style: const TextStyle(fontSize: 11),
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
                                         decimal: true,
@@ -789,8 +823,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                       decoration: const InputDecoration(
                                         isDense: true,
                                         contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 6,
+                                          horizontal: 4,
+                                          vertical: 2,
                                         ),
                                         border: OutlineInputBorder(),
                                         hintText: '0',
@@ -808,13 +842,16 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 ),
                                 DataCell(
                                   SizedBox(
-                                    width: 88,
+                                    width: 74,
                                     child: Text(
                                       Fmt.money(_lines[i].lineTotal),
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
                                       textDirection: TextDirection.ltr,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w800,
-                                        fontSize: 12.5,
+                                        fontSize: 11,
                                       ),
                                     ),
                                   ),
@@ -822,10 +859,17 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 DataCell(
                                   _editable
                                       ? IconButton(
+                                          visualDensity: VisualDensity.compact,
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(
+                                            minWidth: 28,
+                                            minHeight: 28,
+                                          ),
                                           onPressed: () => setState(
                                               () => _lines.removeAt(i)),
                                           icon: const Icon(
                                             Icons.delete_outline_rounded,
+                                            size: 18,
                                             color: Color(0xFFB91C1C),
                                           ),
                                         )
@@ -833,6 +877,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 ),
                               ]),
                           ],
+                        ),
                         ),
                       ),
                     ),

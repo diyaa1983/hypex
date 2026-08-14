@@ -427,7 +427,9 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
           row['doc_no'] ??
           row['type'],
     );
-    final date = Fmt.dmy(Fmt.str(row['date'] ?? row['doc_date']));
+    final date = Fmt.dmy(
+      Fmt.str(row['trn_date'] ?? row['date'] ?? row['doc_date']),
+    );
     final debit = Fmt.toDouble(row['debit']);
     final credit = Fmt.toDouble(row['credit']);
     final balance = Fmt.toDouble(row['balance'] ?? row['running_balance']);

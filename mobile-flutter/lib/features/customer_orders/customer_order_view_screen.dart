@@ -159,70 +159,97 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                     padding: EdgeInsets.zero,
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      child: DataTable(
-                        headingRowHeight: 40,
-                        dataRowMinHeight: 44,
-                        columnSpacing: 14,
-                        horizontalMargin: 10,
-                        columns: const [
-                          DataColumn(label: Text('الباركود')),
-                          DataColumn(label: Text('المادة')),
-                          DataColumn(label: Text('الوحدة')),
-                          DataColumn(label: Text('الكمية')),
-                          DataColumn(label: Text('إضافية')),
-                          DataColumn(label: Text('السعر')),
-                          DataColumn(label: Text('خصم %')),
-                          DataColumn(label: Text('المجموع')),
-                        ],
-                        rows: [
-                          for (final raw in (_order['lines'] as List? ??
-                              _order['items'] as List? ??
-                              []))
-                            if (raw is Map)
-                              () {
-                                final m = raw.cast<String, dynamic>();
-                                final qty = Fmt.toDouble(m['qty']);
-                                final price = Fmt.toDouble(m['unit_price']);
-                                final disc = Fmt.toDouble(m['discount_pct']);
-                                final total = Fmt.toDouble(
-                                  m['line_total'] ??
-                                      m['line_gross'] ??
-                                      (qty * price * (1 - disc / 100)),
-                                );
-                                return DataRow(cells: [
-                                  DataCell(Text(
-                                    Fmt.str(m['item_barcode'] ??
-                                        m['barcode'] ??
-                                        m['item_code']),
-                                    textDirection: TextDirection.ltr,
-                                  )),
-                                  DataCell(SizedBox(
-                                    width: 140,
-                                    child: Text(
-                                      Fmt.str(m['item_name'] ?? m['name']),
-                                      maxLines: 2,
+                      child: DefaultTextStyle.merge(
+                        style: const TextStyle(fontSize: 11, height: 1.1),
+                        child: DataTable(
+                          headingRowHeight: 30,
+                          dataRowMinHeight: 32,
+                          dataRowMaxHeight: 34,
+                          columnSpacing: 8,
+                          horizontalMargin: 6,
+                          headingTextStyle: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF475569),
+                          ),
+                          dataTextStyle: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0F172A),
+                          ),
+                          columns: const [
+                            DataColumn(label: Text('الباركود')),
+                            DataColumn(label: Text('المادة')),
+                            DataColumn(label: Text('الوحدة')),
+                            DataColumn(label: Text('الكمية')),
+                            DataColumn(label: Text('إضافية')),
+                            DataColumn(label: Text('السعر')),
+                            DataColumn(label: Text('خصم %')),
+                            DataColumn(label: Text('المجموع')),
+                          ],
+                          rows: [
+                            for (final raw in (_order['lines'] as List? ??
+                                _order['items'] as List? ??
+                                []))
+                              if (raw is Map)
+                                () {
+                                  final m = raw.cast<String, dynamic>();
+                                  final qty = Fmt.toDouble(m['qty']);
+                                  final price = Fmt.toDouble(m['unit_price']);
+                                  final disc = Fmt.toDouble(m['discount_pct']);
+                                  final total = Fmt.toDouble(
+                                    m['line_total'] ??
+                                        m['line_gross'] ??
+                                        (qty * price * (1 - disc / 100)),
+                                  );
+                                  return DataRow(cells: [
+                                    DataCell(SizedBox(
+                                      width: 96,
+                                      child: Text(
+                                        Fmt.str(m['item_barcode'] ??
+                                            m['barcode'] ??
+                                            m['item_code']),
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        overflow: TextOverflow.ellipsis,
+                                        textDirection: TextDirection.ltr,
+                                      ),
+                                    )),
+                                    DataCell(SizedBox(
+                                      width: 140,
+                                      child: Text(
+                                        Fmt.str(m['item_name'] ?? m['name']),
+                                        maxLines: 1,
+                                        softWrap: false,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )),
+                                    DataCell(Text(
+                                      Fmt.str(m['unit_name'] ?? m['unit']),
+                                      maxLines: 1,
+                                      softWrap: false,
                                       overflow: TextOverflow.ellipsis,
-                                    ),
-                                  )),
-                                  DataCell(Text(
-                                      Fmt.str(m['unit_name'] ?? m['unit']))),
-                                  DataCell(Text(Fmt.trimNum(qty),
-                                      textDirection: TextDirection.ltr)),
-                                  DataCell(Text(
-                                      Fmt.trimNum(
-                                          Fmt.toDouble(m['qty_extra'])),
-                                      textDirection: TextDirection.ltr)),
-                                  DataCell(Text(Fmt.money(price),
-                                      textDirection: TextDirection.ltr)),
-                                  DataCell(Text(Fmt.trimNum(disc),
-                                      textDirection: TextDirection.ltr)),
-                                  DataCell(Text(Fmt.money(total),
-                                      textDirection: TextDirection.ltr,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w800))),
-                                ]);
-                              }(),
-                        ],
+                                    )),
+                                    DataCell(Text(Fmt.trimNum(qty),
+                                        textDirection: TextDirection.ltr)),
+                                    DataCell(Text(
+                                        Fmt.trimNum(
+                                            Fmt.toDouble(m['qty_extra'])),
+                                        textDirection: TextDirection.ltr)),
+                                    DataCell(Text(Fmt.money(price),
+                                        textDirection: TextDirection.ltr)),
+                                    DataCell(Text(Fmt.trimNum(disc),
+                                        textDirection: TextDirection.ltr)),
+                                    DataCell(Text(Fmt.money(total),
+                                        textDirection: TextDirection.ltr,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 11,
+                                        ))),
+                                  ]);
+                                }(),
+                          ],
+                        ),
                       ),
                     ),
                   ),

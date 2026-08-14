@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -91,6 +92,11 @@ class PartyStatementBluetoothReceipt {
       marginAll: paperMm == 80 ? 3 * PdfPageFormat.mm : 2 * PdfPageFormat.mm,
     );
 
+    final logo = await _loadLogo(Fmt.str(data['logo_url']));
+    final company = Fmt.str(data['company_name']).isEmpty
+        ? 'الشركة'
+        : Fmt.str(data['company_name']);
+
     final partyType = Fmt.str(data['party_type']);
     final partyLabel = partyType == 'supplier' ? 'مورد' : 'عميل';
     final partyName =
@@ -114,6 +120,8 @@ class PartyStatementBluetoothReceipt {
 
     final fs = paperMm == 80 ? 8.5 : 7.5;
     final fsSm = paperMm == 80 ? 7.5 : 6.5;
+    final fsTable = paperMm == 80 ? 6.8 : 5.2;
+    final logoSize = paperMm == 80 ? 44.0 : 34.0;
 
     final doc = pw.Document();
     doc.addPage(
@@ -125,13 +133,36 @@ class PartyStatementBluetoothReceipt {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
+              if (logo != null)
+                pw.Center(
+                  child: pw.Container(
+                    height: logoSize,
+                    width: logoSize * 2.2,
+                    alignment: pw.Alignment.center,
+                    child: pw.Image(logo, fit: pw.BoxFit.contain),
+                  ),
+                ),
+              if (logo != null) pw.SizedBox(height: 3),
+              pw.Center(
+                child: pw.Text(
+                  company,
+                  textAlign: pw.TextAlign.center,
+                  maxLines: 2,
+                  style: pw.TextStyle(
+                    font: fontBold,
+                    fontSize: paperMm == 80 ? 12.5 : 10.5,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 2),
               pw.Center(
                 child: pw.Text(
                   'كشف حساب $partyLabel',
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(
                     font: fontBold,
-                    fontSize: paperMm == 80 ? 12 : 10.5,
+                    fontSize: paperMm == 80 ? 10.5 : 9,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
@@ -152,7 +183,7 @@ class PartyStatementBluetoothReceipt {
               ),
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
-              _movementsTable(rows, fontReg, fontBold, fsSm, paperMm),
+              _movementsTable(rows, fontReg, fontBold, fsTable, paperMm),
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
               _kv('إجمالي المدين', Fmt.money(totalDebit), fontReg, fontBold,
@@ -183,108 +214,211 @@ class PartyStatementBluetoothReceipt {
     double fs,
     int paperMm,
   ) {
-    final headStyle = pw.TextStyle(font: bold, fontSize: fs - 0.3);
-    final cellStyle = pw.TextStyle(font: reg, fontSize: fs - 0.5);
+    final headStyle = pw.TextStyle(font: bold, fontSize: fs);
+    final cellStyle = pw.TextStyle(font: reg, fontSize: fs);
+    final balStyle = pw.TextStyle(font: bold, fontSize: fs);
+    final group = paperMm == 80;
 
     pw.Widget cell(
       String text, {
       pw.TextAlign align = pw.TextAlign.right,
       pw.TextStyle? style,
       bool ltr = false,
+      int maxLines = 3,
     }) {
       return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 1.5),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 1, vertical: 1.2),
         child: pw.Text(
           text,
           textAlign: align,
-          maxLines: 2,
+          maxLines: maxLines,
           textDirection: ltr ? pw.TextDirection.ltr : pw.TextDirection.rtl,
           style: style ?? cellStyle,
         ),
       );
     }
 
+    // جدول pdf يرتّب الخلايا من اليسار لليمين، لذلك نعكس الترتيب
+    // ليظهر الكشف عربياً: التاريخ | البيان | مدين | دائن | رصيد.
+    List<pw.Widget> rtl(List<pw.Widget> cells) => cells.reversed.toList();
+
     final tableRows = <pw.TableRow>[
       pw.TableRow(
         decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-        children: [
-          cell('التاريخ', style: headStyle, align: pw.TextAlign.center),
-          cell('البيان', style: headStyle),
-          cell('مدين', style: headStyle, align: pw.TextAlign.center),
-          cell('دائن', style: headStyle, align: pw.TextAlign.center),
-          cell('رصيد', style: headStyle, align: pw.TextAlign.center),
-        ],
+        children: rtl([
+          cell('التاريخ',
+              style: headStyle, align: pw.TextAlign.center, maxLines: 1),
+          cell('البيان',
+              style: headStyle, align: pw.TextAlign.center, maxLines: 1),
+          cell('مدين',
+              style: headStyle, align: pw.TextAlign.center, maxLines: 1),
+          cell('دائن',
+              style: headStyle, align: pw.TextAlign.center, maxLines: 1),
+          cell('رصيد',
+              style: headStyle, align: pw.TextAlign.center, maxLines: 1),
+        ]),
       ),
     ];
 
     if (rows.isEmpty) {
       tableRows.add(
         pw.TableRow(
-          children: [
+          children: rtl([
             cell('—', align: pw.TextAlign.center),
-            cell('لا توجد حركات'),
+            cell('لا توجد حركات', align: pw.TextAlign.center),
             cell('—', align: pw.TextAlign.center, ltr: true),
             cell('—', align: pw.TextAlign.center, ltr: true),
             cell('—', align: pw.TextAlign.center, ltr: true),
-          ],
+          ]),
         ),
       );
     } else {
       for (final row in rows) {
-        final date = Fmt.dmy(Fmt.str(row['date'] ?? row['doc_date']));
-        final desc = Fmt.str(
+        final date = _shortDate(
+          Fmt.str(
+            row['trn_date'] ?? row['date'] ?? row['doc_date'] ?? row['date_dmy'],
+          ),
+        );
+        var desc = Fmt.str(
           row['description'] ??
               row['remark'] ??
-              row['doc_no'] ??
               row['doc_type'] ??
-              row['type'],
-        );
+              row['type'] ??
+              '',
+        ).trim();
+        final docNo = Fmt.str(row['doc_no']).trim();
+        if (docNo.isNotEmpty && !desc.contains(docNo)) {
+          desc = desc.isEmpty ? docNo : '$desc ($docNo)';
+        }
         final debit = Fmt.toDouble(row['debit']);
         final credit = Fmt.toDouble(row['credit']);
         final balance = Fmt.toDouble(row['balance'] ?? row['running_balance']);
         tableRows.add(
           pw.TableRow(
-            children: [
+            children: rtl([
               cell(
                 date.isEmpty ? '—' : date,
                 align: pw.TextAlign.center,
                 ltr: true,
+                maxLines: 1,
               ),
-              cell(desc.isEmpty ? '—' : desc),
+              cell(desc.isEmpty ? '—' : desc, maxLines: 3),
               cell(
-                debit > 0 ? Fmt.money(debit) : '',
+                debit > 0 ? _amount(debit, group: group) : '',
                 align: pw.TextAlign.center,
                 ltr: true,
+                maxLines: 1,
               ),
               cell(
-                credit > 0 ? Fmt.money(credit) : '',
+                credit > 0 ? _amount(credit, group: group) : '',
                 align: pw.TextAlign.center,
                 ltr: true,
+                maxLines: 1,
               ),
               cell(
-                Fmt.money(balance),
+                _amount(balance, group: group),
                 align: pw.TextAlign.center,
                 ltr: true,
-                style: pw.TextStyle(font: bold, fontSize: fs - 0.5),
+                maxLines: 1,
+                style: balStyle,
               ),
-            ],
+            ]),
           ),
         );
       }
     }
 
+    final dateW = paperMm == 80 ? 30.0 : 23.0;
+    final numW = paperMm == 80 ? 34.0 : 25.0;
+    final balW = paperMm == 80 ? 38.0 : 27.0;
+
     return pw.Table(
       border: pw.TableBorder.all(width: 0.3, color: PdfColors.grey700),
       columnWidths: {
-        0: pw.FlexColumnWidth(paperMm == 80 ? 1.4 : 1.3),
-        1: const pw.FlexColumnWidth(2.4),
-        2: pw.FlexColumnWidth(paperMm == 80 ? 1.1 : 1.0),
-        3: pw.FlexColumnWidth(paperMm == 80 ? 1.1 : 1.0),
-        4: pw.FlexColumnWidth(paperMm == 80 ? 1.2 : 1.1),
+        // الأعمدة معكوسة: 0 = رصيد ... 4 = التاريخ
+        0: pw.FixedColumnWidth(balW),
+        1: pw.FixedColumnWidth(numW),
+        2: pw.FixedColumnWidth(numW),
+        3: const pw.FlexColumnWidth(1),
+        4: pw.FixedColumnWidth(dateW),
       },
       defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
       children: tableRows,
     );
+  }
+
+  /// مبلغ مختصر للطباعة الحرارية: بدون أصفار زائدة حتى لا ينكسر السطر.
+  /// على ورق 58 مم نحذف فواصل الآلاف لتوفير مساحة العمود.
+  static String _amount(double v, {bool group = true}) {
+    final rounded = (v * 1000).round() / 1000;
+    var s = rounded == rounded.roundToDouble()
+        ? Fmt.intNum(rounded)
+        : Fmt.money(rounded);
+    if (s.contains('.')) {
+      s = s.replaceFirst(RegExp(r'0+$'), '');
+      if (s.endsWith('.')) s = s.substring(0, s.length - 1);
+    }
+    return group ? s : s.replaceAll(',', '');
+  }
+
+  /// تاريخ مختصر dd/MM/yy ليظهر بجانب كل حركة على سطر واحد.
+  static String _shortDate(String raw) {
+    final v = raw.trim();
+    if (v.isEmpty) return '';
+    DateTime? d;
+    try {
+      d = DateTime.parse(v.contains('T') ? v : v.replaceFirst(' ', 'T'));
+    } catch (_) {
+      d = null;
+    }
+    if (d == null) {
+      final m = RegExp(r'^(\d{1,4})[/\-.](\d{1,2})[/\-.](\d{1,4})').firstMatch(v);
+      if (m != null) {
+        final a = int.parse(m.group(1)!);
+        final b = int.parse(m.group(2)!);
+        final c = int.parse(m.group(3)!);
+        d = a > 31 ? DateTime(a, b, c) : DateTime(c < 100 ? 2000 + c : c, b, a);
+      }
+    }
+    if (d == null) return v;
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    final yy = (d.year % 100).toString().padLeft(2, '0');
+    return '$dd/$mm/$yy';
+  }
+
+  static Future<pw.MemoryImage?> _loadLogo(String? url) async {
+    final remote = (url ?? '').trim();
+    if (remote.startsWith('http')) {
+      try {
+        final res = await Dio().get<List<int>>(
+          remote,
+          options: Options(
+            responseType: ResponseType.bytes,
+            receiveTimeout: const Duration(seconds: 4),
+            sendTimeout: const Duration(seconds: 4),
+          ),
+        );
+        final bytes = res.data;
+        if (bytes != null && bytes.isNotEmpty) {
+          return pw.MemoryImage(Uint8List.fromList(bytes));
+        }
+      } catch (_) {
+        // نكمل على شعار التطبيق المضمّن
+      }
+    }
+    for (final path in const [
+      'assets/branding/logo.png',
+      'assets/icon/app_icon.png',
+    ]) {
+      try {
+        final bytes = await rootBundle.load(path);
+        return pw.MemoryImage(bytes.buffer.asUint8List());
+      } catch (_) {
+        continue;
+      }
+    }
+    return null;
   }
 
   static pw.Widget _kv(

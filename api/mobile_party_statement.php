@@ -98,8 +98,18 @@ try {
         'to' => format_date_dmY($toIso),
     ], '', '&', PHP_QUERY_RFC3986);
 
+    $brand = [];
+    try {
+        require_once app_path('includes/document_header.php');
+        $brand = document_header_brand($pdo);
+    } catch (Throwable $e) {
+        $brand = [];
+    }
+
     $payload = [
         'ok' => true,
+        'company_name' => (string) ($brand['company_name_ar'] ?? 'الشركة'),
+        'logo_url' => $brand['logo_url'] ?? null,
         'party_type' => $partyType,
         'party_id' => $partyId,
         'party_name' => $partyName,

@@ -9,6 +9,7 @@ require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/oracle_statement.php');
 require_once app_path('includes/oracle_customer_sync.php');
 require_once app_path('includes/mobile_auth.php');
+require_once app_path('includes/document_header.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -126,14 +127,26 @@ foreach ((array) ($stmt['lines'] ?? []) as $ln) {
     if (!is_array($ln)) {
         continue;
     }
+    $lnDate = (string) ($ln['trn_date'] ?? $ln['date'] ?? $ln['doc_date'] ?? '');
+    $lnDesc = (string) ($ln['description'] ?? $ln['remark'] ?? $ln['desc'] ?? '');
     $lines[] = [
-        'date' => (string) ($ln['date'] ?? $ln['doc_date'] ?? ''),
+        'date' => $lnDate,
+        'trn_date' => $lnDate,
         'doc_no' => (string) ($ln['doc_no'] ?? $ln['num'] ?? $ln['number'] ?? ''),
-        'remark' => (string) ($ln['remark'] ?? $ln['desc'] ?? $ln['description'] ?? ''),
+        'doc_type' => (string) ($ln['doc_type'] ?? ''),
+        'description' => $lnDesc,
+        'remark' => $lnDesc,
         'debit' => (float) ($ln['debit'] ?? 0),
         'credit' => (float) ($ln['credit'] ?? 0),
         'balance' => (float) ($ln['balance'] ?? 0),
     ];
+}
+
+$brand = [];
+try {
+    $brand = document_header_brand($pdo);
+} catch (Throwable $e) {
+    $brand = [];
 }
 
 $cheques = is_array($stmt['cheques'] ?? null) ? $stmt['cheques'] : [];
@@ -142,6 +155,8 @@ echo json_encode([
     'ok' => true,
     'message' => '',
     'source' => 'oracle',
+    'company_name' => (string) ($brand['company_name_ar'] ?? 'الشركة'),
+    'logo_url' => $brand['logo_url'] ?? null,
     'customer_id' => $customerId,
     'party_type' => 'customer',
     'party_id' => $customerId,
