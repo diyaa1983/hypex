@@ -93,20 +93,49 @@ module.exports = createDomainRouter({
       const rows = await q.reportItems();
       return {
         useDateFilters: false,
-        headers: ['الباركود', 'الاسم', 'الفئة', 'الرصيد', 'تكلفة', 'بيع'],
+        headers: [
+          'الباركود',
+          'اسم المادة بالعربي مع التعبئة',
+          'الفئة',
+          'الوحدة',
+          'سعر البيع',
+          'سعر الجملة',
+          'سعر الكلفة',
+          'الحالة',
+        ],
         rowsHtml:
           rows
             .map(
               (r) => `<tr>
-            <td class="si-num" dir="ltr">${dash(ui, r.item_code || r.barcode || r.sku)}</td>
-            <td>${ui.esc(r.name_ar || '')}</td>
+            <td class="si-num" dir="ltr">${dash(ui, r.barcode || r.item_code || r.sku)}</td>
+            <td>
+              <strong>${ui.esc(r.name_ar || '')}</strong>
+              ${
+                r.pack_label
+                  ? `<div class="muted" style="font-size:.78rem;font-weight:600;margin-top:.15rem">التعبئة: ${ui.esc(
+                      r.pack_label
+                    )}</div>`
+                  : ''
+              }
+              ${
+                r.name_en
+                  ? `<div class="muted" style="font-size:.78rem;font-weight:500" dir="ltr">${ui.esc(r.name_en)}</div>`
+                  : ''
+              }
+            </td>
             <td>${dash(ui, r.category_name)}</td>
-            <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty))}</td>
-            <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.default_cost))}</td>
-            <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.default_sale))}</td>
+            <td>${dash(ui, r.unit_name)}</td>
+            <td class="si-num" dir="ltr">${ui.esc(ui.fmtUnitPrice(r.default_sale))}</td>
+            <td class="si-num" dir="ltr">${ui.esc(ui.fmtUnitPrice(r.default_wholesale))}</td>
+            <td class="si-num" dir="ltr">${ui.esc(ui.fmtUnitPrice(r.default_cost))}</td>
+            <td>${
+              Number(r.is_active) === 1
+                ? ui.statusPill('ok', 'نشط')
+                : ui.statusPill('lock', 'موقوف')
+            }</td>
           </tr>`
             )
-            .join('') || ui.emptyRow(6),
+            .join('') || ui.emptyRow(8),
         count: rows.length,
       };
     },

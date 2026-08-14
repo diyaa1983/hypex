@@ -139,14 +139,43 @@ async function listStocktakeDocs({ q = '' } = {}) {
 }
 
 async function reportItems() {
+  let wholesaleSel = '0 AS default_wholesale';
+  try {
+    await safeQuery(`SELECT default_wholesale FROM inv_item LIMIT 1`);
+    wholesaleSel = 'i.default_wholesale';
+  } catch {
+    /* عمود الجملة غير موجود */
+  }
+  let packJoin = '';
+  let packSel = `'' AS pack_label`;
+  try {
+    await safeQuery(`SELECT id FROM inv_item_unit LIMIT 1`);
+    packJoin = `LEFT JOIN (
+        SELECT iu.item_id,
+               GROUP_CONCAT(
+                 CONCAT(COALESCE(u.name_ar,'وحدة'), ' × ', TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(iu.factor_to_base AS CHAR))))
+                 ORDER BY iu.id SEPARATOR ' · '
+               ) AS pack_label
+        FROM inv_item_unit iu
+        INNER JOIN inv_unit u ON u.id = iu.unit_id
+        WHERE IFNULL(iu.is_base,0) = 0 AND iu.factor_to_base > 1
+        GROUP BY iu.item_id
+      ) pk ON pk.item_id = i.id`;
+    packSel = `COALESCE(pk.pack_label,'') AS pack_label`;
+  } catch {
+    /* جدول الوحدات غير موجود */
+  }
   return safeQuery(
-    `SELECT ${ITEM_CODE_SQL('i')} AS item_code, i.barcode, i.sku, i.name_ar, i.default_cost, i.default_sale, i.is_active,
-            c.name_ar AS category_name,
-            COALESCE((SELECT SUM(m.qty_delta) FROM inv_stock_move m WHERE m.item_id = i.id),0) AS qty
+    `SELECT ${ITEM_CODE_SQL('i')} AS item_code, i.barcode, i.sku, i.name_ar, i.name_en,
+            i.default_cost, i.default_sale, ${wholesaleSel}, i.is_active,
+            c.name_ar AS category_name, u.name_ar AS unit_name,
+            ${packSel}
      FROM inv_item i
      LEFT JOIN inv_item_category c ON c.id = i.category_id
-     WHERE i.is_active = 1
-     ORDER BY i.name_ar LIMIT 500`
+     LEFT JOIN inv_unit u ON u.id = i.unit_id
+     ${packJoin}
+     ORDER BY i.name_ar
+     LIMIT 500`
   );
 }
 
