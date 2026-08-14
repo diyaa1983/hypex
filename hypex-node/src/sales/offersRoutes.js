@@ -293,7 +293,13 @@ async function renderForm(req, res, id) {
           <form method="post" action="/sales/offers/${doc ? doc.id : 0}/delete" style="display:inline"
                 onsubmit="return confirm('حذف العرض نهائياً؟ لا يمكن التراجع.');">
             <button type="submit" class="si-tb si-tb--danger" ${canDelete ? '' : 'disabled'}
-                    title="${isPosted ? 'فك الترحيل أولاً ثم احذف' : 'حذف العرض'}">
+                    title="${
+                      canDelete
+                        ? 'حذف العرض نهائياً'
+                        : isPosted
+                          ? 'العرض مرحّل — اضغط «فك الترحيل» ثم «حذف»'
+                          : 'احفظ العرض أولاً ليصبح قابلاً للحذف'
+                    }">
               <span class="si-tb-lbl">حذف</span>
             </button>
           </form>

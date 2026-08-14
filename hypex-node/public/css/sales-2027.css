@@ -740,16 +740,23 @@ label .si-field-key {
 }
 
 .si-tb--danger {
-  --tb-bg: rgba(254, 226, 226, 0.12);
-  --tb-fg: #fecaca;
-  --tb-bd: rgba(248, 113, 113, 0.35);
-  color: #fecaca;
+  --tb-bg: linear-gradient(165deg, #f87171 0%, #dc2626 55%, #991b1b 100%);
+  --tb-fg: #fff;
+  --tb-bd: rgba(153, 27, 27, 0.9);
+  color: #fff;
+  box-shadow:
+    0 10px 22px rgba(185, 28, 28, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .si-tb--danger:hover:not(:disabled) {
-  background: rgba(248, 113, 113, 0.2);
-  border-color: rgba(248, 113, 113, 0.55);
+  background: linear-gradient(165deg, #fca5a5 0%, #ef4444 55%, #b91c1c 100%);
   color: #fff;
+}
+
+/* الحذف المعطَّل يبقى مقروءاً ليعرف المستخدم مكانه وسبب تعطيله */
+.si-tb--danger:disabled {
+  opacity: 0.62;
 }
 
 .si-tb--ghost {
