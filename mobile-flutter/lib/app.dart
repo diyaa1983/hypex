@@ -153,7 +153,16 @@ class NammaApp extends StatelessWidget {
         ),
         GoRoute(
           path: '/statement',
-          builder: (_, __) => const PartyStatementScreen(),
+          builder: (_, s) {
+            final q = s.uri.queryParameters;
+            final cid = int.tryParse(q['customer_id'] ?? '') ?? 0;
+            return PartyStatementScreen(
+              initialCustomerId: cid > 0 ? cid : null,
+              initialCustomerName: q['customer_name'],
+              initialCustomerCode: q['customer_code'],
+              autoRun: cid > 0,
+            );
+          },
         ),
         GoRoute(
           path: '/rep/load',

@@ -31,23 +31,56 @@ class _OrderLine {
     unitId = d?.unitId ?? 0;
     unitName = d?.name ?? '';
     unitFactor = d?.factor ?? 1;
+    if (unitFactor <= 0) unitFactor = 1;
+    basePrice = item.price;
+    unitPrice = basePrice * unitFactor;
   }
 
   final PickedItem item;
   int qty = 1;
+  int qtyExtra = 0;
   int unitId = 0;
   String unitName = '';
   double unitFactor = 1;
+  double basePrice = 0;
+  double unitPrice = 0;
+  double discountPct = 0;
+
+  String get barcode => item.barcode;
+
+  double get lineBase => qty * unitPrice;
+  double get discountAmount =>
+      discountPct <= 0 ? 0 : lineBase * (discountPct.clamp(0, 100) / 100);
+  double get lineTotal => (lineBase - discountAmount).clamp(0, double.infinity);
 
   Map<String, dynamic> toJson() => {
         'item_id': item.id,
         'item_name': item.name,
         'unit_id': unitId,
         'unit_name': unitName,
-        'unit_factor': unitFactor,
+        'unit_factor': unitFactor <= 0 ? 1 : unitFactor,
         'qty': qty,
-        'qty_base': qty * unitFactor,
+        'qty_extra': qtyExtra,
+        'qty_base': (qty + qtyExtra) * (unitFactor <= 0 ? 1 : unitFactor),
+        'unit_price': unitPrice,
+        'discount_pct': discountPct,
+        'line_discount_input':
+            discountPct > 0 ? '${Fmt.trimNum(discountPct)}%' : '',
       };
+
+  void applyUnit(ItemUnitOpt? u, {int? unitIdOverride, String? unitNameOverride}) {
+    if (u != null) {
+      unitId = u.unitId;
+      unitName = u.name;
+      unitFactor = u.factor <= 0 ? 1 : u.factor;
+    } else {
+      if (unitIdOverride != null) unitId = unitIdOverride;
+      if (unitNameOverride != null) unitName = unitNameOverride;
+    }
+    if (basePrice > 0) {
+      unitPrice = basePrice * unitFactor;
+    }
+  }
 }
 
 class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
@@ -112,19 +145,38 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         final item = PickedItem(
           Fmt.toInt(m['item_id'] ?? m['id']),
           Fmt.str(m['item_name'] ?? m['name']),
+          () {
+            final up = Fmt.toDouble(m['unit_price']);
+            final f = Fmt.toDouble(m['unit_factor'] ?? 1);
+            if (up > 0 && f > 0) return up / f;
+            return Fmt.toDouble(m['sale_price'] ?? m['price']);
+          }(),
           0,
-          0,
+          barcode: Fmt.str(m['item_barcode'] ?? m['barcode'] ?? m['sku'] ?? m['item_code']),
           units: units,
         );
         final line = _OrderLine(item)
           ..qty = Fmt.toDouble(m['qty']).round().clamp(1, 999999999)
+          ..qtyExtra = Fmt.toDouble(m['qty_extra']).round().clamp(0, 999999999)
           ..unitId = Fmt.toInt(m['unit_id'])
           ..unitName = Fmt.str(m['unit_name'] ?? m['unit'])
-          ..unitFactor = Fmt.toDouble(m['unit_factor'] ?? 1);
+          ..unitFactor = Fmt.toDouble(m['unit_factor'] ?? 1)
+          ..unitPrice = Fmt.toDouble(m['unit_price'])
+          ..discountPct = Fmt.toDouble(m['discount_pct']);
+        if (line.unitFactor <= 0) line.unitFactor = 1;
+        if (line.unitPrice <= 0 && item.price > 0) {
+          line.basePrice = item.price;
+          line.unitPrice = item.price * line.unitFactor;
+        } else if (line.unitFactor > 0) {
+          line.basePrice = line.unitPrice / line.unitFactor;
+        }
         if (line.unitName.isEmpty && item.defaultUnit != null) {
           line.unitId = item.defaultUnit!.unitId;
           line.unitName = item.defaultUnit!.name;
           line.unitFactor = item.defaultUnit!.factor;
+          if (line.basePrice > 0) {
+            line.unitPrice = line.basePrice * line.unitFactor;
+          }
         }
         loaded.add(line);
       }
@@ -295,8 +347,14 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'lines': _lines
             .map((l) => {
                   'item_name': l.item.name,
+                  'item_barcode': l.barcode,
+                  'barcode': l.barcode,
                   'unit_name': l.unitName,
-                  'qty': l.qty
+                  'qty': l.qty,
+                  'qty_extra': l.qtyExtra,
+                  'unit_price': l.unitPrice,
+                  'discount_pct': l.discountPct,
+                  'line_total': l.lineTotal,
                 })
             .toList(),
       };
@@ -408,6 +466,30 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                     '${Fmt.toInt(_arSummary?['cheque_count'])} · ${Fmt.money(Fmt.toDouble(_arSummary?['cheque_total']))}',
                                     ltr: true,
                                   ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () {
+                                        final c = _customer!;
+                                        final q = {
+                                          'customer_id': '${c.id}',
+                                          if (c.name.isNotEmpty)
+                                            'customer_name': c.name,
+                                          if (c.code.isNotEmpty)
+                                            'customer_code': c.code,
+                                        };
+                                        final qs = q.entries
+                                            .map((e) =>
+                                                '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+                                            .join('&');
+                                        context.push('/statement?$qs');
+                                      },
+                                      icon: const Icon(Icons.menu_book_outlined),
+                                      label: const Text(
+                                          'كشف حساب عميل Oracle'),
+                                    ),
+                                  ),
                                   if ((_arSummary?['cheques'] is List) &&
                                       (_arSummary!['cheques'] as List)
                                           .isNotEmpty) ...[
@@ -486,105 +568,289 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   ),
                 ],
                 const DocumentSectionDivider('بنود الطلب'),
-                for (var i = 0; i < _lines.length; i++)
+                if (_lines.isNotEmpty)
                   AppCard(
-                      child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(_lines[i].item.name,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700)),
-                              if (_lines[i].unitFactor > 1.0000001)
-                                Text(
-                                  'تعبئة × ${Fmt.trimNum(_lines[i].unitFactor)}',
-                                  textDirection: TextDirection.ltr,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF0369A1),
+                    padding: EdgeInsets.zero,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 760),
+                        child: DataTable(
+                          headingRowHeight: 40,
+                          dataRowMinHeight: 56,
+                          dataRowMaxHeight: 72,
+                          columnSpacing: 12,
+                          horizontalMargin: 10,
+                          columns: const [
+                            DataColumn(label: Text('الباركود')),
+                            DataColumn(label: Text('المادة')),
+                            DataColumn(label: Text('الوحدة')),
+                            DataColumn(label: Text('الكمية')),
+                            DataColumn(label: Text('إضافية')),
+                            DataColumn(label: Text('السعر')),
+                            DataColumn(label: Text('خصم %')),
+                            DataColumn(label: Text('المجموع')),
+                            DataColumn(label: Text('')),
+                          ],
+                          rows: [
+                            for (var i = 0; i < _lines.length; i++)
+                              DataRow(cells: [
+                                DataCell(
+                                  SizedBox(
+                                    width: 110,
+                                    child: Text(
+                                      _lines[i].barcode.isEmpty
+                                          ? '—'
+                                          : _lines[i].barcode,
+                                      textDirection: TextDirection.ltr,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                            ],
-                          ),
-                        ),
-                        if (_editable)
-                          IconButton(
-                              onPressed: () =>
-                                  setState(() => _lines.removeAt(i)),
-                              icon: const Icon(Icons.delete_outline_rounded)),
-                      ]),
-                      const SizedBox(height: 8),
-                      Row(children: [
-                        Expanded(
-                          flex: 3,
-                          child: DropdownButtonFormField<int>(
-                            initialValue: _lines[i].unitId == 0
-                                ? (_lines[i].item.units.isEmpty
-                                    ? null
-                                    : _lines[i].item.units.first.unitId)
-                                : _lines[i].unitId,
-                            decoration:
-                                const InputDecoration(labelText: 'الوحدة'),
-                            items: [
-                              for (final u in _lines[i].item.units)
-                                DropdownMenuItem(
-                                  value: u.unitId,
-                                  child: Text(u.name),
+                                DataCell(
+                                  SizedBox(
+                                    width: 150,
+                                    child: Text(
+                                      _lines[i].item.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              if (_lines[i].item.units.isEmpty &&
-                                  _lines[i].unitName.isNotEmpty)
-                                DropdownMenuItem(
-                                  value: _lines[i].unitId,
-                                  child: Text(_lines[i].unitName),
+                                DataCell(
+                                  SizedBox(
+                                    width: 108,
+                                    child: DropdownButtonFormField<int>(
+                                      key: ValueKey(
+                                          'unit-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
+                                      isExpanded: true,
+                                      initialValue: _lines[i].unitId == 0
+                                          ? (_lines[i].item.units.isEmpty
+                                              ? null
+                                              : _lines[i]
+                                                  .item
+                                                  .units
+                                                  .first
+                                                  .unitId)
+                                          : _lines[i].unitId,
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 6,
+                                        ),
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      items: [
+                                        for (final u in _lines[i].item.units)
+                                          DropdownMenuItem(
+                                            value: u.unitId,
+                                            child: Text(
+                                              u.name,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        if (_lines[i].item.units.isEmpty &&
+                                            _lines[i].unitName.isNotEmpty)
+                                          DropdownMenuItem(
+                                            value: _lines[i].unitId,
+                                            child: Text(_lines[i].unitName),
+                                          ),
+                                      ],
+                                      onChanged: !_editable
+                                          ? null
+                                          : (v) {
+                                              final u = _lines[i]
+                                                  .item
+                                                  .units
+                                                  .where((x) => x.unitId == v)
+                                                  .cast<ItemUnitOpt?>()
+                                                  .followedBy([null]).first;
+                                              setState(() {
+                                                _lines[i].applyUnit(u,
+                                                    unitIdOverride: v);
+                                              });
+                                            },
+                                    ),
+                                  ),
                                 ),
-                            ],
-                            onChanged: !_editable
-                                ? null
-                                : (v) {
-                                    final u = _lines[i]
-                                        .item
-                                        .units
-                                        .where((x) => x.unitId == v)
-                                        .cast<ItemUnitOpt?>()
-                                        .followedBy([null]).first;
-                                    setState(() {
-                                      _lines[i].unitId = v ?? 0;
-                                      if (u != null) {
-                                        _lines[i].unitName = u.name;
-                                        _lines[i].unitFactor =
-                                            u.factor <= 0 ? 1.0 : u.factor;
-                                      }
-                                    });
-                                  },
-                          ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 72,
+                                    child: TextFormField(
+                                      key: ValueKey(
+                                          'qty-${_lines[i].item.id}-$i'),
+                                      initialValue: '${_lines[i].qty}',
+                                      enabled: _editable,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly
+                                      ],
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 6,
+                                        ),
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onChanged: (v) => setState(() {
+                                        _lines[i].qty = int.tryParse(v)
+                                                ?.clamp(1, 999999999) ??
+                                            1;
+                                      }),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 72,
+                                    child: TextFormField(
+                                      key: ValueKey(
+                                          'extra-${_lines[i].item.id}-$i'),
+                                      initialValue: '${_lines[i].qtyExtra}',
+                                      enabled: _editable,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly
+                                      ],
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 6,
+                                        ),
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onChanged: (v) => setState(() {
+                                        _lines[i].qtyExtra = int.tryParse(v)
+                                                ?.clamp(0, 999999999) ??
+                                            0;
+                                      }),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 88,
+                                    child: TextFormField(
+                                      key: ValueKey(
+                                          'price-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
+                                      initialValue:
+                                          Fmt.trimNum(_lines[i].unitPrice),
+                                      enabled: _editable,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 6,
+                                        ),
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      onChanged: (v) => setState(() {
+                                        final p = double.tryParse(
+                                              v.replaceAll(',', ''),
+                                            ) ??
+                                            0;
+                                        _lines[i].unitPrice = p;
+                                        if (_lines[i].unitFactor > 0) {
+                                          _lines[i].basePrice =
+                                              p / _lines[i].unitFactor;
+                                        }
+                                      }),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 72,
+                                    child: TextFormField(
+                                      key: ValueKey(
+                                          'disc-${_lines[i].item.id}-$i'),
+                                      initialValue: _lines[i].discountPct <= 0
+                                          ? ''
+                                          : Fmt.trimNum(_lines[i].discountPct),
+                                      enabled: _editable,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 6,
+                                        ),
+                                        border: OutlineInputBorder(),
+                                        hintText: '0',
+                                      ),
+                                      onChanged: (v) => setState(() {
+                                        _lines[i].discountPct =
+                                            (double.tryParse(
+                                                      v.replaceAll(',', ''),
+                                                    ) ??
+                                                    0)
+                                                .clamp(0, 100);
+                                      }),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  SizedBox(
+                                    width: 88,
+                                    child: Text(
+                                      Fmt.money(_lines[i].lineTotal),
+                                      textDirection: TextDirection.ltr,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                DataCell(
+                                  _editable
+                                      ? IconButton(
+                                          onPressed: () => setState(
+                                              () => _lines.removeAt(i)),
+                                          icon: const Icon(
+                                            Icons.delete_outline_rounded,
+                                            color: Color(0xFFB91C1C),
+                                          ),
+                                        )
+                                      : const SizedBox.shrink(),
+                                ),
+                              ]),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                              initialValue: '${_lines[i].qty}',
-                              enabled: _editable,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly
-                              ],
-                              decoration:
-                                  const InputDecoration(labelText: 'الكمية'),
-                              onChanged: (v) => setState(() {
-                                    _lines[i].qty = int.tryParse(v)
-                                            ?.clamp(1, 999999999) ??
-                                        1;
-                                  }),
-                          ),
-                        ),
-                      ]),
-                    ],
-                  )),
+                      ),
+                    ),
+                  ),
+                if (_lines.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'إجمالي البنود: ${Fmt.money(_lines.fold<double>(0, (s, l) => s + l.lineTotal))}',
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ],
                 if (_editable)
                   OutlinedButton.icon(
                       onPressed: _addLine,

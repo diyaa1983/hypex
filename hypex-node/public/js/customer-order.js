@@ -625,32 +625,18 @@
     return Math.ceil(el.getBoundingClientRect().width);
   }
 
-  /** توسيع الحقل تلقائياً حسب طول الكتابة/النص */
-  function fitFieldToContent(el, opts) {
+  /** توسيع الحقل تلقائياً حسب طول الكتابة/النص — معطّل لجداول البنود (عرض ثابت + تمرير أفقي) */
+  function fitFieldToContent(el) {
     if (!el) return;
-    opts = opts || {};
-    var min = opts.min != null ? opts.min : 72;
-    var max = opts.max != null ? opts.max : 560;
-    var pad = opts.pad != null ? opts.pad : 26;
-    var text = '';
-    if (el.tagName === 'SELECT') {
-      var opt = el.selectedOptions && el.selectedOptions[0];
-      text = opt ? String(opt.textContent || '').trim() : '';
-      if (opts.pad == null) pad = 44;
-    } else {
-      text = String(el.value != null && el.value !== '' ? el.value : el.placeholder || '');
-    }
-    var w = measureTextWidth(text, el) + pad;
-    if (w < min) w = min;
-    if (w > max) w = max;
-    el.style.width = w + 'px';
+    el.style.width = '';
+    el.style.maxWidth = '';
   }
 
   function fitRowFields(tr) {
     if (!tr) return;
-    fitFieldToContent(tr.querySelector('.js-item-code'), { min: 100, max: 240, pad: 24 });
-    fitFieldToContent(tr.querySelector('.js-item-name'), { min: 140, max: 640, pad: 28 });
-    fitFieldToContent(tr.querySelector('.js-unit'), { min: 88, max: 260, pad: 44 });
+    fitFieldToContent(tr.querySelector('.js-item-code'));
+    fitFieldToContent(tr.querySelector('.js-item-name'));
+    fitFieldToContent(tr.querySelector('.js-unit'));
   }
 
   function fitAllLineFields() {

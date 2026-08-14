@@ -261,6 +261,16 @@ function mobile_home_launcher_tiles(): array
             ) {
                 continue;
             }
+        } elseif ($code === 'm_party_statement') {
+            if (
+                !user_can('m_party_statement')
+                && !user_can('m_customer_orders')
+                && !user_can('report_oracle_customer_statement')
+                && !user_can('customers')
+                && !user_is_system_admin()
+            ) {
+                continue;
+            }
         } elseif (!user_can($perm)) {
             continue;
         }

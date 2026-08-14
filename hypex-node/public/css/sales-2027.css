@@ -1263,23 +1263,21 @@ label .si-field-key {
   box-sizing: content-box;
   white-space: nowrap;
 }
-/* ???? ??? ??????: ????? ?? ??????? + ????? ???? ??? ?????? */
+/* تمرير أفقي لجداول البنود — التفاصيل أدناه مع .si-lines--co */
 .si-lines-wrap:has(.si-lines--co),
 .si-lines-wrap:has(#co-lines) {
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow-x: scroll;
+  overflow-y: hidden;
   max-width: 100%;
 }
 .si-lines.si-lines--co {
-  width: max-content;
-  min-width: 100%;
-  table-layout: auto;
+  table-layout: fixed;
 }
 .si-lines.si-lines--co thead th {
   white-space: nowrap;
 }
 .si-lines.si-lines--co tbody td {
-  overflow: visible;
+  overflow: hidden;
 }
 .si-lines .si-item-code-cell .si-suggest,
 .si-lines .js-item-suggest {
@@ -1640,39 +1638,135 @@ label .si-field-key {
   max-height: none;
 }
 
-/* ??? ??????: ????? ???? ??? ????? ??? ?????? ???????? */
+/* بنود فاتورة البيع / طلب الشراء: كل الأعمدة ظاهرة + مسطرة أفقية */
 .si-lines-wrap:has(.si-lines--co),
-.si-lines-wrap:has(#co-lines) {
-  overflow-x: auto;
-  overflow-y: visible;
+.si-lines-wrap:has(#co-lines),
+.si-lines-wrap:has(#si-lines) {
+  overflow-x: scroll;
+  overflow-y: hidden;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.45rem;
+  margin-inline: 0;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #64748b #e2e8f0;
 }
 
-.si-lines-wrap.is-scroll {
-  overflow: auto;
-  max-height: min(46vh, 480px);
+.si-lines-wrap:has(.si-lines--co)::-webkit-scrollbar,
+.si-lines-wrap:has(#co-lines)::-webkit-scrollbar,
+.si-lines-wrap:has(#si-lines)::-webkit-scrollbar {
+  height: 14px;
+}
+
+.si-lines-wrap:has(.si-lines--co)::-webkit-scrollbar-track,
+.si-lines-wrap:has(#co-lines)::-webkit-scrollbar-track,
+.si-lines-wrap:has(#si-lines)::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 8px;
+}
+
+.si-lines-wrap:has(.si-lines--co)::-webkit-scrollbar-thumb,
+.si-lines-wrap:has(#co-lines)::-webkit-scrollbar-thumb,
+.si-lines-wrap:has(#si-lines)::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 8px;
+  border: 2px solid #e2e8f0;
 }
 
 .si-lines.si-lines--co {
-  width: max-content;
-  min-width: 100%;
-  table-layout: auto;
+  width: 80rem;
+  min-width: 80rem;
+  max-width: none;
+  table-layout: fixed;
 }
 
 .si-lines.si-lines--co thead th {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .si-lines.si-lines--co tbody td {
-  overflow: visible;
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+/* عرض أعمدة ثابت حتى لا تُضغط الحقول */
+.si-lines.si-lines--co th:nth-child(1),
+.si-lines.si-lines--co td:nth-child(1) {
+  width: 2.4rem;
+}
+.si-lines.si-lines--co th:nth-child(2),
+.si-lines.si-lines--co td:nth-child(2) {
+  width: 9.5rem;
+}
+.si-lines.si-lines--co th:nth-child(3),
+.si-lines.si-lines--co td:nth-child(3) {
+  width: 15rem;
+}
+.si-lines.si-lines--co th:nth-child(4),
+.si-lines.si-lines--co td:nth-child(4) {
+  width: 7.5rem;
+}
+.si-lines.si-lines--co th:nth-child(5),
+.si-lines.si-lines--co td:nth-child(5),
+.si-lines.si-lines--co th:nth-child(6),
+.si-lines.si-lines--co td:nth-child(6) {
+  width: 5.6rem;
+}
+.si-lines.si-lines--co th:nth-child(7),
+.si-lines.si-lines--co td:nth-child(7) {
+  width: 6.4rem;
+}
+.si-lines.si-lines--co th:nth-child(8),
+.si-lines.si-lines--co td:nth-child(8) {
+  width: 5.2rem;
+}
+.si-lines.si-lines--co th:nth-child(9),
+.si-lines.si-lines--co td:nth-child(9) {
+  width: 5.8rem;
+}
+.si-lines.si-lines--co th:nth-child(10),
+.si-lines.si-lines--co td:nth-child(10),
+.si-lines.si-lines--co th:nth-child(11),
+.si-lines.si-lines--co td:nth-child(11) {
+  width: 6.4rem;
+}
+.si-lines.si-lines--co th:nth-child(12),
+.si-lines.si-lines--co td:nth-child(12) {
+  width: 2.8rem;
+}
+
+.si-lines.si-lines--co input,
+.si-lines.si-lines--co select {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
 }
 
 .si-lines.si-lines--co input.js-item-code,
 .si-lines.si-lines--co input.js-item-name,
 .si-lines.si-lines--co select.js-unit {
-  width: auto !important;
-  max-width: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-lines.si-lines--co select.js-tax {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.si-lines.si-lines--co .si-num-out {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .si-lines {
@@ -2010,15 +2104,15 @@ body.si-2027:has(#pa-root) .si-surface:has(.js-item-name:focus) {
 .si-lines td.si-col-del {
   position: sticky;
   inset-inline-end: 0;
-  left: 0;
   z-index: 6;
-  width: 2.7rem;
-  min-width: 2.7rem;
-  max-width: 2.9rem;
+  width: 2.8rem;
+  min-width: 2.8rem;
+  max-width: 2.8rem;
   text-align: center;
   vertical-align: middle;
   background: #fff;
-  box-shadow: 6px 0 12px -8px rgba(15, 23, 42, 0.28);
+  box-shadow: -6px 0 12px -8px rgba(15, 23, 42, 0.28);
+  overflow: visible;
 }
 
 .si-lines thead th.si-col-del {
@@ -2033,10 +2127,21 @@ body.si-2027:has(#pa-root) .si-surface:has(.js-item-name:focus) {
 }
 
 .si-lines-wrap:has(#si-lines) {
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow-x: scroll;
+  overflow-y: hidden;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
+}
+
+/* إخفاء أسهم number داخل جداول المبيعات أيضاً */
+.si-lines input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.si-lines input[type='number']::-webkit-outer-spin-button,
+.si-lines input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* ???? ???????? ? ???? ?????? ?????? */

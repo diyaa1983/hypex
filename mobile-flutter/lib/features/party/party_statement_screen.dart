@@ -13,7 +13,18 @@ import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
 
 class PartyStatementScreen extends StatefulWidget {
-  const PartyStatementScreen({super.key});
+  const PartyStatementScreen({
+    super.key,
+    this.initialCustomerId,
+    this.initialCustomerName,
+    this.initialCustomerCode,
+    this.autoRun = false,
+  });
+
+  final int? initialCustomerId;
+  final String? initialCustomerName;
+  final String? initialCustomerCode;
+  final bool autoRun;
 
   @override
   State<PartyStatementScreen> createState() => _PartyStatementScreenState();
@@ -30,6 +41,31 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
   bool _previewBusy = false;
   String? _error;
   Map<String, dynamic>? _result;
+  bool _didAutoRun = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.initialCustomerId ?? 0;
+    if (id > 0) {
+      _type = 'customer';
+      _party = Party(
+        id,
+        (widget.initialCustomerName ?? '').trim().isEmpty
+            ? 'عميل #$id'
+            : widget.initialCustomerName!.trim(),
+        widget.initialCustomerCode ?? '',
+      );
+    }
+    if (widget.autoRun && id > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_didAutoRun && mounted) {
+          _didAutoRun = true;
+          _run();
+        }
+      });
+    }
+  }
 
   Future<void> _pick() async {
     final p = await pickParty(context, type: _type);

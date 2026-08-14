@@ -177,7 +177,9 @@ return [
 
         'permission' => 'm_party_statement',
 
-        'title' => 'كشف حساب',
+        'title' => 'كشف حساب عميل Oracle',
+
+        'home_label' => 'كشف حساب عميل Oracle',
 
         'icon' => 'ledger',
 
