@@ -754,9 +754,10 @@ label .si-field-key {
   color: #fff;
 }
 
-/* الحذف المعطَّل يبقى مقروءاً ليعرف المستخدم مكانه وسبب تعطيله */
+/* الحذف المعطَّل: مقروء ليُعرف مكانه، وباهت رمادي كي لا يبدو قابلاً للضغط */
 .si-tb--danger:disabled {
-  opacity: 0.62;
+  opacity: 0.55;
+  filter: grayscale(0.7);
 }
 
 .si-tb--ghost {

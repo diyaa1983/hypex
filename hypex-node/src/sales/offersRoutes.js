@@ -233,13 +233,16 @@ async function renderForm(req, res, id) {
   const offerNo = doc?.offer_no || '';
   const offerName = doc?.name_ar || '';
   const docNoClass = offerNo || (doc && doc.id) ? 'is-saved' : '';
+  // الترحيل والإيقاف حالتان مستقلتان — نعرضهما معاً حتى يعرف المستخدم
+  // أن عرضاً موقوفاً قد يبقى مرحّلاً فلا يمكن حذفه قبل فك الترحيل.
   const statusBadge = !doc
     ? ''
-    : !isActive
-      ? ui.statusPill('lock', 'موقوف')
-      : isPosted
-        ? ui.statusPill('ok', 'مرحّل')
-        : ui.statusPill('wait', 'مسودة');
+    : [
+        isPosted ? ui.statusPill('ok', 'مرحّل') : ui.statusPill('wait', 'مسودة'),
+        isActive ? '' : ui.statusPill('lock', 'موقوف'),
+      ]
+        .filter(Boolean)
+        .join(' ');
   const subtitle = isNew
     ? 'عرض جديد — حدد الفترة والمواد ثم احفظ ورحّل'
     : `سند ${esc(offerNo)}${offerName ? ' · ' + esc(offerName) : ''}`;
