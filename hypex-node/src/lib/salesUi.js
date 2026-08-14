@@ -175,6 +175,15 @@ function phpEmbedBlock(phpRoute, title = '') {
   )}">${esc(title || phpRoute)}</a></div>`;
 }
 
+/** أعمدة جدول بنود فاتورة البيع / طلب شراء العميل — العروض في sales-2027.css */
+function linesColgroup() {
+  return `<colgroup>
+    <col class="co-c-idx"><col class="co-c-code"><col class="co-c-name"><col class="co-c-unit">
+    <col class="co-c-qty"><col class="co-c-extra"><col class="co-c-price"><col class="co-c-disc">
+    <col class="co-c-tax"><col class="co-c-net"><col class="co-c-total"><col class="co-c-del">
+  </colgroup>`;
+}
+
 /**
  * رابط كشف حساب Oracle التفصيلي داخل Node — بدل رابط PHP الذي يطلب تسجيل دخول منفصل.
  * يرجع '' إن كان العميل غير محدد أو المستخدم بلا صلاحية التقرير (فيُخفى الزر).
@@ -195,6 +204,7 @@ function oracleStatementUrl(user, customerId, data = {}) {
 module.exports = {
   salesPage,
   oracleStatementUrl,
+  linesColgroup,
   hero,
   railSearch,
   dateFilters,

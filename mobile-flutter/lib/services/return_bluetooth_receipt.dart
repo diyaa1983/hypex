@@ -12,6 +12,7 @@ import 'package:printing/printing.dart';
 import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
+import 'print_brand.dart';
 
 /// إيصال مرتجع مبيعات حراري (58/80 مم).
 class ReturnBluetoothReceipt {
@@ -91,9 +92,6 @@ class ReturnBluetoothReceipt {
       marginAll: paperMm == 80 ? 3 * PdfPageFormat.mm : 2 * PdfPageFormat.mm,
     );
 
-    final company = Fmt.str(data['company_name']).isEmpty
-        ? 'الشركة'
-        : Fmt.str(data['company_name']);
     final returnNo = Fmt.str(data['return_no']);
     final date = Fmt.dmy(
       Fmt.str(data['return_date_dmy'] ?? data['return_date']),
@@ -124,6 +122,14 @@ class ReturnBluetoothReceipt {
     final fsSm = paperMm == 80 ? 8.0 : 7.0;
     final qrSize = paperMm == 80 ? 72.0 : 58.0;
 
+    final brandHeader = await PrintBrand.header(
+      paperMm: paperMm,
+      bold: fontBold,
+      title: 'مرتجع مبيعات',
+      companyFromDocument: Fmt.str(data['company_name']),
+      logoUrlFromDocument: Fmt.str(data['logo_url']),
+    );
+
     final doc = pw.Document();
     doc.addPage(
       pw.Page(
@@ -134,26 +140,8 @@ class ReturnBluetoothReceipt {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              pw.Center(
-                child: pw.Text(
-                  company,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    font: fontBold,
-                    fontSize: paperMm == 80 ? 13 : 11,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Center(
-                child: pw.Text(
-                  'مرتجع مبيعات',
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(font: fontBold, fontSize: fs),
-                ),
-              ),
-              pw.SizedBox(height: 6),
+              brandHeader,
+              pw.SizedBox(height: 5),
               pw.Divider(thickness: 0.8),
               _kv(
                 'رقم المرتجع',

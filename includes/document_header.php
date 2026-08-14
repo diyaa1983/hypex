@@ -33,6 +33,19 @@ function document_header_brand(?PDO $pdo = null): array
     ];
 }
 
+/** يضيف اسم الشركة ورابط الشعار إلى حمولة مستند للطباعة من الموبايل. */
+function document_header_attach_brand(array $payload, ?PDO $pdo = null): array
+{
+    try {
+        $brand = document_header_brand($pdo);
+    } catch (Throwable $e) {
+        $brand = ['company_name_ar' => 'الشركة', 'logo_url' => null];
+    }
+    $payload['company_name'] = (string) ($brand['company_name_ar'] ?? 'الشركة');
+    $payload['logo_url'] = $brand['logo_url'] ?? null;
+    return $payload;
+}
+
 /** HTML ترويسة الطباعة. */
 function document_print_header_html(string $title, ?PDO $pdo = null, ?string $subtitle = null): string
 {

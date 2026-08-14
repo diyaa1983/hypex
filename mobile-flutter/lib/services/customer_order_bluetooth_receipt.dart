@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../core/format.dart';
 import 'bluetooth_printer_settings.dart';
 import 'bluetooth_print_service.dart';
+import 'print_brand.dart';
 
 /// إيصال حراري لطلب شراء العميل.
 class CustomerOrderBluetoothReceipt {
@@ -60,6 +61,14 @@ class CustomerOrderBluetoothReceipt {
           ),
         );
 
+    final brandHeader = await PrintBrand.header(
+      paperMm: paperMm,
+      bold: bold,
+      title: 'طلب شراء عميل',
+      companyFromDocument: Fmt.str(order['company_name']),
+      logoUrlFromDocument: Fmt.str(order['logo_url']),
+    );
+
     final doc = pw.Document();
     doc.addPage(pw.Page(
       pageFormat: format,
@@ -68,17 +77,8 @@ class CustomerOrderBluetoothReceipt {
       build: (_) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          pw.Center(
-              child: pw.Text(
-            Fmt.str(order['company_name']).isEmpty
-                ? 'الشركة'
-                : Fmt.str(order['company_name']),
-            style: pw.TextStyle(font: bold, fontSize: paperMm == 80 ? 13 : 11),
-          )),
-          pw.SizedBox(height: 4),
-          pw.Center(
-              child: pw.Text('طلب شراء عميل',
-                  style: pw.TextStyle(font: bold, fontSize: fs + 1))),
+          brandHeader,
+          pw.SizedBox(height: 3),
           pw.Divider(thickness: .8),
           kv(
               'رقم الطلب',

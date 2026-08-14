@@ -8,6 +8,7 @@ import '../../core/config.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../services/location_tracking_service.dart';
+import '../../services/print_brand.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
@@ -235,6 +236,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           )
           .toList();
+      await PrintBrand.remember(
+        (res['company_name'] ?? '').toString(),
+        (res['logo_url'] ?? '').toString(),
+      );
+      if (!mounted) return;
       setState(() {
         _company = (res['company_name'] ?? '').toString();
         _tiles = tiles;

@@ -7,7 +7,7 @@ const invSvc = require('./invoicesService');
 const { renderApp } = require('../lib/layout');
 const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
 const { ensurePrintBrand, renderStandalonePrintPage } = require('../lib/printBrand');
-const { oracleStatementUrl } = require('../lib/salesUi');
+const { oracleStatementUrl, linesColgroup } = require('../lib/salesUi');
 
 const router = express.Router();
 
@@ -451,20 +451,21 @@ async function renderForm(req, res, orderId) {
         </div>
         <div class="si-lines-wrap">
           <table class="si-lines si-lines--co" id="co-lines">
+            ${linesColgroup()}
             <thead>
               <tr>
-                <th style="width:2rem">#</th>
+                <th>#</th>
                 <th>الباركود</th>
                 <th>اسم المادة</th>
                 <th>الوحدة</th>
-                <th style="width:5.5rem">الكمية</th>
-                <th style="width:5.2rem">إضافية</th>
-                <th style="width:6.2rem">السعر</th>
-                <th style="width:4.8rem">خصم %</th>
-                <th style="width:5rem">ضريبة %</th>
-                <th style="width:6.2rem">الصافي</th>
-                <th style="width:6.2rem">الإجمالي</th>
-                <th class="si-col-del" style="width:2.6rem" title="حذف">حذف</th>
+                <th>الكمية</th>
+                <th>إضافية</th>
+                <th>السعر</th>
+                <th>خصم %</th>
+                <th>ضريبة %</th>
+                <th>الصافي</th>
+                <th>الإجمالي</th>
+                <th class="si-col-del" title="حذف">حذف</th>
               </tr>
             </thead>
             <tbody id="co-lines-body"></tbody>

@@ -12,6 +12,7 @@ import 'package:printing/printing.dart';
 import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
+import 'print_brand.dart';
 
 /// سند قبض حراري بحجم ورق Bluetooth (58/80 مم).
 class ReceiptBluetoothReceipt {
@@ -108,7 +109,6 @@ class ReceiptBluetoothReceipt {
       marginAll: paperMm == 80 ? 3 * PdfPageFormat.mm : 2 * PdfPageFormat.mm,
     );
 
-    final company = Fmt.str(data['company_name']);
     final voucherNo = Fmt.str(data['voucher_no']);
     final date = Fmt.dmy(
       Fmt.str(data['voucher_date_dmy'] ?? data['voucher_date']),
@@ -138,6 +138,14 @@ class ReceiptBluetoothReceipt {
     final fs = paperMm == 80 ? 9.0 : 8.0;
     final fsSm = paperMm == 80 ? 8.0 : 7.0;
 
+    final brandHeader = await PrintBrand.header(
+      paperMm: paperMm,
+      bold: fontBold,
+      title: 'سند قبض',
+      companyFromDocument: Fmt.str(data['company_name']),
+      logoUrlFromDocument: Fmt.str(data['logo_url']),
+    );
+
     final doc = pw.Document();
     doc.addPage(
       pw.Page(
@@ -148,31 +156,7 @@ class ReceiptBluetoothReceipt {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              if (company.isNotEmpty) ...[
-                pw.Center(
-                  child: pw.Text(
-                    company,
-                    textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(
-                      font: fontBold,
-                      fontSize: paperMm == 80 ? 12 : 10.5,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ),
-                pw.SizedBox(height: 3),
-              ],
-              pw.Center(
-                child: pw.Text(
-                  'سند قبض',
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    font: fontBold,
-                    fontSize: paperMm == 80 ? 12 : 11,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
+              brandHeader,
               pw.SizedBox(height: 5),
               pw.Divider(thickness: 0.8),
               _kv('رقم السند', voucherNo.isEmpty ? '—' : voucherNo, fontReg,

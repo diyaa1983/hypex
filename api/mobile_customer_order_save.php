@@ -23,6 +23,8 @@ try {
  $saved=sal_customer_order_save($pdo,$body,is_array($body['lines']??null)?$body['lines']:[],$uid,$id>0?null:$rep);
  $order=sal_customer_order_fetch($pdo,$saved);
  require_once app_path('includes/header_check_notifications.php');
+ require_once app_path('includes/document_header.php');
  header_check_notifications_invalidate_cache();
+ $order = document_header_attach_brand(is_array($order) ? $order : [], $pdo);
  echo json_encode(['ok'=>true,'order_id'=>$saved,'order_no'=>$order['order_no']??'','order'=>$order],JSON_UNESCAPED_UNICODE);
 } catch(Throwable $e) { http_response_code(422); echo json_encode(['ok'=>false,'message'=>$e->getMessage()],JSON_UNESCAPED_UNICODE); }

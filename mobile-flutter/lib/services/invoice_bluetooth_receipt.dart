@@ -12,6 +12,7 @@ import 'package:printing/printing.dart';
 import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
+import 'print_brand.dart';
 
 /// إيصال فاتورة حراري (58/80 مم) — تصميم مختلف عن PDF A4.
 class InvoiceBluetoothReceipt {
@@ -92,9 +93,6 @@ class InvoiceBluetoothReceipt {
       marginAll: paperMm == 80 ? 3 * PdfPageFormat.mm : 2 * PdfPageFormat.mm,
     );
 
-    final company = Fmt.str(inv['company_name']).isEmpty
-        ? 'الشركة'
-        : Fmt.str(inv['company_name']);
     final invoiceNo = Fmt.str(inv['invoice_no']);
     final date =
         Fmt.dmy(Fmt.str(inv['invoice_date'] ?? inv['invoice_date_dmy']));
@@ -131,6 +129,14 @@ class InvoiceBluetoothReceipt {
     final fsSm = paperMm == 80 ? 8.0 : 7.0;
     final qrSize = paperMm == 80 ? 72.0 : 58.0;
 
+    final brandHeader = await PrintBrand.header(
+      paperMm: paperMm,
+      bold: fontBold,
+      title: 'فاتورة مبيعات',
+      companyFromDocument: Fmt.str(inv['company_name']),
+      logoUrlFromDocument: Fmt.str(inv['logo_url']),
+    );
+
     final doc = pw.Document();
     doc.addPage(
       pw.Page(
@@ -141,26 +147,8 @@ class InvoiceBluetoothReceipt {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              pw.Center(
-                child: pw.Text(
-                  company,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    font: fontBold,
-                    fontSize: paperMm == 80 ? 13 : 11,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Center(
-                child: pw.Text(
-                  'فاتورة مبيعات',
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(font: fontBold, fontSize: fs),
-                ),
-              ),
-              pw.SizedBox(height: 6),
+              brandHeader,
+              pw.SizedBox(height: 5),
               pw.Divider(thickness: 0.8),
               _kv('رقم الفاتورة', invoiceNo.isEmpty ? '—' : invoiceNo, fontReg,
                   fontBold, fsSm),

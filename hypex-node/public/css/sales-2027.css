@@ -2891,3 +2891,140 @@ body.si-2027 .si-tile-kind {
     padding: 0.35rem 0.45rem;
   }
 }
+
+/* ════════ بنود فاتورة البيع وطلب شراء العميل — تنسيق موحّد ════════
+   الأعمدة بعرض ثابت عبر colgroup، وكل حقل داخل خليته بحدود واضحة. */
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) {
+  width: 100%;
+  min-width: 74rem;
+  max-width: none;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-idx { width: 2.2rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-code { width: 8.8rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-name { width: auto; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-unit { width: 7.6rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 5.2rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 6.6rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 5.8rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-net,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-total { width: 7rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-del { width: 2.6rem; }
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td {
+  box-sizing: border-box;
+  overflow: hidden;
+  vertical-align: middle;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th {
+  padding: 0.5rem 0.4rem;
+  text-align: center;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th:nth-child(2),
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th:nth-child(3) {
+  text-align: start;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) tbody td {
+  padding: 0.28rem 0.3rem;
+}
+
+/* الحقول: صندوق واضح داخل الخلية بدل حقول ملتصقة/متداخلة */
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input:not([type='hidden']),
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) select {
+  display: block;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  min-height: 2rem;
+  margin: 0;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid #dbe3ec;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input:focus,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) select:focus {
+  border-color: #0284c7;
+  background: #fff;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.14);
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input[readonly] {
+  background: #f6f8fb;
+  color: #475569;
+  border-color: #e6ebf2;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input[type='number'] {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-code-cell input.js-item-code {
+  text-align: start;
+  direction: ltr;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-name-cell input.js-item-name {
+  text-align: start;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-code-cell,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-name-cell {
+  position: relative;
+  min-width: 0;
+}
+
+/* خلايا الأرقام المحسوبة — تبقى خلايا جدول (display:block كان يُسقطها من الصف) */
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-num-out {
+  display: table-cell;
+  width: auto;
+  text-align: center;
+  font-family: var(--si-mono, inherit);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-row-num {
+  text-align: center;
+  color: var(--si-muted, #64748b);
+  font-weight: 700;
+}
+
+/* عمود الحذف ضمن الجدول (كان لاصقاً فيغطي عمود الصافي عند التمرير) */
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th.si-col-del {
+  position: static;
+  box-shadow: none;
+  width: 2.6rem;
+  min-width: 2.6rem;
+  max-width: 2.6rem;
+  padding: 0.2rem;
+  overflow: visible;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del .si-del {
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  margin: 0 auto;
+}
+
+

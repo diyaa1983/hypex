@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../core/format.dart';
 import 'bluetooth_printer_settings.dart';
 import 'bluetooth_print_service.dart';
+import 'print_brand.dart';
 
 class RepStockBluetoothReceipt {
   RepStockBluetoothReceipt._();
@@ -35,6 +36,14 @@ class RepStockBluetoothReceipt {
               style: pw.TextStyle(font: boldText ? bold : reg, fontSize: fs),
               textAlign: pw.TextAlign.center),
         );
+    final brandHeader = await PrintBrand.header(
+      paperMm: paperMm,
+      bold: bold,
+      title: 'رصيد المستودع',
+      companyFromDocument: Fmt.str(data['company_name']),
+      logoUrlFromDocument: Fmt.str(data['logo_url']),
+    );
+
     final doc = pw.Document();
     doc.addPage(pw.Page(
       pageFormat: PdfPageFormat(
@@ -44,9 +53,8 @@ class RepStockBluetoothReceipt {
       theme: pw.ThemeData.withFont(base: reg, bold: bold),
       build: (_) => pw
           .Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
-        pw.Center(
-            child: pw.Text('رصيد المستودع',
-                style: pw.TextStyle(font: bold, fontSize: fs + 2))),
+        brandHeader,
+        pw.SizedBox(height: 3),
         if (Fmt.str(data['warehouse_name']).isNotEmpty)
           pw.Center(
               child: pw.Text(Fmt.str(data['warehouse_name']),

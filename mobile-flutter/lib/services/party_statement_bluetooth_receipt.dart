@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +12,7 @@ import 'package:printing/printing.dart';
 import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
+import 'print_brand.dart';
 
 /// كشف حساب حراري بحجم ورق Bluetooth (58/80 مم).
 class PartyStatementBluetoothReceipt {
@@ -92,11 +92,6 @@ class PartyStatementBluetoothReceipt {
       marginAll: paperMm == 80 ? 3 * PdfPageFormat.mm : 2 * PdfPageFormat.mm,
     );
 
-    final logo = await _loadLogo(Fmt.str(data['logo_url']));
-    final company = Fmt.str(data['company_name']).isEmpty
-        ? 'الشركة'
-        : Fmt.str(data['company_name']);
-
     final partyType = Fmt.str(data['party_type']);
     final partyLabel = partyType == 'supplier' ? 'مورد' : 'عميل';
     final partyName =
@@ -121,7 +116,14 @@ class PartyStatementBluetoothReceipt {
     final fs = paperMm == 80 ? 8.5 : 7.5;
     final fsSm = paperMm == 80 ? 7.5 : 6.5;
     final fsTable = paperMm == 80 ? 6.8 : 5.2;
-    final logoSize = paperMm == 80 ? 44.0 : 34.0;
+
+    final brandHeader = await PrintBrand.header(
+      paperMm: paperMm,
+      bold: fontBold,
+      title: 'كشف حساب $partyLabel',
+      companyFromDocument: Fmt.str(data['company_name']),
+      logoUrlFromDocument: Fmt.str(data['logo_url']),
+    );
 
     final doc = pw.Document();
     doc.addPage(
@@ -133,40 +135,7 @@ class PartyStatementBluetoothReceipt {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              if (logo != null)
-                pw.Center(
-                  child: pw.Container(
-                    height: logoSize,
-                    width: logoSize * 2.2,
-                    alignment: pw.Alignment.center,
-                    child: pw.Image(logo, fit: pw.BoxFit.contain),
-                  ),
-                ),
-              if (logo != null) pw.SizedBox(height: 3),
-              pw.Center(
-                child: pw.Text(
-                  company,
-                  textAlign: pw.TextAlign.center,
-                  maxLines: 2,
-                  style: pw.TextStyle(
-                    font: fontBold,
-                    fontSize: paperMm == 80 ? 12.5 : 10.5,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-              pw.SizedBox(height: 2),
-              pw.Center(
-                child: pw.Text(
-                  'كشف حساب $partyLabel',
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                    font: fontBold,
-                    fontSize: paperMm == 80 ? 10.5 : 9,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
+              brandHeader,
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
               _kv('الاسم', partyName, fontReg, fontBold, fsSm),
@@ -385,40 +354,6 @@ class PartyStatementBluetoothReceipt {
     final mm = d.month.toString().padLeft(2, '0');
     final yy = (d.year % 100).toString().padLeft(2, '0');
     return '$dd/$mm/$yy';
-  }
-
-  static Future<pw.MemoryImage?> _loadLogo(String? url) async {
-    final remote = (url ?? '').trim();
-    if (remote.startsWith('http')) {
-      try {
-        final res = await Dio().get<List<int>>(
-          remote,
-          options: Options(
-            responseType: ResponseType.bytes,
-            receiveTimeout: const Duration(seconds: 4),
-            sendTimeout: const Duration(seconds: 4),
-          ),
-        );
-        final bytes = res.data;
-        if (bytes != null && bytes.isNotEmpty) {
-          return pw.MemoryImage(Uint8List.fromList(bytes));
-        }
-      } catch (_) {
-        // نكمل على شعار التطبيق المضمّن
-      }
-    }
-    for (final path in const [
-      'assets/branding/logo.png',
-      'assets/icon/app_icon.png',
-    ]) {
-      try {
-        final bytes = await rootBundle.load(path);
-        return pw.MemoryImage(bytes.buffer.asUint8List());
-      } catch (_) {
-        continue;
-      }
-    }
-    return null;
   }
 
   static pw.Widget _kv(
