@@ -226,7 +226,7 @@ async function renderForm(req, res, id) {
             <h2>بيانات الحركة</h2>
             <span class="si-count">${isPosted ? 'مرحّلة' : 'مسودة'}</span>
           </div>
-          <div class="si-meta si-meta--invoice" style="grid-template-columns: minmax(10rem,1fr) minmax(8rem,.8fr) minmax(12rem,1.6fr);">
+          <div class="si-meta si-meta--invoice si-meta--pa">
             <label class="si-f si-f--docno">
               <span class="si-f-head">رقم الحركة</span>
               <div class="si-docno-row" dir="ltr">
@@ -265,8 +265,18 @@ async function renderForm(req, res, id) {
               }
             </span>
           </div>
-          <div class="si-lines-wrap">
-            <table class="si-lines si-lines--co si-lines--pa" id="pa-table">
+          <div class="si-lines-wrap pa-lines-wrap">
+            <table class="si-lines si-lines--pa" id="pa-table">
+              <colgroup>
+                <col class="pa-c-idx">
+                <col class="pa-c-code">
+                <col class="pa-c-name">
+                <col class="pa-c-sale-old">
+                <col class="pa-c-sale-new">
+                <col class="pa-c-wh-old">
+                <col class="pa-c-wh-new">
+                <col class="pa-c-act">
+              </colgroup>
               <thead>
                 <tr class="pa-th-group">
                   <th rowspan="2" class="pa-th-idx">#</th>

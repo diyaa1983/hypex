@@ -1901,21 +1901,30 @@ label .si-field-key {
   justify-content: flex-start !important;
   pointer-events: auto !important;
 }
-.si-lines--pa .si-item-code-cell,
-.si-lines--pa .si-item-name-cell {
-  overflow: visible !important;
-  position: relative;
-  z-index: 2;
+/* ════════ تعديل أسعار البيع — تنسيق مستقل عن فاتورة البيع ════════ */
+#pa-root .si-surface:not(.si-surface--pa-lines) {
+  overflow: hidden;
 }
-.si-lines-wrap:has(.si-lines--pa) {
-  overflow: visible !important;
+#pa-root .si-surface:not(.si-surface--pa-lines) .si-meta {
+  padding: 0.7rem 1rem 0.85rem;
+}
+#pa-root .si-meta--pa {
+  grid-template-columns: minmax(9.5rem, 0.9fr) minmax(8.5rem, 0.7fr) minmax(14rem, 1.8fr);
+  gap: 0.4rem 0.7rem;
+  align-items: end;
+}
+#pa-root .si-meta--pa > .si-f {
+  grid-template-rows: auto auto;
+}
+#pa-root .si-meta--pa .si-field {
+  min-height: 2rem;
+  height: 2rem;
 }
 
-/* ——— تعديل الأسعار: رأس مزدوج + تمييز بيع/جملة ——— */
 .si-surface--pa-lines .pa-lines-head {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.12rem;
   min-width: 0;
 }
 .si-surface--pa-lines .pa-lines-head h2 {
@@ -1923,53 +1932,76 @@ label .si-field-key {
 }
 .si-surface--pa-lines .pa-lines-hint {
   margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.4;
+  font-size: 0.76rem;
+  line-height: 1.35;
   font-weight: 500;
+}
+
+.pa-lines-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  padding: 0.15rem 0.65rem 0.7rem;
+}
+
+.si-lines.si-lines--pa {
+  width: 100%;
+  min-width: 52rem;
+  max-width: none;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.si-lines--pa col.pa-c-idx { width: 2.4rem; }
+.si-lines--pa col.pa-c-code { width: 9.2rem; }
+.si-lines--pa col.pa-c-name { width: auto; }
+.si-lines--pa col.pa-c-sale-old,
+.si-lines--pa col.pa-c-sale-new,
+.si-lines--pa col.pa-c-wh-old,
+.si-lines--pa col.pa-c-wh-new { width: 6.6rem; }
+.si-lines--pa col.pa-c-act { width: 2.8rem; }
+
+.si-lines--pa thead th,
+.si-lines--pa tbody td {
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 
 .si-lines--pa thead .pa-th-group th,
 .si-lines--pa thead .pa-th-sub th {
   text-align: center;
-  vertical-align: middle;
   white-space: nowrap;
+  padding: 0.38rem 0.4rem;
 }
-.si-lines--pa thead .pa-th-idx {
-  width: 2.1rem;
-}
-.si-lines--pa thead .pa-th-code {
-  width: 8.5rem;
-  text-align: start;
-}
+.si-lines--pa thead .pa-th-idx,
+.si-lines--pa thead .pa-th-code,
 .si-lines--pa thead .pa-th-name {
-  min-width: 12rem;
   text-align: start;
-}
-.si-lines--pa thead .pa-th-act {
-  width: 2.6rem;
 }
 .si-lines--pa thead .pa-th-grp {
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
   font-weight: 800;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 .si-lines--pa thead .pa-th-grp--sale {
-  background: rgba(15, 110, 106, 0.1);
+  background: rgba(15, 110, 106, 0.12);
   color: #0f5c58;
 }
 .si-lines--pa thead .pa-th-grp--wh {
-  background: rgba(30, 64, 175, 0.09);
+  background: rgba(30, 64, 175, 0.1);
   color: #1e3a8a;
 }
 .si-lines--pa thead .pa-th-sub th {
   font-size: 0.68rem;
   font-weight: 700;
-  width: 7.2rem;
+  text-transform: none;
+  letter-spacing: 0;
 }
 .si-lines--pa thead .pa-col-sale-old,
 .si-lines--pa thead .pa-col-sale-new {
-  background: rgba(15, 110, 106, 0.05);
+  background: rgba(15, 110, 106, 0.06);
 }
 .si-lines--pa thead .pa-col-wh-old,
 .si-lines--pa thead .pa-col-wh-new {
@@ -1979,9 +2011,65 @@ label .si-field-key {
   color: #0f172a;
 }
 
+.si-lines--pa tbody td {
+  padding: 0.3rem 0.35rem;
+  height: 2.65rem;
+  line-height: 2rem;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.si-lines--pa tbody td.si-row-num {
+  text-align: center;
+  color: var(--si-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+}
+
+/* كل حقول السطر بارتفاع واحد وبلا محاذاة على خط الأساس */
+.si-lines--pa tbody input:not([type='hidden']) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 2rem;
+  min-height: 2rem;
+  line-height: 1.3;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.si-lines--pa .si-item-code-cell,
+.si-lines--pa .si-item-name-cell {
+  overflow: visible !important;
+  position: relative;
+  z-index: 2;
+}
+
+.si-lines--pa .si-item-code-cell input.js-item-code,
+.si-lines--pa .si-item-name-cell input.js-item-name {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 7px;
+  padding: 0.2rem 0.4rem;
+}
+.si-lines--pa .si-item-name-cell input.js-item-name[readonly] {
+  background: #f8fafc;
+  border-color: transparent;
+  color: var(--si-ink, #0f172a);
+  cursor: default;
+  font-weight: 700;
+}
+
 .si-lines--pa tbody td.pa-col-sale-old,
 .si-lines--pa tbody td.pa-col-sale-new {
-  background: rgba(15, 110, 106, 0.035);
+  background: rgba(15, 110, 106, 0.04);
 }
 .si-lines--pa tbody td.pa-col-wh-old,
 .si-lines--pa tbody td.pa-col-wh-new {
@@ -1992,63 +2080,69 @@ label .si-field-key {
 .si-lines--pa tbody td.pa-col-wh-old {
   text-align: center;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: #475569;
-  padding-inline: 0.45rem;
+  font-weight: 700;
+  color: #334155;
+  font-family: var(--si-mono);
+  font-size: 0.84rem;
+  line-height: 2rem;
+  padding: 0.3rem 0.35rem;
 }
 
 .si-lines--pa tbody td.pa-col-sale-new,
 .si-lines--pa tbody td.pa-col-wh-new {
-  padding: 0.28rem 0.35rem;
-  vertical-align: middle;
+  padding: 0.3rem 0.3rem;
 }
 
 .si-lines--pa .pa-input-new {
   width: 100%;
-  min-width: 5.5rem;
-  max-width: 8rem;
-  margin-inline: auto;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
   display: block;
+  box-sizing: border-box;
   text-align: center;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  border-radius: 8px;
+  font-family: var(--si-mono);
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 7px;
   background: #fff;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset;
-  min-height: 2.05rem;
-  padding: 0.25rem 0.4rem;
+  padding: 0.2rem 0.35rem;
 }
 .si-lines--pa .pa-col-sale-new .pa-input-new:focus {
   outline: 2px solid rgba(15, 110, 106, 0.35);
-  outline-offset: 1px;
-  border-color: rgba(15, 110, 106, 0.45);
+  outline-offset: 0;
+  border-color: rgba(15, 110, 106, 0.5);
 }
 .si-lines--pa .pa-col-wh-new .pa-input-new:focus {
   outline: 2px solid rgba(30, 64, 175, 0.35);
-  outline-offset: 1px;
-  border-color: rgba(30, 64, 175, 0.45);
+  outline-offset: 0;
+  border-color: rgba(30, 64, 175, 0.5);
 }
 .si-lines--pa tbody td.pa-col-act {
   text-align: center;
+  overflow: visible;
+  padding: 0.3rem 0.15rem;
+}
+.si-lines--pa tbody td.pa-col-act .si-del {
+  margin: 0 auto;
+  height: 1.8rem;
+  width: 1.8rem;
   vertical-align: middle;
 }
 
 @media (max-width: 900px) {
-  .si-lines--pa thead .pa-th-sub th,
-  .si-lines--pa tbody td.pa-col-sale-old,
-  .si-lines--pa tbody td.pa-col-sale-new,
-  .si-lines--pa tbody td.pa-col-wh-old,
-  .si-lines--pa tbody td.pa-col-wh-new {
-    width: 6.2rem;
+  .si-lines.si-lines--pa {
+    min-width: 46rem;
   }
-  .si-lines--pa .pa-input-new {
-    min-width: 4.8rem;
-    max-width: 6.5rem;
+  .si-lines--pa col.pa-c-sale-old,
+  .si-lines--pa col.pa-c-sale-new,
+  .si-lines--pa col.pa-c-wh-old,
+  .si-lines--pa col.pa-c-wh-new {
+    width: 5.8rem;
   }
 }
 
-/* ?? ???? ????? ?????? ??? ????? */
 body.si-2027:has(#pa-root) .main.si-main {
   overflow-x: auto;
   overflow-y: auto;
@@ -2514,9 +2608,56 @@ body.si-2027 .si-tile-kind {
   overflow: hidden;
 }
 
+/* نافذة قائمة المواد فوق بطاقة المادة */
+.ic-pick-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.ic-pick-overlay.is-open {
+  display: flex;
+}
+
+.ic-pick-overlay .ic-pick {
+  margin: 0;
+  width: min(560px, 96vw);
+  max-height: min(82vh, 620px);
+}
+
+body.ic-pick-lock {
+  overflow: hidden;
+}
+
 .ic-pick__head {
+  position: relative;
   padding: 1rem 1.1rem 0.65rem;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.ic-pick__close {
+  position: absolute;
+  inset-inline-end: 0.6rem;
+  inset-block-start: 0.55rem;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.5rem;
+  background: rgba(15, 23, 42, 0.04);
+  color: #0f172a;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ic-pick__close:hover {
+  background: rgba(248, 113, 113, 0.16);
+  border-color: rgba(248, 113, 113, 0.4);
 }
 
 .ic-pick__head h2 {

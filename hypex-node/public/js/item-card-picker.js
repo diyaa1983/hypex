@@ -1,5 +1,8 @@
 /**
- * شاشة اختيار صغيرة لفتح بطاقة المادة.
+ * قائمة المواد لبطاقة المادة.
+ *
+ * تعمل كنافذة تُفتح من زر «قائمة المواد» داخل البطاقة (data-modal="1")،
+ * وتبقى تعمل كشاشة اختيار مستقلة إن رُسمت بدون غلاف نافذة.
  */
 (function () {
   'use strict';
@@ -7,13 +10,18 @@
   var root = document.getElementById('ic-pick');
   if (!root) return;
 
+  var overlay = document.getElementById('ic-pick-overlay');
+  var isModal = root.getAttribute('data-modal') === '1' && !!overlay;
   var qEl = document.getElementById('ic-pick-q');
   var listEl = document.getElementById('ic-pick-list');
   var hintEl = document.getElementById('ic-pick-hint');
+  var closeEl = document.getElementById('ic-pick-close');
   var timer = null;
   var seq = 0;
   var rows = [];
   var active = -1;
+  var loaded = false;
+  var lastFocus = null;
 
   function esc(s) {
     var d = document.createElement('span');
@@ -92,6 +100,7 @@
 
   function search(q) {
     var my = ++seq;
+    loaded = true;
     hintEl.textContent = 'جاري البحث…';
     fetch('/api/lookup/items?q=' + encodeURIComponent(q || ''))
       .then(function (r) {
@@ -109,6 +118,35 @@
         if (my !== seq) return;
         render([], 'تعذّر الاتصال');
       });
+  }
+
+  function open() {
+    if (!isModal) return;
+    lastFocus = document.activeElement;
+    overlay.hidden = false;
+    overlay.classList.add('is-open');
+    document.body.classList.add('ic-pick-lock');
+    if (!loaded) search('');
+    try {
+      qEl.focus();
+      qEl.select();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function close() {
+    if (!isModal) return;
+    overlay.classList.remove('is-open');
+    overlay.hidden = true;
+    document.body.classList.remove('ic-pick-lock');
+    if (lastFocus && lastFocus.focus) {
+      try {
+        lastFocus.focus();
+      } catch (e) {
+        /* ignore */
+      }
+    }
   }
 
   listEl.addEventListener('click', function (e) {
@@ -147,12 +185,34 @@
       if (active >= 0 && rows[active]) openItem(rows[active].id);
       return;
     }
+    if (e.key === 'Escape' && isModal) {
+      e.preventDefault();
+      close();
+    }
   });
 
-  search('');
-  try {
-    qEl.focus();
-  } catch (e) {
-    /* ignore */
+  if (isModal) {
+    document.addEventListener('click', function (e) {
+      var trigger =
+        e.target && e.target.closest && e.target.closest('[data-hx-item-picker]');
+      if (trigger) {
+        e.preventDefault();
+        open();
+        return;
+      }
+      if (e.target === overlay) close();
+    });
+    if (closeEl) closeEl.addEventListener('click', close);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && overlay.classList.contains('is-open')) close();
+    });
+    window.HxItemPicker = { open: open, close: close };
+  } else {
+    search('');
+    try {
+      qEl.focus();
+    } catch (e) {
+      /* ignore */
+    }
   }
 })();

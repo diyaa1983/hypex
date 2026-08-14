@@ -201,47 +201,8 @@ router.get('/inventory/items', async (req, res) => {
     const flash = String(req.query.msg || '');
     const viewList = String(req.query.view || '') === 'list';
 
-    if (!viewList) {
-      const body = `
-      <div class="si-stage ic-pick-stage">
-        ${ui.hero({
-          mark: 'It',
-          kicker: KICKER,
-          title: 'بطاقة المادة',
-          subtitle: 'اختر المادة من الشاشة الصغيرة لفتح بطاقتها',
-          actions: [
-            { label: '＋ مادة جديدة', href: '/inventory/items/new', primary: true },
-            { label: 'القائمة الكاملة', href: '/inventory/items?view=list' },
-            { label: 'الفئات', href: '/inventory/categories' },
-            { label: 'الوحدات', href: '/inventory/units' },
-            { label: 'لوحة المستودعات', href: HUB },
-          ],
-        })}
-        ${flash ? alertHtml('ok', flash) : ''}
-        <div class="ic-pick-backdrop" aria-hidden="true"></div>
-        <section class="ic-pick" id="ic-pick" role="dialog" aria-modal="true" aria-labelledby="ic-pick-title">
-          <header class="ic-pick__head">
-            <h2 id="ic-pick-title">اختيار المادة</h2>
-            <p class="muted">ابحث بالباركود أو الاسم ثم اختر لفتح البطاقة</p>
-          </header>
-          <div class="ic-pick__search">
-            <input type="search" id="ic-pick-q" class="si-field" placeholder="باركود / اسم المادة…"
-                   autocomplete="off" autofocus>
-          </div>
-          <div class="ic-pick__hint muted" id="ic-pick-hint">جاري التحميل…</div>
-          <div class="ic-pick__list" id="ic-pick-list" role="listbox" aria-label="نتائج المواد"></div>
-          <footer class="ic-pick__foot">
-            <span class="muted">↑↓ للتنقل · Enter لفتح البطاقة</span>
-            <a class="si-btn" href="/inventory/items/new">مادة جديدة</a>
-          </footer>
-        </section>
-      </div>`;
-      return res.send(
-        page(req.session.user, 'بطاقة المادة', body, {
-          js: [itemCardPickerJsSrc()],
-        })
-      );
-    }
+    // الشاشة تُفتح على بطاقة فارغة بكل الحقول — واختيار المادة من نافذة القائمة.
+    if (!viewList) return itemForm(req, res, 0);
 
     const rows = await svc.listItems({ q: qv, activeOnly: false });
     const rowsHtml =
@@ -281,7 +242,7 @@ router.get('/inventory/items', async (req, res) => {
           title: 'المواد والأصناف',
           subtitle: 'الباركود هو المعرّف الظاهر في النظام · رقم المادة داخلي في بطاقة المادة فقط',
           actions: [
-            { label: 'اختيار مادة', href: '/inventory/items', primary: true },
+            { label: 'بطاقة المادة', href: '/inventory/items', primary: true },
             { label: '＋ مادة جديدة', href: '/inventory/items/new' },
             { label: 'الفئات', href: '/inventory/categories' },
             { label: 'الوحدات', href: '/inventory/units' },
@@ -443,12 +404,39 @@ async function itemForm(req, res, id) {
         title: isNew ? 'بطاقة مادة جديدة' : `بطاقة المادة: ${esc(item.name_ar || '')}`,
         subtitle: 'رقم المادة للأغراض الداخلية · الباركود هو الظاهر في الفواتير والتقارير',
         actions: [
-          { label: 'اختيار مادة', href: '/inventory/items' },
           { label: 'القائمة الكاملة', href: '/inventory/items?view=list' },
+          { label: 'الفئات', href: '/inventory/categories' },
+          { label: 'الوحدات', href: '/inventory/units' },
         ],
       })}
       ${err ? alertHtml('err', err) : ''}
       ${flash ? alertHtml('ok', flash) : ''}
+
+      <div class="si-cmd si-doc-toolbar" role="toolbar">
+        <div class="si-tb-group si-tb-group--core">
+          <button type="submit" form="item-form" class="si-tb si-tb--save">
+            <span class="si-tb-lbl">حفظ</span>
+            <span class="si-tb-keywrap"><kbd class="si-tb-key">F10</kbd></span>
+          </button>
+          <button type="button" class="si-tb si-tb--accent" data-hx-item-picker="1">
+            <span class="si-tb-lbl">قائمة المواد</span>
+          </button>
+          <a class="si-tb" href="/inventory/items/new"><span class="si-tb-lbl">＋ إضافة مادة</span></a>
+          <form method="post" action="/inventory/items/${item ? item.id : 0}/delete" style="display:inline"
+                onsubmit="return confirm('حذف المادة نهائياً؟ لا يمكن التراجع.');">
+            <button type="submit" class="si-tb si-tb--danger" ${isNew ? 'disabled' : ''}
+                    title="${isNew ? 'اختر مادة من القائمة أولاً' : 'حذف المادة'}">
+              <span class="si-tb-lbl">حذف</span>
+            </button>
+          </form>
+        </div>
+        <div class="si-tb-group">
+          <a class="si-tb si-tb--ghost" href="/inventory/items?view=list">
+            <span class="si-tb-lbl">القائمة الكاملة</span>
+          </a>
+        </div>
+      </div>
+
       <section class="si-surface">
         <div class="si-surface-head">
           <h2>بيانات المادة</h2>
@@ -593,9 +581,31 @@ async function itemForm(req, res, id) {
 
           <div style="display:flex;gap:.5rem;margin-top:1.1rem;flex-wrap:wrap">
             <button class="si-btn si-btn--primary" type="submit">حفظ البطاقة</button>
-            <a class="si-btn" href="/inventory/items">القائمة</a>
+            <button type="button" class="si-btn" data-hx-item-picker="1">قائمة المواد</button>
+            <a class="si-btn" href="/inventory/items/new">بطاقة جديدة</a>
           </div>
         </form>
+      </section>
+    </div>
+
+    <div class="ic-pick-overlay" id="ic-pick-overlay" hidden>
+      <section class="ic-pick" id="ic-pick" data-modal="1" role="dialog" aria-modal="true"
+               aria-labelledby="ic-pick-title">
+        <header class="ic-pick__head">
+          <h2 id="ic-pick-title">قائمة المواد</h2>
+          <p class="muted">ابحث بالباركود أو الاسم ثم اختر المادة لتعديل بطاقتها</p>
+          <button type="button" class="ic-pick__close" id="ic-pick-close" aria-label="إغلاق">×</button>
+        </header>
+        <div class="ic-pick__search">
+          <input type="search" id="ic-pick-q" class="si-field" placeholder="باركود / اسم المادة…"
+                 autocomplete="off">
+        </div>
+        <div class="ic-pick__hint muted" id="ic-pick-hint">جاري التحميل…</div>
+        <div class="ic-pick__list" id="ic-pick-list" role="listbox" aria-label="نتائج المواد"></div>
+        <footer class="ic-pick__foot">
+          <span class="muted">↑↓ للتنقل · Enter للفتح · Esc للإغلاق</span>
+          <a class="si-btn" href="/inventory/items/new">＋ مادة جديدة</a>
+        </footer>
       </section>
     </div>
     <script>
@@ -652,7 +662,11 @@ async function itemForm(req, res, id) {
       window.addEventListener('load', applyPriceDp);
     })();
     </script>`;
-  res.send(page(req.session.user, isNew ? 'مادة جديدة' : 'بطاقة المادة', body));
+  res.send(
+    page(req.session.user, isNew ? 'مادة جديدة' : 'بطاقة المادة', body, {
+      js: [itemCardPickerJsSrc()],
+    })
+  );
 }
 
 router.get('/inventory/items/new', (req, res) => itemForm(req, res, 0));

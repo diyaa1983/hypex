@@ -241,17 +241,11 @@
     return Math.ceil(el.getBoundingClientRect().width);
   }
 
-  function fitFieldToContent(el, opts) {
+  /** توسيع الحقل حسب النص — معطّل: الأعمدة ثابتة عبر colgroup */
+  function fitFieldToContent(el) {
     if (!el) return;
-    opts = opts || {};
-    var min = opts.min != null ? opts.min : 72;
-    var max = opts.max != null ? opts.max : 520;
-    var pad = opts.pad != null ? opts.pad : 26;
-    var text = String(el.value != null && el.value !== '' ? el.value : el.placeholder || '');
-    var w = measureTextWidth(text, el) + pad;
-    if (w < min) w = min;
-    if (w > max) w = max;
-    el.style.width = w + 'px';
+    el.style.width = '';
+    el.style.maxWidth = '';
   }
 
   function fitRowFields(tr) {
