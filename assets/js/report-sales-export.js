@@ -8,6 +8,7 @@
     report_sales_by_region: true,
     report_sales_by_item: true,
     report_customer_orders: true,
+    report_customer_orders_by_item: true,
     report_sales_returns: true,
     report_sales_returns_totals: true,
     report_sales_qty_extra: true,
@@ -1887,6 +1888,8 @@
         prefix = 'sales-report-item';
       } else if (routeKey === 'report_customer_orders') {
         prefix = 'customer-orders-report';
+      } else if (routeKey === 'report_customer_orders_by_item') {
+        prefix = 'customer-orders-by-item';
       } else if (routeKey === 'report_purchases_by_item') {
         prefix = 'purchase-report-item';
       } else if (routeKey === 'report_purchase_returns') {

@@ -105,6 +105,11 @@ return [
         'permission' => 'report_customer_orders',
         'title' => 'تقرير طلبات الشراء',
     ],
+    'report_customer_orders_by_item' => [
+        'file' => 'modules/reports/customer_orders_by_item.php',
+        'permission' => 'report_customer_orders_by_item',
+        'title' => 'تقرير طلبات الشراء للعميل حسب المادة',
+    ],
     'sales_unpaid_invoices' => [
         'file' => 'modules/sales/unpaid_invoices.php',
         'permission' => 'sales_unpaid_invoices',

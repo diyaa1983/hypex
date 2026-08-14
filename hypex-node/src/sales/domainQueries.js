@@ -284,6 +284,69 @@ async function reportCustomerOrders(from, to) {
   );
 }
 
+async function reportCustomerOrdersByItem({ itemId, from, to }) {
+  const id = Number(itemId || 0);
+  if (id < 1) return { item: null, rows: [], totals: { qty: 0, line_gross: 0 } };
+  const r = dateRange(from, to);
+  const items = await safeQuery(
+    `SELECT id, barcode, sku, name_ar FROM inv_item WHERE id = ? LIMIT 1`,
+    [id]
+  );
+  const item = items[0] || null;
+  if (!item) return { item: null, rows: [], totals: { qty: 0, line_gross: 0 } };
+
+  let rows = [];
+  try {
+    rows = await safeQuery(
+      `SELECT o.id, o.order_no, o.order_date, o.status,
+              c.name_ar AS customer_name,
+              COALESCE(r.name_ar, '') AS sales_rep_name,
+              l.unit_name,
+              COALESCE(l.qty, 0) AS qty,
+              COALESCE(l.qty_extra, 0) AS qty_extra,
+              COALESCE(l.unit_price, 0) AS unit_price,
+              COALESCE(l.line_gross, 0) AS line_gross
+       FROM sal_customer_order_line l
+       INNER JOIN sal_customer_order o ON o.id = l.order_id
+       INNER JOIN crm_customer c ON c.id = o.customer_id
+       LEFT JOIN crm_sales_rep r ON r.id = o.sales_rep_id
+       WHERE l.item_id = ?
+         AND o.order_date BETWEEN ? AND ?
+         AND IFNULL(o.is_sent, 1) = 1
+       ORDER BY o.order_date ASC, o.id ASC, l.line_no ASC
+       LIMIT 2000`,
+      [id, r.from, r.to]
+    );
+  } catch (_) {
+    rows = await safeQuery(
+      `SELECT o.id, o.order_no, o.order_date, o.status,
+              c.name_ar AS customer_name,
+              COALESCE(r.name_ar, '') AS sales_rep_name,
+              l.unit_name,
+              COALESCE(l.qty, 0) AS qty,
+              0 AS qty_extra,
+              0 AS unit_price,
+              0 AS line_gross
+       FROM sal_customer_order_line l
+       INNER JOIN sal_customer_order o ON o.id = l.order_id
+       INNER JOIN crm_customer c ON c.id = o.customer_id
+       LEFT JOIN crm_sales_rep r ON r.id = o.sales_rep_id
+       WHERE l.item_id = ?
+         AND o.order_date BETWEEN ? AND ?
+       ORDER BY o.order_date ASC, o.id ASC, l.line_no ASC
+       LIMIT 2000`,
+      [id, r.from, r.to]
+    );
+  }
+
+  const totals = { qty: 0, line_gross: 0 };
+  for (const row of rows) {
+    totals.qty += Number(row.qty || 0) + Number(row.qty_extra || 0);
+    totals.line_gross += Number(row.line_gross || 0);
+  }
+  return { item, rows, totals };
+}
+
 async function reportDelivery(from, to) {
   const r = dateRange(from, to);
   return safeQuery(
@@ -341,6 +404,7 @@ module.exports = {
   reportQtyExtra,
   reportInvoiceDiscount,
   reportCustomerOrders,
+  reportCustomerOrdersByItem,
   reportDelivery,
   reportReturns,
   reportReturnsTotals,

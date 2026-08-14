@@ -705,6 +705,185 @@ router.get('/sales/reports/customer-orders', guard('report_customer_orders'), (r
   })
 );
 
+router.get('/sales/reports/customer-orders-by-item', guard('report_customer_orders_by_item'), async (req, res) => {
+  try {
+    const itemId = Number(req.query.item_id || 0) || 0;
+    const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
+    const run = String(req.query.run || '') === '1' || itemId > 0;
+    let err = '';
+    let data = { item: null, rows: [], totals: { qty: 0, line_gross: 0 } };
+
+    if (run) {
+      if (itemId < 1) err = 'اختر المادة.';
+      else {
+        data = await q.reportCustomerOrdersByItem({ itemId, from: range.from, to: range.to });
+        if (!data.item) err = 'المادة غير موجودة.';
+      }
+    }
+
+    const itemLabel = data.item
+      ? ((data.item.barcode || data.item.sku || '')
+          ? `${data.item.barcode || data.item.sku} — `
+          : '') + (data.item.name_ar || '')
+      : '';
+
+    const statusLabel = (s) => {
+      const v = String(s || '');
+      if (v === 'approved') return 'معتمد';
+      if (v === 'draft') return 'مسودة';
+      return v || '—';
+    };
+
+    const rowsHtml =
+      data.rows
+        .map(
+          (r, i) => {
+            const qty = Number(r.qty || 0) + Number(r.qty_extra || 0);
+            return `<tr>
+        <td class="si-num" dir="ltr">${i + 1}</td>
+        <td class="si-num" dir="ltr">${ui.esc(r.order_no || '')}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
+        <td>${ui.esc(r.customer_name || '—')}</td>
+        <td>${ui.esc(r.sales_rep_name || '—')}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(qty))}</td>
+        <td>${ui.esc(r.unit_name || '—')}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.unit_price))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_gross))}</td>
+        <td>${ui.esc(statusLabel(r.status))}</td>
+      </tr>`;
+          }
+        )
+        .join('') ||
+      ui.emptyRow(
+        10,
+        run && !err ? 'لا توجد طلبات شراء لهذه المادة في الفترة' : 'اختر المادة والتواريخ ثم اعرض التقرير'
+      );
+
+    const body = `
+      <div class="si-stage si-report-page">
+        ${ui.hero({
+          mark: '📦',
+          kicker: 'Hypex Sales · Node',
+          title: 'طلبات الشراء للعميل حسب مادة معينة',
+          subtitle:
+            run && !err && data.item
+              ? `${ui.esc(itemLabel)} · من ${ui.esc(ui.isoToDmy(range.from))} إلى ${ui.esc(
+                  ui.isoToDmy(range.to)
+                )} · كمية ${ui.esc(ui.fmtAmt(data.totals.qty))} · إجمالي ${ui.esc(
+                  ui.fmtAmt(data.totals.line_gross)
+                )}`
+              : 'اختر مادة وفترة لعرض طلبات شراء العملاء التي تتضمنها',
+          actions: [
+            { label: '🖨 طباعة', primary: true, print: true },
+            { label: 'تقرير طلبات الشراء', href: '/sales/reports/customer-orders' },
+            { label: 'لوحة المبيعات', href: '/sales' },
+          ],
+        })}
+        ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>` : ''}
+        <div class="si-rail no-print">
+          <form method="get" action="/sales/reports/customer-orders-by-item" class="si-search"
+                id="co-by-item-form" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%"
+                autocomplete="off">
+            <input type="hidden" name="run" value="1">
+            <input type="hidden" name="item_id" id="co-item-id" value="${itemId || ''}">
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem">المادة *
+              <div class="si-cust-wrap" style="position:relative">
+                <input type="search" class="si-field" id="co-item-search"
+                       value="${ui.esc(itemLabel)}"
+                       placeholder="ابحث بالباركود أو اسم المادة…"
+                       autocomplete="off" spellcheck="false"
+                       aria-autocomplete="list" aria-controls="co-item-suggest">
+                <div id="co-item-suggest" class="si-suggest si-suggest--name" hidden></div>
+              </div>
+            </label>
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578">من تاريخ
+              <input class="si-field" type="date" name="from" value="${ui.esc(range.from)}" required>
+            </label>
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى تاريخ
+              <input class="si-field" type="date" name="to" value="${ui.esc(range.to)}" required>
+            </label>
+            <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+          </form>
+        </div>
+        <div class="si-print-area">
+          ${ui.tableSurface(
+            'بنود طلبات الشراء',
+            `${data.rows.length} سطر`,
+            ['#', 'رقم الطلب', 'التاريخ', 'العميل', 'المندوب', 'الكمية', 'الوحدة', 'السعر', 'الإجمالي', 'الحالة'],
+            rowsHtml
+          )}
+        </div>
+      </div>
+      <script>
+(function(){
+  var hid = document.getElementById('co-item-id');
+  var inp = document.getElementById('co-item-search');
+  var box = document.getElementById('co-item-suggest');
+  var form = document.getElementById('co-by-item-form');
+  if (!hid || !inp || !box) return;
+  var t = null;
+  function hide(){ box.hidden = true; box.innerHTML = ''; }
+  function pick(id, label){
+    hid.value = String(id || '');
+    inp.value = label || '';
+    hide();
+  }
+  function escHtml(s){
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  }
+  inp.addEventListener('input', function(){
+    hid.value = '';
+    var q = (inp.value || '').trim();
+    clearTimeout(t);
+    if (q.length < 1) { hide(); return; }
+    t = setTimeout(function(){
+      fetch('/api/lookup/items?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          var rows = (j && j.rows) || [];
+          if (!rows.length) { hide(); return; }
+          box.innerHTML = rows.map(function(r){
+            var code = r.barcode || r.sku || r.item_code || '';
+            var lab = (code ? code + ' — ' : '') + (r.name_ar || '');
+            return '<button type="button" class="si-suggest__item" data-id="' + r.id + '" data-label="' +
+              escHtml(lab) + '"><strong>' + escHtml(lab) + '</strong></button>';
+          }).join('');
+          box.hidden = false;
+        }).catch(function(){ hide(); });
+    }, 220);
+  });
+  box.addEventListener('click', function(e){
+    var btn = e.target.closest('[data-id]');
+    if (!btn) return;
+    pick(btn.getAttribute('data-id'), btn.getAttribute('data-label'));
+  });
+  document.addEventListener('click', function(e){
+    if (!box.contains(e.target) && e.target !== inp) hide();
+  });
+  if (form) form.addEventListener('submit', function(e){
+    if (!hid.value || Number(hid.value) < 1) {
+      e.preventDefault();
+      inp.focus();
+      alert('اختر المادة من نتائج البحث.');
+    }
+  });
+})();
+      </script>`;
+
+    res.send(
+      ui.salesPage({
+        user: req.session.user,
+        title: 'طلبات الشراء حسب المادة',
+        bodyHtml: body,
+        js: ['/assets/js/sales-print.js'],
+      })
+    );
+  } catch (e) {
+    console.error(e);
+    res.status(500).send(String(e.message || e));
+  }
+});
+
 router.get('/sales/reports/delivery', guard('report_sales_delivery'), (req, res) =>
   stdReport(req, res, {
     title: 'تقرير سندات البضاعة',
