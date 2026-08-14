@@ -104,6 +104,22 @@ function sal_customer_order_ensure_schema(PDO $pdo): bool
 
     if ($ok) {
         sal_customer_order_ensure_pricing_schema($pdo);
+        if (!sal_customer_order_has_column($pdo, 'sal_customer_order', 'is_sent')) {
+            try {
+                require_once app_path('includes/sql_migration.php');
+                sql_migration_run_file($pdo, 'database/migrations/272_customer_visit_orders_returns.sql');
+            } catch (Throwable $e) {
+                try {
+                    $pdo->exec(
+                        'ALTER TABLE sal_customer_order
+                         ADD COLUMN is_sent TINYINT(1) NOT NULL DEFAULT 1 AFTER status,
+                         ADD COLUMN sent_at DATETIME NULL DEFAULT NULL AFTER is_sent,
+                         ADD COLUMN sent_by INT UNSIGNED NULL DEFAULT NULL AFTER sent_at'
+                    );
+                } catch (Throwable $e2) {
+                }
+            }
+        }
         // صلاحية الموبايل مرة واحدة فقط — لا INSERT في كل تنقّل/إشعار
         try {
             require_once app_path('includes/acc_coa_bootstrap.php');
@@ -256,7 +272,10 @@ function sal_customer_order_list_where(
     string $search = '',
     ?int $salesRepId = null,
     ?string $status = null,
-    ?int $customerId = null
+    ?int $customerId = null,
+    ?int $isSent = null,
+    ?string $dateFrom = null,
+    ?string $dateTo = null
 ): array {
     $sql = '1=1';
     $params = [];
@@ -272,6 +291,18 @@ function sal_customer_order_list_where(
         $sql .= ' AND o.status = ?';
         $params[] = $status;
     }
+    if ($isSent !== null) {
+        $sql .= ' AND IFNULL(o.is_sent,1) = ?';
+        $params[] = $isSent ? 1 : 0;
+    }
+    if ($dateFrom !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+        $sql .= ' AND o.order_date >= ?';
+        $params[] = $dateFrom;
+    }
+    if ($dateTo !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        $sql .= ' AND o.order_date <= ?';
+        $params[] = $dateTo;
+    }
     if ($search !== '') {
         $sql .= ' AND (o.order_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR r.name_ar LIKE ?)';
         $params = array_merge($params, array_fill(0, 4, '%' . $search . '%'));
@@ -285,9 +316,12 @@ function sal_customer_order_list_count(
     string $search = '',
     ?int $salesRepId = null,
     ?string $status = null,
-    ?int $customerId = null
+    ?int $customerId = null,
+    ?int $isSent = null,
+    ?string $dateFrom = null,
+    ?string $dateTo = null
 ): int {
-    [$where, $params] = sal_customer_order_list_where($search, $salesRepId, $status, $customerId);
+    [$where, $params] = sal_customer_order_list_where($search, $salesRepId, $status, $customerId, $isSent, $dateFrom, $dateTo);
     $sql = 'SELECT COUNT(*)
             FROM sal_customer_order o
             INNER JOIN crm_customer c ON c.id = o.customer_id
@@ -307,14 +341,22 @@ function sal_customer_order_list_fetch(
     ?string $status = null,
     ?int $customerId = null,
     ?int $limit = 200,
-    int $offset = 0
+    int $offset = 0,
+    ?int $isSent = null,
+    ?string $dateFrom = null,
+    ?string $dateTo = null
 ): array {
-    [$where, $params] = sal_customer_order_list_where($search, $salesRepId, $status, $customerId);
+    [$where, $params] = sal_customer_order_list_where($search, $salesRepId, $status, $customerId, $isSent, $dateFrom, $dateTo);
+    $hasTotal = sal_customer_order_has_column($pdo, 'sal_customer_order', 'total');
+    $hasSent = sal_customer_order_has_column($pdo, 'sal_customer_order', 'is_sent');
     $sql = 'SELECT o.id, o.order_no, o.order_date, o.status, o.customer_id, o.sales_rep_id, o.warehouse_id,
-                   c.name_ar AS customer_name, w.name_ar AS warehouse_name,
+                   c.name_ar AS customer_name, c.code AS customer_code, w.name_ar AS warehouse_name,
                    COALESCE(r.name_ar, \'\') AS sales_rep_name,
                    COALESCE(lc.line_count, 0) AS line_count,
-                   COALESCE(lc.total_qty, 0) AS total_qty
+                   COALESCE(lc.total_qty, 0) AS total_qty'
+        . ($hasTotal ? ', COALESCE(o.total, 0) AS total' : ', 0 AS total')
+        . ($hasSent ? ', IFNULL(o.is_sent,1) AS is_sent, o.sent_at' : ', 1 AS is_sent, NULL AS sent_at')
+        . '
             FROM sal_customer_order o
             INNER JOIN crm_customer c ON c.id = o.customer_id
             INNER JOIN inv_warehouse w ON w.id = o.warehouse_id
@@ -548,6 +590,7 @@ function sal_customer_order_normalize_priced_lines(PDO $pdo, array $lines, ?stri
 function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $userId, ?int $forceRepId = null): int
 {
     $id = (int) ($data['id'] ?? 0);
+    $creating = $id < 1;
     $date = (string) ($data['order_date'] ?? date('Y-m-d'));
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
         throw new RuntimeException('تاريخ الطلب غير صالح.');
@@ -704,6 +747,20 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
 
         $pdo->commit();
 
+        // طلب الموبايل الجديد لا يظهر على ويندوز حتى يُرسل.
+        if (
+            $creating
+            && $forceRepId !== null
+            && sal_customer_order_has_column($pdo, 'sal_customer_order', 'is_sent')
+        ) {
+            try {
+                $pdo->prepare(
+                    'UPDATE sal_customer_order SET is_sent=0, sent_at=NULL, sent_by=NULL WHERE id=?'
+                )->execute([$id]);
+            } catch (Throwable $e) {
+            }
+        }
+
         return $id;
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -765,7 +822,7 @@ function sal_customer_order_pending_approve_count(PDO $pdo): int
     }
     try {
         return (int) $pdo->query(
-            "SELECT COUNT(*) FROM sal_customer_order WHERE status = 'draft'"
+            "SELECT COUNT(*) FROM sal_customer_order WHERE status = 'draft' AND IFNULL(is_sent,1) = 1"
         )->fetchColumn();
     } catch (Throwable $e) {
         return 0;

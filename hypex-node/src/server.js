@@ -15,6 +15,7 @@ const { resolveScreen } = require('./lib/screenMap');
 const salesInvoices = require('./sales/invoicesRoutes');
 const salesReturns = require('./sales/returnsRoutes');
 const customerOrders = require('./sales/customerOrdersRoutes');
+const orderReturns = require('./sales/orderReturnsRoutes');
 const salesOffers = require('./sales/offersRoutes');
 const salesDelivery = require('./sales/deliveryRoutes');
 const purchasesDocs = require('./purchases/docsRoutes');
@@ -455,6 +456,7 @@ app.get('/embed/:code', auth.requireAuth, (req, res) => {
 
 app.use(salesReturns);
 app.use(customerOrders);
+app.use(orderReturns);
 app.use(salesOffers);
 app.use(salesDelivery);
 app.use(purchasesDocs);

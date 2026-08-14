@@ -449,6 +449,34 @@ function sal_rep_visit_checkin(
     if (!empty($line['visit_checkin_at']) && empty($line['visit_checkout_at'])) {
         return ['ok' => false, 'message' => 'يوجد دخول مفتوح لهذا العميل. أكمل الخروج أولاً.'];
     }
+
+    // لا يُسمح بالدخول لعميل آخر قبل الخروج من الزيارة المفتوحة.
+    try {
+        $stOpen = $pdo->prepare(
+            "SELECT l.id, l.customer_id, c.name_ar
+             FROM sal_rep_route_line l
+             INNER JOIN sal_rep_route r ON r.id = l.route_id
+             INNER JOIN crm_customer c ON c.id = l.customer_id
+             WHERE r.sales_rep_id = ?
+               AND l.visit_checkin_at IS NOT NULL
+               AND l.visit_checkout_at IS NULL
+               AND l.customer_id <> ?
+             ORDER BY l.visit_checkin_at DESC
+             LIMIT 1"
+        );
+        $stOpen->execute([$salesRepId, $customerId]);
+        $openOther = $stOpen->fetch(PDO::FETCH_ASSOC);
+        if ($openOther) {
+            return [
+                'ok' => false,
+                'message' => 'سجّل الخروج من العميل «' . (string) ($openOther['name_ar'] ?? '') . '» أولاً قبل الدخول لعميل آخر.',
+                'open_customer_id' => (int) ($openOther['customer_id'] ?? 0),
+            ];
+        }
+    } catch (Throwable $e) {
+        // لا نمنع الدخول إن فشل الاستعلام
+    }
+
     $distance = null;
     if ($method === 'GPS') {
         if ($gps['lat'] === null || $gps['lng'] === null) {

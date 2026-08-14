@@ -34,7 +34,7 @@ try {
     $params = [];
 
     if ($type === 'customer') {
-        $sql = 'SELECT c.id, c.name_ar, c.code FROM crm_customer c WHERE c.is_active = 1';
+        $sql = 'SELECT c.id, c.name_ar, c.code, c.phone, c.address_ar, c.latitude, c.longitude FROM crm_customer c WHERE c.is_active = 1';
         if ($scopedRepId !== null) {
             [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
             $sql .= ' AND ' . $linkSql;
@@ -62,12 +62,22 @@ try {
     $st->execute($params);
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $parties = array_map(static function (array $r): array {
-        return [
+    $parties = array_map(static function (array $r) use ($type): array {
+        $out = [
             'id' => (int) ($r['id'] ?? 0),
             'name' => (string) ($r['name_ar'] ?? ''),
             'code' => (string) ($r['code'] ?? ''),
         ];
+        if ($type === 'customer') {
+            $lat = isset($r['latitude']) && $r['latitude'] !== null ? (float) $r['latitude'] : null;
+            $lng = isset($r['longitude']) && $r['longitude'] !== null ? (float) $r['longitude'] : null;
+            $out['phone'] = (string) ($r['phone'] ?? '');
+            $out['address'] = (string) ($r['address_ar'] ?? '');
+            $out['latitude'] = $lat;
+            $out['longitude'] = $lng;
+            $out['has_gps'] = $lat !== null && $lng !== null;
+        }
+        return $out;
     }, $rows);
 
     echo json_encode([

@@ -2,6 +2,9 @@
 class AppConfig {
   AppConfig._();
 
+  /// إصدار التطبيق الظاهر في ترويسة الرئيسية — يُحدَّث مع `version` في pubspec.yaml.
+  static const String appVersion = '1.0.0';
+
   /// عنوان السيرفر الافتراضي (يمكن للمستخدم تغييره من شاشة الإعداد).
   static const String defaultServerBase = 'http://176.29.176.192/hypex';
 
@@ -66,6 +69,8 @@ class AppConfig {
       'api/oracle_customer_ar_summary.php';
   static const String partiesPath = 'api/mobile_parties.php';
   static const String customerSavePath = 'api/mobile_customer_save.php';
+  static const String customerViewPath = 'api/mobile_customer_view.php';
+  static const String visitGpsPreviewPath = 'api/mobile_visit_gps_preview.php';
 
   static const String customerOrderMetaPath =
       'api/mobile_customer_order_meta.php';
@@ -77,6 +82,10 @@ class AppConfig {
       'api/mobile_customer_order_save.php';
   static const String customerOrderDeletePath =
       'api/mobile_customer_order_delete.php';
+  static const String customerOrderSendPath =
+      'api/mobile_customer_order_send.php';
+  static const String customerOrderReturnPath =
+      'api/mobile_customer_order_return.php';
 
   static const String repItemsPath = 'api/mobile_rep_items.php';
   static const String repStockPath = 'api/mobile_rep_stock.php';

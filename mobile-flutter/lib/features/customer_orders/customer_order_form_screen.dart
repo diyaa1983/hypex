@@ -17,8 +17,17 @@ import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
 
 class CustomerOrderFormScreen extends StatefulWidget {
-  const CustomerOrderFormScreen({super.key, this.orderId});
+  const CustomerOrderFormScreen({
+    super.key,
+    this.orderId,
+    this.initialCustomerId,
+    this.initialCustomerName,
+    this.initialCustomerCode,
+  });
   final int? orderId;
+  final int? initialCustomerId;
+  final String? initialCustomerName;
+  final String? initialCustomerCode;
 
   @override
   State<CustomerOrderFormScreen> createState() =>
@@ -192,6 +201,17 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             ? null
             : Party(cid, Fmt.str(order['customer_name']),
                 Fmt.str(order['customer_code']));
+        if (_customer == null &&
+            widget.orderId == null &&
+            (widget.initialCustomerId ?? 0) > 0) {
+          _customer = Party(
+            widget.initialCustomerId!,
+            (widget.initialCustomerName ?? '').trim().isEmpty
+                ? 'عميل #${widget.initialCustomerId}'
+                : widget.initialCustomerName!.trim(),
+            widget.initialCustomerCode ?? '',
+          );
+        }
         _approved = order['approved'] == true ||
             order['is_approved'] == true ||
             Fmt.str(order['status']) == 'approved';

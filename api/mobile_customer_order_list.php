@@ -20,11 +20,27 @@ $rep = user_is_system_admin() ? null : crm_mobile_scoped_sales_rep_id($pdo);
 $status = trim((string) ($_GET['status'] ?? ''));
 $status = $status !== '' ? $status : null;
 $q = trim((string) ($_GET['q'] ?? ''));
+$customerId = (int) ($_GET['customer_id'] ?? 0);
+$customerId = $customerId > 0 ? $customerId : null;
+$dateFrom = trim((string) ($_GET['from'] ?? ''));
+$dateTo = trim((string) ($_GET['to'] ?? ''));
+$dateFrom = preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) ? $dateFrom : null;
+$dateTo = preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo) ? $dateTo : null;
+
+$isSent = null;
+if (array_key_exists('is_sent', $_GET)) {
+    $raw = $_GET['is_sent'];
+    if ($raw === '0' || $raw === 0 || $raw === false || $raw === 'false') {
+        $isSent = 0;
+    } elseif ($raw === '1' || $raw === 1 || $raw === true || $raw === 'true') {
+        $isSent = 1;
+    }
+}
 
 $rows = [];
 $total = 0;
 if (user_is_system_admin() || $rep !== null) {
-    $total = sal_customer_order_list_count($pdo, $q, $rep, $status);
+    $total = sal_customer_order_list_count($pdo, $q, $rep, $status, $customerId, $isSent, $dateFrom, $dateTo);
 }
 $pager = mobile_list_pager_from_request($pdo, $total);
 if ($total > 0) {
@@ -33,9 +49,12 @@ if ($total > 0) {
         $q,
         $rep,
         $status,
-        null,
+        $customerId,
         (int) $pager['limit'],
-        (int) $pager['offset']
+        (int) $pager['offset'],
+        $isSent,
+        $dateFrom,
+        $dateTo
     );
 }
 

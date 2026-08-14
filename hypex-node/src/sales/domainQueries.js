@@ -69,7 +69,7 @@ async function listUnpaid({ q = '', limit = 80 } = {}) {
 }
 
 async function listOrders({ q = '', status = '', limit = 80 } = {}) {
-  const where = ['1=1'];
+  const where = ['IFNULL(o.is_sent,1) = 1'];
   const params = [];
   if (status) {
     where.push('o.status = ?');
@@ -277,6 +277,7 @@ async function reportCustomerOrders(from, to) {
      FROM sal_customer_order o
      LEFT JOIN crm_customer c ON c.id = o.customer_id
      WHERE o.order_date BETWEEN ? AND ?
+       AND IFNULL(o.is_sent,1) = 1
      ORDER BY o.id DESC
      LIMIT 200`,
     [r.from, r.to]

@@ -8,9 +8,14 @@ import 'core/theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/server_setup_screen.dart';
 import 'features/customers/customer_add_screen.dart';
+import 'features/customers/customer_visit_hub_screen.dart';
 import 'features/customer_orders/customer_order_form_screen.dart';
 import 'features/customer_orders/customer_order_list_screen.dart';
+import 'features/customer_orders/customer_order_return_screen.dart';
 import 'features/customer_orders/customer_order_view_screen.dart';
+import 'features/customer_orders/customer_orders_pending_screen.dart';
+import 'features/customer_orders/customer_orders_query_screen.dart';
+import 'features/customer_orders/customer_orders_sent_screen.dart';
 import 'features/gps/invoice_gps_screen.dart';
 import 'features/gps/user_gps_screen.dart';
 import 'features/gps/user_gps_tracker_screen.dart';
@@ -97,12 +102,40 @@ class NammaApp extends StatelessWidget {
           builder: (_, __) => const CustomerAddScreen(),
         ),
         GoRoute(
+          path: '/customers',
+          builder: (_, __) => const CustomerVisitHubScreen(),
+        ),
+        GoRoute(
           path: '/customer-orders',
           builder: (_, __) => const CustomerOrderListScreen(),
         ),
         GoRoute(
+          path: '/customer-orders/pending',
+          builder: (_, __) => const CustomerOrdersPendingScreen(),
+        ),
+        GoRoute(
+          path: '/customer-orders/sent',
+          builder: (_, __) => const CustomerOrdersSentScreen(),
+        ),
+        GoRoute(
+          path: '/customer-orders/query',
+          builder: (_, __) => const CustomerOrdersQueryScreen(),
+        ),
+        GoRoute(
+          path: '/customer-order-returns',
+          builder: (_, __) => const CustomerOrderReturnScreen(),
+        ),
+        GoRoute(
           path: '/customer-orders/new',
-          builder: (_, __) => const CustomerOrderFormScreen(),
+          builder: (_, s) {
+            final q = s.uri.queryParameters;
+            final cid = int.tryParse(q['customer_id'] ?? '') ?? 0;
+            return CustomerOrderFormScreen(
+              initialCustomerId: cid > 0 ? cid : null,
+              initialCustomerName: q['customer_name'],
+              initialCustomerCode: q['customer_code'],
+            );
+          },
         ),
         GoRoute(
           path: '/customer-orders/:id/edit',

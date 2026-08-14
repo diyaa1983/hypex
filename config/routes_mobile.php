@@ -83,6 +83,56 @@ return [
         'home_tile' => true,
     ],
 
+    'm_customer_list' => [
+        'file' => 'modules/mobile/customer_list.php',
+        'permission' => 'm_customer_list',
+        'title' => 'قائمة العملاء',
+        'home_label' => 'قائمة العملاء',
+        'icon' => 'person',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+
+    'm_customer_orders_pending' => [
+        'file' => 'modules/mobile/customer_orders.php',
+        'permission' => 'm_customer_orders_pending',
+        'title' => 'طلبات غير مرسلة',
+        'home_label' => 'طلبات غير مرسلة',
+        'icon' => 'list',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+
+    'm_customer_orders_sent' => [
+        'file' => 'modules/mobile/customer_orders.php',
+        'permission' => 'm_customer_orders_sent',
+        'title' => 'الطلبات المرسلة',
+        'home_label' => 'الطلبات المرسلة',
+        'icon' => 'list',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+
+    'm_customer_orders_query' => [
+        'file' => 'modules/mobile/customer_orders.php',
+        'permission' => 'm_customer_orders_query',
+        'title' => 'طلبات عملاء',
+        'home_label' => 'طلبات عملاء',
+        'icon' => 'list',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+
+    'm_customer_order_returns' => [
+        'file' => 'modules/mobile/customer_order_returns.php',
+        'permission' => 'm_customer_order_returns',
+        'title' => 'مرتجع طلب شراء عميل',
+        'home_label' => 'مرتجع طلب شراء عميل',
+        'icon' => 'return',
+        'tile_kind' => 'doc',
+        'home_tile' => true,
+    ],
+
     'm_rep_route_today' => [
         'file' => 'modules/mobile/rep_route_today.php',
         'permission' => 'm_rep_route_today',

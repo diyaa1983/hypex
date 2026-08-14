@@ -172,14 +172,35 @@ async function listItems({ q = '', activeOnly = false } = {}) {
   }
   const hasWholesale = await tableHasColumn('inv_item', 'default_wholesale');
   const wholesaleSel = hasWholesale ? 'i.default_wholesale' : '0 AS default_wholesale';
+  let packJoin = '';
+  let packSel = `'' AS pack_label`;
+  try {
+    await safeQuery(`SELECT id FROM inv_item_unit LIMIT 1`);
+    packJoin = `LEFT JOIN (
+        SELECT iu.item_id,
+               GROUP_CONCAT(
+                 CONCAT(COALESCE(u.name_ar,'وحدة'), ' × ', TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM CAST(iu.factor_to_base AS CHAR))))
+                 ORDER BY iu.id SEPARATOR ' · '
+               ) AS pack_label
+        FROM inv_item_unit iu
+        INNER JOIN inv_unit u ON u.id = iu.unit_id
+        WHERE IFNULL(iu.is_base,0) = 0 AND iu.factor_to_base > 1
+        GROUP BY iu.item_id
+      ) pk ON pk.item_id = i.id`;
+    packSel = `COALESCE(pk.pack_label,'') AS pack_label`;
+  } catch {
+    /* جدول الوحدات غير موجود */
+  }
   return safeQuery(
     `SELECT i.id, i.sku, i.barcode, i.name_ar, i.name_en, i.default_cost, i.default_sale,
             ${wholesaleSel}, i.is_active, i.expiry_date,
-            c.name_ar AS category_name, u.name_ar AS unit_name, w.name_ar AS warehouse_name
+            c.name_ar AS category_name, u.name_ar AS unit_name, w.name_ar AS warehouse_name,
+            ${packSel}
      FROM inv_item i
      LEFT JOIN inv_item_category c ON c.id = i.category_id
      LEFT JOIN inv_unit u ON u.id = i.unit_id
      LEFT JOIN inv_warehouse w ON w.id = i.default_warehouse_id
+     ${packJoin}
      WHERE ${where.join(' AND ')}
      ORDER BY i.id DESC LIMIT 300`,
     params

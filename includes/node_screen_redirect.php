@@ -78,6 +78,8 @@ function node_desktop_screen_path_map(): array
         'sales_returns_list' => '/sales/returns',
         'sales_returns_documents_list' => '/sales/returns',
         'sales_customer_orders' => '/sales/customer-orders/new',
+        'sales_customer_order_returns' => '/sales/order-returns',
+        'report_customer_order_returns' => '/sales/reports/order-returns',
         'sales_delivery' => '/sales/delivery/new',
         'sales_offers' => '/sales/offers/new',
         'purchase_invoices' => '/purchases/invoices/new',

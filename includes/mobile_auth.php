@@ -271,6 +271,26 @@ function mobile_home_launcher_tiles(): array
             ) {
                 continue;
             }
+        } elseif (
+            in_array(
+                $code,
+                [
+                    'm_customer_list',
+                    'm_customer_orders_pending',
+                    'm_customer_orders_sent',
+                    'm_customer_orders_query',
+                    'm_customer_order_returns',
+                ],
+                true
+            )
+        ) {
+            if (
+                !user_can($code)
+                && !user_can('m_customer_orders')
+                && !user_is_system_admin()
+            ) {
+                continue;
+            }
         } elseif (!user_can($perm)) {
             continue;
         }

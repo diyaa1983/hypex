@@ -212,11 +212,18 @@ router.get('/inventory/items', async (req, res) => {
         <td class="si-num" dir="ltr">${esc(r.barcode || svc.itemDisplayCode(r) || '—')}</td>
         <td>
           <strong>${esc(r.name_ar || '')}</strong>
+          ${
+            r.pack_label
+              ? `<div class="muted" style="font-size:.78rem;font-weight:600;margin-top:.15rem">التعبئة: ${esc(r.pack_label)}</div>`
+              : ''
+          }
           ${r.name_en ? `<div class="muted" style="font-size:.78rem;font-weight:500" dir="ltr">${esc(r.name_en)}</div>` : ''}
         </td>
         <td>${esc(r.category_name || '—')}</td>
         <td>${esc(r.unit_name || '—')}</td>
         <td class="si-num" dir="ltr">${esc(ui.fmtUnitPrice(r.default_sale))}</td>
+        <td class="si-num" dir="ltr">${esc(ui.fmtUnitPrice(r.default_wholesale))}</td>
+        <td class="si-num" dir="ltr">${esc(ui.fmtUnitPrice(r.default_cost))}</td>
         <td>${
           Number(r.is_active) === 1
             ? ui.statusPill('ok', 'نشط')
@@ -232,7 +239,7 @@ router.get('/inventory/items', async (req, res) => {
         </td>
       </tr>`
         )
-        .join('') || ui.emptyRow(7);
+        .join('') || ui.emptyRow(9);
 
     const body = `
       <div class="si-stage">
@@ -254,7 +261,17 @@ router.get('/inventory/items', async (req, res) => {
         ${ui.tableSurface(
           'المواد',
           `${rows.length} صف`,
-          ['الباركود', 'الاسم', 'الفئة', 'الوحدة', 'سعر البيع', 'الحالة', 'إجراءات'],
+          [
+            'الباركود',
+            'اسم المادة بالعربي مع التعبئة',
+            'الفئة',
+            'الوحدة',
+            'سعر البيع',
+            'سعر الجملة',
+            'سعر الكلفة',
+            'الحالة',
+            'إجراءات',
+          ],
           rowsHtml
         )}
       </div>`;

@@ -1,0 +1,1391 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/api_client.dart';
+import '../../core/config.dart';
+import '../../core/format.dart';
+import '../../core/session.dart';
+import '../../core/theme.dart';
+import '../../services/location_service.dart';
+import '../../widgets/async_view.dart';
+import '../../widgets/mobile_scaffold.dart';
+import '../../widgets/ui_kit.dart';
+import '../gps/gps_map_tiles.dart';
+
+/// مركز زيارة العملاء: قائمة + تفاصيل مع تبويبات (لوحة عريضة / ضيقة).
+class CustomerVisitHubScreen extends StatefulWidget {
+  const CustomerVisitHubScreen({super.key});
+
+  @override
+  State<CustomerVisitHubScreen> createState() => _CustomerVisitHubScreenState();
+}
+
+class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
+  static const _wideBreak = 700.0;
+
+  final _search = TextEditingController();
+  Timer? _debounce;
+
+  bool _listLoading = true;
+  String? _listError;
+  List<Map<String, dynamic>> _customers = [];
+
+  int? _selectedId;
+  bool _detailLoading = false;
+  String? _detailError;
+  Map<String, dynamic>? _customer;
+  Map<String, dynamic>? _visit;
+  int _radiusM = 200;
+
+  /// عميل الزيارة المفتوحة حالياً (إن وُجدت).
+  int _openVisitCustomerId = 0;
+  String _openVisitCheckinAt = '';
+
+  bool _busy = false;
+  bool _showNarrowDetail = false;
+
+  List<Map<String, dynamic>> _histOrders = [];
+  bool _histOrdersLoading = false;
+  String? _histOrdersError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomers();
+    _refreshOpenVisit();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 280), () {
+      _loadCustomers();
+    });
+  }
+
+  Future<void> _loadCustomers() async {
+    setState(() {
+      _listLoading = true;
+      _listError = null;
+    });
+    try {
+      final res = await context.read<ApiClient>().getJson(
+            AppConfig.partiesPath,
+            query: {'type': 'customer', 'q': _search.text.trim()},
+          );
+      if (!mounted) return;
+      setState(() {
+        _customers = (res['parties'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        _listLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _listError = e.message;
+        _listLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _listError = e.toString();
+        _listLoading = false;
+      });
+    }
+  }
+
+  Future<void> _refreshOpenVisit() async {
+    try {
+      final res = await context.read<ApiClient>().getJson(
+            AppConfig.repVisitListPath,
+            query: {'date': Fmt.todayIso()},
+          );
+      if (!mounted) return;
+      final visits = (res['visits'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>());
+      var openId = 0;
+      var checkinAt = '';
+      for (final v in visits) {
+        final s = Fmt.str(v['status']);
+        if (s == 'checked_in' || s == 'pending_manual_checkout') {
+          openId = Fmt.toInt(v['customer_id']);
+          checkinAt = Fmt.str(v['visit_checkin_at']);
+          break;
+        }
+      }
+      setState(() {
+        _openVisitCustomerId = openId;
+        _openVisitCheckinAt = checkinAt;
+        final r = Fmt.toInt(res['visit_radius_m']);
+        if (r > 0) _radiusM = r;
+      });
+    } catch (_) {}
+  }
+
+  bool get _selectedIsOpen =>
+      _selectedId != null &&
+      _selectedId! > 0 &&
+      _selectedId == _openVisitCustomerId;
+
+  bool get _hasOpenVisit => _openVisitCustomerId > 0;
+
+  bool _visitOpenFromMap(Map<String, dynamic>? v) {
+    if (v == null) return false;
+    final cin = Fmt.str(v['visit_checkin_at']);
+    final cout = Fmt.str(v['visit_checkout_at']);
+    return cin.isNotEmpty && cout.isEmpty;
+  }
+
+  Future<void> _selectCustomer(int id, {bool openNarrowDetail = false}) async {
+    if (id < 1) return;
+    if (_hasOpenVisit && id != _openVisitCustomerId) {
+      showSnack(
+        context,
+        'يوجد زيارة مفتوحة لعميل آخر. سجّل الخروج أولاً.',
+        error: true,
+      );
+      return;
+    }
+    setState(() {
+      _selectedId = id;
+      if (openNarrowDetail) _showNarrowDetail = true;
+      _detailLoading = true;
+      _detailError = null;
+      _customer = null;
+      _visit = null;
+      _histOrders = [];
+      _histOrdersError = null;
+    });
+    try {
+      final res = await context.read<ApiClient>().getJson(
+            AppConfig.customerViewPath,
+            query: {'id': id},
+          );
+      if (!mounted) return;
+      final c = (res['customer'] as Map?)?.cast<String, dynamic>();
+      final v = (res['visit'] as Map?)?.cast<String, dynamic>();
+      final radius = Fmt.toInt(res['visit_radius_m']);
+      setState(() {
+        _customer = c;
+        _visit = v;
+        if (radius > 0) _radiusM = radius;
+        _detailLoading = false;
+        if (_visitOpenFromMap(v)) {
+          _openVisitCustomerId = id;
+          _openVisitCheckinAt = Fmt.str(v?['visit_checkin_at']);
+        } else if (_openVisitCustomerId == id) {
+          _openVisitCustomerId = 0;
+          _openVisitCheckinAt = '';
+        }
+      });
+      _loadHistOrders(id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _detailError = e.message;
+        _detailLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _detailError = e.toString();
+        _detailLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadHistOrders(int customerId) async {
+    setState(() {
+      _histOrdersLoading = true;
+      _histOrdersError = null;
+    });
+    try {
+      final res = await context.read<ApiClient>().getJson(
+            AppConfig.customerOrderListPath,
+            query: {
+              'customer_id': customerId,
+              'is_sent': 1,
+              'page': 1,
+            },
+          );
+      if (!mounted) return;
+      setState(() {
+        _histOrders = (res['orders'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        _histOrdersLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _histOrdersError = e.message;
+        _histOrdersLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _histOrdersError = e.toString();
+        _histOrdersLoading = false;
+      });
+    }
+  }
+
+  Future<Map<String, dynamic>?> _gpsFields() async {
+    final pos = await LocationService.tryGetPosition();
+    if (pos == null) return null;
+    return {
+      'latitude': pos.latitude,
+      'longitude': pos.longitude,
+      'accuracy': pos.accuracy,
+    };
+  }
+
+  Future<bool> _confirm(String title, String body) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(body, style: const TextStyle(height: 1.45)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('تأكيد'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  Future<void> _openCheckinMethodDialog() async {
+    if (_busy || _selectedId == null || _customer == null) return;
+    if (_hasOpenVisit && !_selectedIsOpen) {
+      showSnack(
+        context,
+        'يوجد زيارة مفتوحة لعميل آخر. سجّل الخروج أولاً.',
+        error: true,
+      );
+      return;
+    }
+    final method = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('طريقة تسجيل الدخول'),
+        content: Text(
+          _radiusM > 0
+              ? 'اختر طريقة تسجيل الدخول إلى العميل.\nنصف القطر المسموح: $_radiusM م'
+              : 'اختر طريقة تسجيل الدخول إلى العميل.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(ctx, 'MANUAL'),
+            icon: const Icon(Icons.edit_location_alt_rounded),
+            label: const Text('يدوي'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, 'GPS'),
+            icon: const Icon(Icons.my_location_rounded),
+            label: const Text('GPS'),
+          ),
+        ],
+      ),
+    );
+    if (method == null || !mounted) return;
+    if (method == 'MANUAL') {
+      await _checkin(manual: true);
+    } else {
+      await _gpsPreviewThenCheckin();
+    }
+  }
+
+  Future<void> _gpsPreviewThenCheckin() async {
+    final id = _selectedId;
+    if (id == null || _busy) return;
+    final api = context.read<ApiClient>();
+    final csrf = context.read<SessionController>().csrf;
+    setState(() => _busy = true);
+    try {
+      final gps = await _gpsFields();
+      if (gps == null) {
+        if (!mounted) return;
+        showSnack(context, 'تعذّر قراءة GPS. جرّب دخولاً يدوياً.', error: true);
+        return;
+      }
+      final preview = await api.postJson(
+        AppConfig.visitGpsPreviewPath,
+        body: {'customer_id': id, ...gps},
+        csrf: csrf,
+      );
+      if (!mounted) return;
+      final within = preview['within_geofence'] == true;
+      final action = await showDialog<_GpsPreviewAction>(
+        context: context,
+        builder: (ctx) => _GpsPreviewDialog(
+          preview: preview,
+          within: within,
+        ),
+      );
+      if (action == null || !mounted) return;
+      if (action == _GpsPreviewAction.checkinGps) {
+        await _checkin(manual: false, gpsOverride: gps);
+      } else if (action == _GpsPreviewAction.checkinManual) {
+        await _checkin(manual: true, gpsOverride: gps);
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _checkin({
+    required bool manual,
+    Map<String, dynamic>? gpsOverride,
+  }) async {
+    final id = _selectedId;
+    final c = _customer;
+    if (id == null || c == null) return;
+    if (_hasOpenVisit && id != _openVisitCustomerId) {
+      showSnack(
+        context,
+        'يوجد زيارة مفتوحة لعميل آخر. سجّل الخروج أولاً.',
+        error: true,
+      );
+      return;
+    }
+    final name = Fmt.str(c['name']);
+    final ok = await _confirm(
+      'تأكيد تسجيل الدخول',
+      manual
+          ? 'تأكيد الدخول اليدوي إلى «$name»؟'
+          : 'تأكيد الدخول بـ GPS إلى «$name»؟',
+    );
+    if (!ok || !mounted) return;
+    final api = context.read<ApiClient>();
+    final csrf = context.read<SessionController>().csrf;
+    setState(() => _busy = true);
+    try {
+      Map<String, dynamic> gps = gpsOverride ?? {};
+      if (!manual) {
+        if (gps.isEmpty) {
+          final g = await _gpsFields();
+          if (g == null) {
+            if (!mounted) return;
+            showSnack(context, 'تعذّر قراءة GPS.', error: true);
+            return;
+          }
+          gps = g;
+        }
+      } else {
+        gps = gps.isEmpty ? (await _gpsFields() ?? {}) : gps;
+      }
+      if (!mounted) return;
+      final res = await api.postJson(
+        AppConfig.repVisitCheckinPath,
+        body: {
+          'customer_id': id,
+          'method': manual ? 'MANUAL' : 'GPS',
+          ...gps,
+        },
+        csrf: csrf,
+      );
+      if (!mounted) return;
+      final visit = (res['visit'] as Map?)?.cast<String, dynamic>();
+      showSnack(
+        context,
+        Fmt.str(res['message']).isEmpty
+            ? 'تم تسجيل الدخول.'
+            : Fmt.str(res['message']),
+      );
+      setState(() {
+        _visit = visit ?? _visit;
+        _openVisitCustomerId = id;
+        _openVisitCheckinAt = Fmt.str(
+          visit?['visit_checkin_at'] ?? DateTime.now().toIso8601String(),
+        );
+      });
+      await _refreshOpenVisit();
+      await _selectCustomer(id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _checkout({required bool manual}) async {
+    final id = _selectedId;
+    final c = _customer;
+    if (id == null || c == null || _busy) return;
+    final name = Fmt.str(c['name']);
+    final ok = await _confirm(
+      'تأكيد تسجيل الخروج',
+      manual
+          ? 'تأكيد الخروج اليدوي من عند «$name»؟'
+          : 'تأكيد الخروج بـ GPS من عند «$name»؟',
+    );
+    if (!ok || !mounted) return;
+    String? reason;
+    if (manual) {
+      reason = await showDialog<String>(
+        context: context,
+        builder: (ctx) {
+          final ctrl = TextEditingController(
+            text: 'نسي الخروج بـ GPS من موقع العميل',
+          );
+          return AlertDialog(
+            title: const Text('خروج يدوي'),
+            content: TextField(
+              controller: ctrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'السبب',
+                hintText: 'لماذا الخروج يدوياً؟',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                child: const Text('متابعة'),
+              ),
+            ],
+          );
+        },
+      );
+      if (reason == null) return;
+    }
+    if (!mounted) return;
+    final api = context.read<ApiClient>();
+    final csrf = context.read<SessionController>().csrf;
+    setState(() => _busy = true);
+    try {
+      Map<String, dynamic> gps = {};
+      if (!manual) {
+        final g = await _gpsFields();
+        if (g == null) {
+          if (!mounted) return;
+          showSnack(context, 'تعذّر قراءة GPS. جرّب خروجاً يدوياً.', error: true);
+          return;
+        }
+        gps = g;
+      } else {
+        gps = await _gpsFields() ?? {};
+      }
+      if (!mounted) return;
+      final res = await api.postJson(
+        AppConfig.repVisitCheckoutPath,
+        body: {
+          'customer_id': id,
+          'method': manual ? 'MANUAL' : 'GPS',
+          if (reason != null && reason.isNotEmpty) 'reason': reason,
+          ...gps,
+        },
+        csrf: csrf,
+      );
+      if (!mounted) return;
+      final msg = Fmt.str(res['message']);
+      final needsApproval = res['requires_approval'] == true;
+      showSnack(
+        context,
+        msg.isEmpty
+            ? (needsApproval
+                ? 'بانتظار موافقة المدير'
+                : 'تم تسجيل الخروج وإغلاق الزيارة')
+            : msg,
+      );
+      if (!needsApproval) {
+        setState(() {
+          _openVisitCustomerId = 0;
+          _openVisitCheckinAt = '';
+        });
+      }
+      await _refreshOpenVisit();
+      await _selectCustomer(id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _timeOnly(String raw) {
+    final v = raw.trim();
+    if (v.isEmpty) return '—';
+    try {
+      final d = DateTime.parse(v.contains('T') ? v : v.replaceFirst(' ', 'T'));
+      final h = d.hour.toString().padLeft(2, '0');
+      final m = d.minute.toString().padLeft(2, '0');
+      final s = d.second.toString().padLeft(2, '0');
+      return '$h:$m:$s';
+    } catch (_) {
+      if (v.length >= 19) return v.substring(11, 19);
+      if (v.length >= 16) return v.substring(11, 16);
+      return v;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MobileScaffold(
+      title: const Text('العملاء'),
+      backgroundColor: const Color(0xFFF0F4F8),
+      actions: [
+        IconButton(
+          onPressed: _busy
+              ? null
+              : () async {
+                  await _loadCustomers();
+                  await _refreshOpenVisit();
+                  if (_selectedId != null) await _selectCustomer(_selectedId!);
+                },
+          icon: const Icon(Icons.refresh_rounded),
+        ),
+      ],
+      body: Stack(
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= _wideBreak;
+              if (wide) {
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: (constraints.maxWidth * 0.38).clamp(280.0, 420.0),
+                      child: _buildLeftPanel(openNarrowOnSelect: false),
+                    ),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: _buildRightPanel()),
+                  ],
+                );
+              }
+              if (_showNarrowDetail && _selectedId != null) {
+                return Column(
+                  children: [
+                    Material(
+                      color: Colors.white,
+                      child: ListTile(
+                        leading: IconButton(
+                          icon: const Icon(Icons.arrow_forward_rounded),
+                          onPressed: () => setState(() {
+                            _showNarrowDetail = false;
+                          }),
+                        ),
+                        title: Text(
+                          Fmt.str(_customer?['name']).isEmpty
+                              ? 'تفاصيل العميل'
+                              : Fmt.str(_customer?['name']),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(child: _buildRightPanel()),
+                    _buildCheckInOutCard(),
+                  ],
+                );
+              }
+              return _buildLeftPanel(openNarrowOnSelect: true);
+            },
+          ),
+          if (_busy)
+            const Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLeftPanel({required bool openNarrowOnSelect}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'جميع العملاء',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _search,
+                onChanged: _onSearchChanged,
+                decoration: InputDecoration(
+                  hintText: 'بحث بالاسم أو الرمز…',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: AsyncView(
+            loading: _listLoading,
+            error: _listError,
+            onRetry: _loadCustomers,
+            child: _customers.isEmpty
+                ? ListView(
+                    children: const [
+                      SizedBox(height: 60),
+                      EmptyState(
+                        message: 'لا يوجد عملاء.',
+                        icon: Icons.people_outline_rounded,
+                      ),
+                    ],
+                  )
+                : RefreshIndicator(
+                    onRefresh: () async {
+                      await _loadCustomers();
+                      await _refreshOpenVisit();
+                    },
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                      itemCount: _customers.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 4),
+                      itemBuilder: (_, i) {
+                        final c = _customers[i];
+                        final id = Fmt.toInt(c['id']);
+                        final selected = id == _selectedId;
+                        final isOpen = id == _openVisitCustomerId;
+                        return Material(
+                          color: selected
+                              ? AppTheme.primary.withValues(alpha: 0.10)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: _busy
+                                ? null
+                                : () => _selectCustomer(
+                                      id,
+                                      openNarrowDetail: openNarrowOnSelect,
+                                    ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: (isOpen
+                                            ? AppTheme.teal
+                                            : AppTheme.primary)
+                                        .withValues(alpha: 0.12),
+                                    child: Icon(
+                                      isOpen
+                                          ? Icons.login_rounded
+                                          : Icons.storefront_rounded,
+                                      size: 18,
+                                      color: isOpen
+                                          ? AppTheme.teal
+                                          : AppTheme.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          Fmt.str(c['name']),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 14,
+                                            color: selected
+                                                ? AppTheme.primary
+                                                : AppTheme.textMain,
+                                          ),
+                                        ),
+                                        Text(
+                                          Fmt.str(c['code']),
+                                          style: const TextStyle(
+                                            color: AppTheme.textSoft,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isOpen)
+                                    const StatusPill(
+                                      text: 'مفتوحة',
+                                      color: AppTheme.teal,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+          ),
+        ),
+        _buildCheckInOutCard(),
+      ],
+    );
+  }
+
+  Widget _buildCheckInOutCard() {
+    final hasSelection = _selectedId != null && _customer != null;
+    final open = _selectedIsOpen ||
+        (_visitOpenFromMap(_visit) && _selectedId == _openVisitCustomerId);
+
+    if (!hasSelection) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.border),
+          boxShadow: AppTheme.softShadow,
+        ),
+        child: const Text(
+          'اختر عميلاً لتسجيل الدخول أو الخروج.',
+          style: TextStyle(color: AppTheme.textSoft, fontSize: 13),
+        ),
+      );
+    }
+
+    if (open) {
+      final at = _openVisitCheckinAt.isNotEmpty
+          ? _openVisitCheckinAt
+          : Fmt.str(_visit?['visit_checkin_at']);
+      return Container(
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.danger.withValues(alpha: 0.35)),
+          boxShadow: AppTheme.softShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              onTap: _busy
+                  ? null
+                  : () => _showCheckoutMethodDialog(),
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: AppTheme.danger.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.logout_rounded,
+                        color: AppTheme.danger,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'تسجيل خروج من العميل',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                              color: AppTheme.danger,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'بداية الزيارة : ${_timeOnly(at)}',
+                            style: const TextStyle(
+                              color: AppTheme.textSoft,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_left_rounded,
+                        color: AppTheme.danger),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Material(
+        color: AppTheme.primary,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _busy ? null : _openCheckinMethodDialog,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.meeting_room_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'تسجيل دخول الى العميل',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_back_rounded,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCheckoutMethodDialog() async {
+    final method = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('طريقة تسجيل الخروج'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(ctx, 'MANUAL'),
+            child: const Text('يدوي'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'GPS'),
+            child: const Text('GPS'),
+          ),
+        ],
+      ),
+    );
+    if (method == null || !mounted) return;
+    await _checkout(manual: method == 'MANUAL');
+  }
+
+  Widget _buildRightPanel() {
+    if (_selectedId == null) {
+      return const Center(
+        child: Text(
+          'اختر عميلاً من القائمة',
+          style: TextStyle(color: AppTheme.textSoft, fontSize: 15),
+        ),
+      );
+    }
+    return AsyncView(
+      loading: _detailLoading,
+      error: _detailError,
+      onRetry: () => _selectCustomer(_selectedId!),
+      child: _customer == null
+          ? const SizedBox.shrink()
+          : DefaultTabController(
+              length: 4,
+              child: Column(
+                children: [
+                  Material(
+                    color: Colors.white,
+                    child: TabBar(
+                      isScrollable: true,
+                      labelColor: AppTheme.primary,
+                      unselectedLabelColor: AppTheme.textSoft,
+                      tabs: const [
+                        Tab(text: 'معلومات العميل'),
+                        Tab(text: 'كشف حساب'),
+                        Tab(text: 'الطلبات التاريخية'),
+                        Tab(text: 'الفواتير التاريخية'),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _InfoTab(customer: _customer!),
+                        _StatementTab(customer: _customer!),
+                        _OrdersTab(
+                          loading: _histOrdersLoading,
+                          error: _histOrdersError,
+                          orders: _histOrders,
+                          onRetry: () => _loadHistOrders(_selectedId!),
+                          onAddOrder: () {
+                            final c = _customer!;
+                            context.push(
+                              '/customer-orders/new?customer_id=${Fmt.toInt(c['id'])}'
+                              '&customer_name=${Uri.encodeComponent(Fmt.str(c['name']))}'
+                              '&customer_code=${Uri.encodeComponent(Fmt.str(c['code']))}',
+                            );
+                          },
+                        ),
+                        _InvoicesTab(customer: _customer!),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+enum _GpsPreviewAction { checkinGps, checkinManual }
+
+class _GpsPreviewDialog extends StatelessWidget {
+  const _GpsPreviewDialog({
+    required this.preview,
+    required this.within,
+  });
+
+  final Map<String, dynamic> preview;
+  final bool within;
+
+  @override
+  Widget build(BuildContext context) {
+    final userLat = Fmt.toDouble(preview['user_lat']);
+    final userLng = Fmt.toDouble(preview['user_lng']);
+    final custLat = Fmt.toDouble(preview['customer_lat']);
+    final custLng = Fmt.toDouble(preview['customer_lng']);
+    final accuracy = Fmt.toDouble(preview['accuracy_m']);
+    final distance = Fmt.toDouble(preview['distance_m']);
+    final radius = Fmt.toInt(preview['visit_radius_m']);
+    final msg = Fmt.str(preview['message']);
+
+    final center = LatLng(
+      (userLat + custLat) / 2,
+      (userLng + custLng) / 2,
+    );
+
+    return AlertDialog(
+      title: const Text('معاينة الموقع'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                height: 220,
+                child: FlutterMap(
+                  options: MapOptions(
+                    initialCenter: center,
+                    initialZoom: 15,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
+                    ),
+                  ),
+                  children: [
+                    ...GpsMapTiles.layers(mapProvider: 'esri', zoom: 15),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: LatLng(custLat, custLng),
+                          width: 40,
+                          height: 40,
+                          child: const Icon(
+                            Icons.storefront_rounded,
+                            color: AppTheme.primary,
+                            size: 36,
+                          ),
+                        ),
+                        Marker(
+                          point: LatLng(userLat, userLng),
+                          width: 40,
+                          height: 40,
+                          child: const Icon(
+                            Icons.person_pin_circle_rounded,
+                            color: AppTheme.teal,
+                            size: 36,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              msg.isEmpty
+                  ? (within
+                      ? 'أنت ضمن حدود موقع العميل.'
+                      : 'أنت خارج نطاق الموقع المسموح.')
+                  : msg,
+              style: const TextStyle(height: 1.4, fontSize: 13.5),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'الدقة: ${Fmt.trimNum(accuracy)} م  •  المسافة: ${Fmt.trimNum(distance)} م'
+              '${radius > 0 ? '  •  المسموح: $radius م' : ''}',
+              style: const TextStyle(
+                color: AppTheme.textSoft,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        if (!within)
+          OutlinedButton(
+            onPressed: () =>
+                Navigator.pop(context, _GpsPreviewAction.checkinManual),
+            child: const Text('دخول يدوي'),
+          ),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            within
+                ? _GpsPreviewAction.checkinGps
+                : _GpsPreviewAction.checkinManual,
+          ),
+          child: Text(within ? 'تأكيد دخول GPS' : 'متابعة يدوياً'),
+        ),
+      ],
+    );
+  }
+}
+
+class _InfoTab extends StatelessWidget {
+  const _InfoTab({required this.customer});
+  final Map<String, dynamic> customer;
+
+  Widget _row(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppTheme.textSoft,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '—' : value,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lat = customer['latitude'];
+    final lng = customer['longitude'];
+    final loc = (lat != null && lng != null)
+        ? '${Fmt.trimNum(Fmt.toDouble(lat))} ، ${Fmt.trimNum(Fmt.toDouble(lng))}'
+        : '';
+    final addr = Fmt.str(customer['region_address_name']).isNotEmpty
+        ? Fmt.str(customer['region_address_name'])
+        : Fmt.str(customer['address']);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.border),
+            boxShadow: AppTheme.softShadow,
+          ),
+          child: Column(
+            children: [
+              _row('الاسم', Fmt.str(customer['name'])),
+              _row('الرمز', Fmt.str(customer['code'])),
+              _row('الهاتف', Fmt.str(customer['phone'])),
+              _row('الرقم الضريبي', Fmt.str(customer['tax_number'])),
+              _row('البريد', Fmt.str(customer['email'])),
+              _row('المنطقة', Fmt.str(customer['region_name'])),
+              _row('العنوان', addr),
+              _row('الموقع', loc),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatementTab extends StatelessWidget {
+  const _StatementTab({required this.customer});
+  final Map<String, dynamic> customer;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = Fmt.toInt(customer['id']);
+    final name = Uri.encodeComponent(Fmt.str(customer['name']));
+    final code = Uri.encodeComponent(Fmt.str(customer['code']));
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const MiniIcon(Icons.menu_book_rounded, color: AppTheme.violet),
+            const SizedBox(height: 14),
+            const Text(
+              'عرض كشف حساب العميل',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              Fmt.str(customer['name']),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSoft),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: () => context.push(
+                '/statement?customer_id=$id&customer_name=$name&customer_code=$code',
+              ),
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: const Text('فتح كشف الحساب'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrdersTab extends StatelessWidget {
+  const _OrdersTab({
+    required this.loading,
+    required this.error,
+    required this.orders,
+    required this.onRetry,
+    required this.onAddOrder,
+  });
+
+  final bool loading;
+  final String? error;
+  final List<Map<String, dynamic>> orders;
+  final VoidCallback onRetry;
+  final VoidCallback onAddOrder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: FilledButton.tonalIcon(
+              onPressed: onAddOrder,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('إضافة طلب'),
+            ),
+          ),
+        ),
+        Expanded(
+          child: AsyncView(
+            loading: loading,
+            error: error,
+            onRetry: onRetry,
+            child: orders.isEmpty
+                ? ListView(
+                    children: const [
+                      SizedBox(height: 50),
+                      EmptyState(
+                        message: 'لا توجد طلبات مرسلة لهذا العميل.',
+                        icon: Icons.shopping_cart_outlined,
+                      ),
+                    ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: orders.length,
+                    itemBuilder: (_, i) {
+                      final o = orders[i];
+                      return AppCard(
+                        onTap: () => context.push(
+                          '/customer-orders/${Fmt.toInt(o['id'])}',
+                        ),
+                        child: Row(
+                          children: [
+                            const MiniIcon(
+                              Icons.shopping_cart_checkout_rounded,
+                              color: AppTheme.success,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    Fmt.str(o['order_no']).isEmpty
+                                        ? '#${Fmt.toInt(o['id'])}'
+                                        : Fmt.str(o['order_no']),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${Fmt.dmy(Fmt.str(o['order_date']))}  •  ${Fmt.money(Fmt.toDouble(o['total']))}',
+                                    style: const TextStyle(
+                                      color: AppTheme.textSoft,
+                                      fontSize: 12.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_left_rounded,
+                              color: AppTheme.textSoft,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InvoicesTab extends StatelessWidget {
+  const _InvoicesTab({required this.customer});
+  final Map<String, dynamic> customer;
+
+  @override
+  Widget build(BuildContext context) {
+    final code = Fmt.str(customer['code']);
+    final name = Fmt.str(customer['name']);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const MiniIcon(
+              Icons.receipt_long_rounded,
+              color: AppTheme.primarySoft,
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'الفواتير التاريخية',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              code.isNotEmpty
+                  ? 'ابحث في قائمة الفواتير باسم أو رمز العميل ($code).'
+                  : 'افتح قائمة الفواتير وابحث عن العميل.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSoft, height: 1.4),
+            ),
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: () => context.push('/invoices'),
+              icon: const Icon(Icons.receipt_long_rounded),
+              label: Text(name.isEmpty ? 'فتح الفواتير' : 'فواتير $name'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
