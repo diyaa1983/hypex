@@ -748,9 +748,7 @@ router.get('/api/sales/invoices/customer-ar', async (req, res) => {
     const ordersSvc = require('./customerOrdersService');
     const customerId = Number(req.query.customer_id || req.query.id || 0);
     const data = await ordersSvc.getCustomerArSummary(customerId);
-    if (data.statement_path) {
-      data.statement_url = config.phpBaseUrl + '/' + String(data.statement_path).replace(/^\//, '');
-    }
+    data.statement_url = ui.oracleStatementUrl(req.session.user, customerId, data);
     res.json(data);
   } catch (e) {
     res.status(500).json({ ok: false, message: e.message || 'خطأ' });

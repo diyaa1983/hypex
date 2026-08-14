@@ -175,8 +175,26 @@ function phpEmbedBlock(phpRoute, title = '') {
   )}">${esc(title || phpRoute)}</a></div>`;
 }
 
+/**
+ * رابط كشف حساب Oracle التفصيلي داخل Node — بدل رابط PHP الذي يطلب تسجيل دخول منفصل.
+ * يرجع '' إن كان العميل غير محدد أو المستخدم بلا صلاحية التقرير (فيُخفى الزر).
+ */
+function oracleStatementUrl(user, customerId, data = {}) {
+  const auth = require('../auth');
+  const basePath = require('./basePath');
+  const cid = Number(customerId) || 0;
+  if (cid < 1 || !user) return '';
+  if (!user.is_admin && !auth.userCan(user, 'report_oracle_customer_statement')) return '';
+  const qs = new URLSearchParams({ customer_id: String(cid), run: '1' });
+  if (data.from) qs.set('from', String(data.from));
+  if (data.to) qs.set('to', String(data.to));
+  if (data.account) qs.set('account_no', String(data.account));
+  return basePath.ensurePrefixed('/accounting/reports/oracle-statement?' + qs.toString());
+}
+
 module.exports = {
   salesPage,
+  oracleStatementUrl,
   hero,
   railSearch,
   dateFilters,

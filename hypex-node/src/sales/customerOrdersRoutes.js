@@ -7,6 +7,7 @@ const invSvc = require('./invoicesService');
 const { renderApp } = require('../lib/layout');
 const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
 const { ensurePrintBrand, renderStandalonePrintPage } = require('../lib/printBrand');
+const { oracleStatementUrl } = require('../lib/salesUi');
 
 const router = express.Router();
 
@@ -639,10 +640,7 @@ router.get('/api/sales/customer-orders/customer-ar', async (req, res) => {
   try {
     const customerId = Number(req.query.customer_id || req.query.id || 0);
     const data = await svc.getCustomerArSummary(customerId);
-    if (data.statement_path) {
-      const config = require('../config');
-      data.statement_url = config.phpBaseUrl + '/' + String(data.statement_path).replace(/^\//, '');
-    }
+    data.statement_url = oracleStatementUrl(req.session.user, customerId, data);
     res.json(data);
   } catch (e) {
     res.status(500).json({ ok: false, message: e.message || 'خطأ' });
