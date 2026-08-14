@@ -38,11 +38,11 @@ try {
         ];
     }, mobile_home_launcher_tiles());
 
-    $brand = document_header_brand($pdo);
+    $brand = document_header_brand_api($pdo);
 
     echo json_encode([
         'ok' => true,
-        'company_name' => (string) ($brand['company_name_ar'] ?? 'النظام المحاسبي'),
+        'company_name' => (string) ($brand['company_name'] ?? 'النظام المحاسبي'),
         'logo_url' => $brand['logo_url'] ?? null,
         'user' => [
             'id' => $uid,

@@ -33,16 +33,39 @@ function document_header_brand(?PDO $pdo = null): array
     ];
 }
 
-/** يضيف اسم الشركة ورابط الشعار إلى حمولة مستند للطباعة من الموبايل. */
-function document_header_attach_brand(array $payload, ?PDO $pdo = null): array
+/**
+ * ترويسة للواجهات (تطبيق الموبايل): اسم الشركة + رابط شعار كامل بالنطاق،
+ * لأن التطبيق يحمّل الشعار عبر HTTP ولا يفهم المسارات النسبية.
+ *
+ * @return array{company_name: string, logo_url: ?string}
+ */
+function document_header_brand_api(?PDO $pdo = null): array
 {
     try {
         $brand = document_header_brand($pdo);
     } catch (Throwable $e) {
         $brand = ['company_name_ar' => 'الشركة', 'logo_url' => null];
     }
-    $payload['company_name'] = (string) ($brand['company_name_ar'] ?? 'الشركة');
-    $payload['logo_url'] = $brand['logo_url'] ?? null;
+
+    $logo = trim((string) ($brand['logo_url'] ?? ''));
+    if ($logo !== '' && !preg_match('~^https?://~i', $logo)) {
+        $settings = company_settings($pdo);
+        $logoPath = trim((string) ($settings['logo_path'] ?? ''));
+        $logo = $logoPath !== '' ? app_absolute_url($logoPath) : '';
+    }
+
+    return [
+        'company_name' => (string) ($brand['company_name_ar'] ?? 'الشركة'),
+        'logo_url' => $logo !== '' ? $logo : null,
+    ];
+}
+
+/** يضيف اسم الشركة ورابط الشعار إلى حمولة مستند للطباعة من الموبايل. */
+function document_header_attach_brand(array $payload, ?PDO $pdo = null): array
+{
+    $brand = document_header_brand_api($pdo);
+    $payload['company_name'] = $brand['company_name'];
+    $payload['logo_url'] = $brand['logo_url'];
     return $payload;
 }
 

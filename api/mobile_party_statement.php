@@ -101,14 +101,14 @@ try {
     $brand = [];
     try {
         require_once app_path('includes/document_header.php');
-        $brand = document_header_brand($pdo);
+        $brand = document_header_brand_api($pdo);
     } catch (Throwable $e) {
         $brand = [];
     }
 
     $payload = [
         'ok' => true,
-        'company_name' => (string) ($brand['company_name_ar'] ?? 'الشركة'),
+        'company_name' => (string) ($brand['company_name'] ?? 'الشركة'),
         'logo_url' => $brand['logo_url'] ?? null,
         'party_type' => $partyType,
         'party_id' => $partyId,

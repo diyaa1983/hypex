@@ -17,6 +17,7 @@ class PrintBrand {
 
   static const _kName = 'print_brand_company';
   static const _kLogoUrl = 'print_brand_logo_url';
+  static const _kServerBase = 'print_brand_server_base';
   static const _logoFile = 'print_brand_logo.img';
   static const _assetFallbacks = [
     'assets/branding/logo.png',
@@ -25,13 +26,22 @@ class PrintBrand {
 
   static String _company = '';
   static String _logoUrl = '';
+  static String _serverBase = '';
   static Uint8List? _logoBytes;
   static pw.MemoryImage? _logoImage;
   static bool _prefsRead = false;
 
   /// تخزين بيانات الشركة القادمة من الرئيسية.
-  static Future<void> remember(String companyName, String? logoUrl) async {
+  ///
+  /// [serverBase] لازم لتحويل مسار الشعار النسبي إلى رابط كامل.
+  static Future<void> remember(
+    String companyName,
+    String? logoUrl, {
+    String? serverBase,
+  }) async {
     final name = companyName.trim();
+    final base = (serverBase ?? '').trim();
+    if (base.isNotEmpty) _serverBase = base;
     final url = (logoUrl ?? '').trim();
     final urlChanged = url.isNotEmpty && url != _logoUrl;
     if (name.isNotEmpty) _company = name;
@@ -42,6 +52,7 @@ class PrintBrand {
       final prefs = await SharedPreferences.getInstance();
       if (name.isNotEmpty) await prefs.setString(_kName, name);
       if (url.isNotEmpty) await prefs.setString(_kLogoUrl, url);
+      if (base.isNotEmpty) await prefs.setString(_kServerBase, base);
     } catch (_) {
       // التخزين المحلي غير حرج
     }
@@ -60,9 +71,26 @@ class PrintBrand {
       final prefs = await SharedPreferences.getInstance();
       _company = prefs.getString(_kName) ?? _company;
       _logoUrl = prefs.getString(_kLogoUrl) ?? _logoUrl;
+      _serverBase = prefs.getString(_kServerBase) ?? _serverBase;
     } catch (_) {
       // نكمل بالقيم الافتراضية
     }
+  }
+
+  /// روابط محتملة للشعار: قد ترسل الواجهة رابطاً كاملاً أو مساراً نسبياً
+  /// (`/uploads/...` أو `/hypex/uploads/...`) فنجرّب الاحتمالين على السيرفر.
+  static List<String> _logoCandidates(String url) {
+    final raw = url.trim();
+    if (raw.isEmpty) return const [];
+    if (raw.startsWith('http')) return [raw];
+    if (_serverBase.isEmpty) return const [];
+
+    final base = _serverBase.replaceAll(RegExp(r'/+$'), '');
+    final rel = raw.replaceAll(RegExp(r'^/+'), '');
+    final out = <String>{'$base/$rel'};
+    final parsed = Uri.tryParse(base);
+    if (parsed != null) out.add(parsed.resolve('/$rel').toString());
+    return out.toList();
   }
 
   /// اسم الشركة — أولوية لما ترسله واجهة المستند ثم المحفوظ محلياً.
@@ -83,9 +111,7 @@ class PrintBrand {
         : _logoUrl;
 
     var bytes = _logoBytes ?? await _readCachedLogo();
-    if (bytes == null && url.startsWith('http')) {
-      bytes = await _downloadLogo(url);
-    }
+    bytes ??= await _downloadLogo(url);
     bytes ??= await _assetLogo();
     if (bytes == null) return null;
 
@@ -117,19 +143,9 @@ class PrintBrand {
   }
 
   static Future<Uint8List?> _downloadLogo(String url) async {
-    if (!url.startsWith('http')) return null;
-    try {
-      final res = await Dio().get<List<int>>(
-        url,
-        options: Options(
-          responseType: ResponseType.bytes,
-          receiveTimeout: const Duration(seconds: 6),
-          sendTimeout: const Duration(seconds: 6),
-        ),
-      );
-      final data = res.data;
-      if (data == null || data.isEmpty) return null;
-      final bytes = Uint8List.fromList(data);
+    for (final candidate in _logoCandidates(url)) {
+      final bytes = await _fetchLogo(candidate);
+      if (bytes == null) continue;
       final file = await _logoCacheFile();
       if (file != null) {
         try {
@@ -139,6 +155,27 @@ class PrintBrand {
         }
       }
       return bytes;
+    }
+    return null;
+  }
+
+  static Future<Uint8List?> _fetchLogo(String url) async {
+    try {
+      final res = await Dio().get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 6),
+          sendTimeout: const Duration(seconds: 6),
+        ),
+      );
+      if (res.statusCode != 200) return null;
+      final data = res.data;
+      if (data == null || data.isEmpty) return null;
+      // صفحة خطأ HTML بدل صورة.
+      final type = (res.headers.value('content-type') ?? '').toLowerCase();
+      if (type.contains('text/') || type.contains('json')) return null;
+      return Uint8List.fromList(data);
     } catch (_) {
       return null;
     }

@@ -239,6 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await PrintBrand.remember(
         (res['company_name'] ?? '').toString(),
         (res['logo_url'] ?? '').toString(),
+        serverBase: api.base,
       );
       if (!mounted) return;
       setState(() {

@@ -144,7 +144,7 @@ foreach ((array) ($stmt['lines'] ?? []) as $ln) {
 
 $brand = [];
 try {
-    $brand = document_header_brand($pdo);
+    $brand = document_header_brand_api($pdo);
 } catch (Throwable $e) {
     $brand = [];
 }
@@ -155,7 +155,7 @@ echo json_encode([
     'ok' => true,
     'message' => '',
     'source' => 'oracle',
-    'company_name' => (string) ($brand['company_name_ar'] ?? 'الشركة'),
+    'company_name' => (string) ($brand['company_name'] ?? 'الشركة'),
     'logo_url' => $brand['logo_url'] ?? null,
     'customer_id' => $customerId,
     'party_type' => 'customer',
