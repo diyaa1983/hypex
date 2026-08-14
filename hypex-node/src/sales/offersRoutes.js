@@ -226,6 +226,7 @@ async function renderForm(req, res, id) {
   const canPost = !!(doc && doc.id && !isPosted && isActive);
   const canUnpost = !!(doc && doc.id && isPosted);
   const canStop = !!(doc && doc.id && isActive);
+  const canDelete = !!(doc && doc.id && !isPosted);
   const lockedAttr = isPosted ? 'readonly' : '';
   const lockedDis = isPosted ? 'disabled' : '';
   const nav = await svc.browseNeighbors(doc ? doc.id : 0);
@@ -285,8 +286,15 @@ async function renderForm(req, res, id) {
           </form>
           <form method="post" action="/sales/offers/${doc ? doc.id : 0}/stop" style="display:inline"
                 onsubmit="return confirm('إيقاف العرض؟ لن يُطبَّق على الفواتير والطلبات.');">
-            <button type="submit" class="si-tb si-tb--danger" ${canStop ? '' : 'disabled'}>
+            <button type="submit" class="si-tb" ${canStop ? '' : 'disabled'}>
               <span class="si-tb-lbl">إيقاف العرض</span>
+            </button>
+          </form>
+          <form method="post" action="/sales/offers/${doc ? doc.id : 0}/delete" style="display:inline"
+                onsubmit="return confirm('حذف العرض نهائياً؟ لا يمكن التراجع.');">
+            <button type="submit" class="si-tb si-tb--danger" ${canDelete ? '' : 'disabled'}
+                    title="${isPosted ? 'فك الترحيل أولاً ثم احذف' : 'حذف العرض'}">
+              <span class="si-tb-lbl">حذف</span>
             </button>
           </form>
         </div>
@@ -463,6 +471,23 @@ router.post('/sales/offers/:id/stop', async (req, res) => {
   const q = result.ok ? 'msg' : 'err';
   res.redirect(
     '/sales/offers/' + id + '?' + q + '=' + encodeURIComponent(result.message || result.error || '')
+  );
+});
+
+router.post('/sales/offers/:id/delete', async (req, res) => {
+  if (!canOffers(req.session.user)) return forbid(res);
+  const id = Number(req.params.id);
+  const result = await svc.deleteOffer(id);
+  if (result.ok) {
+    return res.redirect(
+      '/sales/offers?msg=' + encodeURIComponent(result.message || 'تم الحذف')
+    );
+  }
+  res.redirect(
+    '/sales/offers/' +
+      id +
+      '?err=' +
+      encodeURIComponent(result.error || 'تعذر الحذف')
   );
 });
 

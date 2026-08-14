@@ -416,6 +416,46 @@ async function stopOffer(id) {
   return { ok: true, message: 'تم إيقاف العرض.' };
 }
 
+async function deleteOffer(id) {
+  await ensureSchema();
+  const oid = Number(id);
+  if (!oid) return { ok: false, error: 'معرّف غير صالح.' };
+  const rows = await safeQuery(
+    `SELECT id, offer_no, is_posted FROM sal_offer WHERE id = ? LIMIT 1`,
+    [oid]
+  );
+  const row = rows[0];
+  if (!row) return { ok: false, error: 'العرض غير موجود.' };
+  if (Number(row.is_posted) === 1) {
+    return { ok: false, error: 'لا يمكن حذف عرض مرحّل — فك الترحيل أولاً.' };
+  }
+  const conn = await db.getPool().getConnection();
+  try {
+    await conn.beginTransaction();
+    try {
+      await conn.execute(`DELETE FROM sal_offer_application WHERE offer_id = ?`, [oid]);
+    } catch {
+      /* الجدول قد لا يكون موجوداً بعد */
+    }
+    await conn.execute(`DELETE FROM sal_offer_line WHERE offer_id = ?`, [oid]);
+    await conn.execute(`DELETE FROM sal_offer WHERE id = ?`, [oid]);
+    await conn.commit();
+    return {
+      ok: true,
+      message: `تم حذف العرض ${row.offer_no || oid}.`,
+    };
+  } catch (e) {
+    try {
+      await conn.rollback();
+    } catch {
+      /* ignore */
+    }
+    return { ok: false, error: e.message || 'تعذر حذف العرض.' };
+  } finally {
+    conn.release();
+  }
+}
+
 /**
  * عروض نشطة مرحّلة لتاريخ مستند — مفهرسة حسب item_id
  * عند تعدد عروض لنفس المادة يُفضَّل الأحدث date_from ثم أكبر id
@@ -600,6 +640,7 @@ module.exports = {
   postOffer,
   unpostOffer,
   stopOffer,
+  deleteOffer,
   activeOfferMapForDate,
   computeOfferEffect,
   logApplications,
