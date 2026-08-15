@@ -9,6 +9,10 @@ class GpsMapTiles {
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
   static const esriUrl =
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+  static const esriImageryUrl =
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  static const esriLabelsUrl =
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
 
   static const esriVisibleMaxZoom = 14;
 
@@ -20,6 +24,23 @@ class GpsMapTiles {
     final provider = (mapProvider ?? 'esri').toLowerCase();
     const pkg = 'com.gppjo.biodev.mobile';
     final showEsri = zoom == null || zoom <= esriVisibleMaxZoom;
+
+    if (provider == 'imagery' || provider == 'satellite') {
+      return [
+        TileLayer(
+          urlTemplate: tileUrl ?? esriImageryUrl,
+          maxNativeZoom: 19,
+          maxZoom: 20,
+          userAgentPackageName: pkg,
+        ),
+        TileLayer(
+          urlTemplate: esriLabelsUrl,
+          maxNativeZoom: 19,
+          maxZoom: 20,
+          userAgentPackageName: pkg,
+        ),
+      ];
+    }
 
     if (provider == 'carto') {
       return [

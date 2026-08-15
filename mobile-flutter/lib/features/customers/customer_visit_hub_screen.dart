@@ -1088,7 +1088,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                   Expanded(
                     child: TabBarView(
                       children: [
-                        _InfoTab(customer: _customer!),
+                        _InfoTab(
+                          customer: _customer!,
+                          onSaved: () => _selectCustomer(_selectedId!),
+                        ),
                         _StatementTab(customer: _customer!),
                         _OrdersTab(
                           loading: _histOrdersLoading,
@@ -1174,7 +1177,7 @@ class _GpsPreviewDialog extends StatelessWidget {
                     ),
                   ),
                   children: [
-                    ...GpsMapTiles.layers(mapProvider: 'esri', zoom: 15),
+                    ...GpsMapTiles.layers(mapProvider: 'imagery'),
                     MarkerLayer(
                       markers: [
                         Marker(
@@ -1249,18 +1252,139 @@ class _GpsPreviewDialog extends StatelessWidget {
   }
 }
 
-class _InfoTab extends StatelessWidget {
-  const _InfoTab({required this.customer});
+class _InfoTab extends StatefulWidget {
+  const _InfoTab({required this.customer, required this.onSaved});
   final Map<String, dynamic> customer;
+  final VoidCallback onSaved;
 
-  Widget _row(String label, String value) {
+  @override
+  State<_InfoTab> createState() => _InfoTabState();
+}
+
+class _InfoTabState extends State<_InfoTab> {
+  late final TextEditingController _phone;
+  late final TextEditingController _tax;
+  late final TextEditingController _email;
+  late final TextEditingController _address;
+  double? _lat;
+  double? _lng;
+  double? _accuracy;
+  bool _saving = false;
+  bool _locating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.customer;
+    _phone = TextEditingController(text: Fmt.str(c['phone']));
+    _tax = TextEditingController(text: Fmt.str(c['tax_number']));
+    _email = TextEditingController(text: Fmt.str(c['email']));
+    _address = TextEditingController(text: Fmt.str(c['address']));
+    _lat = c['latitude'] != null ? Fmt.toDouble(c['latitude']) : null;
+    _lng = c['longitude'] != null ? Fmt.toDouble(c['longitude']) : null;
+  }
+
+  @override
+  void dispose() {
+    _phone.dispose();
+    _tax.dispose();
+    _email.dispose();
+    _address.dispose();
+    super.dispose();
+  }
+
+  String get _locLabel {
+    if (_lat == null || _lng == null) return 'لم يُحدَّد موقع بعد.';
+    return '${_lat!.toStringAsFixed(6)} ، ${_lng!.toStringAsFixed(6)}';
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => _locating = true);
+    try {
+      final pos = await LocationService.requirePosition();
+      if (!mounted) return;
+      setState(() {
+        _lat = pos.latitude;
+        _lng = pos.longitude;
+        _accuracy = pos.accuracy;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  Future<void> _pickOnMap() async {
+    final start = (_lat != null && _lng != null)
+        ? LatLng(_lat!, _lng!)
+        : const LatLng(31.9539, 35.9106);
+    final picked = await Navigator.of(context).push<LatLng>(
+      MaterialPageRoute(
+        builder: (_) => _LocationPickerScreen(initial: start),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _lat = picked.latitude;
+      _lng = picked.longitude;
+      _accuracy = null;
+    });
+  }
+
+  void _clearLocation() {
+    setState(() {
+      _lat = null;
+      _lng = null;
+      _accuracy = null;
+    });
+  }
+
+  Future<void> _save() async {
+    final s = context.read<SessionController>();
+    setState(() => _saving = true);
+    try {
+      final fields = <String, dynamic>{
+        'id': Fmt.toInt(widget.customer['id']),
+        'phone': _phone.text.trim(),
+        'tax_number': _tax.text.trim(),
+        'email': _email.text.trim(),
+        'address_ar': _address.text.trim(),
+      };
+      if (_lat != null && _lng != null) {
+        fields['latitude'] = _lat;
+        fields['longitude'] = _lng;
+        if (_accuracy != null) fields['gps_accuracy'] = _accuracy;
+      } else {
+        fields['clear_gps'] = '1';
+      }
+      final res = await context.read<ApiClient>().postForm(
+            AppConfig.customerUpdatePath,
+            csrf: s.csrf,
+            fields: fields,
+          );
+      if (!mounted) return;
+      showSnack(context, Fmt.str(res['message']).isEmpty
+          ? 'تم حفظ بيانات العميل.'
+          : Fmt.str(res['message']));
+      widget.onSaved();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Widget _readonlyRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 110,
+            width: 90,
             child: Text(
               label,
               style: const TextStyle(
@@ -1274,8 +1398,8 @@ class _InfoTab extends StatelessWidget {
             child: Text(
               value.isEmpty ? '—' : value,
               style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
               ),
             ),
           ),
@@ -1286,15 +1410,8 @@ class _InfoTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lat = customer['latitude'];
-    final lng = customer['longitude'];
-    final loc = (lat != null && lng != null)
-        ? '${Fmt.trimNum(Fmt.toDouble(lat))} ، ${Fmt.trimNum(Fmt.toDouble(lng))}'
-        : '';
-    final addr = Fmt.str(customer['region_address_name']).isNotEmpty
-        ? Fmt.str(customer['region_address_name'])
-        : Fmt.str(customer['address']);
-
+    final c = widget.customer;
+    final hasGps = _lat != null && _lng != null;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1307,19 +1424,271 @@ class _InfoTab extends StatelessWidget {
             boxShadow: AppTheme.softShadow,
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _row('الاسم', Fmt.str(customer['name'])),
-              _row('الرمز', Fmt.str(customer['code'])),
-              _row('الهاتف', Fmt.str(customer['phone'])),
-              _row('الرقم الضريبي', Fmt.str(customer['tax_number'])),
-              _row('البريد', Fmt.str(customer['email'])),
-              _row('المنطقة', Fmt.str(customer['region_name'])),
-              _row('العنوان', addr),
-              _row('الموقع', loc),
+              _readonlyRow('الاسم', Fmt.str(c['name'])),
+              _readonlyRow('الرمز', Fmt.str(c['code'])),
+              if (Fmt.str(c['region_name']).isNotEmpty)
+                _readonlyRow('المنطقة', Fmt.str(c['region_name'])),
+              const Divider(height: 22),
+              TextField(
+                controller: _phone,
+                keyboardType: TextInputType.phone,
+                textDirection: TextDirection.ltr,
+                decoration: const InputDecoration(
+                  labelText: 'الهاتف',
+                  prefixIcon: Icon(Icons.phone_rounded),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _tax,
+                keyboardType: TextInputType.number,
+                textDirection: TextDirection.ltr,
+                decoration: const InputDecoration(
+                  labelText: 'الرقم الضريبي',
+                  prefixIcon: Icon(Icons.badge_rounded),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                textDirection: TextDirection.ltr,
+                decoration: const InputDecoration(
+                  labelText: 'البريد',
+                  prefixIcon: Icon(Icons.email_rounded),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _address,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'العنوان',
+                  prefixIcon: Icon(Icons.location_on_outlined),
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'موقع العميل',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _locLabel,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textSoft,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed:
+                          (_saving || _locating) ? null : _pickOnMap,
+                      icon: const Icon(Icons.map_rounded),
+                      label: const Text('تحديد على الخريطة'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: (_saving || _locating)
+                          ? null
+                          : _useCurrentLocation,
+                      icon: _locating
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.my_location_rounded),
+                      label: const Text('موقعي الحالي'),
+                    ),
+                  ),
+                ],
+              ),
+              if (hasGps) ...[
+                const SizedBox(height: 4),
+                TextButton.icon(
+                  onPressed: _saving ? null : _clearLocation,
+                  icon: const Icon(Icons.clear_rounded),
+                  label: const Text('مسح الموقع'),
+                ),
+              ],
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: _saving || _locating ? null : _save,
+                icon: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.save_rounded),
+                label: Text(_saving ? 'جاري الحفظ...' : 'حفظ التعديلات'),
+              ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// شاشة اختيار موقع العميل على الخريطة (بالضغط أو السحب).
+class _LocationPickerScreen extends StatefulWidget {
+  const _LocationPickerScreen({required this.initial});
+  final LatLng initial;
+
+  @override
+  State<_LocationPickerScreen> createState() => _LocationPickerScreenState();
+}
+
+class _LocationPickerScreenState extends State<_LocationPickerScreen> {
+  late LatLng _selected = widget.initial;
+  final MapController _map = MapController();
+  bool _locating = false;
+  double _zoom = 16;
+  bool _satellite = true;
+
+  Future<void> _goToCurrent() async {
+    setState(() => _locating = true);
+    try {
+      final pos = await LocationService.requirePosition();
+      if (!mounted) return;
+      final p = LatLng(pos.latitude, pos.longitude);
+      setState(() {
+        _selected = p;
+        _zoom = 17;
+      });
+      _map.move(p, 17);
+    } catch (e) {
+      if (!mounted) return;
+      showSnack(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MobileScaffold(
+      title: const Text('تحديد موقع العميل'),
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _map,
+            options: MapOptions(
+              initialCenter: _selected,
+              initialZoom: _zoom,
+              maxZoom: 19,
+              onTap: (_, p) => setState(() => _selected = p),
+              onPositionChanged: (pos, _) {
+                if ((pos.zoom - _zoom).abs() > 0.01) {
+                  setState(() => _zoom = pos.zoom);
+                }
+              },
+            ),
+            children: [
+              ...GpsMapTiles.layers(
+                mapProvider: _satellite ? 'imagery' : 'esri',
+                zoom: _zoom,
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _selected,
+                    width: 46,
+                    height: 46,
+                    child: const Icon(
+                      Icons.location_on_rounded,
+                      color: AppTheme.danger,
+                      size: 44,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          Positioned(
+            right: 12,
+            bottom: 92,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'loc_layer',
+                  tooltip: _satellite ? 'عرض الشوارع' : 'عرض الأقمار الصناعية',
+                  onPressed: () => setState(() => _satellite = !_satellite),
+                  child: Icon(
+                    _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                FloatingActionButton(
+                  heroTag: 'loc_cur',
+                  onPressed: _locating ? null : _goToCurrent,
+                  child: _locating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.my_location_rounded),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 16,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: AppTheme.softShadow,
+                  ),
+                  child: Text(
+                    'الموقع المختار: ${_selected.latitude.toStringAsFixed(6)} ، ${_selected.longitude.toStringAsFixed(6)}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.of(context).pop(_selected),
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('اعتماد هذا الموقع'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

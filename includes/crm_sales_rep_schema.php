@@ -835,3 +835,88 @@ function crm_mobile_customer_create_for_user(
         ],
     ];
 }
+
+/**
+ * تعديل بيانات عميل من الهاتف — الاسم والرمز غير قابلين للتعديل.
+ * تُحدَّث فقط الحقول المُرسلة (الهاتف/البريد/الرقم الضريبي/العنوان/الموقع).
+ * @return array{ok:bool,message:string,customer?:array<string,mixed>}
+ */
+function crm_mobile_customer_update_for_user(
+    PDO $pdo,
+    int $userId,
+    int $customerId,
+    array $fields
+): array {
+    if ($customerId < 1) {
+        return ['ok' => false, 'message' => 'معرّف العميل مطلوب.'];
+    }
+    $repId = crm_sales_rep_id_for_user($pdo, $userId);
+    $isAdmin = function_exists('user_is_system_admin') && user_is_system_admin();
+    if ($repId === null && !$isAdmin) {
+        return ['ok' => false, 'message' => 'حسابك غير مربوط بمندوب مبيعات.'];
+    }
+    if ($repId !== null && !$isAdmin
+        && !crm_customer_is_linked_to_sales_rep($pdo, $customerId, $repId)) {
+        return ['ok' => false, 'message' => 'هذا العميل غير مربوط بمندوبك.'];
+    }
+
+    crm_customer_ensure_gps_columns($pdo);
+    $exists = $pdo->prepare('SELECT id FROM crm_customer WHERE id = ? LIMIT 1');
+    $exists->execute([$customerId]);
+    if (!$exists->fetchColumn()) {
+        return ['ok' => false, 'message' => 'العميل غير موجود.'];
+    }
+
+    $sets = [];
+    $params = [];
+    foreach ([
+        'phone' => 'phone',
+        'email' => 'email',
+        'tax_number' => 'tax_number',
+        'address_ar' => 'address_ar',
+    ] as $key => $col) {
+        if (array_key_exists($key, $fields)) {
+            $val = trim((string) $fields[$key]);
+            $sets[] = "$col = ?";
+            $params[] = $val !== '' ? $val : null;
+        }
+    }
+
+    $gpsProvided = array_key_exists('latitude', $fields)
+        || array_key_exists('longitude', $fields)
+        || !empty($fields['clear_gps']);
+    if ($gpsProvided) {
+        $gps = crm_customer_gps_parse_input($fields);
+        if ($gps['clear']) {
+            $sets[] = 'latitude = NULL';
+            $sets[] = 'longitude = NULL';
+            $sets[] = 'gps_accuracy = NULL';
+        } elseif ($gps['latitude'] !== null && $gps['longitude'] !== null) {
+            $sets[] = 'latitude = ?';
+            $params[] = $gps['latitude'];
+            $sets[] = 'longitude = ?';
+            $params[] = $gps['longitude'];
+            $sets[] = 'gps_accuracy = ?';
+            $params[] = $gps['gps_accuracy'];
+            $sets[] = 'gps_at = NOW()';
+        }
+    }
+
+    if ($sets === []) {
+        return ['ok' => false, 'message' => 'لا توجد بيانات للتعديل.'];
+    }
+
+    $params[] = $customerId;
+    $sql = 'UPDATE crm_customer SET ' . implode(', ', $sets) . ' WHERE id = ?';
+    $pdo->prepare($sql)->execute($params);
+
+    if ($repId !== null && !empty($fields['latitude']) && !empty($fields['longitude'])) {
+        try {
+            require_once app_path('includes/sal_rep_route.php');
+            sal_rep_route_add_customer_today($pdo, $repId, $customerId, $userId);
+        } catch (Throwable $e) {
+        }
+    }
+
+    return ['ok' => true, 'message' => 'تم حفظ بيانات العميل.'];
+}
