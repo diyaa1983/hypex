@@ -1596,54 +1596,84 @@ router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
         )
         .join('') || ui.emptyRow(12, 'لا بنود');
 
-    const salesmanLine =
-      header.salesman_no || header.salesman_name
-        ? `<div><span class="muted">البائع</span><div><strong dir="ltr">${esc(
-            header.salesman_no || ''
-          )}</strong>${header.salesman_name ? ' — ' + esc(header.salesman_name) : ''}
-            <span class="muted" style="font-size:.78rem"> (من بطاقة العميل)</span></div></div>`
-        : '';
+    const qtySum = lines.reduce((s, ln) => s + Number(ln.qty || 0), 0);
+    const bonusSum = lines.reduce((s, ln) => s + Number(ln.bonus || 0), 0);
+    const discPct = Number(header.per_disc || 0);
+    const discLabel = discPct > 0 ? ` (${(discPct * 100).toFixed(2).replace(/\.?0+$/, '')}%)` : '';
+
+    const totalsRows = [
+      ['مجموع الفاتورة', fmtAmt(header.gross), false],
+      [`الخصم${discLabel}`, fmtAmt(header.vou_disc), false],
+      ['الصافي قبل الضريبة', fmtAmt(header.net), false],
+      ['قيمة الضريبة', fmtAmt(header.tax_sum), false],
+      ['الإجمالي النهائي', fmtAmt(header.total), true],
+    ]
+      .map(
+        ([lab, val, grand]) => `<tr${grand ? ' class="ora-tot__grand"' : ''}>
+          <th>${esc(lab)}</th><td dir="ltr">${esc(val)}</td></tr>`
+      )
+      .join('');
 
     result = `
       <div class="si-print-area">
-        <div class="si-surface" style="padding:1rem;margin-bottom:.75rem">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:.55rem;font-size:.9rem">
-            <div><span class="muted">رقم الفاتورة</span><div dir="ltr"><strong>${esc(
+        <div class="si-surface ora-inv-head">
+          <div class="ora-inv-grid">
+            <div class="ora-cell"><span class="muted">رقم الفاتورة</span><div dir="ltr"><strong>${esc(
               header.v_num
             )} / ${esc(header.vyear)}</strong></div></div>
-            <div><span class="muted">التاريخ</span><div dir="ltr"><strong>${esc(
+            <div class="ora-cell"><span class="muted">التاريخ</span><div dir="ltr"><strong>${esc(
               isoToDmy(header.vdate)
             )}</strong></div></div>
-            <div><span class="muted">المستودع</span><div dir="ltr"><strong>${esc(
+            <div class="ora-cell"><span class="muted">المستودع</span><div dir="ltr"><strong>${esc(
               header.store
             )}</strong></div></div>
-            <div><span class="muted">العميل</span><div><strong dir="ltr">${esc(
+            <div class="ora-cell"><span class="muted">رقم العميل</span><div dir="ltr"><strong>${esc(
               header.cust_acc || '—'
-            )}</strong>
-              ${header.customer_name ? ` — ${esc(header.customer_name)}` : ''}
-            </div></div>
-            ${salesmanLine}
-            <div><span class="muted">قبل الخصم</span><div dir="ltr"><strong>${esc(
-              fmtAmt(header.gross)
             )}</strong></div></div>
-            <div><span class="muted">الخصم</span><div dir="ltr"><strong>${esc(
-              fmtAmt(header.vou_disc)
+            <div class="ora-cell ora-cell--wide"><span class="muted">اسم العميل</span><div><strong>${esc(
+              header.customer_name || '—'
             )}</strong></div></div>
-            <div><span class="muted">الضريبة</span><div dir="ltr"><strong>${esc(
-              fmtAmt(header.tax_sum)
-            )}</strong></div></div>
-            <div><span class="muted">الإجمالي</span><div dir="ltr"><strong>${esc(
-              fmtAmt(header.total)
-            )}</strong></div></div>
+            <div class="ora-cell ora-cell--wide"><span class="muted">البائع (من بطاقة العميل)</span><div>${
+              header.salesman_no || header.salesman_name
+                ? `<strong dir="ltr">${esc(header.salesman_no || '')}</strong>${
+                    header.salesman_name ? ' — ' + esc(header.salesman_name) : ''
+                  }`
+                : '—'
+            }</div></div>
           </div>
         </div>
         ${ui.tableSurface(
           'بنود الفاتورة',
           `${lines.length} بند`,
           ['#', 'المادة', 'البيان', 'الفئة', 'التشغيلة', 'الوحدة', 'الكمية', 'بونص', 'السعر', 'ض%', 'الإجمالي', 'الضريبة'],
-          lineRows
+          lineRows +
+            (lines.length
+              ? `<tr class="ora-lines__sum">
+                  <td colspan="6">مجموع البنود</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(qtySum))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(bonusSum))}</td>
+                  <td></td><td></td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(header.gross))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(header.tax_sum))}</td>
+                </tr>`
+              : '')
         )}
-      </div>`;
+        <div class="ora-tot">
+          <table class="ora-tot__table">${totalsRows}</table>
+        </div>
+      </div>
+      <style>
+        .ora-inv-head{padding:1rem;margin-bottom:.75rem}
+        .ora-inv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.55rem .9rem;font-size:.9rem}
+        .ora-cell--wide{grid-column:span 2}
+        .ora-lines__sum td{background:#f4f6fa;font-weight:800}
+        .ora-tot{display:flex;justify-content:flex-start;margin-top:.75rem;page-break-inside:avoid}
+        .ora-tot__table{border-collapse:collapse;min-width:20rem;font-size:.9rem;background:#fff}
+        .ora-tot__table th,.ora-tot__table td{border:1px solid #dfe4ec;padding:.4rem .8rem}
+        .ora-tot__table th{background:#f4f6fa;text-align:right;font-weight:600;white-space:nowrap}
+        .ora-tot__table td{text-align:left;font-variant-numeric:tabular-nums;min-width:8rem}
+        .ora-tot__grand th,.ora-tot__grand td{background:#eef2ff;font-weight:800;font-size:.98rem}
+      </style>`;
   } else if (run) {
     result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(
       data.message || 'لا توجد فاتورة بهذا الرقم'
