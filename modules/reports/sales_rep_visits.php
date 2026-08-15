@@ -40,7 +40,7 @@ foreach ($rows as $r) {
     }
 }
 $groupByRep = $salesRepId < 1 && count($uniqueRepIds) > 1;
-$colCount = $groupByRep ? 12 : 13;
+$colCount = $groupByRep ? 13 : 14;
 
 $grouped = [];
 if ($groupByRep) {
@@ -154,6 +154,7 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                 <th>التاريخ</th>
                 <?php if (!$groupByRep): ?><th>المندوب</th><?php endif; ?>
                 <th>العميل</th>
+                <th>نطاق الزيارة</th>
                 <th>رقم العميل</th>
                 <th>المنطقة</th>
                 <th>العنوان</th>
@@ -183,6 +184,7 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                             <td dir="ltr"><?= $seq ?></td>
                             <td><?= esc(sal_rep_visit_date_with_weekday((string) ($r['route_date'] ?? ''))) ?></td>
                             <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
+                            <td><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
                             <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
                             <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>
                             <td><?= esc((string) (($r['address_name'] ?? '') !== '' ? $r['address_name'] : '—')) ?></td>
@@ -202,6 +204,7 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                         <td><?= esc(sal_rep_visit_date_with_weekday((string) ($r['route_date'] ?? ''))) ?></td>
                         <td><?= esc((string) ($r['sales_rep_name'] ?? '')) ?></td>
                         <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
+                        <td><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
                         <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
                         <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>
                         <td><?= esc((string) (($r['address_name'] ?? '') !== '' ? $r['address_name'] : '—')) ?></td>

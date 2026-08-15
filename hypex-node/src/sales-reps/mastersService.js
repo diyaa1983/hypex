@@ -52,6 +52,12 @@ function nextDay(iso) {
   return d.toISOString().slice(0, 10);
 }
 
+function isoToDmyLocal(v) {
+  const s = String(v == null ? '' : v).slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : s;
+}
+
 function daysBetween(from, to) {
   const out = [];
   if (!isIsoDate(from) || !isIsoDate(to) || from > to) return out;
@@ -128,6 +134,7 @@ async function ensureVisitColumns() {
     ['sal_rep_route_line', 'visit_checkout_at', 'DATETIME NULL DEFAULT NULL'],
     ['sal_rep_route_line', 'checkin_method', 'VARCHAR(20) NULL DEFAULT NULL'],
     ['sal_rep_route_line', 'checkout_method', 'VARCHAR(20) NULL DEFAULT NULL'],
+    ['sal_rep_route_line', 'in_plan', 'TINYINT(1) NOT NULL DEFAULT 1'],
   ]) {
     try {
       await db.query(`SELECT \`${col[1]}\` FROM \`${col[0]}\` LIMIT 1`);
@@ -608,7 +615,7 @@ async function rebuildDailyRoutes(conn, salesRepId, from, to) {
     let sort = 0;
     for (const c of custRows) {
       await conn.execute(
-        `INSERT INTO sal_rep_route_line (route_id, customer_id, sort_order) VALUES (?,?,?)`,
+        `INSERT INTO sal_rep_route_line (route_id, customer_id, sort_order, in_plan) VALUES (?,?,?,1)`,
         [routeId, Number(c.customer_id), sort++]
       );
     }
@@ -650,6 +657,30 @@ async function saveTour(payload, userId) {
     salesRepId,
   ]);
   if (!rep[0]) return { ok: false, error: 'المندوب غير موجود أو غير نشط.' };
+
+  // منع تداخل الفترات: لا يجوز أن تتقاطع جولة هذا المندوب مع جولة أخرى له (تداخل الفترات)
+  // شرط التداخل: existing.date_from <= new.date_to AND existing.date_to >= new.date_from
+  const overlap = await safeQuery(
+    `SELECT id, date_from, date_to, status
+     FROM sal_rep_tour
+     WHERE sales_rep_id = ?
+       AND is_active = 1
+       AND id <> ?
+       AND date_from <= ?
+       AND date_to >= ?
+     ORDER BY date_from ASC
+     LIMIT 1`,
+    [salesRepId, id || 0, dateTo, dateFrom]
+  );
+  if (overlap[0]) {
+    const o = overlap[0];
+    const f = isoToDmyLocal(o.date_from);
+    const t = isoToDmyLocal(o.date_to);
+    return {
+      ok: false,
+      error: `تتداخل الفترة مع جولة أخرى لنفس المندوب (#${o.id} · ${f} → ${t}). اختر فترة لا تتقاطع معها.`,
+    };
+  }
 
   await ensureWeekdayColumn();
 
@@ -1030,6 +1061,7 @@ async function reportVisits({ from = '', to = '', salesRepId = 0, method = '', s
               l.checkin_method, l.checkout_method,
               l.checkin_lat, l.checkin_lng, l.checkin_accuracy, l.checkin_distance_m,
               l.checkout_lat, l.checkout_lng, l.checkout_accuracy, l.checkout_distance_m,
+              COALESCE(l.in_plan, 1) AS in_plan,
               q.id AS pending_request_id, q.reason AS checkout_reason
        FROM sal_rep_route_line l
        INNER JOIN sal_rep_route r ON r.id = l.route_id

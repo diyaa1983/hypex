@@ -20,14 +20,17 @@ function sal_rep_visit_ensure_schema(PDO $pdo): bool
     }
     try {
         $pdo->query('SELECT checkin_lat FROM sal_rep_route_line LIMIT 1');
+        $pdo->query('SELECT in_plan FROM sal_rep_route_line LIMIT 1');
         $pdo->query('SELECT id FROM sal_rep_visit_checkout_request LIMIT 1');
         $ok = true;
     } catch (Throwable $e) {
         require_once app_path('includes/sql_migration.php');
         sql_migration_run_file($pdo, 'database/migrations/266_report_sales_rep_tours.sql');
         sql_migration_run_file($pdo, 'database/migrations/270_sal_rep_visit_checkin.sql');
+        sql_migration_run_file($pdo, 'database/migrations/275_sal_rep_visit_in_plan.sql');
         try {
             $pdo->query('SELECT checkin_lat FROM sal_rep_route_line LIMIT 1');
+            $pdo->query('SELECT in_plan FROM sal_rep_route_line LIMIT 1');
             $pdo->query('SELECT id FROM sal_rep_visit_checkout_request LIMIT 1');
             $ok = true;
         } catch (Throwable $e2) {
@@ -1052,6 +1055,7 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
                    l.checkin_method, l.checkout_method,
                    l.checkin_lat, l.checkin_lng, l.checkin_accuracy, l.checkin_distance_m,
                    l.checkout_lat, l.checkout_lng, l.checkout_accuracy, l.checkout_distance_m,
+                   COALESCE(l.in_plan, 1) AS in_plan,
                    q.id AS pending_request_id, q.status AS checkout_request_status, q.reason AS checkout_reason
             FROM sal_rep_route_line l
             INNER JOIN sal_rep_route r ON r.id = l.route_id
@@ -1118,6 +1122,9 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
             'checkout_lng' => $r['checkout_lng'] ?? null,
             'checkout_accuracy' => $r['checkout_accuracy'] ?? null,
             'checkout_distance_m' => $r['checkout_distance_m'] ?? null,
+            'in_plan' => (int) ($r['in_plan'] ?? 1) === 1,
+            'plan_scope' => (int) ($r['in_plan'] ?? 1) === 1 ? 'inside' : 'outside',
+            'plan_scope_label' => (int) ($r['in_plan'] ?? 1) === 1 ? 'داخل الجولة' : 'خارج الجولة',
             'duration_label' => sal_rep_visit_duration_label($checkinAt !== '' ? $checkinAt : null, $checkoutAt !== '' ? $checkoutAt : null),
             'status' => $stLabel,
             'status_label' => $stText,

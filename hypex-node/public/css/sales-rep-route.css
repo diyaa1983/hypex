@@ -449,35 +449,11 @@
   color: #fff;
 }
 
-.srr-form__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.45rem;
-  margin-top: auto;
-  padding: 0.5rem 0.65rem;
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(4px);
-  box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.06);
-}
-
-.srr-form__actions-sum {
-  font-size: 0.78rem;
+.srr-plan__sum {
+  margin-inline-start: auto;
+  font-size: 0.76rem;
   font-weight: 700;
-  color: #475569;
-}
-
-.srr-form__actions-btns {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
+  color: #64748b;
 }
 
 .srr-selected {
@@ -684,8 +660,8 @@
 
 .srr-selected-panel__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
   padding: 0.55rem 0.75rem;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);

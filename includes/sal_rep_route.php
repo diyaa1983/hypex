@@ -376,8 +376,9 @@ function sal_rep_route_add_customer_today(
     }
 
     try {
+        // عميل أضيف اختيارياً من قائمة العملاء، وليس من الخطة المرحّلة.
         $pdo->prepare(
-            'INSERT INTO sal_rep_route_line (route_id, customer_id, sort_order) VALUES (?,?,?)'
+            'INSERT INTO sal_rep_route_line (route_id, customer_id, sort_order, in_plan) VALUES (?,?,?,0)'
         )->execute([$routeId, $customerId, $sort]);
     } catch (Throwable $e) {
         // تكرار متزامن — العميل مضاف مسبقاً

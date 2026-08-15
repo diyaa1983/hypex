@@ -204,6 +204,7 @@ class _VisitCard extends StatelessWidget {
     final outMethod = Fmt.str(row['checkout_method_label']).isEmpty
         ? Fmt.str(row['checkout_method'])
         : Fmt.str(row['checkout_method_label']);
+    final inPlan = row['in_plan'] == true || Fmt.toInt(row['in_plan']) == 1;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,6 +230,11 @@ class _VisitCard extends StatelessWidget {
               ),
               StatusPill(text: Fmt.str(row['status_label']), color: statusColor),
             ],
+          ),
+          const SizedBox(height: 8),
+          StatusPill(
+            text: inPlan ? 'داخل الجولة' : 'خارج الجولة',
+            color: inPlan ? AppTheme.success : AppTheme.warn,
           ),
           const SizedBox(height: 12),
           _Pair(

@@ -36,6 +36,15 @@ function hero(opts) {
       if (a.onclick || a.print) {
         return `<button type="button" class="${cls} ${a.print ? 'si-btn--print no-print' : 'no-print'}" data-print="1">${esc(a.label)}</button>`;
       }
+      // زر إرسال لنموذج في الصفحة (form="…") — يسمح بوضع أزرار الحفظ في الترويسة
+      if (a.submit) {
+        const formAttr = a.form ? ` form="${esc(a.form)}"` : '';
+        const nameAttr = a.name ? ` name="${esc(a.name)}" value="${esc(a.value ?? '')}"` : '';
+        const titleAttr = a.title ? ` title="${esc(a.title)}"` : '';
+        return `<button type="submit" class="${cls} no-print"${formAttr}${nameAttr}${titleAttr}${
+          a.hxSave ? ' data-hx-save="1"' : ''
+        }>${esc(a.label)}</button>`;
+      }
       const target = a.external ? ' target="_blank" rel="noopener"' : '';
       const extraCls = a.className ? ` ${a.className}` : '';
       return `<a class="${cls}${extraCls}${a.external || a.ghost ? ' no-print' : ' no-print'}" href="${esc(a.href || '#')}"${target}>${esc(a.label)}</a>`;

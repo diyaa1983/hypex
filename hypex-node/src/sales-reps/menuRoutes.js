@@ -453,7 +453,51 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         title: formTitle,
         subtitle: 'عملاء المندوب فقط · فترة شهرية قابلة للتعديل · اختر يوم الأسبوع ثم العملاء لذلك اليوم',
         actions: [
-          { label: 'قائمة الجولات', href: '/sales-reps/route', primary: true },
+          ...(isPosted
+            ? [
+                {
+                  label: 'فك ترحيل',
+                  submit: true,
+                  form: 'srr-form',
+                  name: 'tour_action',
+                  value: 'unpost',
+                },
+                {
+                  label: 'طباعة الجولة',
+                  href: `/sales-reps/route/${edit.id}/print`,
+                  primary: true,
+                  external: true,
+                },
+              ]
+            : [
+                {
+                  label: 'حفظ',
+                  submit: true,
+                  form: 'srr-form',
+                  primary: true,
+                  hxSave: true,
+                  title: 'F10',
+                },
+                {
+                  label: 'حفظ وترحيل',
+                  submit: true,
+                  form: 'srr-form',
+                  name: 'and_post',
+                  value: '1',
+                },
+                ...(edit
+                  ? [
+                      {
+                        label: 'ترحيل',
+                        submit: true,
+                        form: 'srr-form',
+                        name: 'tour_action',
+                        value: 'post',
+                      },
+                    ]
+                  : []),
+              ]),
+          { label: 'قائمة الجولات', href: '/sales-reps/route' },
           { label: '＋ جولة جديدة', href: '/sales-reps/route?new=1' },
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
           { label: 'المندوبين', href: '/sales-reps/list' },
@@ -551,29 +595,10 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
             <div class="srr-selected-panel">
               <div class="srr-selected-panel__head">
                 <strong>عملاء الخطة</strong>
+                <span class="srr-plan__sum" id="srr-actions-sum">لا تعيينات بعد</span>
                 <span class="srr-chip-count" id="srr-selected-count">0 تعيين</span>
               </div>
               <div class="srr-plan" id="srr-plan"></div>
-            </div>
-
-            <div class="srr-form__actions">
-              <div class="srr-form__actions-sum" id="srr-actions-sum">لا تعيينات بعد</div>
-              <div class="srr-form__actions-btns">
-                ${
-                  isPosted
-                    ? `<button class="si-btn" type="submit" name="tour_action" value="unpost">فك ترحيل</button>
-                      <a class="si-btn si-btn--primary" href="/sales-reps/route/${edit.id}/print" target="_blank">طباعة الجولة</a>`
-                    : `<button class="si-btn si-btn--primary" type="submit" data-hx-save="1" title="F10">حفظ</button>
-                      <button class="si-btn" type="submit" name="and_post" value="1">حفظ وترحيل</button>
-                      ${
-                        edit
-                          ? `<button class="si-btn" type="submit" name="tour_action" value="post">ترحيل</button>`
-                          : ''
-                      }`
-                }
-                <a class="si-btn" href="/sales-reps/route">رجوع للقائمة</a>
-                <a class="si-btn" href="/sales-reps/route?new=1">جديد</a>
-              </div>
             </div>
           </div>
 
@@ -1556,13 +1581,20 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
 
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
-  const colCount = groupByRep ? 12 : 13;
+  const colCount = groupByRep ? 13 : 14;
+
+  function scopeLbl(r) {
+    return Number(r.in_plan ?? 1) === 1
+      ? ui.statusPill('ok', 'داخل الجولة')
+      : ui.statusPill('wait', 'خارج الجولة');
+  }
 
   function visitDataCells(r, seq, includeRep) {
     return `<td class="si-num" dir="ltr">${seq}</td>
       <td>${esc(dateWithWeekday(r.route_date))}</td>
       ${includeRep ? `<td>${esc(r.sales_rep_name || '—')}</td>` : ''}
       <td>${esc(r.customer_name || '—')}</td>
+      <td>${scopeLbl(r)}</td>
       <td class="si-num" dir="ltr">${esc(r.customer_code || '')}</td>
       <td>${esc(r.region_name || '—')}</td>
       <td>${esc(r.address_name || '—')}</td>
@@ -1609,6 +1641,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         '#',
         'التاريخ',
         'العميل',
+        'نطاق الزيارة',
         'رقم العميل',
         'المنطقة',
         'العنوان',
@@ -1624,6 +1657,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'التاريخ',
         'المندوب',
         'العميل',
+        'نطاق الزيارة',
         'رقم العميل',
         'المنطقة',
         'العنوان',
