@@ -385,9 +385,10 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
   const weekdayChips = dayOrder
     .map(
       (wd) =>
-        `<button type="button" class="srr-day-chip" data-weekday="${wd}" ${isPosted ? 'disabled' : ''}>${esc(
-          dayLabels[wd]
-        )}</button>`
+        `<button type="button" class="srr-day-chip" data-weekday="${wd}" ${isPosted ? 'disabled' : ''}>
+          <span class="srr-day-chip__lab">${esc(dayLabels[wd])}</span>
+          <b class="srr-day-chip__n" data-count-for="${wd}">0</b>
+        </button>`
     )
     .join('');
 
@@ -518,6 +519,7 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
                 <div class="srr-weekdays__chips" id="srr-day-chips">${weekdayChips}</div>
                 <p class="srr-weekdays__hint muted" id="srr-day-hint">حدد يوماً من أيام الأسبوع لبدء إضافة العملاء.</p>
               </div>
+              <div class="srr-cal" id="srr-cal" aria-hidden="true"></div>
             </div>
 
             <div class="srr-step" data-step="3">
@@ -549,42 +551,29 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
             <div class="srr-selected-panel">
               <div class="srr-selected-panel__head">
                 <strong>عملاء الخطة</strong>
-                <span class="muted" id="srr-selected-count">0 تعيين</span>
+                <span class="srr-chip-count" id="srr-selected-count">0 تعيين</span>
               </div>
-              <p class="muted" style="margin:0;padding:.35rem .75rem 0;font-size:.78rem;font-weight:600">
-                كل عميل مرتبط بيوم أسبوع ضمن فترة الجولة (من/إلى) — عند الترحيل يظهر في خط السير في ذلك اليوم فقط.
-              </p>
-              <div class="srr-selected-table-wrap">
-                <table class="si-table srr-selected-table" id="srr-selected-table">
-                  <thead>
-                    <tr>
-                      <th>اليوم</th>
-                      <th>العميل</th>
-                      <th>المنطقة</th>
-                      <th>العنوان</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody id="srr-selected-body"></tbody>
-                </table>
-              </div>
+              <div class="srr-plan" id="srr-plan"></div>
             </div>
 
             <div class="srr-form__actions">
-              ${
-                isPosted
-                  ? `<button class="si-btn" type="submit" name="tour_action" value="unpost">فك ترحيل</button>
-                    <a class="si-btn si-btn--primary" href="/sales-reps/route/${edit.id}/print" target="_blank">طباعة الجولة</a>`
-                  : `<button class="si-btn si-btn--primary" type="submit" data-hx-save="1" title="F10">حفظ</button>
-                    <button class="si-btn" type="submit" name="and_post" value="1">حفظ وترحيل</button>
-                    ${
-                      edit
-                        ? `<button class="si-btn" type="submit" name="tour_action" value="post">ترحيل</button>`
-                        : ''
-                    }`
-              }
-              <a class="si-btn" href="/sales-reps/route">رجوع للقائمة</a>
-              <a class="si-btn" href="/sales-reps/route?new=1">جديد</a>
+              <div class="srr-form__actions-sum" id="srr-actions-sum">لا تعيينات بعد</div>
+              <div class="srr-form__actions-btns">
+                ${
+                  isPosted
+                    ? `<button class="si-btn" type="submit" name="tour_action" value="unpost">فك ترحيل</button>
+                      <a class="si-btn si-btn--primary" href="/sales-reps/route/${edit.id}/print" target="_blank">طباعة الجولة</a>`
+                    : `<button class="si-btn si-btn--primary" type="submit" data-hx-save="1" title="F10">حفظ</button>
+                      <button class="si-btn" type="submit" name="and_post" value="1">حفظ وترحيل</button>
+                      ${
+                        edit
+                          ? `<button class="si-btn" type="submit" name="tour_action" value="post">ترحيل</button>`
+                          : ''
+                      }`
+                }
+                <a class="si-btn" href="/sales-reps/route">رجوع للقائمة</a>
+                <a class="si-btn" href="/sales-reps/route?new=1">جديد</a>
+              </div>
             </div>
           </div>
 
@@ -624,8 +613,10 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       var totalEl = document.getElementById('srr-cust-total');
       var dayLabelEl = document.getElementById('srr-cust-day-label');
       var dayHint = document.getElementById('srr-day-hint');
-      var bodySel = document.getElementById('srr-selected-body');
+      var planEl = document.getElementById('srr-plan');
       var countEl = document.getElementById('srr-selected-count');
+      var sumEl = document.getElementById('srr-actions-sum');
+      var calEl = document.getElementById('srr-cal');
       var linesInput = document.getElementById('srr-lines-json');
       var form = document.getElementById('srr-form');
       var addVisibleBtn = document.getElementById('srr-add-visible');
@@ -664,6 +655,15 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
           .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       }
 
+      function countByDay(){
+        var map = {};
+        selected.forEach(function(r){
+          var w = Number(r.weekday);
+          map[w] = (map[w]||0) + 1;
+        });
+        return map;
+      }
+
       function syncHidden(){
         if(linesInput) linesInput.value = JSON.stringify(selected.map(function(r){
           return {
@@ -674,6 +674,54 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
           };
         }));
         if(countEl) countEl.textContent = selected.length + ' تعيين';
+        var counts = countByDay();
+        if(chips){
+          chips.querySelectorAll('.srr-day-chip').forEach(function(b){
+            var w = Number(b.getAttribute('data-weekday'));
+            var n = counts[w] || 0;
+            var badge = b.querySelector('.srr-day-chip__n');
+            if(badge) badge.textContent = String(n);
+            b.classList.toggle('has-cust', n > 0);
+          });
+        }
+        if(sumEl){
+          var daysUsed = Object.keys(counts).length;
+          sumEl.textContent = selected.length
+            ? (selected.length + ' تعيين على ' + daysUsed + ' يوم من أيام الأسبوع')
+            : 'لا تعيينات بعد';
+        }
+        renderCal();
+      }
+
+      /** معاينة الشهر: تُبرز التواريخ التي ستُنشأ فيها زيارات */
+      function renderCal(){
+        if(!calEl) return;
+        var f = fromEl && fromEl.value, t = toEl && toEl.value;
+        if(!f || !t || f > t){ calEl.innerHTML = ''; return; }
+        var counts = countByDay();
+        var start = new Date(f+'T12:00:00'), end = new Date(t+'T12:00:00');
+        if(isNaN(start) || isNaN(end)){ calEl.innerHTML = ''; return; }
+        var span = Math.round((end - start)/86400000) + 1;
+        if(span < 1 || span > 120){ calEl.innerHTML = ''; return; }
+        var shortLabels = ['أحد','إثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+        var cells = [];
+        var wdHead = [6,0,1,2,3,4,5];
+        wdHead.forEach(function(w){
+          cells.push('<span class="srr-cal__h">'+escHtml(shortLabels[w]||'')+'</span>');
+        });
+        // فراغات قبل أول يوم لمحاذاة الأعمدة (السبت أولاً)
+        var lead = (start.getDay() + 1) % 7;
+        for(var i=0;i<lead;i++) cells.push('<span class="srr-cal__d is-void"></span>');
+        var cur = new Date(start);
+        while(cur <= end){
+          var w = cur.getDay();
+          var n = counts[w] || 0;
+          cells.push('<span class="srr-cal__d'+(n?' is-on':'')+'" title="'
+            + escHtml(dayLabels[w]||'') + (n ? (' · '+n+' عميل') : '')
+            + '">'+cur.getDate()+(n?'<i></i>':'')+'</span>');
+          cur.setDate(cur.getDate()+1);
+        }
+        calEl.innerHTML = '<div class="srr-cal__grid">'+cells.join('')+'</div>';
       }
 
       function setActiveDay(wd){
@@ -691,30 +739,48 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
             ? 'حدد يوماً من أيام الأسبوع لبدء إضافة العملاء.'
             : 'اليوم النشط: ' + (dayLabels[activeWeekday] || '') + ' — أضف عملاء هذا اليوم فقط.';
         }
+        if(planEl){
+          planEl.querySelectorAll('.srr-plan__day').forEach(function(d){
+            var b = d.querySelector('[data-goto-day]');
+            d.classList.toggle('is-active', !!b && Number(b.getAttribute('data-goto-day')) === activeWeekday);
+          });
+        }
         renderCustList();
       }
 
+      /** عملاء الخطة مجمّعين تحت كل يوم أسبوع */
       function renderSelected(){
-        if(!bodySel) return;
+        if(!planEl) return;
         if(!selected.length){
-          bodySel.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center;padding:.8rem">لم يُختر عملاء بعد</td></tr>';
+          planEl.innerHTML = '<p class="srr-plan__empty">لم يُختر عملاء بعد — اختر يوماً ثم أضف عملاءه.</p>';
           syncHidden();
           return;
         }
-        var sorted = selected.slice().sort(function(a,b){
-          if(Number(a.weekday)!==Number(b.weekday)) return Number(a.weekday)-Number(b.weekday);
-          return String(a.name||'').localeCompare(String(b.name||''),'ar');
+        var order = [6,0,1,2,3,4,5];
+        var html = '';
+        order.forEach(function(wd){
+          var rows = selected.filter(function(r){ return Number(r.weekday)===wd; });
+          if(!rows.length) return;
+          rows.sort(function(a,b){
+            return String(a.name||'').localeCompare(String(b.name||''),'ar');
+          });
+          html += '<div class="srr-plan__day'+(wd===activeWeekday?' is-active':'')+'">'
+            + '<div class="srr-plan__dayhead">'
+            + '<button type="button" class="srr-plan__daybtn" data-goto-day="'+wd+'">'
+            + escHtml(dayLabels[wd]||'') + '</button>'
+            + '<span class="srr-chip-count">'+rows.length+'</span>'
+            + '</div><div class="srr-plan__items">'
+            + rows.map(function(r){
+                return '<span class="srr-cust-tag" title="'+escHtml([r.region_name,r.address_name].filter(Boolean).join(' / '))+'">'
+                  + '<b>'+escHtml(r.name)+'</b>'
+                  + '<i dir="ltr">'+escHtml(r.code)+'</i>'
+                  + (posted ? '' : '<button type="button" class="srr-cust-tag__x srr-remove" data-cid="'
+                      + r.customer_id + '" data-wd="' + Number(r.weekday) + '" title="حذف">×</button>')
+                  + '</span>';
+              }).join('')
+            + '</div></div>';
         });
-        bodySel.innerHTML = sorted.map(function(r){
-          var idx = selected.indexOf(r);
-          return '<tr data-idx="'+idx+'">'
-            + '<td><span class="srr-day-badge">'+escHtml(dayLabels[Number(r.weekday)]||'—')+'</span></td>'
-            + '<td><strong>'+escHtml(r.name)+'</strong> <span class="muted" dir="ltr">'+escHtml(r.code)+'</span></td>'
-            + '<td>'+escHtml(r.region_name||'—')+'</td>'
-            + '<td>'+escHtml(r.address_name||'—')+'</td>'
-            + '<td>'+(posted?'':('<button type="button" class="si-btn srr-btn-sm srr-remove" data-idx="'+idx+'">حذف</button>'))+'</td>'
-            + '</tr>';
-        }).join('');
+        planEl.innerHTML = html;
         syncHidden();
       }
 
@@ -862,12 +928,15 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         });
       }
 
-      if(bodySel){
-        bodySel.addEventListener('click', function(e){
-          var btn = e.target.closest('.srr-remove');
-          if(!btn) return;
-          var idx = Number(btn.getAttribute('data-idx')|| -1);
-          if(idx>=0){ selected.splice(idx,1); renderSelected(); renderCustList(); }
+      if(planEl){
+        planEl.addEventListener('click', function(e){
+          var rm = e.target.closest('.srr-remove');
+          if(rm){
+            removeAssignment(Number(rm.getAttribute('data-cid')||0), Number(rm.getAttribute('data-wd')||0));
+            return;
+          }
+          var go = e.target.closest('[data-goto-day]');
+          if(go && !posted) setActiveDay(Number(go.getAttribute('data-goto-day')));
         });
       }
 
@@ -889,14 +958,15 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         custCache.forEach(addCustomer);
       });
 
-      if(fromEl) fromEl.addEventListener('change', renderPeriod);
-      if(toEl) toEl.addEventListener('change', renderPeriod);
+      function periodChanged(){ renderPeriod(); renderCal(); }
+      if(fromEl) fromEl.addEventListener('change', periodChanged);
+      if(toEl) toEl.addEventListener('change', periodChanged);
       document.querySelectorAll('.srr-period__quick [data-month]').forEach(function(b){
         b.addEventListener('click', function(){
           var off = Number(b.getAttribute('data-month')||0);
           if(fromEl) fromEl.value = isoOfMonth(off, false);
           if(toEl) toEl.value = isoOfMonth(off, true);
-          renderPeriod();
+          periodChanged();
         });
       });
       renderPeriod();

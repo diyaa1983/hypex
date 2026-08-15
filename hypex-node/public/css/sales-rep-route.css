@@ -191,17 +191,50 @@
 
 .srr-day-chip {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: 1px solid rgba(15, 23, 42, 0.14);
   background: #fff;
   color: #1e293b;
   font: inherit;
   font-size: 0.82rem;
   font-weight: 700;
-  padding: 0.4rem 0.7rem;
+  padding: 0.4rem 0.55rem 0.4rem 0.7rem;
   border-radius: 999px;
   cursor: pointer;
   min-height: 2.15rem;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.srr-day-chip__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-day-chip.has-cust {
+  border-color: rgba(21, 128, 61, 0.35);
+  background: #f0fdf4;
+}
+
+.srr-day-chip.has-cust .srr-day-chip__n {
+  background: #16a34a;
+  color: #fff;
+}
+
+.srr-day-chip.is-active .srr-day-chip__n {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
 }
 
 .srr-day-chip:hover:not(:disabled) {
@@ -239,13 +272,212 @@
   white-space: nowrap;
 }
 
+/* معاينة الشهر: التواريخ التي ستُنشأ فيها زيارات */
+.srr-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+  padding: 0.45rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+}
+
+.srr-cal__h {
+  text-align: center;
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: #94a3b8;
+  padding-bottom: 0.15rem;
+}
+
+.srr-cal__d {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.55rem;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-cal__d.is-void {
+  background: transparent;
+  border-color: transparent;
+}
+
+.srr-cal__d.is-on {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.srr-cal__d.is-on i {
+  position: absolute;
+  inset-block-end: 2px;
+  inset-inline-end: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #bbf7d0;
+}
+
+/* عملاء الخطة مجمّعين حسب اليوم */
+.srr-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 15rem;
+  overflow: auto;
+  padding: 0.5rem 0.6rem 0.6rem;
+}
+
+.srr-plan__empty {
+  margin: 0.9rem 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.srr-plan__day {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.4rem 0.5rem 0.5rem;
+}
+
+.srr-plan__day.is-active {
+  border-color: rgba(37, 99, 235, 0.4);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.srr-plan__dayhead {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.srr-plan__daybtn {
+  appearance: none;
+  border: 0;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.18rem 0.55rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.srr-plan__daybtn:hover {
+  background: #dbeafe;
+}
+
+.srr-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-plan__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.srr-cust-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.2rem 0.3rem 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 0.76rem;
+}
+
+.srr-cust-tag b {
+  font-weight: 700;
+  color: #1e293b;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srr-cust-tag i {
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-cust-tag__x {
+  appearance: none;
+  border: 0;
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.srr-cust-tag__x:hover {
+  background: #b42318;
+  color: #fff;
+}
+
 .srr-form__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 0.45rem;
   margin-top: auto;
-  padding-top: 0.35rem;
+  padding: 0.5rem 0.65rem;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 -2px 10px rgba(15, 23, 42, 0.06);
+}
+
+.srr-form__actions-sum {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.srr-form__actions-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .srr-selected {
