@@ -40,6 +40,7 @@ function oracle_fetch_sales_invoice_by_no(int $invoiceNo, int $year = 0): array
         'matches' => [],
         'header' => null,
         'lines' => [],
+        'nav' => ['first' => null, 'prev' => null, 'next' => null, 'last' => null],
     ];
 
     if ($invoiceNo < 1) {
@@ -217,13 +218,149 @@ function oracle_fetch_sales_invoice_by_no(int $invoiceNo, int $year = 0): array
         'total' => $total,
     ]);
 
+    $nav = oracle_sales_invoice_neighbors((int) $pick['v_num'], (int) $pick['vyear'], $conn);
+
     return [
         'ok' => true,
         'message' => '',
         'matches' => $matches,
         'header' => $header,
         'lines' => $lines,
+        'nav' => $nav,
     ];
+}
+
+/**
+ * مفتاح جارٍ (رقم + سنة) أو فارغ.
+ *
+ * @return array{v_num:int,vyear:int}|null
+ */
+function oracle_sales_invoice_key_from_row(?array $r): ?array
+{
+    if ($r === null || $r === []) {
+        return null;
+    }
+    $n = (int) oracle_statement_row_val($r, 'V_NUM');
+    $y = (int) oracle_statement_row_val($r, 'VYEAR');
+    if ($n < 1 || $y < 1) {
+        return null;
+    }
+
+    return ['v_num' => $n, 'vyear' => $y];
+}
+
+/**
+ * أول / آخر / سابق / تالي حسب (VYEAR, V_NUM).
+ *
+ * @param array<string,mixed>|null $conn اتصال مفتوح اختياري
+ * @return array{
+ *   first:?array{v_num:int,vyear:int},
+ *   prev:?array{v_num:int,vyear:int},
+ *   next:?array{v_num:int,vyear:int},
+ *   last:?array{v_num:int,vyear:int}
+ * }
+ */
+function oracle_sales_invoice_neighbors(int $vNum, int $vYear, ?array $conn = null): array
+{
+    $empty = ['first' => null, 'prev' => null, 'next' => null, 'last' => null];
+    if ($vNum < 1 || $vYear < 1) {
+        return $empty;
+    }
+    if ($conn === null) {
+        if (!oracle_is_enabled()) {
+            return $empty;
+        }
+        $conn = oracle_connect();
+        if (empty($conn['ok'])) {
+            return $empty;
+        }
+    }
+
+    $sc = oracle_sales_invoice_cfg();
+    $from = oracle_stmt_q($sc['owner']) . '.' . oracle_stmt_q($sc['table']);
+    $stype = (int) $sc['sale_type'];
+    $base = "SELECT V_NUM, VYEAR FROM {$from} WHERE TYPE = :stype";
+
+    try {
+        $firstSql = "SELECT * FROM ({$base} GROUP BY V_NUM, VYEAR ORDER BY VYEAR ASC, V_NUM ASC) WHERE ROWNUM <= 1";
+        $lastSql = "SELECT * FROM ({$base} GROUP BY V_NUM, VYEAR ORDER BY VYEAR DESC, V_NUM DESC) WHERE ROWNUM <= 1";
+        $prevSql = "SELECT * FROM (
+                        {$base}
+                          AND (VYEAR < :y OR (VYEAR = :y AND V_NUM < :n))
+                        GROUP BY V_NUM, VYEAR
+                        ORDER BY VYEAR DESC, V_NUM DESC
+                    ) WHERE ROWNUM <= 1";
+        $nextSql = "SELECT * FROM (
+                        {$base}
+                          AND (VYEAR > :y OR (VYEAR = :y AND V_NUM > :n))
+                        GROUP BY V_NUM, VYEAR
+                        ORDER BY VYEAR ASC, V_NUM ASC
+                    ) WHERE ROWNUM <= 1";
+
+        $first = oracle_query_all($conn, $firstSql, ['stype' => $stype]);
+        $last = oracle_query_all($conn, $lastSql, ['stype' => $stype]);
+        $prev = oracle_query_all($conn, $prevSql, ['stype' => $stype, 'y' => $vYear, 'n' => $vNum]);
+        $next = oracle_query_all($conn, $nextSql, ['stype' => $stype, 'y' => $vYear, 'n' => $vNum]);
+
+        return [
+            'first' => oracle_sales_invoice_key_from_row($first[0] ?? null),
+            'prev' => oracle_sales_invoice_key_from_row($prev[0] ?? null),
+            'next' => oracle_sales_invoice_key_from_row($next[0] ?? null),
+            'last' => oracle_sales_invoice_key_from_row($last[0] ?? null),
+        ];
+    } catch (Throwable $e) {
+        return $empty;
+    }
+}
+
+/**
+ * حلّ فعل التنقّل: first | last | prev | next → مفتاح فاتورة.
+ *
+ * @return array{v_num:int,vyear:int}|null
+ */
+function oracle_sales_invoice_resolve_nav(string $nav, int $curNo = 0, int $curYear = 0): ?array
+{
+    $nav = strtolower(trim($nav));
+    if (!in_array($nav, ['first', 'last', 'prev', 'next'], true)) {
+        return null;
+    }
+
+    if (!oracle_is_enabled()) {
+        return null;
+    }
+    $conn = oracle_connect();
+    if (empty($conn['ok'])) {
+        return null;
+    }
+
+    $sc = oracle_sales_invoice_cfg();
+    $from = oracle_stmt_q($sc['owner']) . '.' . oracle_stmt_q($sc['table']);
+    $stype = (int) $sc['sale_type'];
+    $base = "SELECT V_NUM, VYEAR FROM {$from} WHERE TYPE = :stype";
+
+    try {
+        if ($nav === 'first') {
+            $sql = "SELECT * FROM ({$base} GROUP BY V_NUM, VYEAR ORDER BY VYEAR ASC, V_NUM ASC) WHERE ROWNUM <= 1";
+            $rows = oracle_query_all($conn, $sql, ['stype' => $stype]);
+
+            return oracle_sales_invoice_key_from_row($rows[0] ?? null);
+        }
+        if ($nav === 'last') {
+            $sql = "SELECT * FROM ({$base} GROUP BY V_NUM, VYEAR ORDER BY VYEAR DESC, V_NUM DESC) WHERE ROWNUM <= 1";
+            $rows = oracle_query_all($conn, $sql, ['stype' => $stype]);
+
+            return oracle_sales_invoice_key_from_row($rows[0] ?? null);
+        }
+        if ($curNo < 1 || $curYear < 1) {
+            // بدون موضع حالي: prev → آخر، next → أول
+            return oracle_sales_invoice_resolve_nav($nav === 'prev' ? 'last' : 'first');
+        }
+        $neighbors = oracle_sales_invoice_neighbors($curNo, $curYear, $conn);
+
+        return $neighbors[$nav] ?? null;
+    } catch (Throwable $e) {
+        return null;
+    }
 }
 
 /**

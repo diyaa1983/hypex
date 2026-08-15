@@ -13,26 +13,46 @@ $reportTitle = 'فاتورة بيع Oracle';
 
 $invoiceNo = (int) ($_GET['invoice_no'] ?? $_GET['v_num'] ?? 0);
 $year = (int) ($_GET['year'] ?? $_GET['vyear'] ?? 0);
-$submitted = isset($_GET['invoice_no']) || isset($_GET['v_num']) || isset($_GET['run']);
+$navAct = strtolower(trim((string) ($_GET['nav'] ?? '')));
+$hasNav = in_array($navAct, ['first', 'last', 'prev', 'next'], true);
 
 $result = null;
 $err = '';
 $showResult = false;
+$nav = ['first' => null, 'prev' => null, 'next' => null, 'last' => null];
 
-if ($submitted) {
-    if ($invoiceNo < 1) {
-        $err = 'أدخل رقم الفاتورة.';
+// شاشة مستند: تفتح دائماً (آخر فاتورة إن لم يُحدد رقم)
+if ($hasNav) {
+    $key = oracle_sales_invoice_resolve_nav($navAct, $invoiceNo, $year);
+    if ($key === null) {
+        $err = 'لا توجد فاتورة للتنقّل إليها.';
     } else {
-        $result = oracle_fetch_sales_invoice_by_no($invoiceNo, $year);
-        if (empty($result['ok'])) {
-            $err = (string) ($result['message'] ?? 'تعذر الاستعلام.');
-        } else {
-            $showResult = true;
-            if (($result['message'] ?? '') !== '' && empty($result['header']) && empty($result['matches'])) {
-                $err = (string) $result['message'];
-            }
+        $invoiceNo = (int) $key['v_num'];
+        $year = (int) $key['vyear'];
+    }
+} elseif ($invoiceNo < 1) {
+    $key = oracle_sales_invoice_resolve_nav('last');
+    if ($key !== null) {
+        $invoiceNo = (int) $key['v_num'];
+        $year = (int) $key['vyear'];
+    }
+}
+
+if ($err === '' && $invoiceNo > 0) {
+    $result = oracle_fetch_sales_invoice_by_no($invoiceNo, $year);
+    if (empty($result['ok'])) {
+        $err = (string) ($result['message'] ?? 'تعذر الاستعلام.');
+    } else {
+        $showResult = true;
+        if (($result['message'] ?? '') !== '' && empty($result['header']) && empty($result['matches'])) {
+            $err = (string) $result['message'];
+        }
+        if (is_array($result['nav'] ?? null)) {
+            $nav = $result['nav'];
         }
     }
+} elseif ($err === '') {
+    $err = 'لا توجد فواتير بيع في Oracle.';
 }
 
 $fmtAmt = static function (float $n): string {
@@ -73,6 +93,30 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 $header = is_array($result['header'] ?? null) ? $result['header'] : null;
 $lines = is_array($result['lines'] ?? null) ? $result['lines'] : [];
 $matches = is_array($result['matches'] ?? null) ? $result['matches'] : [];
+if ($header) {
+    $invoiceNo = (int) ($header['v_num'] ?? $invoiceNo);
+    $year = (int) ($header['vyear'] ?? $year);
+}
+
+$baseUrl = app_url('index.php') . '?r=' . rawurlencode($routeKey) . '&run=1';
+$hrefKey = static function (?array $k) use ($baseUrl): string {
+    if ($k === null || empty($k['v_num'])) {
+        return '';
+    }
+
+    return $baseUrl . '&invoice_no=' . (int) $k['v_num'] . '&year=' . (int) ($k['vyear'] ?? 0);
+};
+$hrefNav = static function (string $act) use ($baseUrl, $invoiceNo, $year): string {
+    return $baseUrl . '&nav=' . rawurlencode($act)
+        . '&invoice_no=' . (int) $invoiceNo . '&year=' . (int) $year;
+};
+$navBtn = static function (string $href, string $label, string $title, bool $disabled): string {
+    if ($disabled || $href === '') {
+        return '<span class="btn" style="opacity:.35;pointer-events:none" title="' . esc($title) . '">' . $label . '</span>';
+    }
+
+    return '<a class="btn" href="' . esc($href) . '" title="' . esc($title) . '">' . $label . '</a>';
+};
 
 $pageDataAttrs = ' data-report-title="' . esc($reportTitle) . '"';
 $pageDataAttrs .= ' data-report-route="' . esc($routeKey) . '"';
@@ -89,25 +133,65 @@ if ($header) {
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
     <?php endif; ?>
 
-    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print">
+    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print" id="ora-inv-nav-form">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
         <input type="hidden" name="run" value="1">
-        <div class="form-row">
-            <label class="field" style="flex:1 1 12rem">
-                <span class="field-label">رقم الفاتورة *</span>
-                <input class="input" type="text" name="invoice_no" value="<?= $invoiceNo > 0 ? (int) $invoiceNo : '' ?>"
-                       inputmode="numeric" dir="ltr" placeholder="مثال: 2842" required autocomplete="off">
+        <div class="form-row" style="align-items:flex-end;flex-wrap:wrap;gap:.5rem">
+            <label class="field" style="flex:0 1 auto">
+                <span class="field-label">رقم الفاتورة</span>
+                <div style="display:flex;align-items:center;gap:.25rem;direction:ltr;margin-top:.2rem">
+                    <?= $navBtn($hrefNav('first'), '«', 'أول فاتورة', false) ?>
+                    <?= $navBtn(
+                        !empty($nav['prev']) ? $hrefKey($nav['prev']) : $hrefNav('prev'),
+                        '‹',
+                        'السابق',
+                        empty($nav['prev']) && (bool) $header
+                    ) ?>
+                    <input class="input" type="text" name="invoice_no" id="ora_inv_no"
+                           value="<?= $invoiceNo > 0 ? (int) $invoiceNo : '' ?>"
+                           inputmode="numeric" dir="ltr" placeholder="رقم" autocomplete="off"
+                           style="width:7.5rem;text-align:center"
+                           title="أدخل الرقم ثم Enter · الأسهم للتقليب">
+                    <?= $navBtn(
+                        !empty($nav['next']) ? $hrefKey($nav['next']) : $hrefNav('next'),
+                        '›',
+                        'التالي',
+                        empty($nav['next']) && (bool) $header
+                    ) ?>
+                    <?= $navBtn($hrefNav('last'), '»', 'آخر فاتورة', false) ?>
+                </div>
             </label>
-            <label class="field" style="flex:0 1 10rem">
-                <span class="field-label">السنة (اختياري)</span>
-                <input class="input" type="text" name="year" value="<?= $year > 0 ? (int) $year : '' ?>"
-                       inputmode="numeric" dir="ltr" placeholder="2026" autocomplete="off">
+            <label class="field" style="flex:0 1 7rem">
+                <span class="field-label">السنة</span>
+                <input class="input" type="text" name="year" id="ora_inv_year"
+                       value="<?= $year > 0 ? (int) $year : '' ?>"
+                       inputmode="numeric" dir="ltr" placeholder="السنة" autocomplete="off">
             </label>
-        </div>
-        <div style="margin-top:0.5rem;">
-            <button class="btn btn-primary" type="submit">عرض الفاتورة</button>
+            <button class="btn btn-primary" type="submit">عرض</button>
+            <span class="muted" style="font-size:.78rem;align-self:center">← سابق · → تالي · Home أول · End آخر</span>
         </div>
     </form>
+    <script>
+    (function(){
+      var noEl=document.getElementById('ora_inv_no');
+      if(!noEl) return;
+      var base=<?= json_encode($baseUrl, JSON_UNESCAPED_UNICODE) ?>;
+      var curNo=<?= (int) $invoiceNo ?>;
+      var curYear=<?= (int) $year ?>;
+      function goNav(act){
+        location.href=base+'&nav='+encodeURIComponent(act)
+          +'&invoice_no='+encodeURIComponent(curNo||0)
+          +'&year='+encodeURIComponent(curYear||0);
+      }
+      noEl.addEventListener('keydown',function(e){
+        if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ e.preventDefault(); goNav('prev'); }
+        else if(e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); goNav('next'); }
+        else if(e.key==='Home'){ e.preventDefault(); goNav('first'); }
+        else if(e.key==='End'){ e.preventDefault(); goNav('last'); }
+      });
+      try{ noEl.focus(); noEl.select(); }catch(err){}
+    })();
+    </script>
 
     <?php if ($showResult && $matches && !$header): ?>
         <div class="report-sales-result">

@@ -344,7 +344,30 @@ try {
         require_once app_path('includes/oracle_sales_invoice.php');
         $invoiceNo = (int) ($payload['invoice_no'] ?? $payload['v_num'] ?? 0);
         $year = (int) ($payload['year'] ?? $payload['vyear'] ?? 0);
+        $nav = strtolower(trim((string) ($payload['nav'] ?? '')));
         try {
+            if ($nav !== '') {
+                $key = oracle_sales_invoice_resolve_nav($nav, $invoiceNo, $year);
+                if ($key === null) {
+                    cli_out([
+                        'ok' => true,
+                        'message' => 'لا توجد فاتورة للتنقّل إليها.',
+                        'matches' => [],
+                        'header' => null,
+                        'lines' => [],
+                        'nav' => ['first' => null, 'prev' => null, 'next' => null, 'last' => null],
+                    ]);
+                }
+                $invoiceNo = (int) $key['v_num'];
+                $year = (int) $key['vyear'];
+            } elseif ($invoiceNo < 1) {
+                // فتح الشاشة بدون رقم → آخر فاتورة
+                $key = oracle_sales_invoice_resolve_nav('last');
+                if ($key !== null) {
+                    $invoiceNo = (int) $key['v_num'];
+                    $year = (int) $key['vyear'];
+                }
+            }
             $result = oracle_fetch_sales_invoice_by_no($invoiceNo, $year);
             cli_out(is_array($result) ? $result : ['ok' => false, 'error' => 'استجابة غير صالحة']);
         } catch (Throwable $e) {

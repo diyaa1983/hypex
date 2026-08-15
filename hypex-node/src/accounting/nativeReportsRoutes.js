@@ -1514,46 +1514,63 @@ router.get(
   );
 });
 
-/* ═══════════════ فاتورة بيع Oracle برقم الفاتورة ═══════════════ */
+/* ═══════════════ فاتورة بيع Oracle — شاشة تقليب بالرقم ═══════════════ */
 router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
   if (!can(req.session.user, 'report_oracle_sales_invoice')) return forbid(res);
 
-  const invoiceNo = Number(req.query.invoice_no || req.query.v_num || 0) || 0;
-  const year = Number(req.query.year || req.query.vyear || 0) || 0;
-  const run = String(req.query.run || '') === '1' || invoiceNo > 0;
+  let invoiceNo = Number(req.query.invoice_no || req.query.v_num || 0) || 0;
+  let year = Number(req.query.year || req.query.vyear || 0) || 0;
+  const navAct = String(req.query.nav || '').toLowerCase().trim();
+  const hasNav = ['first', 'last', 'prev', 'next'].includes(navAct);
 
   let err = '';
-  let data = { ok: true, message: '', matches: [], header: null, lines: [] };
+  let data = { ok: true, message: '', matches: [], header: null, lines: [], nav: null };
 
-  if (run) {
-    if (invoiceNo < 1) {
-      err = 'أدخل رقم الفاتورة.';
-    } else {
-      data = await svc.run('oracle_sales_invoice', uid(req), {
-        invoice_no: invoiceNo,
-        year,
-      });
-      if (!data || data.ok === false) {
-        err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
-        data = { ok: false, matches: [], header: null, lines: [] };
-      }
-    }
+  const payload = { invoice_no: invoiceNo, year };
+  if (hasNav) payload.nav = navAct;
+
+  data = await svc.run('oracle_sales_invoice', uid(req), payload);
+  if (!data || data.ok === false) {
+    err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+    data = { ok: false, matches: [], header: null, lines: [], nav: null };
   }
 
   const matches = Array.isArray(data.matches) ? data.matches : [];
   const header = data.header && typeof data.header === 'object' ? data.header : null;
   const lines = Array.isArray(data.lines) ? data.lines : [];
+  const nav = data.nav && typeof data.nav === 'object' ? data.nav : {};
+
+  if (header) {
+    invoiceNo = Number(header.v_num || invoiceNo) || 0;
+    year = Number(header.vyear || year) || 0;
+  }
+
+  const hrefKey = (k) =>
+    k && k.v_num
+      ? `/accounting/reports/oracle-sales-invoice?run=1&invoice_no=${Number(k.v_num)}&year=${Number(
+          k.vyear || 0
+        )}`
+      : '';
+  const hrefNav = (act) =>
+    `/accounting/reports/oracle-sales-invoice?run=1&nav=${act}&invoice_no=${invoiceNo || 0}&year=${
+      year || 0
+    }`;
+
+  const btn = (href, label, title, disabled) =>
+    disabled || !href
+      ? `<span class="si-btn si-docno-btn" style="opacity:.35;pointer-events:none" title="${esc(
+          title
+        )}">${label}</span>`
+      : `<a class="si-btn si-docno-btn" href="${esc(href)}" title="${esc(title)}">${label}</a>`;
 
   let result = '';
   if (err) {
     result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>`;
-  } else if (run && matches.length && !header) {
+  } else if (matches.length && !header) {
     const rows =
       matches
         .map((m) => {
-          const href = `/accounting/reports/oracle-sales-invoice?run=1&invoice_no=${Number(
-            m.v_num || 0
-          )}&year=${Number(m.vyear || 0)}`;
+          const href = hrefKey({ v_num: m.v_num, vyear: m.vyear });
           return `<tr>
             <td class="si-num" dir="ltr">${esc(m.v_num)}</td>
             <td class="si-num" dir="ltr">${esc(m.vyear)}</td>
@@ -1575,7 +1592,7 @@ router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
         ['الرقم', 'السنة', 'التاريخ', 'العميل', 'المستودع', 'الإجمالي', ''],
         rows
       )}`;
-  } else if (run && header) {
+  } else if (header) {
     const lineRows =
       lines
         .map(
@@ -1685,26 +1702,60 @@ router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
         )}
         <table style="${stTot}">${totalsRows}</table>
       </div>`;
-  } else if (run) {
+  } else {
     result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(
-      data.message || 'لا توجد فاتورة بهذا الرقم'
+      data.message || 'لا توجد فواتير بيع في Oracle'
     )}</p>`;
   }
 
   const filters = `
     <form class="si-search no-print" method="get" action="/accounting/reports/oracle-sales-invoice"
-          style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%">
+          id="ora-inv-nav-form"
+          style="display:flex;flex-wrap:wrap;gap:.55rem;align-items:flex-end;max-width:100%">
       <input type="hidden" name="run" value="1">
-      <label style="font-size:.8rem;font-weight:700;color:#5c6578">رقم الفاتورة *
-        <input class="si-field" type="text" name="invoice_no" value="${invoiceNo || ''}"
-               inputmode="numeric" dir="ltr" placeholder="2842" required style="min-width:10rem">
+      <label style="font-size:.8rem;font-weight:700;color:#5c6578">رقم الفاتورة
+        <div class="si-docno-row" dir="ltr" style="display:flex;align-items:center;gap:.25rem;margin-top:.2rem">
+          ${btn(hrefNav('first'), '«', 'أول فاتورة', false)}
+          ${btn(nav.prev ? hrefKey(nav.prev) : hrefNav('prev'), '‹', 'السابق', !nav.prev && !!header)}
+          <input class="si-field si-field--mono si-docno-input" type="text" name="invoice_no"
+                 id="ora_inv_no" value="${invoiceNo || ''}"
+                 inputmode="numeric" dir="ltr" placeholder="رقم" autocomplete="off"
+                 style="width:7.5rem;text-align:center"
+                 title="أدخل الرقم ثم Enter · الأسهم للتقليب">
+          ${btn(nav.next ? hrefKey(nav.next) : hrefNav('next'), '›', 'التالي', !nav.next && !!header)}
+          ${btn(hrefNav('last'), '»', 'آخر فاتورة', false)}
+        </div>
       </label>
-      <label style="font-size:.8rem;font-weight:700;color:#5c6578">السنة (اختياري)
-        <input class="si-field" type="text" name="year" value="${year || ''}"
-               inputmode="numeric" dir="ltr" placeholder="2026" style="min-width:7rem">
+      <label style="font-size:.8rem;font-weight:700;color:#5c6578">السنة
+        <input class="si-field si-field--mono" type="text" name="year" id="ora_inv_year"
+               value="${year || ''}"
+               inputmode="numeric" dir="ltr" placeholder="السنة" autocomplete="off"
+               style="min-width:5.5rem;margin-top:.2rem">
       </label>
-      <button class="si-btn si-btn--primary" type="submit">عرض الفاتورة</button>
-    </form>`;
+      <button class="si-btn si-btn--primary" type="submit">عرض</button>
+      <span class="muted" style="font-size:.78rem;align-self:center">← سابق · → تالي · Home أول · End آخر</span>
+    </form>
+    <script>
+    (function(){
+      var form=document.getElementById('ora-inv-nav-form');
+      var noEl=document.getElementById('ora_inv_no');
+      if(!form||!noEl) return;
+      var base='/accounting/reports/oracle-sales-invoice?run=1';
+      var curNo=${invoiceNo || 0};
+      var curYear=${year || 0};
+      function goNav(act){
+        location.href=base+'&nav='+act+'&invoice_no='+encodeURIComponent(curNo||0)
+          +'&year='+encodeURIComponent(curYear||0);
+      }
+      noEl.addEventListener('keydown',function(e){
+        if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ e.preventDefault(); goNav('prev'); }
+        else if(e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); goNav('next'); }
+        else if(e.key==='Home'){ e.preventDefault(); goNav('first'); }
+        else if(e.key==='End'){ e.preventDefault(); goNav('last'); }
+      });
+      try{ noEl.focus(); noEl.select(); }catch(err){}
+    })();
+    </script>`;
 
   sendPage(
     res,
@@ -1712,7 +1763,7 @@ router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
     'فاتورة بيع Oracle',
     shell(
       'فاتورة بيع Oracle',
-      'استعلام من النظام القديم برقم الفاتورة · MAS.DAILY',
+      'شاشة تقليب فواتير النظام القديم · MAS.DAILY · TYPE=9',
       filters,
       result,
       []
