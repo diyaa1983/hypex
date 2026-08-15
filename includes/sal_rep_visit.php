@@ -21,6 +21,8 @@ function sal_rep_visit_ensure_schema(PDO $pdo): bool
     try {
         $pdo->query('SELECT checkin_lat FROM sal_rep_route_line LIMIT 1');
         $pdo->query('SELECT in_plan FROM sal_rep_route_line LIMIT 1');
+        $pdo->query('SELECT id FROM sal_no_order_reason LIMIT 1');
+        $pdo->query('SELECT visit_route_line_id FROM sal_customer_order LIMIT 1');
         $pdo->query('SELECT id FROM sal_rep_visit_checkout_request LIMIT 1');
         $ok = true;
     } catch (Throwable $e) {
@@ -28,9 +30,12 @@ function sal_rep_visit_ensure_schema(PDO $pdo): bool
         sql_migration_run_file($pdo, 'database/migrations/266_report_sales_rep_tours.sql');
         sql_migration_run_file($pdo, 'database/migrations/270_sal_rep_visit_checkin.sql');
         sql_migration_run_file($pdo, 'database/migrations/275_sal_rep_visit_in_plan.sql');
+        sql_migration_run_file($pdo, 'database/migrations/276_rep_visit_no_order_reasons.sql');
         try {
             $pdo->query('SELECT checkin_lat FROM sal_rep_route_line LIMIT 1');
             $pdo->query('SELECT in_plan FROM sal_rep_route_line LIMIT 1');
+            $pdo->query('SELECT id FROM sal_no_order_reason LIMIT 1');
+            $pdo->query('SELECT visit_route_line_id FROM sal_customer_order LIMIT 1');
             $pdo->query('SELECT id FROM sal_rep_visit_checkout_request LIMIT 1');
             $ok = true;
         } catch (Throwable $e2) {
@@ -177,7 +182,13 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
     if ($routeId > 0) {
         $st = $pdo->prepare(
             'SELECT l.id AS route_line_id, l.customer_id, l.visit_checkin_at, l.visit_checkout_at,
-                    l.checkin_method, l.checkout_method, l.checkin_distance_m, l.checkout_distance_m
+                    l.checkin_method, l.checkout_method, l.checkin_distance_m, l.checkout_distance_m,
+                    EXISTS(
+                      SELECT 1 FROM sal_customer_order o
+                      WHERE o.visit_route_line_id = l.id
+                        AND l.visit_checkin_at IS NOT NULL
+                        AND o.created_at >= l.visit_checkin_at
+                    ) AS has_order
              FROM sal_rep_route_line l WHERE l.route_id = ?'
         );
         $st->execute([$routeId]);
@@ -276,6 +287,7 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
             'pending_request_id' => $pending ? (int) $pending['id'] : null,
             'visit_radius_m' => $radius,
             'in_plan' => !empty($plannedIds[$cid]),
+            'has_order' => !empty($ln['has_order']),
             'sort_order' => (int) ($c['sort_order'] ?? 0),
             'weekday' => $wd,
             'weekday_label' => $weekdayLabel,
@@ -397,6 +409,78 @@ function sal_rep_visit_pending_request_for_line(PDO $pdo, int $lineId): ?array
     $st->execute([$lineId]);
     $row = $st->fetch(PDO::FETCH_ASSOC);
     return $row ?: null;
+}
+
+/** @return list<array{id:int,name_ar:string}> */
+function sal_rep_visit_no_order_reasons(PDO $pdo): array
+{
+    sal_rep_visit_ensure_schema($pdo);
+    try {
+        $rows = $pdo->query(
+            'SELECT id, name_ar FROM sal_no_order_reason
+             WHERE is_active = 1 ORDER BY sort_order, id'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return array_map(static fn(array $r): array => [
+            'id' => (int) $r['id'],
+            'name_ar' => (string) $r['name_ar'],
+        ], $rows);
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function sal_rep_visit_has_order(PDO $pdo, int $routeLineId): bool
+{
+    if ($routeLineId < 1) {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare(
+            'SELECT 1
+             FROM sal_customer_order o
+             INNER JOIN sal_rep_route_line l ON l.id = o.visit_route_line_id
+             WHERE o.visit_route_line_id = ?
+               AND l.visit_checkin_at IS NOT NULL
+               AND o.created_at >= l.visit_checkin_at
+             LIMIT 1'
+        );
+        $st->execute([$routeLineId]);
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/** @param list<int> $reasonIds */
+function sal_rep_visit_save_no_order_reasons(PDO $pdo, int $routeLineId, array $reasonIds, ?int $userId): bool
+{
+    $ids = array_values(array_unique(array_filter(
+        array_map('intval', $reasonIds),
+        static fn(int $v): bool => $v > 0
+    )));
+    if ($routeLineId < 1 || $ids === []) {
+        return false;
+    }
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $st = $pdo->prepare(
+        "SELECT id FROM sal_no_order_reason
+         WHERE is_active = 1 AND id IN ({$marks})"
+    );
+    $st->execute($ids);
+    $valid = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    if ($valid === []) {
+        return false;
+    }
+    $pdo->prepare('DELETE FROM sal_rep_visit_no_order_reason WHERE route_line_id = ?')
+        ->execute([$routeLineId]);
+    $ins = $pdo->prepare(
+        'INSERT INTO sal_rep_visit_no_order_reason
+         (route_line_id, reason_id, created_by) VALUES (?,?,?)'
+    );
+    foreach ($valid as $reasonId) {
+        $ins->execute([$routeLineId, $reasonId, $userId]);
+    }
+    return true;
 }
 
 /** @param array{lat:?float,lng:?float,accuracy:?float} $gps */
@@ -541,6 +625,7 @@ function sal_rep_visit_checkout(
     string $method,
     array $gps,
     ?string $reason = null,
+    array $noOrderReasonIds = [],
     ?int $userId = null
 ): array {
     $method = strtoupper(trim($method)) === 'MANUAL' ? 'MANUAL' : 'GPS';
@@ -555,6 +640,15 @@ function sal_rep_visit_checkout(
     }
     if (!empty($line['visit_checkout_at'])) {
         return ['ok' => false, 'message' => 'تم الخروج مسبقاً من هذه الزيارة.'];
+    }
+    $hasOrder = sal_rep_visit_has_order($pdo, $lineId);
+    if (!$hasOrder && !sal_rep_visit_save_no_order_reasons($pdo, $lineId, $noOrderReasonIds, $userId)) {
+        return [
+            'ok' => false,
+            'message' => 'لم تُسجّل طلبية لهذا العميل. اختر سبباً واحداً على الأقل لعدم الطلب.',
+            'requires_no_order_reason' => true,
+            'no_order_reasons' => sal_rep_visit_no_order_reasons($pdo),
+        ];
     }
     $checkinMethod = strtoupper((string) ($line['checkin_method'] ?? ''));
     $distance = null;
@@ -1056,6 +1150,12 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
                    l.checkin_lat, l.checkin_lng, l.checkin_accuracy, l.checkin_distance_m,
                    l.checkout_lat, l.checkout_lng, l.checkout_accuracy, l.checkout_distance_m,
                    COALESCE(l.in_plan, 1) AS in_plan,
+                   (
+                     SELECT GROUP_CONCAT(nr.name_ar ORDER BY nr.sort_order, nr.id SEPARATOR '، ')
+                     FROM sal_rep_visit_no_order_reason vr
+                     INNER JOIN sal_no_order_reason nr ON nr.id = vr.reason_id
+                     WHERE vr.route_line_id = l.id
+                   ) AS no_order_reasons,
                    q.id AS pending_request_id, q.status AS checkout_request_status, q.reason AS checkout_reason
             FROM sal_rep_route_line l
             INNER JOIN sal_rep_route r ON r.id = l.route_id
@@ -1125,6 +1225,7 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
             'in_plan' => (int) ($r['in_plan'] ?? 1) === 1,
             'plan_scope' => (int) ($r['in_plan'] ?? 1) === 1 ? 'inside' : 'outside',
             'plan_scope_label' => (int) ($r['in_plan'] ?? 1) === 1 ? 'داخل الجولة' : 'خارج الجولة',
+            'no_order_reasons' => (string) ($r['no_order_reasons'] ?? ''),
             'duration_label' => sal_rep_visit_duration_label($checkinAt !== '' ? $checkinAt : null, $checkoutAt !== '' ? $checkoutAt : null),
             'status' => $stLabel,
             'status_label' => $stText,

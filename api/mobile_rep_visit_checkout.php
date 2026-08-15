@@ -40,7 +40,19 @@ if ($repId === null || $repId < 1) {
 $customerId = (int) ($body['customer_id'] ?? 0);
 $method = (string) ($body['method'] ?? 'GPS');
 $reason = isset($body['reason']) ? (string) $body['reason'] : null;
+$noOrderReasonIds = is_array($body['no_order_reason_ids'] ?? null)
+    ? array_map('intval', $body['no_order_reason_ids'])
+    : [];
 $gps = sal_rep_visit_parse_gps($body);
-$result = sal_rep_visit_checkout($pdo, $repId, $customerId, $method, $gps, $reason, $uid);
+$result = sal_rep_visit_checkout(
+    $pdo,
+    $repId,
+    $customerId,
+    $method,
+    $gps,
+    $reason,
+    $noOrderReasonIds,
+    $uid
+);
 http_response_code(!empty($result['ok']) ? 200 : 422);
 echo json_encode($result, JSON_UNESCAPED_UNICODE);

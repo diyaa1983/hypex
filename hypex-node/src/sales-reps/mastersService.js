@@ -1062,6 +1062,12 @@ async function reportVisits({ from = '', to = '', salesRepId = 0, method = '', s
               l.checkin_lat, l.checkin_lng, l.checkin_accuracy, l.checkin_distance_m,
               l.checkout_lat, l.checkout_lng, l.checkout_accuracy, l.checkout_distance_m,
               COALESCE(l.in_plan, 1) AS in_plan,
+              (
+                SELECT GROUP_CONCAT(nr.name_ar ORDER BY nr.sort_order, nr.id SEPARATOR '، ')
+                FROM sal_rep_visit_no_order_reason vr
+                INNER JOIN sal_no_order_reason nr ON nr.id = vr.reason_id
+                WHERE vr.route_line_id = l.id
+              ) AS no_order_reasons,
               q.id AS pending_request_id, q.reason AS checkout_reason
        FROM sal_rep_route_line l
        INNER JOIN sal_rep_route r ON r.id = l.route_id

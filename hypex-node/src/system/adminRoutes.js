@@ -30,6 +30,7 @@ const PREFIXES = [
   '/system/tax-rates',
   '/system/backup',
   '/system/einvoice',
+  '/system/no-order-reasons',
 ];
 
 function can(user, code) {
@@ -56,6 +57,96 @@ router.use((req, res, next) => {
   const p = req.path || '';
   if (!PREFIXES.some((x) => p === x || p.startsWith(x + '/'))) return next('router');
   return auth.requireAuth(req, res, next);
+});
+
+/* ═══════════ أسباب عدم طلب العميل ═══════════ */
+router.get('/system/no-order-reasons', async (req, res) => {
+  if (!can(req.session.user, 'no_order_reasons_settings')) return forbid(res);
+  const rows = await svc.listNoOrderReasons();
+  const editId = Number(req.query.id || 0);
+  const edit = rows.find((r) => Number(r.id) === editId) || null;
+  const rowsHtml =
+    rows
+      .map(
+        (r, i) => `<tr>
+          <td class="si-num">${i + 1}</td>
+          <td><strong>${esc(r.name_ar || '')}</strong></td>
+          <td class="si-num">${Number(r.sort_order || 0)}</td>
+          <td>${Number(r.is_active) === 1 ? ui.statusPill('ok', 'نشط') : ui.statusPill('wait', 'موقوف')}</td>
+          <td style="white-space:nowrap">
+            <a class="si-btn" href="/system/no-order-reasons?id=${r.id}">تعديل</a>
+            <form method="post" action="/system/no-order-reasons/delete" style="display:inline"
+                  onsubmit="return confirm('حذف السبب؟')">
+              <input type="hidden" name="id" value="${r.id}">
+              <button class="si-btn si-btn--danger-text" type="submit">حذف</button>
+            </form>
+          </td>
+        </tr>`
+      )
+      .join('') || ui.emptyRow(5, 'لا توجد أسباب');
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '☑',
+        kicker: KICKER,
+        title: 'أسباب عدم طلب العميل',
+        subtitle: 'تظهر للمندوب كخيارات متعددة عند إنهاء زيارة لم تُسجّل فيها طلبية.',
+        actions: [
+          { label: 'الإعدادات', href: '/system/settings' },
+          { label: 'النظام', href: HUB },
+        ],
+      })}
+      ${flashHtml(String(req.query.msg || ''), String(req.query.err || ''))}
+      <section class="si-surface" style="margin-bottom:.8rem">
+        <div class="si-surface-head"><h2>${edit ? 'تعديل السبب' : 'إضافة سبب'}</h2></div>
+        <form method="post" action="/system/no-order-reasons"
+              style="display:grid;grid-template-columns:minmax(15rem,1fr) 8rem auto auto;gap:.6rem;padding:1rem;align-items:end">
+          <input type="hidden" name="id" value="${edit ? edit.id : 0}">
+          <label>السبب
+            <input class="si-field" name="name_ar" required maxlength="180"
+                   value="${esc(edit?.name_ar || '')}" placeholder="مثال: لدى العميل مخزون كافٍ">
+          </label>
+          <label>الترتيب
+            <input class="si-field si-field--mono" type="number" name="sort_order"
+                   value="${Number(edit?.sort_order || 0)}">
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;padding-bottom:.55rem">
+            <input type="checkbox" name="is_active" value="1" ${!edit || Number(edit.is_active) === 1 ? 'checked' : ''}>
+            نشط
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">${edit ? 'حفظ التعديل' : 'إضافة'}</button>
+        </form>
+      </section>
+      ${ui.tableSurface('الأسباب المسجلة', `${rows.length} سبب`, ['#', 'السبب', 'الترتيب', 'الحالة', ''], rowsHtml)}
+    </div>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'أسباب عدم طلب العميل',
+      bodyHtml: body,
+      activePath: '/system/no-order-reasons',
+    })
+  );
+});
+
+router.post('/system/no-order-reasons', async (req, res) => {
+  if (!can(req.session.user, 'no_order_reasons_settings')) return forbid(res);
+  const result = await svc.saveNoOrderReason(req.body || {});
+  res.redirect(
+    '/system/no-order-reasons?' +
+      (result.ok ? 'msg=' : 'err=') +
+      encodeURIComponent(result.message || result.error || '')
+  );
+});
+
+router.post('/system/no-order-reasons/delete', async (req, res) => {
+  if (!can(req.session.user, 'no_order_reasons_settings')) return forbid(res);
+  const result = await svc.deleteNoOrderReason(req.body?.id);
+  res.redirect(
+    '/system/no-order-reasons?' +
+      (result.ok ? 'msg=' : 'err=') +
+      encodeURIComponent(result.message || result.error || '')
+  );
 });
 
 /* ═══════════ GROUPS ═══════════ */

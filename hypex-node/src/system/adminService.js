@@ -15,6 +15,63 @@ async function q(sql, params = []) {
   return db.query(sql, params);
 }
 
+async function ensureNoOrderReasonsSchema() {
+  await q(
+    `CREATE TABLE IF NOT EXISTS sal_no_order_reason (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      name_ar VARCHAR(180) NOT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_snor_active_sort (is_active, sort_order, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+}
+
+async function listNoOrderReasons() {
+  await ensureNoOrderReasonsSchema();
+  return q(
+    `SELECT id, name_ar, sort_order, is_active
+     FROM sal_no_order_reason ORDER BY sort_order, id`
+  );
+}
+
+async function saveNoOrderReason(data) {
+  await ensureNoOrderReasonsSchema();
+  const id = Number(data.id || 0);
+  const name = String(data.name_ar || '').trim().slice(0, 180);
+  const sort = Number(data.sort_order || 0) || 0;
+  const active = String(data.is_active || '') === '1' ? 1 : 0;
+  if (!name) return { ok: false, error: 'أدخل سبب عدم الطلب.' };
+  if (id > 0) {
+    await q(
+      `UPDATE sal_no_order_reason
+       SET name_ar=?, sort_order=?, is_active=? WHERE id=?`,
+      [name, sort, active, id]
+    );
+    return { ok: true, message: 'تم تحديث السبب.' };
+  }
+  await q(
+    `INSERT INTO sal_no_order_reason (name_ar, sort_order, is_active)
+     VALUES (?,?,1)`,
+    [name, sort]
+  );
+  return { ok: true, message: 'تمت إضافة السبب.' };
+}
+
+async function deleteNoOrderReason(id) {
+  await ensureNoOrderReasonsSchema();
+  try {
+    await q(`DELETE FROM sal_no_order_reason WHERE id=?`, [Number(id)]);
+    return { ok: true, message: 'تم حذف السبب.' };
+  } catch {
+    await q(`UPDATE sal_no_order_reason SET is_active=0 WHERE id=?`, [Number(id)]);
+    return { ok: true, message: 'السبب مستخدم سابقاً؛ تم تعطيله.' };
+  }
+}
+
 /* ── groups ── */
 async function listGroups() {
   return q(
@@ -1448,6 +1505,9 @@ async function verifyEinvoiceCredentials() {
 }
 
 module.exports = {
+  listNoOrderReasons,
+  saveNoOrderReason,
+  deleteNoOrderReason,
   listGroups,
   getGroup,
   saveGroup,

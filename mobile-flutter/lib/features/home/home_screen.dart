@@ -51,12 +51,6 @@ const Map<String, TileSpec> kTileSpecs = {
     AppTheme.primary,
     'المبيعات',
   ),
-  'm_customer_orders': TileSpec(
-    '/customer-orders',
-    Icons.shopping_cart_checkout_rounded,
-    AppTheme.success,
-    'المبيعات',
-  ),
   'm_customer_orders_pending': TileSpec(
     '/customer-orders/pending',
     Icons.outbox,

@@ -453,6 +453,12 @@ return [
         'title' => 'الإعدادات',
         'hide_screen_title' => true,
     ],
+    'no_order_reasons_settings' => [
+        'file' => 'modules/settings/general.php',
+        'permission' => 'no_order_reasons_settings',
+        'title' => 'أسباب عدم طلب العميل',
+        'hide_screen_title' => true,
+    ],
     'dashboard_accounts_settings' => [
         'file' => 'modules/settings/dashboard_accounts.php',
         'permission' => 'settings',

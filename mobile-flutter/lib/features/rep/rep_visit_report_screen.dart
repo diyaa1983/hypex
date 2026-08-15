@@ -236,6 +236,17 @@ class _VisitCard extends StatelessWidget {
             text: inPlan ? 'داخل الجولة' : 'خارج الجولة',
             color: inPlan ? AppTheme.success : AppTheme.warn,
           ),
+          if (Fmt.str(row['no_order_reasons']).isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'سبب عدم الطلب: ${Fmt.str(row['no_order_reasons'])}',
+              style: const TextStyle(
+                color: AppTheme.textSoft,
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           _Pair(
             icon: Icons.login_rounded,

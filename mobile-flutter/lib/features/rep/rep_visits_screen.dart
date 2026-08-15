@@ -26,6 +26,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   String _weekdayLabel = '';
   int _radiusM = 200;
   List<Map<String, dynamic>> _visits = [];
+  List<Map<String, dynamic>> _noOrderReasons = [];
   Map<String, dynamic>? _selected;
   bool _busy = false;
   final _dateCtrl = TextEditingController();
@@ -136,6 +137,10 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
           .whereType<Map>()
           .map((e) => e.cast<String, dynamic>())
           .toList();
+      final noOrderReasons = (res['no_order_reasons'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
       visits.sort((a, b) {
         final ap = a['in_plan'] == true ? 0 : 1;
         final bp = b['in_plan'] == true ? 0 : 1;
@@ -162,6 +167,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       }
       setState(() {
         _visits = visits;
+        _noOrderReasons = noOrderReasons;
         _selected = selected;
         _routeDate = Fmt.str(res['route_date']).isEmpty
             ? _routeDate
@@ -387,10 +393,72 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     }
   }
 
+  Future<List<int>?> _pickNoOrderReasons() async {
+    if (_noOrderReasons.isEmpty) {
+      showSnack(
+        context,
+        'لا توجد أسباب «عدم طلب العميل» مضافة في إعدادات النظام.',
+        error: true,
+      );
+      return null;
+    }
+    final selected = <int>{};
+    return showDialog<List<int>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('سبب عدم عمل طلبية'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: _noOrderReasons.map((r) {
+                  final id = Fmt.toInt(r['id']);
+                  return CheckboxListTile(
+                    value: selected.contains(id),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(Fmt.str(r['name_ar'])),
+                    onChanged: (on) => setLocal(() {
+                      if (on == true) {
+                        selected.add(id);
+                      } else {
+                        selected.remove(id);
+                      }
+                    }),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: selected.isEmpty
+                  ? null
+                  : () => Navigator.pop(ctx, selected.toList()),
+              child: const Text('اعتماد الأسباب'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _checkout({required bool manual}) async {
     final v = _selected;
     if (v == null || _busy) return;
     final name = Fmt.str(v['name']);
+    List<int> noOrderReasonIds = [];
+    if (v['has_order'] != true) {
+      final picked = await _pickNoOrderReasons();
+      if (picked == null || picked.isEmpty) return;
+      noOrderReasonIds = picked;
+    }
     final ok = await _confirm(
       'تأكيد تسجيل الخروج',
       manual
@@ -447,6 +515,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
         body: {
           'customer_id': v['customer_id'],
           'method': manual ? 'MANUAL' : 'GPS',
+          'no_order_reason_ids': noOrderReasonIds,
           if (reason != null && reason.isNotEmpty) 'reason': reason,
           ...gps,
         },
@@ -1004,9 +1073,36 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
             ),
           if (canOut)
             _ActionCard(
-              title: 'تسجيل الخروج',
+              title: 'الطلب والخروج',
               child: Column(
                 children: [
+                  _BigActionButton(
+                    label: 'عمل طلب شراء',
+                    hint: 'إنشاء طلبية أثناء الزيارة',
+                    icon: Icons.shopping_cart_checkout_rounded,
+                    color: AppTheme.primary,
+                    onPressed: _busy
+                        ? null
+                        : () {
+                            final lineId = Fmt.toInt(v['route_line_id']);
+                            context
+                                .push(
+                                  '/customer-orders/new?customer_id=${Fmt.toInt(v['customer_id'])}'
+                                  '&customer_name=${Uri.encodeComponent(Fmt.str(v['name']))}'
+                                  '&customer_code=${Uri.encodeComponent(Fmt.str(v['code']))}'
+                                  '&visit_route_line_id=$lineId',
+                                )
+                                .then((_) {
+                              if (mounted) {
+                                _load(
+                                  keepCustomerId:
+                                      Fmt.toInt(v['customer_id']),
+                                );
+                              }
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 10),
                   _BigActionButton(
                     label: 'خروج GPS',
                     hint: 'من موقع العميل',

@@ -105,11 +105,11 @@ class _CustomerOrderListScreenState extends State<CustomerOrderListScreen> {
         ],
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () async {
-            await context.push('/customer-orders/new');
+            await context.push('/customers');
             if (mounted) _load();
           },
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('طلب جديد'),
+          icon: const Icon(Icons.people_rounded),
+          label: const Text('اختيار عميل وزيارته'),
         ),
         body: Column(children: [
           Padding(

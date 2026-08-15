@@ -23,11 +23,13 @@ class CustomerOrderFormScreen extends StatefulWidget {
     this.initialCustomerId,
     this.initialCustomerName,
     this.initialCustomerCode,
+    this.visitRouteLineId,
   });
   final int? orderId;
   final int? initialCustomerId;
   final String? initialCustomerName;
   final String? initialCustomerCode;
+  final int? visitRouteLineId;
 
   @override
   State<CustomerOrderFormScreen> createState() =>
@@ -314,6 +316,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'id': _id,
         'customer_id': _customer!.id,
         'warehouse_id': _warehouseId,
+        if ((widget.visitRouteLineId ?? 0) > 0)
+          'visit_route_line_id': widget.visitRouteLineId,
         'lines': _lines.map((l) => l.toJson()).toList(),
       };
       if (session.gpsConfig.repVisitGeofence) {

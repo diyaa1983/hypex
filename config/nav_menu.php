@@ -548,6 +548,7 @@ return [
                     'title' => 'إعدادات النظام',
                     'items' => [
                         ['r' => 'settings', 'label' => 'الإعدادات', 'icon' => '⚙'],
+                        ['r' => 'no_order_reasons_settings', 'label' => 'أسباب عدم طلب العميل', 'icon' => '☑'],
                         ['r' => 'dashboard_accounts_settings', 'label' => 'حسابات الشاشة الرئيسية', 'icon' => '⌂'],
                         ['r' => 'system_backup', 'label' => 'النسخ الاحتياطي', 'icon' => '💾'],
                         ['r' => 'tax_rates_settings', 'label' => 'معدّلات الضريبة', 'icon' => '%'],

@@ -1581,7 +1581,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
 
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
-  const colCount = groupByRep ? 13 : 14;
+  const colCount = groupByRep ? 14 : 15;
 
   function scopeLbl(r) {
     return Number(r.in_plan ?? 1) === 1
@@ -1595,6 +1595,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       ${includeRep ? `<td>${esc(r.sales_rep_name || '—')}</td>` : ''}
       <td>${esc(r.customer_name || '—')}</td>
       <td>${scopeLbl(r)}</td>
+      <td>${esc(r.no_order_reasons || (Number(r.in_plan ?? 1) === 1 ? '—' : 'غير محدد'))}</td>
       <td class="si-num" dir="ltr">${esc(r.customer_code || '')}</td>
       <td>${esc(r.region_name || '—')}</td>
       <td>${esc(r.address_name || '—')}</td>
@@ -1642,6 +1643,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'التاريخ',
         'العميل',
         'نطاق الزيارة',
+        'سبب عدم الطلب',
         'رقم العميل',
         'المنطقة',
         'العنوان',
@@ -1658,6 +1660,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'المندوب',
         'العميل',
         'نطاق الزيارة',
+        'سبب عدم الطلب',
         'رقم العميل',
         'المنطقة',
         'العنوان',

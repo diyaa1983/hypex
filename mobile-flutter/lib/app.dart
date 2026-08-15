@@ -135,10 +135,13 @@ class NammaApp extends StatelessWidget {
           builder: (_, s) {
             final q = s.uri.queryParameters;
             final cid = int.tryParse(q['customer_id'] ?? '') ?? 0;
+            final visitLineId =
+                int.tryParse(q['visit_route_line_id'] ?? '') ?? 0;
             return CustomerOrderFormScreen(
               initialCustomerId: cid > 0 ? cid : null,
               initialCustomerName: q['customer_name'],
               initialCustomerCode: q['customer_code'],
+              visitRouteLineId: visitLineId > 0 ? visitLineId : null,
             );
           },
         ),

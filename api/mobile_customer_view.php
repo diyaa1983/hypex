@@ -85,6 +85,12 @@ try {
                 $line = sal_rep_visit_line_fetch($pdo, (int) $ens['route_line_id']);
                 if ($line) {
                     $visit = sal_rep_visit_public_row($line);
+                    if ($visit) {
+                        $visit['has_order'] = sal_rep_visit_has_order(
+                            $pdo,
+                            (int) $ens['route_line_id']
+                        );
+                    }
                 }
             }
         } catch (Throwable $e) {
@@ -113,6 +119,7 @@ try {
             'has_gps' => $lat !== null && $lng !== null,
         ],
         'visit' => $visit,
+        'no_order_reasons' => sal_rep_visit_no_order_reasons($pdo),
         'visit_radius_m' => (int) sal_rep_visit_radius_m($pdo),
         'checkin_methods' => ['GPS', 'MANUAL'],
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);

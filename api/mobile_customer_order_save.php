@@ -19,8 +19,29 @@ try {
      throw new RuntimeException('هذا العميل غير مربوط بمندوبك.');
  }
  sal_rep_visit_assert_allowed($pdo, $customerId, $body, $rep);
+ $visitLineId=(int)($body['visit_route_line_id']??0);
+ if ($id < 1 && $rep !== null) {
+     if ($visitLineId < 1) throw new RuntimeException('يجب تسجيل الدخول عند العميل قبل إنشاء الطلبية.');
+     $vst=$pdo->prepare(
+         'SELECT l.id FROM sal_rep_route_line l
+          INNER JOIN sal_rep_route r ON r.id=l.route_id
+          WHERE l.id=? AND r.sales_rep_id=? AND l.customer_id=?
+            AND r.route_date=CURDATE() AND l.visit_checkin_at IS NOT NULL
+            AND l.visit_checkout_at IS NULL LIMIT 1'
+     );
+     $vst->execute([$visitLineId,$rep,$customerId]);
+     if (!(int)$vst->fetchColumn()) {
+         throw new RuntimeException('لا توجد زيارة مفتوحة لهذا العميل. سجّل الدخول أولاً.');
+     }
+ }
  $warehouse=(int)($body['warehouse_id']??0); if (!wh_access_can_issue($pdo,$warehouse)) throw new RuntimeException(wh_access_deny_issue_message());
  $saved=sal_customer_order_save($pdo,$body,is_array($body['lines']??null)?$body['lines']:[],$uid,$id>0?null:$rep);
+ if ($visitLineId > 0) {
+     $pdo->prepare(
+         'UPDATE sal_customer_order SET visit_route_line_id=?
+          WHERE id=? AND customer_id=?'
+     )->execute([$visitLineId,$saved,$customerId]);
+ }
  $order=sal_customer_order_fetch($pdo,$saved);
  require_once app_path('includes/header_check_notifications.php');
  require_once app_path('includes/document_header.php');

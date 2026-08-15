@@ -65,6 +65,7 @@ echo json_encode([
     'weekday_label' => $weekdayLabels[$wd] ?? '',
     'visit_radius_m' => (int) sal_rep_visit_radius_m($pdo),
     'geofence_required' => sal_rep_visit_geofence_setting_enabled($pdo),
+    'no_order_reasons' => sal_rep_visit_no_order_reasons($pdo),
     'visits' => $visits,
     'count' => count($visits),
     'planned_count' => $plannedCount,

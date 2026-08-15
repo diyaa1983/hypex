@@ -46,6 +46,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
   String? _detailError;
   Map<String, dynamic>? _customer;
   Map<String, dynamic>? _visit;
+  List<Map<String, dynamic>> _noOrderReasons = [];
   int _radiusM = 200;
 
   /// عميل الزيارة المفتوحة حالياً (إن وُجدت).
@@ -163,6 +164,26 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
     return cin.isNotEmpty && cout.isEmpty;
   }
 
+  void _openOrderForActiveVisit() {
+    final c = _customer;
+    final visitLineId = Fmt.toInt(_visit?['route_line_id']);
+    if (c == null || !_selectedIsOpen || visitLineId < 1) {
+      showSnack(context, 'سجّل الدخول عند العميل أولاً لإنشاء طلبية.',
+          error: true);
+      return;
+    }
+    context
+        .push(
+          '/customer-orders/new?customer_id=${Fmt.toInt(c['id'])}'
+          '&customer_name=${Uri.encodeComponent(Fmt.str(c['name']))}'
+          '&customer_code=${Uri.encodeComponent(Fmt.str(c['code']))}'
+          '&visit_route_line_id=$visitLineId',
+        )
+        .then((_) {
+      if (mounted) _selectCustomer(Fmt.toInt(c['id']));
+    });
+  }
+
   Future<void> _selectCustomer(int id, {bool openNarrowDetail = false}) async {
     if (id < 1) return;
     if (_hasOpenVisit && id != _openVisitCustomerId) {
@@ -191,10 +212,15 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
       if (!mounted) return;
       final c = (res['customer'] as Map?)?.cast<String, dynamic>();
       final v = (res['visit'] as Map?)?.cast<String, dynamic>();
+      final noOrderReasons = (res['no_order_reasons'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
       final radius = Fmt.toInt(res['visit_radius_m']);
       setState(() {
         _customer = c;
         _visit = v;
+        _noOrderReasons = noOrderReasons;
         if (radius > 0) _radiusM = radius;
         _detailLoading = false;
         if (_visitOpenFromMap(v)) {
@@ -451,11 +477,73 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
     }
   }
 
+  Future<List<int>?> _pickNoOrderReasons() async {
+    if (_noOrderReasons.isEmpty) {
+      showSnack(
+        context,
+        'لا توجد أسباب «عدم طلب العميل» مضافة في إعدادات النظام.',
+        error: true,
+      );
+      return null;
+    }
+    final selected = <int>{};
+    return showDialog<List<int>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('سبب عدم عمل طلبية'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: _noOrderReasons.map((r) {
+                  final id = Fmt.toInt(r['id']);
+                  return CheckboxListTile(
+                    value: selected.contains(id),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(Fmt.str(r['name_ar'])),
+                    onChanged: (on) => setLocal(() {
+                      if (on == true) {
+                        selected.add(id);
+                      } else {
+                        selected.remove(id);
+                      }
+                    }),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: selected.isEmpty
+                  ? null
+                  : () => Navigator.pop(ctx, selected.toList()),
+              child: const Text('اعتماد الأسباب'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _checkout({required bool manual}) async {
     final id = _selectedId;
     final c = _customer;
     if (id == null || c == null || _busy) return;
     final name = Fmt.str(c['name']);
+    List<int> noOrderReasonIds = [];
+    if (_visit?['has_order'] != true) {
+      final picked = await _pickNoOrderReasons();
+      if (picked == null || picked.isEmpty) return;
+      noOrderReasonIds = picked;
+    }
     final ok = await _confirm(
       'تأكيد تسجيل الخروج',
       manual
@@ -519,6 +607,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
         body: {
           'customer_id': id,
           'method': manual ? 'MANUAL' : 'GPS',
+          'no_order_reason_ids': noOrderReasonIds,
           if (reason != null && reason.isNotEmpty) 'reason': reason,
           ...gps,
         },
@@ -827,6 +916,12 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            FilledButton.icon(
+              onPressed: _busy ? null : _openOrderForActiveVisit,
+              icon: const Icon(Icons.shopping_cart_checkout_rounded),
+              label: const Text('عمل طلب شراء للعميل'),
+            ),
+            const SizedBox(height: 8),
             InkWell(
               onTap: _busy
                   ? null
@@ -1002,10 +1097,21 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                           onRetry: () => _loadHistOrders(_selectedId!),
                           onAddOrder: () {
                             final c = _customer!;
+                            final visitLineId =
+                                Fmt.toInt(_visit?['route_line_id']);
+                            if (!_selectedIsOpen || visitLineId < 1) {
+                              showSnack(
+                                context,
+                                'سجّل الدخول عند العميل أولاً لإنشاء طلبية.',
+                                error: true,
+                              );
+                              return;
+                            }
                             context.push(
                               '/customer-orders/new?customer_id=${Fmt.toInt(c['id'])}'
                               '&customer_name=${Uri.encodeComponent(Fmt.str(c['name']))}'
-                              '&customer_code=${Uri.encodeComponent(Fmt.str(c['code']))}',
+                              '&customer_code=${Uri.encodeComponent(Fmt.str(c['code']))}'
+                              '&visit_route_line_id=$visitLineId',
                             );
                           },
                         ),

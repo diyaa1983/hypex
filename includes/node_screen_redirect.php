@@ -124,6 +124,7 @@ function node_desktop_screen_path_map(): array
         'groups' => '/system/groups',
         'permissions' => '/system/permissions',
         'settings' => '/system/settings',
+        'no_order_reasons_settings' => '/system/no-order-reasons',
         'report_customers_by_rep' => '/customers/reports/by-rep',
         'report_sales_between_dates' => '/sales/reports/between-dates',
         'report_party_statement' => '/accounting/reports/party-statement',

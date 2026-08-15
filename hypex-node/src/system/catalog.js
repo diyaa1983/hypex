@@ -21,6 +21,13 @@ const systemCatalog = [
     items: [
       { r: 'settings', label: 'الإعدادات', icon: '⚙', path: '/system/settings', kind: 'list' },
       {
+        r: 'no_order_reasons_settings',
+        label: 'أسباب عدم طلب العميل',
+        icon: '☑',
+        path: '/system/no-order-reasons',
+        kind: 'list',
+      },
+      {
         r: 'dashboard_accounts_settings',
         label: 'حسابات الشاشة الرئيسية',
         icon: '⌂',
