@@ -1154,14 +1154,14 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
   }
 
   const toolbar = `
-    <form class="si-cmd si-doc-toolbar no-print ora-nav" method="get" action="${BASE}" id="ora-inv-nav-form">
+    <form class="ora-nav no-print" method="get" action="${BASE}" id="ora-inv-nav-form">
       <input type="hidden" name="run" value="1">
-      <div class="si-tb-group ora-nav__group">
+      <div class="ora-nav__group ora-nav__group--no">
         <span class="ora-nav__lab">رقم الفاتورة</span>
-        <div class="si-docno-row" dir="ltr">
+        <div class="ora-nav__row" dir="ltr">
           ${btn(hrefNav('first'), '«', 'أول فاتورة', false)}
           ${btn(nav.prev ? hrefKey(nav.prev) : hrefNav('prev'), '‹', 'السابق', !nav.prev && !!header)}
-          <input class="si-field si-field--mono si-docno-input ora-nav__no" type="text" name="invoice_no"
+          <input class="ora-nav__no" type="text" name="invoice_no"
                  id="ora_inv_no" value="${invoiceNo || ''}"
                  inputmode="numeric" dir="ltr" placeholder="رقم" autocomplete="off"
                  title="اكتب الرقم ثم Enter · الأسهم للتقليب">
@@ -1169,26 +1169,49 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
           ${btn(hrefNav('last'), '»', 'آخر فاتورة', false)}
         </div>
       </div>
-      <div class="si-tb-group ora-nav__group">
+      <div class="ora-nav__group">
         <span class="ora-nav__lab">السنة</span>
-        <input class="si-field si-field--mono ora-nav__year" type="text" name="year" id="ora_inv_year"
+        <input class="ora-nav__year" type="text" name="year" id="ora_inv_year"
                value="${year || ''}"
                inputmode="numeric" dir="ltr" placeholder="كل السنوات" autocomplete="off">
       </div>
-      <div class="si-tb-group ora-nav__group">
-        <span class="ora-nav__lab">&nbsp;</span>
-        <button class="si-btn si-btn--primary" type="submit">عرض الفاتورة</button>
+      <div class="ora-nav__group">
+        <span class="ora-nav__lab" aria-hidden="true">&nbsp;</span>
+        <button class="ora-nav__go" type="submit">عرض الفاتورة</button>
       </div>
-      <p class="ora-nav__hint">Enter عرض · ← سابق · → تالي · Home أول · End آخر</p>
+      <p class="ora-nav__hint">
+        <kbd>Enter</kbd> عرض · <kbd>←</kbd> سابق · <kbd>→</kbd> تالي · <kbd>Home</kbd> أول · <kbd>End</kbd> آخر
+      </p>
     </form>
     <style>
-      .ora-nav{display:flex;flex-wrap:wrap;gap:.55rem .95rem;align-items:flex-end}
-      .ora-nav__group{display:flex;flex-direction:column;gap:.25rem}
-      .ora-nav__lab{font-size:.72rem;font-weight:800;letter-spacing:.04em;color:#5c6578}
-      .ora-nav__no{width:8.5rem;text-align:center;font-weight:800;font-size:1rem}
-      .ora-nav__year{width:7rem;text-align:center}
-      .ora-nav .si-docno-btn{min-width:2rem;padding:.3rem .45rem;font-weight:800;line-height:1}
-      .ora-nav__hint{flex:1 1 100%;margin:0;font-size:.75rem;color:#7b8494}
+      .ora-nav{display:flex;flex-wrap:wrap;gap:.7rem 1.1rem;align-items:flex-end;
+        margin-bottom:1rem;padding:.85rem 1rem;border:1px solid #e2e8f0;border-radius:14px;
+        background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+      .ora-nav__group{display:flex;flex-direction:column;gap:.32rem}
+      .ora-nav__lab{font-size:.7rem;font-weight:800;letter-spacing:.05em;color:#64748b;
+        text-transform:uppercase}
+      .ora-nav__row{display:flex;align-items:center;gap:.3rem;padding:.2rem;border-radius:11px;
+        background:#f1f5f9;border:1px solid #e2e8f0}
+      .ora-nav .si-docno-btn{display:inline-flex;align-items:center;justify-content:center;
+        min-width:2.1rem;height:2.1rem;padding:0;font-weight:800;font-size:1rem;line-height:1;
+        border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#0369a1;
+        text-decoration:none;transition:.15s}
+      .ora-nav .si-docno-btn:hover{background:#0369a1;color:#fff;border-color:#0369a1}
+      .ora-nav__no,.ora-nav__year{height:2.1rem;border:1px solid #cbd5e1;border-radius:8px;
+        padding:.2rem .5rem;font-family:var(--si-mono,ui-monospace,Consolas,monospace);
+        background:#fff;box-sizing:border-box}
+      .ora-nav__no{width:8rem;text-align:center;font-weight:800;font-size:1.05rem;color:#0f172a}
+      .ora-nav__no:focus,.ora-nav__year:focus{outline:none;border-color:#0369a1;
+        box-shadow:0 0 0 3px rgba(3,105,161,.15)}
+      .ora-nav__year{width:7.5rem;text-align:center;font-weight:700}
+      .ora-nav__go{height:2.1rem;padding:0 1.3rem;border:0;border-radius:9px;cursor:pointer;
+        font-weight:800;font-size:.9rem;color:#fff;
+        background:linear-gradient(180deg,#0ea5e9,#0369a1);box-shadow:0 1px 3px rgba(3,105,161,.35)}
+      .ora-nav__go:hover{filter:brightness(1.06)}
+      .ora-nav__hint{flex:1 1 100%;margin:0;font-size:.76rem;color:#94a3b8;
+        display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+      .ora-nav__hint kbd{font-family:inherit;font-size:.72rem;font-weight:700;color:#475569;
+        background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:.05rem .35rem}
       .ora-doc-meta .si-field[readonly]{background:rgba(15,23,42,.03);cursor:default}
       .ora-doc-lines tfoot .ora-doc-lines__sum td{background:rgba(15,23,42,.05);font-weight:800}
       .ora-doc-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;
