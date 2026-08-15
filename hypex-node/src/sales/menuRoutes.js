@@ -5,6 +5,8 @@ const auth = require('../auth');
 const q = require('./domainQueries');
 const ui = require('../lib/salesUi');
 const { salesCatalog } = require('./catalog');
+const accNative = require('../accounting/nativeService');
+const { esc, fmtAmt, isoToDmy } = require('../lib/html');
 
 const router = express.Router();
 
@@ -955,5 +957,309 @@ router.get('/sales/reports/returns-totals', guard('report_sales_returns_totals')
         .join(''),
   })
 );
+
+/* ═══════════════ فاتورة بيع Oracle — شاشة تقليب بالرقم ═══════════════ */
+router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_invoice'), async (req, res) => {
+  const BASE = '/sales/reports/oracle-sales-invoice';
+  let invoiceNo = Number(req.query.invoice_no || req.query.v_num || 0) || 0;
+  let year = Number(req.query.year || req.query.vyear || 0) || 0;
+  const navAct = String(req.query.nav || '').toLowerCase().trim();
+  const hasNav = ['first', 'last', 'prev', 'next'].includes(navAct);
+  const uid = Number(req.session.user?.id || 0) || 0;
+
+  let err = '';
+  let data = { ok: true, message: '', matches: [], header: null, lines: [], nav: null };
+  const payload = { invoice_no: invoiceNo, year };
+  if (hasNav) payload.nav = navAct;
+
+  data = await accNative.run('oracle_sales_invoice', uid, payload);
+  if (!data || data.ok === false) {
+    err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+    data = { ok: false, matches: [], header: null, lines: [], nav: null };
+  }
+
+  const matches = Array.isArray(data.matches) ? data.matches : [];
+  const header = data.header && typeof data.header === 'object' ? data.header : null;
+  const lines = Array.isArray(data.lines) ? data.lines : [];
+  const nav = data.nav && typeof data.nav === 'object' ? data.nav : {};
+
+  if (header) {
+    invoiceNo = Number(header.v_num || invoiceNo) || 0;
+    year = Number(header.vyear || year) || 0;
+  }
+
+  const hrefKey = (k) =>
+    k && k.v_num
+      ? `${BASE}?run=1&invoice_no=${Number(k.v_num)}&year=${Number(k.vyear || 0)}`
+      : '';
+  const hrefNav = (act) =>
+    `${BASE}?run=1&nav=${act}&invoice_no=${invoiceNo || 0}&year=${year || 0}`;
+  const btn = (href, label, title, disabled) =>
+    disabled || !href
+      ? `<span class="si-btn si-docno-btn" style="opacity:.35;pointer-events:none" title="${esc(
+          title
+        )}">${label}</span>`
+      : `<a class="si-btn si-docno-btn" href="${esc(href)}" title="${esc(title)}">${label}</a>`;
+
+  let result = '';
+  if (err) {
+    result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>`;
+  } else if (matches.length && !header) {
+    const rows =
+      matches
+        .map((m) => {
+          const href = hrefKey({ v_num: m.v_num, vyear: m.vyear });
+          return `<tr>
+            <td class="si-num" dir="ltr">${esc(m.v_num)}</td>
+            <td class="si-num" dir="ltr">${esc(m.vyear)}</td>
+            <td class="si-num" dir="ltr">${esc(isoToDmy(m.vdate))}</td>
+            <td class="si-num" dir="ltr">${esc(m.cust_acc || '—')}</td>
+            <td class="si-num" dir="ltr">${esc(m.store)}</td>
+            <td class="si-num" dir="ltr">${esc(fmtAmt(m.gross))}</td>
+            <td class="no-print"><a class="si-btn" href="${esc(href)}">فتح</a></td>
+          </tr>`;
+        })
+        .join('') || ui.emptyRow(7);
+    result = `
+      <p class="muted" style="margin-bottom:.6rem">${esc(
+        data.message || 'وُجدت عدة فواتير — اختر السنة'
+      )}</p>
+      ${ui.tableSurface(
+        'فواتير بنفس الرقم',
+        `${matches.length} فاتورة`,
+        ['الرقم', 'السنة', 'التاريخ', 'العميل', 'المستودع', 'الإجمالي', ''],
+        rows
+      )}`;
+  } else if (header) {
+    const lineRows =
+      lines
+        .map(
+          (ln, i) => `<tr>
+        <td class="si-num" dir="ltr">${i + 1}</td>
+        <td class="si-num" dir="ltr">${esc(ln.item || '')}</td>
+        <td>${esc(ln.item_name || '—')}</td>
+        <td class="si-num" dir="ltr">${esc(ln.cat || '—')}</td>
+        <td class="si-num" dir="ltr">${esc(ln.batch || '—')}</td>
+        <td class="si-num" dir="ltr">${esc(ln.unit_label || (ln.tr_unit ? '1*' + ln.tr_unit : '—'))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.qty))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.bonus))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.sell))}</td>
+        <td class="si-num" dir="ltr">${esc(Number(ln.tax_pct || 0))}%</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.vou_tax))}</td>
+      </tr>`
+        )
+        .join('') || ui.emptyRow(12, 'لا بنود');
+
+    const qtySum = lines.reduce((s, ln) => s + Number(ln.qty || 0), 0);
+    const bonusSum = lines.reduce((s, ln) => s + Number(ln.bonus || 0), 0);
+    const discPct = Number(header.per_disc || 0);
+    const discLabel = discPct > 0 ? ` (${(discPct * 100).toFixed(2).replace(/\.?0+$/, '')}%)` : '';
+
+    const stMeta =
+      'width:100%;border-collapse:collapse;table-layout:auto;margin:0 0 .7rem;' +
+      'font-size:.86rem;line-height:1.4;border:1px solid #cfd7e3';
+    const stLab =
+      'border:1px solid #dfe4ec;background:#eef1f6;padding:.3rem .6rem;text-align:right;' +
+      'white-space:nowrap;color:#43506b;font-weight:600;width:1px';
+    const stVal =
+      'border:1px solid #dfe4ec;padding:.3rem .6rem;text-align:right;font-weight:700;' +
+      'white-space:nowrap;width:1px';
+    const stValWide = 'border:1px solid #dfe4ec;padding:.3rem .6rem;text-align:right;font-weight:700';
+    const stTot =
+      'border-collapse:collapse;font-size:.88rem;margin-top:.7rem;border:1px solid #cfd7e3';
+    const stTLab =
+      'border:1px solid #dfe4ec;background:#eef1f6;padding:.3rem .8rem;text-align:right;' +
+      'white-space:nowrap;font-weight:600;color:#43506b';
+    const stTVal =
+      'border:1px solid #dfe4ec;padding:.3rem .8rem;text-align:left;font-weight:700;' +
+      'min-width:8rem;font-variant-numeric:tabular-nums';
+    const stTLabG = stTLab + ';background:#e3e9fb;font-weight:800;font-size:.95rem;color:#1f2a44';
+    const stTValG = stTVal + ';background:#e3e9fb;font-weight:800;font-size:.95rem';
+
+    const salesmanTxt =
+      header.salesman_no || header.salesman_name
+        ? `${esc(header.salesman_no || '')}${
+            header.salesman_name ? ' — ' + esc(header.salesman_name) : ''
+          }`
+        : '—';
+
+    const totalsRows = [
+      ['مجموع الفاتورة', fmtAmt(header.gross), false],
+      [`الخصم${discLabel}`, fmtAmt(header.vou_disc), false],
+      ['الصافي قبل الضريبة', fmtAmt(header.net), false],
+      ['قيمة الضريبة', fmtAmt(header.tax_sum), false],
+      ['الإجمالي النهائي', fmtAmt(header.total), true],
+    ]
+      .map(
+        ([lab, val, grand]) => `<tr>
+          <td style="${grand ? stTLabG : stTLab}">${esc(lab)}</td>
+          <td style="${grand ? stTValG : stTVal}" dir="ltr">${esc(val)}</td></tr>`
+      )
+      .join('');
+
+    result = `
+      <div class="si-print-area">
+        <table style="${stMeta}">
+          <tr>
+            <td style="${stLab}">رقم الفاتورة</td>
+            <td style="${stVal}" dir="ltr">${esc(header.v_num)} / ${esc(header.vyear)}</td>
+            <td style="${stLab}">التاريخ</td>
+            <td style="${stVal}">${esc(isoToDmy(header.vdate))}</td>
+            <td style="${stLab}">المستودع</td>
+            <td style="${stValWide}" dir="ltr">${esc(header.store)}</td>
+          </tr>
+          <tr>
+            <td style="${stLab}">رقم العميل</td>
+            <td style="${stVal}" dir="ltr">${esc(header.cust_acc || '—')}</td>
+            <td style="${stLab}">اسم العميل</td>
+            <td style="${stValWide}" colspan="3">${esc(header.customer_name || '—')}</td>
+          </tr>
+          <tr>
+            <td style="${stLab}">البائع</td>
+            <td style="${stValWide}" colspan="5">${salesmanTxt}</td>
+          </tr>
+        </table>
+        ${ui.tableSurface(
+          'بنود الفاتورة',
+          `${lines.length} بند`,
+          ['#', 'المادة', 'البيان', 'الفئة', 'التشغيلة', 'الوحدة', 'الكمية', 'بونص', 'السعر', 'ض%', 'الإجمالي', 'الضريبة'],
+          lineRows +
+            (lines.length
+              ? `<tr>
+                  <td colspan="6" style="background:#f4f6fa;font-weight:800">مجموع البنود</td>
+                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
+                    fmtAmt(qtySum)
+                  )}</td>
+                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
+                    fmtAmt(bonusSum)
+                  )}</td>
+                  <td style="background:#f4f6fa"></td><td style="background:#f4f6fa"></td>
+                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
+                    fmtAmt(header.gross)
+                  )}</td>
+                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
+                    fmtAmt(header.tax_sum)
+                  )}</td>
+                </tr>`
+              : '')
+        )}
+        <table style="${stTot}">${totalsRows}</table>
+      </div>`;
+  } else {
+    result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(
+      data.message || 'لا توجد فواتير بيع في Oracle'
+    )}</p>`;
+  }
+
+  const filters = `
+    <form class="si-search no-print ora-nav" method="get" action="${BASE}" id="ora-inv-nav-form">
+      <input type="hidden" name="run" value="1">
+      <div class="ora-nav__group">
+        <span class="ora-nav__lab">رقم الفاتورة</span>
+        <div class="ora-nav__row" dir="ltr">
+          ${btn(hrefNav('first'), '«', 'أول فاتورة', false)}
+          ${btn(nav.prev ? hrefKey(nav.prev) : hrefNav('prev'), '‹', 'السابق', !nav.prev && !!header)}
+          <input class="si-field si-field--mono ora-nav__no" type="text" name="invoice_no"
+                 id="ora_inv_no" value="${invoiceNo || ''}"
+                 inputmode="numeric" dir="ltr" placeholder="رقم" autocomplete="off"
+                 title="اكتب الرقم ثم Enter · الأسهم للتقليب">
+          ${btn(nav.next ? hrefKey(nav.next) : hrefNav('next'), '›', 'التالي', !nav.next && !!header)}
+          ${btn(hrefNav('last'), '»', 'آخر فاتورة', false)}
+        </div>
+      </div>
+      <div class="ora-nav__group">
+        <span class="ora-nav__lab">السنة</span>
+        <input class="si-field si-field--mono ora-nav__year" type="text" name="year" id="ora_inv_year"
+               value="${year || ''}"
+               inputmode="numeric" dir="ltr" placeholder="كل السنوات" autocomplete="off">
+      </div>
+      <div class="ora-nav__group">
+        <span class="ora-nav__lab">&nbsp;</span>
+        <button class="si-btn si-btn--primary" type="submit">عرض الفاتورة</button>
+      </div>
+      <p class="ora-nav__hint">Enter عرض · ← سابق · → تالي · Home أول · End آخر</p>
+      <style>
+        .ora-nav{display:flex;flex-wrap:wrap;gap:.6rem .9rem;align-items:flex-end}
+        .ora-nav__group{display:flex;flex-direction:column;gap:.25rem}
+        .ora-nav__lab{font-size:.78rem;font-weight:700;color:#5c6578}
+        .ora-nav__row{display:flex;align-items:center;gap:.2rem}
+        .ora-nav__no{width:8rem;text-align:center;font-weight:800;font-size:1rem}
+        .ora-nav__year{width:7rem;text-align:center}
+        .ora-nav .si-docno-btn{min-width:2rem;padding:.3rem .45rem;font-weight:800;line-height:1}
+        .ora-nav__hint{flex:1 1 100%;margin:0;font-size:.76rem;color:#7b8494}
+      </style>
+    </form>
+    <script>
+    (function(){
+      var form=document.getElementById('ora-inv-nav-form');
+      var noEl=document.getElementById('ora_inv_no');
+      var yearEl=document.getElementById('ora_inv_year');
+      if(!form||!noEl) return;
+      var base='${BASE}?run=1';
+      var curNo=${invoiceNo || 0};
+      var curYear=${year || 0};
+      var yearTouched=false;
+      if(yearEl){ yearEl.addEventListener('input',function(){ yearTouched=true; }); }
+      function digits(v){ return String(v||'').replace(/[^0-9]/g,''); }
+      function goNav(act){
+        location.href=base+'&nav='+act+'&invoice_no='+encodeURIComponent(curNo||0)
+          +'&year='+encodeURIComponent(curYear||0);
+      }
+      function show(){
+        var n=digits(noEl.value);
+        if(!n){ goNav('last'); return; }
+        var y=digits(yearEl?yearEl.value:'');
+        if(Number(n)!==curNo && !yearTouched){ y=''; }
+        location.href=base+'&invoice_no='+encodeURIComponent(n)+(y?'&year='+encodeURIComponent(y):'');
+      }
+      form.addEventListener('submit',function(e){ e.preventDefault(); show(); });
+      noEl.addEventListener('keydown',function(e){
+        if(e.key==='Enter'){ e.preventDefault(); show(); }
+        else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ e.preventDefault(); goNav('prev'); }
+        else if(e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); goNav('next'); }
+        else if(e.key==='Home'){ e.preventDefault(); goNav('first'); }
+        else if(e.key==='End'){ e.preventDefault(); goNav('last'); }
+      });
+      if(yearEl){
+        yearEl.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){ e.preventDefault(); show(); }
+        });
+      }
+      try{ noEl.focus(); noEl.select(); }catch(err){}
+    })();
+    </script>`;
+
+  const subtitle = header
+    ? `فاتورة ${invoiceNo} / ${year} · تقليب فواتير النظام القديم`
+    : 'شاشة تقليب فواتير النظام القديم · MAS.DAILY · TYPE=9';
+
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'فاتورة بيع Oracle',
+      activePath: BASE,
+      css: ['/assets/css/acc-reports-node.css'],
+      js: ['/assets/js/sales-print.js'],
+      bodyHtml: `
+        <div class="si-stage si-report-page">
+          ${ui.hero({
+            mark: '🧾',
+            kicker: 'Hypex Sales · Node',
+            title: 'فاتورة بيع Oracle',
+            subtitle,
+            actions: [
+              { label: '🖨 طباعة', primary: true, print: true },
+              { label: 'فاتورة مبيعات', href: '/sales/invoices' },
+              { label: 'لوحة المبيعات', href: '/sales' },
+            ],
+          })}
+          <div class="si-rail no-print">${filters}</div>
+          ${result}
+        </div>`,
+    })
+  );
+});
 
 module.exports = router;

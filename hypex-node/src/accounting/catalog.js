@@ -48,7 +48,6 @@ const accountingCatalog = [
       { r: 'report_supplier_payables', label: 'كشف ذمم الموردين', icon: '📒', path: '/accounting/reports/payables', kind: 'report' },
       { r: 'report_party_statement', label: 'كشف حساب مورد - عميل', icon: '📋', path: '/accounting/reports/party-statement', kind: 'report' },
       { r: 'report_oracle_customer_statement', label: 'كشف حساب تفصيلي Oracle', icon: '📒', path: '/accounting/reports/oracle-statement', kind: 'report' },
-      { r: 'report_oracle_sales_invoice', label: 'فاتورة بيع Oracle', icon: '🧾', path: '/accounting/reports/oracle-sales-invoice', kind: 'report' },
       { r: 'report_account_statement', label: 'كشف حساب', icon: '📋', path: '/accounting/reports/account-statement', kind: 'report' },
       { r: 'report_trial_balance', label: 'ميزان المراجعة', icon: '⚖', path: '/accounting/reports/trial-balance', kind: 'report' },
       { r: 'report_trial_balance_detailed', label: 'ميزان مراجعة تفصيلي', icon: '⚖', path: '/accounting/reports/trial-balance-detailed', kind: 'report' },

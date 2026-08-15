@@ -46,6 +46,7 @@ return [
                     'title' => 'المبيعات',
                     'items' => [
                         ['r' => 'sales_invoices', 'label' => 'فاتورة مبيعات', 'icon' => '🧾'],
+                        ['r' => 'report_oracle_sales_invoice', 'label' => 'فاتورة بيع Oracle', 'icon' => '🧾'],
                         ['r' => 'sales_documents_list', 'label' => 'قائمة فواتير المبيعات', 'icon' => '📑'],
                         ['r' => 'sales_unpaid_invoices', 'label' => 'فواتير البيع غير المسددة', 'icon' => '🔴'],
                         ['r' => 'sales_invoices_list', 'label' => 'ترحيل فواتير المبيعات', 'icon' => '📋'],
@@ -340,7 +341,6 @@ return [
                         ['r' => 'report_supplier_payables', 'label' => 'كشف ذمم الموردين', 'icon' => '📒'],
                         ['r' => 'report_party_statement', 'label' => 'كشف حساب مورد - عميل', 'icon' => '📋'],
                         ['r' => 'report_oracle_customer_statement', 'label' => 'كشف حساب تفصيلي Oracle', 'icon' => '📒'],
-                        ['r' => 'report_oracle_sales_invoice', 'label' => 'فاتورة بيع Oracle', 'icon' => '🧾'],
                         ['r' => 'report_account_statement', 'label' => 'كشف حساب', 'icon' => '📋'],
                         ['r' => 'report_trial_balance', 'label' => 'ميزان المراجعة', 'icon' => '⚖'],
                         ['r' => 'report_trial_balance_detailed', 'label' => 'ميزان مراجعة تفصيلي', 'icon' => '⚖'],

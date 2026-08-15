@@ -10,6 +10,7 @@ const salesCatalog = [
     title: 'المبيعات',
     items: [
       { r: 'sales_invoices', label: 'فاتورة مبيعات', icon: '🧾', path: '/sales/invoices', kind: 'doc' },
+      { r: 'report_oracle_sales_invoice', label: 'فاتورة بيع Oracle', icon: '🧾', path: '/sales/reports/oracle-sales-invoice', kind: 'report' },
       { r: 'sales_documents_list', label: 'قائمة فواتير المبيعات', icon: '📑', path: '/sales/documents', kind: 'list' },
       { r: 'sales_unpaid_invoices', label: 'فواتير البيع غير المسددة', icon: '🔴', path: '/sales/unpaid', kind: 'list' },
       { r: 'sales_invoices_list', label: 'ترحيل فواتير المبيعات', icon: '📋', path: '/sales/posting', kind: 'list' },
@@ -25,7 +26,6 @@ const salesCatalog = [
       { r: 'sales_customer_orders_approved', label: 'الطلبات المعتمدة', icon: '📦', path: '/sales/orders/approved', kind: 'list' },
       { r: 'report_customer_orders', label: 'تقرير طلبات الشراء', icon: '📊', path: '/sales/reports/customer-orders', kind: 'report' },
       { r: 'report_customer_orders_by_item', label: 'طلبات الشراء للعميل حسب مادة معينة', icon: '📦', path: '/sales/reports/customer-orders-by-item', kind: 'report' },
-      { r: 'report_oracle_sales_invoice', label: 'فاتورة بيع Oracle', icon: '🧾', path: '/accounting/reports/oracle-sales-invoice', kind: 'report' },
       { r: 'sales_customer_order_returns', label: 'مرتجع طلب شراء عميل', icon: '↩️', path: '/sales/order-returns', kind: 'list' },
       { r: 'report_customer_order_returns', label: 'تقرير مرتجعات طلبات الشراء', icon: '📉', path: '/sales/reports/order-returns', kind: 'report' },
     ],

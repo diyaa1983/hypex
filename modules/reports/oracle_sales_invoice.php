@@ -72,16 +72,20 @@ $fmtDate = static function (string $iso): string {
 };
 
 // أنماط مباشرة (inline) لأن الطباعة/PDF تنسخ منطقة الطباعة فقط بدون أنماط الصفحة
-$stMetaTable = 'width:100%;border-collapse:collapse;margin:0 0 .55rem;font-size:.84rem;line-height:1.35';
-$stMetaLab = 'border:1px solid #d8dee9;background:#f4f6fa;padding:.22rem .5rem;text-align:right;'
-    . 'white-space:nowrap;color:#4b5563;font-weight:600;width:1%';
-$stMetaVal = 'border:1px solid #d8dee9;padding:.22rem .5rem;text-align:right;font-weight:700';
-$stTotTable = 'border-collapse:collapse;font-size:.86rem;margin-top:.55rem';
-$stTotLab = 'border:1px solid #d8dee9;background:#f4f6fa;padding:.24rem .6rem;text-align:right;'
-    . 'white-space:nowrap;font-weight:600';
-$stTotVal = 'border:1px solid #d8dee9;padding:.24rem .6rem;text-align:left;font-weight:700;min-width:6.5rem';
-$stTotLabG = $stTotLab . ';background:#e8edfb;font-weight:800;font-size:.92rem';
-$stTotValG = $stTotVal . ';background:#e8edfb;font-weight:800;font-size:.92rem';
+$stMetaTable = 'width:100%;border-collapse:collapse;table-layout:auto;margin:0 0 .7rem;'
+    . 'font-size:.85rem;line-height:1.4;border:1px solid #cfd7e3';
+$stMetaLab = 'border:1px solid #dfe4ec;background:#eef1f6;padding:.28rem .6rem;text-align:right;'
+    . 'white-space:nowrap;color:#43506b;font-weight:600;width:1px';
+$stMetaVal = 'border:1px solid #dfe4ec;padding:.28rem .6rem;text-align:right;font-weight:700;'
+    . 'white-space:nowrap;width:1px';
+$stMetaValWide = 'border:1px solid #dfe4ec;padding:.28rem .6rem;text-align:right;font-weight:700';
+$stTotTable = 'border-collapse:collapse;font-size:.87rem;margin-top:.7rem;border:1px solid #cfd7e3';
+$stTotLab = 'border:1px solid #dfe4ec;background:#eef1f6;padding:.28rem .8rem;text-align:right;'
+    . 'white-space:nowrap;font-weight:600;color:#43506b';
+$stTotVal = 'border:1px solid #dfe4ec;padding:.28rem .8rem;text-align:left;font-weight:700;'
+    . 'min-width:7.5rem;font-variant-numeric:tabular-nums';
+$stTotLabG = $stTotLab . ';background:#e3e9fb;font-weight:800;font-size:.94rem;color:#1f2a44';
+$stTotValG = $stTotVal . ';background:#e3e9fb;font-weight:800;font-size:.94rem';
 
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
@@ -136,10 +140,10 @@ if ($header) {
     <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print" id="ora-inv-nav-form">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
         <input type="hidden" name="run" value="1">
-        <div class="form-row" style="align-items:flex-end;flex-wrap:wrap;gap:.5rem">
-            <label class="field" style="flex:0 1 auto">
-                <span class="field-label">رقم الفاتورة</span>
-                <div style="display:flex;align-items:center;gap:.25rem;direction:ltr;margin-top:.2rem">
+        <div class="ora-nav">
+            <div class="ora-nav__group">
+                <span class="ora-nav__lab">رقم الفاتورة</span>
+                <div class="ora-nav__row" dir="ltr">
                     <?= $navBtn($hrefNav('first'), '«', 'أول فاتورة', false) ?>
                     <?= $navBtn(
                         !empty($nav['prev']) ? $hrefKey($nav['prev']) : $hrefNav('prev'),
@@ -147,11 +151,10 @@ if ($header) {
                         'السابق',
                         empty($nav['prev']) && (bool) $header
                     ) ?>
-                    <input class="input" type="text" name="invoice_no" id="ora_inv_no"
+                    <input class="input ora-nav__no" type="text" name="invoice_no" id="ora_inv_no"
                            value="<?= $invoiceNo > 0 ? (int) $invoiceNo : '' ?>"
                            inputmode="numeric" dir="ltr" placeholder="رقم" autocomplete="off"
-                           style="width:7.5rem;text-align:center"
-                           title="أدخل الرقم ثم Enter · الأسهم للتقليب">
+                           title="اكتب الرقم ثم Enter · الأسهم للتقليب">
                     <?= $navBtn(
                         !empty($nav['next']) ? $hrefKey($nav['next']) : $hrefNav('next'),
                         '›',
@@ -160,35 +163,68 @@ if ($header) {
                     ) ?>
                     <?= $navBtn($hrefNav('last'), '»', 'آخر فاتورة', false) ?>
                 </div>
-            </label>
-            <label class="field" style="flex:0 1 7rem">
-                <span class="field-label">السنة</span>
-                <input class="input" type="text" name="year" id="ora_inv_year"
+            </div>
+            <div class="ora-nav__group">
+                <span class="ora-nav__lab">السنة</span>
+                <input class="input ora-nav__year" type="text" name="year" id="ora_inv_year"
                        value="<?= $year > 0 ? (int) $year : '' ?>"
-                       inputmode="numeric" dir="ltr" placeholder="السنة" autocomplete="off">
-            </label>
-            <button class="btn btn-primary" type="submit">عرض</button>
-            <span class="muted" style="font-size:.78rem;align-self:center">← سابق · → تالي · Home أول · End آخر</span>
+                       inputmode="numeric" dir="ltr" placeholder="كل السنوات" autocomplete="off">
+            </div>
+            <div class="ora-nav__group">
+                <span class="ora-nav__lab">&nbsp;</span>
+                <button class="btn btn-primary" type="submit">عرض الفاتورة</button>
+            </div>
+            <p class="ora-nav__hint">Enter عرض · ← سابق · → تالي · Home أول · End آخر</p>
         </div>
     </form>
+    <style>
+    .ora-nav{display:flex;flex-wrap:wrap;gap:.6rem .9rem;align-items:flex-end}
+    .ora-nav__group{display:flex;flex-direction:column;gap:.25rem}
+    .ora-nav__lab{font-size:.78rem;font-weight:700;color:#5c6578}
+    .ora-nav__row{display:flex;align-items:center;gap:.2rem}
+    .ora-nav__no{width:8rem;text-align:center;font-weight:800;font-size:1rem}
+    .ora-nav__year{width:7.5rem;text-align:center}
+    .ora-nav__row .btn{min-width:2rem;padding:.3rem .5rem;font-weight:800;line-height:1}
+    .ora-nav__hint{flex:1 1 100%;margin:0;font-size:.76rem;color:#7b8494}
+    </style>
     <script>
     (function(){
+      var form=document.getElementById('ora-inv-nav-form');
       var noEl=document.getElementById('ora_inv_no');
-      if(!noEl) return;
+      var yearEl=document.getElementById('ora_inv_year');
+      if(!form||!noEl) return;
       var base=<?= json_encode($baseUrl, JSON_UNESCAPED_UNICODE) ?>;
       var curNo=<?= (int) $invoiceNo ?>;
       var curYear=<?= (int) $year ?>;
+      var yearTouched=false;
+      if(yearEl){ yearEl.addEventListener('input',function(){ yearTouched=true; }); }
+      function digits(v){ return String(v||'').replace(/[^0-9]/g,''); }
       function goNav(act){
         location.href=base+'&nav='+encodeURIComponent(act)
           +'&invoice_no='+encodeURIComponent(curNo||0)
           +'&year='+encodeURIComponent(curYear||0);
       }
+      function show(){
+        var n=digits(noEl.value);
+        if(!n){ goNav('last'); return; }
+        var y=digits(yearEl?yearEl.value:'');
+        // رقم جديد بلا تعديل السنة → ابحث في كل السنوات
+        if(Number(n)!==curNo && !yearTouched){ y=''; }
+        location.href=base+'&invoice_no='+encodeURIComponent(n)+(y?'&year='+encodeURIComponent(y):'');
+      }
+      form.addEventListener('submit',function(e){ e.preventDefault(); show(); });
       noEl.addEventListener('keydown',function(e){
-        if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ e.preventDefault(); goNav('prev'); }
+        if(e.key==='Enter'){ e.preventDefault(); show(); }
+        else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ e.preventDefault(); goNav('prev'); }
         else if(e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); goNav('next'); }
         else if(e.key==='Home'){ e.preventDefault(); goNav('first'); }
         else if(e.key==='End'){ e.preventDefault(); goNav('last'); }
       });
+      if(yearEl){
+        yearEl.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){ e.preventDefault(); show(); }
+        });
+      }
       try{ noEl.focus(); noEl.select(); }catch(err){}
     })();
     </script>
@@ -252,17 +288,17 @@ if ($header) {
                     <td style="<?= $stMetaLab ?>">التاريخ</td>
                     <td style="<?= $stMetaVal ?>"><?= esc($fmtDate((string) ($header['vdate'] ?? ''))) ?></td>
                     <td style="<?= $stMetaLab ?>">المستودع</td>
-                    <td style="<?= $stMetaVal ?>" dir="ltr"><?= (int) ($header['store'] ?? 0) ?></td>
+                    <td style="<?= $stMetaValWide ?>" dir="ltr"><?= (int) ($header['store'] ?? 0) ?></td>
                 </tr>
                 <tr>
                     <td style="<?= $stMetaLab ?>">رقم العميل</td>
                     <td style="<?= $stMetaVal ?>" dir="ltr"><?= esc((string) ($header['cust_acc'] ?? '')) ?></td>
                     <td style="<?= $stMetaLab ?>">اسم العميل</td>
-                    <td style="<?= $stMetaVal ?>" colspan="3"><?= esc((string) ($header['customer_name'] ?? '')) ?: '—' ?></td>
+                    <td style="<?= $stMetaValWide ?>" colspan="3"><?= esc((string) ($header['customer_name'] ?? '')) ?: '—' ?></td>
                 </tr>
                 <tr>
                     <td style="<?= $stMetaLab ?>">البائع</td>
-                    <td style="<?= $stMetaVal ?>" colspan="5"><?= esc($salesmanTxt) ?></td>
+                    <td style="<?= $stMetaValWide ?>" colspan="5"><?= esc($salesmanTxt) ?></td>
                 </tr>
             </table>
 
