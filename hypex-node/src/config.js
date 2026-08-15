@@ -25,5 +25,7 @@ module.exports = {
   },
   // شاشات PHP المتبقية (iframe/embed) — نفس المجلد؛ index.php مسموح في .htaccess
   phpBaseUrl: env('PHP_BASE_URL', 'http://127.0.0.1/hypex').replace(/\/$/, ''),
+  // صور QR المنشأة بواسطة Oracle Forms للفواتير المرسلة إلى الفوترة
+  oracleInvoiceQrDir: env('ORACLE_INVOICE_QR_DIR', 'D:\\taqwa\\Invoice_QR_Images\\1'),
   sessionSecret: env('SESSION_SECRET', 'hypex-node-dev-change-me'),
 };

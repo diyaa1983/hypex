@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const auth = require('../auth');
 const q = require('./domainQueries');
@@ -7,12 +9,28 @@ const ui = require('../lib/salesUi');
 const { salesCatalog } = require('./catalog');
 const accNative = require('../accounting/nativeService');
 const basePath = require('../lib/basePath');
+const config = require('../config');
 const { esc, fmtAmt, isoToDmy } = require('../lib/html');
 
 const router = express.Router();
 
 function can(user, code) {
   return auth.userCan(user, code) || user.is_admin;
+}
+
+function oracleInvoiceQrFile(year, invoiceNo) {
+  const y = Number(year) || 0;
+  const n = Number(invoiceNo) || 0;
+  const dir = String(config.oracleInvoiceQrDir || '').trim();
+  if (y < 1900 || n < 1 || !dir) return '';
+  try {
+    const files = fs.readdirSync(dir, { withFileTypes: true });
+    const rx = new RegExp(`^${y}_[^_]+_${n}\\.(?:jpe?g|png)$`, 'i');
+    const found = files.find((entry) => entry.isFile() && rx.test(entry.name));
+    return found ? path.join(dir, found.name) : '';
+  } catch {
+    return '';
+  }
 }
 
 function requireAnySales(req, res, next) {
@@ -959,6 +977,18 @@ router.get('/sales/reports/returns-totals', guard('report_sales_returns_totals')
   })
 );
 
+/* صورة QR المحفوظة من Oracle Forms — لا نكشف مسار القرص للمتصفح */
+router.get(
+  '/sales/reports/oracle-sales-invoice/qr',
+  guard('report_oracle_sales_invoice'),
+  (req, res) => {
+    const file = oracleInvoiceQrFile(req.query.year, req.query.invoice_no);
+    if (!file) return res.status(404).send('QR not found');
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.sendFile(file);
+  }
+);
+
 /* ═══════════════ فاتورة بيع Oracle — شاشة تقليب بالرقم ═══════════════ */
 router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_invoice'), async (req, res) => {
   const BASE = '/sales/reports/oracle-sales-invoice';
@@ -988,6 +1018,8 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
     invoiceNo = Number(header.v_num || invoiceNo) || 0;
     year = Number(header.vyear || year) || 0;
   }
+  const qrFile = header ? oracleInvoiceQrFile(year, invoiceNo) : '';
+  const qrUrl = `${BASE}/qr?year=${year || 0}&invoice_no=${invoiceNo || 0}`;
 
   const hrefKey = (k) =>
     k && k.v_num
@@ -1068,9 +1100,10 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
       <section class="si-surface">
         <div class="si-surface-head">
           <h2>بيانات المستند</h2>
-          <span class="si-count">Oracle · MAS.DAILY</span>
+          <span class="si-count">${qrFile ? 'مرسلة للفوترة · QR متوفر' : 'Oracle · MAS.DAILY'}</span>
         </div>
-        <div class="si-meta si-meta--invoice ora-doc-meta">
+        <div class="ora-doc-head">
+          <div class="si-meta si-meta--invoice ora-doc-meta">
           <label class="si-f si-f--docno">
             <span class="si-f-head">رقم الفاتورة</span>
             <input class="si-field si-field--mono" dir="ltr" readonly
@@ -1098,6 +1131,15 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
             <span class="si-f-head">البائع</span>
             <input class="si-field" readonly value="${salesmanTxt}">
           </label>
+          </div>
+          ${
+            qrFile
+              ? `<figure class="ora-doc-qr">
+                  <img src="${esc(qrUrl)}" alt="QR الفاتورة ${esc(invoiceNo)}">
+                  <figcaption>رمز الفوترة الإلكتروني</figcaption>
+                </figure>`
+              : ''
+          }
         </div>
       </section>
 
@@ -1212,7 +1254,15 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
         display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
       .ora-nav__hint kbd{font-family:inherit;font-size:.72rem;font-weight:700;color:#475569;
         background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:.05rem .35rem}
+      .ora-doc-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1rem;
+        align-items:stretch;padding:.9rem 1rem}
+      .ora-doc-head .ora-doc-meta{padding:0}
       .ora-doc-meta .si-field[readonly]{background:rgba(15,23,42,.03);cursor:default}
+      .ora-doc-qr{width:9rem;margin:0;padding:.55rem;border:1px solid #dfe4ec;border-radius:12px;
+        background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;
+        gap:.35rem;box-sizing:border-box}
+      .ora-doc-qr img{display:block;width:7.5rem;height:7.5rem;object-fit:contain}
+      .ora-doc-qr figcaption{font-size:.68rem;font-weight:700;color:#64748b;text-align:center}
       .ora-doc-lines tfoot .ora-doc-lines__sum td{background:rgba(15,23,42,.05);font-weight:800}
       .ora-doc-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;
         gap:1rem;padding:1rem 1.1rem 1.15rem}
@@ -1231,8 +1281,16 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
         font-weight:800;font-size:.98rem;color:#1f2a44}
       @media print{
         .ora-doc-lines tfoot{display:table-footer-group}
+        .ora-doc-head{grid-template-columns:minmax(0,1fr) 8rem}
+        .ora-doc-qr{width:8rem;page-break-inside:avoid}
+        .ora-doc-qr img{width:6.8rem;height:6.8rem}
         .ora-doc-foot{page-break-inside:avoid}
         .ora-doc-totals{page-break-inside:avoid}
+      }
+      @media(max-width:720px){
+        .ora-doc-head{grid-template-columns:1fr}
+        .ora-doc-qr{width:100%;flex-direction:row;justify-content:flex-start}
+        .ora-doc-qr img{width:6rem;height:6rem}
       }
     </style>
     <script>
