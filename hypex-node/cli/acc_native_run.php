@@ -339,6 +339,19 @@ try {
         }
     }
 
+    /* ─── oracle sales invoice by number ─── */
+    if ($action === 'oracle_sales_invoice') {
+        require_once app_path('includes/oracle_sales_invoice.php');
+        $invoiceNo = (int) ($payload['invoice_no'] ?? $payload['v_num'] ?? 0);
+        $year = (int) ($payload['year'] ?? $payload['vyear'] ?? 0);
+        try {
+            $result = oracle_fetch_sales_invoice_by_no($invoiceNo, $year);
+            cli_out(is_array($result) ? $result : ['ok' => false, 'error' => 'استجابة غير صالحة']);
+        } catch (Throwable $e) {
+            cli_out(['ok' => false, 'error' => $e->getMessage() ?: 'تعذر الاتصال بـ Oracle.'], 1);
+        }
+    }
+
     /* ─── period close ─── */
     if ($action === 'periods_get' || $action === 'periods_save') {
         require_once app_path('includes/acc_period_lock.php');

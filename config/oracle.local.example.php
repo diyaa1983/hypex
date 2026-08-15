@@ -67,6 +67,16 @@ return [
     ],
 
     /**
+     * فاتورة بيع Oracle (شاشة INV00024) — بنود من MAS.DAILY
+     * TYPE = 9 مبيعات
+     */
+    'sales_invoice' => [
+        'owner' => 'MAS',
+        'table' => 'DAILY',
+        'sale_type' => 9,
+    ],
+
+    /**
      * مجموعات / فئات المواد → inv_item_category
      * عدّل owner/table/columns بعد التحقق من Toad
      */

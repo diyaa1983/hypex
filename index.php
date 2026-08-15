@@ -196,6 +196,7 @@ $appBootMigrations = [
     'database/migrations/270_sal_rep_visit_checkin.sql',
     'database/migrations/271_report_sales_rep_visits.sql',
     'database/migrations/273_report_customer_orders_by_item.sql',
+    'database/migrations/274_report_oracle_sales_invoice.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

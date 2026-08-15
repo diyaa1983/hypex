@@ -228,6 +228,11 @@ return [
         'permission' => 'report_oracle_customer_statement',
         'title' => 'كشف حساب تفصيلي Oracle',
     ],
+    'report_oracle_sales_invoice' => [
+        'file' => 'modules/reports/oracle_sales_invoice.php',
+        'permission' => 'report_oracle_sales_invoice',
+        'title' => 'فاتورة بيع Oracle',
+    ],
     'sales_reps' => [
         'file' => 'modules/sales/sales_reps.php',
         'permission' => 'sales_reps',

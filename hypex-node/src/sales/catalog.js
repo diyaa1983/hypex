@@ -25,6 +25,7 @@ const salesCatalog = [
       { r: 'sales_customer_orders_approved', label: 'الطلبات المعتمدة', icon: '📦', path: '/sales/orders/approved', kind: 'list' },
       { r: 'report_customer_orders', label: 'تقرير طلبات الشراء', icon: '📊', path: '/sales/reports/customer-orders', kind: 'report' },
       { r: 'report_customer_orders_by_item', label: 'طلبات الشراء للعميل حسب مادة معينة', icon: '📦', path: '/sales/reports/customer-orders-by-item', kind: 'report' },
+      { r: 'report_oracle_sales_invoice', label: 'فاتورة بيع Oracle', icon: '🧾', path: '/accounting/reports/oracle-sales-invoice', kind: 'report' },
       { r: 'sales_customer_order_returns', label: 'مرتجع طلب شراء عميل', icon: '↩️', path: '/sales/order-returns', kind: 'list' },
       { r: 'report_customer_order_returns', label: 'تقرير مرتجعات طلبات الشراء', icon: '📉', path: '/sales/reports/order-returns', kind: 'report' },
     ],

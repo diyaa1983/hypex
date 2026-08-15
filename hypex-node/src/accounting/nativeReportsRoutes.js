@@ -1514,6 +1514,159 @@ router.get(
   );
 });
 
+/* ═══════════════ فاتورة بيع Oracle برقم الفاتورة ═══════════════ */
+router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
+  if (!can(req.session.user, 'report_oracle_sales_invoice')) return forbid(res);
+
+  const invoiceNo = Number(req.query.invoice_no || req.query.v_num || 0) || 0;
+  const year = Number(req.query.year || req.query.vyear || 0) || 0;
+  const run = String(req.query.run || '') === '1' || invoiceNo > 0;
+
+  let err = '';
+  let data = { ok: true, message: '', matches: [], header: null, lines: [] };
+
+  if (run) {
+    if (invoiceNo < 1) {
+      err = 'أدخل رقم الفاتورة.';
+    } else {
+      data = await svc.run('oracle_sales_invoice', uid(req), {
+        invoice_no: invoiceNo,
+        year,
+      });
+      if (!data || data.ok === false) {
+        err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+        data = { ok: false, matches: [], header: null, lines: [] };
+      }
+    }
+  }
+
+  const matches = Array.isArray(data.matches) ? data.matches : [];
+  const header = data.header && typeof data.header === 'object' ? data.header : null;
+  const lines = Array.isArray(data.lines) ? data.lines : [];
+
+  let result = '';
+  if (err) {
+    result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>`;
+  } else if (run && matches.length && !header) {
+    const rows =
+      matches
+        .map((m) => {
+          const href = `/accounting/reports/oracle-sales-invoice?run=1&invoice_no=${Number(
+            m.v_num || 0
+          )}&year=${Number(m.vyear || 0)}`;
+          return `<tr>
+            <td class="si-num" dir="ltr">${esc(m.v_num)}</td>
+            <td class="si-num" dir="ltr">${esc(m.vyear)}</td>
+            <td class="si-num" dir="ltr">${esc(isoToDmy(m.vdate))}</td>
+            <td class="si-num" dir="ltr">${esc(m.cust_acc || '—')}</td>
+            <td class="si-num" dir="ltr">${esc(m.store)}</td>
+            <td class="si-num" dir="ltr">${esc(fmtAmt(m.gross))}</td>
+            <td class="no-print"><a class="si-btn" href="${esc(href)}">فتح</a></td>
+          </tr>`;
+        })
+        .join('') || ui.emptyRow(7);
+    result = `
+      <p class="muted" style="margin-bottom:.6rem">${esc(
+        data.message || 'وُجدت عدة فواتير — اختر السنة'
+      )}</p>
+      ${ui.tableSurface(
+        'فواتير بنفس الرقم',
+        `${matches.length} فاتورة`,
+        ['الرقم', 'السنة', 'التاريخ', 'العميل', 'المستودع', 'الإجمالي', ''],
+        rows
+      )}`;
+  } else if (run && header) {
+    const lineRows =
+      lines
+        .map(
+          (ln, i) => `<tr>
+        <td class="si-num" dir="ltr">${i + 1}</td>
+        <td class="si-num" dir="ltr">${esc(ln.item || '')}</td>
+        <td class="si-num" dir="ltr">${esc(ln.cat || '—')}</td>
+        <td class="si-num" dir="ltr">${esc(ln.batch || '—')}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.qty))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.bonus))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.sell))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(ln.vou_tax))}</td>
+      </tr>`
+        )
+        .join('') || ui.emptyRow(9, 'لا بنود');
+
+    result = `
+      <div class="si-print-area">
+        <div class="si-surface" style="padding:1rem;margin-bottom:.75rem">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:.55rem;font-size:.9rem">
+            <div><span class="muted">رقم الفاتورة</span><div dir="ltr"><strong>${esc(
+              header.v_num
+            )} / ${esc(header.vyear)}</strong></div></div>
+            <div><span class="muted">التاريخ</span><div dir="ltr"><strong>${esc(
+              isoToDmy(header.vdate)
+            )}</strong></div></div>
+            <div><span class="muted">المستودع</span><div dir="ltr"><strong>${esc(
+              header.store
+            )}</strong></div></div>
+            <div><span class="muted">العميل</span><div><strong dir="ltr">${esc(
+              header.cust_acc || '—'
+            )}</strong>
+              ${header.customer_name ? ` — ${esc(header.customer_name)}` : ''}
+            </div></div>
+            <div><span class="muted">قبل الخصم</span><div dir="ltr"><strong>${esc(
+              fmtAmt(header.gross)
+            )}</strong></div></div>
+            <div><span class="muted">الخصم</span><div dir="ltr"><strong>${esc(
+              fmtAmt(header.vou_disc)
+            )}</strong></div></div>
+            <div><span class="muted">الضريبة</span><div dir="ltr"><strong>${esc(
+              fmtAmt(header.tax_sum)
+            )}</strong></div></div>
+            <div><span class="muted">الإجمالي</span><div dir="ltr"><strong>${esc(
+              fmtAmt(header.total)
+            )}</strong></div></div>
+          </div>
+        </div>
+        ${ui.tableSurface(
+          'بنود الفاتورة',
+          `${lines.length} بند`,
+          ['#', 'المادة', 'الفئة', 'التشغيلة', 'الكمية', 'بونص', 'السعر', 'الإجمالي', 'الضريبة'],
+          lineRows
+        )}
+      </div>`;
+  } else if (run) {
+    result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(
+      data.message || 'لا توجد فاتورة بهذا الرقم'
+    )}</p>`;
+  }
+
+  const filters = `
+    <form class="si-search no-print" method="get" action="/accounting/reports/oracle-sales-invoice"
+          style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%">
+      <input type="hidden" name="run" value="1">
+      <label style="font-size:.8rem;font-weight:700;color:#5c6578">رقم الفاتورة *
+        <input class="si-field" type="text" name="invoice_no" value="${invoiceNo || ''}"
+               inputmode="numeric" dir="ltr" placeholder="2842" required style="min-width:10rem">
+      </label>
+      <label style="font-size:.8rem;font-weight:700;color:#5c6578">السنة (اختياري)
+        <input class="si-field" type="text" name="year" value="${year || ''}"
+               inputmode="numeric" dir="ltr" placeholder="2026" style="min-width:7rem">
+      </label>
+      <button class="si-btn si-btn--primary" type="submit">عرض الفاتورة</button>
+    </form>`;
+
+  sendPage(
+    res,
+    req,
+    'فاتورة بيع Oracle',
+    shell(
+      'فاتورة بيع Oracle',
+      'استعلام من النظام القديم برقم الفاتورة · MAS.DAILY',
+      filters,
+      result,
+      []
+    )
+  );
+});
+
 /* ═══════════════ Checks reports ═══════════════ */
 router.get('/accounting/reports/checks-in', async (req, res) => {
   if (!can(req.session.user, 'report_incoming_checks')) return forbid(res);

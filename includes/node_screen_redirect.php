@@ -128,5 +128,6 @@ function node_desktop_screen_path_map(): array
         'report_sales_between_dates' => '/sales/reports/between-dates',
         'report_party_statement' => '/accounting/reports/party-statement',
         'report_oracle_customer_statement' => '/accounting/reports/oracle-statement',
+        'report_oracle_sales_invoice' => '/accounting/reports/oracle-sales-invoice',
     ];
 }
