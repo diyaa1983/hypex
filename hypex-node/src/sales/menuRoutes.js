@@ -6,6 +6,7 @@ const q = require('./domainQueries');
 const ui = require('../lib/salesUi');
 const { salesCatalog } = require('./catalog');
 const accNative = require('../accounting/nativeService');
+const basePath = require('../lib/basePath');
 const { esc, fmtAmt, isoToDmy } = require('../lib/html');
 
 const router = express.Router();
@@ -1209,7 +1210,7 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
       var noEl=document.getElementById('ora_inv_no');
       var yearEl=document.getElementById('ora_inv_year');
       if(!form||!noEl) return;
-      var base='${BASE}?run=1';
+      var base=${JSON.stringify(basePath.ensurePrefixed(BASE) + '?run=1')};
       var curNo=${invoiceNo || 0};
       var curYear=${year || 0};
       var yearTouched=false;
