@@ -1038,6 +1038,7 @@ router.get('/sales-reps/route/:id/print', guard('sales_rep_route'), async (req, 
       .map(
         (r, i) => `<tr>
       <td class="si-num" dir="ltr">${i + 1}</td>
+      <td><strong>${ui.esc(r.weekday_label || '')}</strong></td>
       <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.visit_date))}</td>
       <td>${ui.esc(r.customer_name || '')}</td>
       <td class="si-num" dir="ltr">${dash(r.customer_code)}</td>
@@ -1045,7 +1046,7 @@ router.get('/sales-reps/route/:id/print', guard('sales_rep_route'), async (req, 
       <td>${dash(r.address_name)}</td>
     </tr>`
       )
-      .join('') || ui.emptyRow(6, 'لا تفاصيل');
+      .join('') || ui.emptyRow(7, 'لا تفاصيل');
 
   const body = `
     <div class="si-stage si-report-page srr-print-page">
@@ -1078,7 +1079,7 @@ router.get('/sales-reps/route/:id/print', guard('sales_rep_route'), async (req, 
         ${ui.tableSurface(
           'تفاصيل الجولة',
           `${rows.length} صف`,
-          ['#', 'اليوم', 'العميل', 'الرمز', 'المنطقة', 'العنوان'],
+          ['#', 'اليوم', 'التاريخ', 'العميل', 'الرمز', 'المنطقة', 'العنوان'],
           rowsHtml
         )}
       </div>
