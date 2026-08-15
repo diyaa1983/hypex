@@ -1131,30 +1131,20 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
             }
           </table>
         </div>
-        <div class="si-doc-foot">
-          <div class="si-notes ora-doc-note">
-            <span class="si-f-head">بيانات النظام القديم</span>
-            <p class="muted" style="margin:.3rem 0 0;font-size:.82rem">
-              فاتورة بيع من Oracle Forms 6i · جدول MAS.DAILY · النوع 9 · للعرض والطباعة فقط.
-            </p>
+        <div class="ora-doc-foot">
+          <div class="ora-doc-note">
+            <span class="ora-doc-note__head">بيانات النظام القديم</span>
+            <p>فاتورة بيع من Oracle Forms 6i · جدول MAS.DAILY · النوع 9 · للعرض والطباعة فقط.</p>
           </div>
-          <div class="si-totals">
-            <div class="si-tot-row"><span>مجموع الفاتورة</span><strong dir="ltr">${esc(
-              fmtAmt(header.gross)
-            )}</strong></div>
-            <div class="si-tot-row"><span>${esc(discLabel)}</span><strong dir="ltr">${esc(
-              fmtAmt(header.vou_disc)
-            )}</strong></div>
-            <div class="si-tot-row"><span>الصافي قبل الضريبة</span><strong dir="ltr">${esc(
-              fmtAmt(header.net)
-            )}</strong></div>
-            <div class="si-tot-row"><span>قيمة الضريبة</span><strong dir="ltr">${esc(
-              fmtAmt(header.tax_sum)
-            )}</strong></div>
-            <div class="si-tot-row si-tot-grand"><span>الإجمالي</span><strong dir="ltr">${esc(
+          <table class="ora-doc-totals">
+            <tr><th>مجموع الفاتورة</th><td dir="ltr">${esc(fmtAmt(header.gross))}</td></tr>
+            <tr><th>${esc(discLabel)}</th><td dir="ltr">${esc(fmtAmt(header.vou_disc))}</td></tr>
+            <tr><th>الصافي قبل الضريبة</th><td dir="ltr">${esc(fmtAmt(header.net))}</td></tr>
+            <tr><th>قيمة الضريبة</th><td dir="ltr">${esc(fmtAmt(header.tax_sum))}</td></tr>
+            <tr class="ora-doc-totals__grand"><th>الإجمالي النهائي</th><td dir="ltr">${esc(
               fmtAmt(header.total)
-            )}</strong></div>
-          </div>
+            )}</td></tr>
+          </table>
         </div>
       </section>`;
   } else {
@@ -1201,8 +1191,26 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
       .ora-nav__hint{flex:1 1 100%;margin:0;font-size:.75rem;color:#7b8494}
       .ora-doc-meta .si-field[readonly]{background:rgba(15,23,42,.03);cursor:default}
       .ora-doc-lines tfoot .ora-doc-lines__sum td{background:rgba(15,23,42,.05);font-weight:800}
-      .ora-doc-note{padding:1rem 1.1rem;display:block}
-      @media print{.ora-doc-lines tfoot{display:table-footer-group}}
+      .ora-doc-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;
+        gap:1rem;padding:1rem 1.1rem 1.15rem}
+      .ora-doc-note{flex:1 1 16rem;min-width:14rem}
+      .ora-doc-note__head{font-size:.72rem;font-weight:800;letter-spacing:.04em;color:#5c6578;
+        text-transform:uppercase}
+      .ora-doc-note p{margin:.35rem 0 0;font-size:.82rem;color:#7b8494;line-height:1.5}
+      .ora-doc-totals{border-collapse:collapse;font-size:.9rem;min-width:19rem;
+        border:1px solid #cfd7e3 !important}
+      .ora-doc-totals th,.ora-doc-totals td{border:1px solid #dfe4ec !important;padding:.34rem .8rem}
+      .ora-doc-totals th{background:#eef1f6 !important;text-align:right;font-weight:600;
+        color:#43506b;white-space:nowrap}
+      .ora-doc-totals td{text-align:left;font-weight:700;min-width:8rem;
+        font-variant-numeric:tabular-nums}
+      .ora-doc-totals__grand th,.ora-doc-totals__grand td{background:#e3e9fb !important;
+        font-weight:800;font-size:.98rem;color:#1f2a44}
+      @media print{
+        .ora-doc-lines tfoot{display:table-footer-group}
+        .ora-doc-foot{page-break-inside:avoid}
+        .ora-doc-totals{page-break-inside:avoid}
+      }
     </style>
     <script>
     (function(){
