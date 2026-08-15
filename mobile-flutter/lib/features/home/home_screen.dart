@@ -44,36 +44,42 @@ const Map<String, TileSpec> kTileSpecs = {
     Icons.person_add_alt_1_rounded,
     AppTheme.teal,
     'المبيعات',
+    asset: 'assets/tiles/m_customer_add.png',
   ),
   'm_customer_list': TileSpec(
     '/customers',
     Icons.people,
     AppTheme.primary,
     'المبيعات',
+    asset: 'assets/tiles/m_customer_list.png',
   ),
   'm_customer_orders_pending': TileSpec(
     '/customer-orders/pending',
     Icons.outbox,
     AppTheme.amber,
     'المبيعات',
+    asset: 'assets/tiles/m_customer_orders_pending.png',
   ),
   'm_customer_orders_sent': TileSpec(
     '/customer-orders/sent',
     Icons.mark_email_read,
     AppTheme.success,
     'المبيعات',
+    asset: 'assets/tiles/m_customer_orders_sent.png',
   ),
   'm_customer_orders_query': TileSpec(
     '/customer-orders/query',
     Icons.date_range,
     AppTheme.violet,
     'المبيعات',
+    asset: 'assets/tiles/m_customer_orders_query.png',
   ),
   'm_customer_order_returns': TileSpec(
     '/customer-order-returns',
     Icons.assignment_return_rounded,
     AppTheme.rose,
     'المبيعات',
+    asset: 'assets/tiles/m_customer_order_returns.png',
   ),
   'm_rep_route_today': TileSpec(
     '/rep/route-today',
@@ -86,12 +92,14 @@ const Map<String, TileSpec> kTileSpecs = {
     Icons.login_rounded,
     AppTheme.violet,
     'المبيعات',
+    asset: 'assets/tiles/m_rep_visits.png',
   ),
   'm_rep_visit_report': TileSpec(
     '/rep/visit-report',
     Icons.assignment_rounded,
     AppTheme.primarySoft,
     'المبيعات',
+    asset: 'assets/tiles/m_rep_visit_report.png',
   ),
   'm_sales_returns': TileSpec(
     '/returns/new',
@@ -122,6 +130,7 @@ const Map<String, TileSpec> kTileSpecs = {
     Icons.menu_book_rounded,
     AppTheme.violet,
     'المالية',
+    asset: 'assets/tiles/m_party_statement.png',
   ),
   'm_rep_load': TileSpec(
     '/rep/load',
@@ -609,3 +618,4 @@ class _TileButton extends StatelessWidget {
     );
   }
 }
+

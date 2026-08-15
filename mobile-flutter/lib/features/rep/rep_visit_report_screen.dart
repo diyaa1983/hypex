@@ -22,6 +22,10 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
   String _from = '';
   String _to = '';
   List<Map<String, dynamic>> _rows = [];
+  List<Map<String, dynamic>> _customers = [];
+  int _customerId = 0;
+  int _orderCount = 0;
+  double _orderTotal = 0;
 
   @override
   void initState() {
@@ -41,7 +45,11 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
     try {
       final res = await context.read<ApiClient>().getJson(
             AppConfig.repVisitReportPath,
-            query: {'from': _from, 'to': _to},
+            query: {
+              'from': _from,
+              'to': _to,
+              if (_customerId > 0) 'customer_id': '$_customerId',
+            },
           );
       if (!mounted) return;
       setState(() {
@@ -51,6 +59,12 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
             .whereType<Map>()
             .map((e) => e.cast<String, dynamic>())
             .toList();
+        _customers = (res['customers'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        _orderCount = Fmt.toInt(res['order_count']);
+        _orderTotal = Fmt.toDouble(res['order_total']);
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -117,15 +131,85 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
             child: AppCard(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(child: _DateChip(label: 'من', value: Fmt.dmy(_from), onTap: () => _pick(true))),
-                  const SizedBox(width: 8),
-                  Expanded(child: _DateChip(label: 'إلى', value: Fmt.dmy(_to), onTap: () => _pick(false))),
+                  Row(
+                    children: [
+                      Expanded(child: _DateChip(label: 'من', value: Fmt.dmy(_from), onTap: () => _pick(true))),
+                      const SizedBox(width: 8),
+                      Expanded(child: _DateChip(label: 'إلى', value: Fmt.dmy(_to), onTap: () => _pick(false))),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<int>(
+                    key: ValueKey(_customerId),
+                    initialValue: _customerId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'العميل',
+                      prefixIcon: Icon(Icons.storefront_rounded),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int>(
+                        value: 0,
+                        child: Text('جميع العملاء'),
+                      ),
+                      ..._customers.map(
+                        (c) => DropdownMenuItem<int>(
+                          value: Fmt.toInt(c['id']),
+                          child: Text(
+                            '${Fmt.str(c['name'])} · ${Fmt.str(c['code'])}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: _loading
+                        ? null
+                        : (v) {
+                            setState(() => _customerId = v ?? 0);
+                            _load();
+                          },
+                  ),
                 ],
               ),
             ),
           ),
+          if (!_loading && _error == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+              child: AppCard(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _ReportStat(
+                        label: 'عدد الزيارات',
+                        value: '${_rows.length}',
+                        icon: Icons.location_on_rounded,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                    Expanded(
+                      child: _ReportStat(
+                        label: 'عدد الطلبيات',
+                        value: '$_orderCount',
+                        icon: Icons.shopping_cart_checkout_rounded,
+                        color: AppTheme.success,
+                      ),
+                    ),
+                    Expanded(
+                      child: _ReportStat(
+                        label: 'إجمالي الطلبيات',
+                        value: Fmt.money(_orderTotal),
+                        icon: Icons.payments_rounded,
+                        color: AppTheme.violet,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Expanded(
             child: AsyncView(
               loading: _loading,
@@ -247,6 +331,47 @@ class _VisitCard extends StatelessWidget {
               ),
             ),
           ],
+          if (Fmt.toInt(row['order_count']) > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+              decoration: BoxDecoration(
+                color: AppTheme.success.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(
+                  color: AppTheme.success.withValues(alpha: 0.22),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.shopping_cart_checkout_rounded,
+                    color: AppTheme.success,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'طلب رقم: ${Fmt.str(row['order_numbers'])}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    Fmt.money(Fmt.toDouble(row['order_total'])),
+                    style: const TextStyle(
+                      color: AppTheme.success,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           _Pair(
             icon: Icons.login_rounded,
@@ -272,6 +397,46 @@ class _VisitCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ReportStat extends StatelessWidget {
+  const _ReportStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+          ),
+        ),
+        Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: AppTheme.textSoft, fontSize: 10.5),
+        ),
+      ],
     );
   }
 }

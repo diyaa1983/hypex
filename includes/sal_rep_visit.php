@@ -1156,6 +1156,24 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
                      INNER JOIN sal_no_order_reason nr ON nr.id = vr.reason_id
                      WHERE vr.route_line_id = l.id
                    ) AS no_order_reasons,
+                   (
+                     SELECT GROUP_CONCAT(o.order_no ORDER BY o.id SEPARATOR '، ')
+                     FROM sal_customer_order o
+                     WHERE o.visit_route_line_id = l.id
+                       AND o.created_at >= l.visit_checkin_at
+                   ) AS order_numbers,
+                   (
+                     SELECT COUNT(*)
+                     FROM sal_customer_order o
+                     WHERE o.visit_route_line_id = l.id
+                       AND o.created_at >= l.visit_checkin_at
+                   ) AS order_count,
+                   (
+                     SELECT COALESCE(SUM(o.total), 0)
+                     FROM sal_customer_order o
+                     WHERE o.visit_route_line_id = l.id
+                       AND o.created_at >= l.visit_checkin_at
+                   ) AS order_total,
                    q.id AS pending_request_id, q.status AS checkout_request_status, q.reason AS checkout_reason
             FROM sal_rep_route_line l
             INNER JOIN sal_rep_route r ON r.id = l.route_id
@@ -1226,6 +1244,9 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
             'plan_scope' => (int) ($r['in_plan'] ?? 1) === 1 ? 'inside' : 'outside',
             'plan_scope_label' => (int) ($r['in_plan'] ?? 1) === 1 ? 'داخل الجولة' : 'خارج الجولة',
             'no_order_reasons' => (string) ($r['no_order_reasons'] ?? ''),
+            'order_numbers' => (string) ($r['order_numbers'] ?? ''),
+            'order_count' => (int) ($r['order_count'] ?? 0),
+            'order_total' => (float) ($r['order_total'] ?? 0),
             'duration_label' => sal_rep_visit_duration_label($checkinAt !== '' ? $checkinAt : null, $checkoutAt !== '' ? $checkoutAt : null),
             'status' => $stLabel,
             'status_label' => $stText,

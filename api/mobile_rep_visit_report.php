@@ -49,15 +49,44 @@ $rows = sal_rep_visit_report_rows($pdo, [
     'from' => $from,
     'to' => $to,
     'sales_rep_id' => $repId,
+    'customer_id' => (int) ($_GET['customer_id'] ?? 0),
     'method' => strtoupper(trim((string) ($_GET['method'] ?? ''))),
     'status' => trim((string) ($_GET['status'] ?? '')),
     'limit' => 400,
 ]);
+
+$customersSt = $pdo->prepare(
+    'SELECT DISTINCT c.id, c.code, c.name_ar AS name
+     FROM sal_rep_route_line l
+     INNER JOIN sal_rep_route r ON r.id = l.route_id
+     INNER JOIN crm_customer c ON c.id = l.customer_id
+     WHERE r.sales_rep_id = ?
+       AND r.route_date BETWEEN ? AND ?
+       AND l.visit_checkin_at IS NOT NULL
+     ORDER BY c.name_ar, c.code'
+);
+$customersSt->execute([$repId, $from, $to]);
+$customers = array_map(static fn(array $r): array => [
+    'id' => (int) $r['id'],
+    'code' => (string) ($r['code'] ?? ''),
+    'name' => (string) ($r['name'] ?? ''),
+], $customersSt->fetchAll(PDO::FETCH_ASSOC) ?: []);
+
+$orderTotal = 0.0;
+$orderCount = 0;
+foreach ($rows as $row) {
+    $orderTotal += (float) ($row['order_total'] ?? 0);
+    $orderCount += (int) ($row['order_count'] ?? 0);
+}
 
 echo json_encode([
     'ok' => true,
     'from' => $from,
     'to' => $to,
     'count' => count($rows),
+    'customer_id' => (int) ($_GET['customer_id'] ?? 0),
+    'customers' => $customers,
+    'order_count' => $orderCount,
+    'order_total' => $orderTotal,
     'visits' => $rows,
 ], JSON_UNESCAPED_UNICODE);

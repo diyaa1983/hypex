@@ -1,7 +1,7 @@
-name: namma_mobile
+﻿name: namma_mobile
 description: تطبيق Hypex للمبيعات والمندوبين (Flutter) — يتصل بالسيرفر عبر واجهات JSON.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -47,6 +47,7 @@ flutter:
   assets:
     - assets/branding/
     - assets/fonts/
+    - assets/tiles/
 
 flutter_launcher_icons:
   android: "ic_launcher"
@@ -56,3 +57,4 @@ flutter_launcher_icons:
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/icon/app_icon_fg.png"
   min_sdk_android: 23
+
