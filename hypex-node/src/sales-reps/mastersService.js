@@ -20,6 +20,32 @@ function isIsoDate(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
 }
 
+/**
+ * يقبل ISO أو dd-mm-yyyy أو dd/mm/yyyy أو yyyy/mm/dd (حسب لغة المتصفح) ويعيد ISO.
+ */
+function normalizeIsoDate(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (s === '') return '';
+  if (isIsoDate(s)) return s;
+  const m = s.slice(0, 10).match(/^(\d{1,4})[-/.](\d{1,2})[-/.](\d{1,4})$/);
+  if (!m) return '';
+  let y;
+  let mo;
+  let d;
+  if (m[1].length === 4) {
+    y = m[1];
+    mo = m[2];
+    d = m[3];
+  } else {
+    d = m[1];
+    mo = m[2];
+    y = m[3];
+  }
+  if (String(y).length !== 4) return '';
+  const iso = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  return isIsoDate(iso) ? iso : '';
+}
+
 function nextDay(iso) {
   const d = new Date(String(iso) + 'T12:00:00');
   d.setDate(d.getDate() + 1);
@@ -593,11 +619,19 @@ async function saveTour(payload, userId) {
   await ensureTourSchema();
   const id = Number(payload.id || 0);
   const salesRepId = Number(payload.sales_rep_id || 0);
-  let dateFrom = String(payload.date_from || '').trim().slice(0, 10);
-  let dateTo = String(payload.date_to || '').trim().slice(0, 10);
+  let dateFrom = normalizeIsoDate(payload.date_from);
+  let dateTo = normalizeIsoDate(payload.date_to);
   const notes = nullIfEmpty(payload.notes);
 
   if (salesRepId < 1) return { ok: false, error: 'اختر المندوب.' };
+  // إن غاب أحد التاريخين نكمله من حدود الشهر (الفترة الافتراضية للجولة)
+  if (dateFrom === '' || dateTo === '') {
+    const bounds = monthBoundsIso(
+      dateFrom || dateTo ? new Date(`${dateFrom || dateTo}T12:00:00`) : new Date()
+    );
+    if (dateFrom === '') dateFrom = bounds.from;
+    if (dateTo === '') dateTo = bounds.to;
+  }
   if (!isIsoDate(dateFrom) || !isIsoDate(dateTo)) return { ok: false, error: 'حدد تاريخ البداية والنهاية.' };
   if (dateFrom > dateTo) {
     const tmp = dateFrom;
@@ -1150,6 +1184,7 @@ module.exports = {
   decideVisitCheckoutRequest,
   ensureTourSchema,
   monthBoundsIso,
+  normalizeIsoDate,
   WEEKDAY_LABELS,
   // aliases
   listRoutes,

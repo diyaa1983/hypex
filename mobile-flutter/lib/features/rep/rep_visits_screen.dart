@@ -473,9 +473,15 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
-      title: const Text('جولات المندوبين'),
+      title: Text(_monthMode ? 'جولة الشهر' : 'جولات المندوبين'),
       backgroundColor: const Color(0xFFF0F4F8),
       actions: [
+        if (!_monthMode)
+          IconButton(
+            tooltip: 'أجندة الشهر',
+            onPressed: _busy ? null : _loadMonth,
+            icon: const Icon(Icons.calendar_view_month_rounded),
+          ),
         IconButton(
           tooltip: 'تقرير الزيارات',
           onPressed: _busy ? null : () => context.push('/rep/visit-report'),
@@ -484,14 +490,16 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
         IconButton(
           onPressed: _busy
               ? null
-              : () => _load(keepCustomerId: Fmt.toInt(_selected?['customer_id'])),
+              : () => _monthMode
+                  ? _loadMonth()
+                  : _load(keepCustomerId: Fmt.toInt(_selected?['customer_id'])),
           icon: const Icon(Icons.refresh_rounded),
         ),
       ],
       body: AsyncView(
         loading: _loading && _selected == null,
         error: _error,
-        onRetry: _load,
+        onRetry: _monthMode ? _loadMonth : _load,
         child: Stack(
           children: [
             Positioned(
@@ -504,7 +512,10 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
               right: -50,
               child: _blob(200, AppTheme.teal.withValues(alpha: 0.07)),
             ),
-            if (_selected == null) _buildHome() else _buildVisit(),
+            if (_selected == null)
+              (_monthMode ? _buildMonthAgenda() : _buildHome())
+            else
+              _buildVisit(),
             if (_busy)
               const Positioned(
                 left: 0,
@@ -524,6 +535,211 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
         width: size,
         height: size,
         decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      ),
+    );
+  }
+
+  String _monthTitleAr() {
+    final parts = _monthYm.split('-');
+    if (parts.length != 2) return _monthYm;
+    const names = [
+      '',
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر',
+    ];
+    final m = int.tryParse(parts[1]) ?? 0;
+    final y = parts[0];
+    if (m < 1 || m > 12) return _monthYm;
+    return '${names[m]} $y';
+  }
+
+  Widget _buildMonthAgenda() {
+    final today = Fmt.todayIso();
+    var totalCustomers = 0;
+    for (final d in _agendaDays) {
+      totalCustomers +=
+          ((d['customers'] as List?) ?? const []).length;
+    }
+    return RefreshIndicator(
+      onRefresh: _loadMonth,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppTheme.border),
+              boxShadow: AppTheme.softShadow,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: _busy ? null : () => _shiftMonth(-1),
+                      icon: const Icon(Icons.chevron_right_rounded),
+                      tooltip: 'الشهر السابق',
+                    ),
+                    Expanded(
+                      child: Text(
+                        _monthTitleAr(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _busy ? null : () => _shiftMonth(1),
+                      icon: const Icon(Icons.chevron_left_rounded),
+                      tooltip: 'الشهر التالي',
+                    ),
+                  ],
+                ),
+                Text(
+                  totalCustomers == 0
+                      ? 'لا توجد زيارات مخططة في جولة مرحّلة لهذا الشهر.'
+                      : '$totalCustomers زيارة مخططة · اضغط العميل للدخول وتبويبات الحساب',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppTheme.textSoft,
+                    fontSize: 12.5,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    FilledButton.tonalIcon(
+                      onPressed: _busy
+                          ? null
+                          : () {
+                              setState(() {
+                                _routeDate = today;
+                                _dateCtrl.text = today;
+                              });
+                              _load();
+                            },
+                      icon: const Icon(Icons.today_rounded, size: 18),
+                      label: const Text('زيارات اليوم'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _busy
+                          ? null
+                          : () => context.push('/customers').then((_) {
+                                if (mounted) _loadMonth();
+                              }),
+                      icon: const Icon(Icons.person_search_rounded, size: 18),
+                      label: const Text('زيارة خارج الجولة'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (_agendaDays.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 40),
+              child: Center(
+                child: Text(
+                  'انتظر ترحيل الجولة من الإدارة، أو اختر زيارة خارج الجولة.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.textSoft),
+                ),
+              ),
+            )
+          else
+            ..._agendaDays.map((day) {
+              final date = Fmt.str(day['route_date']);
+              final wd = Fmt.str(day['weekday_label']);
+              final customers = (day['customers'] as List? ?? [])
+                  .whereType<Map>()
+                  .map((e) => e.cast<String, dynamic>())
+                  .toList();
+              final isToday = date == today;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isToday
+                          ? AppTheme.primary.withValues(alpha: 0.45)
+                          : AppTheme.border,
+                      width: isToday ? 1.5 : 1,
+                    ),
+                    boxShadow: AppTheme.softShadow,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                        decoration: BoxDecoration(
+                          color: isToday
+                              ? AppTheme.primary.withValues(alpha: 0.08)
+                              : const Color(0xFFF8FAFC),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                        ),
+                        child: Text(
+                          [
+                            if (wd.isNotEmpty) wd,
+                            Fmt.dmy(date),
+                            if (isToday) 'اليوم',
+                          ].join(' · '),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13.5,
+                            color: isToday
+                                ? AppTheme.primary
+                                : AppTheme.textMain,
+                          ),
+                        ),
+                      ),
+                      ...customers.asMap().entries.map((e) {
+                        final i = e.key + 1;
+                        final c = e.value;
+                        final st = Fmt.str(c['status']);
+                        return _PlanCustomerTile(
+                          index: i,
+                          name: Fmt.str(c['name']),
+                          code: Fmt.str(c['code']),
+                          status: st,
+                          statusLabel: _statusLabel(st),
+                          statusColor: _statusColor(st),
+                          statusIcon: _statusIcon(st),
+                          hasGps: c['has_gps'] == true,
+                          onTap: () =>
+                              _openCustomerHub(Fmt.toInt(c['customer_id'])),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
@@ -582,6 +798,12 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                     color: AppTheme.textSoft.withValues(alpha: 0.9),
                   ),
                 ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _loadMonth,
+                  icon: const Icon(Icons.calendar_view_month_rounded, size: 18),
+                  label: const Text('عرض أجندة الشهر'),
+                ),
               ],
             ),
           ),
@@ -601,7 +823,9 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                   status: _statusLabel(_statusOf(v)),
                   color: _statusColor(_statusOf(v)),
                   checkinAt: Fmt.str(v['visit_checkin_at']),
-                  onTap: _busy ? null : () => setState(() => _selected = v),
+                  onTap: _busy
+                      ? null
+                      : () => _openCustomerHub(Fmt.toInt(v['customer_id'])),
                 ),
               ),
             ),
@@ -658,7 +882,9 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                       hasGps: planned[i]['has_gps'] == true,
                       onTap: _busy
                           ? null
-                          : () => setState(() => _selected = planned[i]),
+                          : () => _openCustomerHub(
+                                Fmt.toInt(planned[i]['customer_id']),
+                              ),
                     ),
                   ],
                 ],
@@ -680,7 +906,9 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                   status: _statusLabel(_statusOf(v)),
                   color: _statusColor(_statusOf(v)),
                   checkinAt: Fmt.str(v['visit_checkin_at']),
-                  onTap: _busy ? null : () => setState(() => _selected = v),
+                  onTap: _busy
+                      ? null
+                      : () => _openCustomerHub(Fmt.toInt(v['customer_id'])),
                 ),
               ),
             ),

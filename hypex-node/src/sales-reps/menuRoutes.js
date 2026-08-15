@@ -352,8 +352,10 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
   const selectedRep = edit ? Number(edit.sales_rep_id) : filterRep;
   const isPosted = edit && String(edit.status) === 'posted';
   const month = masters.monthBoundsIso();
-  const dateFrom = edit ? String(edit.date_from).slice(0, 10) : month.from;
-  const dateTo = edit ? String(edit.date_to).slice(0, 10) : month.to;
+  const qFrom = masters.normalizeIsoDate(req.query.date_from);
+  const qTo = masters.normalizeIsoDate(req.query.date_to);
+  const dateFrom = qFrom || (edit ? String(edit.date_from).slice(0, 10) : month.from);
+  const dateTo = qTo || (edit ? String(edit.date_to).slice(0, 10) : month.to);
   const editLines = edit?.lines || [];
   const dayLabels = masters.WEEKDAY_LABELS || [
     'الأحد',
@@ -389,18 +391,52 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
     )
     .join('');
 
-  const selectedJson = JSON.stringify(
-    editLines.map((l) => ({
-      customer_id: Number(l.customer_id),
-      code: l.customer_code || '',
-      name: l.customer_name || '',
-      weekday: l.weekday == null || l.weekday === '' ? 0 : Number(l.weekday),
-      region_id: Number(l.region_id || 0) || null,
-      region_address_id: Number(l.region_address_id || 0) || null,
-      region_name: l.region_name || '',
-      address_name: l.address_name || '',
-    }))
-  ).replace(/</g, '\\u003c');
+  let selectedRows = editLines.map((l) => ({
+    customer_id: Number(l.customer_id),
+    code: l.customer_code || '',
+    name: l.customer_name || '',
+    weekday: l.weekday == null || l.weekday === '' ? 0 : Number(l.weekday),
+    region_id: Number(l.region_id || 0) || null,
+    region_address_id: Number(l.region_address_id || 0) || null,
+    region_name: l.region_name || '',
+    address_name: l.address_name || '',
+  }));
+
+  // استعادة التعيينات بعد رسالة خطأ (تُمرَّر في lines_json)
+  if (!selectedRows.length && req.query.lines_json && selectedRep > 0) {
+    try {
+      const kept = JSON.parse(String(req.query.lines_json));
+      if (Array.isArray(kept) && kept.length) {
+        const custRows = await masters.listTourCustomers({
+          salesRepId: selectedRep,
+          limit: 2000,
+        });
+        const byId = new Map(custRows.map((c) => [Number(c.id), c]));
+        selectedRows = kept
+          .map((k) => {
+            const cid = Number(k.customer_id || 0);
+            const c = byId.get(cid);
+            if (!cid || !c) return null;
+            return {
+              customer_id: cid,
+              code: c.code || '',
+              name: c.name_ar || '',
+              weekday: Number(k.weekday || 0),
+              region_id: Number(k.region_id || c.region_id || 0) || null,
+              region_address_id:
+                Number(k.region_address_id || c.region_address_id || 0) || null,
+              region_name: c.region_name || '',
+              address_name: c.address_name || '',
+            };
+          })
+          .filter(Boolean);
+      }
+    } catch {
+      /* تجاهل */
+    }
+  }
+
+  const selectedJson = JSON.stringify(selectedRows).replace(/</g, '\\u003c');
 
   const formTitle = edit
     ? isPosted
@@ -434,62 +470,80 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
               : 'جديد · مسودة'
           }</span>
         </div>
-        <form method="post" action="/sales-reps/route" class="srr-form srr-tour-form" id="srr-form" data-hx-save="1">
+        <form method="post" action="/sales-reps/route" class="srr-form srr-tour-form" id="srr-form">
           <input type="hidden" name="id" value="${edit ? edit.id : 0}">
           <input type="hidden" name="lines_json" id="srr-lines-json" value="">
 
           <div class="srr-form__fields">
-            <div class="srr-form__row">
-              <label class="srr-field">
-                <span>المندوب <em>*</em></span>
-                <select class="si-field" name="sales_rep_id" id="srr-rep" required ${isPosted ? 'disabled' : ''}>
-                  <option value="">— اختر المندوب —</option>
-                  ${repOpts}
-                </select>
-                ${isPosted ? `<input type="hidden" name="sales_rep_id" value="${selectedRep}">` : ''}
-              </label>
-              <label class="srr-field">
-                <span>المنطقة</span>
-                <select class="si-field" id="srr-region" ${isPosted ? 'disabled' : ''}>
-                  <option value="0">— كل المناطق —</option>
-                  ${regionOpts}
-                </select>
-              </label>
-            </div>
-            <div class="srr-form__row">
-              <label class="srr-field srr-field--full">
-                <span>العنوان</span>
-                <select class="si-field" id="srr-address" ${isPosted ? 'disabled' : ''}>
-                  <option value="0">— كل العناوين —</option>
-                </select>
-              </label>
-            </div>
-            <div class="srr-form__row srr-form__row--dates">
-              <label class="srr-field srr-field--date">
-                <span>من تاريخ <em>*</em></span>
-                <input class="si-field si-field--mono srr-date" type="date" name="date_from" id="srr-from"
-                       required value="${esc(dateFrom)}" dir="ltr" ${isPosted ? 'readonly' : ''}>
-              </label>
-              <label class="srr-field srr-field--date">
-                <span>إلى تاريخ <em>*</em></span>
-                <input class="si-field si-field--mono srr-date" type="date" name="date_to" id="srr-to"
-                       required value="${esc(dateTo)}" dir="ltr" ${isPosted ? 'readonly' : ''}>
-              </label>
+            <div class="srr-step" data-step="1">
+              <div class="srr-step__head"><span class="srr-step__num">1</span> المندوب وفترة الجولة</div>
+              <div class="srr-form__row">
+                <label class="srr-field">
+                  <span>المندوب <em>*</em></span>
+                  <select class="si-field" name="sales_rep_id" id="srr-rep" required ${isPosted ? 'disabled' : ''}>
+                    <option value="">— اختر المندوب —</option>
+                    ${repOpts}
+                  </select>
+                  ${isPosted ? `<input type="hidden" name="sales_rep_id" value="${selectedRep}">` : ''}
+                </label>
+                <label class="srr-field srr-field--date">
+                  <span>من تاريخ <em>*</em></span>
+                  <input class="si-field si-field--mono srr-date" type="date" name="date_from" id="srr-from"
+                         required value="${esc(dateFrom)}" dir="ltr" ${isPosted ? 'readonly' : ''}>
+                </label>
+                <label class="srr-field srr-field--date">
+                  <span>إلى تاريخ <em>*</em></span>
+                  <input class="si-field si-field--mono srr-date" type="date" name="date_to" id="srr-to"
+                         required value="${esc(dateTo)}" dir="ltr" ${isPosted ? 'readonly' : ''}>
+                </label>
+              </div>
+              <div class="srr-period">
+                <span class="srr-period__txt" id="srr-period-txt">—</span>
+                ${
+                  isPosted
+                    ? ''
+                    : `<span class="srr-period__quick">
+                        <button type="button" class="si-btn srr-btn-sm" data-month="0">هذا الشهر</button>
+                        <button type="button" class="si-btn srr-btn-sm" data-month="1">الشهر القادم</button>
+                      </span>`
+                }
+              </div>
             </div>
 
-            <div class="srr-weekdays" id="srr-weekdays">
-              <div class="srr-weekdays__label">أيام الأسبوع <em>*</em>
-                <span class="muted" style="font-weight:600;font-size:.75rem">اختر يوماً ثم أضف عملاءه</span>
+            <div class="srr-step" data-step="2">
+              <div class="srr-step__head">
+                <span class="srr-step__num">2</span> أيام الأسبوع <em>*</em>
               </div>
-              <div class="srr-weekdays__chips" id="srr-day-chips">${weekdayChips}</div>
-              <p class="srr-weekdays__hint muted" id="srr-day-hint">حدد يوماً من أيام الأسبوع لبدء إضافة العملاء.</p>
+              <div class="srr-weekdays" id="srr-weekdays">
+                <div class="srr-weekdays__chips" id="srr-day-chips">${weekdayChips}</div>
+                <p class="srr-weekdays__hint muted" id="srr-day-hint">حدد يوماً من أيام الأسبوع لبدء إضافة العملاء.</p>
+              </div>
+            </div>
+
+            <div class="srr-step" data-step="3">
+              <div class="srr-step__head"><span class="srr-step__num">3</span> فلترة قائمة العملاء (اختياري)</div>
+              <div class="srr-form__row">
+                <label class="srr-field">
+                  <span>المنطقة</span>
+                  <select class="si-field" id="srr-region" ${isPosted ? 'disabled' : ''}>
+                    <option value="0">— كل المناطق —</option>
+                    ${regionOpts}
+                  </select>
+                </label>
+                <label class="srr-field">
+                  <span>العنوان</span>
+                  <select class="si-field" id="srr-address" ${isPosted ? 'disabled' : ''}>
+                    <option value="0">— كل العناوين —</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
             <label class="srr-field srr-field--full">
               <span>ملاحظات</span>
               <textarea class="si-field srr-notes" name="notes" rows="2" placeholder="اختياري…" ${
                 isPosted ? 'readonly' : ''
-              }>${esc(edit?.notes || '')}</textarea>
+              }>${esc(String(req.query.notes || edit?.notes || ''))}</textarea>
             </label>
 
             <div class="srr-selected-panel">
@@ -576,8 +630,34 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       var form = document.getElementById('srr-form');
       var addVisibleBtn = document.getElementById('srr-add-visible');
       var chips = document.getElementById('srr-day-chips');
+      var fromEl = document.getElementById('srr-from');
+      var toEl = document.getElementById('srr-to');
+      var periodEl = document.getElementById('srr-period-txt');
       var custCache = [];
       var loadTimer = null;
+
+      function dmy(iso){
+        var m = String(iso||'').match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+        return m ? (m[3]+'-'+m[2]+'-'+m[1]) : '';
+      }
+
+      function isoOfMonth(offset, last){
+        var n = new Date();
+        var y = n.getFullYear(), mo = n.getMonth() + Number(offset||0);
+        var d = last ? new Date(y, mo+1, 0) : new Date(y, mo, 1);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+          + '-' + String(d.getDate()).padStart(2,'0');
+      }
+
+      function renderPeriod(){
+        if(!periodEl) return;
+        var f = fromEl && fromEl.value, t = toEl && toEl.value;
+        if(!f || !t){ periodEl.textContent = 'حدّد الفترة (من / إلى).'; return; }
+        var days = Math.round((new Date(t+'T12:00:00') - new Date(f+'T12:00:00')) / 86400000) + 1;
+        periodEl.textContent = days > 0
+          ? ('الفترة: ' + dmy(f) + ' → ' + dmy(t) + ' · ' + days + ' يوماً')
+          : 'تاريخ النهاية قبل البداية.';
+      }
 
       function escHtml(s){
         return String(s==null?'':s)
@@ -809,9 +889,26 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         custCache.forEach(addCustomer);
       });
 
-      if(form) form.addEventListener('submit', function(){
+      if(fromEl) fromEl.addEventListener('change', renderPeriod);
+      if(toEl) toEl.addEventListener('change', renderPeriod);
+      document.querySelectorAll('.srr-period__quick [data-month]').forEach(function(b){
+        b.addEventListener('click', function(){
+          var off = Number(b.getAttribute('data-month')||0);
+          if(fromEl) fromEl.value = isoOfMonth(off, false);
+          if(toEl) toEl.value = isoOfMonth(off, true);
+          renderPeriod();
+        });
+      });
+      renderPeriod();
+
+      if(form) form.addEventListener('submit', function(e){
         syncHidden();
-        if(!posted && !selected.length){
+        if(posted) return;
+        if(fromEl && toEl && fromEl.value && toEl.value && fromEl.value > toEl.value){
+          var tmp = fromEl.value; fromEl.value = toEl.value; toEl.value = tmp;
+        }
+        if(!selected.length){
+          e.preventDefault();
           alert('أضف عميلاً واحداً على الأقل بعد اختيار يوم الأسبوع.');
         }
       });
@@ -866,12 +963,22 @@ router.post('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
   }
   const result = await masters.saveTour(body, req.session.user?.id);
   if (!result.ok) {
-    const base =
-      tourId > 0
-        ? '/sales-reps/route?id=' + tourId
-        : '/sales-reps/route?new=1' +
-          (body.sales_rep_id ? '&sales_rep_id=' + body.sales_rep_id : '');
-    return res.redirect(base + (base.includes('?') ? '&' : '?') + 'err=' + encodeURIComponent(result.error));
+    // احفظ ما أدخله المستخدم حتى لا يعيد تعبئة الشاشة من الصفر
+    const keep = new URLSearchParams();
+    if (tourId > 0) {
+      keep.set('id', String(tourId));
+    } else {
+      keep.set('new', '1');
+      if (body.sales_rep_id) keep.set('sales_rep_id', String(body.sales_rep_id));
+    }
+    const from = masters.normalizeIsoDate(body.date_from);
+    const to = masters.normalizeIsoDate(body.date_to);
+    if (from) keep.set('date_from', from);
+    if (to) keep.set('date_to', to);
+    if (body.notes) keep.set('notes', String(body.notes).slice(0, 300));
+    if (body.lines_json) keep.set('lines_json', String(body.lines_json).slice(0, 8000));
+    keep.set('err', result.error);
+    return res.redirect('/sales-reps/route?' + keep.toString());
   }
   if (String(body.and_post || '') === '1') {
     const post = await masters.postTour(result.id, req.session.user?.id);
