@@ -1054,28 +1054,7 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
     const qtySum = lines.reduce((s, ln) => s + Number(ln.qty || 0), 0);
     const bonusSum = lines.reduce((s, ln) => s + Number(ln.bonus || 0), 0);
     const discPct = Number(header.per_disc || 0);
-    const discLabel = discPct > 0 ? ` (${(discPct * 100).toFixed(2).replace(/\.?0+$/, '')}%)` : '';
-
-    const stMeta =
-      'width:100%;border-collapse:collapse;table-layout:auto;margin:0 0 .7rem;' +
-      'font-size:.86rem;line-height:1.4;border:1px solid #cfd7e3';
-    const stLab =
-      'border:1px solid #dfe4ec;background:#eef1f6;padding:.3rem .6rem;text-align:right;' +
-      'white-space:nowrap;color:#43506b;font-weight:600;width:1px';
-    const stVal =
-      'border:1px solid #dfe4ec;padding:.3rem .6rem;text-align:right;font-weight:700;' +
-      'white-space:nowrap;width:1px';
-    const stValWide = 'border:1px solid #dfe4ec;padding:.3rem .6rem;text-align:right;font-weight:700';
-    const stTot =
-      'border-collapse:collapse;font-size:.88rem;margin-top:.7rem;border:1px solid #cfd7e3';
-    const stTLab =
-      'border:1px solid #dfe4ec;background:#eef1f6;padding:.3rem .8rem;text-align:right;' +
-      'white-space:nowrap;font-weight:600;color:#43506b';
-    const stTVal =
-      'border:1px solid #dfe4ec;padding:.3rem .8rem;text-align:left;font-weight:700;' +
-      'min-width:8rem;font-variant-numeric:tabular-nums';
-    const stTLabG = stTLab + ';background:#e3e9fb;font-weight:800;font-size:.95rem;color:#1f2a44';
-    const stTValG = stTVal + ';background:#e3e9fb;font-weight:800;font-size:.95rem';
+    const discLabel = discPct > 0 ? `الخصم (${(discPct * 100).toFixed(2).replace(/\.?0+$/, '')}%)` : 'الخصم';
 
     const salesmanTxt =
       header.salesman_no || header.salesman_name
@@ -1084,83 +1063,114 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
           }`
         : '—';
 
-    const totalsRows = [
-      ['مجموع الفاتورة', fmtAmt(header.gross), false],
-      [`الخصم${discLabel}`, fmtAmt(header.vou_disc), false],
-      ['الصافي قبل الضريبة', fmtAmt(header.net), false],
-      ['قيمة الضريبة', fmtAmt(header.tax_sum), false],
-      ['الإجمالي النهائي', fmtAmt(header.total), true],
-    ]
-      .map(
-        ([lab, val, grand]) => `<tr>
-          <td style="${grand ? stTLabG : stTLab}">${esc(lab)}</td>
-          <td style="${grand ? stTValG : stTVal}" dir="ltr">${esc(val)}</td></tr>`
-      )
-      .join('');
-
     result = `
-      <div class="si-print-area">
-        <table style="${stMeta}">
-          <tr>
-            <td style="${stLab}">رقم الفاتورة</td>
-            <td style="${stVal}" dir="ltr">${esc(header.v_num)} / ${esc(header.vyear)}</td>
-            <td style="${stLab}">التاريخ</td>
-            <td style="${stVal}">${esc(isoToDmy(header.vdate))}</td>
-            <td style="${stLab}">المستودع</td>
-            <td style="${stValWide}" dir="ltr">${esc(header.store)}</td>
-          </tr>
-          <tr>
-            <td style="${stLab}">رقم العميل</td>
-            <td style="${stVal}" dir="ltr">${esc(header.cust_acc || '—')}</td>
-            <td style="${stLab}">اسم العميل</td>
-            <td style="${stValWide}" colspan="3">${esc(header.customer_name || '—')}</td>
-          </tr>
-          <tr>
-            <td style="${stLab}">البائع</td>
-            <td style="${stValWide}" colspan="5">${salesmanTxt}</td>
-          </tr>
-        </table>
-        ${ui.tableSurface(
-          'بنود الفاتورة',
-          `${lines.length} بند`,
-          ['#', 'المادة', 'البيان', 'الفئة', 'التشغيلة', 'الوحدة', 'الكمية', 'بونص', 'السعر', 'ض%', 'الإجمالي', 'الضريبة'],
-          lineRows +
-            (lines.length
-              ? `<tr>
-                  <td colspan="6" style="background:#f4f6fa;font-weight:800">مجموع البنود</td>
-                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
-                    fmtAmt(qtySum)
-                  )}</td>
-                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
-                    fmtAmt(bonusSum)
-                  )}</td>
-                  <td style="background:#f4f6fa"></td><td style="background:#f4f6fa"></td>
-                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
-                    fmtAmt(header.gross)
-                  )}</td>
-                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
-                    fmtAmt(header.tax_sum)
-                  )}</td>
-                </tr>`
-              : '')
-        )}
-        <table style="${stTot}">${totalsRows}</table>
-      </div>`;
+      <section class="si-surface">
+        <div class="si-surface-head">
+          <h2>بيانات المستند</h2>
+          <span class="si-count">Oracle · MAS.DAILY</span>
+        </div>
+        <div class="si-meta si-meta--invoice ora-doc-meta">
+          <label class="si-f si-f--docno">
+            <span class="si-f-head">رقم الفاتورة</span>
+            <input class="si-field si-field--mono" dir="ltr" readonly
+                   value="${esc(header.v_num)} / ${esc(header.vyear)}">
+          </label>
+          <label class="si-f si-f--date">
+            <span class="si-f-head">التاريخ</span>
+            <input class="si-field si-field--mono" dir="ltr" readonly
+                   value="${esc(isoToDmy(header.vdate))}">
+          </label>
+          <label class="si-f">
+            <span class="si-f-head">المستودع</span>
+            <input class="si-field si-field--mono" dir="ltr" readonly value="${esc(header.store)}">
+          </label>
+          <label class="si-f">
+            <span class="si-f-head">رقم العميل</span>
+            <input class="si-field si-field--mono" dir="ltr" readonly
+                   value="${esc(header.cust_acc || '')}">
+          </label>
+          <label class="si-f si-f--cust">
+            <span class="si-f-head">اسم العميل</span>
+            <input class="si-field" readonly value="${esc(header.customer_name || '—')}">
+          </label>
+          <label class="si-f si-f--cust">
+            <span class="si-f-head">البائع</span>
+            <input class="si-field" readonly value="${salesmanTxt}">
+          </label>
+        </div>
+      </section>
+
+      <section class="si-surface">
+        <div class="si-surface-head">
+          <h2>بنود الفاتورة</h2>
+          <span class="si-count">${lines.length} بند</span>
+        </div>
+        <div class="si-table-wrap">
+          <table class="si-table ora-doc-lines">
+            <thead>
+              <tr>
+                <th>#</th><th>المادة</th><th>البيان</th><th>الفئة</th><th>التشغيلة</th><th>الوحدة</th>
+                <th>الكمية</th><th>بونص</th><th>السعر</th><th>ض%</th><th>الإجمالي</th><th>الضريبة</th>
+              </tr>
+            </thead>
+            <tbody>${lineRows}</tbody>
+            ${
+              lines.length
+                ? `<tfoot>
+                    <tr class="ora-doc-lines__sum">
+                      <td colspan="6">مجموع البنود</td>
+                      <td class="si-num" dir="ltr">${esc(fmtAmt(qtySum))}</td>
+                      <td class="si-num" dir="ltr">${esc(fmtAmt(bonusSum))}</td>
+                      <td></td><td></td>
+                      <td class="si-num" dir="ltr">${esc(fmtAmt(header.gross))}</td>
+                      <td class="si-num" dir="ltr">${esc(fmtAmt(header.tax_sum))}</td>
+                    </tr>
+                  </tfoot>`
+                : ''
+            }
+          </table>
+        </div>
+        <div class="si-doc-foot">
+          <div class="si-notes ora-doc-note">
+            <span class="si-f-head">بيانات النظام القديم</span>
+            <p class="muted" style="margin:.3rem 0 0;font-size:.82rem">
+              فاتورة بيع من Oracle Forms 6i · جدول MAS.DAILY · النوع 9 · للعرض والطباعة فقط.
+            </p>
+          </div>
+          <div class="si-totals">
+            <div class="si-tot-row"><span>مجموع الفاتورة</span><strong dir="ltr">${esc(
+              fmtAmt(header.gross)
+            )}</strong></div>
+            <div class="si-tot-row"><span>${esc(discLabel)}</span><strong dir="ltr">${esc(
+              fmtAmt(header.vou_disc)
+            )}</strong></div>
+            <div class="si-tot-row"><span>الصافي قبل الضريبة</span><strong dir="ltr">${esc(
+              fmtAmt(header.net)
+            )}</strong></div>
+            <div class="si-tot-row"><span>قيمة الضريبة</span><strong dir="ltr">${esc(
+              fmtAmt(header.tax_sum)
+            )}</strong></div>
+            <div class="si-tot-row si-tot-grand"><span>الإجمالي</span><strong dir="ltr">${esc(
+              fmtAmt(header.total)
+            )}</strong></div>
+          </div>
+        </div>
+      </section>`;
   } else {
     result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(
       data.message || 'لا توجد فواتير بيع في Oracle'
     )}</p>`;
   }
 
-  const filters = `
-    <form class="si-search no-print ora-nav" method="get" action="${BASE}" id="ora-inv-nav-form">
+  const toolbar = `
+    <form class="si-cmd si-doc-toolbar no-print ora-nav" method="get" action="${BASE}" id="ora-inv-nav-form">
       <input type="hidden" name="run" value="1">
-      <div class="ora-nav__group">
+      <div class="si-tb-group ora-nav__group">
         <span class="ora-nav__lab">رقم الفاتورة</span>
-        <div class="ora-nav__row" dir="ltr">
+        <div class="si-docno-row" dir="ltr">
           ${btn(hrefNav('first'), '«', 'أول فاتورة', false)}
           ${btn(nav.prev ? hrefKey(nav.prev) : hrefNav('prev'), '‹', 'السابق', !nav.prev && !!header)}
-          <input class="si-field si-field--mono ora-nav__no" type="text" name="invoice_no"
+          <input class="si-field si-field--mono si-docno-input ora-nav__no" type="text" name="invoice_no"
                  id="ora_inv_no" value="${invoiceNo || ''}"
                  inputmode="numeric" dir="ltr" placeholder="رقم" autocomplete="off"
                  title="اكتب الرقم ثم Enter · الأسهم للتقليب">
@@ -1168,28 +1178,31 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
           ${btn(hrefNav('last'), '»', 'آخر فاتورة', false)}
         </div>
       </div>
-      <div class="ora-nav__group">
+      <div class="si-tb-group ora-nav__group">
         <span class="ora-nav__lab">السنة</span>
         <input class="si-field si-field--mono ora-nav__year" type="text" name="year" id="ora_inv_year"
                value="${year || ''}"
                inputmode="numeric" dir="ltr" placeholder="كل السنوات" autocomplete="off">
       </div>
-      <div class="ora-nav__group">
+      <div class="si-tb-group ora-nav__group">
         <span class="ora-nav__lab">&nbsp;</span>
         <button class="si-btn si-btn--primary" type="submit">عرض الفاتورة</button>
       </div>
       <p class="ora-nav__hint">Enter عرض · ← سابق · → تالي · Home أول · End آخر</p>
-      <style>
-        .ora-nav{display:flex;flex-wrap:wrap;gap:.6rem .9rem;align-items:flex-end}
-        .ora-nav__group{display:flex;flex-direction:column;gap:.25rem}
-        .ora-nav__lab{font-size:.78rem;font-weight:700;color:#5c6578}
-        .ora-nav__row{display:flex;align-items:center;gap:.2rem}
-        .ora-nav__no{width:8rem;text-align:center;font-weight:800;font-size:1rem}
-        .ora-nav__year{width:7rem;text-align:center}
-        .ora-nav .si-docno-btn{min-width:2rem;padding:.3rem .45rem;font-weight:800;line-height:1}
-        .ora-nav__hint{flex:1 1 100%;margin:0;font-size:.76rem;color:#7b8494}
-      </style>
     </form>
+    <style>
+      .ora-nav{display:flex;flex-wrap:wrap;gap:.55rem .95rem;align-items:flex-end}
+      .ora-nav__group{display:flex;flex-direction:column;gap:.25rem}
+      .ora-nav__lab{font-size:.72rem;font-weight:800;letter-spacing:.04em;color:#5c6578}
+      .ora-nav__no{width:8.5rem;text-align:center;font-weight:800;font-size:1rem}
+      .ora-nav__year{width:7rem;text-align:center}
+      .ora-nav .si-docno-btn{min-width:2rem;padding:.3rem .45rem;font-weight:800;line-height:1}
+      .ora-nav__hint{flex:1 1 100%;margin:0;font-size:.75rem;color:#7b8494}
+      .ora-doc-meta .si-field[readonly]{background:rgba(15,23,42,.03);cursor:default}
+      .ora-doc-lines tfoot .ora-doc-lines__sum td{background:rgba(15,23,42,.05);font-weight:800}
+      .ora-doc-note{padding:1rem 1.1rem;display:block}
+      @media print{.ora-doc-lines tfoot{display:table-footer-group}}
+    </style>
     <script>
     (function(){
       var form=document.getElementById('ora-inv-nav-form');
@@ -1230,32 +1243,35 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
     })();
     </script>`;
 
-  const subtitle = header
-    ? `فاتورة ${invoiceNo} / ${year} · تقليب فواتير النظام القديم`
-    : 'شاشة تقليب فواتير النظام القديم · MAS.DAILY · TYPE=9';
+  const titleLine = header ? `فاتورة ${invoiceNo} / ${year}` : 'فاتورة بيع Oracle';
 
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.send(
     ui.salesPage({
       user: req.session.user,
-      title: 'فاتورة بيع Oracle',
+      title: header ? `فاتورة Oracle ${invoiceNo}` : 'فاتورة بيع Oracle',
       activePath: BASE,
-      css: ['/assets/css/acc-reports-node.css'],
-      js: ['/assets/js/sales-print.js'],
+      css: ['/assets/css/customer-order-doc.css'],
       bodyHtml: `
-        <div class="si-stage si-report-page">
-          ${ui.hero({
-            mark: '🧾',
-            kicker: 'Hypex Sales · Node',
-            title: 'فاتورة بيع Oracle',
-            subtitle,
-            actions: [
-              { label: '🖨 طباعة', primary: true, print: true },
-              { label: 'فاتورة مبيعات', href: '/sales/invoices' },
-              { label: 'لوحة المبيعات', href: '/sales' },
-            ],
-          })}
-          <div class="si-rail no-print">${filters}</div>
+        <div class="si-stage">
+          <header class="si-hero">
+            <div class="si-brand-lockup">
+              <div class="si-brand-text">
+                <p class="si-kicker">Hypex Sales · Oracle</p>
+                <h1>${esc(titleLine)}</h1>
+                <div class="si-hero-badge">
+                  <span class="si-pill si-pill--lock">النظام القديم — قراءة فقط</span>
+                </div>
+              </div>
+            </div>
+            <div class="si-hero-actions">
+              <button type="button" class="si-btn si-btn--primary si-btn--print no-print" data-print="1">طباعة</button>
+              <a class="si-btn no-print" href="/sales/invoices">فاتورة مبيعات</a>
+              <a class="si-btn no-print" href="/sales">لوحة المبيعات</a>
+            </div>
+          </header>
+
+          ${toolbar}
           ${result}
         </div>`,
     })
