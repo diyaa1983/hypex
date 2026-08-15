@@ -16,10 +16,16 @@ import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 import '../gps/gps_map_tiles.dart';
+import '../party/party_statement_screen.dart';
 
 /// مركز زيارة العملاء: قائمة + تفاصيل مع تبويبات (لوحة عريضة / ضيقة).
 class CustomerVisitHubScreen extends StatefulWidget {
-  const CustomerVisitHubScreen({super.key});
+  const CustomerVisitHubScreen({
+    super.key,
+    this.initialCustomerId,
+  });
+
+  final int? initialCustomerId;
 
   @override
   State<CustomerVisitHubScreen> createState() => _CustomerVisitHubScreenState();
@@ -58,6 +64,13 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
     super.initState();
     _loadCustomers();
     _refreshOpenVisit();
+    final bootId = widget.initialCustomerId ?? 0;
+    if (bootId > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _selectCustomer(bootId, openNarrowDetail: true);
+      });
+    }
   }
 
   @override
@@ -1212,37 +1225,14 @@ class _StatementTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final id = Fmt.toInt(customer['id']);
-    final name = Uri.encodeComponent(Fmt.str(customer['name']));
-    final code = Uri.encodeComponent(Fmt.str(customer['code']));
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const MiniIcon(Icons.menu_book_rounded, color: AppTheme.violet),
-            const SizedBox(height: 14),
-            const Text(
-              'عرض كشف حساب العميل',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              Fmt.str(customer['name']),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textSoft),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: () => context.push(
-                '/statement?customer_id=$id&customer_name=$name&customer_code=$code',
-              ),
-              icon: const Icon(Icons.open_in_new_rounded),
-              label: const Text('فتح كشف الحساب'),
-            ),
-          ],
-        ),
-      ),
+    return PartyStatementScreen(
+      key: ValueKey('stmt-$id'),
+      initialCustomerId: id,
+      initialCustomerName: Fmt.str(customer['name']),
+      initialCustomerCode: Fmt.str(customer['code']),
+      autoRun: true,
+      embedded: true,
+      hidePartyPicker: true,
     );
   }
 }

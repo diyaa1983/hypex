@@ -30,12 +30,20 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   bool _busy = false;
   final _dateCtrl = TextEditingController();
 
+  /// أجندة الشهر: كل يوم + عملاء الجولة المرحّلة
+  String _monthYm = '';
+  List<Map<String, dynamic>> _agendaDays = [];
+  bool _monthMode = true;
+
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
     _routeDate = Fmt.todayIso();
     _dateCtrl.text = _routeDate;
-    _load();
+    _monthYm =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    _loadMonth();
   }
 
   @override
@@ -44,11 +52,79 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     super.dispose();
   }
 
+  Future<void> _loadMonth() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _monthMode = true;
+      _selected = null;
+    });
+    try {
+      final res = await context.read<ApiClient>().getJson(
+            AppConfig.repVisitListPath,
+            query: {'mode': 'month', 'month': _monthYm},
+          );
+      if (!mounted) return;
+      final days = (res['days'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      setState(() {
+        _agendaDays = days;
+        _monthYm = Fmt.str(res['month']).isEmpty ? _monthYm : Fmt.str(res['month']);
+        final r = Fmt.toInt(res['visit_radius_m']);
+        if (r > 0) _radiusM = r;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _shiftMonth(int delta) async {
+    final parts = _monthYm.split('-');
+    if (parts.length != 2) return;
+    var y = int.tryParse(parts[0]) ?? DateTime.now().year;
+    var m = int.tryParse(parts[1]) ?? DateTime.now().month;
+    m += delta;
+    while (m < 1) {
+      m += 12;
+      y -= 1;
+    }
+    while (m > 12) {
+      m -= 12;
+      y += 1;
+    }
+    setState(() {
+      _monthYm =
+          '${y.toString().padLeft(4, '0')}-${m.toString().padLeft(2, '0')}';
+    });
+    await _loadMonth();
+  }
+
+  void _openCustomerHub(int customerId) {
+    if (customerId < 1) return;
+    context.push('/customers?id=$customerId').then((_) {
+      if (mounted) _loadMonth();
+    });
+  }
+
   Future<void> _load({int? keepCustomerId}) async {
     final keepId = keepCustomerId ?? Fmt.toInt(_selected?['customer_id']);
     setState(() {
       _loading = true;
       _error = null;
+      _monthMode = false;
     });
     try {
       final res = await context.read<ApiClient>().getJson(

@@ -313,13 +313,14 @@ function sal_rep_visit_sync_tour_line(PDO $pdo, int $salesRepId, int $customerId
         return;
     }
     try {
-        $dow = (int) date('N', strtotime($routeDate));
+        // weekday في الجولة = date('w') مثل JS getDay(): 0=أحد … 6=سبت (وليس date('N'))
+        $dow = (int) date('w', strtotime($routeDate));
         $st = $pdo->prepare(
             'SELECT tl.id FROM sal_rep_tour_line tl
              INNER JOIN sal_rep_tour t ON t.id = tl.tour_id
              WHERE t.sales_rep_id = ? AND t.status = \'posted\'
                AND t.date_from <= ? AND t.date_to >= ?
-               AND (tl.weekday IS NULL OR tl.weekday = 0 OR tl.weekday = ?)
+               AND tl.weekday = ?
                AND tl.customer_id = ?
              ORDER BY t.id DESC, tl.id DESC LIMIT 1'
         );
@@ -772,6 +773,167 @@ function sal_rep_visit_method_label(?string $method): string
     }
 
     return (string) $method;
+}
+
+/**
+ * أجندة جولة المندوب لشهر كامل: كل يوم + تاريخ + عملاء الخطة المرحّلة.
+ *
+ * @return array{ok:bool,month:string,date_from:string,date_to:string,days:list<array<string,mixed>>,items:list<array<string,mixed>>,count:int}
+ */
+function sal_rep_visit_month_agenda_for_rep(PDO $pdo, int $salesRepId, string $monthYm = ''): array
+{
+    sal_rep_visit_ensure_schema($pdo);
+    $monthYm = trim($monthYm);
+    if ($monthYm === '' || !preg_match('/^\d{4}-\d{2}$/', $monthYm)) {
+        $monthYm = date('Y-m');
+    }
+    $dateFrom = $monthYm . '-01';
+    $ts = strtotime($dateFrom);
+    $dateTo = date('Y-m-t', $ts !== false ? $ts : time());
+    $weekdayLabels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+    $empty = [
+        'ok' => true,
+        'month' => $monthYm,
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'days' => [],
+        'items' => [],
+        'count' => 0,
+    ];
+
+    if ($salesRepId < 1) {
+        return $empty;
+    }
+
+    try {
+        $st = $pdo->prepare(
+            "SELECT t.id AS tour_id, t.date_from, t.date_to, tl.customer_id, tl.weekday, tl.sort_order,
+                    c.code AS customer_code, c.name_ar AS customer_name,
+                    c.latitude, c.longitude
+             FROM sal_rep_tour t
+             INNER JOIN sal_rep_tour_line tl ON tl.tour_id = t.id
+             INNER JOIN crm_customer c ON c.id = tl.customer_id
+             WHERE t.sales_rep_id = ?
+               AND t.status = 'posted'
+               AND IFNULL(t.is_active, 1) = 1
+               AND t.date_from <= ?
+               AND t.date_to >= ?
+             ORDER BY tl.weekday, tl.sort_order, c.name_ar, tl.id"
+        );
+        $st->execute([$salesRepId, $dateTo, $dateFrom]);
+        $tourLines = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('sal_rep_visit_month_agenda_for_rep: ' . $e->getMessage());
+        return $empty;
+    }
+
+    // حالة الزيارة اليومية لهذا الشهر
+    $visitByKey = [];
+    try {
+        $st = $pdo->prepare(
+            'SELECT r.route_date, l.customer_id, l.id AS route_line_id,
+                    l.visit_checkin_at, l.visit_checkout_at, l.checkin_method, l.checkout_method
+             FROM sal_rep_route r
+             INNER JOIN sal_rep_route_line l ON l.route_id = r.id
+             WHERE r.sales_rep_id = ? AND r.route_date BETWEEN ? AND ?'
+        );
+        $st->execute([$salesRepId, $dateFrom, $dateTo]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $key = substr((string) $row['route_date'], 0, 10) . ':' . (int) $row['customer_id'];
+            $visitByKey[$key] = $row;
+        }
+    } catch (Throwable $e) {
+    }
+
+    $items = [];
+    $cursor = strtotime($dateFrom);
+    $end = strtotime($dateTo);
+    if ($cursor === false || $end === false) {
+        return $empty;
+    }
+    while ($cursor <= $end) {
+        $day = date('Y-m-d', $cursor);
+        $wd = (int) date('w', $cursor);
+        foreach ($tourLines as $ln) {
+            $lineWd = (int) ($ln['weekday'] ?? -1);
+            if ($lineWd !== $wd) {
+                continue;
+            }
+            $tFrom = substr((string) ($ln['date_from'] ?? ''), 0, 10);
+            $tTo = substr((string) ($ln['date_to'] ?? ''), 0, 10);
+            if ($tFrom !== '' && $day < $tFrom) {
+                continue;
+            }
+            if ($tTo !== '' && $day > $tTo) {
+                continue;
+            }
+            $cid = (int) ($ln['customer_id'] ?? 0);
+            if ($cid < 1) {
+                continue;
+            }
+            $v = $visitByKey[$day . ':' . $cid] ?? null;
+            $checkinAt = (string) ($v['visit_checkin_at'] ?? '');
+            $checkoutAt = (string) ($v['visit_checkout_at'] ?? '');
+            $status = 'idle';
+            if ($checkinAt !== '' && $checkoutAt === '') {
+                $status = 'checked_in';
+            } elseif ($checkinAt !== '' && $checkoutAt !== '') {
+                $status = 'checked_out';
+            }
+            $lat = $ln['latitude'] ?? null;
+            $lng = $ln['longitude'] ?? null;
+            $hasGps = $lat !== null && $lat !== '' && $lng !== null && $lng !== ''
+                && function_exists('sal_invoice_gps_coords_valid')
+                && sal_invoice_gps_coords_valid((float) $lat, (float) $lng);
+            $items[] = [
+                'route_date' => $day,
+                'weekday' => $wd,
+                'weekday_label' => $weekdayLabels[$wd] ?? '',
+                'tour_id' => (int) ($ln['tour_id'] ?? 0),
+                'customer_id' => $cid,
+                'code' => (string) ($ln['customer_code'] ?? ''),
+                'name' => (string) ($ln['customer_name'] ?? ''),
+                'sort_order' => (int) ($ln['sort_order'] ?? 0),
+                'in_plan' => true,
+                'status' => $status,
+                'visit_checkin_at' => $checkinAt !== '' ? $checkinAt : null,
+                'visit_checkout_at' => $checkoutAt !== '' ? $checkoutAt : null,
+                'route_line_id' => isset($v['route_line_id']) ? (int) $v['route_line_id'] : null,
+                'has_gps' => $hasGps,
+                'latitude' => $hasGps ? (float) $lat : null,
+                'longitude' => $hasGps ? (float) $lng : null,
+            ];
+        }
+        $cursor = strtotime('+1 day', $cursor);
+        if ($cursor === false) {
+            break;
+        }
+    }
+
+    $daysMap = [];
+    foreach ($items as $it) {
+        $d = (string) $it['route_date'];
+        if (!isset($daysMap[$d])) {
+            $daysMap[$d] = [
+                'route_date' => $d,
+                'weekday' => (int) $it['weekday'],
+                'weekday_label' => (string) $it['weekday_label'],
+                'customers' => [],
+            ];
+        }
+        $daysMap[$d]['customers'][] = $it;
+    }
+
+    return [
+        'ok' => true,
+        'month' => $monthYm,
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'days' => array_values($daysMap),
+        'items' => $items,
+        'count' => count($items),
+    ];
 }
 
 /** يوم الأسبوع بالعربية لتاريخ ISO Y-m-d */

@@ -29,6 +29,20 @@ if ($repId === null || $repId < 1) {
     exit;
 }
 
+$mode = strtolower(trim((string) ($_GET['mode'] ?? '')));
+$month = trim((string) ($_GET['month'] ?? ''));
+if ($mode === 'month' || $month !== '') {
+    if ($month === '' || !preg_match('/^\d{4}-\d{2}$/', $month)) {
+        $month = date('Y-m');
+    }
+    $agenda = sal_rep_visit_month_agenda_for_rep($pdo, $repId, $month);
+    echo json_encode(array_merge($agenda, [
+        'visit_radius_m' => (int) sal_rep_visit_radius_m($pdo),
+        'geofence_required' => sal_rep_visit_geofence_setting_enabled($pdo),
+    ]), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 $date = trim((string) ($_GET['date'] ?? ''));
 if ($date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
     $date = '';

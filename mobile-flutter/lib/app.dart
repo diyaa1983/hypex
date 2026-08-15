@@ -103,7 +103,12 @@ class NammaApp extends StatelessWidget {
         ),
         GoRoute(
           path: '/customers',
-          builder: (_, __) => const CustomerVisitHubScreen(),
+          builder: (_, s) {
+            final id = int.tryParse(s.uri.queryParameters['id'] ?? '') ?? 0;
+            return CustomerVisitHubScreen(
+              initialCustomerId: id > 0 ? id : null,
+            );
+          },
         ),
         GoRoute(
           path: '/customer-orders',

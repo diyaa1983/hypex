@@ -19,12 +19,17 @@ class PartyStatementScreen extends StatefulWidget {
     this.initialCustomerName,
     this.initialCustomerCode,
     this.autoRun = false,
+    this.embedded = false,
+    this.hidePartyPicker = false,
   });
 
   final int? initialCustomerId;
   final String? initialCustomerName;
   final String? initialCustomerCode;
   final bool autoRun;
+  /// داخل تبويب (بدون MobileScaffold وعنوان كامل).
+  final bool embedded;
+  final bool hidePartyPicker;
 
   @override
   State<PartyStatementScreen> createState() => _PartyStatementScreenState();
@@ -221,16 +226,15 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
         _party != null &&
         (_result!['ok'] != false);
 
-    return MobileScaffold(
-      title: Text(_type == 'customer' ? 'كشف حساب عميل (Oracle)' : 'كشف حساب'),
-      body: Column(
-        children: [
-          Card(
-            margin: const EdgeInsets.all(10),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
+    final body = Column(
+      children: [
+        Card(
+          margin: EdgeInsets.all(widget.embedded ? 8 : 10),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                if (!widget.hidePartyPicker) ...[
                   Row(
                     children: [
                       ChoiceChip(
@@ -281,90 +285,112 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                     trailing: const Icon(Icons.chevron_left),
                     onTap: _pick,
                   ),
+                ] else if (_party != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        _party!.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.calendar_today, size: 16),
+                        label: Text('من: ${Fmt.dmy(_iso(_from))}'),
+                        onPressed: () => _pickDate(true),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.calendar_today, size: 16),
+                        label: Text('إلى: ${Fmt.dmy(_iso(_to))}'),
+                        onPressed: () => _pickDate(false),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: _loading ? null : _run,
+                  icon: const Icon(Icons.search),
+                  label: const Text('عرض الكشف'),
+                ),
+                if (hasResult) ...[
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.calendar_today, size: 16),
-                          label: Text('من: ${Fmt.dmy(_iso(_from))}'),
-                          onPressed: () => _pickDate(true),
+                        child: ActionChipButton(
+                          icon: Icons.print_outlined,
+                          label: 'طباعة',
+                          busy: _printBusy,
+                          onTap: _printBluetooth,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.calendar_today, size: 16),
-                          label: Text('إلى: ${Fmt.dmy(_iso(_to))}'),
-                          onPressed: () => _pickDate(false),
+                        child: ActionChipButton(
+                          icon: Icons.receipt_long_outlined,
+                          label: 'عرض',
+                          color: AppTheme.teal,
+                          busy: _previewBusy,
+                          onTap: _openPreview,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  FilledButton.icon(
-                    onPressed: _loading ? null : _run,
-                    icon: const Icon(Icons.search),
-                    label: const Text('عرض الكشف'),
-                  ),
-                  if (hasResult) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ActionChipButton(
-                            icon: Icons.print_outlined,
-                            label: 'طباعة',
-                            busy: _printBusy,
-                            onTap: _printBluetooth,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ActionChipButton(
-                            icon: Icons.receipt_long_outlined,
-                            label: 'عرض',
-                            color: AppTheme.teal,
-                            busy: _previewBusy,
-                            onTap: _openPreview,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
           ),
-          Expanded(
-            child: AsyncView(
-              loading: _loading,
-              error: _error,
-              onRetry: _run,
-              child: _result == null
-                  ? const EmptyState(
-                      message: 'اختر الطرف والفترة ثم اعرض الكشف.',
-                      icon: Icons.menu_book_outlined,
-                    )
-                  : Column(
-                      children: [
-                        _summary(),
-                        const Divider(height: 1),
-                        Expanded(
-                          child: rows.isEmpty
-                              ? const EmptyState(message: 'لا توجد حركات.')
-                              : ListView.separated(
-                                  itemCount: rows.length,
-                                  separatorBuilder: (_, __) =>
-                                      const Divider(height: 1),
-                                  itemBuilder: (_, i) => _rowTile(rows[i]),
-                                ),
-                        ),
-                      ],
-                    ),
-            ),
+        ),
+        Expanded(
+          child: AsyncView(
+            loading: _loading,
+            error: _error,
+            onRetry: _run,
+            child: _result == null
+                ? const EmptyState(
+                    message: 'اختر الفترة ثم اعرض الكشف.',
+                    icon: Icons.menu_book_outlined,
+                  )
+                : Column(
+                    children: [
+                      _summary(),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: rows.isEmpty
+                            ? const EmptyState(message: 'لا توجد حركات.')
+                            : ListView.separated(
+                                itemCount: rows.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (_, i) => _rowTile(rows[i]),
+                              ),
+                      ),
+                    ],
+                  ),
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+
+    if (widget.embedded) {
+      return Material(color: const Color(0xFFF0F4F8), child: body);
+    }
+
+    return MobileScaffold(
+      title: Text(_type == 'customer' ? 'كشف حساب عميل (Oracle)' : 'كشف حساب'),
+      body: body,
     );
   }
 
