@@ -160,6 +160,17 @@ if ($header) {
                             <?php endif; ?>
                         </td>
                     </tr>
+                    <?php if (!empty($header['salesman_no']) || ($header['salesman_name'] ?? '') !== ''): ?>
+                    <tr>
+                        <td><strong>البائع:</strong>
+                            <span dir="ltr"><?= (int) ($header['salesman_no'] ?? 0) ?></span>
+                            <?php if (($header['salesman_name'] ?? '') !== ''): ?>
+                                — <?= esc((string) $header['salesman_name']) ?>
+                            <?php endif; ?>
+                            <span class="muted"> (من بطاقة العميل)</span>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
                     <tr>
                         <td>
                             <strong>الإجمالي قبل الخصم:</strong> <?= esc($fmtAmt((float) ($header['gross'] ?? 0))) ?>
@@ -177,18 +188,21 @@ if ($header) {
                     <tr>
                         <th>#</th>
                         <th>المادة</th>
+                        <th>البيان</th>
                         <th>الفئة</th>
                         <th>التشغيلة</th>
+                        <th>الوحدة</th>
                         <th>الكمية</th>
                         <th>بونص</th>
                         <th>السعر</th>
+                        <th>ض%</th>
                         <th>الإجمالي</th>
                         <th>الضريبة</th>
                     </tr>
                     </thead>
                     <tbody>
                     <?php if (!$lines): ?>
-                        <tr><td colspan="9" class="muted" style="text-align:center;padding:1rem;">لا بنود</td></tr>
+                        <tr><td colspan="12" class="muted" style="text-align:center;padding:1rem;">لا بنود</td></tr>
                     <?php endif; ?>
                     <?php
                     $seq = 0;
@@ -198,11 +212,14 @@ if ($header) {
                         <tr>
                             <td><?= $seq ?></td>
                             <td dir="ltr"><code><?= esc((string) ($ln['item'] ?? '')) ?></code></td>
+                            <td><?= esc((string) ($ln['item_name'] ?? '—')) ?></td>
                             <td dir="ltr"><?= esc((string) ($ln['cat'] ?? '')) ?></td>
                             <td dir="ltr"><?= esc((string) ($ln['batch'] ?? '')) ?></td>
+                            <td dir="ltr"><?= esc((string) ($ln['unit_label'] ?? '—')) ?></td>
                             <td dir="ltr"><?= esc($fmtAmt((float) ($ln['qty'] ?? 0))) ?></td>
                             <td dir="ltr"><?= esc($fmtAmt((float) ($ln['bonus'] ?? 0))) ?></td>
                             <td dir="ltr"><?= esc($fmtAmt((float) ($ln['sell'] ?? 0))) ?></td>
+                            <td dir="ltr"><?= esc(rtrim(rtrim(number_format((float) ($ln['tax_pct'] ?? 0), 2, '.', ''), '0'), '.') ?: '0') ?>%</td>
                             <td dir="ltr"><?= esc($fmtAmt((float) ($ln['line_gross'] ?? 0))) ?></td>
                             <td dir="ltr"><?= esc($fmtAmt((float) ($ln['vou_tax'] ?? 0))) ?></td>
                         </tr>
@@ -211,8 +228,9 @@ if ($header) {
                     <?php if ($lines): ?>
                     <tfoot>
                     <tr>
-                        <td colspan="4">الإجمالي</td>
+                        <td colspan="6">الإجمالي</td>
                         <td dir="ltr"><?= esc($fmtAmt((float) ($header['qty_sum'] ?? 0))) ?></td>
+                        <td></td>
                         <td></td>
                         <td></td>
                         <td dir="ltr"><?= esc($fmtAmt((float) ($header['gross'] ?? 0))) ?></td>

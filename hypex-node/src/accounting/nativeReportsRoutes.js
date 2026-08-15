@@ -1582,16 +1582,27 @@ router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
           (ln, i) => `<tr>
         <td class="si-num" dir="ltr">${i + 1}</td>
         <td class="si-num" dir="ltr">${esc(ln.item || '')}</td>
+        <td>${esc(ln.item_name || '—')}</td>
         <td class="si-num" dir="ltr">${esc(ln.cat || '—')}</td>
         <td class="si-num" dir="ltr">${esc(ln.batch || '—')}</td>
+        <td class="si-num" dir="ltr">${esc(ln.unit_label || (ln.tr_unit ? '1*' + ln.tr_unit : '—'))}</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(ln.qty))}</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(ln.bonus))}</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(ln.sell))}</td>
+        <td class="si-num" dir="ltr">${esc(Number(ln.tax_pct || 0))}%</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(ln.vou_tax))}</td>
       </tr>`
         )
-        .join('') || ui.emptyRow(9, 'لا بنود');
+        .join('') || ui.emptyRow(12, 'لا بنود');
+
+    const salesmanLine =
+      header.salesman_no || header.salesman_name
+        ? `<div><span class="muted">البائع</span><div><strong dir="ltr">${esc(
+            header.salesman_no || ''
+          )}</strong>${header.salesman_name ? ' — ' + esc(header.salesman_name) : ''}
+            <span class="muted" style="font-size:.78rem"> (من بطاقة العميل)</span></div></div>`
+        : '';
 
     result = `
       <div class="si-print-area">
@@ -1611,6 +1622,7 @@ router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
             )}</strong>
               ${header.customer_name ? ` — ${esc(header.customer_name)}` : ''}
             </div></div>
+            ${salesmanLine}
             <div><span class="muted">قبل الخصم</span><div dir="ltr"><strong>${esc(
               fmtAmt(header.gross)
             )}</strong></div></div>
@@ -1628,7 +1640,7 @@ router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
         ${ui.tableSurface(
           'بنود الفاتورة',
           `${lines.length} بند`,
-          ['#', 'المادة', 'الفئة', 'التشغيلة', 'الكمية', 'بونص', 'السعر', 'الإجمالي', 'الضريبة'],
+          ['#', 'المادة', 'البيان', 'الفئة', 'التشغيلة', 'الوحدة', 'الكمية', 'بونص', 'السعر', 'ض%', 'الإجمالي', 'الضريبة'],
           lineRows
         )}
       </div>`;

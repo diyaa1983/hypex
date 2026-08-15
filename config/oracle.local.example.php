@@ -74,6 +74,8 @@ return [
         'owner' => 'MAS',
         'table' => 'DAILY',
         'sale_type' => 9,
+        'item_card_owner' => 'MAS',
+        'item_card_table' => 'MASCARD',
     ],
 
     /**

@@ -163,11 +163,19 @@ function oracle_fetch_sales_invoice_by_no(int $invoiceNo, int $year = 0): array
     }
 
     $lines = [];
+    $itemCodes = [];
     foreach ($linesRaw as $r) {
         $qty = (float) oracle_statement_row_val($r, 'QTY');
         $sell = (float) oracle_statement_row_val($r, 'SELL');
+        $trUnit = trim(oracle_statement_row_val($r, 'TR_UNIT'));
+        $perTax = (float) oracle_statement_row_val($r, 'PER_TAX');
+        $item = trim(oracle_statement_row_val($r, 'ITEM'));
+        if ($item !== '') {
+            $itemCodes[$item] = true;
+        }
         $lines[] = [
-            'item' => trim(oracle_statement_row_val($r, 'ITEM')),
+            'item' => $item,
+            'item_name' => '',
             'cat' => trim(oracle_statement_row_val($r, 'CAT')),
             'batch' => trim(oracle_statement_row_val($r, 'BATCH')),
             'qty' => $qty,
@@ -177,19 +185,34 @@ function oracle_fetch_sales_invoice_by_no(int $invoiceNo, int $year = 0): array
             'vou_tax' => (float) oracle_statement_row_val($r, 'VOU_TAX'),
             'line_gross' => $qty * $sell,
             'store' => (int) oracle_statement_row_val($r, 'STORE'),
-            'tr_unit' => trim(oracle_statement_row_val($r, 'TR_UNIT')),
+            'tr_unit' => $trUnit,
+            'unit_label' => $trUnit !== '' ? ('1*' . $trUnit) : '—',
+            'per_tax' => $perTax,
+            'tax_pct' => round($perTax * 100, 2),
             'jd_cost' => (float) oracle_statement_row_val($r, 'JD_COST'),
         ];
     }
 
+    $names = oracle_sales_invoice_item_names($conn, array_keys($itemCodes));
+    foreach ($lines as &$ln) {
+        $code = (string) ($ln['item'] ?? '');
+        if ($code !== '' && isset($names[$code])) {
+            $ln['item_name'] = $names[$code];
+        }
+    }
+    unset($ln);
+
     $custAcc = (string) ($pick['cust_acc'] ?? '');
     $custName = oracle_sales_invoice_customer_name($custAcc);
+    $salesman = oracle_sales_invoice_salesman($conn, $custAcc);
 
     $net = (float) $pick['gross'] - (float) $pick['vou_disc'];
     $total = $net + (float) $pick['tax_sum'];
 
     $header = array_merge($pick, [
         'customer_name' => $custName,
+        'salesman_no' => $salesman['no'],
+        'salesman_name' => $salesman['name'],
         'net' => $net,
         'total' => $total,
     ]);
@@ -201,6 +224,123 @@ function oracle_fetch_sales_invoice_by_no(int $invoiceNo, int $year = 0): array
         'header' => $header,
         'lines' => $lines,
     ];
+}
+
+/**
+ * أسماء المواد من MAS.MASCARD.IDESC
+ *
+ * @param array<string,mixed> $conn
+ * @param list<string> $itemCodes
+ * @return array<string,string>
+ */
+function oracle_sales_invoice_item_names(array $conn, array $itemCodes): array
+{
+    $out = [];
+    $codes = [];
+    foreach ($itemCodes as $c) {
+        $c = trim((string) $c);
+        if ($c !== '') {
+            $codes[$c] = true;
+        }
+    }
+    if ($codes === [] || empty($conn['ok'])) {
+        return $out;
+    }
+
+    $cfg = oracle_config();
+    $si = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+    $cardOwn = strtoupper(trim((string) ($si['item_card_owner'] ?? 'MAS'))) ?: 'MAS';
+    $cardTbl = strtoupper(trim((string) ($si['item_card_table'] ?? 'MASCARD'))) ?: 'MASCARD';
+    $from = oracle_stmt_q($cardOwn) . '.' . oracle_stmt_q($cardTbl);
+
+    // استعلام فردي لتجنّب مشاكل IN مع oci binds على إصدارات قديمة
+    foreach (array_keys($codes) as $code) {
+        try {
+            $rows = oracle_query_all(
+                $conn,
+                "SELECT IDESC FROM {$from} WHERE TO_CHAR(ITEM) = :itm AND ROWNUM <= 1",
+                ['itm' => (string) $code]
+            );
+            if ($rows !== []) {
+                $desc = trim(oracle_statement_row_val($rows[0], 'IDESC'));
+                if ($desc !== '') {
+                    $out[(string) $code] = $desc;
+                }
+            }
+        } catch (Throwable $e) {
+            // تجاهل مادة واحدة
+        }
+    }
+
+    // احتياطي من MySQL إن وُجدت المادة
+    try {
+        $pdo = db();
+        foreach (array_keys($codes) as $code) {
+            if (isset($out[(string) $code])) {
+                continue;
+            }
+            $st = $pdo->prepare(
+                "SELECT name_ar FROM inv_item
+                 WHERE sku = ? OR barcode = ? OR CAST(id AS CHAR) = ?
+                 LIMIT 1"
+            );
+            $st->execute([(string) $code, (string) $code, (string) $code]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            if ($row && trim((string) ($row['name_ar'] ?? '')) !== '') {
+                $out[(string) $code] = (string) $row['name_ar'];
+            }
+        }
+    } catch (Throwable $e) {
+        // اختياري
+    }
+
+    return $out;
+}
+
+/**
+ * البائع الافتراضي للعميل: CUSTOMER.CUS_SALESMAN → EMP_INFO.EMP_NAME
+ *
+ * @param array<string,mixed> $conn
+ * @return array{no:int,name:string}
+ */
+function oracle_sales_invoice_salesman(array $conn, string $custAcc): array
+{
+    $empty = ['no' => 0, 'name' => ''];
+    $acc = preg_replace('/\D+/', '', $custAcc) ?? '';
+    if ($acc === '' || empty($conn['ok'])) {
+        return $empty;
+    }
+    try {
+        $rows = oracle_query_all(
+            $conn,
+            'SELECT CUS_SALESMAN FROM ACCINV.CUSTOMER WHERE TO_CHAR(CUS_NUM) = :acc AND ROWNUM <= 1',
+            ['acc' => $acc]
+        );
+        if ($rows === []) {
+            return $empty;
+        }
+        $no = (int) oracle_statement_row_val($rows[0], 'CUS_SALESMAN');
+        if ($no < 1) {
+            return $empty;
+        }
+        $name = '';
+        try {
+            $er = oracle_query_all(
+                $conn,
+                'SELECT EMP_NAME FROM ACCINV.EMP_INFO WHERE EMP_NO = :eno AND ROWNUM <= 1',
+                ['eno' => $no]
+            );
+            if ($er !== []) {
+                $name = trim(oracle_statement_row_val($er[0], 'EMP_NAME'));
+            }
+        } catch (Throwable $e) {
+            // الاسم اختياري
+        }
+
+        return ['no' => $no, 'name' => $name];
+    } catch (Throwable $e) {
+        return $empty;
+    }
 }
 
 function oracle_sales_invoice_iso_date(string $raw): string
