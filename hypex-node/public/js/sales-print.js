@@ -272,6 +272,14 @@
       '.ora-stmt-chq-table td.col-chq-date,.ora-stmt-chq-table td.col-chq-recv,.ora-stmt-chq-table td[dir="ltr"]{white-space:nowrap}' +
       '.ora-stmt-chq-table tfoot .ora-stmt-chq-total td{border-top:1px dashed #000!important;text-decoration:underline;padding-top:5px}' +
       '.ora-stmt-chq-table tfoot strong{font-weight:800;text-decoration:underline}' +
+      '.ora-doc-head{display:flex!important;gap:8px;align-items:flex-start;padding:6px!important}' +
+      '.ora-doc-meta{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px 8px;flex:1 1 auto;min-width:0}' +
+      '.ora-doc-meta .si-f{display:flex;flex-direction:column;gap:0}' +
+      '.ora-doc-meta .si-f-head{font:700 7pt Arial,Helvetica,sans-serif;color:#64748b}' +
+      '.ora-doc-meta .si-field{border:0!important;border-bottom:1px solid #cbd5e1!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:1px 0!important;font:800 9pt Arial,Helvetica,sans-serif!important;color:#0f172a!important;width:100%;text-align:right}' +
+      '.ora-doc-qr{width:100px!important;padding:3px!important;border:1px solid #94a3b8!important}' +
+      '.ora-doc-qr img{width:92px!important;height:92px!important}' +
+      '.ora-doc-qr figcaption{font-size:6.5pt!important;margin-top:2px!important}' +
       '.si-surface,.ora-stmt-body,.inv-print-lines{border:1px solid #bbb;padding:0;margin:0 0 8px;overflow:visible!important}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
       '.si-table-wrap,.ora-stmt,.hx-print-doc,.inv-print-doc{overflow:visible!important;position:relative}' +
