@@ -1601,6 +1601,28 @@ router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
     const discPct = Number(header.per_disc || 0);
     const discLabel = discPct > 0 ? ` (${(discPct * 100).toFixed(2).replace(/\.?0+$/, '')}%)` : '';
 
+    // أنماط مباشرة: الطباعة/PDF تنسخ منطقة الطباعة فقط بدون أنماط الصفحة
+    const stMeta = 'width:100%;border-collapse:collapse;margin:0 0 .6rem;font-size:.85rem;line-height:1.35';
+    const stLab =
+      'border:1px solid #d8dee9;background:#f4f6fa;padding:.22rem .55rem;text-align:right;' +
+      'white-space:nowrap;color:#4b5563;font-weight:600;width:1%';
+    const stVal = 'border:1px solid #d8dee9;padding:.22rem .55rem;text-align:right;font-weight:700';
+    const stTot = 'border-collapse:collapse;font-size:.87rem;margin-top:.6rem';
+    const stTLab =
+      'border:1px solid #d8dee9;background:#f4f6fa;padding:.26rem .65rem;text-align:right;' +
+      'white-space:nowrap;font-weight:600';
+    const stTVal =
+      'border:1px solid #d8dee9;padding:.26rem .65rem;text-align:left;font-weight:700;min-width:7rem';
+    const stTLabG = stTLab + ';background:#e8edfb;font-weight:800;font-size:.93rem';
+    const stTValG = stTVal + ';background:#e8edfb;font-weight:800;font-size:.93rem';
+
+    const salesmanTxt =
+      header.salesman_no || header.salesman_name
+        ? `${esc(header.salesman_no || '')}${
+            header.salesman_name ? ' — ' + esc(header.salesman_name) : ''
+          }`
+        : '—';
+
     const totalsRows = [
       ['مجموع الفاتورة', fmtAmt(header.gross), false],
       [`الخصم${discLabel}`, fmtAmt(header.vou_disc), false],
@@ -1609,71 +1631,60 @@ router.get('/accounting/reports/oracle-sales-invoice', async (req, res) => {
       ['الإجمالي النهائي', fmtAmt(header.total), true],
     ]
       .map(
-        ([lab, val, grand]) => `<tr${grand ? ' class="ora-tot__grand"' : ''}>
-          <th>${esc(lab)}</th><td dir="ltr">${esc(val)}</td></tr>`
+        ([lab, val, grand]) => `<tr>
+          <td style="${grand ? stTLabG : stTLab}">${esc(lab)}</td>
+          <td style="${grand ? stTValG : stTVal}" dir="ltr">${esc(val)}</td></tr>`
       )
       .join('');
 
     result = `
       <div class="si-print-area">
-        <div class="si-surface ora-inv-head">
-          <div class="ora-inv-grid">
-            <div class="ora-cell"><span class="muted">رقم الفاتورة</span><div dir="ltr"><strong>${esc(
-              header.v_num
-            )} / ${esc(header.vyear)}</strong></div></div>
-            <div class="ora-cell"><span class="muted">التاريخ</span><div dir="ltr"><strong>${esc(
-              isoToDmy(header.vdate)
-            )}</strong></div></div>
-            <div class="ora-cell"><span class="muted">المستودع</span><div dir="ltr"><strong>${esc(
-              header.store
-            )}</strong></div></div>
-            <div class="ora-cell"><span class="muted">رقم العميل</span><div dir="ltr"><strong>${esc(
-              header.cust_acc || '—'
-            )}</strong></div></div>
-            <div class="ora-cell ora-cell--wide"><span class="muted">اسم العميل</span><div><strong>${esc(
-              header.customer_name || '—'
-            )}</strong></div></div>
-            <div class="ora-cell ora-cell--wide"><span class="muted">البائع (من بطاقة العميل)</span><div>${
-              header.salesman_no || header.salesman_name
-                ? `<strong dir="ltr">${esc(header.salesman_no || '')}</strong>${
-                    header.salesman_name ? ' — ' + esc(header.salesman_name) : ''
-                  }`
-                : '—'
-            }</div></div>
-          </div>
-        </div>
+        <table style="${stMeta}">
+          <tr>
+            <td style="${stLab}">رقم الفاتورة</td>
+            <td style="${stVal}" dir="ltr">${esc(header.v_num)} / ${esc(header.vyear)}</td>
+            <td style="${stLab}">التاريخ</td>
+            <td style="${stVal}">${esc(isoToDmy(header.vdate))}</td>
+            <td style="${stLab}">المستودع</td>
+            <td style="${stVal}" dir="ltr">${esc(header.store)}</td>
+          </tr>
+          <tr>
+            <td style="${stLab}">رقم العميل</td>
+            <td style="${stVal}" dir="ltr">${esc(header.cust_acc || '—')}</td>
+            <td style="${stLab}">اسم العميل</td>
+            <td style="${stVal}" colspan="3">${esc(header.customer_name || '—')}</td>
+          </tr>
+          <tr>
+            <td style="${stLab}">البائع</td>
+            <td style="${stVal}" colspan="5">${salesmanTxt}</td>
+          </tr>
+        </table>
         ${ui.tableSurface(
           'بنود الفاتورة',
           `${lines.length} بند`,
           ['#', 'المادة', 'البيان', 'الفئة', 'التشغيلة', 'الوحدة', 'الكمية', 'بونص', 'السعر', 'ض%', 'الإجمالي', 'الضريبة'],
           lineRows +
             (lines.length
-              ? `<tr class="ora-lines__sum">
-                  <td colspan="6">مجموع البنود</td>
-                  <td class="si-num" dir="ltr">${esc(fmtAmt(qtySum))}</td>
-                  <td class="si-num" dir="ltr">${esc(fmtAmt(bonusSum))}</td>
-                  <td></td><td></td>
-                  <td class="si-num" dir="ltr">${esc(fmtAmt(header.gross))}</td>
-                  <td class="si-num" dir="ltr">${esc(fmtAmt(header.tax_sum))}</td>
+              ? `<tr>
+                  <td colspan="6" style="background:#f4f6fa;font-weight:800">مجموع البنود</td>
+                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
+                    fmtAmt(qtySum)
+                  )}</td>
+                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
+                    fmtAmt(bonusSum)
+                  )}</td>
+                  <td style="background:#f4f6fa"></td><td style="background:#f4f6fa"></td>
+                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
+                    fmtAmt(header.gross)
+                  )}</td>
+                  <td class="si-num" dir="ltr" style="background:#f4f6fa;font-weight:800">${esc(
+                    fmtAmt(header.tax_sum)
+                  )}</td>
                 </tr>`
               : '')
         )}
-        <div class="ora-tot">
-          <table class="ora-tot__table">${totalsRows}</table>
-        </div>
-      </div>
-      <style>
-        .ora-inv-head{padding:1rem;margin-bottom:.75rem}
-        .ora-inv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.55rem .9rem;font-size:.9rem}
-        .ora-cell--wide{grid-column:span 2}
-        .ora-lines__sum td{background:#f4f6fa;font-weight:800}
-        .ora-tot{display:flex;justify-content:flex-start;margin-top:.75rem;page-break-inside:avoid}
-        .ora-tot__table{border-collapse:collapse;min-width:20rem;font-size:.9rem;background:#fff}
-        .ora-tot__table th,.ora-tot__table td{border:1px solid #dfe4ec;padding:.4rem .8rem}
-        .ora-tot__table th{background:#f4f6fa;text-align:right;font-weight:600;white-space:nowrap}
-        .ora-tot__table td{text-align:left;font-variant-numeric:tabular-nums;min-width:8rem}
-        .ora-tot__grand th,.ora-tot__grand td{background:#eef2ff;font-weight:800;font-size:.98rem}
-      </style>`;
+        <table style="${stTot}">${totalsRows}</table>
+      </div>`;
   } else if (run) {
     result = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(
       data.message || 'لا توجد فاتورة بهذا الرقم'

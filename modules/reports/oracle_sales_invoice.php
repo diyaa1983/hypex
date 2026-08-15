@@ -51,6 +51,18 @@ $fmtDate = static function (string $iso): string {
     return $iso;
 };
 
+// أنماط مباشرة (inline) لأن الطباعة/PDF تنسخ منطقة الطباعة فقط بدون أنماط الصفحة
+$stMetaTable = 'width:100%;border-collapse:collapse;margin:0 0 .55rem;font-size:.84rem;line-height:1.35';
+$stMetaLab = 'border:1px solid #d8dee9;background:#f4f6fa;padding:.22rem .5rem;text-align:right;'
+    . 'white-space:nowrap;color:#4b5563;font-weight:600;width:1%';
+$stMetaVal = 'border:1px solid #d8dee9;padding:.22rem .5rem;text-align:right;font-weight:700';
+$stTotTable = 'border-collapse:collapse;font-size:.86rem;margin-top:.55rem';
+$stTotLab = 'border:1px solid #d8dee9;background:#f4f6fa;padding:.24rem .6rem;text-align:right;'
+    . 'white-space:nowrap;font-weight:600';
+$stTotVal = 'border:1px solid #d8dee9;padding:.24rem .6rem;text-align:left;font-weight:700;min-width:6.5rem';
+$stTotLabG = $stTotLab . ';background:#e8edfb;font-weight:800;font-size:.92rem';
+$stTotValG = $stTotVal . ';background:#e8edfb;font-weight:800;font-size:.92rem';
+
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
 $invCssPath = app_path('assets/css/sales-invoice.css');
@@ -140,39 +152,35 @@ if ($header) {
         <div class="report-sales-result report-sales-print-area">
             <?= document_print_header_html($reportTitle, db()) ?>
 
-            <div class="ora-inv-meta">
-                <div class="ora-inv-meta__cell">
-                    <span class="ora-inv-meta__lab">رقم الفاتورة</span>
-                    <span class="ora-inv-meta__val" dir="ltr"><?= (int) ($header['v_num'] ?? 0) ?> / <?= (int) ($header['vyear'] ?? 0) ?></span>
-                </div>
-                <div class="ora-inv-meta__cell">
-                    <span class="ora-inv-meta__lab">التاريخ</span>
-                    <span class="ora-inv-meta__val"><?= esc($fmtDate((string) ($header['vdate'] ?? ''))) ?></span>
-                </div>
-                <div class="ora-inv-meta__cell">
-                    <span class="ora-inv-meta__lab">المستودع</span>
-                    <span class="ora-inv-meta__val" dir="ltr"><?= (int) ($header['store'] ?? 0) ?></span>
-                </div>
-                <div class="ora-inv-meta__cell">
-                    <span class="ora-inv-meta__lab">رقم العميل</span>
-                    <span class="ora-inv-meta__val" dir="ltr"><?= esc((string) ($header['cust_acc'] ?? '')) ?></span>
-                </div>
-                <div class="ora-inv-meta__cell ora-inv-meta__cell--wide">
-                    <span class="ora-inv-meta__lab">اسم العميل</span>
-                    <span class="ora-inv-meta__val"><?= esc((string) ($header['customer_name'] ?? '')) ?: '—' ?></span>
-                </div>
-                <div class="ora-inv-meta__cell ora-inv-meta__cell--wide">
-                    <span class="ora-inv-meta__lab">البائع (من بطاقة العميل)</span>
-                    <span class="ora-inv-meta__val">
-                        <?php if (!empty($header['salesman_no']) || ($header['salesman_name'] ?? '') !== ''): ?>
-                            <span dir="ltr"><?= (int) ($header['salesman_no'] ?? 0) ?></span>
-                            <?php if (($header['salesman_name'] ?? '') !== ''): ?>
-                                — <?= esc((string) $header['salesman_name']) ?>
-                            <?php endif; ?>
-                        <?php else: ?>—<?php endif; ?>
-                    </span>
-                </div>
-            </div>
+            <?php
+            $salesmanTxt = '—';
+            if (!empty($header['salesman_no']) || ($header['salesman_name'] ?? '') !== '') {
+                $salesmanTxt = (string) (int) ($header['salesman_no'] ?? 0);
+                if (($header['salesman_name'] ?? '') !== '') {
+                    $salesmanTxt .= ' — ' . (string) $header['salesman_name'];
+                }
+            }
+            ?>
+            <table style="<?= $stMetaTable ?>">
+                <tr>
+                    <td style="<?= $stMetaLab ?>">رقم الفاتورة</td>
+                    <td style="<?= $stMetaVal ?>" dir="ltr"><?= (int) ($header['v_num'] ?? 0) ?> / <?= (int) ($header['vyear'] ?? 0) ?></td>
+                    <td style="<?= $stMetaLab ?>">التاريخ</td>
+                    <td style="<?= $stMetaVal ?>"><?= esc($fmtDate((string) ($header['vdate'] ?? ''))) ?></td>
+                    <td style="<?= $stMetaLab ?>">المستودع</td>
+                    <td style="<?= $stMetaVal ?>" dir="ltr"><?= (int) ($header['store'] ?? 0) ?></td>
+                </tr>
+                <tr>
+                    <td style="<?= $stMetaLab ?>">رقم العميل</td>
+                    <td style="<?= $stMetaVal ?>" dir="ltr"><?= esc((string) ($header['cust_acc'] ?? '')) ?></td>
+                    <td style="<?= $stMetaLab ?>">اسم العميل</td>
+                    <td style="<?= $stMetaVal ?>" colspan="3"><?= esc((string) ($header['customer_name'] ?? '')) ?: '—' ?></td>
+                </tr>
+                <tr>
+                    <td style="<?= $stMetaLab ?>">البائع</td>
+                    <td style="<?= $stMetaVal ?>" colspan="5"><?= esc($salesmanTxt) ?></td>
+                </tr>
+            </table>
 
             <div class="report-sales-table-wrap">
                 <table class="report-sales-table">
@@ -233,59 +241,40 @@ if ($header) {
                 </table>
             </div>
 
-            <?php if ($lines): ?>
-            <div class="ora-inv-totals">
-                <table class="ora-inv-totals__table">
-                    <tr>
-                        <th>مجموع الفاتورة</th>
-                        <td dir="ltr"><?= esc($fmtAmt((float) ($header['gross'] ?? 0))) ?></td>
-                    </tr>
-                    <tr>
-                        <th>خصم نسبة <?php
-                            $pd = (float) ($header['per_disc'] ?? 0);
-                            echo $pd > 0 ? esc(rtrim(rtrim(number_format($pd * 100, 2, '.', ''), '0'), '.') . '%') : '';
-                        ?></th>
-                        <td dir="ltr"><?= esc($fmtAmt((float) ($header['vou_disc'] ?? 0))) ?></td>
-                    </tr>
-                    <tr>
-                        <th>الصافي قبل الضريبة</th>
-                        <td dir="ltr"><?= esc($fmtAmt((float) ($header['net'] ?? 0))) ?></td>
-                    </tr>
-                    <tr>
-                        <th>قيمة الضريبة</th>
-                        <td dir="ltr"><?= esc($fmtAmt((float) ($header['tax_sum'] ?? 0))) ?></td>
-                    </tr>
-                    <tr class="ora-inv-totals__grand">
-                        <th>الإجمالي النهائي</th>
-                        <td dir="ltr"><?= esc($fmtAmt((float) ($header['total'] ?? 0))) ?></td>
-                    </tr>
-                </table>
-            </div>
+            <?php if ($lines):
+                $pd = (float) ($header['per_disc'] ?? 0);
+                $discLab = 'الخصم';
+                if ($pd > 0) {
+                    $discLab .= ' (' . rtrim(rtrim(number_format($pd * 100, 2, '.', ''), '0'), '.') . '%)';
+                }
+                ?>
+            <table style="<?= $stTotTable ?>">
+                <tr>
+                    <td style="<?= $stTotLab ?>">مجموع الفاتورة</td>
+                    <td style="<?= $stTotVal ?>" dir="ltr"><?= esc($fmtAmt((float) ($header['gross'] ?? 0))) ?></td>
+                </tr>
+                <tr>
+                    <td style="<?= $stTotLab ?>"><?= esc($discLab) ?></td>
+                    <td style="<?= $stTotVal ?>" dir="ltr"><?= esc($fmtAmt((float) ($header['vou_disc'] ?? 0))) ?></td>
+                </tr>
+                <tr>
+                    <td style="<?= $stTotLab ?>">الصافي قبل الضريبة</td>
+                    <td style="<?= $stTotVal ?>" dir="ltr"><?= esc($fmtAmt((float) ($header['net'] ?? 0))) ?></td>
+                </tr>
+                <tr>
+                    <td style="<?= $stTotLab ?>">قيمة الضريبة</td>
+                    <td style="<?= $stTotVal ?>" dir="ltr"><?= esc($fmtAmt((float) ($header['tax_sum'] ?? 0))) ?></td>
+                </tr>
+                <tr>
+                    <td style="<?= $stTotLabG ?>">الإجمالي النهائي</td>
+                    <td style="<?= $stTotValG ?>" dir="ltr"><?= esc($fmtAmt((float) ($header['total'] ?? 0))) ?></td>
+                </tr>
+            </table>
             <?php endif; ?>
         </div>
     <?php endif; ?>
 </div>
 
-<style>
-.ora-inv-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.5rem .9rem;
-  border:1px solid #d8dee9;border-radius:.5rem;padding:.7rem .9rem;margin-bottom:.85rem}
-.ora-inv-meta__cell{display:flex;flex-direction:column;gap:.15rem;font-size:.86rem}
-.ora-inv-meta__lab{color:#6b7280;font-size:.76rem}
-.ora-inv-meta__val{font-weight:700}
-.ora-inv-meta__cell--wide{grid-column:span 2}
-.ora-inv-totals{display:flex;justify-content:flex-start;margin-top:.85rem}
-.ora-inv-totals__table{border-collapse:collapse;min-width:19rem;font-size:.88rem}
-.ora-inv-totals__table th,
-.ora-inv-totals__table td{border:1px solid #d8dee9;padding:.35rem .7rem}
-.ora-inv-totals__table th{background:#f4f6fa;text-align:right;font-weight:600;white-space:nowrap}
-.ora-inv-totals__table td{text-align:left;font-family:ui-monospace,Consolas,monospace;min-width:7.5rem}
-.ora-inv-totals__grand th,
-.ora-inv-totals__grand td{background:#eef2ff;font-weight:800;font-size:.95rem}
-@media print{
-  .ora-inv-totals{page-break-inside:avoid}
-  .ora-inv-meta{page-break-inside:avoid}
-}
-</style>
 
 <div id="sales-inv-export-host" class="sales-inv-export-host" aria-hidden="true"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer crossorigin="anonymous" referrerpolicy="no-referrer"></script>
