@@ -17,6 +17,7 @@ import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 import '../gps/gps_map_tiles.dart';
 import '../party/party_statement_screen.dart';
+import '../customer_orders/customer_order_form_screen.dart';
 
 /// مركز زيارة العملاء: قائمة + تفاصيل مع تبويبات (لوحة عريضة / ضيقة).
 class CustomerVisitHubScreen extends StatefulWidget {
@@ -35,11 +36,16 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
   static const _wideBreak = 700.0;
 
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
+  bool _searchEnabled = false;
   Timer? _debounce;
 
   bool _listLoading = true;
   String? _listError;
   List<Map<String, dynamic>> _customers = [];
+
+  /// حالة زيارة اليوم لكل عميل: checked_in | pending_manual_checkout | checked_out | idle
+  final Map<int, String> _visitStatusByCustomer = {};
 
   int? _selectedId;
   bool _detailLoading = false;
@@ -59,6 +65,16 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
   List<Map<String, dynamic>> _histOrders = [];
   bool _histOrdersLoading = false;
   String? _histOrdersError;
+  DateTime _histOrdersFrom =
+      DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime _histOrdersTo = DateTime.now();
+
+  List<Map<String, dynamic>> _histInvoices = [];
+  bool _histInvoicesLoading = false;
+  String? _histInvoicesError;
+  DateTime _histInvoicesFrom =
+      DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime _histInvoicesTo = DateTime.now();
 
   @override
   void initState() {
@@ -78,6 +94,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
   void dispose() {
     _debounce?.cancel();
     _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -133,21 +150,48 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
           .map((e) => e.cast<String, dynamic>());
       var openId = 0;
       var checkinAt = '';
+      final statusMap = <int, String>{};
       for (final v in visits) {
+        final cid = Fmt.toInt(v['customer_id']);
+        if (cid < 1) continue;
         final s = Fmt.str(v['status']);
-        if (s == 'checked_in' || s == 'pending_manual_checkout') {
-          openId = Fmt.toInt(v['customer_id']);
+        if (s.isNotEmpty) statusMap[cid] = s;
+        if (openId == 0 &&
+            (s == 'checked_in' || s == 'pending_manual_checkout')) {
+          openId = cid;
           checkinAt = Fmt.str(v['visit_checkin_at']);
-          break;
         }
       }
       setState(() {
+        _visitStatusByCustomer
+          ..clear()
+          ..addAll(statusMap);
         _openVisitCustomerId = openId;
         _openVisitCheckinAt = checkinAt;
         final r = Fmt.toInt(res['visit_radius_m']);
         if (r > 0) _radiusM = r;
       });
     } catch (_) {}
+  }
+
+  Color? _visitRowColor(int customerId) {
+    final s = _visitStatusByCustomer[customerId] ?? '';
+    if (s == 'checked_in' || s == 'pending_manual_checkout') {
+      return AppTheme.success.withValues(alpha: 0.14);
+    }
+    if (s == 'checked_out') {
+      return AppTheme.danger.withValues(alpha: 0.14);
+    }
+    return null;
+  }
+
+  Color _visitAccent(int customerId) {
+    final s = _visitStatusByCustomer[customerId] ?? '';
+    if (s == 'checked_in' || s == 'pending_manual_checkout') {
+      return AppTheme.success;
+    }
+    if (s == 'checked_out') return AppTheme.danger;
+    return AppTheme.primary;
   }
 
   bool get _selectedIsOpen =>
@@ -186,6 +230,11 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
 
   Future<void> _selectCustomer(int id, {bool openNarrowDetail = false}) async {
     if (id < 1) return;
+    FocusScope.of(context).unfocus();
+    _searchFocus.unfocus();
+    if (_searchEnabled) {
+      setState(() => _searchEnabled = false);
+    }
     if (_hasOpenVisit && id != _openVisitCustomerId) {
       showSnack(
         context,
@@ -232,6 +281,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
         }
       });
       _loadHistOrders(id);
+      _loadHistInvoices(id);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -247,6 +297,9 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
     }
   }
 
+  String _isoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   Future<void> _loadHistOrders(int customerId) async {
     setState(() {
       _histOrdersLoading = true;
@@ -257,7 +310,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
             AppConfig.customerOrderListPath,
             query: {
               'customer_id': customerId,
-              'is_sent': 1,
+              'from': _isoDate(_histOrdersFrom),
+              'to': _isoDate(_histOrdersTo),
               'page': 1,
             },
           );
@@ -280,6 +334,45 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
       setState(() {
         _histOrdersError = e.toString();
         _histOrdersLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadHistInvoices(int customerId) async {
+    setState(() {
+      _histInvoicesLoading = true;
+      _histInvoicesError = null;
+    });
+    try {
+      final res = await context.read<ApiClient>().getJson(
+            AppConfig.salesInvoiceListPath,
+            query: {
+              'customer_id': customerId,
+              'from': _isoDate(_histInvoicesFrom),
+              'to': _isoDate(_histInvoicesTo),
+              'filter': 'all',
+              'page': 1,
+            },
+          );
+      if (!mounted) return;
+      setState(() {
+        _histInvoices = (res['invoices'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        _histInvoicesLoading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _histInvoicesError = e.message;
+        _histInvoicesLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _histInvoicesError = e.toString();
+        _histInvoicesLoading = false;
       });
     }
   }
@@ -750,7 +843,17 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
               const SizedBox(height: 10),
               TextField(
                 controller: _search,
+                focusNode: _searchFocus,
+                readOnly: !_searchEnabled,
                 onChanged: _onSearchChanged,
+                onTap: () {
+                  if (!_searchEnabled) {
+                    setState(() => _searchEnabled = true);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _searchFocus.requestFocus();
+                    });
+                  }
+                },
                 decoration: InputDecoration(
                   hintText: 'بحث بالاسم أو الرمز…',
                   prefixIcon: const Icon(Icons.search_rounded),
@@ -794,10 +897,14 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                         final id = Fmt.toInt(c['id']);
                         final selected = id == _selectedId;
                         final isOpen = id == _openVisitCustomerId;
+                        final visitStatus = _visitStatusByCustomer[id] ?? '';
+                        final isCheckedOut = visitStatus == 'checked_out';
+                        final accent = _visitAccent(id);
+                        final rowBg = selected
+                            ? AppTheme.primary.withValues(alpha: 0.10)
+                            : (_visitRowColor(id) ?? Colors.white);
                         return Material(
-                          color: selected
-                              ? AppTheme.primary.withValues(alpha: 0.10)
-                              : Colors.white,
+                          color: rowBg,
                           borderRadius: BorderRadius.circular(12),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
@@ -816,18 +923,16 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                                 children: [
                                   CircleAvatar(
                                     radius: 18,
-                                    backgroundColor: (isOpen
-                                            ? AppTheme.teal
-                                            : AppTheme.primary)
-                                        .withValues(alpha: 0.12),
+                                    backgroundColor:
+                                        accent.withValues(alpha: 0.12),
                                     child: Icon(
                                       isOpen
                                           ? Icons.login_rounded
-                                          : Icons.storefront_rounded,
+                                          : (isCheckedOut
+                                              ? Icons.logout_rounded
+                                              : Icons.storefront_rounded),
                                       size: 18,
-                                      color: isOpen
-                                          ? AppTheme.teal
-                                          : AppTheme.primary,
+                                      color: accent,
                                     ),
                                   ),
                                   const SizedBox(width: 10),
@@ -861,7 +966,12 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                                   if (isOpen)
                                     const StatusPill(
                                       text: 'مفتوحة',
-                                      color: AppTheme.teal,
+                                      color: AppTheme.success,
+                                    )
+                                  else if (isCheckedOut)
+                                    const StatusPill(
+                                      text: 'منتهية',
+                                      color: AppTheme.danger,
                                     ),
                                 ],
                               ),
@@ -871,6 +981,31 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                       },
                     ),
                   ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: IconButton.filledTonal(
+              tooltip: _searchEnabled ? 'إخفاء لوحة المفاتيح' : 'فتح لوحة المفاتيح',
+              onPressed: () {
+                if (_searchEnabled) {
+                  _searchFocus.unfocus();
+                  setState(() => _searchEnabled = false);
+                } else {
+                  setState(() => _searchEnabled = true);
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) _searchFocus.requestFocus();
+                  });
+                }
+              },
+              icon: Icon(
+                _searchEnabled
+                    ? Icons.keyboard_hide_rounded
+                    : Icons.keyboard_rounded,
+              ),
+            ),
           ),
         ),
         _buildCheckInOutCard(),
@@ -1068,7 +1203,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
       child: _customer == null
           ? const SizedBox.shrink()
           : DefaultTabController(
-              length: 4,
+              length: 5,
+              initialIndex: 0,
               child: Column(
                 children: [
                   Material(
@@ -1078,6 +1214,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                       labelColor: AppTheme.primary,
                       unselectedLabelColor: AppTheme.textSoft,
                       tabs: const [
+                        Tab(text: 'طلب شراء'),
                         Tab(text: 'معلومات العميل'),
                         Tab(text: 'كشف حساب'),
                         Tab(text: 'الطلبات التاريخية'),
@@ -1088,6 +1225,13 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                   Expanded(
                     child: TabBarView(
                       children: [
+                        _PurchaseOrderTab(
+                          customer: _customer!,
+                          visitOpen: _selectedIsOpen,
+                          visitRouteLineId:
+                              Fmt.toInt(_visit?['route_line_id']),
+                          onSaved: () => _selectCustomer(_selectedId!),
+                        ),
                         _InfoTab(
                           customer: _customer!,
                           onSaved: () => _selectCustomer(_selectedId!),
@@ -1097,28 +1241,34 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                           loading: _histOrdersLoading,
                           error: _histOrdersError,
                           orders: _histOrders,
-                          onRetry: () => _loadHistOrders(_selectedId!),
-                          onAddOrder: () {
-                            final c = _customer!;
-                            final visitLineId =
-                                Fmt.toInt(_visit?['route_line_id']);
-                            if (!_selectedIsOpen || visitLineId < 1) {
-                              showSnack(
-                                context,
-                                'سجّل الدخول عند العميل أولاً لإنشاء طلبية.',
-                                error: true,
-                              );
-                              return;
-                            }
-                            context.push(
-                              '/customer-orders/new?customer_id=${Fmt.toInt(c['id'])}'
-                              '&customer_name=${Uri.encodeComponent(Fmt.str(c['name']))}'
-                              '&customer_code=${Uri.encodeComponent(Fmt.str(c['code']))}'
-                              '&visit_route_line_id=$visitLineId',
-                            );
+                          from: _histOrdersFrom,
+                          to: _histOrdersTo,
+                          onFromChanged: (d) {
+                            setState(() => _histOrdersFrom = d);
+                            _loadHistOrders(_selectedId!);
                           },
+                          onToChanged: (d) {
+                            setState(() => _histOrdersTo = d);
+                            _loadHistOrders(_selectedId!);
+                          },
+                          onRetry: () => _loadHistOrders(_selectedId!),
                         ),
-                        _InvoicesTab(customer: _customer!),
+                        _InvoicesTab(
+                          loading: _histInvoicesLoading,
+                          error: _histInvoicesError,
+                          invoices: _histInvoices,
+                          from: _histInvoicesFrom,
+                          to: _histInvoicesTo,
+                          onFromChanged: (d) {
+                            setState(() => _histInvoicesFrom = d);
+                            _loadHistInvoices(_selectedId!);
+                          },
+                          onToChanged: (d) {
+                            setState(() => _histInvoicesTo = d);
+                            _loadHistInvoices(_selectedId!);
+                          },
+                          onRetry: () => _loadHistInvoices(_selectedId!),
+                        ),
                       ],
                     ),
                   ),
@@ -1177,7 +1327,7 @@ class _GpsPreviewDialog extends StatelessWidget {
                     ),
                   ),
                   children: [
-                    ...GpsMapTiles.layers(mapProvider: 'imagery'),
+                    ...GpsMapTiles.layers(mapProvider: 'osm'),
                     MarkerLayer(
                       markers: [
                         Marker(
@@ -1310,19 +1460,22 @@ class _InfoTabState extends State<_InfoTab> {
       });
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, e.toString(), error: true);
+      showSnack(context, LocationService.friendlyError(e), error: true);
     } finally {
       if (mounted) setState(() => _locating = false);
     }
   }
 
   Future<void> _pickOnMap() async {
-    final start = (_lat != null && _lng != null)
-        ? LatLng(_lat!, _lng!)
-        : const LatLng(31.9539, 35.9106);
+    final hasLoc = _lat != null && _lng != null;
+    final start =
+        hasLoc ? LatLng(_lat!, _lng!) : const LatLng(31.9539, 35.9106);
     final picked = await Navigator.of(context).push<LatLng>(
       MaterialPageRoute(
-        builder: (_) => _LocationPickerScreen(initial: start),
+        builder: (_) => _LocationPickerScreen(
+          initial: start,
+          hasInitialLocation: hasLoc,
+        ),
       ),
     );
     if (picked == null || !mounted) return;
@@ -1549,8 +1702,14 @@ class _InfoTabState extends State<_InfoTab> {
 
 /// شاشة اختيار موقع العميل على الخريطة (بالضغط أو السحب).
 class _LocationPickerScreen extends StatefulWidget {
-  const _LocationPickerScreen({required this.initial});
+  const _LocationPickerScreen({
+    required this.initial,
+    this.hasInitialLocation = false,
+  });
   final LatLng initial;
+
+  /// عند وجود موقع محفوظ للعميل لا نُحرّك الخريطة تلقائياً.
+  final bool hasInitialLocation;
 
   @override
   State<_LocationPickerScreen> createState() => _LocationPickerScreenState();
@@ -1561,22 +1720,43 @@ class _LocationPickerScreenState extends State<_LocationPickerScreen> {
   final MapController _map = MapController();
   bool _locating = false;
   double _zoom = 16;
-  bool _satellite = true;
+  /// false = شوارع وأسماء (OSM) — true = أقمار + أسماء فوقها.
+  bool _satellite = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // موقع فوري إن وُجد، دون تعطيل الواجهة بانتظار GPS.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (widget.hasInitialLocation) return;
+      final pos = await LocationService.instantPosition();
+      if (!mounted || pos == null) return;
+      _moveTo(LatLng(pos.latitude, pos.longitude));
+    });
+  }
+
+  void _moveTo(LatLng p, {double zoom = 17}) {
+    setState(() {
+      _selected = p;
+      _zoom = zoom;
+    });
+    _map.move(p, zoom);
+  }
 
   Future<void> _goToCurrent() async {
     setState(() => _locating = true);
     try {
+      // اعرض آخر موقع معروف فوراً ثم حدّثه بالقراءة الدقيقة.
+      final quick = await LocationService.instantPosition();
+      if (mounted && quick != null) {
+        _moveTo(LatLng(quick.latitude, quick.longitude), zoom: 16);
+      }
       final pos = await LocationService.requirePosition();
       if (!mounted) return;
-      final p = LatLng(pos.latitude, pos.longitude);
-      setState(() {
-        _selected = p;
-        _zoom = 17;
-      });
-      _map.move(p, 17);
+      _moveTo(LatLng(pos.latitude, pos.longitude));
     } catch (e) {
       if (!mounted) return;
-      showSnack(context, e.toString(), error: true);
+      showSnack(context, LocationService.friendlyError(e), error: true);
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -1603,7 +1783,7 @@ class _LocationPickerScreenState extends State<_LocationPickerScreen> {
             ),
             children: [
               ...GpsMapTiles.layers(
-                mapProvider: _satellite ? 'imagery' : 'esri',
+                mapProvider: _satellite ? 'imagery' : 'osm',
                 zoom: _zoom,
               ),
               MarkerLayer(
@@ -1630,7 +1810,7 @@ class _LocationPickerScreenState extends State<_LocationPickerScreen> {
               children: [
                 FloatingActionButton.small(
                   heroTag: 'loc_layer',
-                  tooltip: _satellite ? 'عرض الشوارع' : 'عرض الأقمار الصناعية',
+                  tooltip: _satellite ? 'عرض الشوارع والأسماء' : 'عرض الأقمار الصناعية',
                   onPressed: () => setState(() => _satellite = !_satellite),
                   child: Icon(
                     _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
@@ -1712,20 +1892,88 @@ class _StatementTab extends StatelessWidget {
   }
 }
 
+class _PurchaseOrderTab extends StatelessWidget {
+  const _PurchaseOrderTab({
+    required this.customer,
+    required this.visitOpen,
+    required this.visitRouteLineId,
+    required this.onSaved,
+  });
+
+  final Map<String, dynamic> customer;
+  final bool visitOpen;
+  final int visitRouteLineId;
+  final VoidCallback onSaved;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!visitOpen || visitRouteLineId < 1) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'سجّل الدخول عند العميل أولاً لإنشاء طلب شراء.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppTheme.textSoft,
+              fontWeight: FontWeight.w700,
+              fontSize: 14.5,
+            ),
+          ),
+        ),
+      );
+    }
+    return CustomerOrderFormScreen(
+      key: ValueKey(
+        'po-${Fmt.toInt(customer['id'])}-$visitRouteLineId',
+      ),
+      embedded: true,
+      hideCustomerPicker: true,
+      initialCustomerId: Fmt.toInt(customer['id']),
+      initialCustomerName: Fmt.str(customer['name']),
+      initialCustomerCode: Fmt.str(customer['code']),
+      visitRouteLineId: visitRouteLineId,
+      onSaved: onSaved,
+    );
+  }
+}
+
 class _OrdersTab extends StatelessWidget {
   const _OrdersTab({
     required this.loading,
     required this.error,
     required this.orders,
+    required this.from,
+    required this.to,
+    required this.onFromChanged,
+    required this.onToChanged,
     required this.onRetry,
-    required this.onAddOrder,
   });
 
   final bool loading;
   final String? error;
   final List<Map<String, dynamic>> orders;
+  final DateTime from;
+  final DateTime to;
+  final ValueChanged<DateTime> onFromChanged;
+  final ValueChanged<DateTime> onToChanged;
   final VoidCallback onRetry;
-  final VoidCallback onAddOrder;
+
+  Future<void> _pick(BuildContext context, bool isFrom) async {
+    final initial = isFrom ? from : to;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2015),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    if (isFrom) {
+      onFromChanged(picked);
+    } else {
+      onToChanged(picked);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1733,13 +1981,24 @@ class _OrdersTab extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: FilledButton.tonalIcon(
-              onPressed: onAddOrder,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('إضافة طلب'),
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pick(context, true),
+                  icon: const Icon(Icons.calendar_today, size: 16),
+                  label: Text('من: ${Fmt.dmy('${from.year.toString().padLeft(4, '0')}-${from.month.toString().padLeft(2, '0')}-${from.day.toString().padLeft(2, '0')}')}'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pick(context, false),
+                  icon: const Icon(Icons.calendar_today, size: 16),
+                  label: Text('إلى: ${Fmt.dmy('${to.year.toString().padLeft(4, '0')}-${to.month.toString().padLeft(2, '0')}-${to.day.toString().padLeft(2, '0')}')}'),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -1752,7 +2011,7 @@ class _OrdersTab extends StatelessWidget {
                     children: const [
                       SizedBox(height: 50),
                       EmptyState(
-                        message: 'لا توجد طلبات مرسلة لهذا العميل.',
+                        message: 'لا توجد طلبات في هذه الفترة.',
                         icon: Icons.shopping_cart_outlined,
                       ),
                     ],
@@ -1774,27 +2033,23 @@ class _OrdersTab extends StatelessWidget {
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    Fmt.str(o['order_no']).isEmpty
-                                        ? '#${Fmt.toInt(o['id'])}'
-                                        : Fmt.str(o['order_no']),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${Fmt.dmy(Fmt.str(o['order_date']))}  •  ${Fmt.money(Fmt.toDouble(o['total']))}',
-                                    style: const TextStyle(
-                                      color: AppTheme.textSoft,
-                                      fontSize: 12.5,
-                                    ),
-                                  ),
-                                ],
+                              child: Text(
+                                Fmt.dmy(Fmt.str(o['order_date'])),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
+                            Text(
+                              Fmt.money(Fmt.toDouble(o['total'])),
+                              textDirection: TextDirection.ltr,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
                             const Icon(
                               Icons.chevron_left_rounded,
                               color: AppTheme.textSoft,
@@ -1812,45 +2067,142 @@ class _OrdersTab extends StatelessWidget {
 }
 
 class _InvoicesTab extends StatelessWidget {
-  const _InvoicesTab({required this.customer});
-  final Map<String, dynamic> customer;
+  const _InvoicesTab({
+    required this.loading,
+    required this.error,
+    required this.invoices,
+    required this.from,
+    required this.to,
+    required this.onFromChanged,
+    required this.onToChanged,
+    required this.onRetry,
+  });
+
+  final bool loading;
+  final String? error;
+  final List<Map<String, dynamic>> invoices;
+  final DateTime from;
+  final DateTime to;
+  final ValueChanged<DateTime> onFromChanged;
+  final ValueChanged<DateTime> onToChanged;
+  final VoidCallback onRetry;
+
+  Future<void> _pick(BuildContext context, bool isFrom) async {
+    final initial = isFrom ? from : to;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2015),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    if (isFrom) {
+      onFromChanged(picked);
+    } else {
+      onToChanged(picked);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final code = Fmt.str(customer['code']);
-    final name = Fmt.str(customer['name']);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const MiniIcon(
-              Icons.receipt_long_rounded,
-              color: AppTheme.primarySoft,
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'الفواتير التاريخية',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              code.isNotEmpty
-                  ? 'ابحث في قائمة الفواتير باسم أو رمز العميل ($code).'
-                  : 'افتح قائمة الفواتير وابحث عن العميل.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textSoft, height: 1.4),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: () => context.push('/invoices'),
-              icon: const Icon(Icons.receipt_long_rounded),
-              label: Text(name.isEmpty ? 'فتح الفواتير' : 'فواتير $name'),
-            ),
-          ],
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pick(context, true),
+                  icon: const Icon(Icons.calendar_today, size: 16),
+                  label: Text('من: ${Fmt.dmy('${from.year.toString().padLeft(4, '0')}-${from.month.toString().padLeft(2, '0')}-${from.day.toString().padLeft(2, '0')}')}'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pick(context, false),
+                  icon: const Icon(Icons.calendar_today, size: 16),
+                  label: Text('إلى: ${Fmt.dmy('${to.year.toString().padLeft(4, '0')}-${to.month.toString().padLeft(2, '0')}-${to.day.toString().padLeft(2, '0')}')}'),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+        Expanded(
+          child: AsyncView(
+            loading: loading,
+            error: error,
+            onRetry: onRetry,
+            child: invoices.isEmpty
+                ? ListView(
+                    children: const [
+                      SizedBox(height: 50),
+                      EmptyState(
+                        message: 'لا توجد فواتير في هذه الفترة.',
+                        icon: Icons.receipt_long_outlined,
+                      ),
+                    ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: invoices.length,
+                    itemBuilder: (_, i) {
+                      final inv = invoices[i];
+                      return AppCard(
+                        onTap: () => context.push(
+                          '/invoices/${Fmt.toInt(inv['id'])}',
+                        ),
+                        child: Row(
+                          children: [
+                            const MiniIcon(
+                              Icons.receipt_long_rounded,
+                              color: AppTheme.primarySoft,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    Fmt.str(inv['invoice_no']).isEmpty
+                                        ? '#${Fmt.toInt(inv['id'])}'
+                                        : Fmt.str(inv['invoice_no']),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  Text(
+                                    Fmt.dmy(Fmt.str(inv['invoice_date'])),
+                                    style: const TextStyle(
+                                      color: AppTheme.textSoft,
+                                      fontSize: 12.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              Fmt.money(Fmt.toDouble(inv['total'])),
+                              textDirection: TextDirection.ltr,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.chevron_left_rounded,
+                              color: AppTheme.textSoft,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ),
+      ],
     );
   }
 }

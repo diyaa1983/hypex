@@ -24,12 +24,23 @@ class CustomerOrderFormScreen extends StatefulWidget {
     this.initialCustomerName,
     this.initialCustomerCode,
     this.visitRouteLineId,
+    this.embedded = false,
+    this.hideCustomerPicker = false,
+    this.onSaved,
   });
   final int? orderId;
   final int? initialCustomerId;
   final String? initialCustomerName;
   final String? initialCustomerCode;
   final int? visitRouteLineId;
+
+  /// داخل تبويب — بدون MobileScaffold.
+  final bool embedded;
+
+  /// إخفاء اختيار العميل (مُثبَّت من السياق).
+  final bool hideCustomerPicker;
+
+  final VoidCallback? onSaved;
 
   @override
   State<CustomerOrderFormScreen> createState() =>
@@ -346,6 +357,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             Fmt.str(result['message']).isEmpty
                 ? 'تم حفظ الطلب.'
                 : Fmt.str(result['message']));
+        widget.onSaved?.call();
       }
       return _id;
     } on ApiException catch (e) {
@@ -411,9 +423,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => MobileScaffold(
-        title: Text(_id > 0 ? 'تعديل طلب شراء' : 'طلب شراء جديد'),
-        body: AsyncView(
+  Widget build(BuildContext context) {
+    final body = AsyncView(
             loading: _loading,
             error: _error,
             onRetry: _load,
@@ -438,6 +449,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                           onChanged: _editable
                               ? (v) => setState(() => _warehouseId = v ?? 0)
                               : null),
+                      if (!widget.hideCustomerPicker) ...[
                       const SizedBox(height: 10),
                       ListTile(
                           onTap: _editable ? _pickCustomer : null,
@@ -445,6 +457,10 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                           title: const Text('العميل'),
                           subtitle: Text(_customer?.name ?? 'اضغط للاختيار'),
                           trailing: const Icon(Icons.chevron_left_rounded)),
+                      ] else if (_customer != null) ...[
+                        const SizedBox(height: 10),
+                        InfoRow('العميل', _customer!.name),
+                      ],
                     ])),
                 if (_customer != null) ...[
                   const DocumentSectionDivider('ملخص حساب العميل (Oracle)'),
@@ -931,22 +947,31 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                       onPressed: _busy || !_editable ? null : _save,
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('حفظ')),
-                  OutlinedButton.icon(
-                      onPressed: _busy || _id == 0 || _approved
-                          ? null
-                          : () => context.push('/customer-orders/$_id/edit'),
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('تعديل')),
-                  OutlinedButton.icon(
-                      onPressed: _busy ? null : _view,
-                      icon: const Icon(Icons.visibility_outlined),
-                      label: const Text('عرض')),
+                  if (!widget.embedded)
+                    OutlinedButton.icon(
+                        onPressed: _busy || _id == 0 || _approved
+                            ? null
+                            : () => context.push('/customer-orders/$_id/edit'),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('تعديل')),
+                  if (!widget.embedded)
+                    OutlinedButton.icon(
+                        onPressed: _busy ? null : _view,
+                        icon: const Icon(Icons.visibility_outlined),
+                        label: const Text('عرض')),
                   OutlinedButton.icon(
                       onPressed: _busy ? null : _print,
                       icon: const Icon(Icons.print_outlined),
                       label: const Text('طباعة')),
                 ]),
               ],
-            )),
-      );
+            ));
+    if (widget.embedded) {
+      return Material(color: Colors.transparent, child: body);
+    }
+    return MobileScaffold(
+      title: Text(_id > 0 ? 'تعديل طلب شراء' : 'طلب شراء جديد'),
+      body: body,
+    );
+  }
 }

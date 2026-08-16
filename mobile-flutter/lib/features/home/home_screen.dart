@@ -75,9 +75,23 @@ const Map<String, TileSpec> kTileSpecs = {
     asset: 'assets/tiles/m_customer_orders_query.png',
   ),
   'm_customer_order_returns': TileSpec(
-    '/customer-order-returns',
+    '/customer-order-returns/pending',
     Icons.assignment_return_rounded,
     AppTheme.rose,
+    'المبيعات',
+    asset: 'assets/tiles/m_customer_order_returns.png',
+  ),
+  'm_customer_order_returns_pending': TileSpec(
+    '/customer-order-returns/pending',
+    Icons.assignment_return_rounded,
+    AppTheme.amber,
+    'المبيعات',
+    asset: 'assets/tiles/m_customer_order_returns.png',
+  ),
+  'm_customer_order_returns_sent': TileSpec(
+    '/customer-order-returns/sent',
+    Icons.assignment_turned_in_rounded,
+    AppTheme.success,
     'المبيعات',
     asset: 'assets/tiles/m_customer_order_returns.png',
   ),
@@ -260,17 +274,28 @@ class _HomeScreenState extends State<HomeScreen> {
     final api = context.read<ApiClient>();
     try {
       final res = await api.getJson(AppConfig.homePath);
-      final tiles = (res['tiles'] as List? ?? [])
-          .whereType<Map>()
-          .where((t) => kTileSpecs.containsKey(t['code'].toString()))
-          .map(
-            (t) => _Tile(
-              t['code'].toString(),
-              t['label'].toString(),
-              kTileSpecs[t['code'].toString()]!,
-            ),
-          )
-          .toList();
+      final tiles = <_Tile>[];
+      for (final t in (res['tiles'] as List? ?? []).whereType<Map>()) {
+        final code = t['code'].toString();
+        final label = t['label'].toString();
+        // شاشة واحدة في الصلاحيات → بلاطتان: غير مرسلة / مرسلة
+        if (code == 'm_customer_order_returns') {
+          tiles.add(_Tile(
+            'm_customer_order_returns_pending',
+            'مرتجعات غير مرسلة',
+            kTileSpecs['m_customer_order_returns_pending']!,
+          ));
+          tiles.add(_Tile(
+            'm_customer_order_returns_sent',
+            'مرتجعات مرسلة',
+            kTileSpecs['m_customer_order_returns_sent']!,
+          ));
+          continue;
+        }
+        final spec = kTileSpecs[code];
+        if (spec == null) continue;
+        tiles.add(_Tile(code, label, spec));
+      }
       await PrintBrand.remember(
         (res['company_name'] ?? '').toString(),
         (res['logo_url'] ?? '').toString(),
@@ -430,11 +455,21 @@ class _TopBar extends StatelessWidget {
             onPressed: onRefresh,
             icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 21),
           ),
-          IconButton(
-            tooltip: 'خروج',
-            visualDensity: VisualDensity.compact,
+          TextButton.icon(
             onPressed: onLogout,
-            icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 21),
+            icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 26),
+            label: const Text(
+              'خروج',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              minimumSize: const Size(64, 44),
+            ),
           ),
         ],
       ),
@@ -514,15 +549,15 @@ class _TileGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        // عمود لكل ~100 بكسل: 4 أعمدة على الهاتف و6 على التابلت.
-        final cols = (box.maxWidth / 100).floor().clamp(3, 7);
+        // عمود لكل ~125 بكسل لتقارب الأيقونات.
+        final cols = (box.maxWidth / 125).floor().clamp(3, 6);
         return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 24),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: cols,
-            mainAxisSpacing: 10,
+            mainAxisSpacing: 8,
             crossAxisSpacing: 4,
-            childAspectRatio: 0.82,
+            childAspectRatio: 0.9,
           ),
           itemCount: tiles.length,
           itemBuilder: (_, i) {
@@ -560,59 +595,68 @@ class _TileButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final art = asset;
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            SizedBox(
-              height: 48,
-              child: art != null
-                  ? Image.asset(art, fit: BoxFit.contain)
-                  : ShaderMask(
-                      shaderCallback: (rect) => LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color.lerp(color, Colors.white, 0.35)!,
-                          color,
-                          Color.lerp(color, Colors.black, 0.28)!,
-                        ],
-                        stops: const [0, 0.5, 1],
-                      ).createShader(rect),
-                      child: Icon(
-                        icon,
-                        size: 44,
-                        color: Colors.white,
-                        shadows: const [
-                          Shadow(
-                            color: Color(0x33101828),
-                            blurRadius: 3,
-                            offset: Offset(0, 2),
+    // اللمس على الأيقونة+النص فقط — لا يفتح عند الضغط في فراغ الخلية.
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 112),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 68,
+                    width: 68,
+                    child: art != null
+                        ? Image.asset(art, fit: BoxFit.contain)
+                        : ShaderMask(
+                            shaderCallback: (rect) => LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color.lerp(color, Colors.white, 0.35)!,
+                                color,
+                                Color.lerp(color, Colors.black, 0.28)!,
+                              ],
+                              stops: const [0, 0.5, 1],
+                            ).createShader(rect),
+                            child: Icon(
+                              icon,
+                              size: 60,
+                              color: Colors.white,
+                              shadows: const [
+                                Shadow(
+                                  color: Color(0x33101828),
+                                  blurRadius: 3,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      height: 1.2,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textMain,
                     ),
-            ),
-            const SizedBox(height: 5),
-            Expanded(
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 10.5,
-                  height: 1.2,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textMain,
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

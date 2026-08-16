@@ -21,9 +21,21 @@ try {
     $pdo = db();
     $filter = trim((string) ($_GET['filter'] ?? 'all'));
     $q = trim((string) ($_GET['q'] ?? ''));
-    $total = mobile_invoice_list_count($pdo, $filter, $q);
+    $extra = [
+        'customer_id' => (int) ($_GET['customer_id'] ?? 0),
+        'from' => trim((string) ($_GET['from'] ?? '')),
+        'to' => trim((string) ($_GET['to'] ?? '')),
+    ];
+    $total = mobile_invoice_list_count($pdo, $filter, $q, $extra);
     $pager = mobile_list_pager_from_request($pdo, $total);
-    $rows = mobile_invoice_list_rows($pdo, $filter, $q, (int) $pager['limit'], (int) $pager['offset']);
+    $rows = mobile_invoice_list_rows(
+        $pdo,
+        $filter,
+        $q,
+        (int) $pager['limit'],
+        (int) $pager['offset'],
+        $extra
+    );
 
     echo json_encode([
         'ok' => true,

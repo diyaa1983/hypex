@@ -71,6 +71,10 @@ try {
         )->execute([$now, $uid, $uid, $id]);
         $sent++;
     }
+    if ($sent > 0) {
+        require_once app_path('includes/header_check_notifications.php');
+        header_check_notifications_invalidate_cache();
+    }
     echo json_encode([
         'ok' => true,
         'message' => $sent > 0 ? ('تم إرسال ' . $sent . ' طلب إلى النظام.') : 'لا طلبات جديدة للإرسال.',

@@ -9,6 +9,7 @@ import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:printing/printing.dart';
 
 import 'bluetooth_printer_settings.dart';
+import 'thermal_raster.dart';
 
 /// خدمة الطباعة عبر Bluetooth الحرارية فقط.
 class BluetoothPrintService {
@@ -123,7 +124,10 @@ class BluetoothPrintService {
         );
       }
       chunks.addAll(
-        generator.imageRaster(resized, imageFn: PosImageFn.bitImageRaster),
+        generator.imageRaster(
+          flattenOnWhite(resized),
+          imageFn: PosImageFn.bitImageRaster,
+        ),
       );
       chunks.addAll(generator.feed(2));
     }

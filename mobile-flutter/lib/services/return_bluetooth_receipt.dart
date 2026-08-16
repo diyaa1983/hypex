@@ -13,6 +13,7 @@ import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
 import 'print_brand.dart';
+import 'thermal_raster.dart';
 
 /// إيصال مرتجع مبيعات حراري (58/80 مم).
 class ReturnBluetoothReceipt {
@@ -57,7 +58,10 @@ class ReturnBluetoothReceipt {
           );
         }
         chunks.addAll(
-          generator.imageRaster(resized, imageFn: PosImageFn.bitImageRaster),
+          generator.imageRaster(
+            flattenOnWhite(resized),
+            imageFn: PosImageFn.bitImageRaster,
+          ),
         );
         chunks.addAll(generator.feed(1));
       }
@@ -137,7 +141,10 @@ class ReturnBluetoothReceipt {
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: fontReg, bold: fontBold),
         build: (ctx) {
-          return pw.Column(
+          return pw.Container(
+            color: PdfColors.white,
+            width: double.infinity,
+            child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               brandHeader,
@@ -208,6 +215,7 @@ class ReturnBluetoothReceipt {
                 ),
               ),
             ],
+          ),
           );
         },
       ),

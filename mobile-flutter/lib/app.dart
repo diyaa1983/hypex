@@ -131,6 +131,21 @@ class NammaApp extends StatelessWidget {
           builder: (_, __) => const CustomerOrderReturnScreen(),
         ),
         GoRoute(
+          path: '/customer-order-returns/pending',
+          builder: (_, __) => const CustomerOrderReturnScreen(
+            fixedStatus: 'draft',
+            enableMultiSelect: true,
+            title: 'مرتجعات غير مرسلة',
+          ),
+        ),
+        GoRoute(
+          path: '/customer-order-returns/sent',
+          builder: (_, __) => const CustomerOrderReturnScreen(
+            fixedStatus: 'posted',
+            title: 'مرتجعات مرسلة',
+          ),
+        ),
+        GoRoute(
           path: '/customer-orders/new',
           builder: (_, s) {
             final q = s.uri.queryParameters;

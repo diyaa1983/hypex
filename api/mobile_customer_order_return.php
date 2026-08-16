@@ -97,6 +97,12 @@ try {
         echo json_encode(['ok' => true, 'message' => 'تم ترحيل المرتجع.', 'id' => $id], JSON_UNESCAPED_UNICODE);
         exit;
     }
+    if ($postAction === 'delete') {
+        $id = (int) ($body['id'] ?? 0);
+        sal_customer_order_return_delete($pdo, $id, $rep);
+        echo json_encode(['ok' => true, 'message' => 'تم حذف المرتجع.'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
 
     $orderId = (int) ($body['order_id'] ?? 0);
     if ($orderId < 1) {

@@ -53,21 +53,52 @@ class MobileScaffold extends StatelessWidget {
     if (context.mounted) context.go('/login');
   }
 
+  void _goBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor ?? AppTheme.bg,
       appBar: AppBar(
-        automaticallyImplyLeading: showBack,
+        automaticallyImplyLeading: false,
+        leadingWidth: showBack ? 64 : 0,
+        leading: showBack
+            ? IconButton(
+                tooltip: 'رجوع',
+                onPressed: () => _goBack(context),
+                iconSize: 28,
+                padding: const EdgeInsets.all(10),
+                style: IconButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(52, 52),
+                  tapTargetSize: MaterialTapTargetSize.padded,
+                ),
+                icon: const Icon(Icons.arrow_back_rounded, size: 30),
+              )
+            : null,
         title: title,
         actions: [
           ...actions,
           if (showLogout)
             TextButton.icon(
               onPressed: () => confirmLogout(context),
-              icon: const Icon(Icons.logout_rounded, size: 18),
-              label: const Text('خروج'),
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              icon: const Icon(Icons.logout_rounded, size: 26),
+              label: const Text(
+                'خروج',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                minimumSize: const Size(72, 48),
+              ),
             ),
         ],
       ),

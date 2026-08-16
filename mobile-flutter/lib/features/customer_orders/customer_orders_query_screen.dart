@@ -12,7 +12,7 @@ import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/ui_kit.dart';
 
-/// استعلام طلبات عملاء حسب العميل والتاريخ.
+/// استعلام طلبات عملاء حسب العميل (أو الكل) والتاريخ.
 class CustomerOrdersQueryScreen extends StatefulWidget {
   const CustomerOrdersQueryScreen({super.key});
 
@@ -23,6 +23,7 @@ class CustomerOrdersQueryScreen extends StatefulWidget {
 
 class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
   Party? _customer;
+  bool _allCustomers = true;
   DateTime _from = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _to = DateTime.now();
 
@@ -41,7 +42,12 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
 
   Future<void> _pickCustomer() async {
     final p = await pickParty(context);
-    if (p != null) setState(() => _customer = p);
+    if (p != null) {
+      setState(() {
+        _customer = p;
+        _allCustomers = false;
+      });
+    }
   }
 
   Future<void> _pickDate({required bool from}) async {
@@ -63,8 +69,8 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
   }
 
   Future<void> _load({bool resetPage = false}) async {
-    if (_customer == null) {
-      showSnack(context, 'اختر العميل أولاً.', error: true);
+    if (!_allCustomers && _customer == null) {
+      showSnack(context, 'اختر العميل أو فعّل جميع العملاء.', error: true);
       return;
     }
     if (resetPage) _page = 1;
@@ -74,14 +80,17 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
       _ran = true;
     });
     try {
+      final query = <String, dynamic>{
+        'from': _fromIso,
+        'to': _toIso,
+        'page': _page,
+      };
+      if (!_allCustomers && _customer != null) {
+        query['customer_id'] = _customer!.id;
+      }
       final data = await context.read<ApiClient>().getJson(
             AppConfig.customerOrderListPath,
-            query: {
-              'customer_id': _customer!.id,
-              'from': _fromIso,
-              'to': _toIso,
-              'page': _page,
-            },
+            query: query,
           );
       if (!mounted) return;
       final pager = (data['pager'] is Map)
@@ -129,30 +138,43 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
             child: Column(
               children: [
-                InkWell(
-                  onTap: _pickCustomer,
-                  borderRadius: BorderRadius.circular(14),
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'العميل',
-                      suffixIcon: Icon(Icons.person_search_rounded),
-                    ),
-                    child: Text(
-                      _customer == null
-                          ? 'اختر العميل…'
-                          : [
-                              if (_customer!.code.isNotEmpty) _customer!.code,
-                              _customer!.name,
-                            ].where((s) => s.isNotEmpty).join(' — '),
-                      style: TextStyle(
-                        color: _customer == null
-                            ? AppTheme.textSoft
-                            : AppTheme.textMain,
-                        fontWeight: FontWeight.w600,
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'جميع العملاء',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  value: _allCustomers,
+                  onChanged: (v) => setState(() {
+                    _allCustomers = v;
+                    if (v) _customer = null;
+                  }),
+                ),
+                if (!_allCustomers)
+                  InkWell(
+                    onTap: _pickCustomer,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'العميل',
+                        suffixIcon: Icon(Icons.person_search_rounded),
+                      ),
+                      child: Text(
+                        _customer == null
+                            ? 'اختر العميل…'
+                            : [
+                                if (_customer!.code.isNotEmpty) _customer!.code,
+                                _customer!.name,
+                              ].where((s) => s.isNotEmpty).join(' — '),
+                        style: TextStyle(
+                          color: _customer == null
+                              ? AppTheme.textSoft
+                              : AppTheme.textMain,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -203,7 +225,7 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
             child: !_ran
                 ? const Center(
                     child: Text(
-                      'اختر العميل والفترة ثم اضغط عرض.',
+                      'حدد الفترة ثم اضغط عرض.',
                       style: TextStyle(color: AppTheme.textSoft),
                     ),
                   )
@@ -233,41 +255,49 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
                                   onTap: () => context.push(
                                     '/customer-orders/${Fmt.toInt(o['id'])}',
                                   ),
-                                  child: Row(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: [
-                                      const MiniIcon(
-                                        Icons.shopping_cart_checkout_rounded,
-                                        color: AppTheme.violet,
+                                      Text(
+                                        Fmt.str(o['customer_name']).isEmpty
+                                            ? '—'
+                                            : Fmt.str(o['customer_name']),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14.5,
+                                        ),
                                       ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
                                               Fmt.dmy(Fmt.str(o['order_date'])),
                                               style: const TextStyle(
                                                 color: AppTheme.textSoft,
-                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.w700,
                                               ),
                                             ),
-                                            Text(
-                                              Fmt.str(o['order_no']).isEmpty
-                                                  ? '#${Fmt.toInt(o['id'])}'
-                                                  : Fmt.str(o['order_no']),
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w800,
-                                              ),
+                                          ),
+                                          Text(
+                                            'مواد: ${Fmt.trimNum(Fmt.toDouble(o['total_qty'] ?? o['line_count']))}',
+                                            style: const TextStyle(
+                                              color: AppTheme.textSoft,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 12.5,
                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                      Text(
-                                        Fmt.money(Fmt.toDouble(o['total'])),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                        ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            Fmt.money(Fmt.toDouble(o['total'])),
+                                            textDirection: TextDirection.ltr,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 14.5,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),

@@ -60,6 +60,13 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
       _order['is_approved'] == true ||
       Fmt.str(_order['status']) == 'approved';
 
+  bool get _sent =>
+      _order['is_sent'] == true ||
+      _order['is_sent'] == 1 ||
+      Fmt.toInt(_order['is_sent']) == 1;
+
+  bool get _canDeleteOrEdit => !_approved && !_sent;
+
   Future<void> _preview() async {
     await Navigator.push(
         context,
@@ -113,7 +120,7 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
   Widget build(BuildContext context) => MobileScaffold(
         title: const Text('عرض طلب شراء'),
         actions: [
-          if (!_approved && !_loading)
+          if (_canDeleteOrEdit && !_loading)
             IconButton(
                 onPressed: _delete,
                 icon: const Icon(Icons.delete_outline_rounded),
@@ -137,8 +144,10 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                           Row(children: [
                             const Text('الحالة: '),
                             StatusPill(
-                                text: _approved ? 'معتمد' : 'مسودة',
-                                color: _approved
+                                text: _sent
+                                    ? (_approved ? 'مرسل · معتمد' : 'مرسل')
+                                    : (_approved ? 'معتمد' : 'غير مرسل'),
+                                color: _sent
                                     ? AppTheme.success
                                     : AppTheme.warn)
                           ]),
@@ -160,20 +169,20 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: DefaultTextStyle.merge(
-                        style: const TextStyle(fontSize: 11, height: 1.1),
+                        style: const TextStyle(fontSize: 14.5, height: 1.25),
                         child: DataTable(
-                          headingRowHeight: 30,
-                          dataRowMinHeight: 32,
-                          dataRowMaxHeight: 34,
-                          columnSpacing: 8,
-                          horizontalMargin: 6,
+                          headingRowHeight: 38,
+                          dataRowMinHeight: 40,
+                          dataRowMaxHeight: 48,
+                          columnSpacing: 14,
+                          horizontalMargin: 10,
                           headingTextStyle: const TextStyle(
-                            fontSize: 10.5,
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w800,
                             color: Color(0xFF475569),
                           ),
                           dataTextStyle: const TextStyle(
-                            fontSize: 11,
+                            fontSize: 14.5,
                             fontWeight: FontWeight.w600,
                             color: Color(0xFF0F172A),
                           ),
@@ -244,7 +253,7 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                                         textDirection: TextDirection.ltr,
                                         style: const TextStyle(
                                           fontWeight: FontWeight.w800,
-                                          fontSize: 11,
+                                          fontSize: 14.5,
                                         ))),
                                   ]);
                                 }(),
@@ -255,7 +264,7 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                   ),
                 const SizedBox(height: 10),
                 Row(children: [
-                  if (!_approved)
+                  if (_canDeleteOrEdit)
                     Expanded(
                         child: OutlinedButton.icon(
                             onPressed: () async {
@@ -265,14 +274,14 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                             },
                             icon: const Icon(Icons.edit_outlined),
                             label: const Text('تعديل'))),
-                  if (!_approved) const SizedBox(width: 8),
-                  if (!_approved)
+                  if (_canDeleteOrEdit) const SizedBox(width: 8),
+                  if (_canDeleteOrEdit)
                     Expanded(
                         child: OutlinedButton.icon(
                             onPressed: _delete,
                             icon: const Icon(Icons.delete_outline_rounded),
                             label: const Text('حذف'))),
-                  if (!_approved) const SizedBox(width: 8),
+                  if (_canDeleteOrEdit) const SizedBox(width: 8),
                   Expanded(
                       child: FilledButton.icon(
                           onPressed: _preview,

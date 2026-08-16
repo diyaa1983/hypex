@@ -144,8 +144,10 @@ function mapUnposted(rows, kind, typeLabel, urlFor) {
 async function collectCustomerOrders(user) {
   if (!userCan(user, 'sales_customer_orders_approve')) return { items: [], count: 0 };
   if (!(await tableExists('sal_customer_order'))) return { items: [], count: 0 };
+  // لا تظهر للمندوب/المسؤول إلا بعد إرسال الطلب من الموبايل (is_sent=1).
   const count = await safeCount(
-    `SELECT COUNT(*) AS c FROM sal_customer_order WHERE status IN ('draft','pending')`
+    `SELECT COUNT(*) AS c FROM sal_customer_order
+     WHERE status IN ('draft','pending') AND IFNULL(is_sent,1) = 1`
   );
   const rows = await safeQuery(
     `SELECT o.id, o.order_no, o.order_date, c.name_ar AS customer_name,
@@ -153,7 +155,7 @@ async function collectCustomerOrders(user) {
      FROM sal_customer_order o
      INNER JOIN crm_customer c ON c.id = o.customer_id
      LEFT JOIN crm_sales_rep r ON r.id = o.sales_rep_id
-     WHERE o.status IN ('draft','pending')
+     WHERE o.status IN ('draft','pending') AND IFNULL(o.is_sent,1) = 1
      ORDER BY o.order_date ASC, o.id ASC
      LIMIT ${LIST_LIMIT}`
   );

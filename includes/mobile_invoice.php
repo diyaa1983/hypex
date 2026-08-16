@@ -131,10 +131,15 @@ function mobile_invoice_enrich_display(PDO $pdo, array $invoice): array
 
 /** @return list<array<string, mixed>> */
 /**
+ * @param array{customer_id?:int,from?:string,to?:string} $extra
  * @return array{0:string,1:list<mixed>,2:string} [fromWhereSql, params, postedExpr]
  */
-function mobile_invoice_list_from_where(PDO $pdo, string $filter = 'all', string $search = ''): array
-{
+function mobile_invoice_list_from_where(
+    PDO $pdo,
+    string $filter = 'all',
+    string $search = '',
+    array $extra = []
+): array {
     sal_invoice_ensure_schema($pdo);
     crm_ledger_ensure_schema($pdo);
     require_once app_path('includes/sal_documents_list.php');
@@ -164,6 +169,21 @@ function mobile_invoice_list_from_where(PDO $pdo, string $filter = 'all', string
     } elseif ($filter === 'posted') {
         $fromWhere .= " AND ({$postedExpr})";
     }
+    $customerId = (int) ($extra['customer_id'] ?? 0);
+    if ($customerId > 0) {
+        $fromWhere .= ' AND i.customer_id = ?';
+        $params[] = $customerId;
+    }
+    $fromDate = trim((string) ($extra['from'] ?? ''));
+    $toDate = trim((string) ($extra['to'] ?? ''));
+    if ($fromDate !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromDate)) {
+        $fromWhere .= ' AND i.invoice_date >= ?';
+        $params[] = $fromDate;
+    }
+    if ($toDate !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $toDate)) {
+        $fromWhere .= ' AND i.invoice_date <= ?';
+        $params[] = $toDate;
+    }
     if ($search !== '') {
         $fromWhere .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR sr.name_ar LIKE ?)';
         $like = '%' . $search . '%';
@@ -173,9 +193,13 @@ function mobile_invoice_list_from_where(PDO $pdo, string $filter = 'all', string
     return [$fromWhere, $params, $postedExpr];
 }
 
-function mobile_invoice_list_count(PDO $pdo, string $filter = 'all', string $search = ''): int
-{
-    [$fromWhere, $params] = mobile_invoice_list_from_where($pdo, $filter, $search);
+function mobile_invoice_list_count(
+    PDO $pdo,
+    string $filter = 'all',
+    string $search = '',
+    array $extra = []
+): int {
+    [$fromWhere, $params] = mobile_invoice_list_from_where($pdo, $filter, $search, $extra);
     $st = $pdo->prepare('SELECT COUNT(*)' . $fromWhere);
     $st->execute($params);
 
@@ -187,10 +211,11 @@ function mobile_invoice_list_rows(
     string $filter = 'all',
     string $search = '',
     int $limit = 100,
-    int $offset = 0
+    int $offset = 0,
+    array $extra = []
 ): array {
     require_once app_path('includes/sal_documents_list.php');
-    [$fromWhere, $params, $postedExpr] = mobile_invoice_list_from_where($pdo, $filter, $search);
+    [$fromWhere, $params, $postedExpr] = mobile_invoice_list_from_where($pdo, $filter, $search, $extra);
     $limit = max(1, min(200, $limit));
     $offset = max(0, $offset);
     $einvExpr = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');

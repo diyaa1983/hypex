@@ -847,7 +847,7 @@ function sal_customer_order_pending_approve_alerts(PDO $pdo, int $limit = 20): a
              FROM sal_customer_order o
              INNER JOIN crm_customer c ON c.id = o.customer_id
              LEFT JOIN crm_sales_rep r ON r.id = o.sales_rep_id
-             WHERE o.status = 'draft'
+             WHERE o.status = 'draft' AND IFNULL(o.is_sent,1) = 1
              ORDER BY o.order_date ASC, o.id ASC
              LIMIT {$limit}"
         );

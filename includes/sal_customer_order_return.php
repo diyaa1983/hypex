@@ -276,3 +276,32 @@ function sal_customer_order_return_post(PDO $pdo, int $id, ?int $userId): void
         throw $e;
     }
 }
+
+/** حذف مرتجع مسودة فقط. */
+function sal_customer_order_return_delete(PDO $pdo, int $id, ?int $forceRepId = null): void
+{
+    sal_customer_order_return_ensure_schema($pdo);
+    $st = $pdo->prepare('SELECT id, status, sales_rep_id FROM sal_customer_order_return WHERE id=? LIMIT 1');
+    $st->execute([$id]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        throw new RuntimeException('المرتجع غير موجود.');
+    }
+    if ((string) ($row['status'] ?? '') === 'posted') {
+        throw new RuntimeException('لا يمكن حذف مرتجع مرحّل.');
+    }
+    if ($forceRepId !== null && $forceRepId > 0 && (int) ($row['sales_rep_id'] ?? 0) !== $forceRepId) {
+        throw new RuntimeException('لا صلاحية لحذف هذا المرتجع.');
+    }
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM sal_customer_order_return_line WHERE return_id=?')->execute([$id]);
+        $pdo->prepare('DELETE FROM sal_customer_order_return WHERE id=?')->execute([$id]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}

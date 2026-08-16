@@ -51,8 +51,12 @@ class RepStockBluetoothReceipt {
           marginAll: 2 * PdfPageFormat.mm),
       textDirection: pw.TextDirection.rtl,
       theme: pw.ThemeData.withFont(base: reg, bold: bold),
-      build: (_) => pw
-          .Column(crossAxisAlignment: pw.CrossAxisAlignment.stretch, children: [
+      build: (_) => pw.Container(
+        color: PdfColors.white,
+        width: double.infinity,
+        child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
         brandHeader,
         pw.SizedBox(height: 3),
         if (Fmt.str(data['warehouse_name']).isNotEmpty)
@@ -93,6 +97,7 @@ class RepStockBluetoothReceipt {
             child: pw.Text('شكراً لتعاملكم',
                 style: pw.TextStyle(font: reg, fontSize: fs))),
       ]),
+      ),
     ));
     return Uint8List.fromList(await doc.save());
   }

@@ -244,11 +244,11 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   Color _statusColor(String s) {
     switch (s) {
       case 'checked_in':
-        return AppTheme.teal;
-      case 'checked_out':
         return AppTheme.success;
+      case 'checked_out':
+        return AppTheme.danger;
       case 'pending_manual_checkout':
-        return AppTheme.warn;
+        return AppTheme.success;
       default:
         return AppTheme.primary;
     }
@@ -1208,7 +1208,15 @@ class _PlanCustomerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    final bg = (status == 'checked_in' || status == 'pending_manual_checkout')
+        ? AppTheme.success.withValues(alpha: 0.12)
+        : (status == 'checked_out'
+            ? AppTheme.danger.withValues(alpha: 0.12)
+            : null);
+    return Material(
+      color: bg ?? Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       leading: CircleAvatar(
@@ -1238,6 +1246,7 @@ class _PlanCustomerTile extends StatelessWidget {
         style: const TextStyle(color: AppTheme.textSoft, fontSize: 12),
       ),
       trailing: Icon(statusIcon, color: statusColor, size: 22),
+    ),
     );
   }
 }
@@ -1686,9 +1695,9 @@ class _CustomerPickSheetState extends State<_CustomerPickSheet> {
                     final v = items[i];
                     final status = Fmt.str(v['status']);
                     final color = switch (status) {
-                      'checked_in' => AppTheme.teal,
-                      'checked_out' => AppTheme.success,
-                      'pending_manual_checkout' => AppTheme.warn,
+                      'checked_in' => AppTheme.success,
+                      'checked_out' => AppTheme.danger,
+                      'pending_manual_checkout' => AppTheme.success,
                       _ => AppTheme.primary,
                     };
                     return Material(

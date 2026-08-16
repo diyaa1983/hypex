@@ -74,7 +74,10 @@ class CustomerOrderBluetoothReceipt {
       pageFormat: format,
       textDirection: pw.TextDirection.rtl,
       theme: pw.ThemeData.withFont(base: reg, bold: bold),
-      build: (_) => pw.Column(
+      build: (_) => pw.Container(
+        color: PdfColors.white,
+        width: double.infinity,
+        child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
           brandHeader,
@@ -137,6 +140,7 @@ class CustomerOrderBluetoothReceipt {
               child: pw.Text('شكراً لتعاملكم',
                   style: pw.TextStyle(font: reg, fontSize: fs))),
         ],
+      ),
       ),
     ));
     return Uint8List.fromList(await doc.save());

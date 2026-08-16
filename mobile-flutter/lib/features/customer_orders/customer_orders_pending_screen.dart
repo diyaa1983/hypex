@@ -252,7 +252,9 @@ class _CustomerOrdersPendingScreenState
                           final id = Fmt.toInt(o['id']);
                           final checked = _selected.contains(id);
                           return AppCard(
-                            onTap: () => _toggle(id, !checked),
+                            onTap: () => context.push(
+                              '/customer-orders/$id/edit',
+                            ),
                             child: Row(
                               children: [
                                 Checkbox(
@@ -261,35 +263,40 @@ class _CustomerOrdersPendingScreenState
                                 ),
                                 const SizedBox(width: 4),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        Fmt.str(o['order_no']).isEmpty
-                                            ? '#$id'
-                                            : Fmt.str(o['order_no']),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 3),
-                                      Text(
-                                        '${Fmt.str(o['customer_name'])}  •  ${Fmt.dmy(Fmt.str(o['order_date']))}',
-                                        style: const TextStyle(
-                                          color: AppTheme.textSoft,
-                                          fontSize: 12.5,
-                                        ),
-                                      ),
-                                      Text(
-                                        'الإجمالي: ${Fmt.money(Fmt.toDouble(o['total']))}',
-                                        style: const TextStyle(
-                                          color: AppTheme.textSoft,
-                                          fontSize: 12.5,
-                                        ),
-                                      ),
-                                    ],
+                                  child: Text(
+                                    Fmt.str(o['order_no']).isEmpty
+                                        ? '#$id'
+                                        : Fmt.str(o['order_no']),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13.5,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
+                                ),
+                                Text(
+                                  Fmt.dmy(Fmt.str(o['order_date'])),
+                                  style: const TextStyle(
+                                    color: AppTheme.textSoft,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  Fmt.money(Fmt.toDouble(o['total'])),
+                                  textDirection: TextDirection.ltr,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.edit_outlined,
+                                  size: 18,
+                                  color: AppTheme.textSoft,
                                 ),
                               ],
                             ),

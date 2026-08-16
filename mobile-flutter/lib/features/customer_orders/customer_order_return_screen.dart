@@ -11,9 +11,19 @@ import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/ui_kit.dart';
 
-/// مرتجعات طلبات شراء العملاء — قائمة + إنشاء مسودة + عرض/ترحيل.
+/// مرتجعات طلبات شراء العملاء — قائمة + إنشاء مسودة (جزئي) + عرض/ترحيل.
 class CustomerOrderReturnScreen extends StatefulWidget {
-  const CustomerOrderReturnScreen({super.key});
+  const CustomerOrderReturnScreen({
+    super.key,
+    this.fixedStatus,
+    this.title,
+    this.enableMultiSelect = false,
+  });
+
+  /// `draft` | `posted` | null (الكل)
+  final String? fixedStatus;
+  final String? title;
+  final bool enableMultiSelect;
 
   @override
   State<CustomerOrderReturnScreen> createState() =>
@@ -24,11 +34,13 @@ class _CustomerOrderReturnScreenState extends State<CustomerOrderReturnScreen> {
   Party? _customer;
   DateTime _from = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _to = DateTime.now();
-  String _status = ''; // '' | draft | posted
+  late String _status;
 
   bool _loading = true;
+  bool _busy = false;
   String? _error;
   List<Map<String, dynamic>> _rows = [];
+  final _selected = <int>{};
 
   String get _fromIso =>
       '${_from.year.toString().padLeft(4, '0')}-${_from.month.toString().padLeft(2, '0')}-${_from.day.toString().padLeft(2, '0')}';
@@ -39,6 +51,7 @@ class _CustomerOrderReturnScreenState extends State<CustomerOrderReturnScreen> {
   @override
   void initState() {
     super.initState();
+    _status = widget.fixedStatus ?? '';
     _load();
   }
 
@@ -127,10 +140,21 @@ class _CustomerOrderReturnScreenState extends State<CustomerOrderReturnScreen> {
     );
     if (orderId == null || orderId < 1 || !mounted) return;
 
+    final lines = await showModalBottomSheet<List<Map<String, dynamic>>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => _ReturnLinesPickerSheet(orderId: orderId),
+    );
+    if (lines == null || lines.isEmpty || !mounted) return;
+
     try {
       final res = await context.read<ApiClient>().postJson(
             AppConfig.customerOrderReturnPath,
-            body: {'order_id': orderId},
+            body: {'order_id': orderId, 'lines': lines},
             csrf: context.read<SessionController>().csrf,
           );
       if (!mounted) return;
@@ -142,22 +166,103 @@ class _CustomerOrderReturnScreenState extends State<CustomerOrderReturnScreen> {
     }
   }
 
+  Future<void> _deleteSelected() async {
+    if (_selected.isEmpty) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف المرتجعات'),
+        content: Text('حذف ${_selected.length} مرتجع مسودة؟'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('حذف')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final csrf = context.read<SessionController>().csrf;
+      for (final id in _selected.toList()) {
+        await context.read<ApiClient>().postJson(
+              AppConfig.customerOrderReturnPath,
+              body: {'action': 'delete', 'id': id},
+              csrf: csrf,
+            );
+      }
+      _selected.clear();
+      if (mounted) {
+        showSnack(context, 'تم الحذف.');
+        await _load();
+      }
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _postSelected() async {
+    if (_selected.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      final csrf = context.read<SessionController>().csrf;
+      var n = 0;
+      for (final id in _selected.toList()) {
+        await context.read<ApiClient>().postJson(
+              AppConfig.customerOrderReturnPath,
+              body: {'action': 'post', 'id': id},
+              csrf: csrf,
+            );
+        n++;
+      }
+      _selected.clear();
+      if (mounted) {
+        showSnack(context, 'تم ترحيل $n مرتجع.');
+        await _load();
+      }
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final lockedStatus = widget.fixedStatus != null;
     return MobileScaffold(
-      title: const Text('مرتجع طلب شراء'),
+      title: Text(widget.title ?? 'مرتجع طلب شراء'),
       actions: [
+        if (widget.enableMultiSelect && _selected.isNotEmpty) ...[
+          IconButton(
+            onPressed: _busy ? null : _postSelected,
+            icon: const Icon(Icons.send_rounded),
+            tooltip: 'ترحيل المحددة',
+          ),
+          IconButton(
+            onPressed: _busy ? null : _deleteSelected,
+            icon: const Icon(Icons.delete_outline_rounded),
+            tooltip: 'حذف المحددة',
+          ),
+        ],
         IconButton(
           onPressed: _loading ? null : _load,
           icon: const Icon(Icons.refresh_rounded),
           tooltip: 'تحديث',
         ),
       ],
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _newReturn,
-        icon: const Icon(Icons.add_rounded, size: 20),
-        label: const Text('مرتجع جديد'),
-      ),
+      floatingActionButton: widget.fixedStatus == 'posted'
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _newReturn,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text('مرتجع جديد'),
+            ),
       body: Column(
         children: [
           Padding(
@@ -229,26 +334,29 @@ class _CustomerOrderReturnScreenState extends State<CustomerOrderReturnScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      for (final opt in const [
-                        ('', 'الكل'),
-                        ('draft', 'مسودة'),
-                        ('posted', 'مرحّل'),
-                      ])
-                        FilterChip(
-                          label: Text(opt.$2),
-                          selected: _status == opt.$1,
-                          onSelected: (_) => setState(() => _status = opt.$1),
-                        ),
-                    ],
+                if (!lockedStatus) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        for (final opt in const [
+                          ('', 'الكل'),
+                          ('draft', 'مسودة'),
+                          ('posted', 'مرحّل'),
+                        ])
+                          FilterChip(
+                            label: Text(opt.$2),
+                            selected: _status == opt.$1,
+                            onSelected: (_) =>
+                                setState(() => _status = opt.$1),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
@@ -273,8 +381,12 @@ class _CustomerOrderReturnScreenState extends State<CustomerOrderReturnScreen> {
                         EmptyState(
                           message: 'لا توجد مرتجعات ضمن الفترة.',
                           icon: Icons.assignment_return_rounded,
-                          actionLabel: 'مرتجع جديد',
-                          onAction: _newReturn,
+                          actionLabel: widget.fixedStatus == 'posted'
+                              ? null
+                              : 'مرتجع جديد',
+                          onAction: widget.fixedStatus == 'posted'
+                              ? null
+                              : _newReturn,
                         ),
                       ],
                     )
@@ -287,10 +399,24 @@ class _CustomerOrderReturnScreenState extends State<CustomerOrderReturnScreen> {
                           final r = _rows[i];
                           final id = Fmt.toInt(r['id']);
                           final posted = _isPosted(r);
+                          final checked = _selected.contains(id);
                           return AppCard(
                             onTap: () => _openDetail(id),
                             child: Row(
                               children: [
+                                if (widget.enableMultiSelect && !posted)
+                                  Checkbox(
+                                    value: checked,
+                                    onChanged: (v) {
+                                      setState(() {
+                                        if (v == true) {
+                                          _selected.add(id);
+                                        } else {
+                                          _selected.remove(id);
+                                        }
+                                      });
+                                    },
+                                  ),
                                 MiniIcon(
                                   Icons.assignment_return_rounded,
                                   color: posted
@@ -806,6 +932,206 @@ class _CustomerOrderReturnDetailPageState
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// اختيار بنود وكميات المرتجع الجزئي من طلب معتمد.
+class _ReturnLinesPickerSheet extends StatefulWidget {
+  const _ReturnLinesPickerSheet({required this.orderId});
+  final int orderId;
+
+  @override
+  State<_ReturnLinesPickerSheet> createState() =>
+      _ReturnLinesPickerSheetState();
+}
+
+class _ReturnLineEdit {
+  _ReturnLineEdit(this.source) {
+    maxQty = Fmt.toDouble(source['qty']);
+    qty = maxQty;
+    selected = true;
+  }
+
+  final Map<String, dynamic> source;
+  double maxQty = 0;
+  double qty = 0;
+  bool selected = true;
+
+  Map<String, dynamic>? toPayload() {
+    if (!selected || qty <= 0) return null;
+    final out = Map<String, dynamic>.from(source);
+    out['qty'] = qty;
+    out['order_line_id'] = Fmt.toInt(source['id']);
+    final unitPrice = Fmt.toDouble(source['unit_price']);
+    final disc = Fmt.toDouble(source['discount_pct']);
+    final lineTotal = qty * unitPrice * (1 - disc / 100);
+    out['line_total'] = lineTotal;
+    out['line_gross'] = lineTotal;
+    return out;
+  }
+}
+
+class _ReturnLinesPickerSheetState extends State<_ReturnLinesPickerSheet> {
+  bool _loading = true;
+  String? _error;
+  final _lines = <_ReturnLineEdit>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await context.read<ApiClient>().getJson(
+            AppConfig.customerOrderViewPath,
+            query: {'id': widget.orderId},
+          );
+      if (!mounted) return;
+      final order = (res['order'] as Map?)?.cast<String, dynamic>() ?? {};
+      final raw = (order['lines'] as List? ?? order['items'] as List? ?? []);
+      setState(() {
+        _lines
+          ..clear()
+          ..addAll(
+            raw
+                .whereType<Map>()
+                .map((e) => _ReturnLineEdit(e.cast<String, dynamic>())),
+          );
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    }
+  }
+
+  void _confirm() {
+    final payload = _lines
+        .map((l) => l.toPayload())
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    if (payload.isEmpty) {
+      showSnack(context, 'حدد مادة واحدةً واحدةً واحداً على الأقل.', error: true);
+      return;
+    }
+    Navigator.pop(context, payload);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.sizeOf(context).height * 0.78;
+    return SizedBox(
+      height: h,
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0),
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                'اختر المواد والكميات للإرجاع',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+          Expanded(
+            child: AsyncView(
+              loading: _loading,
+              error: _error,
+              onRetry: _load,
+              child: _lines.isEmpty
+                  ? const EmptyState(message: 'لا بنود في الطلب.')
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      itemCount: _lines.length,
+                      itemBuilder: (_, i) {
+                        final l = _lines[i];
+                        return AppCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              CheckboxListTile(
+                                contentPadding: EdgeInsets.zero,
+                                value: l.selected,
+                                onChanged: (v) => setState(
+                                    () => l.selected = v ?? false),
+                                title: Text(
+                                  Fmt.str(l.source['item_name']),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'الحد الأقصى: ${Fmt.trimNum(l.maxQty)}',
+                                  style: const TextStyle(
+                                    color: AppTheme.textSoft,
+                                  ),
+                                ),
+                              ),
+                              if (l.selected)
+                                Row(
+                                  children: [
+                                    const Text('الكمية: '),
+                                    IconButton(
+                                      onPressed: () => setState(() {
+                                        l.qty = (l.qty - 1).clamp(0, l.maxQty);
+                                      }),
+                                      icon: const Icon(Icons.remove_circle_outline),
+                                    ),
+                                    Text(
+                                      Fmt.trimNum(l.qty),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () => setState(() {
+                                        l.qty = (l.qty + 1).clamp(0, l.maxQty);
+                                      }),
+                                      icon: const Icon(Icons.add_circle_outline),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _loading ? null : _confirm,
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('اعتماد المواد المحددة'),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
