@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:printing/printing.dart';
 
 import '../core/format.dart';
@@ -71,7 +70,7 @@ class ReturnBluetoothReceipt {
       chunks.addAll(generator.feed(2));
       chunks.addAll(generator.cut());
 
-      final written = await PrintBluetoothThermal.writeBytes(chunks);
+      final written = await BluetoothPrintService.writeBytes(chunks);
       return written ? null : 'فشل إرسال البيانات للطابعة.';
     } catch (e) {
       return 'تعذر طباعة المرتجع: $e';

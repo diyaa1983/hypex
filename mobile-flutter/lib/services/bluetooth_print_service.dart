@@ -3,17 +3,27 @@ import 'dart:io';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart'
+    show BluetoothInfo;
 import 'package:printing/printing.dart';
 
 import 'bluetooth_printer_settings.dart';
 import 'thermal_raster.dart';
 
-/// خدمة الطباعة عبر Bluetooth الحرارية فقط.
+/// خدمة الطباعة عبر Bluetooth الحرارية.
+///
+/// تستخدم قناة أصلية داخل التطبيق بدل الاعتماد على اتصال
+/// `print_bluetooth_thermal` الذي يفشل عند وجود outputStream قديم، ولا
+/// يجرّب insecure RFCOMM اللازم لطابعات Xprinter مثل XP-P810.
 class BluetoothPrintService {
   BluetoothPrintService._();
+
+  static const MethodChannel _channel = MethodChannel(
+    'com.gppjo.biodev.namma_mobile/thermal_printer',
+  );
 
   static Future<bool> ensurePermissions() async {
     if (kIsWeb || !Platform.isAndroid) return true;
@@ -40,13 +50,68 @@ class BluetoothPrintService {
     await openAppSettings();
   }
 
+  static Future<bool> _isBluetoothOn() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('isBluetoothOn') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<List<BluetoothInfo>> pairedDevices() async {
     await ensurePermissions();
-    final on = await PrintBluetoothThermal.bluetoothEnabled;
-    if (!on) {
+    if (!await _isBluetoothOn()) {
       throw StateError('البلوتوث مغلق. فعّله ثم أعد المحاولة.');
     }
-    return PrintBluetoothThermal.pairedBluetooths;
+    try {
+      final raw = await _channel.invokeMethod<List<dynamic>>('pairedDevices');
+      final items = <BluetoothInfo>[];
+      for (final entry in raw ?? const []) {
+        final text = entry?.toString() ?? '';
+        final parts = text.split('#');
+        if (parts.length < 2) continue;
+        items.add(
+          BluetoothInfo(
+            name: parts.first,
+            macAdress: parts.sublist(1).join('#'),
+          ),
+        );
+      }
+      return items;
+    } catch (e) {
+      throw StateError('تعذر قراءة الأجهزة المقترنة: $e');
+    }
+  }
+
+  static Future<bool> connectionStatus() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('connectionStatus') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> disconnect() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      return await _channel.invokeMethod<bool>('disconnect') ?? true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> writeBytes(List<int> bytes) async {
+    if (!Platform.isAndroid || bytes.isEmpty) return false;
+    try {
+      return await _channel.invokeMethod<bool>('writeBytes', bytes) ?? false;
+    } on PlatformException catch (e) {
+      if (kDebugMode) {
+        debugPrint('thermal write failed: ${e.code} ${e.message}');
+      }
+      return false;
+    }
   }
 
   static Future<bool> connect(String mac) async {
@@ -56,17 +121,16 @@ class BluetoothPrintService {
         'يلزم منح إذن «الأجهزة القريبة/البلوتوث» للتطبيق من إعدادات أندرويد.',
       );
     }
-    if (!await PrintBluetoothThermal.bluetoothEnabled) {
+    if (!await _isBluetoothOn()) {
       throw StateError('البلوتوث مغلق. فعّله ثم أعد المحاولة.');
     }
 
-    // لا تفصل اتصالاً صالحاً قبل كل فاتورة؛ بعض طابعات Xprinter ومنها
-    // XP-P810 لا تقبل إعادة الاتصال مباشرة بعد الفصل.
-    if (await PrintBluetoothThermal.connectionStatus) return true;
+    // إن كان المقبس الأصلي ما زال حياً لنفس العنوان نعيد استخدامه.
+    if (await connectionStatus()) return true;
 
     var address = mac.trim().toUpperCase();
     try {
-      final paired = await PrintBluetoothThermal.pairedBluetooths;
+      final paired = await pairedDevices();
       for (final device in paired) {
         if (device.macAdress.trim().toUpperCase() == address) {
           address = device.macAdress.trim();
@@ -79,18 +143,35 @@ class BluetoothPrintService {
 
     for (var attempt = 0; attempt < 3; attempt++) {
       try {
-        final connected = await PrintBluetoothThermal.connect(
-          macPrinterAddress: address,
-        );
-        if (connected || await PrintBluetoothThermal.connectionStatus) {
-          // مهلة قصيرة حتى تصبح قناة Bluetooth SPP جاهزة لاستقبال ESC/POS.
-          await Future<void>.delayed(const Duration(milliseconds: 450));
+        // قبل كل محاولة نفصل أي مقبس stale داخل القناة الأصلية.
+        if (attempt > 0) {
+          await disconnect();
+          await Future<void>.delayed(
+            Duration(milliseconds: 500 + attempt * 400),
+          );
+        }
+        final connected = await _channel.invokeMethod<bool>('connect', address);
+        if (connected == true || await connectionStatus()) {
           return true;
         }
-      } catch (_) {
-        // إعادة المحاولة بعد مهلة؛ اتصال SPP قد يتأخر بعد تشغيل الطابعة.
+      } on PlatformException catch (e) {
+        if (e.code == 'PERMISSION') {
+          throw StateError(
+            'يلزم منح إذن «الأجهزة القريبة/البلوتوث» للتطبيق من إعدادات أندرويد.',
+          );
+        }
+        if (e.code == 'BT_OFF') {
+          throw StateError('البلوتوث مغلق. فعّله ثم أعد المحاولة.');
+        }
+        if (kDebugMode) {
+          debugPrint('thermal connect attempt $attempt: ${e.message}');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('thermal connect attempt $attempt: $e');
+        }
       }
-      await Future<void>.delayed(Duration(milliseconds: 800 + attempt * 700));
+      await Future<void>.delayed(Duration(milliseconds: 700 + attempt * 600));
     }
     return false;
   }
@@ -133,7 +214,8 @@ class BluetoothPrintService {
     final okConnect = await connect(cfg.mac);
     if (!okConnect) {
       throw StateError(
-        'تعذر الاتصال بالطابعة «${cfg.displayLabel}». تأكد أنها مشغّلة ومقترنة.',
+        'تعذر الاتصال بالطابعة «${cfg.displayLabel}». '
+        'تأكد أنها مشغّلة ومقترنة، وأغلق أي تطبيق آخر يستخدمها ثم أعد المحاولة.',
       );
     }
 
@@ -173,9 +255,14 @@ class BluetoothPrintService {
     }
 
     chunks.addAll(generator.cut());
-    final written = await PrintBluetoothThermal.writeBytes(chunks);
+    final written = await writeBytes(chunks);
     if (!written) {
-      throw StateError('فشل إرسال البيانات للطابعة.');
+      // محاولة واحدةعادة اتصال واحدة ثم إرسال مرة واحدةخيرة.
+      await disconnect();
+      final reconnected = await connect(cfg.mac);
+      if (!reconnected || !await writeBytes(chunks)) {
+        throw StateError('فشل إرسال البيانات للطابعة.');
+      }
     }
   }
 
@@ -188,7 +275,8 @@ class BluetoothPrintService {
     try {
       final okConnect = await connect(cfg.mac);
       if (!okConnect) {
-        return 'تعذر الاتصال بالطابعة. تأكد أنها مشغّلة ومقترنة.';
+        return 'تعذر الاتصال بالطابعة. تأكد أنها مشغّلة ومقترنة، '
+            'وأغلق أي تطبيق آخر يستخدمها ثم أعد المحاولة.';
       }
       final profile = await CapabilityProfile.load();
       final paper = cfg.paperMm == 80 ? PaperSize.mm80 : PaperSize.mm58;
@@ -215,7 +303,13 @@ class BluetoothPrintService {
       ));
       bytes.addAll(g.feed(3));
       bytes.addAll(g.cut());
-      final ok = await PrintBluetoothThermal.writeBytes(bytes);
+      var ok = await writeBytes(bytes);
+      if (!ok) {
+        await disconnect();
+        if (await connect(cfg.mac)) {
+          ok = await writeBytes(bytes);
+        }
+      }
       return ok ? null : 'فشل إرسال صفحة الاختبار.';
     } catch (e) {
       return 'فشل الاختبار: $e';
