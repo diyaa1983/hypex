@@ -47,8 +47,19 @@ class CustomerOrderFormScreen extends StatefulWidget {
       _CustomerOrderFormScreenState();
 }
 
+class _TaxRate {
+  const _TaxRate({required this.id, required this.name, required this.rate});
+  final int id;
+  final String name;
+  final double rate;
+}
+
 class _OrderLine {
-  _OrderLine(this.item) {
+  _OrderLine(
+    this.item, {
+    this.taxRateId = 0,
+    this.taxRatePercent = 0,
+  }) {
     final d = item.defaultUnit;
     unitId = d?.unitId ?? 0;
     unitName = d?.name ?? '';
@@ -67,6 +78,8 @@ class _OrderLine {
   double basePrice = 0;
   double unitPrice = 0;
   double discountPct = 0;
+  int taxRateId;
+  double taxRatePercent;
 
   String get barcode => item.barcode;
 
@@ -74,6 +87,9 @@ class _OrderLine {
   double get discountAmount =>
       discountPct <= 0 ? 0 : lineBase * (discountPct.clamp(0, 100) / 100);
   double get lineTotal => (lineBase - discountAmount).clamp(0, double.infinity);
+  double get taxAmount => lineTotal * taxRatePercent / 100;
+  double get lineGross => lineTotal + taxAmount;
+  double get unitPriceInclusive => unitPrice * (1 + taxRatePercent / 100);
 
   Map<String, dynamic> toJson() => {
         'item_id': item.id,
@@ -85,12 +101,15 @@ class _OrderLine {
         'qty_extra': qtyExtra,
         'qty_base': (qty + qtyExtra) * (unitFactor <= 0 ? 1 : unitFactor),
         'unit_price': unitPrice,
+        'tax_rate_id': taxRateId,
+        'tax_rate_percent': taxRatePercent,
         'discount_pct': discountPct,
         'line_discount_input':
             discountPct > 0 ? '${Fmt.trimNum(discountPct)}%' : '',
       };
 
-  void applyUnit(ItemUnitOpt? u, {int? unitIdOverride, String? unitNameOverride}) {
+  void applyUnit(ItemUnitOpt? u,
+      {int? unitIdOverride, String? unitNameOverride}) {
     if (u != null) {
       unitId = u.unitId;
       unitName = u.name;
@@ -110,6 +129,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   String? _error, _orderNo;
   int _id = 0, _warehouseId = 0;
   List<Map<String, dynamic>> _warehouses = [];
+  List<_TaxRate> _taxRates = [];
+  int _defaultTaxRateId = 0;
+  double _defaultTaxPercent = 0;
   Party? _customer;
   final _lines = <_OrderLine>[];
   Map<String, dynamic>? _arSummary;
@@ -144,6 +166,24 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           .whereType<Map>()
           .map((e) => e.cast<String, dynamic>())
           .toList();
+      final rates = (meta['tax_rates'] as List? ?? [])
+          .whereType<Map>()
+          .map(
+            (e) => _TaxRate(
+              id: Fmt.toInt(e['id']),
+              name: Fmt.str(e['name']),
+              rate: Fmt.toDouble(e['rate_percent']),
+            ),
+          )
+          .toList();
+      final defaultTax = Fmt.toDouble(meta['default_tax_percent']);
+      var defaultTaxId = rates.isEmpty ? 0 : rates.first.id;
+      for (final rate in rates) {
+        if ((rate.rate - defaultTax).abs() < 0.001) {
+          defaultTaxId = rate.id;
+          break;
+        }
+      }
       final loaded = <_OrderLine>[];
       for (final raw
           in (order['lines'] as List? ?? order['items'] as List? ?? [])) {
@@ -174,10 +214,26 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             return Fmt.toDouble(m['sale_price'] ?? m['price']);
           }(),
           0,
-          barcode: Fmt.str(m['item_barcode'] ?? m['barcode'] ?? m['sku'] ?? m['item_code']),
+          barcode: Fmt.str(
+              m['item_barcode'] ?? m['barcode'] ?? m['sku'] ?? m['item_code']),
           units: units,
         );
-        final line = _OrderLine(item)
+        final hasStoredTax =
+            m.containsKey('tax_rate_percent') && m['tax_rate_percent'] != null;
+        final lineTax =
+            hasStoredTax ? Fmt.toDouble(m['tax_rate_percent']) : defaultTax;
+        var lineTaxId = defaultTaxId;
+        for (final rate in rates) {
+          if ((rate.rate - lineTax).abs() < 0.001) {
+            lineTaxId = rate.id;
+            break;
+          }
+        }
+        final line = _OrderLine(
+          item,
+          taxRateId: lineTaxId,
+          taxRatePercent: lineTax,
+        )
           ..qty = Fmt.toDouble(m['qty']).round().clamp(1, 999999999)
           ..qtyExtra = Fmt.toDouble(m['qty_extra']).round().clamp(0, 999999999)
           ..unitId = Fmt.toInt(m['unit_id'])
@@ -204,6 +260,11 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       }
       setState(() {
         _warehouses = ws;
+        _taxRates = rates;
+        _defaultTaxPercent = defaultTax > 0
+            ? defaultTax
+            : (rates.isEmpty ? 0 : rates.first.rate);
+        _defaultTaxRateId = defaultTaxId;
         _warehouseId =
             Fmt.toInt(order['warehouse_id'] ?? meta['default_warehouse_id']);
         if (_warehouseId == 0 && ws.isNotEmpty) {
@@ -307,7 +368,13 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     final item = await pickItem(context, warehouseId: _warehouseId);
     if (item == null || !mounted) return;
-    setState(() => _lines.add(_OrderLine(item)));
+    setState(() => _lines.add(
+          _OrderLine(
+            item,
+            taxRateId: _defaultTaxRateId,
+            taxRatePercent: _defaultTaxPercent,
+          ),
+        ));
   }
 
   Future<int> _save() async {
@@ -340,10 +407,10 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       }
       if (!mounted) return 0;
       final result = await context.read<ApiClient>().postJson(
-        AppConfig.customerOrderSavePath,
-        csrf: session.csrf,
-        body: body,
-      );
+            AppConfig.customerOrderSavePath,
+            csrf: session.csrf,
+            body: body,
+          );
       final id = Fmt.toInt(result['order_id'] ?? result['id']);
       if (mounted) {
         setState(() {
@@ -378,8 +445,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             .where((w) => Fmt.toInt(w['id']) == _warehouseId)
             .map((w) => Fmt.str(w['name'] ?? w['name_ar']))
             .cast<String>()
-            .followedBy(const [''])
-            .first,
+            .followedBy(const ['']).first,
         'lines': _lines
             .map((l) => {
                   'item_name': l.item.name,
@@ -389,8 +455,10 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   'qty': l.qty,
                   'qty_extra': l.qtyExtra,
                   'unit_price': l.unitPrice,
+                  'tax_rate_percent': l.taxRatePercent,
+                  'tax_amount': l.taxAmount,
                   'discount_pct': l.discountPct,
-                  'line_total': l.lineTotal,
+                  'line_total': l.lineGross,
                 })
             .toList(),
       };
@@ -425,547 +493,642 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   @override
   Widget build(BuildContext context) {
     final body = AsyncView(
-            loading: _loading,
-            error: _error,
-            onRetry: _load,
-            child: ListView(
-              padding: const EdgeInsets.all(14),
-              children: [
-                DocumentHeaderCard(
-                    title: _orderNo == null || _orderNo!.isEmpty
-                        ? 'بيانات الطلب'
-                        : 'الطلب $_orderNo',
-                    child: Column(children: [
-                      DropdownButtonFormField<int>(
-                          initialValue: _warehouseId == 0 ? null : _warehouseId,
-                          decoration:
-                              const InputDecoration(labelText: 'المستودع'),
-                          items: _warehouses
-                              .map((w) => DropdownMenuItem(
-                                  value: Fmt.toInt(w['id']),
-                                  child:
-                                      Text(Fmt.str(w['name'] ?? w['name_ar']))))
-                              .toList(),
-                          onChanged: _editable
-                              ? (v) => setState(() => _warehouseId = v ?? 0)
-                              : null),
-                      if (!widget.hideCustomerPicker) ...[
-                      const SizedBox(height: 10),
-                      ListTile(
-                          onTap: _editable ? _pickCustomer : null,
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('العميل'),
-                          subtitle: Text(_customer?.name ?? 'اضغط للاختيار'),
-                          trailing: const Icon(Icons.chevron_left_rounded)),
-                      ] else if (_customer != null) ...[
-                        const SizedBox(height: 10),
-                        InfoRow('العميل', _customer!.name),
-                      ],
-                    ])),
-                if (_customer != null) ...[
-                  const DocumentSectionDivider('ملخص حساب العميل (Oracle)'),
-                  AppCard(
-                    child: _arLoading
-                        ? const Padding(
-                            padding: EdgeInsets.all(12),
-                            child: Center(child: CircularProgressIndicator()),
+        loading: _loading,
+        error: _error,
+        onRetry: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(14),
+          children: [
+            DocumentHeaderCard(
+                title: _orderNo == null || _orderNo!.isEmpty
+                    ? 'بيانات الطلب'
+                    : 'الطلب $_orderNo',
+                child: Column(children: [
+                  DropdownButtonFormField<int>(
+                      initialValue: _warehouseId == 0 ? null : _warehouseId,
+                      decoration: const InputDecoration(labelText: 'المستودع'),
+                      items: _warehouses
+                          .map((w) => DropdownMenuItem(
+                              value: Fmt.toInt(w['id']),
+                              child: Text(Fmt.str(w['name'] ?? w['name_ar']))))
+                          .toList(),
+                      onChanged: _editable
+                          ? (v) => setState(() => _warehouseId = v ?? 0)
+                          : null),
+                  if (!widget.hideCustomerPicker) ...[
+                    const SizedBox(height: 10),
+                    ListTile(
+                        onTap: _editable ? _pickCustomer : null,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('العميل'),
+                        subtitle: Text(_customer?.name ?? 'اضغط للاختيار'),
+                        trailing: const Icon(Icons.chevron_left_rounded)),
+                  ] else if (_customer != null) ...[
+                    const SizedBox(height: 10),
+                    InfoRow('العميل', _customer!.name),
+                  ],
+                ])),
+            if (_customer != null) ...[
+              const DocumentSectionDivider('ملخص حساب العميل (Oracle)'),
+              AppCard(
+                child: _arLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : (_arError != null
+                        ? Text(
+                            _arError!,
+                            style: const TextStyle(
+                              color: Color(0xFFB91C1C),
+                              fontWeight: FontWeight.w700,
+                            ),
                           )
-                        : (_arError != null
-                            ? Text(
-                                _arError!,
-                                style: const TextStyle(
-                                  color: Color(0xFFB91C1C),
-                                  fontWeight: FontWeight.w700,
+                        : Column(
+                            children: [
+                              InfoRow(
+                                'مدين',
+                                Fmt.money(
+                                  Fmt.toDouble(_arSummary?['total_debit']),
                                 ),
-                              )
-                            : Column(
-                                children: [
-                                  InfoRow(
-                                    'مدين',
-                                    Fmt.money(
-                                      Fmt.toDouble(_arSummary?['total_debit']),
-                                    ),
-                                    ltr: true,
-                                  ),
-                                  InfoRow(
-                                    'دائن',
-                                    Fmt.money(
-                                      Fmt.toDouble(_arSummary?['total_credit']),
-                                    ),
-                                    ltr: true,
-                                  ),
-                                  InfoRow(
-                                    'المبلغ المستحق',
-                                    Fmt.money(
-                                      Fmt.toDouble(_arSummary?['balance']),
-                                    ),
-                                    ltr: true,
-                                  ),
-                                  InfoRow(
-                                    'شيكات قيد التحصيل',
-                                    '${Fmt.toInt(_arSummary?['cheque_count'])} · ${Fmt.money(Fmt.toDouble(_arSummary?['cheque_total']))}',
-                                    ltr: true,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: OutlinedButton.icon(
-                                      onPressed: () {
-                                        final c = _customer!;
-                                        final q = {
-                                          'customer_id': '${c.id}',
-                                          if (c.name.isNotEmpty)
-                                            'customer_name': c.name,
-                                          if (c.code.isNotEmpty)
-                                            'customer_code': c.code,
-                                        };
-                                        final qs = q.entries
-                                            .map((e) =>
-                                                '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
-                                            .join('&');
-                                        context.push('/statement?$qs');
-                                      },
-                                      icon: const Icon(Icons.menu_book_outlined),
-                                      label: const Text(
-                                          'كشف حساب عميل Oracle'),
-                                    ),
-                                  ),
-                                  if ((_arSummary?['cheques'] is List) &&
-                                      (_arSummary!['cheques'] as List)
-                                          .isNotEmpty) ...[
-                                    const Divider(),
-                                    const Align(
-                                      alignment: Alignment.centerRight,
-                                      child: Text(
-                                        'الشيكات المستحقة',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    ...((_arSummary!['cheques'] as List)
-                                        .whereType<Map>()
-                                        .take(8)
-                                        .map((c) {
-                                      final m = c.cast<String, dynamic>();
-                                      final no = Fmt.str(
-                                        m['cheque_no'] ??
-                                            m['check_no'] ??
-                                            m['num'] ??
-                                            m['doc_no'],
-                                      );
-                                      final amt = Fmt.money(
-                                        Fmt.toDouble(
-                                          m['amount'] ?? m['amt'] ?? m['value'],
-                                        ),
-                                      );
-                                      final due = Fmt.dmy(
-                                        Fmt.str(
-                                          m['due_date'] ??
-                                              m['date'] ??
-                                              m['cheque_date'],
-                                        ),
-                                      );
-                                      return Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 4),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                no.isEmpty ? 'شيك' : no,
-                                                style: const TextStyle(
-                                                  fontSize: 12.5,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                            ),
-                                            Text(
-                                              due,
-                                              style: const TextStyle(
-                                                fontSize: 11.5,
-                                                color: Color(0xFF64748B),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              amt,
-                                              textDirection: TextDirection.ltr,
-                                              style: const TextStyle(
-                                                fontSize: 12.5,
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    })),
-                                  ],
-                                ],
-                              )),
-                  ),
-                ],
-                const DocumentSectionDivider('بنود الطلب'),
-                if (_lines.isNotEmpty)
-                  AppCard(
-                    padding: EdgeInsets.zero,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DefaultTextStyle.merge(
-                        style: const TextStyle(fontSize: 11, height: 1.1),
-                        child: ConstrainedBox(
-                        constraints: const BoxConstraints(minWidth: 700),
-                        child: DataTable(
-                          headingRowHeight: 30,
-                          dataRowMinHeight: 34,
-                          dataRowMaxHeight: 36,
-                          columnSpacing: 6,
-                          horizontalMargin: 6,
-                          headingTextStyle: const TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF475569),
-                          ),
-                          dataTextStyle: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
-                          ),
-                          columns: const [
-                            DataColumn(label: Text('الباركود')),
-                            DataColumn(label: Text('المادة')),
-                            DataColumn(label: Text('الوحدة')),
-                            DataColumn(label: Text('الكمية')),
-                            DataColumn(label: Text('إضافية')),
-                            DataColumn(label: Text('السعر')),
-                            DataColumn(label: Text('خصم %')),
-                            DataColumn(label: Text('المجموع')),
-                            DataColumn(label: Text('')),
-                          ],
-                          rows: [
-                            for (var i = 0; i < _lines.length; i++)
-                              DataRow(cells: [
-                                DataCell(
-                                  SizedBox(
-                                    width: 96,
-                                    child: Text(
-                                      _lines[i].barcode.isEmpty
-                                          ? '—'
-                                          : _lines[i].barcode,
-                                      maxLines: 1,
-                                      softWrap: false,
-                                      overflow: TextOverflow.ellipsis,
-                                      textDirection: TextDirection.ltr,
-                                      style: const TextStyle(
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                                ltr: true,
+                              ),
+                              InfoRow(
+                                'دائن',
+                                Fmt.money(
+                                  Fmt.toDouble(_arSummary?['total_credit']),
+                                ),
+                                ltr: true,
+                              ),
+                              InfoRow(
+                                'المبلغ المستحق',
+                                Fmt.money(
+                                  Fmt.toDouble(_arSummary?['balance']),
+                                ),
+                                ltr: true,
+                              ),
+                              InfoRow(
+                                'شيكات قيد التحصيل',
+                                '${Fmt.toInt(_arSummary?['cheque_count'])} · ${Fmt.money(Fmt.toDouble(_arSummary?['cheque_total']))}',
+                                ltr: true,
+                              ),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    final c = _customer!;
+                                    final q = {
+                                      'customer_id': '${c.id}',
+                                      if (c.name.isNotEmpty)
+                                        'customer_name': c.name,
+                                      if (c.code.isNotEmpty)
+                                        'customer_code': c.code,
+                                    };
+                                    final qs = q.entries
+                                        .map((e) =>
+                                            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+                                        .join('&');
+                                    context.push('/statement?$qs');
+                                  },
+                                  icon: const Icon(Icons.menu_book_outlined),
+                                  label: const Text('كشف حساب عميل Oracle'),
+                                ),
+                              ),
+                              if ((_arSummary?['cheques'] is List) &&
+                                  (_arSummary!['cheques'] as List)
+                                      .isNotEmpty) ...[
+                                const Divider(),
+                                const Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    'الشيكات المستحقة',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ),
-                                DataCell(
-                                  SizedBox(
-                                    width: 130,
-                                    child: Text(
-                                      _lines[i].item.name,
-                                      maxLines: 1,
-                                      softWrap: false,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 11,
-                                      ),
+                                const SizedBox(height: 6),
+                                ...((_arSummary!['cheques'] as List)
+                                    .whereType<Map>()
+                                    .take(8)
+                                    .map((c) {
+                                  final m = c.cast<String, dynamic>();
+                                  final no = Fmt.str(
+                                    m['cheque_no'] ??
+                                        m['check_no'] ??
+                                        m['num'] ??
+                                        m['doc_no'],
+                                  );
+                                  final amt = Fmt.money(
+                                    Fmt.toDouble(
+                                      m['amount'] ?? m['amt'] ?? m['value'],
+                                    ),
+                                  );
+                                  final due = Fmt.dmy(
+                                    Fmt.str(
+                                      m['due_date'] ??
+                                          m['date'] ??
+                                          m['cheque_date'],
+                                    ),
+                                  );
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 4),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            no.isEmpty ? 'شيك' : no,
+                                            style: const TextStyle(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          due,
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: Color(0xFF64748B),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          amt,
+                                          textDirection: TextDirection.ltr,
+                                          style: const TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                })),
+                              ],
+                            ],
+                          )),
+              ),
+            ],
+            const DocumentSectionDivider('بنود الطلب'),
+            if (_lines.isNotEmpty)
+              AppCard(
+                padding: EdgeInsets.zero,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DefaultTextStyle.merge(
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 1120),
+                      child: DataTable(
+                        headingRowHeight: 42,
+                        dataRowMinHeight: 50,
+                        dataRowMaxHeight: 54,
+                        columnSpacing: 10,
+                        horizontalMargin: 8,
+                        headingTextStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF475569),
+                        ),
+                        dataTextStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                        columns: const [
+                          DataColumn(label: Text('الباركود')),
+                          DataColumn(label: Text('المادة')),
+                          DataColumn(label: Text('الوحدة')),
+                          DataColumn(label: Text('الكمية')),
+                          DataColumn(label: Text('إضافية')),
+                          DataColumn(label: Text('السعر غ ش')),
+                          DataColumn(label: Text('السعر ش')),
+                          DataColumn(label: Text('الضريبة')),
+                          DataColumn(label: Text('خصم %')),
+                          DataColumn(label: Text('المجموع')),
+                          DataColumn(label: Text('')),
+                        ],
+                        rows: [
+                          for (var i = 0; i < _lines.length; i++)
+                            DataRow(cells: [
+                              DataCell(
+                                SizedBox(
+                                  width: 96,
+                                  child: Text(
+                                    _lines[i].barcode.isEmpty
+                                        ? '—'
+                                        : _lines[i].barcode,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    overflow: TextOverflow.ellipsis,
+                                    textDirection: TextDirection.ltr,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
                                 ),
-                                DataCell(
-                                  SizedBox(
-                                    width: 92,
-                                    child: DropdownButtonFormField<int>(
-                                      key: ValueKey(
-                                          'unit-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
-                                      isExpanded: true,
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 130,
+                                  child: Text(
+                                    _lines[i].item.name,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 92,
+                                  child: DropdownButtonFormField<int>(
+                                    key: ValueKey(
+                                        'unit-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
+                                    isExpanded: true,
+                                    isDense: true,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                    initialValue: _lines[i].unitId == 0
+                                        ? (_lines[i].item.units.isEmpty
+                                            ? null
+                                            : _lines[i].item.units.first.unitId)
+                                        : _lines[i].unitId,
+                                    decoration: const InputDecoration(
                                       isDense: true,
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Color(0xFF0F172A),
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
                                       ),
-                                      initialValue: _lines[i].unitId == 0
-                                          ? (_lines[i].item.units.isEmpty
-                                              ? null
-                                              : _lines[i]
-                                                  .item
-                                                  .units
-                                                  .first
-                                                  .unitId)
-                                          : _lines[i].unitId,
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 2,
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    items: [
+                                      for (final u in _lines[i].item.units)
+                                        DropdownMenuItem(
+                                          value: u.unitId,
+                                          child: Text(
+                                            u.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style:
+                                                const TextStyle(fontSize: 13),
+                                          ),
                                         ),
-                                        border: OutlineInputBorder(),
+                                      if (_lines[i].item.units.isEmpty &&
+                                          _lines[i].unitName.isNotEmpty)
+                                        DropdownMenuItem(
+                                          value: _lines[i].unitId,
+                                          child: Text(
+                                            _lines[i].unitName,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style:
+                                                const TextStyle(fontSize: 13),
+                                          ),
+                                        ),
+                                    ],
+                                    onChanged: !_editable
+                                        ? null
+                                        : (v) {
+                                            final u = _lines[i]
+                                                .item
+                                                .units
+                                                .where((x) => x.unitId == v)
+                                                .cast<ItemUnitOpt?>()
+                                                .followedBy([null]).first;
+                                            setState(() {
+                                              _lines[i].applyUnit(u,
+                                                  unitIdOverride: v);
+                                            });
+                                          },
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 58,
+                                  child: TextFormField(
+                                    key:
+                                        ValueKey('qty-${_lines[i].item.id}-$i'),
+                                    initialValue: '${_lines[i].qty}',
+                                    enabled: _editable,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly
+                                    ],
+                                    decoration: const InputDecoration(
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
                                       ),
-                                      items: [
-                                        for (final u in _lines[i].item.units)
-                                          DropdownMenuItem(
-                                            value: u.unitId,
-                                            child: Text(
-                                              u.name,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style:
-                                                  const TextStyle(fontSize: 11),
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: (v) => setState(() {
+                                      _lines[i].qty = int.tryParse(v)
+                                              ?.clamp(1, 999999999) ??
+                                          1;
+                                    }),
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 58,
+                                  child: TextFormField(
+                                    key: ValueKey(
+                                        'extra-${_lines[i].item.id}-$i'),
+                                    initialValue: '${_lines[i].qtyExtra}',
+                                    enabled: _editable,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly
+                                    ],
+                                    decoration: const InputDecoration(
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: (v) => setState(() {
+                                      _lines[i].qtyExtra = int.tryParse(v)
+                                              ?.clamp(0, 999999999) ??
+                                          0;
+                                    }),
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 86,
+                                  child: TextFormField(
+                                    key: ValueKey(
+                                        'price-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
+                                    initialValue:
+                                        Fmt.trimNum(_lines[i].unitPrice),
+                                    enabled: _editable,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                    decoration: const InputDecoration(
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: (v) => setState(() {
+                                      final p = double.tryParse(
+                                            v.replaceAll(',', ''),
+                                          ) ??
+                                          0;
+                                      _lines[i].unitPrice = p;
+                                      if (_lines[i].unitFactor > 0) {
+                                        _lines[i].basePrice =
+                                            p / _lines[i].unitFactor;
+                                      }
+                                    }),
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 86,
+                                  child: Text(
+                                    Fmt.money(_lines[i].unitPriceInclusive),
+                                    textDirection: TextDirection.ltr,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF0F766E),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 150,
+                                  child: DropdownButtonFormField<int>(
+                                    key: ValueKey(
+                                        'tax-${_lines[i].item.id}-$i-${_lines[i].taxRateId}'),
+                                    initialValue: _lines[i].taxRateId,
+                                    isExpanded: true,
+                                    isDense: true,
+                                    decoration: const InputDecoration(
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 3,
+                                      ),
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    items: [
+                                      for (final tax in _taxRates)
+                                        DropdownMenuItem(
+                                          value: tax.id,
+                                          child: Text(
+                                            '${tax.name} (${Fmt.trimNum(tax.rate)}%)',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
                                             ),
                                           ),
-                                        if (_lines[i].item.units.isEmpty &&
-                                            _lines[i].unitName.isNotEmpty)
-                                          DropdownMenuItem(
-                                            value: _lines[i].unitId,
-                                            child: Text(
-                                              _lines[i].unitName,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style:
-                                                  const TextStyle(fontSize: 11),
-                                            ),
-                                          ),
-                                      ],
-                                      onChanged: !_editable
-                                          ? null
-                                          : (v) {
-                                              final u = _lines[i]
-                                                  .item
-                                                  .units
-                                                  .where((x) => x.unitId == v)
-                                                  .cast<ItemUnitOpt?>()
-                                                  .followedBy([null]).first;
-                                              setState(() {
-                                                _lines[i].applyUnit(u,
-                                                    unitIdOverride: v);
-                                              });
-                                            },
-                                    ),
-                                  ),
-                                ),
-                                DataCell(
-                                  SizedBox(
-                                    width: 58,
-                                    child: TextFormField(
-                                      key: ValueKey(
-                                          'qty-${_lines[i].item.id}-$i'),
-                                      initialValue: '${_lines[i].qty}',
-                                      enabled: _editable,
-                                      style: const TextStyle(fontSize: 11),
-                                      keyboardType: TextInputType.number,
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.digitsOnly
-                                      ],
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 2,
                                         ),
-                                        border: OutlineInputBorder(),
+                                    ],
+                                    onChanged: !_editable
+                                        ? null
+                                        : (id) {
+                                            final matches = _taxRates
+                                                .where((t) => t.id == id);
+                                            if (matches.isEmpty) return;
+                                            setState(() {
+                                              _lines[i].taxRateId =
+                                                  matches.first.id;
+                                              _lines[i].taxRatePercent =
+                                                  matches.first.rate;
+                                            });
+                                          },
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 56,
+                                  child: TextFormField(
+                                    key: ValueKey(
+                                        'disc-${_lines[i].item.id}-$i'),
+                                    initialValue: _lines[i].discountPct <= 0
+                                        ? ''
+                                        : Fmt.trimNum(_lines[i].discountPct),
+                                    enabled: _editable,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                    decoration: const InputDecoration(
+                                      isDense: true,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
                                       ),
-                                      onChanged: (v) => setState(() {
-                                        _lines[i].qty = int.tryParse(v)
-                                                ?.clamp(1, 999999999) ??
-                                            1;
-                                      }),
+                                      border: OutlineInputBorder(),
+                                      hintText: '0',
+                                    ),
+                                    onChanged: (v) => setState(() {
+                                      _lines[i].discountPct = (double.tryParse(
+                                                v.replaceAll(',', ''),
+                                              ) ??
+                                              0)
+                                          .clamp(0, 100);
+                                    }),
+                                  ),
+                                ),
+                              ),
+                              DataCell(
+                                SizedBox(
+                                  width: 74,
+                                  child: Text(
+                                    Fmt.money(_lines[i].lineGross),
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    overflow: TextOverflow.ellipsis,
+                                    textDirection: TextDirection.ltr,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ),
-                                DataCell(
-                                  SizedBox(
-                                    width: 58,
-                                    child: TextFormField(
-                                      key: ValueKey(
-                                          'extra-${_lines[i].item.id}-$i'),
-                                      initialValue: '${_lines[i].qtyExtra}',
-                                      enabled: _editable,
-                                      style: const TextStyle(fontSize: 11),
-                                      keyboardType: TextInputType.number,
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.digitsOnly
-                                      ],
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 2,
+                              ),
+                              DataCell(
+                                _editable
+                                    ? IconButton(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 28,
+                                          minHeight: 28,
                                         ),
-                                        border: OutlineInputBorder(),
-                                      ),
-                                      onChanged: (v) => setState(() {
-                                        _lines[i].qtyExtra = int.tryParse(v)
-                                                ?.clamp(0, 999999999) ??
-                                            0;
-                                      }),
-                                    ),
-                                  ),
-                                ),
-                                DataCell(
-                                  SizedBox(
-                                    width: 72,
-                                    child: TextFormField(
-                                      key: ValueKey(
-                                          'price-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
-                                      initialValue:
-                                          Fmt.trimNum(_lines[i].unitPrice),
-                                      enabled: _editable,
-                                      style: const TextStyle(fontSize: 11),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 2,
+                                        onPressed: () =>
+                                            setState(() => _lines.removeAt(i)),
+                                        icon: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          size: 18,
+                                          color: Color(0xFFB91C1C),
                                         ),
-                                        border: OutlineInputBorder(),
-                                      ),
-                                      onChanged: (v) => setState(() {
-                                        final p = double.tryParse(
-                                              v.replaceAll(',', ''),
-                                            ) ??
-                                            0;
-                                        _lines[i].unitPrice = p;
-                                        if (_lines[i].unitFactor > 0) {
-                                          _lines[i].basePrice =
-                                              p / _lines[i].unitFactor;
-                                        }
-                                      }),
-                                    ),
-                                  ),
-                                ),
-                                DataCell(
-                                  SizedBox(
-                                    width: 56,
-                                    child: TextFormField(
-                                      key: ValueKey(
-                                          'disc-${_lines[i].item.id}-$i'),
-                                      initialValue: _lines[i].discountPct <= 0
-                                          ? ''
-                                          : Fmt.trimNum(_lines[i].discountPct),
-                                      enabled: _editable,
-                                      style: const TextStyle(fontSize: 11),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                      decoration: const InputDecoration(
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                          vertical: 2,
-                                        ),
-                                        border: OutlineInputBorder(),
-                                        hintText: '0',
-                                      ),
-                                      onChanged: (v) => setState(() {
-                                        _lines[i].discountPct =
-                                            (double.tryParse(
-                                                      v.replaceAll(',', ''),
-                                                    ) ??
-                                                    0)
-                                                .clamp(0, 100);
-                                      }),
-                                    ),
-                                  ),
-                                ),
-                                DataCell(
-                                  SizedBox(
-                                    width: 74,
-                                    child: Text(
-                                      Fmt.money(_lines[i].lineTotal),
-                                      maxLines: 1,
-                                      softWrap: false,
-                                      overflow: TextOverflow.ellipsis,
-                                      textDirection: TextDirection.ltr,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                DataCell(
-                                  _editable
-                                      ? IconButton(
-                                          visualDensity: VisualDensity.compact,
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(
-                                            minWidth: 28,
-                                            minHeight: 28,
-                                          ),
-                                          onPressed: () => setState(
-                                              () => _lines.removeAt(i)),
-                                          icon: const Icon(
-                                            Icons.delete_outline_rounded,
-                                            size: 18,
-                                            color: Color(0xFFB91C1C),
-                                          ),
-                                        )
-                                      : const SizedBox.shrink(),
-                                ),
-                              ]),
-                          ],
-                        ),
-                        ),
+                                      )
+                                    : const SizedBox.shrink(),
+                              ),
+                            ]),
+                        ],
                       ),
                     ),
                   ),
-                if (_lines.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'إجمالي البنود: ${Fmt.money(_lines.fold<double>(0, (s, l) => s + l.lineTotal))}',
+                ),
+              ),
+            if (_lines.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'قبل الضريبة: ${Fmt.money(_lines.fold<double>(0, (s, l) => s + l.lineTotal))}',
                       textDirection: TextDirection.ltr,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
                       ),
                     ),
-                  ),
-                ],
-                if (_editable)
-                  OutlinedButton.icon(
-                      onPressed: _addLine,
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('إضافة مادة')),
-                const SizedBox(height: 12),
-                Wrap(spacing: 8, runSpacing: 8, children: [
-                  FilledButton.icon(
-                      onPressed: _busy || !_editable ? null : _save,
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text('حفظ')),
-                  if (!widget.embedded)
-                    OutlinedButton.icon(
-                        onPressed: _busy || _id == 0 || _approved
-                            ? null
-                            : () => context.push('/customer-orders/$_id/edit'),
-                        icon: const Icon(Icons.edit_outlined),
-                        label: const Text('تعديل')),
-                  if (!widget.embedded)
-                    OutlinedButton.icon(
-                        onPressed: _busy ? null : _view,
-                        icon: const Icon(Icons.visibility_outlined),
-                        label: const Text('عرض')),
-                  OutlinedButton.icon(
-                      onPressed: _busy ? null : _print,
-                      icon: const Icon(Icons.print_outlined),
-                      label: const Text('طباعة')),
-                ]),
-              ],
-            ));
+                    Text(
+                      'الضريبة: ${Fmt.money(_lines.fold<double>(0, (s, l) => s + l.taxAmount))}',
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      'الإجمالي شامل الضريبة: ${Fmt.money(_lines.fold<double>(0, (s, l) => s + l.lineGross))}',
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17,
+                        color: Color(0xFF0F766E),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (_editable)
+              OutlinedButton.icon(
+                  onPressed: _addLine,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('إضافة مادة')),
+            const SizedBox(height: 12),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              FilledButton.icon(
+                  onPressed: _busy || !_editable ? null : _save,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('حفظ')),
+              if (!widget.embedded)
+                OutlinedButton.icon(
+                    onPressed: _busy || _id == 0 || _approved
+                        ? null
+                        : () => context.push('/customer-orders/$_id/edit'),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('تعديل')),
+              if (!widget.embedded)
+                OutlinedButton.icon(
+                    onPressed: _busy ? null : _view,
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('عرض')),
+              OutlinedButton.icon(
+                  onPressed: _busy ? null : _print,
+                  icon: const Icon(Icons.print_outlined),
+                  label: const Text('طباعة')),
+            ]),
+          ],
+        ));
     if (widget.embedded) {
       return Material(color: Colors.transparent, child: body);
     }

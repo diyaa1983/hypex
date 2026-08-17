@@ -51,12 +51,48 @@ class BluetoothPrintService {
 
   static Future<bool> connect(String mac) async {
     if (mac.trim().isEmpty) return false;
-    await ensurePermissions();
-    final status = await PrintBluetoothThermal.connectionStatus;
-    if (status) {
-      await PrintBluetoothThermal.disconnect;
+    if (!await ensurePermissions()) {
+      throw StateError(
+        'يلزم منح إذن «الأجهزة القريبة/البلوتوث» للتطبيق من إعدادات أندرويد.',
+      );
     }
-    return PrintBluetoothThermal.connect(macPrinterAddress: mac.trim());
+    if (!await PrintBluetoothThermal.bluetoothEnabled) {
+      throw StateError('البلوتوث مغلق. فعّله ثم أعد المحاولة.');
+    }
+
+    // لا تفصل اتصالاً صالحاً قبل كل فاتورة؛ بعض طابعات Xprinter ومنها
+    // XP-P810 لا تقبل إعادة الاتصال مباشرة بعد الفصل.
+    if (await PrintBluetoothThermal.connectionStatus) return true;
+
+    var address = mac.trim().toUpperCase();
+    try {
+      final paired = await PrintBluetoothThermal.pairedBluetooths;
+      for (final device in paired) {
+        if (device.macAdress.trim().toUpperCase() == address) {
+          address = device.macAdress.trim();
+          break;
+        }
+      }
+    } catch (_) {
+      // نستخدم العنوان المحفوظ إن تعذر قراءة قائمة الأجهزة.
+    }
+
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final connected = await PrintBluetoothThermal.connect(
+          macPrinterAddress: address,
+        );
+        if (connected || await PrintBluetoothThermal.connectionStatus) {
+          // مهلة قصيرة حتى تصبح قناة Bluetooth SPP جاهزة لاستقبال ESC/POS.
+          await Future<void>.delayed(const Duration(milliseconds: 450));
+          return true;
+        }
+      } catch (_) {
+        // إعادة المحاولة بعد مهلة؛ اتصال SPP قد يتأخر بعد تشغيل الطابعة.
+      }
+      await Future<void>.delayed(Duration(milliseconds: 800 + attempt * 700));
+    }
+    return false;
   }
 
   /// طباعة PDF على طابعة Bluetooth المحفوظة.

@@ -16,7 +16,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _user = TextEditingController();
   final _pass = TextEditingController();
-  bool _remember = true;
+  bool _remember = false;
   bool _obscure = true;
 
   @override
@@ -31,6 +31,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     if (creds.u != null) _user.text = creds.u!;
     if (creds.p != null) _pass.text = creds.p!;
+    if (creds.u != null && creds.p != null) {
+      setState(() => _remember = true);
+    }
     final err = s.lastError;
     if (err != null && err.isNotEmpty) {
       showSnack(context, err, error: true);
@@ -171,11 +174,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        SwitchListTile(
+                        CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
                           value: _remember,
-                          onChanged: (v) => setState(() => _remember = v),
+                          onChanged: (v) =>
+                              setState(() => _remember = v ?? false),
                           title: const Text(
                             'تذكّرني',
                             style: TextStyle(
@@ -184,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           subtitle: const Text(
-                            'مطلوب لعمل تتبّع الموقع في الخلفية',
+                            'حفظ اسم المستخدم وكلمة المرور بشكل آمن',
                             style: TextStyle(
                               fontSize: 11.5,
                               color: AppTheme.textSoft,

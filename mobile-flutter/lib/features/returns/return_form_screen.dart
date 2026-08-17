@@ -320,6 +320,9 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
 
   Future<void> _pickLineByName() async {
     if (_lines.isEmpty) return;
+    final search = TextEditingController();
+    final searchFocus = FocusNode();
+    var keyboardEnabled = false;
     final chosen = await showModalBottomSheet<_RetLine>(
       context: context,
       isScrollControlled: true,
@@ -328,7 +331,6 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (ctx) {
-        final search = TextEditingController();
         var rows = List<_RetLine>.from(_lines);
         return StatefulBuilder(
           builder: (ctx, setLocal) {
@@ -354,10 +356,35 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: TextField(
                         controller: search,
-                        autofocus: true,
-                        decoration: const InputDecoration(
+                        focusNode: searchFocus,
+                        readOnly: !keyboardEnabled,
+                        showCursor: keyboardEnabled,
+                        decoration: InputDecoration(
                           hintText: 'الاسم أو الباركود...',
-                          prefixIcon: Icon(Icons.search),
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: IconButton(
+                            tooltip: keyboardEnabled
+                                ? 'إخفاء لوحة المفاتيح'
+                                : 'إظهار لوحة المفاتيح',
+                            onPressed: () {
+                              setLocal(() {
+                                keyboardEnabled = !keyboardEnabled;
+                              });
+                              if (keyboardEnabled) {
+                                WidgetsBinding.instance
+                                    .addPostFrameCallback((_) {
+                                  searchFocus.requestFocus();
+                                });
+                              } else {
+                                searchFocus.unfocus();
+                              }
+                            },
+                            icon: Icon(
+                              keyboardEnabled
+                                  ? Icons.keyboard_hide_rounded
+                                  : Icons.keyboard_rounded,
+                            ),
+                          ),
                         ),
                         onChanged: (v) {
                           final q = v.trim().toLowerCase();
@@ -400,6 +427,8 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
         );
       },
     );
+    search.dispose();
+    searchFocus.dispose();
     if (chosen == null || !mounted) return;
     if (chosen.qty <= 0) {
       chosen.qty = 1;

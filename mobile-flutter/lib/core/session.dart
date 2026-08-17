@@ -212,6 +212,11 @@ class SessionController extends ChangeNotifier {
           await _secure.write(key: 'p', value: password);
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_kRemember, true);
+        } else {
+          await _secure.delete(key: 'u');
+          await _secure.delete(key: 'p');
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_kRemember, false);
         }
         await _syncGpsTracking();
       }
@@ -227,6 +232,10 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<({String? u, String? p})> savedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_kRemember) != true) {
+      return (u: null, p: null);
+    }
     return (u: await _secure.read(key: 'u'), p: await _secure.read(key: 'p'));
   }
 
@@ -266,10 +275,13 @@ class SessionController extends ChangeNotifier {
       } catch (_) {}
     }
     await api.clearCookies();
-    await _secure.delete(key: 'u');
-    await _secure.delete(key: 'p');
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kRemember, false);
+    // بيانات "تذكّرني" تبقى بعد تسجيل الخروج لتعبئة شاشة الدخول التالية.
+    // إيقاف تذكّرها يتم عند دخول لاحق مع إلغاء الخيار.
+    if (prefs.getBool(_kRemember) != true) {
+      await _secure.delete(key: 'u');
+      await _secure.delete(key: 'p');
+    }
     authenticated = false;
     isSystemAdmin = false;
     permissions = <String>{};

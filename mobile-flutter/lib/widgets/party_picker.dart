@@ -39,8 +39,10 @@ class _PartyPickerSheet extends StatefulWidget {
 
 class _PartyPickerSheetState extends State<_PartyPickerSheet> {
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
   List<Party> _items = [];
   bool _loading = true;
+  bool _keyboardEnabled = false;
   String? _error;
   Timer? _debounce;
   int _reqSeq = 0;
@@ -55,7 +57,20 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
   void dispose() {
     _debounce?.cancel();
     _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _toggleKeyboard() {
+    if (_keyboardEnabled) {
+      _searchFocus.unfocus();
+      setState(() => _keyboardEnabled = false);
+      return;
+    }
+    setState(() => _keyboardEnabled = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
   }
 
   void _onSearchChanged(String v) {
@@ -128,11 +143,24 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
                 controller: _search,
-                autofocus: true,
+                focusNode: _searchFocus,
+                readOnly: !_keyboardEnabled,
+                showCursor: _keyboardEnabled,
                 decoration: InputDecoration(
                   hintText: 'بحث بالاسم أو الرمز...',
                   prefixIcon: const Icon(Icons.search),
-                  suffixText: _loading ? null : '${_items.length}',
+                  suffixIcon: IconButton(
+                    tooltip: _keyboardEnabled
+                        ? 'إخفاء لوحة المفاتيح'
+                        : 'إظهار لوحة المفاتيح',
+                    onPressed: _toggleKeyboard,
+                    icon: Icon(
+                      _keyboardEnabled
+                          ? Icons.keyboard_hide_rounded
+                          : Icons.keyboard_rounded,
+                    ),
+                  ),
+                  helperText: _loading ? null : '${_items.length} نتيجة',
                 ),
                 onChanged: _onSearchChanged,
               ),
@@ -155,7 +183,10 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
                                   title: Text(p.name),
                                   subtitle:
                                       p.code.isEmpty ? null : Text(p.code),
-                                  onTap: () => Navigator.pop(context, p),
+                                  onTap: () {
+                                    _searchFocus.unfocus();
+                                    Navigator.pop(context, p);
+                                  },
                                 );
                               },
                             ),

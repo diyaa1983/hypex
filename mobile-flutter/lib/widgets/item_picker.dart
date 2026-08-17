@@ -82,8 +82,10 @@ class _ItemPickerSheet extends StatefulWidget {
 
 class _ItemPickerSheetState extends State<_ItemPickerSheet> {
   final _search = TextEditingController();
+  final _searchFocus = FocusNode();
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
+  bool _keyboardEnabled = false;
   String? _error;
 
   @override
@@ -95,7 +97,20 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
   @override
   void dispose() {
     _search.dispose();
+    _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _toggleKeyboard() {
+    if (_keyboardEnabled) {
+      _searchFocus.unfocus();
+      setState(() => _keyboardEnabled = false);
+      return;
+    }
+    setState(() => _keyboardEnabled = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocus.requestFocus();
+    });
   }
 
   Future<void> _load(String q) async {
@@ -168,10 +183,23 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
                 controller: _search,
-                autofocus: true,
-                decoration: const InputDecoration(
+                focusNode: _searchFocus,
+                readOnly: !_keyboardEnabled,
+                showCursor: _keyboardEnabled,
+                decoration: InputDecoration(
                   hintText: 'بحث بالاسم أو الرمز...',
-                  prefixIcon: Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: IconButton(
+                    tooltip: _keyboardEnabled
+                        ? 'إخفاء لوحة المفاتيح'
+                        : 'إظهار لوحة المفاتيح',
+                    onPressed: _toggleKeyboard,
+                    icon: Icon(
+                      _keyboardEnabled
+                          ? Icons.keyboard_hide_rounded
+                          : Icons.keyboard_rounded,
+                    ),
+                  ),
                 ),
                 onChanged: (v) => _load(v.trim()),
               ),
