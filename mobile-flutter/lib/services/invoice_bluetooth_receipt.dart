@@ -1,18 +1,14 @@
 import 'dart:io';
 
-import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
 import 'print_brand.dart';
-import 'thermal_raster.dart';
 
 /// إيصال فاتورة حراري (58/80 مم) — تصميم مختلف عن PDF A4.
 class InvoiceBluetoothReceipt {
@@ -26,52 +22,12 @@ class InvoiceBluetoothReceipt {
     if (kIsWeb || !Platform.isAndroid) {
       return 'الطباعة الحرارية متاحة على أندرويد فقط.';
     }
-
     try {
       final pdfBytes = await buildThermalPdf(inv, paperMm: cfg.paperMm);
-      final okConnect = await BluetoothPrintService.connect(cfg.mac);
-      if (!okConnect) {
-        return 'تعذر الاتصال بالطابعة «${cfg.displayLabel}». تأكد أنها مشغّلة ومقترنة.';
-      }
-
-      final profile = await CapabilityProfile.load();
-      final paper = cfg.paperMm == 80 ? PaperSize.mm80 : PaperSize.mm58;
-      final generator = Generator(paper, profile);
-      final targetWidth = cfg.paperMm == 80 ? 576 : 384;
-
-      final chunks = <int>[];
-      chunks.addAll(generator.reset());
-
-      var pages = 0;
-      await for (final page in Printing.raster(pdfBytes, dpi: 180)) {
-        pages++;
-        final png = await page.toPng();
-        final decoded = img.decodeImage(Uint8List.fromList(png));
-        if (decoded == null) continue;
-        var resized = decoded;
-        if (decoded.width != targetWidth) {
-          resized = img.copyResize(
-            decoded,
-            width: targetWidth,
-            interpolation: img.Interpolation.average,
-          );
-        }
-        chunks.addAll(
-          generator.imageRaster(
-            flattenOnWhite(resized),
-            imageFn: PosImageFn.bitImageRaster,
-          ),
-        );
-        chunks.addAll(generator.feed(1));
-      }
-      if (pages == 0) {
-        return 'تعذر تجهيز إيصال الطباعة.';
-      }
-      chunks.addAll(generator.feed(2));
-      chunks.addAll(generator.cut());
-
-      final written = await BluetoothPrintService.writeBytes(chunks);
-      return written ? null : 'فشل إرسال البيانات للطابعة.';
+      return BluetoothPrintService.printPdfBytes(
+        pdfBytes,
+        jobName: 'فاتورة_${Fmt.str(inv['invoice_no'])}',
+      );
     } catch (e) {
       return 'تعذر طباعة الإيصال: $e';
     }
@@ -128,8 +84,8 @@ class InvoiceBluetoothReceipt {
     }
     final tax = Fmt.toDouble(inv['tax_amount']);
     final total = Fmt.toDouble(inv['total']);
-    final fs = paperMm == 80 ? 9.0 : 8.0;
-    final fsSm = paperMm == 80 ? 8.0 : 7.0;
+    final fs = paperMm == 80 ? 13.0 : 11.0;
+    final fsSm = paperMm == 80 ? 11.0 : 9.5;
     final qrSize = paperMm == 80 ? 72.0 : 58.0;
 
     final brandHeader = await PrintBrand.header(
@@ -246,17 +202,13 @@ class InvoiceBluetoothReceipt {
     double fs,
     int paperMm,
   ) {
-    final headFs = paperMm == 80 ? fs - 0.5 : fs - 1.0;
+    final headFs = paperMm == 80 ? 10.5 : 9.0;
     final headStyle = pw.TextStyle(font: bold, fontSize: headFs);
     final cellStyle = pw.TextStyle(font: reg, fontSize: headFs);
     final nameStyle = pw.TextStyle(font: bold, fontSize: headFs);
 
-    final showExtra = lines.any((ln) => Fmt.toDouble(ln['qty_extra']) > 0);
-    final showDisc = lines.any((ln) {
-      final disc = Fmt.toDouble(ln['discount_amount'] ?? ln['discount']);
-      final discInput = Fmt.str(ln['line_discount_input']);
-      return disc > 0 || discInput.isNotEmpty;
-    });
+    const showExtra = true;
+    const showDisc = true;
 
     pw.Widget cell(
       String text, {
@@ -265,7 +217,7 @@ class InvoiceBluetoothReceipt {
       bool ltr = false,
     }) {
       return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 2),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 3),
         child: pw.Text(
           text,
           textAlign: align,

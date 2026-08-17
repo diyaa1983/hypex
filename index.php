@@ -199,6 +199,7 @@ $appBootMigrations = [
     'database/migrations/274_report_oracle_sales_invoice.sql',
     'database/migrations/275_sal_rep_visit_in_plan.sql',
     'database/migrations/276_rep_visit_no_order_reasons.sql',
+    'database/migrations/277_crm_customer_gps_change.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

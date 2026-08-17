@@ -9,6 +9,7 @@ import '../../services/party_statement_bluetooth_receipt.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
+import '../../widgets/cheques_under_collection.dart';
 import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -366,6 +367,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                 : Column(
                     children: [
                       _summary(),
+                      _chequesBlock(),
                       const Divider(height: 1),
                       Expanded(
                         child: rows.isEmpty
@@ -425,6 +427,18 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _chequesBlock() {
+    if (_type != 'customer' || _result == null) {
+      return const SizedBox.shrink();
+    }
+    final rows = ChequeUnderCollection.fromResult(_result);
+    final total = ChequeUnderCollection.totalOf(rows, _result);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: ChequesUnderCollectionTable(rows: rows, total: total),
     );
   }
 

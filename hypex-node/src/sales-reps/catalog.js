@@ -15,6 +15,13 @@ const salesRepsCatalog = [
         path: '/sales-reps/visit-checkout-approve',
         kind: 'list',
       },
+      {
+        r: 'crm_customer_gps_approve',
+        label: 'اعتماد موقع العميل',
+        icon: '📍',
+        path: '/sales-reps/customer-gps-approve',
+        kind: 'list',
+      },
     ],
   },
   {

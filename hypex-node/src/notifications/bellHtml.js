@@ -18,16 +18,19 @@ function renderPanelBody(data) {
   const summary = data.summary || {};
   const alertCount = Number(summary.alert_count || 0);
   const visitCheckoutAlerts = data.visit_checkout_alerts || [];
+  const gpsChangeAlerts = data.gps_change_alerts || [];
   const customerOrderAlerts = data.customer_order_alerts || [];
   const unpostedAlerts = data.unposted_alerts || [];
   const alertChecks = data.alert_checks || [];
   const deliveryAlerts = data.delivery_alerts || [];
   const visitCheckoutCount = Number(summary.visit_checkout_count || 0);
+  const gpsChangeCount = Number(summary.gps_change_count || 0);
   const customerOrderCount = Number(summary.customer_order_count || 0);
   const unpostedCount = Number(summary.unposted_count || 0);
 
   const hasAny =
     visitCheckoutAlerts.length ||
+    gpsChangeAlerts.length ||
     customerOrderAlerts.length ||
     unpostedAlerts.length ||
     alertChecks.length ||
@@ -41,6 +44,34 @@ function renderPanelBody(data) {
   if (!hasAny) {
     html += `<p class="app-check-bell-panel-empty">لا توجد تنبيهات حالياً.</p>`;
     return html;
+  }
+
+  if (gpsChangeAlerts.length) {
+    html += `<p class="app-check-bell-section-title">تعديل موقع عميل بانتظار الاعتماد${
+      gpsChangeCount ? ` (${gpsChangeCount})` : ''
+    }</p><ul class="app-check-bell-list">`;
+    for (const gps of gpsChangeAlerts) {
+      html += `<li>
+        <a class="app-check-bell-item app-check-bell-item--link" href="${esc(gps.url || href('/sales-reps/customer-gps-approve'))}">
+          <span class="dashboard-check-status dashboard-check-status--pending">${esc(
+            gps.urgency_label || 'بانتظار اعتماد الموقع'
+          )}</span>
+          <span class="app-check-bell-item-main">
+            <span class="app-check-bell-item-no">${esc(gps.customer_code || '—')}</span>
+            <span class="app-check-bell-item-party">${esc(gps.customer_name || '—')}${
+        gps.sales_rep_name ? ` · ${esc(gps.sales_rep_name)}` : ''
+      }</span>
+          </span>
+          <span class="app-check-bell-item-meta">${esc(gps.created_at || '—')}</span>
+        </a>
+      </li>`;
+    }
+    html += `</ul>`;
+    if (gpsChangeCount > gpsChangeAlerts.length) {
+      html += `<p class="app-check-bell-panel-more muted">و${
+        gpsChangeCount - gpsChangeAlerts.length
+      } طلباً إضافياً…</p>`;
+    }
   }
 
   if (visitCheckoutAlerts.length) {

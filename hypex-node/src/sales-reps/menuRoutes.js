@@ -1321,6 +1321,129 @@ router.post('/sales-reps/visit-checkout-approve', guard('sales_rep_visit_checkou
   res.redirect('/sales-reps/visit-checkout-approve?' + q.toString());
 });
 
+function fmtGpsCoord(lat, lng) {
+  if (lat == null || lat === '' || lng == null || lng === '') return '—';
+  const a = Number(lat);
+  const b = Number(lng);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return '—';
+  return `${a.toFixed(6)} ، ${b.toFixed(6)}`;
+}
+
+async function renderGpsChangeApprove(req, res, { flash = '', err = '' } = {}) {
+  const status = ['pending', 'approved', 'rejected', 'all'].includes(String(req.query.status || ''))
+    ? String(req.query.status)
+    : 'pending';
+  const focusId = Number(req.query.id || 0) || 0;
+  const rows = await masters.listGpsChangeRequests(status, 200);
+  const msg = flash || String(req.query.msg || '');
+  const error = err || String(req.query.err || '');
+
+  function stLbl(st) {
+    if (st === 'pending') return ui.statusPill('wait', 'معلّق');
+    if (st === 'approved') return ui.statusPill('ok', 'موافق عليه');
+    if (st === 'rejected') return ui.statusPill('lock', 'مرفوض');
+    return esc(st);
+  }
+
+  const tabs = [
+    ['pending', 'معلّق'],
+    ['approved', 'موافق عليه'],
+    ['rejected', 'مرفوض'],
+    ['all', 'الكل'],
+  ]
+    .map(
+      ([k, lab]) =>
+        `<a class="si-btn${status === k ? ' si-btn--primary' : ''}" href="/sales-reps/customer-gps-approve?status=${k}">${esc(
+          lab
+        )}</a>`
+    )
+    .join(' ');
+
+  const rowsHtml =
+    rows
+      .map((r) => {
+        const id = Number(r.id) || 0;
+        const st = String(r.status || '');
+        const focus = focusId > 0 && focusId === id;
+        const clear = Number(r.clear_gps) === 1;
+        const actions =
+          st === 'pending'
+            ? `<form method="post" action="/sales-reps/customer-gps-approve" style="display:flex;gap:.35rem;flex-wrap:wrap;align-items:center">
+                <input type="hidden" name="id" value="${id}">
+                <input type="hidden" name="status" value="${esc(status)}">
+                <input class="si-field" type="text" name="note" placeholder="ملاحظة" style="min-width:8rem">
+                <button class="si-btn si-btn--primary" type="submit" name="action" value="approve">موافقة</button>
+                <button class="si-btn" type="submit" name="action" value="reject">رفض</button>
+              </form>`
+            : `<span class="muted">${esc(r.decided_by_name || '')}</span>`;
+        return `<tr${focus ? ' style="background:#fff7ed"' : ''}>
+          <td class="si-num" dir="ltr">${id}</td>
+          <td>${esc(r.sales_rep_name || '—')}</td>
+          <td>${esc(r.customer_name || '—')}<div class="muted" dir="ltr">${esc(r.customer_code || '')}</div></td>
+          <td class="si-num" dir="ltr">${esc(fmtGpsCoord(r.old_latitude, r.old_longitude))}</td>
+          <td class="si-num" dir="ltr">${clear ? 'مسح الموقع' : esc(fmtGpsCoord(r.new_latitude, r.new_longitude))}</td>
+          <td class="si-num" dir="ltr">${esc(r.created_at || '')}</td>
+          <td>${stLbl(st)}</td>
+          <td>${actions}</td>
+        </tr>`;
+      })
+      .join('') || ui.emptyRow(8, status === 'pending' ? 'لا توجد طلبات معلّقة.' : 'لا توجد طلبات.');
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '📍',
+        kicker: KICKER,
+        title: 'اعتماد تعديل موقع العميل',
+        subtitle: 'الحفظ الأول يتم مباشرة. أي تعديل لاحق يحتاج موافقة مدير المبيعات قبل تطبيقه.',
+        actions: [
+          { label: 'الجولات', href: '/sales-reps/route' },
+          { label: 'اعتماد خروج يدوي', href: '/sales-reps/visit-checkout-approve' },
+        ],
+      })}
+      ${msg ? `<p class="si-pill si-pill--ok" style="display:inline-block">${esc(msg)}</p>` : ''}
+      ${error ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(error)}</p>` : ''}
+      <section class="si-surface no-print" style="padding:.85rem 1rem;margin-bottom:.75rem">
+        <div class="si-meta" style="align-items:center;gap:.4rem">${tabs}</div>
+        <p class="muted" style="margin:.65rem 0 0;font-size:.82rem">${rows.length} طلب</p>
+      </section>
+      ${ui.tableSurface(
+        'طلبات تعديل موقع العميل',
+        `${rows.length} صف`,
+        ['#', 'المندوب', 'العميل', 'الموقع الحالي', 'الموقع المطلوب', 'وقت الطلب', 'الحالة', ''],
+        rowsHtml
+      )}
+    </div>`;
+
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'اعتماد موقع العميل',
+      bodyHtml: body,
+    })
+  );
+}
+
+router.get('/sales-reps/customer-gps-approve', guard('crm_customer_gps_approve'), (req, res) => {
+  return renderGpsChangeApprove(req, res);
+});
+
+router.post('/sales-reps/customer-gps-approve', guard('crm_customer_gps_approve'), async (req, res) => {
+  const body = req.body || {};
+  const result = await masters.decideGpsChangeRequest({
+    id: body.id,
+    approve: String(body.action || '') === 'approve',
+    userId: req.session.user && req.session.user.id,
+    note: body.note || null,
+  });
+  const status = String(body.status || req.query.status || 'pending');
+  const q = new URLSearchParams();
+  q.set('status', status);
+  if (result.ok) q.set('msg', result.message || 'تم');
+  else q.set('err', result.message || 'تعذّر التنفيذ');
+  res.redirect('/sales-reps/customer-gps-approve?' + q.toString());
+});
+
 /* ── تقرير الجولات ── */
 router.get('/sales-reps/reports/tours', async (req, res) => {
   if (

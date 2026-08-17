@@ -206,6 +206,72 @@ class BluetoothPrintService {
     }
   }
 
+  /// تحويل PDF إلى ESC/POS بعرض مضاعف لـ 8 حتى لا ينهار imageRaster.
+  static Future<List<int>> escPosFromPdf(
+    Uint8List pdfBytes, {
+    required int paperMm,
+    int dpi = 203,
+  }) async {
+    final profile = await CapabilityProfile.load();
+    final paper = paperMm == 80 ? PaperSize.mm80 : PaperSize.mm58;
+    final generator = Generator(paper, profile);
+    final targetWidth = paperMm == 80 ? 576 : 384;
+    final chunks = <int>[];
+    chunks.addAll(List<int>.from(generator.reset()));
+
+    var pageCount = 0;
+    await for (final page in Printing.raster(pdfBytes, dpi: dpi.toDouble())) {
+      pageCount++;
+      final png = await page.toPng();
+      final decoded = img.decodeImage(Uint8List.fromList(png));
+      if (decoded == null) continue;
+      final prepared = _prepareRasterImage(decoded, targetWidth);
+      for (final slice in _sliceRaster(prepared, 400)) {
+        chunks.addAll(
+          List<int>.from(
+            generator.imageRaster(
+              slice,
+              imageFn: PosImageFn.bitImageRaster,
+            ),
+          ),
+        );
+      }
+      chunks.addAll(List<int>.from(generator.feed(2)));
+    }
+
+    if (pageCount == 0) {
+      throw StateError('تعذر تحويل PDF للطباعة.');
+    }
+    chunks.addAll(List<int>.from(generator.cut()));
+    return chunks;
+  }
+
+  static img.Image _prepareRasterImage(img.Image decoded, int targetWidth) {
+    var resized = decoded;
+    if (decoded.width != targetWidth) {
+      resized = img.copyResize(
+        decoded,
+        width: targetWidth,
+        interpolation: img.Interpolation.average,
+      );
+    }
+    return flattenOnWhite(resized);
+  }
+
+  static List<img.Image> _sliceRaster(img.Image src, int maxHeight) {
+    if (src.height <= maxHeight) return [src];
+    final slices = <img.Image>[];
+    var y = 0;
+    while (y < src.height) {
+      final h = src.height - y < maxHeight ? src.height - y : maxHeight;
+      slices.add(
+        img.copyCrop(src, x: 0, y: y, width: src.width, height: h),
+      );
+      y += h;
+    }
+    return slices;
+  }
+
   static Future<void> _printPdfViaBluetooth(
     Uint8List pdfBytes,
     BluetoothPrinterConfig cfg,
@@ -218,45 +284,9 @@ class BluetoothPrintService {
       );
     }
 
-    final profile = await CapabilityProfile.load();
-    final paper = cfg.paperMm == 80 ? PaperSize.mm80 : PaperSize.mm58;
-    final generator = Generator(paper, profile);
-    final targetWidth = cfg.paperMm == 80 ? 576 : 384;
-
-    final chunks = <int>[];
-    chunks.addAll(generator.reset());
-
-    var pageCount = 0;
-    await for (final page in Printing.raster(pdfBytes, dpi: 150)) {
-      pageCount++;
-      final png = await page.toPng();
-      final decoded = img.decodeImage(Uint8List.fromList(png));
-      if (decoded == null) continue;
-      var resized = decoded;
-      if (decoded.width > targetWidth) {
-        resized = img.copyResize(
-          decoded,
-          width: targetWidth,
-          interpolation: img.Interpolation.average,
-        );
-      }
-      chunks.addAll(
-        generator.imageRaster(
-          flattenOnWhite(resized),
-          imageFn: PosImageFn.bitImageRaster,
-        ),
-      );
-      chunks.addAll(generator.feed(2));
-    }
-
-    if (pageCount == 0) {
-      throw StateError('تعذر تحويل PDF للطباعة.');
-    }
-
-    chunks.addAll(generator.cut());
+    final chunks = await escPosFromPdf(pdfBytes, paperMm: cfg.paperMm);
     final written = await writeBytes(chunks);
     if (!written) {
-      // محاولة واحدةعادة اتصال واحدة ثم إرسال مرة واحدةخيرة.
       await disconnect();
       final reconnected = await connect(cfg.mac);
       if (!reconnected || !await writeBytes(chunks)) {

@@ -1,18 +1,14 @@
 import 'dart:io';
 
-import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
 import 'print_brand.dart';
-import 'thermal_raster.dart';
 
 /// كشف حساب حراري بحجم ورق Bluetooth (58/80 مم).
 class PartyStatementBluetoothReceipt {
@@ -26,52 +22,12 @@ class PartyStatementBluetoothReceipt {
     if (kIsWeb || !Platform.isAndroid) {
       return 'الطباعة الحرارية متاحة على أندرويد فقط.';
     }
-
     try {
       final pdfBytes = await buildThermalPdf(data, paperMm: cfg.paperMm);
-      final okConnect = await BluetoothPrintService.connect(cfg.mac);
-      if (!okConnect) {
-        return 'تعذر الاتصال بالطابعة «${cfg.displayLabel}». تأكد أنها مشغّلة ومقترنة.';
-      }
-
-      final profile = await CapabilityProfile.load();
-      final paper = cfg.paperMm == 80 ? PaperSize.mm80 : PaperSize.mm58;
-      final generator = Generator(paper, profile);
-      final targetWidth = cfg.paperMm == 80 ? 576 : 384;
-
-      final chunks = <int>[];
-      chunks.addAll(generator.reset());
-
-      var pages = 0;
-      await for (final page in Printing.raster(pdfBytes, dpi: 180)) {
-        pages++;
-        final png = await page.toPng();
-        final decoded = img.decodeImage(Uint8List.fromList(png));
-        if (decoded == null) continue;
-        var resized = decoded;
-        if (decoded.width != targetWidth) {
-          resized = img.copyResize(
-            decoded,
-            width: targetWidth,
-            interpolation: img.Interpolation.average,
-          );
-        }
-        chunks.addAll(
-          generator.imageRaster(
-            flattenOnWhite(resized),
-            imageFn: PosImageFn.bitImageRaster,
-          ),
-        );
-        chunks.addAll(generator.feed(1));
-      }
-      if (pages == 0) {
-        return 'تعذر تجهيز إيصال الطباعة.';
-      }
-      chunks.addAll(generator.feed(2));
-      chunks.addAll(generator.cut());
-
-      final written = await BluetoothPrintService.writeBytes(chunks);
-      return written ? null : 'فشل إرسال البيانات للطابعة.';
+      return BluetoothPrintService.printPdfBytes(
+        pdfBytes,
+        jobName: 'كشف_${Fmt.str(data['party_name'])}',
+      );
     } catch (e) {
       return 'تعذر طباعة الكشف: $e';
     }
@@ -116,9 +72,18 @@ class PartyStatementBluetoothReceipt {
       }
     }
 
-    final fs = paperMm == 80 ? 8.5 : 7.5;
-    final fsSm = paperMm == 80 ? 7.5 : 6.5;
-    final fsTable = paperMm == 80 ? 6.8 : 5.2;
+    final cheques = <Map<String, dynamic>>[];
+    final rawCheques = data['cheques'];
+    if (rawCheques is List) {
+      for (final e in rawCheques) {
+        if (e is Map) cheques.add(e.cast<String, dynamic>());
+      }
+    }
+    final chequeTotal = Fmt.toDouble(data['cheque_total']);
+
+    final fs = paperMm == 80 ? 13.0 : 11.0;
+    final fsSm = paperMm == 80 ? 11.0 : 9.5;
+    final fsTable = paperMm == 80 ? 10.0 : 8.5;
 
     final brandHeader = await PrintBrand.header(
       paperMm: paperMm,
@@ -167,6 +132,16 @@ class PartyStatementBluetoothReceipt {
                   fsSm),
               _kv('الرصيد الختامي', Fmt.money(closing), fontReg, fontBold, fs),
               pw.SizedBox(height: 8),
+              pw.Divider(thickness: 0.8),
+              _chequesTable(
+                cheques,
+                chequeTotal,
+                fontReg,
+                fontBold,
+                fsTable,
+                paperMm,
+              ),
+              pw.SizedBox(height: 8),
               pw.Center(
                 child: pw.Text(
                   'شكراً لتعاملكم',
@@ -203,7 +178,7 @@ class PartyStatementBluetoothReceipt {
       int maxLines = 3,
     }) {
       return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 1, vertical: 1.2),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 2.4),
         child: pw.Text(
           text,
           textAlign: align,
@@ -361,6 +336,119 @@ class PartyStatementBluetoothReceipt {
     final mm = d.month.toString().padLeft(2, '0');
     final yy = (d.year % 100).toString().padLeft(2, '0');
     return '$dd/$mm/$yy';
+  }
+
+  static pw.Widget _chequesTable(
+    List<Map<String, dynamic>> cheques,
+    double chequeTotal,
+    pw.Font reg,
+    pw.Font bold,
+    double fs,
+    int paperMm,
+  ) {
+    final headStyle = pw.TextStyle(font: bold, fontSize: fs);
+    final cellStyle = pw.TextStyle(font: reg, fontSize: fs);
+    pw.Widget cell(
+      String text, {
+      bool head = false,
+      bool ltr = false,
+      bool strong = false,
+    }) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 2.4),
+        child: pw.Text(
+          text,
+          textAlign: pw.TextAlign.center,
+          textDirection: ltr ? pw.TextDirection.ltr : pw.TextDirection.rtl,
+          style: head || strong ? headStyle : cellStyle,
+        ),
+      );
+    }
+
+    List<pw.Widget> rtl(List<pw.Widget> cells) => cells.reversed.toList();
+    final rows = <pw.TableRow>[
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+        children: rtl([
+          cell('الشيك', head: true),
+          cell('التاريخ', head: true),
+          cell('قيمة الشيك', head: true),
+          cell('تاريخ القبض', head: true),
+        ]),
+      ),
+    ];
+    if (cheques.isEmpty) {
+      rows.add(
+        pw.TableRow(
+          children: rtl([
+            cell('لا توجد شيكات قيد التحصيل.'),
+            cell(''),
+            cell(''),
+            cell(''),
+          ]),
+        ),
+      );
+    } else {
+      var sum = 0.0;
+      for (final ch in cheques) {
+        final no = Fmt.str(ch['chq_no'] ?? ch['cheque_no'] ?? ch['check_no']);
+        final date = _shortDate(
+          Fmt.str(ch['chq_date'] ?? ch['due_date'] ?? ch['date']),
+        );
+        final amt = Fmt.toDouble(ch['amount'] ?? ch['amt']);
+        sum += amt;
+        final recv = _shortDate(
+          Fmt.str(ch['receipt_date'] ?? ch['recv_date']),
+        );
+        rows.add(
+          pw.TableRow(
+            children: rtl([
+              cell(no.isEmpty ? '—' : no, ltr: true),
+              cell(date.isEmpty ? '—' : date, ltr: true),
+              cell(_amount(amt, group: paperMm == 80), ltr: true, strong: true),
+              cell(recv.isEmpty ? '—' : recv, ltr: true),
+            ]),
+          ),
+        );
+      }
+      if (chequeTotal <= 0) chequeTotal = sum;
+    }
+    rows.add(
+      pw.TableRow(
+        children: rtl([
+          cell('مجموع الشيكات قيد التحصيل', strong: true),
+          cell(''),
+          cell(
+            _amount(chequeTotal, group: paperMm == 80),
+            ltr: true,
+            strong: true,
+          ),
+          cell(''),
+        ]),
+      ),
+    );
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Text(
+          'الشيكات قيد التحصيل',
+          textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(font: bold, fontSize: fs + 1),
+        ),
+        pw.SizedBox(height: 4),
+        pw.Table(
+          border: pw.TableBorder.all(width: 0.3, color: PdfColors.grey700),
+          columnWidths: {
+            0: const pw.FlexColumnWidth(1.2),
+            1: const pw.FlexColumnWidth(1.3),
+            2: const pw.FlexColumnWidth(1.2),
+            3: const pw.FlexColumnWidth(1.1),
+          },
+          children: rows,
+        ),
+      ],
+    );
   }
 
   static pw.Widget _kv(

@@ -188,6 +188,8 @@ return [
                     'items' => [
                         ['r' => 'sales_reps', 'label' => 'المندوبين', 'icon' => '🧑‍💼'],
                         ['r' => 'sales_rep_route', 'label' => 'الجولات', 'icon' => '🗺️'],
+                        ['r' => 'sales_rep_visit_checkout_approve', 'label' => 'اعتماد خروج يدوي', 'icon' => '🚪'],
+                        ['r' => 'crm_customer_gps_approve', 'label' => 'اعتماد موقع العميل', 'icon' => '📍'],
                     ],
                 ],
                 [

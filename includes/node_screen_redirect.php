@@ -100,6 +100,7 @@ function node_desktop_screen_path_map(): array
         'report_sales_rep_tours' => '/sales-reps/reports/tours',
         'report_sales_rep_visits' => '/sales-reps/reports/visits',
         'sales_rep_visit_checkout_approve' => '/sales-reps/visit-checkout-approve',
+        'crm_customer_gps_approve' => '/sales-reps/customer-gps-approve',
         'warehouses' => '/inventory/warehouses',
         'items' => '/inventory/items',
         'item_categories' => '/inventory/categories',

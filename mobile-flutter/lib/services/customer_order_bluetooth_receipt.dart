@@ -39,7 +39,7 @@ class CustomerOrderBluetoothReceipt {
         .whereType<Map>()
         .map((e) => e.cast<String, dynamic>())
         .toList();
-    final fs = paperMm == 80 ? 8.5 : 7.5;
+    final fs = paperMm == 80 ? 12.0 : 10.0;
     pw.Widget kv(String label, String value) => pw.Padding(
           padding: const pw.EdgeInsets.only(bottom: 2),
           child: pw.Row(children: [
@@ -50,14 +50,18 @@ class CustomerOrderBluetoothReceipt {
             ),
           ]),
         );
+    final cellFs = paperMm == 80 ? 10.0 : 8.5;
     pw.Widget cell(String text, {bool head = false, bool ltr = false}) =>
         pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 3),
           child: pw.Text(
             text,
             textAlign: pw.TextAlign.center,
             textDirection: ltr ? pw.TextDirection.ltr : pw.TextDirection.rtl,
-            style: pw.TextStyle(font: head ? bold : reg, fontSize: fs - .5),
+            style: pw.TextStyle(
+              font: head || !ltr ? bold : reg,
+              fontSize: cellFs,
+            ),
           ),
         );
 
@@ -96,24 +100,26 @@ class CustomerOrderBluetoothReceipt {
           pw.SizedBox(height: 5),
           pw.Table(
             border: pw.TableBorder.all(width: .35, color: PdfColors.grey700),
-            columnWidths: const {
-              0: pw.FlexColumnWidth(3.2),
-              1: pw.FlexColumnWidth(1.4),
-              2: pw.FlexColumnWidth(1.0),
+            columnWidths: {
+              0: pw.FlexColumnWidth(paperMm == 80 ? 0.85 : 0.8),
+              1: pw.FlexColumnWidth(paperMm == 80 ? 0.9 : 0.85),
+              2: pw.FlexColumnWidth(paperMm == 80 ? 0.75 : 0.7),
+              3: pw.FlexColumnWidth(paperMm == 80 ? 0.85 : 0.8),
+              4: const pw.FlexColumnWidth(2.5),
             },
             children: [
               pw.TableRow(
                 decoration: const pw.BoxDecoration(color: PdfColors.grey300),
                 children: [
+                  cell('خصم', head: true),
+                  cell('سعر', head: true),
+                  cell('إض.', head: true),
+                  cell('كمية', head: true),
                   cell('المادة', head: true),
-                  cell('الوحدة', head: true),
-                  cell('الكمية', head: true),
                 ],
               ),
               for (final line in lines)
                 () {
-                  final unitName =
-                      Fmt.str(line['unit_name'] ?? line['unit']);
                   var factor = Fmt.toDouble(line['unit_factor'] ?? 1);
                   if (factor <= 0) factor = 1;
                   final pack = factor > 1.0000001
@@ -127,10 +133,19 @@ class CustomerOrderBluetoothReceipt {
                     itemName = '$itemName (تعبئة × $pack)';
                   }
                   final qty = Fmt.toDouble(line['qty']);
+                  final extra = Fmt.toDouble(line['qty_extra']);
+                  final price = Fmt.toDouble(
+                    line['unit_price'] ?? line['price'] ?? line['sale_price'],
+                  );
+                  final disc = Fmt.toDouble(
+                    line['discount_amount'] ?? line['discount'],
+                  );
                   return pw.TableRow(children: [
-                    cell(itemName),
-                    cell(unitName),
+                    cell(disc > 0 ? Fmt.money(disc) : '', ltr: true),
+                    cell(price == 0 ? '' : Fmt.money(price), ltr: true),
+                    cell(extra > 0 ? Fmt.trimNum(extra) : '', ltr: true),
                     cell(qty == 0 ? '' : Fmt.trimNum(qty), ltr: true),
+                    cell(itemName.isEmpty ? 'مادة' : itemName),
                   ]);
                 }(),
             ],

@@ -885,12 +885,28 @@ function crm_mobile_customer_update_for_user(
     $gpsProvided = array_key_exists('latitude', $fields)
         || array_key_exists('longitude', $fields)
         || !empty($fields['clear_gps']);
+    $gpsResult = null;
     if ($gpsProvided) {
+        require_once app_path('includes/crm_customer_gps_change.php');
         $gps = crm_customer_gps_parse_input($fields);
-        if ($gps['clear']) {
+        $isAdmin = function_exists('user_is_system_admin') && user_is_system_admin();
+        $hasSaved = crm_customer_has_saved_gps($pdo, $customerId);
+        if ($hasSaved && !$isAdmin) {
+            $gpsResult = crm_customer_gps_submit_change(
+                $pdo,
+                $customerId,
+                $userId,
+                $repId,
+                $gps
+            );
+            if (empty($gpsResult['ok'])) {
+                return $gpsResult;
+            }
+        } elseif ($gps['clear']) {
             $sets[] = 'latitude = NULL';
             $sets[] = 'longitude = NULL';
             $sets[] = 'gps_accuracy = NULL';
+            $sets[] = 'gps_at = NULL';
         } elseif ($gps['latitude'] !== null && $gps['longitude'] !== null) {
             $sets[] = 'latitude = ?';
             $params[] = $gps['latitude'];
@@ -902,20 +918,31 @@ function crm_mobile_customer_update_for_user(
         }
     }
 
-    if ($sets === []) {
+    if ($sets === [] && $gpsResult === null) {
         return ['ok' => false, 'message' => 'لا توجد بيانات للتعديل.'];
     }
 
-    $params[] = $customerId;
-    $sql = 'UPDATE crm_customer SET ' . implode(', ', $sets) . ' WHERE id = ?';
-    $pdo->prepare($sql)->execute($params);
+    if ($sets !== []) {
+        $params[] = $customerId;
+        $sql = 'UPDATE crm_customer SET ' . implode(', ', $sets) . ' WHERE id = ?';
+        $pdo->prepare($sql)->execute($params);
+    }
 
-    if ($repId !== null && !empty($fields['latitude']) && !empty($fields['longitude'])) {
+    if ($repId !== null && !empty($fields['latitude']) && !empty($fields['longitude'])
+        && ($gpsResult === null || empty($gpsResult['pending']))) {
         try {
             require_once app_path('includes/sal_rep_route.php');
             sal_rep_route_add_customer_today($pdo, $repId, $customerId, $userId);
         } catch (Throwable $e) {
         }
+    }
+
+    if (is_array($gpsResult) && !empty($gpsResult['pending'])) {
+        return [
+            'ok' => true,
+            'pending' => true,
+            'message' => (string) $gpsResult['message'],
+        ];
     }
 
     return ['ok' => true, 'message' => 'تم حفظ بيانات العميل.'];

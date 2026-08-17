@@ -52,6 +52,7 @@ function emptyPayload() {
     unposted_alerts: [],
     customer_order_alerts: [],
     visit_checkout_alerts: [],
+    gps_change_alerts: [],
     summary: {
       total: 0,
       overdue: 0,
@@ -62,6 +63,7 @@ function emptyPayload() {
       unposted_count: 0,
       customer_order_count: 0,
       visit_checkout_count: 0,
+      gps_change_count: 0,
     },
     soon_days: 7,
   };
@@ -202,6 +204,38 @@ async function collectVisitCheckout(user) {
     url: href(`/sales-reps/visit-checkout-approve?status=pending`),
     urgency_label: 'بانتظار اعتماد الخروج',
     type_label: 'خروج يدوي من زيارة',
+  }));
+  return { items, count: count || items.length };
+}
+
+async function collectGpsChange(user) {
+  if (!userCan(user, 'crm_customer_gps_approve') && !user.is_admin) {
+    return { items: [], count: 0 };
+  }
+  if (!(await tableExists('crm_customer_gps_change'))) return { items: [], count: 0 };
+  const count = await safeCount(
+    `SELECT COUNT(*) AS c FROM crm_customer_gps_change WHERE status = 'pending'`
+  );
+  const rows = await safeQuery(
+    `SELECT q.id, q.created_at,
+            c.name_ar AS customer_name, c.code AS customer_code,
+            COALESCE(sr.name_ar,'') AS sales_rep_name
+     FROM crm_customer_gps_change q
+     INNER JOIN crm_customer c ON c.id = q.customer_id
+     LEFT JOIN crm_sales_rep sr ON sr.id = q.sales_rep_id
+     WHERE q.status = 'pending'
+     ORDER BY q.created_at ASC, q.id ASC
+     LIMIT ${LIST_LIMIT}`
+  );
+  const items = rows.map((row) => ({
+    id: Number(row.id),
+    customer_name: String(row.customer_name || ''),
+    customer_code: String(row.customer_code || ''),
+    sales_rep_name: String(row.sales_rep_name || ''),
+    created_at: String(row.created_at || ''),
+    url: href(`/sales-reps/customer-gps-approve?id=${Number(row.id)}&status=pending`),
+    urgency_label: 'بانتظار اعتماد الموقع',
+    type_label: 'تعديل موقع عميل',
   }));
   return { items, count: count || items.length };
 }
@@ -524,6 +558,7 @@ function userCanSeeBell(user) {
       'sales_delivery',
       'sales_customer_orders_approve',
       'sales_rep_visit_checkout_approve',
+      'crm_customer_gps_approve',
       'fin_checks',
     ]) || !!user.is_admin
   );
@@ -533,9 +568,10 @@ async function collectInbox(user) {
   const empty = emptyPayload();
   if (!user || !userCanSeeBell(user)) return empty;
 
-  const [orders, visits, unposted, checks, deliveries] = await Promise.all([
+  const [orders, visits, gpsChanges, unposted, checks, deliveries] = await Promise.all([
     collectCustomerOrders(user),
     collectVisitCheckout(user),
+    collectGpsChange(user),
     collectUnposted(user),
     collectDueChecks(user),
     collectDeliveries(user),
@@ -548,13 +584,15 @@ async function collectInbox(user) {
     unposted_count: unposted.count,
     customer_order_count: orders.count,
     visit_checkout_count: visits.count,
+    gps_change_count: gpsChanges.count,
   };
   summary.alert_count =
     checks.items.length +
     summary.delivery_count +
     summary.unposted_count +
     summary.customer_order_count +
-    summary.visit_checkout_count;
+    summary.visit_checkout_count +
+    summary.gps_change_count;
 
   return {
     enabled: true,
@@ -563,6 +601,7 @@ async function collectInbox(user) {
     unposted_alerts: unposted.items,
     customer_order_alerts: orders.items,
     visit_checkout_alerts: visits.items,
+    gps_change_alerts: gpsChanges.items,
     summary,
     soon_days: 7,
   };

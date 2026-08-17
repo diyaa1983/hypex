@@ -1193,6 +1193,87 @@ async function decideVisitCheckoutRequest({ id, approve, userId, note = null }) 
   return { ok: true, message: 'تمت الموافقة وتسجيل الخروج اليدوي.' };
 }
 
+async function listGpsChangeRequests(status = 'pending', limit = 200) {
+  const st = ['pending', 'approved', 'rejected', 'all'].includes(String(status))
+    ? String(status)
+    : 'pending';
+  const lim = Math.min(300, Math.max(1, Number(limit) || 200));
+  const where = st === 'all' ? '' : 'WHERE q.status = ?';
+  const params = st === 'all' ? [] : [st];
+  try {
+    return await safeQuery(
+      `SELECT q.*, c.name_ar AS customer_name, c.code AS customer_code,
+              COALESCE(sr.name_ar,'') AS sales_rep_name,
+              COALESCE(u.username,'') AS requested_by_name,
+              COALESCE(du.username,'') AS decided_by_name
+       FROM crm_customer_gps_change q
+       INNER JOIN crm_customer c ON c.id = q.customer_id
+       LEFT JOIN crm_sales_rep sr ON sr.id = q.sales_rep_id
+       LEFT JOIN sys_user u ON u.id = q.requested_by
+       LEFT JOIN sys_user du ON du.id = q.decided_by
+       ${where}
+       ORDER BY q.created_at DESC, q.id DESC
+       LIMIT ${lim}`,
+      params
+    );
+  } catch (e) {
+    console.error('listGpsChangeRequests', e.message);
+    return [];
+  }
+}
+
+async function decideGpsChangeRequest({ id, approve, userId, note = null }) {
+  const reqId = Number(id) || 0;
+  const uid = Number(userId) || 0;
+  if (reqId < 1) return { ok: false, message: 'طلب غير صالح.' };
+  const conn = await db.getPool().getConnection();
+  try {
+    const [rows] = await conn.execute(
+      'SELECT * FROM crm_customer_gps_change WHERE id=? LIMIT 1',
+      [reqId]
+    );
+    const req = rows && rows[0];
+    if (!req) return { ok: false, message: 'الطلب غير موجود.' };
+    if (String(req.status || '') !== 'pending') {
+      return { ok: false, message: 'هذا الطلب سبق البت فيه.' };
+    }
+    await conn.beginTransaction();
+    if (approve) {
+      if (Number(req.clear_gps) === 1) {
+        await conn.execute(
+          'UPDATE crm_customer SET latitude=NULL, longitude=NULL, gps_accuracy=NULL, gps_at=NULL WHERE id=?',
+          [req.customer_id]
+        );
+      } else {
+        await conn.execute(
+          'UPDATE crm_customer SET latitude=?, longitude=?, gps_accuracy=?, gps_at=NOW() WHERE id=?',
+          [req.new_latitude, req.new_longitude, req.new_accuracy, req.customer_id]
+        );
+      }
+    }
+    const noteVal = note != null && String(note).trim() !== '' ? String(note).trim() : null;
+    await conn.execute(
+      `UPDATE crm_customer_gps_change
+       SET status=?, decided_by=?, decided_at=NOW(), decision_note=?
+       WHERE id=?`,
+      [approve ? 'approved' : 'rejected', uid, noteVal, reqId]
+    );
+    await conn.commit();
+    return {
+      ok: true,
+      message: approve ? 'تم اعتماد موقع العميل.' : 'تم رفض تعديل الموقع.',
+    };
+  } catch (e) {
+    try {
+      await conn.rollback();
+    } catch (_) {}
+    console.error('decideGpsChangeRequest', e.message);
+    return { ok: false, message: 'تعذر حفظ القرار.' };
+  } finally {
+    conn.release();
+  }
+}
+
 /* توافق خلفي لأسماء قديمة */
 const listRoutes = listTours;
 const getRoute = getTour;
@@ -1220,6 +1301,8 @@ module.exports = {
   reportVisits,
   listVisitCheckoutRequests,
   decideVisitCheckoutRequest,
+  listGpsChangeRequests,
+  decideGpsChangeRequest,
   ensureTourSchema,
   monthBoundsIso,
   normalizeIsoDate,

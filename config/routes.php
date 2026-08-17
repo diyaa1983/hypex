@@ -90,6 +90,11 @@ return [
         'permission' => 'sales_rep_visit_checkout_approve',
         'title' => 'اعتماد خروج يدوي من الزيارة',
     ],
+    'crm_customer_gps_approve' => [
+        'file' => 'modules/sales/customer_gps_change_approve.php',
+        'permission' => 'crm_customer_gps_approve',
+        'title' => 'اعتماد تعديل موقع العميل',
+    ],
     'report_sales_rep_tours' => [
         'file' => 'modules/reports/sales_rep_tours.php',
         'permission' => 'report_sales_rep_tours',

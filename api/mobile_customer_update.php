@@ -54,7 +54,11 @@ try {
         echo json_encode(['ok' => false, 'error' => 'validation', 'message' => $result['message']], JSON_UNESCAPED_UNICODE);
         exit;
     }
-    echo json_encode(['ok' => true, 'message' => $result['message']], JSON_UNESCAPED_UNICODE);
+    echo json_encode([
+        'ok' => true,
+        'pending' => !empty($result['pending']),
+        'message' => $result['message'],
+    ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     error_log('mobile_customer_update: ' . $e->getMessage());
     http_response_code(500);

@@ -13,6 +13,7 @@ import '../../widgets/async_view.dart';
 import '../../widgets/item_picker.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
+import '../../widgets/cheques_under_collection.dart';
 import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -529,7 +530,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   ],
                 ])),
             if (_customer != null) ...[
-              const DocumentSectionDivider('ملخص حساب العميل (Oracle)'),
+              const DocumentSectionDivider('ملخص حساب العميل'),
               AppCard(
                 child: _arLoading
                     ? const Padding(
@@ -572,101 +573,16 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 '${Fmt.toInt(_arSummary?['cheque_count'])} · ${Fmt.money(Fmt.toDouble(_arSummary?['cheque_total']))}',
                                 ltr: true,
                               ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    final c = _customer!;
-                                    final q = {
-                                      'customer_id': '${c.id}',
-                                      if (c.name.isNotEmpty)
-                                        'customer_name': c.name,
-                                      if (c.code.isNotEmpty)
-                                        'customer_code': c.code,
-                                    };
-                                    final qs = q.entries
-                                        .map((e) =>
-                                            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
-                                        .join('&');
-                                    context.push('/statement?$qs');
-                                  },
-                                  icon: const Icon(Icons.menu_book_outlined),
-                                  label: const Text('كشف حساب عميل Oracle'),
+                              const SizedBox(height: 10),
+                              ChequesUnderCollectionTable(
+                                rows: ChequeUnderCollection.fromResult(
+                                  _arSummary,
+                                ),
+                                total: ChequeUnderCollection.totalOf(
+                                  ChequeUnderCollection.fromResult(_arSummary),
+                                  _arSummary,
                                 ),
                               ),
-                              if ((_arSummary?['cheques'] is List) &&
-                                  (_arSummary!['cheques'] as List)
-                                      .isNotEmpty) ...[
-                                const Divider(),
-                                const Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Text(
-                                    'الشيكات المستحقة',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                ...((_arSummary!['cheques'] as List)
-                                    .whereType<Map>()
-                                    .take(8)
-                                    .map((c) {
-                                  final m = c.cast<String, dynamic>();
-                                  final no = Fmt.str(
-                                    m['cheque_no'] ??
-                                        m['check_no'] ??
-                                        m['num'] ??
-                                        m['doc_no'],
-                                  );
-                                  final amt = Fmt.money(
-                                    Fmt.toDouble(
-                                      m['amount'] ?? m['amt'] ?? m['value'],
-                                    ),
-                                  );
-                                  final due = Fmt.dmy(
-                                    Fmt.str(
-                                      m['due_date'] ??
-                                          m['date'] ??
-                                          m['cheque_date'],
-                                    ),
-                                  );
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            no.isEmpty ? 'شيك' : no,
-                                            style: const TextStyle(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                        Text(
-                                          due,
-                                          style: const TextStyle(
-                                            fontSize: 11.5,
-                                            color: Color(0xFF64748B),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          amt,
-                                          textDirection: TextDirection.ltr,
-                                          style: const TextStyle(
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                })),
-                              ],
                             ],
                           )),
               ),

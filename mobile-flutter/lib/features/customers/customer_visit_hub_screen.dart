@@ -1423,6 +1423,9 @@ class _InfoTabState extends State<_InfoTab> {
   double? _lat;
   double? _lng;
   double? _accuracy;
+  double? _origLat;
+  double? _origLng;
+  bool _hadSavedGps = false;
   bool _saving = false;
   bool _locating = false;
 
@@ -1436,6 +1439,9 @@ class _InfoTabState extends State<_InfoTab> {
     _address = TextEditingController(text: Fmt.str(c['address']));
     _lat = c['latitude'] != null ? Fmt.toDouble(c['latitude']) : null;
     _lng = c['longitude'] != null ? Fmt.toDouble(c['longitude']) : null;
+    _origLat = _lat;
+    _origLng = _lng;
+    _hadSavedGps = _lat != null && _lng != null;
   }
 
   @override
@@ -1498,8 +1504,38 @@ class _InfoTabState extends State<_InfoTab> {
     });
   }
 
+  bool _gpsChanged() {
+    final nowHas = _lat != null && _lng != null;
+    if (_hadSavedGps != nowHas) return true;
+    if (!_hadSavedGps || _lat == null || _lng == null) return false;
+    return (_lat! - (_origLat ?? _lat!)).abs() > 1e-6 ||
+        (_lng! - (_origLng ?? _lng!)).abs() > 1e-6;
+  }
+
   Future<void> _save() async {
     final s = context.read<SessionController>();
+    if (_hadSavedGps && _gpsChanged()) {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('تعديل موقع العميل'),
+          content: const Text(
+            'الموقع محفوظ مسبقاً. سيتم إرسال التعديل لمدير المبيعات للاعتماد، ولن يتغيّر موقع العميل حتى تتم الموافقة.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('إرسال للاعتماد'),
+            ),
+          ],
+        ),
+      );
+      if (go != true || !mounted) return;
+    }
     setState(() => _saving = true);
     try {
       final fields = <String, dynamic>{
@@ -1522,11 +1558,22 @@ class _InfoTabState extends State<_InfoTab> {
             fields: fields,
           );
       if (!mounted) return;
+      final msg = Fmt.str(res['message']);
       showSnack(
-          context,
-          Fmt.str(res['message']).isEmpty
-              ? 'تم حفظ بيانات العميل.'
-              : Fmt.str(res['message']));
+        context,
+        msg.isEmpty ? 'تم حفظ بيانات العميل.' : msg,
+      );
+      if (res['pending'] == true) {
+        setState(() {
+          _lat = _origLat;
+          _lng = _origLng;
+          _accuracy = null;
+        });
+      } else {
+        _origLat = _lat;
+        _origLng = _lng;
+        _hadSavedGps = _lat != null && _lng != null;
+      }
       widget.onSaved();
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -1637,6 +1684,16 @@ class _InfoTabState extends State<_InfoTab> {
                     .textTheme
                     .titleSmall
                     ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _hadSavedGps
+                    ? 'الموقع محفوظ. أي تعديل لاحق يُرسل لمدير المبيعات للاعتماد.'
+                    : 'الحفظ الأول للموقع يتم مباشرة.',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSoft,
+                ),
               ),
               const SizedBox(height: 4),
               Text(

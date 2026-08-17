@@ -58,6 +58,7 @@ function header_check_notifications_empty_payload(): array
         'einvoice_alerts' => [],
         'customer_order_alerts' => [],
         'visit_checkout_alerts' => [],
+        'gps_change_alerts' => [],
         'summary' => [
             'total' => 0,
             'overdue' => 0,
@@ -69,6 +70,7 @@ function header_check_notifications_empty_payload(): array
             'einvoice_count' => 0,
             'customer_order_count' => 0,
             'visit_checkout_count' => 0,
+            'gps_change_count' => 0,
         ],
         'soon_days' => 7,
     ];
@@ -87,6 +89,7 @@ function header_check_notifications_user_can_see_cheap(): bool
         'journal_entries', 'warehouse_moves', 'inventory_stocktake',
         'sales_delivery', 'sales_customer_orders_approve',
         'sales_rep_visit_checkout_approve',
+        'crm_customer_gps_approve',
         'sales_einvoice', 'm_sales_einvoice',
     ];
     foreach ($codes as $code) {
@@ -113,8 +116,10 @@ function header_check_notifications_collect_fresh(PDO $pdo): array
     $canCustomerOrders = sal_customer_order_notifications_user_can_see();
     require_once app_path('includes/sal_rep_visit.php');
     $canVisitCheckout = sal_rep_visit_checkout_notifications_user_can_see();
+    require_once app_path('includes/crm_customer_gps_change.php');
+    $canGpsChange = crm_customer_gps_change_user_can_approve();
 
-    if (!$canChecks && !$canDelivery && !$canUnposted && !$canEinvoice && !$canCustomerOrders && !$canVisitCheckout) {
+    if (!$canChecks && !$canDelivery && !$canUnposted && !$canEinvoice && !$canCustomerOrders && !$canVisitCheckout && !$canGpsChange) {
         $_SESSION['_header_check_notify_v3'] = ['at' => time(), 'data' => $empty];
 
         return $empty;
@@ -127,6 +132,7 @@ function header_check_notifications_collect_fresh(PDO $pdo): array
     $einvoiceAlerts = [];
     $customerOrderAlerts = [];
     $visitCheckoutAlerts = [];
+    $gpsChangeAlerts = [];
     $summary = [
         'total' => 0,
         'overdue' => 0,
@@ -138,6 +144,7 @@ function header_check_notifications_collect_fresh(PDO $pdo): array
         'einvoice_count' => 0,
         'customer_order_count' => 0,
         'visit_checkout_count' => 0,
+        'gps_change_count' => 0,
     ];
     $soonDays = 7;
 
@@ -201,12 +208,21 @@ function header_check_notifications_collect_fresh(PDO $pdo): array
         }
     }
 
+    if ($canGpsChange) {
+        $gpsChangeAlerts = crm_customer_gps_change_pending_alerts($pdo, 20);
+        $summary['gps_change_count'] = count($gpsChangeAlerts);
+        if (count($gpsChangeAlerts) >= 20) {
+            $summary['gps_change_count'] = crm_customer_gps_change_pending_count($pdo);
+        }
+    }
+
     $summary['alert_count'] = count($alertChecks)
         + $summary['delivery_count']
         + $summary['unposted_count']
         + $summary['einvoice_count']
         + $summary['customer_order_count']
-        + $summary['visit_checkout_count'];
+        + $summary['visit_checkout_count']
+        + $summary['gps_change_count'];
 
     $data = [
         'enabled' => true,
@@ -217,6 +233,7 @@ function header_check_notifications_collect_fresh(PDO $pdo): array
         'einvoice_alerts' => $einvoiceAlerts,
         'customer_order_alerts' => $customerOrderAlerts,
         'visit_checkout_alerts' => $visitCheckoutAlerts,
+        'gps_change_alerts' => $gpsChangeAlerts,
         'summary' => $summary,
         'soon_days' => $soonDays,
         '_needs_refresh' => false,
@@ -253,8 +270,12 @@ function header_check_notifications_user_can_see(): bool
         return true;
     }
     require_once app_path('includes/sal_rep_visit.php');
+    if (sal_rep_visit_checkout_notifications_user_can_see()) {
+        return true;
+    }
+    require_once app_path('includes/crm_customer_gps_change.php');
 
-    return sal_rep_visit_checkout_notifications_user_can_see();
+    return crm_customer_gps_change_user_can_approve();
 }
 
 function render_header_check_notifications(array $data): void
@@ -271,10 +292,12 @@ function render_header_check_notifications(array $data): void
     $einvoiceAlerts = $data['einvoice_alerts'] ?? [];
     $customerOrderAlerts = $data['customer_order_alerts'] ?? [];
     $visitCheckoutAlerts = $data['visit_checkout_alerts'] ?? [];
+    $gpsChangeAlerts = $data['gps_change_alerts'] ?? [];
     $unpostedCount = (int) ($summary['unposted_count'] ?? 0);
     $einvoiceCount = (int) ($summary['einvoice_count'] ?? 0);
     $customerOrderCount = (int) ($summary['customer_order_count'] ?? 0);
     $visitCheckoutCount = (int) ($summary['visit_checkout_count'] ?? 0);
+    $gpsChangeCount = (int) ($summary['gps_change_count'] ?? 0);
     $checksJson = json_encode($data['checks'] ?? [], JSON_UNESCAPED_UNICODE);
     if ($checksJson === false) {
         $checksJson = '[]';
@@ -284,6 +307,7 @@ function render_header_check_notifications(array $data): void
     $salesInvoicesUrl = app_url('index.php?r=sales_invoices');
     $customerOrdersApproveUrl = app_url('index.php?r=sales_customer_orders_approve');
     $visitCheckoutApproveUrl = app_url('index.php?r=sales_rep_visit_checkout_approve');
+    $gpsChangeApproveUrl = app_url('index.php?r=crm_customer_gps_approve');
     $soonDays = (int) ($data['soon_days'] ?? 7);
     $hasChecks = $alertChecks !== [];
     $hasDeliveries = $deliveryAlerts !== [];
@@ -291,6 +315,7 @@ function render_header_check_notifications(array $data): void
     $hasEinvoice = $einvoiceAlerts !== [];
     $hasCustomerOrders = $customerOrderAlerts !== [];
     $hasVisitCheckout = $visitCheckoutAlerts !== [];
+    $hasGpsChange = $gpsChangeAlerts !== [];
     $salesInvoicesListUrl = app_url('index.php?r=sales_invoices_list&filter=unposted');
     $salesDocumentsListUrl = app_url('index.php?r=sales_documents_list');
     $salesReturnsDocumentsListUrl = app_url('index.php?r=sales_returns_documents_list');
@@ -324,9 +349,37 @@ function render_header_check_notifications(array $data): void
                 <span class="app-check-bell-panel-count"><?= (int) $alertCount ?> تنبيه</span>
                 <?php endif; ?>
             </header>
-            <?php if (!$hasChecks && !$hasDeliveries && !$hasUnposted && !$hasEinvoice && !$hasCustomerOrders && !$hasVisitCheckout): ?>
+            <?php if (!$hasChecks && !$hasDeliveries && !$hasUnposted && !$hasEinvoice && !$hasCustomerOrders && !$hasVisitCheckout && !$hasGpsChange): ?>
             <p class="app-check-bell-panel-empty">لا توجد تنبيهات حالياً.</p>
             <?php else: ?>
+            <?php if ($hasGpsChange): ?>
+            <p class="app-check-bell-section-title">تعديل موقع عميل بانتظار الاعتماد<?= $gpsChangeCount > 0 ? ' (' . $gpsChangeCount . ')' : '' ?></p>
+            <ul class="app-check-bell-list">
+                <?php foreach ($gpsChangeAlerts as $gps): ?>
+                <li>
+                    <a class="app-check-bell-item app-check-bell-item--link"
+                       href="<?= esc((string) ($gps['url'] ?? $gpsChangeApproveUrl)) ?>">
+                        <span class="dashboard-check-status dashboard-check-status--pending">
+                            <?= esc((string) ($gps['urgency_label'] ?? 'بانتظار اعتماد الموقع')) ?>
+                        </span>
+                        <span class="app-check-bell-item-main">
+                            <span class="app-check-bell-item-no"><?= esc((string) (($gps['customer_code'] ?? '') !== '' ? $gps['customer_code'] : '—')) ?></span>
+                            <span class="app-check-bell-item-party">
+                                <?= esc((string) ($gps['customer_name'] ?? '—')) ?>
+                                <?php if (trim((string) ($gps['sales_rep_name'] ?? '')) !== ''): ?>
+                                · <?= esc((string) $gps['sales_rep_name']) ?>
+                                <?php endif; ?>
+                            </span>
+                        </span>
+                        <span class="app-check-bell-item-meta"><?= esc((string) ($gps['created_at'] ?? '—')) ?></span>
+                    </a>
+                </li>
+                <?php endforeach; ?>
+            </ul>
+            <?php if ($gpsChangeCount > count($gpsChangeAlerts)): ?>
+            <p class="app-check-bell-panel-more muted">و<?= $gpsChangeCount - count($gpsChangeAlerts) ?> طلباً إضافياً…</p>
+            <?php endif; ?>
+            <?php endif; ?>
             <?php if ($hasVisitCheckout): ?>
             <p class="app-check-bell-section-title">خروج يدوي من زيارة بانتظار الاعتماد<?= $visitCheckoutCount > 0 ? ' (' . $visitCheckoutCount . ')' : '' ?></p>
             <ul class="app-check-bell-list">
