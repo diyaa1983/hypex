@@ -3,6 +3,7 @@ package com.gppjo.biodev.namma_mobile
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.pm.PackageManager
@@ -14,21 +15,27 @@ import androidx.core.content.ContextCompat
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.io.IOException
 import java.io.OutputStream
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /**
- * قناة طباعة حرارية خاصة بالتطبيق.
+ * قناة طباعة حرارية داخل التطبيق.
  *
- * السبب: إضافة print_bluetooth_thermal تحتفظ بـ outputStream stale وترجع
- * false من connect دون إعادة اتصال، كما تعتمد فقط على secure SPP بينما
- * طابعات Xprinter (مثل XP-P810) غالباً تحتاج insecure RFCOMM أو channel 1.
+ * لا تعتمد على print_bluetooth_thermal في الاتصال/الإرسال لأن تلك الإضافة:
+ * - ترجع false إن وُجد outputStream قديم
+ * - تستدعي BluetoothSocket.connect على نحو قد يعلّق الواجهة
+ * - لا تجرّب insecure RFCOMM الذي تحتاجه طابعات Xprinter مثل XP-P810
  */
 class ThermalPrinterChannel(private val context: Context) : MethodChannel.MethodCallHandler {
   companion object {
     private const val CHANNEL = "com.gppjo.biodev.namma_mobile/thermal_printer"
     private const val TAG = "ThermalPrinter"
+    private const val CONNECT_TIMEOUT_MS = 6000L
     private val SPP_UUID: UUID =
       UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
@@ -41,6 +48,7 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
 
   private val executor = Executors.newSingleThreadExecutor()
   private val mainHandler = Handler(Looper.getMainLooper())
+  private val lock = Any()
   private var socket: BluetoothSocket? = null
   private var output: OutputStream? = null
   private var connectedMac: String? = null
@@ -49,18 +57,28 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
     mainHandler.post { result.success(value) }
   }
 
+  private fun replyError(result: MethodChannel.Result, code: String, message: String?) {
+    mainHandler.post { result.error(code, message, null) }
+  }
+
   override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
     when (call.method) {
-      "isBluetoothOn" -> result.success(isBluetoothOn())
+      "isBluetoothOn" -> {
+        executor.execute { replySuccess(result, isBluetoothOn()) }
+      }
       "hasPermission" -> result.success(hasBluetoothPermission())
       "pairedDevices" -> {
-        if (!hasBluetoothPermission()) {
-          result.success(emptyList<String>())
-          return
+        executor.execute {
+          if (!hasBluetoothPermission()) {
+            replySuccess(result, emptyList<String>())
+          } else {
+            replySuccess(result, pairedDeviceStrings())
+          }
         }
-        result.success(pairedDeviceStrings())
       }
-      "connectionStatus" -> result.success(isSocketAlive())
+      "connectionStatus" -> {
+        executor.execute { replySuccess(result, isSocketAlive()) }
+      }
       "disconnect" -> {
         executor.execute {
           closeQuietly()
@@ -86,29 +104,48 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
           return
         }
         executor.execute {
-          val ok = connectInternal(mac)
-          replySuccess(result, ok)
+          try {
+            replySuccess(result, connectInternal(mac))
+          } catch (e: Exception) {
+            Log.e(TAG, "connect crashed", e)
+            closeQuietly()
+            replySuccess(result, false)
+          }
         }
       }
       "writeBytes" -> {
-        @Suppress("UNCHECKED_CAST")
-        val list = call.arguments as? List<Int>
-        if (list == null) {
+        val bytes = toByteArray(call.arguments)
+        if (bytes == null) {
           result.success(false)
           return
         }
         executor.execute {
-          val ok = writeInternal(list)
-          replySuccess(result, ok)
+          try {
+            replySuccess(result, writeInternal(bytes))
+          } catch (e: Exception) {
+            Log.e(TAG, "write crashed", e)
+            closeQuietly()
+            replySuccess(result, false)
+          }
         }
       }
       else -> result.notImplemented()
     }
   }
 
+  private fun adapter(): BluetoothAdapter? {
+    val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+    if (manager?.adapter != null) return manager.adapter
+    @Suppress("DEPRECATION")
+    return BluetoothAdapter.getDefaultAdapter()
+  }
+
   private fun isBluetoothOn(): Boolean {
-    val adapter = BluetoothAdapter.getDefaultAdapter() ?: return false
-    return adapter.isEnabled
+    return try {
+      adapter()?.isEnabled == true
+    } catch (_: Exception) {
+      false
+    }
   }
 
   private fun hasBluetoothPermission(): Boolean {
@@ -120,52 +157,56 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
   }
 
   private fun pairedDeviceStrings(): List<String> {
-    val adapter = BluetoothAdapter.getDefaultAdapter() ?: return emptyList()
     return try {
-      adapter.bondedDevices?.map { "${it.name ?: ""}#${it.address}" } ?: emptyList()
+      adapter()?.bondedDevices?.map { "${it.name ?: ""}#${it.address}" } ?: emptyList()
     } catch (e: SecurityException) {
       Log.w(TAG, "pairedDevices denied", e)
+      emptyList()
+    } catch (e: Exception) {
+      Log.w(TAG, "pairedDevices failed", e)
       emptyList()
     }
   }
 
   private fun isSocketAlive(): Boolean {
-    val s = socket
-    val out = output
-    if (s == null || out == null || !s.isConnected) return false
-    return try {
-      // لا نكتب بايتات حقيقية هنا؛ مجرد تحقق من أن المقبس ما زال مفتوحاً.
-      out.flush()
-      true
-    } catch (_: Exception) {
-      closeQuietly()
-      false
+    synchronized(lock) {
+      val s = socket ?: return false
+      val out = output
+      if (out == null || !s.isConnected) {
+        closeQuietlyLocked()
+        return false
+      }
+      return true
     }
   }
 
   private fun connectInternal(macRaw: String): Boolean {
     val mac = macRaw.trim().uppercase()
-    if (isSocketAlive() && connectedMac.equals(mac, ignoreCase = true)) {
-      return true
+    synchronized(lock) {
+      if (isSocketAliveLocked() && connectedMac.equals(mac, ignoreCase = true)) {
+        return true
+      }
+      closeQuietlyLocked()
     }
-    closeQuietly()
 
-    val adapter = BluetoothAdapter.getDefaultAdapter() ?: return false
-    if (!adapter.isEnabled) return false
+    val bluetoothAdapter = adapter() ?: return false
+    if (bluetoothAdapter.isEnabled != true) return false
 
     return try {
       try {
-        adapter.cancelDiscovery()
+        bluetoothAdapter.cancelDiscovery()
       } catch (_: Exception) {
       }
 
-      val device: BluetoothDevice = adapter.getRemoteDevice(normalizeMac(mac))
-      val opened = openSocketWithFallbacks(device) ?: return false
-      socket = opened
-      output = opened.outputStream
-      connectedMac = opened.remoteDevice?.address?.uppercase() ?: mac
+      val device = bluetoothAdapter.getRemoteDevice(normalizeMac(mac))
+      val opened = openSocketWithFallbacks(device, bluetoothAdapter) ?: return false
+      synchronized(lock) {
+        socket = opened
+        output = opened.outputStream
+        connectedMac = opened.remoteDevice?.address?.uppercase() ?: mac
+      }
       // استقرار قناة SPP قبل إرسال ESC/POS (مهم لـ XP-P810).
-      Thread.sleep(400)
+      Thread.sleep(350)
       true
     } catch (e: Exception) {
       Log.e(TAG, "connect failed: ${e.message}", e)
@@ -174,12 +215,20 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
     }
   }
 
+  private fun isSocketAliveLocked(): Boolean {
+    val s = socket ?: return false
+    val out = output
+    if (out == null || !s.isConnected) {
+      closeQuietlyLocked()
+      return false
+    }
+    return true
+  }
+
   private fun normalizeMac(mac: String): String {
     val cleaned = mac.replace("-", ":").uppercase()
-    // إن وُجد الجهاز في القائمة المقترنة نستخدم عنوانه كما هو مخزّن.
     try {
-      val adapter = BluetoothAdapter.getDefaultAdapter()
-      adapter?.bondedDevices?.forEach { d ->
+      adapter()?.bondedDevices?.forEach { d ->
         if (d.address.equals(cleaned, ignoreCase = true)) {
           return d.address
         }
@@ -189,24 +238,21 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
     return cleaned
   }
 
-  private fun openSocketWithFallbacks(device: BluetoothDevice): BluetoothSocket? {
+  private fun openSocketWithFallbacks(
+    device: BluetoothDevice,
+    adapter: BluetoothAdapter,
+  ): BluetoothSocket? {
+    // insecure أولاً: طابعات Xprinter/XP-P810 غالباً لا تقبل secure SPP.
     val attempts = listOf(
-      "secure_spp" to {
-        device.createRfcommSocketToServiceRecord(SPP_UUID)
-      },
       "insecure_spp" to {
         device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
+      },
+      "secure_spp" to {
+        device.createRfcommSocketToServiceRecord(SPP_UUID)
       },
       "reflection_ch1" to {
         val m = device.javaClass.getMethod(
           "createRfcommSocket",
-          Int::class.javaPrimitiveType,
-        )
-        m.invoke(device, 1) as BluetoothSocket
-      },
-      "reflection_insecure_ch1" to {
-        val m = device.javaClass.getMethod(
-          "createInsecureRfcommSocket",
           Int::class.javaPrimitiveType,
         )
         m.invoke(device, 1) as BluetoothSocket
@@ -219,10 +265,10 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
       try {
         candidate = factory()
         try {
-          BluetoothAdapter.getDefaultAdapter()?.cancelDiscovery()
+          adapter.cancelDiscovery()
         } catch (_: Exception) {
         }
-        candidate.connect()
+        connectWithTimeout(candidate, CONNECT_TIMEOUT_MS)
         if (candidate.isConnected) {
           Log.i(TAG, "connected via $label")
           return candidate
@@ -236,7 +282,7 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
         } catch (_: Exception) {
         }
         try {
-          Thread.sleep(350)
+          Thread.sleep(250)
         } catch (_: InterruptedException) {
         }
       }
@@ -247,21 +293,59 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
     return null
   }
 
-  private fun writeInternal(list: List<Int>): Boolean {
-    if (!isSocketAlive()) return false
-    val out = output ?: return false
+  /**
+   * BluetoothSocket.connect() قد يعلق أكثر من 12 ثانية على بعض أجهزة أندرويد.
+   * إغلاق المقبس من خيط آخر يفك الحظر بعد المهلة.
+   */
+  private fun connectWithTimeout(socket: BluetoothSocket, timeoutMs: Long) {
+    val error = AtomicReference<Exception?>(null)
+    val latch = CountDownLatch(1)
+    val worker = Thread({
+      try {
+        socket.connect()
+      } catch (e: Exception) {
+        error.set(e)
+      } finally {
+        latch.countDown()
+      }
+    }, "thermal-bt-connect")
+    worker.start()
+    val finished = latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+    if (!finished) {
+      try {
+        socket.close()
+      } catch (_: Exception) {
+      }
+      latch.await(1500, TimeUnit.MILLISECONDS)
+      throw IOException("انتهت مهلة الاتصال بالطابعة")
+    }
+    val failed = error.get()
+    if (failed != null) throw failed
+  }
+
+  private fun toByteArray(raw: Any?): ByteArray? {
+    val list = raw as? List<*> ?: return null
+    val bytes = ByteArray(list.size)
+    for (i in list.indices) {
+      val n = list[i] as? Number ?: return null
+      bytes[i] = n.toByte()
+    }
+    return bytes
+  }
+
+  private fun writeInternal(bytes: ByteArray): Boolean {
+    val out = synchronized(lock) {
+      if (!isSocketAliveLocked()) return false
+      output
+    } ?: return false
     return try {
-      val bytes = ByteArray(list.size) { i -> list[i].toByte() }
-      val chunkSize = 512 // دفعات صغيرة أنسب لطابعات Xprinter
+      val chunkSize = 1024
       var offset = 0
       while (offset < bytes.size) {
         val end = minOf(offset + chunkSize, bytes.size)
         out.write(bytes, offset, end - offset)
         out.flush()
         offset = end
-        if (offset < bytes.size) {
-          Thread.sleep(20)
-        }
       }
       true
     } catch (e: Exception) {
@@ -272,6 +356,12 @@ class ThermalPrinterChannel(private val context: Context) : MethodChannel.Method
   }
 
   private fun closeQuietly() {
+    synchronized(lock) {
+      closeQuietlyLocked()
+    }
+  }
+
+  private fun closeQuietlyLocked() {
     try {
       output?.close()
     } catch (_: Exception) {

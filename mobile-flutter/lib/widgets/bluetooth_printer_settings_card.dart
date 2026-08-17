@@ -176,18 +176,51 @@ class _BluetoothPrinterSettingsCardState
   }
 
   Future<void> _test() async {
+    if (_busy) return;
     setState(() => _busy = true);
+    BuildContext? dialogContext;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        dialogContext = ctx;
+        return const AlertDialog(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 2.4),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Text('جاري الاتصال بالطابعة وإرسال صفحة الاختبار…'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    String? err;
     try {
-      final err = await BluetoothPrintService.testPrint();
-      if (!mounted) return;
-      showSnack(
-        context,
-        err ?? 'تم إرسال صفحة اختبار للطابعة.',
-        error: err != null,
+      err = await BluetoothPrintService.testPrint().timeout(
+        const Duration(seconds: 40),
+        onTimeout: () =>
+            'انتهت مهلة الاتصال بالطابعة. تأكد أنها مشغّلة ومقترنة ثم أعد المحاولة.',
       );
-    } finally {
-      if (mounted) setState(() => _busy = false);
+    } catch (e) {
+      err = e.toString().replaceFirst('Bad state: ', '');
     }
+    if (dialogContext != null && dialogContext!.mounted) {
+      Navigator.of(dialogContext!).pop();
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    showSnack(
+      context,
+      err ?? 'تم إرسال صفحة اختبار للطابعة.',
+      error: err != null,
+    );
   }
 
   @override

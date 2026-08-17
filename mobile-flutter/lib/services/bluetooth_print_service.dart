@@ -105,11 +105,17 @@ class BluetoothPrintService {
   static Future<bool> writeBytes(List<int> bytes) async {
     if (!Platform.isAndroid || bytes.isEmpty) return false;
     try {
-      return await _channel.invokeMethod<bool>('writeBytes', bytes) ?? false;
+      return await _channel
+              .invokeMethod<bool>('writeBytes', bytes)
+              .timeout(const Duration(seconds: 25)) ??
+          false;
     } on PlatformException catch (e) {
       if (kDebugMode) {
         debugPrint('thermal write failed: ${e.code} ${e.message}');
       }
+      return false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('thermal write timeout/error: $e');
       return false;
     }
   }
@@ -125,9 +131,6 @@ class BluetoothPrintService {
       throw StateError('البلوتوث مغلق. فعّله ثم أعد المحاولة.');
     }
 
-    // إن كان المقبس الأصلي ما زال حياً لنفس العنوان نعيد استخدامه.
-    if (await connectionStatus()) return true;
-
     var address = mac.trim().toUpperCase();
     try {
       final paired = await pairedDevices();
@@ -141,19 +144,16 @@ class BluetoothPrintService {
       // نستخدم العنوان المحفوظ إن تعذر قراءة قائمة الأجهزة.
     }
 
-    for (var attempt = 0; attempt < 3; attempt++) {
+    for (var attempt = 0; attempt < 2; attempt++) {
       try {
-        // قبل كل محاولة نفصل أي مقبس stale داخل القناة الأصلية.
         if (attempt > 0) {
           await disconnect();
-          await Future<void>.delayed(
-            Duration(milliseconds: 500 + attempt * 400),
-          );
+          await Future<void>.delayed(const Duration(milliseconds: 600));
         }
-        final connected = await _channel.invokeMethod<bool>('connect', address);
-        if (connected == true || await connectionStatus()) {
-          return true;
-        }
+        final connected = await _channel
+            .invokeMethod<bool>('connect', address)
+            .timeout(const Duration(seconds: 28));
+        if (connected == true) return true;
       } on PlatformException catch (e) {
         if (e.code == 'PERMISSION') {
           throw StateError(
@@ -171,7 +171,6 @@ class BluetoothPrintService {
           debugPrint('thermal connect attempt $attempt: $e');
         }
       }
-      await Future<void>.delayed(Duration(milliseconds: 700 + attempt * 600));
     }
     return false;
   }
@@ -276,7 +275,8 @@ class BluetoothPrintService {
       final okConnect = await connect(cfg.mac);
       if (!okConnect) {
         return 'تعذر الاتصال بالطابعة. تأكد أنها مشغّلة ومقترنة، '
-            'وأغلق أي تطبيق آخر يستخدمها ثم أعد المحاولة.';
+            'وأغلق تطبيق الطابعة الرسمي إن كان مفتوحاً. '
+            'إن ظهرت «متصلة» في إعدادات بلوتوث الأندرويد اضغط عليها وافصلها مع الإبقاء على الاقتران ثم أعد المحاولة.';
       }
       final profile = await CapabilityProfile.load();
       final paper = cfg.paperMm == 80 ? PaperSize.mm80 : PaperSize.mm58;
