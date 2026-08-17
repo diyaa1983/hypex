@@ -263,33 +263,39 @@ class _CustomerOrdersPendingScreenState
                                 ),
                                 const SizedBox(width: 4),
                                 Expanded(
-                                  child: Text(
-                                    Fmt.str(o['order_no']).isEmpty
-                                        ? '#$id'
-                                        : Fmt.str(o['order_no']),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13.5,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        Fmt.str(o['order_no']).isEmpty
+                                            ? 'طلب #$id'
+                                            : Fmt.str(o['order_no']),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        '${Fmt.str(o['customer_name']).isEmpty ? '—' : Fmt.str(o['customer_name'])} · ${Fmt.dmy(Fmt.str(o['order_date']))}',
+                                        style: const TextStyle(
+                                          color: AppTheme.textSoft,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12.5,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                Text(
-                                  Fmt.dmy(Fmt.str(o['order_date'])),
-                                  style: const TextStyle(
-                                    color: AppTheme.textSoft,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12.5,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
                                 Text(
                                   Fmt.money(Fmt.toDouble(o['total'])),
                                   textDirection: TextDirection.ltr,
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15,
+                                    color: Color(0xFF0F766E),
                                   ),
                                 ),
                                 const SizedBox(width: 4),

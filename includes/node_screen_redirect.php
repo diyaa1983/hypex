@@ -48,7 +48,7 @@ function node_try_redirect_desktop_screen(string $routeCode): bool
 
     // مرّر فلاتر شائعة
     $keep = [];
-    foreach (['from', 'to', 'filter', 'q', 'status', 'sales_rep_id', 'method'] as $k) {
+    foreach (['from', 'to', 'filter', 'q', 'status', 'sales_rep_id', 'method', 'customer_id', 'region_id', 'category_id', 'item_id', 'warehouse_id', 'payment_type', 'posted_only', 'group_by', 'tab', 'run'] as $k) {
         if (isset($_GET[$k]) && (string) $_GET[$k] !== '') {
             $keep[$k] = (string) $_GET[$k];
         }
@@ -128,6 +128,7 @@ function node_desktop_screen_path_map(): array
         'no_order_reasons_settings' => '/system/no-order-reasons',
         'report_customers_by_rep' => '/customers/reports/by-rep',
         'report_sales_between_dates' => '/sales/reports/between-dates',
+        'report_sales_detailed' => '/sales/reports/detailed',
         'report_party_statement' => '/accounting/reports/party-statement',
         'report_oracle_customer_statement' => '/accounting/reports/oracle-statement',
         'report_oracle_sales_invoice' => '/sales/reports/oracle-sales-invoice',

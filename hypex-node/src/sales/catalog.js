@@ -66,6 +66,7 @@ const salesCatalog = [
       { r: 'report_sales_by_item', label: 'تقرير المبيعات حسب المادة', icon: '📦', path: '/sales/reports/by-item', kind: 'report' },
       { r: 'report_sales_by_region', label: 'تقرير المبيعات حسب المنطقة', icon: '🗺️', path: '/sales/reports/by-region', kind: 'report' },
       { r: 'report_sales_by_rep', label: 'تقرير المبيعات حسب المندوب', icon: '📊', path: '/sales/reports/by-rep', kind: 'report' },
+      { r: 'report_sales_detailed', label: 'تقرير المبيعات التفصيلي', icon: '📋', path: '/sales/reports/detailed', kind: 'report' },
       { r: 'report_sales_qty_extra', label: 'تقرير الكميات الإضافية', icon: '➕', path: '/sales/reports/qty-extra', kind: 'report' },
       { r: 'report_sales_invoice_discount', label: 'الخصم على الفواتير', icon: '🏷', path: '/sales/reports/discount', kind: 'report' },
     ],

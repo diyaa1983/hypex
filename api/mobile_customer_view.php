@@ -90,6 +90,10 @@ try {
                             $pdo,
                             (int) $ens['route_line_id']
                         );
+                        $visit['order_id'] = sal_rep_visit_order_id(
+                            $pdo,
+                            (int) $ens['route_line_id']
+                        );
                     }
                 }
             }

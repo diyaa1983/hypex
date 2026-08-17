@@ -1,0 +1,69 @@
+/* Sales rep visits & tours reports — single-row landscape print */
+
+.si-report-page.si-report-visits .si-table-wrap,
+.si-report-page.si-report-tours .si-table-wrap {
+  overflow-x: auto !important;
+}
+
+.si-report-page.si-report-visits .si-table,
+.si-report-page.si-report-tours .si-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  font-size: 0.78rem;
+}
+
+.si-report-page.si-report-visits .si-table th,
+.si-report-page.si-report-visits .si-table td,
+.si-report-page.si-report-tours .si-table th,
+.si-report-page.si-report-tours .si-table td {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  max-width: none !important;
+  vertical-align: middle;
+  line-height: 1.25;
+}
+
+.si-report-page.si-report-visits .si-table .si-pill,
+.si-report-page.si-report-tours .si-table .si-pill {
+  white-space: nowrap !important;
+  display: inline-flex !important;
+}
+
+.si-report-page.si-report-visits .si-rep-group-row td {
+  background: #e2e8f0 !important;
+  text-align: start !important;
+  font-weight: 700;
+  white-space: nowrap !important;
+  padding: 0.5rem 0.65rem !important;
+}
+
+.si-report-page.si-report-visits .si-ts-method .muted,
+.si-report-page.si-report-tours .si-ts-method .muted {
+  display: inline;
+  margin-inline-start: 0.25rem;
+  font-size: 0.72rem;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm 5mm;
+  }
+
+  .si-report-page.si-report-visits .si-table,
+  .si-report-page.si-report-tours .si-table {
+    width: 100% !important;
+    font-size: 7.5pt !important;
+  }
+
+  .si-report-page.si-report-visits .si-table th,
+  .si-report-page.si-report-visits .si-table td,
+  .si-report-page.si-report-tours .si-table th,
+  .si-report-page.si-report-tours .si-table td {
+    white-space: nowrap !important;
+    padding: 0.15rem 0.25rem !important;
+    font-size: 7.5pt !important;
+    border: 1px solid #94a3b8 !important;
+  }
+}

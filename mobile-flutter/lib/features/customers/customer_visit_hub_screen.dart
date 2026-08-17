@@ -10,6 +10,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
+import '../../core/visit_status.dart';
 import '../../core/theme.dart';
 import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
@@ -32,7 +33,8 @@ class CustomerVisitHubScreen extends StatefulWidget {
   State<CustomerVisitHubScreen> createState() => _CustomerVisitHubScreenState();
 }
 
-class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
+class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
+    with WidgetsBindingObserver {
   static const _wideBreak = 700.0;
 
   final _search = TextEditingController();
@@ -46,6 +48,11 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
 
   /// حالة زيارة اليوم لكل عميل: checked_in | pending_manual_checkout | checked_out | idle
   final Map<int, String> _visitStatusByCustomer = {};
+  final Map<int, String> _visitCheckinAtByCustomer = {};
+  final Map<int, String> _visitCheckoutAtByCustomer = {};
+
+  /// طلب الشراء المحفوظ للزيارة الحالية (يبقى حتى الخروج).
+  int _visitOrderId = 0;
 
   int? _selectedId;
   bool _detailLoading = false;
@@ -79,6 +86,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCustomers();
     _refreshOpenVisit();
     final bootId = widget.initialCustomerId ?? 0;
@@ -92,6 +100,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _debounce?.cancel();
     _search.dispose();
     _searchFocus.dispose();
@@ -103,6 +112,41 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
     _debounce = Timer(const Duration(milliseconds: 280), () {
       _loadCustomers();
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshOpenVisit();
+    }
+  }
+
+  String _effectiveVisitStatus(int customerId) {
+    final raw = _visitStatusByCustomer[customerId] ?? '';
+    return VisitStatus.effective(
+      status: raw,
+      checkinAt: _visitCheckinAtByCustomer[customerId],
+      checkoutAt: _visitCheckoutAtByCustomer[customerId],
+      referenceDate: Fmt.todayIso(),
+    );
+  }
+
+  void _onVisitOrderSaved(int orderId) {
+    if (orderId < 1 || !mounted) return;
+    setState(() {
+      _visitOrderId = orderId;
+      if (_visit != null) {
+        _visit = Map<String, dynamic>.from(_visit!)..['has_order'] = true;
+      }
+    });
+    if (_selectedId != null) {
+      _loadHistOrders(_selectedId!);
+    }
+  }
+
+  void _onVisitOrderDeleted() {
+    if (!mounted) return;
+    setState(() => _visitOrderId = 0);
   }
 
   Future<void> _loadCustomers() async {
@@ -151,11 +195,17 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
       var openId = 0;
       var checkinAt = '';
       final statusMap = <int, String>{};
+      final checkinMap = <int, String>{};
+      final checkoutMap = <int, String>{};
       for (final v in visits) {
         final cid = Fmt.toInt(v['customer_id']);
         if (cid < 1) continue;
         final s = Fmt.str(v['status']);
         if (s.isNotEmpty) statusMap[cid] = s;
+        final cin = Fmt.str(v['visit_checkin_at']);
+        final cout = Fmt.str(v['visit_checkout_at']);
+        if (cin.isNotEmpty) checkinMap[cid] = cin;
+        if (cout.isNotEmpty) checkoutMap[cid] = cout;
         if (openId == 0 &&
             (s == 'checked_in' || s == 'pending_manual_checkout')) {
           openId = cid;
@@ -166,6 +216,12 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
         _visitStatusByCustomer
           ..clear()
           ..addAll(statusMap);
+        _visitCheckinAtByCustomer
+          ..clear()
+          ..addAll(checkinMap);
+        _visitCheckoutAtByCustomer
+          ..clear()
+          ..addAll(checkoutMap);
         _openVisitCustomerId = openId;
         _openVisitCheckinAt = checkinAt;
         final r = Fmt.toInt(res['visit_radius_m']);
@@ -175,7 +231,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
   }
 
   Color? _visitRowColor(int customerId) {
-    final s = _visitStatusByCustomer[customerId] ?? '';
+    final s = _effectiveVisitStatus(customerId);
     if (s == 'checked_in' || s == 'pending_manual_checkout') {
       return AppTheme.success.withValues(alpha: 0.14);
     }
@@ -186,7 +242,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
   }
 
   Color _visitAccent(int customerId) {
-    final s = _visitStatusByCustomer[customerId] ?? '';
+    final s = _effectiveVisitStatus(customerId);
     if (s == 'checked_in' || s == 'pending_manual_checkout') {
       return AppTheme.success;
     }
@@ -223,8 +279,11 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
       '&customer_code=${Uri.encodeComponent(Fmt.str(c['code']))}'
       '&visit_route_line_id=$visitLineId',
     )
-        .then((_) {
-      if (mounted) _selectCustomer(Fmt.toInt(c['id']));
+        .then((result) {
+      if (!mounted) return;
+      if (result is int && result > 0) {
+        _onVisitOrderSaved(result);
+      }
     });
   }
 
@@ -244,6 +303,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
     // يمكن تصفح بيانات عميل آخر حتى لو كان الخروج اليدوي السابق قيد
     // الاعتماد. منع بدء زيارة ثانية يبقى في إجراء تسجيل الدخول نفسه.
     setState(() {
+      if (_selectedId != null && _selectedId != id) _visitOrderId = 0;
       _selectedId = id;
       if (openNarrowDetail) _showNarrowDetail = true;
       _detailLoading = true;
@@ -272,6 +332,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
         _noOrderReasons = noOrderReasons;
         if (radius > 0) _radiusM = radius;
         _detailLoading = false;
+        final oid = Fmt.toInt(v?['order_id']);
+        if (oid > 0) _visitOrderId = oid;
         if (_visitOpenFromMap(v)) {
           _openVisitCustomerId = id;
           _openVisitCheckinAt = Fmt.str(v?['visit_checkin_at']);
@@ -727,6 +789,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
         setState(() {
           _openVisitCustomerId = 0;
           _openVisitCheckinAt = '';
+          _visitOrderId = 0;
         });
       }
       await _refreshOpenVisit();
@@ -903,7 +966,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                         final id = Fmt.toInt(c['id']);
                         final selected = id == _selectedId;
                         final isOpen = id == _openVisitCustomerId;
-                        final visitStatus = _visitStatusByCustomer[id] ?? '';
+                        final visitStatus = _effectiveVisitStatus(id);
                         final isCheckedOut = visitStatus == 'checked_out';
                         final accent = _visitAccent(id);
                         final rowBg = selected
@@ -1234,7 +1297,9 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen> {
                           customer: _customer!,
                           visitOpen: _selectedIsOpen,
                           visitRouteLineId: Fmt.toInt(_visit?['route_line_id']),
-                          onSaved: () => _selectCustomer(_selectedId!),
+                          orderId: _visitOrderId > 0 ? _visitOrderId : null,
+                          onSaved: _onVisitOrderSaved,
+                          onDeleted: _onVisitOrderDeleted,
                         ),
                         _InfoTab(
                           customer: _customer!,
@@ -1963,13 +2028,17 @@ class _PurchaseOrderTab extends StatelessWidget {
     required this.customer,
     required this.visitOpen,
     required this.visitRouteLineId,
+    this.orderId,
     required this.onSaved,
+    required this.onDeleted,
   });
 
   final Map<String, dynamic> customer;
   final bool visitOpen;
   final int visitRouteLineId;
-  final VoidCallback onSaved;
+  final int? orderId;
+  final void Function(int orderId) onSaved;
+  final VoidCallback onDeleted;
 
   @override
   Widget build(BuildContext context) {
@@ -1991,7 +2060,7 @@ class _PurchaseOrderTab extends StatelessWidget {
     }
     return CustomerOrderFormScreen(
       key: ValueKey(
-        'po-${Fmt.toInt(customer['id'])}-$visitRouteLineId',
+        'po-${Fmt.toInt(customer['id'])}-$visitRouteLineId-${orderId ?? 0}',
       ),
       embedded: true,
       hideCustomerPicker: true,
@@ -1999,7 +2068,9 @@ class _PurchaseOrderTab extends StatelessWidget {
       initialCustomerName: Fmt.str(customer['name']),
       initialCustomerCode: Fmt.str(customer['code']),
       visitRouteLineId: visitRouteLineId,
+      orderId: orderId,
       onSaved: onSaved,
+      onDeleted: onDeleted,
     );
   }
 }

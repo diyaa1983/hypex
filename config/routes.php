@@ -533,6 +533,11 @@ return [
         'permission' => 'report_sales_by_item',
         'title' => 'تقرير المبيعات حسب المادة',
     ],
+    'report_sales_detailed' => [
+        'file' => 'modules/reports/sales_detailed.php',
+        'permission' => 'report_sales_detailed',
+        'title' => 'تقرير المبيعات التفصيلي',
+    ],
     'report_customer_purchases_by_item' => [
         'file' => 'modules/reports/customer_purchases_by_item.php',
         'permission' => 'report_customer_purchases_by_item',

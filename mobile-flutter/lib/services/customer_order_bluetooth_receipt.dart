@@ -6,8 +6,9 @@ import '../core/format.dart';
 import 'bluetooth_printer_settings.dart';
 import 'bluetooth_print_service.dart';
 import 'print_brand.dart';
+import 'thermal_print_widgets.dart';
 
-/// إيصال حراري لطلب شراء العميل.
+/// إيصال حراري لطلب شراء العميل — 8 أعمدة + ملخص.
 class CustomerOrderBluetoothReceipt {
   CustomerOrderBluetoothReceipt._();
 
@@ -40,7 +41,25 @@ class CustomerOrderBluetoothReceipt {
         .map((e) => e.cast<String, dynamic>())
         .toList();
     final fs = paperMm == 80 ? 12.0 : 10.0;
+    final cellFs = paperMm == 80 ? 9.5 : 8.0;
+    final headStyle = pw.TextStyle(font: bold, fontSize: cellFs);
+    final valStyle = pw.TextStyle(font: reg, fontSize: cellFs);
+    final valBold = pw.TextStyle(font: bold, fontSize: cellFs);
+
     pw.Widget kv(String label, String value) => pw.Padding(
+          padding: const pw.EdgeInsets.only(bottom: 2),
+          child: pw.Row(children: [
+            pw.Text('$label: ', style: pw.TextStyle(font: bold, fontSize: fs)),
+            pw.Expanded(
+              child: thermalDateText(
+                value,
+                style: pw.TextStyle(font: reg, fontSize: fs),
+              ),
+            ),
+          ]),
+        );
+
+    pw.Widget kvPlain(String label, String value) => pw.Padding(
           padding: const pw.EdgeInsets.only(bottom: 2),
           child: pw.Row(children: [
             pw.Text('$label: ', style: pw.TextStyle(font: bold, fontSize: fs)),
@@ -50,18 +69,16 @@ class CustomerOrderBluetoothReceipt {
             ),
           ]),
         );
-    final cellFs = paperMm == 80 ? 10.0 : 8.5;
-    pw.Widget cell(String text, {bool head = false, bool ltr = false}) =>
-        pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 3),
-          child: pw.Text(
-            text,
-            textAlign: pw.TextAlign.center,
-            textDirection: ltr ? pw.TextDirection.ltr : pw.TextDirection.rtl,
-            style: pw.TextStyle(
-              font: head || !ltr ? bold : reg,
-              fontSize: cellFs,
-            ),
+
+    pw.Widget moneyRow(String label, double v) => pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+          child: pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(label, style: valStyle),
+              pw.Text(Fmt.money(v),
+                  textDirection: pw.TextDirection.ltr, style: valBold),
+            ],
           ),
         );
 
@@ -73,6 +90,11 @@ class CustomerOrderBluetoothReceipt {
       logoUrlFromDocument: Fmt.str(order['logo_url']),
     );
 
+    final subtotal = Fmt.toDouble(order['subtotal']);
+    final discount = Fmt.toDouble(order['discount_total']);
+    final tax = Fmt.toDouble(order['tax_total']);
+    final grand = Fmt.toDouble(order['grand_total']);
+
     final doc = pw.Document();
     doc.addPage(pw.Page(
       pageFormat: format,
@@ -82,80 +104,86 @@ class CustomerOrderBluetoothReceipt {
         color: PdfColors.white,
         width: double.infinity,
         child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: [
-          brandHeader,
-          pw.SizedBox(height: 3),
-          pw.Divider(thickness: .8),
-          kv(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            brandHeader,
+            pw.SizedBox(height: 3),
+            pw.Divider(thickness: .8),
+            kvPlain(
               'رقم الطلب',
               Fmt.str(order['order_no']).isEmpty
                   ? '—'
-                  : Fmt.str(order['order_no'])),
-          kv('التاريخ', Fmt.dmy(Fmt.str(order['order_date']))),
-          kv('العميل', Fmt.str(order['customer_name'])),
-          kv('المستودع', Fmt.str(order['warehouse_name'])),
-          if (Fmt.str(order['sales_rep_name']).isNotEmpty)
-            kv('المندوب', Fmt.str(order['sales_rep_name'])),
-          pw.SizedBox(height: 5),
-          pw.Table(
-            border: pw.TableBorder.all(width: .35, color: PdfColors.grey700),
-            columnWidths: {
-              0: pw.FlexColumnWidth(paperMm == 80 ? 0.85 : 0.8),
-              1: pw.FlexColumnWidth(paperMm == 80 ? 0.9 : 0.85),
-              2: pw.FlexColumnWidth(paperMm == 80 ? 0.75 : 0.7),
-              3: pw.FlexColumnWidth(paperMm == 80 ? 0.85 : 0.8),
-              4: const pw.FlexColumnWidth(2.5),
-            },
-            children: [
-              pw.TableRow(
-                decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-                children: [
-                  cell('خصم', head: true),
-                  cell('سعر', head: true),
-                  cell('إض.', head: true),
-                  cell('كمية', head: true),
-                  cell('المادة', head: true),
-                ],
-              ),
-              for (final line in lines)
-                () {
-                  var factor = Fmt.toDouble(line['unit_factor'] ?? 1);
-                  if (factor <= 0) factor = 1;
-                  final pack = factor > 1.0000001
-                      ? ((factor - factor.round()).abs() < 1e-9
-                          ? '${factor.round()}'
-                          : Fmt.trimNum(factor))
-                      : '';
-                  var itemName =
-                      Fmt.str(line['item_name'] ?? line['name']);
-                  if (pack.isNotEmpty) {
-                    itemName = '$itemName (تعبئة × $pack)';
-                  }
-                  final qty = Fmt.toDouble(line['qty']);
-                  final extra = Fmt.toDouble(line['qty_extra']);
-                  final price = Fmt.toDouble(
-                    line['unit_price'] ?? line['price'] ?? line['sale_price'],
-                  );
-                  final disc = Fmt.toDouble(
-                    line['discount_amount'] ?? line['discount'],
-                  );
-                  return pw.TableRow(children: [
-                    cell(disc > 0 ? Fmt.money(disc) : '', ltr: true),
-                    cell(price == 0 ? '' : Fmt.money(price), ltr: true),
-                    cell(extra > 0 ? Fmt.trimNum(extra) : '', ltr: true),
-                    cell(qty == 0 ? '' : Fmt.trimNum(qty), ltr: true),
-                    cell(itemName.isEmpty ? 'مادة' : itemName),
-                  ]);
-                }(),
-            ],
-          ),
-          pw.SizedBox(height: 9),
-          pw.Center(
+                  : Fmt.str(order['order_no']),
+            ),
+            kv('التاريخ', Fmt.dmy(Fmt.str(order['order_date']))),
+            kvPlain('العميل', Fmt.str(order['customer_name'])),
+            kvPlain('المستودع', Fmt.str(order['warehouse_name'])),
+            pw.SizedBox(height: 5),
+            pw.Table(
+              border: ThermalTableStyle.border,
+              columnWidths: {
+                0: const pw.FlexColumnWidth(2.2),
+                1: const pw.FlexColumnWidth(0.7),
+                2: const pw.FlexColumnWidth(0.55),
+                3: const pw.FlexColumnWidth(0.55),
+                4: const pw.FlexColumnWidth(0.75),
+                5: const pw.FlexColumnWidth(0.65),
+                6: const pw.FlexColumnWidth(0.65),
+                7: const pw.FlexColumnWidth(0.85),
+              },
+              children: [
+                pw.TableRow(
+                  decoration: ThermalTableStyle.headerDecoration,
+                  children: [
+                    thermalCell('مادة', style: headStyle),
+                    thermalCell('وحدة', style: headStyle),
+                    thermalCell('كم', style: headStyle),
+                    thermalCell('إض', style: headStyle),
+                    thermalCell('سعر', style: headStyle, ltr: true),
+                    thermalCell('خصم', style: headStyle, ltr: true),
+                    thermalCell('ض', style: headStyle, ltr: true),
+                    thermalCell('إج', style: headStyle, ltr: true),
+                  ],
+                ),
+                for (var i = 0; i < lines.length; i++)
+                  () {
+                    final line = lines[i];
+                    final qty = Fmt.toDouble(line['qty']);
+                    final extra = Fmt.toDouble(line['qty_extra']);
+                    final price = Fmt.toDouble(line['unit_price'] ?? line['price']);
+                    final disc = Fmt.toDouble(line['discount_pct']);
+                    final taxP = Fmt.toDouble(line['tax_rate_percent']);
+                    final gross = Fmt.toDouble(line['line_gross'] ?? line['line_total']);
+                    final bg = i.isOdd ? ThermalTableStyle.zebraOdd : PdfColors.white;
+                    return pw.TableRow(
+                      decoration: pw.BoxDecoration(color: bg),
+                      children: [
+                        thermalCell(Fmt.str(line['item_name']), style: valStyle, align: pw.TextAlign.right),
+                        thermalCell(Fmt.str(line['unit_name']), style: valStyle),
+                        thermalCell(qty == 0 ? '' : Fmt.trimNum(qty), style: valStyle, ltr: true),
+                        thermalCell(extra > 0 ? Fmt.trimNum(extra) : '', style: valStyle, ltr: true),
+                        thermalCell(price == 0 ? '' : Fmt.money(price), style: valStyle, ltr: true),
+                        thermalCell(disc > 0 ? '${Fmt.trimNum(disc)}%' : '', style: valStyle, ltr: true),
+                        thermalCell(taxP > 0 ? '${Fmt.trimNum(taxP)}%' : '', style: valStyle, ltr: true),
+                        thermalCell(gross == 0 ? '' : Fmt.money(gross), style: valBold, ltr: true),
+                      ],
+                    );
+                  }(),
+              ],
+            ),
+            pw.SizedBox(height: 6),
+            pw.Divider(thickness: .6),
+            moneyRow('المجموع الفرعي', subtotal),
+            if (discount > 0) moneyRow('الخصم', discount),
+            if (tax > 0) moneyRow('الضريبة', tax),
+            moneyRow('الإجمالي النهائي', grand),
+            pw.SizedBox(height: 9),
+            pw.Center(
               child: pw.Text('شكراً لتعاملكم',
-                  style: pw.TextStyle(font: reg, fontSize: fs))),
-        ],
-      ),
+                  style: pw.TextStyle(font: reg, fontSize: fs)),
+            ),
+          ],
+        ),
       ),
     ));
     return Uint8List.fromList(await doc.save());

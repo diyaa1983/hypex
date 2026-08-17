@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../core/session.dart';
 import '../core/theme.dart';
+import 'app_confirm_dialog.dart';
 
 /// هيكل موحّد للشاشات المتفرعة مع خروج واضح وتباعد متسق.
 class MobileScaffold extends StatelessWidget {
@@ -31,22 +32,12 @@ class MobileScaffold extends StatelessWidget {
   final Color? backgroundColor;
 
   static Future<void> confirmLogout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('تسجيل الخروج'),
-        content: const Text('هل تريد تسجيل الخروج من التطبيق؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('خروج'),
-          ),
-        ],
-      ),
+    final confirmed = await showAppConfirmDialog(
+      context,
+      title: 'تسجيل الخروج',
+      message: 'هل تريد تسجيل الخروج من التطبيق؟',
+      confirmLabel: 'خروج',
+      destructive: true,
     );
     if (confirmed != true || !context.mounted) return;
     await context.read<SessionController>().logout();

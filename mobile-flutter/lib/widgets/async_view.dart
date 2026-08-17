@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import 'app_center_alert.dart';
 import 'ui_kit.dart';
 
 /// عرض حالة تحميل / خطأ / محتوى بشكل موحّد.
@@ -127,6 +128,10 @@ class EmptyState extends StatelessWidget {
 }
 
 void showSnack(BuildContext context, String message, {bool error = false}) {
+  if (error) {
+    showCenterAlert(context, message);
+    return;
+  }
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
   final media = MediaQuery.of(context);

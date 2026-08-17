@@ -40,7 +40,7 @@ foreach ($rows as $r) {
     }
 }
 $groupByRep = $salesRepId < 1 && count($uniqueRepIds) > 1;
-$colCount = $groupByRep ? 14 : 15;
+$colCount = $groupByRep ? 12 : 13;
 
 $grouped = [];
 if ($groupByRep) {
@@ -57,6 +57,17 @@ if ($groupByRep) {
     }
 }
 
+function _rep_visit_report_ts_method($ts, ?string $methodLabel): string
+{
+    $t = sal_rep_visit_fmt_ts($ts);
+    $m = trim((string) $methodLabel);
+    if ($m === '' || $m === '—') {
+        return esc($t);
+    }
+
+    return esc($t) . ' <span class="muted">' . esc($m) . '</span>';
+}
+
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
 ?>
@@ -66,9 +77,8 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
   overflow-x: auto !important;
 }
 .report-sales-page.report-visits-page .report-sales-table {
-  width: max-content !important;
-  min-width: 100%;
-  table-layout: auto !important;
+  width: 100% !important;
+  table-layout: fixed !important;
   font-size: 0.78rem;
 }
 .report-sales-page.report-visits-page .report-sales-table th,
@@ -154,16 +164,14 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                 <th>التاريخ</th>
                 <?php if (!$groupByRep): ?><th>المندوب</th><?php endif; ?>
                 <th>العميل</th>
-                <th>نطاق الزيارة</th>
+                <th>النطاق</th>
                 <th>سبب عدم الطلب</th>
                 <th>رقم العميل</th>
                 <th>المنطقة</th>
                 <th>العنوان</th>
                 <th>دخول</th>
-                <th>نوع</th>
                 <th>خروج</th>
-                <th>نوع</th>
-                <th>مدة الزيارة</th>
+                <th>المدة</th>
                 <th>الحالة</th>
             </tr>
             </thead>
@@ -190,10 +198,8 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                             <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
                             <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>
                             <td><?= esc((string) (($r['address_name'] ?? '') !== '' ? $r['address_name'] : '—')) ?></td>
-                            <td dir="ltr"><?= esc(sal_rep_visit_fmt_ts($r['visit_checkin_at'] ?? null)) ?></td>
-                            <td><?= esc((string) ($r['checkin_method_label'] ?? '—')) ?></td>
-                            <td dir="ltr"><?= esc(sal_rep_visit_fmt_ts($r['visit_checkout_at'] ?? null)) ?></td>
-                            <td><?= esc((string) ($r['checkout_method_label'] ?? '—')) ?></td>
+                            <td dir="ltr"><?= _rep_visit_report_ts_method($r['visit_checkin_at'] ?? null, (string) ($r['checkin_method_label'] ?? '')) ?></td>
+                            <td dir="ltr"><?= _rep_visit_report_ts_method($r['visit_checkout_at'] ?? null, (string) ($r['checkout_method_label'] ?? '')) ?></td>
                             <td dir="ltr"><?= esc((string) ($r['duration_label'] ?? '—')) ?></td>
                             <td><?= esc((string) ($r['status_label'] ?? '')) ?></td>
                         </tr>
@@ -211,10 +217,8 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                         <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
                         <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>
                         <td><?= esc((string) (($r['address_name'] ?? '') !== '' ? $r['address_name'] : '—')) ?></td>
-                        <td dir="ltr"><?= esc(sal_rep_visit_fmt_ts($r['visit_checkin_at'] ?? null)) ?></td>
-                        <td><?= esc((string) ($r['checkin_method_label'] ?? '—')) ?></td>
-                        <td dir="ltr"><?= esc(sal_rep_visit_fmt_ts($r['visit_checkout_at'] ?? null)) ?></td>
-                        <td><?= esc((string) ($r['checkout_method_label'] ?? '—')) ?></td>
+                        <td dir="ltr"><?= _rep_visit_report_ts_method($r['visit_checkin_at'] ?? null, (string) ($r['checkin_method_label'] ?? '')) ?></td>
+                        <td dir="ltr"><?= _rep_visit_report_ts_method($r['visit_checkout_at'] ?? null, (string) ($r['checkout_method_label'] ?? '')) ?></td>
                         <td dir="ltr"><?= esc((string) ($r['duration_label'] ?? '—')) ?></td>
                         <td><?= esc((string) ($r['status_label'] ?? '')) ?></td>
                     </tr>

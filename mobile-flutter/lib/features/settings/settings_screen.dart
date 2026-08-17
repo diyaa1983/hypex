@@ -11,6 +11,7 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../services/location_presence_service.dart';
 import '../../services/location_tracking_service.dart';
+import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/bluetooth_printer_settings_card.dart';
 import '../../widgets/ui_kit.dart';
@@ -643,26 +644,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _confirmLogout(SessionController s) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تسجيل الخروج'),
-        content: const Text('سيتم إيقاف خدمة التتبّع ومسح بيانات الدخول.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.danger,
-              minimumSize: const Size(100, 42),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('خروج'),
-          ),
-        ],
-      ),
+    final ok = await showAppConfirmDialog(
+      context,
+      title: 'تسجيل الخروج',
+      message: 'سيتم إيقاف خدمة التتبّع ومسح بيانات الدخول.',
+      confirmLabel: 'خروج',
+      destructive: true,
     );
     if (ok == true) await s.logout();
   }

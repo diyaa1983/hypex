@@ -388,6 +388,285 @@ async function reportReturnsTotals(from, to) {
   );
 }
 
+const SALES_DETAILED_GROUP_BY = [
+  'customer',
+  'sales_rep',
+  'region',
+  'category',
+  'item',
+  'invoice_date',
+  'warehouse',
+  'payment_type',
+];
+
+function normalizeSalesDetailedGroupBy(groupBy) {
+  const g = String(groupBy || 'customer');
+  return SALES_DETAILED_GROUP_BY.includes(g) ? g : 'customer';
+}
+
+function salesDetailedGroupKey(row, groupBy) {
+  switch (groupBy) {
+    case 'sales_rep':
+      return {
+        key: `rep:${Number(row.sales_rep_id || 0)}`,
+        label: row.sales_rep_name || '— بدون مندوب —',
+        code: row.sales_rep_code || '',
+      };
+    case 'region':
+      return {
+        key: `region:${Number(row.region_id || 0)}`,
+        label: row.region_name || '— بدون منطقة —',
+        code: '',
+      };
+    case 'category':
+      return {
+        key: `cat:${Number(row.category_id || 0)}`,
+        label: row.category_name || '— بدون فئة —',
+        code: '',
+      };
+    case 'item':
+      return {
+        key: `item:${Number(row.item_id || 0)}`,
+        label: row.item_name || '',
+        code: row.item_sku || '',
+      };
+    case 'invoice_date':
+      return { key: `date:${row.invoice_date || ''}`, label: row.invoice_date || '', code: '' };
+    case 'warehouse':
+      return {
+        key: `wh:${Number(row.warehouse_id || 0)}`,
+        label: row.warehouse_name || '— بدون مستودع —',
+        code: '',
+      };
+    case 'payment_type': {
+      const pt = String(row.payment_type || '');
+      const label = pt === 'credit' ? 'آجل' : pt === 'cash' ? 'نقد' : pt || '—';
+      return { key: `pay:${pt}`, label, code: '' };
+    }
+    default:
+      return {
+        key: `cust:${Number(row.customer_id || 0)}`,
+        label: row.customer_name || '',
+        code: row.customer_code || '',
+      };
+  }
+}
+
+function buildSalesDetailedSummary(details, groupBy) {
+  const map = new Map();
+  for (const row of details) {
+    const { key, label, code } = salesDetailedGroupKey(row, groupBy);
+    if (!map.has(key)) {
+      map.set(key, {
+        group_key: key,
+        label,
+        code,
+        qty: 0,
+        line_total: 0,
+        line_gross: 0,
+        tax_amount: 0,
+        line_count: 0,
+        invoices: new Set(),
+      });
+    }
+    const block = map.get(key);
+    block.qty += Number(row.qty || 0);
+    block.line_total += Number(row.line_total || 0);
+    block.line_gross += Number(row.line_gross || 0);
+    block.tax_amount += Number(row.tax_amount || 0);
+    block.line_count += 1;
+    const invId = Number(row.invoice_id || 0);
+    if (invId > 0) block.invoices.add(invId);
+  }
+  const summary = [...map.values()]
+    .map((b) => ({
+      group_key: b.group_key,
+      label: b.label,
+      code: b.code,
+      qty: b.qty,
+      line_total: b.line_total,
+      line_gross: b.line_gross,
+      tax_amount: b.tax_amount,
+      line_count: b.line_count,
+      invoice_count: b.invoices.size,
+    }))
+    .sort((a, b) => Number(b.line_gross || 0) - Number(a.line_gross || 0));
+  return summary;
+}
+
+/** تقرير المبيعات التفصيلي — بنود + ملخص مجمّع */
+async function reportSalesDetailed(filters = {}) {
+  const r = dateRange(filters.from, filters.to);
+  const groupBy = normalizeSalesDetailedGroupBy(filters.group_by);
+  const empty = {
+    summary: [],
+    details: [],
+    totals: { qty: 0, line_total: 0, line_gross: 0, tax_amount: 0, line_count: 0, invoice_count: 0 },
+    group_by: groupBy,
+  };
+  if (!r.from || !r.to) return empty;
+
+  const customerId = Number(filters.customer_id || 0) || 0;
+  const salesRepId = Number(filters.sales_rep_id || 0) || 0;
+  const regionId = Number(filters.region_id || 0) || 0;
+  const categoryId = Number(filters.category_id || 0) || 0;
+  const itemId = Number(filters.item_id || 0) || 0;
+  const warehouseId = Number(filters.warehouse_id || 0) || 0;
+  const paymentType = String(filters.payment_type || '').toLowerCase();
+  const postedOnly = String(filters.posted_only || '') === '1' || filters.posted_only === true;
+
+  const where = [`i.status = 'confirmed'`, 'i.invoice_date BETWEEN ? AND ?'];
+  const params = [r.from, r.to];
+  if (customerId > 0) {
+    where.push('i.customer_id = ?');
+    params.push(customerId);
+  }
+  if (salesRepId > 0) {
+    where.push('COALESCE(i.sales_rep_id, c.sales_rep_id) = ?');
+    params.push(salesRepId);
+  }
+  if (regionId > 0) {
+    where.push('c.region_id = ?');
+    params.push(regionId);
+  }
+  if (categoryId > 0) {
+    where.push('it.category_id = ?');
+    params.push(categoryId);
+  }
+  if (itemId > 0) {
+    where.push('l.item_id = ?');
+    params.push(itemId);
+  }
+  if (warehouseId > 0) {
+    where.push('i.warehouse_id = ?');
+    params.push(warehouseId);
+  }
+  if (paymentType === 'cash' || paymentType === 'credit') {
+    where.push('i.payment_type = ?');
+    params.push(paymentType);
+  }
+  if (postedOnly) {
+    where.push(`(
+      (
+        (COALESCE(i.total, 0) > 0.000001 AND EXISTS (
+          SELECT 1 FROM crm_customer_ledger lg
+          WHERE lg.txn_type = 'sale_invoice' AND lg.ref_id = i.id
+        ))
+        OR (
+          NOT (COALESCE(i.total, 0) > 0.000001)
+          AND EXISTS (SELECT 1 FROM sal_invoice_line ils WHERE ils.invoice_id = i.id AND COALESCE(ils.qty,0) > 0)
+        )
+      )
+      AND (
+        NOT (
+          i.warehouse_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM sal_invoice_line il
+            INNER JOIN inv_item it2 ON it2.id = il.item_id
+            WHERE il.invoice_id = i.id AND it2.track_inventory = 1 AND COALESCE(il.qty,0) > 0
+          )
+        )
+        OR EXISTS (
+          SELECT 1 FROM inv_stock_move m
+          WHERE m.ref_type = 'sale_invoice' AND m.ref_id = i.id
+        )
+      )
+    )`);
+  }
+
+  const limit = Math.min(5000, Math.max(100, Number(filters.limit || 3000)));
+  const rows = await safeQuery(
+    `SELECT i.id AS invoice_id, i.invoice_no, i.invoice_date, i.payment_type,
+            c.id AS customer_id, c.code AS customer_code, c.name_ar AS customer_name,
+            COALESCE(sr.id, 0) AS sales_rep_id,
+            COALESCE(sr.name_ar, '') AS sales_rep_name,
+            COALESCE(sr.code, '') AS sales_rep_code,
+            COALESCE(rg.id, 0) AS region_id,
+            COALESCE(rg.name_ar, '') AS region_name,
+            COALESCE(w.id, 0) AS warehouse_id,
+            COALESCE(w.name_ar, '') AS warehouse_name,
+            it.id AS item_id,
+            COALESCE(NULLIF(TRIM(it.sku), ''), it.barcode, '') AS item_sku,
+            COALESCE(NULLIF(TRIM(l.line_desc), ''), it.name_ar, '') AS item_name,
+            COALESCE(cat.id, 0) AS category_id,
+            COALESCE(cat.name_ar, '') AS category_name,
+            l.qty, l.unit_price, l.discount_pct,
+            l.line_total, COALESCE(l.tax_amount, 0) AS tax_amount, COALESCE(l.line_gross, l.line_total, 0) AS line_gross
+     FROM sal_invoice_line l
+     INNER JOIN sal_invoice i ON i.id = l.invoice_id
+     INNER JOIN crm_customer c ON c.id = i.customer_id
+     LEFT JOIN crm_sales_rep sr ON sr.id = COALESCE(i.sales_rep_id, c.sales_rep_id)
+     LEFT JOIN crm_region rg ON rg.id = c.region_id
+     LEFT JOIN inv_warehouse w ON w.id = i.warehouse_id
+     INNER JOIN inv_item it ON it.id = l.item_id
+     LEFT JOIN inv_item_category cat ON cat.id = it.category_id
+     WHERE ${where.join(' AND ')}
+     ORDER BY i.invoice_date ASC, i.id ASC, l.id ASC
+     LIMIT ${limit}`,
+    params
+  );
+
+  if (!rows.length) return empty;
+
+  const details = rows.map((row) => ({
+    invoice_id: Number(row.invoice_id || 0),
+    invoice_no: row.invoice_no || '',
+    invoice_date: row.invoice_date || '',
+    payment_type: row.payment_type || '',
+    customer_id: Number(row.customer_id || 0),
+    customer_code: row.customer_code || '',
+    customer_name: row.customer_name || '',
+    sales_rep_id: Number(row.sales_rep_id || 0),
+    sales_rep_name: row.sales_rep_name || '',
+    sales_rep_code: row.sales_rep_code || '',
+    region_id: Number(row.region_id || 0),
+    region_name: row.region_name || '',
+    warehouse_id: Number(row.warehouse_id || 0),
+    warehouse_name: row.warehouse_name || '',
+    item_id: Number(row.item_id || 0),
+    item_sku: row.item_sku || '',
+    item_name: row.item_name || '',
+    category_id: Number(row.category_id || 0),
+    category_name: row.category_name || '',
+    qty: Number(row.qty || 0),
+    unit_price: Number(row.unit_price || 0),
+    discount_pct: Number(row.discount_pct || 0),
+    line_total: Number(row.line_total || 0),
+    line_gross: Number(row.line_gross || 0),
+    tax_amount: Number(row.tax_amount || 0),
+  }));
+
+  const totals = { qty: 0, line_total: 0, line_gross: 0, tax_amount: 0, line_count: 0, invoice_count: 0 };
+  const invoiceIds = new Set();
+  for (const row of details) {
+    totals.qty += row.qty;
+    totals.line_total += row.line_total;
+    totals.line_gross += row.line_gross;
+    totals.tax_amount += row.tax_amount;
+    if (row.invoice_id > 0) invoiceIds.add(row.invoice_id);
+  }
+  totals.line_count = details.length;
+  totals.invoice_count = invoiceIds.size;
+
+  return {
+    summary: buildSalesDetailedSummary(details, groupBy),
+    details,
+    totals,
+    group_by: groupBy,
+  };
+}
+
+async function listRegionsSimple() {
+  return safeQuery(`SELECT id, name_ar FROM crm_region WHERE is_active = 1 ORDER BY name_ar LIMIT 500`);
+}
+
+async function listCategoriesSimple() {
+  return safeQuery(`SELECT id, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar LIMIT 500`);
+}
+
+async function listWarehousesSimple() {
+  return safeQuery(`SELECT id, name_ar FROM inv_warehouse WHERE is_active = 1 ORDER BY name_ar LIMIT 500`);
+}
+
 module.exports = {
   listInvoices,
   listUnpaid,
@@ -408,5 +687,9 @@ module.exports = {
   reportDelivery,
   reportReturns,
   reportReturnsTotals,
+  reportSalesDetailed,
+  listRegionsSimple,
+  listCategoriesSimple,
+  listWarehousesSimple,
   dateRange,
 };

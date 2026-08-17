@@ -7,6 +7,8 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
+import '../../core/theme.dart';
+import '../../widgets/app_confirm_dialog.dart';
 import '../../services/customer_order_bluetooth_receipt.dart';
 import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
@@ -28,6 +30,7 @@ class CustomerOrderFormScreen extends StatefulWidget {
     this.embedded = false,
     this.hideCustomerPicker = false,
     this.onSaved,
+    this.onDeleted,
   });
   final int? orderId;
   final int? initialCustomerId;
@@ -41,7 +44,8 @@ class CustomerOrderFormScreen extends StatefulWidget {
   /// إخفاء اختيار العميل (مُثبَّت من السياق).
   final bool hideCustomerPicker;
 
-  final VoidCallback? onSaved;
+  final void Function(int orderId)? onSaved;
+  final VoidCallback? onDeleted;
 
   @override
   State<CustomerOrderFormScreen> createState() =>
@@ -425,7 +429,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             Fmt.str(result['message']).isEmpty
                 ? 'تم حفظ الطلب.'
                 : Fmt.str(result['message']));
-        widget.onSaved?.call();
+        widget.onSaved?.call(_id);
       }
       return _id;
     } on ApiException catch (e) {
@@ -439,14 +443,24 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
   }
 
-  Map<String, dynamic> _printData() => {
+  Map<String, dynamic> _printData() {
+    final sub = _lines.fold<double>(0, (s, l) => s + l.lineTotal);
+    final disc = _lines.fold<double>(0, (s, l) => s + l.discountAmount);
+    final tax = _lines.fold<double>(0, (s, l) => s + l.taxAmount);
+    final gross = _lines.fold<double>(0, (s, l) => s + l.lineGross);
+    return {
         'order_no': _orderNo,
+        'order_date': Fmt.todayIso(),
         'customer_name': _customer?.name,
         'warehouse_name': _warehouses
             .where((w) => Fmt.toInt(w['id']) == _warehouseId)
             .map((w) => Fmt.str(w['name'] ?? w['name_ar']))
             .cast<String>()
             .followedBy(const ['']).first,
+        'subtotal': sub,
+        'discount_total': disc,
+        'tax_total': tax,
+        'grand_total': gross,
         'lines': _lines
             .map((l) => {
                   'item_name': l.item.name,
@@ -460,9 +474,128 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   'tax_amount': l.taxAmount,
                   'discount_pct': l.discountPct,
                   'line_total': l.lineGross,
+                  'line_gross': l.lineGross,
                 })
             .toList(),
       };
+  }
+
+  Future<void> _delete() async {
+    if (_id < 1 || _approved) return;
+    final ok = await showAppConfirmDialog(
+      context,
+      title: 'حذف الطلب',
+      message: 'هل تريد حذف هذا الطلب نهائياً؟',
+      confirmLabel: 'حذف',
+      destructive: true,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await context.read<ApiClient>().postJson(
+            AppConfig.customerOrderDeletePath,
+            body: {'id': _id},
+            csrf: context.read<SessionController>().csrf,
+          );
+      if (!mounted) return;
+      showSnack(context, 'تم حذف الطلب.');
+      widget.onDeleted?.call();
+      setState(() {
+        _id = 0;
+        _orderNo = '';
+        _lines.clear();
+      });
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _actionBtn({
+    required String label,
+    required IconData icon,
+    required VoidCallback? onPressed,
+    bool filled = false,
+    bool danger = false,
+  }) {
+    final style = filled
+        ? FilledButton.styleFrom(
+            backgroundColor: danger ? AppTheme.danger : AppTheme.primary,
+            minimumSize: const Size(0, 46),
+            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          )
+        : OutlinedButton.styleFrom(
+            foregroundColor: danger ? AppTheme.danger : AppTheme.textMain,
+            side: BorderSide(color: danger ? AppTheme.danger : AppTheme.border),
+            minimumSize: const Size(0, 46),
+            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          );
+    final child = filled
+        ? FilledButton.icon(
+            style: style,
+            onPressed: onPressed,
+            icon: Icon(icon, size: 18),
+            label: Text(label),
+          )
+        : OutlinedButton.icon(
+            style: style,
+            onPressed: onPressed,
+            icon: Icon(icon, size: 18),
+            label: Text(label),
+          );
+    return Expanded(child: child);
+  }
+
+  Widget _buildActionBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(top: BorderSide(color: AppTheme.border)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          if (_editable) ...[
+            _actionBtn(
+              label: 'إضافة',
+              icon: Icons.add_rounded,
+              onPressed: _busy ? null : _addLine,
+            ),
+            const SizedBox(width: 8),
+          ],
+          _actionBtn(
+            label: 'حفظ',
+            icon: Icons.save_outlined,
+            filled: true,
+            onPressed: _busy || !_editable ? null : _save,
+          ),
+          const SizedBox(width: 8),
+          _actionBtn(
+            label: 'طباعة',
+            icon: Icons.print_outlined,
+            onPressed: _busy ? null : _print,
+          ),
+          if (widget.embedded && _id > 0 && !_approved) ...[
+            const SizedBox(width: 8),
+            _actionBtn(
+              label: 'حذف',
+              icon: Icons.delete_outline_rounded,
+              danger: true,
+              onPressed: _busy ? null : _delete,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Future<void> _view() async {
     if (_id == 0 && await _save() == 0) return;
@@ -1015,42 +1148,27 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 ),
               ),
             ],
-            if (_editable)
-              OutlinedButton.icon(
-                  onPressed: _addLine,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('إضافة مادة')),
-            const SizedBox(height: 12),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              FilledButton.icon(
-                  onPressed: _busy || !_editable ? null : _save,
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('حفظ')),
-              if (!widget.embedded)
-                OutlinedButton.icon(
-                    onPressed: _busy || _id == 0 || _approved
-                        ? null
-                        : () => context.push('/customer-orders/$_id/edit'),
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('تعديل')),
-              if (!widget.embedded)
-                OutlinedButton.icon(
-                    onPressed: _busy ? null : _view,
-                    icon: const Icon(Icons.visibility_outlined),
-                    label: const Text('عرض')),
-              OutlinedButton.icon(
-                  onPressed: _busy ? null : _print,
-                  icon: const Icon(Icons.print_outlined),
-                  label: const Text('طباعة')),
-            ]),
           ],
         ));
     if (widget.embedded) {
-      return Material(color: Colors.transparent, child: body);
+      return Material(
+        color: Colors.transparent,
+        child: Column(
+          children: [
+            Expanded(child: body),
+            _buildActionBar(),
+          ],
+        ),
+      );
     }
     return MobileScaffold(
       title: Text(_id > 0 ? 'تعديل طلب شراء' : 'طلب شراء جديد'),
-      body: body,
+      body: Column(
+        children: [
+          Expanded(child: body),
+          _buildActionBar(),
+        ],
+      ),
     );
   }
 }

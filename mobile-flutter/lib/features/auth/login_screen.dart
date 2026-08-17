@@ -19,6 +19,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _remember = false;
   bool _obscure = true;
 
+  static const _panelBg = Color(0xFFF5F7FB);
+  static const _labelColor = Color(0xFF334155);
+
   @override
   void initState() {
     super.initState();
@@ -63,56 +66,100 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  InputDecoration _fieldDecoration(String hint) {
+    return InputDecoration(
+      filled: true,
+      fillColor: Colors.white,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFFD0D7E2)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Color(0xFFD0D7E2)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppTheme.primary, width: 1.4),
+      ),
+      hintText: hint,
+      hintStyle: const TextStyle(color: AppTheme.textSoft, fontSize: 15),
+    );
+  }
+
+  Widget _loginField({
+    required String label,
+    required Widget field,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _labelColor,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(height: 43, child: field),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = context.watch<SessionController>();
+    final h = MediaQuery.of(context).size.height;
+
     return Scaffold(
-      backgroundColor: AppTheme.surface,
-      body: Stack(
+      backgroundColor: _panelBg,
+      body: Column(
         children: [
           Container(
-            height: MediaQuery.of(context).size.height * 0.42,
+            width: double.infinity,
+            height: h * 0.34,
             decoration: const BoxDecoration(
-              gradient: AppTheme.brandGradient,
-              borderRadius: BorderRadius.vertical(
-                bottom: Radius.circular(38),
+              gradient: LinearGradient(
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+                colors: [
+                  Color(0xFF0B1220),
+                  Color(0xFF111827),
+                  Color(0xFF1E3A5F),
+                ],
               ),
             ),
-          ),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(22, 40, 22, 24),
+            child: SafeArea(
+              bottom: false,
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    width: 92,
-                    height: 92,
-                    padding: const EdgeInsets.all(10),
+                    width: 52,
+                    height: 52,
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.35),
+                        color: Colors.white.withValues(alpha: 0.15),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
                     ),
                     child: Image.asset(
                       'assets/branding/logo.png',
                       fit: BoxFit.contain,
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   const Text(
                     'Hypex',
                     style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
                       color: Colors.white,
                     ),
                   ),
@@ -121,59 +168,94 @@ class _LoginScreenState extends State<LoginScreen> {
                     'نظام المبيعات والمندوبين',
                     style: TextStyle(
                       fontSize: 13,
-                      color: Colors.white.withValues(alpha: 0.85),
+                      color: Colors.white.withValues(alpha: 0.82),
                     ),
                   ),
-                  const SizedBox(height: 28),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 20, 22, 24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
                     decoration: BoxDecoration(
-                      color: AppTheme.surface,
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: AppTheme.softShadow,
-                      border: Border.all(color: AppTheme.border),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: const Color(0xFFE6EAF0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'تسجيل الدخول',
+                        Text(
+                          'مرحباً بعودتك',
                           style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        TextField(
-                          controller: _user,
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'اسم المستخدم',
-                            prefixIcon: Icon(Icons.person_outline, size: 20),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        TextField(
-                          controller: _pass,
-                          obscureText: _obscure,
-                          onSubmitted: (_) => _submit(),
-                          decoration: InputDecoration(
-                            labelText: 'كلمة المرور',
-                            prefixIcon:
-                                const Icon(Icons.lock_outline, size: 20),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscure
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                size: 20,
-                              ),
-                              onPressed: () =>
-                                  setState(() => _obscure = !_obscure),
-                            ),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.4,
+                            color: AppTheme.textSoft.withValues(alpha: 0.95),
                           ),
                         ),
                         const SizedBox(height: 4),
+                        const Text(
+                          'تسجيل الدخول',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textMain,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'أدخل بياناتك للوصول إلى النظام',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textSoft,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _loginField(
+                          label: 'اسم المستخدم',
+                          field: TextField(
+                            controller: _user,
+                            textInputAction: TextInputAction.next,
+                            style: const TextStyle(fontSize: 15),
+                            decoration: _fieldDecoration(''),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _loginField(
+                          label: 'كلمة المرور',
+                          field: TextField(
+                            controller: _pass,
+                            obscureText: _obscure,
+                            onSubmitted: (_) => _submit(),
+                            style: const TextStyle(fontSize: 15),
+                            decoration: _fieldDecoration('').copyWith(
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscure
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  size: 20,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _obscure = !_obscure),
+                              ),
+                            ),
+                          ),
+                        ),
                         CheckboxListTile(
                           contentPadding: EdgeInsets.zero,
                           dense: true,
@@ -183,45 +265,63 @@ class _LoginScreenState extends State<LoginScreen> {
                           title: const Text(
                             'تذكّرني',
                             style: TextStyle(
-                              fontSize: 13.5,
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          subtitle: const Text(
-                            'حفظ اسم المستخدم وكلمة المرور بشكل آمن',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: AppTheme.textSoft,
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 46,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF2563EB)
+                                      .withValues(alpha: 0.28),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(10),
+                                onTap: s.busy ? null : _submit,
+                                child: Center(
+                                  child: s.busy
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'دخول',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 10),
-                        FilledButton(
-                          onPressed: s.busy ? null : _submit,
-                          child: s.busy
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text('دخول'),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  TextButton.icon(
-                    onPressed: () => context.go('/server'),
-                    icon: const Icon(Icons.dns_outlined, size: 17),
-                    label: Text(
-                      _short(s.api.base),
-                      style: const TextStyle(fontSize: 12.5),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -229,7 +329,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-
-  String _short(String url) =>
-      url.replaceFirst(RegExp(r'^https?://'), '').replaceAll(RegExp(r'/$'), '');
 }

@@ -650,6 +650,292 @@ router.get('/sales/reports/by-rep', guard('report_sales_by_rep'), async (req, re
   );
 });
 
+router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req, res) => {
+  const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
+  const tab = String(req.query.tab || 'summary') === 'detail' ? 'detail' : 'summary';
+  const run = String(req.query.run || '') === '1';
+  const customerId = Number(req.query.customer_id || 0) || 0;
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const regionId = Number(req.query.region_id || 0) || 0;
+  const categoryId = Number(req.query.category_id || 0) || 0;
+  const itemId = Number(req.query.item_id || 0) || 0;
+  const warehouseId = Number(req.query.warehouse_id || 0) || 0;
+  const paymentType = String(req.query.payment_type || '').toLowerCase();
+  const postedOnly = String(req.query.posted_only || '') === '1';
+  const groupBy = String(req.query.group_by || 'customer');
+
+  const [reps, regions, categories, warehouses] = await Promise.all([
+    q.listRepsSimple(),
+    q.listRegionsSimple(),
+    q.listCategoriesSimple(),
+    q.listWarehousesSimple(),
+  ]);
+
+  let data = {
+    summary: [],
+    details: [],
+    totals: { qty: 0, line_total: 0, line_gross: 0, tax_amount: 0, line_count: 0, invoice_count: 0 },
+    group_by: groupBy,
+  };
+  if (run) {
+    data = await q.reportSalesDetailed({
+      from: range.from,
+      to: range.to,
+      customer_id: customerId,
+      sales_rep_id: salesRepId,
+      region_id: regionId,
+      category_id: categoryId,
+      item_id: itemId,
+      warehouse_id: warehouseId,
+      payment_type: paymentType,
+      posted_only: postedOnly,
+      group_by: groupBy,
+    });
+  }
+
+  const groupLabels = {
+    customer: 'العميل',
+    sales_rep: 'المندوب',
+    region: 'المنطقة',
+    category: 'فئة المادة',
+    item: 'المادة',
+    invoice_date: 'التاريخ',
+    warehouse: 'المستودع',
+    payment_type: 'نوع الدفع',
+  };
+  const groupLabel = groupLabels[data.group_by] || groupLabels.customer;
+
+  function payLbl(v) {
+    const pt = String(v || '');
+    if (pt === 'cash') return 'نقد';
+    if (pt === 'credit') return 'آجل';
+    return pt || '—';
+  }
+
+  function filterQs(extraTab) {
+    const p = new URLSearchParams();
+    p.set('run', '1');
+    p.set('tab', extraTab || tab);
+    p.set('from', range.from);
+    p.set('to', range.to);
+    p.set('customer_id', String(customerId));
+    p.set('sales_rep_id', String(salesRepId));
+    p.set('region_id', String(regionId));
+    p.set('category_id', String(categoryId));
+    p.set('item_id', String(itemId));
+    p.set('warehouse_id', String(warehouseId));
+    p.set('group_by', data.group_by);
+    if (paymentType) p.set('payment_type', paymentType);
+    if (postedOnly) p.set('posted_only', '1');
+    return p.toString();
+  }
+
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar)}${
+          r.code ? ' (' + ui.esc(r.code) + ')' : ''
+        }</option>`
+    )
+    .join('');
+  const regionOpts = regions
+    .map(
+      (rg) =>
+        `<option value="${rg.id}" ${regionId === Number(rg.id) ? 'selected' : ''}>${ui.esc(rg.name_ar || '')}</option>`
+    )
+    .join('');
+  const catOpts = categories
+    .map(
+      (c) =>
+        `<option value="${c.id}" ${categoryId === Number(c.id) ? 'selected' : ''}>${ui.esc(c.name_ar || '')}</option>`
+    )
+    .join('');
+  const whOpts = warehouses
+    .map(
+      (w) =>
+        `<option value="${w.id}" ${warehouseId === Number(w.id) ? 'selected' : ''}>${ui.esc(w.name_ar || '')}</option>`
+    )
+    .join('');
+  const groupOpts = Object.entries(groupLabels)
+    .map(
+      ([k, lab]) =>
+        `<option value="${k}" ${data.group_by === k ? 'selected' : ''}>${ui.esc(lab)}</option>`
+    )
+    .join('');
+
+  let tableBlock = '';
+  if (run && tab === 'summary') {
+    const rowsHtml =
+      data.summary
+        .map(
+          (r, i) => `<tr>
+        <td class="si-num" dir="ltr">${i + 1}</td>
+        <td>${ui.esc(r.label || '')}</td>
+        <td class="si-num" dir="ltr">${dash(r.code)}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_total))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.tax_amount))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_gross))}</td>
+        <td class="si-num" dir="ltr">${Number(r.line_count || 0)}</td>
+        <td class="si-num" dir="ltr">${Number(r.invoice_count || 0)}</td>
+      </tr>`
+        )
+        .join('') ||
+      ui.emptyRow(9, 'لا توجد مبيعات في الفترة المحددة');
+    tableBlock = ui.tableSurface(
+      `ملخص حسب ${groupLabel}`,
+      `${data.summary.length} صف · ${data.totals.invoice_count} فاتورة`,
+      ['#', groupLabel, 'الرمز', 'الكمية', 'بدون ض.', 'الضريبة', 'شامل', 'بنود', 'فواتير'],
+      rowsHtml +
+        (data.summary.length
+          ? `<tr><td colspan="3" style="font-weight:800">الإجمالي</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${ui.esc(ui.fmtAmt(data.totals.qty))}</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${ui.esc(ui.fmtAmt(data.totals.line_total))}</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${ui.esc(ui.fmtAmt(data.totals.tax_amount))}</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${ui.esc(ui.fmtAmt(data.totals.line_gross))}</td>
+          <td colspan="2"></td></tr>`
+          : '')
+    );
+  } else if (run) {
+    const rowsHtml =
+      data.details
+        .map(
+          (r, i) => `<tr>
+        <td class="si-num" dir="ltr">${i + 1}</td>
+        <td class="si-num" dir="ltr">${dash(r.invoice_no)}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.invoice_date))}</td>
+        <td>${ui.esc(r.customer_name || '—')}</td>
+        <td>${ui.esc(r.sales_rep_name || '—')}</td>
+        <td>${ui.esc(r.region_name || '—')}</td>
+        <td class="si-num" dir="ltr">${dash(r.item_sku)}</td>
+        <td>${ui.esc(r.item_name || '')}</td>
+        <td>${ui.esc(r.category_name || '—')}</td>
+        <td>${ui.esc(r.warehouse_name || '—')}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.unit_price))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_total))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_gross))}</td>
+        <td>${ui.esc(payLbl(r.payment_type))}</td>
+      </tr>`
+        )
+        .join('') || ui.emptyRow(15, 'لا توجد بنود في الفترة المحددة');
+    tableBlock = ui.tableSurface(
+      'تفصيل بنود الفواتير',
+      `${data.details.length} سطر · ${data.totals.invoice_count} فاتورة`,
+      [
+        '#',
+        'فاتورة',
+        'التاريخ',
+        'العميل',
+        'المندوب',
+        'المنطقة',
+        'المادة',
+        'الاسم',
+        'الفئة',
+        'المستودع',
+        'الكمية',
+        'السعر',
+        'بدون ض.',
+        'شامل',
+        'دفع',
+      ],
+      rowsHtml
+    );
+  } else {
+    tableBlock = `<p class="muted">حدّد الفلاتر ثم اضغط «عرض التقرير».</p>`;
+  }
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '📋',
+        kicker: 'Hypex Sales · Node',
+        title: 'تقرير المبيعات التفصيلي',
+        subtitle: run
+          ? `من ${ui.esc(ui.isoToDmy(range.from))} إلى ${ui.esc(ui.isoToDmy(range.to))} · ${data.totals.invoice_count} فاتورة · ${data.totals.line_count} بند · إجمالي ${ui.esc(ui.fmtAmt(data.totals.line_gross))}`
+          : 'فلاتر شاملة — ملخص مجمّع أو تفصيل بنود الفواتير',
+        actions: [
+          { label: '🖨 طباعة', primary: true, print: true },
+          { label: 'لوحة المبيعات', href: '/sales' },
+        ],
+      })}
+      <div class="si-rail no-print">
+        <form method="get" action="/sales/reports/detailed" class="si-search" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%">
+          <input type="hidden" name="run" value="1">
+          <input type="hidden" name="tab" value="${ui.esc(tab)}">
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">من
+            <input class="si-field" type="date" name="from" value="${ui.esc(range.from)}" required>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى
+            <input class="si-field" type="date" name="to" value="${ui.esc(range.to)}" required>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">العميل
+            <input class="si-field" type="number" name="customer_id" min="0" value="${customerId}" placeholder="0=الكل" style="min-width:6rem">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المندوب
+            <select name="sales_rep_id" class="si-field" style="min-width:10rem">
+              <option value="0">— الكل —</option>
+              ${repOpts}
+            </select>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المنطقة
+            <select name="region_id" class="si-field" style="min-width:9rem">
+              <option value="0">— الكل —</option>
+              ${regionOpts}
+            </select>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">فئة المادة
+            <select name="category_id" class="si-field" style="min-width:9rem">
+              <option value="0">— الكل —</option>
+              ${catOpts}
+            </select>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المادة #
+            <input class="si-field" type="number" name="item_id" min="0" value="${itemId || ''}" placeholder="0=الكل" style="min-width:6rem">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المستودع
+            <select name="warehouse_id" class="si-field" style="min-width:9rem">
+              <option value="0">— الكل —</option>
+              ${whOpts}
+            </select>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">الدفع
+            <select name="payment_type" class="si-field">
+              <option value="" ${paymentType === '' ? 'selected' : ''}>الكل</option>
+              <option value="cash" ${paymentType === 'cash' ? 'selected' : ''}>نقد</option>
+              <option value="credit" ${paymentType === 'credit' ? 'selected' : ''}>آجل</option>
+            </select>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">تجميع الملخص
+            <select name="group_by" class="si-field" style="min-width:9rem">${groupOpts}</select>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+            <input type="checkbox" name="posted_only" value="1" ${postedOnly ? 'checked' : ''}> مرحّل فقط
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+        </form>
+        ${
+          run
+            ? `<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.65rem">
+          <a class="si-btn${tab === 'summary' ? ' si-btn--primary' : ''}" href="/sales/reports/detailed?${filterQs('summary')}">ملخص</a>
+          <a class="si-btn${tab === 'detail' ? ' si-btn--primary' : ''}" href="/sales/reports/detailed?${filterQs('detail')}">تفصيل البنود</a>
+        </div>`
+            : ''
+        }
+      </div>
+      <div class="si-print-area">${tableBlock}</div>
+    </div>`;
+
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تقرير المبيعات التفصيلي',
+      bodyHtml: body,
+      js: ['/assets/js/sales-print.js'],
+    })
+  );
+});
+
 router.get('/sales/reports/qty-extra', guard('report_sales_qty_extra'), (req, res) =>
   stdReport(req, res, {
     title: 'تقرير الكميات الإضافية',

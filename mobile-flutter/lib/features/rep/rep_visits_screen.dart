@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../core/visit_status.dart';
 import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -226,7 +227,15 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
             s == 'checked_out';
       }).toList();
 
-  String _statusOf(Map<String, dynamic>? v) => Fmt.str(v?['status']);
+  String _statusOf(Map<String, dynamic>? v, {String? referenceDate}) {
+    if (v == null) return '';
+    return VisitStatus.effective(
+      status: Fmt.str(v['status']),
+      checkinAt: Fmt.str(v['visit_checkin_at']),
+      checkoutAt: Fmt.str(v['visit_checkout_at']),
+      referenceDate: referenceDate ?? _routeDate,
+    );
+  }
 
   String _statusLabel(String s) {
     switch (s) {
@@ -287,7 +296,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (ctx) => _CustomerPickSheet(visits: list),
+        builder: (ctx) => _CustomerPickSheet(visits: list, routeDate: _routeDate),
       );
       if (picked != null && mounted) {
         setState(() => _selected = picked);
@@ -789,7 +798,12 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                       ...customers.asMap().entries.map((e) {
                         final i = e.key + 1;
                         final c = e.value;
-                        final st = Fmt.str(c['status']);
+                        final st = VisitStatus.effective(
+                          status: Fmt.str(c['status']),
+                          checkinAt: Fmt.str(c['visit_checkin_at']),
+                          checkoutAt: Fmt.str(c['visit_checkout_at']),
+                          referenceDate: date,
+                        );
                         return _PlanCustomerTile(
                           index: i,
                           name: Fmt.str(c['name']),
@@ -1605,9 +1619,13 @@ class _MetaChip extends StatelessWidget {
 }
 
 class _CustomerPickSheet extends StatefulWidget {
-  const _CustomerPickSheet({required this.visits});
+  const _CustomerPickSheet({
+    required this.visits,
+    required this.routeDate,
+  });
 
   final List<Map<String, dynamic>> visits;
+  final String routeDate;
 
   @override
   State<_CustomerPickSheet> createState() => _CustomerPickSheetState();
@@ -1693,7 +1711,12 @@ class _CustomerPickSheetState extends State<_CustomerPickSheet> {
                   separatorBuilder: (_, __) => const SizedBox(height: 6),
                   itemBuilder: (_, i) {
                     final v = items[i];
-                    final status = Fmt.str(v['status']);
+                    final status = VisitStatus.effective(
+                      status: Fmt.str(v['status']),
+                      checkinAt: Fmt.str(v['visit_checkin_at']),
+                      checkoutAt: Fmt.str(v['visit_checkout_at']),
+                      referenceDate: widget.routeDate,
+                    );
                     final color = switch (status) {
                       'checked_in' => AppTheme.success,
                       'checked_out' => AppTheme.danger,

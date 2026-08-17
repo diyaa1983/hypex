@@ -33,7 +33,6 @@ if ($status === 'draft' || $status === 'posted') {
     $params[] = $status;
 }
 
-// تأكد من أعمدة الزيارة
 foreach ([
     'visit_checkin_at DATETIME NULL DEFAULT NULL',
     'visit_checkout_at DATETIME NULL DEFAULT NULL',
@@ -95,11 +94,62 @@ function _tour_report_method($v): string
     return $m === '' ? '—' : ($m === 'GPS' ? 'GPS' : ($m === 'MANUAL' ? 'يدوي' : (string) $v));
 }
 
+function _tour_report_ts_method($ts, $method): string
+{
+    $t = _tour_report_fmt_ts($ts);
+    $m = _tour_report_method($method);
+    if ($t === '—' && $m === '—') {
+        return '—';
+    }
+    if ($m === '—') {
+        return esc($t);
+    }
+
+    return esc($t) . ' <span class="muted">' . esc($m) . '</span>';
+}
+
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
-<div class="card report-sales-page">
+<style>
+.report-sales-page.report-tours-page .report-sales-table-wrap {
+  overflow-x: auto !important;
+}
+.report-sales-page.report-tours-page .report-sales-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  font-size: 0.78rem;
+}
+.report-sales-page.report-tours-page .report-sales-table th,
+.report-sales-page.report-tours-page .report-sales-table td,
+.report-sales-page.report-tours-page .report-sales-table td * {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+  max-width: none !important;
+  padding: 0.35rem 0.45rem;
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.25;
+}
+@media print {
+  @page { size: A4 landscape; margin: 6mm 5mm; }
+  .report-sales-page.report-tours-page .report-sales-header { display: none !important; }
+  .report-sales-page.report-tours-page .report-sales-table {
+    width: 100% !important;
+    font-size: 7.5pt !important;
+  }
+  .report-sales-page.report-tours-page .report-sales-table th,
+  .report-sales-page.report-tours-page .report-sales-table td {
+    white-space: nowrap !important;
+    padding: 0.15rem 0.25rem !important;
+    font-size: 7.5pt !important;
+    border: 1px solid #94a3b8 !important;
+  }
+}
+</style>
+<div class="card report-sales-page report-tours-page">
     <header class="report-sales-header no-print">
         <h2>تقرير الجولات</h2>
         <p class="muted">الجولات المُنشأة مع المناطق والعناوين — أوقات الدخول/الخروج وطريقة GPS تُعبَّأ لاحقاً من الآيباد</p>
@@ -139,24 +189,22 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
             <thead>
             <tr>
                 <th>#</th>
-                <th>رقم الجولة</th>
+                <th>الجولة</th>
                 <th>المندوب</th>
-                <th>تاريخ البداية</th>
-                <th>تاريخ النهاية</th>
+                <th>من</th>
+                <th>إلى</th>
                 <th>الحالة</th>
                 <th>العميل</th>
                 <th>الرمز</th>
                 <th>المنطقة</th>
                 <th>العنوان</th>
-                <th>وقت الدخول</th>
-                <th>وقت الخروج</th>
-                <th>طريقة الدخول</th>
-                <th>طريقة الخروج</th>
+                <th>دخول</th>
+                <th>خروج</th>
             </tr>
             </thead>
             <tbody>
             <?php if ($rows === []): ?>
-                <tr><td colspan="14" class="muted">لا جولات في الفترة المحددة.</td></tr>
+                <tr><td colspan="12" class="muted">لا جولات في الفترة المحددة.</td></tr>
             <?php else: ?>
                 <?php foreach ($rows as $i => $r): ?>
                     <tr>
@@ -175,10 +223,8 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                         <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
                         <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>
                         <td><?= esc((string) (($r['address_name'] ?? '') !== '' ? $r['address_name'] : '—')) ?></td>
-                        <td dir="ltr" class="muted"><?= esc(_tour_report_fmt_ts($r['visit_checkin_at'] ?? null)) ?></td>
-                        <td dir="ltr" class="muted"><?= esc(_tour_report_fmt_ts($r['visit_checkout_at'] ?? null)) ?></td>
-                        <td class="muted"><?= esc(_tour_report_method($r['checkin_method'] ?? null)) ?></td>
-                        <td class="muted"><?= esc(_tour_report_method($r['checkout_method'] ?? null)) ?></td>
+                        <td dir="ltr" class="muted"><?= _tour_report_ts_method($r['visit_checkin_at'] ?? null, $r['checkin_method'] ?? null) ?></td>
+                        <td dir="ltr" class="muted"><?= _tour_report_ts_method($r['visit_checkout_at'] ?? null, $r['checkout_method'] ?? null) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

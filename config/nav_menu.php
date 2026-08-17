@@ -128,6 +128,7 @@ return [
                         ['r' => 'report_sales_by_item', 'label' => 'تقرير المبيعات حسب المادة', 'icon' => '📦'],
                         ['r' => 'report_sales_by_region', 'label' => 'تقرير المبيعات حسب المنطقة', 'icon' => '🗺️'],
                         ['r' => 'report_sales_by_rep', 'label' => 'تقرير المبيعات حسب المندوب', 'icon' => '📊'],
+                        ['r' => 'report_sales_detailed', 'label' => 'تقرير المبيعات التفصيلي', 'icon' => '📋'],
                         ['r' => 'report_sales_qty_extra', 'label' => 'تقرير الكميات الإضافية على الفواتير', 'icon' => '➕'],
                         ['r' => 'report_sales_invoice_discount', 'label' => 'الخصم على الفواتير', 'icon' => '🏷️'],
                     ],

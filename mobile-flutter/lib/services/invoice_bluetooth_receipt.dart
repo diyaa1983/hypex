@@ -9,6 +9,7 @@ import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
 import 'print_brand.dart';
+import 'thermal_print_widgets.dart';
 
 /// إيصال فاتورة حراري (58/80 مم) — تصميم مختلف عن PDF A4.
 class InvoiceBluetoothReceipt {
@@ -115,7 +116,7 @@ class InvoiceBluetoothReceipt {
               _kv('رقم الفاتورة', invoiceNo.isEmpty ? '—' : invoiceNo, fontReg,
                   fontBold, fsSm),
               _kv('التاريخ', date.isEmpty ? '—' : date, fontReg, fontBold,
-                  fsSm),
+                  fsSm, rtlDate: true),
               _kv('العميل', customer, fontReg, fontBold, fsSm),
               if (Fmt.str(inv['sales_rep_name']).trim().isNotEmpty)
                 _kv(
@@ -215,17 +216,13 @@ class InvoiceBluetoothReceipt {
       pw.TextAlign align = pw.TextAlign.right,
       pw.TextStyle? style,
       bool ltr = false,
-    }) {
-      return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 3),
-        child: pw.Text(
+    }) =>
+        thermalCell(
           text,
-          textAlign: align,
-          textDirection: ltr ? pw.TextDirection.ltr : pw.TextDirection.rtl,
           style: style ?? cellStyle,
-        ),
-      );
-    }
+          align: align,
+          ltr: ltr,
+        );
 
     // الجدول LTR داخلياً → نعكس العناصر ليظهر يمين→يسار:
     // يمين: # | المادة | كمية | إضافي؟ | سعر | خصم؟ :يسار
@@ -250,7 +247,7 @@ class InvoiceBluetoothReceipt {
 
     final rows = <pw.TableRow>[
       pw.TableRow(
-        decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+        decoration: ThermalTableStyle.headerDecoration,
         children: [
           if (showDisc)
             cell('خصم', align: pw.TextAlign.center, style: headStyle),
@@ -323,7 +320,7 @@ class InvoiceBluetoothReceipt {
     widths[i++] = pw.FlexColumnWidth(paperMm == 80 ? 0.5 : 0.45); // #
 
     return pw.Table(
-      border: pw.TableBorder.all(width: 0.35, color: PdfColors.grey700),
+      border: ThermalTableStyle.border,
       columnWidths: widths,
       defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
       children: rows,
@@ -335,8 +332,10 @@ class InvoiceBluetoothReceipt {
     String value,
     pw.Font reg,
     pw.Font bold,
-    double fs,
-  ) {
+    double fs, {
+    bool rtlDate = false,
+  }) {
+    final valStyle = pw.TextStyle(font: reg, fontSize: fs);
     return pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 2),
       child: pw.Row(
@@ -344,10 +343,9 @@ class InvoiceBluetoothReceipt {
         children: [
           pw.Text('$label: ', style: pw.TextStyle(font: bold, fontSize: fs)),
           pw.Expanded(
-            child: pw.Text(
-              value,
-              style: pw.TextStyle(font: reg, fontSize: fs),
-            ),
+            child: rtlDate
+                ? thermalDateText(value, style: valStyle)
+                : pw.Text(value, style: valStyle),
           ),
         ],
       ),

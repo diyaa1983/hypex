@@ -269,7 +269,8 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
         if ($checkinAt !== '' && $checkoutAt === '') {
             $status = $pending ? 'pending_manual_checkout' : 'checked_in';
         } elseif ($checkinAt !== '' && $checkoutAt !== '') {
-            $status = 'checked_out';
+            $coDay = date('Y-m-d', strtotime($checkoutAt));
+            $status = ($coDay === $date) ? 'checked_out' : 'idle';
         }
         $out[] = [
             'customer_id' => $cid,
@@ -431,23 +432,31 @@ function sal_rep_visit_no_order_reasons(PDO $pdo): array
 
 function sal_rep_visit_has_order(PDO $pdo, int $routeLineId): bool
 {
+    return sal_rep_visit_order_id($pdo, $routeLineId) > 0;
+}
+
+function sal_rep_visit_order_id(PDO $pdo, int $routeLineId): int
+{
     if ($routeLineId < 1) {
-        return false;
+        return 0;
     }
     try {
         $st = $pdo->prepare(
-            'SELECT 1
+            'SELECT o.id
              FROM sal_customer_order o
              INNER JOIN sal_rep_route_line l ON l.id = o.visit_route_line_id
              WHERE o.visit_route_line_id = ?
                AND l.visit_checkin_at IS NOT NULL
                AND o.created_at >= l.visit_checkin_at
+             ORDER BY o.id DESC
              LIMIT 1'
         );
         $st->execute([$routeLineId]);
-        return (bool) $st->fetchColumn();
+        $id = $st->fetchColumn();
+
+        return $id !== false ? (int) $id : 0;
     } catch (Throwable $e) {
-        return false;
+        return 0;
     }
 }
 

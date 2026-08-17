@@ -1329,6 +1329,21 @@ function fmtGpsCoord(lat, lng) {
   return `${a.toFixed(6)} ، ${b.toFixed(6)}`;
 }
 
+const REP_REPORT_CSS = ['/assets/css/report-rep-reports.css'];
+
+function visitTsMethod(ts, method, fmtTsFn, methodLblFn) {
+  const t = fmtTsFn(ts);
+  const m = methodLblFn(method);
+  if (t === '—' && m === '—') return '—';
+  return `<span class="si-ts-method" dir="ltr">${t}${m !== '—' ? `<span class="muted"> · ${esc(m)}</span>` : ''}</span>`;
+}
+
+function repNameInline(name, code) {
+  const n = esc(name || '—');
+  const c = String(code || '').trim();
+  return c ? `${n} <span class="muted" dir="ltr">(${esc(c)})</span>` : n;
+}
+
 async function renderGpsChangeApprove(req, res, { flash = '', err = '' } = {}) {
   const status = ['pending', 'approved', 'rejected', 'all'].includes(String(req.query.status || ''))
     ? String(req.query.status)
@@ -1517,9 +1532,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
       <td class="si-num" dir="ltr">
         <a href="/sales-reps/route?id=${Number(r.tour_id)}">${Number(r.tour_id)}</a>
       </td>
-      <td>${esc(r.sales_rep_name || '—')}${
-          r.sales_rep_code ? ` <span class="muted" dir="ltr">(${esc(r.sales_rep_code)})</span>` : ''
-        }</td>
+      <td>${repNameInline(r.sales_rep_name, r.sales_rep_code)}</td>
       <td class="si-num" dir="ltr">${esc(ui.isoToDmy(r.date_from))}</td>
       <td class="si-num" dir="ltr">${esc(ui.isoToDmy(r.date_to))}</td>
       <td>${statusLbl(r.status)}</td>
@@ -1527,25 +1540,14 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
       <td class="si-num" dir="ltr">${esc(r.customer_code || '')}</td>
       <td>${esc(r.region_name || '—')}</td>
       <td>${esc(r.address_name || '—')}</td>
-      <td class="si-num muted" dir="ltr" title="يُسجَّل من الآيباد عند دخول العميل">${fmtTs(
-        r.visit_checkin_at
-      )}</td>
-      <td class="si-num muted" dir="ltr" title="يُسجَّل من الآيباد عند الخروج">${fmtTs(
-        r.visit_checkout_at
-      )}</td>
-      <td class="muted" title="GPS إذا كان المندوب ضمن حدود منطقة العميل">${methodLabel(
-        r.checkin_method
-      )}</td>
-      <td class="muted" title="GPS إذا كان المندوب ضمن حدود منطقة العميل عند الخروج">${methodLabel(
-        r.checkout_method
-      )}</td>
+      <td class="si-num">${visitTsMethod(r.visit_checkin_at, r.checkin_method, fmtTs, methodLabel)}</td>
+      <td class="si-num">${visitTsMethod(r.visit_checkout_at, r.checkout_method, fmtTs, methodLabel)}</td>
     </tr>`
       )
-      .join('') || ui.emptyRow(14, 'لا جولات في الفترة المحددة');
+      .join('') || ui.emptyRow(12, 'لا جولات في الفترة المحددة');
 
   const body = `
-    <style>@media print { @page { size: A4 landscape; margin: 6mm 5mm; } }</style>
-    <div class="si-stage si-report-page">
+    <div class="si-stage si-report-page si-report-tours">
       ${ui.hero({
         mark: '🗺️',
         kicker: KICKER,
@@ -1607,8 +1609,6 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
           'العنوان',
           'دخول',
           'خروج',
-          'نوع دخول',
-          'نوع خروج',
         ],
         rowsHtml
       )}
@@ -1620,6 +1620,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
       user: req.session.user,
       title: 'تقرير الجولات',
       bodyHtml: body,
+      css: REP_REPORT_CSS,
       printTitle: 'تقرير الجولات',
     })
   );
@@ -1704,7 +1705,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
 
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
-  const colCount = groupByRep ? 14 : 15;
+  const colCount = groupByRep ? 12 : 13;
 
   function scopeLbl(r) {
     return Number(r.in_plan ?? 1) === 1
@@ -1722,10 +1723,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       <td class="si-num" dir="ltr">${esc(r.customer_code || '')}</td>
       <td>${esc(r.region_name || '—')}</td>
       <td>${esc(r.address_name || '—')}</td>
-      <td class="si-num" dir="ltr">${fmtTs(r.visit_checkin_at)}</td>
-      <td>${methodLabel(r.checkin_method)}</td>
-      <td class="si-num" dir="ltr">${fmtTs(r.visit_checkout_at)}</td>
-      <td>${methodLabel(r.checkout_method)}</td>
+      <td class="si-num">${visitTsMethod(r.visit_checkin_at, r.checkin_method, fmtTs, methodLabel)}</td>
+      <td class="si-num">${visitTsMethod(r.visit_checkout_at, r.checkout_method, fmtTs, methodLabel)}</td>
       <td class="si-num" dir="ltr">${durationLabel(r.visit_checkin_at, r.visit_checkout_at)}</td>
       <td>${statusLbl(r)}</td>`;
   }
@@ -1765,16 +1764,14 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         '#',
         'التاريخ',
         'العميل',
-        'نطاق الزيارة',
+        'النطاق',
         'سبب عدم الطلب',
         'رقم العميل',
         'المنطقة',
         'العنوان',
         'دخول',
-        'نوع',
         'خروج',
-        'نوع',
-        'مدة الزيارة',
+        'المدة',
         'الحالة',
       ]
     : [
@@ -1782,48 +1779,19 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'التاريخ',
         'المندوب',
         'العميل',
-        'نطاق الزيارة',
+        'النطاق',
         'سبب عدم الطلب',
         'رقم العميل',
         'المنطقة',
         'العنوان',
         'دخول',
-        'نوع',
         'خروج',
-        'نوع',
-        'مدة الزيارة',
+        'المدة',
         'الحالة',
       ];
 
   const body = `
-    <style>
-      @media print { @page { size: A4 landscape; margin: 6mm 5mm; } }
-      .si-report-page .si-table-wrap { overflow-x: auto !important; }
-      .si-report-page .si-table {
-        width: max-content !important;
-        min-width: 100%;
-        table-layout: auto !important;
-      }
-      .si-report-page .si-table th,
-      .si-report-page .si-table td {
-        white-space: nowrap !important;
-        word-break: keep-all !important;
-        overflow-wrap: normal !important;
-        max-width: none !important;
-      }
-      .si-report-page .si-table .si-pill {
-        white-space: nowrap !important;
-        display: inline-flex !important;
-      }
-      .si-report-page .si-rep-group-row td {
-        background: #e2e8f0 !important;
-        text-align: start !important;
-        font-weight: 700;
-        white-space: nowrap !important;
-        padding: 0.5rem 0.65rem !important;
-      }
-    </style>
-    <div class="si-stage si-report-page">
+    <div class="si-stage si-report-page si-report-visits">
       ${ui.hero({
         mark: '📍',
         kicker: KICKER,
@@ -1889,6 +1857,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       user: req.session.user,
       title: 'تقرير زيارات العملاء',
       bodyHtml: body,
+      css: REP_REPORT_CSS,
       printTitle: 'تقرير زيارات العملاء',
     })
   );

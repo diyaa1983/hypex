@@ -9,6 +9,7 @@ import '../core/format.dart';
 import 'bluetooth_print_service.dart';
 import 'bluetooth_printer_settings.dart';
 import 'print_brand.dart';
+import 'thermal_print_widgets.dart';
 
 /// كشف حساب حراري بحجم ورق Bluetooth (58/80 مم).
 class PartyStatementBluetoothReceipt {
@@ -120,6 +121,7 @@ class PartyStatementBluetoothReceipt {
                 fontReg,
                 fontBold,
                 fsSm,
+                rtlDate: true,
               ),
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
@@ -176,16 +178,21 @@ class PartyStatementBluetoothReceipt {
       pw.TextStyle? style,
       bool ltr = false,
       int maxLines = 3,
+      bool rtlDate = false,
     }) {
-      return pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 1.5, vertical: 2.4),
-        child: pw.Text(
+      if (rtlDate) {
+        return thermalCell(
           text,
-          textAlign: align,
-          maxLines: maxLines,
-          textDirection: ltr ? pw.TextDirection.ltr : pw.TextDirection.rtl,
           style: style ?? cellStyle,
-        ),
+          align: align,
+          ltr: false,
+        );
+      }
+      return thermalCell(
+        text,
+        style: style ?? cellStyle,
+        align: align,
+        ltr: ltr,
       );
     }
 
@@ -195,7 +202,7 @@ class PartyStatementBluetoothReceipt {
 
     final tableRows = <pw.TableRow>[
       pw.TableRow(
-        decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+        decoration: ThermalTableStyle.headerDecoration,
         children: rtl([
           cell('التاريخ',
               style: headStyle, align: pw.TextAlign.center, maxLines: 1),
@@ -250,7 +257,7 @@ class PartyStatementBluetoothReceipt {
               cell(
                 date.isEmpty ? '—' : date,
                 align: pw.TextAlign.center,
-                ltr: true,
+                rtlDate: true,
                 maxLines: 1,
               ),
               cell(desc.isEmpty ? '—' : desc, maxLines: 3),
@@ -284,7 +291,7 @@ class PartyStatementBluetoothReceipt {
     final balW = paperMm == 80 ? 38.0 : 27.0;
 
     return pw.Table(
-      border: pw.TableBorder.all(width: 0.3, color: PdfColors.grey700),
+      border: ThermalTableStyle.border,
       columnWidths: {
         // الأعمدة معكوسة: 0 = رصيد ... 4 = التاريخ
         0: pw.FixedColumnWidth(balW),
@@ -368,7 +375,7 @@ class PartyStatementBluetoothReceipt {
     List<pw.Widget> rtl(List<pw.Widget> cells) => cells.reversed.toList();
     final rows = <pw.TableRow>[
       pw.TableRow(
-        decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+        decoration: ThermalTableStyle.headerDecoration,
         children: rtl([
           cell('الشيك', head: true),
           cell('التاريخ', head: true),
@@ -438,7 +445,7 @@ class PartyStatementBluetoothReceipt {
         ),
         pw.SizedBox(height: 4),
         pw.Table(
-          border: pw.TableBorder.all(width: 0.3, color: PdfColors.grey700),
+          border: ThermalTableStyle.border,
           columnWidths: {
             0: const pw.FlexColumnWidth(1.2),
             1: const pw.FlexColumnWidth(1.3),
@@ -456,8 +463,10 @@ class PartyStatementBluetoothReceipt {
     String value,
     pw.Font reg,
     pw.Font bold,
-    double fs,
-  ) {
+    double fs, {
+    bool rtlDate = false,
+  }) {
+    final valStyle = pw.TextStyle(font: reg, fontSize: fs);
     return pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 2),
       child: pw.Row(
@@ -465,10 +474,9 @@ class PartyStatementBluetoothReceipt {
         children: [
           pw.Text('$label: ', style: pw.TextStyle(font: bold, fontSize: fs)),
           pw.Expanded(
-            child: pw.Text(
-              value,
-              style: pw.TextStyle(font: reg, fontSize: fs),
-            ),
+            child: rtlDate
+                ? thermalDateText(value, style: valStyle)
+                : pw.Text(value, style: valStyle),
           ),
         ],
       ),
