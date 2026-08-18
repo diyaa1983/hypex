@@ -154,7 +154,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     $mappedLines = [];
     foreach ($lines as $ln) {
         $item = oracle_order_item_keys($mysql, $ln);
-        if ($item['item'] === '') {
+        if ($item['item'] === '' && $item['barcode'] === '') {
             return [
                 'ok' => false,
                 'message' => 'مادة بدون رمز Oracle/SKU: ' . trim((string) ($ln['item_name'] ?? $ln['id'] ?? '')),
@@ -164,10 +164,23 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         if ($qty <= 0) {
             continue;
         }
+        $card = oracle_order_mascard_find($conn, $item['item'], $item['barcode']);
+        if ($card === []) {
+            $tried = trim($item['item'] . ' / ' . $item['barcode'], ' /');
+
+            return [
+                'ok' => false,
+                'message' => 'المادة غير موجودة في بطاقة أصناف أوراكل (MASCARD): '
+                    . trim((string) ($ln['item_name'] ?? ''))
+                    . ' — الرمز المحاوَل: ' . $tried
+                    . '. اضبط رمز المادة (SKU / oracle_key) ليطابق رقم الصنف في أوراكل، وليس الباركود.',
+            ];
+        }
         $taxPct = (float) ($ln['tax_rate_percent'] ?? 0);
         $mappedLines[] = [
-            'item' => $item['item'],
-            'cat' => $item['cat'],
+            'item' => $card['item'],
+            'cat' => $card['cat'],
+            'batch' => $card['batch'] !== '' ? $card['batch'] : '0',
             'qty' => $qty,
             'bonus' => (float) ($ln['qty_extra'] ?? 0),
             'sell' => (float) ($ln['unit_price'] ?? 0),
@@ -273,7 +286,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             'COMP_NUM' => $compNum,
             'ITEM' => $line['item'],
             'CAT' => $line['cat'],
-            'BATCH' => '0',
+            'BATCH' => $line['batch'] !== '' ? $line['batch'] : '0',
             'QTY' => $line['qty'],
             'BONUS' => $line['bonus'],
             'SELL' => $line['sell'],
@@ -347,7 +360,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             // ignore
         }
 
-        return ['ok' => false, 'message' => 'فشل إدراج الفاتورة في Oracle: ' . $e->getMessage()];
+        return ['ok' => false, 'message' => 'فشل إدراج الفاتورة في Oracle: ' . oracle_order_fk_message($conn, $e->getMessage())];
     }
 
     try {
@@ -462,7 +475,27 @@ function oracle_order_bind_date(mixed $v): string
  */
 function oracle_order_fill_required(array $use, array $colMeta, array $sample): array
 {
-    $skip = ['ROWID' => true, 'ORA_ROWSCN' => true];
+    $skip = [
+        'ROWID' => true,
+        'ORA_ROWSCN' => true,
+        'ITEM' => true,
+        'CAT' => true,
+        'BATCH' => true,
+        'QTY' => true,
+        'BONUS' => true,
+        'SELL' => true,
+        'DISC' => true,
+        'VOU_TAX' => true,
+        'PER_TAX' => true,
+        'TR_UNIT' => true,
+        'JD_COST' => true,
+        'CUST_ACC' => true,
+        'STORE' => true,
+        'TYPE' => true,
+        'V_NUM' => true,
+        'VYEAR' => true,
+        'VDATE' => true,
+    ];
     foreach ($colMeta as $c) {
         $name = strtoupper(trim((string) ($c['column_name'] ?? '')));
         if ($name === '' || isset($skip[$name])) {
@@ -535,43 +568,246 @@ function oracle_order_store_no(PDO $pdo, int $warehouseId): int
 
 /**
  * @param array<string,mixed> $ln
- * @return array{item:string,cat:string}
+ * @return array{item:string,cat:string,barcode:string}
  */
 function oracle_order_item_keys(PDO $pdo, array $ln): array
 {
     $itemId = (int) ($ln['item_id'] ?? 0);
-    $sku = trim((string) ($ln['sku'] ?? $ln['item_sku'] ?? $ln['item_code'] ?? ''));
-    $item = $sku;
+    $barcode = trim((string) ($ln['barcode'] ?? ''));
+    $sku = trim((string) ($ln['item_code'] ?? ''));
+    $fallback = trim((string) ($ln['sku'] ?? $ln['item_sku'] ?? ''));
+    $item = '';
     $cat = '';
     if ($itemId > 0) {
         try {
             $st = $pdo->prepare(
-                'SELECT COALESCE(NULLIF(TRIM(i.oracle_key), \'\'), NULLIF(TRIM(i.sku), \'\'), \'\') AS ikey,
-                        COALESCE(NULLIF(TRIM(c.oracle_key), \'\'), NULLIF(TRIM(c.code), \'\'), \'\') AS ckey
+                'SELECT TRIM(i.oracle_key) AS okey, TRIM(i.sku) AS sku, TRIM(i.barcode) AS barcode
                  FROM inv_item i
-                 LEFT JOIN inv_item_category c ON c.id = i.category_id
                  WHERE i.id = ? LIMIT 1'
             );
             $st->execute([$itemId]);
             $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
-            $ik = trim((string) ($row['ikey'] ?? ''));
-            if ($ik !== '') {
-                $item = $ik;
+            $okey = trim((string) ($row['okey'] ?? ''));
+            $skuRow = trim((string) ($row['sku'] ?? ''));
+            $barRow = trim((string) ($row['barcode'] ?? ''));
+            if ($skuRow !== '') {
+                $sku = $skuRow;
             }
-            $cat = trim((string) ($row['ckey'] ?? ''));
+            if ($barRow !== '') {
+                $barcode = $barRow;
+            }
+            if ($okey !== '') {
+                $item = $okey;
+            } elseif ($skuRow !== '') {
+                $item = $skuRow;
+            }
         } catch (Throwable $e) {
             try {
                 $st = $pdo->prepare('SELECT sku FROM inv_item WHERE id = ? LIMIT 1');
                 $st->execute([$itemId]);
                 $ik = trim((string) ($st->fetchColumn() ?: ''));
                 if ($ik !== '') {
+                    $sku = $ik;
                     $item = $ik;
                 }
             } catch (Throwable $e2) {
-                // keep sku
+                // keep line values
             }
         }
     }
+    if ($item === '') {
+        $item = $sku !== '' ? $sku : $fallback;
+    }
+    if (oracle_order_looks_like_ean($item)) {
+        if ($sku !== '' && !oracle_order_looks_like_ean($sku)) {
+            $item = $sku;
+        } elseif ($barcode === '' || oracle_order_looks_like_ean($barcode)) {
+            $barcode = $item;
+        }
+    }
 
-    return ['item' => $item, 'cat' => $cat];
+    return ['item' => $item, 'cat' => $cat, 'barcode' => $barcode];
+}
+
+function oracle_order_looks_like_ean(string $s): bool
+{
+    return (bool) preg_match('/^\d{12,14}$/', $s);
+}
+
+/**
+ * @return array{item:string,cat:string,batch:string}|array{}
+ */
+function oracle_order_mascard_find(array $conn, string $item, string $barcode): array
+{
+    $cfg = oracle_config();
+    $si = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+    $owner = strtoupper(trim((string) ($si['item_card_owner'] ?? 'MAS'))) ?: 'MAS';
+    $table = strtoupper(trim((string) ($si['item_card_table'] ?? 'MASCARD'))) ?: 'MASCARD';
+    $from = '"' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"';
+
+    try {
+        $colsMeta = oracle_describe_table($conn, $owner, $table);
+    } catch (Throwable $e) {
+        $colsMeta = [];
+    }
+    $cols = [];
+    foreach ($colsMeta as $c) {
+        $n = strtoupper(trim((string) ($c['column_name'] ?? '')));
+        if ($n !== '') {
+            $cols[$n] = true;
+        }
+    }
+    $itemCol = isset($cols['ITEM']) ? 'ITEM' : (isset($cols['ITEM_CODE']) ? 'ITEM_CODE' : 'ITEM');
+    $catCol = isset($cols['CAT']) ? 'CAT' : (isset($cols['CATE']) ? 'CATE' : '');
+    $batchCol = isset($cols['BATCH']) ? 'BATCH' : '';
+    $barCols = [];
+    foreach (['BARCODE', 'IBARCODE', 'BAR_CODE', 'BCODE', 'ITEM_BARCODE', 'IBAR'] as $c) {
+        if (isset($cols[$c])) {
+            $barCols[] = $c;
+        }
+    }
+
+    $row = oracle_order_first_row(
+        $conn,
+        "SELECT * FROM {$from} WHERE TO_CHAR({$itemCol}) = :v AND ROWNUM <= 1",
+        $item
+    );
+    if ($row === [] && $barcode !== '' && $barcode !== $item) {
+        $row = oracle_order_first_row(
+            $conn,
+            "SELECT * FROM {$from} WHERE TO_CHAR({$itemCol}) = :v AND ROWNUM <= 1",
+            $barcode
+        );
+    }
+    if ($row === [] && $barcode !== '') {
+        foreach ($barCols as $bc) {
+            $row = oracle_order_first_row(
+                $conn,
+                "SELECT * FROM {$from} WHERE TO_CHAR({$bc}) = :v AND ROWNUM <= 1",
+                $barcode
+            );
+            if ($row !== []) {
+                break;
+            }
+        }
+    }
+    if ($row === []) {
+        return [];
+    }
+
+    $outItem = trim(oracle_statement_row_val($row, $itemCol));
+    $outCat = $catCol !== '' ? trim(oracle_statement_row_val($row, $catCol)) : '';
+    $outBatch = $batchCol !== '' ? trim(oracle_statement_row_val($row, $batchCol)) : '';
+    if ($outItem === '') {
+        return [];
+    }
+
+    if ($outCat === '' || $outBatch === '') {
+        $daily = oracle_order_item_daily_defaults($conn, $outItem);
+        if ($outCat === '' && $daily['cat'] !== '') {
+            $outCat = $daily['cat'];
+        }
+        if ($outBatch === '' && $daily['batch'] !== '') {
+            $outBatch = $daily['batch'];
+        }
+    }
+
+    return ['item' => $outItem, 'cat' => $outCat, 'batch' => $outBatch];
+}
+
+/**
+ * @return array<string,mixed>
+ */
+function oracle_order_first_row(array $conn, string $sql, string $value): array
+{
+    $value = trim($value);
+    if ($value === '') {
+        return [];
+    }
+    try {
+        $rows = oracle_query_all($conn, $sql, ['v' => $value]);
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    return is_array($rows[0] ?? null) ? $rows[0] : [];
+}
+
+/**
+ * @return array{cat:string,batch:string}
+ */
+function oracle_order_item_daily_defaults(array $conn, string $item): array
+{
+    $empty = ['cat' => '', 'batch' => ''];
+    $item = trim($item);
+    if ($item === '') {
+        return $empty;
+    }
+    $sc = oracle_sales_invoice_cfg();
+    $from = '"' . str_replace('"', '""', $sc['owner']) . '"."' . str_replace('"', '""', $sc['table']) . '"';
+    try {
+        $rows = oracle_query_all(
+            $conn,
+            "SELECT * FROM (
+                SELECT CAT, BATCH FROM {$from}
+                 WHERE TO_CHAR(ITEM) = :v
+                 ORDER BY VYEAR DESC, V_NUM DESC
+             ) WHERE ROWNUM <= 1",
+            ['v' => $item]
+        );
+    } catch (Throwable $e) {
+        return $empty;
+    }
+    $row = $rows[0] ?? [];
+    if ($row === []) {
+        return $empty;
+    }
+
+    return [
+        'cat' => trim(oracle_statement_row_val($row, 'CAT')),
+        'batch' => trim(oracle_statement_row_val($row, 'BATCH')),
+    ];
+}
+
+function oracle_order_fk_message(array $conn, string $msg): string
+{
+    if (!preg_match('/ORA-02291.*?\\(([A-Z0-9_]+)\\.([A-Z0-9_]+)\\)/i', $msg, $m)) {
+        return $msg;
+    }
+    $owner = strtoupper($m[1]);
+    $cname = strtoupper($m[2]);
+    try {
+        $rows = oracle_query_all(
+            $conn,
+            "SELECT cc.column_name, r.owner AS r_owner, r.table_name AS r_table, rc.column_name AS r_column
+             FROM all_constraints c
+             JOIN all_cons_columns cc
+               ON cc.owner = c.owner AND cc.constraint_name = c.constraint_name
+             JOIN all_constraints r
+               ON r.owner = c.r_owner AND r.constraint_name = c.r_constraint_name
+             JOIN all_cons_columns rc
+               ON rc.owner = r.owner AND rc.constraint_name = r.constraint_name
+              AND rc.position = cc.position
+             WHERE c.owner = :ow AND c.constraint_name = :cn
+             ORDER BY cc.position",
+            ['ow' => $owner, 'cn' => $cname]
+        );
+    } catch (Throwable $e) {
+        return $msg;
+    }
+    if ($rows === []) {
+        return $msg;
+    }
+    $parts = [];
+    foreach ($rows as $r) {
+        $parts[] = oracle_statement_row_val($r, 'COLUMN_NAME')
+            . ' → '
+            . oracle_statement_row_val($r, 'R_OWNER')
+            . '.'
+            . oracle_statement_row_val($r, 'R_TABLE')
+            . '.'
+            . oracle_statement_row_val($r, 'R_COLUMN');
+    }
+
+    return $msg . ' — المرجع غير موجود: ' . implode(', ', $parts);
 }
