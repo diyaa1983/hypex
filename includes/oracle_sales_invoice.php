@@ -10,7 +10,7 @@ require_once app_path('includes/oracle_pdo.php');
 require_once app_path('includes/oracle_statement.php');
 
 /**
- * @return array{owner:string,table:string,sale_type:int}
+ * @return array{owner:string,table:string,header_table:string,sale_type:int}
  */
 function oracle_sales_invoice_cfg(): array
 {
@@ -18,10 +18,12 @@ function oracle_sales_invoice_cfg(): array
     $s = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
     $owner = strtoupper(trim((string) ($s['owner'] ?? 'MAS')));
     $table = strtoupper(trim((string) ($s['table'] ?? 'DAILY')));
+    $header = strtoupper(trim((string) ($s['header_table'] ?? 'MASTER_D')));
 
     return [
         'owner' => $owner !== '' ? $owner : 'MAS',
         'table' => $table !== '' ? $table : 'DAILY',
+        'header_table' => $header !== '' ? $header : 'MASTER_D',
         'sale_type' => (int) ($s['sale_type'] ?? 9),
     ];
 }

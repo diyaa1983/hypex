@@ -73,6 +73,7 @@ return [
     'sales_invoice' => [
         'owner' => 'MAS',
         'table' => 'DAILY',
+        'header_table' => 'MASTER_D',
         'sale_type' => 9,
         // رقم الشركة في MAS.DAILY.COMP_NUM (إلزامي)
         'comp_num' => 1,

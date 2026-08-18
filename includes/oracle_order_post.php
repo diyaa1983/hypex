@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * ترحيل طلب شراء عميل معتمد → بنود فاتورة بيع في MAS.DAILY (شاشة INV00024).
+ * ترحيل طلب شراء عميل معتمد → رأس فاتورة في MAS.MASTER_D ثم البنود في MAS.DAILY (INV00024).
  * الفاتورة تُدرج في أوراكل ويبقى على المستخدم فتح الشاشة ومراجعتها ثم الحفظ/الترحيل هناك.
  */
 
@@ -85,35 +85,30 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     $sc = oracle_sales_invoice_cfg();
     $owner = $sc['owner'];
     $table = $sc['table'];
+    $hdrTable = $sc['header_table'];
     $stype = (int) $sc['sale_type'];
-    $from = '"' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"';
+    $from = oracle_order_quoted($owner, $table);
+    $hdrFrom = oracle_order_quoted($owner, $hdrTable);
 
     try {
         $colMeta = oracle_describe_table($conn, $owner, $table);
     } catch (Throwable $e) {
         return ['ok' => false, 'message' => 'تعذر قراءة أعمدة ' . $owner . '.' . $table . ': ' . $e->getMessage()];
     }
-    $cols = [];
-    foreach ($colMeta as $c) {
-        $n = strtoupper(trim((string) ($c['column_name'] ?? '')));
-        if ($n !== '') {
-            $cols[$n] = true;
-        }
-    }
+    $cols = oracle_order_cols_from_meta($colMeta);
     if ($cols === []) {
         return ['ok' => false, 'message' => 'جدول الفاتورة بلا أعمدة معروفة.'];
     }
 
-    $pickCol = static function (array $names) use ($cols): ?string {
-        foreach ($names as $n) {
-            $u = strtoupper($n);
-            if (isset($cols[$u])) {
-                return $u;
-            }
-        }
-
-        return null;
-    };
+    try {
+        $hdrMeta = oracle_describe_table($conn, $owner, $hdrTable);
+    } catch (Throwable $e) {
+        return ['ok' => false, 'message' => 'تعذر قراءة رأس الفاتورة ' . $owner . '.' . $hdrTable . ': ' . $e->getMessage()];
+    }
+    $hdrCols = oracle_order_cols_from_meta($hdrMeta);
+    if ($hdrCols === []) {
+        return ['ok' => false, 'message' => 'جدول رأس الفاتورة بلا أعمدة معروفة: ' . $hdrTable];
+    }
 
     $custAcc = preg_replace('/\D+/', '', (string) ($order['customer_code'] ?? '')) ?? '';
     if ($custAcc === '') {
@@ -129,24 +124,16 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     }
 
     $sample = oracle_order_sample_daily_row($conn, $from, $stype);
-    $compNum = oracle_order_comp_num($sample);
+    $hdrSample = oracle_order_sample_daily_row($conn, $hdrFrom, $stype);
+    $compNum = oracle_order_comp_num($hdrSample !== [] ? $hdrSample : $sample);
 
     try {
-        $numBinds = ['stype' => $stype, 'y' => $vyear];
-        $numWhere = 'TYPE = :stype AND VYEAR = :y';
-        if (isset($cols['COMP_NUM']) && $compNum > 0) {
-            $numWhere .= ' AND COMP_NUM = :cnum';
-            $numBinds['cnum'] = $compNum;
-        }
-        $nextRows = oracle_query_all(
-            $conn,
-            "SELECT NVL(MAX(V_NUM), 0) AS MX FROM {$from} WHERE {$numWhere}",
-            $numBinds
-        );
+        $mxHdr = oracle_order_max_vnum($conn, $hdrFrom, $stype, $vyear, $compNum, isset($hdrCols['COMP_NUM']));
+        $mxDaily = oracle_order_max_vnum($conn, $from, $stype, $vyear, $compNum, isset($cols['COMP_NUM']));
+        $vNum = max($mxHdr, $mxDaily) + 1;
     } catch (Throwable $e) {
         return ['ok' => false, 'message' => 'تعذر احتساب رقم الفاتورة التالي: ' . $e->getMessage()];
     }
-    $vNum = (int) oracle_statement_row_val($nextRows[0] ?? [], 'MX') + 1;
     if ($vNum < 1) {
         $vNum = 1;
     }
@@ -195,30 +182,10 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         return ['ok' => false, 'message' => 'لا كميات صالحة للترحيل.'];
     }
 
-    $headerExtras = [];
-    $smCol = $pickCol(['SALESMAN', 'SALES_MAN', 'SMAN', 'EMP_NO', 'SELLER', 'SALEMAN']);
-    if ($smCol && (int) $salesman['no'] > 0) {
-        $headerExtras[$smCol] = (int) $salesman['no'];
-    }
-    $payCol = $pickCol(['CASH', 'CASH_CR', 'PAY_TYPE', 'CREDIT', 'CUS_PAY', 'PAID_TYPE']);
-    if ($payCol) {
-        $headerExtras[$payCol] = 1;
-    }
-    $ordCol = $pickCol(['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'V_ORDER', 'CUST_ORD', 'PO_NO']);
-    if ($ordCol) {
-        $headerExtras[$ordCol] = (string) ($order['order_no'] ?? '');
-    }
-    $noteCol = $pickCol(['NOTE', 'NOTES', 'REMARK', 'REMARKS', 'COMM', 'V_NOTE']);
-    if ($noteCol) {
-        $headerExtras[$noteCol] = 'Hypex ' . (string) ($order['order_no'] ?? '');
-    }
-    $flagCol = $pickCol(['FLAG', 'V_FLAG', 'POSTED', 'STAT', 'STATUS']);
-    if ($flagCol) {
-        $headerExtras[$flagCol] = 0;
-    }
-    $depCol = $pickCol(['CUST_DEP']);
+    $headerExtras = oracle_order_extras($cols, $salesman, $order);
+    $hdrExtras = oracle_order_extras($hdrCols, $salesman, $order);
     $custDep = 1;
-    if ($depCol) {
+    if (isset($cols['CUST_DEP']) || isset($hdrCols['CUST_DEP'])) {
         try {
             $depRows = oracle_query_all(
                 $conn,
@@ -236,6 +203,13 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         }
     }
 
+    $sumQty = 0.0;
+    $sumTax = 0.0;
+    foreach ($mappedLines as $ml) {
+        $sumQty += (float) $ml['qty'];
+        $sumTax += (float) $ml['vou_tax'];
+    }
+
     $preview = [
         'v_num' => $vNum,
         'vyear' => $vyear,
@@ -247,9 +221,11 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'type' => $stype,
         'salesman' => $salesman,
         'order_no' => (string) ($order['order_no'] ?? ''),
+        'header_table' => $hdrTable,
         'lines' => $mappedLines,
         'extra_columns' => $headerExtras,
         'daily_columns' => array_keys($cols),
+        'master_columns' => array_keys($hdrCols),
     ];
 
     if ($dryRun) {
@@ -261,93 +237,57 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         ];
     }
 
-    $rowValues = static function (array $line) use (
-        $stype,
-        $vNum,
-        $vyear,
-        $orderDate,
-        $store,
-        $custAcc,
-        $custDep,
-        $compNum,
-        $headerExtras,
-        $order
-    ): array {
-        $perDisc = (float) ($order['discount_amount'] ?? 0);
-        $vouDisc = $perDisc;
-        $base = [
-            'TYPE' => $stype,
-            'V_NUM' => $vNum,
-            'VYEAR' => $vyear,
-            'VDATE' => $orderDate,
-            'STORE' => $store,
-            'CUST_ACC' => $custAcc,
-            'CUST_DEP' => $custDep,
-            'COMP_NUM' => $compNum,
-            'ITEM' => $line['item'],
-            'CAT' => $line['cat'],
-            'BATCH' => $line['batch'] !== '' ? $line['batch'] : '0',
-            'QTY' => $line['qty'],
-            'BONUS' => $line['bonus'],
-            'SELL' => $line['sell'],
-            'DISC' => $line['disc'],
-            'VOU_TAX' => $line['vou_tax'],
-            'PER_TAX' => $line['per_tax'],
-            'PER_DISC' => 0,
-            'VOU_DISC' => $vouDisc,
-            'JD_COST' => 0,
-            'TR_UNIT' => $line['tr_unit'],
-        ];
+    $sharedHeader = [
+        'TYPE' => $stype,
+        'V_NUM' => $vNum,
+        'VYEAR' => $vyear,
+        'VDATE' => $orderDate,
+        'STORE' => $store,
+        'CUST_ACC' => $custAcc,
+        'CUST_DEP' => $custDep,
+        'COMP_NUM' => $compNum,
+        'VOU_DISC' => (float) ($order['discount_amount'] ?? 0),
+        'VOU_TAX' => (float) ($order['tax_amount'] ?? $sumTax),
+        'PER_DISC' => 0,
+        'QTY' => $sumQty,
+        'TOT_QTY' => $sumQty,
+        'AMT' => (float) ($order['total'] ?? 0),
+        'TOTAL' => (float) ($order['total'] ?? 0),
+        'GROSS' => (float) ($order['subtotal'] ?? 0),
+        'NET' => (float) ($order['total'] ?? 0),
+        'TOT_AMT' => (float) ($order['total'] ?? 0),
+        'TOT_TAX' => (float) ($order['tax_amount'] ?? $sumTax),
+        'FLAG' => 0,
+    ];
+
+    $rowValues = static function (array $line) use ($sharedHeader, $headerExtras): array {
+        $base = $sharedHeader;
+        $base['ITEM'] = $line['item'];
+        $base['CAT'] = $line['cat'];
+        $base['BATCH'] = $line['batch'] !== '' ? $line['batch'] : '0';
+        $base['QTY'] = $line['qty'];
+        $base['BONUS'] = $line['bonus'];
+        $base['SELL'] = $line['sell'];
+        $base['DISC'] = $line['disc'];
+        $base['VOU_TAX'] = $line['vou_tax'];
+        $base['PER_TAX'] = $line['per_tax'];
+        $base['TR_UNIT'] = $line['tr_unit'];
+        $base['JD_COST'] = 0;
 
         return array_merge($base, $headerExtras);
     };
 
-    $colTypes = [];
-    foreach ($colMeta as $c) {
-        $cn = strtoupper(trim((string) ($c['column_name'] ?? '')));
-        if ($cn !== '') {
-            $colTypes[$cn] = strtoupper((string) ($c['data_type'] ?? ''));
-        }
-    }
-
     try {
         oracle_try_begin($conn);
+        oracle_order_insert_row(
+            $conn,
+            $hdrFrom,
+            $hdrMeta,
+            array_merge($sharedHeader, $hdrExtras),
+            $hdrSample
+        );
         foreach ($mappedLines as $line) {
-            $vals = $rowValues($line);
-            $use = [];
-            foreach ($vals as $col => $val) {
-                if (isset($cols[$col])) {
-                    $use[$col] = $val;
-                }
-            }
-            if (!isset($use['TYPE'], $use['V_NUM'], $use['ITEM'])) {
-                throw new RuntimeException('أعمدة TYPE/V_NUM/ITEM غير موجودة في DAILY.');
-            }
-            $use = oracle_order_fill_required($use, $colMeta, $sample);
-            $names = array_keys($use);
-            $sqlCols = implode(', ', $names);
-            $parts = [];
-            foreach ($names as $col) {
-                $dt = $colTypes[$col] ?? '';
-                $parts[] = (str_contains($dt, 'DATE') || $col === 'VDATE')
-                    ? "TO_DATE(:{$col}, 'YYYY-MM-DD')"
-                    : ':' . $col;
-            }
-            $sqlBinds = implode(', ', $parts);
-            $binds = [];
-            foreach ($use as $col => $val) {
-                $dt = $colTypes[$col] ?? '';
-                if (str_contains($dt, 'DATE') || $col === 'VDATE') {
-                    $binds[$col] = oracle_order_bind_date($val);
-                } else {
-                    $binds[$col] = $val;
-                }
-            }
-            oracle_execute(
-                $conn,
-                "INSERT INTO {$from} ({$sqlCols}) VALUES ({$sqlBinds})",
-                $binds
-            );
+            oracle_order_insert_row($conn, $from, $colMeta, $rowValues($line), $sample);
         }
         oracle_try_commit($conn);
     } catch (Throwable $e) {
@@ -396,6 +336,143 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'cust_acc' => $custAcc,
         'line_count' => count($mappedLines),
     ];
+}
+
+function oracle_order_quoted(string $owner, string $table): string
+{
+    return '"' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"';
+}
+
+/**
+ * @param list<array{column_name:string,data_type?:string,nullable?:bool}> $colMeta
+ * @return array<string,bool>
+ */
+function oracle_order_cols_from_meta(array $colMeta): array
+{
+    $cols = [];
+    foreach ($colMeta as $c) {
+        $n = strtoupper(trim((string) ($c['column_name'] ?? '')));
+        if ($n !== '') {
+            $cols[$n] = true;
+        }
+    }
+
+    return $cols;
+}
+
+/**
+ * @param array<string,bool> $cols
+ * @param list<string> $names
+ */
+function oracle_order_pick_col(array $cols, array $names): ?string
+{
+    foreach ($names as $n) {
+        $u = strtoupper($n);
+        if (isset($cols[$u])) {
+            return $u;
+        }
+    }
+
+    return null;
+}
+
+function oracle_order_max_vnum(array $conn, string $from, int $stype, int $vyear, int $compNum, bool $hasComp): int
+{
+    $where = 'TYPE = :stype AND VYEAR = :y';
+    $binds = ['stype' => $stype, 'y' => $vyear];
+    if ($hasComp && $compNum > 0) {
+        $where .= ' AND COMP_NUM = :cnum';
+        $binds['cnum'] = $compNum;
+    }
+    $rows = oracle_query_all(
+        $conn,
+        "SELECT NVL(MAX(V_NUM), 0) AS MX FROM {$from} WHERE {$where}",
+        $binds
+    );
+
+    return (int) oracle_statement_row_val($rows[0] ?? [], 'MX');
+}
+
+/**
+ * @param array<string,bool> $cols
+ * @param array{no:int,name?:string} $salesman
+ * @param array<string,mixed> $order
+ * @return array<string,mixed>
+ */
+function oracle_order_extras(array $cols, array $salesman, array $order): array
+{
+    $extras = [];
+    $smCol = oracle_order_pick_col($cols, ['SALESMAN', 'SALES_MAN', 'SMAN', 'EMP_NO', 'SELLER', 'SALEMAN']);
+    if ($smCol && (int) ($salesman['no'] ?? 0) > 0) {
+        $extras[$smCol] = (int) $salesman['no'];
+    }
+    $payCol = oracle_order_pick_col($cols, ['CASH', 'CASH_CR', 'PAY_TYPE', 'CREDIT', 'CUS_PAY', 'PAID_TYPE']);
+    if ($payCol) {
+        $extras[$payCol] = 1;
+    }
+    $ordCol = oracle_order_pick_col($cols, ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'V_ORDER', 'CUST_ORD', 'PO_NO']);
+    if ($ordCol) {
+        $extras[$ordCol] = (string) ($order['order_no'] ?? '');
+    }
+    $noteCol = oracle_order_pick_col($cols, ['NOTE', 'NOTES', 'REMARK', 'REMARKS', 'COMM', 'V_NOTE']);
+    if ($noteCol) {
+        $extras[$noteCol] = 'Hypex ' . (string) ($order['order_no'] ?? '');
+    }
+    $flagCol = oracle_order_pick_col($cols, ['FLAG', 'V_FLAG', 'POSTED', 'STAT', 'STATUS']);
+    if ($flagCol) {
+        $extras[$flagCol] = 0;
+    }
+
+    return $extras;
+}
+
+/**
+ * @param list<array{column_name:string,data_type?:string,nullable?:bool}> $colMeta
+ * @param array<string,mixed> $vals
+ * @param array<string,mixed> $sample
+ */
+function oracle_order_insert_row(array $conn, string $from, array $colMeta, array $vals, array $sample): void
+{
+    $cols = oracle_order_cols_from_meta($colMeta);
+    $colTypes = [];
+    foreach ($colMeta as $c) {
+        $cn = strtoupper(trim((string) ($c['column_name'] ?? '')));
+        if ($cn !== '') {
+            $colTypes[$cn] = strtoupper((string) ($c['data_type'] ?? ''));
+        }
+    }
+    $use = [];
+    foreach ($vals as $col => $val) {
+        $col = strtoupper((string) $col);
+        if (isset($cols[$col])) {
+            $use[$col] = $val;
+        }
+    }
+    if (!isset($use['TYPE'], $use['V_NUM'])) {
+        throw new RuntimeException('أعمدة TYPE/V_NUM غير موجودة في ' . $from . '.');
+    }
+    $use = oracle_order_fill_required($use, $colMeta, $sample);
+    $names = array_keys($use);
+    $sqlCols = implode(', ', $names);
+    $parts = [];
+    foreach ($names as $col) {
+        $dt = $colTypes[$col] ?? '';
+        $parts[] = (str_contains($dt, 'DATE') || $col === 'VDATE')
+            ? "TO_DATE(:{$col}, 'YYYY-MM-DD')"
+            : ':' . $col;
+    }
+    $binds = [];
+    foreach ($use as $col => $val) {
+        $dt = $colTypes[$col] ?? '';
+        $binds[$col] = (str_contains($dt, 'DATE') || $col === 'VDATE')
+            ? oracle_order_bind_date($val)
+            : $val;
+    }
+    oracle_execute(
+        $conn,
+        "INSERT INTO {$from} ({$sqlCols}) VALUES (" . implode(', ', $parts) . ')',
+        $binds
+    );
 }
 
 /**
