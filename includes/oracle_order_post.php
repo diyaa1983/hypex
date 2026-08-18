@@ -123,8 +123,8 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $vyear = (int) date('Y');
     }
 
-    $sample = oracle_order_sample_daily_row($conn, $from, $stype);
-    $hdrSample = oracle_order_sample_daily_row($conn, $hdrFrom, $stype);
+    $sample = oracle_order_sample_daily_row($conn, $from, $stype, true);
+    $hdrSample = oracle_order_sample_daily_row($conn, $hdrFrom, $stype, false);
     $compNum = oracle_order_comp_num($hdrSample !== [] ? $hdrSample : $sample);
 
     try {
@@ -496,6 +496,7 @@ function oracle_order_insert_row(array $conn, string $from, array $colMeta, arra
         throw new RuntimeException('أعمدة TYPE/V_NUM غير موجودة في ' . $from . '.');
     }
     $use = oracle_order_fill_required($use, $colMeta, $sample);
+    $use = oracle_order_force_forms_fields($use, $cols);
     $names = array_keys($use);
     $sqlCols = implode(', ', $names);
     $parts = [];
@@ -624,21 +625,68 @@ function oracle_order_apply_aliases(array $cols, array $vals): array
     return $vals;
 }
 
+function oracle_order_force_forms_fields(array $use, array $cols): array
+{
+    $orderDate = '';
+    if (isset($use['VDATE'])) {
+        $orderDate = oracle_order_bind_date($use['VDATE']);
+    } elseif (isset($use['TDATE'])) {
+        $orderDate = oracle_order_bind_date($use['TDATE']);
+    } else {
+        $orderDate = date('Y-m-d');
+    }
+    $force = [
+        'VOU_FLAG' => 18,
+        'CACR' => 2,
+        'MAN_NUM' => 1,
+        'UPD_FLAG' => 'SS',
+        'USR_ID' => 'HYPX',
+        'DH_FLAGE' => 1,
+        'REF_FLAG' => 1,
+        'TDATE' => $orderDate,
+        'DUE_DATE' => $orderDate,
+        'FLAGE' => 0,
+        'TRAN_RATE' => 1,
+        'PRINT_FLAGE' => 'N',
+    ];
+    foreach ($force as $k => $v) {
+        if (isset($cols[$k])) {
+            $use[$k] = $v;
+        }
+    }
+    if (isset($cols['SRL']) && (int) ($use['SRL'] ?? 0) < 1) {
+        $use['SRL'] = 1;
+    }
+    if (isset($cols['TTIME']) && ($use['TTIME'] === null || $use['TTIME'] === '')) {
+        $use['TTIME'] = date('H:i:s');
+    }
+
+    return $use;
+}
+
 /**
  * @return array<string,mixed>
  */
-function oracle_order_sample_daily_row(array $conn, string $from, int $stype): array
+function oracle_order_sample_daily_row(array $conn, string $from, int $stype, bool $preferForms = false): array
 {
+    $extra = $preferForms ? ' AND VOU_FLAG = 18 ' : '';
     try {
         $rows = oracle_query_all(
             $conn,
             "SELECT * FROM (
-                SELECT * FROM {$from} WHERE TYPE = :stype ORDER BY VYEAR DESC, V_NUM DESC
+                SELECT * FROM {$from} WHERE TYPE = :stype {$extra} ORDER BY VYEAR DESC, V_NUM DESC
              ) WHERE ROWNUM <= 1",
             ['stype' => $stype]
         );
     } catch (Throwable $e) {
+        if ($preferForms) {
+            return oracle_order_sample_daily_row($conn, $from, $stype, false);
+        }
+
         return [];
+    }
+    if ($rows === [] && $preferForms) {
+        return oracle_order_sample_daily_row($conn, $from, $stype, false);
     }
     $row = $rows[0] ?? [];
     $out = [];
