@@ -1093,6 +1093,78 @@ function sal_rep_visit_duration_label(?string $checkinAt, ?string $checkoutAt): 
     return $m . ' د';
 }
 
+function sal_rep_visit_fmt_time_only($v): string
+{
+    $s = trim((string) $v);
+    if ($s === '' || strlen($s) < 16) {
+        return '';
+    }
+
+    return substr($s, 11, 5);
+}
+
+function sal_rep_visit_timing_compact(array $r): string
+{
+    $parts = [];
+    $cin = sal_rep_visit_fmt_time_only($r['visit_checkin_at'] ?? '');
+    $cout = sal_rep_visit_fmt_time_only($r['visit_checkout_at'] ?? '');
+    if ($cin !== '') {
+        $parts[] = 'د ' . $cin;
+    }
+    if ($cout !== '') {
+        $parts[] = 'خ ' . $cout;
+    }
+    $dur = sal_rep_visit_duration_label(
+        ($r['visit_checkin_at'] ?? '') !== '' ? (string) $r['visit_checkin_at'] : null,
+        ($r['visit_checkout_at'] ?? '') !== '' ? (string) $r['visit_checkout_at'] : null
+    );
+    if ($dur !== '—') {
+        $parts[] = $dur;
+    }
+    $cm = trim((string) ($r['checkin_method_label'] ?? ''));
+    $com = trim((string) ($r['checkout_method_label'] ?? ''));
+    $methods = array_values(array_unique(array_filter(
+        [$cm, $com],
+        static fn(string $m): bool => $m !== '' && $m !== '—'
+    )));
+    if ($methods !== []) {
+        $parts[] = implode('/', $methods);
+    }
+    if ($parts === []) {
+        return '—';
+    }
+
+    return '<span class="si-ts-compact" dir="ltr">' . esc(implode(' · ', $parts)) . '</span>';
+}
+
+function sal_rep_visit_customer_inline(array $r): string
+{
+    $name = esc((string) ($r['customer_name'] ?? '—'));
+    $code = trim((string) ($r['customer_code'] ?? ''));
+    if ($code === '') {
+        return $name;
+    }
+
+    return $name . ' <span class="muted si-cust-code" dir="ltr">(' . esc($code) . ')</span>';
+}
+
+function sal_rep_visit_location_inline(array $r): string
+{
+    $reg = trim((string) ($r['region_name'] ?? ''));
+    $addr = trim((string) ($r['address_name'] ?? ''));
+    if ($reg !== '' && $addr !== '') {
+        return esc($reg . ' / ' . $addr);
+    }
+    if ($reg !== '') {
+        return esc($reg);
+    }
+    if ($addr !== '') {
+        return esc($addr);
+    }
+
+    return '—';
+}
+
 /**
  * تقرير تسجيلات الدخول/الخروج الفعلية من خط السير اليومي.
  *

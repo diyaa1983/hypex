@@ -40,7 +40,7 @@ foreach ($rows as $r) {
     }
 }
 $groupByRep = $salesRepId < 1 && count($uniqueRepIds) > 1;
-$colCount = $groupByRep ? 12 : 13;
+$colCount = $groupByRep ? 8 : 9;
 
 $grouped = [];
 if ($groupByRep) {
@@ -57,17 +57,6 @@ if ($groupByRep) {
     }
 }
 
-function _rep_visit_report_ts_method($ts, ?string $methodLabel): string
-{
-    $t = sal_rep_visit_fmt_ts($ts);
-    $m = trim((string) $methodLabel);
-    if ($m === '' || $m === '—') {
-        return esc($t);
-    }
-
-    return esc($t) . ' <span class="muted">' . esc($m) . '</span>';
-}
-
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
 ?>
@@ -78,39 +67,70 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
 }
 .report-sales-page.report-visits-page .report-sales-table {
   width: 100% !important;
-  table-layout: fixed !important;
+  min-width: 920px !important;
+  table-layout: auto !important;
+  border-collapse: collapse !important;
   font-size: 0.78rem;
 }
 .report-sales-page.report-visits-page .report-sales-table th,
-.report-sales-page.report-visits-page .report-sales-table td,
-.report-sales-page.report-visits-page .report-sales-table td * {
+.report-sales-page.report-visits-page .report-sales-table td {
   white-space: nowrap !important;
-  word-break: keep-all !important;
-  overflow-wrap: normal !important;
-  max-width: none !important;
-  padding: 0.35rem 0.45rem;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 12rem;
+  padding: 0.38rem 0.45rem !important;
   text-align: center;
   vertical-align: middle;
-  line-height: 1.25;
+  line-height: 1.3;
+}
+.report-sales-page.report-visits-page .col-customer,
+.report-sales-page.report-visits-page .col-reason,
+.report-sales-page.report-visits-page .col-location {
+  text-align: start !important;
+}
+.report-sales-page.report-visits-page .col-timing,
+.report-sales-page.report-visits-page .col-status,
+.report-sales-page.report-visits-page .col-scope {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+.report-sales-page.report-visits-page .si-ts-compact {
+  display: inline-block;
+  white-space: nowrap !important;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
 }
 .report-sales-page.report-visits-page .report-visits-group td {
   background: #e2e8f0;
   text-align: start !important;
   font-weight: 700;
+  max-width: none !important;
+  overflow: visible !important;
 }
 @media print {
   @page { size: A4 landscape; margin: 6mm 5mm; }
   .report-sales-page.report-visits-page .report-sales-header { display: none !important; }
   .report-sales-page.report-visits-page .report-sales-table {
+    min-width: 0 !important;
     width: 100% !important;
     font-size: 7.5pt !important;
   }
   .report-sales-page.report-visits-page .report-sales-table th,
   .report-sales-page.report-visits-page .report-sales-table td {
     white-space: nowrap !important;
-    padding: 0.15rem 0.25rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding: 0.12rem 0.22rem !important;
     font-size: 7.5pt !important;
     border: 1px solid #94a3b8 !important;
+  }
+  .report-sales-page.report-visits-page .col-timing,
+  .report-sales-page.report-visits-page .col-status,
+  .report-sales-page.report-visits-page .col-scope {
+    overflow: visible !important;
+    text-overflow: clip !important;
   }
 }
 </style>
@@ -166,12 +186,8 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                 <th>العميل</th>
                 <th>النطاق</th>
                 <th>سبب عدم الطلب</th>
-                <th>رقم العميل</th>
-                <th>المنطقة</th>
-                <th>العنوان</th>
-                <th>دخول</th>
-                <th>خروج</th>
-                <th>المدة</th>
+                <th>الموقع</th>
+                <th>التوقيت</th>
                 <th>الحالة</th>
             </tr>
             </thead>
@@ -188,39 +204,37 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                         </td>
                     </tr>
                     <?php foreach ($g['rows'] as $r): ?>
-                        <?php $seq++; ?>
+                        <?php
+                        $seq++;
+                        $reason = (string) (($r['no_order_reasons'] ?? '') !== '' ? $r['no_order_reasons'] : '—');
+                        ?>
                         <tr>
                             <td dir="ltr"><?= $seq ?></td>
                             <td><?= esc(sal_rep_visit_date_with_weekday((string) ($r['route_date'] ?? ''))) ?></td>
-                            <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
-                            <td><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
-                            <td><?= esc((string) (($r['no_order_reasons'] ?? '') !== '' ? $r['no_order_reasons'] : '—')) ?></td>
-                            <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
-                            <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>
-                            <td><?= esc((string) (($r['address_name'] ?? '') !== '' ? $r['address_name'] : '—')) ?></td>
-                            <td dir="ltr"><?= _rep_visit_report_ts_method($r['visit_checkin_at'] ?? null, (string) ($r['checkin_method_label'] ?? '')) ?></td>
-                            <td dir="ltr"><?= _rep_visit_report_ts_method($r['visit_checkout_at'] ?? null, (string) ($r['checkout_method_label'] ?? '')) ?></td>
-                            <td dir="ltr"><?= esc((string) ($r['duration_label'] ?? '—')) ?></td>
-                            <td><?= esc((string) ($r['status_label'] ?? '')) ?></td>
+                            <td class="col-customer"><?= sal_rep_visit_customer_inline($r) ?></td>
+                            <td class="col-scope"><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
+                            <td class="col-reason" title="<?= esc($reason) ?>"><?= esc($reason) ?></td>
+                            <td class="col-location"><?= sal_rep_visit_location_inline($r) ?></td>
+                            <td class="col-timing"><?= sal_rep_visit_timing_compact($r) ?></td>
+                            <td class="col-status"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endforeach; ?>
             <?php else: ?>
                 <?php foreach ($rows as $i => $r): ?>
+                    <?php
+                    $reason = (string) (($r['no_order_reasons'] ?? '') !== '' ? $r['no_order_reasons'] : '—');
+                    ?>
                     <tr>
                         <td dir="ltr"><?= $i + 1 ?></td>
                         <td><?= esc(sal_rep_visit_date_with_weekday((string) ($r['route_date'] ?? ''))) ?></td>
                         <td><?= esc((string) ($r['sales_rep_name'] ?? '')) ?></td>
-                        <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
-                        <td><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
-                        <td><?= esc((string) (($r['no_order_reasons'] ?? '') !== '' ? $r['no_order_reasons'] : '—')) ?></td>
-                        <td dir="ltr"><?= esc((string) ($r['customer_code'] ?? '')) ?></td>
-                        <td><?= esc((string) (($r['region_name'] ?? '') !== '' ? $r['region_name'] : '—')) ?></td>
-                        <td><?= esc((string) (($r['address_name'] ?? '') !== '' ? $r['address_name'] : '—')) ?></td>
-                        <td dir="ltr"><?= _rep_visit_report_ts_method($r['visit_checkin_at'] ?? null, (string) ($r['checkin_method_label'] ?? '')) ?></td>
-                        <td dir="ltr"><?= _rep_visit_report_ts_method($r['visit_checkout_at'] ?? null, (string) ($r['checkout_method_label'] ?? '')) ?></td>
-                        <td dir="ltr"><?= esc((string) ($r['duration_label'] ?? '—')) ?></td>
-                        <td><?= esc((string) ($r['status_label'] ?? '')) ?></td>
+                        <td class="col-customer"><?= sal_rep_visit_customer_inline($r) ?></td>
+                        <td class="col-scope"><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
+                        <td class="col-reason" title="<?= esc($reason) ?>"><?= esc($reason) ?></td>
+                        <td class="col-location"><?= sal_rep_visit_location_inline($r) ?></td>
+                        <td class="col-timing"><?= sal_rep_visit_timing_compact($r) ?></td>
+                        <td class="col-status"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

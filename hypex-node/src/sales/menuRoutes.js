@@ -654,6 +654,7 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
   const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
   const tab = String(req.query.tab || 'summary') === 'detail' ? 'detail' : 'summary';
   const run = String(req.query.run || '') === '1';
+  const source = String(req.query.source || 'sales').toLowerCase();
   const customerId = Number(req.query.customer_id || 0) || 0;
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
   const regionId = Number(req.query.region_id || 0) || 0;
@@ -664,23 +665,35 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
   const postedOnly = String(req.query.posted_only || '') === '1';
   const groupBy = String(req.query.group_by || 'customer');
 
-  const [reps, regions, categories, warehouses] = await Promise.all([
+  const [reps, regions, categories, warehouses, customers] = await Promise.all([
     q.listRepsSimple(),
     q.listRegionsSimple(),
     q.listCategoriesSimple(),
     q.listWarehousesSimple(),
+    q.listCustomersSimple(),
   ]);
 
   let data = {
     summary: [],
     details: [],
-    totals: { qty: 0, line_total: 0, line_gross: 0, tax_amount: 0, line_count: 0, invoice_count: 0 },
+    totals: {
+      qty: 0,
+      line_total: 0,
+      line_gross: 0,
+      tax_amount: 0,
+      line_count: 0,
+      invoice_count: 0,
+      order_count: 0,
+      doc_count: 0,
+    },
     group_by: groupBy,
+    source: source === 'orders' ? 'orders' : source === 'both' ? 'both' : 'sales',
   };
   if (run) {
-    data = await q.reportSalesDetailed({
+    data = await q.reportCombinedDetailed({
       from: range.from,
       to: range.to,
+      source,
       customer_id: customerId,
       sales_rep_id: salesRepId,
       region_id: regionId,
@@ -693,6 +706,9 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
     });
   }
 
+  const sourceLabels = { sales: 'المبيعات', orders: 'طلبات الشراء', both: 'المبيعات + الطلبات' };
+  const sourceLabel = sourceLabels[data.source] || sourceLabels.sales;
+
   const groupLabels = {
     customer: 'العميل',
     sales_rep: 'المندوب',
@@ -701,7 +717,7 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
     item: 'المادة',
     invoice_date: 'التاريخ',
     warehouse: 'المستودع',
-    payment_type: 'نوع الدفع',
+    payment_type: data.source === 'orders' ? 'حالة الطلب' : 'نوع الدفع',
   };
   const groupLabel = groupLabels[data.group_by] || groupLabels.customer;
 
@@ -712,10 +728,11 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
     return pt || '—';
   }
 
-  function filterQs(extraTab) {
+  function filterQs(extraTab, extraSource) {
     const p = new URLSearchParams();
     p.set('run', '1');
     p.set('tab', extraTab || tab);
+    p.set('source', extraSource || data.source || 'sales');
     p.set('from', range.from);
     p.set('to', range.to);
     p.set('customer_id', String(customerId));
@@ -730,6 +747,14 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
     return p.toString();
   }
 
+  const custOpts = customers
+    .map(
+      (c) =>
+        `<option value="${c.id}" ${customerId === Number(c.id) ? 'selected' : ''}>${ui.esc(c.name_ar || '')}${
+          c.code ? ' (' + ui.esc(c.code) + ')' : ''
+        }</option>`
+    )
+    .join('');
   const repOpts = reps
     .map(
       (r) =>
@@ -763,6 +788,14 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
     )
     .join('');
 
+  const showDocCol = data.source === 'both';
+  const docCountCol =
+    data.source === 'orders'
+      ? 'طلبات'
+      : data.source === 'both'
+        ? 'مستندات'
+        : 'فواتير';
+
   let tableBlock = '';
   if (run && tab === 'summary') {
     const rowsHtml =
@@ -781,11 +814,11 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
       </tr>`
         )
         .join('') ||
-      ui.emptyRow(9, 'لا توجد مبيعات في الفترة المحددة');
+      ui.emptyRow(9, `لا توجد ${sourceLabel} في الفترة المحددة`);
     tableBlock = ui.tableSurface(
       `ملخص حسب ${groupLabel}`,
-      `${data.summary.length} صف · ${data.totals.invoice_count} فاتورة`,
-      ['#', groupLabel, 'الرمز', 'الكمية', 'بدون ض.', 'الضريبة', 'شامل', 'بنود', 'فواتير'],
+      `${data.summary.length} صف · ${data.totals.doc_count || data.totals.invoice_count} ${docCountCol}`,
+      ['#', groupLabel, 'الرمز', 'الكمية', 'بدون ض.', 'الضريبة', 'شامل', 'بنود', docCountCol],
       rowsHtml +
         (data.summary.length
           ? `<tr><td colspan="3" style="font-weight:800">الإجمالي</td>
@@ -802,6 +835,7 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
         .map(
           (r, i) => `<tr>
         <td class="si-num" dir="ltr">${i + 1}</td>
+        ${showDocCol ? `<td>${r.doc_type === 'order' ? '<span class="sd-pill-order">طلب</span>' : '<span class="sd-pill-sales">فاتورة</span>'}</td>` : ''}
         <td class="si-num" dir="ltr">${dash(r.invoice_no)}</td>
         <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.invoice_date))}</td>
         <td>${ui.esc(r.customer_name || '—')}</td>
@@ -815,123 +849,164 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
         <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.unit_price))}</td>
         <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_total))}</td>
         <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_gross))}</td>
-        <td>${ui.esc(payLbl(r.payment_type))}</td>
+        <td>${ui.esc(data.source === 'orders' ? r.payment_type : payLbl(r.payment_type))}</td>
       </tr>`
         )
-        .join('') || ui.emptyRow(15, 'لا توجد بنود في الفترة المحددة');
+        .join('') || ui.emptyRow(showDocCol ? 16 : 15, 'لا توجد بنود في الفترة المحددة');
+    const headers = [
+      '#',
+      ...(showDocCol ? ['النوع'] : []),
+      data.source === 'orders' ? 'طلب' : 'فاتورة',
+      'التاريخ',
+      'العميل',
+      'المندوب',
+      'المنطقة',
+      'المادة',
+      'الاسم',
+      'الفئة',
+      'المستودع',
+      'الكمية',
+      'السعر',
+      'بدون ض.',
+      'شامل',
+      data.source === 'orders' ? 'الحالة' : 'دفع',
+    ];
     tableBlock = ui.tableSurface(
-      'تفصيل بنود الفواتير',
-      `${data.details.length} سطر · ${data.totals.invoice_count} فاتورة`,
-      [
-        '#',
-        'فاتورة',
-        'التاريخ',
-        'العميل',
-        'المندوب',
-        'المنطقة',
-        'المادة',
-        'الاسم',
-        'الفئة',
-        'المستودع',
-        'الكمية',
-        'السعر',
-        'بدون ض.',
-        'شامل',
-        'دفع',
-      ],
+      data.source === 'orders' ? 'تفصيل بنود طلبات الشراء' : data.source === 'both' ? 'تفصيل البنود (مبيعات + طلبات)' : 'تفصيل بنود الفواتير',
+      `${data.details.length} سطر · ${data.totals.doc_count || 0} ${docCountCol}`,
+      headers,
       rowsHtml
     );
   } else {
-    tableBlock = `<p class="muted">حدّد الفلاتر ثم اضغط «عرض التقرير».</p>`;
+    tableBlock = `<p class="muted" style="padding:0.5rem 0">حدّد المصدر والفلاتر ثم اضغط «عرض التقرير».</p>`;
   }
 
+  const kpiBlock = run
+    ? `<div class="sd-kpi-row no-print">
+        <div class="sd-kpi sd-kpi--accent"><span>الإجمالي شامل</span><strong dir="ltr">${ui.esc(ui.fmtAmt(data.totals.line_gross))}</strong></div>
+        <div class="sd-kpi"><span>بدون ضريبة</span><strong dir="ltr">${ui.esc(ui.fmtAmt(data.totals.line_total))}</strong></div>
+        <div class="sd-kpi"><span>الكمية</span><strong dir="ltr">${ui.esc(ui.fmtAmt(data.totals.qty))}</strong></div>
+        <div class="sd-kpi"><span>البنود</span><strong dir="ltr">${Number(data.totals.line_count || 0)}</strong></div>
+        ${
+          data.source !== 'orders'
+            ? `<div class="sd-kpi"><span>فواتير</span><strong dir="ltr">${Number(data.totals.invoice_count || 0)}</strong></div>`
+            : ''
+        }
+        ${
+          data.source !== 'sales'
+            ? `<div class="sd-kpi"><span>طلبات</span><strong dir="ltr">${Number(data.totals.order_count || 0)}</strong></div>`
+            : ''
+        }
+      </div>`
+    : '';
+
   const body = `
-    <div class="si-stage si-report-page">
+    <div class="si-stage si-report-page si-report-detailed" data-hx-print-landscape="1">
       ${ui.hero({
         mark: '📋',
         kicker: 'Hypex Sales · Node',
-        title: 'تقرير المبيعات التفصيلي',
+        title: 'تقرير المبيعات وطلبات الشراء',
         subtitle: run
-          ? `من ${ui.esc(ui.isoToDmy(range.from))} إلى ${ui.esc(ui.isoToDmy(range.to))} · ${data.totals.invoice_count} فاتورة · ${data.totals.line_count} بند · إجمالي ${ui.esc(ui.fmtAmt(data.totals.line_gross))}`
-          : 'فلاتر شاملة — ملخص مجمّع أو تفصيل بنود الفواتير',
+          ? `${sourceLabel} · ${ui.esc(ui.isoToDmy(range.from))} → ${ui.esc(ui.isoToDmy(range.to))} · ${data.totals.doc_count || 0} مستند`
+          : 'فلاتر شاملة — مبيعات و/أو طلبات شراء العملاء — ملخص أو تفصيل',
         actions: [
           { label: '🖨 طباعة', primary: true, print: true },
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
-      <div class="si-rail no-print">
-        <form method="get" action="/sales/reports/detailed" class="si-search" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%">
+      <section class="si-surface sd-filters no-print">
+        <div class="sd-source-bar">
+          <a class="si-btn${data.source === 'sales' ? ' si-btn--primary' : ''}" href="/sales/reports/detailed?${filterQs(tab, 'sales')}">المبيعات</a>
+          <a class="si-btn${data.source === 'orders' ? ' si-btn--primary' : ''}" href="/sales/reports/detailed?${filterQs(tab, 'orders')}">طلبات الشراء</a>
+          <a class="si-btn${data.source === 'both' ? ' si-btn--primary' : ''}" href="/sales/reports/detailed?${filterQs(tab, 'both')}">الكل معاً</a>
+        </div>
+        <form method="get" action="/sales/reports/detailed">
           <input type="hidden" name="run" value="1">
           <input type="hidden" name="tab" value="${ui.esc(tab)}">
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">من
-            <input class="si-field" type="date" name="from" value="${ui.esc(range.from)}" required>
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى
-            <input class="si-field" type="date" name="to" value="${ui.esc(range.to)}" required>
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">العميل
-            <input class="si-field" type="number" name="customer_id" min="0" value="${customerId}" placeholder="0=الكل" style="min-width:6rem">
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المندوب
-            <select name="sales_rep_id" class="si-field" style="min-width:10rem">
-              <option value="0">— الكل —</option>
-              ${repOpts}
-            </select>
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المنطقة
-            <select name="region_id" class="si-field" style="min-width:9rem">
-              <option value="0">— الكل —</option>
-              ${regionOpts}
-            </select>
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">فئة المادة
-            <select name="category_id" class="si-field" style="min-width:9rem">
-              <option value="0">— الكل —</option>
-              ${catOpts}
-            </select>
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المادة #
-            <input class="si-field" type="number" name="item_id" min="0" value="${itemId || ''}" placeholder="0=الكل" style="min-width:6rem">
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المستودع
-            <select name="warehouse_id" class="si-field" style="min-width:9rem">
-              <option value="0">— الكل —</option>
-              ${whOpts}
-            </select>
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">الدفع
-            <select name="payment_type" class="si-field">
-              <option value="" ${paymentType === '' ? 'selected' : ''}>الكل</option>
-              <option value="cash" ${paymentType === 'cash' ? 'selected' : ''}>نقد</option>
-              <option value="credit" ${paymentType === 'credit' ? 'selected' : ''}>آجل</option>
-            </select>
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">تجميع الملخص
-            <select name="group_by" class="si-field" style="min-width:9rem">${groupOpts}</select>
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
-            <input type="checkbox" name="posted_only" value="1" ${postedOnly ? 'checked' : ''}> مرحّل فقط
-          </label>
-          <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+          <input type="hidden" name="source" value="${ui.esc(data.source || 'sales')}">
+          <div class="sd-filter-grid">
+            <label>من تاريخ
+              <input class="si-field" type="date" name="from" value="${ui.esc(range.from)}" required dir="ltr">
+            </label>
+            <label>إلى تاريخ
+              <input class="si-field" type="date" name="to" value="${ui.esc(range.to)}" required dir="ltr">
+            </label>
+            <label>العميل
+              <select name="customer_id" class="si-field">
+                <option value="0">— جميع العملاء —</option>
+                ${custOpts}
+              </select>
+            </label>
+            <label>المندوب
+              <select name="sales_rep_id" class="si-field">
+                <option value="0">— الكل —</option>
+                ${repOpts}
+              </select>
+            </label>
+            <label>المنطقة
+              <select name="region_id" class="si-field">
+                <option value="0">— الكل —</option>
+                ${regionOpts}
+              </select>
+            </label>
+            <label>فئة المادة
+              <select name="category_id" class="si-field">
+                <option value="0">— الكل —</option>
+                ${catOpts}
+              </select>
+            </label>
+            <label>المادة #
+              <input class="si-field" type="number" name="item_id" min="0" value="${itemId || ''}" placeholder="الكل" dir="ltr">
+            </label>
+            <label>المستودع
+              <select name="warehouse_id" class="si-field">
+                <option value="0">— الكل —</option>
+                ${whOpts}
+              </select>
+            </label>
+            ${
+              data.source !== 'orders'
+                ? `<label>الدفع
+              <select name="payment_type" class="si-field">
+                <option value="" ${paymentType === '' ? 'selected' : ''}>الكل</option>
+                <option value="cash" ${paymentType === 'cash' ? 'selected' : ''}>نقد</option>
+                <option value="credit" ${paymentType === 'credit' ? 'selected' : ''}>آجل</option>
+              </select>
+            </label>`
+                : ''
+            }
+            <label>تجميع الملخص
+              <select name="group_by" class="si-field">${groupOpts}</select>
+            </label>
+          </div>
+          <div class="sd-filter-actions">
+            <label class="sd-check">
+              <input type="checkbox" name="posted_only" value="1" ${postedOnly ? 'checked' : ''}>
+              ${data.source === 'orders' ? 'معتمد فقط' : data.source === 'both' ? 'مرحّل/معتمد فقط' : 'مرحّل فقط'}
+            </label>
+            <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+            ${
+              run
+                ? `<div class="sd-tabs" style="margin:0">
+              <a class="si-btn${tab === 'summary' ? ' si-btn--primary' : ''}" href="/sales/reports/detailed?${filterQs('summary')}">ملخص</a>
+              <a class="si-btn${tab === 'detail' ? ' si-btn--primary' : ''}" href="/sales/reports/detailed?${filterQs('detail')}">تفصيل البنود</a>
+            </div>`
+                : ''
+            }
+          </div>
         </form>
-        ${
-          run
-            ? `<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.65rem">
-          <a class="si-btn${tab === 'summary' ? ' si-btn--primary' : ''}" href="/sales/reports/detailed?${filterQs('summary')}">ملخص</a>
-          <a class="si-btn${tab === 'detail' ? ' si-btn--primary' : ''}" href="/sales/reports/detailed?${filterQs('detail')}">تفصيل البنود</a>
-        </div>`
-            : ''
-        }
-      </div>
-      <div class="si-print-area">${tableBlock}</div>
+      </section>
+      ${kpiBlock}
+      <div class="si-print-area sd-table">${tableBlock}</div>
     </div>`;
 
   res.send(
     ui.salesPage({
       user: req.session.user,
-      title: 'تقرير المبيعات التفصيلي',
+      title: 'تقرير المبيعات وطلبات الشراء',
       bodyHtml: body,
-      js: ['/assets/js/sales-print.js'],
+      css: ['/assets/css/report-sales-detailed.css'],
+      printTitle: 'تقرير المبيعات وطلبات الشراء',
     })
   );
 });

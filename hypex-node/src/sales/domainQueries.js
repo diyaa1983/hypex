@@ -652,7 +652,226 @@ async function reportSalesDetailed(filters = {}) {
     details,
     totals,
     group_by: groupBy,
+    source: 'sales',
   };
+}
+
+function normalizeDetailedSource(source) {
+  const s = String(source || 'sales').toLowerCase();
+  if (s === 'orders' || s === 'order') return 'orders';
+  if (s === 'both' || s === 'all') return 'both';
+  return 'sales';
+}
+
+function computeDetailedTotals(details) {
+  const totals = {
+    qty: 0,
+    line_total: 0,
+    line_gross: 0,
+    tax_amount: 0,
+    line_count: 0,
+    invoice_count: 0,
+    order_count: 0,
+    doc_count: 0,
+  };
+  const invIds = new Set();
+  const ordIds = new Set();
+  for (const row of details) {
+    totals.qty += Number(row.qty || 0);
+    totals.line_total += Number(row.line_total || 0);
+    totals.line_gross += Number(row.line_gross || 0);
+    totals.tax_amount += Number(row.tax_amount || 0);
+    const docId = Number(row.invoice_id || 0);
+    if (docId > 0) {
+      if (row.doc_type === 'order') ordIds.add(docId);
+      else invIds.add(docId);
+    }
+  }
+  totals.line_count = details.length;
+  totals.invoice_count = invIds.size;
+  totals.order_count = ordIds.size;
+  totals.doc_count = invIds.size + ordIds.size;
+  return totals;
+}
+
+function orderStatusLabel(st) {
+  const s = String(st || '').toLowerCase();
+  if (s === 'approved' || s === 'posted') return 'معتمد';
+  if (s === 'draft') return 'مسودة';
+  if (s === 'pending') return 'معلّق';
+  return st || '—';
+}
+
+/** طلبات شراء العملاء — بنود + ملخص (نفس بنية المبيعات) */
+async function reportCustomerOrdersDetailed(filters = {}) {
+  const r = dateRange(filters.from, filters.to);
+  const groupBy = normalizeSalesDetailedGroupBy(filters.group_by);
+  const empty = {
+    summary: [],
+    details: [],
+    totals: computeDetailedTotals([]),
+    group_by: groupBy,
+    source: 'orders',
+  };
+  if (!r.from || !r.to) return empty;
+
+  const customerId = Number(filters.customer_id || 0) || 0;
+  const salesRepId = Number(filters.sales_rep_id || 0) || 0;
+  const regionId = Number(filters.region_id || 0) || 0;
+  const categoryId = Number(filters.category_id || 0) || 0;
+  const itemId = Number(filters.item_id || 0) || 0;
+  const warehouseId = Number(filters.warehouse_id || 0) || 0;
+  const approvedOnly = String(filters.posted_only || '') === '1' || filters.posted_only === true;
+
+  const where = ['o.order_date BETWEEN ? AND ?', 'IFNULL(o.is_sent, 1) = 1'];
+  const params = [r.from, r.to];
+  if (customerId > 0) {
+    where.push('o.customer_id = ?');
+    params.push(customerId);
+  }
+  if (salesRepId > 0) {
+    where.push('COALESCE(o.sales_rep_id, c.sales_rep_id) = ?');
+    params.push(salesRepId);
+  }
+  if (regionId > 0) {
+    where.push('c.region_id = ?');
+    params.push(regionId);
+  }
+  if (categoryId > 0) {
+    where.push('it.category_id = ?');
+    params.push(categoryId);
+  }
+  if (itemId > 0) {
+    where.push('l.item_id = ?');
+    params.push(itemId);
+  }
+  if (warehouseId > 0) {
+    where.push('o.warehouse_id = ?');
+    params.push(warehouseId);
+  }
+  if (approvedOnly) {
+    where.push(`o.status IN ('approved','posted')`);
+  }
+
+  const limit = Math.min(5000, Math.max(100, Number(filters.limit || 3000)));
+  let rows = [];
+  try {
+    rows = await safeQuery(
+      `SELECT o.id AS invoice_id, o.order_no AS invoice_no, o.order_date AS invoice_date, o.status AS payment_type,
+              c.id AS customer_id, c.code AS customer_code, c.name_ar AS customer_name,
+              COALESCE(sr.id, 0) AS sales_rep_id,
+              COALESCE(sr.name_ar, '') AS sales_rep_name,
+              COALESCE(sr.code, '') AS sales_rep_code,
+              COALESCE(rg.id, 0) AS region_id,
+              COALESCE(rg.name_ar, '') AS region_name,
+              COALESCE(w.id, 0) AS warehouse_id,
+              COALESCE(w.name_ar, '') AS warehouse_name,
+              it.id AS item_id,
+              COALESCE(NULLIF(TRIM(it.sku), ''), it.barcode, '') AS item_sku,
+              COALESCE(NULLIF(TRIM(l.line_desc), ''), it.name_ar, '') AS item_name,
+              COALESCE(cat.id, 0) AS category_id,
+              COALESCE(cat.name_ar, '') AS category_name,
+              l.qty, COALESCE(l.unit_price, 0) AS unit_price, COALESCE(l.discount_pct, 0) AS discount_pct,
+              COALESCE(l.line_total, 0) AS line_total,
+              COALESCE(l.tax_amount, 0) AS tax_amount,
+              COALESCE(l.line_gross, l.line_total, 0) AS line_gross
+       FROM sal_customer_order_line l
+       INNER JOIN sal_customer_order o ON o.id = l.order_id
+       INNER JOIN crm_customer c ON c.id = o.customer_id
+       LEFT JOIN crm_sales_rep sr ON sr.id = COALESCE(o.sales_rep_id, c.sales_rep_id)
+       LEFT JOIN crm_region rg ON rg.id = c.region_id
+       LEFT JOIN inv_warehouse w ON w.id = o.warehouse_id
+       INNER JOIN inv_item it ON it.id = l.item_id
+       LEFT JOIN inv_item_category cat ON cat.id = it.category_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY o.order_date ASC, o.id ASC, l.line_no ASC
+       LIMIT ${limit}`,
+      params
+    );
+  } catch (_) {
+    return empty;
+  }
+
+  if (!rows.length) return empty;
+
+  const details = rows.map((row) => ({
+    doc_type: 'order',
+    doc_label: 'طلب',
+    invoice_id: Number(row.invoice_id || 0),
+    invoice_no: row.invoice_no || '',
+    invoice_date: row.invoice_date || '',
+    payment_type: orderStatusLabel(row.payment_type),
+    customer_id: Number(row.customer_id || 0),
+    customer_code: row.customer_code || '',
+    customer_name: row.customer_name || '',
+    sales_rep_id: Number(row.sales_rep_id || 0),
+    sales_rep_name: row.sales_rep_name || '',
+    sales_rep_code: row.sales_rep_code || '',
+    region_id: Number(row.region_id || 0),
+    region_name: row.region_name || '',
+    warehouse_id: Number(row.warehouse_id || 0),
+    warehouse_name: row.warehouse_name || '',
+    item_id: Number(row.item_id || 0),
+    item_sku: row.item_sku || '',
+    item_name: row.item_name || '',
+    category_id: Number(row.category_id || 0),
+    category_name: row.category_name || '',
+    qty: Number(row.qty || 0),
+    unit_price: Number(row.unit_price || 0),
+    discount_pct: Number(row.discount_pct || 0),
+    line_total: Number(row.line_total || 0),
+    line_gross: Number(row.line_gross || 0),
+    tax_amount: Number(row.tax_amount || 0),
+  }));
+
+  return {
+    summary: buildSalesDetailedSummary(details, groupBy),
+    details,
+    totals: computeDetailedTotals(details),
+    group_by: groupBy,
+    source: 'orders',
+  };
+}
+
+function tagSalesDetails(details) {
+  return details.map((d) => ({ ...d, doc_type: 'sales', doc_label: 'فاتورة' }));
+}
+
+async function reportCombinedDetailed(filters = {}) {
+  const source = normalizeDetailedSource(filters.source);
+  const groupBy = normalizeSalesDetailedGroupBy(filters.group_by);
+  if (source === 'sales') {
+    const data = await reportSalesDetailed(filters);
+    return {
+      ...data,
+      details: tagSalesDetails(data.details),
+      totals: computeDetailedTotals(tagSalesDetails(data.details)),
+      source: 'sales',
+    };
+  }
+  if (source === 'orders') {
+    return reportCustomerOrdersDetailed(filters);
+  }
+  const [salesRaw, ordersRaw] = await Promise.all([
+    reportSalesDetailed(filters),
+    reportCustomerOrdersDetailed(filters),
+  ]);
+  const details = [...tagSalesDetails(salesRaw.details), ...ordersRaw.details];
+  return {
+    summary: buildSalesDetailedSummary(details, groupBy),
+    details,
+    totals: computeDetailedTotals(details),
+    group_by: groupBy,
+    source: 'both',
+    sales_totals: computeDetailedTotals(tagSalesDetails(salesRaw.details)),
+    orders_totals: ordersRaw.totals,
+  };
+}
+
+async function listCustomersSimple() {
+  return safeQuery(
+    `SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 800`
+  );
 }
 
 async function listRegionsSimple() {
@@ -688,8 +907,11 @@ module.exports = {
   reportReturns,
   reportReturnsTotals,
   reportSalesDetailed,
+  reportCustomerOrdersDetailed,
+  reportCombinedDetailed,
   listRegionsSimple,
   listCategoriesSimple,
   listWarehousesSimple,
+  listCustomersSimple,
   dateRange,
 };

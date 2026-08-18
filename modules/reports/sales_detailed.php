@@ -53,6 +53,7 @@ $paymentType = strtolower(trim((string) ($_GET['payment_type'] ?? '')));
 $postedOnly = isset($_GET['posted_only']) && (string) $_GET['posted_only'] === '1';
 $groupBy = sal_report_sales_detailed_normalize_group_by(trim((string) ($_GET['group_by'] ?? 'customer')));
 $tab = (string) ($_GET['tab'] ?? 'summary') === 'detail' ? 'detail' : 'summary';
+$source = sal_report_detailed_normalize_source(trim((string) ($_GET['source'] ?? 'sales')));
 
 $report = null;
 $showResult = false;
@@ -70,9 +71,10 @@ if ($run) {
         $from = $fromIso;
         $to = $toIso;
         $showResult = true;
-        $report = sal_report_sales_detailed($pdo, [
+        $report = sal_report_combined_detailed($pdo, [
             'from' => $from,
             'to' => $to,
+            'source' => $source,
             'customer_id' => $customerId,
             'sales_rep_id' => $salesRepId,
             'region_id' => $regionId,
@@ -97,7 +99,7 @@ if ($itemId > 0) {
     }
 }
 
-$reportTitle = 'تقرير المبيعات التفصيلي';
+$reportTitle = 'تقرير المبيعات وطلبات الشراء';
 $groupLabel = sal_report_sales_detailed_group_label($groupBy);
 
 $cssPath = app_path('assets/css/report-sales.css');
@@ -110,6 +112,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 $queryBase = static function (string $tabMode) use (
     $from,
     $to,
+    $source,
     $customerId,
     $salesRepId,
     $regionId,
@@ -124,6 +127,7 @@ $queryBase = static function (string $tabMode) use (
         'r' => 'report_sales_detailed',
         'run' => '1',
         'tab' => $tabMode,
+        'source' => $source,
         'from' => format_date_dmY($from),
         'to' => format_date_dmY($to),
         'customer_id' => (string) $customerId,
@@ -169,6 +173,16 @@ item_picker_enqueue_assets();
         <input type="hidden" name="r" value="report_sales_detailed">
         <input type="hidden" name="run" value="1">
         <input type="hidden" name="tab" value="<?= esc($tab) ?>">
+        <input type="hidden" name="source" value="<?= esc($source) ?>">
+
+        <div class="no-print" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.65rem">
+            <a class="btn <?= $source === 'sales' ? 'btn-primary' : 'btn-secondary' ?>"
+               href="<?= esc(app_url('index.php?' . http_build_query(['r' => 'report_sales_detailed', 'run' => '1', 'tab' => $tab, 'source' => 'sales', 'from' => format_date_dmY($from), 'to' => format_date_dmY($to)]))) ?>">المبيعات</a>
+            <a class="btn <?= $source === 'orders' ? 'btn-primary' : 'btn-secondary' ?>"
+               href="<?= esc(app_url('index.php?' . http_build_query(['r' => 'report_sales_detailed', 'run' => '1', 'tab' => $tab, 'source' => 'orders', 'from' => format_date_dmY($from), 'to' => format_date_dmY($to)]))) ?>">طلبات الشراء</a>
+            <a class="btn <?= $source === 'both' ? 'btn-primary' : 'btn-secondary' ?>"
+               href="<?= esc(app_url('index.php?' . http_build_query(['r' => 'report_sales_detailed', 'run' => '1', 'tab' => $tab, 'source' => 'both', 'from' => format_date_dmY($from), 'to' => format_date_dmY($to)]))) ?>">الكل معاً</a>
+        </div>
 
         <div class="form-row">
             <?= customer_picker_field([

@@ -1,33 +1,101 @@
-/* Sales rep visits & tours reports — single-row landscape print */
+/* Sales rep visits & tours — compact rows, landscape print */
+
+.si-report-page.si-report-visits,
+.si-report-page.si-report-tours {
+  --rep-table-min: 920px;
+}
 
 .si-report-page.si-report-visits .si-table-wrap,
 .si-report-page.si-report-tours .si-table-wrap {
   overflow-x: auto !important;
+  max-height: none !important;
 }
 
 .si-report-page.si-report-visits .si-table,
 .si-report-page.si-report-tours .si-table {
   width: 100% !important;
-  table-layout: fixed !important;
-  font-size: 0.78rem;
+  min-width: var(--rep-table-min) !important;
+  table-layout: auto !important;
+  border-collapse: collapse !important;
+  font-size: 0.78rem !important;
 }
 
-.si-report-page.si-report-visits .si-table th,
-.si-report-page.si-report-visits .si-table td,
-.si-report-page.si-report-tours .si-table th,
-.si-report-page.si-report-tours .si-table td {
+.si-report-page.si-report-visits .si-table thead th,
+.si-report-page.si-report-tours .si-table thead th {
+  position: static !important;
+  white-space: nowrap !important;
+  padding: 0.45rem 0.5rem !important;
+  font-size: 0.72rem !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.si-report-page.si-report-visits .si-table tbody td,
+.si-report-page.si-report-tours .si-table tbody td {
   white-space: nowrap !important;
   word-break: keep-all !important;
-  overflow-wrap: normal !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 12rem;
+  padding: 0.38rem 0.45rem !important;
+  vertical-align: middle !important;
+  line-height: 1.3 !important;
+  text-align: center !important;
+}
+
+.si-report-page.si-report-visits .si-col-date,
+.si-report-page.si-report-tours .si-col-date {
+  max-width: 9.5rem !important;
+}
+
+.si-report-page.si-report-visits .si-col-customer,
+.si-report-page.si-report-tours .si-col-customer {
+  max-width: 11rem !important;
+  text-align: start !important;
+}
+
+.si-report-page.si-report-visits .si-col-reason {
+  max-width: 9rem !important;
+  text-align: start !important;
+}
+
+.si-report-page.si-report-visits .si-col-location,
+.si-report-page.si-report-tours .si-col-location {
+  max-width: 8.5rem !important;
+  text-align: start !important;
+}
+
+.si-report-page.si-report-visits .si-col-timing,
+.si-report-page.si-report-tours .si-col-timing {
   max-width: none !important;
-  vertical-align: middle;
-  line-height: 1.25;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-report-page.si-report-visits .si-col-status,
+.si-report-page.si-report-visits .si-col-scope,
+.si-report-page.si-report-tours .si-col-status {
+  max-width: 6.5rem !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.si-report-page.si-report-visits .si-ts-compact,
+.si-report-page.si-report-tours .si-ts-compact {
+  display: inline-block;
+  white-space: nowrap !important;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-size: 0.76rem;
+  letter-spacing: 0.01em;
 }
 
 .si-report-page.si-report-visits .si-table .si-pill,
 .si-report-page.si-report-tours .si-table .si-pill {
   white-space: nowrap !important;
   display: inline-flex !important;
+  max-width: 100%;
 }
 
 .si-report-page.si-report-visits .si-rep-group-row td {
@@ -35,13 +103,12 @@
   text-align: start !important;
   font-weight: 700;
   white-space: nowrap !important;
+  overflow: visible !important;
+  max-width: none !important;
   padding: 0.5rem 0.65rem !important;
 }
 
-.si-report-page.si-report-visits .si-ts-method .muted,
-.si-report-page.si-report-tours .si-ts-method .muted {
-  display: inline;
-  margin-inline-start: 0.25rem;
+.si-report-page.si-report-visits .si-cust-code {
   font-size: 0.72rem;
 }
 
@@ -53,6 +120,7 @@
 
   .si-report-page.si-report-visits .si-table,
   .si-report-page.si-report-tours .si-table {
+    min-width: 0 !important;
     width: 100% !important;
     font-size: 7.5pt !important;
   }
@@ -62,8 +130,18 @@
   .si-report-page.si-report-tours .si-table th,
   .si-report-page.si-report-tours .si-table td {
     white-space: nowrap !important;
-    padding: 0.15rem 0.25rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding: 0.12rem 0.22rem !important;
     font-size: 7.5pt !important;
     border: 1px solid #94a3b8 !important;
+  }
+
+  .si-report-page.si-report-visits .si-col-timing,
+  .si-report-page.si-report-tours .si-col-timing,
+  .si-report-page.si-report-visits .si-col-status,
+  .si-report-page.si-report-visits .si-col-scope {
+    overflow: visible !important;
+    text-overflow: clip !important;
   }
 }

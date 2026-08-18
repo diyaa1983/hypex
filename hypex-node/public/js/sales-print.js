@@ -233,10 +233,30 @@
     );
   }
 
-  function tableCss() {
+  function tableCss(landscape) {
+    var pageRule =
+      '@page{size:A4 ' +
+      (landscape ? 'landscape' : 'portrait') +
+      ';margin:' +
+      (landscape ? '6mm 5mm' : '10mm 8mm 12mm 8mm') +
+      '}';
+    var repTable =
+      landscape
+        ? 'table{width:100%;border-collapse:collapse;font-size:7.5pt;table-layout:auto}' +
+          'th,td{border:1px solid #64748b;padding:2px 3px;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}' +
+          'th{background:#e2e8f0;font-weight:800;text-align:center}' +
+          '.si-col-timing,.si-col-status,.si-col-scope{overflow:visible;text-overflow:clip}' +
+          '.si-ts-compact{display:inline-block;white-space:nowrap;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}' +
+          '.si-pill{display:inline-flex;white-space:nowrap;padding:1px 4px;border-radius:4px;font-size:7pt;font-weight:700}' +
+          '.si-pill--live{background:#dcfce7;color:#166534}' +
+          '.si-pill--wait{background:#fef3c7;color:#92400e}' +
+          '.si-pill--lock{background:#fee2e2;color:#991b1b}' +
+          '.si-rep-group-row td{background:#e2e8f0;font-weight:800;text-align:right;overflow:visible}' +
+          '.muted{color:#64748b;font-size:7pt}'
+        : 'table{width:100%;border-collapse:collapse;font-size:9pt}' +
+          'th,td{border:1px solid #334155;padding:3px 4px;vertical-align:top}';
     return (
-      'table{width:100%;border-collapse:collapse;font-size:9pt}' +
-      'th,td{border:1px solid #334155;padding:3px 4px;vertical-align:top}' +
+      repTable +
       'th{background:#e2e8f0;font-weight:800}' +
       'thead{display:table-header-group}' +
       'tfoot{display:table-row-group}' +
@@ -285,7 +305,7 @@
       '.si-table-wrap,.ora-stmt,.hx-print-doc,.inv-print-doc{overflow:visible!important;position:relative}' +
       '.hx-logo-wm{display:none!important}' +
       '@media print{.hx-logo-wm{display:flex!important;position:fixed;inset:0;align-items:center;justify-content:center;pointer-events:none;z-index:0;opacity:.05;-webkit-print-color-adjust:exact;print-color-adjust:exact}.hx-logo-wm img{width:min(58%,380px)!important;max-width:380px!important;max-height:380px!important;height:auto!important;object-fit:contain}}' +
-      '@page{size:A4 portrait;margin:10mm 8mm 12mm 8mm}' +
+      pageRule +
       'html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#fff}' +
       '.hx-print-doc{padding-bottom:2mm;margin:0;position:relative;z-index:1}' +
       '.hx-print-head{page-break-after:avoid;position:relative;z-index:1}' +
@@ -298,14 +318,28 @@
     );
   }
 
+  function isRepReportContent(content) {
+    return /si-report-visits|si-report-tours/.test(String(content || ''));
+  }
+
+  function wantsLandscapePrint(content) {
+    var c = String(content || '');
+    if (/si-report-visits|si-report-tours|si-report-detailed|data-hx-print-landscape/.test(c)) return true;
+    var p = String(window.location.pathname || '');
+    if (/\/sales-reps\/reports\/(visits|tours)/.test(p)) return true;
+    if (/\/sales\/reports\/detailed/.test(p)) return true;
+    return !!document.querySelector('.si-report-visits, .si-report-tours, [data-hx-print-landscape="1"]');
+  }
+
   function buildHtml(content, b) {
     var when = stampNow();
+    var landscape = wantsLandscapePrint(content);
     return (
       '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">' +
       '<title>' +
       esc(b.title) +
       '</title><style>' +
-      tableCss() +
+      tableCss(landscape) +
       '</style></head><body>' +
       (b.watermarkEnabled !== false ? watermarkHtml(b.logo) : '') +
       buildHeader(b) +

@@ -1,6 +1,8 @@
 'use strict';
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const auth = require('../auth');
 const q = require('./domainQueries');
 const masters = require('./mastersService');
@@ -1330,12 +1332,56 @@ function fmtGpsCoord(lat, lng) {
 }
 
 const REP_REPORT_CSS = ['/assets/css/report-rep-reports.css'];
+const REP_REPORT_STYLE = (() => {
+  try {
+    const cssPath = path.join(__dirname, '../../public/css/report-rep-reports.css');
+    return `<style>${fs.readFileSync(cssPath, 'utf8')}</style>`;
+  } catch {
+    return '';
+  }
+})();
 
 function visitTsMethod(ts, method, fmtTsFn, methodLblFn) {
   const t = fmtTsFn(ts);
   const m = methodLblFn(method);
   if (t === '—' && m === '—') return '—';
   return `<span class="si-ts-method" dir="ltr">${t}${m !== '—' ? `<span class="muted"> · ${esc(m)}</span>` : ''}</span>`;
+}
+
+function fmtTimeOnly(v) {
+  if (!v) return '';
+  const s = String(v);
+  if (s.length >= 16) return s.slice(11, 16);
+  return s.trim();
+}
+
+function visitTimingCompact(r, durationFn, methodLblFn) {
+  const parts = [];
+  const cin = fmtTimeOnly(r.visit_checkin_at);
+  const cout = fmtTimeOnly(r.visit_checkout_at);
+  if (cin) parts.push(`د\u00A0${cin}`);
+  if (cout) parts.push(`خ\u00A0${cout}`);
+  const dur = durationFn(r.visit_checkin_at, r.visit_checkout_at);
+  if (dur && dur !== '—') parts.push(dur);
+  const cm = methodLblFn(r.checkin_method);
+  const com = methodLblFn(r.checkout_method);
+  const methods = [...new Set([cm, com].filter((m) => m && m !== '—'))];
+  if (methods.length) parts.push(methods.join('/'));
+  if (!parts.length) return '—';
+  return `<span class="si-ts-compact">${parts.join(' · ')}</span>`;
+}
+
+function customerInline(r) {
+  const name = esc(r.customer_name || '—');
+  const code = String(r.customer_code || '').trim();
+  return code ? `${name} <span class="muted si-cust-code" dir="ltr">(${esc(code)})</span>` : name;
+}
+
+function locationInline(r) {
+  const reg = String(r.region_name || '').trim();
+  const addr = String(r.address_name || '').trim();
+  if (reg && addr) return esc(`${reg} / ${addr}`);
+  return esc(reg || addr || '—');
 }
 
 function repNameInline(name, code) {
@@ -1504,6 +1550,16 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
       ? ui.statusPill('ok', 'مرحّلة')
       : ui.statusPill('wait', 'مسودة');
   }
+  function durationLabel(a, b) {
+    if (!a || !b) return '—';
+    const t1 = Date.parse(String(a).replace(' ', 'T'));
+    const t2 = Date.parse(String(b).replace(' ', 'T'));
+    if (!Number.isFinite(t1) || !Number.isFinite(t2) || t2 < t1) return '—';
+    const mins = Math.floor((t2 - t1) / 60000);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}س ${m}د` : `${m} د`;
+  }
 
   const repOpts = reps
     .map(
@@ -1532,22 +1588,19 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
       <td class="si-num" dir="ltr">
         <a href="/sales-reps/route?id=${Number(r.tour_id)}">${Number(r.tour_id)}</a>
       </td>
-      <td>${repNameInline(r.sales_rep_name, r.sales_rep_code)}</td>
-      <td class="si-num" dir="ltr">${esc(ui.isoToDmy(r.date_from))}</td>
-      <td class="si-num" dir="ltr">${esc(ui.isoToDmy(r.date_to))}</td>
-      <td>${statusLbl(r.status)}</td>
-      <td>${esc(r.customer_name || '—')}</td>
-      <td class="si-num" dir="ltr">${esc(r.customer_code || '')}</td>
-      <td>${esc(r.region_name || '—')}</td>
-      <td>${esc(r.address_name || '—')}</td>
-      <td class="si-num">${visitTsMethod(r.visit_checkin_at, r.checkin_method, fmtTs, methodLabel)}</td>
-      <td class="si-num">${visitTsMethod(r.visit_checkout_at, r.checkout_method, fmtTs, methodLabel)}</td>
+      <td class="si-col-rep">${repNameInline(r.sales_rep_name, r.sales_rep_code)}</td>
+      <td class="si-col-date" dir="ltr">${esc(ui.isoToDmy(r.date_from))} → ${esc(ui.isoToDmy(r.date_to))}</td>
+      <td class="si-col-status">${statusLbl(r.status)}</td>
+      <td class="si-col-customer">${customerInline(r)}</td>
+      <td class="si-col-location">${locationInline(r)}</td>
+      <td class="si-col-timing">${visitTimingCompact(r, durationLabel, methodLabel)}</td>
     </tr>`
       )
-      .join('') || ui.emptyRow(12, 'لا جولات في الفترة المحددة');
+      .join('') || ui.emptyRow(8, 'لا جولات في الفترة المحددة');
 
   const body = `
-    <div class="si-stage si-report-page si-report-tours">
+    <div class="si-stage si-report-page si-report-tours" data-hx-print-landscape="1">
+      ${REP_REPORT_STYLE}
       ${ui.hero({
         mark: '🗺️',
         kicker: KICKER,
@@ -1592,7 +1645,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
           <b>GPS</b> لاحقاً عندما يسجّل المندوب الدخول/الخروج من الآيباد وهو ضمن حدود العميل.
         </p>
       </section>
-      <div class="si-print-area">
+      <div class="si-print-area si-report-page si-report-tours" data-hx-print-landscape="1">
       ${ui.tableSurface(
         'تفاصيل الجولات والعملاء',
         `${rows.length} صف`,
@@ -1600,15 +1653,11 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
           '#',
           'الجولة',
           'المندوب',
-          'من',
-          'إلى',
+          'الفترة',
           'الحالة',
           'العميل',
-          'الرمز',
-          'المنطقة',
-          'العنوان',
-          'دخول',
-          'خروج',
+          'الموقع',
+          'التوقيت',
         ],
         rowsHtml
       )}
@@ -1705,7 +1754,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
 
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
-  const colCount = groupByRep ? 12 : 13;
+  const colCount = groupByRep ? 8 : 9;
 
   function scopeLbl(r) {
     return Number(r.in_plan ?? 1) === 1
@@ -1714,19 +1763,18 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   }
 
   function visitDataCells(r, seq, includeRep) {
+    const reason = esc(
+      r.no_order_reasons || (Number(r.in_plan ?? 1) === 1 ? '—' : 'غير محدد')
+    );
     return `<td class="si-num" dir="ltr">${seq}</td>
-      <td>${esc(dateWithWeekday(r.route_date))}</td>
-      ${includeRep ? `<td>${esc(r.sales_rep_name || '—')}</td>` : ''}
-      <td>${esc(r.customer_name || '—')}</td>
-      <td>${scopeLbl(r)}</td>
-      <td>${esc(r.no_order_reasons || (Number(r.in_plan ?? 1) === 1 ? '—' : 'غير محدد'))}</td>
-      <td class="si-num" dir="ltr">${esc(r.customer_code || '')}</td>
-      <td>${esc(r.region_name || '—')}</td>
-      <td>${esc(r.address_name || '—')}</td>
-      <td class="si-num">${visitTsMethod(r.visit_checkin_at, r.checkin_method, fmtTs, methodLabel)}</td>
-      <td class="si-num">${visitTsMethod(r.visit_checkout_at, r.checkout_method, fmtTs, methodLabel)}</td>
-      <td class="si-num" dir="ltr">${durationLabel(r.visit_checkin_at, r.visit_checkout_at)}</td>
-      <td>${statusLbl(r)}</td>`;
+      <td class="si-col-date">${esc(dateWithWeekday(r.route_date))}</td>
+      ${includeRep ? `<td class="si-col-rep">${esc(r.sales_rep_name || '—')}</td>` : ''}
+      <td class="si-col-customer">${customerInline(r)}</td>
+      <td class="si-col-scope">${scopeLbl(r)}</td>
+      <td class="si-col-reason" title="${reason}">${reason}</td>
+      <td class="si-col-location">${locationInline(r)}</td>
+      <td class="si-col-timing">${visitTimingCompact(r, durationLabel, methodLabel)}</td>
+      <td class="si-col-status">${statusLbl(r)}</td>`;
   }
 
   let rowsHtml = '';
@@ -1766,12 +1814,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'العميل',
         'النطاق',
         'سبب عدم الطلب',
-        'رقم العميل',
-        'المنطقة',
-        'العنوان',
-        'دخول',
-        'خروج',
-        'المدة',
+        'الموقع',
+        'التوقيت',
         'الحالة',
       ]
     : [
@@ -1781,17 +1825,14 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'العميل',
         'النطاق',
         'سبب عدم الطلب',
-        'رقم العميل',
-        'المنطقة',
-        'العنوان',
-        'دخول',
-        'خروج',
-        'المدة',
+        'الموقع',
+        'التوقيت',
         'الحالة',
       ];
 
   const body = `
-    <div class="si-stage si-report-page si-report-visits">
+    <div class="si-stage si-report-page si-report-visits" data-hx-print-landscape="1">
+      ${REP_REPORT_STYLE}
       ${ui.hero({
         mark: '📍',
         kicker: KICKER,
@@ -1842,7 +1883,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           }.
         </p>
       </section>
-      <div class="si-print-area">
+      <div class="si-print-area si-report-page si-report-visits" data-hx-print-landscape="1">
       ${ui.tableSurface(
         'تفاصيل الزيارات',
         `${rows.length} صف`,

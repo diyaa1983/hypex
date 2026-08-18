@@ -1,0 +1,144 @@
+/* تقرير المبيعات / طلبات الشراء التفصيلي */
+
+.si-report-detailed .sd-filters {
+  padding: 1rem 1.1rem 1.05rem;
+  margin-bottom: 0.85rem;
+}
+
+.si-report-detailed .sd-source-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.si-report-detailed .sd-source-bar .si-btn {
+  min-width: 7.5rem;
+  justify-content: center;
+}
+
+.si-report-detailed .sd-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 0.55rem 0.65rem;
+  align-items: end;
+}
+
+.si-report-detailed .sd-filter-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--si-muted, #5c6578);
+  min-width: 0;
+}
+
+.si-report-detailed .sd-filter-grid .si-field,
+.si-report-detailed .sd-filter-grid select {
+  width: 100%;
+  min-height: 2.15rem;
+}
+
+.si-report-detailed .sd-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.si-report-detailed .sd-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--si-muted, #5c6578);
+  margin-inline-end: 0.35rem;
+}
+
+.si-report-detailed .sd-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.si-report-detailed .sd-kpi {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9));
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.si-report-detailed .sd-kpi span {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--si-muted, #64748b);
+  margin-bottom: 0.15rem;
+}
+
+.si-report-detailed .sd-kpi strong {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--si-ink, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
+
+.si-report-detailed .sd-kpi--accent strong {
+  color: #0f766e;
+}
+
+.si-report-detailed .sd-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.65rem;
+}
+
+.si-report-detailed .sd-table .si-table {
+  font-size: 0.82rem;
+}
+
+.si-report-detailed .sd-table .si-table th,
+.si-report-detailed .sd-table .si-table td {
+  white-space: nowrap;
+  padding: 0.45rem 0.55rem;
+}
+
+.si-report-detailed .sd-pill-sales {
+  display: inline-flex;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: rgba(14, 116, 144, 0.12);
+  color: #0e7490;
+}
+
+.si-report-detailed .sd-pill-order {
+  display: inline-flex;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: rgba(180, 83, 9, 0.12);
+  color: #b45309;
+}
+
+@media print {
+  .si-report-detailed .sd-kpi-row {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .si-report-detailed .sd-filters,
+  .si-report-detailed .sd-tabs,
+  .si-report-detailed .sd-source-bar {
+    display: none !important;
+  }
+}
