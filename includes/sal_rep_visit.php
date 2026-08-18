@@ -875,7 +875,7 @@ function sal_rep_visit_method_label(?string $method): string
         return 'GPS';
     }
     if ($m === 'MANUAL') {
-        return 'Manual';
+        return 'يدوي';
     }
 
     return (string) $method;
@@ -1101,6 +1101,56 @@ function sal_rep_visit_fmt_time_only($v): string
     }
 
     return substr($s, 11, 5);
+}
+
+function sal_rep_visit_method_pair_label(?string $checkin, ?string $checkout): string
+{
+    $cm = trim((string) ($checkin ?? ''));
+    $com = trim((string) ($checkout ?? ''));
+    if ($cm === '' || $cm === '—') {
+        $cm = '';
+    }
+    if ($com === '' || $com === '—') {
+        $com = '';
+    }
+    if ($cm === '' && $com === '') {
+        return '—';
+    }
+    if ($cm !== '' && $com !== '') {
+        return $cm === $com ? $cm : ($cm . ' / ' . $com);
+    }
+
+    return $cm !== '' ? $cm : $com;
+}
+
+function sal_rep_visit_timing_checkin_cell(array $r): string
+{
+    $t = sal_rep_visit_fmt_time_only($r['visit_checkin_at'] ?? '');
+
+    return $t !== '' ? esc($t) : '—';
+}
+
+function sal_rep_visit_timing_checkout_cell(array $r): string
+{
+    $t = sal_rep_visit_fmt_time_only($r['visit_checkout_at'] ?? '');
+
+    return $t !== '' ? esc($t) : '—';
+}
+
+function sal_rep_visit_timing_duration_cell(array $r): string
+{
+    return esc(sal_rep_visit_duration_label(
+        ($r['visit_checkin_at'] ?? '') !== '' ? (string) $r['visit_checkin_at'] : null,
+        ($r['visit_checkout_at'] ?? '') !== '' ? (string) $r['visit_checkout_at'] : null
+    ));
+}
+
+function sal_rep_visit_timing_method_cell(array $r): string
+{
+    return esc(sal_rep_visit_method_pair_label(
+        (string) ($r['checkin_method_label'] ?? ''),
+        (string) ($r['checkout_method_label'] ?? '')
+    ));
 }
 
 function sal_rep_visit_timing_compact(array $r): string

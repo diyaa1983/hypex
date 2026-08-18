@@ -2,7 +2,7 @@
 
 .si-report-page.si-report-visits,
 .si-report-page.si-report-tours {
-  --rep-table-min: 920px;
+  --rep-table-min: 1100px;
 }
 
 .si-report-page.si-report-visits .si-table-wrap,
@@ -63,6 +63,20 @@
 .si-report-page.si-report-tours .si-col-location {
   max-width: 8.5rem !important;
   text-align: start !important;
+}
+
+.si-report-page.si-report-visits .si-col-checkin,
+.si-report-page.si-report-visits .si-col-checkout,
+.si-report-page.si-report-visits .si-col-duration,
+.si-report-page.si-report-visits .si-col-method,
+.si-report-page.si-report-tours .si-col-checkin,
+.si-report-page.si-report-tours .si-col-checkout,
+.si-report-page.si-report-tours .si-col-duration,
+.si-report-page.si-report-tours .si-col-method {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  font-variant-numeric: tabular-nums;
 }
 
 .si-report-page.si-report-visits .si-col-timing,
@@ -137,6 +151,14 @@
     border: 1px solid #94a3b8 !important;
   }
 
+  .si-report-page.si-report-visits .si-col-checkin,
+  .si-report-page.si-report-visits .si-col-checkout,
+  .si-report-page.si-report-visits .si-col-duration,
+  .si-report-page.si-report-visits .si-col-method,
+  .si-report-page.si-report-tours .si-col-checkin,
+  .si-report-page.si-report-tours .si-col-checkout,
+  .si-report-page.si-report-tours .si-col-duration,
+  .si-report-page.si-report-tours .si-col-method,
   .si-report-page.si-report-visits .si-col-timing,
   .si-report-page.si-report-tours .si-col-timing,
   .si-report-page.si-report-visits .si-col-status,

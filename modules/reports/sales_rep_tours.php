@@ -86,7 +86,7 @@ function _tour_method_label(?string $v): string
         return 'GPS';
     }
     if ($m === 'MANUAL') {
-        return 'Manual';
+        return 'يدوي';
     }
 
     return (string) $v;
@@ -110,7 +110,7 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
 }
 .report-sales-page.report-tours-page .report-sales-table {
   width: 100% !important;
-  min-width: 920px !important;
+  min-width: 1100px !important;
   table-layout: auto !important;
   border-collapse: collapse !important;
   font-size: 0.78rem;
@@ -130,7 +130,10 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
 .report-sales-page.report-tours-page .col-location {
   text-align: start !important;
 }
-.report-sales-page.report-tours-page .col-timing,
+.report-sales-page.report-tours-page .col-checkin,
+.report-sales-page.report-tours-page .col-checkout,
+.report-sales-page.report-tours-page .col-duration,
+.report-sales-page.report-tours-page .col-method,
 .report-sales-page.report-tours-page .col-status {
   max-width: none !important;
   overflow: visible !important;
@@ -160,7 +163,10 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
     font-size: 7.5pt !important;
     border: 1px solid #94a3b8 !important;
   }
-  .report-sales-page.report-tours-page .col-timing,
+  .report-sales-page.report-tours-page .col-checkin,
+  .report-sales-page.report-tours-page .col-checkout,
+  .report-sales-page.report-tours-page .col-duration,
+  .report-sales-page.report-tours-page .col-method,
   .report-sales-page.report-tours-page .col-status {
     overflow: visible !important;
     text-overflow: clip !important;
@@ -213,12 +219,15 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                 <th>الحالة</th>
                 <th>العميل</th>
                 <th>الموقع</th>
-                <th>التوقيت</th>
+                <th>وقت الدخول</th>
+                <th>وقت الخروج</th>
+                <th>مجموع الساعات</th>
+                <th>نوع الدخول/الخروج</th>
             </tr>
             </thead>
             <tbody>
             <?php if ($rows === []): ?>
-                <tr><td colspan="8" class="muted">لا جولات في الفترة المحددة.</td></tr>
+                <tr><td colspan="11" class="muted">لا جولات في الفترة المحددة.</td></tr>
             <?php else: ?>
                 <?php foreach ($rows as $i => $r): ?>
                     <?php $r = _tour_timing_row($r); ?>
@@ -227,9 +236,6 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                         <td dir="ltr"><?= (int) ($r['tour_id'] ?? 0) ?></td>
                         <td>
                             <?= esc((string) ($r['sales_rep_name'] ?? '')) ?>
-                            <?php if (!empty($r['sales_rep_code'])): ?>
-                                <span class="muted" dir="ltr">(<?= esc((string) $r['sales_rep_code']) ?>)</span>
-                            <?php endif; ?>
                         </td>
                         <td dir="ltr">
                             <?= esc(format_date_dmY((string) ($r['date_from'] ?? ''))) ?>
@@ -239,7 +245,10 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                         <td class="col-status"><?= (string) ($r['status'] ?? '') === 'posted' ? 'مرحّلة' : 'مسودة' ?></td>
                         <td class="col-customer"><?= sal_rep_visit_customer_inline($r) ?></td>
                         <td class="col-location"><?= sal_rep_visit_location_inline($r) ?></td>
-                        <td class="col-timing"><?= sal_rep_visit_timing_compact($r) ?></td>
+                        <td class="col-checkin" dir="ltr"><?= sal_rep_visit_timing_checkin_cell($r) ?></td>
+                        <td class="col-checkout" dir="ltr"><?= sal_rep_visit_timing_checkout_cell($r) ?></td>
+                        <td class="col-duration"><?= sal_rep_visit_timing_duration_cell($r) ?></td>
+                        <td class="col-method"><?= sal_rep_visit_timing_method_cell($r) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

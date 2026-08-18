@@ -40,7 +40,7 @@ foreach ($rows as $r) {
     }
 }
 $groupByRep = $salesRepId < 1 && count($uniqueRepIds) > 1;
-$colCount = $groupByRep ? 8 : 9;
+$colCount = $groupByRep ? 11 : 12;
 
 $grouped = [];
 if ($groupByRep) {
@@ -67,7 +67,7 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
 }
 .report-sales-page.report-visits-page .report-sales-table {
   width: 100% !important;
-  min-width: 920px !important;
+  min-width: 1100px !important;
   table-layout: auto !important;
   border-collapse: collapse !important;
   font-size: 0.78rem;
@@ -88,7 +88,10 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
 .report-sales-page.report-visits-page .col-location {
   text-align: start !important;
 }
-.report-sales-page.report-visits-page .col-timing,
+.report-sales-page.report-visits-page .col-checkin,
+.report-sales-page.report-visits-page .col-checkout,
+.report-sales-page.report-visits-page .col-duration,
+.report-sales-page.report-visits-page .col-method,
 .report-sales-page.report-visits-page .col-status,
 .report-sales-page.report-visits-page .col-scope {
   max-width: none !important;
@@ -126,7 +129,10 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
     font-size: 7.5pt !important;
     border: 1px solid #94a3b8 !important;
   }
-  .report-sales-page.report-visits-page .col-timing,
+  .report-sales-page.report-visits-page .col-checkin,
+  .report-sales-page.report-visits-page .col-checkout,
+  .report-sales-page.report-visits-page .col-duration,
+  .report-sales-page.report-visits-page .col-method,
   .report-sales-page.report-visits-page .col-status,
   .report-sales-page.report-visits-page .col-scope {
     overflow: visible !important;
@@ -137,7 +143,8 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
 <div class="card report-sales-page report-visits-page">
     <header class="report-sales-header no-print">
         <h2>تقرير زيارات العملاء</h2>
-        <p class="muted">تسجيلات دخول/خروج المندوب عند العميل — الوقت والنوع (GPS أو Manual) ومدة الزيارة</p>
+        <p class="muted">تسجيلات دخول/خروج المندوب — وقت الدخول · وقت الخروج · المدة · نوع الدخول/الخروج</p>
+        <p class="muted report-visits-count"><strong>عدد الزيارات:</strong> <?= count($rows) ?></p>
         <form method="get" class="report-filters" action="<?= esc(app_url('index.php')) ?>">
             <input type="hidden" name="r" value="report_sales_rep_visits">
             <label>من
@@ -160,7 +167,7 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                 <select name="method">
                     <option value="" <?= $method === '' ? 'selected' : '' ?>>— الكل —</option>
                     <option value="GPS" <?= $method === 'GPS' ? 'selected' : '' ?>>GPS</option>
-                    <option value="MANUAL" <?= $method === 'MANUAL' ? 'selected' : '' ?>>Manual</option>
+                    <option value="MANUAL" <?= $method === 'MANUAL' ? 'selected' : '' ?>>يدوي</option>
                 </select>
             </label>
             <label>الحالة
@@ -187,7 +194,10 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                 <th>النطاق</th>
                 <th>سبب عدم الطلب</th>
                 <th>الموقع</th>
-                <th>التوقيت</th>
+                <th>وقت الدخول</th>
+                <th>وقت الخروج</th>
+                <th>مجموع الساعات</th>
+                <th>نوع الدخول/الخروج</th>
                 <th>الحالة</th>
             </tr>
             </thead>
@@ -215,7 +225,10 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                             <td class="col-scope"><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
                             <td class="col-reason" title="<?= esc($reason) ?>"><?= esc($reason) ?></td>
                             <td class="col-location"><?= sal_rep_visit_location_inline($r) ?></td>
-                            <td class="col-timing"><?= sal_rep_visit_timing_compact($r) ?></td>
+                            <td class="col-checkin" dir="ltr"><?= sal_rep_visit_timing_checkin_cell($r) ?></td>
+                            <td class="col-checkout" dir="ltr"><?= sal_rep_visit_timing_checkout_cell($r) ?></td>
+                            <td class="col-duration"><?= sal_rep_visit_timing_duration_cell($r) ?></td>
+                            <td class="col-method"><?= sal_rep_visit_timing_method_cell($r) ?></td>
                             <td class="col-status"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -233,7 +246,10 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                         <td class="col-scope"><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
                         <td class="col-reason" title="<?= esc($reason) ?>"><?= esc($reason) ?></td>
                         <td class="col-location"><?= sal_rep_visit_location_inline($r) ?></td>
-                        <td class="col-timing"><?= sal_rep_visit_timing_compact($r) ?></td>
+                        <td class="col-checkin" dir="ltr"><?= sal_rep_visit_timing_checkin_cell($r) ?></td>
+                        <td class="col-checkout" dir="ltr"><?= sal_rep_visit_timing_checkout_cell($r) ?></td>
+                        <td class="col-duration"><?= sal_rep_visit_timing_duration_cell($r) ?></td>
+                        <td class="col-method"><?= sal_rep_visit_timing_method_cell($r) ?></td>
                         <td class="col-status"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
                     </tr>
                 <?php endforeach; ?>
