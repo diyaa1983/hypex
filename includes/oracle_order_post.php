@@ -176,6 +176,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             'per_tax' => $taxPct > 1.5 ? ($taxPct / 100) : $taxPct,
             'tr_unit' => (string) ((float) ($ln['unit_factor'] ?? 1)),
             'name' => (string) ($ln['item_name'] ?? ''),
+            'srl' => count($mappedLines) + 1,
         ];
     }
     if ($mappedLines === []) {
@@ -258,7 +259,21 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'TOT_AMT' => (float) ($order['total'] ?? 0),
         'TOT_TAX' => (float) ($order['tax_amount'] ?? $sumTax),
         'FLAG' => 0,
-        'ORDER_NO' => (string) ($order['order_no'] ?? ''),
+        'FLAGE' => 0,
+        'TRAN_RATE' => 1,
+        'PRINT_FLAGE' => 'N',
+        'CASH' => 0,
+        'CACR' => 2,
+        'VOU_FLAG' => 18,
+        'UPD_FLAG' => 'SS',
+        'DH_FLAGE' => 1,
+        'REF_FLAG' => 1,
+        'MAN_NUM' => 1,
+        'TDATE' => $orderDate,
+        'DUE_DATE' => $orderDate,
+        'TTIME' => date('H:i:s'),
+        'USR_ID' => 'HYPX',
+        'NOTE1' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
         'NOTE' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
         'NOTES' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
         'REMARK' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
@@ -281,6 +296,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $base['VOU_TAX'] = $line['vou_tax'];
         $base['PER_TAX'] = $line['per_tax'];
         $base['TR_UNIT'] = $line['tr_unit'];
+        $base['SRL'] = (int) ($line['srl'] ?? 1);
         $base['JD_COST'] = 0;
 
         return array_merge($base, $headerExtras);
@@ -296,7 +312,13 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             $hdrSample
         );
         foreach ($mappedLines as $line) {
-            oracle_order_insert_row($conn, $from, $colMeta, $rowValues($line), $sample);
+            oracle_order_insert_row(
+                $conn,
+                $from,
+                $colMeta,
+                oracle_order_seed_header($sample, $rowValues($line), $cols),
+                $sample
+            );
         }
         oracle_try_commit($conn);
     } catch (Throwable $e) {
@@ -418,7 +440,7 @@ function oracle_order_extras(array $cols, array $salesman, array $order): array
     }
     $payCol = oracle_order_pick_col($cols, ['CASH', 'CASH_CR', 'PAY_TYPE', 'CREDIT', 'CUS_PAY', 'PAID_TYPE']);
     if ($payCol) {
-        $extras[$payCol] = 1;
+        $extras[$payCol] = 0;
     }
     $ordCol = oracle_order_pick_col($cols, ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'V_ORDER', 'CUST_ORD', 'PO_NO']);
     if ($ordCol) {
@@ -428,9 +450,21 @@ function oracle_order_extras(array $cols, array $salesman, array $order): array
     if ($noteCol) {
         $extras[$noteCol] = 'Hypex ' . (string) ($order['order_no'] ?? '');
     }
-    $flagCol = oracle_order_pick_col($cols, ['FLAG', 'V_FLAG', 'POSTED', 'STAT', 'STATUS']);
+    $flagCol = oracle_order_pick_col($cols, ['FLAGE', 'FLAG', 'V_FLAG', 'POSTED', 'STAT', 'STATUS']);
     if ($flagCol) {
         $extras[$flagCol] = 0;
+    }
+    $printCol = oracle_order_pick_col($cols, ['PRINT_FLAGE', 'PRINT_FLAG']);
+    if ($printCol) {
+        $extras[$printCol] = 'N';
+    }
+    $rateCol = oracle_order_pick_col($cols, ['TRAN_RATE']);
+    if ($rateCol) {
+        $extras[$rateCol] = 1;
+    }
+    $n1 = oracle_order_pick_col($cols, ['NOTE1', 'NOTE', 'NOTES', 'REMARK']);
+    if ($n1 && !isset($extras[$n1])) {
+        $extras[$n1] = 'Hypex ' . (string) ($order['order_no'] ?? '');
     }
 
     return $extras;
@@ -467,14 +501,30 @@ function oracle_order_insert_row(array $conn, string $from, array $colMeta, arra
     $parts = [];
     foreach ($names as $col) {
         $dt = $colTypes[$col] ?? '';
-        $parts[] = (str_contains($dt, 'DATE') || $col === 'VDATE')
+        if ($col === 'TTIME') {
+            $parts[] = str_contains($dt, 'DATE')
+                ? "TO_DATE(:TTIME, 'YYYY-MM-DD HH24:MI:SS')"
+                : ':TTIME';
+            continue;
+        }
+        $parts[] = (str_contains($dt, 'DATE') || $col === 'VDATE' || $col === 'TDATE' || $col === 'DUE_DATE')
             ? "TO_DATE(:{$col}, 'YYYY-MM-DD')"
             : ':' . $col;
     }
     $binds = [];
     foreach ($use as $col => $val) {
         $dt = $colTypes[$col] ?? '';
-        $binds[$col] = (str_contains($dt, 'DATE') || $col === 'VDATE')
+        if ($col === 'TTIME') {
+            if (str_contains($dt, 'DATE')) {
+                $d = oracle_order_bind_date($use['TDATE'] ?? $use['VDATE'] ?? date('Y-m-d'));
+                $t = preg_match('/\d{1,2}:\d{2}:\d{2}/', (string) $val, $m) ? $m[0] : date('H:i:s');
+                $binds[$col] = $d . ' ' . $t;
+            } else {
+                $binds[$col] = $val;
+            }
+            continue;
+        }
+        $binds[$col] = (str_contains($dt, 'DATE') || $col === 'VDATE' || $col === 'TDATE' || $col === 'DUE_DATE')
             ? oracle_order_bind_date($val)
             : $val;
     }
@@ -542,12 +592,14 @@ function oracle_order_seed_header(array $sample, array $ours, array $cols): arra
 function oracle_order_apply_aliases(array $cols, array $vals): array
 {
     $groups = [
-        'CUST_ACC' => ['CUST_ACC', 'CUS_NUM', 'CUS_ACC', 'CUSTOMER', 'ACC_NUM', 'CUST_NO', 'CUSTNO'],
+        'CUST_ACC' => ['CUST_ACC', 'CUS_NUM', 'CUS_NO', 'CUS_ACC', 'CUSTOMER', 'ACC_NUM', 'ACC_NO', 'CUST_NO', 'CUSTNO', 'A_CODE'],
         'STORE' => ['STORE', 'STO_NUM', 'STO_NO', 'STORE_NO', 'WAREHOUSE', 'WH_NO'],
         'VDATE' => ['VDATE', 'V_DATE', 'FDATE', 'INV_DATE', 'BILL_DATE', 'TRN_DATE'],
         'SALESMAN' => ['SALESMAN', 'SALES_MAN', 'SMAN', 'EMP_NO', 'SELLER', 'SALEMAN'],
         'ORDER_NO' => ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'ORDNUM', 'PO_NO', 'V_ORDER', 'CUST_ORD'],
         'NOTE' => ['NOTE', 'NOTES', 'REMARK', 'REMARKS', 'COMM', 'V_NOTE', 'NOTE1', 'NOTE_1'],
+        'FLAG' => ['FLAG', 'FLAGE', 'V_FLAG'],
+        'PRINT_FLAGE' => ['PRINT_FLAGE', 'PRINT_FLAG'],
     ];
     foreach ($groups as $src => $names) {
         $val = $vals[$src] ?? null;
