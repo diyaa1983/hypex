@@ -74,6 +74,8 @@ return [
         'owner' => 'MAS',
         'table' => 'DAILY',
         'sale_type' => 9,
+        // رقم المستودع في أوراكل إن لم يُضبط على بطاقة المستودع
+        'default_store' => 4,
         'item_card_owner' => 'MAS',
         'item_card_table' => 'MASCARD',
     ],

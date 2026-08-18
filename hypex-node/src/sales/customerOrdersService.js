@@ -142,6 +142,10 @@ async function getOrder(id) {
     tax_amount: Number(h.tax_amount || 0),
     total: Number(h.total || 0),
     invoice_discount_input: h.invoice_discount_input || '',
+    oracle_v_num: Number(h.oracle_v_num || 0) || 0,
+    oracle_vyear: Number(h.oracle_vyear || 0) || 0,
+    oracle_post_status: h.oracle_post_status || '',
+    oracle_post_message: h.oracle_post_message || '',
     lines: mappedLines,
   };
 }
@@ -708,6 +712,69 @@ function getCustomerArSummary(customerId) {
   });
 }
 
+function postOrderToOracle(orderId, userId, dryRun = false) {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  const fs = require('fs');
+  const id = Number(orderId) || 0;
+  const uid = Number(userId) || 0;
+
+  return new Promise((resolve) => {
+    if (id < 1) {
+      return resolve({ ok: false, message: 'طلب غير صالح.', error: 'طلب غير صالح.' });
+    }
+    const script = path.join(__dirname, '..', '..', 'cli', 'oracle_order_post.php');
+    if (!fs.existsSync(script)) {
+      return resolve({ ok: false, message: 'سكربت ترحيل Oracle غير موجود.', error: 'سكربت ترحيل Oracle غير موجود.' });
+    }
+    let phpBin = process.env.PHP_BIN || 'php';
+    for (const c of [process.env.PHP_BIN, 'C:\\xampp\\php\\php.exe', 'C:\\xampp\\php\\php', 'php']) {
+      if (!c) continue;
+      if (c === 'php' || fs.existsSync(c)) {
+        phpBin = c;
+        break;
+      }
+    }
+    const args = [];
+    const ini = process.env.PHP_INI || 'C:\\xampp\\php\\php.ini';
+    if (fs.existsSync(ini)) args.push('-c', ini);
+    args.push(script, String(id), String(uid));
+    if (dryRun) args.push('--dry');
+
+    const root = path.resolve(__dirname, '..', '..', '..');
+    const child = spawn(phpBin, args, { cwd: root, windowsHide: true });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => {
+      out += String(d);
+    });
+    child.stderr.on('data', (d) => {
+      err += String(d);
+    });
+    child.on('error', (e) =>
+      resolve({ ok: false, message: e.message, error: e.message })
+    );
+    child.on('close', () => {
+      const line = out
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .pop();
+      if (!line) {
+        const msg = err.trim() || 'لا استجابة من Oracle/PHP.';
+        return resolve({ ok: false, message: msg, error: msg });
+      }
+      try {
+        const parsed = JSON.parse(line);
+        if (parsed && parsed.message && !parsed.error) parsed.error = parsed.message;
+        resolve(parsed);
+      } catch {
+        resolve({ ok: false, message: line.slice(0, 280), error: line.slice(0, 280) });
+      }
+    });
+  });
+}
+
 module.exports = {
   getOrder,
   saveOrder,
@@ -718,4 +785,5 @@ module.exports = {
   browseNeighbors,
   findOrderIdByNo,
   getCustomerArSummary,
+  postOrderToOracle,
 };

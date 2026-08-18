@@ -366,6 +366,87 @@ function oracle_query_all(array $conn, string $sql, array $binds = []): array
 }
 
 /**
+ * تنفيذ INSERT/UPDATE بدون صفوف راجعة.
+ *
+ * @param array{pdo:?PDO, oci:mixed} $conn
+ */
+function oracle_execute(array $conn, string $sql, array $binds = []): void
+{
+    if (!empty($conn['pdo']) && $conn['pdo'] instanceof PDO) {
+        $st = $conn['pdo']->prepare($sql);
+        foreach ($binds as $k => $v) {
+            $name = is_int($k) ? $k + 1 : (str_starts_with((string) $k, ':') ? (string) $k : ':' . $k);
+            $st->bindValue($name, $v);
+        }
+        $st->execute();
+
+        return;
+    }
+
+    if (!empty($conn['oci'])) {
+        $st = oci_parse($conn['oci'], $sql);
+        if ($st === false) {
+            $err = oci_error($conn['oci']);
+            throw new RuntimeException('oci_parse: ' . ($err['message'] ?? 'error'));
+        }
+        $bindVars = [];
+        foreach ($binds as $k => $v) {
+            $name = is_int($k) ? (string) ($k + 1) : ltrim((string) $k, ':');
+            $bindVars[$name] = $v;
+        }
+        foreach ($bindVars as $name => &$val) {
+            oci_bind_by_name($st, ':' . $name, $val);
+        }
+        unset($val);
+        $mode = defined('OCI_NO_AUTO_COMMIT') ? OCI_NO_AUTO_COMMIT : 0;
+        if (!@oci_execute($st, $mode)) {
+            $err = oci_error($st);
+            throw new RuntimeException('oci_execute: ' . ($err['message'] ?? 'error'));
+        }
+
+        return;
+    }
+
+    throw new RuntimeException('لا يوجد اتصال Oracle فعّال.');
+}
+
+/**
+ * @param array{pdo:?PDO, oci:mixed} $conn
+ */
+function oracle_try_commit(array $conn): void
+{
+    if (!empty($conn['pdo']) && $conn['pdo'] instanceof PDO && $conn['pdo']->inTransaction()) {
+        $conn['pdo']->commit();
+    }
+    if (!empty($conn['oci'])) {
+        @oci_commit($conn['oci']);
+    }
+}
+
+/**
+ * @param array{pdo:?PDO, oci:mixed} $conn
+ */
+function oracle_try_begin(array $conn): void
+{
+    if (!empty($conn['pdo']) && $conn['pdo'] instanceof PDO && !$conn['pdo']->inTransaction()) {
+        $conn['pdo']->beginTransaction();
+    }
+}
+
+/**
+ * @param array{pdo:?PDO, oci:mixed} $conn
+ */
+function oracle_try_rollback(array $conn): void
+{
+    if (!empty($conn['pdo']) && $conn['pdo'] instanceof PDO && $conn['pdo']->inTransaction()) {
+        $conn['pdo']->rollBack();
+    }
+    if (!empty($conn['oci'])) {
+        @oci_rollback($conn['oci']);
+    }
+}
+
+/**
  * جداول مرشّحة لمزامنة العملاء.
  *
  * @return list<array{owner:string, table_name:string}>
@@ -482,7 +563,7 @@ function oracle_describe_table(array $conn, string $owner, string $table): array
     $table = strtoupper(trim($table));
     $rows = oracle_query_all(
         $conn,
-        'SELECT column_name, data_type
+        'SELECT column_name, data_type, nullable
          FROM all_tab_columns
          WHERE owner = :ow AND table_name = :tb
          ORDER BY column_id',
@@ -493,6 +574,7 @@ function oracle_describe_table(array $conn, string $owner, string $table): array
         $out[] = [
             'column_name' => (string) ($r['COLUMN_NAME'] ?? $r['column_name'] ?? ''),
             'data_type' => (string) ($r['DATA_TYPE'] ?? $r['data_type'] ?? ''),
+            'nullable' => strtoupper((string) ($r['NULLABLE'] ?? $r['nullable'] ?? 'Y')) !== 'N',
         ];
     }
 

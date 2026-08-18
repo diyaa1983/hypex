@@ -78,6 +78,9 @@ function toolbarCaps(user, order) {
     canPrint: hasId,
     canPdf: hasId,
     canExcel: hasId,
+    canPostOracle: canAppr && hasId && locked && !(Number(order.oracle_v_num || 0) > 0),
+    oracleVnum: Number(order.oracle_v_num || 0) || 0,
+    oracleVyear: Number(order.oracle_vyear || 0) || 0,
   };
 }
 
@@ -107,6 +110,15 @@ function toolbarHtml(caps, order) {
         ${b('co-pdf', 'PDF', '', !caps.canPdf)}
         ${b('co-print', 'طباعة', '', !caps.canPrint)}
         ${b('co-excel', 'Excel', '', !caps.canExcel)}
+        ${b(
+          'co-oracle',
+          caps.oracleVnum > 0 ? 'Oracle #' + caps.oracleVnum : 'ترحيل إلى Oracle',
+          'si-tb--post',
+          !caps.canPostOracle && !(caps.oracleVnum > 0),
+          caps.oracleVnum > 0
+            ? ` title="فاتورة Oracle ${caps.oracleVnum} / ${caps.oracleVyear}"`
+            : ' title="تحويل الطلب المعتمد إلى فاتورة بيع في شاشة INV00024"'
+        )}
       </div>
       <div class="si-tb-group si-tb-group--risk">
         ${b('co-unapprove', 'فك الاعتماد', '', !caps.canUnapprove)}
@@ -322,6 +334,8 @@ async function renderForm(req, res, orderId) {
     invoice_discount: order ? order.invoice_discount_input : '',
     is_approved: locked,
     status_label: order ? order.status_label : 'مسودة',
+    oracle_v_num: order ? Number(order.oracle_v_num || 0) : 0,
+    oracle_vyear: order ? Number(order.oracle_vyear || 0) : 0,
     prev_id: nav.prev_id || 0,
     next_id: nav.next_id || 0,
     lines:
@@ -690,6 +704,24 @@ router.post('/api/sales/customer-orders/:id/unapprove', async (req, res) => {
       return res.status(403).json({ ok: false, error: 'لا صلاحية فك الاعتماد.' });
     }
     const result = await svc.setApproved(req.params.id, false, req.session.user.id);
+    if (!result.ok) return res.status(400).json(result);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.post('/api/sales/customer-orders/:id/post-oracle', async (req, res) => {
+  try {
+    if (!canApprove(req.session.user)) {
+      return res.status(403).json({ ok: false, error: 'لا صلاحية ترحيل إلى Oracle.' });
+    }
+    const dry = String(req.query.dry || req.body?.dry || '') === '1';
+    const result = await svc.postOrderToOracle(
+      req.params.id,
+      req.session.user.id,
+      dry
+    );
     if (!result.ok) return res.status(400).json(result);
     res.json(result);
   } catch (e) {

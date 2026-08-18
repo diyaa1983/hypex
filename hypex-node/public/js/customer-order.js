@@ -1835,6 +1835,38 @@
     });
   }
 
+  var oracleBtn = document.getElementById('co-oracle');
+  if (oracleBtn) {
+    oracleBtn.addEventListener('click', function () {
+      if (!state.id) {
+        setMsg('احفظ واعتمد الطلب أولاً.', 'error');
+        return;
+      }
+      var vnum = Number(state.oracle_v_num || 0);
+      var vyear = Number(state.oracle_vyear || 0);
+      if (vnum > 0) {
+        var q = '/sales/reports/oracle-sales-invoice?invoice_no=' + vnum;
+        if (vyear > 0) q += '&year=' + vyear;
+        window.open(q, '_blank');
+        return;
+      }
+      if (busy || !state.is_approved) {
+        setMsg('اعتمد الطلب أولاً ثم رحّله إلى Oracle.', 'error');
+        return;
+      }
+      hxConfirm(
+        'ترحيل هذا الطلب إلى فاتورة بيع في Oracle؟\nستُنشأ الفاتورة في شاشة INV00024 للمراجعة ثم الحفظ.',
+        { title: 'ترحيل إلى Oracle', okLabel: 'ترحيل' }
+      ).then(function (ok) {
+        if (!ok) return;
+        postAction(
+          '/api/sales/customer-orders/' + state.id + '/post-oracle',
+          '/sales/orders/' + state.id
+        );
+      });
+    });
+  }
+
   var delBtn = document.getElementById('co-delete');
   if (delBtn) {
     delBtn.addEventListener('click', function () {
