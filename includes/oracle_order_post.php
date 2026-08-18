@@ -258,10 +258,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'NET' => (float) ($order['total'] ?? 0),
         'TOT_AMT' => (float) ($order['total'] ?? 0),
         'TOT_TAX' => (float) ($order['tax_amount'] ?? $sumTax),
-        'FLAG' => 0,
-        'FLAGE' => 0,
         'TRAN_RATE' => 1,
-        'PRINT_FLAGE' => 'N',
         'CASH' => 0,
         'CACR' => 2,
         'VOU_FLAG' => 18,
@@ -450,14 +447,6 @@ function oracle_order_extras(array $cols, array $salesman, array $order): array
     if ($noteCol) {
         $extras[$noteCol] = 'Hypex ' . (string) ($order['order_no'] ?? '');
     }
-    $flagCol = oracle_order_pick_col($cols, ['FLAGE', 'FLAG', 'V_FLAG', 'POSTED', 'STAT', 'STATUS']);
-    if ($flagCol) {
-        $extras[$flagCol] = 0;
-    }
-    $printCol = oracle_order_pick_col($cols, ['PRINT_FLAGE', 'PRINT_FLAG']);
-    if ($printCol) {
-        $extras[$printCol] = 'N';
-    }
     $rateCol = oracle_order_pick_col($cols, ['TRAN_RATE']);
     if ($rateCol) {
         $extras[$rateCol] = 1;
@@ -562,6 +551,9 @@ function oracle_order_seed_header(array $sample, array $ours, array $cols): arra
         'CUST_ACC' => true,
         'STORE' => true,
         'VDATE' => true,
+        'FLAGE' => true,
+        'FLAG' => true,
+        'PRINT_FLAGE' => true,
         'ROWID' => true,
     ];
     $out = [];
@@ -645,9 +637,7 @@ function oracle_order_force_forms_fields(array $use, array $cols): array
         'REF_FLAG' => 1,
         'TDATE' => $orderDate,
         'DUE_DATE' => $orderDate,
-        'FLAGE' => 0,
         'TRAN_RATE' => 1,
-        'PRINT_FLAGE' => 'N',
     ];
     foreach ($force as $k => $v) {
         if (isset($cols[$k])) {
