@@ -131,7 +131,7 @@ class _OrderLine {
 
 class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   bool _loading = true, _busy = false, _approved = false;
-  String? _error, _orderNo;
+  String? _error, _orderNo, _salesRepName;
   int _id = 0, _warehouseId = 0;
   List<Map<String, dynamic>> _warehouses = [];
   List<_TaxRate> _taxRates = [];
@@ -295,6 +295,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             order['is_approved'] == true ||
             Fmt.str(order['status']) == 'approved';
         _orderNo = Fmt.str(order['order_no']);
+        final loadedRep = Fmt.str(order['sales_rep_name']);
+        if (loadedRep.isNotEmpty) _salesRepName = loadedRep;
         _lines
           ..clear()
           ..addAll(loaded);
@@ -452,11 +454,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'order_no': _orderNo,
         'order_date': Fmt.todayIso(),
         'customer_name': _customer?.name,
-        'warehouse_name': _warehouses
-            .where((w) => Fmt.toInt(w['id']) == _warehouseId)
-            .map((w) => Fmt.str(w['name'] ?? w['name_ar']))
-            .cast<String>()
-            .followedBy(const ['']).first,
+        'sales_rep_name': (_salesRepName ?? '').trim().isNotEmpty
+            ? _salesRepName
+            : (context.read<SessionController>().userName ?? ''),
         'subtotal': sub,
         'discount_total': disc,
         'tax_total': tax,

@@ -19,7 +19,7 @@ pw.Widget thermalDateText(
 }) =>
     pw.Text(
       text,
-      textDirection: pw.TextDirection.rtl,
+      textDirection: pw.TextDirection.ltr,
       textAlign: align,
       style: style,
     );
@@ -29,15 +29,17 @@ pw.Widget thermalCell(
   required pw.TextStyle style,
   pw.TextAlign align = pw.TextAlign.center,
   bool ltr = false,
+  pw.EdgeInsets? padding,
+  int maxLines = 2,
 }) =>
     pw.Padding(
-      padding: ThermalTableStyle.cellPadding,
+      padding: padding ?? ThermalTableStyle.cellPadding,
       child: pw.Text(
         text,
         textAlign: align,
         textDirection: ltr ? pw.TextDirection.ltr : pw.TextDirection.rtl,
         style: style,
-        maxLines: 2,
+        maxLines: maxLines,
         overflow: pw.TextOverflow.clip,
       ),
     );

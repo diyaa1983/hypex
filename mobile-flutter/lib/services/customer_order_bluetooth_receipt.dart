@@ -41,10 +41,34 @@ class CustomerOrderBluetoothReceipt {
         .map((e) => e.cast<String, dynamic>())
         .toList();
     final fs = paperMm == 80 ? 12.0 : 10.0;
-    final cellFs = paperMm == 80 ? 9.5 : 8.0;
+    final cellFs = paperMm == 80 ? 8.0 : 6.5;
     final headStyle = pw.TextStyle(font: bold, fontSize: cellFs);
     final valStyle = pw.TextStyle(font: reg, fontSize: cellFs);
     final valBold = pw.TextStyle(font: bold, fontSize: cellFs);
+    final cellPad = paperMm == 80
+        ? const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3)
+        : const pw.EdgeInsets.symmetric(horizontal: 1.2, vertical: 2);
+    final salesRep = Fmt.str(
+      order['sales_rep_name'] ?? order['sales_rep'] ?? order['rep_name'],
+    );
+
+    pw.Widget compactCell(
+      String text, {
+      pw.TextStyle? style,
+      pw.TextAlign align = pw.TextAlign.center,
+      bool ltr = false,
+    }) =>
+        thermalCell(
+          text,
+          style: style ?? valStyle,
+          align: align,
+          ltr: ltr,
+          padding: cellPad,
+        );
+
+    // الجدول LTR داخلياً → نعكس الخلايا ليُقرأ من اليمين:
+    // Item | Unit | Qty | Extra | Price | Disc | Tax | Total
+    List<pw.Widget> rtlRow(List<pw.Widget> cells) => cells.reversed.toList();
 
     pw.Widget kv(String label, String value) => pw.Padding(
           padding: const pw.EdgeInsets.only(bottom: 2),
@@ -117,56 +141,88 @@ class CustomerOrderBluetoothReceipt {
             ),
             kv('التاريخ', Fmt.dmy(Fmt.str(order['order_date']))),
             kvPlain('العميل', Fmt.str(order['customer_name'])),
-            kvPlain('المستودع', Fmt.str(order['warehouse_name'])),
+            if (salesRep.isNotEmpty) kvPlain('المندوب', salesRep),
             pw.SizedBox(height: 5),
             pw.Table(
               border: ThermalTableStyle.border,
+              defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
               columnWidths: {
-                0: const pw.FlexColumnWidth(2.2),
-                1: const pw.FlexColumnWidth(0.7),
+                0: pw.FlexColumnWidth(paperMm == 80 ? 0.9 : 0.85),
+                1: const pw.FlexColumnWidth(0.55),
                 2: const pw.FlexColumnWidth(0.55),
-                3: const pw.FlexColumnWidth(0.55),
-                4: const pw.FlexColumnWidth(0.75),
-                5: const pw.FlexColumnWidth(0.65),
-                6: const pw.FlexColumnWidth(0.65),
-                7: const pw.FlexColumnWidth(0.85),
+                3: pw.FlexColumnWidth(paperMm == 80 ? 0.75 : 0.7),
+                4: const pw.FlexColumnWidth(0.5),
+                5: const pw.FlexColumnWidth(0.5),
+                6: const pw.FlexColumnWidth(0.6),
+                7: const pw.FlexColumnWidth(2.4),
               },
               children: [
                 pw.TableRow(
                   decoration: ThermalTableStyle.headerDecoration,
-                  children: [
-                    thermalCell('مادة', style: headStyle),
-                    thermalCell('وحدة', style: headStyle),
-                    thermalCell('كم', style: headStyle),
-                    thermalCell('إض', style: headStyle),
-                    thermalCell('سعر', style: headStyle, ltr: true),
-                    thermalCell('خصم', style: headStyle, ltr: true),
-                    thermalCell('ض', style: headStyle, ltr: true),
-                    thermalCell('إج', style: headStyle, ltr: true),
-                  ],
+                  children: rtlRow([
+                    compactCell('Item', style: headStyle),
+                    compactCell('Unit', style: headStyle),
+                    compactCell('Qty', style: headStyle, ltr: true),
+                    compactCell('Extra', style: headStyle, ltr: true),
+                    compactCell('Price', style: headStyle, ltr: true),
+                    compactCell('Disc', style: headStyle, ltr: true),
+                    compactCell('Tax', style: headStyle, ltr: true),
+                    compactCell('Total', style: headStyle, ltr: true),
+                  ]),
                 ),
                 for (var i = 0; i < lines.length; i++)
                   () {
                     final line = lines[i];
                     final qty = Fmt.toDouble(line['qty']);
                     final extra = Fmt.toDouble(line['qty_extra']);
-                    final price = Fmt.toDouble(line['unit_price'] ?? line['price']);
+                    final price =
+                        Fmt.toDouble(line['unit_price'] ?? line['price']);
                     final disc = Fmt.toDouble(line['discount_pct']);
                     final taxP = Fmt.toDouble(line['tax_rate_percent']);
-                    final gross = Fmt.toDouble(line['line_gross'] ?? line['line_total']);
-                    final bg = i.isOdd ? ThermalTableStyle.zebraOdd : PdfColors.white;
+                    final gross = Fmt.toDouble(
+                        line['line_gross'] ?? line['line_total']);
+                    final bg =
+                        i.isOdd ? ThermalTableStyle.zebraOdd : PdfColors.white;
                     return pw.TableRow(
                       decoration: pw.BoxDecoration(color: bg),
-                      children: [
-                        thermalCell(Fmt.str(line['item_name']), style: valStyle, align: pw.TextAlign.right),
-                        thermalCell(Fmt.str(line['unit_name']), style: valStyle),
-                        thermalCell(qty == 0 ? '' : Fmt.trimNum(qty), style: valStyle, ltr: true),
-                        thermalCell(extra > 0 ? Fmt.trimNum(extra) : '', style: valStyle, ltr: true),
-                        thermalCell(price == 0 ? '' : Fmt.money(price), style: valStyle, ltr: true),
-                        thermalCell(disc > 0 ? '${Fmt.trimNum(disc)}%' : '', style: valStyle, ltr: true),
-                        thermalCell(taxP > 0 ? '${Fmt.trimNum(taxP)}%' : '', style: valStyle, ltr: true),
-                        thermalCell(gross == 0 ? '' : Fmt.money(gross), style: valBold, ltr: true),
-                      ],
+                      children: rtlRow([
+                        compactCell(
+                          Fmt.str(line['item_name']),
+                          style: valStyle,
+                          align: pw.TextAlign.right,
+                        ),
+                        compactCell(Fmt.str(line['unit_name']), style: valStyle),
+                        compactCell(
+                          qty == 0 ? '' : Fmt.trimNum(qty),
+                          style: valStyle,
+                          ltr: true,
+                        ),
+                        compactCell(
+                          extra > 0 ? Fmt.trimNum(extra) : '',
+                          style: valStyle,
+                          ltr: true,
+                        ),
+                        compactCell(
+                          price == 0 ? '' : Fmt.money(price),
+                          style: valStyle,
+                          ltr: true,
+                        ),
+                        compactCell(
+                          disc > 0 ? '${Fmt.trimNum(disc)}%' : '',
+                          style: valStyle,
+                          ltr: true,
+                        ),
+                        compactCell(
+                          taxP > 0 ? '${Fmt.trimNum(taxP)}%' : '',
+                          style: valStyle,
+                          ltr: true,
+                        ),
+                        compactCell(
+                          gross == 0 ? '' : Fmt.money(gross),
+                          style: valBold,
+                          ltr: true,
+                        ),
+                      ]),
                     );
                   }(),
               ],

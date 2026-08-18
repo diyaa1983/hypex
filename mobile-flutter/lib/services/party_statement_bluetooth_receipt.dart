@@ -115,14 +115,7 @@ class PartyStatementBluetoothReceipt {
                 _kv('الرمز', partyCode, fontReg, fontBold, fsSm),
               if (salesRep.isNotEmpty)
                 _kv('المندوب', salesRep, fontReg, fontBold, fsSm),
-              _kv(
-                'الفترة',
-                '${from.isEmpty ? '—' : from} → ${to.isEmpty ? '—' : to}',
-                fontReg,
-                fontBold,
-                fsSm,
-                rtlDate: true,
-              ),
+              _periodRow(from, to, fontReg, fontBold, fsSm),
               pw.SizedBox(height: 4),
               pw.Divider(thickness: 0.8),
               _movementsTable(rows, fontReg, fontBold, fsTable, paperMm),
@@ -185,7 +178,7 @@ class PartyStatementBluetoothReceipt {
           text,
           style: style ?? cellStyle,
           align: align,
-          ltr: false,
+          ltr: true,
         );
       }
       return thermalCell(
@@ -455,6 +448,40 @@ class PartyStatementBluetoothReceipt {
           children: rows,
         ),
       ],
+    );
+  }
+
+  static pw.Widget _periodRow(
+    String from,
+    String to,
+    pw.Font reg,
+    pw.Font bold,
+    double fs,
+  ) {
+    final labelStyle = pw.TextStyle(font: bold, fontSize: fs);
+    final valStyle = pw.TextStyle(font: reg, fontSize: fs);
+    final fromTxt = from.isEmpty ? '—' : from;
+    final toTxt = to.isEmpty ? '—' : to;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 2),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text('الفترة: ', style: labelStyle),
+          pw.Expanded(
+            child: pw.Wrap(
+              alignment: pw.WrapAlignment.start,
+              crossAxisAlignment: pw.WrapCrossAlignment.center,
+              children: [
+                pw.Text('من ', style: valStyle),
+                thermalDateText(fromTxt, style: valStyle),
+                pw.Text(' إلى ', style: valStyle),
+                thermalDateText(toTxt, style: valStyle),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

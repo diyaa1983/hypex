@@ -153,6 +153,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/home');
+    }
+  }
+
+  Widget _backButton() => IconButton(
+        tooltip: 'رجوع',
+        onPressed: _goBack,
+        iconSize: 28,
+        padding: const EdgeInsets.all(10),
+        style: IconButton.styleFrom(
+          foregroundColor: Colors.white,
+          minimumSize: const Size(52, 52),
+          tapTargetSize: MaterialTapTargetSize.padded,
+        ),
+        icon: const Icon(Icons.arrow_back_rounded, size: 30),
+      );
+
   @override
   Widget build(BuildContext context) {
     final s = context.watch<SessionController>();
@@ -167,7 +188,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final running = st?.running ?? false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('الإعدادات')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leadingWidth: 64,
+        leading: _backButton(),
+        title: const Text('الإعدادات'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(14),
         children: [
@@ -338,6 +364,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leadingWidth: 64,
+        leading: _backButton(),
         title: const Text('الإعدادات'),
         actions: [
           TextButton(
