@@ -158,6 +158,19 @@ sales_ora12_enqueue_assets();
             | تاريخ الاعتماد: <?= esc(format_date_dmY(substr((string) $order['approved_at'], 0, 10))) ?>
         <?php endif; ?>
     </p>
+    <?php
+    $oraVnum = (int) ($order['oracle_v_num'] ?? 0);
+    $oraVyear = (int) ($order['oracle_vyear'] ?? 0);
+    ?>
+    <div class="form-row no-print" style="margin:.75rem 0;gap:.5rem;flex-wrap:wrap;align-items:center">
+        <?php if ($oraVnum > 0): ?>
+            <span class="muted">مرحّل إلى Oracle: فاتورة <strong dir="ltr"><?= (int) $oraVnum ?> / <?= (int) $oraVyear ?></strong></span>
+            <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_oracle_sales_invoice&invoice_no=' . $oraVnum . '&year=' . $oraVyear)) ?>">عرض فاتورة Oracle</a>
+        <?php elseif (sal_customer_order_user_can_approve()): ?>
+            <button type="button" id="co-oracle" class="btn btn-primary">ترحيل إلى Oracle</button>
+        <?php endif; ?>
+        <span id="co-oracle-msg" class="muted"></span>
+    </div>
     <?php if (!empty($order['notes'])): ?>
         <p>ملاحظات: <?= esc((string) $order['notes']) ?></p>
     <?php endif; ?>
@@ -236,13 +249,17 @@ sales_ora12_enqueue_assets();
             <div class="row grand"><span>الإجمالي</span><span dir="ltr"><?= esc(format_amount((float) ($order['total'] ?? 0))) ?></span></div>
         </div>
     </div>
-    <?php if ($canUnapprove): ?>
+    <?php if ($canUnapprove || sal_customer_order_user_can_approve()): ?>
         <p id="co-message" class="muted"></p>
+        <?php if ($canUnapprove): ?>
         <button type="button" id="co-unapprove" class="btn btn-warn no-print sr-only" aria-hidden="true">فك الاعتماد</button>
+        <?php endif; ?>
         <script>
         (function () {
           var msg = document.getElementById('co-message');
+          var oraMsg = document.getElementById('co-oracle-msg');
           var btn = document.getElementById('co-unapprove');
+          var oraBtn = document.getElementById('co-oracle');
           var csrf = <?= json_encode(csrf_token()) ?>;
           var id = <?= (int) $order['id'] ?>;
           function doUnapprove() {
@@ -252,13 +269,28 @@ sales_ora12_enqueue_assets();
               headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
               body: JSON.stringify({ id: id })
             }).then(function (r) { return r.json(); }).then(function (x) {
-              msg.textContent = x.message || (x.ok ? 'تم فك الاعتماد.' : 'تعذر التنفيذ.');
+              if (msg) msg.textContent = x.message || (x.ok ? 'تم فك الاعتماد.' : 'تعذر التنفيذ.');
               if (x.ok) {
                 location.href = <?= json_encode(app_url('index.php?r=sales_customer_orders_approve&id=' . (int) $order['id'])) ?>;
               }
             });
           }
+          function doOracle() {
+            if (!confirm('ترحيل هذا الطلب إلى فاتورة بيع في Oracle؟')) return;
+            if (oraMsg) oraMsg.textContent = 'جاري الترحيل…';
+            fetch(<?= json_encode(app_url('api/sales_customer_order_post_oracle.php')) ?>, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+              body: JSON.stringify({ id: id })
+            }).then(function (r) { return r.json(); }).then(function (x) {
+              if (oraMsg) oraMsg.textContent = x.message || (x.ok ? 'تم الترحيل.' : 'تعذر الترحيل.');
+              if (x.ok) location.reload();
+            }).catch(function () {
+              if (oraMsg) oraMsg.textContent = 'تعذر الاتصال.';
+            });
+          }
           if (btn) btn.onclick = doUnapprove;
+          if (oraBtn) oraBtn.onclick = doOracle;
           window.CoUnapproveToolbar = { unapprove: doUnapprove };
         })();
         </script>

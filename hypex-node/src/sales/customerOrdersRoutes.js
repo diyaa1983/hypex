@@ -103,13 +103,7 @@ function toolbarHtml(caps, order) {
          data-order-id="${id}" data-approved="${locked ? '1' : '0'}">
       <div class="si-tb-group si-tb-group--core">
         ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10', 'حفظ')}
-        ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove, ' title="اعتماد / ترحيل الطلب"', '', 'ترحيل')}
-      </div>
-      <div class="si-tb-group">
-        ${b('co-search', 'بحث', 'si-tb--ghost', false, ' title="قائمة الطلبات"')}
-        ${b('co-pdf', 'PDF', '', !caps.canPdf)}
-        ${b('co-print', 'طباعة', '', !caps.canPrint)}
-        ${b('co-excel', 'Excel', '', !caps.canExcel)}
+        ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove, ' title="اعتماد الطلب"', '', 'اعتماد')}
         ${b(
           'co-oracle',
           caps.oracleVnum > 0 ? 'Oracle #' + caps.oracleVnum : 'ترحيل إلى Oracle',
@@ -119,6 +113,12 @@ function toolbarHtml(caps, order) {
             ? ` title="فاتورة Oracle ${caps.oracleVnum} / ${caps.oracleVyear}"`
             : ' title="تحويل الطلب المعتمد إلى فاتورة بيع في شاشة INV00024"'
         )}
+      </div>
+      <div class="si-tb-group">
+        ${b('co-search', 'بحث', 'si-tb--ghost', false, ' title="قائمة الطلبات"')}
+        ${b('co-pdf', 'PDF', '', !caps.canPdf)}
+        ${b('co-print', 'طباعة', '', !caps.canPrint)}
+        ${b('co-excel', 'Excel', '', !caps.canExcel)}
       </div>
       <div class="si-tb-group si-tb-group--risk">
         ${b('co-unapprove', 'فك الاعتماد', '', !caps.canUnapprove)}
