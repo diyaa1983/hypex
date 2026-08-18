@@ -258,7 +258,16 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'TOT_AMT' => (float) ($order['total'] ?? 0),
         'TOT_TAX' => (float) ($order['tax_amount'] ?? $sumTax),
         'FLAG' => 0,
+        'ORDER_NO' => (string) ($order['order_no'] ?? ''),
+        'NOTE' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
+        'NOTES' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
+        'REMARK' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
     ];
+    if ((int) ($salesman['no'] ?? 0) > 0) {
+        $sharedHeader['SALESMAN'] = (int) $salesman['no'];
+        $sharedHeader['SALES_MAN'] = (int) $salesman['no'];
+        $sharedHeader['SMAN'] = (int) $salesman['no'];
+    }
 
     $rowValues = static function (array $line) use ($sharedHeader, $headerExtras): array {
         $base = $sharedHeader;
@@ -283,7 +292,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             $conn,
             $hdrFrom,
             $hdrMeta,
-            array_merge($sharedHeader, $hdrExtras),
+            oracle_order_seed_header($hdrSample, array_merge($sharedHeader, $hdrExtras), $hdrCols),
             $hdrSample
         );
         foreach ($mappedLines as $line) {
@@ -329,7 +338,8 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     return [
         'ok' => true,
         'message' => 'تم إنشاء فاتورة بيع Oracle رقم ' . $vNum . ' لسنة ' . $vyear
-            . '. افتح شاشة المبيعات (INV00024) واستعلم عن الرقم ثم راجع واحفظ.',
+            . '. في INV00024: استعلام (F7) → رقم الفاتورة ' . $vNum . ' والسنة ' . $vyear . ' → تنفيذ (F8)، ثم راجع واحفظ.'
+            . ' لا تفتح فاتورة قديمة من شاشة العرض في Hypex؛ الرقم الجديد هو ' . $vNum . '.',
         'v_num' => $vNum,
         'vyear' => $vyear,
         'store' => $store,
@@ -442,7 +452,7 @@ function oracle_order_insert_row(array $conn, string $from, array $colMeta, arra
         }
     }
     $use = [];
-    foreach ($vals as $col => $val) {
+    foreach (oracle_order_apply_aliases($cols, $vals) as $col => $val) {
         $col = strtoupper((string) $col);
         if (isset($cols[$col])) {
             $use[$col] = $val;
@@ -473,6 +483,93 @@ function oracle_order_insert_row(array $conn, string $from, array $colMeta, arra
         "INSERT INTO {$from} ({$sqlCols}) VALUES (" . implode(', ', $parts) . ')',
         $binds
     );
+}
+
+/**
+ * انسخ أعمدة الرأس من آخر فاتورة ثم اكتب قيم الطلب فوقها، مع مرادفات أسماء الحقول لشاشة INV00024.
+ *
+ * @param array<string,mixed> $sample
+ * @param array<string,mixed> $ours
+ * @param array<string,bool> $cols
+ * @return array<string,mixed>
+ */
+function oracle_order_seed_header(array $sample, array $ours, array $cols): array
+{
+    $skipCopy = [
+        'V_NUM' => true,
+        'ITEM' => true,
+        'CAT' => true,
+        'BATCH' => true,
+        'QTY' => true,
+        'BONUS' => true,
+        'SELL' => true,
+        'DISC' => true,
+        'VOU_TAX' => true,
+        'PER_TAX' => true,
+        'TR_UNIT' => true,
+        'JD_COST' => true,
+        'CUST_ACC' => true,
+        'STORE' => true,
+        'VDATE' => true,
+        'ROWID' => true,
+    ];
+    $out = [];
+    foreach ($sample as $k => $v) {
+        $k = strtoupper((string) $k);
+        if (isset($skipCopy[$k]) || !isset($cols[$k])) {
+            continue;
+        }
+        if ($v === null || $v === '') {
+            continue;
+        }
+        $out[$k] = $v;
+    }
+    foreach ($ours as $k => $v) {
+        $k = strtoupper((string) $k);
+        if (isset($cols[$k])) {
+            $out[$k] = $v;
+        }
+    }
+
+    return oracle_order_apply_aliases($cols, $out);
+}
+
+/**
+ * @param array<string,bool> $cols
+ * @param array<string,mixed> $vals
+ * @return array<string,mixed>
+ */
+function oracle_order_apply_aliases(array $cols, array $vals): array
+{
+    $groups = [
+        'CUST_ACC' => ['CUST_ACC', 'CUS_NUM', 'CUS_ACC', 'CUSTOMER', 'ACC_NUM', 'CUST_NO', 'CUSTNO'],
+        'STORE' => ['STORE', 'STO_NUM', 'STO_NO', 'STORE_NO', 'WAREHOUSE', 'WH_NO'],
+        'VDATE' => ['VDATE', 'V_DATE', 'FDATE', 'INV_DATE', 'BILL_DATE', 'TRN_DATE'],
+        'SALESMAN' => ['SALESMAN', 'SALES_MAN', 'SMAN', 'EMP_NO', 'SELLER', 'SALEMAN'],
+        'ORDER_NO' => ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'ORDNUM', 'PO_NO', 'V_ORDER', 'CUST_ORD'],
+        'NOTE' => ['NOTE', 'NOTES', 'REMARK', 'REMARKS', 'COMM', 'V_NOTE', 'NOTE1', 'NOTE_1'],
+    ];
+    foreach ($groups as $src => $names) {
+        $val = $vals[$src] ?? null;
+        if ($val === null || $val === '') {
+            foreach ($names as $n) {
+                if (isset($vals[$n]) && $vals[$n] !== null && $vals[$n] !== '') {
+                    $val = $vals[$n];
+                    break;
+                }
+            }
+        }
+        if ($val === null || $val === '') {
+            continue;
+        }
+        foreach ($names as $n) {
+            if (isset($cols[$n]) && (!isset($vals[$n]) || $vals[$n] === null || $vals[$n] === '')) {
+                $vals[$n] = $val;
+            }
+        }
+    }
+
+    return $vals;
 }
 
 /**
