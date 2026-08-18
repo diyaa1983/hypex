@@ -9,6 +9,70 @@ declare(strict_types=1);
 require_once app_path('includes/oracle_pdo.php');
 require_once app_path('includes/oracle_sales_invoice.php');
 require_once app_path('includes/sal_customer_order.php');
+require_once app_path('includes/inv_invoice_discount.php');
+
+/**
+ * نسبة Hypex (10 أو 16) → كسر أوراكل (0.10 / 0.16) مثل PER_TAX و PER_DISC في INV00024.
+ */
+function oracle_order_pct_to_fraction(float $pct): float
+{
+    if ($pct <= 0) {
+        return 0.0;
+    }
+
+    return $pct > 1.5 ? round($pct / 100.0, 6) : $pct;
+}
+
+/**
+ * خصم رأس الطلب: PER_DISC ككسر و VOU_DISC كمبلغ لنفس الخصم (لا يُطبَّقان مرتين).
+ *
+ * @return array{per_disc:float,vou_disc:float}
+ */
+function oracle_order_header_discount(array $order, float $merchAfterLineDisc): array
+{
+    $headerRaw = trim((string) ($order['invoice_discount_input'] ?? ''));
+    $parsed = $headerRaw !== '' ? inv_discount_parse_header_input($headerRaw) : null;
+    if ($parsed === null || $merchAfterLineDisc <= 0.0000001) {
+        return ['per_disc' => 0.0, 'vou_disc' => 0.0];
+    }
+    if ($parsed['type'] === 'percent') {
+        $perDisc = oracle_order_pct_to_fraction((float) $parsed['value']);
+
+        return [
+            'per_disc' => $perDisc,
+            'vou_disc' => round($merchAfterLineDisc * $perDisc, 3),
+        ];
+    }
+    $vouDisc = round(min($merchAfterLineDisc, (float) $parsed['value']), 3);
+
+    return [
+        'per_disc' => $vouDisc > 0 ? round($vouDisc / $merchAfterLineDisc, 6) : 0.0,
+        'vou_disc' => $vouDisc,
+    ];
+}
+
+/**
+ * خصم السطر → DISC ككسر. مبلغ الرأس الموزَّع على البنود لا يُوضع في DISC.
+ */
+function oracle_order_line_disc_fraction(array $ln, bool $hasHeaderDiscount): float
+{
+    $pct = (float) ($ln['discount_pct'] ?? 0);
+    if ($pct > 0.0000001) {
+        return oracle_order_pct_to_fraction($pct);
+    }
+    if ($hasHeaderDiscount) {
+        return 0.0;
+    }
+    $amt = (float) ($ln['discount_amount'] ?? 0);
+    $qty = (float) ($ln['qty'] ?? 0);
+    $price = (float) ($ln['unit_price'] ?? 0);
+    $merch = $qty * $price;
+    if ($amt > 0.0000001 && $merch > 0.0000001) {
+        return round(min(1.0, $amt / $merch), 6);
+    }
+
+    return 0.0;
+}
 
 function oracle_order_schema_ensure(PDO $pdo): void
 {
@@ -138,7 +202,11 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $vNum = 1;
     }
 
+    $headerRaw = trim((string) ($order['invoice_discount_input'] ?? ''));
+    $hasHeaderDiscount = inv_discount_parse_header_input($headerRaw) !== null;
+
     $mappedLines = [];
+    $merchAfterLineDisc = 0.0;
     foreach ($lines as $ln) {
         $item = oracle_order_item_keys($mysql, $ln);
         if ($item['item'] === '' && $item['barcode'] === '') {
@@ -164,16 +232,19 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             ];
         }
         $taxPct = (float) ($ln['tax_rate_percent'] ?? 0);
+        $sell = (float) ($ln['unit_price'] ?? 0);
+        $discFrac = oracle_order_line_disc_fraction($ln, $hasHeaderDiscount);
+        $merchAfterLineDisc += max(0.0, ($qty * $sell) * (1.0 - $discFrac));
         $mappedLines[] = [
             'item' => $card['item'],
             'cat' => $card['cat'],
             'batch' => $card['batch'] !== '' ? $card['batch'] : '0',
             'qty' => $qty,
             'bonus' => (float) ($ln['qty_extra'] ?? 0),
-            'sell' => (float) ($ln['unit_price'] ?? 0),
-            'disc' => (float) ($ln['discount_pct'] ?? 0),
+            'sell' => $sell,
+            'disc' => $discFrac,
             'vou_tax' => (float) ($ln['tax_amount'] ?? 0),
-            'per_tax' => $taxPct > 1.5 ? ($taxPct / 100) : $taxPct,
+            'per_tax' => oracle_order_pct_to_fraction($taxPct),
             'tr_unit' => (string) ((float) ($ln['unit_factor'] ?? 1)),
             'name' => (string) ($ln['item_name'] ?? ''),
             'srl' => count($mappedLines) + 1,
@@ -182,6 +253,8 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     if ($mappedLines === []) {
         return ['ok' => false, 'message' => 'لا كميات صالحة للترحيل.'];
     }
+
+    $headerDisc = oracle_order_header_discount($order, $merchAfterLineDisc);
 
     $headerExtras = oracle_order_extras($cols, $salesman, $order);
     $hdrExtras = oracle_order_extras($hdrCols, $salesman, $order);
@@ -223,6 +296,8 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'salesman' => $salesman,
         'order_no' => (string) ($order['order_no'] ?? ''),
         'header_table' => $hdrTable,
+        'per_disc' => $headerDisc['per_disc'],
+        'vou_disc' => $headerDisc['vou_disc'],
         'lines' => $mappedLines,
         'extra_columns' => $headerExtras,
         'daily_columns' => array_keys($cols),
@@ -247,9 +322,9 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'CUST_ACC' => $custAcc,
         'CUST_DEP' => $custDep,
         'COMP_NUM' => $compNum,
-        'VOU_DISC' => (float) ($order['discount_amount'] ?? 0),
+        'VOU_DISC' => $headerDisc['vou_disc'],
         'VOU_TAX' => (float) ($order['tax_amount'] ?? $sumTax),
-        'PER_DISC' => 0,
+        'PER_DISC' => $headerDisc['per_disc'],
         'QTY' => $sumQty,
         'TOT_QTY' => $sumQty,
         'AMT' => (float) ($order['total'] ?? 0),
@@ -544,6 +619,8 @@ function oracle_order_seed_header(array $sample, array $ours, array $cols): arra
         'BONUS' => true,
         'SELL' => true,
         'DISC' => true,
+        'VOU_DISC' => true,
+        'PER_DISC' => true,
         'VOU_TAX' => true,
         'PER_TAX' => true,
         'TR_UNIT' => true,
@@ -749,6 +826,8 @@ function oracle_order_fill_required(array $use, array $colMeta, array $sample): 
         'BONUS' => true,
         'SELL' => true,
         'DISC' => true,
+        'VOU_DISC' => true,
+        'PER_DISC' => true,
         'VOU_TAX' => true,
         'PER_TAX' => true,
         'TR_UNIT' => true,
