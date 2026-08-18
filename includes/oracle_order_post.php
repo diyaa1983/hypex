@@ -128,11 +128,20 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $vyear = (int) date('Y');
     }
 
+    $sample = oracle_order_sample_daily_row($conn, $from, $stype);
+    $compNum = oracle_order_comp_num($sample);
+
     try {
+        $numBinds = ['stype' => $stype, 'y' => $vyear];
+        $numWhere = 'TYPE = :stype AND VYEAR = :y';
+        if (isset($cols['COMP_NUM']) && $compNum > 0) {
+            $numWhere .= ' AND COMP_NUM = :cnum';
+            $numBinds['cnum'] = $compNum;
+        }
         $nextRows = oracle_query_all(
             $conn,
-            "SELECT NVL(MAX(V_NUM), 0) AS MX FROM {$from} WHERE TYPE = :stype AND VYEAR = :y",
-            ['stype' => $stype, 'y' => $vyear]
+            "SELECT NVL(MAX(V_NUM), 0) AS MX FROM {$from} WHERE {$numWhere}",
+            $numBinds
         );
     } catch (Throwable $e) {
         return ['ok' => false, 'message' => 'تعذر احتساب رقم الفاتورة التالي: ' . $e->getMessage()];
@@ -221,6 +230,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'store' => $store,
         'cust_acc' => $custAcc,
         'cust_dep' => $custDep,
+        'comp_num' => $compNum,
         'type' => $stype,
         'salesman' => $salesman,
         'order_no' => (string) ($order['order_no'] ?? ''),
@@ -246,6 +256,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $store,
         $custAcc,
         $custDep,
+        $compNum,
         $headerExtras,
         $order
     ): array {
@@ -259,6 +270,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             'STORE' => $store,
             'CUST_ACC' => $custAcc,
             'CUST_DEP' => $custDep,
+            'COMP_NUM' => $compNum,
             'ITEM' => $line['item'],
             'CAT' => $line['cat'],
             'BATCH' => '0',
@@ -277,6 +289,14 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         return array_merge($base, $headerExtras);
     };
 
+    $colTypes = [];
+    foreach ($colMeta as $c) {
+        $cn = strtoupper(trim((string) ($c['column_name'] ?? '')));
+        if ($cn !== '') {
+            $colTypes[$cn] = strtoupper((string) ($c['data_type'] ?? ''));
+        }
+    }
+
     try {
         oracle_try_begin($conn);
         foreach ($mappedLines as $line) {
@@ -290,16 +310,25 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             if (!isset($use['TYPE'], $use['V_NUM'], $use['ITEM'])) {
                 throw new RuntimeException('أعمدة TYPE/V_NUM/ITEM غير موجودة في DAILY.');
             }
+            $use = oracle_order_fill_required($use, $colMeta, $sample);
             $names = array_keys($use);
             $sqlCols = implode(', ', $names);
             $parts = [];
             foreach ($names as $col) {
-                $parts[] = $col === 'VDATE' ? "TO_DATE(:VDATE, 'YYYY-MM-DD')" : ':' . $col;
+                $dt = $colTypes[$col] ?? '';
+                $parts[] = (str_contains($dt, 'DATE') || $col === 'VDATE')
+                    ? "TO_DATE(:{$col}, 'YYYY-MM-DD')"
+                    : ':' . $col;
             }
             $sqlBinds = implode(', ', $parts);
             $binds = [];
             foreach ($use as $col => $val) {
-                $binds[$col] = $val;
+                $dt = $colTypes[$col] ?? '';
+                if (str_contains($dt, 'DATE') || $col === 'VDATE') {
+                    $binds[$col] = oracle_order_bind_date($val);
+                } else {
+                    $binds[$col] = $val;
+                }
             }
             oracle_execute(
                 $conn,
@@ -354,6 +383,118 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'cust_acc' => $custAcc,
         'line_count' => count($mappedLines),
     ];
+}
+
+/**
+ * @return array<string,mixed>
+ */
+function oracle_order_sample_daily_row(array $conn, string $from, int $stype): array
+{
+    try {
+        $rows = oracle_query_all(
+            $conn,
+            "SELECT * FROM (
+                SELECT * FROM {$from} WHERE TYPE = :stype ORDER BY VYEAR DESC, V_NUM DESC
+             ) WHERE ROWNUM <= 1",
+            ['stype' => $stype]
+        );
+    } catch (Throwable $e) {
+        return [];
+    }
+    $row = $rows[0] ?? [];
+    $out = [];
+    foreach ($row as $k => $v) {
+        if (is_object($v) && method_exists($v, 'load')) {
+            $v = $v->load();
+        }
+        $out[strtoupper((string) $k)] = $v;
+    }
+
+    return $out;
+}
+
+function oracle_order_comp_num(array $sample): int
+{
+    $cfg = oracle_config();
+    $s = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+    $n = (int) ($s['comp_num'] ?? 0);
+    if ($n > 0) {
+        return $n;
+    }
+    $fromSample = (int) oracle_statement_row_val($sample, 'COMP_NUM');
+    if ($fromSample > 0) {
+        return $fromSample;
+    }
+
+    return 1;
+}
+
+function oracle_order_bind_date(mixed $v): string
+{
+    if (is_object($v) && method_exists($v, 'format')) {
+        return $v->format('Y-m-d');
+    }
+    if (is_object($v) && method_exists($v, 'load')) {
+        $v = $v->load();
+    }
+    $s = trim((string) $v);
+    if (preg_match('/^(\d{4}-\d{2}-\d{2})/', $s, $m)) {
+        return $m[1];
+    }
+    if (preg_match('/^(\d{2})-(\d{2})-(\d{4})/', $s, $m)) {
+        return $m[3] . '-' . $m[2] . '-' . $m[1];
+    }
+    $ts = strtotime($s);
+    if ($ts !== false) {
+        return date('Y-m-d', $ts);
+    }
+
+    return date('Y-m-d');
+}
+
+/**
+ * املأ الأعمدة الإلزامية الناقصة من آخر فاتورة بيع حتى لا يحدث ORA-01400.
+ *
+ * @param array<string,mixed> $use
+ * @param list<array{column_name:string,data_type:string,nullable?:bool}> $colMeta
+ * @param array<string,mixed> $sample
+ * @return array<string,mixed>
+ */
+function oracle_order_fill_required(array $use, array $colMeta, array $sample): array
+{
+    $skip = ['ROWID' => true, 'ORA_ROWSCN' => true];
+    foreach ($colMeta as $c) {
+        $name = strtoupper(trim((string) ($c['column_name'] ?? '')));
+        if ($name === '' || isset($skip[$name])) {
+            continue;
+        }
+        $dt = strtoupper((string) ($c['data_type'] ?? ''));
+        if (str_contains($dt, 'LOB') || $dt === 'LONG' || $dt === 'RAW' || $dt === 'BFILE') {
+            continue;
+        }
+        $current = $use[$name] ?? null;
+        $empty = $current === null || $current === '';
+        if (!$empty) {
+            continue;
+        }
+        $nullable = array_key_exists('nullable', $c) ? (bool) $c['nullable'] : true;
+        if ($nullable) {
+            continue;
+        }
+        if (array_key_exists($name, $sample) && $sample[$name] !== null && $sample[$name] !== '') {
+            $v = $sample[$name];
+            if (is_object($v) && method_exists($v, 'load')) {
+                $v = $v->load();
+            }
+            $use[$name] = $v;
+            continue;
+        }
+        if (!$nullable && $name === 'COMP_NUM') {
+            $use[$name] = 1;
+        }
+    }
+
+    return $use;
 }
 
 function oracle_order_store_no(PDO $pdo, int $warehouseId): int

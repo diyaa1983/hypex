@@ -74,6 +74,8 @@ return [
         'owner' => 'MAS',
         'table' => 'DAILY',
         'sale_type' => 9,
+        // رقم الشركة في MAS.DAILY.COMP_NUM (إلزامي)
+        'comp_num' => 1,
         // رقم المستودع في أوراكل إن لم يُضبط على بطاقة المستودع
         'default_store' => 4,
         'item_card_owner' => 'MAS',

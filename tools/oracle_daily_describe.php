@@ -37,7 +37,8 @@ $out("table: {$owner}.{$table} TYPE={$stype}");
 $cols = oracle_describe_table($conn, $owner, $table);
 $out('columns (' . count($cols) . '):');
 foreach ($cols as $c) {
-    $out('  ' . $c['column_name'] . '  ' . $c['data_type']);
+    $nn = array_key_exists('nullable', $c) && !$c['nullable'] ? ' NOT NULL' : '';
+    $out('  ' . $c['column_name'] . '  ' . $c['data_type'] . $nn);
 }
 
 $hints = ['SALES', 'SELLER', 'EMP', 'CASH', 'CREDIT', 'PAY', 'FLAG', 'STAT', 'POST', 'ORDER', 'ORD', 'REQ', 'TAX', 'NOTE', 'REMARK', 'COMM'];
