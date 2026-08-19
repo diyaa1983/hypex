@@ -328,7 +328,7 @@ module.exports = createDomainRouter({
               </select>
             </label>
             <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
-            <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+            ${ui.siPrintBtnHtml('طباعة')}
           </form>
         </div>
         <div class="si-print-meta" style="padding:.35rem 0;font-size:.88rem;color:#475569">
@@ -448,7 +448,7 @@ module.exports = createDomainRouter({
               </select>
             </label>
             <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
-            <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+            ${ui.siPrintBtnHtml('طباعة')}
           </form>
         </div>
         <div class="si-print-meta" style="padding:.35rem 0;font-size:.88rem;color:#475569">

@@ -120,7 +120,7 @@ function listPage(res, user, opts) {
 function reportPage(res, user, opts) {
   const { title, mark, subtitle, headers, rowsHtml, count, path, from, to, phpRoute } = opts;
   const actions = [
-    { label: '🖨 طباعة', primary: true, print: true },
+    ui.printAction(),
     { label: 'لوحة المبيعات', href: '/sales' },
     
   ];
@@ -492,7 +492,7 @@ router.get('/sales/reports/by-region', guard('report_sales_by_region'), async (r
         title: 'تقرير المبيعات حسب المنطقة',
         subtitle: `من ${range.from} إلى ${range.to} · ${sumCnt} فاتورة · إجمالي ${ui.esc(ui.fmtAmt(sumTot))}`,
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
@@ -616,7 +616,7 @@ router.get('/sales/reports/by-rep', guard('report_sales_by_rep'), async (req, re
         title: 'تقرير المبيعات حسب المندوب',
         subtitle: `من ${range.from} إلى ${range.to}`,
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
@@ -916,7 +916,7 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
           ? `${sourceLabel} · ${ui.esc(ui.isoToDmy(range.from))} → ${ui.esc(ui.isoToDmy(range.to))} · ${data.totals.doc_count || 0} مستند`
           : 'فلاتر شاملة — مبيعات و/أو طلبات شراء العملاء — ملخص أو تفصيل',
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
@@ -1163,7 +1163,7 @@ router.get('/sales/reports/customer-orders-by-item', guard('report_customer_orde
                 )}`
               : 'اختر مادة وفترة لعرض طلبات شراء العملاء التي تتضمنها',
           actions: [
-            { label: '🖨 طباعة', primary: true, print: true },
+            ui.printAction(),
             { label: 'تقرير طلبات الشراء', href: '/sales/reports/customer-orders' },
             { label: 'لوحة المبيعات', href: '/sales' },
           ],
@@ -1716,7 +1716,7 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
               </div>
             </div>
             <div class="si-hero-actions">
-              <button type="button" class="si-btn si-btn--primary si-btn--print no-print" data-print="1">طباعة</button>
+              ${ui.siPrintBtnHtml('طباعة')}
               <a class="si-btn no-print" href="/sales/invoices">فاتورة مبيعات</a>
               <a class="si-btn no-print" href="/sales">لوحة المبيعات</a>
             </div>

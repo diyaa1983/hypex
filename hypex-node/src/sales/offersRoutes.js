@@ -709,7 +709,7 @@ router.get('/sales/reports/offers', async (req, res) => {
           actions: [
             { label: 'شاشة العرض', href: '/sales/offers', primary: true },
             { label: 'لوحة المبيعات', href: HUB },
-            { label: 'طباعة', print: true },
+            ui.printAction(),
           ],
         })}
         <section class="si-surface" style="padding:.85rem 1rem;margin-bottom:.75rem">

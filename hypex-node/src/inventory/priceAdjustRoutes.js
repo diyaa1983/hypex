@@ -420,7 +420,7 @@ router.get('/inventory/reports/price-adjustments', async (req, res) => {
             { label: 'تعديل أسعار جديد', href: '/inventory/price-adjust/new', primary: true },
             { label: 'سجل الحركات', href: '/inventory/price-adjust' },
             { label: 'لوحة المستودعات', href: HUB },
-            { label: 'طباعة', print: true },
+            ui.printAction(),
           ],
         })}
         ${ui.dateFilters('/inventory/reports/price-adjustments', from, to, `

@@ -146,7 +146,7 @@ function createDomainRouter(conf) {
       extraHtml = '',
     } = opts;
     const actions = [
-      { label: '🖨 طباعة', primary: true, print: true },
+      ui.printAction(),
       { label: `لوحة ${hubTitle}`, href: basePath },
     ];
     const body = `

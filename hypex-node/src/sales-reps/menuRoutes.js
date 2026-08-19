@@ -1156,8 +1156,8 @@ router.get('/sales-reps/route/:id/print', guard('sales_rep_route'), async (req, 
           ui.isoToDmy(tour.date_to)
         )} · ${statusLabel(tour.status)}`,
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
-          { label: 'العودة للجولة', href: '/sales-reps/route?id=' + tour.id },
+          ui.printAction(),
+          ui.backAction('/sales-reps/route?id=' + tour.id, 'العودة للجولة'),
         ],
       })}
       <div class="si-print-area">
@@ -1609,7 +1609,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
         title: 'تقرير الجولات',
         subtitle: 'الجولات المُنشأة: بداية/نهاية · المندوب · المناطق والعناوين — وأوقات الزيارة عند الربط مع الآيباد',
         actions: [
-          { label: '🖨 طباعة', print: true },
+          ui.printAction(),
           { label: 'تقرير الزيارات', href: '/sales-reps/reports/visits' },
           { label: 'الجولات', href: '/sales-reps/route', primary: true },
           { label: 'لوحة المندوبين', href: HUB },
@@ -1637,7 +1637,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
             </select>
           </label>
           <button class="si-btn si-btn--primary" type="submit">عرض</button>
-          <button type="button" class="si-btn si-btn--print no-print" data-print="1">🖨 طباعة</button>
+          ${ui.siPrintBtnHtml('طباعة')}
         </form>
         <p class="muted" style="margin:.65rem 0 0;font-size:.82rem;line-height:1.45">
           ${tourIds.size} جولة · ${rows.length} عميل في الخطط
@@ -1850,7 +1850,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         title: 'تقرير زيارات العملاء',
         subtitle: 'تفاصيل دخول/خروج المندوب: وقت الدخول · وقت الخروج · المدة · نوع الدخول/الخروج',
         actions: [
-          { label: '🖨 طباعة', print: true },
+          ui.printAction(),
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
           { label: 'اعتماد خروج يدوي', href: '/sales-reps/visit-checkout-approve' },
           { label: 'لوحة المندوبين', href: HUB, primary: true },
@@ -1886,7 +1886,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             </select>
           </label>
           <button class="si-btn si-btn--primary" type="submit">عرض</button>
-          <button type="button" class="si-btn si-btn--print no-print" data-print="1">🖨 طباعة</button>
+          ${ui.siPrintBtnHtml('طباعة')}
         </form>
         <p class="muted" style="margin:.65rem 0 0;font-size:.82rem;line-height:1.45">
           ${rows.length} زيارة مسجّلة من تطبيق الهاتف في الفترة المحددة${

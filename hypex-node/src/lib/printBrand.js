@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../db');
 const basePath = require('./basePath');
+const { backLinkHtml, printBtnHtml } = require('./toolbarIcons');
 
 const DEFAULT = {
   companyName: 'Hypex',
@@ -253,9 +254,7 @@ async function renderStandalonePrintPage({
   const wmHtml =
     brand.watermarkEnabled !== false ? watermarkMarkup(brand.logo) : '';
 
-  const back = backHref
-    ? `<a class="hx-doc-btn" href="${escapeAttr(basePath.ensurePrefixed(backHref))}">عودة</a>`
-    : '';
+  const back = backHref ? backLinkHtml(basePath.ensurePrefixed(backHref)) : '';
 
   const mode = printMode === 'iframe' ? 'iframe' : 'sheet';
   const isInv = theme === 'invoice-v1';
@@ -419,6 +418,8 @@ async function renderStandalonePrintPage({
       padding:.65rem 1rem;background:#0f172a;color:#f8fafc}
     .hx-doc-bar a,.hx-doc-btn{font:700 .88rem Arial,Helvetica,sans-serif;color:#0f172a;background:#f8fafc;
       border:0;border-radius:8px;padding:.45rem .85rem;text-decoration:none;cursor:pointer}
+    .hx-doc-btn--icon,.si-btn--icon{min-width:2.25rem;min-height:2.25rem;padding:.35rem;display:inline-flex;align-items:center;justify-content:center;line-height:0}
+    .hx-doc-btn--icon svg,.si-btn--icon svg{display:block;flex-shrink:0}
     .hx-doc-btn--pri{background:linear-gradient(180deg,#0ea5e9 0%,#0369a1 100%);color:#fff}
     .hx-doc-sheet{max-width:210mm;margin:1rem auto 2rem;background:#fff;padding:10mm 8mm;
       box-shadow:0 8px 28px rgba(15,23,42,.1);position:relative}
@@ -446,7 +447,7 @@ async function renderStandalonePrintPage({
   <div class="hx-doc-bar no-print">
     <strong>${escapeHtml(documentTitle)}</strong>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-      <button type="button" class="hx-doc-btn hx-doc-btn--pri" data-print="1" id="hx-print-btn">طباعة</button>
+      ${printBtnHtml('طباعة', 'hx-doc-btn hx-doc-btn--pri hx-doc-btn--icon', ' id="hx-print-btn"')}
       ${back}
     </div>
   </div>

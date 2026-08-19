@@ -649,7 +649,7 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
           <input type="checkbox" name="active_only" value="1" ${activeOnly ? 'checked' : ''}> العملاء النشطون فقط
         </label>
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
-        <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+        ${ui.siPrintBtnHtml('طباعة')}
         <a class="si-btn" href="${ui.esc(excelHref)}">Excel</a>
       </form>
     </div>
@@ -685,7 +685,7 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
         title: 'تقرير العملاء',
         subtitle: `${rows.length} عميل · نشط ${active} · موقوف ${inactive}`,
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'Excel', href: excelHref },
           { label: 'لوحة العملاء', href: HUB },
         ],
@@ -783,7 +783,7 @@ router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async 
           <input type="checkbox" name="active_only" value="1" ${activeOnly ? 'checked' : ''}> النشطون فقط
         </label>
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
-        <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+        ${ui.siPrintBtnHtml('طباعة')}
         <a class="si-btn" href="${ui.esc(excelHref)}">Excel</a>
       </form>
     </div>`;
@@ -826,7 +826,7 @@ router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async 
         title: 'تقرير العملاء حسب المندوب',
         subtitle: `${groups.size} مجموعة · ${rows.length} صف عميل`,
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'Excel', href: excelHref },
           { label: 'لوحة العملاء', href: HUB },
           { label: 'تقرير كامل', href: '/customers/reports/by-rep' },
@@ -916,7 +916,7 @@ router.get('/customers/reports/region-addresses', guard('report_customers_region
           <input type="checkbox" name="active_only" value="1" ${activeOnly ? 'checked' : ''}> النشطة فقط
         </label>
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
-        <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+        ${ui.siPrintBtnHtml('طباعة')}
         <a class="si-btn" href="${ui.esc(excelHref)}">Excel</a>
       </form>
     </div>
@@ -968,7 +968,7 @@ router.get('/customers/reports/region-addresses', guard('report_customers_region
         title: 'تقرير العناوين والمنطقة',
         subtitle: `${groups.size} منطقة · ${rows.length} صف · يعرض العناوين والمندوبين المربوطين`,
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'Excel', href: excelHref },
           { label: 'تعريف المناطق', href: '/customers/regions' },
           { label: 'لوحة العملاء', href: HUB },

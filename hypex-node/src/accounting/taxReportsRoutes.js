@@ -67,7 +67,7 @@ function shell(title, subtitle, filtersHtml, resultHtml, extra = []) {
         title,
         subtitle,
         actions: [
-          { label: 'طباعة', print: true },
+          ui.printAction(),
           ...extra,
           { label: 'لوحة المحاسبة', href: HUB },
         ],

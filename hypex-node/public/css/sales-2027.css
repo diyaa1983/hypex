@@ -804,8 +804,21 @@ label .si-field-key {
   line-height: 1.35;
 }
 
-.si-msg:empty {
-  display: none;
+.si-btn--icon,
+.hx-doc-btn--icon {
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.si-btn--icon svg,
+.hx-doc-btn--icon svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .si-msg.is-ok {

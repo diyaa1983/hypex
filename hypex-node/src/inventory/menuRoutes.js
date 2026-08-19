@@ -318,7 +318,7 @@ module.exports = createDomainRouter({
                 ? `${ui.esc(item.name_ar || '')} · ${ui.esc(whLabel)}`
                 : 'اختر المستودع ثم المادة لعرض سجل الحركات والرصيد',
             actions: [
-              { label: '🖨 طباعة', primary: true, print: true },
+              ui.printAction(),
               { label: 'لوحة المستودعات', href: '/inventory' },
             ],
           })}
@@ -471,7 +471,7 @@ module.exports = createDomainRouter({
                 )}`
               : 'مبيعات مؤكدة مجمّعة حسب المادة للعميل المحدد',
             actions: [
-              { label: '🖨 طباعة', primary: true, print: true },
+              ui.printAction(),
               { label: 'لوحة المستودعات', href: '/inventory' },
             ],
           })}

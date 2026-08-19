@@ -127,7 +127,7 @@ router.get('/system/user-locations', async (req, res) => {
         title: 'مواقع المستخدمين',
         subtitle: 'آخر موقع معروف ضمن الفترة — تقرير أصلي على Node مع رابط الخريطة',
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'التتبّع الحي', href: '/system/gps-tracker' },
           { label: 'لوحة النظام', href: HUB },
         ],
@@ -484,7 +484,7 @@ router.get('/system/invoice-gps', async (req, res) => {
         title: 'مواقع فواتير البيع',
         subtitle: 'فواتير مُرحَّلة بإحداثيات GPS — تقرير أصلي',
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'لوحة النظام', href: HUB },
         ],
       })}

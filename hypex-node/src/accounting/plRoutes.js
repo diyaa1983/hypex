@@ -77,7 +77,7 @@ router.get(BASE, async (req, res) => {
         title: 'الأرباح والخسائر',
         subtitle: 'تقرير ملخص لنتائج الفترة — إيرادات · تكلفة · مصروفات · صافي',
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'لوحة المحاسبة', href: HUB },
         ],
       })}
@@ -90,7 +90,7 @@ router.get(BASE, async (req, res) => {
             <input class="si-field si-field--mono" type="date" name="to" value="${esc(to)}">
           </label>
           <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
-          <button type="button" class="si-btn si-btn--print" data-print="1">طباعة</button>
+          ${ui.siPrintBtnHtml('طباعة')}
           <a class="si-btn" href="${esc(detailHref)}">قائمة الدخل التفصيلية</a>
         </form>
       </div>

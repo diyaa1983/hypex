@@ -184,7 +184,7 @@ router.get('/suppliers/reports/list', guard('report_suppliers'), async (req, res
           <input type="checkbox" name="active_only" value="1" ${activeOnly ? 'checked' : ''}> النشطون فقط
         </label>
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
-        <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+        ${ui.siPrintBtnHtml('طباعة')}
       </form>
     </div>`;
   const rowsHtml =
@@ -211,7 +211,7 @@ router.get('/suppliers/reports/list', guard('report_suppliers'), async (req, res
         title: 'تقرير الموردين',
         subtitle: `${rows.length} مورد`,
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'لوحة الموردين', href: HUB },
         ],
       })}

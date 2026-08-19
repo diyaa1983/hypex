@@ -73,7 +73,7 @@ module.exports = createDomainRouter({
               </label>
               <input type="search" name="q" value="${ui.esc(qv)}" placeholder="بحث…" style="min-width:10rem">
               <button class="si-btn si-btn--primary" type="submit">عرض</button>
-              <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+              ${ui.siPrintBtnHtml('طباعة')}
             </form>
           </div>`,
       };
@@ -112,7 +112,7 @@ module.exports = createDomainRouter({
               </label>
               <input type="search" name="q" value="${ui.esc(qv)}" placeholder="بحث…" style="min-width:10rem">
               <button class="si-btn si-btn--primary" type="submit">عرض</button>
-              <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+              ${ui.siPrintBtnHtml('طباعة')}
             </form>
           </div>`,
       };

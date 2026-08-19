@@ -255,7 +255,7 @@ function shell(title, subtitle, filtersHtml, resultHtml, extraActions = []) {
         title,
         subtitle,
         actions: [
-          { label: 'طباعة', print: true },
+          ui.printAction(),
           ...extraActions,
           { label: 'لوحة المحاسبة', href: HUB },
         ],
@@ -1362,7 +1362,7 @@ router.get(
           ${
             hasReport
               ? `<a class="si-btn no-print" href="${esc(excelHref)}" id="ora-excel-btn">Excel</a>
-                 <button type="button" class="si-btn si-btn--print no-print" data-print="1">طباعة</button>`
+                 ${ui.siPrintBtnHtml('طباعة')}`
               : ''
           }
         </div>

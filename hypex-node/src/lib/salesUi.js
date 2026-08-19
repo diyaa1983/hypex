@@ -6,6 +6,18 @@ const { salesCatalog } = require('../sales/catalog');
 
 const SALES_CSS = ['/assets/css/sales-2027.css'];
 
+const {
+  BACK_ICON_SVG,
+  PRINT_ICON_SVG,
+  backAction,
+  printAction,
+  backLinkHtml,
+  printBtnHtml,
+  siPrintBtnHtml,
+  siBackLinkHtml,
+  heroActionHtml,
+} = require('./toolbarIcons');
+
 function salesPage({ user, title, bodyHtml, js = [], css = [], activePath = '', printTitle = '' }) {
   const printJs = js.includes('/assets/js/sales-print.js') ? js : [...js, '/assets/js/sales-print.js'];
   return renderApp({
@@ -32,6 +44,11 @@ function hero(opts) {
   } = opts;
   const acts = actions
     .map((a) => {
+      if (a.icon === 'back' || a.icon === 'print') {
+        const cls = a.primary ? 'si-btn si-btn--primary' : a.ghost ? 'si-btn si-btn--ghost' : 'si-btn';
+        const iconHtml = heroActionHtml(a, cls);
+        if (iconHtml) return iconHtml;
+      }
       const cls = a.primary ? 'si-btn si-btn--primary' : a.ghost ? 'si-btn si-btn--ghost' : 'si-btn';
       if (a.onclick || a.print) {
         return `<button type="button" class="${cls} ${a.print ? 'si-btn--print no-print' : 'no-print'}" data-print="1">${esc(a.label)}</button>`;
@@ -97,7 +114,7 @@ function dateFilters(action, from, to, extra = '') {
         </label>
         ${extra}
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
-        <button type="button" class="si-btn si-btn--print" data-print="1">🖨 طباعة</button>
+        ${siPrintBtnHtml('طباعة')}
       </form>
     </div>
     <div class="si-print-meta print-only">
@@ -167,7 +184,7 @@ function bridgeCard(title, phpRoute, desc, backHref = '/sales', backLabel = 'ع�
     <section class="si-surface">
       <div class="si-surface-head">
         <h2>${esc(title)}</h2>
-        <a class="si-btn" href="${esc(backHref)}">${esc(backLabel)}</a>
+        <a class="si-btn si-btn--icon no-print" href="${esc(backHref)}" aria-label="${esc(backLabel)}" title="${esc(backLabel)}">${BACK_ICON_SVG}</a>
       </div>
       <div style="padding:1rem 1.1rem 1.25rem">
         <p style="margin:0 0 .75rem;color:#5c6578;font-size:.9rem;line-height:1.5">${esc(desc)}</p>
@@ -232,4 +249,12 @@ module.exports = {
   todayIso,
   monthStart,
   SALES_CSS,
+  BACK_ICON_SVG,
+  PRINT_ICON_SVG,
+  backAction,
+  printAction,
+  backLinkHtml,
+  printBtnHtml,
+  siPrintBtnHtml,
+  siBackLinkHtml,
 };

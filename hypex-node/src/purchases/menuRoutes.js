@@ -100,7 +100,7 @@ function listPage(res, user, opts) {
 function reportPage(res, user, opts) {
   const { title, mark, subtitle, headers, rowsHtml, count, path, from, to, phpRoute } = opts;
   const actions = [
-    { label: '🖨 طباعة', primary: true, print: true },
+    ui.printAction(),
     { label: 'لوحة المشتريات', href: HUB },
     
   ];

@@ -521,7 +521,7 @@ router.get(REPORT, async (req, res) => {
         title: 'تقرير المغادرات بين تاريخين',
         subtitle: 'من ' + isoToDmy(from) + ' إلى ' + isoToDmy(to),
         actions: [
-          { label: '🖨 طباعة', primary: true, print: true },
+          ui.printAction(),
           { label: 'مغادرات الموظفين', href: BASE },
           { label: 'لوحة شؤون الموظفين', href: HUB },
         ],
