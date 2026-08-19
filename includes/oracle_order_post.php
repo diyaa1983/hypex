@@ -52,6 +52,49 @@ function oracle_order_header_discount(array $order, float $merchAfterLineDisc): 
 }
 
 /**
+ * @return array{columns:list<string>,yes:mixed,no:mixed}
+ */
+function oracle_order_tax_subject_cfg(): array
+{
+    $cfg = oracle_config();
+    $s = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+    $tax = is_array($s['tax_subject'] ?? null) ? $s['tax_subject'] : [];
+    $columns = array_values(array_filter(array_map(
+        static fn($c) => strtoupper(trim((string) $c)),
+        (array) ($tax['columns'] ?? ['STAX', 'TAX_FLAG', 'ST_FLAG', 'CUS_TAX', 'TAXABLE'])
+    )));
+
+    return [
+        'columns' => $columns !== [] ? $columns : ['STAX', 'TAX_FLAG', 'ST_FLAG', 'CUS_TAX', 'TAXABLE'],
+        'yes' => $tax['yes'] ?? 1,
+        'no' => $tax['no'] ?? 0,
+    ];
+}
+
+/**
+ * «خاضع لضريبة المبيعات» في INV00024 — يُفرض من الطلب عند وجود ضريبة.
+ *
+ * @param array<string,bool> $cols
+ * @return array<string,mixed>
+ */
+function oracle_order_tax_header_fields(bool $taxable, array $cols, float $headerPerTax = 0.0): array
+{
+    $tc = oracle_order_tax_subject_cfg();
+    $val = $taxable ? $tc['yes'] : $tc['no'];
+    $out = [];
+    foreach ($tc['columns'] as $col) {
+        if (isset($cols[$col])) {
+            $out[$col] = $val;
+        }
+    }
+    if ($taxable && $headerPerTax > 0.000001 && isset($cols['PER_TAX'])) {
+        $out['PER_TAX'] = $headerPerTax;
+    }
+
+    return $out;
+}
+
+/**
  * خصم السطر → DISC ككسر. مبلغ الرأس الموزَّع على البنود لا يُوضع في DISC.
  */
 function oracle_order_line_disc_fraction(array $ln, bool $hasHeaderDiscount): float
@@ -190,10 +233,6 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $vyear = (int) date('Y');
     }
 
-    $sample = oracle_order_sample_daily_row($conn, $from, $stype, true);
-    $hdrSample = oracle_order_sample_daily_row($conn, $hdrFrom, $stype, false);
-    $compNum = oracle_order_comp_num($hdrSample !== [] ? $hdrSample : $sample);
-
     try {
         $mxHdr = oracle_order_max_vnum($conn, $hdrFrom, $stype, $vyear, $compNum, isset($hdrCols['COMP_NUM']));
         $mxDaily = oracle_order_max_vnum($conn, $from, $stype, $vyear, $compNum, isset($cols['COMP_NUM']));
@@ -253,6 +292,31 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
 
     $headerDisc = oracle_order_header_discount($order, $merchAfterLineDisc);
 
+    $sumQty = 0.0;
+    $sumTax = 0.0;
+    $maxPerTax = 0.0;
+    foreach ($mappedLines as $ml) {
+        $sumQty += (float) $ml['qty'];
+        $sumTax += (float) $ml['vou_tax'];
+        $pt = (float) ($ml['per_tax'] ?? 0);
+        if ($pt > $maxPerTax) {
+            $maxPerTax = $pt;
+        }
+    }
+
+    $subtotal = (float) ($order['subtotal'] ?? 0);
+    $orderTax = (float) ($order['tax_amount'] ?? $sumTax);
+    $orderTotal = (float) ($order['total'] ?? 0);
+    $orderDisc = (float) ($order['discount_amount'] ?? 0);
+    $isTaxable = $orderTax > 0.000001 || $maxPerTax > 0.000001;
+
+    $sample = oracle_order_sample_daily_row($conn, $from, $stype, true, $isTaxable);
+    $hdrSample = oracle_order_sample_daily_row($conn, $hdrFrom, $stype, false, $isTaxable);
+    $compNum = oracle_order_comp_num($hdrSample !== [] ? $hdrSample : $sample);
+
+    $allCols = $cols + $hdrCols;
+    $taxHeaderFields = oracle_order_tax_header_fields($isTaxable, $allCols, $maxPerTax);
+
     $headerExtras = oracle_order_extras($cols, $salesman, $order);
     $hdrExtras = oracle_order_extras($hdrCols, $salesman, $order);
     $custDep = 1;
@@ -274,13 +338,6 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         }
     }
 
-    $sumQty = 0.0;
-    $sumTax = 0.0;
-    foreach ($mappedLines as $ml) {
-        $sumQty += (float) $ml['qty'];
-        $sumTax += (float) $ml['vou_tax'];
-    }
-
     $preview = [
         'v_num' => $vNum,
         'vyear' => $vyear,
@@ -295,6 +352,11 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'header_table' => $hdrTable,
         'per_disc' => $headerDisc['per_disc'],
         'vou_disc' => $headerDisc['vou_disc'],
+        'taxable' => $isTaxable,
+        'tax_header_fields' => $taxHeaderFields,
+        'subtotal' => $subtotal,
+        'tax_amount' => $orderTax,
+        'total' => $orderTotal,
         'lines' => $mappedLines,
         'extra_columns' => $headerExtras,
         'daily_columns' => array_keys($cols),
@@ -320,16 +382,16 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'CUST_DEP' => $custDep,
         'COMP_NUM' => $compNum,
         'VOU_DISC' => $headerDisc['vou_disc'],
-        'VOU_TAX' => (float) ($order['tax_amount'] ?? $sumTax),
+        'VOU_TAX' => $orderTax,
         'PER_DISC' => $headerDisc['per_disc'],
         'QTY' => $sumQty,
         'TOT_QTY' => $sumQty,
-        'AMT' => (float) ($order['total'] ?? 0),
-        'TOTAL' => (float) ($order['total'] ?? 0),
-        'GROSS' => (float) ($order['subtotal'] ?? 0),
-        'NET' => (float) ($order['total'] ?? 0),
-        'TOT_AMT' => (float) ($order['total'] ?? 0),
-        'TOT_TAX' => (float) ($order['tax_amount'] ?? $sumTax),
+        'AMT' => $orderTotal,
+        'TOTAL' => $orderTotal,
+        'GROSS' => round(max(0.0, $subtotal + $orderDisc), 3),
+        'NET' => $subtotal,
+        'TOT_AMT' => $orderTotal,
+        'TOT_TAX' => $orderTax,
         'TRAN_RATE' => 1,
         'CASH' => $cashFlag,
         'CACR' => $cacr,
@@ -346,6 +408,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'NOTES' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
         'REMARK' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
     ];
+    $sharedHeader = array_merge($sharedHeader, $taxHeaderFields);
     $smNo = (int) ($salesman['no'] ?? 0);
     if ($smNo < 1) {
         $smNo = 1;
@@ -711,6 +774,12 @@ function oracle_order_seed_header(array $sample, array $ours, array $cols): arra
         'FLAGE' => true,
         'FLAG' => true,
         'PRINT_FLAGE' => true,
+        'STAX' => true,
+        'TAX_FLAG' => true,
+        'ST_FLAG' => true,
+        'CUS_TAX' => true,
+        'TAXABLE' => true,
+        'SELL_BTAX' => true,
         'ROWID' => true,
         'SALESMAN' => true,
         'SALES_MAN' => true,
@@ -825,9 +894,17 @@ function oracle_order_force_forms_fields(array $use, array $cols): array
 /**
  * @return array<string,mixed>
  */
-function oracle_order_sample_daily_row(array $conn, string $from, int $stype, bool $preferForms = false): array
-{
+function oracle_order_sample_daily_row(
+    array $conn,
+    string $from,
+    int $stype,
+    bool $preferForms = false,
+    bool $preferTaxable = false
+): array {
     $extra = $preferForms ? ' AND VOU_FLAG = 18 ' : '';
+    if ($preferTaxable) {
+        $extra .= ' AND NVL(PER_TAX, 0) > 0 ';
+    }
     try {
         $rows = oracle_query_all(
             $conn,
@@ -837,14 +914,20 @@ function oracle_order_sample_daily_row(array $conn, string $from, int $stype, bo
             ['stype' => $stype]
         );
     } catch (Throwable $e) {
+        if ($preferTaxable) {
+            return oracle_order_sample_daily_row($conn, $from, $stype, $preferForms, false);
+        }
         if ($preferForms) {
-            return oracle_order_sample_daily_row($conn, $from, $stype, false);
+            return oracle_order_sample_daily_row($conn, $from, $stype, false, false);
         }
 
         return [];
     }
+    if ($rows === [] && $preferTaxable) {
+        return oracle_order_sample_daily_row($conn, $from, $stype, $preferForms, false);
+    }
     if ($rows === [] && $preferForms) {
-        return oracle_order_sample_daily_row($conn, $from, $stype, false);
+        return oracle_order_sample_daily_row($conn, $from, $stype, false, false);
     }
     $row = $rows[0] ?? [];
     $out = [];

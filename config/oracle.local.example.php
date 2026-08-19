@@ -79,6 +79,12 @@ return [
         'comp_num' => 1,
         // رقم المستودع في أوراكل إن لم يُضبط على بطاقة المستودع
         'default_store' => 4,
+        // عمود «خاضع لضريبة المبيعات» في INV00024 (عدّل إن اختلف عندكم)
+        'tax_subject' => [
+            'columns' => ['STAX', 'TAX_FLAG', 'ST_FLAG', 'CUS_TAX', 'TAXABLE'],
+            'yes' => 1,
+            'no' => 0,
+        ],
         'item_card_owner' => 'MAS',
         'item_card_table' => 'MASCARD',
     ],

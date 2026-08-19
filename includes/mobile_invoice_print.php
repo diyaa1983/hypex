@@ -252,7 +252,7 @@ function mobile_invoice_print_thead_row(bool $showQtyExtra = true, bool $showDis
         . '<th class="inv-print-th-h">اضافي</th>'
         . '<th class="inv-print-th-h">السعر</th>'
         . '<th class="inv-print-th-h">الخصم</th>'
-        . '<th class="inv-print-th-h">الضريبة</th>'
+        . '<th class="inv-print-th-h">نسبة الضريبة</th>'
         . '<th class="inv-print-th-h">الإجمالي</th>'
         . '</tr>';
 }
@@ -271,6 +271,26 @@ function mobile_invoice_print_discount_cell(array $ln, int $dp): string
     $amt = (float) ($ln['discount_amount'] ?? 0);
     if ($amt > 0.000001) {
         return esc(mobile_invoice_print_fmt($amt, $dp));
+    }
+
+    return '—';
+}
+
+function mobile_invoice_print_tax_cell(array $ln, int $dp): string
+{
+    $pct = (float) ($ln['tax_rate_percent'] ?? 0);
+    if ($pct > 0.000001) {
+        return esc(mobile_invoice_print_fmt($pct, $dp) . '%');
+    }
+    $lineTotal = (float) ($ln['line_total'] ?? 0);
+    $taxAmt = (float) ($ln['tax_amount'] ?? 0);
+    if ($lineTotal > 0.000001 && $taxAmt > 0.000001) {
+        $derived = round(($taxAmt / $lineTotal) * 100, $dp);
+
+        return esc(mobile_invoice_print_fmt($derived, $dp) . '%');
+    }
+    if ($taxAmt > 0.000001) {
+        return esc(mobile_invoice_print_fmt($taxAmt, $dp));
     }
 
     return '—';
@@ -308,7 +328,7 @@ function mobile_invoice_print_line_row(
     $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['qty_extra'] ?? 0), $amountDp)) . '</td>';
     $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['unit_price'] ?? 0), $unitDp)) . '</td>';
     $html .= '<td class="inv-print-cell-disc">' . mobile_invoice_print_discount_cell($ln, $amountDp) . '</td>';
-    $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['tax_amount'] ?? 0), $amountDp)) . '</td>';
+    $html .= '<td class="inv-print-cell-tax">' . mobile_invoice_print_tax_cell($ln, $amountDp) . '</td>';
     $html .= '<td>' . esc(mobile_invoice_print_fmt($gross, $amountDp)) . '</td>';
     $html .= '</tr>';
 

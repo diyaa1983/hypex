@@ -66,46 +66,91 @@ router.get('/system/users', async (req, res) => {
     )
     .join('');
 
+  const listQuery = `${qv ? '&q=' + encodeURIComponent(qv) : ''}${activeOnly ? '&active=1' : ''}`;
+
   const listHtml =
     rows
       .map(
         (r, i) => `<tr class="${Number(r.id) === Number(row.id) && !isNew ? 'is-active-row' : ''}">
       <td class="si-num" dir="ltr">${i + 1}</td>
-      <td class="si-num" dir="ltr"><a href="/system/users?id=${r.id}${qv ? '&q=' + encodeURIComponent(qv) : ''}${
-          activeOnly ? '&active=1' : ''
-        }">${esc(r.username || '')}</a></td>
+      <td class="su-user" dir="ltr"><a href="/system/users?id=${r.id}${listQuery}">${esc(r.username || '')}</a></td>
       <td>${esc(r.full_name_ar || '')}</td>
-      <td>${dash(r.groups_ar)}</td>
-      <td class="si-num" dir="ltr">${dash(r.email)}</td>
-      <td>${Number(r.is_active) === 1 ? 'نعم' : 'لا'}</td>
+      <td class="su-groups-cell">${dash(r.groups_ar)}</td>
+      <td class="su-status">${Number(r.is_active) === 1 ? '<span class="su-pill su-pill--ok">نشط</span>' : '<span class="su-pill">معطّل</span>'}</td>
     </tr>`
       )
-      .join('') || ui.emptyRow(6, 'لا مستخدمين');
+      .join('') || ui.emptyRow(5, 'لا مستخدمين');
 
   const formTitle = isNew ? 'مستخدم جديد' : row.id ? `تعديل: ${esc(row.username || '')}` : 'بيانات المستخدم';
   const postAction = isNew || !row.id ? '/system/users/new' : '/system/users/' + row.id;
+  const showPassword = isNew || !row.id;
+
+  const groupsHtml = groups.length
+    ? `<div class="su-ggrid">${groups
+        .map(
+          (g) => `<label class="su-gitem">
+          <input type="checkbox" name="group_ids" value="${g.id}" ${
+            selectedGroups.has(Number(g.id)) ? 'checked' : ''
+          }>
+          <span class="su-gitem-body">
+            <span class="su-gitem-title">${esc(g.name_ar || g.code || '')}${
+            g.code ? ` <span class="muted" dir="ltr">(${esc(g.code)})</span>` : ''
+          }</span>
+            ${
+              g.description
+                ? `<span class="su-gitem-desc">${esc(g.description)}</span>`
+                : ''
+            }
+          </span>
+        </label>`
+        )
+        .join('')}</div>`
+    : '<p class="muted">لا توجد مجموعات</p>';
 
   const body = `
     <style>
-      .su-wrap{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(280px,.95fr);gap:1rem;align-items:start}
+      .su-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:1rem;align-items:start}
       @media (max-width:980px){.su-wrap{grid-template-columns:1fr}}
+      .su-list{min-width:0}
+      .su-form-panel{position:sticky;top:.75rem;max-height:calc(100vh - 1.5rem);overflow:auto}
       .su-wrap .si-table tr.is-active-row td{background:rgba(11,107,203,.09)}
-      .su-wrap .si-table a{color:inherit;font-weight:700;text-decoration:none}
-      .su-wrap .si-table a:hover{color:#0b63ce;text-decoration:underline}
-      .su-form{display:flex;flex-direction:column;gap:.85rem;padding:1rem 1.15rem 1.25rem}
-      .su-form .su-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
-      @media (max-width:640px){.su-form .su-row{grid-template-columns:1fr}}
-      .su-form .su-row--1{grid-template-columns:1fr}
-      .su-form label.su-field{display:flex;flex-direction:column;gap:.35rem;font-size:.82rem;font-weight:700;color:#3d4659;min-width:0}
-      .su-form label.su-field .muted{font-weight:500;font-size:.75rem;margin-top:.15rem}
-      .su-form .su-check{display:flex!important;flex-direction:row!important;align-items:center;gap:.45rem;font-weight:700;font-size:.88rem;margin-top:.15rem}
-      .su-form .su-check input{width:1.05rem;height:1.05rem}
-      .su-groups{border:1px solid #e4e8f0;border-radius:12px;padding:.8rem 1rem;background:#fafbfd}
-      .su-groups h3{margin:0 0 .35rem;font-size:.95rem}
-      .su-groups .su-gitem{display:flex;align-items:flex-start;gap:.5rem;padding:.4rem 0;border-bottom:1px solid #eef1f6;font-weight:600;font-size:.88rem;cursor:pointer}
-      .su-groups .su-gitem:last-child{border-bottom:0}
-      .su-groups .su-gitem input{margin-top:.2rem}
-      .su-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.25rem}
+      .su-wrap .si-table tr{cursor:pointer}
+      .su-wrap .si-table .su-user a{color:inherit;font-weight:700;text-decoration:none}
+      .su-wrap .si-table .su-user a:hover{color:#0b63ce;text-decoration:underline}
+      .su-wrap .si-table .su-groups-cell{font-size:.82rem;color:#5c6578;max-width:12rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .su-status{text-align:center}
+      .su-pill{display:inline-block;padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;background:#eef1f6;color:#5c6578}
+      .su-pill--ok{background:rgba(34,139,84,.12);color:#1a7a45}
+      .su-list-head{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.65rem 1rem;border-bottom:1px solid #e8ecf2}
+      .su-list-head .si-search{margin:0;flex:1;min-width:12rem;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+      .su-list-head .si-search input[type=search]{flex:1;min-width:8rem}
+      .su-list-hint{padding:0 1rem;margin:.35rem 0 .25rem;font-size:.82rem}
+      .su-form{display:flex;flex-direction:column;gap:0;padding:0 0 1rem}
+      .su-sec{padding:.85rem 1.15rem;border-bottom:1px solid #eef1f6}
+      .su-sec:last-of-type{border-bottom:0}
+      .su-sec-title{margin:0 0 .65rem;font-size:.88rem;font-weight:800;color:#2a3344;letter-spacing:.01em}
+      .su-sec .su-row{display:grid;grid-template-columns:1fr 1fr;gap:.65rem .75rem}
+      @media (max-width:640px){.su-sec .su-row{grid-template-columns:1fr}}
+      .su-sec .su-row--1{grid-template-columns:1fr}
+      .su-sec label.su-field{display:flex;flex-direction:column;gap:.3rem;font-size:.8rem;font-weight:700;color:#3d4659;min-width:0}
+      .su-sec label.su-field .muted{font-weight:500;font-size:.72rem;line-height:1.35}
+      .su-sec .su-check-row{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin-top:.15rem}
+      .su-sec .su-check{display:flex!important;flex-direction:row!important;align-items:center;gap:.4rem;font-weight:700;font-size:.85rem;margin:0}
+      .su-sec .su-check input{width:1rem;height:1rem;margin:0}
+      .su-ggrid{display:grid;grid-template-columns:1fr;gap:.35rem}
+      @media (min-width:360px){.su-ggrid{grid-template-columns:1fr 1fr}}
+      .su-gitem{display:flex;align-items:flex-start;gap:.45rem;padding:.5rem .55rem;border:1px solid #e8ecf2;border-radius:10px;background:#fafbfd;font-weight:600;font-size:.82rem;cursor:pointer;min-height:2.75rem}
+      .su-gitem:has(input:checked){border-color:#0b6bcb;background:rgba(11,107,203,.06)}
+      .su-gitem input{margin-top:.15rem;flex-shrink:0}
+      .su-gitem-body{display:flex;flex-direction:column;gap:.15rem;min-width:0}
+      .su-gitem-title{line-height:1.3}
+      .su-gitem-desc{font-size:.72rem;font-weight:500;color:#6b7280;line-height:1.35}
+      .su-mobile-note{margin:0 0 .6rem;font-size:.75rem;font-weight:500;color:#5c6578;line-height:1.45}
+      .su-actions{display:flex;flex-wrap:wrap;gap:.5rem;padding:.85rem 1.15rem 0;border-top:1px solid #eef1f6;margin-top:.25rem}
+      details.su-pw{margin-top:.5rem}
+      details.su-pw>summary{cursor:pointer;font-size:.8rem;font-weight:700;color:#0b6bcb;list-style:none;display:flex;align-items:center;gap:.35rem}
+      details.su-pw>summary::-webkit-details-marker{display:none}
+      details.su-pw .su-row{margin-top:.55rem}
     </style>
     <div class="si-stage">
       ${ui.hero({
@@ -119,110 +164,107 @@ router.get('/system/users', async (req, res) => {
           { label: 'لوحة النظام', href: HUB },
         ],
       })}
-      ${flash ? `<p class="si-pill si-pill--ok" style="display:inline-block">${esc(flash)}</p>` : ''}
-      ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
-      <div class="si-rail">
-        <form class="si-search" method="get" action="/system/users" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;flex:1">
-          <input type="search" name="q" value="${esc(qv)}" placeholder="بحث مستخدم…" style="flex:1;min-width:10rem">
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
-            <input type="checkbox" name="active" value="1" ${activeOnly ? 'checked' : ''}> نشطون فقط
-          </label>
-          <button class="si-btn si-btn--primary" type="submit">عرض</button>
-        </form>
-      </div>
+      ${flash ? `<p class="si-pill si-pill--ok" style="display:inline-block;margin-bottom:.5rem">${esc(flash)}</p>` : ''}
+      ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block;margin-bottom:.5rem">${esc(err)}</p>` : ''}
       <div class="su-wrap">
-        <section class="si-surface">
+        <section class="si-surface su-list">
           <div class="si-surface-head"><h2>قائمة المستخدمين</h2><span class="si-count">${rows.length}</span></div>
-          <p class="muted" style="padding:0 1rem;margin:.35rem 0 .5rem;font-size:.85rem">اختر مستخدماً للتعديل أو اضغط «جديد».</p>
-          <div class="si-table-wrap" style="padding:0 0 1rem">
+          <div class="su-list-head">
+            <form class="si-search" method="get" action="/system/users">
+              <input type="search" name="q" value="${esc(qv)}" placeholder="بحث بالاسم أو البريد…">
+              <label style="font-size:.78rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem;white-space:nowrap">
+                <input type="checkbox" name="active" value="1" ${activeOnly ? 'checked' : ''}> نشطون فقط
+              </label>
+              <button class="si-btn si-btn--primary" type="submit">عرض</button>
+            </form>
+          </div>
+          <p class="muted su-list-hint">اختر مستخدماً من القائمة أو اضغط «جديد».</p>
+          <div class="si-table-wrap" style="padding:0 0 .75rem">
             <table class="si-table">
               <thead><tr>
-                <th>#</th><th>اسم المستخدم</th><th>الاسم</th><th>المجموعات</th><th>البريد</th><th>نشط</th>
+                <th>#</th><th>اسم المستخدم</th><th>الاسم</th><th>المجموعات</th><th>الحالة</th>
               </tr></thead>
               <tbody>${listHtml}</tbody>
             </table>
           </div>
         </section>
-        <section class="si-surface">
+        <section class="si-surface su-form-panel">
           <div class="si-surface-head"><h2>${formTitle}</h2></div>
           <form method="post" action="${postAction}" class="su-form">
             <input type="hidden" name="id" value="${row.id || 0}">
-            <div class="su-row">
-              <label class="su-field">اسم المستخدم *
-                <input class="si-field si-field--mono" name="username" required value="${esc(
-                  row.username || ''
-                )}" autocomplete="off" dir="ltr" placeholder="بدون مسافات">
-              </label>
-              <label class="su-field">الاسم الكامل *
-                <input class="si-field" name="full_name_ar" required value="${esc(
-                  row.full_name_ar || ''
-                )}" autocomplete="off">
-              </label>
-            </div>
-            <div class="su-row su-row--1">
-              <label class="su-field">البريد الإلكتروني *
-                <input class="si-field" type="email" name="email" required value="${esc(
-                  row.email || ''
-                )}" dir="ltr" autocomplete="off">
-                <span class="muted">مطلوب لاستعادة كلمة المرور</span>
-              </label>
-            </div>
-            <div class="su-row">
-              <label class="su-field">مندوب المبيعات (للهاتف)
-                <select class="si-field" name="sales_rep_id">
-                  <option value="0">— بدون ربط —</option>
-                  ${repOpts}
-                </select>
-                <span class="muted">لمستخدمي التطبيق كمندوبين (عهدة / تحميل)</span>
-              </label>
-              <label class="su-check">
-                <input type="checkbox" name="is_active" value="1" ${
-                  Number(row.is_active) === 1 || isNew ? 'checked' : ''
-                }>
-                <span>نشط</span>
-              </label>
-            </div>
-            <div class="su-row">
-              <label class="su-field">كلمة المرور ${
-                isNew || !row.id
-                  ? '*'
-                  : '<span class="muted" style="display:inline">(فارغ = بدون تغيير)</span>'
-              }
-                <input class="si-field" type="password" name="password" ${
-                  isNew || !row.id ? 'required' : ''
-                } autocomplete="new-password" dir="ltr" minlength="6">
-              </label>
-              <label class="su-field">تأكيد كلمة المرور
-                <input class="si-field" type="password" name="password_confirm" autocomplete="new-password" dir="ltr">
-              </label>
-            </div>
-            <div class="su-groups">
-              <h3>المجموعات (الصلاحيات)</h3>
-              <p class="muted" style="margin:0 0 .5rem;font-size:.8rem;font-weight:500">
-                الصلاحيات تُحدَّد على مستوى المجموعة. <strong>لتطبيق الهاتف (APK) يجب تفعيل مجموعة «هاتف» (MOBILE)</strong> — إنشاء مستخدم فقط دون هذه المجموعة لن يسمح بالدخول من التطبيق.
-              </p>
+            <div class="su-sec">
+              <h3 class="su-sec-title">الحساب</h3>
+              <div class="su-row">
+                <label class="su-field">اسم المستخدم *
+                  <input class="si-field si-field--mono" name="username" required value="${esc(
+                    row.username || ''
+                  )}" autocomplete="off" dir="ltr" placeholder="بدون مسافات">
+                </label>
+                <label class="su-check su-check-row">
+                  <input type="checkbox" name="is_active" value="1" ${
+                    Number(row.is_active) === 1 || isNew ? 'checked' : ''
+                  }>
+                  <span>نشط</span>
+                </label>
+              </div>
               ${
-                groups.length
-                  ? groups
-                      .map(
-                        (g) => `<label class="su-gitem">
-                  <input type="checkbox" name="group_ids" value="${g.id}" ${
-                          selectedGroups.has(Number(g.id)) ? 'checked' : ''
-                        }>
-                  <span>
-                    ${esc(g.name_ar || g.code || '')}
-                    ${g.code ? `<span class="muted" dir="ltr"> (${esc(g.code)})</span>` : ''}
-                    ${
-                      g.description
-                        ? `<br><span class="muted" style="font-size:.78rem;font-weight:500">${esc(g.description)}</span>`
-                        : ''
-                    }
-                  </span>
-                </label>`
-                      )
-                      .join('')
-                  : '<p class="muted">لا توجد مجموعات</p>'
+                showPassword
+                  ? `<div class="su-row" style="margin-top:.65rem">
+                <label class="su-field">كلمة المرور *
+                  <input class="si-field" type="password" name="password" required autocomplete="new-password" dir="ltr" minlength="6">
+                </label>
+                <label class="su-field">تأكيد كلمة المرور
+                  <input class="si-field" type="password" name="password_confirm" autocomplete="new-password" dir="ltr">
+                </label>
+              </div>`
+                  : `<details class="su-pw">
+                <summary>تغيير كلمة المرور</summary>
+                <div class="su-row">
+                  <label class="su-field">كلمة المرور
+                    <input class="si-field" type="password" name="password" autocomplete="new-password" dir="ltr" minlength="6">
+                    <span class="muted">اتركها فارغة للإبقاء على الحالية</span>
+                  </label>
+                  <label class="su-field">تأكيد
+                    <input class="si-field" type="password" name="password_confirm" autocomplete="new-password" dir="ltr">
+                  </label>
+                </div>
+              </details>`
               }
+            </div>
+            <div class="su-sec">
+              <h3 class="su-sec-title">البيانات الشخصية</h3>
+              <div class="su-row">
+                <label class="su-field">الاسم الكامل *
+                  <input class="si-field" name="full_name_ar" required value="${esc(
+                    row.full_name_ar || ''
+                  )}" autocomplete="off">
+                </label>
+                <label class="su-field">البريد الإلكتروني *
+                  <input class="si-field" type="email" name="email" required value="${esc(
+                    row.email || ''
+                  )}" dir="ltr" autocomplete="off">
+                  <span class="muted">مطلوب لاستعادة كلمة المرور</span>
+                </label>
+              </div>
+            </div>
+            <div class="su-sec">
+              <h3 class="su-sec-title">مندوب التطبيق</h3>
+              <div class="su-row su-row--1">
+                <label class="su-field">مندوب المبيعات (للهاتف)
+                  <select class="si-field" name="sales_rep_id">
+                    <option value="0">— بدون ربط —</option>
+                    ${repOpts}
+                  </select>
+                  <span class="muted">لمستخدمي التطبيق كمندوبين (عهدة / تحميل)</span>
+                </label>
+              </div>
+            </div>
+            <div class="su-sec">
+              <h3 class="su-sec-title">المجموعات (الصلاحيات)</h3>
+              <p class="su-mobile-note">
+                الصلاحيات على مستوى المجموعة. <strong>لتطبيق الهاتف (APK) فعّل مجموعة «هاتف» (MOBILE)</strong>.
+              </p>
+              ${groupsHtml}
             </div>
             <div class="su-actions">
               <button class="si-btn si-btn--primary" type="submit">حفظ</button>

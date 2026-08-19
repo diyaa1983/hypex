@@ -479,8 +479,23 @@ async function renderStandalonePrintPage({
 
 /**
  * جدول بنود طباعة الفاتورة/الطلب:
- * اسم المادة (ضيّق مع التفاف) ثم وحدة، كمية، اضافي، سعر، خصم، ضريبة، إجمالي.
+ * اسم المادة (ضيّق مع التفاف) ثم وحدة، كمية، اضافي، سعر، خصم، نسبة الضريبة، إجمالي.
  */
+function formatPrintTaxCell(ln, fmt) {
+  const taxPct = Number(ln.tax_rate_percent);
+  if (Number.isFinite(taxPct) && taxPct > 0.000001) {
+    return `${fmt(taxPct)}%`;
+  }
+  const lineTotal = Number(ln.line_total) || 0;
+  const taxAmt = Number(ln.tax_amount) || 0;
+  if (lineTotal > 0.000001 && taxAmt > 0.000001) {
+    const derived = Math.round((taxAmt / lineTotal) * 10000) / 100;
+    if (derived > 0.000001) return `${fmt(derived)}%`;
+  }
+  if (taxAmt > 0.000001) return fmt(taxAmt);
+  return '—';
+}
+
 function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
   const fmt = typeof fmtAmtFn === 'function' ? fmtAmtFn : (n) => String(n ?? '');
   const hx = typeof escFn === 'function' ? escFn : escapeHtml;
@@ -491,6 +506,7 @@ function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
       const discPct = Number(ln.discount_pct) || 0;
       const discAmt = Number(ln.discount_amount) || 0;
       const discCell = discPct > 0.000001 ? `${fmt(discPct)}%` : fmt(discAmt);
+      const taxCell = formatPrintTaxCell(ln, fmt);
       const name = ln.name_ar || ln.item_name || ln.line_desc || '';
       return `<tr>
             <td class="c-name">${hx(name)}</td>
@@ -499,7 +515,7 @@ function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
             <td class="c-num" dir="ltr">${hx(fmt(qtyExtra))}</td>
             <td class="c-num" dir="ltr">${hx(fmt(ln.unit_price))}</td>
             <td class="c-num c-disc" dir="ltr">${hx(discCell)}</td>
-            <td class="c-num" dir="ltr">${hx(fmt(ln.tax_amount))}</td>
+            <td class="c-num c-tax" dir="ltr">${hx(taxCell)}</td>
             <td class="c-num c-gross" dir="ltr">${hx(fmt(ln.line_gross))}</td>
           </tr>`;
     })
@@ -524,7 +540,7 @@ function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
               <th class="c-h">اضافي</th>
               <th class="c-h">السعر</th>
               <th class="c-h">الخصم</th>
-              <th class="c-h">الضريبة</th>
+              <th class="c-h">نسبة الضريبة</th>
               <th class="c-h">الإجمالي</th>
             </tr>
           </thead>
