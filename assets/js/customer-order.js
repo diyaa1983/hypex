@@ -1709,7 +1709,8 @@
       setMsg('احفظ الطلب أولاً.', 'error');
       return;
     }
-    window.open('/sales/orders/' + state.id + '/print', '_blank');
+    var openPrintNav = window.__hypexOpenPrint || function (u) { window.location.assign(u); };
+    openPrintNav('/sales/orders/' + state.id + '/print');
   }
 
   if (tbody && !tbody._hxDelBound) {

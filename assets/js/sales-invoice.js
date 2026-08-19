@@ -1274,8 +1274,8 @@
       setMsg('احفظ الفاتورة أولاً.', 'error');
       return;
     }
-    // معاينة الطباعة — حوار النظام يُفتح فقط بعد الضغط على «طباعة» في صفحة المعاينة
-    window.open('/sales/invoices/' + state.id + '/print', '_blank');
+    var openPrintNav = window.__hypexOpenPrint || function (u) { window.location.assign(u); };
+    openPrintNav('/sales/invoices/' + state.id + '/print');
   }
 
   // toolbar bindings
@@ -1341,8 +1341,10 @@
           return;
         }
       var url = (state.defaults && state.defaults.archiveUrl) || '';
-      if (url) window.open(url, '_blank');
-      else setMsg('الأرشيف متاح من واجهة PHP عند الحاجة.', 'error');
+      if (url) {
+        var openPrintNav = window.__hypexOpenPrint || function (u) { window.location.assign(u); };
+        openPrintNav(url);
+      } else setMsg('الأرشيف متاح من واجهة PHP عند الحاجة.', 'error');
     });
   }
 

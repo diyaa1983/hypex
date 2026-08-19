@@ -280,7 +280,7 @@ async function renderForm(req, res, id) {
           </button>
           ${
             doc && doc.id
-              ? `<a class="si-tb" href="/sales/offers/${doc.id}/print" target="_blank" title="طباعة العرض">
+              ? `<a class="si-tb" href="/sales/offers/${doc.id}/print" title="طباعة العرض">
                    <span class="si-tb-lbl">طباعة</span>
                  </a>`
               : `<button type="button" class="si-tb" disabled title="احفظ العرض أولاً للطباعة">

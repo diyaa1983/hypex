@@ -502,7 +502,8 @@
   });
   on('sr-print', function () {
     if (!state.id) return setMsg('احفظ أولاً', 'error');
-    window.open('/sales/returns/' + state.id + '/print', '_blank');
+    var openPrintNav = window.__hypexOpenPrint || function (u) { window.location.assign(u); };
+    openPrintNav('/sales/returns/' + state.id + '/print');
   });
   on('sr-pdf', function () {
     if (!state.id) return setMsg('احفظ أولاً', 'error');

@@ -26,16 +26,29 @@ async function safeRows(sql, params = []) {
   }
 }
 
+function orderStatusLabel(status) {
+  const s = String(status || 'draft').trim().toLowerCase();
+  if (s === 'approved') return { status: 'approved', label: 'معتمد' };
+  if (s === 'pending') return { status: 'pending', label: 'بانتظار الاعتماد' };
+  return { status: 'draft', label: 'مسودة' };
+}
+
+/** نفس تعريف «بانتظار الاعتماد» في listOrders و inboxService */
+const OPEN_CUSTOMER_ORDERS_WHERE = `o.status IN ('draft','pending') AND IFNULL(o.is_sent,1) = 1`;
+
 function mapOrderRows(rows) {
-  return (rows || []).map((r) => ({
-    id: Number(r.id),
-    order_no: r.order_no,
-    order_date: r.order_date,
-    total: fmt(r.total),
-    customer_name: r.customer_name || '—',
-    status: r.status === 'approved' ? 'approved' : 'open',
-    status_label: r.status === 'approved' ? 'معتمد' : 'مفتوح',
-  }));
+  return (rows || []).map((r) => {
+    const st = orderStatusLabel(r.status);
+    return {
+      id: Number(r.id),
+      order_no: r.order_no,
+      order_date: r.order_date,
+      total: fmt(r.total),
+      customer_name: r.customer_name || '—',
+      status: st.status,
+      status_label: st.label,
+    };
+  });
 }
 
 async function collectDashboard() {
@@ -85,8 +98,8 @@ async function collectDashboard() {
     ),
     safeScalar(`SELECT COUNT(*) AS c FROM sal_customer_order`),
     safeScalar(
-      `SELECT COUNT(*) AS c FROM sal_customer_order
-       WHERE status IS NULL OR status = '' OR status IN ('draft','pending','open')`
+      `SELECT COUNT(*) AS c FROM sal_customer_order o
+       WHERE ${OPEN_CUSTOMER_ORDERS_WHERE}`
     ),
     safeScalar(
       `SELECT COUNT(*) AS c FROM sal_customer_order WHERE status = 'approved'`
@@ -102,7 +115,7 @@ async function collectDashboard() {
       `SELECT o.id, o.order_no, o.order_date, o.status, o.total, c.name_ar AS customer_name
        FROM sal_customer_order o
        LEFT JOIN crm_customer c ON c.id = o.customer_id
-       WHERE o.status IS NULL OR o.status = '' OR o.status IN ('draft','pending','open')
+       WHERE ${OPEN_CUSTOMER_ORDERS_WHERE}
        ORDER BY o.id DESC
        LIMIT 8`
     ),
@@ -140,7 +153,7 @@ async function collectDashboard() {
         href: '/sales/orders',
       },
       {
-        label: 'الطلبات المفتوحة',
+        label: 'بانتظار الاعتماد',
         value: String(ordersOpen),
         tone: Number(ordersOpen) > 0 ? 'warn' : 'primary',
         href: '/sales/orders/approve',

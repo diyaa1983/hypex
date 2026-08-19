@@ -55,4 +55,9 @@
   }
 
   window.__hypexUrl = fix;
+
+  /** فتح معاينة الطباعة في نفس التبويب (بدون tab جديد) */
+  window.__hypexOpenPrint = function (path) {
+    window.location.assign(fix(String(path || '')));
+  };
 })();

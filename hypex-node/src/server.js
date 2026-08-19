@@ -334,7 +334,7 @@ app.get('/app', auth.requireAuth, async (req, res) => {
       </section>
       <section class="panel">
         <div class="panel-head">
-          <h2>الطلبات المفتوحة</h2>
+          <h2>طلبات بانتظار الاعتماد</h2>
           <a href="/sales/orders/approve">عرض الكل</a>
         </div>
         <div class="table-wrap">
@@ -345,7 +345,7 @@ app.get('/app', auth.requireAuth, async (req, res) => {
             <tbody>
               ${
                 openOrderRows ||
-                '<tr><td colspan="5" class="empty">لا توجد طلبات مفتوحة</td></tr>'
+                '<tr><td colspan="5" class="empty">لا توجد طلبات بانتظار الاعتماد</td></tr>'
               }
             </tbody>
           </table>

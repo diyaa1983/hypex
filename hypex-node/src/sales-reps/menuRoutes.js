@@ -254,7 +254,7 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       <td>${dash(r.notes)}</td>
       <td class="srr-table-actions">
         <a class="si-btn" href="/sales-reps/route?id=${r.id}">فتح</a>
-        <a class="si-btn" href="/sales-reps/route/${r.id}/print" target="_blank">طباعة</a>
+        <a class="si-btn" href="/sales-reps/route/${r.id}/print">طباعة</a>
         ${
           String(r.status) === 'posted'
             ? `<form method="post" action="/sales-reps/route" style="display:inline">
@@ -469,7 +469,6 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
                   label: 'طباعة الجولة',
                   href: `/sales-reps/route/${edit.id}/print`,
                   primary: true,
-                  external: true,
                 },
               ]
             : [
