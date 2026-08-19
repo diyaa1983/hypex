@@ -233,17 +233,6 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $vyear = (int) date('Y');
     }
 
-    try {
-        $mxHdr = oracle_order_max_vnum($conn, $hdrFrom, $stype, $vyear, $compNum, isset($hdrCols['COMP_NUM']));
-        $mxDaily = oracle_order_max_vnum($conn, $from, $stype, $vyear, $compNum, isset($cols['COMP_NUM']));
-        $vNum = max($mxHdr, $mxDaily) + 1;
-    } catch (Throwable $e) {
-        return ['ok' => false, 'message' => 'تعذر احتساب رقم الفاتورة التالي: ' . $e->getMessage()];
-    }
-    if ($vNum < 1) {
-        $vNum = 1;
-    }
-
     $headerRaw = trim((string) ($order['invoice_discount_input'] ?? ''));
     $hasHeaderDiscount = inv_discount_parse_header_input($headerRaw) !== null;
 
@@ -313,6 +302,17 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     $sample = oracle_order_sample_daily_row($conn, $from, $stype, true, $isTaxable);
     $hdrSample = oracle_order_sample_daily_row($conn, $hdrFrom, $stype, false, $isTaxable);
     $compNum = oracle_order_comp_num($hdrSample !== [] ? $hdrSample : $sample);
+
+    try {
+        $mxHdr = oracle_order_max_vnum($conn, $hdrFrom, $stype, $vyear, $compNum, isset($hdrCols['COMP_NUM']));
+        $mxDaily = oracle_order_max_vnum($conn, $from, $stype, $vyear, $compNum, isset($cols['COMP_NUM']));
+        $vNum = max($mxHdr, $mxDaily) + 1;
+    } catch (Throwable $e) {
+        return ['ok' => false, 'message' => 'تعذر احتساب رقم الفاتورة التالي: ' . $e->getMessage()];
+    }
+    if ($vNum < 1) {
+        $vNum = 1;
+    }
 
     $allCols = $cols + $hdrCols;
     $taxHeaderFields = oracle_order_tax_header_fields($isTaxable, $allCols, $maxPerTax);
