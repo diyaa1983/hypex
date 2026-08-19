@@ -62,7 +62,7 @@ function mobile_invoice_print_mobile_pdf_css(?PDO $pdo = null): string
         . '.m-inv-pdf-sheet table.inv-print-lines th{background:#f1f5f9;padding:4px 2px;border:1px solid #94a3b8;'
         . 'text-align:center;font-weight:800;font-size:7.5px;color:#1e293b;line-height:1.2;}'
         . '.m-inv-pdf-sheet table.inv-print-lines th.inv-print-th-name{white-space:normal;}'
-        . '.m-inv-pdf-sheet table.inv-print-lines th.inv-print-th-h{vertical-align:middle;white-space:nowrap;padding:4px 2px;font-size:7px;}'
+        . '.m-inv-pdf-sheet table.inv-print-lines th.inv-print-th-h{vertical-align:middle;white-space:nowrap;padding:4px 2px;font-size:7px;writing-mode:horizontal-tb;transform:none;}'
         . '.m-inv-pdf-sheet table.inv-print-lines td{padding:3px 2px;border:1px solid #cbd5e1;text-align:center;'
         . 'font-size:8px;font-weight:800;color:#000;vertical-align:middle;line-height:1.25;}'
         . '.m-inv-pdf-sheet table.inv-print-lines td.inv-print-cell-item{text-align:right;word-break:break-word;white-space:normal;}'

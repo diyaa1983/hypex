@@ -111,7 +111,7 @@ function toolbarHtml(caps, order) {
           !caps.canPostOracle && !(caps.oracleVnum > 0),
           caps.oracleVnum > 0
             ? ` title="فاتورة Oracle ${caps.oracleVnum} / ${caps.oracleVyear}"`
-            : ' title="تحويل الطلب المعتمد إلى فاتورة بيع في شاشة INV00024"'
+            : ' title="تحويل الطلب المعتمد إلى فاتورة بيع في فواتير المبيعات"'
         )}
       </div>
       <div class="si-tb-group">

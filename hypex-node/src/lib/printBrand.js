@@ -314,8 +314,10 @@ async function renderStandalonePrintPage({
       white-space:normal;font-size:7.5pt;line-height:1.2;padding:5px 4px
     }
     .inv-v1-table--lines thead th.c-h{
-      vertical-align:middle;padding:4px 3px;font-size:7pt;line-height:1.2;white-space:nowrap
+      vertical-align:middle;padding:4px 3px;font-size:7pt;line-height:1.2;white-space:nowrap;
+      writing-mode:horizontal-tb!important;text-orientation:mixed!important;transform:none!important
     }
+    .inv-v1-table--lines thead th.c-h span{display:inline!important;writing-mode:horizontal-tb!important;transform:none!important}
     .inv-v1-table--lines .c-name{
       max-width:0;width:28%;white-space:normal;word-break:break-word;overflow-wrap:anywhere;
       line-height:1.25;font-size:7pt;padding:3px 4px
