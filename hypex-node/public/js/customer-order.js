@@ -492,6 +492,51 @@
     return Promise.resolve(window.confirm(msg));
   }
 
+  function hxAlert(msg, opts) {
+    opts = opts || {};
+    if (window.HypexUI && window.HypexUI.dialog) {
+      return window.HypexUI.dialog({
+        title: opts.title || 'تنبيه النظام',
+        message: msg || '',
+        kind: opts.kind || 'error',
+        closeOnBackdrop: true,
+        buttons: [{ label: 'حسناً', value: true, primary: true }],
+      });
+    }
+    if (window.HypexUI && window.HypexUI.alert) {
+      return window.HypexUI.alert(
+        (opts.title ? opts.title + '\n' : '') + (msg || ''),
+        opts.kind || 'error'
+      );
+    }
+    window.alert((opts.title ? opts.title + '\n' : '') + (msg || ''));
+    return Promise.resolve(true);
+  }
+
+  function showActionError(data) {
+    var text = (data && (data.error || data.message)) || 'فشل الإجراء';
+    var items = data && Array.isArray(data.items)
+      ? data.items
+          .map(function (n) {
+            return String(n || '').trim();
+          })
+          .filter(Boolean)
+      : [];
+    var isUndef =
+      (data && data.code === 'item_undefined') ||
+      items.length > 0 ||
+      String(text).indexOf('المادة غير معرفة على النظام') === 0;
+    setMsg(text, 'error');
+    if (isUndef) {
+      var body = items.length
+        ? items.join('\n')
+        : String(text)
+            .replace(/^المادة غير معرفة على النظام\s*/, '')
+            .trim();
+      hxAlert(body, { title: 'المادة غير معرفة على النظام', kind: 'error' });
+    }
+  }
+
   function lineTotals(ln) {
     var qty = Number(ln.qty) || 0;
     var price = Number(ln.unit_price) || 0;
@@ -1718,7 +1763,7 @@
       .then(function (data) {
         setBusy(false);
         if (!data.ok) {
-          setMsg(data.error || 'فشل الإجراء', 'error');
+          showActionError(data);
           return;
         }
         if (okRedirect) window.location.href = okRedirect;

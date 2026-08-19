@@ -210,29 +210,20 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
 
     $mappedLines = [];
     $merchAfterLineDisc = 0.0;
+    $undefinedNames = [];
     foreach ($lines as $ln) {
-        $item = oracle_order_item_keys($mysql, $ln);
-        if ($item['item'] === '' && $item['barcode'] === '') {
-            return [
-                'ok' => false,
-                'message' => 'مادة بدون رمز Oracle/SKU: ' . trim((string) ($ln['item_name'] ?? $ln['id'] ?? '')),
-            ];
-        }
         $qty = (float) ($ln['qty'] ?? 0);
         if ($qty <= 0) {
             continue;
         }
-        $card = oracle_order_mascard_find($conn, $item['item'], $item['barcode']);
+        $item = oracle_order_item_keys($mysql, $ln);
+        $card = [];
+        if ($item['item'] !== '' || $item['barcode'] !== '') {
+            $card = oracle_order_mascard_find($conn, $item['item'], $item['barcode']);
+        }
         if ($card === []) {
-            $tried = trim($item['item'] . ' / ' . $item['barcode'], ' /');
-
-            return [
-                'ok' => false,
-                'message' => 'المادة غير موجودة في بطاقة أصناف أوراكل (MASCARD): '
-                    . trim((string) ($ln['item_name'] ?? ''))
-                    . ' — الرمز المحاوَل: ' . $tried
-                    . '. اضبط رمز المادة (SKU / oracle_key) ليطابق رقم الصنف في أوراكل، وليس الباركود.',
-            ];
+            $undefinedNames[] = oracle_order_line_display_name($ln);
+            continue;
         }
         $taxPct = (float) ($ln['tax_rate_percent'] ?? 0);
         $sell = (float) ($ln['unit_price'] ?? 0);
@@ -252,6 +243,9 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             'name' => (string) ($ln['item_name'] ?? ''),
             'srl' => count($mappedLines) + 1,
         ];
+    }
+    if ($undefinedNames !== []) {
+        return oracle_order_undefined_items_payload($undefinedNames);
     }
     if ($mappedLines === []) {
         return ['ok' => false, 'message' => 'لا كميات صالحة للترحيل.'];
@@ -1004,6 +998,53 @@ function oracle_order_store_no(PDO $pdo, int $warehouseId): int
     }
 
     return $fallback > 0 ? $fallback : 1;
+}
+
+/**
+ * اسم المادة للرسائل عند غيابها من بطاقة أوراكل.
+ *
+ * @param array<string,mixed> $ln
+ */
+function oracle_order_line_display_name(array $ln): string
+{
+    $name = trim((string) ($ln['item_name'] ?? $ln['name_ar'] ?? ''));
+    if ($name !== '') {
+        return $name;
+    }
+    $sku = trim((string) ($ln['item_code'] ?? $ln['sku'] ?? $ln['item_sku'] ?? ''));
+    if ($sku !== '') {
+        return $sku;
+    }
+
+    return 'مادة غير مسماة';
+}
+
+/**
+ * @param list<string> $names
+ * @return array{ok:false,code:string,message:string,error:string,items:list<string>}
+ */
+function oracle_order_undefined_items_payload(array $names): array
+{
+    $seen = [];
+    $unique = [];
+    foreach ($names as $n) {
+        $n = trim((string) $n);
+        if ($n === '' || isset($seen[$n])) {
+            continue;
+        }
+        $seen[$n] = true;
+        $unique[] = $n;
+    }
+    $title = 'المادة غير معرفة على النظام';
+    $message = $unique === [] ? $title : $title . "\n" . implode("\n", $unique);
+
+    return [
+        'ok' => false,
+        'code' => 'item_undefined',
+        'message' => $message,
+        'error' => $message,
+        'items' => $unique,
+    ];
 }
 
 /**

@@ -283,8 +283,30 @@ sales_ora12_enqueue_assets();
               headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
               body: JSON.stringify({ id: id })
             }).then(function (r) { return r.json(); }).then(function (x) {
-              if (oraMsg) oraMsg.textContent = x.message || (x.ok ? 'تم الترحيل.' : 'تعذر الترحيل.');
-              if (x.ok) location.reload();
+              var text = x.message || x.error || (x.ok ? 'تم الترحيل.' : 'تعذر الترحيل.');
+              if (oraMsg) oraMsg.textContent = text;
+              if (x.ok) {
+                location.reload();
+                return;
+              }
+              var items = Array.isArray(x.items) ? x.items.filter(Boolean) : [];
+              var isUndef = x.code === 'item_undefined' || items.length > 0
+                || String(text).indexOf('المادة غير معرفة على النظام') === 0;
+              if (isUndef) {
+                var body = items.length ? items.join('\n') : String(text).replace(/^المادة غير معرفة على النظام\s*/, '').trim();
+                if (window.HypexUI && window.HypexUI.dialog) {
+                  window.HypexUI.dialog({
+                    title: 'المادة غير معرفة على النظام',
+                    message: body,
+                    kind: 'error',
+                    buttons: [{ label: 'حسناً', value: true, primary: true }]
+                  });
+                } else if (window.AppDialog && AppDialog.alert) {
+                  AppDialog.alert(body ? ('المادة غير معرفة على النظام\n' + body) : 'المادة غير معرفة على النظام', { type: 'error', title: 'المادة غير معرفة على النظام' });
+                } else {
+                  alert(body ? ('المادة غير معرفة على النظام\n' + body) : 'المادة غير معرفة على النظام');
+                }
+              }
             }).catch(function () {
               if (oraMsg) oraMsg.textContent = 'تعذر الاتصال.';
             });
