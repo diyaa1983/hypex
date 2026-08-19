@@ -18,6 +18,21 @@ const {
   heroActionHtml,
 } = require('./toolbarIcons');
 
+/** إزالة ذكر Node/Node.js من العناوين الفرعية والنصوص التسويقية */
+function stripNodeMarketing(text) {
+  if (!text || typeof text !== 'string') return '';
+  const hadNode = /\bNode(\.js)?\b/i.test(text);
+  let s = text.replace(/\s*·\s*Node(\.js)?\.?\s*$/gi, '').trim();
+  const parts = s.split(/\s*[—–]\s*/).filter(Boolean);
+  const kept = parts
+    .filter((p) => !/\bNode(\.js)?\b/i.test(p))
+    .map((p) => p.replace(/\s*(?:داخل|على|من|في|واجهة)\s+Node(\.js)?/gi, '').trim())
+    .filter(Boolean);
+  s = kept.join(' — ').replace(/\s{2,}/g, ' ').trim();
+  if (hadNode && /^(?:قائمة|جميع)\s+\S+$/u.test(s)) return '';
+  return s;
+}
+
 function salesPage({ user, title, bodyHtml, js = [], css = [], activePath = '', printTitle = '' }) {
   const printJs = js.includes('/assets/js/sales-print.js') ? js : [...js, '/assets/js/sales-print.js'];
   return renderApp({
@@ -42,6 +57,10 @@ function hero(opts) {
     subtitle = '',
     actions = [],
   } = opts;
+  const cleanKickerRaw = stripNodeMarketing(kicker);
+  const cleanKicker =
+    /\bNode(\.js)?\b/i.test(kicker) && /^Hypex\b/i.test(cleanKickerRaw) ? '' : cleanKickerRaw;
+  const cleanSubtitle = stripNodeMarketing(subtitle);
   const acts = actions
     .map((a) => {
       if (a.icon === 'back' || a.icon === 'print') {
@@ -70,7 +89,7 @@ function hero(opts) {
   const markHtml = mark
     ? `<div class="si-brand-mark" aria-hidden="true">${esc(mark)}</div>`
     : '';
-  const kickerHtml = kicker ? `<p class="si-kicker">${esc(kicker)}</p>` : '';
+  const kickerHtml = cleanKicker ? `<p class="si-kicker">${esc(cleanKicker)}</p>` : '';
   // العناوين فقط — بدون نصوص تسويقية/إرشادية افتراضية
   return `
     <header class="si-hero">
@@ -79,7 +98,7 @@ function hero(opts) {
         <div class="si-brand-text">
           ${kickerHtml}
           <h1>${esc(title)}</h1>
-          ${subtitle ? `<p class="si-hero-sub">${subtitle}</p>` : ''}
+          ${cleanSubtitle ? `<p class="si-hero-sub">${esc(cleanSubtitle)}</p>` : ''}
         </div>
       </div>
       <div class="si-hero-actions">${acts}</div>
@@ -187,9 +206,8 @@ function bridgeCard(title, phpRoute, desc, backHref = '/sales', backLabel = 'ع�
         <a class="si-btn si-btn--icon no-print" href="${esc(backHref)}" aria-label="${esc(backLabel)}" title="${esc(backLabel)}">${BACK_ICON_SVG}</a>
       </div>
       <div style="padding:1rem 1.1rem 1.25rem">
-        <p style="margin:0 0 .75rem;color:#5c6578;font-size:.9rem;line-height:1.5">${esc(desc)}</p>
-        <p class="muted" style="margin:0 0 1rem;font-size:.85rem">تم إيقاف تضمين شاشات PHP. افتح النسخة من Node إن وُجدت.</p>
-        <a class="si-btn si-btn--primary" href="/embed/${encodeURIComponent(phpRoute)}">فتح في Node</a>
+        <p style="margin:0 0 .75rem;color:#5c6578;font-size:.9rem;line-height:1.5">${esc(stripNodeMarketing(desc))}</p>
+        <a class="si-btn si-btn--primary" href="/embed/${encodeURIComponent(phpRoute)}">فتح الشاشة</a>
       </div>
     </section>`;
 }

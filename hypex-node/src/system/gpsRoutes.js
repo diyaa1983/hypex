@@ -211,7 +211,7 @@ router.get('/system/gps-tracker', async (req, res) => {
             <span class="ugt-toolbar__icon" aria-hidden="true">📡</span>
             <div>
               <strong>تتبّع المواقع</strong>
-              <small>الأجهزة الحيّة الآن وخط السير اليومي — Node</small>
+              <small>الأجهزة الحيّة الآن وخط السير اليومي</small>
             </div>
           </div>
           <div class="ugt-modeswitch" role="tablist">

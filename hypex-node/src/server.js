@@ -285,7 +285,7 @@ app.get('/app', auth.requireAuth, async (req, res) => {
       <header class="topbar">
         <div>
           <h1>لوحة التحكم</h1>
-          <p class="muted">نظام Hypex على Node.js · كل الشاشات والتقارير من القائمة الجانبية</p>
+          <p class="muted">نظام Hypex — كل الشاشات والتقارير من القائمة الجانبية</p>
         </div>
         <div class="topbar-actions">
           <a class="btn btn-primary" href="/sales/invoices/new">＋ فاتورة مبيعات</a>
@@ -433,10 +433,10 @@ app.get('/embed/:code', auth.requireAuth, (req, res) => {
         </div>
       </header>
       <section class="si-surface" style="padding:1.25rem 1.35rem">
-        <h2 style="margin:0 0 .5rem">هذه الشاشة داخل واجهة Node فقط</h2>
+        <h2 style="margin:0 0 .5rem">هذه الشاشة غير متاحة بعد</h2>
         <p class="muted" style="margin:0;line-height:1.55;font-size:.92rem">
           تم إيقاف فتح شاشات PHP القديمة من النظام.
-          الشاشة <code dir="ltr">${esc(code)}</code> لم تُربط بعد بمسار Node جاهز للتحرير —
+          الشاشة <code dir="ltr">${esc(code)}</code> لم تُربط بعد —
           استخدم القوائم من لوحة التحكم، أو راجع مدير النظام لإكمال التحويل.
         </p>
       </section>

@@ -30,7 +30,7 @@ function createDomainRouter(conf) {
     catalog,
     listHandlers = {},
     reportHandlers = {},
-    defaultBridgeDesc = 'الشاشة التفصيلية والإدخال/الترحيل عبر PHP حالياً. هذه الصفحة بنفس تصميم Node 2027.',
+    defaultBridgeDesc = 'الشاشة التفصيلية والإدخال/الترحيل عبر PHP حالياً.',
   } = conf;
 
   const router = express.Router();
