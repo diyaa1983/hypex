@@ -42,12 +42,16 @@ class CustomerOrderBluetoothReceipt {
         .toList();
     final fs = paperMm == 80 ? 12.0 : 10.0;
     final cellFs = paperMm == 80 ? 8.0 : 6.5;
-    final headStyle = pw.TextStyle(font: bold, fontSize: cellFs);
+    final headFs = paperMm == 80 ? 5.5 : 4.8;
+    final headStyle = pw.TextStyle(font: bold, fontSize: headFs);
     final valStyle = pw.TextStyle(font: reg, fontSize: cellFs);
     final valBold = pw.TextStyle(font: bold, fontSize: cellFs);
     final cellPad = paperMm == 80
         ? const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 3)
         : const pw.EdgeInsets.symmetric(horizontal: 1.2, vertical: 2);
+    final headPad = paperMm == 80
+        ? const pw.EdgeInsets.symmetric(horizontal: 0.6, vertical: 3)
+        : const pw.EdgeInsets.symmetric(horizontal: 0.4, vertical: 2.5);
     final salesRep = Fmt.str(
       order['sales_rep_name'] ?? order['sales_rep'] ?? order['rep_name'],
     );
@@ -70,6 +74,14 @@ class CustomerOrderBluetoothReceipt {
           overflow: overflow,
         );
 
+    pw.Widget headerCell(String text) => thermalCell(
+          text,
+          style: headStyle,
+          padding: headPad,
+          maxLines: 1,
+          overflow: pw.TextOverflow.visible,
+        );
+
     // الجدول LTR داخلياً → نعكس الخلايا ليُقرأ من اليمين:
     // Item | Unit | Qty | Extra | Price | Disc | Tax | Total
     List<pw.Widget> rtlRow(List<pw.Widget> cells) => cells.reversed.toList();
@@ -89,24 +101,21 @@ class CustomerOrderBluetoothReceipt {
 
     pw.Widget kvPlain(String label, String value) => pw.Padding(
           padding: const pw.EdgeInsets.only(bottom: 2),
-          child: pw.Row(
-            textDirection: pw.TextDirection.rtl,
-            children: [
-              pw.Text(
-                '$label: ',
+          child: pw.Row(children: [
+            pw.Text(
+              '$label: ',
+              textDirection: pw.TextDirection.rtl,
+              style: pw.TextStyle(font: bold, fontSize: fs),
+            ),
+            pw.Expanded(
+              child: pw.Text(
+                value,
                 textDirection: pw.TextDirection.rtl,
-                style: pw.TextStyle(font: bold, fontSize: fs),
+                textAlign: pw.TextAlign.right,
+                style: pw.TextStyle(font: reg, fontSize: fs),
               ),
-              pw.Expanded(
-                child: pw.Text(
-                  value,
-                  textDirection: pw.TextDirection.rtl,
-                  textAlign: pw.TextAlign.right,
-                  style: pw.TextStyle(font: reg, fontSize: fs),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ]),
         );
 
     pw.Widget moneyRow(String label, double v) => pw.Padding(
@@ -166,28 +175,28 @@ class CustomerOrderBluetoothReceipt {
               border: ThermalTableStyle.border,
               defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
               columnWidths: {
-                // بعد العكس: إجمالي | ضريبة | خصم | سعر | إضافي | كمية | وحدة | مادة
-                0: pw.FlexColumnWidth(paperMm == 80 ? 0.95 : 0.9),
-                1: const pw.FlexColumnWidth(0.5),
-                2: const pw.FlexColumnWidth(0.45),
-                3: pw.FlexColumnWidth(paperMm == 80 ? 0.7 : 0.65),
-                4: const pw.FlexColumnWidth(0.45),
-                5: const pw.FlexColumnWidth(0.5),
-                6: pw.FlexColumnWidth(paperMm == 80 ? 1.35 : 1.45),
-                7: pw.FlexColumnWidth(paperMm == 80 ? 2.15 : 1.9),
+                // بعد العكس: إجمالي | ضريبة | خصم | سعر | إضافي | كمية | وحدة | الصنف
+                0: pw.FlexColumnWidth(paperMm == 80 ? 0.78 : 0.74),
+                1: pw.FlexColumnWidth(paperMm == 80 ? 0.72 : 0.68),
+                2: const pw.FlexColumnWidth(0.58),
+                3: const pw.FlexColumnWidth(0.58),
+                4: const pw.FlexColumnWidth(0.6),
+                5: const pw.FlexColumnWidth(0.64),
+                6: pw.FlexColumnWidth(paperMm == 80 ? 0.7 : 0.72),
+                7: pw.FlexColumnWidth(paperMm == 80 ? 2.0 : 1.75),
               },
               children: [
                 pw.TableRow(
                   decoration: ThermalTableStyle.headerDecoration,
                   children: rtlRow([
-                    compactCell('مادة', style: headStyle, maxLines: 1),
-                    compactCell('وحدة', style: headStyle, maxLines: 1),
-                    compactCell('كمية', style: headStyle),
-                    compactCell('إضافي', style: headStyle),
-                    compactCell('سعر', style: headStyle),
-                    compactCell('خصم', style: headStyle),
-                    compactCell('ضريبة', style: headStyle),
-                    compactCell('إجمالي', style: headStyle),
+                    headerCell('الصنف'),
+                    headerCell('الوحدة'),
+                    headerCell('الكمية'),
+                    headerCell('إضافي'),
+                    headerCell('السعر'),
+                    headerCell('الخصم'),
+                    headerCell('الضريبة'),
+                    headerCell('الإجمالي'),
                   ]),
                 ),
                 for (var i = 0; i < lines.length; i++)

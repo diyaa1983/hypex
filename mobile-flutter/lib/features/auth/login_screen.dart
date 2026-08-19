@@ -66,12 +66,22 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  InputDecoration _fieldDecoration(String hint) {
+  static const _fieldHeight = 48.0;
+
+  InputDecoration _fieldDecoration({
+    String? hint,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+  }) {
     return InputDecoration(
       filled: true,
       fillColor: Colors.white,
-      isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      suffixIconConstraints: suffixIcon != null
+          ? const BoxConstraints(minWidth: 44, minHeight: 44)
+          : null,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: Color(0xFFD0D7E2)),
@@ -105,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 6),
-        SizedBox(height: 43, child: field),
+        SizedBox(height: _fieldHeight, width: double.infinity, child: field),
       ],
     );
   }
@@ -230,8 +240,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           field: TextField(
                             controller: _user,
                             textInputAction: TextInputAction.next,
+                            textAlignVertical: TextAlignVertical.center,
                             style: const TextStyle(fontSize: 15),
-                            decoration: _fieldDecoration(''),
+                            decoration: _fieldDecoration(
+                              hint: 'أدخل اسم المستخدم',
+                              prefixIcon: const Icon(
+                                Icons.person_outline,
+                                size: 20,
+                                color: AppTheme.textSoft,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -241,14 +259,22 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _pass,
                             obscureText: _obscure,
                             onSubmitted: (_) => _submit(),
+                            textAlignVertical: TextAlignVertical.center,
                             style: const TextStyle(fontSize: 15),
-                            decoration: _fieldDecoration('').copyWith(
+                            decoration: _fieldDecoration(
+                              hint: 'أدخل كلمة المرور',
+                              prefixIcon: const Icon(
+                                Icons.lock_outline,
+                                size: 20,
+                                color: AppTheme.textSoft,
+                              ),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscure
                                       ? Icons.visibility_outlined
                                       : Icons.visibility_off_outlined,
                                   size: 20,
+                                  color: AppTheme.textSoft,
                                 ),
                                 onPressed: () =>
                                     setState(() => _obscure = !_obscure),
