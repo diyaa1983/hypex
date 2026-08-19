@@ -301,7 +301,7 @@ async function renderStandalonePrintPage({
     .inv-v1-table .c-disc{color:#b45309;font-weight:700}
     .inv-v1-table .c-gross{font-weight:800}
     .inv-v1-table .empty{text-align:center;color:#64748b;padding:12px}
-    /* بنود الفاتورة: اسم ضيّق مع التفاف · العناوين الأخرى طولية لتضيق الأعمدة */
+    /* بنود الفاتورة: اسم ضيّق مع التفاف · العناوين الأخرى أفقية */
     .inv-v1-table--lines{table-layout:fixed}
     .inv-v1-table--lines col.c-col-name{width:28%}
     .inv-v1-table--lines col.c-col-unit{width:7%}
@@ -314,12 +314,8 @@ async function renderStandalonePrintPage({
     .inv-v1-table--lines thead th.c-name-h{
       white-space:normal;font-size:7.5pt;line-height:1.2;padding:5px 4px
     }
-    .inv-v1-table--lines thead th.c-vert{
-      vertical-align:bottom;padding:6px 1px 4px;height:4.8em;line-height:1;white-space:nowrap
-    }
-    .inv-v1-table--lines thead th.c-vert span{
-      display:inline-block;writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;
-      transform:rotate(180deg);white-space:nowrap;font-size:8pt;font-weight:700
+    .inv-v1-table--lines thead th.c-h{
+      vertical-align:middle;padding:4px 3px;font-size:7pt;line-height:1.2;white-space:nowrap
     }
     .inv-v1-table--lines .c-name{
       max-width:0;width:28%;white-space:normal;word-break:break-word;overflow-wrap:anywhere;
@@ -332,16 +328,20 @@ async function renderStandalonePrintPage({
     /* مجاميع كلاسيكية — جدول يسار/أسفل */
     .inv-v1-foot{
       display:flex;flex-direction:column;align-items:flex-start;
-      gap:0;margin-top:12px
+      gap:0;margin-top:12px;width:100%
     }
-    .inv-v1-sumwrap{min-width:14rem;align-self:flex-start}
+    .inv-v1-sumwrap{min-width:14rem;max-width:100%;width:100%;align-self:flex-start}
     .inv-v1-sum{width:auto;min-width:14rem;border-collapse:collapse;font-size:10pt}
     .inv-v1-sum td{border:0!important;padding:3px 6px;background:transparent!important}
     .inv-v1-sum .lbl{text-align:right;font-weight:700;color:#1e3a5f;white-space:nowrap}
     .inv-v1-sum .val{text-align:left;font-weight:700;font-variant-numeric:tabular-nums;min-width:5.5rem;color:#0f172a}
     .inv-v1-sum tr.grand td{font-size:12pt;font-weight:800;color:#1e3a5f;padding-top:7px;
       border-top:1px solid #1e3a5f!important}
-    .inv-v1-notes{margin-top:10px;font-size:9.5pt;text-align:right;color:#334155}
+    .inv-v1-notes{
+      margin-top:10px;font-size:9.5pt;text-align:right;color:#334155;
+      max-width:100%;width:100%;white-space:pre-wrap;word-break:break-word;
+      overflow-wrap:anywhere;line-height:1.45
+    }
     .inv-v1-notes span{font-weight:700;color:#1e3a5f}
     .inv-v1-sign{
       margin-top:2.8rem;width:100%;
@@ -516,13 +516,13 @@ function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
           <thead>
             <tr>
               <th class="c-name-h">اسم المادة</th>
-              <th class="c-vert"><span>وحدة</span></th>
-              <th class="c-vert"><span>الكمية</span></th>
-              <th class="c-vert"><span>اضافي</span></th>
-              <th class="c-vert"><span>السعر</span></th>
-              <th class="c-vert"><span>الخصم</span></th>
-              <th class="c-vert"><span>الضريبة</span></th>
-              <th class="c-vert"><span>الإجمالي</span></th>
+              <th class="c-h">وحدة</th>
+              <th class="c-h">الكمية</th>
+              <th class="c-h">اضافي</th>
+              <th class="c-h">السعر</th>
+              <th class="c-h">الخصم</th>
+              <th class="c-h">الضريبة</th>
+              <th class="c-h">الإجمالي</th>
             </tr>
           </thead>
           <tbody>${body}</tbody>

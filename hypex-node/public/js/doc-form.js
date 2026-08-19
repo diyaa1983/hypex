@@ -95,8 +95,19 @@
   }
   function setMsg(text, type) {
     if (!msgEl) return;
+    if (type === 'ok') {
+      msgEl.textContent = '';
+      msgEl.className = 'si-msg';
+      if (text && window.HypexUI && typeof window.HypexUI.toast === 'function') {
+        window.HypexUI.toast(text, 'ok', 1000);
+      }
+      return;
+    }
     msgEl.textContent = text || '';
-    msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : type === 'ok' ? ' is-ok' : '');
+    msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : '');
+    if (text && type === 'error' && window.HypexUI && typeof window.HypexUI.toast === 'function') {
+      window.HypexUI.toast(text, 'error', 4200);
+    }
   }
   function lineTotals(ln) {
     var qty = Number(ln.qty) || 0;
@@ -269,6 +280,9 @@
               state.lines[idx].tax_rate_percent = defaultTax;
             box.hidden = true;
             renderLines();
+            if (window.HxShortcuts && window.HxShortcuts.focusLineQty) {
+              window.HxShortcuts.focusLineQty(idx, '#df-lines-body');
+            }
           });
           box.appendChild(b);
         });
@@ -314,6 +328,9 @@
     if (!state.lines[idx].qty) state.lines[idx].qty = 1;
     if (state.lines[idx].tax_rate_percent == null) state.lines[idx].tax_rate_percent = defaultTax;
     renderLines();
+    if (window.HxShortcuts && window.HxShortcuts.focusLineQty) {
+      window.HxShortcuts.focusLineQty(idx, '#df-lines-body');
+    }
   });
 
   document.addEventListener('hx:customer-picked', function (e) {

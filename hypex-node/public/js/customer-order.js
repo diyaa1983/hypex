@@ -285,6 +285,15 @@
     setCustomerPriceMode(c);
     if (custBox) custBox.hidden = true;
     loadCustomerAr(c.id);
+    focusFirstItemBarcode();
+  }
+
+  function focusFirstItemBarcode() {
+    setTimeout(function () {
+      if (locked) return;
+      if (!(state.lines || []).length) addEmptyLine();
+      focusLineField(0, '.js-item-code', true);
+    }, 40);
   }
 
   function priceStep() {
@@ -830,7 +839,7 @@
     closeItemSuggest(tr.querySelector('.js-item-suggest'));
     renderLines({
       idx: idx,
-      cls: focusNext ? '.js-unit' : '.js-item-code',
+      cls: focusNext ? '.js-qty' : '.js-item-code',
       select: !focusNext,
     });
   }
@@ -1419,7 +1428,7 @@
       idx = state.lines.length - 1;
     }
     state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
-    renderLines({ idx: idx, cls: '.js-unit', select: false });
+    renderLines({ idx: idx, cls: '.js-qty', select: true });
   });
 
   document.addEventListener('hx:customer-picked', function (e) {

@@ -163,8 +163,7 @@ function mobile_invoice_print_pdf_overrides_css(): string
         . '#m-inv-pdf-preview table.inv-print-lines th,#m-inv-pdf-preview table.inv-print-lines td{box-sizing:border-box!important;vertical-align:middle!important;}'
         . '#m-inv-pdf-preview table.inv-print-lines th{font-size:8px!important;line-height:1.25!important;padding:4px 2px!important;}'
         . '#m-inv-pdf-preview table.inv-print-lines th.inv-print-th-name{white-space:normal!important;}'
-        . '#m-inv-pdf-preview table.inv-print-lines th.inv-print-th-vert{white-space:nowrap!important;height:4.6em!important;vertical-align:bottom!important;padding:5px 1px!important;}'
-        . '#m-inv-pdf-preview table.inv-print-lines th.inv-print-th-vert span{display:inline-block!important;writing-mode:vertical-rl!important;-webkit-writing-mode:vertical-rl!important;transform:rotate(180deg)!important;white-space:nowrap!important;}'
+        . '#m-inv-pdf-preview table.inv-print-lines th.inv-print-th-h{white-space:nowrap!important;vertical-align:middle!important;padding:4px 2px!important;font-size:7px!important;}'
         . '#m-inv-pdf-preview table.inv-print-lines td{font-size:9px!important;line-height:1.3!important;padding:3px 2px!important;}'
         . '#m-inv-pdf-preview table.inv-print-lines td:not(.inv-print-cell-item):not(.inv-print-cell-unit){white-space:nowrap!important;}'
         . '#m-inv-pdf-preview table.inv-print-lines td.inv-print-cell-item{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;text-align:start!important;font-size:8px!important;}'
@@ -172,7 +171,7 @@ function mobile_invoice_print_pdf_overrides_css(): string
         . '#m-inv-pdf-preview table.inv-print-header-row td.inv-print-header-meta{width:72%!important;}'
         . '#m-inv-pdf-preview table.inv-print-header-row td.inv-print-header-qr{width:28%!important;vertical-align:top!important;}'
         . '#m-inv-pdf-preview .doc-print-signature-block{clear:both!important;page-break-inside:avoid!important;margin-top:1rem!important;}'
-        . '#m-inv-pdf-preview .m-pdf-notes{margin:0.6rem 0 0!important;font-size:10px!important;line-height:1.45!important;text-align:right!important;direction:rtl!important;}';
+        . '#m-inv-pdf-preview .m-pdf-notes{margin:0.6rem 0 0!important;font-size:10px!important;line-height:1.45!important;text-align:right!important;direction:rtl!important;max-width:100%!important;white-space:pre-wrap!important;word-break:break-word!important;overflow-wrap:anywhere!important;}';
 }
 
 /** يمنع تطبيق أنماط الطباعة على body الصفحة الرئيسية أثناء html2pdf */
@@ -193,12 +192,12 @@ function mobile_invoice_print_table_css(): string
         . 'table.inv-print-lines{border-collapse:collapse;width:100%;margin-top:0.5rem;font-size:10px;table-layout:fixed;}'
         . 'table.inv-print-lines th{background:#f1f5f9;padding:0.28rem 0.2rem;border:1px solid #94a3b8;font-size:10px;font-weight:400!important;color:#475569;text-align:center;}'
         . 'table.inv-print-lines th.inv-print-th-name{white-space:normal;font-size:9px;}'
-        . 'table.inv-print-lines th.inv-print-th-vert{height:4.6em;vertical-align:bottom;padding:0.35rem 0.1rem;white-space:nowrap;}'
-        . 'table.inv-print-lines th.inv-print-th-vert span{display:inline-block;writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;font-size:9px;}'
+        . 'table.inv-print-lines th.inv-print-th-h{vertical-align:middle;padding:0.35rem 0.15rem;white-space:nowrap;font-size:8px;}'
         . 'table.inv-print-lines td{padding:0.22rem 0.2rem;border:1px solid #cbd5e1;text-align:center;font-size:10px;font-weight:700!important;color:#0f172a;}'
         . 'table.inv-print-lines td.inv-print-cell-item{text-align:start;white-space:normal;word-break:break-word;overflow-wrap:anywhere;font-size:9px;line-height:1.25;}'
         . 'table.inv-print-lines td.inv-print-cell-unit{white-space:normal;word-break:break-word;font-size:8px;}'
-        . 'table.inv-print-lines .inv-print-cell-disc{color:#b45309;}';
+        . 'table.inv-print-lines .inv-print-cell-disc{color:#b45309;}'
+        . '.inv-print-notes{margin:0.75rem 0 0;font-size:0.88rem;direction:rtl;text-align:right;max-width:100%;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;line-height:1.45;}';
 }
 
 /** @param array<string, mixed> $inv */
@@ -248,13 +247,13 @@ function mobile_invoice_print_thead_row(bool $showQtyExtra = true, bool $showDis
 {
     return '<tr>'
         . '<th class="inv-print-th-name">اسم المادة</th>'
-        . '<th class="inv-print-th-vert"><span>وحدة</span></th>'
-        . '<th class="inv-print-th-vert"><span>الكمية</span></th>'
-        . '<th class="inv-print-th-vert"><span>اضافي</span></th>'
-        . '<th class="inv-print-th-vert"><span>السعر</span></th>'
-        . '<th class="inv-print-th-vert"><span>الخصم</span></th>'
-        . '<th class="inv-print-th-vert"><span>الضريبة</span></th>'
-        . '<th class="inv-print-th-vert"><span>الإجمالي</span></th>'
+        . '<th class="inv-print-th-h">وحدة</th>'
+        . '<th class="inv-print-th-h">الكمية</th>'
+        . '<th class="inv-print-th-h">اضافي</th>'
+        . '<th class="inv-print-th-h">السعر</th>'
+        . '<th class="inv-print-th-h">الخصم</th>'
+        . '<th class="inv-print-th-h">الضريبة</th>'
+        . '<th class="inv-print-th-h">الإجمالي</th>'
         . '</tr>';
 }
 
@@ -581,7 +580,7 @@ function mobile_invoice_print_inner_html(PDO $pdo, array $inv, bool $forPdf = fa
     $notesBlock = $notes !== ''
         ? ($forPdf
             ? '<p class="m-pdf-notes"><strong>ملاحظات:</strong> ' . esc($notes) . '</p>'
-            : '<p style="margin:0.75rem 0 0;font-size:0.88rem;direction:rtl;unicode-bidi:isolate;"><strong>ملاحظات:</strong> <bdi>' . esc($notes) . '</bdi></p>')
+            : '<p class="inv-print-notes"><strong>ملاحظات:</strong> <bdi>' . esc($notes) . '</bdi></p>')
         : '';
 
     $totalsBlock = $forPdf

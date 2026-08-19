@@ -267,12 +267,18 @@
 
   function setMsg(text, type) {
     if (!msgEl) return;
-    msgEl.textContent = text || '';
-    msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : type === 'ok' ? ' is-ok' : '');
-    if (text && window.HypexUI && typeof window.HypexUI.toast === 'function') {
-      if (type === 'error' || type === 'ok') {
-        window.HypexUI.toast(text, type === 'error' ? 'error' : 'ok', type === 'error' ? 4200 : 2800);
+    if (type === 'ok') {
+      msgEl.textContent = '';
+      msgEl.className = 'si-msg';
+      if (text && window.HypexUI && typeof window.HypexUI.toast === 'function') {
+        window.HypexUI.toast(text, 'ok', 1000);
       }
+      return;
+    }
+    msgEl.textContent = text || '';
+    msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : '');
+    if (text && type === 'error' && window.HypexUI && typeof window.HypexUI.toast === 'function') {
+      window.HypexUI.toast(text, 'error', 4200);
     }
   }
 

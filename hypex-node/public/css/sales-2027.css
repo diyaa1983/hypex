@@ -804,6 +804,10 @@ label .si-field-key {
   line-height: 1.35;
 }
 
+.si-msg:empty {
+  display: none;
+}
+
 .si-msg.is-ok {
   color: #6ee7a8;
   font-weight: 700;

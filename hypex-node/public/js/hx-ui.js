@@ -310,13 +310,21 @@
     el.className = 'hx-ui-toast' + (kind ? ' is-' + kind : '');
     el.textContent = String(message || '');
     host.appendChild(el);
+    var duration =
+      ms != null
+        ? ms
+        : kind === 'ok'
+          ? 1000
+          : kind === 'error'
+            ? 4200
+            : 2800;
     setTimeout(function () {
       el.style.opacity = '0';
-      el.style.transition = 'opacity .25s ease';
+      el.style.transition = 'opacity .18s ease';
       setTimeout(function () {
         el.remove();
-      }, 280);
-    }, ms || 2800);
+      }, 200);
+    }, duration);
   }
 
   function extractConfirmMsg(attr) {

@@ -184,6 +184,26 @@
     return false;
   }
 
+  function focusLineQty(idx, tbodySel) {
+    var tb = document.querySelector(tbodySel || '#si-lines-body, #df-lines-body, #co-lines-body');
+    if (!tb || idx == null || idx < 0) return;
+    setTimeout(function () {
+      var tr = tb.querySelector('tr[data-idx="' + idx + '"]');
+      var q = tr && tr.querySelector('.js-qty');
+      if (!q || q.disabled || q.readOnly) return;
+      try {
+        q.focus({ preventScroll: true });
+        if (q.select) q.select();
+      } catch (e) {
+        try {
+          q.focus();
+        } catch (e2) {
+          /* ignore */
+        }
+      }
+    }, 40);
+  }
+
   function focusLastItemInput() {
     var sels = [
       '#si-lines-body tr:last-child input.js-item',
@@ -531,7 +551,6 @@
     document.dispatchEvent(ev);
     if (ev.defaultPrevented) {
       toast('مادة: ' + (it.name_ar || it.code || it.sku || ''));
-      setTimeout(focusLastItemInput, 40);
       return;
     }
 
@@ -774,5 +793,6 @@
     customers: openPartyList,
     items: openItems,
     close: closeModal,
+    focusLineQty: focusLineQty,
   };
 })();

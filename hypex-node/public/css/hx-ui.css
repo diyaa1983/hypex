@@ -172,7 +172,7 @@
   z-index: 2;
 }
 
-.hx-ui__btn:hover {
+.hx-ui__btn:hover:not(.hx-ui__btn--primary):not(.hx-ui__btn--danger) {
   background: #f1f5f9;
 }
 
@@ -187,8 +187,11 @@
   color: #fff;
 }
 
-.hx-ui__btn--primary:hover {
-  filter: brightness(1.05);
+.hx-ui__btn--primary:hover,
+.hx-ui__btn--primary:focus {
+  background: linear-gradient(180deg, #7dd3fc 0%, #0369a1 100%);
+  color: #fff;
+  filter: none;
 }
 
 .hx-ui__btn--danger,
@@ -199,8 +202,12 @@
 }
 
 .hx-ui__btn--danger:hover,
-.hx-ui__btn--primary.hx-ui__btn--danger:hover {
-  filter: brightness(1.05);
+.hx-ui__btn--primary.hx-ui__btn--danger:hover,
+.hx-ui__btn--danger:focus,
+.hx-ui__btn--primary.hx-ui__btn--danger:focus {
+  background: linear-gradient(180deg, #fca5a5 0%, #dc2626 100%);
+  color: #fff;
+  filter: none;
 }
 
 .hx-ui__panel {
@@ -211,15 +218,16 @@
   pointer-events: auto;
 }
 
-/* توست أعلى وسط */
+/* توست أسفل وسط — fixed فقط، بلا تأثير على تخطيط الصفحة */
 .hx-ui-toast-host {
   position: fixed;
-  top: 1rem;
+  bottom: 1.35rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 20060;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 0.45rem;
   width: min(420px, calc(100% - 1.5rem));
   pointer-events: none;
@@ -227,36 +235,40 @@
 
 .hx-ui-toast {
   pointer-events: auto;
-  padding: 0.7rem 0.95rem;
-  border-radius: 12px;
-  background: #0f172a;
+  padding: 0.65rem 1.05rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
   color: #f8fafc;
   font: 700 0.88rem/1.4 Arial, Helvetica, sans-serif;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.28);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.32);
   text-align: center;
   direction: rtl;
-  animation: hx-ui-toast-in 0.25s ease both;
+  max-width: 100%;
+  animation: hx-ui-toast-in 0.18s ease both;
 }
 
 .hx-ui-toast.is-ok {
-  background: linear-gradient(180deg, #059669 0%, #047857 100%);
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.32), 0 0 0 1px rgba(14, 165, 233, 0.1);
 }
 
 .hx-ui-toast.is-error {
-  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+  background: linear-gradient(180deg, #7f1d1d 0%, #991b1b 100%);
+  border-color: rgba(252, 165, 165, 0.35);
 }
 
 .hx-ui-toast.is-warn {
-  background: linear-gradient(180deg, #d97706 0%, #b45309 100%);
+  background: linear-gradient(180deg, #92400e 0%, #78350f 100%);
+  border-color: rgba(251, 191, 36, 0.35);
 }
 
 @keyframes hx-ui-toast-in {
   from {
     opacity: 0;
-    transform: translateY(-8px);
   }
   to {
     opacity: 1;
-    transform: none;
   }
 }
