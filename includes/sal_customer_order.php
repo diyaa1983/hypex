@@ -104,6 +104,20 @@ function sal_customer_order_ensure_schema(PDO $pdo): bool
 
     if ($ok) {
         sal_customer_order_ensure_pricing_schema($pdo);
+        if (!sal_customer_order_has_column($pdo, 'sal_customer_order', 'payment_type')) {
+            try {
+                require_once app_path('includes/sql_migration.php');
+                sql_migration_run_file($pdo, 'database/migrations/280_sal_customer_order_payment_type.sql');
+            } catch (Throwable $e) {
+                try {
+                    $pdo->exec(
+                        "ALTER TABLE sal_customer_order
+                         ADD COLUMN payment_type ENUM('credit','cash') NOT NULL DEFAULT 'credit' AFTER warehouse_id"
+                    );
+                } catch (Throwable $e2) {
+                }
+            }
+        }
         if (!sal_customer_order_has_column($pdo, 'sal_customer_order', 'is_sent')) {
             try {
                 require_once app_path('includes/sql_migration.php');
@@ -603,9 +617,11 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
     $notes = trim((string) ($data['notes'] ?? '')) ?: null;
     $headerDisc = trim((string) ($data['invoice_discount'] ?? $data['invoice_discount_input'] ?? ''));
     $salesRepInput = (int) ($data['sales_rep_id'] ?? 0);
+    $paymentType = strtolower(trim((string) ($data['payment_type'] ?? 'credit'))) === 'cash' ? 'cash' : 'credit';
 
     sal_customer_order_ensure_pricing_schema($pdo);
     $hasPricing = sal_customer_order_has_pricing($pdo);
+    $hasPay = sal_customer_order_has_column($pdo, 'sal_customer_order', 'payment_type');
 
     if ($hasPricing) {
         $norm = sal_customer_order_normalize_priced_lines($pdo, $lines, $headerDisc);
@@ -637,37 +653,67 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
                 $repToStore = $forceRepId;
             }
             if ($hasPricing) {
-                $pdo->prepare(
-                    'UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,notes=?,
-                     subtotal=?,discount_amount=?,tax_amount=?,total=?,invoice_discount_input=?,updated_by=? WHERE id=?'
-                )->execute([
-                    $date, $customerId, $repToStore, $warehouseId, $notes,
+                $paySql = $hasPay ? 'payment_type=?,' : '';
+                $params = [$date, $customerId, $repToStore, $warehouseId];
+                if ($hasPay) {
+                    $params[] = $paymentType;
+                }
+                $params = array_merge($params, [
+                    $notes,
                     $norm['subtotal'], $norm['discount_amount'], $norm['tax_amount'], $norm['total'],
                     $norm['invoice_discount_input'], $userId, $id,
                 ]);
-            } else {
                 $pdo->prepare(
-                    'UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,notes=?,updated_by=? WHERE id=?'
-                )->execute([$date, $customerId, $repToStore, $warehouseId, $notes, $userId, $id]);
+                    "UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,{$paySql}notes=?,
+                     subtotal=?,discount_amount=?,tax_amount=?,total=?,invoice_discount_input=?,updated_by=? WHERE id=?"
+                )->execute($params);
+            } else {
+                $paySql = $hasPay ? 'payment_type=?,' : '';
+                $params = [$date, $customerId, $repToStore, $warehouseId];
+                if ($hasPay) {
+                    $params[] = $paymentType;
+                }
+                $params[] = $notes;
+                $params[] = $userId;
+                $params[] = $id;
+                $pdo->prepare(
+                    "UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,{$paySql}notes=?,updated_by=? WHERE id=?"
+                )->execute($params);
             }
         } else {
             $no = sal_customer_order_generate_next_no($pdo, $date);
             $rep = $forceRepId ?? ($salesRepInput > 0 ? $salesRepInput : null);
             if ($hasPricing) {
-                $pdo->prepare(
-                    'INSERT INTO sal_customer_order
-                     (order_no,order_date,customer_id,sales_rep_id,warehouse_id,notes,subtotal,discount_amount,tax_amount,total,invoice_discount_input,created_by,updated_by)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
-                )->execute([
-                    $no, $date, $customerId, $rep, $warehouseId, $notes,
+                $payCol = $hasPay ? 'payment_type,' : '';
+                $payQ = $hasPay ? '?,' : '';
+                $params = [$no, $date, $customerId, $rep, $warehouseId];
+                if ($hasPay) {
+                    $params[] = $paymentType;
+                }
+                $params = array_merge($params, [
+                    $notes,
                     $norm['subtotal'], $norm['discount_amount'], $norm['tax_amount'], $norm['total'],
                     $norm['invoice_discount_input'], $userId, $userId,
                 ]);
-            } else {
                 $pdo->prepare(
-                    'INSERT INTO sal_customer_order (order_no,order_date,customer_id,sales_rep_id,warehouse_id,notes,created_by,updated_by)
-                     VALUES (?,?,?,?,?,?,?,?)'
-                )->execute([$no, $date, $customerId, $rep, $warehouseId, $notes, $userId, $userId]);
+                    "INSERT INTO sal_customer_order
+                     (order_no,order_date,customer_id,sales_rep_id,warehouse_id,{$payCol}notes,subtotal,discount_amount,tax_amount,total,invoice_discount_input,created_by,updated_by)
+                     VALUES (?,?,?,?,?,{$payQ}?,?,?,?,?,?,?,?)"
+                )->execute($params);
+            } else {
+                $payCol = $hasPay ? 'payment_type,' : '';
+                $payQ = $hasPay ? '?,' : '';
+                $params = [$no, $date, $customerId, $rep, $warehouseId];
+                if ($hasPay) {
+                    $params[] = $paymentType;
+                }
+                $params[] = $notes;
+                $params[] = $userId;
+                $params[] = $userId;
+                $pdo->prepare(
+                    "INSERT INTO sal_customer_order (order_no,order_date,customer_id,sales_rep_id,warehouse_id,{$payCol}notes,created_by,updated_by)
+                     VALUES (?,?,?,?,?,{$payQ}?,?,?)"
+                )->execute($params);
             }
             $id = (int) $pdo->lastInsertId();
         }

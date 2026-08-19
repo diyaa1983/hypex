@@ -12,6 +12,7 @@ import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
+import '../../widgets/app_confirm_dialog.dart';
 
 class RepVisitsScreen extends StatefulWidget {
   const RepVisitsScreen({super.key});
@@ -332,22 +333,10 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       }).toList();
 
   Future<bool> _confirm(String title, String body) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body, style: const TextStyle(height: 1.45)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('تأكيد'),
-          ),
-        ],
-      ),
+    final ok = await showAppConfirmDialog(
+      context,
+      title: title,
+      message: body,
     );
     return ok == true;
   }

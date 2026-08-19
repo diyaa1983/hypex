@@ -242,6 +242,7 @@ async function renderOrderPrint(req, res, orderId) {
             <div><span>التاريخ:</span> <strong dir="ltr">${esc(isoToDmy(order.order_date))}</strong></div>
             <div><span>العميل:</span> <strong>${esc(custLabel)}</strong></div>
             <div><span>الحالة:</span> <strong>${esc(statusLabel)}</strong></div>
+            <div><span>النوع:</span> <strong>${esc(order.payment_type === 'cash' ? 'نقدي' : 'ذمم')}</strong></div>
             <div><span>المندوب:</span> <strong>${esc(order.sales_rep_name || '—')}</strong></div>
             <div><span>المستودع:</span> <strong>${esc(order.warehouse_name || '—')}</strong></div>
           </div>
@@ -330,6 +331,7 @@ async function renderForm(req, res, orderId) {
     use_wholesale_price: order ? (Number(order.use_wholesale_price) === 1 ? 1 : 0) : 0,
     sales_rep_id: order ? order.sales_rep_id : null,
     warehouse_id: order ? order.warehouse_id : lookups.warehouses[0]?.id || '',
+    payment_type: order && order.payment_type === 'cash' ? 'cash' : 'credit',
     notes: order ? order.notes : '',
     invoice_discount: order ? order.invoice_discount_input : '',
     is_approved: locked,
@@ -426,7 +428,14 @@ async function renderForm(req, res, orderId) {
             <span class="si-f-head">التاريخ</span>
             <input class="si-field si-field--mono" id="co_date" type="date" value="${esc(initial.order_date)}" ${locked ? 'readonly' : ''} data-nav="1">
           </label>
-          <label class="si-f si-f--pay si-f--rep">
+          <label class="si-f si-f--pay">
+            <span class="si-f-head">النوع</span>
+            <select class="si-field" id="co_pay" ${locked ? 'disabled' : ''} data-nav="1">
+              <option value="credit"${initial.payment_type === 'credit' ? ' selected' : ''}>ذمم</option>
+              <option value="cash"${initial.payment_type === 'cash' ? ' selected' : ''}>نقدي</option>
+            </select>
+          </label>
+          <label class="si-f si-f--rep">
             <span class="si-f-head">المندوب</span>
             <select class="si-field" id="co_rep" ${locked ? 'disabled' : ''} data-nav="1">${repOpts}</select>
           </label>

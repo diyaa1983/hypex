@@ -807,7 +807,7 @@
   }
 
   function headerNavEls() {
-    var ids = ['co_date', 'co_rep', 'co_wh', 'co_customer'];
+    var ids = ['co_date', 'co_pay', 'co_rep', 'co_wh', 'co_customer'];
     var list = [];
     ids.forEach(function (id) {
       var el = document.getElementById(id);
@@ -1623,6 +1623,7 @@
       customer_id: Number((document.getElementById('co_customer_id') || {}).value || 0),
       sales_rep_id: Number((document.getElementById('co_rep') || {}).value || 0) || null,
       warehouse_id: Number((document.getElementById('co_wh') || {}).value || 0) || null,
+      payment_type: (document.getElementById('co_pay') || {}).value || 'credit',
       notes: (document.getElementById('co_notes') || {}).value || '',
       invoice_discount: (document.getElementById('co_discount') || {}).value || '',
       lines: (state.lines || []).filter(function (ln) {

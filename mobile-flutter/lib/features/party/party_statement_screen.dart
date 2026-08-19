@@ -372,11 +372,19 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                       Expanded(
                         child: rows.isEmpty
                             ? const EmptyState(message: 'لا توجد حركات.')
-                            : ListView.separated(
-                                itemCount: rows.length,
-                                separatorBuilder: (_, __) =>
-                                    const Divider(height: 1),
-                                itemBuilder: (_, i) => _rowTile(rows[i]),
+                            : Column(
+                                children: [
+                                  _stmtHeader(),
+                                  Expanded(
+                                    child: ListView.separated(
+                                      itemCount: rows.length,
+                                      separatorBuilder: (_, __) =>
+                                          const Divider(height: 1),
+                                      itemBuilder: (_, i) =>
+                                          _rowTile(rows[i]),
+                                    ),
+                                  ),
+                                ],
                               ),
                       ),
                     ],
@@ -459,6 +467,39 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
     );
   }
 
+  Widget _stmtHeader() {
+    const style = TextStyle(
+      fontWeight: FontWeight.w800,
+      fontSize: 11,
+      color: Color(0xFF475569),
+    );
+    return Container(
+      color: const Color(0xFFE2E8F0),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      child: const Row(
+        children: [
+          SizedBox(
+            width: 68,
+            child: Text('التاريخ', style: style, textAlign: TextAlign.center),
+          ),
+          Expanded(child: Text('البيان', style: style)),
+          SizedBox(
+            width: 64,
+            child: Text('مدين', style: style, textAlign: TextAlign.center),
+          ),
+          SizedBox(
+            width: 64,
+            child: Text('دائن', style: style, textAlign: TextAlign.center),
+          ),
+          SizedBox(
+            width: 72,
+            child: Text('رصيد', style: style, textAlign: TextAlign.center),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _rowTile(Map<String, dynamic> row) {
     final desc = Fmt.str(
       row['description'] ??
@@ -473,25 +514,53 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
     final debit = Fmt.toDouble(row['debit']);
     final credit = Fmt.toDouble(row['credit']);
     final balance = Fmt.toDouble(row['balance'] ?? row['running_balance']);
-    return ListTile(
-      dense: true,
-      title: Text(desc.isEmpty ? '—' : desc),
-      subtitle: Text(date, textDirection: TextDirection.ltr),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
+    const numStyle = TextStyle(fontSize: 11, fontWeight: FontWeight.w600);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            debit > 0
-                ? 'مدين ${Fmt.money(debit)}'
-                : 'دائن ${Fmt.money(credit)}',
-            textDirection: TextDirection.ltr,
-            style: const TextStyle(fontSize: 12),
+          SizedBox(
+            width: 68,
+            child: Text(
+              date.isEmpty ? '—' : date,
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11),
+            ),
           ),
-          Text(
-            'الرصيد ${Fmt.money(balance)}',
-            textDirection: TextDirection.ltr,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          Expanded(
+            child: Text(
+              desc.isEmpty ? '—' : desc,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+          SizedBox(
+            width: 64,
+            child: Text(
+              debit > 0 ? Fmt.money(debit) : '',
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.center,
+              style: numStyle,
+            ),
+          ),
+          SizedBox(
+            width: 64,
+            child: Text(
+              credit > 0 ? Fmt.money(credit) : '',
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.center,
+              style: numStyle,
+            ),
+          ),
+          SizedBox(
+            width: 72,
+            child: Text(
+              Fmt.money(balance),
+              textDirection: TextDirection.ltr,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),

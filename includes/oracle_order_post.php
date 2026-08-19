@@ -180,7 +180,10 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     }
 
     $store = oracle_order_store_no($mysql, (int) ($order['warehouse_id'] ?? 0));
-    $salesman = oracle_sales_invoice_salesman($conn, $custAcc);
+    $salesman = oracle_order_hypex_salesman($mysql, $order);
+    $isCash = strtolower((string) ($order['payment_type'] ?? 'credit')) === 'cash';
+    $cacr = $isCash ? 1 : 2;
+    $cashFlag = $isCash ? 1 : 0;
     $orderDate = substr((string) ($order['order_date'] ?? date('Y-m-d')), 0, 10);
     $vyear = (int) substr($orderDate, 0, 4);
     if ($vyear < 2000) {
@@ -334,8 +337,8 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'TOT_AMT' => (float) ($order['total'] ?? 0),
         'TOT_TAX' => (float) ($order['tax_amount'] ?? $sumTax),
         'TRAN_RATE' => 1,
-        'CASH' => 0,
-        'CACR' => 2,
+        'CASH' => $cashFlag,
+        'CACR' => $cacr,
         'VOU_FLAG' => 18,
         'UPD_FLAG' => 'SS',
         'DH_FLAGE' => 1,
@@ -498,6 +501,36 @@ function oracle_order_max_vnum(array $conn, string $from, int $stype, int $vyear
 }
 
 /**
+ * بائع أوراكل من رمز مندوب Hypex إن كان رقماً موجباً، وإلا 1.
+ *
+ * @return array{no:int,name:string}
+ */
+function oracle_order_hypex_salesman(PDO $mysql, array $order): array
+{
+    $fallback = ['no' => 1, 'name' => ''];
+    $repId = (int) ($order['sales_rep_id'] ?? 0);
+    if ($repId < 1) {
+        return $fallback;
+    }
+    try {
+        $st = $mysql->prepare('SELECT code, name_ar FROM crm_sales_rep WHERE id = ? LIMIT 1');
+        $st->execute([$repId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return $fallback;
+        }
+        $code = trim((string) ($row['code'] ?? ''));
+        if (preg_match('/^[1-9]\d*$/', $code)) {
+            return ['no' => (int) $code, 'name' => (string) ($row['name_ar'] ?? '')];
+        }
+    } catch (Throwable $e) {
+        // استخدم البائع 1
+    }
+
+    return $fallback;
+}
+
+/**
  * @param array<string,bool> $cols
  * @param array{no:int,name?:string} $salesman
  * @param array<string,mixed> $order
@@ -512,7 +545,7 @@ function oracle_order_extras(array $cols, array $salesman, array $order): array
     }
     $payCol = oracle_order_pick_col($cols, ['CASH', 'CASH_CR', 'PAY_TYPE', 'CREDIT', 'CUS_PAY', 'PAID_TYPE']);
     if ($payCol) {
-        $extras[$payCol] = 0;
+        $extras[$payCol] = strtolower((string) ($order['payment_type'] ?? 'credit')) === 'cash' ? 1 : 0;
     }
     $ordCol = oracle_order_pick_col($cols, ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'V_ORDER', 'CUST_ORD', 'PO_NO']);
     if ($ordCol) {
@@ -706,7 +739,6 @@ function oracle_order_force_forms_fields(array $use, array $cols): array
     }
     $force = [
         'VOU_FLAG' => 18,
-        'CACR' => 2,
         'MAN_NUM' => 1,
         'UPD_FLAG' => 'SS',
         'USR_ID' => 'HYPX',

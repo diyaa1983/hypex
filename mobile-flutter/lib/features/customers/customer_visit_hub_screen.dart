@@ -16,6 +16,7 @@ import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
+import '../../widgets/app_confirm_dialog.dart';
 import '../gps/gps_map_tiles.dart';
 import '../party/party_statement_screen.dart';
 import '../customer_orders/customer_order_form_screen.dart';
@@ -450,22 +451,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   }
 
   Future<bool> _confirm(String title, String body) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body, style: const TextStyle(height: 1.45)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('تأكيد'),
-          ),
-        ],
-      ),
+    final ok = await showAppConfirmDialog(
+      context,
+      title: title,
+      message: body,
     );
     return ok == true;
   }
@@ -489,27 +478,43 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('طريقة تسجيل الدخول'),
-        content: Text(
-          _radiusM > 0
-              ? 'اختر طريقة تسجيل الدخول إلى العميل.\nنصف القطر المسموح: $_radiusM م'
-              : 'اختر طريقة تسجيل الدخول إلى العميل.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              _radiusM > 0
+                  ? 'اختر طريقة تسجيل الدخول إلى العميل.\nنصف القطر المسموح: $_radiusM م'
+                  : 'اختر طريقة تسجيل الدخول إلى العميل.',
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(ctx, 'MANUAL'),
+                    icon: const Icon(Icons.edit_location_alt_rounded),
+                    label: const Text('يدوي'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.pop(ctx, 'GPS'),
+                    icon: const Icon(Icons.my_location_rounded),
+                    label: const Text('GPS'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.pop(ctx, 'MANUAL'),
-            icon: const Icon(Icons.edit_location_alt_rounded),
-            label: const Text('يدوي'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(ctx, 'GPS'),
-            icon: const Icon(Icons.my_location_rounded),
-            label: const Text('GPS'),
-          ),
-        ],
+        actions: const [],
       ),
     );
     if (method == null || !mounted) return;
@@ -632,6 +637,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     } on ApiException catch (e) {
       if (!mounted) return;
       showSnack(context, e.message, error: true);
+      await _refreshOpenVisit();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1235,20 +1241,35 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('طريقة تسجيل الخروج'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          OutlinedButton(
-            onPressed: () => Navigator.pop(ctx, 'MANUAL'),
-            child: const Text('يدوي'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, 'GPS'),
-            child: const Text('GPS'),
-          ),
-        ],
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx, 'MANUAL'),
+                    child: const Text('يدوي'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx, 'GPS'),
+                    child: const Text('GPS'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+          ],
+        ),
+        actions: const [],
       ),
     );
     if (method == null || !mounted) return;

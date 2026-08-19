@@ -489,7 +489,7 @@ function sal_report_customer_orders_detailed(PDO $pdo, array $filters): array
                 COALESCE(rg.id, 0) AS region_id, COALESCE(rg.name_ar, '') AS region_name,
                 COALESCE(w.id, 0) AS warehouse_id, COALESCE(w.name_ar, '') AS warehouse_name,
                 it.id AS item_id, COALESCE(it.sku, it.barcode, '') AS item_sku,
-                COALESCE(NULLIF(TRIM(l.line_desc), ''), it.name_ar, '') AS item_name,
+                COALESCE(NULLIF(TRIM(it.name_ar), ''), NULLIF(TRIM(l.item_name), ''), '') AS item_name,
                 COALESCE(cat.id, 0) AS category_id, COALESCE(cat.name_ar, '') AS category_name,
                 l.qty, COALESCE(l.unit_price, 0) AS unit_price, COALESCE(l.discount_pct, 0) AS discount_pct,
                 COALESCE(l.line_total, 0) AS line_total, COALESCE(l.tax_amount, 0) AS tax_amount,

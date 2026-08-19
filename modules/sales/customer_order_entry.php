@@ -88,6 +88,7 @@ $warehouseId = $order
     : (int) ($defaultWarehouseId ?? 0);
 $customerIdSel = $order ? (int) ($order['customer_id'] ?? 0) : 0;
 $salesRepSel = $order ? (int) ($order['sales_rep_id'] ?? 0) : 0;
+$paymentTypeSel = ($order && strtolower((string) ($order['payment_type'] ?? '')) === 'cash') ? 'cash' : 'credit';
 $orderNo = $order ? (string) ($order['order_no'] ?? '') : '';
 $notes = $order ? (string) ($order['notes'] ?? '') : '';
 $headerDisc = $order ? (string) ($order['invoice_discount_input'] ?? '') : '';
@@ -228,6 +229,13 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
                                 'hotkey' => 'F7',
                                 'value' => $customerIdSel > 0 ? (string) $customerIdSel : '',
                             ]) ?>
+                            <div class="sales-inv-meta-item">
+                                <label for="co_payment_type">النوع</label>
+                                <select class="input input-compact" id="co_payment_type" name="payment_type">
+                                    <option value="credit" <?= $paymentTypeSel === 'cash' ? '' : 'selected' ?>>ذمم</option>
+                                    <option value="cash" <?= $paymentTypeSel === 'cash' ? 'selected' : '' ?>>نقدي</option>
+                                </select>
+                            </div>
                             <div class="sales-inv-meta-item">
                                 <label for="co_sales_rep">المندوب</label>
                                 <select class="input input-compact" id="co_sales_rep" name="sales_rep_id">
@@ -600,6 +608,7 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
       customer_id: customerId(),
       warehouse_id: parseInt((document.getElementById('warehouse-id') || {}).value || '0', 10) || 0,
       sales_rep_id: parseInt((document.getElementById('co_sales_rep') || {}).value || '0', 10) || 0,
+      payment_type: (document.getElementById('co_payment_type') || {}).value || 'credit',
       notes: (document.getElementById('inv_notes') || {}).value || '',
       invoice_discount: linesApi ? linesApi.getHeaderDiscount() : '',
       lines: lines

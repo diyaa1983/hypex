@@ -13,6 +13,30 @@ function r6(n) {
   return companyDecimals.roundUnit(n);
 }
 
+let paymentTypeReady = false;
+async function ensurePaymentTypeColumn() {
+  if (paymentTypeReady) return true;
+  try {
+    await db.query(`SELECT payment_type FROM sal_customer_order LIMIT 1`);
+    paymentTypeReady = true;
+    return true;
+  } catch {
+    try {
+      await db.query(
+        `ALTER TABLE sal_customer_order ADD COLUMN payment_type ENUM('credit','cash') NOT NULL DEFAULT 'credit'`
+      );
+      paymentTypeReady = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function normalizePaymentType(v) {
+  return String(v || '').toLowerCase() === 'cash' ? 'cash' : 'credit';
+}
+
 async function nextOrderNo(orderDate) {
   const iso = parseDateToIso(orderDate);
   const year = iso.slice(0, 4);
@@ -31,6 +55,7 @@ async function nextOrderNo(orderDate) {
 }
 
 async function getOrder(id) {
+  await ensurePaymentTypeColumn();
   const orderId = Number(id);
   if (!orderId) return null;
   const headers = await db.query(
@@ -133,6 +158,7 @@ async function getOrder(id) {
     sales_rep_name: h.sales_rep_name || '',
     warehouse_id: Number(h.warehouse_id),
     warehouse_name: h.warehouse_name || '',
+    payment_type: normalizePaymentType(h.payment_type),
     notes: h.notes || '',
     status,
     is_approved: status === 'approved',
@@ -253,6 +279,7 @@ function applyHeaderDiscount(lines, discountInput) {
 }
 
 async function saveOrder(payload, userId) {
+  await ensurePaymentTypeColumn();
   const customerId = Number(payload.customer_id || 0);
   const warehouseId = Number(payload.warehouse_id || 0);
   if (customerId < 1 || warehouseId < 1) {
@@ -261,6 +288,7 @@ async function saveOrder(payload, userId) {
 
   const orderDate = parseDateToIso(payload.order_date || todayIso());
   const salesRepId = payload.sales_rep_id ? Number(payload.sales_rep_id) : null;
+  const paymentType = normalizePaymentType(payload.payment_type);
   const notes = String(payload.notes || '').trim() || null;
   const discountInput = String(payload.invoice_discount || payload.invoice_discount_input || '').trim();
   const orderId = Number(payload.id || 0);
@@ -343,7 +371,7 @@ async function saveOrder(payload, userId) {
       try {
         await conn.execute(
           `UPDATE sal_customer_order
-           SET order_date=?, customer_id=?, sales_rep_id=?, warehouse_id=?, notes=?,
+           SET order_date=?, customer_id=?, sales_rep_id=?, warehouse_id=?, payment_type=?, notes=?,
                subtotal=?, discount_amount=?, tax_amount=?, total=?, invoice_discount_input=?, updated_by=?
            WHERE id=?`,
           [
@@ -351,6 +379,7 @@ async function saveOrder(payload, userId) {
             customerId,
             repToStore,
             warehouseId,
+            paymentType,
             notes,
             totals.subtotal,
             totals.discount_amount,
@@ -398,15 +427,16 @@ async function saveOrder(payload, userId) {
     try {
       const [result] = await conn.execute(
         `INSERT INTO sal_customer_order
-         (order_no, order_date, customer_id, sales_rep_id, warehouse_id, notes,
+         (order_no, order_date, customer_id, sales_rep_id, warehouse_id, payment_type, notes,
           subtotal, discount_amount, tax_amount, total, invoice_discount_input, created_by, updated_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           orderNo,
           orderDate,
           customerId,
           salesRepId > 0 ? salesRepId : null,
           warehouseId,
+          paymentType,
           notes,
           totals.subtotal,
           totals.discount_amount,

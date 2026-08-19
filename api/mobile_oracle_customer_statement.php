@@ -151,6 +151,14 @@ try {
 
 $cheques = is_array($stmt['cheques'] ?? null) ? $stmt['cheques'] : [];
 
+$salesRepNames = '';
+try {
+    require_once app_path('includes/crm_sales_rep_schema.php');
+    $salesRepNames = crm_customer_sales_rep_names($pdo, $customerId);
+} catch (Throwable $e) {
+    $salesRepNames = '';
+}
+
 echo json_encode([
     'ok' => true,
     'message' => '',
@@ -162,6 +170,8 @@ echo json_encode([
     'party_id' => $customerId,
     'party_name' => $name,
     'party_code' => (string) ($party['code'] ?? ''),
+    'sales_rep_name' => $salesRepNames,
+    'sales_rep_names' => $salesRepNames,
     'account' => (string) ($stmt['account'] ?? $accountNo),
     'from' => (string) ($stmt['from'] ?? $from),
     'to' => (string) ($stmt['to'] ?? $to),

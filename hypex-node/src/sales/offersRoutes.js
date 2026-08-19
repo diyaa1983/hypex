@@ -8,6 +8,7 @@ const svc = require('./offersService');
 const offerApply = require('./offerApply');
 const ui = require('../lib/salesUi');
 const { esc } = require('../lib/html');
+const { renderStandalonePrintPage } = require('../lib/printBrand');
 
 const router = express.Router();
 const KICKER = 'Hypex Sales · Node';
@@ -277,6 +278,15 @@ async function renderForm(req, res, id) {
             <span class="si-tb-lbl">حفظ</span>
             <span class="si-tb-keywrap"><kbd class="si-tb-key">F10</kbd></span>
           </button>
+          ${
+            doc && doc.id
+              ? `<a class="si-tb" href="/sales/offers/${doc.id}/print" target="_blank" title="طباعة العرض">
+                   <span class="si-tb-lbl">طباعة</span>
+                 </a>`
+              : `<button type="button" class="si-tb" disabled title="احفظ العرض أولاً للطباعة">
+                   <span class="si-tb-lbl">طباعة</span>
+                 </button>`
+          }
           <form method="post" action="/sales/offers/${doc ? doc.id : 0}/post" style="display:inline">
             <button type="submit" class="si-tb si-tb--post" ${canPost ? '' : 'disabled'}>
               <span class="si-tb-lbl">ترحيل</span>
@@ -405,7 +415,100 @@ async function renderForm(req, res, id) {
   );
 }
 
+async function renderOfferPrint(req, res, offerId) {
+  const doc = await svc.getOffer(offerId);
+  if (!doc) return res.status(404).send('العرض غير موجود');
+
+  const lines = Array.isArray(doc.lines) ? doc.lines : [];
+  const isPosted = Number(doc.is_posted) === 1;
+  const isActive = Number(doc.is_active) === 1;
+  const statusParts = [isPosted ? 'مرحّل' : 'مسودة', isActive ? 'نشط' : 'موقوف'];
+  const dateFrom = ui.isoToDmy(String(doc.date_from || '').slice(0, 10));
+  const dateTo = ui.isoToDmy(String(doc.date_to || '').slice(0, 10));
+
+  const bodyRows =
+    lines
+      .map((ln, i) => {
+        const isDisc = String(ln.offer_type) === 'discount_pct';
+        const typeLabel = isDisc ? 'خصم %' : 'كمية إضافية';
+        const detail = isDisc
+          ? `${ui.fmtAmt(ln.discount_pct)}%`
+          : `${ui.fmtAmt(ln.bonus_qty)} ${ln.bonus_unit_name || ''}`.trim();
+        return `<tr>
+            <td class="c-idx" dir="ltr">${i + 1}</td>
+            <td class="c-code" dir="ltr">${esc(ln.item_code || '')}</td>
+            <td class="c-name">${esc(ln.item_name || '')}</td>
+            <td class="c-unit">${esc(ln.unit_name || 'قطعة')}</td>
+            <td class="c-num" dir="ltr">${esc(ui.fmtAmt(ln.trigger_qty))}</td>
+            <td>${esc(typeLabel)}</td>
+            <td class="c-num" dir="ltr">${esc(detail)}</td>
+          </tr>`;
+      })
+      .join('') || `<tr><td colspan="7" class="empty">لا مواد في العرض</td></tr>`;
+
+  const notesHtml = doc.notes
+    ? `<div class="inv-v1-notes"><span>ملاحظات:</span> ${esc(doc.notes)}</div>`
+    : '';
+
+  const contentHtml = `
+      <div class="inv-v1" dir="rtl">
+        <div class="inv-v1-top">
+          <div class="inv-v1-meta">
+            <div><span>رقم السند:</span> <strong dir="ltr">${esc(doc.offer_no || '—')}</strong></div>
+            <div><span>اسم العرض:</span> <strong>${esc(doc.name_ar || '—')}</strong></div>
+            <div><span>الفترة:</span> <strong dir="ltr">${esc(dateFrom)} — ${esc(dateTo)}</strong></div>
+            <div><span>الحالة:</span> <strong>${esc(statusParts.join(' · '))}</strong></div>
+          </div>
+          <div class="inv-v1-title-block">
+            <h1 class="inv-v1-title">عرض ترويجي</h1>
+          </div>
+        </div>
+
+        <table class="inv-v1-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>الباركود</th>
+              <th>اسم المادة</th>
+              <th>الوحدة</th>
+              <th>كمية العرض</th>
+              <th>نوع العرض</th>
+              <th>تفاصيل العرض</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+
+        <div class="inv-v1-foot">
+          ${notesHtml}
+        </div>
+      </div>`;
+
+  res.send(
+    await renderStandalonePrintPage({
+      user: req.session.user,
+      documentTitle: 'عرض ترويجي',
+      backHref: `/sales/offers/${doc.id}`,
+      contentHtml,
+      autoPrint: false,
+      printMode: 'sheet',
+      theme: 'invoice-v1',
+    })
+  );
+}
+
 router.get('/sales/offers/new', (req, res) => renderForm(req, res, 0));
+router.get('/sales/offers/:id/print', async (req, res) => {
+  try {
+    if (!canOffers(req.session.user)) return forbid(res);
+    const id = Number(req.params.id);
+    if (!id) return res.status(404).send('العرض غير موجود');
+    await renderOfferPrint(req, res, id);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send(e.message || 'خطأ');
+  }
+});
 router.get('/sales/offers/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.redirect('/sales/offers');

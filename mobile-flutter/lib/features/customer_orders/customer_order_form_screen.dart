@@ -132,6 +132,8 @@ class _OrderLine {
 class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   bool _loading = true, _busy = false, _approved = false;
   String? _error, _orderNo, _salesRepName;
+  String _paymentType = 'credit';
+  String _orderDate = '';
   int _id = 0, _warehouseId = 0;
   List<Map<String, dynamic>> _warehouses = [];
   List<_TaxRate> _taxRates = [];
@@ -295,6 +297,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             order['is_approved'] == true ||
             Fmt.str(order['status']) == 'approved';
         _orderNo = Fmt.str(order['order_no']);
+        _orderDate = Fmt.str(order['order_date']);
+        final pay = Fmt.str(order['payment_type']);
+        _paymentType = pay == 'cash' ? 'cash' : 'credit';
         final loadedRep = Fmt.str(order['sales_rep_name']);
         if (loadedRep.isNotEmpty) _salesRepName = loadedRep;
         _lines
@@ -401,6 +406,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'id': _id,
         'customer_id': _customer!.id,
         'warehouse_id': _warehouseId,
+        'payment_type': _paymentType,
         if ((widget.visitRouteLineId ?? 0) > 0)
           'visit_route_line_id': widget.visitRouteLineId,
         'lines': _lines.map((l) => l.toJson()).toList(),
@@ -452,8 +458,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     final gross = _lines.fold<double>(0, (s, l) => s + l.lineGross);
     return {
         'order_no': _orderNo,
-        'order_date': Fmt.todayIso(),
+        'order_date': _orderDate.isEmpty ? Fmt.todayIso() : _orderDate,
         'customer_name': _customer?.name,
+        'payment_type': _paymentType,
         'sales_rep_name': (_salesRepName ?? '').trim().isNotEmpty
             ? _salesRepName
             : (context.read<SessionController>().userName ?? ''),
@@ -552,12 +559,12 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
         color: AppTheme.surface,
-        border: Border(top: BorderSide(color: AppTheme.border)),
+        border: Border(bottom: BorderSide(color: AppTheme.border)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
-            offset: const Offset(0, -2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -649,6 +656,20 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                       onChanged: _editable
                           ? (v) => setState(() => _warehouseId = v ?? 0)
                           : null),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      'نوع الدفع',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textSoft,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _paymentSeg(),
                   if (!widget.hideCustomerPicker) ...[
                     const SizedBox(height: 10),
                     ListTile(
@@ -1155,8 +1176,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         color: Colors.transparent,
         child: Column(
           children: [
-            Expanded(child: body),
             _buildActionBar(),
+            Expanded(child: body),
           ],
         ),
       );
@@ -1165,9 +1186,51 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       title: Text(_id > 0 ? 'تعديل طلب شراء' : 'طلب شراء جديد'),
       body: Column(
         children: [
-          Expanded(child: body),
           _buildActionBar(),
+          Expanded(child: body),
         ],
+      ),
+    );
+  }
+
+  Widget _paymentSeg() {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          _segBtn('ذمم', 'credit'),
+          _segBtn('نقدي', 'cash'),
+        ],
+      ),
+    );
+  }
+
+  Widget _segBtn(String label, String value) {
+    final sel = _paymentType == value;
+    return Expanded(
+      child: Material(
+        color: sel ? AppTheme.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: _editable ? () => setState(() => _paymentType = value) : null,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13.5,
+                color: sel ? Colors.white : AppTheme.textSoft,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

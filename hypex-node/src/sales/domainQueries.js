@@ -768,7 +768,7 @@ async function reportCustomerOrdersDetailed(filters = {}) {
               COALESCE(w.name_ar, '') AS warehouse_name,
               it.id AS item_id,
               COALESCE(NULLIF(TRIM(it.sku), ''), it.barcode, '') AS item_sku,
-              COALESCE(NULLIF(TRIM(l.line_desc), ''), it.name_ar, '') AS item_name,
+              COALESCE(NULLIF(TRIM(it.name_ar), ''), NULLIF(TRIM(l.item_name), ''), '') AS item_name,
               COALESCE(cat.id, 0) AS category_id,
               COALESCE(cat.name_ar, '') AS category_name,
               l.qty, COALESCE(l.unit_price, 0) AS unit_price, COALESCE(l.discount_pct, 0) AS discount_pct,
@@ -788,8 +788,9 @@ async function reportCustomerOrdersDetailed(filters = {}) {
        LIMIT ${limit}`,
       params
     );
-  } catch (_) {
-    return empty;
+  } catch (e) {
+    console.error('reportCustomerOrdersDetailed', e.message || e);
+    throw e;
   }
 
   if (!rows.length) return empty;

@@ -163,8 +163,9 @@ async function repForm(req, res, id) {
         <div class="si-surface-head"><h2>${isNew ? 'مندوب جديد' : esc(row.name_ar || '')}</h2></div>
         <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-meta" style="padding:1rem 1.1rem 1.25rem">
           <input type="hidden" name="id" value="${row ? row.id : 0}">
-          <label>الرمز <span style="font-weight:500;color:#5c6578">(فارغ = تلقائي)</span>
-            <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="REP-0001" autocomplete="off">
+          <label>الرمز <span style="font-weight:500;color:#5c6578">(رقم البائع في أوراكل مثل 12 — فارغ = تلقائي)</span>
+            <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="12" autocomplete="off">
+            <span class="muted" style="display:block;margin-top:.25rem;font-size:.8rem">للترحيل إلى INV00024 استخدم رقم البائع في أوراكل. الرموز مثل REP-0001 تُرحَّل كبائع 1.</span>
           </label>
           <label>اسم المندوب *
             <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off">
@@ -1559,7 +1560,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
     const mins = Math.floor((t2 - t1) / 60000);
     const h = Math.floor(mins / 60);
     const m = mins % 60;
-    return h > 0 ? `${h}س ${m}د` : `${m} د`;
+    return `${h}:${String(m).padStart(2, '0')}`;
   }
 
   const repOpts = reps
@@ -1739,7 +1740,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     const mins = Math.floor((t2 - t1) / 60000);
     const h = Math.floor(mins / 60);
     const m = mins % 60;
-    return h > 0 ? `${h}س ${m}د` : `${m} د`;
+    return `${h}:${String(m).padStart(2, '0')}`;
   }
   function statusLbl(r) {
     if (r.pending_request_id && !r.visit_checkout_at) return ui.statusPill('wait', 'بانتظار موافقة');

@@ -1274,7 +1274,7 @@ label .si-field-key {
 /* تمرير أفقي لجداول البنود — التفاصيل أدناه مع .si-lines--co */
 .si-lines-wrap:has(.si-lines--co),
 .si-lines-wrap:has(#co-lines) {
-  overflow-x: scroll;
+  overflow-x: hidden;
   overflow-y: hidden;
   max-width: 100%;
 }
@@ -1650,15 +1650,12 @@ label .si-field-key {
 .si-lines-wrap:has(.si-lines--co),
 .si-lines-wrap:has(#co-lines),
 .si-lines-wrap:has(#si-lines) {
-  overflow-x: scroll;
+  overflow-x: hidden;
   overflow-y: hidden;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 0.45rem;
   margin-inline: 0;
-  scrollbar-gutter: stable;
-  scrollbar-width: auto;
-  scrollbar-color: #64748b #e2e8f0;
 }
 
 .si-lines-wrap:has(.si-lines--co)::-webkit-scrollbar,
@@ -1683,10 +1680,11 @@ label .si-field-key {
 }
 
 .si-lines.si-lines--co {
-  width: 80rem;
-  min-width: 80rem;
-  max-width: none;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   table-layout: fixed;
+  font-size: 0.78rem;
 }
 
 .si-lines.si-lines--co thead th {
@@ -3045,8 +3043,8 @@ body.ic-pick-lock {
    الأعمدة بعرض ثابت عبر colgroup، وكل حقل داخل خليته بحدود واضحة. */
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) {
   width: 100%;
-  min-width: 74rem;
-  max-width: none;
+  min-width: 0;
+  max-width: 100%;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;

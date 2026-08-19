@@ -57,6 +57,7 @@ class CustomerOrderBluetoothReceipt {
       pw.TextStyle? style,
       pw.TextAlign align = pw.TextAlign.center,
       bool ltr = false,
+      int maxLines = 1,
     }) =>
         thermalCell(
           text,
@@ -64,6 +65,7 @@ class CustomerOrderBluetoothReceipt {
           align: align,
           ltr: ltr,
           padding: cellPad,
+          maxLines: maxLines,
         );
 
     // الجدول LTR داخلياً → نعكس الخلايا ليُقرأ من اليمين:
@@ -142,32 +144,36 @@ class CustomerOrderBluetoothReceipt {
             kv('التاريخ', Fmt.dmy(Fmt.str(order['order_date']))),
             kvPlain('العميل', Fmt.str(order['customer_name'])),
             if (salesRep.isNotEmpty) kvPlain('المندوب', salesRep),
+            kvPlain(
+              'النوع',
+              Fmt.str(order['payment_type']) == 'cash' ? 'نقدي' : 'ذمم',
+            ),
             pw.SizedBox(height: 5),
             pw.Table(
               border: ThermalTableStyle.border,
               defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
               columnWidths: {
-                0: pw.FlexColumnWidth(paperMm == 80 ? 0.9 : 0.85),
-                1: const pw.FlexColumnWidth(0.55),
-                2: const pw.FlexColumnWidth(0.55),
-                3: pw.FlexColumnWidth(paperMm == 80 ? 0.75 : 0.7),
-                4: const pw.FlexColumnWidth(0.5),
-                5: const pw.FlexColumnWidth(0.5),
-                6: const pw.FlexColumnWidth(0.6),
-                7: const pw.FlexColumnWidth(2.4),
+                0: pw.FlexColumnWidth(paperMm == 80 ? 0.85 : 0.8),
+                1: const pw.FlexColumnWidth(0.5),
+                2: const pw.FlexColumnWidth(0.5),
+                3: pw.FlexColumnWidth(paperMm == 80 ? 0.7 : 0.65),
+                4: const pw.FlexColumnWidth(0.45),
+                5: const pw.FlexColumnWidth(0.45),
+                6: const pw.FlexColumnWidth(0.55),
+                7: const pw.FlexColumnWidth(2.7),
               },
               children: [
                 pw.TableRow(
                   decoration: ThermalTableStyle.headerDecoration,
                   children: rtlRow([
-                    compactCell('Item', style: headStyle),
-                    compactCell('Unit', style: headStyle),
-                    compactCell('Qty', style: headStyle, ltr: true),
-                    compactCell('Extra', style: headStyle, ltr: true),
-                    compactCell('Price', style: headStyle, ltr: true),
-                    compactCell('Disc', style: headStyle, ltr: true),
-                    compactCell('Tax', style: headStyle, ltr: true),
-                    compactCell('Total', style: headStyle, ltr: true),
+                    compactCell('مادة', style: headStyle, maxLines: 1),
+                    compactCell('وحدة', style: headStyle, maxLines: 1),
+                    compactCell('كمية', style: headStyle, ltr: true),
+                    compactCell('إضافي', style: headStyle, ltr: true),
+                    compactCell('سعر', style: headStyle, ltr: true),
+                    compactCell('خصم', style: headStyle, ltr: true),
+                    compactCell('ضريبة', style: headStyle, ltr: true),
+                    compactCell('إجمالي', style: headStyle, ltr: true),
                   ]),
                 ),
                 for (var i = 0; i < lines.length; i++)
@@ -190,6 +196,7 @@ class CustomerOrderBluetoothReceipt {
                           Fmt.str(line['item_name']),
                           style: valStyle,
                           align: pw.TextAlign.right,
+                          maxLines: 2,
                         ),
                         compactCell(Fmt.str(line['unit_name']), style: valStyle),
                         compactCell(
@@ -230,8 +237,8 @@ class CustomerOrderBluetoothReceipt {
             pw.SizedBox(height: 6),
             pw.Divider(thickness: .6),
             moneyRow('المجموع الفرعي', subtotal),
-            if (discount > 0) moneyRow('الخصم', discount),
-            if (tax > 0) moneyRow('الضريبة', tax),
+            if (discount > 0) moneyRow('مجموع الخصم', discount),
+            if (tax > 0) moneyRow('قيمة الضريبة', tax),
             moneyRow('الإجمالي النهائي', grand),
             pw.SizedBox(height: 9),
             pw.Center(

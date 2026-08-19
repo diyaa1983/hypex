@@ -654,7 +654,7 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
   const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
   const tab = String(req.query.tab || 'summary') === 'detail' ? 'detail' : 'summary';
   const run = String(req.query.run || '') === '1';
-  const source = String(req.query.source || 'sales').toLowerCase();
+  const source = String(req.query.source || 'both').toLowerCase();
   const customerId = Number(req.query.customer_id || 0) || 0;
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
   const regionId = Number(req.query.region_id || 0) || 0;
@@ -689,21 +689,27 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
     group_by: groupBy,
     source: source === 'orders' ? 'orders' : source === 'both' ? 'both' : 'sales',
   };
+  let err = '';
   if (run) {
-    data = await q.reportCombinedDetailed({
-      from: range.from,
-      to: range.to,
-      source,
-      customer_id: customerId,
-      sales_rep_id: salesRepId,
-      region_id: regionId,
-      category_id: categoryId,
-      item_id: itemId,
-      warehouse_id: warehouseId,
-      payment_type: paymentType,
-      posted_only: postedOnly,
-      group_by: groupBy,
-    });
+    try {
+      data = await q.reportCombinedDetailed({
+        from: range.from,
+        to: range.to,
+        source,
+        customer_id: customerId,
+        sales_rep_id: salesRepId,
+        region_id: regionId,
+        category_id: categoryId,
+        item_id: itemId,
+        warehouse_id: warehouseId,
+        payment_type: paymentType,
+        posted_only: postedOnly,
+        group_by: groupBy,
+      });
+    } catch (e) {
+      err = e.message || 'تعذر تحميل التقرير';
+      console.error('report detailed', e);
+    }
   }
 
   const sourceLabels = { sales: 'المبيعات', orders: 'طلبات الشراء', both: 'المبيعات + الطلبات' };
@@ -923,7 +929,7 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
         <form method="get" action="/sales/reports/detailed">
           <input type="hidden" name="run" value="1">
           <input type="hidden" name="tab" value="${ui.esc(tab)}">
-          <input type="hidden" name="source" value="${ui.esc(data.source || 'sales')}">
+          <input type="hidden" name="source" value="${ui.esc(data.source || 'both')}">
           <div class="sd-filter-grid">
             <label>من تاريخ
               <input class="si-field" type="date" name="from" value="${ui.esc(range.from)}" required dir="ltr">
@@ -996,6 +1002,7 @@ router.get('/sales/reports/detailed', guard('report_sales_detailed'), async (req
           </div>
         </form>
       </section>
+      ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>` : ''}
       ${kpiBlock}
       <div class="si-print-area sd-table">${tableBlock}</div>
     </div>`;

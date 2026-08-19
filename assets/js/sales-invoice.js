@@ -155,7 +155,7 @@
   function defaultUnitOf(it) {
     var units = (it && it.units) || [];
     if (!units.length) {
-      return {
+    return {
         unit_id: 0,
         name: 'قطعة',
         factor: 1,
@@ -190,7 +190,7 @@
       ln.unit_price = rUnit(Number(du.wholesale_price) || 0);
     } else if (!customerUsesWholesale && du.sale_price != null) {
       ln.unit_price = rUnit(Number(du.sale_price) || 0);
-    } else {
+      } else {
       ln.unit_price = unitSalePrice(ln.base_sale, ln.unit_factor);
     }
     if (!ln.qty) ln.qty = 1;
@@ -231,7 +231,7 @@
         var fac = Number(u.factor) > 0 ? Number(u.factor) : 1;
         var label = (u.name || 'وحدة') + (fac > 1 ? ' × ' + fac : '');
         var sel = curId ? uid === curId : Number(ln.unit_factor || 1) === fac;
-        return (
+    return (
           '<option value="' +
           uid +
           '" data-factor="' +
@@ -349,7 +349,7 @@
     // السعر محسوب دائماً — لا يُقرأ يدوياً
     if (ln.base_sale != null && Number(ln.base_sale) >= 0 && ln.unit_factor) {
       ln.unit_price = unitSalePrice(ln.base_sale, ln.unit_factor);
-      var priceEl = tr.querySelector('.js-price');
+    var priceEl = tr.querySelector('.js-price');
       if (priceEl) priceEl.value = String(ln.unit_price);
     } else {
       ln.unit_price = tr.querySelector('.js-price') ? tr.querySelector('.js-price').value : ln.unit_price;
@@ -393,8 +393,8 @@
     opts = opts || {};
     if (!payload.customer_id) {
       setMsg('اختر العميل.', 'error');
-      return false;
-    }
+    return false;
+  }
     // السماح بحفظ بدون بنود لفاتورة مسجّلة (تفريغ البنود) — ليس للفواتير الجديدة
     if (!payload.lines.length && !(opts.allowEmptyLines && payload.id > 0)) {
       setMsg('أضف بنداً واحداً على الأقل.', 'error');
@@ -405,11 +405,11 @@
       if (!ln || !ln.item_id) continue;
       if (!(Number(ln.unit_price) > 0)) {
         setMsg('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', 'error');
-        return false;
-      }
+      return false;
     }
-    return true;
-  }
+      }
+      return true;
+    }
 
   function setBtn(id, enabled) {
     var el = document.getElementById(id);
@@ -483,7 +483,7 @@
             el.dataset.hxBusyPrev = el.disabled ? '1' : '0';
           }
           el.disabled = true;
-        } else {
+      } else {
           delete el.dataset.hxBusyPrev;
         }
       }
@@ -647,7 +647,7 @@
           ln.unit_name = opt.getAttribute('data-name') || '';
           ln.unit_price = unitSalePrice(activeBaseOfLine(ln), ln.unit_factor);
           state.lines[idx] = ln;
-          var priceEl = tr.querySelector('.js-price');
+    var priceEl = tr.querySelector('.js-price');
           if (priceEl) priceEl.value = String(ln.unit_price);
         }
         readLineFromRow(tr);
@@ -687,20 +687,20 @@
           ok: false,
           error: 'تعذر تحميل المواد',
         });
-        return;
-      }
+      return;
+    }
       fetch(urls[i], {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       })
-        .then(function (r) {
+      .then(function (r) {
           if (!r.ok) throw new Error('http ' + r.status);
-          return r.json();
-        })
-        .then(function (data) {
+        return r.json();
+      })
+      .then(function (data) {
           showItemSuggest(box, anchor, tr, data || { ok: false });
-        })
-        .catch(function () {
+      })
+      .catch(function () {
           tryFetch(i + 1);
         });
     }
@@ -788,7 +788,7 @@
     if (posted || !document.getElementById('si-lines-body')) return;
     var it = e.detail;
     if (!it || !it.id) return;
-    e.preventDefault();
+          e.preventDefault();
     var idx = -1;
     for (var i = 0; i < (state.lines || []).length; i++) {
       if (!state.lines[i] || !state.lines[i].item_id) {
@@ -827,7 +827,7 @@
   document.addEventListener('hx:add-line', function (e) {
     if (posted) return;
     if (!document.getElementById('si-lines-body')) return;
-    e.preventDefault();
+          e.preventDefault();
     addEmptyLine();
   });
 
@@ -862,8 +862,8 @@
       empty.style.cssText = 'padding:.65rem .8rem;color:#64748b;font-size:.85rem';
       custBox.appendChild(empty);
       custBox.hidden = false;
-      return;
-    }
+          return;
+        }
     rows.slice(0, 25).forEach(function (c) {
       var b = document.createElement('button');
       b.type = 'button';
@@ -884,18 +884,18 @@
       credentials: 'same-origin',
       headers: { Accept: 'application/json' },
     })
-      .then(function (r) {
+        .then(function (r) {
         if (!r.ok) throw new Error('http ' + r.status);
-        return r.json();
-      })
-      .then(function (data) {
+          return r.json();
+        })
+        .then(function (data) {
         renderCustomerSuggestions(data);
         if (custBox) {
           custBox.hidden = false;
           custBox.removeAttribute('hidden');
         }
-      })
-      .catch(function () {
+        })
+        .catch(function () {
         renderCustomerSuggestions({ ok: false, error: 'تعذر الاتصال بخدمة العملاء' });
         if (custBox) {
           custBox.hidden = false;
@@ -966,11 +966,11 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (data) {
-        if (!data.ok) {
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data.ok) {
           setBusy(false);
           setMsg(data.error || 'تعذر الحفظ', 'error');
           return null;
@@ -1007,7 +1007,7 @@
         if (data.id && /\/sales\/invoices\/new\/?$/.test(location.pathname)) {
           try {
             history.replaceState({}, '', '/sales/invoices/' + data.id);
-          } catch (e) {
+        } catch (e) {
             /* ignore */
           }
         }
@@ -1023,8 +1023,8 @@
   function postInvoice() {
     if (posted) {
       setMsg('الفاتورة مرحّلة مسبقاً.', 'error');
-      return;
-    }
+          return;
+        }
     var payload = buildPayload();
     if (!validatePayload(payload)) return;
     var ask =
@@ -1043,7 +1043,7 @@
       setMsg('جاري الحفظ ثم الترحيل…');
       setBusy(true);
       fetch('/api/sales/invoices', {
-        method: 'POST',
+      method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
@@ -1069,7 +1069,7 @@
         .then(function (data) {
           setBusy(false);
           if (!data) return;
-          if (!data.ok) {
+            if (!data.ok) {
             setMsg(data.error || data.message || 'تعذر الترحيل', 'error');
             return;
           }
@@ -1077,8 +1077,8 @@
           setTimeout(function () {
             window.location.href = '/sales/invoices/' + (data.invoice_id || state.id);
           }, 600);
-        })
-        .catch(function () {
+          })
+          .catch(function () {
           setBusy(false);
           setMsg('تعذر الاتصال بالخادم', 'error');
         });
@@ -1105,21 +1105,21 @@
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
       })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (data) {
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
           setBusy(false);
           if (!data.ok) {
             setMsg(data.error || data.message || 'تعذر فك الترحيل', 'error');
-            return;
-          }
+          return;
+        }
           setMsg(data.message || 'تم فك الترحيل', 'ok');
           setTimeout(function () {
             location.reload();
           }, 500);
-        })
-        .catch(function () {
+      })
+      .catch(function () {
           setBusy(false);
           setMsg('تعذر الاتصال', 'error');
         });
@@ -1192,7 +1192,7 @@
           })
         : Promise.resolve(window.confirm('إرسال الفاتورة إلى الفوترة الإلكترونية؟'));
     ask.then(function (ok) {
-      if (!ok) return;
+        if (!ok) return;
       setBusy(true);
       setMsg('جاري الإرسال للفوترة…');
       fetch('/api/sales/invoices/' + state.id + '/einvoice', {
@@ -1200,18 +1200,18 @@
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
       })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (data) {
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (data) {
           setBusy(false);
-          if (!data.ok) {
+            if (!data.ok) {
             setMsg(data.error || data.message || 'فشل الإرسال', 'error');
-            return;
-          }
+              return;
+            }
           setMsg(data.message || 'تم الإرسال', 'ok');
-        })
-        .catch(function () {
+          })
+          .catch(function () {
           setBusy(false);
           setMsg('تعذر الاتصال', 'error');
         });
@@ -1332,8 +1332,8 @@
     archiveBtn.addEventListener('click', function () {
       if (!state.id) {
         setMsg('احفظ الفاتورة أولاً.', 'error');
-        return;
-      }
+          return;
+        }
       var url = (state.defaults && state.defaults.archiveUrl) || '';
       if (url) window.open(url, '_blank');
       else setMsg('الأرشيف متاح من واجهة PHP عند الحاجة.', 'error');
@@ -1345,8 +1345,8 @@
     emailBtn.addEventListener('click', function () {
       if (!state.id) {
         setMsg('احفظ الفاتورة أولاً.', 'error');
-        return;
-      }
+      return;
+    }
       if (busy) return;
 
       function defaultToEmail() {
@@ -1379,12 +1379,12 @@
         to = String(to || '').trim();
         if (!to) {
           setMsg('أدخل بريداً إلكترونياً صالحاً.', 'error');
-          return;
-        }
+      return;
+    }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
           setMsg('صيغة البريد الإلكتروني غير صالحة.', 'error');
-          return;
-        }
+      return;
+    }
         setMsg('جاري إرسال البريد…');
         setBusy(true);
         fetch('/api/sales/invoices/' + state.id + '/email', {
@@ -1402,8 +1402,8 @@
             var data = res.data || {};
             if (!data.ok) {
               setMsg(data.error || 'تعذر إرسال البريد.', 'error');
-              return;
-            }
+      return;
+    }
             state.customer_email = to;
             setMsg(data.message || 'تم إرسال البريد بنجاح.', 'ok');
             if (window.HypexUI && window.HypexUI.toast) {
@@ -1536,9 +1536,9 @@
       cust.value = label;
     }
     setCustomerPriceMode({ use_wholesale_price: inv.use_wholesale_price }, { reprice: false });
-    var wh = document.getElementById('inv_wh');
+      var wh = document.getElementById('inv_wh');
     if (wh) wh.value = inv.warehouse_id != null ? String(inv.warehouse_id) : '';
-    var notes = document.getElementById('inv_notes');
+      var notes = document.getElementById('inv_notes');
     if (notes) notes.value = inv.notes || '';
     var disc = document.getElementById('inv_discount');
     if (disc) disc.value = inv.invoice_discount_input || '';
@@ -1586,10 +1586,10 @@
       stage.classList.remove('is-nav-flash');
     }
     return fetch('/api/sales/invoices/' + id, { headers: { Accept: 'application/json' } })
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (data) {
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
         if (!data || !data.ok || !data.invoice) {
           throw new Error((data && data.error) || 'الفاتورة غير موجودة');
         }

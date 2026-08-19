@@ -543,11 +543,13 @@ function sal_rep_visit_checkin(
     if (!$line) {
         return ['ok' => false, 'message' => 'بند الزيارة غير موجود.'];
     }
-    if (!empty($line['visit_checkin_at']) && empty($line['visit_checkout_at'])) {
+    $today = date('Y-m-d');
+    if (!empty($line['visit_checkin_at']) && empty($line['visit_checkout_at'])
+        && substr((string) ($line['route_date'] ?? ''), 0, 10) === $today) {
         return ['ok' => false, 'message' => 'يوجد دخول مفتوح لهذا العميل. أكمل الخروج أولاً.'];
     }
 
-    // لا يُسمح بالدخول لعميل آخر قبل الخروج من الزيارة المفتوحة.
+    // لا يُسمح بالدخول لعميل آخر قبل الخروج من الزيارة المفتوحة اليوم.
     try {
         $stOpen = $pdo->prepare(
             "SELECT l.id, l.customer_id, c.name_ar
@@ -555,13 +557,14 @@ function sal_rep_visit_checkin(
              INNER JOIN sal_rep_route r ON r.id = l.route_id
              INNER JOIN crm_customer c ON c.id = l.customer_id
              WHERE r.sales_rep_id = ?
+               AND r.route_date = ?
                AND l.visit_checkin_at IS NOT NULL
                AND l.visit_checkout_at IS NULL
                AND l.customer_id <> ?
              ORDER BY l.visit_checkin_at DESC
              LIMIT 1"
         );
-        $stOpen->execute([$salesRepId, $customerId]);
+        $stOpen->execute([$salesRepId, $today, $customerId]);
         $openOther = $stOpen->fetch(PDO::FETCH_ASSOC);
         if ($openOther) {
             return [
@@ -1086,11 +1089,8 @@ function sal_rep_visit_duration_label(?string $checkinAt, ?string $checkoutAt): 
     $mins = (int) floor(($b - $a) / 60);
     $h = intdiv($mins, 60);
     $m = $mins % 60;
-    if ($h > 0) {
-        return $h . 'س ' . $m . 'د';
-    }
 
-    return $m . ' د';
+    return $h . ':' . str_pad((string) $m, 2, '0', STR_PAD_LEFT);
 }
 
 function sal_rep_visit_fmt_time_only($v): string

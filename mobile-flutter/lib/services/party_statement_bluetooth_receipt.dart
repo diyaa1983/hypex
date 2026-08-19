@@ -176,9 +176,10 @@ class PartyStatementBluetoothReceipt {
       if (rtlDate) {
         return thermalCell(
           text,
-          style: style ?? cellStyle,
+          style: style ?? pw.TextStyle(font: reg, fontSize: fs * 0.85),
           align: align,
           ltr: true,
+          maxLines: maxLines,
         );
       }
       return thermalCell(
@@ -186,6 +187,7 @@ class PartyStatementBluetoothReceipt {
         style: style ?? cellStyle,
         align: align,
         ltr: ltr,
+        maxLines: maxLines,
       );
     }
 
@@ -279,7 +281,7 @@ class PartyStatementBluetoothReceipt {
       }
     }
 
-    final dateW = paperMm == 80 ? 30.0 : 23.0;
+    final dateW = paperMm == 80 ? 36.0 : 28.0;
     final numW = paperMm == 80 ? 34.0 : 25.0;
     final balW = paperMm == 80 ? 38.0 : 27.0;
 
