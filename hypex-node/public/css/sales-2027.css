@@ -1291,8 +1291,8 @@ label .si-field-key {
 /* تمرير أفقي لجداول البنود — التفاصيل أدناه مع .si-lines--co */
 .si-lines-wrap:has(.si-lines--co),
 .si-lines-wrap:has(#co-lines) {
-  overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
   max-width: 100%;
 }
 .si-lines.si-lines--co {
@@ -1674,8 +1674,8 @@ label .si-field-key {
 .si-lines-wrap:has(.si-lines--co),
 .si-lines-wrap:has(#co-lines),
 .si-lines-wrap:has(#si-lines) {
-  overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 0.45rem;
@@ -3074,18 +3074,18 @@ body.ic-pick-lock {
   border-spacing: 0;
 }
 
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-idx { width: 2.2rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-code { width: 8.8rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-idx { width: 1.75rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-code { width: 7rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-name { width: auto; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-unit { width: 7.6rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-unit { width: 6rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty,
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 5.2rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 6.6rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 5rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 5.8rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 3.85rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 4rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 4.6rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-net,
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-total { width: 7rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-del { width: 2.6rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-total { width: 5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-del { width: 2.35rem; }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th,
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td {
@@ -3182,13 +3182,16 @@ body.ic-pick-lock {
 /* عمود الحذف ضمن الجدول (كان لاصقاً فيغطي عمود الصافي عند التمرير) */
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del,
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th.si-col-del {
-  position: static;
-  box-shadow: none;
-  width: 2.6rem;
-  min-width: 2.6rem;
-  max-width: 2.6rem;
-  padding: 0.2rem;
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 6;
+  box-shadow: -5px 0 10px -6px rgba(15, 23, 42, 0.22);
+  width: 2.35rem;
+  min-width: 2.35rem;
+  max-width: 2.5rem;
+  padding: 0.15rem;
   overflow: visible;
+  background: #fff;
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del .si-del {

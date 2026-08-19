@@ -1223,23 +1223,25 @@ label .si-field-key {
   box-sizing: content-box;
   white-space: nowrap;
 }
-/* ???? ??? ??????: ????? ?? ??????? + ????? ???? ??? ?????? */
+/* بنود طلب العميل — التفاصيل في آخر الملف (colgroup + عمود حذف ثابت) */
 .si-lines-wrap:has(.si-lines--co),
 .si-lines-wrap:has(#co-lines) {
   overflow-x: auto;
   overflow-y: visible;
   max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 .si-lines.si-lines--co {
-  width: max-content;
-  min-width: 100%;
-  table-layout: auto;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  table-layout: fixed;
 }
 .si-lines.si-lines--co thead th {
   white-space: nowrap;
 }
 .si-lines.si-lines--co tbody td {
-  overflow: visible;
+  overflow: hidden;
 }
 .si-lines .si-item-code-cell .si-suggest,
 .si-lines .js-item-suggest {
@@ -1621,25 +1623,11 @@ label .si-field-key {
   max-height: min(46vh, 480px);
 }
 
-.si-lines.si-lines--co {
-  width: max-content;
-  min-width: 100%;
-  table-layout: auto;
-}
-
-.si-lines.si-lines--co thead th {
-  white-space: nowrap;
-}
-
-.si-lines.si-lines--co tbody td {
-  overflow: visible;
-}
-
 .si-lines.si-lines--co input.js-item-code,
 .si-lines.si-lines--co input.js-item-name,
 .si-lines.si-lines--co select.js-unit {
-  width: auto !important;
-  max-width: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 .si-lines {
@@ -1970,33 +1958,6 @@ body.si-2027:has(#pa-root) .si-surface:has(.js-item-name:focus) {
 .si-del:focus-visible {
   outline: 2px solid rgba(220, 38, 38, 0.45);
   outline-offset: 2px;
-}
-
-/* عمود الحذف ثابت على حافة الجدول — يظهر دون تمرير أفقي */
-.si-lines th.si-col-del,
-.si-lines td.si-col-del {
-  position: sticky;
-  inset-inline-end: 0;
-  left: 0;
-  z-index: 6;
-  width: 2.7rem;
-  min-width: 2.7rem;
-  max-width: 2.9rem;
-  text-align: center;
-  vertical-align: middle;
-  background: #fff;
-  box-shadow: 6px 0 12px -8px rgba(15, 23, 42, 0.28);
-}
-
-.si-lines thead th.si-col-del {
-  z-index: 8;
-  background: rgba(3, 105, 161, 0.1);
-  color: var(--si-muted);
-  font-size: 0.65rem;
-}
-
-.si-lines tbody tr:hover td.si-col-del {
-  background: rgba(3, 105, 161, 0.06);
 }
 
 .si-lines-wrap:has(#si-lines) {
@@ -2586,4 +2547,129 @@ body.si-2027 .si-tile-kind {
   .ic-pick__meta {
     justify-self: start;
   }
+}
+
+/* ════════ بنود فاتورة البيع / طلب شراء العميل — ملائمة 100% + حذف ظاهر ════════ */
+.si-lines-wrap:has(#co-lines),
+.si-lines-wrap:has(#si-lines) {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-idx { width: 1.75rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-code { width: 7rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-name { width: auto; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-unit { width: 6rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 3.85rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 4rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 4.6rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-net,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-total { width: 5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-del { width: 2.35rem; }
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td {
+  box-sizing: border-box;
+  overflow: hidden;
+  vertical-align: middle;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th {
+  padding: 0.45rem 0.3rem;
+  text-align: center;
+  font-size: 0.66rem;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th:nth-child(2),
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th:nth-child(3) {
+  text-align: start;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) tbody td {
+  padding: 0.22rem 0.25rem;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input:not([type='hidden']),
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) select {
+  display: block;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  min-height: 1.85rem;
+  margin: 0;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid #dbe3ec;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-num-out {
+  display: table-cell;
+  text-align: center;
+  font-family: var(--si-mono, inherit);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-row-num {
+  text-align: center;
+  color: var(--si-muted, #64748b);
+  font-weight: 700;
+}
+
+/* عمود الحذف — ثابت على حافة الجدول (RTL: يسار) حتى عند التمرير الأفقي */
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th.si-col-del,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del {
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 6;
+  width: 2.35rem;
+  min-width: 2.35rem;
+  max-width: 2.5rem;
+  padding: 0.15rem;
+  overflow: visible;
+  text-align: center;
+  vertical-align: middle;
+  background: #fff;
+  box-shadow: -5px 0 10px -6px rgba(15, 23, 42, 0.22);
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th.si-col-del {
+  z-index: 8;
+  background: rgba(3, 105, 161, 0.1);
+  color: var(--si-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) tbody tr:hover td.si-col-del {
+  background: rgba(3, 105, 161, 0.06);
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del .si-del {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  margin: 0 auto;
 }
