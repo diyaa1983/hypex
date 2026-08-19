@@ -59,15 +59,18 @@ function mobile_invoice_print_mobile_pdf_css(?PDO $pdo = null): string
         . '.m-inv-pdf-sheet .m-inv-pdf-qr-block td{border:none;vertical-align:middle;}'
         . '.m-inv-pdf-sheet table.inv-print-lines{border-collapse:collapse;width:100%;margin-top:6px;'
         . 'table-layout:fixed;direction:rtl;font-size:8px;}'
-        . '.m-inv-pdf-sheet table.inv-print-lines th{background:#f1f5f9;padding:4px 3px;border:1px solid #94a3b8;'
-        . 'text-align:center;font-weight:800;font-size:7.5px;color:#1e293b;white-space:nowrap;line-height:1.2;}'
-        . '.m-inv-pdf-sheet table.inv-print-lines td{padding:4px 3px;border:1px solid #cbd5e1;text-align:center;'
+        . '.m-inv-pdf-sheet table.inv-print-lines th{background:#f1f5f9;padding:4px 2px;border:1px solid #94a3b8;'
+        . 'text-align:center;font-weight:800;font-size:7.5px;color:#1e293b;line-height:1.2;}'
+        . '.m-inv-pdf-sheet table.inv-print-lines th.inv-print-th-name{white-space:normal;}'
+        . '.m-inv-pdf-sheet table.inv-print-lines th.inv-print-th-vert{height:48px;vertical-align:bottom;white-space:nowrap;}'
+        . '.m-inv-pdf-sheet table.inv-print-lines th.inv-print-th-vert span{display:inline-block;writing-mode:vertical-rl;'
+        . '-webkit-writing-mode:vertical-rl;text-rotate:90;white-space:nowrap;}'
+        . '.m-inv-pdf-sheet table.inv-print-lines td{padding:3px 2px;border:1px solid #cbd5e1;text-align:center;'
         . 'font-size:8px;font-weight:800;color:#000;vertical-align:middle;line-height:1.25;}'
         . '.m-inv-pdf-sheet table.inv-print-lines td.inv-print-cell-item{text-align:right;word-break:break-word;white-space:normal;}'
-        . '.m-inv-pdf-sheet table.inv-print-lines td.inv-print-cell-sku{font-family:arial,dejavusans,sans-serif;}'
+        . '.m-inv-pdf-sheet table.inv-print-lines td.inv-print-cell-unit{white-space:normal;word-break:break-word;font-size:7.5px;}'
         . '.m-inv-pdf-sheet table.inv-print-lines td.inv-print-cell-disc{color:#b45309;}'
-        . '.m-inv-pdf-sheet table.inv-print-lines td.inv-print-cell-tax-pct{font-size:7.5px;}'
-        . '.m-inv-pdf-sheet table.inv-print-lines td:not(.inv-print-cell-item){white-space:nowrap;}'
+        . '.m-inv-pdf-sheet table.inv-print-lines td:not(.inv-print-cell-item):not(.inv-print-cell-unit){white-space:nowrap;}'
         . '.m-inv-pdf-tot-wrap{text-align:right;margin:14px 0 0;direction:rtl;}'
         . '.m-inv-pdf-sheet table.inv-print-lines{margin-bottom:4px;}'
         . '.m-inv-pdf-sheet .m-pdf-tot-tbl{width:236px;border-collapse:collapse;table-layout:fixed;direction:rtl;margin:0;}'
@@ -217,7 +220,7 @@ function mobile_invoice_print_inner_html_mobile_pdf(PDO $pdo, array $inv): strin
     $layout = mobile_invoice_print_layout($inv);
     $showQtyExtra = $layout['show_qty_extra'];
     $showDiscount = $layout['show_discount'];
-    $colspan = 12 + ($showQtyExtra ? 1 : 0) + ($showDiscount ? 1 : 0);
+    $colspan = 8;
 
     $head = mobile_invoice_print_head_mobile_pdf($pdo);
 

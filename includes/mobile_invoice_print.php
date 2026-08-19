@@ -161,10 +161,13 @@ function mobile_invoice_print_pdf_overrides_css(): string
         . '#m-inv-pdf-preview .m-pdf-tot-tbl .m-pdf-tot-grand td{border-top:2px solid #334155!important;border-bottom:none!important;padding-top:6px!important;font-size:11px!important;font-weight:800!important;}'
         . '#m-inv-pdf-preview table.inv-print-lines{table-layout:fixed!important;width:100%!important;border-collapse:collapse!important;}'
         . '#m-inv-pdf-preview table.inv-print-lines th,#m-inv-pdf-preview table.inv-print-lines td{box-sizing:border-box!important;vertical-align:middle!important;}'
-        . '#m-inv-pdf-preview table.inv-print-lines th{white-space:nowrap!important;font-size:8px!important;line-height:1.25!important;padding:4px 3px!important;}'
-        . '#m-inv-pdf-preview table.inv-print-lines td{font-size:9px!important;line-height:1.3!important;padding:4px 3px!important;}'
-        . '#m-inv-pdf-preview table.inv-print-lines td:not(.inv-print-cell-item){white-space:nowrap!important;}'
-        . '#m-inv-pdf-preview table.inv-print-lines td.inv-print-cell-item{white-space:normal!important;word-break:break-word!important;text-align:start!important;}'
+        . '#m-inv-pdf-preview table.inv-print-lines th{font-size:8px!important;line-height:1.25!important;padding:4px 2px!important;}'
+        . '#m-inv-pdf-preview table.inv-print-lines th.inv-print-th-name{white-space:normal!important;}'
+        . '#m-inv-pdf-preview table.inv-print-lines th.inv-print-th-vert{white-space:nowrap!important;height:4.6em!important;vertical-align:bottom!important;padding:5px 1px!important;}'
+        . '#m-inv-pdf-preview table.inv-print-lines th.inv-print-th-vert span{display:inline-block!important;writing-mode:vertical-rl!important;-webkit-writing-mode:vertical-rl!important;transform:rotate(180deg)!important;white-space:nowrap!important;}'
+        . '#m-inv-pdf-preview table.inv-print-lines td{font-size:9px!important;line-height:1.3!important;padding:3px 2px!important;}'
+        . '#m-inv-pdf-preview table.inv-print-lines td:not(.inv-print-cell-item):not(.inv-print-cell-unit){white-space:nowrap!important;}'
+        . '#m-inv-pdf-preview table.inv-print-lines td.inv-print-cell-item{white-space:normal!important;word-break:break-word!important;overflow-wrap:anywhere!important;text-align:start!important;font-size:8px!important;}'
         . '#m-inv-pdf-preview table.inv-print-header-row{table-layout:fixed!important;width:100%!important;}'
         . '#m-inv-pdf-preview table.inv-print-header-row td.inv-print-header-meta{width:72%!important;}'
         . '#m-inv-pdf-preview table.inv-print-header-row td.inv-print-header-qr{width:28%!important;vertical-align:top!important;}'
@@ -187,13 +190,15 @@ function mobile_invoice_print_styles_pdf(?PDO $pdo = null): string
 function mobile_invoice_print_table_css(): string
 {
     return 'body{font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:700;color:#0f172a;margin:6mm 10mm 10mm;direction:rtl;}'
-        . 'table.inv-print-lines{border-collapse:collapse;width:100%;margin-top:0.5rem;font-size:10px;}'
-        . 'table.inv-print-lines th{background:#f1f5f9;padding:0.28rem 0.35rem;border:1px solid #94a3b8;font-size:10px;font-weight:400!important;color:#475569;}'
-        . 'table.inv-print-lines td{padding:0.28rem 0.35rem;border:1px solid #cbd5e1;text-align:center;font-size:10px;font-weight:700!important;color:#0f172a;}'
-        . 'table.inv-print-lines td.inv-print-cell-item{text-align:start;}'
-        . 'table.inv-print-lines .inv-print-cell-sku{font-family:Arial,Helvetica,sans-serif;}'
-        . 'table.inv-print-lines .inv-print-cell-disc{color:#b45309;}'
-        . 'table.inv-print-lines .inv-print-cell-tax-pct{font-size:9px;}';
+        . 'table.inv-print-lines{border-collapse:collapse;width:100%;margin-top:0.5rem;font-size:10px;table-layout:fixed;}'
+        . 'table.inv-print-lines th{background:#f1f5f9;padding:0.28rem 0.2rem;border:1px solid #94a3b8;font-size:10px;font-weight:400!important;color:#475569;text-align:center;}'
+        . 'table.inv-print-lines th.inv-print-th-name{white-space:normal;font-size:9px;}'
+        . 'table.inv-print-lines th.inv-print-th-vert{height:4.6em;vertical-align:bottom;padding:0.35rem 0.1rem;white-space:nowrap;}'
+        . 'table.inv-print-lines th.inv-print-th-vert span{display:inline-block;writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap;font-size:9px;}'
+        . 'table.inv-print-lines td{padding:0.22rem 0.2rem;border:1px solid #cbd5e1;text-align:center;font-size:10px;font-weight:700!important;color:#0f172a;}'
+        . 'table.inv-print-lines td.inv-print-cell-item{text-align:start;white-space:normal;word-break:break-word;overflow-wrap:anywhere;font-size:9px;line-height:1.25;}'
+        . 'table.inv-print-lines td.inv-print-cell-unit{white-space:normal;word-break:break-word;font-size:8px;}'
+        . 'table.inv-print-lines .inv-print-cell-disc{color:#b45309;}';
 }
 
 /** @param array<string, mixed> $inv */
@@ -226,25 +231,11 @@ function mobile_invoice_print_layout(array $inv): array
     ];
 }
 
-/** أعمدة الجدول بنسب ثابتة — html2pdf لا يحترم flex جيداً */
-function mobile_invoice_print_colgroup(bool $showQtyExtra, bool $showDiscount): string
+/** أعمدة الجدول بنسب ثابتة — اسم ضيّق مع التفاف، الباقي أعمدة ضيقة بعناوين طولية */
+function mobile_invoice_print_colgroup(bool $showQtyExtra = true, bool $showDiscount = true): string
 {
-    // تسلسل، رقم، اسم، وحدة، كمية، [إضافي]، إفرادي، [خصم]، إجمالي، ضريبة، نسبة، مع ضريبة
-    $w = [4, 8, 22, 10, 8];
-    if ($showQtyExtra) {
-        $w[2] = 18;
-        $w[] = 6;
-    }
-    $w[] = 8;
-    if ($showDiscount) {
-        $w[2] = max(14, $w[2] - 2);
-        $w[] = 6;
-    }
-    $w = array_merge($w, [9, 8, 6, 11]);
-    $sum = array_sum($w);
-    if ($sum !== 100) {
-        $w[count($w) - 1] += 100 - $sum;
-    }
+    // اسم، وحدة، كمية، اضافي، سعر، خصم، ضريبة، إجمالي
+    $w = [28, 7, 9, 7, 12, 10, 11, 16];
     $html = '<colgroup>';
     foreach ($w as $pct) {
         $html .= '<col style="width:' . (int) $pct . '%">';
@@ -253,19 +244,18 @@ function mobile_invoice_print_colgroup(bool $showQtyExtra, bool $showDiscount): 
     return $html . '</colgroup>';
 }
 
-function mobile_invoice_print_thead_row(bool $showQtyExtra, bool $showDiscount): string
+function mobile_invoice_print_thead_row(bool $showQtyExtra = true, bool $showDiscount = true): string
 {
-    $h = '<tr><th>تسلسل</th><th>الباركود</th><th>اسم المادة</th><th>الوحدة</th><th>الكمية</th>';
-    if ($showQtyExtra) {
-        $h .= '<th>الكمية الإضافية</th>';
-    }
-    $h .= '<th>السعر الإفرادي</th>';
-    if ($showDiscount) {
-        $h .= '<th>الخصم</th>';
-    }
-    $h .= '<th>السعر الإجمالي</th><th>مبلغ الضريبة</th><th>نسبة الضريبة</th><th>الإجمالي مع الضريبة</th></tr>';
-
-    return $h;
+    return '<tr>'
+        . '<th class="inv-print-th-name">اسم المادة</th>'
+        . '<th class="inv-print-th-vert"><span>وحدة</span></th>'
+        . '<th class="inv-print-th-vert"><span>الكمية</span></th>'
+        . '<th class="inv-print-th-vert"><span>اضافي</span></th>'
+        . '<th class="inv-print-th-vert"><span>السعر</span></th>'
+        . '<th class="inv-print-th-vert"><span>الخصم</span></th>'
+        . '<th class="inv-print-th-vert"><span>الضريبة</span></th>'
+        . '<th class="inv-print-th-vert"><span>الإجمالي</span></th>'
+        . '</tr>';
 }
 
 function mobile_invoice_print_fmt(float $n, int $dp): string
@@ -299,8 +289,6 @@ function mobile_invoice_print_line_row(
 {
     require_once app_path('includes/inv_item_units.php');
     $unitDp = $unitPriceDp ?? $amountDp;
-    $taxPct = (float) ($ln['tax_rate_percent'] ?? 0);
-    $taxLab = rtrim(rtrim(number_format($taxPct, 2, '.', ''), '0'), '.') . '%';
     $name = (string) ($ln['name_ar'] ?? $ln['line_desc'] ?? '');
     $unitName = trim((string) ($ln['unit_name'] ?? ''));
     $unitFactor = (float) ($ln['unit_factor'] ?? 1);
@@ -312,26 +300,16 @@ function mobile_invoice_print_line_row(
         $packTxt = rtrim(rtrim(number_format($unitFactor, 6, '.', ''), '0'), '.');
         $name = trim($name) !== '' ? (trim($name) . ' (تعبئة × ' . $packTxt . ')') : $name;
     }
-    $sku = (string) ($ln['barcode'] ?? $ln['sku'] ?? '');
-    $sub = (float) ($ln['line_subtotal'] ?? $ln['line_total'] ?? 0);
-    $gross = (float) ($ln['line_gross'] ?? $sub);
+    $gross = (float) ($ln['line_gross'] ?? $ln['line_subtotal'] ?? $ln['line_total'] ?? 0);
 
     $html = '<tr>';
-    $html .= '<td>' . $seq . '</td>';
-    $html .= '<td class="inv-print-cell-sku">' . esc($sku) . '</td>';
     $html .= '<td class="inv-print-cell-item">' . esc($name) . '</td>';
-    $html .= '<td>' . esc($unitName !== '' ? $unitName : '—') . '</td>';
+    $html .= '<td class="inv-print-cell-unit">' . esc($unitName !== '' ? $unitName : '—') . '</td>';
     $html .= '<td>' . esc(mobile_invoice_print_fmt($qty, $amountDp)) . '</td>';
-    if ($showQtyExtra) {
-        $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['qty_extra'] ?? 0), $amountDp)) . '</td>';
-    }
+    $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['qty_extra'] ?? 0), $amountDp)) . '</td>';
     $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['unit_price'] ?? 0), $unitDp)) . '</td>';
-    if ($showDiscount) {
-        $html .= '<td class="inv-print-cell-disc">' . mobile_invoice_print_discount_cell($ln, $amountDp) . '</td>';
-    }
-    $html .= '<td>' . esc(mobile_invoice_print_fmt($sub, $amountDp)) . '</td>';
+    $html .= '<td class="inv-print-cell-disc">' . mobile_invoice_print_discount_cell($ln, $amountDp) . '</td>';
     $html .= '<td>' . esc(mobile_invoice_print_fmt((float) ($ln['tax_amount'] ?? 0), $amountDp)) . '</td>';
-    $html .= '<td class="inv-print-cell-tax-pct">' . esc($taxLab) . '</td>';
     $html .= '<td>' . esc(mobile_invoice_print_fmt($gross, $amountDp)) . '</td>';
     $html .= '</tr>';
 
@@ -580,7 +558,7 @@ function mobile_invoice_print_inner_html(PDO $pdo, array $inv, bool $forPdf = fa
     $layout = mobile_invoice_print_layout($inv);
     $showQtyExtra = $layout['show_qty_extra'];
     $showDiscount = $layout['show_discount'];
-    $colspan = 12 + ($showQtyExtra ? 1 : 0) + ($showDiscount ? 1 : 0);
+    $colspan = 8;
 
     $linesHtml = '';
     $seq = 0;

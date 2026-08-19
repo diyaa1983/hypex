@@ -6,7 +6,7 @@ const svc = require('./customerOrdersService');
 const invSvc = require('./invoicesService');
 const { renderApp } = require('../lib/layout');
 const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
-const { ensurePrintBrand, renderStandalonePrintPage } = require('../lib/printBrand');
+const { ensurePrintBrand, renderStandalonePrintPage, invoiceV1LinesTableHtml } = require('../lib/printBrand');
 const { oracleStatementUrl, linesColgroup } = require('../lib/salesUi');
 
 const router = express.Router();
@@ -144,7 +144,6 @@ async function renderOrderPrint(req, res, orderId) {
 
   const custLabel = String(order.customer_name || '').trim() || '—';
   const lines = Array.isArray(order.lines) ? order.lines : [];
-  const showExtra = lines.some((ln) => (Number(ln.qty_extra) || 0) > 0.000001);
   const discLinesTotal = lines.reduce((a, ln) => a + (Number(ln.discount_amount) || 0), 0);
   const hasLineDisc = lines.some(
     (ln) =>
@@ -159,46 +158,8 @@ async function renderOrderPrint(req, res, orderId) {
   }
   const showDisc = hasLineDisc || hasInvDisc || discLinesTotal > 0.000001;
   const invDiscLabel = invDiscRaw || fmtAmt(0);
-  const colCount = 11 + (showExtra ? 1 : 0) + (showDisc ? 1 : 0);
   const statusLabel = order.is_approved ? 'معتمد' : 'مسودة';
-
-  const bodyRows =
-    lines
-      .map((ln, i) => {
-        const qty = Number(ln.qty) || 0;
-        const qtyExtra = Number(ln.qty_extra) || 0;
-        const discPct = Number(ln.discount_pct) || 0;
-        const discAmt = Number(ln.discount_amount) || 0;
-        const taxPct = Number(ln.tax_rate_percent) || 0;
-        const unitNet = Number(ln.unit_price) || 0;
-        const unitGross = unitNet * (1 + taxPct / 100);
-        const discCell = discPct > 0.000001 ? `${fmtAmt(discPct)}%` : fmtAmt(discAmt);
-        return `<tr>
-            <td class="c-idx" dir="ltr">${i + 1}</td>
-            <td class="c-code" dir="ltr">${esc(ln.item_code || '')}</td>
-            <td class="c-name">${esc(ln.name_ar || '')}</td>
-            <td class="c-unit">${esc(ln.unit_name || 'قطعة')}</td>
-            <td class="c-num" dir="ltr">${esc(fmtAmt(qty))}</td>
-            ${
-              showExtra
-                ? `<td class="c-num" dir="ltr">${esc(fmtAmt(qtyExtra))}</td>`
-                : ''
-            }
-            <td class="c-num" dir="ltr">${esc(fmtAmt(unitNet))}</td>
-            <td class="c-num" dir="ltr">${esc(fmtAmt(unitGross))}</td>
-            ${
-              showDisc
-                ? `<td class="c-num c-disc" dir="ltr">${esc(discCell)}</td>`
-                : ''
-            }
-            <td class="c-num" dir="ltr">${esc(fmtAmt(ln.line_total))}</td>
-            <td class="c-num" dir="ltr">${esc(fmtAmt(ln.tax_amount))}</td>
-            <td class="c-num" dir="ltr">${esc(fmtAmt(taxPct))}%</td>
-            <td class="c-num c-gross" dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
-          </tr>`;
-      })
-      .join('') ||
-    `<tr><td colspan="${colCount}" class="empty">لا بنود</td></tr>`;
+  const linesTableHtml = invoiceV1LinesTableHtml(lines, fmtAmt, esc);
 
   const discSumRows = showDisc
     ? `<tr>
@@ -251,26 +212,7 @@ async function renderOrderPrint(req, res, orderId) {
           </div>
         </div>
 
-        <table class="inv-v1-table">
-          <thead>
-            <tr>
-              <th>تسلسل</th>
-              <th>الباركود</th>
-              <th>اسم المادة</th>
-              <th>الوحدة</th>
-              <th>الكمية</th>
-              ${showExtra ? '<th>الكمية الإضافية</th>' : ''}
-              <th>الافرادي غ.ش</th>
-              <th>الافرادي ش.</th>
-              ${showDisc ? '<th>الخصم</th>' : ''}
-              <th>السعر الإجمالي</th>
-              <th>مبلغ الضريبة</th>
-              <th>نسبة الضريبة</th>
-              <th>الإجمالي مع الضريبة</th>
-            </tr>
-          </thead>
-          <tbody>${bodyRows}</tbody>
-        </table>
+        ${linesTableHtml}
 
         <div class="inv-v1-foot">
           ${sumsBlock}

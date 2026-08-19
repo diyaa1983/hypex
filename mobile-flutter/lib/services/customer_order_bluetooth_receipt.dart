@@ -58,6 +58,7 @@ class CustomerOrderBluetoothReceipt {
       pw.TextAlign align = pw.TextAlign.center,
       bool ltr = false,
       int maxLines = 1,
+      pw.TextOverflow overflow = pw.TextOverflow.clip,
     }) =>
         thermalCell(
           text,
@@ -66,6 +67,7 @@ class CustomerOrderBluetoothReceipt {
           ltr: ltr,
           padding: cellPad,
           maxLines: maxLines,
+          overflow: overflow,
         );
 
     // الجدول LTR داخلياً → نعكس الخلايا ليُقرأ من اليمين:
@@ -87,13 +89,24 @@ class CustomerOrderBluetoothReceipt {
 
     pw.Widget kvPlain(String label, String value) => pw.Padding(
           padding: const pw.EdgeInsets.only(bottom: 2),
-          child: pw.Row(children: [
-            pw.Text('$label: ', style: pw.TextStyle(font: bold, fontSize: fs)),
-            pw.Expanded(
-              child:
-                  pw.Text(value, style: pw.TextStyle(font: reg, fontSize: fs)),
-            ),
-          ]),
+          child: pw.Row(
+            textDirection: pw.TextDirection.rtl,
+            children: [
+              pw.Text(
+                '$label: ',
+                textDirection: pw.TextDirection.rtl,
+                style: pw.TextStyle(font: bold, fontSize: fs),
+              ),
+              pw.Expanded(
+                child: pw.Text(
+                  value,
+                  textDirection: pw.TextDirection.rtl,
+                  textAlign: pw.TextAlign.right,
+                  style: pw.TextStyle(font: reg, fontSize: fs),
+                ),
+              ),
+            ],
+          ),
         );
 
     pw.Widget moneyRow(String label, double v) => pw.Padding(
@@ -153,14 +166,15 @@ class CustomerOrderBluetoothReceipt {
               border: ThermalTableStyle.border,
               defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
               columnWidths: {
-                0: pw.FlexColumnWidth(paperMm == 80 ? 0.85 : 0.8),
+                // بعد العكس: إجمالي | ضريبة | خصم | سعر | إضافي | كمية | وحدة | مادة
+                0: pw.FlexColumnWidth(paperMm == 80 ? 0.95 : 0.9),
                 1: const pw.FlexColumnWidth(0.5),
-                2: const pw.FlexColumnWidth(0.5),
+                2: const pw.FlexColumnWidth(0.45),
                 3: pw.FlexColumnWidth(paperMm == 80 ? 0.7 : 0.65),
                 4: const pw.FlexColumnWidth(0.45),
-                5: const pw.FlexColumnWidth(0.45),
-                6: const pw.FlexColumnWidth(0.55),
-                7: const pw.FlexColumnWidth(2.7),
+                5: const pw.FlexColumnWidth(0.5),
+                6: pw.FlexColumnWidth(paperMm == 80 ? 1.35 : 1.45),
+                7: pw.FlexColumnWidth(paperMm == 80 ? 2.15 : 1.9),
               },
               children: [
                 pw.TableRow(
@@ -168,12 +182,12 @@ class CustomerOrderBluetoothReceipt {
                   children: rtlRow([
                     compactCell('مادة', style: headStyle, maxLines: 1),
                     compactCell('وحدة', style: headStyle, maxLines: 1),
-                    compactCell('كمية', style: headStyle, ltr: true),
-                    compactCell('إضافي', style: headStyle, ltr: true),
-                    compactCell('سعر', style: headStyle, ltr: true),
-                    compactCell('خصم', style: headStyle, ltr: true),
-                    compactCell('ضريبة', style: headStyle, ltr: true),
-                    compactCell('إجمالي', style: headStyle, ltr: true),
+                    compactCell('كمية', style: headStyle),
+                    compactCell('إضافي', style: headStyle),
+                    compactCell('سعر', style: headStyle),
+                    compactCell('خصم', style: headStyle),
+                    compactCell('ضريبة', style: headStyle),
+                    compactCell('إجمالي', style: headStyle),
                   ]),
                 ),
                 for (var i = 0; i < lines.length; i++)
@@ -198,7 +212,14 @@ class CustomerOrderBluetoothReceipt {
                           align: pw.TextAlign.right,
                           maxLines: 2,
                         ),
-                        compactCell(Fmt.str(line['unit_name']), style: valStyle),
+                        compactCell(
+                          Fmt.str(line['unit_name']),
+                          style: valStyle.copyWith(
+                            fontSize: paperMm == 80 ? 7.0 : 6.0,
+                          ),
+                          maxLines: 2,
+                          overflow: pw.TextOverflow.span,
+                        ),
                         compactCell(
                           qty == 0 ? '' : Fmt.trimNum(qty),
                           style: valStyle,

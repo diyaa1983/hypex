@@ -31,15 +31,20 @@ pw.Widget thermalCell(
   bool ltr = false,
   pw.EdgeInsets? padding,
   int maxLines = 2,
-}) =>
-    pw.Padding(
-      padding: padding ?? ThermalTableStyle.cellPadding,
-      child: pw.Text(
-        text,
-        textAlign: align,
-        textDirection: ltr ? pw.TextDirection.ltr : pw.TextDirection.rtl,
-        style: style,
-        maxLines: maxLines,
-        overflow: pw.TextOverflow.clip,
-      ),
-    );
+  pw.TextOverflow overflow = pw.TextOverflow.clip,
+}) {
+  final hasArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(text);
+  return pw.Padding(
+    padding: padding ?? ThermalTableStyle.cellPadding,
+    child: pw.Text(
+      text,
+      textAlign: align,
+      textDirection:
+          (ltr && !hasArabic) ? pw.TextDirection.ltr : pw.TextDirection.rtl,
+      style: style,
+      maxLines: maxLines,
+      overflow: overflow,
+      softWrap: true,
+    ),
+  );
+}

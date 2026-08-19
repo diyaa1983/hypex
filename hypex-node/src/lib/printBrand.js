@@ -301,6 +301,34 @@ async function renderStandalonePrintPage({
     .inv-v1-table .c-disc{color:#b45309;font-weight:700}
     .inv-v1-table .c-gross{font-weight:800}
     .inv-v1-table .empty{text-align:center;color:#64748b;padding:12px}
+    /* بنود الفاتورة: اسم ضيّق مع التفاف · العناوين الأخرى طولية لتضيق الأعمدة */
+    .inv-v1-table--lines{table-layout:fixed}
+    .inv-v1-table--lines col.c-col-name{width:28%}
+    .inv-v1-table--lines col.c-col-unit{width:7%}
+    .inv-v1-table--lines col.c-col-qty{width:9%}
+    .inv-v1-table--lines col.c-col-extra{width:7%}
+    .inv-v1-table--lines col.c-col-price{width:12%}
+    .inv-v1-table--lines col.c-col-disc{width:10%}
+    .inv-v1-table--lines col.c-col-tax{width:11%}
+    .inv-v1-table--lines col.c-col-total{width:16%}
+    .inv-v1-table--lines thead th.c-name-h{
+      white-space:normal;font-size:7.5pt;line-height:1.2;padding:5px 4px
+    }
+    .inv-v1-table--lines thead th.c-vert{
+      vertical-align:bottom;padding:6px 1px 4px;height:4.8em;line-height:1;white-space:nowrap
+    }
+    .inv-v1-table--lines thead th.c-vert span{
+      display:inline-block;writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;
+      transform:rotate(180deg);white-space:nowrap;font-size:8pt;font-weight:700
+    }
+    .inv-v1-table--lines .c-name{
+      max-width:0;width:28%;white-space:normal;word-break:break-word;overflow-wrap:anywhere;
+      line-height:1.25;font-size:7pt;padding:3px 4px
+    }
+    .inv-v1-table--lines .c-unit{
+      white-space:normal;word-break:break-word;line-height:1.15;font-size:6.5pt;padding:2px 1px
+    }
+    .inv-v1-table--lines .c-num{font-size:7pt;white-space:nowrap;padding:2px 1px}
     /* مجاميع كلاسيكية — جدول يسار/أسفل */
     .inv-v1-foot{
       display:flex;flex-direction:column;align-items:flex-start;
@@ -446,6 +474,61 @@ async function renderStandalonePrintPage({
 </html>`;
 }
 
+/**
+ * جدول بنود طباعة الفاتورة/الطلب:
+ * اسم المادة (ضيّق مع التفاف) ثم وحدة، كمية، اضافي، سعر، خصم، ضريبة، إجمالي.
+ */
+function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
+  const fmt = typeof fmtAmtFn === 'function' ? fmtAmtFn : (n) => String(n ?? '');
+  const hx = typeof escFn === 'function' ? escFn : escapeHtml;
+  const rows = (Array.isArray(lines) ? lines : [])
+    .map((ln) => {
+      const qty = Number(ln.qty) || 0;
+      const qtyExtra = Number(ln.qty_extra) || 0;
+      const discPct = Number(ln.discount_pct) || 0;
+      const discAmt = Number(ln.discount_amount) || 0;
+      const discCell = discPct > 0.000001 ? `${fmt(discPct)}%` : fmt(discAmt);
+      const name = ln.name_ar || ln.item_name || ln.line_desc || '';
+      return `<tr>
+            <td class="c-name">${hx(name)}</td>
+            <td class="c-unit">${hx(ln.unit_name || 'قطعة')}</td>
+            <td class="c-num" dir="ltr">${hx(fmt(qty))}</td>
+            <td class="c-num" dir="ltr">${hx(fmt(qtyExtra))}</td>
+            <td class="c-num" dir="ltr">${hx(fmt(ln.unit_price))}</td>
+            <td class="c-num c-disc" dir="ltr">${hx(discCell)}</td>
+            <td class="c-num" dir="ltr">${hx(fmt(ln.tax_amount))}</td>
+            <td class="c-num c-gross" dir="ltr">${hx(fmt(ln.line_gross))}</td>
+          </tr>`;
+    })
+    .join('');
+  const body = rows || '<tr><td colspan="8" class="empty">لا بنود</td></tr>';
+  return `<table class="inv-v1-table inv-v1-table--lines">
+          <colgroup>
+            <col class="c-col-name">
+            <col class="c-col-unit">
+            <col class="c-col-qty">
+            <col class="c-col-extra">
+            <col class="c-col-price">
+            <col class="c-col-disc">
+            <col class="c-col-tax">
+            <col class="c-col-total">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="c-name-h">اسم المادة</th>
+              <th class="c-vert"><span>وحدة</span></th>
+              <th class="c-vert"><span>الكمية</span></th>
+              <th class="c-vert"><span>اضافي</span></th>
+              <th class="c-vert"><span>السعر</span></th>
+              <th class="c-vert"><span>الخصم</span></th>
+              <th class="c-vert"><span>الضريبة</span></th>
+              <th class="c-vert"><span>الإجمالي</span></th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>`;
+}
+
 module.exports = {
   getPrintBrand,
   warmPrintBrand,
@@ -456,6 +539,7 @@ module.exports = {
   printDataAttrs,
   bodyPrintDataHtml,
   renderStandalonePrintPage,
+  invoiceV1LinesTableHtml,
   watermarkCss,
   watermarkMarkup,
   assetVersion,
