@@ -343,7 +343,6 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'UPD_FLAG' => 'SS',
         'DH_FLAGE' => 1,
         'REF_FLAG' => 1,
-        'MAN_NUM' => 1,
         'TDATE' => $orderDate,
         'DUE_DATE' => $orderDate,
         'TTIME' => date('H:i:s'),
@@ -353,11 +352,14 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'NOTES' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
         'REMARK' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
     ];
-    if ((int) ($salesman['no'] ?? 0) > 0) {
-        $sharedHeader['SALESMAN'] = (int) $salesman['no'];
-        $sharedHeader['SALES_MAN'] = (int) $salesman['no'];
-        $sharedHeader['SMAN'] = (int) $salesman['no'];
+    $smNo = (int) ($salesman['no'] ?? 0);
+    if ($smNo < 1) {
+        $smNo = 1;
     }
+    $sharedHeader['SALESMAN'] = $smNo;
+    $sharedHeader['SALES_MAN'] = $smNo;
+    $sharedHeader['SMAN'] = $smNo;
+    $sharedHeader['MAN_NUM'] = $smNo;
 
     $rowValues = static function (array $line) use ($sharedHeader, $headerExtras): array {
         $base = $sharedHeader;
@@ -501,33 +503,84 @@ function oracle_order_max_vnum(array $conn, string $from, int $stype, int $vyear
 }
 
 /**
- * بائع أوراكل من رمز مندوب Hypex إن كان رقماً موجباً، وإلا 1.
+ * بائع أوراكل = رمز المندوب في Hypex إن كان رقماً (مثل 39)، وإلا 1.
  *
  * @return array{no:int,name:string}
  */
 function oracle_order_hypex_salesman(PDO $mysql, array $order): array
 {
     $fallback = ['no' => 1, 'name' => ''];
+    $code = trim((string) ($order['sales_rep_code'] ?? ''));
+    $name = trim((string) ($order['sales_rep_name'] ?? ''));
     $repId = (int) ($order['sales_rep_id'] ?? 0);
-    if ($repId < 1) {
-        return $fallback;
+
+    if ($repId > 0 && ($code === '' || $name === '')) {
+        try {
+            $st = $mysql->prepare('SELECT code, name_ar FROM crm_sales_rep WHERE id = ? LIMIT 1');
+            $st->execute([$repId]);
+            $row = $st->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                if ($code === '') {
+                    $code = trim((string) ($row['code'] ?? ''));
+                }
+                if ($name === '') {
+                    $name = trim((string) ($row['name_ar'] ?? ''));
+                }
+            }
+        } catch (Throwable $e) {
+            // نكمل بالمتاح
+        }
     }
-    try {
-        $st = $mysql->prepare('SELECT code, name_ar FROM crm_sales_rep WHERE id = ? LIMIT 1');
-        $st->execute([$repId]);
-        $row = $st->fetch(PDO::FETCH_ASSOC);
-        if (!$row) {
-            return $fallback;
+
+    if ($code === '' && $repId < 1) {
+        $customerId = (int) ($order['customer_id'] ?? 0);
+        if ($customerId > 0) {
+            try {
+                require_once app_path('includes/crm_sales_rep_schema.php');
+                $reps = crm_customer_sales_reps_for_customer($mysql, $customerId);
+                if ($reps !== []) {
+                    $rid = (int) ($reps[0]['id'] ?? 0);
+                    $name = trim((string) ($reps[0]['name_ar'] ?? ''));
+                    if ($rid > 0) {
+                        $st = $mysql->prepare('SELECT code, name_ar FROM crm_sales_rep WHERE id = ? LIMIT 1');
+                        $st->execute([$rid]);
+                        $row = $st->fetch(PDO::FETCH_ASSOC);
+                        if ($row) {
+                            $code = trim((string) ($row['code'] ?? ''));
+                            if ($name === '') {
+                                $name = trim((string) ($row['name_ar'] ?? ''));
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable $e) {
+                // استخدم الافتراضي
+            }
         }
-        $code = trim((string) ($row['code'] ?? ''));
-        if (preg_match('/^[1-9]\d*$/', $code)) {
-            return ['no' => (int) $code, 'name' => (string) ($row['name_ar'] ?? '')];
-        }
-    } catch (Throwable $e) {
-        // استخدم البائع 1
+    }
+
+    $no = oracle_order_parse_salesman_code($code);
+    if ($no > 0) {
+        return ['no' => $no, 'name' => $name];
     }
 
     return $fallback;
+}
+
+function oracle_order_parse_salesman_code(string $code): int
+{
+    $code = trim($code);
+    if ($code !== '' && preg_match('/^[1-9]\d*$/', $code)) {
+        return (int) $code;
+    }
+    if (preg_match('/(\d+)/', $code, $m)) {
+        $n = (int) $m[1];
+        if ($n > 0 && $n < 100000) {
+            return $n;
+        }
+    }
+
+    return 0;
 }
 
 /**
@@ -539,7 +592,7 @@ function oracle_order_hypex_salesman(PDO $mysql, array $order): array
 function oracle_order_extras(array $cols, array $salesman, array $order): array
 {
     $extras = [];
-    $smCol = oracle_order_pick_col($cols, ['SALESMAN', 'SALES_MAN', 'SMAN', 'EMP_NO', 'SELLER', 'SALEMAN']);
+    $smCol = oracle_order_pick_col($cols, ['SALESMAN', 'SALES_MAN', 'SMAN', 'MAN_NUM', 'EMP_NO', 'SELLER', 'SALEMAN']);
     if ($smCol && (int) ($salesman['no'] ?? 0) > 0) {
         $extras[$smCol] = (int) $salesman['no'];
     }
@@ -665,6 +718,10 @@ function oracle_order_seed_header(array $sample, array $ours, array $cols): arra
         'FLAG' => true,
         'PRINT_FLAGE' => true,
         'ROWID' => true,
+        'SALESMAN' => true,
+        'SALES_MAN' => true,
+        'SMAN' => true,
+        'MAN_NUM' => true,
     ];
     $out = [];
     foreach ($sample as $k => $v) {
@@ -698,7 +755,7 @@ function oracle_order_apply_aliases(array $cols, array $vals): array
         'CUST_ACC' => ['CUST_ACC', 'CUS_NUM', 'CUS_NO', 'CUS_ACC', 'CUSTOMER', 'ACC_NUM', 'ACC_NO', 'CUST_NO', 'CUSTNO', 'A_CODE'],
         'STORE' => ['STORE', 'STO_NUM', 'STO_NO', 'STORE_NO', 'WAREHOUSE', 'WH_NO'],
         'VDATE' => ['VDATE', 'V_DATE', 'FDATE', 'INV_DATE', 'BILL_DATE', 'TRN_DATE'],
-        'SALESMAN' => ['SALESMAN', 'SALES_MAN', 'SMAN', 'EMP_NO', 'SELLER', 'SALEMAN'],
+        'SALESMAN' => ['SALESMAN', 'SALES_MAN', 'SMAN', 'MAN_NUM', 'EMP_NO', 'SELLER', 'SALEMAN'],
         'ORDER_NO' => ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'ORDNUM', 'PO_NO', 'V_ORDER', 'CUST_ORD'],
         'NOTE' => ['NOTE', 'NOTES', 'REMARK', 'REMARKS', 'COMM', 'V_NOTE', 'NOTE1', 'NOTE_1'],
         'FLAG' => ['FLAG', 'FLAGE', 'V_FLAG'],
@@ -739,7 +796,6 @@ function oracle_order_force_forms_fields(array $use, array $cols): array
     }
     $force = [
         'VOU_FLAG' => 18,
-        'MAN_NUM' => 1,
         'UPD_FLAG' => 'SS',
         'USR_ID' => 'HYPX',
         'DH_FLAGE' => 1,
@@ -751,6 +807,15 @@ function oracle_order_force_forms_fields(array $use, array $cols): array
     foreach ($force as $k => $v) {
         if (isset($cols[$k])) {
             $use[$k] = $v;
+        }
+    }
+    $smNo = (int) ($use['SALESMAN'] ?? $use['MAN_NUM'] ?? $use['SMAN'] ?? 0);
+    if ($smNo > 0) {
+        if (isset($cols['MAN_NUM'])) {
+            $use['MAN_NUM'] = $smNo;
+        }
+        if (isset($cols['SALESMAN'])) {
+            $use['SALESMAN'] = $smNo;
         }
     }
     if (isset($cols['SRL']) && (int) ($use['SRL'] ?? 0) < 1) {

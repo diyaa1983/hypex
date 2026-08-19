@@ -206,7 +206,8 @@ function sal_customer_order_fetch(PDO $pdo, int $id): ?array
 {
     $st = $pdo->prepare(
         'SELECT o.*, c.name_ar customer_name, c.code customer_code, w.name_ar warehouse_name,
-                COALESCE(r.name_ar, \'\') sales_rep_name, COALESCE(a.full_name_ar, \'\') approved_by_name
+                COALESCE(r.name_ar, \'\') sales_rep_name, COALESCE(r.code, \'\') sales_rep_code,
+                COALESCE(a.full_name_ar, \'\') approved_by_name
          FROM sal_customer_order o
          INNER JOIN crm_customer c ON c.id=o.customer_id
          INNER JOIN inv_warehouse w ON w.id=o.warehouse_id
