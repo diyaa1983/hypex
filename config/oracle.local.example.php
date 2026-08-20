@@ -87,6 +87,13 @@ return [
         ],
         'item_card_owner' => 'MAS',
         'item_card_table' => 'MASCARD',
+        // فحص رصيد المخزون قبل الترحيل (MAS.STOCK.SYS_QTY) — يمنع خطأ INV00024
+        'stock' => [
+            'enabled' => true,
+            'owner' => 'MAS',
+            'table' => 'STOCK',
+            'qty_column' => 'SYS_QTY',
+        ],
     ],
 
     /**
