@@ -448,6 +448,20 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         return array_merge($base, $headerExtras);
     };
 
+    // فحص أخير فوراً قبل الإدراج (لا ترحيل إن فشل الرصيد)
+    $stockCheck2 = oracle_order_check_stock($conn, $compNum, $store, $mappedLines);
+    if (empty($stockCheck2['ok'])) {
+        return [
+            'ok' => false,
+            'message' => (string) ($stockCheck2['message'] ?? 'رصيد Oracle غير كافٍ — لم يتم الترحيل.'),
+            'stock_issues' => $stockCheck2['issues'] ?? [],
+            'stock_version' => $stockCheck2['version'] ?? 'STOCK-v3',
+        ];
+    }
+    if (is_array($stockCheck2['lines'] ?? null)) {
+        $mappedLines = $stockCheck2['lines'];
+    }
+
     try {
         oracle_try_begin($conn);
         oracle_order_insert_row(
@@ -506,6 +520,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     return [
         'ok' => true,
         'message' => 'تم إنشاء فاتورة بيع Oracle رقم ' . $vNum . ' لسنة ' . $vyear
+            . ' [STOCK-v3 · مستودع ' . $store . ']'
             . '. في INV00024: استعلام (F7) → رقم الفاتورة ' . $vNum . ' والسنة ' . $vyear . ' → تنفيذ (F8)، ثم راجع واحفظ.'
             . ' لا تفتح فاتورة قديمة من شاشة العرض في Hypex؛ الرقم الجديد هو ' . $vNum . '.',
         'v_num' => $vNum,
@@ -513,6 +528,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'store' => $store,
         'cust_acc' => $custAcc,
         'line_count' => count($mappedLines),
+        'stock_version' => 'STOCK-v3',
     ];
 }
 
@@ -1062,13 +1078,14 @@ function oracle_order_fill_required(array $use, array $colMeta, array $sample): 
 /**
  * إعداد جدول رصيد المخزون في Oracle (MAS.STOCK).
  *
- * @return array{owner:string,table:string,qty_col:string,enabled:bool,multiply_by_tr_unit:bool}
+ * @return array{owner:string,table:string,qty_col:string,enabled:bool,multiply_by_tr_unit:bool,use_man_qty:bool}
  */
 function oracle_order_stock_cfg(): array
 {
     $cfg = oracle_config();
     $s = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
     $st = is_array($s['stock'] ?? null) ? $s['stock'] : [];
+    // افتراضي: مفعّل دائماً ما لم يُعطَّل صراحة
     $enabled = array_key_exists('enabled', $st) ? (bool) $st['enabled'] : true;
     $owner = strtoupper(trim((string) ($st['owner'] ?? $s['owner'] ?? 'MAS'))) ?: 'MAS';
     $table = strtoupper(trim((string) ($st['table'] ?? 'STOCK'))) ?: 'STOCK';
@@ -1079,15 +1096,17 @@ function oracle_order_stock_cfg(): array
         'table' => $table,
         'qty_col' => $qtyCol,
         'enabled' => $enabled,
-        // إن كان SYS_QTY بالقطعة والبيع بالكرتونة: true → المطلوب = كمية × معامل الوحدة
+        // true فقط إن كان SYS_QTY بالقطعة والبيع بوحدة أكبر (كرتونة)
         'multiply_by_tr_unit' => !empty($st['multiply_by_tr_unit']),
+        // بعض الشاشات تعتمد MAN_QTY؛ نأخذ الأكبر بين SYS و MAN لكل تشغيلة
+        'use_man_qty' => array_key_exists('use_man_qty', $st) ? (bool) $st['use_man_qty'] : true,
     ];
 }
 
 /**
- * أرصدة التشغيلات لمادة في مستودع (من الأكبر إلى الأصغر).
+ * أرصدة التشغيلات لمادة في مستودع — بدون GROUP BY (أضمن على كل إصدارات Oracle).
  *
- * @return array{ok:bool,rows?:list<array{batch:string,qty:float}>,total?:float,message?:string}
+ * @return array{ok:bool,rows?:list<array{batch:string,qty:float}>,total?:float,message?:string,raw_count?:int}
  */
 function oracle_order_stock_batches(array $conn, int $compNum, int $store, string $item): array
 {
@@ -1097,9 +1116,8 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
         return ['ok' => false, 'message' => 'مادة أو مستودع غير صالح لفحص الرصيد.'];
     }
     $from = oracle_order_quoted($sc['owner'], $sc['table']);
-    $qtyCol = $sc['qty_col'];
     $binds = ['item' => $item, 'store' => $store];
-    $where = 'TO_CHAR(ITEM) = :item AND STORE = :store';
+    $where = 'TRIM(TO_CHAR(ITEM)) = TRIM(:item) AND STORE = :store';
     if ($compNum > 0) {
         $where .= ' AND COMP_NUM = :cnum';
         $binds['cnum'] = $compNum;
@@ -1107,98 +1125,166 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
     try {
         $raw = oracle_query_all(
             $conn,
-            "SELECT TO_CHAR(BATCH) AS BATCH, NVL(SUM({$qtyCol}), 0) AS QTY
-             FROM {$from}
-             WHERE {$where}
-             GROUP BY TO_CHAR(BATCH)
-             ORDER BY NVL(SUM({$qtyCol}), 0) DESC",
+            "SELECT BATCH, SYS_QTY, MAN_QTY, EXP_DATE FROM {$from} WHERE {$where}",
             $binds
         );
     } catch (Throwable $e) {
-        return [
-            'ok' => false,
-            'message' => 'تعذر قراءة رصيد Oracle من ' . $sc['owner'] . '.' . $sc['table'] . ': ' . $e->getMessage(),
-        ];
-    }
-    $rows = [];
-    $total = 0.0;
-    foreach ($raw as $r) {
-        $q = (float) oracle_statement_row_val($r, 'QTY');
-        $b = trim((string) oracle_statement_row_val($r, 'BATCH'));
-        $rows[] = ['batch' => $b, 'qty' => $q];
-        $total += $q;
+        // إن فشل SELECT بأسماء الأعمدة — جرّب qty_col فقط
+        try {
+            $qtyCol = $sc['qty_col'];
+            $raw = oracle_query_all(
+                $conn,
+                "SELECT BATCH, {$qtyCol} AS SYS_QTY, 0 AS MAN_QTY, NULL AS EXP_DATE FROM {$from} WHERE {$where}",
+                $binds
+            );
+        } catch (Throwable $e2) {
+            return [
+                'ok' => false,
+                'message' => 'تعذر قراءة رصيد Oracle من ' . $sc['owner'] . '.' . $sc['table'] . ': ' . $e2->getMessage(),
+            ];
+        }
     }
 
-    return ['ok' => true, 'rows' => $rows, 'total' => $total];
+    $byBatch = [];
+    $today = strtotime(date('Y-m-d'));
+    foreach ($raw as $r) {
+        $b = trim((string) oracle_statement_row_val($r, 'BATCH'));
+        if ($b === '') {
+            $b = '0';
+        }
+        // استبعاد تشغيلة منتهية الصلاحية إن وُجد التاريخ
+        $expRaw = oracle_statement_row_val($r, 'EXP_DATE');
+        if ($expRaw !== '') {
+            $expTs = strtotime(substr($expRaw, 0, 10));
+            if ($expTs !== false && $expTs < $today) {
+                continue;
+            }
+        }
+        $sys = (float) oracle_statement_row_val($r, 'SYS_QTY');
+        $man = (float) oracle_statement_row_val($r, 'MAN_QTY');
+        $q = $sys;
+        if (!empty($sc['use_man_qty'])) {
+            $q = max($sys, $man);
+        }
+        if (!isset($byBatch[$b])) {
+            $byBatch[$b] = 0.0;
+        }
+        $byBatch[$b] += $q;
+    }
+
+    $rows = [];
+    $total = 0.0;
+    foreach ($byBatch as $b => $q) {
+        $rows[] = ['batch' => (string) $b, 'qty' => (float) $q];
+        $total += (float) $q;
+    }
+    usort($rows, static fn($a, $b) => ($b['qty'] <=> $a['qty']));
+
+    return [
+        'ok' => true,
+        'rows' => $rows,
+        'total' => $total,
+        'raw_count' => count($raw),
+    ];
 }
 
 /**
- * رصيد Oracle المتاح لمادة في مستودع (مجموع SYS_QTY لكل التشغيلات، أو تشغيلة محددة).
- *
  * @return array{ok:bool,qty:float,message?:string}
  */
 function oracle_order_stock_available(array $conn, int $compNum, int $store, string $item, string $batch = ''): array
 {
-    $sc = oracle_order_stock_cfg();
-    if (!$sc['enabled']) {
-        return ['ok' => true, 'qty' => PHP_FLOAT_MAX];
+    $batches = oracle_order_stock_batches($conn, $compNum, $store, $item);
+    if (empty($batches['ok'])) {
+        return ['ok' => false, 'qty' => 0.0, 'message' => (string) ($batches['message'] ?? '')];
     }
+    $batch = trim($batch);
+    if ($batch === '' || $batch === '0') {
+        return ['ok' => true, 'qty' => (float) ($batches['total'] ?? 0)];
+    }
+    foreach ($batches['rows'] ?? [] as $r) {
+        if (trim((string) ($r['batch'] ?? '')) === $batch) {
+            return ['ok' => true, 'qty' => (float) ($r['qty'] ?? 0)];
+        }
+    }
+
+    return ['ok' => true, 'qty' => 0.0];
+}
+
+/**
+ * كميات بنود فواتير مبيعات معلّقة في DAILY (لم تُحفظ نهائياً في Forms) — تُخصم من الرصيد المتاح.
+ *
+ * @return array{ok:bool,qty:float,message?:string}
+ */
+function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, string $item): array
+{
+    $cfg = oracle_config();
+    $s = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+    $owner = strtoupper(trim((string) ($s['owner'] ?? 'MAS'))) ?: 'MAS';
+    $table = strtoupper(trim((string) ($s['table'] ?? 'DAILY'))) ?: 'DAILY';
+    $from = oracle_order_quoted($owner, $table);
+    $stype = (int) ($s['sale_type'] ?? 9);
     $item = trim($item);
     if ($item === '' || $store < 1) {
-        return ['ok' => false, 'qty' => 0.0, 'message' => 'مادة أو مستودع غير صالح لفحص الرصيد.'];
+        return ['ok' => true, 'qty' => 0.0];
     }
-    $from = oracle_order_quoted($sc['owner'], $sc['table']);
-    $qtyCol = $sc['qty_col'];
     $binds = [
         'item' => $item,
         'store' => $store,
+        'stype' => $stype,
     ];
-    $where = 'TO_CHAR(ITEM) = :item AND STORE = :store';
+    $where = 'TYPE = :stype AND STORE = :store AND TRIM(TO_CHAR(ITEM)) = TRIM(:item)';
     if ($compNum > 0) {
         $where .= ' AND COMP_NUM = :cnum';
         $binds['cnum'] = $compNum;
     }
-    $batch = trim($batch);
-    if ($batch !== '' && $batch !== '0') {
-        $where .= ' AND TO_CHAR(BATCH) = :batch';
-        $binds['batch'] = $batch;
-    }
-    try {
-        $rows = oracle_query_all(
-            $conn,
-            "SELECT NVL(SUM({$qtyCol}), 0) AS QTY FROM {$from} WHERE {$where}",
-            $binds
-        );
-    } catch (Throwable $e) {
-        return [
-            'ok' => false,
-            'qty' => 0.0,
-            'message' => 'تعذر قراءة رصيد Oracle من ' . $sc['owner'] . '.' . $sc['table'] . ': ' . $e->getMessage(),
-        ];
+    // مسودات Hypex: VOU_FLAG=18 أو UPD_FLAG=SS
+    $sqls = [
+        "SELECT NVL(SUM(QTY + NVL(BONUS, 0)), 0) AS QTY FROM {$from}
+         WHERE {$where} AND (VOU_FLAG = 18 OR UPD_FLAG = 'SS')",
+        "SELECT NVL(SUM(QTY + NVL(BONUS, 0)), 0) AS QTY FROM {$from}
+         WHERE {$where} AND VOU_FLAG = 18",
+        "SELECT NVL(SUM(QTY), 0) AS QTY FROM {$from}
+         WHERE {$where} AND UPD_FLAG = 'SS'",
+    ];
+    foreach ($sqls as $sql) {
+        try {
+            $rows = oracle_query_all($conn, $sql, $binds);
+
+            return [
+                'ok' => true,
+                'qty' => (float) oracle_statement_row_val($rows[0] ?? [], 'QTY'),
+            ];
+        } catch (Throwable $e) {
+            continue;
+        }
     }
 
-    return [
-        'ok' => true,
-        'qty' => (float) oracle_statement_row_val($rows[0] ?? [], 'QTY'),
-    ];
+    // لا نوقف الترحيل إن لم توجد أعمدة VOU_FLAG — نعتبر المعلّق 0
+    return ['ok' => true, 'qty' => 0.0];
 }
 
 /**
- * يمنع الترحيل إن رصيد Oracle للمادة صفر أو أقل من الكمية — ويختار تشغيلة برصيد كافٍ (مثل INV00024).
+ * يمنع الترحيل إن لم توجد تشغيلة برصيد ≥ الكمية المطلوبة (نفس شرط INV00024).
  *
  * @param list<array<string,mixed>> $mappedLines
- * @return array{ok:bool,message?:string,issues?:list<array<string,mixed>>,lines?:list<array<string,mixed>>}
+ * @return array{ok:bool,message?:string,issues?:list<array<string,mixed>>,lines?:list<array<string,mixed>>,version?:string}
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines): array
 {
+    $version = 'STOCK-v3';
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
-        return ['ok' => true, 'lines' => $mappedLines];
+        return [
+            'ok' => false,
+            'message' => 'فحص رصيد Oracle معطّل في الإعدادات — لن يتم الترحيل. فعّل sales_invoice.stock.enabled',
+            'version' => $version,
+        ];
     }
     if ($store < 1) {
         return [
             'ok' => false,
-            'message' => 'لا يمكن فحص رصيد Oracle: رقم المستودع غير مضبوط على بطاقة المستودع (oracle_store).',
+            'message' => 'لا يمكن فحص رصيد Oracle: رقم المستودع غير مضبوط (oracle_store).',
+            'version' => $version,
         ];
     }
 
@@ -1218,7 +1304,8 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             $trUnit = 1.0;
         }
         $need = $qty + $bonus;
-        if (!empty($sc['multiply_by_tr_unit'])) {
+        // إن كان الرصيد بالقطعة والبيع بالكرتونة: فعّل multiply_by_tr_unit في oracle.local.php
+        if (!empty($sc['multiply_by_tr_unit']) && $trUnit > 1.000001) {
             $need *= $trUnit;
         }
         if ($item === '' || $need <= 0.0000001) {
@@ -1231,24 +1318,61 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             return [
                 'ok' => false,
                 'message' => (string) ($batches['message'] ?? 'تعذر فحص رصيد Oracle.'),
+                'version' => $version,
             ];
         }
         $total = (float) ($batches['total'] ?? 0);
         $rows = is_array($batches['rows'] ?? null) ? $batches['rows'] : [];
+        $rawCount = (int) ($batches['raw_count'] ?? 0);
 
-        // تشغيلة كافية للبند (نفس ما يفحصه Forms عند الحفظ)
+        // اطرح كميات فواتير Oracle غير المحفوظة/المعلقة لنفس المادة والمستودع (VOU_FLAG=18)
+        $pending = oracle_order_pending_daily_qty($conn, $compNum, $store, $item);
+        if (empty($pending['ok'])) {
+            return [
+                'ok' => false,
+                'message' => (string) ($pending['message'] ?? 'تعذر قراءة الكميات المعلّقة في Oracle.'),
+                'version' => $version,
+            ];
+        }
+        $pendingQty = (float) ($pending['qty'] ?? 0);
+        if ($pendingQty > 0.0000001) {
+            $total = max(0.0, $total - $pendingQty);
+            // وزّع الخصم على التشغيلات من الأكبر
+            $left = $pendingQty;
+            foreach ($rows as &$rr) {
+                if ($left <= 0) {
+                    break;
+                }
+                $take = min((float) $rr['qty'], $left);
+                $rr['qty'] = (float) $rr['qty'] - $take;
+                $left -= $take;
+            }
+            unset($rr);
+            $rows = array_values(array_filter($rows, static fn($r) => (float) ($r['qty'] ?? 0) > 0.0000001));
+            usort($rows, static fn($a, $b) => ((float) $b['qty'] <=> (float) $a['qty']));
+        }
+
+        // لا صفوف في STOCK = رصيد صفر
+        if ($rawCount < 1 || $total <= 0.0000001) {
+            $name = trim((string) ($ml['name'] ?? ''));
+            $label = $item . ($name !== '' ? ' — ' . $name : '');
+            $issues[] = [
+                'item' => $item,
+                'need' => $need,
+                'available' => $total,
+                'store' => $store,
+                '_line' => $label
+                    . ': المطلوب ' . $fmt($need)
+                    . ' · رصيد Oracle (مستودع ' . $store . ') = ' . $fmt($total)
+                    . ' [' . $version . ']',
+            ];
+            $outLines[] = $ml;
+            continue;
+        }
+
         $pickBatch = '';
         $pickQty = 0.0;
-        foreach ($rows as $r) {
-            $bq = (float) ($r['qty'] ?? 0);
-            $bb = trim((string) ($r['batch'] ?? ''));
-            if ($bq + 0.0000001 >= $need) {
-                $pickBatch = $bb !== '' ? $bb : '0';
-                $pickQty = $bq;
-                break;
-            }
-        }
-        // إن التشغيلة الحالية كافية نفضّلها
+        // فضّل التشغيلة الحالية إن كانت كافية
         if ($batch !== '' && $batch !== '0') {
             foreach ($rows as $r) {
                 if (trim((string) ($r['batch'] ?? '')) === $batch && (float) ($r['qty'] ?? 0) + 0.0000001 >= $need) {
@@ -1258,23 +1382,32 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
                 }
             }
         }
+        if ($pickBatch === '') {
+            foreach ($rows as $r) {
+                $bq = (float) ($r['qty'] ?? 0);
+                if ($bq + 0.0000001 >= $need) {
+                    $pickBatch = trim((string) ($r['batch'] ?? ''));
+                    if ($pickBatch === '') {
+                        $pickBatch = '0';
+                    }
+                    $pickQty = $bq;
+                    break;
+                }
+            }
+        }
 
-        if ($pickBatch === '' || $total + 0.0000001 < $need || $pickQty + 0.0000001 < $need) {
+        if ($pickBatch === '' || $pickQty + 0.0000001 < $need) {
             $name = trim((string) ($ml['name'] ?? ''));
             $label = $item . ($name !== '' ? ' — ' . $name : '');
             $issues[] = [
                 'item' => $item,
-                'name' => $name,
-                'batch' => $batch,
                 'need' => $need,
                 'available' => $total,
                 'store' => $store,
                 '_line' => $label
                     . ': المطلوب ' . $fmt($need)
-                    . ' · رصيد Oracle (مستودع ' . $store . ') = ' . $fmt($total)
-                    . ($total > 0.0000001 && $pickBatch === ''
-                        ? ' (لا تشغيلة واحدة تكفي الكمية — Forms يرفض الحفظ)'
-                        : ''),
+                    . ' · مجموع الرصيد = ' . $fmt($total)
+                    . ' لكن لا تشغيلة واحدة تكفي (Forms يرفض الحفظ) [' . $version . ']',
             ];
             $outLines[] = $ml;
             continue;
@@ -1286,13 +1419,13 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
 
     if ($issues !== []) {
         $lines = array_map(static fn($i) => (string) ($i['_line'] ?? ''), $issues);
-        $msg = "تعذر الترحيل إلى Oracle — الكمية المتوفرة أقل من الكمية المباعة (أو الرصيد صفر):\n• "
+        $msg = "تعذر الترحيل إلى Oracle — الكمية المتوفرة أقل من الكمية المباعة:\n• "
             . implode("\n• ", $lines);
 
-        return ['ok' => false, 'message' => $msg, 'issues' => $issues];
+        return ['ok' => false, 'message' => $msg, 'issues' => $issues, 'version' => $version];
     }
 
-    return ['ok' => true, 'lines' => $outLines];
+    return ['ok' => true, 'lines' => $outLines, 'version' => $version];
 }
 
 function oracle_order_store_no(PDO $pdo, int $warehouseId): int
