@@ -535,6 +535,50 @@
       (data && data.code === 'item_undefined') ||
       items.length > 0 ||
       String(text).indexOf('المادة غير معرفة على النظام') === 0;
+
+    var stockIssues = data && Array.isArray(data.stock_issues) ? data.stock_issues : [];
+    var isStock =
+      stockIssues.length > 0 ||
+      String(text).indexOf('الكمية المتوفرة أقل من الكمية المباعة') >= 0 ||
+      String(text).indexOf('رصيد Oracle') >= 0 ||
+      String(text).indexOf('[STOCK-v3]') >= 0;
+
+    // حوار النظام فقط (مثل باقي التنبيهات) — بدون شريط وردي طويل
+    if (isStock) {
+      setMsg('', '');
+      var stockBody = '';
+      if (stockIssues.length) {
+        stockBody = stockIssues
+          .map(function (iss) {
+            if (iss && iss._line) return String(iss._line).replace(/\s*\[STOCK-v3\]\s*$/, '');
+            var code = (iss && iss.item) || '';
+            var name = (iss && iss.name) || '';
+            var need = iss && iss.need != null ? iss.need : '';
+            var avail = iss && iss.available != null ? iss.available : '';
+            var store = iss && iss.store != null ? iss.store : '';
+            return (
+              (code ? code + (name ? ' — ' + name : '') : name || 'مادة') +
+              '\nالمطلوب: ' +
+              need +
+              '\nرصيد Oracle' +
+              (store !== '' ? ' (مستودع ' + store + ')' : '') +
+              ': ' +
+              avail
+            );
+          })
+          .join('\n\n');
+      } else {
+        stockBody = String(text)
+          .replace(/^تعذر الترحيل إلى Oracle[^\n]*\n?/, '')
+          .replace(/^[•\s]+/gm, '')
+          .replace(/\s*\[STOCK-v3\]\s*/g, '')
+          .trim();
+      }
+      if (!stockBody) stockBody = 'الكمية المتوفرة أقل من الكمية المباعة.';
+      hxAlert(stockBody, { title: 'تعذر الترحيل إلى Oracle', kind: 'error' });
+      return;
+    }
+
     setMsg(text, 'error');
     if (isUndef) {
       var body = items.length
@@ -543,6 +587,8 @@
             .replace(/^المادة غير معرفة على النظام\s*/, '')
             .trim();
       hxAlert(body, { title: 'المادة غير معرفة على النظام', kind: 'error' });
+    } else if (String(text).length > 80 || String(text).indexOf('\n') >= 0) {
+      hxAlert(text, { title: 'تنبيه النظام', kind: 'error' });
     }
   }
 

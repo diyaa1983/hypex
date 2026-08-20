@@ -1358,13 +1358,13 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             $label = $item . ($name !== '' ? ' — ' . $name : '');
             $issues[] = [
                 'item' => $item,
+                'name' => $name,
                 'need' => $need,
                 'available' => $total,
                 'store' => $store,
                 '_line' => $label
-                    . ': المطلوب ' . $fmt($need)
-                    . ' · رصيد Oracle (مستودع ' . $store . ') = ' . $fmt($total)
-                    . ' [' . $version . ']',
+                    . "\nالمطلوب: " . $fmt($need)
+                    . "\nرصيد Oracle (مستودع " . $store . "): " . $fmt($total),
             ];
             $outLines[] = $ml;
             continue;
@@ -1401,13 +1401,14 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             $label = $item . ($name !== '' ? ' — ' . $name : '');
             $issues[] = [
                 'item' => $item,
+                'name' => $name,
                 'need' => $need,
                 'available' => $total,
                 'store' => $store,
                 '_line' => $label
-                    . ': المطلوب ' . $fmt($need)
-                    . ' · مجموع الرصيد = ' . $fmt($total)
-                    . ' لكن لا تشغيلة واحدة تكفي (Forms يرفض الحفظ) [' . $version . ']',
+                    . "\nالمطلوب: " . $fmt($need)
+                    . "\nرصيد Oracle (مستودع " . $store . "): " . $fmt($total)
+                    . "\nلا توجد تشغيلة واحدة تكفي الكمية",
             ];
             $outLines[] = $ml;
             continue;
@@ -1419,10 +1420,16 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
 
     if ($issues !== []) {
         $lines = array_map(static fn($i) => (string) ($i['_line'] ?? ''), $issues);
-        $msg = "تعذر الترحيل إلى Oracle — الكمية المتوفرة أقل من الكمية المباعة:\n• "
-            . implode("\n• ", $lines);
+        $msg = "تعذر الترحيل إلى Oracle — الكمية المتوفرة أقل من الكمية المباعة:\n\n"
+            . implode("\n\n", $lines);
 
-        return ['ok' => false, 'message' => $msg, 'issues' => $issues, 'version' => $version];
+        return [
+            'ok' => false,
+            'message' => $msg,
+            'issues' => $issues,
+            'stock_issues' => $issues,
+            'version' => $version,
+        ];
     }
 
     return ['ok' => true, 'lines' => $outLines, 'version' => $version];
