@@ -79,13 +79,19 @@ function Invoke-OracleSync($cfg) {
     Write-AgentLog $cfg "ERROR sync script not found: $script"
     return 3
   }
-  if ([string]::IsNullOrWhiteSpace($token) -or $token -match 'CHANGE_ME') {
+  # السكربت الجديد tools/oracle_customers_auto_sync_run.php لا يحتاج token
+  $needsToken = $script -match 'oracle_sync\.php'
+  if ($needsToken -and ([string]::IsNullOrWhiteSpace($token) -or $token -match 'CHANGE_ME')) {
     Write-AgentLog $cfg "ERROR set token (= sync_token in oracle.local.php)"
     return 4
   }
 
   Write-AgentLog $cfg "RUN entities=$entities"
-  $out = & $php $script "--token=$token" "--entities=$entities" 2>&1 | Out-String
+  if ($needsToken) {
+    $out = & $php $script "--token=$token" "--entities=$entities" 2>&1 | Out-String
+  } else {
+    $out = & $php $script 2>&1 | Out-String
+  }
   $code = $LASTEXITCODE
   if ($null -eq $code) { $code = 0 }
   $short = $out.Trim()

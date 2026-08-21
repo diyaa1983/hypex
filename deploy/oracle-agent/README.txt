@@ -1,28 +1,22 @@
-Oracle Sync Agent — مزامنة تلقائية حسب ملف إعداد
+Oracle Sync Agent — مزامنة تلقائية لعملاء Oracle
 ================================================
 
-1) انسخ المجلد deploy\oracle-agent إلى السيرفر، مثلاً:
-   C:\xampp\htdocs\system\deploy\oracle-agent\
+1) من الشاشة: تكامل Oracle — العملاء
+   - فعّل «المزامنة التلقائية» واحفظ (الفاصل = 5 دقائق)
+   - استخدم «مزامنة يدوية الآن» في أي وقت
 
-2) عدّل agent.config.json:
-   - interval_seconds: 60 = كل دقيقة | 300 = 5 دقائق | 3600 = ساعة
-   - token: نفس sync_token في config\oracle.local.php
-   - php_exe / sync_script: مسارات XAMPP على السيرفر
-   - entities: "customers" (أو "customers,accounts" لاحقاً)
-   - enabled: true/false لإيقاف المزامنة دون حذف المهمة
+2) ثبّت مهمة Windows مرة واحدة (PowerShell كمسؤول):
+   cd C:\xampp\htdocs\Hypex\deploy\oracle-agent
+   .\install-customers-sync-task.ps1
 
-3) تشغيل يدوي (حلقة مستمرة):
-   PowerShell:
-   cd C:\xampp\htdocs\system\deploy\oracle-agent
-   .\oracle_sync_agent.ps1
+3) السكربت الذي يُنفَّذ كل 5 دقائق:
+   C:\xampp\php\php.exe C:\xampp\htdocs\Hypex\tools\oracle_customers_auto_sync_run.php
 
-4) تشغيل مرة واحدة (لـ Task Scheduler كل دقيقة):
-   .\oracle_sync_agent.ps1 -Once
+بديل (حلقة PowerShell مستمرة):
+   عدّل agent.config.json إن وُجد (interval_seconds: 300)
+   ثم شغّل oracle_sync_agent.ps1
 
-5) سجلّات:
-   storage\logs\oracle-agent-YYYYMMDD.log
-
-ملاحظات أمان:
-- لا ترفع agent.config.json إلى Git إن فيه token حقيقي.
-- لا تجعل interval أقل من 15 ثانية (السكربت يفرض حداً أدنى 15).
-- كل دقيقة قد تكون ثقيلة إن كان عدد العملاء كبيراً؛ ابدأ بـ 300.
+ملاحظات:
+- يحترم auto_sync.enabled في config\oracle.local.php
+- --force يتجاهل الفاصل الزمني
+- لا ترفع ملفات الإعداد التي فيها كلمات مرور أو token

@@ -187,6 +187,19 @@ function registerOracleSyncRoutes(router, { guard, ui, q, HUB, KICKER }) {
     const mapLabel = mapping ? `${mapping.owner}.${mapping.table}` : '— غير محفوظ —';
     const lastSync = mapping && mapping.last_synced_at ? mapping.last_synced_at : '—';
     const passPh = !!cfg.has_password;
+    const autoSync = status.auto_sync || {
+      enabled: false,
+      interval_minutes: 5,
+      last_run_at: '',
+      last_ok: null,
+      last_message: '',
+    };
+    const autoOn = !!autoSync.enabled;
+    const autoInterval = Number(autoSync.interval_minutes || 5) || 5;
+    const autoLast = autoSync.last_run_at ? String(autoSync.last_run_at) : '—';
+    const autoLastOk =
+      autoSync.last_ok === true ? 'نجاح' : autoSync.last_ok === false ? 'فشل' : '—';
+    const autoMsg = autoSync.last_message ? String(autoSync.last_message) : '';
 
     const body = `
     <div class="si-stage">
@@ -222,6 +235,62 @@ function registerOracleSyncRoutes(router, { guard, ui, q, HUB, KICKER }) {
           <div><div class="muted" style="font-size:.75rem">مربوطون بـ Oracle</div><strong dir="ltr">${linked}</strong></div>
           <div><div class="muted" style="font-size:.75rem">التعيين المحفوظ</div><strong dir="ltr">${ui.esc(mapLabel)}</strong></div>
           <div><div class="muted" style="font-size:.75rem">آخر مزامنة</div><strong dir="ltr">${ui.esc(String(lastSync))}</strong></div>
+        </div>
+      </section>
+
+      <section class="si-surface" style="margin-bottom:.75rem">
+        <div class="si-surface-head"><h2>مزامنة تلقائية كل 5 دقائق</h2></div>
+        <div style="padding:1rem 1.1rem">
+          <p class="muted" style="margin:0 0 .85rem;font-size:.9rem;line-height:1.55">
+            بعد التفعيل ثبّت مهمة Windows مرة واحدة (تعمل حتى لو أغلقت المتصفح). المزامنة اليدوية تبقى متاحة في أي وقت.
+          </p>
+          <form method="post" action="/customers/oracle-sync/action" class="js-oracle-action-form" data-wait="جاري حفظ إعداد المزامنة التلقائية…" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:end">
+            <input type="hidden" name="action" value="save_auto_sync">
+            <label style="display:flex;align-items:center;gap:.4rem;min-height:2.1rem">
+              <input type="checkbox" name="auto_enabled" value="1"${autoOn ? ' checked' : ''}>
+              <span>تفعيل المزامنة التلقائية</span>
+            </label>
+            <label style="flex:0 0 8rem"><span class="muted" style="font-size:.75rem;display:block">الفاصل (دقائق)</span>
+              <input class="si-field" type="number" name="auto_interval" min="1" max="1440" value="${autoInterval}"></label>
+            <button class="si-btn si-btn--primary" type="submit">حفظ الإعداد</button>
+          </form>
+          <div style="margin-top:.85rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+            <form method="post" action="/customers/oracle-sync/action" class="js-oracle-action-form" data-wait="جاري المزامنة اليدوية…">
+              <input type="hidden" name="action" value="sync_now">
+              <button class="si-btn si-btn--primary" type="submit">مزامنة يدوية الآن</button>
+            </form>
+            ${
+              mapping
+                ? `<form method="post" action="/customers/oracle-sync/action" class="js-oracle-action-form" data-wait="جاري المزامنة…">
+              <input type="hidden" name="action" value="sync_saved">
+              <button class="si-btn" type="submit">مزامنة بالتعيين المحفوظ</button>
+            </form>`
+                : ''
+            }
+          </div>
+          <div style="margin-top:.85rem;display:grid;gap:.35rem;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));font-size:.9rem">
+            <div><span class="muted">الحالة:</span> <strong>${autoOn ? 'مفعّلة' : 'متوقفة'}</strong></div>
+            <div><span class="muted">كل:</span> <strong>${autoInterval} دقيقة</strong></div>
+            <div><span class="muted">آخر تشغيل تلقائي:</span> <strong dir="ltr">${ui.esc(autoLast)}</strong></div>
+            <div><span class="muted">النتيجة:</span> <strong>${ui.esc(autoLastOk)}</strong></div>
+          </div>
+          ${
+            autoMsg
+              ? `<p class="muted" style="margin:.65rem 0 0;font-size:.85rem;white-space:pre-wrap">${ui.esc(
+                  autoMsg
+                )}</p>`
+              : ''
+          }
+          <details style="margin-top:.85rem">
+            <summary style="cursor:pointer;font-weight:600">تثبيت مهمة Windows (مرة واحدة)</summary>
+            <pre dir="ltr" style="margin:.5rem 0 0;padding:.75rem;background:#0f172a0a;border-radius:.5rem;overflow:auto;font-size:.8rem;white-space:pre-wrap">cd C:\\xampp\\htdocs\\Hypex\\deploy\\oracle-agent
+.\\install-customers-sync-task.ps1
+
+# أو يدوياً كل 5 دقائق عبر Task Scheduler:
+# Program: C:\\xampp\\php\\php.exe
+# Arguments: C:\\xampp\\htdocs\\Hypex\\tools\\oracle_customers_auto_sync_run.php
+# Start in: C:\\xampp\\htdocs\\Hypex</pre>
+          </details>
         </div>
       </section>
 
@@ -461,6 +530,22 @@ ${!hasDriver ? '\nثبّت Oracle Instant Client وفعّل pdo_oci أو oci8 ث
           odbc_dsn: String(req.body.cfg_odbc || ''),
         },
       });
+      return redirectWithResult(req, res, result, false);
+    }
+
+    if (action === 'save_auto_sync') {
+      result = runOracleAction('save_auto_sync', {
+        auto_sync: {
+          enabled: String(req.body.auto_enabled || '') === '1',
+          interval_minutes: Number(req.body.auto_interval || 5) || 5,
+          entities: 'customers',
+        },
+      });
+      return redirectWithResult(req, res, result, false);
+    }
+
+    if (action === 'sync_now') {
+      result = runOracleAction('sync_now');
       return redirectWithResult(req, res, result, false);
     }
 

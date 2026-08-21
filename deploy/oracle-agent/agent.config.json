@@ -1,10 +1,11 @@
 {
   "enabled": true,
-  "interval_seconds": 60,
+  "interval_seconds": 300,
   "php_exe": "C:/xampp/php/php.exe",
-  "sync_script": "C:/xampp/htdocs/system/api/oracle_sync.php",
-  "token": "CHANGE_ME_SAME_AS_oracle.local.php_sync_token",
-  "entities": "customers,item_groups,items",
-  "log_dir": "C:/xampp/htdocs/system/storage/logs",
-  "log_name": "oracle-agent"
+  "sync_script": "C:/xampp/htdocs/Hypex/tools/oracle_customers_auto_sync_run.php",
+  "token": "",
+  "entities": "customers",
+  "log_dir": "C:/xampp/htdocs/Hypex/storage/logs",
+  "log_name": "oracle-customers-agent",
+  "note": "interval 300 = كل 5 دقائق. فعّل auto_sync.enabled من شاشة تكامل العملاء."
 }

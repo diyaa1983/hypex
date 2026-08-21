@@ -18,6 +18,7 @@ require $root . '/includes/bootstrap.php';
 require_once app_path('includes/oracle_pdo.php');
 require_once app_path('includes/oracle_customer_sync.php');
 require_once app_path('includes/oracle_sync_service.php');
+require_once app_path('includes/oracle_customers_auto_sync.php');
 
 header_remove();
 if (PHP_SAPI !== 'cli') {
@@ -96,6 +97,7 @@ $out = [
     'map' => $map,
     'sync' => null,
     'driver' => '',
+    'auto_sync' => oracle_customers_auto_sync_settings(),
 ];
 
 $cfg = oracle_config();
@@ -158,6 +160,36 @@ try {
         $out['message'] = $mapSaved
             ? ('تعيين محفوظ: ' . $mapSaved['owner'] . '.' . $mapSaved['table'])
             : 'لا يوجد تعيين محفوظ بعد.';
+        $out['auto_sync'] = oracle_customers_auto_sync_settings();
+    } elseif ($action === 'save_auto_sync') {
+        $cfgIn = is_array($payload['auto_sync'] ?? null) ? $payload['auto_sync'] : $payload;
+        $saved = oracle_customers_auto_sync_save([
+            'enabled' => !empty($cfgIn['enabled']),
+            'interval_minutes' => (int) ($cfgIn['interval_minutes'] ?? 5),
+            'entities' => (string) ($cfgIn['entities'] ?? 'customers'),
+        ]);
+        $out['ok'] = !empty($saved['ok']);
+        $out['message'] = (string) ($saved['message'] ?? '');
+        $out['auto_sync'] = $saved['settings'] ?? oracle_customers_auto_sync_settings();
+        if ($out['ok'] && !empty($out['auto_sync']['enabled'])) {
+            $out['message'] .= "\nثبّت مهمة Windows مرة واحدة:\n"
+                . 'PowerShell (مسؤول): .\\deploy\\oracle-agent\\install-customers-sync-task.ps1';
+        }
+    } elseif ($action === 'sync_now') {
+        $result = oracle_customers_run_saved_sync($pdo);
+        $out['sync'] = $result['customers'] ?? $result;
+        $out['ok'] = !empty($result['ok']);
+        $out['message'] = (string) ($result['message'] ?? '');
+        $out['auto_sync'] = oracle_customers_auto_sync_settings();
+        $mapSaved = oracle_customers_saved_mapping();
+        if ($mapSaved) {
+            $out['mapping'] = [
+                'owner' => $mapSaved['owner'],
+                'table' => $mapSaved['table'],
+                'columns' => $mapSaved['columns'],
+                'last_synced_at' => $mapSaved['last_synced_at'] ?? '',
+            ];
+        }
     } elseif ($action === 'save_config') {
         $cfgIn = is_array($payload['config'] ?? null) ? $payload['config'] : $payload;
         $path = oracle_write_local_config([

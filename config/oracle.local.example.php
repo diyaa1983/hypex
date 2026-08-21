@@ -18,6 +18,19 @@ return [
     'charset' => 'AL32UTF8',
     'sync_token' => 'CHANGE_ME_SYNC_TOKEN',
 
+    /**
+     * مزامنة تلقائية للعملاء (Task Scheduler / agent كل N دقيقة)
+     * ثبّت المهمة: deploy/oracle-agent/install-customers-sync-task.ps1
+     */
+    'auto_sync' => [
+        'enabled' => true,
+        'interval_minutes' => 5,
+        'entities' => 'customers',
+        'last_run_at' => '',
+        'last_ok' => null,
+        'last_message' => '',
+    ],
+
     'customers' => [
         'owner' => 'ACCINV',
         'table' => 'CUSTOMER',

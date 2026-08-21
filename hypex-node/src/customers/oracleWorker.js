@@ -35,6 +35,7 @@ function runOracleAction(action, extra = {}) {
 
   const needsPayload =
     action === 'save_config' ||
+    action === 'save_auto_sync' ||
     action === 'sync' ||
     (extra && Object.keys(extra).length > 0);
 
