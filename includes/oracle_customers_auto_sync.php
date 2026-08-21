@@ -133,7 +133,10 @@ function oracle_customers_auto_sync_mark_run(bool $ok, string $message): void
     $a = is_array($existing['auto_sync'] ?? null) ? $existing['auto_sync'] : [];
     $a['last_run_at'] = date('Y-m-d H:i:s');
     $a['last_ok'] = $ok;
-    $a['last_message'] = mb_substr(trim($message), 0, 500);
+    $msg = trim($message);
+    $a['last_message'] = function_exists('mb_substr')
+        ? mb_substr($msg, 0, 500)
+        : substr($msg, 0, 500);
     $existing['auto_sync'] = $a;
     unset($existing['_path'], $existing['_missing_file'], $existing['_bad_file']);
     $php = "<?php\ndeclare(strict_types=1);\n\nreturn " . var_export($existing, true) . ";\n";
