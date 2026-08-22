@@ -63,6 +63,8 @@ class AppConfig {
   static const String partyStatementPath = 'api/mobile_party_statement.php';
   static const String partyStatementPdfPath =
       'api/mobile_party_statement_pdf.php';
+  static const String oracleCustomerStatementPdfPath =
+      'api/mobile_oracle_customer_statement_pdf.php';
   static const String oracleCustomerStatementPath =
       'api/mobile_oracle_customer_statement.php';
   static const String oracleCustomerArSummaryPath =
@@ -87,6 +89,8 @@ class AppConfig {
       'api/mobile_customer_order_send.php';
   static const String customerOrderReturnPath =
       'api/mobile_customer_order_return.php';
+  static const String customerOrderPdfPath =
+      'api/mobile_customer_order_pdf.php';
 
   static const String repItemsPath = 'api/mobile_rep_items.php';
   static const String repStockPath = 'api/mobile_rep_stock.php';

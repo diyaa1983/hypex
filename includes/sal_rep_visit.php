@@ -570,6 +570,64 @@ function sal_rep_visit_after_order_deleted(PDO $pdo, int $visitRouteLineId): boo
     return sal_rep_visit_reset_line($pdo, $visitRouteLineId);
 }
 
+/**
+ * حذف زيارات من التقرير (إلغاء تسجيل) — فقط غير المربوطة بطلب شراء.
+ *
+ * @param list<int> $lineIds
+ * @return array{ok:bool,deleted:int,skipped:list<array{line_id:int,message:string,order_numbers?:string}>}
+ */
+function sal_rep_visit_delete_lines(PDO $pdo, array $lineIds, ?int $userId = null): array
+{
+    unset($userId);
+    sal_rep_visit_ensure_schema($pdo);
+    $deleted = 0;
+    $skipped = [];
+    foreach ($lineIds as $rawId) {
+        $lineId = (int) $rawId;
+        if ($lineId < 1) {
+            continue;
+        }
+        $orderCount = sal_rep_visit_count_orders($pdo, $lineId);
+        if ($orderCount > 0) {
+            $orderNums = '';
+            try {
+                $st = $pdo->prepare(
+                    'SELECT GROUP_CONCAT(o.order_no ORDER BY o.id SEPARATOR \'، \')
+                     FROM sal_customer_order o
+                     INNER JOIN sal_rep_route_line l ON l.id = o.visit_route_line_id
+                     WHERE o.visit_route_line_id = ?
+                       AND l.visit_checkin_at IS NOT NULL
+                       AND o.created_at >= l.visit_checkin_at'
+                );
+                $st->execute([$lineId]);
+                $orderNums = (string) ($st->fetchColumn() ?: '');
+            } catch (Throwable $e) {
+                $orderNums = '';
+            }
+            $skipped[] = [
+                'line_id' => $lineId,
+                'message' => 'لا يمكن حذف زيارة مربوطة بطلب شراء.',
+                'order_numbers' => $orderNums,
+            ];
+            continue;
+        }
+        if (sal_rep_visit_reset_line($pdo, $lineId, 'حذف من تقرير الزيارات')) {
+            $deleted++;
+        } else {
+            $skipped[] = [
+                'line_id' => $lineId,
+                'message' => 'الزيارة غير موجودة أو غير مسجّلة.',
+            ];
+        }
+    }
+
+    return [
+        'ok' => $deleted > 0 || $skipped === [],
+        'deleted' => $deleted,
+        'skipped' => $skipped,
+    ];
+}
+
 /** @param array{lat:?float,lng:?float,accuracy:?float} $gps */
 function sal_rep_visit_create_checkout_request(
     PDO $pdo,

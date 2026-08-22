@@ -7,6 +7,7 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -133,22 +134,12 @@ class _CustomerOrdersPendingScreenState
       showSnack(context, 'اختر طلباً للحذف.', error: true);
       return;
     }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('حذف الطلبات'),
-        content: Text('حذف ${_selected.length} طلب نهائياً؟'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
+    final ok = await showAppConfirmDialog(
+      context,
+      title: 'حذف الطلبات',
+      message: 'حذف ${_selected.length} طلب نهائياً؟',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
     if (ok != true || !mounted) return;
     setState(() => _busy = true);

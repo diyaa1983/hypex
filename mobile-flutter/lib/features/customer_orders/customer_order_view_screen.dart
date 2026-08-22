@@ -8,6 +8,8 @@ import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../services/customer_order_bluetooth_receipt.dart';
+import '../../services/document_print_helper.dart';
+import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/thermal_preview_screen.dart';
@@ -65,7 +67,27 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
       _order['is_sent'] == 1 ||
       Fmt.toInt(_order['is_sent']) == 1;
 
-  bool get _canDeleteOrEdit => !_approved && !_sent;
+  bool get _canDeleteOrEdit =>
+      !_approved && !_sent && Fmt.toInt(_order['visit_route_line_id']) < 1;
+
+  Future<void> _sharePdf() async {
+    await DocumentPrintHelper.sharePdfFromApi(
+      context,
+      apiPath: AppConfig.customerOrderPdfPath,
+      query: {'id': widget.orderId},
+      fileName: 'طلب شراء - ${Fmt.str(_order['order_no'])}',
+    );
+  }
+
+  Future<void> _openPdf() async {
+    await DocumentPrintHelper.openPdfFromApi(
+      context,
+      apiPath: AppConfig.customerOrderPdfPath,
+      query: {'id': widget.orderId},
+      title: 'طلب شراء',
+      fileName: 'طلب شراء - ${Fmt.str(_order['order_no'])}',
+    );
+  }
 
   Future<void> _preview() async {
     await Navigator.push(
@@ -86,20 +108,17 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
   }
 
   Future<void> _delete() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('حذف الطلب'),
-        content: const Text('هل تريد حذف هذا الطلب نهائياً؟'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('إلغاء')),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('حذف')),
-        ],
-      ),
+    final visitLineId = Fmt.toInt(_order['visit_route_line_id']);
+    if (visitLineId > 0) {
+      showSnack(context, 'لا يمكن حذف طلب مربوط بزيارة.', error: true);
+      return;
+    }
+    final ok = await showAppConfirmDialog(
+      context,
+      title: 'حذف الطلب',
+      message: 'هل تريد حذف هذا الطلب نهائياً؟',
+      confirmLabel: 'حذف',
+      destructive: true,
     );
     if (ok != true || !mounted) return;
     try {
@@ -125,9 +144,19 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                 onPressed: _delete,
                 icon: const Icon(Icons.delete_outline_rounded),
                 tooltip: 'حذف'),
+          if (!_loading)
+            IconButton(
+                onPressed: _sharePdf,
+                icon: const Icon(Icons.share_outlined),
+                tooltip: 'مشاركة PDF'),
+          IconButton(
+              onPressed: _loading ? null : _openPdf,
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              tooltip: 'PDF'),
           IconButton(
               onPressed: _loading ? null : _preview,
-              icon: const Icon(Icons.print_outlined))
+              icon: const Icon(Icons.print_outlined),
+              tooltip: 'طباعة'),
         ],
         body: AsyncView(
             loading: _loading,

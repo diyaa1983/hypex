@@ -474,30 +474,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     final csrf = context.read<SessionController>().csrf;
     String? reason;
     if (manual) {
-      reason = await showDialog<String>(
-        context: context,
-        builder: (ctx) {
-          final c = TextEditingController(text: 'نسي الخروج بـ GPS من موقع العميل');
-          return AlertDialog(
-            title: const Text('خروج يدوي'),
-            content: TextField(
-              controller: c,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'السبب',
-                hintText: 'لماذا الخروج يدوياً؟',
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, c.text.trim()),
-                child: const Text('متابعة'),
-              ),
-            ],
-          );
-        },
-      );
+      reason = await showManualCheckoutReasonDialog(context);
       if (reason == null) return;
     }
     setState(() => _busy = true);

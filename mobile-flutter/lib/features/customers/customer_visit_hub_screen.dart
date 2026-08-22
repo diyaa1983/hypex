@@ -728,35 +728,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     if (!ok || !mounted) return;
     String? reason;
     if (manual) {
-      reason = await showDialog<String>(
-        context: context,
-        builder: (ctx) {
-          final ctrl = TextEditingController(
-            text: 'نسي الخروج بـ GPS من موقع العميل',
-          );
-          return AlertDialog(
-            title: const Text('خروج يدوي'),
-            content: TextField(
-              controller: ctrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'السبب',
-                hintText: 'لماذا الخروج يدوياً؟',
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('إلغاء'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                child: const Text('متابعة'),
-              ),
-            ],
-          );
-        },
-      );
+      reason = await showManualCheckoutReasonDialog(context);
       if (reason == null) return;
     }
     if (!mounted) return;

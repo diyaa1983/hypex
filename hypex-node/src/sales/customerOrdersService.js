@@ -731,6 +731,16 @@ async function deleteOrder(id) {
         await conn.rollback();
         return { ok: false, error: 'لا يمكن حذف طلب معتمد. فك الاعتماد أولاً.' };
       }
+      if (visitLineId > 0) {
+        const [lines] = await conn.execute(
+          `SELECT visit_checkin_at FROM sal_rep_route_line WHERE id = ? LIMIT 1`,
+          [visitLineId]
+        );
+        if (lines[0]?.visit_checkin_at) {
+          await conn.rollback();
+          return { ok: false, error: 'لا يمكن حذف طلب مربوط بزيارة.' };
+        }
+      }
     } catch {
       const [rows] = await conn.execute(
         `SELECT status FROM sal_customer_order WHERE id = ? FOR UPDATE`,
@@ -748,13 +758,12 @@ async function deleteOrder(id) {
     }
     await conn.execute(`DELETE FROM sal_customer_order_line WHERE order_id = ?`, [orderId]);
     await conn.execute(`DELETE FROM sal_customer_order WHERE id = ?`, [orderId]);
-    const visitReset = visitLineId > 0 ? await afterOrderDeletedVisitCleanup(conn, visitLineId) : false;
     await conn.commit();
     return {
       ok: true,
-      visit_reset: visitReset,
+      visit_reset: false,
       visit_route_line_id: visitLineId > 0 ? visitLineId : null,
-      message: visitReset ? 'تم حذف الطلب وإلغاء تسجيل الزيارة.' : 'تم حذف الطلب.',
+      message: 'تم حذف الطلب.',
     };
   } catch (e) {
     try {

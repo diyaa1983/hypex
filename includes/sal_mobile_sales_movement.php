@@ -51,7 +51,7 @@ function sal_mobile_sales_movement_report(PDO $pdo, array $filters): array
             INNER JOIN sal_invoice i ON i.id = l.invoice_id
             INNER JOIN inv_item it ON it.id = l.item_id AND it.is_active = 1
             INNER JOIN crm_customer c ON c.id = i.customer_id
-            LEFT JOIN inv_warehouse w ON w.id = l.warehouse_id
+            LEFT JOIN inv_warehouse w ON w.id = i.warehouse_id
             WHERE ' . implode(' AND ', $where) . '
             ORDER BY i.invoice_date DESC, i.id DESC, l.id ASC
             LIMIT ' . $limit;

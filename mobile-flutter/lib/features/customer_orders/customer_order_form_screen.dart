@@ -134,7 +134,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   String? _error, _orderNo, _salesRepName;
   String _paymentType = 'credit';
   String _orderDate = '';
-  int _id = 0, _warehouseId = 0;
+  int _id = 0, _warehouseId = 0, _visitRouteLineId = 0;
   List<Map<String, dynamic>> _warehouses = [];
   List<_TaxRate> _taxRates = [];
   int _defaultTaxRateId = 0;
@@ -298,6 +298,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             Fmt.str(order['status']) == 'approved';
         _orderNo = Fmt.str(order['order_no']);
         _orderDate = Fmt.str(order['order_date']);
+        _visitRouteLineId = Fmt.toInt(order['visit_route_line_id']);
         final pay = Fmt.str(order['payment_type']);
         _paymentType = pay == 'cash' ? 'cash' : 'credit';
         final loadedRep = Fmt.str(order['sales_rep_name']);
@@ -489,6 +490,11 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   Future<void> _delete() async {
     if (_id < 1 || _approved) return;
+    final linkedVisit = (widget.visitRouteLineId ?? 0) > 0 || _visitRouteLineId > 0;
+    if (linkedVisit) {
+      showSnack(context, 'لا يمكن حذف طلب مربوط بزيارة.', error: true);
+      return;
+    }
     final ok = await showAppConfirmDialog(
       context,
       title: 'حذف الطلب',

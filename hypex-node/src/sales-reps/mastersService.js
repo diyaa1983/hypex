@@ -1327,6 +1327,95 @@ async function decideGpsChangeRequest({ id, approve, userId, note = null }) {
   }
 }
 
+async function countVisitOrdersConn(conn, routeLineId) {
+  const lineId = Number(routeLineId);
+  if (!lineId) return 0;
+  try {
+    const [rows] = await conn.execute(
+      `SELECT COUNT(*) AS c
+       FROM sal_customer_order o
+       INNER JOIN sal_rep_route_line l ON l.id = o.visit_route_line_id
+       WHERE o.visit_route_line_id = ?
+         AND l.visit_checkin_at IS NOT NULL
+         AND o.created_at >= l.visit_checkin_at`,
+      [lineId]
+    );
+    return Number(rows[0]?.c || 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function resetVisitLineConn(conn, routeLineId, note) {
+  const lineId = Number(routeLineId);
+  if (!lineId) return false;
+  const [lines] = await conn.execute(
+    `SELECT l.id, l.visit_checkin_at
+     FROM sal_rep_route_line l
+     WHERE l.id = ? LIMIT 1`,
+    [lineId]
+  );
+  const line = lines[0];
+  if (!line || !line.visit_checkin_at) return false;
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const decisionNote = note || 'حذف من تقرير الزيارات';
+  try {
+    await conn.execute(`DELETE FROM sal_rep_visit_no_order_reason WHERE route_line_id = ?`, [lineId]);
+  } catch {
+    /* ignore */
+  }
+  try {
+    await conn.execute(
+      `UPDATE sal_rep_visit_checkout_request
+       SET status='rejected', decided_at=?, decision_note=?
+       WHERE route_line_id=? AND status='pending'`,
+      [now, decisionNote, lineId]
+    );
+  } catch {
+    /* ignore */
+  }
+  await conn.execute(
+    `UPDATE sal_rep_route_line SET
+       visit_checkin_at=NULL, visit_checkout_at=NULL,
+       checkin_method=NULL, checkout_method=NULL,
+       checkin_lat=NULL, checkin_lng=NULL, checkin_accuracy=NULL, checkin_distance_m=NULL,
+       checkout_lat=NULL, checkout_lng=NULL, checkout_accuracy=NULL, checkout_distance_m=NULL
+     WHERE id=?`,
+    [lineId]
+  );
+  return true;
+}
+
+async function deleteVisitLines(lineIds) {
+  const ids = [...new Set((lineIds || []).map((v) => Number(v)).filter((v) => v > 0))];
+  if (!ids.length) {
+    return { ok: false, deleted: 0, skipped: [], message: 'لم يُحدَّد أي زيارة.' };
+  }
+  const conn = await db.getPool().getConnection();
+  let deleted = 0;
+  const skipped = [];
+  try {
+    for (const lineId of ids) {
+      const orderCount = await countVisitOrdersConn(conn, lineId);
+      if (orderCount > 0) {
+        skipped.push({
+          line_id: lineId,
+          message: 'لا يمكن حذف زيارة مربوطة بطلب شراء.',
+        });
+        continue;
+      }
+      const ok = await resetVisitLineConn(conn, lineId);
+      if (ok) deleted += 1;
+      else skipped.push({ line_id: lineId, message: 'الزيارة غير موجودة أو غير مسجّلة.' });
+    }
+  } finally {
+    conn.release();
+  }
+  let message = deleted > 0 ? `تم حذف ${deleted} زيارة.` : 'لم يُحذف أي زيارة.';
+  if (skipped.length) message += ` ${skipped.length} زيارة لم تُحذف.`;
+  return { ok: deleted > 0, deleted, skipped, message };
+}
+
 /* توافق خلفي لأسماء قديمة */
 const listRoutes = listTours;
 const getRoute = getTour;
@@ -1353,6 +1442,7 @@ module.exports = {
   reportTours,
   reportVisits,
   listVisitReportCustomers,
+  deleteVisitLines,
   listVisitCheckoutRequests,
   decideVisitCheckoutRequest,
   listGpsChangeRequests,

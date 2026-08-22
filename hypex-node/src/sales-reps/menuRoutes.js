@@ -1737,6 +1737,18 @@ router.get('/sales-reps/reports/visits/data', async (req, res) => {
   res.json({ ok: true, from, to, rows, totals: visitTotals(rows) });
 });
 
+router.post('/sales-reps/reports/visits/delete', async (req, res) => {
+  if (!can(req.session.user, 'report_sales_rep_visits')) {
+    return res.status(403).json({ ok: false, message: 'ممنوع' });
+  }
+  if (!can(req.session.user, 'action_delete_sales_rep_visit')) {
+    return res.status(403).json({ ok: false, message: 'لا تملك صلاحية حذف الزيارات.' });
+  }
+  const lineIds = Array.isArray(req.body?.line_ids) ? req.body.line_ids : [];
+  const result = await masters.deleteVisitLines(lineIds);
+  res.json(result);
+});
+
 router.get('/sales-reps/reports/visits', async (req, res) => {
   if (
     !can(req.session.user, 'report_sales_rep_visits') &&
@@ -1822,13 +1834,23 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
 
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
-  const colCount = groupByRep ? 11 : 12;
+  const canDeleteVisits = can(req.session.user, 'action_delete_sales_rep_visit');
+  const baseColCount = groupByRep ? 11 : 12;
+  const colCount = baseColCount + (canDeleteVisits ? 1 : 0);
   const grandTotals = visitTotals(rows);
 
   function scopeLbl(r) {
     return Number(r.in_plan ?? 1) === 1
       ? ui.statusPill('ok', 'داخل الجولة')
       : ui.statusPill('wait', 'خارج الجولة');
+  }
+
+  function visitSelectCell(r) {
+    if (!canDeleteVisits) return '';
+    const lineId = Number(r.line_id || 0);
+    const hasOrder = Number(r.order_count || 0) > 0;
+    const disabled = hasOrder ? ' disabled title="مرتبطة بطلب شراء"' : '';
+    return `<td class="no-print si-col-select"><input type="checkbox" class="hx-visit-pick" value="${lineId}"${disabled}></td>`;
   }
 
   function visitDataCells(r, seq, includeRep) {
@@ -1877,19 +1899,19 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       )}</strong> <span class="muted">(${g.rows.length} زيارة)</span></td></tr>`;
       for (const r of g.rows) {
         seq += 1;
-        rowsHtml += `<tr class="${visitRowClass(r)}">${visitDataCells(r, seq, false)}</tr>`;
+        rowsHtml += `<tr class="${visitRowClass(r)}">${visitSelectCell(r)}${visitDataCells(r, seq, false)}</tr>`;
       }
       rowsHtml += totalsRow('مجموع المندوب', visitTotals(g.rows), colCount);
     }
     rowsHtml += totalsRow('الإجمالي النهائي', grandTotals, colCount);
   } else {
     rowsHtml = rows
-      .map((r, i) => `<tr class="${visitRowClass(r)}">${visitDataCells(r, i + 1, true)}</tr>`)
+      .map((r, i) => `<tr class="${visitRowClass(r)}">${visitSelectCell(r)}${visitDataCells(r, i + 1, true)}</tr>`)
       .join('');
     rowsHtml += totalsRow('الإجمالي', grandTotals, colCount);
   }
 
-  const visitHeaders = groupByRep
+  const visitHeaders = (groupByRep
     ? [
         '#',
         'التاريخ',
@@ -1916,7 +1938,15 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'مجموع الساعات',
         'نوع الدخول',
         'المبيعات',
-      ];
+      ]).map((h) => esc(h));
+  if (canDeleteVisits) visitHeaders.unshift('');
+
+  const deleteToolbar = canDeleteVisits
+    ? `<div class="no-print" style="display:flex;gap:.5rem;align-items:center;margin:.65rem 0 0;flex-wrap:wrap">
+        <button type="button" class="si-btn si-btn--danger" id="hx-visits-delete-btn" disabled>حذف المحدد</button>
+        <span class="muted" style="font-size:.82rem">يمكن حذف الزيارات غير المربوطة بطلب شراء فقط</span>
+      </div>`
+    : '';
 
   const livePoll = from <= todayIso() && to >= todayIso();
 
@@ -2006,6 +2036,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             groupByRep ? ' · مجمّعة حسب المندوب' : ''
           }.
         </p>
+        ${deleteToolbar}
       </section>
       <div class="si-print-area si-report-page si-report-visits" data-hx-print-landscape="1">
       ${ui.tableSurface(
@@ -2015,6 +2046,56 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         rowsHtml
       )}
       </div>
+      ${
+        canDeleteVisits
+          ? `<script>
+(function(){
+  function picked(){
+    return Array.prototype.slice.call(document.querySelectorAll('.hx-visit-pick:checked:not(:disabled)'))
+      .map(function(el){ return Number(el.value)||0; })
+      .filter(function(id){ return id > 0; });
+  }
+  function syncBtn(){
+    var btn = document.getElementById('hx-visits-delete-btn');
+    if (!btn) return;
+    btn.disabled = picked().length < 1;
+  }
+  document.addEventListener('change', function(e){
+    if (e.target && e.target.classList && e.target.classList.contains('hx-visit-pick')) syncBtn();
+  });
+  var btn = document.getElementById('hx-visits-delete-btn');
+  if (!btn) return;
+  btn.addEventListener('click', function(){
+    var ids = picked();
+    if (!ids.length) return;
+    var msg = 'حذف ' + ids.length + ' زيارة من التقرير؟';
+    var go = function(){
+      fetch('/sales-reps/reports/visits/delete', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ line_ids: ids })
+      })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (window.HypexUI && window.HypexUI.toast) {
+            window.HypexUI.toast((d && d.message) || 'تم', d && d.ok ? 'ok' : 'error');
+          }
+          if (d && d.ok) window.location.reload();
+        })
+        .catch(function(){
+          if (window.HypexUI && window.HypexUI.toast) window.HypexUI.toast('تعذر الحذف', 'error');
+        });
+    };
+    if (window.HypexUI && window.HypexUI.confirm) {
+      window.HypexUI.confirm(msg, { title: 'حذف الزيارات', okLabel: 'حذف', cancelLabel: 'إلغاء', danger: true })
+        .then(function(ok){ if (ok) go(); });
+    } else if (window.confirm(msg)) go();
+  });
+})();
+</script>`
+          : ''
+      }
       ${
         livePoll
           ? `<script>

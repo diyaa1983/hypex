@@ -5,6 +5,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
+import '../../services/document_print_helper.dart';
 import '../../services/party_statement_bluetooth_receipt.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -45,6 +46,8 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
   bool _loading = false;
   bool _printBusy = false;
   bool _previewBusy = false;
+  bool _pdfBusy = false;
+  bool _shareBusy = false;
   String? _error;
   Map<String, dynamic>? _result;
   bool _didAutoRun = false;
@@ -215,6 +218,70 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
     }
   }
 
+  Future<void> _openPdfA4() async {
+    if (_pdfBusy || _result == null || _party == null) return;
+    setState(() => _pdfBusy = true);
+    try {
+      final query = _type == 'customer'
+          ? {
+              'customer_id': _party!.id,
+              'from': _iso(_from),
+              'to': _iso(_to),
+            }
+          : {
+              'party_type': _type,
+              'party_id': _party!.id,
+              'from': _iso(_from),
+              'to': _iso(_to),
+            };
+      final path = _type == 'customer'
+          ? AppConfig.oracleCustomerStatementPdfPath
+          : AppConfig.partyStatementPdfPath;
+      final name = 'كشف حساب - ${_party!.name}';
+      if (!mounted) return;
+      await DocumentPrintHelper.openPdfFromApi(
+        context,
+        apiPath: path,
+        query: query,
+        title: 'كشف الحساب',
+        fileName: name,
+      );
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
+    }
+  }
+
+  Future<void> _sharePdf() async {
+    if (_shareBusy || _result == null || _party == null) return;
+    setState(() => _shareBusy = true);
+    try {
+      final query = _type == 'customer'
+          ? {
+              'customer_id': _party!.id,
+              'from': _iso(_from),
+              'to': _iso(_to),
+            }
+          : {
+              'party_type': _type,
+              'party_id': _party!.id,
+              'from': _iso(_from),
+              'to': _iso(_to),
+            };
+      final path = _type == 'customer'
+          ? AppConfig.oracleCustomerStatementPdfPath
+          : AppConfig.partyStatementPdfPath;
+      if (!mounted) return;
+      await DocumentPrintHelper.sharePdfFromApi(
+        context,
+        apiPath: path,
+        query: query,
+        fileName: 'كشف حساب - ${_party!.name}',
+      );
+    } finally {
+      if (mounted) setState(() => _shareBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final rows = (_result?['rows'] as List? ??
@@ -340,9 +407,32 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: ActionChipButton(
-                          icon: Icons.receipt_long_outlined,
-                          label: 'عرض',
+                          icon: Icons.picture_as_pdf_outlined,
+                          label: 'PDF',
+                          color: AppTheme.primary,
+                          busy: _pdfBusy,
+                          onTap: _openPdfA4,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ActionChipButton(
+                          icon: Icons.share_outlined,
+                          label: 'مشاركة PDF',
                           color: AppTheme.teal,
+                          busy: _shareBusy,
+                          onTap: _sharePdf,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ActionChipButton(
+                          icon: Icons.receipt_long_outlined,
+                          label: 'عرض حراري',
                           busy: _previewBusy,
                           onTap: _openPreview,
                         ),
