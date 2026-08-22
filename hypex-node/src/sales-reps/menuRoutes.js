@@ -1365,11 +1365,47 @@ function visitTimingCells(r, durationFn, methodLblFn) {
   const cin = fmtTimeOnly(r.visit_checkin_at) || '—';
   const cout = fmtTimeOnly(r.visit_checkout_at) || '—';
   const dur = durationFn(r.visit_checkin_at, r.visit_checkout_at);
-  const methods = visitMethodPairLabel(methodLblFn(r.checkin_method), methodLblFn(r.checkout_method));
+  const checkinMethod = methodLblFn(r.checkin_method);
   return `<td class="si-col-checkin" dir="ltr">${cin}</td>
       <td class="si-col-checkout" dir="ltr">${cout}</td>
       <td class="si-col-duration">${dur}</td>
-      <td class="si-col-method">${methods}</td>`;
+      <td class="si-col-method">${checkinMethod}</td>`;
+}
+
+function customerNameOnly(r) {
+  return esc(r.customer_name || '—');
+}
+
+function visitRowClass(r) {
+  const orderCount = Number(r.order_count || 0);
+  const reasons = String(r.no_order_reasons || '').trim();
+  if (orderCount <= 0 && reasons !== '' && reasons !== '—') return 'si-visits-no-order';
+  return '';
+}
+
+function visitTotals(rows) {
+  let mins = 0;
+  let sales = 0;
+  for (const r of rows) {
+    if (r.visit_checkin_at && r.visit_checkout_at) {
+      const t1 = Date.parse(String(r.visit_checkin_at).replace(' ', 'T'));
+      const t2 = Date.parse(String(r.visit_checkout_at).replace(' ', 'T'));
+      if (Number.isFinite(t1) && Number.isFinite(t2) && t2 >= t1) {
+        mins += Math.floor((t2 - t1) / 60000);
+      }
+    }
+    sales += Number(r.order_total || 0);
+  }
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return {
+    duration_label: mins > 0 ? `${h}:${String(m).padStart(2, '0')}` : '—',
+    sales_total: sales,
+  };
+}
+
+function visitMoney(n) {
+  return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function customerInline(r) {
@@ -1680,6 +1716,30 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
 });
 
 /* ── تقرير زيارات العملاء ── */
+router.get('/sales-reps/reports/visits/data', async (req, res) => {
+  if (
+    !can(req.session.user, 'report_sales_rep_visits') &&
+    !can(req.session.user, 'report_sales_rep_tours') &&
+    !can(req.session.user, 'sales_rep_route') &&
+    !can(req.session.user, 'sales_reps')
+  ) {
+    return res.status(403).json({ ok: false, error: 'forbidden' });
+  }
+  await masters.ensureTourSchema();
+  const from =
+    String(req.query.from || '').slice(0, 10) ||
+    (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    })();
+  const to = String(req.query.to || '').slice(0, 10) || todayIso();
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const method = String(req.query.method || '').toUpperCase();
+  const status = String(req.query.status || '');
+  const rows = await masters.reportVisits({ from, to, salesRepId, method, status });
+  res.json({ ok: true, from, to, rows, totals: visitTotals(rows) });
+});
+
 router.get('/sales-reps/reports/visits', async (req, res) => {
   if (
     !can(req.session.user, 'report_sales_rep_visits') &&
@@ -1759,6 +1819,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
   const colCount = groupByRep ? 11 : 12;
+  const grandTotals = visitTotals(rows);
 
   function scopeLbl(r) {
     return Number(r.in_plan ?? 1) === 1
@@ -1767,18 +1828,25 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   }
 
   function visitDataCells(r, seq, includeRep) {
-    const reason = esc(
-      r.no_order_reasons || (Number(r.in_plan ?? 1) === 1 ? '—' : 'غير محدد')
-    );
+    const reason = esc(r.no_order_reasons || '—');
     return `<td class="si-num" dir="ltr">${seq}</td>
       <td class="si-col-date">${esc(dateWithWeekday(r.route_date))}</td>
       ${includeRep ? `<td class="si-col-rep">${esc(r.sales_rep_name || '—')}</td>` : ''}
-      <td class="si-col-customer">${customerInline(r)}</td>
+      <td class="si-col-customer">${customerNameOnly(r)}</td>
       <td class="si-col-scope">${scopeLbl(r)}</td>
       <td class="si-col-reason" title="${reason}">${reason}</td>
       <td class="si-col-location">${locationInline(r)}</td>
       ${visitTimingCells(r, durationLabel, methodLabel)}
-      <td class="si-col-status">${statusLbl(r)}</td>`;
+      <td class="si-col-sales" dir="ltr">${visitMoney(r.order_total)}</td>`;
+  }
+
+  function totalsRow(label, t, cols) {
+    const leftSpan = Math.max(1, cols - 2);
+    return `<tr class="si-visits-totals-row">
+      <td colspan="${leftSpan}" style="text-align:start"><strong>${esc(label)}</strong></td>
+      <td class="si-col-duration"><strong>${esc(t.duration_label)}</strong></td>
+      <td class="si-col-sales" dir="ltr"><strong>${visitMoney(t.sales_total)}</strong></td>
+    </tr>`;
   }
 
   let rowsHtml = '';
@@ -1804,11 +1872,16 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       )}</strong> <span class="muted">(${g.rows.length} زيارة)</span></td></tr>`;
       for (const r of g.rows) {
         seq += 1;
-        rowsHtml += `<tr>${visitDataCells(r, seq, false)}</tr>`;
+        rowsHtml += `<tr class="${visitRowClass(r)}">${visitDataCells(r, seq, false)}</tr>`;
       }
+      rowsHtml += totalsRow('مجموع المندوب', visitTotals(g.rows), colCount);
     }
+    rowsHtml += totalsRow('الإجمالي النهائي', grandTotals, colCount);
   } else {
-    rowsHtml = rows.map((r, i) => `<tr>${visitDataCells(r, i + 1, true)}</tr>`).join('');
+    rowsHtml = rows
+      .map((r, i) => `<tr class="${visitRowClass(r)}">${visitDataCells(r, i + 1, true)}</tr>`)
+      .join('');
+    rowsHtml += totalsRow('الإجمالي', grandTotals, colCount);
   }
 
   const visitHeaders = groupByRep
@@ -1822,8 +1895,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'وقت الدخول',
         'وقت الخروج',
         'مجموع الساعات',
-        'نوع الدخول/الخروج',
-        'الحالة',
+        'نوع الدخول',
+        'المبيعات',
       ]
     : [
         '#',
@@ -1836,9 +1909,11 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'وقت الدخول',
         'وقت الخروج',
         'مجموع الساعات',
-        'نوع الدخول/الخروج',
-        'الحالة',
+        'نوع الدخول',
+        'المبيعات',
       ];
+
+  const livePoll = from <= todayIso() && to >= todayIso();
 
   const body = `
     <div class="si-stage si-report-page si-report-visits" data-hx-print-landscape="1">
@@ -1901,6 +1976,27 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         rowsHtml
       )}
       </div>
+      ${
+        livePoll
+          ? `<script>
+(function(){
+  var q = new URLSearchParams(window.location.search);
+  function poll(){
+    fetch('/sales-reps/reports/visits/data?' + q.toString(), { credentials: 'same-origin' })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d || !d.ok) return;
+        var el = document.getElementById('hx-visits-live-count');
+        if (el) el.textContent = (d.rows || []).length + ' زيارة';
+      })
+      .catch(function(){});
+  }
+  setInterval(poll, 30000);
+})();
+</script>
+<p id="hx-visits-live-count" class="muted no-print" style="margin:.5rem 0;font-size:.82rem">تحديث تلقائي كل 30 ثانية — ${rows.length} زيارة</p>`
+          : ''
+      }
     </div>`;
 
   res.send(

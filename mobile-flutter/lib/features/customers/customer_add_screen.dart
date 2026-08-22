@@ -28,6 +28,13 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
   double? _latitude;
   double? _longitude;
   double? _accuracy;
+  String _paymentPeriod = 'cash_with_rep';
+
+  static const _payOptions = <String, String>{
+    'cash_with_vehicle': 'كاش مع السيارة',
+    'cash_with_rep': 'نقدي مع المندوب',
+    'credit': 'ذمم',
+  };
 
   @override
   void dispose() {
@@ -84,6 +91,7 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
         'name_ar': name,
         'phone': _phone.text.trim(),
         'address_ar': _address.text.trim(),
+        'payment_period': _paymentPeriod,
       };
       if (_latitude != null && _longitude != null) {
         fields['latitude'] = _latitude;
@@ -105,6 +113,7 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
           'id': (cust['id'] as num?)?.toInt() ?? 0,
           'name': (cust['name'] ?? name).toString(),
           'code': (cust['code'] ?? '').toString(),
+          'pending_oracle_link': cust['pending_oracle_link'] == true,
         });
       } else if (context.canPop()) {
         context.pop(true);
@@ -130,7 +139,7 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'سيُربط العميل تلقائياً بمندوبك المسجّل على الحساب.',
+                  'سيُربط العميل تلقائياً بمندوبك. الرقم سيُحدَّد لاحقاً من Oracle.',
                   style: TextStyle(
                     fontSize: 13,
                     color: AppTheme.textSoft,
@@ -138,6 +147,28 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
+                Text(
+                  'فترة السداد *',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 6),
+                ..._payOptions.entries.map(
+                  (e) => RadioListTile<String>(
+                    value: e.key,
+                    groupValue: _paymentPeriod,
+                    onChanged: _saving || _locating
+                        ? null
+                        : (v) {
+                            if (v != null) setState(() => _paymentPeriod = v);
+                          },
+                    title: Text(e.value),
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 TextField(
                   controller: _name,
                   textInputAction: TextInputAction.next,

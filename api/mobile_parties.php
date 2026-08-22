@@ -34,7 +34,10 @@ try {
     $params = [];
 
     if ($type === 'customer') {
-        $sql = 'SELECT c.id, c.name_ar, c.code, c.phone, c.address_ar, c.latitude, c.longitude FROM crm_customer c WHERE c.is_active = 1';
+        crm_customer_ensure_oracle_pending_columns($pdo);
+        $sql = 'SELECT c.id, c.name_ar, c.code, c.phone, c.address_ar, c.latitude, c.longitude,
+                       c.oracle_key, c.payment_period, c.oracle_pending
+                FROM crm_customer c WHERE c.is_active = 1';
         if ($scopedRepId !== null) {
             [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
             $sql .= ' AND ' . $linkSql;
@@ -63,19 +66,29 @@ try {
     $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $parties = array_map(static function (array $r) use ($type): array {
+        $rawCode = (string) ($r['code'] ?? '');
+        $oracleKey = trim((string) ($r['oracle_key'] ?? ''));
+        $oraclePending = (int) ($r['oracle_pending'] ?? 0) === 1;
+        $pendingLink = $oracleKey === '' || $oraclePending || str_starts_with($rawCode, 'P-');
+        $displayCode = $pendingLink ? '' : $rawCode;
         $out = [
             'id' => (int) ($r['id'] ?? 0),
             'name' => (string) ($r['name_ar'] ?? ''),
-            'code' => (string) ($r['code'] ?? ''),
+            'code' => $displayCode,
         ];
         if ($type === 'customer') {
             $lat = isset($r['latitude']) && $r['latitude'] !== null ? (float) $r['latitude'] : null;
             $lng = isset($r['longitude']) && $r['longitude'] !== null ? (float) $r['longitude'] : null;
+            $payPeriod = trim((string) ($r['payment_period'] ?? ''));
             $out['phone'] = (string) ($r['phone'] ?? '');
             $out['address'] = (string) ($r['address_ar'] ?? '');
             $out['latitude'] = $lat;
             $out['longitude'] = $lng;
             $out['has_gps'] = $lat !== null && $lng !== null;
+            $out['oracle_linked'] = $oracleKey !== '';
+            $out['pending_oracle_link'] = $pendingLink;
+            $out['payment_period'] = $payPeriod;
+            $out['payment_period_label'] = crm_customer_payment_period_label($payPeriod);
         }
         return $out;
     }, $rows);

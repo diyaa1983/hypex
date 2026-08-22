@@ -36,7 +36,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   /// أجندة الشهر: كل يوم + عملاء الجولة المرحّلة
   String _monthYm = '';
   List<Map<String, dynamic>> _agendaDays = [];
-  bool _monthMode = true;
+  bool _monthMode = false;
 
   @override
   void initState() {
@@ -46,7 +46,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     _dateCtrl.text = _routeDate;
     _monthYm =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
-    _loadMonth();
+    _load();
   }
 
   @override
@@ -118,7 +118,13 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   void _openCustomerHub(int customerId) {
     if (customerId < 1) return;
     context.push('/customers?id=$customerId').then((_) {
-      if (mounted) _loadMonth();
+      if (mounted) {
+        if (_monthMode) {
+          _loadMonth();
+        } else {
+          _load();
+        }
+      }
     });
   }
 
@@ -540,7 +546,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
-      title: Text(_monthMode ? 'جولة الشهر' : 'جولات المندوبين'),
+      title: Text(_monthMode ? 'جولة الشهر' : 'جولة اليوم'),
       backgroundColor: const Color(0xFFF0F4F8),
       actions: [
         if (!_monthMode)

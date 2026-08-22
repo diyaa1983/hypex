@@ -201,6 +201,8 @@ $appBootMigrations = [
     'database/migrations/276_rep_visit_no_order_reasons.sql',
     'database/migrations/277_crm_customer_gps_change.sql',
     'database/migrations/279_sal_customer_order_oracle.sql',
+    'database/migrations/281_mobile_sales_movement_screen.sql',
+    'database/migrations/282_crm_customer_payment_period.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

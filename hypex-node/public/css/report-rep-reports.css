@@ -1,8 +1,14 @@
 /* Sales rep visits & tours — compact rows, landscape print */
 
-.si-report-page.si-report-visits,
-.si-report-page.si-report-tours {
-  --rep-table-min: 1100px;
+.si-report-page.si-report-visits tr.si-visits-no-order td,
+.report-sales-page.report-visits-page tr.report-visits-no-order td {
+  background: #fee2e2 !important;
+}
+
+.si-report-page.si-report-visits tr.si-visits-totals-row td,
+.report-sales-page.report-visits-page tr.report-visits-totals-row td {
+  background: #e2e8f0 !important;
+  font-weight: 700;
 }
 
 .si-report-page.si-report-visits .si-table-wrap,

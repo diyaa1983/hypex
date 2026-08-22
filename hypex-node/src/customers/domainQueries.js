@@ -16,10 +16,17 @@ const repNamesSub = `(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r
                 INNER JOIN crm_sales_rep r2 ON r2.id = csr2.sales_rep_id
                 WHERE csr2.customer_id = c.id)`;
 
-async function listCustomers({ q = '', activeOnly = true, regionId = 0, limit = 150 } = {}) {
+async function listCustomers({ q = '', activeOnly = true, regionId = 0, oraclePendingOnly = false, limit = 150 } = {}) {
   const where = ['1=1'];
   const params = [];
   if (activeOnly) where.push('c.is_active = 1');
+  if (oraclePendingOnly) {
+    where.push(`(
+      (c.oracle_key IS NULL OR c.oracle_key = '')
+      OR c.oracle_pending = 1
+      OR c.code LIKE 'P-%'
+    )`);
+  }
   if (regionId > 0) {
     where.push('c.region_id = ?');
     params.push(regionId);
@@ -36,7 +43,7 @@ async function listCustomers({ q = '', activeOnly = true, regionId = 0, limit = 
   }
   return safeQuery(
     `SELECT c.id, c.code, c.name_ar, c.phone, c.email, c.tax_number, c.is_active,
-            c.oracle_key, c.region_id,
+            c.oracle_key, c.oracle_pending, c.payment_period, c.region_id,
             rg.name_ar AS region_name,
             ra.name_ar AS region_address_name,
             COALESCE(${repNamesSub}, r.name_ar) AS sales_rep_name

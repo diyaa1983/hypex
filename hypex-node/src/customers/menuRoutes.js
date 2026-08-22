@@ -178,9 +178,10 @@ function plainDash(v) {
 router.get('/customers/list', guard('customers'), async (req, res) => {
   const qv = String(req.query.q || '');
   const showAll = String(req.query.all || '') === '1';
+  const oraclePending = String(req.query.oracle_pending || '') === '1';
   const regionId = Number(req.query.region_id || 0) || 0;
   const regions = await q.regionOptions();
-  const rows = await q.listCustomers({ q: qv, activeOnly: !showAll, regionId });
+  const rows = await q.listCustomers({ q: qv, activeOnly: !showAll, regionId, oraclePendingOnly: oraclePending });
 
   const regionOpts = regions
     .map(
@@ -200,6 +201,9 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
         <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
           <input type="checkbox" name="all" value="1" ${showAll ? 'checked' : ''}> عرض الموقوفين
         </label>
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+          <input type="checkbox" name="oracle_pending" value="1" ${oraclePending ? 'checked' : ''}> بانتظار ربط Oracle
+        </label>
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
       </form>
     </div>`;
@@ -207,15 +211,28 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
   const rowsHtml =
     rows
       .map(
-        (r) => `<tr>
-      <td class="si-num" dir="ltr">${ui.esc(r.code || '')}</td>
-      <td>${ui.esc(r.name_ar || '')}</td>
+        (r) => {
+          const oraKey = String(r.oracle_key || '').trim();
+          const pending =
+            oraKey === '' ||
+            Number(r.oracle_pending) === 1 ||
+            String(r.code || '').startsWith('P-');
+          const payLabels = {
+            cash_with_vehicle: 'كاش مع السيارة',
+            cash_with_rep: 'نقدي مع المندوب',
+            credit: 'ذمم',
+          };
+          const pay = payLabels[String(r.payment_period || '')] || '';
+          return `<tr>
+      <td class="si-num" dir="ltr">${pending ? '<span class="si-pill si-pill--wait">بانتظار</span>' : ui.esc(r.code || '')}</td>
+      <td>${ui.esc(r.name_ar || '')}${pay ? `<div class="muted" style="font-size:.72rem">${ui.esc(pay)}</div>` : ''}</td>
       <td class="si-num" dir="ltr">${dash(r.phone)}</td>
       <td>${dash(r.region_name)}</td>
       <td>${dash(r.sales_rep_name)}</td>
       <td>${ui.statusPill(Number(r.is_active) === 1 ? 'ok' : 'lock', Number(r.is_active) === 1 ? 'نشط' : 'موقوف')}</td>
-      <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/customers/${r.id}">تعديل</a></td>
-    </tr>`
+      <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/customers/${r.id}">${pending ? 'ربط Oracle' : 'تعديل'}</a></td>
+    </tr>`;
+        }
       )
       .join('') || ui.emptyRow(7);
 
@@ -1022,6 +1039,17 @@ async function customerForm(req, res, id) {
   if (row?.sales_rep_id) selectedReps.add(Number(row.sales_rep_id));
   const primaryRepId = [...selectedReps][0] || Number(row?.sales_rep_id || 0) || 0;
   const oracleLocked = !isNew && String(row.oracle_key || '').trim() !== '';
+  const oraclePending =
+    !isNew &&
+    (String(row.oracle_key || '').trim() === '' ||
+      Number(row.oracle_pending) === 1 ||
+      String(row.code || '').startsWith('P-'));
+  const payPeriodLabels = {
+    cash_with_vehicle: 'كاش مع السيارة',
+    cash_with_rep: 'نقدي مع المندوب',
+    credit: 'ذمم',
+  };
+  const payPeriodLabel = payPeriodLabels[String(row?.payment_period || '')] || '';
   const latVal =
     row?.latitude != null && String(row.latitude).trim() !== '' ? String(row.latitude) : '';
   const lngVal =
@@ -1110,6 +1138,23 @@ async function customerForm(req, res, id) {
         ],
       })}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
+      ${
+        oraclePending
+          ? `<section class="si-surface" style="padding:1rem 1.1rem;margin-bottom:.75rem;border-color:#fde68a;background:#fffbeb">
+        <h3 style="margin:0 0 .5rem;font-size:.95rem">بانتظار ربط Oracle</h3>
+        <p class="muted" style="margin:0 0 .75rem;font-size:.82rem;line-height:1.45">
+          هذا العميل أُنشئ من الموبايل${payPeriodLabel ? ' — فترة السداد: <strong>' + esc(payPeriodLabel) + '</strong>' : ''}.
+          أدخل رقم عميل Oracle (112…) للربط — سيُستبدل الرمز والاسم من Oracle.
+        </p>
+        <form method="post" action="/customers/${id}/link-oracle" class="si-meta" style="align-items:end;flex-wrap:wrap">
+          <label>رقم Oracle
+            <input class="si-field si-field--mono" name="oracle_key" required dir="ltr" placeholder="11200001" autocomplete="off">
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">ربط بـ Oracle</button>
+        </form>
+      </section>`
+          : ''
+      }
       <section class="si-surface">
         <div class="si-surface-head">
           <h2>${isNew ? 'بيانات العميل' : esc(row.name_ar || 'تعديل عميل')}</h2>
@@ -1477,6 +1522,20 @@ router.post('/customers/:id', async (req, res, next) => {
   const result = await masters.saveCustomer(body);
   if (!result.ok) return res.redirect('/customers/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect('/customers/list?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
+});
+
+router.post('/customers/:id/link-oracle', async (req, res, next) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id < 1) return next();
+  if (!can(req.session.user, 'customers') && !can(req.session.user, 'oracle_customers_sync')) {
+    return res.status(403).send('ممنوع');
+  }
+  const oracleKey = String(req.body?.oracle_key || '').trim();
+  const result = await masters.linkCustomerOracle(id, oracleKey);
+  if (!result.ok) {
+    return res.redirect('/customers/' + id + '?err=' + encodeURIComponent(result.message || 'تعذر الربط'));
+  }
+  res.redirect('/customers/list?msg=' + encodeURIComponent(result.message || 'تم ربط العميل بـ Oracle'));
 });
 
 module.exports = router;

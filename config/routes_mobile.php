@@ -221,6 +221,16 @@ return [
         'home_tile' => true,
     ],
 
+    'm_sales_movement' => [
+        'file' => 'modules/mobile/sales_movement.php',
+        'permission' => 'm_sales_movement',
+        'title' => 'كشف حركات المبيعات',
+        'home_label' => 'كشف حركات المبيعات',
+        'icon' => 'ledger',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+
     'm_party_statement' => [
 
         'file' => 'modules/mobile/party_statement.php',

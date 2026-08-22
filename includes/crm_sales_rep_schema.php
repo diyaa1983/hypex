@@ -755,9 +755,43 @@ function crm_mobile_customers_for_picker(PDO $pdo, int $limit = 800): array
  * إضافة عميل من تطبيق الهاتف مربوط بالمندوب الحالي.
  * @return array{ok:bool,message:string,customer?:array{id:int,code:string,name:string}}
  */
+function crm_customer_ensure_oracle_pending_columns(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        sql_migration_run_file($pdo, 'database/migrations/282_crm_customer_payment_period.sql');
+    } catch (Throwable $e) {
+        // ignore
+    }
+}
+
+function crm_customer_payment_period_label(?string $code): string
+{
+    return match (trim((string) $code)) {
+        'cash_with_vehicle' => 'كاش مع السيارة',
+        'cash_with_rep' => 'نقدي مع المندوب',
+        'credit' => 'ذمم',
+        default => '',
+    };
+}
+
+function crm_customer_payment_period_valid(?string $value): ?string
+{
+    $v = trim((string) $value);
+    if (in_array($v, ['cash_with_vehicle', 'cash_with_rep', 'credit'], true)) {
+        return $v;
+    }
+
+    return null;
+}
+
 /**
  * @param array{latitude?:float|null,longitude?:float|null,gps_accuracy?:float|null}|null $gps
- * @return array{ok:bool,message:string,customer?:array{id:int,code:string,name:string}}
+ * @return array{ok:bool,message:string,customer?:array{id:int,code:string,name:string,pending_oracle_link?:bool,payment_period?:string}}
  */
 function crm_mobile_customer_create_for_user(
     PDO $pdo,
@@ -765,13 +799,18 @@ function crm_mobile_customer_create_for_user(
     string $nameAr,
     string $phone = '',
     string $addressAr = '',
-    ?array $gps = null
+    ?array $gps = null,
+    ?string $paymentPeriod = null
 ): array {
     $nameAr = trim($nameAr);
     $phone = trim($phone);
     $addressAr = trim($addressAr);
     if ($nameAr === '') {
         return ['ok' => false, 'message' => 'اسم العميل مطلوب.'];
+    }
+    $payPeriod = crm_customer_payment_period_valid($paymentPeriod);
+    if ($payPeriod === null) {
+        return ['ok' => false, 'message' => 'اختر فترة السداد للعميل.'];
     }
 
     $repId = crm_sales_rep_id_for_user($pdo, $userId);
@@ -781,22 +820,24 @@ function crm_mobile_customer_create_for_user(
 
     crm_sales_rep_ensure_customer_invoice_links($pdo);
     crm_customer_ensure_gps_columns($pdo);
-    $code = crm_customer_generate_code($pdo);
+    crm_customer_ensure_oracle_pending_columns($pdo);
+    $tempCode = 'P-TMP-' . bin2hex(random_bytes(4));
     $gpsParsed = crm_customer_gps_parse_input($gps ?? []);
     $hasGps = !$gpsParsed['clear'] && $gpsParsed['latitude'] !== null && $gpsParsed['longitude'] !== null;
 
     if ($hasGps) {
         $st = $pdo->prepare(
-            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-             VALUES (?,?,?,?,?,?,?,?,?,NOW(),?,1)'
+            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, payment_period, oracle_pending, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+             VALUES (?,?,?,?,?,?,?,1,?,?,?,NOW(),?,1)'
         );
         $st->execute([
-            $code,
+            $tempCode,
             $nameAr,
             $phone !== '' ? $phone : null,
             null,
             null,
             $addressAr !== '' ? $addressAr : null,
+            $payPeriod,
             $gpsParsed['latitude'],
             $gpsParsed['longitude'],
             $gpsParsed['gps_accuracy'],
@@ -804,20 +845,23 @@ function crm_mobile_customer_create_for_user(
         ]);
     } else {
         $st = $pdo->prepare(
-            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, sales_rep_id, is_active)
-             VALUES (?,?,?,?,?,?,?,1)'
+            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, payment_period, oracle_pending, sales_rep_id, is_active)
+             VALUES (?,?,?,?,?,?,?,1,?,1)'
         );
         $st->execute([
-            $code,
+            $tempCode,
             $nameAr,
             $phone !== '' ? $phone : null,
             null,
             null,
             $addressAr !== '' ? $addressAr : null,
+            $payPeriod,
             $repId,
         ]);
     }
     $newId = (int) $pdo->lastInsertId();
+    $pendingCode = 'P-' . $newId;
+    $pdo->prepare('UPDATE crm_customer SET code = ? WHERE id = ?')->execute([$pendingCode, $newId]);
     crm_customer_save_sales_reps($pdo, $newId, [$repId]);
 
     if ($hasGps && $newId > 0) {
@@ -827,11 +871,140 @@ function crm_mobile_customer_create_for_user(
 
     return [
         'ok' => true,
-        'message' => 'تم إضافة العميل وربطه بمندوبك.',
+        'message' => 'تم إضافة العميل — بانتظار ربط Oracle.',
         'customer' => [
             'id' => $newId,
-            'code' => $code,
+            'code' => '',
             'name' => $nameAr,
+            'pending_oracle_link' => true,
+            'payment_period' => $payPeriod,
+            'payment_period_label' => crm_customer_payment_period_label($payPeriod),
+        ],
+    ];
+}
+
+/**
+ * جلب اسم عميل Oracle من GLACTMF (إن وُجد).
+ */
+function crm_customer_oracle_lookup_name(string $oracleKey): array
+{
+    $oracleKey = preg_replace('/\s+/', '', trim($oracleKey)) ?? '';
+    if ($oracleKey === '') {
+        return ['ok' => false, 'message' => 'أدخل رقم عميل Oracle.'];
+    }
+
+    require_once app_path('includes/oracle_pdo.php');
+    require_once app_path('includes/oracle_customer_sync.php');
+
+    $cfg = oracle_config();
+    $customersCfg = is_array($cfg['customers'] ?? null) ? $cfg['customers'] : [];
+    $codePrefix = trim((string) ($customersCfg['code_prefix'] ?? '112'));
+    if ($codePrefix !== '' && !str_starts_with($oracleKey, $codePrefix)) {
+        return ['ok' => false, 'message' => 'رقم العميل يجب أن يبدأ بـ ' . $codePrefix . '.'];
+    }
+
+    $glOwner = trim((string) ($customersCfg['gl_owner'] ?? 'ACCINV'));
+    $glTable = trim((string) ($customersCfg['gl_table'] ?? 'GLACTMF'));
+    $glAccNum = trim((string) ($customersCfg['gl_acc_num'] ?? 'ACC_NUM'));
+    $glAccDesc = trim((string) ($customersCfg['gl_acc_desc'] ?? 'ACC_DESC'));
+
+    try {
+        $conn = oracle_connect();
+    } catch (Throwable $e) {
+        return ['ok' => false, 'message' => 'تعذر الاتصال بـ Oracle: ' . $e->getMessage()];
+    }
+
+    $result = ['errors' => []];
+    $names = oracle_load_gl_account_names(
+        $conn,
+        $glOwner,
+        $glTable,
+        $glAccNum,
+        $glAccDesc,
+        $codePrefix,
+        $result
+    );
+    $name = $names[$oracleKey] ?? '';
+    if ($name === '') {
+        foreach ($names as $num => $desc) {
+            if (ltrim((string) $num, '0') === ltrim($oracleKey, '0')) {
+                $name = $desc;
+                break;
+            }
+        }
+    }
+    if ($name === '') {
+        return ['ok' => false, 'message' => 'لم يُعثر على اسم العميل في Oracle.'];
+    }
+
+    return [
+        'ok' => true,
+        'oracle_key' => $oracleKey,
+        'name_ar' => $name,
+        'code' => $oracleKey,
+    ];
+}
+
+/**
+ * ربط عميل Hypex بانتظار الربط بعميل Oracle — يستبدل code/name/oracle_key.
+ *
+ * @return array{ok:bool,message:string,customer?:array<string,mixed>}
+ */
+function crm_customer_link_oracle(PDO $pdo, int $customerId, string $oracleKey): array
+{
+    crm_customer_ensure_oracle_pending_columns($pdo);
+    require_once app_path('includes/oracle_customer_sync.php');
+    oracle_customer_schema_ensure($pdo);
+
+    $customerId = max(0, $customerId);
+    if ($customerId < 1) {
+        return ['ok' => false, 'message' => 'معرّف العميل مطلوب.'];
+    }
+
+    $lookup = crm_customer_oracle_lookup_name($oracleKey);
+    if (!$lookup['ok']) {
+        return $lookup;
+    }
+
+    $oraKey = (string) ($lookup['oracle_key'] ?? '');
+    $oraName = (string) ($lookup['name_ar'] ?? '');
+    $oraCode = (string) ($lookup['code'] ?? $oraKey);
+
+    $st = $pdo->prepare('SELECT id, code, name_ar, oracle_key, oracle_pending FROM crm_customer WHERE id = ? LIMIT 1');
+    $st->execute([$customerId]);
+    $cust = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$cust) {
+        return ['ok' => false, 'message' => 'العميل غير موجود.'];
+    }
+    if (trim((string) ($cust['oracle_key'] ?? '')) !== '') {
+        return ['ok' => false, 'message' => 'العميل مربوط بـ Oracle مسبقاً.'];
+    }
+
+    $stDup = $pdo->prepare('SELECT id FROM crm_customer WHERE oracle_key = ? AND id <> ? LIMIT 1');
+    $stDup->execute([$oraKey, $customerId]);
+    if ($stDup->fetch()) {
+        return ['ok' => false, 'message' => 'رقم Oracle مستخدم لعميل آخر.'];
+    }
+    $stCode = $pdo->prepare('SELECT id FROM crm_customer WHERE code = ? AND id <> ? LIMIT 1');
+    $stCode->execute([$oraCode, $customerId]);
+    if ($stCode->fetch()) {
+        return ['ok' => false, 'message' => 'رمز العميل مستخدم لعميل آخر.'];
+    }
+
+    $pdo->prepare(
+        'UPDATE crm_customer
+         SET code = ?, name_ar = ?, oracle_key = ?, oracle_pending = 0, is_active = 1
+         WHERE id = ?'
+    )->execute([$oraCode, $oraName, $oraKey, $customerId]);
+
+    return [
+        'ok' => true,
+        'message' => 'تم ربط العميل بـ Oracle.',
+        'customer' => [
+            'id' => $customerId,
+            'code' => $oraCode,
+            'name' => $oraName,
+            'oracle_key' => $oraKey,
         ],
     ];
 }

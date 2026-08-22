@@ -53,9 +53,18 @@ $gps = [
     'longitude' => $body['longitude'] ?? null,
     'gps_accuracy' => $body['gps_accuracy'] ?? ($body['accuracy'] ?? null),
 ];
+$paymentPeriod = trim((string) ($body['payment_period'] ?? ''));
 
 try {
-    $result = crm_mobile_customer_create_for_user(db(), $uid, $name, $phone, $address, $gps);
+    $result = crm_mobile_customer_create_for_user(
+        db(),
+        $uid,
+        $name,
+        $phone,
+        $address,
+        $gps,
+        $paymentPeriod !== '' ? $paymentPeriod : null
+    );
     if (!$result['ok']) {
         http_response_code(400);
         echo json_encode([

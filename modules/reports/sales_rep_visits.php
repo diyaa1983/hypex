@@ -41,6 +41,8 @@ foreach ($rows as $r) {
 }
 $groupByRep = $salesRepId < 1 && count($uniqueRepIds) > 1;
 $colCount = $groupByRep ? 11 : 12;
+$grandTotals = sal_rep_visit_report_totals($rows);
+$livePoll = $from <= date('Y-m-d') && $to >= date('Y-m-d');
 
 $grouped = [];
 if ($groupByRep) {
@@ -57,6 +59,50 @@ if ($groupByRep) {
     }
 }
 
+function sal_rep_visit_report_money(float $n): string
+{
+    return number_format($n, 2, '.', ',');
+}
+
+function sal_rep_visit_report_totals_row_html(string $label, array $totals, int $colCount): string
+{
+    $leftSpan = max(1, $colCount - 2);
+
+    return '<tr class="report-visits-totals-row">'
+        . '<td colspan="' . $leftSpan . '" style="text-align:start"><strong>' . esc($label) . '</strong></td>'
+        . '<td class="col-duration"><strong>' . esc((string) ($totals['duration_label'] ?? '—')) . '</strong></td>'
+        . '<td class="col-sales" dir="ltr"><strong>' . esc(sal_rep_visit_report_money((float) ($totals['sales_total'] ?? 0))) . '</strong></td>'
+        . '</tr>';
+}
+
+function sal_rep_visit_report_data_row_html(array $r, int $seq, bool $includeRep): string
+{
+    $reason = (string) (($r['no_order_reasons'] ?? '') !== '' ? $r['no_order_reasons'] : '—');
+    $rowClass = sal_rep_visit_report_row_class($r);
+    $scope = !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة';
+    $sales = sal_rep_visit_report_money((float) ($r['order_total'] ?? 0));
+
+    $html = '<tr class="' . esc($rowClass) . '">';
+    $html .= '<td dir="ltr">' . $seq . '</td>';
+    $html .= '<td>' . esc(sal_rep_visit_date_with_weekday((string) ($r['route_date'] ?? ''))) . '</td>';
+    if ($includeRep) {
+        $html .= '<td>' . esc((string) ($r['sales_rep_name'] ?? '')) . '</td>';
+    }
+    $html .= '<td class="col-customer">' . sal_rep_visit_customer_name_only($r) . '</td>';
+    $html .= '<td class="col-scope">' . esc($scope) . '</td>';
+    $html .= '<td class="col-reason" title="' . esc($reason) . '">' . esc($reason) . '</td>';
+    $html .= '<td class="col-location">' . sal_rep_visit_location_inline($r) . '</td>';
+    $html .= '<td class="col-checkin" dir="ltr">' . sal_rep_visit_timing_checkin_cell($r) . '</td>';
+    $html .= '<td class="col-checkout" dir="ltr">' . sal_rep_visit_timing_checkout_cell($r) . '</td>';
+    $html .= '<td class="col-duration">' . sal_rep_visit_timing_duration_cell($r) . '</td>';
+    $html .= '<td class="col-method">' . sal_rep_visit_checkin_method_only_label($r) . '</td>';
+    $html .= '<td class="col-sales" dir="ltr">' . esc($sales) . '</td>';
+    $html .= '</tr>';
+
+    return $html;
+}
+
+$apiUrl = app_url('api/report_sales_rep_visits.php');
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
 ?>
@@ -92,7 +138,7 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
 .report-sales-page.report-visits-page .col-checkout,
 .report-sales-page.report-visits-page .col-duration,
 .report-sales-page.report-visits-page .col-method,
-.report-sales-page.report-visits-page .col-status,
+.report-sales-page.report-visits-page .col-sales,
 .report-sales-page.report-visits-page .col-scope {
   max-width: none !important;
   overflow: visible !important;
@@ -112,6 +158,13 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
   max-width: none !important;
   overflow: visible !important;
 }
+.report-sales-page.report-visits-page tr.report-visits-no-order td {
+  background: #fef2f2 !important;
+}
+.report-sales-page.report-visits-page tr.report-visits-totals-row td {
+  background: #f1f5f9 !important;
+  border-top: 2px solid #94a3b8 !important;
+}
 @media print {
   @page { size: A4 landscape; margin: 6mm 5mm; }
   .report-sales-page.report-visits-page .report-sales-header { display: none !important; }
@@ -129,22 +182,15 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
     font-size: 7.5pt !important;
     border: 1px solid #94a3b8 !important;
   }
-  .report-sales-page.report-visits-page .col-checkin,
-  .report-sales-page.report-visits-page .col-checkout,
-  .report-sales-page.report-visits-page .col-duration,
-  .report-sales-page.report-visits-page .col-method,
-  .report-sales-page.report-visits-page .col-status,
-  .report-sales-page.report-visits-page .col-scope {
-    overflow: visible !important;
-    text-overflow: clip !important;
-  }
 }
 </style>
 <div class="card report-sales-page report-visits-page">
     <header class="report-sales-header no-print">
         <h2>تقرير زيارات العملاء</h2>
-        <p class="muted">تسجيلات دخول/خروج المندوب — وقت الدخول · وقت الخروج · المدة · نوع الدخول/الخروج</p>
-        <p class="muted report-visits-count"><strong>عدد الزيارات:</strong> <?= count($rows) ?></p>
+        <p class="muted">تسجيلات دخول/خروج المندوب — وقت الدخول · وقت الخروج · المدة · نوع الدخول · المبيعات</p>
+        <p class="muted report-visits-count" id="hx-visits-live-count">
+            <strong>عدد الزيارات:</strong> <?= count($rows) ?>
+        </p>
         <form method="get" class="report-filters" action="<?= esc(app_url('index.php')) ?>">
             <input type="hidden" name="r" value="report_sales_rep_visits">
             <label>من
@@ -184,7 +230,7 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
     </header>
 
     <div class="report-sales-table-wrap">
-        <table class="report-sales-table" dir="rtl">
+        <table class="report-sales-table" dir="rtl" id="hx-visits-table">
             <thead>
             <tr>
                 <th>#</th>
@@ -197,11 +243,11 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                 <th>وقت الدخول</th>
                 <th>وقت الخروج</th>
                 <th>مجموع الساعات</th>
-                <th>نوع الدخول/الخروج</th>
-                <th>الحالة</th>
+                <th>نوع الدخول</th>
+                <th>المبيعات</th>
             </tr>
             </thead>
-            <tbody>
+            <tbody id="hx-visits-tbody">
             <?php if ($rows === []): ?>
                 <tr><td colspan="<?= (int) $colCount ?>" class="muted">لا تسجيلات زيارة في الفترة المحددة.</td></tr>
             <?php elseif ($groupByRep): ?>
@@ -214,47 +260,114 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                         </td>
                     </tr>
                     <?php foreach ($g['rows'] as $r): ?>
-                        <?php
-                        $seq++;
-                        $reason = (string) (($r['no_order_reasons'] ?? '') !== '' ? $r['no_order_reasons'] : '—');
-                        ?>
-                        <tr>
-                            <td dir="ltr"><?= $seq ?></td>
-                            <td><?= esc(sal_rep_visit_date_with_weekday((string) ($r['route_date'] ?? ''))) ?></td>
-                            <td class="col-customer"><?= sal_rep_visit_customer_inline($r) ?></td>
-                            <td class="col-scope"><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
-                            <td class="col-reason" title="<?= esc($reason) ?>"><?= esc($reason) ?></td>
-                            <td class="col-location"><?= sal_rep_visit_location_inline($r) ?></td>
-                            <td class="col-checkin" dir="ltr"><?= sal_rep_visit_timing_checkin_cell($r) ?></td>
-                            <td class="col-checkout" dir="ltr"><?= sal_rep_visit_timing_checkout_cell($r) ?></td>
-                            <td class="col-duration"><?= sal_rep_visit_timing_duration_cell($r) ?></td>
-                            <td class="col-method"><?= sal_rep_visit_timing_method_cell($r) ?></td>
-                            <td class="col-status"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
-                        </tr>
+                        <?php $seq++; ?>
+                        <?= sal_rep_visit_report_data_row_html($r, $seq, false) ?>
                     <?php endforeach; ?>
+                    <?= sal_rep_visit_report_totals_row_html('مجموع المندوب', sal_rep_visit_report_totals($g['rows']), $colCount) ?>
                 <?php endforeach; ?>
+                <?= sal_rep_visit_report_totals_row_html('الإجمالي النهائي', $grandTotals, $colCount) ?>
             <?php else: ?>
                 <?php foreach ($rows as $i => $r): ?>
-                    <?php
-                    $reason = (string) (($r['no_order_reasons'] ?? '') !== '' ? $r['no_order_reasons'] : '—');
-                    ?>
-                    <tr>
-                        <td dir="ltr"><?= $i + 1 ?></td>
-                        <td><?= esc(sal_rep_visit_date_with_weekday((string) ($r['route_date'] ?? ''))) ?></td>
-                        <td><?= esc((string) ($r['sales_rep_name'] ?? '')) ?></td>
-                        <td class="col-customer"><?= sal_rep_visit_customer_inline($r) ?></td>
-                        <td class="col-scope"><?= !empty($r['in_plan']) ? 'داخل الجولة' : 'خارج الجولة' ?></td>
-                        <td class="col-reason" title="<?= esc($reason) ?>"><?= esc($reason) ?></td>
-                        <td class="col-location"><?= sal_rep_visit_location_inline($r) ?></td>
-                        <td class="col-checkin" dir="ltr"><?= sal_rep_visit_timing_checkin_cell($r) ?></td>
-                        <td class="col-checkout" dir="ltr"><?= sal_rep_visit_timing_checkout_cell($r) ?></td>
-                        <td class="col-duration"><?= sal_rep_visit_timing_duration_cell($r) ?></td>
-                        <td class="col-method"><?= sal_rep_visit_timing_method_cell($r) ?></td>
-                        <td class="col-status"><?= esc((string) ($r['status_label'] ?? '')) ?></td>
-                    </tr>
+                    <?= sal_rep_visit_report_data_row_html($r, $i + 1, true) ?>
                 <?php endforeach; ?>
+                <?= sal_rep_visit_report_totals_row_html('الإجمالي', $grandTotals, $colCount) ?>
             <?php endif; ?>
             </tbody>
         </table>
     </div>
+    <?php if ($livePoll): ?>
+        <p class="muted no-print" style="margin:.5rem 0;font-size:.82rem">تحديث تلقائي كل 30 ثانية</p>
+        <script>
+        (function () {
+          var apiUrl = <?= json_encode($apiUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+          var q = new URLSearchParams(window.location.search);
+          q.delete('r');
+          function esc(s) {
+            return String(s == null ? '' : s)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;');
+          }
+          function money(n) {
+            return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          }
+          function buildRow(r, seq, includeRep) {
+            var reason = esc(r.no_order_reasons || '—');
+            var cls = r.row_class ? ' class="' + esc(r.row_class) + '"' : '';
+            var html = '<tr' + cls + '>';
+            html += '<td dir="ltr">' + seq + '</td>';
+            html += '<td>' + esc(r.route_date_label || r.route_date || '') + '</td>';
+            if (includeRep) html += '<td>' + esc(r.sales_rep_name || '') + '</td>';
+            html += '<td class="col-customer">' + esc(r.customer_name || '—') + '</td>';
+            html += '<td class="col-scope">' + esc(r.plan_scope_label || (r.in_plan ? 'داخل الجولة' : 'خارج الجولة')) + '</td>';
+            html += '<td class="col-reason" title="' + reason + '">' + reason + '</td>';
+            html += '<td class="col-location">' + esc(r.location || '—') + '</td>';
+            html += '<td class="col-checkin" dir="ltr">' + esc(r.checkin_time || '—') + '</td>';
+            html += '<td class="col-checkout" dir="ltr">' + esc(r.checkout_time || '—') + '</td>';
+            html += '<td class="col-duration">' + esc(r.duration_label || '—') + '</td>';
+            html += '<td class="col-method">' + esc(r.checkin_method_label || '—') + '</td>';
+            html += '<td class="col-sales" dir="ltr">' + money(r.order_total) + '</td>';
+            html += '</tr>';
+            return html;
+          }
+          function totalsRow(label, t, cols) {
+            var left = Math.max(1, cols - 2);
+            return '<tr class="report-visits-totals-row"><td colspan="' + left + '" style="text-align:start"><strong>'
+              + esc(label) + '</strong></td><td class="col-duration"><strong>' + esc(t.duration_label || '—')
+              + '</strong></td><td class="col-sales" dir="ltr"><strong>' + money(t.sales_total) + '</strong></td></tr>';
+          }
+          function poll() {
+            fetch(apiUrl + '?' + q.toString(), { credentials: 'same-origin' })
+              .then(function (res) { return res.json(); })
+              .then(function (d) {
+                if (!d || !d.ok) return;
+                var rows = d.rows || [];
+                var elCount = document.getElementById('hx-visits-live-count');
+                if (elCount) elCount.innerHTML = '<strong>عدد الزيارات:</strong> ' + rows.length;
+                var tbody = document.getElementById('hx-visits-tbody');
+                if (!tbody || !rows.length) return;
+                var repIds = {};
+                rows.forEach(function (r) {
+                  var id = Number(r.sales_rep_id || 0);
+                  if (id > 0) repIds[id] = true;
+                });
+                var groupByRep = !q.get('sales_rep_id') && Object.keys(repIds).length > 1;
+                var colCount = groupByRep ? 11 : 12;
+                var html = '';
+                if (!rows.length) {
+                  html = '<tr><td colspan="' + colCount + '" class="muted">لا تسجيلات زيارة في الفترة المحددة.</td></tr>';
+                } else if (groupByRep) {
+                  var groups = {};
+                  rows.forEach(function (r) {
+                    var key = String(Number(r.sales_rep_id || 0) || 0);
+                    if (!groups[key]) groups[key] = { name: r.sales_rep_name || 'مندوب', rows: [] };
+                    groups[key].rows.push(r);
+                  });
+                  var seq = 0;
+                  Object.keys(groups).forEach(function (key) {
+                    var g = groups[key];
+                    html += '<tr class="report-visits-group"><td colspan="' + colCount + '">المندوب: '
+                      + esc(g.name) + ' <span class="muted">(' + g.rows.length + ' زيارة)</span></td></tr>';
+                    g.rows.forEach(function (r) {
+                      seq += 1;
+                      html += buildRow(r, seq, false);
+                    });
+                    var gTotals = { duration_label: '—', sales_total: 0 };
+                    g.rows.forEach(function (r) { gTotals.sales_total += Number(r.order_total || 0); });
+                    html += totalsRow('مجموع المندوب', gTotals, colCount);
+                  });
+                  html += totalsRow('الإجمالي النهائي', d.totals || {}, colCount);
+                } else {
+                  rows.forEach(function (r, i) { html += buildRow(r, i + 1, true); });
+                  html += totalsRow('الإجمالي', d.totals || {}, colCount);
+                }
+                tbody.innerHTML = html;
+              })
+              .catch(function () {});
+          }
+          setInterval(poll, 30000);
+        })();
+        </script>
+    <?php endif; ?>
 </div>

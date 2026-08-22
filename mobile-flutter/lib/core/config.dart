@@ -98,6 +98,7 @@ class AppConfig {
   static const String repVisitCheckinPath = 'api/mobile_rep_visit_checkin.php';
   static const String repVisitCheckoutPath = 'api/mobile_rep_visit_checkout.php';
   static const String repVisitReportPath = 'api/mobile_rep_visit_report.php';
+  static const String salesMovementPath = 'api/mobile_sales_movement.php';
 
   static const String invoiceGpsListPath = 'api/sales_invoice_gps_list.php';
   static const String userGpsListPath = 'api/user_gps_locations_list.php';

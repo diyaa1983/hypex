@@ -146,6 +146,12 @@ const Map<String, TileSpec> kTileSpecs = {
     'المالية',
     asset: 'assets/tiles/m_party_statement.png',
   ),
+  'm_sales_movement': TileSpec(
+    '/reports/sales-movement',
+    Icons.receipt_long_rounded,
+    AppTheme.primary,
+    'المبيعات',
+  ),
   'm_rep_load': TileSpec(
     '/rep/load',
     Icons.local_shipping_rounded,

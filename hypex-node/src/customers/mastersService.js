@@ -509,6 +509,56 @@ function importRegionCustomerExcel(userId, filePath, { replaceReps = true } = {}
   });
 }
 
+function runCustomerOracleCli(action, ...args) {
+  return new Promise((resolve) => {
+    const script = path.join(__dirname, '..', '..', 'cli', 'customer_oracle_link.php');
+    if (!fs.existsSync(script)) {
+      return resolve({ ok: false, message: 'سكربت ربط Oracle غير موجود.' });
+    }
+    const phpArgs = [];
+    const ini = process.env.PHP_INI || 'C:\\xampp\\php\\php.ini';
+    if (fs.existsSync(ini)) {
+      phpArgs.push('-c', ini);
+    }
+    phpArgs.push(script, action, ...args.map(String));
+    const child = spawn(phpBin(), phpArgs, { cwd: hypexRoot(), windowsHide: true });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => {
+      out += String(d);
+    });
+    child.stderr.on('data', (d) => {
+      err += String(d);
+    });
+    child.on('error', (e) => {
+      resolve({ ok: false, message: 'تعذر تشغيل PHP: ' + (e.message || '') });
+    });
+    child.on('close', () => {
+      const line = out
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .pop();
+      if (!line) {
+        return resolve({ ok: false, message: err.trim() || 'لا استجابة من PHP.' });
+      }
+      try {
+        resolve(JSON.parse(line));
+      } catch {
+        resolve({ ok: false, message: 'استجابة غير صالحة: ' + line.slice(0, 200) });
+      }
+    });
+  });
+}
+
+async function lookupCustomerOracle(oracleKey) {
+  return runCustomerOracleCli('lookup', String(oracleKey || '').trim());
+}
+
+async function linkCustomerOracle(customerId, oracleKey) {
+  return runCustomerOracleCli('link', String(Number(customerId) || 0), String(oracleKey || '').trim());
+}
+
 module.exports = {
   getCustomer,
   saveCustomer,
@@ -520,5 +570,7 @@ module.exports = {
   listAddressesForRegion,
   nextRegionCode,
   importRegionCustomerExcel,
+  lookupCustomerOracle,
+  linkCustomerOracle,
   hypexRoot,
 };

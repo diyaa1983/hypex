@@ -1029,10 +1029,17 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                                           ),
                                         ),
                                         Text(
-                                          Fmt.str(c['code']),
-                                          style: const TextStyle(
-                                            color: AppTheme.textSoft,
+                                          c['pending_oracle_link'] == true
+                                              ? 'بانتظار ربط Oracle'
+                                              : Fmt.str(c['code']),
+                                          style: TextStyle(
+                                            color: c['pending_oracle_link'] == true
+                                                ? AppTheme.warn
+                                                : AppTheme.textSoft,
                                             fontSize: 12,
+                                            fontWeight: c['pending_oracle_link'] == true
+                                                ? FontWeight.w700
+                                                : FontWeight.normal,
                                           ),
                                         ),
                                       ],
@@ -1719,7 +1726,14 @@ class _InfoTabState extends State<_InfoTab> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _readonlyRow('الاسم', Fmt.str(c['name'])),
-              _readonlyRow('الرمز', Fmt.str(c['code'])),
+              _readonlyRow(
+                'الرمز',
+                c['pending_oracle_link'] == true
+                    ? 'بانتظار ربط Oracle'
+                    : Fmt.str(c['code']),
+              ),
+              if (Fmt.str(c['payment_period_label']).isNotEmpty)
+                _readonlyRow('فترة السداد', Fmt.str(c['payment_period_label'])),
               if (Fmt.str(c['region_name']).isNotEmpty)
                 _readonlyRow('المنطقة', Fmt.str(c['region_name'])),
               const Divider(height: 22),

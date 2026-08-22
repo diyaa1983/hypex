@@ -10,6 +10,7 @@ const mobileCatalog = [
       { r: 'm_sales_invoices', label: 'فواتير المبيعات', icon: '🧾', path: '/mobile/sales-invoices', kind: 'list' },
       { r: 'm_customer_add', label: 'إضافة عميل', icon: '👤', path: '/mobile/customer-add', kind: 'bridge' },
       { r: 'm_party_statement', label: 'كشف حساب', icon: '📋', path: '/mobile/party-statement', kind: 'bridge' },
+      { r: 'm_sales_movement', label: 'كشف حركات المبيعات', icon: '📈', path: '/mobile/sales-movement', kind: 'bridge' },
       { r: 'm_receipt', label: 'سند قبض', icon: '⬆', path: '/mobile/receipt', kind: 'bridge' },
       { r: 'm_sales_returns', label: 'مرتجع مبيعات', icon: '↩', path: '/mobile/sales-returns', kind: 'bridge' },
       { r: 'm_user_gps_locations', label: 'مواقع المستخدمين', icon: '📍', path: '/mobile/user-locations', kind: 'list' },

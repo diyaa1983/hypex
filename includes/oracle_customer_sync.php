@@ -439,7 +439,7 @@ function oracle_sync_customers_to_mysql(
         require_once app_path('includes/crm_party_delete.php');
 
         $st = $mysql->prepare(
-            'SELECT id, code, oracle_key FROM crm_customer WHERE code NOT LIKE ? OR (
+            'SELECT id, code, oracle_key, oracle_pending FROM crm_customer WHERE code NOT LIKE ? OR (
                 oracle_key IS NOT NULL AND oracle_key <> \'\' AND oracle_key NOT LIKE ?
             )'
         );
@@ -462,6 +462,18 @@ function oracle_sync_customers_to_mysql(
             $cid = (int) ($row['id'] ?? 0);
             if ($cid < 1) {
                 continue;
+            }
+            $codeRow = trim((string) ($row['code'] ?? ''));
+            $oraKey = trim((string) ($row['oracle_key'] ?? ''));
+            if ($oraKey === '' && str_starts_with($codeRow, 'P-')) {
+                continue;
+            }
+            try {
+                if ((int) ($row['oracle_pending'] ?? 0) === 1) {
+                    continue;
+                }
+            } catch (Throwable $e) {
+                // ignore
             }
             $used = (int) ($usage[$cid] ?? 0);
             if ($used > 0) {

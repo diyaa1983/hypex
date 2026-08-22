@@ -1068,6 +1068,18 @@ async function reportVisits({ from = '', to = '', salesRepId = 0, method = '', s
                 INNER JOIN sal_no_order_reason nr ON nr.id = vr.reason_id
                 WHERE vr.route_line_id = l.id
               ) AS no_order_reasons,
+              (
+                SELECT COUNT(*)
+                FROM sal_customer_order o
+                WHERE o.visit_route_line_id = l.id
+                  AND o.created_at >= l.visit_checkin_at
+              ) AS order_count,
+              (
+                SELECT COALESCE(SUM(o.total), 0)
+                FROM sal_customer_order o
+                WHERE o.visit_route_line_id = l.id
+                  AND o.created_at >= l.visit_checkin_at
+              ) AS order_total,
               q.id AS pending_request_id, q.reason AS checkout_reason
        FROM sal_rep_route_line l
        INNER JOIN sal_rep_route r ON r.id = l.route_id

@@ -1187,15 +1187,82 @@ function sal_rep_visit_timing_compact(array $r): string
     return '<span class="si-ts-compact" dir="ltr">' . esc(implode(' · ', $parts)) . '</span>';
 }
 
-function sal_rep_visit_customer_inline(array $r): string
+function sal_rep_visit_customer_inline(array $r, bool $showCode = true): string
 {
     $name = esc((string) ($r['customer_name'] ?? '—'));
+    if (!$showCode) {
+        return $name;
+    }
     $code = trim((string) ($r['customer_code'] ?? ''));
     if ($code === '') {
         return $name;
     }
 
     return $name . ' <span class="muted si-cust-code" dir="ltr">(' . esc($code) . ')</span>';
+}
+
+function sal_rep_visit_customer_name_only(array $r): string
+{
+    return sal_rep_visit_customer_inline($r, false);
+}
+
+function sal_rep_visit_checkin_method_only_label(array $r): string
+{
+    $cm = trim((string) ($r['checkin_method_label'] ?? ''));
+    if ($cm === '' || $cm === '—') {
+        return '—';
+    }
+
+    return $cm;
+}
+
+/** @return int دقائق الزيارة أو 0 */
+function sal_rep_visit_duration_minutes(?string $checkinAt, ?string $checkoutAt): int
+{
+    $a = strtotime((string) $checkinAt);
+    $b = strtotime((string) $checkoutAt);
+    if ($a === false || $b === false || $b < $a) {
+        return 0;
+    }
+
+    return (int) floor(($b - $a) / 60);
+}
+
+function sal_rep_visit_report_row_class(array $r): string
+{
+    $orderCount = (int) ($r['order_count'] ?? 0);
+    $reasons = trim((string) ($r['no_order_reasons'] ?? ''));
+    if ($orderCount <= 0 && $reasons !== '' && $reasons !== '—') {
+        return 'report-visits-no-order';
+    }
+
+    return '';
+}
+
+/**
+ * @param list<array<string,mixed>> $rows
+ * @return array{duration_minutes:int,duration_label:string,sales_total:float,visit_count:int}
+ */
+function sal_rep_visit_report_totals(array $rows): array
+{
+    $mins = 0;
+    $sales = 0.0;
+    foreach ($rows as $r) {
+        $mins += sal_rep_visit_duration_minutes(
+            ($r['visit_checkin_at'] ?? '') !== '' ? (string) $r['visit_checkin_at'] : null,
+            ($r['visit_checkout_at'] ?? '') !== '' ? (string) $r['visit_checkout_at'] : null
+        );
+        $sales += (float) ($r['order_total'] ?? 0);
+    }
+    $h = intdiv($mins, 60);
+    $m = $mins % 60;
+
+    return [
+        'duration_minutes' => $mins,
+        'duration_label' => $mins > 0 ? ($h . ':' . str_pad((string) $m, 2, '0', STR_PAD_LEFT)) : '—',
+        'sales_total' => $sales,
+        'visit_count' => count($rows),
+    ];
 }
 
 function sal_rep_visit_location_inline(array $r): string
