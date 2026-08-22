@@ -417,19 +417,17 @@ function sal_customer_order_delete(PDO $pdo, int $id, ?int $scopedRepId = null):
             throw new RuntimeException('لا يمكنك حذف طلب لمندوب آخر.');
         }
         $visitLineId = $hasVisitCol ? (int) ($row['visit_route_line_id'] ?? 0) : 0;
-        if ($visitLineId > 0) {
-            require_once app_path('includes/sal_rep_visit.php');
-            $line = sal_rep_visit_line_fetch($pdo, $visitLineId);
-            if ($line && !empty($line['visit_checkin_at'])) {
-                throw new RuntimeException('لا يمكن حذف طلب مربوط بزيارة.');
-            }
-        }
         $pdo->prepare('DELETE FROM sal_customer_order_line WHERE order_id = ?')->execute([$id]);
         $pdo->prepare('DELETE FROM sal_customer_order WHERE id = ?')->execute([$id]);
+        $visitReset = false;
+        if ($visitLineId > 0) {
+            require_once app_path('includes/sal_rep_visit.php');
+            $visitReset = sal_rep_visit_after_order_deleted($pdo, $visitLineId);
+        }
         $pdo->commit();
 
         return [
-            'visit_reset' => false,
+            'visit_reset' => $visitReset,
             'visit_route_line_id' => $visitLineId > 0 ? $visitLineId : null,
         ];
     } catch (Throwable $e) {

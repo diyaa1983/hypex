@@ -67,8 +67,7 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
       _order['is_sent'] == 1 ||
       Fmt.toInt(_order['is_sent']) == 1;
 
-  bool get _canDeleteOrEdit =>
-      !_approved && !_sent && Fmt.toInt(_order['visit_route_line_id']) < 1;
+  bool get _canDeleteOrEdit => !_approved && !_sent;
 
   Future<void> _sharePdf() async {
     await DocumentPrintHelper.sharePdfFromApi(
@@ -108,11 +107,6 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
   }
 
   Future<void> _delete() async {
-    final visitLineId = Fmt.toInt(_order['visit_route_line_id']);
-    if (visitLineId > 0) {
-      showSnack(context, 'لا يمكن حذف طلب مربوط بزيارة.', error: true);
-      return;
-    }
     final ok = await showAppConfirmDialog(
       context,
       title: 'حذف الطلب',
@@ -122,13 +116,14 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
     );
     if (ok != true || !mounted) return;
     try {
-      await context.read<ApiClient>().postJson(
+      final res = await context.read<ApiClient>().postJson(
         AppConfig.customerOrderDeletePath,
         body: {'id': widget.orderId},
         csrf: context.read<SessionController>().csrf,
       );
       if (!mounted) return;
-      showSnack(context, 'تم حذف الطلب.');
+      final msg = Fmt.str(res['message']);
+      showSnack(context, msg.isEmpty ? 'تم حذف الطلب.' : msg);
       context.go('/customer-orders');
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);

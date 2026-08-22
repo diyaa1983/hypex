@@ -490,11 +490,6 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   Future<void> _delete() async {
     if (_id < 1 || _approved) return;
-    final linkedVisit = (widget.visitRouteLineId ?? 0) > 0 || _visitRouteLineId > 0;
-    if (linkedVisit) {
-      showSnack(context, 'لا يمكن حذف طلب مربوط بزيارة.', error: true);
-      return;
-    }
     final ok = await showAppConfirmDialog(
       context,
       title: 'حذف الطلب',
@@ -505,13 +500,14 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     if (ok != true || !mounted) return;
     setState(() => _busy = true);
     try {
-      await context.read<ApiClient>().postJson(
+      final res = await context.read<ApiClient>().postJson(
             AppConfig.customerOrderDeletePath,
             body: {'id': _id},
             csrf: context.read<SessionController>().csrf,
           );
       if (!mounted) return;
-      showSnack(context, 'تم حذف الطلب.');
+      final msg = Fmt.str(res['message']);
+      showSnack(context, msg.isEmpty ? 'تم حذف الطلب.' : msg);
       widget.onDeleted?.call();
       setState(() {
         _id = 0;
