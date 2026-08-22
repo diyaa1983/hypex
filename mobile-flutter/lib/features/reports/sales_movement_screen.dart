@@ -159,7 +159,7 @@ class _SalesMovementScreenState extends State<SalesMovementScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      'فواتير مبيعات مؤكدة — مواد نشطة في النظام فقط.',
+                      'فواتير مبيعات مؤكدة + طلبات شراء معتمدة — مواد نشطة فقط.',
                       style: TextStyle(
                         fontSize: 13,
                         color: AppTheme.textSoft,
@@ -239,6 +239,7 @@ class _SalesMovementScreenState extends State<SalesMovementScreen> {
                       ..._rows.map((r) {
                         final date = Fmt.dmy(Fmt.str(r['invoice_date']));
                         final invNo = Fmt.str(r['invoice_no']);
+                        final sourceLabel = Fmt.str(r['source_label']);
                         final cust = Fmt.str(r['customer_name']);
                         final item = Fmt.str(r['item_name']);
                         final code = Fmt.str(r['item_code']);
@@ -253,7 +254,9 @@ class _SalesMovementScreenState extends State<SalesMovementScreen> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      '$date · $invNo',
+                                      sourceLabel.isNotEmpty
+                                          ? '$date · $sourceLabel · $invNo'
+                                          : '$date · $invNo',
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 13,
