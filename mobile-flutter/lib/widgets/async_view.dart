@@ -135,42 +135,49 @@ void showSnack(BuildContext context, String message, {bool error = false}) {
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
   final media = MediaQuery.of(context);
-  final bottomGap = (media.size.height / 2) - 28;
+  final textLen = message.trim().length;
+  final boxWidth = (textLen > 28 ? 196.0 : textLen > 16 ? 168.0 : 140.0)
+      .clamp(132.0, media.size.width * 0.52);
+  final bottomGap = (media.size.height / 2) - (boxWidth / 2) - 24;
+
   messenger.showSnackBar(
     SnackBar(
-      content: Row(
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            error ? Icons.error_outline_rounded : Icons.check_circle_rounded,
-            color: error ? AppTheme.danger : AppTheme.success,
-            size: 22,
+            Icons.check_circle_rounded,
+            color: AppTheme.success,
+            size: 34,
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                color: AppTheme.textMain,
-                fontWeight: FontWeight.w700,
-                fontSize: 14.5,
-              ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppTheme.textMain,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              height: 1.35,
             ),
           ),
         ],
       ),
       backgroundColor: Colors.white,
       behavior: SnackBarBehavior.floating,
-      elevation: 8,
+      elevation: 10,
+      width: boxWidth,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       margin: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        bottom: bottomGap.clamp(80.0, media.size.height - 120),
+        bottom: bottomGap.clamp(72.0, media.size.height - boxWidth - 48),
       ),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         side: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
-      duration: Duration(seconds: error ? 5 : 3),
+      duration: const Duration(seconds: 2),
     ),
   );
 }
