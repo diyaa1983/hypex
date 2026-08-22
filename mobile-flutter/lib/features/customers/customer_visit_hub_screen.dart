@@ -17,6 +17,7 @@ import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/location_map_picker.dart';
 import '../gps/gps_map_tiles.dart';
 import '../party/party_statement_screen.dart';
 import '../customer_orders/customer_order_form_screen.dart';
@@ -1573,13 +1574,10 @@ class _InfoTabState extends State<_InfoTab> {
     final hasLoc = _lat != null && _lng != null;
     final start =
         hasLoc ? LatLng(_lat!, _lng!) : const LatLng(31.9539, 35.9106);
-    final picked = await Navigator.of(context).push<LatLng>(
-      MaterialPageRoute(
-        builder: (_) => _LocationPickerScreen(
-          initial: start,
-          hasInitialLocation: hasLoc,
-        ),
-      ),
+    final picked = await pickLocationOnMap(
+      context,
+      initial: start,
+      hasInitialLocation: hasLoc,
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -1857,184 +1855,6 @@ class _InfoTabState extends State<_InfoTab> {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// شاشة اختيار موقع العميل على الخريطة (بالضغط أو السحب).
-class _LocationPickerScreen extends StatefulWidget {
-  const _LocationPickerScreen({
-    required this.initial,
-    this.hasInitialLocation = false,
-  });
-  final LatLng initial;
-
-  /// عند وجود موقع محفوظ للعميل لا نُحرّك الخريطة تلقائياً.
-  final bool hasInitialLocation;
-
-  @override
-  State<_LocationPickerScreen> createState() => _LocationPickerScreenState();
-}
-
-class _LocationPickerScreenState extends State<_LocationPickerScreen> {
-  late LatLng _selected = widget.initial;
-  final MapController _map = MapController();
-  bool _locating = false;
-  double _zoom = 16;
-
-  /// false = شوارع وأسماء (OSM) — true = أقمار + أسماء فوقها.
-  bool _satellite = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // موقع فوري إن وُجد، دون تعطيل الواجهة بانتظار GPS.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (widget.hasInitialLocation) return;
-      final pos = await LocationService.instantPosition();
-      if (!mounted || pos == null) return;
-      _moveTo(LatLng(pos.latitude, pos.longitude));
-    });
-  }
-
-  void _moveTo(LatLng p, {double zoom = 17}) {
-    setState(() {
-      _selected = p;
-      _zoom = zoom;
-    });
-    _map.move(p, zoom);
-  }
-
-  Future<void> _goToCurrent() async {
-    setState(() => _locating = true);
-    try {
-      // اعرض آخر موقع معروف فوراً ثم حدّثه بالقراءة الدقيقة.
-      final quick = await LocationService.instantPosition();
-      if (mounted && quick != null) {
-        _moveTo(LatLng(quick.latitude, quick.longitude), zoom: 16);
-      }
-      final pos = await LocationService.requirePosition();
-      if (!mounted) return;
-      _moveTo(LatLng(pos.latitude, pos.longitude));
-    } catch (e) {
-      if (!mounted) return;
-      showSnack(context, LocationService.friendlyError(e), error: true);
-    } finally {
-      if (mounted) setState(() => _locating = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MobileScaffold(
-      title: const Text('تحديد موقع العميل'),
-      body: Stack(
-        children: [
-          FlutterMap(
-            mapController: _map,
-            options: MapOptions(
-              initialCenter: _selected,
-              initialZoom: _zoom,
-              maxZoom: 19,
-              onTap: (_, p) => setState(() => _selected = p),
-              onPositionChanged: (pos, _) {
-                if ((pos.zoom - _zoom).abs() > 0.01) {
-                  setState(() => _zoom = pos.zoom);
-                }
-              },
-            ),
-            children: [
-              ...GpsMapTiles.layers(
-                mapProvider: _satellite ? 'imagery' : 'osm',
-                zoom: _zoom,
-              ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _selected,
-                    width: 46,
-                    height: 46,
-                    child: const Icon(
-                      Icons.location_on_rounded,
-                      color: AppTheme.danger,
-                      size: 44,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          Positioned(
-            right: 12,
-            bottom: 92,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.small(
-                  heroTag: 'loc_layer',
-                  tooltip: _satellite
-                      ? 'عرض الشوارع والأسماء'
-                      : 'عرض الأقمار الصناعية',
-                  onPressed: () => setState(() => _satellite = !_satellite),
-                  child: Icon(
-                    _satellite
-                        ? Icons.map_rounded
-                        : Icons.satellite_alt_rounded,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                FloatingActionButton(
-                  heroTag: 'loc_cur',
-                  onPressed: _locating ? null : _goToCurrent,
-                  child: _locating
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.my_location_rounded),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 16,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: AppTheme.softShadow,
-                  ),
-                  child: Text(
-                    'الموقع المختار: ${_selected.latitude.toStringAsFixed(6)} ، ${_selected.longitude.toStringAsFixed(6)}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => Navigator.of(context).pop(_selected),
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('اعتماد هذا الموقع'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

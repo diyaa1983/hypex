@@ -56,8 +56,10 @@ $gps = [
 $paymentPeriod = trim((string) ($body['payment_period'] ?? ''));
 
 try {
+    $pdo = db();
+    crm_customer_ensure_oracle_pending_columns($pdo);
     $result = crm_mobile_customer_create_for_user(
-        db(),
+        $pdo,
         $uid,
         $name,
         $phone,

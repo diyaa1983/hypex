@@ -7,7 +7,10 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import 'package:latlong2/latlong.dart';
+
 import '../../services/location_service.dart';
+import '../../widgets/location_map_picker.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
@@ -49,6 +52,25 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
       return 'لم يُحدَّد موقع بعد.';
     }
     return 'الموقع: ${Fmt.trimNum(_latitude!)} ، ${Fmt.trimNum(_longitude!)}';
+  }
+
+  Future<void> _pickOnMap() async {
+    final hasLoc = _latitude != null && _longitude != null;
+    final start = hasLoc
+        ? LatLng(_latitude!, _longitude!)
+        : const LatLng(31.9539, 35.9106);
+    final picked = await pickLocationOnMap(
+      context,
+      initial: start,
+      hasInitialLocation: hasLoc,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _latitude = picked.latitude;
+      _longitude = picked.longitude;
+      _accuracy = null;
+    });
+    showSnack(context, 'تم تحديد الموقع من الخريطة.');
   }
 
   Future<void> _pickLocation() async {
@@ -215,17 +237,32 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: (_saving || _locating) ? null : _pickLocation,
-                  icon: _locating
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.my_location_rounded),
-                  label: Text(
-                      _locating ? 'جاري تحديد الموقع...' : 'تحديد الموقع'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: (_saving || _locating) ? null : _pickOnMap,
+                        icon: const Icon(Icons.map_rounded),
+                        label: const Text('تحديد على الخريطة'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: (_saving || _locating) ? null : _pickLocation,
+                        icon: _locating
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.my_location_rounded),
+                        label: Text(_locating
+                            ? 'جاري تحديد الموقع...'
+                            : 'موقعي الحالي'),
+                      ),
+                    ),
+                  ],
                 ),
                 if (hasGps) ...[
                   const SizedBox(height: 6),

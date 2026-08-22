@@ -763,9 +763,37 @@ function crm_customer_ensure_oracle_pending_columns(PDO $pdo): void
     }
     $done = true;
     try {
+        $pdo->query('SELECT payment_period, oracle_pending FROM crm_customer LIMIT 1');
+
+        return;
+    } catch (Throwable $e) {
+        // الأعمدة ناقصة — نفّذ migration أو ALTER مباشرة
+    }
+    require_once app_path('includes/sql_migration.php');
+    try {
         sql_migration_run_file($pdo, 'database/migrations/282_crm_customer_payment_period.sql');
     } catch (Throwable $e) {
         // ignore
+    }
+    try {
+        $pdo->query('SELECT payment_period FROM crm_customer LIMIT 1');
+    } catch (Throwable $e) {
+        try {
+            $pdo->exec(
+                'ALTER TABLE crm_customer ADD COLUMN payment_period VARCHAR(32) NULL DEFAULT NULL AFTER address_ar'
+            );
+        } catch (Throwable $ignored) {
+        }
+    }
+    try {
+        $pdo->query('SELECT oracle_pending FROM crm_customer LIMIT 1');
+    } catch (Throwable $e) {
+        try {
+            $pdo->exec(
+                'ALTER TABLE crm_customer ADD COLUMN oracle_pending TINYINT(1) NOT NULL DEFAULT 0 AFTER oracle_key'
+            );
+        } catch (Throwable $ignored) {
+        }
     }
 }
 
@@ -825,39 +853,49 @@ function crm_mobile_customer_create_for_user(
     $gpsParsed = crm_customer_gps_parse_input($gps ?? []);
     $hasGps = !$gpsParsed['clear'] && $gpsParsed['latitude'] !== null && $gpsParsed['longitude'] !== null;
 
-    if ($hasGps) {
-        $st = $pdo->prepare(
-            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, payment_period, oracle_pending, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-             VALUES (?,?,?,?,?,?,?,1,?,?,?,NOW(),?,1)'
-        );
-        $st->execute([
-            $tempCode,
-            $nameAr,
-            $phone !== '' ? $phone : null,
-            null,
-            null,
-            $addressAr !== '' ? $addressAr : null,
-            $payPeriod,
-            $gpsParsed['latitude'],
-            $gpsParsed['longitude'],
-            $gpsParsed['gps_accuracy'],
-            $repId,
-        ]);
-    } else {
-        $st = $pdo->prepare(
-            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, payment_period, oracle_pending, sales_rep_id, is_active)
-             VALUES (?,?,?,?,?,?,?,1,?,1)'
-        );
-        $st->execute([
-            $tempCode,
-            $nameAr,
-            $phone !== '' ? $phone : null,
-            null,
-            null,
-            $addressAr !== '' ? $addressAr : null,
-            $payPeriod,
-            $repId,
-        ]);
+    try {
+        if ($hasGps) {
+            $st = $pdo->prepare(
+                'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, payment_period, oracle_pending, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                 VALUES (?,?,?,?,?,?,?,1,?,?,?,NOW(),?,1)'
+            );
+            $st->execute([
+                $tempCode,
+                $nameAr,
+                $phone !== '' ? $phone : null,
+                null,
+                null,
+                $addressAr !== '' ? $addressAr : null,
+                $payPeriod,
+                $gpsParsed['latitude'],
+                $gpsParsed['longitude'],
+                $gpsParsed['gps_accuracy'],
+                $repId,
+            ]);
+        } else {
+            $st = $pdo->prepare(
+                'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, payment_period, oracle_pending, sales_rep_id, is_active)
+                 VALUES (?,?,?,?,?,?,?,1,?,1)'
+            );
+            $st->execute([
+                $tempCode,
+                $nameAr,
+                $phone !== '' ? $phone : null,
+                null,
+                null,
+                $addressAr !== '' ? $addressAr : null,
+                $payPeriod,
+                $repId,
+            ]);
+        }
+    } catch (Throwable $e) {
+        error_log('crm_mobile_customer_create_for_user insert: ' . $e->getMessage());
+        $hint = 'تأكد من تحديث قاعدة البيانات (payment_period / oracle_pending).';
+        if (defined('APP_DEBUG') && APP_DEBUG) {
+            $hint = $e->getMessage();
+        }
+
+        return ['ok' => false, 'message' => 'تعذر حفظ العميل. ' . $hint];
     }
     $newId = (int) $pdo->lastInsertId();
     $pendingCode = 'P-' . $newId;
