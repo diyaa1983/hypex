@@ -616,6 +616,97 @@ async function setApproved(id, approved, userId) {
   }
 }
 
+async function countVisitOrders(conn, routeLineId) {
+  const lineId = Number(routeLineId);
+  if (!lineId) return 0;
+  try {
+    const [rows] = await conn.execute(
+      `SELECT COUNT(*) AS c
+       FROM sal_customer_order o
+       INNER JOIN sal_rep_route_line l ON l.id = o.visit_route_line_id
+       WHERE o.visit_route_line_id = ?
+         AND l.visit_checkin_at IS NOT NULL
+         AND o.created_at >= l.visit_checkin_at`,
+      [lineId]
+    );
+    return Number(rows[0]?.c || 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function resetVisitLine(conn, routeLineId, note) {
+  const lineId = Number(routeLineId);
+  if (!lineId) return false;
+  const [lines] = await conn.execute(
+    `SELECT l.id, l.customer_id, l.visit_checkin_at, r.sales_rep_id, r.route_date
+     FROM sal_rep_route_line l
+     INNER JOIN sal_rep_route r ON r.id = l.route_id
+     WHERE l.id = ? LIMIT 1`,
+    [lineId]
+  );
+  const line = lines[0];
+  if (!line || !line.visit_checkin_at) return false;
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const decisionNote = note || 'أُلغيت الزيارة مع حذف آخر طلب مرتبط';
+  try {
+    await conn.execute(`DELETE FROM sal_rep_visit_no_order_reason WHERE route_line_id = ?`, [lineId]);
+  } catch {
+    /* ignore */
+  }
+  try {
+    await conn.execute(
+      `UPDATE sal_rep_visit_checkout_request
+       SET status='rejected', decided_at=?, decision_note=?
+       WHERE route_line_id=? AND status='pending'`,
+      [now, decisionNote, lineId]
+    );
+  } catch {
+    /* ignore */
+  }
+  await conn.execute(
+    `UPDATE sal_rep_route_line SET
+       visit_checkin_at=NULL, visit_checkout_at=NULL,
+       checkin_method=NULL, checkout_method=NULL,
+       checkin_lat=NULL, checkin_lng=NULL, checkin_accuracy=NULL, checkin_distance_m=NULL,
+       checkout_lat=NULL, checkout_lng=NULL, checkout_accuracy=NULL, checkout_distance_m=NULL
+     WHERE id=?`,
+    [lineId]
+  );
+  try {
+    const routeDate = String(line.route_date || '').slice(0, 10);
+    const dow = new Date(`${routeDate}T12:00:00`).getDay();
+    const [tours] = await conn.execute(
+      `SELECT tl.id FROM sal_rep_tour_line tl
+       INNER JOIN sal_rep_tour t ON t.id = tl.tour_id
+       WHERE t.sales_rep_id = ? AND t.status = 'posted'
+         AND t.date_from <= ? AND t.date_to >= ?
+         AND tl.weekday = ? AND tl.customer_id = ?
+       ORDER BY t.id DESC, tl.id DESC LIMIT 1`,
+      [Number(line.sales_rep_id), routeDate, routeDate, dow, Number(line.customer_id)]
+    );
+    if (tours[0]?.id) {
+      await conn.execute(
+        `UPDATE sal_rep_tour_line
+         SET visit_checkin_at=NULL, visit_checkout_at=NULL, checkin_method=NULL, checkout_method=NULL
+         WHERE id=?`,
+        [Number(tours[0].id)]
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+  return true;
+}
+
+async function afterOrderDeletedVisitCleanup(conn, visitRouteLineId) {
+  const lineId = Number(visitRouteLineId);
+  if (!lineId) return false;
+  const remaining = await countVisitOrders(conn, lineId);
+  if (remaining > 0) return false;
+  return resetVisitLine(conn, lineId);
+}
+
 async function deleteOrder(id) {
   const orderId = Number(id);
   if (!orderId) return { ok: false, error: 'معرّف غير صالح.' };
@@ -623,23 +714,48 @@ async function deleteOrder(id) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [rows] = await conn.execute(
-      `SELECT status FROM sal_customer_order WHERE id = ? FOR UPDATE`,
-      [orderId]
-    );
-    const status = rows[0]?.status;
-    if (status == null) {
-      await conn.rollback();
-      return { ok: false, error: 'الطلب غير موجود.' };
-    }
-    if (String(status) !== 'draft') {
-      await conn.rollback();
-      return { ok: false, error: 'لا يمكن حذف طلب معتمد. فك الاعتماد أولاً.' };
+    let visitLineId = 0;
+    try {
+      const [rows] = await conn.execute(
+        `SELECT status, visit_route_line_id FROM sal_customer_order WHERE id = ? FOR UPDATE`,
+        [orderId]
+      );
+      const row = rows[0];
+      visitLineId = Number(row?.visit_route_line_id || 0);
+      const status = row?.status;
+      if (status == null) {
+        await conn.rollback();
+        return { ok: false, error: 'الطلب غير موجود.' };
+      }
+      if (String(status) !== 'draft') {
+        await conn.rollback();
+        return { ok: false, error: 'لا يمكن حذف طلب معتمد. فك الاعتماد أولاً.' };
+      }
+    } catch {
+      const [rows] = await conn.execute(
+        `SELECT status FROM sal_customer_order WHERE id = ? FOR UPDATE`,
+        [orderId]
+      );
+      const status = rows[0]?.status;
+      if (status == null) {
+        await conn.rollback();
+        return { ok: false, error: 'الطلب غير موجود.' };
+      }
+      if (String(status) !== 'draft') {
+        await conn.rollback();
+        return { ok: false, error: 'لا يمكن حذف طلب معتمد. فك الاعتماد أولاً.' };
+      }
     }
     await conn.execute(`DELETE FROM sal_customer_order_line WHERE order_id = ?`, [orderId]);
     await conn.execute(`DELETE FROM sal_customer_order WHERE id = ?`, [orderId]);
+    const visitReset = visitLineId > 0 ? await afterOrderDeletedVisitCleanup(conn, visitLineId) : false;
     await conn.commit();
-    return { ok: true };
+    return {
+      ok: true,
+      visit_reset: visitReset,
+      visit_route_line_id: visitLineId > 0 ? visitLineId : null,
+      message: visitReset ? 'تم حذف الطلب وإلغاء تسجيل الزيارة.' : 'تم حذف الطلب.',
+    };
   } catch (e) {
     try {
       await conn.rollback();

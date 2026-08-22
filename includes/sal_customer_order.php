@@ -392,14 +392,19 @@ function sal_customer_order_list_fetch(
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
-function sal_customer_order_delete(PDO $pdo, int $id, ?int $scopedRepId = null): void
+function sal_customer_order_delete(PDO $pdo, int $id, ?int $scopedRepId = null): array
 {
     if ($id < 1) {
         throw new RuntimeException('معرّف الطلب غير صالح.');
     }
     $pdo->beginTransaction();
     try {
-        $st = $pdo->prepare('SELECT id, status, sales_rep_id FROM sal_customer_order WHERE id = ? FOR UPDATE');
+        $hasVisitCol = sal_customer_order_has_column($pdo, 'sal_customer_order', 'visit_route_line_id');
+        $st = $pdo->prepare(
+            $hasVisitCol
+                ? 'SELECT id, status, sales_rep_id, visit_route_line_id FROM sal_customer_order WHERE id = ? FOR UPDATE'
+                : 'SELECT id, status, sales_rep_id FROM sal_customer_order WHERE id = ? FOR UPDATE'
+        );
         $st->execute([$id]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
@@ -411,9 +416,20 @@ function sal_customer_order_delete(PDO $pdo, int $id, ?int $scopedRepId = null):
         if ($scopedRepId !== null && (int) ($row['sales_rep_id'] ?? 0) !== $scopedRepId) {
             throw new RuntimeException('لا يمكنك حذف طلب لمندوب آخر.');
         }
+        $visitLineId = $hasVisitCol ? (int) ($row['visit_route_line_id'] ?? 0) : 0;
         $pdo->prepare('DELETE FROM sal_customer_order_line WHERE order_id = ?')->execute([$id]);
         $pdo->prepare('DELETE FROM sal_customer_order WHERE id = ?')->execute([$id]);
+        $visitReset = false;
+        if ($visitLineId > 0) {
+            require_once app_path('includes/sal_rep_visit.php');
+            $visitReset = sal_rep_visit_after_order_deleted($pdo, $visitLineId);
+        }
         $pdo->commit();
+
+        return [
+            'visit_reset' => $visitReset,
+            'visit_route_line_id' => $visitLineId > 0 ? $visitLineId : null,
+        ];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();

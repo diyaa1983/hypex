@@ -492,6 +492,84 @@ function sal_rep_visit_save_no_order_reasons(PDO $pdo, int $routeLineId, array $
     return true;
 }
 
+function sal_rep_visit_count_orders(PDO $pdo, int $routeLineId): int
+{
+    if ($routeLineId < 1) {
+        return 0;
+    }
+    try {
+        $st = $pdo->prepare(
+            'SELECT COUNT(*)
+             FROM sal_customer_order o
+             INNER JOIN sal_rep_route_line l ON l.id = o.visit_route_line_id
+             WHERE o.visit_route_line_id = ?
+               AND l.visit_checkin_at IS NOT NULL
+               AND o.created_at >= l.visit_checkin_at'
+        );
+        $st->execute([$routeLineId]);
+
+        return (int) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
+/** إلغاء تسجيل الزيارة (دخول/خروج) من خط السير — لا يظهر في التقرير. */
+function sal_rep_visit_reset_line(PDO $pdo, int $routeLineId, ?string $note = null): bool
+{
+    if ($routeLineId < 1 || !sal_rep_visit_ensure_schema($pdo)) {
+        return false;
+    }
+    $line = sal_rep_visit_line_fetch($pdo, $routeLineId);
+    if (!$line || empty($line['visit_checkin_at'])) {
+        return false;
+    }
+    $salesRepId = (int) ($line['sales_rep_id'] ?? 0);
+    $customerId = (int) ($line['customer_id'] ?? 0);
+    $routeDate = (string) ($line['route_date'] ?? date('Y-m-d'));
+    $now = date('Y-m-d H:i:s');
+    $decisionNote = $note ?? 'أُلغيت الزيارة مع حذف آخر طلب مرتبط';
+
+    $pdo->prepare('DELETE FROM sal_rep_visit_no_order_reason WHERE route_line_id = ?')
+        ->execute([$routeLineId]);
+    try {
+        $pdo->prepare(
+            "UPDATE sal_rep_visit_checkout_request
+             SET status='rejected', decided_at=?, decision_note=?
+             WHERE route_line_id=? AND status='pending'"
+        )->execute([$now, $decisionNote, $routeLineId]);
+    } catch (Throwable $e) {
+        // ignore
+    }
+    $pdo->prepare(
+        'UPDATE sal_rep_route_line SET
+            visit_checkin_at=NULL, visit_checkout_at=NULL,
+            checkin_method=NULL, checkout_method=NULL,
+            checkin_lat=NULL, checkin_lng=NULL, checkin_accuracy=NULL, checkin_distance_m=NULL,
+            checkout_lat=NULL, checkout_lng=NULL, checkout_accuracy=NULL, checkout_distance_m=NULL
+         WHERE id=?'
+    )->execute([$routeLineId]);
+
+    if ($salesRepId > 0 && $customerId > 0) {
+        sal_rep_visit_sync_tour_line($pdo, $salesRepId, $customerId, $routeDate);
+    }
+
+    return true;
+}
+
+/** بعد حذف طلب: إن لم يبقَ طلب مرتبط بالزيارة تُلغى الزيارة من التقرير. */
+function sal_rep_visit_after_order_deleted(PDO $pdo, int $visitRouteLineId): bool
+{
+    if ($visitRouteLineId < 1) {
+        return false;
+    }
+    if (sal_rep_visit_count_orders($pdo, $visitRouteLineId) > 0) {
+        return false;
+    }
+
+    return sal_rep_visit_reset_line($pdo, $visitRouteLineId);
+}
+
 /** @param array{lat:?float,lng:?float,accuracy:?float} $gps */
 function sal_rep_visit_create_checkout_request(
     PDO $pdo,
@@ -610,6 +688,12 @@ function sal_rep_visit_checkin(
         $now, $method, $gps['lat'], $gps['lng'], $gps['accuracy'],
         $distance !== null ? round($distance, 2) : null, $lineId,
     ]);
+    try {
+        $pdo->prepare('DELETE FROM sal_rep_visit_no_order_reason WHERE route_line_id = ?')
+            ->execute([$lineId]);
+    } catch (Throwable $e) {
+        // ignore
+    }
     try {
         $pdo->prepare(
             "UPDATE sal_rep_visit_checkout_request

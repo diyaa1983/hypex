@@ -37,10 +37,17 @@ try {
         $scoped = $rep;
     }
     unset($uid);
-    sal_customer_order_delete($pdo, (int) ($body['id'] ?? 0), $scoped);
+    $result = sal_customer_order_delete($pdo, (int) ($body['id'] ?? 0), $scoped);
     require_once app_path('includes/header_check_notifications.php');
     header_check_notifications_invalidate_cache();
-    echo json_encode(['ok' => true, 'message' => 'تم حذف الطلب.'], JSON_UNESCAPED_UNICODE);
+    echo json_encode([
+        'ok' => true,
+        'message' => !empty($result['visit_reset'])
+            ? 'تم حذف الطلب وإلغاء تسجيل الزيارة.'
+            : 'تم حذف الطلب.',
+        'visit_reset' => !empty($result['visit_reset']),
+        'visit_route_line_id' => $result['visit_route_line_id'] ?? null,
+    ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     http_response_code(422);
     echo json_encode(['ok' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE);

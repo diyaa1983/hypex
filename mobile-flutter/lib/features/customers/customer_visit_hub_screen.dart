@@ -149,6 +149,14 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   void _onVisitOrderDeleted() {
     if (!mounted) return;
     setState(() => _visitOrderId = 0);
+    if (_visit != null) {
+      _visit!['has_order'] = false;
+      _visit!['order_id'] = 0;
+    }
+    final id = _selectedId;
+    if (id != null && id > 0) {
+      _selectCustomer(id);
+    }
   }
 
   Future<void> _loadCustomers() async {
