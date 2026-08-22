@@ -9,6 +9,7 @@ import '../../services/document_print_helper.dart';
 import '../../services/party_statement_bluetooth_receipt.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
+import '../../widgets/order_statement_workflow_note.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/cheques_under_collection.dart';
 import '../../widgets/thermal_preview_screen.dart';
@@ -330,18 +331,8 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                   ),
                   if (_type == 'customer')
                     const Padding(
-                      padding: EdgeInsets.only(bottom: 6),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          'نفس بيانات كشف الحساب في تقرير Oracle على النظام',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppTheme.textSoft,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: OrderStatementWorkflowNote(),
                     ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,

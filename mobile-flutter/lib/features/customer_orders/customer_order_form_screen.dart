@@ -16,6 +16,7 @@ import '../../widgets/item_picker.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/cheques_under_collection.dart';
+import '../../widgets/order_statement_workflow_note.dart';
 import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -669,6 +670,10 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 )),
             if (_customer != null) ...[
               const DocumentSectionDivider('ملخص حساب العميل'),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: OrderStatementWorkflowNote(compact: true),
+              ),
               AppCard(
                 child: _arLoading
                     ? const Padding(

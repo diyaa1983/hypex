@@ -47,5 +47,11 @@ try {
  require_once app_path('includes/document_header.php');
  header_check_notifications_invalidate_cache();
  $order = document_header_attach_brand(is_array($order) ? $order : [], $pdo);
- echo json_encode(['ok'=>true,'order_id'=>$saved,'order_no'=>$order['order_no']??'','order'=>$order],JSON_UNESCAPED_UNICODE);
+ echo json_encode([
+     'ok'=>true,
+     'order_id'=>$saved,
+     'order_no'=>$order['order_no']??'',
+     'order'=>$order,
+     'message'=>'تم حفظ الطلب. يظهر في كشف الحساب بعد اعتماد الإدارة.',
+ ],JSON_UNESCAPED_UNICODE);
 } catch(Throwable $e) { http_response_code(422); echo json_encode(['ok'=>false,'message'=>$e->getMessage()],JSON_UNESCAPED_UNICODE); }

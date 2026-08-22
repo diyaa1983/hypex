@@ -664,7 +664,8 @@ function oracle_customer_ar_summary(PDO $pdo, int $customerId, ?string $dateFrom
     }
     $cheques = is_array($stmt['cheques'] ?? null) ? $stmt['cheques'] : [];
 
-    return [
+    require_once app_path('includes/sal_customer_order_statement.php');
+    $summary = [
         'ok' => true,
         'message' => '',
         'customer_id' => $customerId,
@@ -680,4 +681,12 @@ function oracle_customer_ar_summary(PDO $pdo, int $customerId, ?string $dateFrom
         'cheque_total' => (float) ($stmt['cheque_total'] ?? 0),
         'cheque_count' => count($cheques),
     ];
+
+    return sal_customer_order_statement_merge_summary(
+        $pdo,
+        $customerId,
+        $summary,
+        (string) ($stmt['from'] ?? $from),
+        (string) ($stmt['to'] ?? $to)
+    );
 }

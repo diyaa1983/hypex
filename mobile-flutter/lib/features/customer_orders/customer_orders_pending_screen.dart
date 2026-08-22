@@ -11,6 +11,7 @@ import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
+import '../../widgets/order_statement_workflow_note.dart';
 import '../../widgets/ui_kit.dart';
 
 /// طلبات غير مرسلة — اختيار وإرسال / تعديل / حذف.
@@ -196,6 +197,10 @@ class _CustomerOrdersPendingScreenState
       ],
       body: Column(
         children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(14, 10, 14, 0),
+            child: OrderStatementWorkflowNote(compact: true),
+          ),
           if (_selected.isNotEmpty)
             Material(
               color: AppTheme.primary.withValues(alpha: 0.08),

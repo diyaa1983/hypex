@@ -93,6 +93,9 @@ if (!$stmt['ok']) {
     exit;
 }
 
+require_once app_path('includes/sal_customer_order_statement.php');
+$stmt = sal_customer_order_statement_merge_oracle($pdo, $customerId, $stmt, $from, $to);
+
 $name = (string) ($stmt['name'] ?? '');
 if ($name === '') {
     $name = (string) ($party['name_ar'] ?? '');

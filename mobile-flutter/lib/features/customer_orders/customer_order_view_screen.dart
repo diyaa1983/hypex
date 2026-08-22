@@ -12,6 +12,7 @@ import '../../services/document_print_helper.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
+import '../../widgets/order_statement_workflow_note.dart';
 import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -68,6 +69,30 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
       Fmt.toInt(_order['is_sent']) == 1;
 
   bool get _canDeleteOrEdit => !_approved && !_sent;
+
+  bool get _oraclePosted => Fmt.toInt(_order['oracle_v_num']) > 0;
+
+  ({String label, Color color, String hint}) get _workflowStatus {
+    if (_approved) {
+      return (
+        label: _oraclePosted ? 'معتمد · مرحّل Oracle' : 'معتمد',
+        color: AppTheme.success,
+        hint: 'يظهر في كشف الحساب. إذا فُكّ اعتماده يختفي من الكشف.',
+      );
+    }
+    if (_sent) {
+      return (
+        label: 'بانتظار الاعتماد',
+        color: AppTheme.warn,
+        hint: 'بعد اعتماد الإدارة يظهر في كشف الحساب.',
+      );
+    }
+    return (
+      label: 'غير مرسل',
+      color: AppTheme.warn,
+      hint: 'أرسل الطلب من «طلبات غير مرسلة» ثم يُعتمد ليظهر في الكشف.',
+    );
+  }
 
   Future<void> _sharePdf() async {
     await DocumentPrintHelper.sharePdfFromApi(
@@ -168,14 +193,31 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                           Row(children: [
                             const Text('الحالة: '),
                             StatusPill(
-                                text: _sent
-                                    ? (_approved ? 'مرسل · معتمد' : 'مرسل')
-                                    : (_approved ? 'معتمد' : 'غير مرسل'),
-                                color: _sent
-                                    ? AppTheme.success
-                                    : AppTheme.warn)
+                              text: _workflowStatus.label,
+                              color: _workflowStatus.color,
+                            ),
                           ]),
                           const SizedBox(height: 8),
+                          Text(
+                            _workflowStatus.hint,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textSoft,
+                              height: 1.4,
+                            ),
+                          ),
+                          if (_oraclePosted) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'فاتورة Oracle: ${Fmt.toInt(_order['oracle_v_num'])} / ${Fmt.toInt(_order['oracle_vyear'])}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          const OrderStatementWorkflowNote(compact: true),
                           Text(
                               'التاريخ: ${Fmt.dmy(Fmt.str(_order['order_date']))}'),
                           Text('العميل: ${Fmt.str(_order['customer_name'])}'),
