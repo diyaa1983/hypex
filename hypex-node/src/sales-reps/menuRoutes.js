@@ -1936,14 +1936,18 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         ],
       })}
       <section class="si-surface no-print" style="padding:0.85rem 1rem;margin-bottom:.75rem">
-        <form method="get" action="/sales-reps/reports/visits" class="si-meta" style="align-items:end">
-          <label>من تاريخ
-            <input class="si-field si-field--mono" type="date" name="from" id="si-visits-from" value="${esc(from)}" dir="ltr">
-            <span class="muted hx-date-weekday" id="si-weekday-from">${esc(weekdayAr(from))}</span>
+        <form method="get" action="/sales-reps/reports/visits" class="si-meta hx-visits-filters">
+          <label class="hx-visits-f--date">من تاريخ
+            <span class="hx-date-field">
+              <input class="si-field si-field--mono" type="date" name="from" id="si-visits-from" value="${esc(from)}" dir="ltr">
+              <span class="muted hx-date-weekday" id="si-weekday-from">${esc(weekdayAr(from))}</span>
+            </span>
           </label>
-          <label>إلى تاريخ
-            <input class="si-field si-field--mono" type="date" name="to" id="si-visits-to" value="${esc(to)}" dir="ltr">
-            <span class="muted hx-date-weekday" id="si-weekday-to">${esc(weekdayAr(to))}</span>
+          <label class="hx-visits-f--date">إلى تاريخ
+            <span class="hx-date-field">
+              <input class="si-field si-field--mono" type="date" name="to" id="si-visits-to" value="${esc(to)}" dir="ltr">
+              <span class="muted hx-date-weekday" id="si-weekday-to">${esc(weekdayAr(to))}</span>
+            </span>
           </label>
           <label>المندوب
             <select class="si-field" name="sales_rep_id">
@@ -1951,7 +1955,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
               ${repOpts}
             </select>
           </label>
-          <label>العميل
+          <label class="hx-visits-f--customer">العميل
             <select class="si-field" name="customer_id">
               <option value="0">— الكل —</option>
               ${custOpts}
@@ -1972,8 +1976,10 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
               <option value="pending" ${status === 'pending' ? 'selected' : ''}>بانتظار موافقة</option>
             </select>
           </label>
-          <button class="si-btn si-btn--primary" type="submit">عرض</button>
-          ${ui.siPrintBtnHtml('طباعة')}
+          <div class="hx-visits-f-actions">
+            <button class="si-btn si-btn--primary" type="submit">عرض</button>
+            ${ui.siPrintBtnHtml('طباعة')}
+          </div>
         </form>
         <script>
         (function(){

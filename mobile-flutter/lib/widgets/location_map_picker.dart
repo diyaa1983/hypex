@@ -4,8 +4,8 @@ import 'package:latlong2/latlong.dart';
 import '../core/theme.dart';
 import '../features/gps/gps_map_tiles.dart';
 import '../services/location_service.dart';
+import 'async_view.dart';
 import 'mobile_scaffold.dart';
-import 'ui_kit.dart';
 import 'package:flutter_map/flutter_map.dart';
 
 /// فتح خريطة لاختيار موقع العميل (بالضغط أو السحب).

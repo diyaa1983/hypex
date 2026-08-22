@@ -1,5 +1,91 @@
 /* Sales rep visits & tours — compact rows, landscape print */
 
+.hx-visits-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(9.25rem, 0.95fr)
+    minmax(9.25rem, 0.95fr)
+    minmax(10.5rem, 1.15fr)
+    minmax(14rem, 2fr)
+    minmax(8.25rem, 0.9fr)
+    minmax(9.25rem, 1fr);
+  gap: 0.85rem 1rem;
+  align-items: end;
+}
+
+.hx-visits-filters > label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.hx-visits-filters .hx-visits-f-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1.2;
+}
+
+.hx-visits-filters .hx-date-field {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.hx-visits-filters input[type='date'],
+.hx-visits-filters select,
+.hx-visits-filters .input,
+.hx-visits-filters .si-field {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.hx-visits-filters .hx-visits-f--customer {
+  grid-column: auto;
+}
+
+.hx-visits-filters .hx-visits-f-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.55rem;
+  margin-top: 0.1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.si-meta.hx-visits-filters {
+  padding: 0;
+}
+
+.si-meta.hx-visits-filters > label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+@media (max-width: 1180px) {
+  .hx-visits-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hx-visits-filters .hx-visits-f--customer {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .hx-visits-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hx-visits-filters .hx-visits-f--customer {
+    grid-column: 1 / -1;
+  }
+}
+
 .si-report-page.si-report-visits tr.si-visits-no-order td,
 .report-sales-page.report-visits-page tr.report-visits-no-order td {
   background: #fee2e2 !important;
@@ -58,6 +144,8 @@
   font-weight: 700;
   margin-top: 0.15rem;
   min-height: 1rem;
+  color: #64748b;
+  text-align: center;
 }
 
 .si-report-page.si-report-visits .si-col-sales,

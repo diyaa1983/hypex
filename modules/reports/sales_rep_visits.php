@@ -123,8 +123,11 @@ function sal_rep_visit_report_data_row_html(array $r, int $seq, bool $includeRep
 $apiUrl = app_url('api/report_sales_rep_visits.php');
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
+$repCssPath = app_path('hypex-node/public/css/report-rep-reports.css');
+$repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file($repCssPath) ? '?v=' . (string) filemtime($repCssPath) : '');
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+<link rel="stylesheet" href="<?= esc($repCssUrl) ?>">
 <style>
 .report-sales-page.report-visits-page .report-sales-table-wrap {
   overflow-x: auto !important;
@@ -147,14 +150,6 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
   vertical-align: middle;
   line-height: 1.3;
   border: 1px solid #cbd5e1 !important;
-}
-.report-sales-page.report-visits-page .report-filters .hx-date-weekday {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #64748b;
-  margin-top: 0.15rem;
-  min-height: 1rem;
 }
 .report-sales-page.report-visits-page .col-customer,
 .report-sales-page.report-visits-page .col-reason,
@@ -218,18 +213,25 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
         <p class="muted report-visits-count" id="hx-visits-live-count">
             <strong>عدد الزيارات:</strong> <?= count($rows) ?>
         </p>
-        <form method="get" class="report-filters" action="<?= esc(app_url('index.php')) ?>">
+        <form method="get" class="report-filters hx-visits-filters" action="<?= esc(app_url('index.php')) ?>">
             <input type="hidden" name="r" value="report_sales_rep_visits">
-            <label>من
-                <input type="date" name="from" id="hx-visits-from" value="<?= esc($from) ?>" dir="ltr">
-                <span class="hx-date-weekday" id="hx-weekday-from"><?= esc(sal_rep_visit_weekday_ar($from)) ?></span>
+            <label class="hx-visits-f--date">
+                <span class="hx-visits-f-label">من تاريخ</span>
+                <span class="hx-date-field">
+                    <input type="date" class="input" name="from" id="hx-visits-from" value="<?= esc($from) ?>" dir="ltr">
+                    <span class="hx-date-weekday" id="hx-weekday-from"><?= esc(sal_rep_visit_weekday_ar($from)) ?></span>
+                </span>
             </label>
-            <label>إلى
-                <input type="date" name="to" id="hx-visits-to" value="<?= esc($to) ?>" dir="ltr">
-                <span class="hx-date-weekday" id="hx-weekday-to"><?= esc(sal_rep_visit_weekday_ar($to)) ?></span>
+            <label class="hx-visits-f--date">
+                <span class="hx-visits-f-label">إلى تاريخ</span>
+                <span class="hx-date-field">
+                    <input type="date" class="input" name="to" id="hx-visits-to" value="<?= esc($to) ?>" dir="ltr">
+                    <span class="hx-date-weekday" id="hx-weekday-to"><?= esc(sal_rep_visit_weekday_ar($to)) ?></span>
+                </span>
             </label>
-            <label>المندوب
-                <select name="sales_rep_id">
+            <label>
+                <span class="hx-visits-f-label">المندوب</span>
+                <select class="input" name="sales_rep_id">
                     <option value="0">— الكل —</option>
                     <?php foreach ($reps as $rep): ?>
                         <option value="<?= (int) $rep['id'] ?>" <?= $salesRepId === (int) $rep['id'] ? 'selected' : '' ?>>
@@ -238,8 +240,9 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                     <?php endforeach; ?>
                 </select>
             </label>
-            <label>العميل
-                <select name="customer_id">
+            <label class="hx-visits-f--customer">
+                <span class="hx-visits-f-label">العميل</span>
+                <select class="input" name="customer_id">
                     <option value="0">— الكل —</option>
                     <?php foreach ($customers as $cust): ?>
                         <option value="<?= (int) $cust['id'] ?>" <?= $customerId === (int) $cust['id'] ? 'selected' : '' ?>>
@@ -248,23 +251,27 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                     <?php endforeach; ?>
                 </select>
             </label>
-            <label>النوع
-                <select name="method">
+            <label>
+                <span class="hx-visits-f-label">النوع</span>
+                <select class="input" name="method">
                     <option value="" <?= $method === '' ? 'selected' : '' ?>>— الكل —</option>
                     <option value="GPS" <?= $method === 'GPS' ? 'selected' : '' ?>>GPS</option>
                     <option value="MANUAL" <?= $method === 'MANUAL' ? 'selected' : '' ?>>يدوي</option>
                 </select>
             </label>
-            <label>الحالة
-                <select name="status">
+            <label>
+                <span class="hx-visits-f-label">الحالة</span>
+                <select class="input" name="status">
                     <option value="" <?= $status === '' ? 'selected' : '' ?>>— الكل —</option>
                     <option value="open" <?= $status === 'open' ? 'selected' : '' ?>>داخل الزيارة</option>
                     <option value="closed" <?= $status === 'closed' ? 'selected' : '' ?>>مكتملة</option>
                     <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>>بانتظار موافقة</option>
                 </select>
             </label>
-            <button type="submit" class="btn btn-primary">عرض</button>
-            <button type="button" class="btn btn-secondary no-print" onclick="window.print()">🖨 طباعة</button>
+            <div class="hx-visits-f-actions">
+                <button type="submit" class="btn btn-primary">عرض</button>
+                <button type="button" class="btn btn-secondary no-print" onclick="window.print()">🖨 طباعة</button>
+            </div>
         </form>
         <script>
         (function () {
