@@ -1726,17 +1726,14 @@ router.get('/sales-reps/reports/visits/data', async (req, res) => {
     return res.status(403).json({ ok: false, error: 'forbidden' });
   }
   await masters.ensureTourSchema();
-  const from =
-    String(req.query.from || '').slice(0, 10) ||
-    (() => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-    })();
-  const to = String(req.query.to || '').slice(0, 10) || todayIso();
+  const today = todayIso();
+  const from = String(req.query.from || '').slice(0, 10) || today;
+  const to = String(req.query.to || '').slice(0, 10) || today;
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const customerId = Number(req.query.customer_id || 0) || 0;
   const method = String(req.query.method || '').toUpperCase();
   const status = String(req.query.status || '');
-  const rows = await masters.reportVisits({ from, to, salesRepId, method, status });
+  const rows = await masters.reportVisits({ from, to, salesRepId, customerId, method, status });
   res.json({ ok: true, from, to, rows, totals: visitTotals(rows) });
 });
 
@@ -1751,18 +1748,16 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   }
 
   await masters.ensureTourSchema();
-  const from =
-    String(req.query.from || '').slice(0, 10) ||
-    (() => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-    })();
-  const to = String(req.query.to || '').slice(0, 10) || todayIso();
+  const today = todayIso();
+  const from = String(req.query.from || '').slice(0, 10) || today;
+  const to = String(req.query.to || '').slice(0, 10) || today;
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const customerId = Number(req.query.customer_id || 0) || 0;
   const method = String(req.query.method || '').toUpperCase();
   const status = String(req.query.status || '');
   const reps = await q.listRepsSimple();
-  const rows = await masters.reportVisits({ from, to, salesRepId, method, status });
+  const customers = await masters.listVisitReportCustomers({ from, to });
+  const rows = await masters.reportVisits({ from, to, salesRepId, customerId, method, status });
 
   function fmtTs(v) {
     if (!v) return '—';
@@ -1816,6 +1811,15 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     )
     .join('');
 
+  const custOpts = customers
+    .map(
+      (c) =>
+        `<option value="${c.id}" ${customerId === Number(c.id) ? 'selected' : ''}>${esc(
+          c.name_ar || ''
+        )}</option>`
+    )
+    .join('');
+
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
   const colCount = groupByRep ? 11 : 12;
@@ -1841,10 +1845,11 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   }
 
   function totalsRow(label, t, cols) {
-    const leftSpan = Math.max(1, cols - 2);
+    const labelSpan = Math.max(1, cols - 3);
     return `<tr class="si-visits-totals-row">
-      <td colspan="${leftSpan}" style="text-align:start"><strong>${esc(label)}</strong></td>
+      <td colspan="${labelSpan}" style="text-align:start"><strong>${esc(label)}</strong></td>
       <td class="si-col-duration"><strong>${esc(t.duration_label)}</strong></td>
+      <td class="si-col-method"></td>
       <td class="si-col-sales" dir="ltr"><strong>${visitMoney(t.sales_total)}</strong></td>
     </tr>`;
   }
@@ -1933,15 +1938,23 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       <section class="si-surface no-print" style="padding:0.85rem 1rem;margin-bottom:.75rem">
         <form method="get" action="/sales-reps/reports/visits" class="si-meta" style="align-items:end">
           <label>من تاريخ
-            <input class="si-field si-field--mono" type="date" name="from" value="${esc(from)}" dir="ltr">
+            <input class="si-field si-field--mono" type="date" name="from" id="si-visits-from" value="${esc(from)}" dir="ltr">
+            <span class="muted hx-date-weekday" id="si-weekday-from">${esc(weekdayAr(from))}</span>
           </label>
           <label>إلى تاريخ
-            <input class="si-field si-field--mono" type="date" name="to" value="${esc(to)}" dir="ltr">
+            <input class="si-field si-field--mono" type="date" name="to" id="si-visits-to" value="${esc(to)}" dir="ltr">
+            <span class="muted hx-date-weekday" id="si-weekday-to">${esc(weekdayAr(to))}</span>
           </label>
           <label>المندوب
             <select class="si-field" name="sales_rep_id">
               <option value="0">— الكل —</option>
               ${repOpts}
+            </select>
+          </label>
+          <label>العميل
+            <select class="si-field" name="customer_id">
+              <option value="0">— الكل —</option>
+              ${custOpts}
             </select>
           </label>
           <label>النوع
@@ -1962,6 +1975,26 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           <button class="si-btn si-btn--primary" type="submit">عرض</button>
           ${ui.siPrintBtnHtml('طباعة')}
         </form>
+        <script>
+        (function(){
+          var days = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+          function weekday(iso){
+            if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(iso||'')) return '';
+            var d = new Date(iso + 'T12:00:00');
+            return Number.isNaN(d.getTime()) ? '' : (days[d.getDay()]||'');
+          }
+          function bind(id, outId){
+            var el = document.getElementById(id);
+            var out = document.getElementById(outId);
+            if (!el || !out) return;
+            var sync = function(){ out.textContent = weekday(el.value); };
+            el.addEventListener('change', sync);
+            el.addEventListener('input', sync);
+          }
+          bind('si-visits-from','si-weekday-from');
+          bind('si-visits-to','si-weekday-to');
+        })();
+        </script>
         <p class="muted" style="margin:.65rem 0 0;font-size:.82rem;line-height:1.45">
           ${rows.length} زيارة مسجّلة من تطبيق الهاتف في الفترة المحددة${
             groupByRep ? ' · مجمّعة حسب المندوب' : ''

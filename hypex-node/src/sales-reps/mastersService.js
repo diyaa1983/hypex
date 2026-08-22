@@ -1020,7 +1020,15 @@ async function reportTours({ from = '', to = '', salesRepId = 0, status = '', li
   }
 }
 
-async function reportVisits({ from = '', to = '', salesRepId = 0, method = '', status = '', limit = 1500 } = {}) {
+async function reportVisits({
+  from = '',
+  to = '',
+  salesRepId = 0,
+  customerId = 0,
+  method = '',
+  status = '',
+  limit = 1500,
+} = {}) {
   await ensureTourSchema();
   const where = ['l.visit_checkin_at IS NOT NULL'];
   const params = [];
@@ -1035,6 +1043,10 @@ async function reportVisits({ from = '', to = '', salesRepId = 0, method = '', s
   if (Number(salesRepId) > 0) {
     where.push('r.sales_rep_id = ?');
     params.push(Number(salesRepId));
+  }
+  if (Number(customerId) > 0) {
+    where.push('l.customer_id = ?');
+    params.push(Number(customerId));
   }
   const m = String(method || '').trim().toUpperCase();
   if (m === 'GPS' || m === 'MANUAL') {
@@ -1101,6 +1113,35 @@ async function reportVisits({ from = '', to = '', salesRepId = 0, method = '', s
     );
   } catch (e) {
     console.error('reportVisits', e.message);
+    return [];
+  }
+}
+
+async function listVisitReportCustomers({ from = '', to = '' } = {}) {
+  await ensureTourSchema();
+  const where = ['l.visit_checkin_at IS NOT NULL'];
+  const params = [];
+  if (from) {
+    where.push('r.route_date >= ?');
+    params.push(from);
+  }
+  if (to) {
+    where.push('r.route_date <= ?');
+    params.push(to);
+  }
+  try {
+    return await safeQuery(
+      `SELECT DISTINCT c.id, c.name_ar
+       FROM sal_rep_route_line l
+       INNER JOIN sal_rep_route r ON r.id = l.route_id
+       INNER JOIN crm_customer c ON c.id = l.customer_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY c.name_ar
+       LIMIT 500`,
+      params
+    );
+  } catch (e) {
+    console.error('listVisitReportCustomers', e.message);
     return [];
   }
 }
@@ -1311,6 +1352,7 @@ module.exports = {
   getTourPrintRows,
   reportTours,
   reportVisits,
+  listVisitReportCustomers,
   listVisitCheckoutRequests,
   decideVisitCheckoutRequest,
   listGpsChangeRequests,

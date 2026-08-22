@@ -22,9 +22,10 @@ if (!user_can('report_sales_rep_visits') && !user_is_system_admin()) {
 $pdo = db();
 sal_rep_visit_ensure_schema($pdo);
 
-$from = parse_date_to_iso(trim((string) ($_GET['from'] ?? ''))) ?? date('Y-m-01');
+$from = parse_date_to_iso(trim((string) ($_GET['from'] ?? ''))) ?? date('Y-m-d');
 $to = parse_date_to_iso(trim((string) ($_GET['to'] ?? ''))) ?? date('Y-m-d');
 $salesRepId = (int) ($_GET['sales_rep_id'] ?? 0);
+$customerId = (int) ($_GET['customer_id'] ?? 0);
 $method = strtoupper(trim((string) ($_GET['method'] ?? '')));
 $status = trim((string) ($_GET['status'] ?? ''));
 
@@ -32,6 +33,7 @@ $rows = sal_rep_visit_report_rows($pdo, [
     'from' => $from,
     'to' => $to,
     'sales_rep_id' => $salesRepId,
+    'customer_id' => $customerId,
     'method' => $method,
     'status' => $status,
     'limit' => 1500,

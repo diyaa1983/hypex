@@ -8,25 +8,42 @@ require_once app_path('includes/sal_rep_visit.php');
 $pdo = db();
 sal_rep_visit_ensure_schema($pdo);
 
-$from = parse_date_to_iso(trim((string) ($_GET['from'] ?? ''))) ?? date('Y-m-01');
-$to = parse_date_to_iso(trim((string) ($_GET['to'] ?? ''))) ?? date('Y-m-d');
+$today = date('Y-m-d');
+$from = parse_date_to_iso(trim((string) ($_GET['from'] ?? ''))) ?? $today;
+$to = parse_date_to_iso(trim((string) ($_GET['to'] ?? ''))) ?? $today;
 $salesRepId = (int) ($_GET['sales_rep_id'] ?? 0);
+$customerId = (int) ($_GET['customer_id'] ?? 0);
 $method = strtoupper(trim((string) ($_GET['method'] ?? '')));
 $status = trim((string) ($_GET['status'] ?? ''));
 
 $reps = [];
+$customers = [];
 try {
     $reps = $pdo->query(
         "SELECT id, code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar LIMIT 300"
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $stCust = $pdo->prepare(
+        'SELECT DISTINCT c.id, c.name_ar
+         FROM sal_rep_route_line l
+         INNER JOIN sal_rep_route r ON r.id = l.route_id
+         INNER JOIN crm_customer c ON c.id = l.customer_id
+         WHERE l.visit_checkin_at IS NOT NULL
+           AND r.route_date >= ? AND r.route_date <= ?
+         ORDER BY c.name_ar
+         LIMIT 500'
+    );
+    $stCust->execute([$from, $to]);
+    $customers = $stCust->fetchAll(PDO::FETCH_ASSOC) ?: [];
 } catch (Throwable $e) {
     $reps = [];
+    $customers = [];
 }
 
 $rows = sal_rep_visit_report_rows($pdo, [
     'from' => $from,
     'to' => $to,
     'sales_rep_id' => $salesRepId,
+    'customer_id' => $customerId,
     'method' => $method,
     'status' => $status,
     'limit' => 1500,
@@ -66,11 +83,12 @@ function sal_rep_visit_report_money(float $n): string
 
 function sal_rep_visit_report_totals_row_html(string $label, array $totals, int $colCount): string
 {
-    $leftSpan = max(1, $colCount - 2);
+    $labelSpan = max(1, $colCount - 3);
 
     return '<tr class="report-visits-totals-row">'
-        . '<td colspan="' . $leftSpan . '" style="text-align:start"><strong>' . esc($label) . '</strong></td>'
+        . '<td colspan="' . $labelSpan . '" style="text-align:start"><strong>' . esc($label) . '</strong></td>'
         . '<td class="col-duration"><strong>' . esc((string) ($totals['duration_label'] ?? '—')) . '</strong></td>'
+        . '<td class="col-method"></td>'
         . '<td class="col-sales" dir="ltr"><strong>' . esc(sal_rep_visit_report_money((float) ($totals['sales_total'] ?? 0))) . '</strong></td>'
         . '</tr>';
 }
@@ -128,6 +146,15 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
   text-align: center;
   vertical-align: middle;
   line-height: 1.3;
+  border: 1px solid #cbd5e1 !important;
+}
+.report-sales-page.report-visits-page .report-filters .hx-date-weekday {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-top: 0.15rem;
+  min-height: 1rem;
 }
 .report-sales-page.report-visits-page .col-customer,
 .report-sales-page.report-visits-page .col-reason,
@@ -194,10 +221,12 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
         <form method="get" class="report-filters" action="<?= esc(app_url('index.php')) ?>">
             <input type="hidden" name="r" value="report_sales_rep_visits">
             <label>من
-                <input type="date" name="from" value="<?= esc($from) ?>" dir="ltr">
+                <input type="date" name="from" id="hx-visits-from" value="<?= esc($from) ?>" dir="ltr">
+                <span class="hx-date-weekday" id="hx-weekday-from"><?= esc(sal_rep_visit_weekday_ar($from)) ?></span>
             </label>
             <label>إلى
-                <input type="date" name="to" value="<?= esc($to) ?>" dir="ltr">
+                <input type="date" name="to" id="hx-visits-to" value="<?= esc($to) ?>" dir="ltr">
+                <span class="hx-date-weekday" id="hx-weekday-to"><?= esc(sal_rep_visit_weekday_ar($to)) ?></span>
             </label>
             <label>المندوب
                 <select name="sales_rep_id">
@@ -205,6 +234,16 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                     <?php foreach ($reps as $rep): ?>
                         <option value="<?= (int) $rep['id'] ?>" <?= $salesRepId === (int) $rep['id'] ? 'selected' : '' ?>>
                             <?= esc((string) ($rep['name_ar'] ?? '')) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <label>العميل
+                <select name="customer_id">
+                    <option value="0">— الكل —</option>
+                    <?php foreach ($customers as $cust): ?>
+                        <option value="<?= (int) $cust['id'] ?>" <?= $customerId === (int) $cust['id'] ? 'selected' : '' ?>>
+                            <?= esc((string) ($cust['name_ar'] ?? '')) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -227,6 +266,26 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
             <button type="submit" class="btn btn-primary">عرض</button>
             <button type="button" class="btn btn-secondary no-print" onclick="window.print()">🖨 طباعة</button>
         </form>
+        <script>
+        (function () {
+          var days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+          function weekday(iso) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return '';
+            var d = new Date(iso + 'T12:00:00');
+            return Number.isNaN(d.getTime()) ? '' : (days[d.getDay()] || '');
+          }
+          function bind(id, outId) {
+            var el = document.getElementById(id);
+            var out = document.getElementById(outId);
+            if (!el || !out) return;
+            var sync = function () { out.textContent = weekday(el.value); };
+            el.addEventListener('change', sync);
+            el.addEventListener('input', sync);
+          }
+          bind('hx-visits-from', 'hx-weekday-from');
+          bind('hx-visits-to', 'hx-weekday-to');
+        })();
+        </script>
     </header>
 
     <div class="report-sales-table-wrap">
@@ -312,10 +371,10 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
             return html;
           }
           function totalsRow(label, t, cols) {
-            var left = Math.max(1, cols - 2);
-            return '<tr class="report-visits-totals-row"><td colspan="' + left + '" style="text-align:start"><strong>'
+            var labelSpan = Math.max(1, cols - 3);
+            return '<tr class="report-visits-totals-row"><td colspan="' + labelSpan + '" style="text-align:start"><strong>'
               + esc(label) + '</strong></td><td class="col-duration"><strong>' + esc(t.duration_label || '—')
-              + '</strong></td><td class="col-sales" dir="ltr"><strong>' + money(t.sales_total) + '</strong></td></tr>';
+              + '</strong></td><td class="col-method"></td><td class="col-sales" dir="ltr"><strong>' + money(t.sales_total) + '</strong></td></tr>';
           }
           function poll() {
             fetch(apiUrl + '?' + q.toString(), { credentials: 'same-origin' })
