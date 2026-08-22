@@ -646,45 +646,27 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 title: _orderNo == null || _orderNo!.isEmpty
                     ? 'بيانات الطلب'
                     : 'الطلب $_orderNo',
-                child: Column(children: [
-                  DropdownButtonFormField<int>(
-                      initialValue: _warehouseId == 0 ? null : _warehouseId,
-                      decoration: const InputDecoration(labelText: 'المستودع'),
-                      items: _warehouses
-                          .map((w) => DropdownMenuItem(
-                              value: Fmt.toInt(w['id']),
-                              child: Text(Fmt.str(w['name'] ?? w['name_ar']))))
-                          .toList(),
-                      onChanged: _editable
-                          ? (v) => setState(() => _warehouseId = v ?? 0)
-                          : null),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Text(
-                      'نوع الدفع',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textSoft,
-                      ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _orderHeaderField(
+                      label: 'المستودع',
+                      child: _orderHeaderWarehouse(),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  _paymentSeg(),
-                  if (!widget.hideCustomerPicker) ...[
-                    const SizedBox(height: 10),
-                    ListTile(
-                        onTap: _editable ? _pickCustomer : null,
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('العميل'),
-                        subtitle: Text(_customer?.name ?? 'اضغط للاختيار'),
-                        trailing: const Icon(Icons.chevron_left_rounded)),
-                  ] else if (_customer != null) ...[
-                    const SizedBox(height: 10),
-                    InfoRow('العميل', _customer!.name),
+                    const SizedBox(width: 8),
+                    _orderHeaderField(
+                      label: 'نوع الدفع',
+                      child: _paymentSeg(compact: true),
+                    ),
+                    if (!widget.hideCustomerPicker || _customer != null) ...[
+                      const SizedBox(width: 8),
+                      _orderHeaderField(
+                        label: 'العميل',
+                        child: _orderHeaderCustomer(),
+                      ),
+                    ],
                   ],
-                ])),
+                )),
             if (_customer != null) ...[
               const DocumentSectionDivider('ملخص حساب العميل'),
               AppCard(
@@ -1195,39 +1177,154 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
   }
 
-  Widget _paymentSeg() {
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
+  Widget _orderHeaderField({
+    required String label,
+    required Widget child,
+  }) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _segBtn('ذمم', 'credit'),
-          _segBtn('نقدي', 'cash'),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textSoft,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(height: 42, child: child),
         ],
       ),
     );
   }
 
-  Widget _segBtn(String label, String value) {
+  Widget _orderHeaderShell({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border),
+      ),
+      alignment: AlignmentDirectional.centerStart,
+      child: child,
+    );
+  }
+
+  Widget _orderHeaderWarehouse() {
+    return _orderHeaderShell(
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          isExpanded: true,
+          isDense: true,
+          value: _warehouseId == 0 ? null : _warehouseId,
+          hint: const Text(
+            '—',
+            style: TextStyle(fontSize: 12, color: AppTheme.textSoft),
+          ),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textMain,
+          ),
+          icon: const Icon(Icons.expand_more_rounded, size: 18),
+          items: _warehouses
+              .map(
+                (w) => DropdownMenuItem(
+                  value: Fmt.toInt(w['id']),
+                  child: Text(
+                    Fmt.str(w['name'] ?? w['name_ar']),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged:
+              _editable ? (v) => setState(() => _warehouseId = v ?? 0) : null,
+        ),
+      ),
+    );
+  }
+
+  Widget _orderHeaderCustomer() {
+    final canPick = _editable && !widget.hideCustomerPicker;
+    final name = _customer?.name ?? 'اضغط للاختيار';
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: canPick ? _pickCustomer : null,
+        borderRadius: BorderRadius.circular(12),
+        child: _orderHeaderShell(
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _customer == null
+                        ? AppTheme.textSoft
+                        : AppTheme.textMain,
+                  ),
+                ),
+              ),
+              if (canPick)
+                const Icon(
+                  Icons.chevron_left_rounded,
+                  size: 16,
+                  color: AppTheme.textSoft,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _paymentSeg({bool compact = false}) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        children: [
+          _segBtn('ذمم', 'credit', compact: compact),
+          _segBtn('نقدي', 'cash', compact: compact),
+        ],
+      ),
+    );
+  }
+
+  Widget _segBtn(String label, String value, {bool compact = false}) {
     final sel = _paymentType == value;
     return Expanded(
       child: Material(
         color: sel ? AppTheme.primary : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(9),
         child: InkWell(
           onTap: _editable ? () => setState(() => _paymentType = value) : null,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(9),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
+            padding: EdgeInsets.symmetric(vertical: compact ? 7 : 8),
             child: Text(
               label,
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 13.5,
+                fontSize: compact ? 11.5 : 13,
                 color: sel ? Colors.white : AppTheme.textSoft,
               ),
             ),
