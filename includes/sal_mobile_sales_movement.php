@@ -40,7 +40,7 @@ function sal_mobile_sales_movement_report(PDO $pdo, array $filters): array
     }
 
     $hasSku = sal_invoice_column_exists($pdo, 'inv_item', 'sku');
-    $skuExpr = $hasSku ? 'COALESCE(it.sku, it.code)' : 'it.code';
+    $skuExpr = $hasSku ? 'COALESCE(it.sku, \'\')' : "''";
 
     $sql = 'SELECT i.id AS invoice_id, i.invoice_no, i.invoice_date,
                    c.id AS customer_id, c.code AS customer_code, c.name_ar AS customer_name,
