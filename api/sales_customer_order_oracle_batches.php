@@ -9,7 +9,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 if (!is_logged_in() || !sal_customer_order_user_can_approve() || $_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(403);
-    echo json_encode(['ok' => false, 'message' => 'لا توجد صلاحية ترحيل إلى Oracle.'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'message' => 'لا توجد صلاحية.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -22,9 +22,6 @@ if (!verify_csrf($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($data['_csrf'] ?? null))) {
 }
 
 $id = (int) ($data['id'] ?? 0);
-$batchPicks = is_array($data['batch_picks'] ?? null) ? $data['batch_picks'] : [];
-$result = oracle_post_customer_order(db(), $id, (int) (current_user()['id'] ?? 0), false, [
-    'batch_picks' => $batchPicks,
-]);
+$result = oracle_order_batch_picker_data(db(), $id);
 http_response_code(!empty($result['ok']) ? 200 : 422);
 echo json_encode($result, JSON_UNESCAPED_UNICODE);

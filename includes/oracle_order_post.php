@@ -151,7 +151,7 @@ function oracle_order_schema_ensure(PDO $pdo): void
 /**
  * @return array<string,mixed>
  */
-function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool $dryRun = false): array
+function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool $dryRun = false, array $opts = []): array
 {
     oracle_order_schema_ensure($mysql);
     sal_customer_order_ensure_schema($mysql);
@@ -280,6 +280,19 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         return ['ok' => false, 'message' => 'لا كميات صالحة للترحيل.'];
     }
 
+    $batchPicks = is_array($opts['batch_picks'] ?? null) ? $opts['batch_picks'] : [];
+    $manualBatches = $batchPicks !== [];
+    if ($manualBatches) {
+        $mappedLines = oracle_order_apply_batch_picks($mappedLines, $batchPicks);
+        foreach ($mappedLines as $ml) {
+            $b = trim((string) ($ml['batch'] ?? ''));
+            if ($b === '' || $b === '0') {
+                return ['ok' => false, 'message' => 'اختر تشغيلة لكل مادة قبل الترحيل إلى Oracle.'];
+            }
+        }
+    }
+    $stockCheckOpts = $manualBatches ? ['manual_batches' => true] : [];
+
     $headerDisc = oracle_order_header_discount($order, $merchAfterLineDisc);
 
     $sumQty = 0.0;
@@ -302,7 +315,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
 
     // فحص الرصيد قبل استعلامات DAILY النموذجية (تجنّب تعارض PDO/OCI مع قراءة STOCK)
     $compNumForStock = oracle_order_comp_num([]);
-    $stockCheck = oracle_order_check_stock($conn, $compNumForStock, $store, $mappedLines);
+    $stockCheck = oracle_order_check_stock($conn, $compNumForStock, $store, $mappedLines, $stockCheckOpts);
     if (empty($stockCheck['ok'])) {
         return [
             'ok' => false,
@@ -319,7 +332,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     $compNum = oracle_order_comp_num($hdrSample !== [] ? $hdrSample : $sample);
 
     if ($compNum !== $compNumForStock) {
-        $stockCheck = oracle_order_check_stock($conn, $compNum, $store, $mappedLines);
+        $stockCheck = oracle_order_check_stock($conn, $compNum, $store, $mappedLines, $stockCheckOpts);
         if (empty($stockCheck['ok'])) {
             return [
                 'ok' => false,
@@ -466,7 +479,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     };
 
     // فحص أخير فوراً قبل الإدراج (لا ترحيل إن فشل الرصيد)
-    $stockCheck2 = oracle_order_check_stock($conn, $compNum, $store, $mappedLines);
+    $stockCheck2 = oracle_order_check_stock($conn, $compNum, $store, $mappedLines, $stockCheckOpts);
     if (empty($stockCheck2['ok'])) {
         return [
             'ok' => false,
@@ -1117,7 +1130,7 @@ function oracle_order_stock_cfg(): array
         'multiply_by_tr_unit' => !empty($st['multiply_by_tr_unit']),
         // بعض الشاشات تعتمد MAN_QTY؛ نأخذ الأكبر بين SYS و MAN لكل تشغيلة
         'use_man_qty' => array_key_exists('use_man_qty', $st) ? (bool) $st['use_man_qty'] : true,
-        'subtract_pending' => array_key_exists('subtract_pending', $st) ? (bool) $st['subtract_pending'] : true,
+        'subtract_pending' => array_key_exists('subtract_pending', $st) ? (bool) $st['subtract_pending'] : false,
     ];
 }
 
@@ -2643,9 +2656,10 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  * @param list<array<string,mixed>> $mappedLines
  * @return array{ok:bool,message?:string,issues?:list<array<string,mixed>>,lines?:list<array<string,mixed>>,version?:string}
  */
-function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines): array
+function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines, array $opts = []): array
 {
-    $version = 'STOCK-v16-FIX';
+    $version = 'STOCK-v17-BATCH';
+    $manualMode = !empty($opts['manual_batches']);
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
         return [
@@ -2691,6 +2705,40 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             continue;
         }
 
+        // تشغيلة مختارة يدوياً من المستخدم (قبل الترحيل)
+        if ($batch !== '' && $batch !== '0') {
+            $batchesPick = oracle_order_resolve_stock_batches($conn, $compNum, $store, $item, $cat);
+            $pickRows = is_array($batchesPick['rows'] ?? null) ? $batchesPick['rows'] : [];
+            $batchQty = 0.0;
+            $batchNorm = oracle_order_batch_norm_key($batch);
+            foreach ($pickRows as $pr) {
+                $pb = trim((string) ($pr['batch'] ?? ''));
+                if ($pb !== '' && oracle_order_batch_norm_key($pb) === $batchNorm) {
+                    $batchQty = (float) ($pr['qty'] ?? 0);
+                    break;
+                }
+            }
+            if ($batchQty < $need - 0.0000001) {
+                $name = trim((string) ($ml['name'] ?? ''));
+                $label = $item . ($name !== '' ? ' — ' . $name : '');
+                $issues[] = [
+                    'item' => $item,
+                    'name' => $name,
+                    'need' => $need,
+                    'available' => $batchQty,
+                    'store' => $store,
+                    '_line' => $label
+                        . "\nالمطلوب: " . $fmt($need)
+                        . "\nرصيد التشغيلة " . $batch . ': ' . $fmt($batchQty)
+                        . "\nاختر تشغيلة أخرى أو راجع STOCK في Oracle.",
+                ];
+                $outLines[] = $ml;
+                continue;
+            }
+            $outLines[] = array_merge($ml, ['batch' => $batch]);
+            continue;
+        }
+
         $batches = oracle_order_resolve_stock_batches($conn, $compNum, $store, $item, $cat);
         if (empty($batches['ok'])) {
             return [
@@ -2708,7 +2756,7 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
 
         // اطرح كميات فواتير Oracle غير المحفوظة/المعلقة لنفس المادة والمستودع (VOU_FLAG=18)
         $pendingQty = 0.0;
-        if (!empty($sc['subtract_pending'])) {
+        if (!$manualMode && !empty($sc['subtract_pending'])) {
             $pending = oracle_order_pending_daily_qty($conn, $compNum, $store, $item, $catUsed);
             if (empty($pending['ok'])) {
                 return [
@@ -2898,6 +2946,166 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
     }
 
     return ['ok' => true, 'lines' => $outLines, 'version' => $version];
+}
+
+/**
+ * @param list<array<string,mixed>> $mappedLines
+ * @param list<array<string,mixed>> $picks
+ * @return list<array<string,mixed>>
+ */
+function oracle_order_apply_batch_picks(array $mappedLines, array $picks): array
+{
+    if ($picks === []) {
+        return $mappedLines;
+    }
+    /** @var array<int,string> $bySrl */
+    $bySrl = [];
+    /** @var array<string,string> $byItem */
+    $byItem = [];
+    foreach ($picks as $p) {
+        if (!is_array($p)) {
+            continue;
+        }
+        $b = trim((string) ($p['batch'] ?? ''));
+        if ($b === '' || $b === '0') {
+            continue;
+        }
+        $srl = (int) ($p['srl'] ?? 0);
+        if ($srl > 0) {
+            $bySrl[$srl] = $b;
+        }
+        $it = trim((string) ($p['item'] ?? ''));
+        if ($it !== '') {
+            $byItem[$it] = $b;
+        }
+    }
+    $out = [];
+    foreach ($mappedLines as $ml) {
+        $srl = (int) ($ml['srl'] ?? 0);
+        $it = trim((string) ($ml['item'] ?? ''));
+        if ($srl > 0 && isset($bySrl[$srl])) {
+            $ml['batch'] = $bySrl[$srl];
+        } elseif ($it !== '' && isset($byItem[$it])) {
+            $ml['batch'] = $byItem[$it];
+        }
+        $out[] = $ml;
+    }
+
+    return $out;
+}
+
+/**
+ * قوائم التشغيلات المتوفرة لبنود طلب عميل (لاختيار المستخدم قبل الترحيل).
+ *
+ * @return array{ok:bool,message?:string,store?:int,warehouse_name?:string,lines?:list<array<string,mixed>>}
+ */
+function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
+{
+    oracle_order_schema_ensure($mysql);
+    sal_customer_order_ensure_schema($mysql);
+
+    $order = sal_customer_order_fetch($mysql, $orderId);
+    if (!$order) {
+        return ['ok' => false, 'message' => 'الطلب غير موجود.'];
+    }
+    if (strtolower((string) ($order['status'] ?? '')) !== 'approved') {
+        return ['ok' => false, 'message' => 'اعتمد الطلب أولاً.'];
+    }
+    if ((int) ($order['oracle_v_num'] ?? 0) > 0) {
+        return ['ok' => false, 'message' => 'الطلب مرحّل مسبقاً إلى Oracle.'];
+    }
+
+    $lines = is_array($order['lines'] ?? null) ? $order['lines'] : [];
+    if ($lines === []) {
+        return ['ok' => false, 'message' => 'لا بنود في الطلب.'];
+    }
+    if (!oracle_is_enabled()) {
+        return ['ok' => false, 'message' => oracle_config_status_message()];
+    }
+    $conn = oracle_connect();
+    if (empty($conn['ok'])) {
+        return ['ok' => false, 'message' => (string) ($conn['message'] ?? 'تعذر الاتصال بـ Oracle.')];
+    }
+
+    $store = oracle_order_store_no($mysql, (int) ($order['warehouse_id'] ?? 0));
+    $scfg = oracle_order_stock_cfg();
+    $owner = (string) $scfg['owner'];
+    $table = (string) $scfg['table'];
+
+    $pickerLines = [];
+    $undefinedNames = [];
+    $srl = 0;
+    foreach ($lines as $ln) {
+        $qty = (float) ($ln['qty'] ?? 0);
+        if ($qty <= 0) {
+            continue;
+        }
+        $keys = oracle_order_item_keys($mysql, $ln);
+        $card = [];
+        if ($keys['item'] !== '' || $keys['barcode'] !== '') {
+            $card = oracle_order_mascard_find($conn, $keys['item'], $keys['barcode']);
+        }
+        if ($card === []) {
+            $undefinedNames[] = oracle_order_line_display_name($ln);
+            continue;
+        }
+        $srl++;
+        $cat = trim((string) ($card['cat'] ?? ''));
+        if ($cat === '') {
+            $cat = oracle_order_item_cat_resolve($conn, (string) $card['item'], '');
+        }
+        $bonus = (float) ($ln['qty_extra'] ?? 0);
+        $trUnit = (float) ($ln['unit_factor'] ?? 1);
+        if ($trUnit <= 0) {
+            $trUnit = 1.0;
+        }
+        $need = $qty + $bonus;
+        if (!empty($scfg['multiply_by_tr_unit']) && $trUnit > 1.000001) {
+            $need *= $trUnit;
+        }
+
+        $stock = oracle_order_resolve_stock_batches($conn, oracle_order_comp_num([]), $store, (string) $card['item'], $cat);
+        /** @var list<array{batch:string,qty:float,exp_date?:string}> $batchOpts */
+        $batchOpts = [];
+        foreach (is_array($stock['rows'] ?? null) ? $stock['rows'] : [] as $br) {
+            $bq = (float) ($br['qty'] ?? 0);
+            if ($bq <= 0.0000001) {
+                continue;
+            }
+            $batchOpts[] = [
+                'batch' => (string) ($br['batch'] ?? ''),
+                'qty' => $bq,
+                'exp_date' => (string) ($br['exp_date'] ?? ''),
+            ];
+        }
+
+        $pickerLines[] = [
+            'srl' => $srl,
+            'item' => (string) $card['item'],
+            'cat' => $cat,
+            'name' => (string) ($ln['item_name'] ?? ''),
+            'need' => $need,
+            'qty' => $qty,
+            'bonus' => $bonus,
+            'batches' => $batchOpts,
+            'stock_total' => (float) ($stock['total'] ?? 0),
+        ];
+    }
+
+    if ($undefinedNames !== []) {
+        return oracle_order_undefined_items_payload($undefinedNames);
+    }
+    if ($pickerLines === []) {
+        return ['ok' => false, 'message' => 'لا كميات صالحة.'];
+    }
+
+    return [
+        'ok' => true,
+        'store' => $store,
+        'warehouse_name' => (string) ($order['warehouse_name'] ?? ''),
+        'oracle_conn' => oracle_order_oracle_conn_label(),
+        'lines' => $pickerLines,
+    ];
 }
 
 function oracle_order_store_no(PDO $pdo, int $warehouseId): int

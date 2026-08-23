@@ -171,6 +171,45 @@ sales_ora12_enqueue_assets();
         <?php endif; ?>
         <span id="co-oracle-msg" class="muted"></span>
     </div>
+    <?php if (sal_customer_order_user_can_approve() && $oraVnum < 1): ?>
+    <div id="co-batch-modal" class="co-batch-modal" hidden aria-hidden="true">
+        <div class="co-batch-panel" role="dialog" aria-labelledby="co-batch-title">
+            <div class="co-batch-head">
+                <h3 id="co-batch-title">اختيار التشغيلة — ترحيل إلى Oracle</h3>
+                <p id="co-batch-sub" class="muted"></p>
+            </div>
+            <div class="co-batch-body-wrap">
+                <table class="co-batch-table">
+                    <thead>
+                    <tr>
+                        <th>المادة</th>
+                        <th>المطلوب</th>
+                        <th>التشغيلة (الرصيد من STOCK)</th>
+                    </tr>
+                    </thead>
+                    <tbody id="co-batch-rows"></tbody>
+                </table>
+            </div>
+            <div class="co-batch-foot">
+                <button type="button" id="co-batch-cancel" class="btn btn-secondary">إلغاء</button>
+                <button type="button" id="co-batch-confirm" class="btn btn-primary">ترحيل إلى Oracle</button>
+            </div>
+        </div>
+    </div>
+    <style>
+    .co-batch-modal { position:fixed; inset:0; z-index:10050; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; padding:1rem; }
+    .co-batch-modal[hidden] { display:none !important; }
+    .co-batch-panel { background:#fff; border-radius:10px; max-width:820px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.18); }
+    .co-batch-head { padding:1rem 1.25rem .5rem; border-bottom:1px solid #e8ecf1; }
+    .co-batch-head h3 { margin:0 0 .35rem; font-size:1.1rem; }
+    .co-batch-body-wrap { padding:.75rem 1.25rem; overflow:auto; flex:1; }
+    .co-batch-table { width:100%; border-collapse:collapse; font-size:.92rem; }
+    .co-batch-table th, .co-batch-table td { padding:.5rem .4rem; border-bottom:1px solid #eef1f5; text-align:right; vertical-align:middle; }
+    .co-batch-table select { width:100%; min-width:12rem; max-width:100%; padding:.35rem .5rem; }
+    .co-batch-foot { padding:.75rem 1.25rem; border-top:1px solid #e8ecf1; display:flex; gap:.5rem; justify-content:flex-end; }
+    .co-batch-warn { color:#b45309; font-size:.85rem; margin-top:.25rem; }
+    </style>
+    <?php endif; ?>
     <?php if (!empty($order['notes'])): ?>
         <p>ملاحظات: <?= esc((string) $order['notes']) ?></p>
     <?php endif; ?>
@@ -275,13 +314,101 @@ sales_ora12_enqueue_assets();
               }
             });
           }
-          function doOracle() {
-            if (!confirm('ترحيل هذا الطلب إلى فاتورة بيع في Oracle؟')) return;
+          var batchesApi = <?= json_encode(app_url('api/sales_customer_order_oracle_batches.php')) ?>;
+          var postApi = <?= json_encode(app_url('api/sales_customer_order_post_oracle.php')) ?>;
+          var batchModal = document.getElementById('co-batch-modal');
+          var batchRows = document.getElementById('co-batch-rows');
+          var batchSub = document.getElementById('co-batch-sub');
+          var batchCancel = document.getElementById('co-batch-cancel');
+          var batchConfirm = document.getElementById('co-batch-confirm');
+          var pickerData = null;
+
+          function fmtQty(n) {
+            n = Number(n) || 0;
+            return String(n).indexOf('.') >= 0 ? n.toFixed(3).replace(/\.?0+$/, '') : String(n);
+          }
+
+          function closeBatchModal() {
+            if (batchModal) {
+              batchModal.hidden = true;
+              batchModal.setAttribute('aria-hidden', 'true');
+            }
+            pickerData = null;
+          }
+
+          function openBatchModal(data) {
+            pickerData = data;
+            if (!batchRows || !batchModal) return;
+            batchRows.innerHTML = '';
+            if (batchSub) {
+              batchSub.textContent = 'مستودع Oracle: ' + (data.store || '—')
+                + (data.warehouse_name ? (' — ' + data.warehouse_name) : '');
+            }
+            (data.lines || []).forEach(function (ln) {
+              var tr = document.createElement('tr');
+              var tdName = document.createElement('td');
+              tdName.innerHTML = '<strong dir="ltr">' + (ln.item || '') + '</strong><br><span>' + (ln.name || '') + '</span>';
+              var tdNeed = document.createElement('td');
+              tdNeed.dir = 'ltr';
+              tdNeed.textContent = fmtQty(ln.need);
+              var tdBatch = document.createElement('td');
+              var sel = document.createElement('select');
+              sel.dataset.srl = String(ln.srl || '');
+              sel.dataset.item = String(ln.item || '');
+              var opt0 = document.createElement('option');
+              opt0.value = '';
+              opt0.textContent = '— اختر التشغيلة —';
+              sel.appendChild(opt0);
+              var batches = Array.isArray(ln.batches) ? ln.batches : [];
+              var best = '';
+              batches.forEach(function (b) {
+                var o = document.createElement('option');
+                o.value = b.batch || '';
+                var label = (b.batch || '?') + ' — رصيد ' + fmtQty(b.qty);
+                if (b.exp_date) label += ' — ' + b.exp_date;
+                o.textContent = label;
+                sel.appendChild(o);
+                if (!best && Number(b.qty) >= Number(ln.need)) best = b.batch;
+              });
+              if (batches.length === 1) best = batches[0].batch;
+              if (best) sel.value = best;
+              if (!batches.length) {
+                var warn = document.createElement('div');
+                warn.className = 'co-batch-warn';
+                warn.textContent = 'لا رصيد موجب في STOCK لهذه المادة.';
+                tdBatch.appendChild(warn);
+              }
+              tdBatch.appendChild(sel);
+              tr.appendChild(tdName);
+              tr.appendChild(tdNeed);
+              tr.appendChild(tdBatch);
+              batchRows.appendChild(tr);
+            });
+            batchModal.hidden = false;
+            batchModal.setAttribute('aria-hidden', 'false');
+          }
+
+          function collectBatchPicks() {
+            var picks = [];
+            if (!batchRows) return picks;
+            batchRows.querySelectorAll('select').forEach(function (sel) {
+              var b = (sel.value || '').trim();
+              if (!b) return;
+              picks.push({
+                srl: parseInt(sel.dataset.srl || '0', 10),
+                item: sel.dataset.item || '',
+                batch: b
+              });
+            });
+            return picks;
+          }
+
+          function postOracle(batchPicks) {
             if (oraMsg) oraMsg.textContent = 'جاري الترحيل…';
-            fetch(<?= json_encode(app_url('api/sales_customer_order_post_oracle.php')) ?>, {
+            fetch(postApi, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-              body: JSON.stringify({ id: id })
+              body: JSON.stringify({ id: id, batch_picks: batchPicks || [] })
             }).then(function (r) { return r.json(); }).then(function (x) {
               var text = x.message || x.error || (x.ok ? 'تم الترحيل.' : 'تعذر الترحيل.');
               if (oraMsg) oraMsg.textContent = text;
@@ -290,25 +417,75 @@ sales_ora12_enqueue_assets();
                 return;
               }
               var items = Array.isArray(x.items) ? x.items.filter(Boolean) : [];
+              var stockIssues = Array.isArray(x.stock_issues) ? x.stock_issues : [];
+              if (stockIssues.length || String(text).indexOf('رصيد Oracle') >= 0) {
+                var body = stockIssues.length
+                  ? stockIssues.map(function (iss) { return iss._line || iss.item || ''; }).join('\n\n')
+                  : text;
+                if (window.HypexUI && window.HypexUI.dialog) {
+                  window.HypexUI.dialog({ title: 'تعذر الترحيل إلى Oracle', message: body, kind: 'error', buttons: [{ label: 'حسناً', value: true, primary: true }] });
+                } else {
+                  alert(body);
+                }
+                return;
+              }
               var isUndef = x.code === 'item_undefined' || items.length > 0
                 || String(text).indexOf('المادة غير معرفة على النظام') === 0;
               if (isUndef) {
-                var body = items.length ? items.join('\n') : String(text).replace(/^المادة غير معرفة على النظام\s*/, '').trim();
+                var bodyU = items.length ? items.join('\n') : String(text).replace(/^المادة غير معرفة على النظام\s*/, '').trim();
                 if (window.HypexUI && window.HypexUI.dialog) {
-                  window.HypexUI.dialog({
-                    title: 'المادة غير معرفة على النظام',
-                    message: body,
-                    kind: 'error',
-                    buttons: [{ label: 'حسناً', value: true, primary: true }]
-                  });
-                } else if (window.AppDialog && AppDialog.alert) {
-                  AppDialog.alert(body ? ('المادة غير معرفة على النظام\n' + body) : 'المادة غير معرفة على النظام', { type: 'error', title: 'المادة غير معرفة على النظام' });
+                  window.HypexUI.dialog({ title: 'المادة غير معرفة على النظام', message: bodyU, kind: 'error', buttons: [{ label: 'حسناً', value: true, primary: true }] });
                 } else {
-                  alert(body ? ('المادة غير معرفة على النظام\n' + body) : 'المادة غير معرفة على النظام');
+                  alert(bodyU ? ('المادة غير معرفة على النظام\n' + bodyU) : 'المادة غير معرفة على النظام');
                 }
               }
             }).catch(function () {
               if (oraMsg) oraMsg.textContent = 'تعذر الاتصال.';
+            });
+          }
+
+          function doOracle() {
+            if (oraMsg) oraMsg.textContent = 'جاري جلب التشغيلات من Oracle…';
+            fetch(batchesApi, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+              body: JSON.stringify({ id: id })
+            }).then(function (r) { return r.json(); }).then(function (x) {
+              if (!x.ok) {
+                if (oraMsg) oraMsg.textContent = x.message || 'تعذر جلب التشغيلات.';
+                return;
+              }
+              if (oraMsg) oraMsg.textContent = '';
+              openBatchModal(x);
+            }).catch(function () {
+              if (oraMsg) oraMsg.textContent = 'تعذر الاتصال.';
+            });
+          }
+
+          if (batchCancel) batchCancel.onclick = closeBatchModal;
+          if (batchConfirm) batchConfirm.onclick = function () {
+            if (!pickerData || !pickerData.lines) return;
+            var picks = collectBatchPicks();
+            if (picks.length < pickerData.lines.length) {
+              alert('اختر تشغيلة لكل مادة قبل الترحيل.');
+              return;
+            }
+            for (var i = 0; i < pickerData.lines.length; i++) {
+              var ln = pickerData.lines[i];
+              var pick = picks.find(function (p) { return p.srl === ln.srl; });
+              if (!pick) continue;
+              var batch = (ln.batches || []).find(function (b) { return b.batch === pick.batch; });
+              if (batch && Number(batch.qty) < Number(ln.need) - 0.0001) {
+                alert('التشغيلة ' + pick.batch + ' لا تكفي للمادة ' + ln.item + ' (المطلوب ' + fmtQty(ln.need) + ').');
+                return;
+              }
+            }
+            closeBatchModal();
+            postOracle(picks);
+          };
+          if (batchModal) {
+            batchModal.addEventListener('click', function (e) {
+              if (e.target === batchModal) closeBatchModal();
             });
           }
           if (btn) btn.onclick = doUnapprove;
