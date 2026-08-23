@@ -521,7 +521,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     return [
         'ok' => true,
         'message' => 'تم إنشاء فاتورة بيع Oracle رقم ' . $vNum . ' لسنة ' . $vyear
-            . ' [STOCK-v9-BATCH · مستودع ' . $store . ']'
+            . ' [STOCK-v10-DIRECT · مستودع ' . $store . ']'
             . '. في INV00024: استعلام (F7) → رقم الفاتورة ' . $vNum . ' والسنة ' . $vyear . ' → تنفيذ (F8)، ثم راجع واحفظ.'
             . ' لا تفتح فاتورة قديمة من شاشة العرض في Hypex؛ الرقم الجديد هو ' . $vNum . '.',
         'v_num' => $vNum,
@@ -529,7 +529,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'store' => $store,
         'cust_acc' => $custAcc,
         'line_count' => count($mappedLines),
-        'stock_version' => 'STOCK-v9-BATCH',
+        'stock_version' => 'STOCK-v10-DIRECT',
     ];
 }
 
@@ -1168,6 +1168,43 @@ function oracle_order_parse_qty(mixed $v): float
 }
 
 /**
+ * قراءة أفضل كمية من صف STOCK (SYS_QTY / MAN_QTY / أعمدة أخرى).
+ */
+function oracle_order_read_row_qty(array $r, array $qtyCols = []): float
+{
+    $best = 0.0;
+    $cols = array_values(array_unique(array_merge(
+        ['SYS_QTY', 'MAN_QTY', 'QTY', 'AV_QTY', 'BAL_QTY', 'ONHAND', 'ON_HAND'],
+        $qtyCols
+    )));
+    foreach ($cols as $col) {
+        $v = oracle_statement_row_val($r, $col);
+        if ($v === '') {
+            continue;
+        }
+        $n = oracle_order_parse_qty($v);
+        if ($n > $best) {
+            $best = $n;
+        }
+    }
+    foreach ($r as $k => $v) {
+        $uk = strtoupper((string) $k);
+        if (!preg_match('/(QTY|QNT|BAL|ONHAND|AVAIL)/', $uk)) {
+            continue;
+        }
+        if (preg_match('/(COMP_NUM|ITEM_NUM|STORE_NUM|CAT_NUM|_NO$|_ID$|DATE|TIME|FLAG|CODE|NAME|DESC)/', $uk)) {
+            continue;
+        }
+        $n = oracle_order_parse_qty(oracle_statement_row_val($r, (string) $k));
+        if ($n > $best) {
+            $best = $n;
+        }
+    }
+
+    return $best;
+}
+
+/**
  * هل النص يشبه تاريخاً (يظهر أحياناً في عمود BATCH بالخطأ في Toad).
  */
 function oracle_order_batch_looks_like_date(string $s): bool
@@ -1405,6 +1442,30 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
         return $binds;
     };
 
+    $directSelect = 'SELECT ' . $batchCol . ' AS BATCH_X, ' . $itemCol . ' AS ITEM_X'
+        . ($catCol !== '' ? (', ' . $catCol . ' AS CAT_X') : '')
+        . ', NVL(' . ($qtyCols[0] ?? 'SYS_QTY') . ', 0) AS SYS_QTY'
+        . ', NVL(' . (in_array('MAN_QTY', $qtyCols, true) ? 'MAN_QTY' : '0') . ', 0) AS MAN_QTY'
+        . ', ' . ($expCol !== '' ? ($expCol . ' AS EXP_X') : 'NULL AS EXP_X')
+        . ' FROM ' . $from;
+
+    // أولاً: نفس استعلام Toad — صفوف بكمية موجبة فقط (مثل 0214001 / 132)
+    if ($catWhere !== '') {
+        $posBinds = $withCat(['item' => $item, 'store' => $store, 'cat' => $cat]);
+        $posWhere = $storeWhereNum . ' AND ' . $itemWhere . $catWhere
+            . ' AND (NVL(SYS_QTY, 0) > 0.0000001 OR NVL(MAN_QTY, 0) > 0.0000001)';
+        $attempts[] = ['where' => $posWhere, 'binds' => $posBinds, 'select' => $directSelect];
+        if ($compNum > 0 && $compCol !== '') {
+            $posBindsC = $posBinds;
+            $posBindsC['cnum'] = $compNum;
+            $attempts[] = [
+                'where' => $posWhere . ' AND ' . $compCol . ' = :cnum',
+                'binds' => $posBindsC,
+                'select' => $directSelect,
+            ];
+        }
+    }
+
     // مع الفئة أولاً (MAS.STOCK يُفتَح بـ CAT+ITEM مثل شاشة INV00024)
     if ($catWhere !== '') {
         if ($compNum > 0 && $compCol !== '') {
@@ -1454,7 +1515,8 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
         return md5(implode('|', $parts));
     };
     foreach ($attempts as $attempt) {
-        $sql = 'SELECT ' . $selectList . ' FROM ' . $from . ' WHERE ' . $attempt['where'];
+        $selectSql = (string) ($attempt['select'] ?? ('SELECT ' . $selectList . ' FROM ' . $from));
+        $sql = $selectSql . ' WHERE ' . $attempt['where'];
         $got = null;
         try {
             $got = oracle_query_all($conn, $sql, $attempt['binds']);
@@ -1548,57 +1610,8 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
         }
     }
 
-    $readQty = static function (array $r, array $qtyCols) use ($sc): float {
-        $sys = 0.0;
-        $man = 0.0;
-        foreach (['SYS_QTY', 'SYSQTY', 'QTY_SYS'] as $c) {
-            if (array_key_exists($c, $r) || array_key_exists(strtolower($c), $r)) {
-                $sys = max($sys, oracle_order_parse_qty(oracle_statement_row_val($r, $c)));
-            }
-        }
-        foreach (['MAN_QTY', 'MANQTY', 'QTY_MAN'] as $c) {
-            if (array_key_exists($c, $r) || array_key_exists(strtolower($c), $r)) {
-                $man = max($man, oracle_order_parse_qty(oracle_statement_row_val($r, $c)));
-            }
-        }
-        $best = 0.0;
-        foreach ($r as $k => $v) {
-            $uk = strtoupper((string) $k);
-            if (str_starts_with($uk, 'QTY_X')) {
-                $n = oracle_order_parse_qty(oracle_statement_row_val($r, (string) $k));
-                if ($n > $best) {
-                    $best = $n;
-                }
-            }
-        }
-        foreach ($qtyCols as $qc) {
-            $n = oracle_order_parse_qty(oracle_statement_row_val($r, $qc));
-            if ($n > $best) {
-                $best = $n;
-            }
-        }
-        if (!empty($sc['use_man_qty'])) {
-            if ($sys > 0.0000001 || $man > 0.0000001) {
-                $best = max($best, $sys, $man);
-            }
-        }
-        if ($best <= 0.0000001) {
-            foreach ($r as $k => $v) {
-                $uk = strtoupper((string) $k);
-                if (!preg_match('/(QTY|QNT|BAL|STOCK|ONHAND|ON_HAND|AVAIL|R_QTY)/', $uk)) {
-                    continue;
-                }
-                if (preg_match('/(DATE|TIME|FLAG|TYPE|NO|NUM|ID|CODE|NAME|DESC)/', $uk)) {
-                    continue;
-                }
-                $n = oracle_order_parse_qty(oracle_statement_row_val($r, (string) $k));
-                if ($n > $best) {
-                    $best = $n;
-                }
-            }
-        }
-
-        return $best;
+    $readQty = static function (array $r, array $qtyCols): float {
+        return oracle_order_read_row_qty($r, $qtyCols);
     };
 
     if ($raw === []) {
@@ -1806,6 +1819,16 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
         'qty_cols' => $qtyCols,
         'other_stores' => $otherStores,
         'cat_used' => $cat,
+        'debug_sample' => $total <= 0.0000001 && $raw !== []
+            ? array_slice(array_map(static function (array $r) use ($readQty, $readBatch, $batchCol, $qtyCols): array {
+                return [
+                    'batch' => $readBatch($r, $batchCol),
+                    'qty' => $readQty($r, $qtyCols),
+                    'sys' => oracle_statement_row_val($r, 'SYS_QTY'),
+                    'man' => oracle_statement_row_val($r, 'MAN_QTY'),
+                ];
+            }, $raw), 0, 5)
+            : [],
     ];
 }
 
@@ -1896,7 +1919,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines): array
 {
-    $version = 'STOCK-v9-BATCH';
+    $version = 'STOCK-v10-DIRECT';
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
         return [
