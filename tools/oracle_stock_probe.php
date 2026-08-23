@@ -2,27 +2,34 @@
 declare(strict_types=1);
 
 /**
- * اختبار رصيد مادة في MAS.STOCK — نفس منطق الترحيل.
- * الاستخدام: php tools/oracle_stock_probe.php 600009 4 1
+ * تشخيص رصيد مادة في Oracle — يعرض صفوف STOCK الخام وأعمدة الكمية.
+ * php tools/oracle_stock_probe.php 600029 4
  */
 $root = dirname(__DIR__);
 require $root . '/includes/bootstrap.php';
 require_once app_path('includes/oracle_order_post.php');
 
-$item = trim((string) ($argv[1] ?? ''));
+$item = trim((string) ($argv[1] ?? '600029'));
 $store = (int) ($argv[2] ?? 4);
 $comp = (int) ($argv[3] ?? 1);
 $need = (float) ($argv[4] ?? 1);
 
-if ($item === '') {
-    fwrite(STDERR, "usage: php oracle_stock_probe.php <ITEM> [STORE] [COMP_NUM] [NEED_QTY]\n");
+$conn = oracle_connect();
+if (empty($conn['ok'])) {
+    echo json_encode(['ok' => false, 'message' => $conn['message'] ?? 'connect fail'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;
     exit(1);
 }
 
-$conn = oracle_connect();
-if (empty($conn['ok'])) {
-    echo json_encode(['ok' => false, 'message' => $conn['message'] ?? 'connect fail'], JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    exit(1);
+$cfg = oracle_order_stock_cfg();
+$owner = (string) $cfg['owner'];
+$table = (string) $cfg['table'];
+$cols = [];
+try {
+    foreach (oracle_describe_table($conn, $owner, $table) as $m) {
+        $cols[] = (string) ($m['column_name'] ?? '');
+    }
+} catch (Throwable $e) {
+    $cols = ['error' => $e->getMessage()];
 }
 
 $batches = oracle_order_stock_batches($conn, $comp, $store, $item);
@@ -37,12 +44,36 @@ $check = oracle_order_check_stock($conn, $comp, $store, [
     ],
 ]);
 
+$rawSample = [];
+try {
+    $from = oracle_order_quoted($owner, $table);
+    $rawSample = oracle_query_all(
+        $conn,
+        "SELECT * FROM {$from}
+          WHERE STORE = :store AND TRIM(TO_CHAR(ITEM)) = TRIM(:item) AND ROWNUM <= 15",
+        ['store' => $store, 'item' => $item]
+    );
+} catch (Throwable $e) {
+    try {
+        $from = oracle_order_quoted($owner, $table);
+        $rawSample = oracle_query_all(
+            $conn,
+            "SELECT * FROM {$from}
+              WHERE TRIM(TO_CHAR(STORE)) = TRIM(:store) AND TRIM(TO_CHAR(ITEM)) = TRIM(:item) AND ROWNUM <= 15",
+            ['store' => (string) $store, 'item' => $item]
+        );
+    } catch (Throwable $e2) {
+        $rawSample = ['error' => $e2->getMessage()];
+    }
+}
+
 echo json_encode([
-    'cfg' => oracle_order_stock_cfg(),
+    'cfg' => $cfg,
+    'stock_columns' => $cols,
     'item' => $item,
     'store' => $store,
     'comp_num' => $comp,
-    'need' => $need,
     'batches' => $batches,
     'check' => $check,
+    'raw_sample' => $rawSample,
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;
