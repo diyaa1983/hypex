@@ -166,6 +166,9 @@ sales_ora12_enqueue_assets();
         <?php if ($oraVnum > 0): ?>
             <span class="muted">مرحّل إلى Oracle: فاتورة <strong dir="ltr"><?= (int) $oraVnum ?> / <?= (int) $oraVyear ?></strong></span>
             <a class="btn btn-secondary" href="<?= esc(app_url('index.php?r=report_oracle_sales_invoice&invoice_no=' . $oraVnum . '&year=' . $oraVyear)) ?>">عرض فاتورة Oracle</a>
+            <?php if (sal_customer_order_user_can_approve()): ?>
+            <button type="button" id="co-oracle-unpost" class="btn btn-warn">حذف مسودة Oracle</button>
+            <?php endif; ?>
         <?php elseif (sal_customer_order_user_can_approve()): ?>
             <button type="button" id="co-oracle" class="btn btn-primary">ترحيل إلى Oracle</button>
         <?php endif; ?>
@@ -299,6 +302,8 @@ sales_ora12_enqueue_assets();
           var oraMsg = document.getElementById('co-oracle-msg');
           var btn = document.getElementById('co-unapprove');
           var oraBtn = document.getElementById('co-oracle');
+          var oraUnpostBtn = document.getElementById('co-oracle-unpost');
+          var unpostApi = <?= json_encode(app_url('api/sales_customer_order_unpost_oracle.php')) ?>;
           var csrf = <?= json_encode(csrf_token()) ?>;
           var id = <?= (int) $order['id'] ?>;
           function doUnapprove() {
@@ -490,6 +495,20 @@ sales_ora12_enqueue_assets();
           }
           if (btn) btn.onclick = doUnapprove;
           if (oraBtn) oraBtn.onclick = doOracle;
+          if (oraUnpostBtn) oraUnpostBtn.onclick = function () {
+            if (!confirm('حذف مسودة Oracle من قاعدة البيانات؟\n(فقط إن لم تُحفظ الفاتورة في INV00024)')) return;
+            if (oraMsg) oraMsg.textContent = 'جاري الحذف…';
+            fetch(unpostApi, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+              body: JSON.stringify({ id: id })
+            }).then(function (r) { return r.json(); }).then(function (x) {
+              if (oraMsg) oraMsg.textContent = x.message || (x.ok ? 'تم الحذف.' : 'تعذر الحذف.');
+              if (x.ok) location.reload();
+            }).catch(function () {
+              if (oraMsg) oraMsg.textContent = 'تعذر الاتصال.';
+            });
+          };
           window.CoUnapproveToolbar = { unapprove: doUnapprove };
         })();
         </script>

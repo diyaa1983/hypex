@@ -562,6 +562,145 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     ];
 }
 
+/**
+ * حذف فاتورة Oracle المسودة (VOU_FLAG=18) التي أنشأها Hypex — لإعادة الترحيل.
+ *
+ * @return array{ok:bool,message?:string,v_num?:int,vyear?:int}
+ */
+function oracle_unpost_customer_order(PDO $mysql, int $orderId, int $userId): array
+{
+    oracle_order_schema_ensure($mysql);
+    sal_customer_order_ensure_schema($mysql);
+
+    $order = sal_customer_order_fetch($mysql, $orderId);
+    if (!$order) {
+        return ['ok' => false, 'message' => 'الطلب غير موجود.'];
+    }
+    $vNum = (int) ($order['oracle_v_num'] ?? 0);
+    $vyear = (int) ($order['oracle_vyear'] ?? 0);
+    if ($vNum < 1) {
+        return ['ok' => false, 'message' => 'هذا الطلب غير مرحّل إلى Oracle.'];
+    }
+
+    if (!oracle_is_enabled()) {
+        return ['ok' => false, 'message' => oracle_config_status_message()];
+    }
+    $conn = oracle_connect();
+    if (empty($conn['ok'])) {
+        return ['ok' => false, 'message' => (string) ($conn['message'] ?? 'تعذر الاتصال بـ Oracle.')];
+    }
+
+    $sc = oracle_sales_invoice_cfg();
+    $owner = (string) $sc['owner'];
+    $dailyTable = (string) $sc['table'];
+    $hdrTable = (string) $sc['header_table'];
+    $stype = (int) ($sc['sale_type'] ?? 9);
+    $compNum = oracle_order_comp_num([]);
+    $from = oracle_order_quoted($owner, $dailyTable);
+    $hdrFrom = oracle_order_quoted($owner, $hdrTable);
+    $binds = ['t' => $stype, 'vn' => $vNum, 'vy' => $vyear, 'c' => $compNum];
+
+    try {
+        $rows = oracle_query_all(
+            $conn,
+            'SELECT NVL(VOU_FLAG, 0) AS VOU_FLAG, COUNT(*) AS CNT FROM ' . $from
+            . ' WHERE TYPE = :t AND V_NUM = :vn AND VYEAR = :vy AND COMP_NUM = :c'
+            . ' GROUP BY NVL(VOU_FLAG, 0)',
+            $binds
+        );
+    } catch (Throwable $e) {
+        return ['ok' => false, 'message' => 'تعذر التحقق من الفاتورة في Oracle: ' . $e->getMessage()];
+    }
+
+    $totalLines = 0;
+    $draftLines = 0;
+    foreach ($rows as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $cnt = (int) preg_replace('/\D+/', '', oracle_statement_row_val($r, 'CNT'));
+        $flag = (int) preg_replace('/\D+/', '', oracle_statement_row_val($r, 'VOU_FLAG'));
+        $totalLines += $cnt;
+        if ($flag === 18) {
+            $draftLines += $cnt;
+        }
+    }
+    if ($totalLines < 1) {
+        return [
+            'ok' => false,
+            'message' => 'لم تُعثر على بنود الفاتورة ' . $vNum . '/' . $vyear . ' في Oracle.'
+                . ' يمكنك مسح رقم الترحيل من Hypex يدوياً إن لزم.',
+        ];
+    }
+    if ($draftLines < 1) {
+        return [
+            'ok' => false,
+            'message' => 'لا يمكن الحذف من Hypex: الفاتورة ' . $vNum . '/' . $vyear
+                . ' ليست مسودة (VOU_FLAG≠18). احذفها أو ألغِها من شاشة INV00024 في Oracle.',
+        ];
+    }
+    if ($draftLines !== $totalLines) {
+        return [
+            'ok' => false,
+            'message' => 'الفاتورة مختلطة (مسودة + محفوظة). راجعها في Oracle INV00024 قبل الحذف.',
+        ];
+    }
+
+    try {
+        oracle_try_begin($conn);
+        oracle_execute(
+            $conn,
+            'DELETE FROM ' . $from
+            . ' WHERE TYPE = :t AND V_NUM = :vn AND VYEAR = :vy AND COMP_NUM = :c AND NVL(VOU_FLAG, 0) = 18',
+            $binds
+        );
+        try {
+            oracle_execute(
+                $conn,
+                'DELETE FROM ' . $hdrFrom
+                . ' WHERE TYPE = :t AND V_NUM = :vn AND VYEAR = :vy AND COMP_NUM = :c',
+                $binds
+            );
+        } catch (Throwable $eHdr) {
+            // بعض التثبيتات بلا MASTER_D أو مفتاح مختلف — البنود كافية
+        }
+        oracle_try_commit($conn);
+    } catch (Throwable $e) {
+        oracle_try_rollback($conn);
+
+        return ['ok' => false, 'message' => 'فشل حذف الفاتورة من Oracle: ' . $e->getMessage()];
+    }
+
+    try {
+        $mysql->prepare(
+            'UPDATE sal_customer_order
+             SET oracle_v_num = NULL, oracle_vyear = NULL, oracle_posted_at = NULL,
+                 oracle_post_status = ?, oracle_post_message = ?, updated_by = ?
+             WHERE id = ?'
+        )->execute([
+            'cancelled',
+            'أُلغي ترحيل Oracle ' . $vNum . '/' . $vyear . ' — يمكن إعادة الترحيل مع اختيار التشغيلة.',
+            $userId > 0 ? $userId : null,
+            $orderId,
+        ]);
+    } catch (Throwable $e) {
+        return [
+            'ok' => true,
+            'message' => 'حُذفت الفاتورة ' . $vNum . '/' . $vyear . ' من Oracle لكن تعذر تحديث Hypex.',
+            'v_num' => $vNum,
+            'vyear' => $vyear,
+        ];
+    }
+
+    return [
+        'ok' => true,
+        'message' => 'تم حذف مسودة Oracle رقم ' . $vNum . '/' . $vyear
+            . '. يمكنك إعادة «ترحيل إلى Oracle» واختيار التشغيلة من القائمة.',
+        'v_num' => $vNum,
+        'vyear' => $vyear,
+    ];
+}
+
 function oracle_order_quoted(string $owner, string $table): string
 {
     return '"' . str_replace('"', '""', $owner) . '"."' . str_replace('"', '""', $table) . '"';
