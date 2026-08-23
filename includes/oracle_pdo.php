@@ -324,8 +324,14 @@ function oracle_query_all(array $conn, string $sql, array $binds = []): array
             $st->bindValue($name, $v);
         }
         $st->execute();
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        try {
+            $st->closeCursor();
+        } catch (Throwable $e) {
+            // ignore
+        }
 
-        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        return $rows;
     }
 
     if (!empty($conn['oci'])) {

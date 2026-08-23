@@ -300,11 +300,9 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     $orderDisc = (float) ($order['discount_amount'] ?? 0);
     $isTaxable = $orderTax > 0.000001 || $maxPerTax > 0.000001;
 
-    $sample = oracle_order_sample_daily_row($conn, $from, $stype, true, $isTaxable);
-    $hdrSample = oracle_order_sample_daily_row($conn, $hdrFrom, $stype, false, $isTaxable);
-    $compNum = oracle_order_comp_num($hdrSample !== [] ? $hdrSample : $sample);
-
-    $stockCheck = oracle_order_check_stock($conn, $compNum, $store, $mappedLines);
+    // فحص الرصيد قبل استعلامات DAILY النموذجية (تجنّب تعارض PDO/OCI مع قراءة STOCK)
+    $compNumForStock = oracle_order_comp_num([]);
+    $stockCheck = oracle_order_check_stock($conn, $compNumForStock, $store, $mappedLines);
     if (empty($stockCheck['ok'])) {
         return [
             'ok' => false,
@@ -314,6 +312,24 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     }
     if (is_array($stockCheck['lines'] ?? null)) {
         $mappedLines = $stockCheck['lines'];
+    }
+
+    $sample = oracle_order_sample_daily_row($conn, $from, $stype, true, $isTaxable);
+    $hdrSample = oracle_order_sample_daily_row($conn, $hdrFrom, $stype, false, $isTaxable);
+    $compNum = oracle_order_comp_num($hdrSample !== [] ? $hdrSample : $sample);
+
+    if ($compNum !== $compNumForStock) {
+        $stockCheck = oracle_order_check_stock($conn, $compNum, $store, $mappedLines);
+        if (empty($stockCheck['ok'])) {
+            return [
+                'ok' => false,
+                'message' => (string) ($stockCheck['message'] ?? 'رصيد Oracle غير كافٍ — لم يتم الترحيل.'),
+                'stock_issues' => $stockCheck['issues'] ?? [],
+            ];
+        }
+        if (is_array($stockCheck['lines'] ?? null)) {
+            $mappedLines = $stockCheck['lines'];
+        }
     }
 
     try {
@@ -1079,7 +1095,7 @@ function oracle_order_fill_required(array $use, array $colMeta, array $sample): 
 /**
  * إعداد جدول رصيد المخزون في Oracle (MAS.STOCK).
  *
- * @return array{owner:string,table:string,qty_col:string,enabled:bool,multiply_by_tr_unit:bool,use_man_qty:bool}
+ * @return array{owner:string,table:string,qty_col:string,enabled:bool,multiply_by_tr_unit:bool,use_man_qty:bool,subtract_pending:bool}
  */
 function oracle_order_stock_cfg(): array
 {
@@ -1101,6 +1117,7 @@ function oracle_order_stock_cfg(): array
         'multiply_by_tr_unit' => !empty($st['multiply_by_tr_unit']),
         // بعض الشاشات تعتمد MAN_QTY؛ نأخذ الأكبر بين SYS و MAN لكل تشغيلة
         'use_man_qty' => array_key_exists('use_man_qty', $st) ? (bool) $st['use_man_qty'] : true,
+        'subtract_pending' => array_key_exists('subtract_pending', $st) ? (bool) $st['subtract_pending'] : true,
     ];
 }
 
@@ -1564,6 +1581,45 @@ function oracle_order_stock_toad_exact_batches(
     }
 
     return null;
+}
+
+/**
+ * قراءة رصيد STOCK — Toad أولاً ثم المسار الكامل مع إعادة محاولة.
+ *
+ * @return array{ok:bool,rows?:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total?:float,message?:string,raw_count?:int,cat_used?:string,source?:string,qty_cols?:list<string>,other_stores?:list<array{store:int,qty:float}>,debug_sample?:list<array<string,mixed>>}
+ */
+function oracle_order_resolve_stock_batches(
+    array $conn,
+    int $compNum,
+    int $store,
+    string $item,
+    string $cat
+): array {
+    $sc = oracle_order_stock_cfg();
+    $item = trim($item);
+    $cat = trim($cat);
+    if ($cat === '' && $item !== '') {
+        $cat = oracle_order_item_cat_resolve($conn, $item, '');
+    }
+    $owner = (string) $sc['owner'];
+    $table = (string) $sc['table'];
+
+    $exact = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table);
+    if ($exact !== null && (float) ($exact['total'] ?? 0) > 0.0000001) {
+        return $exact;
+    }
+
+    $full = oracle_order_stock_batches($conn, $compNum, $store, $item, $cat);
+    if ((float) ($full['total'] ?? 0) > 0.0000001) {
+        return $full;
+    }
+
+    $retry = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table);
+    if ($retry !== null && (float) ($retry['total'] ?? 0) > 0.0000001) {
+        return $retry;
+    }
+
+    return $full;
 }
 
 /**
@@ -2589,7 +2645,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines): array
 {
-    $version = 'STOCK-v15-EXACT';
+    $version = 'STOCK-v16-FIX';
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
         return [
@@ -2635,7 +2691,7 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             continue;
         }
 
-        $batches = oracle_order_stock_batches($conn, $compNum, $store, $item, $cat);
+        $batches = oracle_order_resolve_stock_batches($conn, $compNum, $store, $item, $cat);
         if (empty($batches['ok'])) {
             return [
                 'ok' => false,
@@ -2643,37 +2699,42 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
                 'version' => $version,
             ];
         }
-        $total = (float) ($batches['total'] ?? 0);
+        $grossTotal = (float) ($batches['total'] ?? 0);
+        $total = $grossTotal;
         $rows = is_array($batches['rows'] ?? null) ? $batches['rows'] : [];
         $rawCount = (int) ($batches['raw_count'] ?? 0);
         $catUsed = trim((string) ($batches['cat_used'] ?? $cat));
+        $batchSource = trim((string) ($batches['source'] ?? ''));
 
         // اطرح كميات فواتير Oracle غير المحفوظة/المعلقة لنفس المادة والمستودع (VOU_FLAG=18)
-        $pending = oracle_order_pending_daily_qty($conn, $compNum, $store, $item, $catUsed);
-        if (empty($pending['ok'])) {
-            return [
-                'ok' => false,
-                'message' => (string) ($pending['message'] ?? 'تعذر قراءة الكميات المعلّقة في Oracle.'),
-                'version' => $version,
-            ];
-        }
-        $pendingQty = (float) ($pending['qty'] ?? 0);
-        if ($pendingQty > 0.0000001) {
-            $total = max(0.0, $total - $pendingQty);
-            // خصم المعلّق من أحدث التشغيلات أولاً — لترك الأقدم متاحاً للبيع (FIFO)
-            $rowsNewest = array_reverse($rows);
-            $left = $pendingQty;
-            foreach ($rowsNewest as &$rr) {
-                if ($left <= 0) {
-                    break;
-                }
-                $take = min((float) $rr['qty'], $left);
-                $rr['qty'] = (float) $rr['qty'] - $take;
-                $left -= $take;
+        $pendingQty = 0.0;
+        if (!empty($sc['subtract_pending'])) {
+            $pending = oracle_order_pending_daily_qty($conn, $compNum, $store, $item, $catUsed);
+            if (empty($pending['ok'])) {
+                return [
+                    'ok' => false,
+                    'message' => (string) ($pending['message'] ?? 'تعذر قراءة الكميات المعلّقة في Oracle.'),
+                    'version' => $version,
+                ];
             }
-            unset($rr);
-            $rows = array_values(array_filter($rowsNewest, static fn($r) => (float) ($r['qty'] ?? 0) > 0.0000001));
-            $rows = oracle_order_sort_batches_oldest_first($rows);
+            $pendingQty = (float) ($pending['qty'] ?? 0);
+            if ($pendingQty > 0.0000001) {
+                $total = max(0.0, $total - $pendingQty);
+                // خصم المعلّق من أحدث التشغيلات أولاً — لترك الأقدم متاحاً للبيع (FIFO)
+                $rowsNewest = array_reverse($rows);
+                $left = $pendingQty;
+                foreach ($rowsNewest as &$rr) {
+                    if ($left <= 0) {
+                        break;
+                    }
+                    $take = min((float) $rr['qty'], $left);
+                    $rr['qty'] = (float) $rr['qty'] - $take;
+                    $left -= $take;
+                }
+                unset($rr);
+                $rows = array_values(array_filter($rowsNewest, static fn($r) => (float) ($r['qty'] ?? 0) > 0.0000001));
+                $rows = oracle_order_sort_batches_oldest_first($rows);
+            }
         }
 
         // لا صفوف / لا رصيد في STOCK
@@ -2682,7 +2743,13 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             $label = $item . ($name !== '' ? ' — ' . $name : '');
             $hint = '';
             $other = is_array($batches['other_stores'] ?? null) ? $batches['other_stores'] : [];
-            if ($other !== []) {
+            if ($grossTotal > 0.0000001 && $pendingQty > 0.0000001) {
+                $hint = "\nرصيد STOCK الفعلي: " . $fmt($grossTotal)
+                    . ' (مصدر: ' . ($batchSource !== '' ? $batchSource : 'stock') . ')'
+                    . "\nكمية محجوزة/معلّقة في Oracle (DAILY): " . $fmt($pendingQty)
+                    . "\nالمتاح بعد الخصم: " . $fmt($total)
+                    . "\nإن كان الحجز قديماً: عطّل subtract_pending في oracle.local.php";
+            } elseif ($other !== []) {
                 $bits = [];
                 foreach ($other as $os) {
                     $bits[] = 'مستودع ' . (int) ($os['store'] ?? 0) . ': ' . $fmt((float) ($os['qty'] ?? 0));
