@@ -1149,19 +1149,34 @@ function oracle_order_parse_qty(mixed $v): float
         return 0.0;
     }
     if (is_int($v) || is_float($v)) {
-        return (float) $v;
+        $f = (float) $v;
+
+        return is_finite($f) ? $f : 0.0;
     }
-    if (is_object($v) && method_exists($v, 'load')) {
-        $v = $v->load();
+    if (is_bool($v)) {
+        return $v ? 1.0 : 0.0;
+    }
+    if (is_object($v)) {
+        if (method_exists($v, 'load')) {
+            $v = $v->load();
+        } elseif (method_exists($v, '__toString')) {
+            $v = (string) $v;
+        } else {
+            return 0.0;
+        }
     }
     $s = trim((string) $v);
-    if ($s === '') {
+    if ($s === '' || $s === '.' || $s === '-') {
         return 0.0;
     }
+    $s = str_replace(["\xc2\xa0", ' '], '', $s);
     if (preg_match('/^\d+,\d+$/', $s)) {
         $s = str_replace(',', '.', $s);
+    } elseif (preg_match('/^\d{1,3}(\.\d{3})+(,\d+)?$/', $s)) {
+        $s = str_replace('.', '', $s);
+        $s = str_replace(',', '.', $s);
     } else {
-        $s = str_replace([',', ' '], ['', ''], $s);
+        $s = str_replace(',', '', $s);
     }
 
     return is_numeric($s) ? (float) $s : 0.0;
@@ -1174,7 +1189,7 @@ function oracle_order_read_row_qty(array $r, array $qtyCols = []): float
 {
     $best = 0.0;
     $cols = array_values(array_unique(array_merge(
-        ['SYS_QTY', 'MAN_QTY', 'QTY', 'AV_QTY', 'BAL_QTY', 'ONHAND', 'ON_HAND'],
+        ['STOCK_QTY', 'QTY', 'QTY_NUM', 'QTY_STR', 'SYS_QTY', 'MAN_QTY', 'AV_QTY', 'BAL_QTY', 'ONHAND', 'ON_HAND'],
         $qtyCols
     )));
     foreach ($cols as $col) {
@@ -1190,8 +1205,9 @@ function oracle_order_read_row_qty(array $r, array $qtyCols = []): float
     foreach ($r as $k => $v) {
         if (is_int($v) || is_float($v)) {
             $uk = strtoupper((string) $k);
-            if (preg_match('/(QTY|QNT|BAL|ONHAND|AVAIL)/', $uk)
-                && !preg_match('/(COMP_NUM|ITEM_NUM|STORE_NUM|CAT_NUM|_NO$|_ID$|DATE|TIME|FLAG|CODE|NAME|DESC)/', $uk)) {
+            if (preg_match('/^(QTY_X\d+|STOCK_QTY|SYS_QTY|MAN_QTY)$/', $uk)
+                || (preg_match('/(QTY|QNT|BAL|ONHAND|AVAIL)/', $uk)
+                    && !preg_match('/(COMP_NUM|ITEM_NUM|STORE_NUM|CAT_NUM|_NO$|_ID$|DATE|TIME|FLAG|CODE|NAME|DESC)/', $uk))) {
                 $n = (float) $v;
                 if ($n > $best) {
                     $best = $n;
@@ -1200,7 +1216,8 @@ function oracle_order_read_row_qty(array $r, array $qtyCols = []): float
             continue;
         }
         $uk = strtoupper((string) $k);
-        if (!preg_match('/(QTY|QNT|BAL|ONHAND|AVAIL)/', $uk)) {
+        if (!preg_match('/^(QTY_X\d+|STOCK_QTY|SYS_QTY|MAN_QTY)$/', $uk)
+            && !preg_match('/(QTY|QNT|BAL|ONHAND|AVAIL)/', $uk)) {
             continue;
         }
         if (preg_match('/(COMP_NUM|ITEM_NUM|STORE_NUM|CAT_NUM|_NO$|_ID$|DATE|TIME|FLAG|CODE|NAME|DESC)/', $uk)) {
@@ -1343,6 +1360,54 @@ function oracle_order_sort_batches_oldest_first(array $rows): array
 }
 
 /**
+ * مرشّحو CAT لفحص STOCK (من الطلب، MASCARD، STOCK نفسه).
+ *
+ * @return list<string>
+ */
+function oracle_order_stock_cat_candidates(array $conn, int $store, string $item, string $cat): array
+{
+    $out = [];
+    $push = static function (string $c) use (&$out): void {
+        $c = trim($c);
+        if ($c !== '' && !in_array($c, $out, true)) {
+            $out[] = $c;
+        }
+    };
+    $push($cat);
+    if ($item !== '') {
+        $push(oracle_order_item_cat_resolve($conn, $item, ''));
+        $card = oracle_order_mascard_find($conn, $item, '');
+        $push(trim((string) ($card['cat'] ?? '')));
+    }
+    $sc = oracle_order_stock_cfg();
+    $from = oracle_order_quoted((string) $sc['owner'], (string) $sc['table']);
+    if ($item !== '' && $store > 0) {
+        try {
+            $rows = oracle_query_all(
+                $conn,
+                'SELECT DISTINCT TRIM(TO_CHAR(CAT)) AS CAT FROM ' . $from
+                . ' WHERE STORE = :store'
+                . ' AND (TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
+                . ' OR LTRIM(TRIM(TO_CHAR(ITEM)), \'0\') = LTRIM(TRIM(:item), \'0\'))'
+                . ' AND (NVL(SYS_QTY, 0) > 0.0000001 OR NVL(MAN_QTY, 0) > 0.0000001)'
+                . ' AND ROWNUM <= 20',
+                ['store' => $store, 'item' => $item]
+            );
+            foreach ($rows as $r) {
+                if (is_array($r)) {
+                    $push(oracle_statement_row_val($r, 'CAT'));
+                }
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+    $out[] = '';
+
+    return $out;
+}
+
+/**
  * @return array{ok:bool,rows?:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total?:float,message?:string,raw_count?:int,cat_used?:string,source?:string}|null
  */
 function oracle_order_stock_toad_positive_rows(
@@ -1366,7 +1431,12 @@ function oracle_order_stock_toad_positive_rows(
             . ' OR LTRIM(TRIM(TO_CHAR(CAT)), \'0\') = LTRIM(TRIM(:cat), \'0\'))';
         $binds['cat'] = $cat;
     }
-    $sql = 'SELECT TRIM(TO_CHAR(BATCH)) AS BATCH, NVL(SYS_QTY, 0) AS SYS_QTY, NVL(MAN_QTY, 0) AS MAN_QTY, EXP_DATE'
+    $sql = 'SELECT TRIM(TO_CHAR(BATCH)) AS BATCH,'
+        . ' NVL(SYS_QTY, 0) AS SYS_QTY, NVL(MAN_QTY, 0) AS MAN_QTY,'
+        . ' TRIM(TO_CHAR(NVL(SYS_QTY, 0))) AS SYS_QTY_TXT,'
+        . ' TRIM(TO_CHAR(NVL(MAN_QTY, 0))) AS MAN_QTY_TXT,'
+        . ' GREATEST(NVL(SYS_QTY, 0), NVL(MAN_QTY, 0)) AS STOCK_QTY,'
+        . ' EXP_DATE'
         . ' FROM ' . $from
         . ' WHERE STORE = :store'
         . ' AND (TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
@@ -1404,9 +1474,15 @@ function oracle_order_stock_toad_positive_rows(
         if ($norm === '') {
             continue;
         }
-        $sq = oracle_order_parse_qty($r['SYS_QTY'] ?? oracle_statement_row_val($r, 'SYS_QTY'));
-        $mq = oracle_order_parse_qty($r['MAN_QTY'] ?? oracle_statement_row_val($r, 'MAN_QTY'));
-        $q = max($sq, $mq);
+        $sq = oracle_order_parse_qty($r['SYS_QTY_TXT'] ?? oracle_statement_row_val($r, 'SYS_QTY_TXT'));
+        if ($sq <= 0.0000001) {
+            $sq = oracle_order_parse_qty($r['SYS_QTY'] ?? oracle_statement_row_val($r, 'SYS_QTY'));
+        }
+        $mq = oracle_order_parse_qty($r['MAN_QTY_TXT'] ?? oracle_statement_row_val($r, 'MAN_QTY_TXT'));
+        if ($mq <= 0.0000001) {
+            $mq = oracle_order_parse_qty($r['MAN_QTY'] ?? oracle_statement_row_val($r, 'MAN_QTY'));
+        }
+        $q = max($sq, $mq, oracle_order_parse_qty($r['STOCK_QTY'] ?? oracle_statement_row_val($r, 'STOCK_QTY')));
         if ($q <= 0.0000001) {
             continue;
         }
@@ -1477,9 +1553,15 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
 
     $owner = (string) $sc['owner'];
     $table = (string) $sc['table'];
-    $toadFirst = oracle_order_stock_toad_positive_rows($conn, $store, $item, $cat, $owner, $table);
-    if ($toadFirst !== null && (float) ($toadFirst['total'] ?? 0) > 0.0000001) {
-        return $toadFirst;
+    foreach (oracle_order_stock_cat_candidates($conn, $store, $item, $cat) as $tryCat) {
+        $toadFirst = oracle_order_stock_toad_positive_rows($conn, $store, $item, $tryCat, $owner, $table);
+        if ($toadFirst !== null && (float) ($toadFirst['total'] ?? 0) > 0.0000001) {
+            if ($tryCat !== '') {
+                $toadFirst['cat_used'] = $tryCat;
+            }
+
+            return $toadFirst;
+        }
     }
 
     $from = oracle_order_quoted($owner, $table);
@@ -1547,8 +1629,20 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
     if ($catCol !== '') {
         $selectParts[] = $catCol . ' AS CAT_X';
     }
+    if (isset($colNames['SYS_QTY'])) {
+        $selectParts[] = 'NVL(SYS_QTY, 0) AS SYS_QTY';
+    }
+    if (isset($colNames['MAN_QTY'])) {
+        $selectParts[] = 'NVL(MAN_QTY, 0) AS MAN_QTY';
+    }
+    if (isset($colNames['SYS_QTY']) && isset($colNames['MAN_QTY'])) {
+        $selectParts[] = 'GREATEST(NVL(SYS_QTY, 0), NVL(MAN_QTY, 0)) AS STOCK_QTY';
+    }
     foreach ($qtyCols as $i => $qc) {
-        $selectParts[] = $qc . ' AS QTY_X' . $i;
+        if ($qc === 'SYS_QTY' || $qc === 'MAN_QTY') {
+            continue;
+        }
+        $selectParts[] = 'NVL(' . $qc . ', 0) AS QTY_X' . $i;
     }
     $selectParts[] = $expCol !== '' ? ($expCol . ' AS EXP_X') : 'NULL AS EXP_X';
     $selectList = implode(', ', $selectParts);
@@ -1581,6 +1675,8 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
         . ($catCol !== '' ? (', ' . $catCol . ' AS CAT_X') : '')
         . ', NVL(' . ($qtyCols[0] ?? 'SYS_QTY') . ', 0) AS SYS_QTY'
         . ', NVL(' . (in_array('MAN_QTY', $qtyCols, true) ? 'MAN_QTY' : '0') . ', 0) AS MAN_QTY'
+        . ', GREATEST(NVL(' . ($qtyCols[0] ?? 'SYS_QTY') . ', 0), NVL('
+        . (in_array('MAN_QTY', $qtyCols, true) ? 'MAN_QTY' : '0') . ', 0)) AS STOCK_QTY'
         . ', ' . ($expCol !== '' ? ($expCol . ' AS EXP_X') : 'NULL AS EXP_X')
         . ' FROM ' . $from;
 
@@ -2054,7 +2150,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines): array
 {
-    $version = 'STOCK-v11-TOAD';
+    $version = 'STOCK-v12-QTY';
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
         return [
@@ -2155,9 +2251,23 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
                 $hint = "\nوُجد رصيد للمادة في مستودعات أخرى: " . implode(' · ', $bits)
                     . "\nتحقق من ربط مستودع Hypex برقم Oracle الصحيح (oracle_store).";
             } elseif ($rawCount > 0) {
+                $dbg = is_array($batches['debug_sample'] ?? null) ? $batches['debug_sample'] : [];
+                $dbgTxt = '';
+                if ($dbg !== []) {
+                    $bits = [];
+                    foreach ($dbg as $d) {
+                        $bits[] = 'تشغيلة ' . ($d['batch'] ?? '?')
+                            . ' SYS=' . ($d['sys'] ?? '?')
+                            . ' MAN=' . ($d['man'] ?? '?')
+                            . ' قراءة=' . ($d['qty'] ?? '0');
+                    }
+                    $dbgTxt = "\nعينة من STOCK: " . implode(' · ', $bits);
+                }
                 $hint = "\nوُجدت " . $rawCount . " صفوف في STOCK لكن الكمية المقروءة = 0."
                     . "\nأعمدة الكمية: " . implode(', ', array_map('strval', (array) ($batches['qty_cols'] ?? [])))
-                    . "\nتحقق من SYS_QTY و MAN_QTY في Toad للتشغيلات 0263278 / 0263279.";
+                    . ($catUsed !== '' ? ("\nالفئة المستخدمة: " . $catUsed) : '')
+                    . $dbgTxt
+                    . "\n[" . $version . ']';
             } else {
                 $hint = "\nلا صفوف في جدول المخزون لهذه المادة/المستودع."
                     . "\nتأكد أن كود المادة في Oracle هو نفسه وأن المستودع = " . $store
