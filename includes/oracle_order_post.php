@@ -521,7 +521,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     return [
         'ok' => true,
         'message' => 'تم إنشاء فاتورة بيع Oracle رقم ' . $vNum . ' لسنة ' . $vyear
-            . ' [STOCK-v10-DIRECT · مستودع ' . $store . ']'
+            . ' [STOCK-v11-TOAD · مستودع ' . $store . ']'
             . '. في INV00024: استعلام (F7) → رقم الفاتورة ' . $vNum . ' والسنة ' . $vyear . ' → تنفيذ (F8)، ثم راجع واحفظ.'
             . ' لا تفتح فاتورة قديمة من شاشة العرض في Hypex؛ الرقم الجديد هو ' . $vNum . '.',
         'v_num' => $vNum,
@@ -529,7 +529,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'store' => $store,
         'cust_acc' => $custAcc,
         'line_count' => count($mappedLines),
-        'stock_version' => 'STOCK-v10-DIRECT',
+        'stock_version' => 'STOCK-v11-TOAD',
     ];
 }
 
@@ -1188,6 +1188,17 @@ function oracle_order_read_row_qty(array $r, array $qtyCols = []): float
         }
     }
     foreach ($r as $k => $v) {
+        if (is_int($v) || is_float($v)) {
+            $uk = strtoupper((string) $k);
+            if (preg_match('/(QTY|QNT|BAL|ONHAND|AVAIL)/', $uk)
+                && !preg_match('/(COMP_NUM|ITEM_NUM|STORE_NUM|CAT_NUM|_NO$|_ID$|DATE|TIME|FLAG|CODE|NAME|DESC)/', $uk)) {
+                $n = (float) $v;
+                if ($n > $best) {
+                    $best = $n;
+                }
+            }
+            continue;
+        }
         $uk = strtoupper((string) $k);
         if (!preg_match('/(QTY|QNT|BAL|ONHAND|AVAIL)/', $uk)) {
             continue;
@@ -1332,6 +1343,121 @@ function oracle_order_sort_batches_oldest_first(array $rows): array
 }
 
 /**
+ * @return array{ok:bool,rows?:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total?:float,message?:string,raw_count?:int,cat_used?:string,source?:string}|null
+ */
+function oracle_order_stock_toad_positive_rows(
+    array $conn,
+    int $store,
+    string $item,
+    string $cat,
+    string $owner,
+    string $table
+): ?array {
+    $item = trim($item);
+    $cat = trim($cat);
+    if ($item === '' || $store < 1) {
+        return null;
+    }
+    $from = oracle_order_quoted($owner, $table);
+    $binds = ['store' => $store, 'item' => $item];
+    $catSql = '';
+    if ($cat !== '') {
+        $catSql = ' AND (TRIM(TO_CHAR(CAT)) = TRIM(:cat)'
+            . ' OR LTRIM(TRIM(TO_CHAR(CAT)), \'0\') = LTRIM(TRIM(:cat), \'0\'))';
+        $binds['cat'] = $cat;
+    }
+    $sql = 'SELECT TRIM(TO_CHAR(BATCH)) AS BATCH, NVL(SYS_QTY, 0) AS SYS_QTY, NVL(MAN_QTY, 0) AS MAN_QTY, EXP_DATE'
+        . ' FROM ' . $from
+        . ' WHERE STORE = :store'
+        . ' AND (TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
+        . ' OR LTRIM(TRIM(TO_CHAR(ITEM)), \'0\') = LTRIM(TRIM(:item), \'0\'))'
+        . $catSql
+        . ' AND (NVL(SYS_QTY, 0) > 0.0000001 OR NVL(MAN_QTY, 0) > 0.0000001)';
+
+    $raw = [];
+    foreach ([$sql, str_replace('STORE = :store', "TO_NUMBER(REGEXP_REPLACE(TO_CHAR(STORE), '[^0-9]', '')) = :store", $sql)] as $trySql) {
+        try {
+            $got = oracle_query_all($conn, $trySql, $binds);
+            if (is_array($got) && $got !== []) {
+                $raw = $got;
+                break;
+            }
+        } catch (Throwable $e) {
+            continue;
+        }
+    }
+    if ($raw === []) {
+        return null;
+    }
+
+    /** @var array<string,array{batch:string,qty:float,exp_date:string,sort_date:string}> $byBatch */
+    $byBatch = [];
+    foreach ($raw as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $b = trim(oracle_statement_row_val($r, 'BATCH'));
+        if ($b === '' || oracle_order_batch_looks_like_date($b)) {
+            continue;
+        }
+        $norm = oracle_order_batch_norm_key($b);
+        if ($norm === '') {
+            continue;
+        }
+        $sq = oracle_order_parse_qty($r['SYS_QTY'] ?? oracle_statement_row_val($r, 'SYS_QTY'));
+        $mq = oracle_order_parse_qty($r['MAN_QTY'] ?? oracle_statement_row_val($r, 'MAN_QTY'));
+        $q = max($sq, $mq);
+        if ($q <= 0.0000001) {
+            continue;
+        }
+        $expDate = oracle_order_parse_stock_date(oracle_statement_row_val($r, 'EXP_DATE')) ?? '';
+        $guess = oracle_order_batch_date_guess($b);
+        $sortDate = $expDate !== '' ? $expDate : (string) ($guess ?? '');
+        if (!isset($byBatch[$norm])) {
+            $byBatch[$norm] = [
+                'batch' => $b,
+                'qty' => 0.0,
+                'exp_date' => $expDate,
+                'sort_date' => $sortDate,
+            ];
+        }
+        $byBatch[$norm]['qty'] += $q;
+    }
+
+    $rows = [];
+    $total = 0.0;
+    foreach ($byBatch as $info) {
+        $q = (float) $info['qty'];
+        if ($q <= 0.0000001) {
+            continue;
+        }
+        $rows[] = [
+            'batch' => (string) $info['batch'],
+            'qty' => $q,
+            'exp_date' => (string) ($info['exp_date'] ?? ''),
+            'sort_date' => (string) ($info['sort_date'] ?? ''),
+        ];
+        $total += $q;
+    }
+    if ($total <= 0.0000001) {
+        return null;
+    }
+    $rows = oracle_order_sort_batches_oldest_first($rows);
+
+    return [
+        'ok' => true,
+        'rows' => $rows,
+        'total' => $total,
+        'raw_count' => count($raw),
+        'positive_batches' => count($rows),
+        'qty_cols' => ['SYS_QTY', 'MAN_QTY'],
+        'other_stores' => [],
+        'cat_used' => $cat,
+        'source' => 'toad-direct',
+    ];
+}
+
+/**
  * أرصدة التشغيلات لمادة في مستودع — بدون GROUP BY (أضمن على كل إصدارات Oracle).
  * تُرتَّب التشغيلات من الأقدم إلى الأحدث (FIFO/FEFO حسب تاريخ الصلاحية أو رقم التشغيلة).
  *
@@ -1345,8 +1471,17 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
     if ($item === '' || $store < 1) {
         return ['ok' => false, 'message' => 'مادة أو مستودع غير صالح لفحص الرصيد.'];
     }
+    if ($cat === '') {
+        $cat = oracle_order_item_cat_resolve($conn, $item, '');
+    }
+
     $owner = (string) $sc['owner'];
     $table = (string) $sc['table'];
+    $toadFirst = oracle_order_stock_toad_positive_rows($conn, $store, $item, $cat, $owner, $table);
+    if ($toadFirst !== null && (float) ($toadFirst['total'] ?? 0) > 0.0000001) {
+        return $toadFirst;
+    }
+
     $from = oracle_order_quoted($owner, $table);
 
     $colNames = [];
@@ -1919,7 +2054,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines): array
 {
-    $version = 'STOCK-v10-DIRECT';
+    $version = 'STOCK-v11-TOAD';
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
         return [
