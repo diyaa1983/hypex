@@ -22,7 +22,21 @@ if (function_exists('opcache_invalidate')) {
 }
 require_once $postFile;
 
-$result = oracle_post_customer_order(db(), $orderId, $userId, $dry);
+$opts = [];
+foreach ($argv as $arg) {
+    if (!is_string($arg) || !str_starts_with($arg, '--batch-file=')) {
+        continue;
+    }
+    $path = substr($arg, 13);
+    if ($path !== '' && is_file($path)) {
+        $raw = json_decode((string) file_get_contents($path), true);
+        if (is_array($raw)) {
+            $opts['batch_picks'] = $raw;
+        }
+    }
+}
+
+$result = oracle_post_customer_order(db(), $orderId, $userId, $dry, $opts);
 if (is_array($result)) {
     $result['stock_check_file'] = $postFile;
     $result['stock_check_mtime'] = @filemtime($postFile) ?: 0;

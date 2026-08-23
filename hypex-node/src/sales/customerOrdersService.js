@@ -858,36 +858,37 @@ function getCustomerArSummary(customerId) {
   });
 }
 
-function postOrderToOracle(orderId, userId, dryRun = false) {
-  const { spawn } = require('child_process');
+function resolvePhpCli() {
   const path = require('path');
   const fs = require('fs');
-  const id = Number(orderId) || 0;
-  const uid = Number(userId) || 0;
+  let phpBin = process.env.PHP_BIN || 'php';
+  for (const c of [process.env.PHP_BIN, 'C:\\xampp\\php\\php.exe', 'C:\\xampp\\php\\php', 'php']) {
+    if (!c) continue;
+    if (c === 'php' || fs.existsSync(c)) {
+      phpBin = c;
+      break;
+    }
+  }
+  const argsPrefix = [];
+  const ini = process.env.PHP_INI || 'C:\\xampp\\php\\php.ini';
+  if (fs.existsSync(ini)) argsPrefix.push('-c', ini);
+  const root = path.resolve(__dirname, '..', '..', '..');
+  return { phpBin, argsPrefix, root, fs, path };
+}
 
+function runOraclePhpCli(scriptName, scriptArgs = []) {
+  const { spawn } = require('child_process');
+  const { phpBin, argsPrefix, root, fs, path } = resolvePhpCli();
+  const script = path.join(__dirname, '..', '..', 'cli', scriptName);
+  if (!fs.existsSync(script)) {
+    return Promise.resolve({
+      ok: false,
+      message: 'سكربت Oracle غير موجود: ' + scriptName,
+      error: 'سكربت Oracle غير موجود: ' + scriptName,
+    });
+  }
+  const args = argsPrefix.concat([script].concat(scriptArgs));
   return new Promise((resolve) => {
-    if (id < 1) {
-      return resolve({ ok: false, message: 'طلب غير صالح.', error: 'طلب غير صالح.' });
-    }
-    const script = path.join(__dirname, '..', '..', 'cli', 'oracle_order_post.php');
-    if (!fs.existsSync(script)) {
-      return resolve({ ok: false, message: 'سكربت ترحيل Oracle غير موجود.', error: 'سكربت ترحيل Oracle غير موجود.' });
-    }
-    let phpBin = process.env.PHP_BIN || 'php';
-    for (const c of [process.env.PHP_BIN, 'C:\\xampp\\php\\php.exe', 'C:\\xampp\\php\\php', 'php']) {
-      if (!c) continue;
-      if (c === 'php' || fs.existsSync(c)) {
-        phpBin = c;
-        break;
-      }
-    }
-    const args = [];
-    const ini = process.env.PHP_INI || 'C:\\xampp\\php\\php.ini';
-    if (fs.existsSync(ini)) args.push('-c', ini);
-    args.push(script, String(id), String(uid));
-    if (dryRun) args.push('--dry');
-
-    const root = path.resolve(__dirname, '..', '..', '..');
     const child = spawn(phpBin, args, { cwd: root, windowsHide: true });
     let out = '';
     let err = '';
@@ -897,9 +898,7 @@ function postOrderToOracle(orderId, userId, dryRun = false) {
     child.stderr.on('data', (d) => {
       err += String(d);
     });
-    child.on('error', (e) =>
-      resolve({ ok: false, message: e.message, error: e.message })
-    );
+    child.on('error', (e) => resolve({ ok: false, message: e.message, error: e.message }));
     child.on('close', () => {
       const line = out
         .split(/\r?\n/)
@@ -921,6 +920,50 @@ function postOrderToOracle(orderId, userId, dryRun = false) {
   });
 }
 
+function fetchOracleBatches(orderId) {
+  const id = Number(orderId) || 0;
+  if (id < 1) {
+    return Promise.resolve({ ok: false, message: 'طلب غير صالح.', error: 'طلب غير صالح.' });
+  }
+  return runOraclePhpCli('oracle_order_batches.php', [String(id)]);
+}
+
+function postOrderToOracle(orderId, userId, dryRun = false, batchPicks = null) {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const id = Number(orderId) || 0;
+  const uid = Number(userId) || 0;
+  if (id < 1) {
+    return Promise.resolve({ ok: false, message: 'طلب غير صالح.', error: 'طلب غير صالح.' });
+  }
+
+  const picks = Array.isArray(batchPicks) ? batchPicks : [];
+  let batchFile = '';
+  if (picks.length) {
+    batchFile = path.join(os.tmpdir(), 'hypex-oracle-batch-' + process.pid + '-' + Date.now() + '.json');
+    try {
+      fs.writeFileSync(batchFile, JSON.stringify(picks), 'utf8');
+    } catch (e) {
+      return Promise.resolve({ ok: false, message: e.message, error: e.message });
+    }
+  }
+
+  const args = [String(id), String(uid)];
+  if (dryRun) args.push('--dry');
+  if (batchFile) args.push('--batch-file=' + batchFile);
+
+  return runOraclePhpCli('oracle_order_post.php', args).finally(() => {
+    if (batchFile) {
+      try {
+        fs.unlinkSync(batchFile);
+      } catch {
+        // ignore
+      }
+    }
+  });
+}
+
 module.exports = {
   getOrder,
   saveOrder,
@@ -932,4 +975,5 @@ module.exports = {
   findOrderIdByNo,
   getCustomerArSummary,
   postOrderToOracle,
+  fetchOracleBatches,
 };

@@ -506,6 +506,36 @@ async function renderForm(req, res, orderId) {
           </p>
         </div>
       </section>
+
+      ${
+        caps.canPostOracle
+          ? `
+      <div id="co-batch-modal" class="co-batch-modal" hidden aria-hidden="true">
+        <div class="co-batch-panel" role="dialog" aria-labelledby="co-batch-title">
+          <div class="co-batch-head">
+            <h3 id="co-batch-title">اختيار التشغيلة — ترحيل إلى Oracle</h3>
+            <p id="co-batch-sub" class="muted"></p>
+          </div>
+          <div class="co-batch-body-wrap">
+            <table class="co-batch-table">
+              <thead>
+                <tr>
+                  <th>المادة</th>
+                  <th>المطلوب</th>
+                  <th>التشغيلة (الرصيد من STOCK)</th>
+                </tr>
+              </thead>
+              <tbody id="co-batch-rows"></tbody>
+            </table>
+          </div>
+          <div class="co-batch-foot">
+            <button type="button" id="co-batch-cancel" class="si-btn">إلغاء</button>
+            <button type="button" id="co-batch-confirm" class="si-btn si-tb--post">ترحيل إلى Oracle</button>
+          </div>
+        </div>
+      </div>`
+          : ''
+      }
     </div>
     <script type="application/json" id="co-initial">${JSON.stringify(initial).replace(/</g, '\\u003c')}</script>
   `;
@@ -662,16 +692,31 @@ router.post('/api/sales/customer-orders/:id/unapprove', async (req, res) => {
   }
 });
 
+router.post('/api/sales/customer-orders/:id/oracle-batches', async (req, res) => {
+  try {
+    if (!canApprove(req.session.user)) {
+      return res.status(403).json({ ok: false, error: 'لا صلاحية.' });
+    }
+    const result = await svc.fetchOracleBatches(req.params.id);
+    if (!result.ok) return res.status(400).json(result);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 router.post('/api/sales/customer-orders/:id/post-oracle', async (req, res) => {
   try {
     if (!canApprove(req.session.user)) {
       return res.status(403).json({ ok: false, error: 'لا صلاحية ترحيل إلى Oracle.' });
     }
     const dry = String(req.query.dry || req.body?.dry || '') === '1';
+    const batchPicks = Array.isArray(req.body?.batch_picks) ? req.body.batch_picks : [];
     const result = await svc.postOrderToOracle(
       req.params.id,
       req.session.user.id,
-      dry
+      dry,
+      batchPicks
     );
     if (!result.ok) return res.status(400).json(result);
     res.json(result);

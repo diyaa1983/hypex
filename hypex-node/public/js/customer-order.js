@@ -1938,6 +1938,181 @@
   }
 
   var oracleBtn = document.getElementById('co-oracle');
+  var batchModal = document.getElementById('co-batch-modal');
+  var batchRows = document.getElementById('co-batch-rows');
+  var batchSub = document.getElementById('co-batch-sub');
+  var batchCancel = document.getElementById('co-batch-cancel');
+  var batchConfirm = document.getElementById('co-batch-confirm');
+  var pickerData = null;
+
+  function fmtBatchQty(n) {
+    n = Number(n) || 0;
+    return String(n).indexOf('.') >= 0 ? n.toFixed(3).replace(/\.?0+$/, '') : String(n);
+  }
+
+  function closeBatchModal() {
+    if (batchModal) {
+      batchModal.hidden = true;
+      batchModal.setAttribute('aria-hidden', 'true');
+    }
+    pickerData = null;
+  }
+
+  function openBatchModal(data) {
+    pickerData = data;
+    if (!batchRows || !batchModal) return;
+    batchRows.innerHTML = '';
+    if (batchSub) {
+      batchSub.textContent =
+        'مستودع Oracle: ' +
+        (data.store || '—') +
+        (data.warehouse_name ? ' — ' + data.warehouse_name : '');
+    }
+    (data.lines || []).forEach(function (ln) {
+      var tr = document.createElement('tr');
+      var tdName = document.createElement('td');
+      tdName.innerHTML =
+        '<strong dir="ltr">' +
+        escAttr(String(ln.item || '')) +
+        '</strong><br><span>' +
+        escAttr(String(ln.name || '')) +
+        '</span>';
+      var tdNeed = document.createElement('td');
+      tdNeed.dir = 'ltr';
+      tdNeed.textContent = fmtBatchQty(ln.need);
+      var tdBatch = document.createElement('td');
+      var sel = document.createElement('select');
+      sel.className = 'si-field';
+      sel.dataset.srl = String(ln.srl || '');
+      sel.dataset.item = String(ln.item || '');
+      var opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = '— اختر التشغيلة —';
+      sel.appendChild(opt0);
+      var batches = Array.isArray(ln.batches) ? ln.batches : [];
+      var best = '';
+      batches.forEach(function (b) {
+        var o = document.createElement('option');
+        o.value = b.batch || '';
+        var label = (b.batch || '?') + ' — رصيد ' + fmtBatchQty(b.qty);
+        if (b.exp_date) label += ' — ' + b.exp_date;
+        o.textContent = label;
+        sel.appendChild(o);
+        if (!best && Number(b.qty) >= Number(ln.need)) best = b.batch;
+      });
+      if (batches.length === 1) best = batches[0].batch;
+      if (best) sel.value = best;
+      if (!batches.length) {
+        var warn = document.createElement('div');
+        warn.className = 'co-batch-warn';
+        warn.textContent = 'لا رصيد موجب في STOCK لهذه المادة.';
+        tdBatch.appendChild(warn);
+      }
+      tdBatch.appendChild(sel);
+      tr.appendChild(tdName);
+      tr.appendChild(tdNeed);
+      tr.appendChild(tdBatch);
+      batchRows.appendChild(tr);
+    });
+    batchModal.hidden = false;
+    batchModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function collectBatchPicks() {
+    var picks = [];
+    if (!batchRows) return picks;
+    batchRows.querySelectorAll('select').forEach(function (sel) {
+      var b = (sel.value || '').trim();
+      if (!b) return;
+      picks.push({
+        srl: parseInt(sel.dataset.srl || '0', 10),
+        item: sel.dataset.item || '',
+        batch: b,
+      });
+    });
+    return picks;
+  }
+
+  function postOracleWithBatches(batchPicks) {
+    if (!state.id) return;
+    setMsg('جاري الترحيل إلى Oracle…');
+    setBusy(true);
+    fetch('/api/sales/customer-orders/' + state.id + '/post-oracle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batch_picks: batchPicks || [] }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        setBusy(false);
+        if (!data.ok) {
+          showActionError(data);
+          return;
+        }
+        closeBatchModal();
+        window.location.reload();
+      })
+      .catch(function () {
+        setBusy(false);
+        setMsg('تعذر الاتصال بالخادم', 'error');
+      });
+  }
+
+  function startOraclePost() {
+    if (!state.id) {
+      setMsg('احفظ واعتمد الطلب أولاً.', 'error');
+      return;
+    }
+    if (busy || !state.is_approved) {
+      setMsg('اعتمد الطلب أولاً ثم رحّله إلى Oracle.', 'error');
+      return;
+    }
+    setMsg('جاري جلب التشغيلات من Oracle…');
+    setBusy(true);
+    fetch('/api/sales/customer-orders/' + state.id + '/oracle-batches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        setBusy(false);
+        if (!data.ok) {
+          setMsg(data.message || data.error || 'تعذر جلب التشغيلات.', 'error');
+          return;
+        }
+        setMsg('');
+        openBatchModal(data);
+      })
+      .catch(function () {
+        setBusy(false);
+        setMsg('تعذر الاتصال بالخادم', 'error');
+      });
+  }
+
+  if (batchCancel) batchCancel.addEventListener('click', closeBatchModal);
+  if (batchConfirm) {
+    batchConfirm.addEventListener('click', function () {
+      if (!pickerData || !pickerData.lines) return;
+      var picks = collectBatchPicks();
+      if (picks.length < pickerData.lines.length) {
+        hxAlert('اختر تشغيلة لكل مادة قبل الترحيل.', { title: 'اختيار التشغيلة', kind: 'warn' });
+        return;
+      }
+      hxConfirm('ترحيل الطلب إلى Oracle بالتشغيلات المختارة؟', {
+        title: 'ترحيل إلى Oracle',
+        okLabel: 'ترحيل',
+      }).then(function (ok) {
+        if (!ok) return;
+        postOracleWithBatches(picks);
+      });
+    });
+  }
+
   if (oracleBtn) {
     oracleBtn.addEventListener('click', function () {
       if (!state.id) {
@@ -1952,20 +2127,7 @@
         window.open(q, '_blank');
         return;
       }
-      if (busy || !state.is_approved) {
-        setMsg('اعتمد الطلب أولاً ثم رحّله إلى Oracle.', 'error');
-        return;
-      }
-      hxConfirm(
-        'ترحيل هذا الطلب إلى فاتورة بيع في Oracle؟\nستُنشأ في فواتير المبيعات للمراجعة ثم الحفظ.',
-        { title: 'ترحيل إلى Oracle', okLabel: 'ترحيل' }
-      ).then(function (ok) {
-        if (!ok) return;
-        postAction(
-          '/api/sales/customer-orders/' + state.id + '/post-oracle',
-          '/sales/orders/' + state.id
-        );
-      });
+      startOraclePost();
     });
   }
 
