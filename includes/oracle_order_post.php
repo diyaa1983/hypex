@@ -521,7 +521,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     return [
         'ok' => true,
         'message' => 'تم إنشاء فاتورة بيع Oracle رقم ' . $vNum . ' لسنة ' . $vyear
-            . ' [STOCK-v3 · مستودع ' . $store . ']'
+            . ' [STOCK-v7-MERGE · مستودع ' . $store . ']'
             . '. في INV00024: استعلام (F7) → رقم الفاتورة ' . $vNum . ' والسنة ' . $vyear . ' → تنفيذ (F8)، ثم راجع واحفظ.'
             . ' لا تفتح فاتورة قديمة من شاشة العرض في Hypex؛ الرقم الجديد هو ' . $vNum . '.',
         'v_num' => $vNum,
@@ -529,7 +529,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'store' => $store,
         'cust_acc' => $custAcc,
         'line_count' => count($mappedLines),
-        'stock_version' => 'STOCK-v5-DISCOVER',
+        'stock_version' => 'STOCK-v7-MERGE',
     ];
 }
 
@@ -1105,6 +1105,74 @@ function oracle_order_stock_cfg(): array
 }
 
 /**
+ * هل النص يشبه تاريخاً (يظهر أحياناً في عمود BATCH بالخطأ في Toad).
+ */
+function oracle_order_batch_looks_like_date(string $s): bool
+{
+    $s = trim($s);
+    if ($s === '') {
+        return false;
+    }
+
+    return (bool) preg_match('/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/', $s)
+        || (bool) preg_match('/^\d{1,2}-[A-Za-z]{3}-\d{2,4}$/', $s);
+}
+
+/**
+ * تحويل تاريخ Oracle/نص إلى Y-m-d.
+ */
+function oracle_order_parse_stock_date(mixed $v): ?string
+{
+    if ($v === null || $v === '') {
+        return null;
+    }
+    if (is_object($v) && method_exists($v, 'format')) {
+        return $v->format('Y-m-d');
+    }
+    if (is_object($v) && method_exists($v, 'load')) {
+        $v = $v->load();
+    }
+    $s = trim((string) $v);
+    if ($s === '') {
+        return null;
+    }
+    if (preg_match('/^(\d{4}-\d{2}-\d{2})/', $s, $m)) {
+        return $m[1];
+    }
+    if (preg_match('/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/', $s, $m)) {
+        $d = (int) $m[1];
+        $mo = (int) $m[2];
+        $y = (int) $m[3];
+        if ($y < 100) {
+            $y += $y >= 70 ? 1900 : 2000;
+        }
+        if (checkdate($mo, $d, $y)) {
+            return sprintf('%04d-%02d-%02d', $y, $mo, $d);
+        }
+    }
+    $ts = strtotime($s);
+    if ($ts !== false) {
+        return date('Y-m-d', $ts);
+    }
+
+    return null;
+}
+
+/**
+ * مفتاح تجميع التشغيلة (يتجاهل الأصفار البادئة للمقارنة).
+ */
+function oracle_order_batch_norm_key(string $batch): string
+{
+    $batch = trim($batch);
+    if ($batch === '' || $batch === '0' || oracle_order_batch_looks_like_date($batch)) {
+        return '';
+    }
+    $stripped = ltrim($batch, '0');
+
+    return $stripped !== '' ? $stripped : '0';
+}
+
+/**
  * يستخرج تاريخاً من رقم التشغيلة إن أمكن (مثل 0261115 أو 250101).
  */
 function oracle_order_batch_date_guess(string $batch): ?string
@@ -1167,12 +1235,13 @@ function oracle_order_sort_batches_oldest_first(array $rows): array
  * أرصدة التشغيلات لمادة في مستودع — بدون GROUP BY (أضمن على كل إصدارات Oracle).
  * تُرتَّب التشغيلات من الأقدم إلى الأحدث (FIFO/FEFO حسب تاريخ الصلاحية أو رقم التشغيلة).
  *
- * @return array{ok:bool,rows?:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total?:float,message?:string,raw_count?:int}
+ * @return array{ok:bool,rows?:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total?:float,message?:string,raw_count?:int,cat_used?:string}
  */
-function oracle_order_stock_batches(array $conn, int $compNum, int $store, string $item): array
+function oracle_order_stock_batches(array $conn, int $compNum, int $store, string $item, string $cat = ''): array
 {
     $sc = oracle_order_stock_cfg();
     $item = trim($item);
+    $cat = trim($cat);
     if ($item === '' || $store < 1) {
         return ['ok' => false, 'message' => 'مادة أو مستودع غير صالح لفحص الرصيد.'];
     }
@@ -1204,6 +1273,7 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
 
     $storeCol = $pickCol($colNames, ['STORE', 'STO', 'STO_NO', 'STO_NUM', 'STORE_NO', 'WAREHOUSE', 'WH_NO', 'WH']);
     $itemCol = $pickCol($colNames, ['ITEM', 'ITEM_NO', 'ITEM_CODE', 'ITEMNO', 'ITM']);
+    $catCol = $pickCol($colNames, ['CAT', 'CATE', 'CATEGORY', 'CAT_NO', 'CAT_NUM', 'GROUP_NO', 'GRP', 'GROUP_CODE']);
     $batchCol = $pickCol($colNames, ['BATCH', 'BATCH_NO', 'LOT', 'LOT_NO', 'RUN_NO', 'OP_NO']);
     $expCol = $pickCol($colNames, ['EXP_DATE', 'EXPIRE_DATE', 'EXPIRY', 'EX_DATE', 'EXPIRY_DATE', 'END_DATE']);
     $compCol = $pickCol($colNames, ['COMP_NUM', 'COMPANY', 'CO_NO', 'COMP']);
@@ -1247,59 +1317,108 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
 
     $itemWhere = '(TRIM(TO_CHAR(' . $itemCol . ')) = TRIM(:item)'
         . ' OR LTRIM(TRIM(TO_CHAR(' . $itemCol . ')), \'0\') = LTRIM(TRIM(:item), \'0\'))';
+    $catWhere = '';
+    if ($cat !== '' && $catCol !== '') {
+        $catWhere = ' AND (TRIM(TO_CHAR(' . $catCol . ')) = TRIM(:cat)'
+            . ' OR LTRIM(TRIM(TO_CHAR(' . $catCol . ')), \'0\') = LTRIM(TRIM(:cat), \'0\'))';
+    }
     $storeWhereNum = 'TO_NUMBER(REGEXP_REPLACE(TO_CHAR(' . $storeCol . '), \'[^0-9]\', \'\')) = :store';
     $storeWhereTxt = 'TRIM(TO_CHAR(' . $storeCol . ')) = TRIM(:store_txt)';
 
     $attempts = [];
-    $attempts[] = [
-        'where' => $storeWhereNum . ' AND ' . $itemWhere
-            . ($compNum > 0 && $compCol !== '' ? (' AND ' . $compCol . ' = :cnum') : ''),
-        'binds' => ($compNum > 0 && $compCol !== '')
-            ? ['item' => $item, 'store' => $store, 'cnum' => $compNum]
-            : ['item' => $item, 'store' => $store],
-    ];
-    if ($compNum > 0 && $compCol !== '') {
-        $attempts[] = [
-            'where' => $storeWhereNum . ' AND ' . $itemWhere,
-            'binds' => ['item' => $item, 'store' => $store],
-        ];
-    }
-    $attempts[] = [
-        'where' => $storeWhereTxt . ' AND ' . $itemWhere,
-        'binds' => ['item' => $item, 'store_txt' => (string) $store],
-    ];
+    $pushAttempt = static function (string $where, array $binds) use (&$attempts): void {
+        $attempts[] = ['where' => $where, 'binds' => $binds];
+    };
 
-    $raw = null;
+    $withCat = static function (array $binds) use ($catWhere): array {
+        if ($catWhere === '') {
+            return $binds;
+        }
+        $binds['cat'] = $binds['cat'] ?? '';
+
+        return $binds;
+    };
+
+    // مع الفئة أولاً (MAS.STOCK يُفتَح بـ CAT+ITEM مثل شاشة INV00024)
+    if ($catWhere !== '') {
+        if ($compNum > 0 && $compCol !== '') {
+            $pushAttempt(
+                $storeWhereNum . ' AND ' . $itemWhere . $catWhere . ' AND ' . $compCol . ' = :cnum',
+                $withCat(['item' => $item, 'store' => $store, 'cat' => $cat, 'cnum' => $compNum])
+            );
+        }
+        $pushAttempt(
+            $storeWhereNum . ' AND ' . $itemWhere . $catWhere,
+            $withCat(['item' => $item, 'store' => $store, 'cat' => $cat])
+        );
+        $pushAttempt(
+            $storeWhereTxt . ' AND ' . $itemWhere . $catWhere,
+            $withCat(['item' => $item, 'store_txt' => (string) $store, 'cat' => $cat])
+        );
+    }
+
+    if ($compNum > 0 && $compCol !== '') {
+        $pushAttempt(
+            $storeWhereNum . ' AND ' . $itemWhere . ' AND ' . $compCol . ' = :cnum',
+            ['item' => $item, 'store' => $store, 'cnum' => $compNum]
+        );
+    }
+    $pushAttempt(
+        $storeWhereNum . ' AND ' . $itemWhere,
+        ['item' => $item, 'store' => $store]
+    );
+    $pushAttempt(
+        $storeWhereTxt . ' AND ' . $itemWhere,
+        ['item' => $item, 'store_txt' => (string) $store]
+    );
+
+    $raw = [];
     $lastErr = '';
+    $seenFp = [];
+    $rowFingerprint = static function (array $r) use ($batchCol): string {
+        $parts = [];
+        foreach ($r as $k => $v) {
+            if (is_object($v) && method_exists($v, 'load')) {
+                $v = $v->load();
+            }
+            $parts[] = strtoupper((string) $k) . '=' . trim((string) $v);
+        }
+        sort($parts);
+
+        return md5(implode('|', $parts));
+    };
     foreach ($attempts as $attempt) {
         $sql = 'SELECT ' . $selectList . ' FROM ' . $from . ' WHERE ' . $attempt['where'];
+        $got = null;
         try {
-            $rows = oracle_query_all($conn, $sql, $attempt['binds']);
-            if (!is_array($rows)) {
-                continue;
-            }
-            $raw = $rows;
-            if ($rows !== [] || !isset($attempt['binds']['cnum'])) {
-                break;
-            }
+            $got = oracle_query_all($conn, $sql, $attempt['binds']);
         } catch (Throwable $e) {
             $lastErr = $e->getMessage();
             try {
                 $sql2 = 'SELECT * FROM ' . $from . ' WHERE ' . $attempt['where'];
-                $rows = oracle_query_all($conn, $sql2, $attempt['binds']);
-                if (is_array($rows)) {
-                    $raw = $rows;
-                    if ($rows !== [] || !isset($attempt['binds']['cnum'])) {
-                        break;
-                    }
-                }
+                $got = oracle_query_all($conn, $sql2, $attempt['binds']);
             } catch (Throwable $e2) {
                 $lastErr = $e2->getMessage();
+                continue;
             }
+        }
+        if (!is_array($got)) {
+            continue;
+        }
+        foreach ($got as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            $fp = $rowFingerprint($r);
+            if (isset($seenFp[$fp])) {
+                continue;
+            }
+            $seenFp[$fp] = true;
+            $raw[] = $r;
         }
     }
 
-    if ($raw === null) {
+    if ($raw === []) {
         return [
             'ok' => false,
             'message' => 'تعذر قراءة رصيد Oracle من ' . $owner . '.' . $table
@@ -1352,7 +1471,7 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
                 continue;
             }
             $b = trim(oracle_statement_row_val($r, $k));
-            if ($b !== '') {
+            if ($b !== '' && !oracle_order_batch_looks_like_date($b)) {
                 return $b;
             }
         }
@@ -1360,7 +1479,7 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
         return '0';
     };
 
-    /** @var array<string,array{qty:float,exp_date:string,sort_date:string}> $byBatch */
+    /** @var array<string,array{batch:string,qty:float,exp_date:string,sort_date:string}> $byBatch */
     $byBatch = [];
     $today = strtotime(date('Y-m-d'));
     $skippedExpired = 0;
@@ -1379,20 +1498,18 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
     ): void {
         foreach ($rawRows as $r) {
             $b = $readBatch($r, $batchCol);
+            $norm = oracle_order_batch_norm_key($b);
+            if ($norm === '') {
+                continue;
+            }
             $expRaw = trim(oracle_statement_row_val($r, 'EXP_X'));
             if ($expRaw === '' && $expCol !== '') {
                 $expRaw = trim(oracle_statement_row_val($r, $expCol));
             }
-            $expDate = '';
-            if ($expRaw !== '') {
-                $expTs = strtotime(substr($expRaw, 0, 10));
-                if ($expTs !== false) {
-                    if ($skipExpired && $expTs < $today) {
-                        $skippedExpired++;
-                        continue;
-                    }
-                    $expDate = date('Y-m-d', $expTs);
-                }
+            $expDate = oracle_order_parse_stock_date($expRaw) ?? '';
+            if ($expDate !== '' && $skipExpired && strtotime($expDate) < $today) {
+                $skippedExpired++;
+                continue;
             }
             $q = $readQty($r, $qtyCols);
             if ($q <= 0.0000001) {
@@ -1401,19 +1518,20 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
             $positiveRaw++;
             $guess = oracle_order_batch_date_guess($b);
             $sortDate = $expDate !== '' ? $expDate : (string) ($guess ?? '');
-            if (!isset($byBatch[$b])) {
-                $byBatch[$b] = [
+            if (!isset($byBatch[$norm])) {
+                $byBatch[$norm] = [
+                    'batch' => $b,
                     'qty' => 0.0,
                     'exp_date' => $expDate,
                     'sort_date' => $sortDate,
                 ];
             }
-            $byBatch[$b]['qty'] += $q;
-            if ($expDate !== '' && ($byBatch[$b]['exp_date'] === '' || $expDate < $byBatch[$b]['exp_date'])) {
-                $byBatch[$b]['exp_date'] = $expDate;
-                $byBatch[$b]['sort_date'] = $expDate;
-            } elseif ($byBatch[$b]['sort_date'] === '' && $sortDate !== '') {
-                $byBatch[$b]['sort_date'] = $sortDate;
+            $byBatch[$norm]['qty'] += $q;
+            if ($expDate !== '' && ($byBatch[$norm]['exp_date'] === '' || $expDate < $byBatch[$norm]['exp_date'])) {
+                $byBatch[$norm]['exp_date'] = $expDate;
+                $byBatch[$norm]['sort_date'] = $expDate;
+            } elseif ($byBatch[$norm]['sort_date'] === '' && $sortDate !== '') {
+                $byBatch[$norm]['sort_date'] = $sortDate;
             }
         }
     };
@@ -1428,13 +1546,13 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
 
     $rows = [];
     $total = 0.0;
-    foreach ($byBatch as $b => $info) {
+    foreach ($byBatch as $info) {
         $q = (float) $info['qty'];
         if ($q <= 0.0000001) {
             continue;
         }
         $rows[] = [
-            'batch' => (string) $b,
+            'batch' => (string) ($info['batch'] ?? ''),
             'qty' => $q,
             'exp_date' => (string) ($info['exp_date'] ?? ''),
             'sort_date' => (string) ($info['sort_date'] ?? ''),
@@ -1446,8 +1564,13 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
     $otherStores = [];
     if ($total <= 0.0000001) {
         try {
-            $sqlOther = 'SELECT ' . $selectList . ' FROM ' . $from . ' WHERE ' . $itemWhere . ' AND ROWNUM <= 300';
-            $otherRaw = oracle_query_all($conn, $sqlOther, ['item' => $item]);
+            $otherWhere = $itemWhere . ($catWhere !== '' ? $catWhere : '');
+            $otherBinds = ['item' => $item];
+            if ($catWhere !== '') {
+                $otherBinds['cat'] = $cat;
+            }
+            $sqlOther = 'SELECT ' . $selectList . ' FROM ' . $from . ' WHERE ' . $otherWhere . ' AND ROWNUM <= 500';
+            $otherRaw = oracle_query_all($conn, $sqlOther, $otherBinds);
             $byStore = [];
             foreach ($otherRaw as $r) {
                 $stTxt = trim(oracle_statement_row_val($r, 'STORE_X'));
@@ -1478,14 +1601,16 @@ function oracle_order_stock_batches(array $conn, int $compNum, int $store, strin
         'rows' => $rows,
         'total' => $total,
         'raw_count' => count($raw),
+        'positive_batches' => count($rows),
         'qty_cols' => $qtyCols,
         'other_stores' => $otherStores,
+        'cat_used' => $cat,
     ];
 }
 
-function oracle_order_stock_available(array $conn, int $compNum, int $store, string $item, string $batch = ''): array
+function oracle_order_stock_available(array $conn, int $compNum, int $store, string $item, string $batch = '', string $cat = ''): array
 {
-    $batches = oracle_order_stock_batches($conn, $compNum, $store, $item);
+    $batches = oracle_order_stock_batches($conn, $compNum, $store, $item, $cat);
     if (empty($batches['ok'])) {
         return ['ok' => false, 'qty' => 0.0, 'message' => (string) ($batches['message'] ?? '')];
     }
@@ -1494,7 +1619,8 @@ function oracle_order_stock_available(array $conn, int $compNum, int $store, str
         return ['ok' => true, 'qty' => (float) ($batches['total'] ?? 0)];
     }
     foreach ($batches['rows'] ?? [] as $r) {
-        if (trim((string) ($r['batch'] ?? '')) === $batch) {
+        $rb = trim((string) ($r['batch'] ?? ''));
+        if ($rb === $batch || oracle_order_batch_norm_key($rb) === oracle_order_batch_norm_key($batch)) {
             return ['ok' => true, 'qty' => (float) ($r['qty'] ?? 0)];
         }
     }
@@ -1507,7 +1633,7 @@ function oracle_order_stock_available(array $conn, int $compNum, int $store, str
  *
  * @return array{ok:bool,qty:float,message?:string}
  */
-function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, string $item): array
+function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, string $item, string $cat = ''): array
 {
     $cfg = oracle_config();
     $s = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
@@ -1516,6 +1642,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
     $from = oracle_order_quoted($owner, $table);
     $stype = (int) ($s['sale_type'] ?? 9);
     $item = trim($item);
+    $cat = trim($cat);
     if ($item === '' || $store < 1) {
         return ['ok' => true, 'qty' => 0.0];
     }
@@ -1525,6 +1652,11 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
         'stype' => $stype,
     ];
     $where = 'TYPE = :stype AND STORE = :store AND TRIM(TO_CHAR(ITEM)) = TRIM(:item)';
+    if ($cat !== '') {
+        $where .= ' AND (TRIM(TO_CHAR(CAT)) = TRIM(:cat)'
+            . ' OR LTRIM(TRIM(TO_CHAR(CAT)), \'0\') = LTRIM(TRIM(:cat), \'0\'))';
+        $binds['cat'] = $cat;
+    }
     if ($compNum > 0) {
         $where .= ' AND COMP_NUM = :cnum';
         $binds['cnum'] = $compNum;
@@ -1563,7 +1695,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines): array
 {
-    $version = 'STOCK-v5-DISCOVER';
+    $version = 'STOCK-v7-MERGE';
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
         return [
@@ -1588,6 +1720,10 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
 
     foreach ($mappedLines as $ml) {
         $item = trim((string) ($ml['item'] ?? ''));
+        $cat = trim((string) ($ml['cat'] ?? ''));
+        if ($cat === '' && $item !== '') {
+            $cat = oracle_order_item_cat_resolve($conn, $item, $cat);
+        }
         $batch = trim((string) ($ml['batch'] ?? ''));
         $qty = (float) ($ml['qty'] ?? 0);
         $bonus = (float) ($ml['bonus'] ?? 0);
@@ -1605,7 +1741,7 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             continue;
         }
 
-        $batches = oracle_order_stock_batches($conn, $compNum, $store, $item);
+        $batches = oracle_order_stock_batches($conn, $compNum, $store, $item, $cat);
         if (empty($batches['ok'])) {
             return [
                 'ok' => false,
@@ -1616,9 +1752,10 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
         $total = (float) ($batches['total'] ?? 0);
         $rows = is_array($batches['rows'] ?? null) ? $batches['rows'] : [];
         $rawCount = (int) ($batches['raw_count'] ?? 0);
+        $catUsed = trim((string) ($batches['cat_used'] ?? $cat));
 
         // اطرح كميات فواتير Oracle غير المحفوظة/المعلقة لنفس المادة والمستودع (VOU_FLAG=18)
-        $pending = oracle_order_pending_daily_qty($conn, $compNum, $store, $item);
+        $pending = oracle_order_pending_daily_qty($conn, $compNum, $store, $item, $catUsed);
         if (empty($pending['ok'])) {
             return [
                 'ok' => false,
@@ -1663,7 +1800,9 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
                     . "\nأعمدة الكمية المستخدمة: " . implode(', ', array_map('strval', (array) ($batches['qty_cols'] ?? [])));
             } else {
                 $hint = "\nلا صفوف في جدول المخزون لهذه المادة/المستودع."
-                    . "\nتأكد أن كود المادة في Oracle هو نفسه وأن المستودع = " . $store . ".";
+                    . "\nتأكد أن كود المادة في Oracle هو نفسه وأن المستودع = " . $store
+                    . ($catUsed !== '' ? (' والفئة = ' . $catUsed) : '')
+                    . '.';
             }
             $issues[] = [
                 'item' => $item,
@@ -1948,7 +2087,7 @@ function oracle_order_mascard_find(array $conn, string $item, string $barcode): 
         }
     }
     $itemCol = isset($cols['ITEM']) ? 'ITEM' : (isset($cols['ITEM_CODE']) ? 'ITEM_CODE' : 'ITEM');
-    $catCol = isset($cols['CAT']) ? 'CAT' : (isset($cols['CATE']) ? 'CATE' : '');
+    $catCol = oracle_order_pick_col($cols, ['CAT', 'CATE', 'CATEGORY', 'CAT_NO', 'CAT_NUM', 'GROUP_NO', 'GRP', 'GROUP_CODE']) ?? '';
     $batchCol = isset($cols['BATCH']) ? 'BATCH' : '';
     $barCols = [];
     foreach (['BARCODE', 'IBARCODE', 'BAR_CODE', 'BCODE', 'ITEM_BARCODE', 'IBAR'] as $c) {
@@ -2021,6 +2160,29 @@ function oracle_order_first_row(array $conn, string $sql, string $value): array
     }
 
     return is_array($rows[0] ?? null) ? $rows[0] : [];
+}
+
+/**
+ * فئة Oracle للمادة (من بطاقة MASCARD أو آخر حركة DAILY).
+ */
+function oracle_order_item_cat_resolve(array $conn, string $item, string $cat = ''): string
+{
+    $cat = trim($cat);
+    if ($cat !== '') {
+        return $cat;
+    }
+    $item = trim($item);
+    if ($item === '') {
+        return '';
+    }
+    $card = oracle_order_mascard_find($conn, $item, '');
+    $fromCard = trim((string) ($card['cat'] ?? ''));
+    if ($fromCard !== '') {
+        return $fromCard;
+    }
+    $defaults = oracle_order_item_daily_defaults($conn, $item);
+
+    return trim((string) ($defaults['cat'] ?? ''));
 }
 
 /**
